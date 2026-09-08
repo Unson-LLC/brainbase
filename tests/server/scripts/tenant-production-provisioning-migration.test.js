@@ -141,7 +141,7 @@ async function createPool({
 }
 
 describe('tenant production provisioning migration runner', () => {
-    it('enumerates multiline inline primary key and foreign key constraints', async () => {
+    it('enumerates multiline primary key and composite ownership foreign key constraints', async () => {
         const { sql } = await readSchemaContract();
         const { constraints } = migrationSchemaContract(sql);
 
@@ -154,7 +154,7 @@ describe('tenant production provisioning migration runner', () => {
             expect.objectContaining({
                 table_name: 'slack_installation_exchange_ledger',
                 contype: 'f',
-                definition: 'foreign key (installation_intent_id) references slack_installation_intents(installation_intent_id)'
+                definition: 'foreign key (tenant_id, installation_intent_id) references slack_installation_intents(tenant_id, installation_intent_id)'
             })
         ]));
     });

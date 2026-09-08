@@ -2,6 +2,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import yaml from 'js-yaml';
+import { AppError } from '../lib/errors.js';
 
 /**
  * @typedef {object} ProjectConfig
@@ -13,6 +14,12 @@ import yaml from 'js-yaml';
  * @property {{ path?: string, glob_include?: string[] }} [local]
  * @property {{ owner?: string, repo?: string, branch?: string }} [github]
  * @property {{ base_id?: string, project_id?: string, base_name?: string, url?: string }} [nocodb]
+ * @property {string} [project_code]
+ * @property {string} [organization]
+ * @property {string} [created_by]
+ * @property {Record<string, Record<string, any>>} [capabilities]
+ * @property {Record<string, any>} [people]
+ * @property {string|string[]} [success_criteria]
  */
 
 /**
@@ -98,7 +105,61 @@ export class ConfigService {
      * @returns {ProjectConfig|undefined}
      */
     _findProject(projects, projectId) {
-        return projects.find(p => p.id === projectId);
+        return projects.find(p => p.id === projectId || p.project_code === projectId);
+    }
+
+    _accessOrganization(access = {}) {
+        const organizationId = access.organizationId || access.organization_id || null;
+        const tenantId = access.tenantId || null;
+        if (organizationId && tenantId && organizationId !== tenantId) {
+            throw AppError.forbidden('認証済みtenantとorganizationが一致しません');
+        }
+        return organizationId || tenantId;
+    }
+
+    _assertCreateScope(organization, access = {}) {
+        const accessOrganization = this._accessOrganization(access);
+        if (!accessOrganization) {
+            throw AppError.forbidden('organizationを含む署名済みtenant認証が必要です');
+        }
+        if (accessOrganization !== organization) {
+            throw AppError.forbidden(`組織 '${organization}' は認証済みtenantの範囲外です`);
+        }
+    }
+
+    _assertProjectScope(project, access = {}) {
+        this._assertCreateScope(project.organization, access);
+        const role = String(access.role || '').toLowerCase();
+        if (role === 'ceo') return;
+        const allowed = Array.isArray(access.projectCodes) ? access.projectCodes : [];
+        const projectKeys = new Set([project.id, project.project_code].filter(Boolean));
+        if (!allowed.some(code => projectKeys.has(code))) {
+            throw AppError.forbidden(`Project '${project.project_code || project.id}' は認証済み範囲外です`);
+        }
+    }
+
+    /**
+     * 旧CRUDはProfile未登録のProjectを全体設定として扱ってきたため、互換性を保つ。
+     * Profileレコードを対象にする場合だけ、tenantとprojectの署名済みscopeを要求する。
+     * @param {ProjectConfig} project
+     * @param {Record<string, any>} access
+     */
+    _assertLegacyProjectWriteScope(project, access = {}) {
+        if (project?.organization || project?.project_code) {
+            this._assertProjectScope(project, access);
+        }
+    }
+
+    /**
+     * 接続設定が変わった場合、以前の検証証跡を再利用できないようにする。
+     * @param {ProjectConfig} project
+     * @param {string} capabilityName
+     */
+    _invalidateCapabilityVerification(project, capabilityName) {
+        const capability = project.capabilities?.[capabilityName];
+        if (capability && typeof capability === 'object' && !Array.isArray(capability)) {
+            delete capability.verification;
+        }
     }
 
     /**
@@ -110,7 +171,9 @@ export class ConfigService {
         const { data } = await this._loadConfig();
         const projects = this._getProjects(data);
         const project = this._findProject(projects, projectId);
-        if (!project) throw new Error(`Project not found: ${projectId}`);
+        if (!project) {
+            throw AppError.notFound('project', projectId);
+        }
         const result = fn(project, data);
         await this._saveConfig(data);
         return result;
@@ -139,20 +202,33 @@ export class ConfigService {
      * @param {{ project_id: string, owner: string, repo: string, branch?: string }} param0
      * @returns {Promise<{ owner?: string, repo?: string, branch?: string }>}
      */
-    async upsertGitHubMapping({ project_id, owner, repo, branch }) {
+    async upsertGitHubMapping({ project_id, owner, repo, branch }, access = {}) {
         if (!project_id || !owner || !repo) {
             throw new Error('project_id, owner, repo are required');
         }
         return this._withProject(project_id, (project) => {
-            project.github = { owner, repo, branch: branch || 'main' };
+            this._assertLegacyProjectWriteScope(project, access);
+            const nextMapping = { owner, repo, branch: branch || 'main' };
+            const currentMapping = project.github || {};
+            const mappingChanged = currentMapping.owner !== nextMapping.owner
+                || currentMapping.repo !== nextMapping.repo
+                || currentMapping.branch !== nextMapping.branch;
+            if (mappingChanged) {
+                this._invalidateCapabilityVerification(project, 'github');
+            }
+            project.github = nextMapping;
             return project.github;
         });
     }
 
-    async deleteGitHubMapping(projectId) {
+    async deleteGitHubMapping(projectId, access = {}) {
         if (!projectId) throw new Error('project_id is required');
         return this._withProject(projectId, (project) => {
-            delete project.github;
+            this._assertLegacyProjectWriteScope(project, access);
+            if (project.github !== undefined) {
+                delete project.github;
+                this._invalidateCapabilityVerification(project, 'github');
+            }
             return true;
         });
     }
@@ -161,25 +237,39 @@ export class ConfigService {
      * @param {{ project_id: string, base_id?: string, nocodb_project_id: string, base_name?: string, url?: string }} param0
      * @returns {Promise<{ base_id?: string, project_id?: string, base_name?: string, url?: string }>}
      */
-    async upsertNocoDBMapping({ project_id, base_id, nocodb_project_id, base_name, url }) {
+    async upsertNocoDBMapping({ project_id, base_id, nocodb_project_id, base_name, url }, access = {}) {
         if (!project_id || !nocodb_project_id) {
             throw new Error('project_id, nocodb_project_id are required');
         }
         return this._withProject(project_id, (project) => {
-            project.nocodb = {
+            this._assertLegacyProjectWriteScope(project, access);
+            const nextMapping = {
                 base_id: base_id || '',
                 project_id: nocodb_project_id,
                 base_name: base_name || '',
                 url: url || ''
             };
+            const currentMapping = project.nocodb || {};
+            const mappingChanged = currentMapping.base_id !== nextMapping.base_id
+                || currentMapping.project_id !== nextMapping.project_id
+                || currentMapping.base_name !== nextMapping.base_name
+                || currentMapping.url !== nextMapping.url;
+            if (mappingChanged) {
+                this._invalidateCapabilityVerification(project, 'nocodb');
+            }
+            project.nocodb = nextMapping;
             return project.nocodb;
         });
     }
 
-    async deleteNocoDBMapping(projectId) {
+    async deleteNocoDBMapping(projectId, access = {}) {
         if (!projectId) throw new Error('project_id is required');
         return this._withProject(projectId, (project) => {
-            delete project.nocodb;
+            this._assertLegacyProjectWriteScope(project, access);
+            if (project.nocodb !== undefined) {
+                delete project.nocodb;
+                this._invalidateCapabilityVerification(project, 'nocodb');
+            }
             return true;
         });
     }
@@ -188,7 +278,7 @@ export class ConfigService {
      * @param {{ id: string, emoji?: string, local_path: string, glob_include?: string[], archived?: boolean }} param0
      * @returns {Promise<{ id: string }>}
      */
-    async upsertProject({ id, emoji, local_path, glob_include, archived }) {
+    async upsertProject({ id, emoji, local_path, glob_include, archived }, access = {}) {
         if (!id || !local_path) {
             throw new Error('id and local_path are required');
         }
@@ -196,12 +286,15 @@ export class ConfigService {
         const { data } = await this._loadConfig();
         const projects = this._getProjects(data);
         const existing = this._findProject(projects, id);
+        if (existing) {
+            this._assertLegacyProjectWriteScope(existing, access);
+        }
         const normalizedPath = this._normalizeProjectPath(local_path, data);
         const nextGlob = Array.isArray(glob_include) ? glob_include : [];
 
         if (existing) {
             existing.emoji = emoji || existing.emoji || '';
-            existing.archived = Boolean(archived);
+            if (archived !== undefined) existing.archived = Boolean(archived);
             existing.local = {
                 ...(existing.local || {}),
                 path: normalizedPath,
@@ -223,14 +316,18 @@ export class ConfigService {
         return { id };
     }
 
-    async deleteProject(projectId) {
+    async deleteProject(projectId, access = {}) {
         if (!projectId) {
             throw new Error('id is required');
         }
 
         const { data } = await this._loadConfig();
         const projects = this._getProjects(data);
-        const next = projects.filter(p => p.id !== projectId);
+        const target = this._findProject(projects, projectId);
+        if (target?.organization || target?.project_code) {
+            this._assertProjectScope(target, access);
+        }
+        const next = projects.filter(p => p.id !== projectId && p.project_code !== projectId);
         if (next.length === projects.length) {
             throw new Error(`Project not found: ${projectId}`);
         }

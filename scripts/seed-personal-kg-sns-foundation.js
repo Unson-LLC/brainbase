@@ -12,6 +12,7 @@ import {
     buildSatoKeigoSnsFoundationCandidates,
     SATO_KEIGO_SNS_FOUNDATION_SEED_VERSION
 } from '../server/seeds/personal-kg/sato-keigo-sns-foundation-candidates.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const { Pool } = pg;
 
@@ -74,6 +75,7 @@ async function seedCandidates(service, candidates) {
 }
 
 async function main() {
+    throwRetiredSnsCli('seed-personal-kg-sns-foundation.js');
     const args = parseArgs(process.argv.slice(2));
     const candidates = buildSatoKeigoSnsFoundationCandidates();
 
@@ -101,9 +103,11 @@ async function main() {
     }
 }
 
-main().catch((error) => {
-    console.error(error.message);
-    process.exitCode = 1;
-});
+if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch((error) => {
+        console.error(error.message);
+        process.exitCode = 1;
+    });
+}
 
 export { seedCandidates };

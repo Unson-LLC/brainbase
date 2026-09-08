@@ -7,6 +7,7 @@ import { createPersonalKnowledgeRouter } from '../../../server/routes/personal-k
 function createApp() {
     const personalKnowledgeService = {
         ingest: vi.fn(async () => ({ event_id: 'pke_1', processing_stage: 'received' })),
+        recordFeedback: vi.fn(async () => ({ event_id: 'pke_1', action: 'adopt', semantic_state: 'active' })),
         search: vi.fn(async () => [{ event_id: 'pke_1' }]),
         getCycle: vi.fn(async () => ({ event_id: 'pke_1', processing_stage: 'received' }))
     };
@@ -73,6 +74,18 @@ describe('personal knowledge routes', () => {
         expect(personalKnowledgeService.search).toHaveBeenCalledWith(
             { query: '判断', limit: '3' },
             expect.objectContaining({ access: expect.objectContaining({ organizationId: 'org_a' }) })
+        );
+    });
+
+    it('accepts next-morning feedback for an oyasumi personal memory', async () => {
+        const { app, personalKnowledgeService } = createApp();
+        const feedback = { event_id: 'pke_1', action: 'adopt', reason: '正しい' };
+
+        await request(app).post('/api/personal-knowledge/feedback').send(feedback).expect(200);
+
+        expect(personalKnowledgeService.recordFeedback).toHaveBeenCalledWith(
+            feedback,
+            expect.objectContaining({ access: expect.objectContaining({ personId: 'person_a' }) })
         );
     });
 

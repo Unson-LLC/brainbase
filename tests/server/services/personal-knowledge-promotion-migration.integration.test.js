@@ -178,6 +178,7 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
 
         const { rows } = await pool.query(`
           SELECT status, owner_decided_at, owner_consent_receipt_id,
+                 owner_decision_revision, organization_review_revision,
                  normalization_contract_version, normalized_payload,
                  normalized_payload_hash, normalized_by_person_id, normalized_at
           FROM knowledge_promotion_requests WHERE request_id = 'kpr_upgrade_1'
@@ -186,6 +187,8 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
             status: 'pending_owner_approval',
             owner_decided_at: null,
             owner_consent_receipt_id: null,
+            owner_decision_revision: '0',
+            organization_review_revision: '0',
             normalization_contract_version: null,
             normalized_payload: null,
             normalized_payload_hash: null,
@@ -193,14 +196,21 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
             normalized_at: null
         }]);
         const terminalRows = (await pool.query(`
-          SELECT request_id, status
+          SELECT request_id, status, owner_decision_revision,
+                 organization_review_revision
           FROM knowledge_promotion_requests
           WHERE request_id IN ('kpr_upgrade_approved', 'kpr_upgrade_rejected')
           ORDER BY request_id
         `)).rows;
         expect(terminalRows).toEqual([
-            { request_id: 'kpr_upgrade_approved', status: 'org_accepted' },
-            { request_id: 'kpr_upgrade_rejected', status: 'owner_rejected' }
+            {
+                request_id: 'kpr_upgrade_approved', status: 'org_accepted',
+                owner_decision_revision: '1', organization_review_revision: '1'
+            },
+            {
+                request_id: 'kpr_upgrade_rejected', status: 'owner_rejected',
+                owner_decision_revision: '1', organization_review_revision: '0'
+            }
         ]);
         const receipt = JSON.parse(fs.readFileSync(receiptPath, 'utf8'));
         expect(receipt).toMatchObject({ status: 'passed', target_sha: targetSha });
@@ -215,7 +225,9 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
           ALTER TABLE knowledge_promotion_requests
             DROP CONSTRAINT knowledge_promotion_normalized_payload_check,
             DROP CONSTRAINT knowledge_promotion_owner_consent_evidence_check,
-            DROP CONSTRAINT knowledge_promotion_org_acceptance_evidence_check;
+            DROP CONSTRAINT knowledge_promotion_org_acceptance_evidence_check,
+            DROP CONSTRAINT knowledge_promotion_owner_decision_revision_check,
+            DROP CONSTRAINT knowledge_promotion_organization_review_revision_check;
           DROP TRIGGER IF EXISTS knowledge_promotion_status_guard ON knowledge_promotion_requests;
           DROP TRIGGER IF EXISTS knowledge_promotion_evidence_guard ON knowledge_promotion_requests;
           UPDATE knowledge_promotion_requests
@@ -232,7 +244,8 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
         await pool.query(`BEGIN; ${migration}; COMMIT;`);
         execFileSync(process.execPath, [gate, 'postflight', partialReceiptPath], { env, stdio: 'pipe' });
         const partial = (await pool.query(`
-          SELECT status, owner_decided_at, normalization_contract_version,
+          SELECT status, owner_decided_at, owner_decision_revision,
+                 organization_review_revision, normalization_contract_version,
                  normalized_payload, normalized_payload_hash,
                  normalized_by_person_id, normalized_at
           FROM knowledge_promotion_requests WHERE request_id = 'kpr_upgrade_1'
@@ -240,6 +253,8 @@ describe('Personal Knowledge promotion migration upgrade path', () => {
         expect(partial).toEqual({
             status: 'pending_owner_approval',
             owner_decided_at: null,
+            owner_decision_revision: '0',
+            organization_review_revision: '0',
             normalization_contract_version: null,
             normalized_payload: null,
             normalized_payload_hash: null,

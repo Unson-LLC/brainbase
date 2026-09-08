@@ -1,14 +1,14 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-2.3.0",
+  "runtime_version": "judgment-runtime-2.4.5",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
   "autonomy": {
     "schema_version": "brainbase-autonomy-policy-v1",
     "continue_risks": ["low", "medium"],
-    "escalate_risks": ["high", "critical"],
-    "escalate_action_kinds": ["external"],
+    "escalate_risks": [],
+    "escalate_action_kinds": [],
     "runtime_escalation_reasons": [
       "irreversible_action",
       "missing_authority",
@@ -113,6 +113,19 @@
       "evidence_requirement": "Observation, hypothesis, prediction, falsification, and update are visible.",
       "effect": { "decision": "require", "target": "hypothesis_falsification_loop" },
       "instruction": "Observe, hypothesize, derive a prediction, falsify it, then update the model."
+    },
+    {
+      "id": "global.high-stakes-human-approval.v1",
+      "version": "1",
+      "priority": 120,
+      "strength": "hard",
+      "scope": { "type": "global", "id": null },
+      "visibility": "organization",
+      "owner_person_id": null,
+      "evidence_requirement": "The action is a production deployment, an external send to a third party, deletion of shared data, or a financial charge, and an explicit human approval for it is on record.",
+      "effect": { "decision": "require", "target": "human_approval" },
+      "instruction": "Stop and get explicit human approval before a production deploy, third-party external send, shared-data delete, or charge. Do not treat routine git push/merge/CI/restart/local reflect/company Slack posts as requiring this.",
+      "human_approval": { "risks": ["critical"] }
     }
   ],
   "nodes": [
@@ -126,6 +139,7 @@
     { "id": "personal-decision", "kind": "judgment", "instruction": "Apply visible owner judgment policies.", "required_capability_template": null },
     { "id": "problem-frame", "kind": "judgment", "instruction": "Test whether the stated problem is only a symptom.", "required_capability_template": null },
     { "id": "observe", "kind": "judgment", "instruction": "Separate observations from explanations.", "required_capability_template": null },
+    { "id": "graphify-impact", "kind": "judgment", "instruction": "Before editing, identify the target repository and files. For every implementation, regardless of change size, run the Brainbase scripts/graphify-impact-context.mjs helper with --repo and repeated --file arguments. When Graphify is installed, consult its existing graph for bounded adjacent dependencies. Reuse only results bound to the same repository, source state, target set, and graph content. Missing, stale, unmatched, partial, or failed graph evidence is unknown, never no impact. Update or deepen only when needed to choose code and affected tests; do not rebuild on every edit, install automatically, or create a PR/merge gate. Follow docs/brainbase-capabilities/runbooks/vibepro-impact-review.md. Graph evidence does not prove runtime correctness.", "required_capability_template": null },
     { "id": "hypothesis", "kind": "judgment", "instruction": "Generate a causal hypothesis.", "required_capability_template": null },
     { "id": "prediction", "kind": "judgment", "instruction": "Derive observable consequences from the hypothesis.", "required_capability_template": null },
     { "id": "falsify", "kind": "judgment", "instruction": "Try the strongest counterexample.", "required_capability_template": null },
@@ -167,12 +181,13 @@
     { "id": "knowledge.v1", "kind": "domain", "path": ["source-intent", "knowledge-handoff"], "policy_ids": [] },
     { "id": "personal-judgment.v1", "kind": "domain", "path": ["goal", "challenge-assumptions", "personal-decision"], "policy_ids": ["global.goal-before-solution.v1", "global.problem-frame-rederive.v1", "owner.sato.hypothesis-loop.v1"] },
     { "id": "engineering.v1", "kind": "domain", "path": ["goal", "problem-frame", "observe", "hypothesis", "prediction", "falsify", "constraints", "generate", "reject", "decide"], "policy_ids": ["global.goal-before-solution.v1", "global.problem-frame-rederive.v1"] },
+    { "id": "engineering-implementation.v1", "kind": "domain", "path": ["goal", "problem-frame", "observe", "graphify-impact", "hypothesis", "prediction", "falsify", "constraints", "generate", "reject", "decide"], "policy_ids": ["global.goal-before-solution.v1", "global.problem-frame-rederive.v1"] },
     { "id": "organization.v1", "kind": "domain", "path": ["goal", "organization-actor", "organization-incentive", "organization-authority", "feedback-loop", "decide"], "policy_ids": ["global.goal-before-solution.v1", "global.problem-frame-rederive.v1"] },
     { "id": "operations.v1", "kind": "domain", "path": ["current-state", "operations-owner", "runbook", "reversibility", "evidence", "decide"], "policy_ids": [] },
     { "id": "cumulative-complexity.v1", "kind": "constraint", "path": ["controller-scope", "subtract-first", "external-outcome-check"], "policy_ids": ["global.subtraction-first.v1", "global.external-outcome-first.v1"] },
     { "id": "threshold.v1", "kind": "constraint", "path": ["threshold-source", "measurability", "false-decision-cost"], "policy_ids": ["global.no-unsupported-threshold.v1"] },
     { "id": "parallel.v1", "kind": "constraint", "path": ["separate-generation-adoption", "parallel-adoption-control"], "policy_ids": ["global.preserve-parallel-exploration.v1"] },
-    { "id": "authority.v1", "kind": "constraint", "path": ["authority-check", "enforcement-point", "human-approval"], "policy_ids": ["global.action-authorization-separate.v1"] },
+    { "id": "authority.v1", "kind": "constraint", "path": ["authority-check", "enforcement-point", "human-approval"], "policy_ids": ["global.action-authorization-separate.v1", "global.high-stakes-human-approval.v1"] },
     { "id": "problem-frame.v1", "kind": "constraint", "path": ["problem-definition", "challenge-problem-frame", "rederive"], "policy_ids": ["global.problem-frame-rederive.v1"] },
     { "id": "external-outcome.v1", "kind": "constraint", "path": ["internal-output", "downstream-outcome"], "policy_ids": ["global.external-outcome-first.v1"] },
     { "id": "clarification.v1", "kind": "fail_closed", "path": ["clarification"], "policy_ids": [] }
@@ -187,6 +202,7 @@
     ["decide", "external-outcome-check"]
   ],
   "selectors": {
+    "engineering_implementation_dag": "engineering-implementation.v1",
     "domain_order": ["general", "knowledge", "personal_judgment", "engineering", "organization", "operations"],
     "domain_dags": {
       "general": "direct.v1",
@@ -215,9 +231,9 @@
       "investigate": ["調べ", "調査", "検索", "探して", "ログを見", "確認して"],
       "diagnose": ["なぜ", "原因", "診断", "何が問題", "欠陥"],
       "design": ["設計", "考えて", "どうすべき", "導いて", "演繹"],
-      "implement": ["実装", "修正", "変更", "更新", "削除", "作って", "付け替え"],
+      "implement": ["実装", "修正", "変更", "更新", "削除", "作って", "作成して", "書いて", "書き、", "書き込んで", "付け替え", "write", "create", "update", "edit", "implement", "delete"],
       "review": ["レビュー", "評価して", "監査"],
-      "operate": ["デプロイ", "再起動", "送信", "公開", "実行して", "マージして", "commitして"]
+      "operate": ["デプロイ", "再起動", "送信", "公開", "実行して", "マージして", "commitして", "merge"]
     },
     "domains": {
       "engineering": ["実装", "コード", "api", "認証", "設計", "バグ", "テスト", "pr", "architecture", "リファクタ"],
@@ -236,8 +252,9 @@
       "external_outcome": ["外部成果", "顧客価値", "利用成果", "downstream", "first value"]
     },
     "follow_up": ["それ", "その形", "これ", "こちら", "続けて", "続けよう", "もう一度", "では", "それでいい", "そうして"],
+    "positive_commands": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って", "作成して", "書いて", "書き、", "書き込んで", "確認して", "読み戻して", "進めて", "追加して", "保存して", "処理して", "実行して", "write", "create", "update", "edit", "implement", "delete", "merge", "check", "verify", "read back", "add", "save", "process", "run"],
     "safety": {
-      "write": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って"],
+      "write": ["実装して", "実装しろ", "実装せよ", "変更して", "変更しろ", "変更せよ", "更新して", "更新しろ", "更新せよ", "削除して", "削除しろ", "削除せよ", "マージして", "マージしろ", "マージせよ", "mergeして", "mergeしろ", "mergeせよ", "commitして", "commitしろ", "commitせよ", "作って", "作成して", "書いて", "書き、", "書き込んで", "write", "create", "update", "edit", "implement", "delete", "merge"],
       "external": ["送信", "公開", "publish", "購入", "デプロイして"],
       "critical": ["本番削除", "全削除", "支払い", "購入"]
     }

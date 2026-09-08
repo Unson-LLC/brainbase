@@ -18,12 +18,14 @@ export async function decideOwnerPromotionRequest(repository, requestId, decisio
              owner_decided_by = $3,
              owner_decided_at = $4,
              owner_consent_receipt_id = $5,
-             decided_at = $4
+             decided_at = $4,
+             owner_decision_revision = owner_decision_revision + 1
          WHERE request_id = $1
            AND status = 'pending_owner_approval'
+           AND owner_decision_revision = $6
          RETURNING *`,
         [requestId, decision.status, actorPersonId(options), decision.decided_at,
-            decision.owner_consent_receipt_id || null]
+            decision.owner_consent_receipt_id || null, decision.expected_owner_decision_revision]
     );
     return rows[0] || null;
 }
@@ -71,9 +73,11 @@ export async function reviewOrganizationPromotionRequest(repository, requestId, 
              organization_event_id = COALESCE($6, organization_event_id),
              graph_entity_id = COALESCE($7, graph_entity_id),
              organization_review_receipt_id = COALESCE($8, organization_review_receipt_id),
-             decided_at = $4
+             decided_at = $4,
+             organization_review_revision = organization_review_revision + 1
          WHERE request_id = $1
            AND status = 'pending_org_review'
+           AND organization_review_revision = $9
          RETURNING *`,
         [
             requestId,
@@ -83,7 +87,8 @@ export async function reviewOrganizationPromotionRequest(repository, requestId, 
             decision.reason || null,
             decision.organization_event_id || null,
             decision.graph_entity_id || null,
-            decision.organization_review_receipt_id || null
+            decision.organization_review_receipt_id || null,
+            decision.expected_organization_review_revision
         ]
     );
     return rows[0] || null;
@@ -99,6 +104,7 @@ export async function listOrganizationPromotionReviews(repository, input = {}, o
         `SELECT request_id, personal_event_id, owner_person_id, organization_id,
                 project_code, status, sanitized_preview, subject, body_hash,
                 owner_decided_by, owner_decided_at, owner_consent_receipt_id,
+                owner_decision_revision, organization_review_revision,
                 normalized_payload, normalized_payload_hash, normalized_by_person_id,
                 normalized_at, normalization_contract_version, created_at
          FROM knowledge_promotion_requests

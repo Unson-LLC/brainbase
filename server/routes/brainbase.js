@@ -27,6 +27,7 @@ export function createBrainbaseRouter(options = {}) {
         storageService = new StorageService(),
         nocodbService = new NocoDBService(),
         configParser,
+        projectCatalogParser = configParser,
         projectsRoot,
         infoSSOTService,
         wikiService,
@@ -48,18 +49,23 @@ export function createBrainbaseRouter(options = {}) {
         storageService,
         nocodbService,
         configParser,
+        projectCatalogParser,
         projectCatalogAuthGuard
     }));
 
     router.use(createBrainbaseTrendsRouter({
         nocodbService,
-        configParser
+        configParser,
+        projectCatalogParser,
+        projectCatalogAuthGuard
     }));
 
     // ==================== Portal API ====================
     router.use(createBrainbasePortalRouter({
         nocodbService,
         configParser,
+        projectCatalogParser,
+        projectCatalogAuthGuard,
         infoSSOTService,
         wikiService
     }));

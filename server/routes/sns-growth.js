@@ -8,15 +8,7 @@ import {
     SnsPostValidationError,
     summarizeSnsPosts
 } from '../services/sns/posting-ledger-repository.js';
-
-function defaultActor() {
-    return {
-        sub: 'sato_keigo',
-        actor_person_id: 'sato_keigo',
-        role: 'ceo',
-        org_ids: ['unson', 'salestailor', 'techknight', 'baao']
-    };
-}
+import { snsAuthorityFromRequest } from '../services/sns/sns-authority.js';
 
 function currentWeekRange(date = new Date()) {
     const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -57,10 +49,10 @@ function credentialRefForUi(credentialRef, env = process.env) {
     return safe;
 }
 
-async function accountWithUiState(accountService, account, env = process.env) {
+async function accountWithUiState(accountService, account, actor, env = process.env) {
     const defaults = {};
     for (const purpose of ['sns_posting', 'sns_metrics']) {
-        const current = await accountService.getDefault('person', 'sato_keigo', account.service, purpose);
+        const current = await accountService.getDefault('person', actor.owner_person_id, account.service, purpose);
         defaults[purpose] = current?.id === account.id;
     }
     return {
@@ -131,11 +123,12 @@ export function createSnsGrowthRouter({
 
     router.get('/posts', async (req, res) => {
         try {
+            const actor = snsAuthorityFromRequest(req);
             const fallback = currentWeekRange();
             const startDate = String(req.query.startDate || fallback.startDate);
             const endDate = String(req.query.endDate || fallback.endDate);
             const status = req.query.status ? String(req.query.status) : null;
-            const posts = await ledger.listPosts({ startDate, endDate, status });
+            const posts = await ledger.listPosts({ startDate, endDate, status }, actor);
             res.json({
                 range: { startDate, endDate },
                 posts,
@@ -148,12 +141,13 @@ export function createSnsGrowthRouter({
 
     router.post('/review-pack', async (req, res) => {
         try {
+            const actor = snsAuthorityFromRequest(req);
             const result = await ledger.upsertReviewPack({
                 account_id: req.body?.account_id,
                 account_handle: req.body?.account_handle,
                 drafts: req.body?.drafts || req.body?.pack?.drafts || []
-            });
-            const posts = await ledger.listPosts({});
+            }, actor);
+            const posts = await ledger.listPosts({}, actor);
             res.status(201).json({
                 ...result,
                 summary: summarizeSnsPosts(posts)
@@ -163,11 +157,12 @@ export function createSnsGrowthRouter({
         }
     });
 
-    router.get('/accounts', async (_req, res) => {
+    router.get('/accounts', async (req, res) => {
         try {
-            const visibleAccounts = await accounts.listForActor(defaultActor());
+            const actor = snsAuthorityFromRequest(req);
+            const visibleAccounts = await accounts.listForActor(actor);
             const xAccounts = visibleAccounts.filter((account) => account.service === 'x');
-            const responseAccounts = await Promise.all(xAccounts.map((account) => accountWithUiState(accounts, account, env)));
+            const responseAccounts = await Promise.all(xAccounts.map((account) => accountWithUiState(accounts, account, actor, env)));
             res.json({ accounts: responseAccounts });
         } catch (error) {
             sendRouteError(res, error);
@@ -180,18 +175,18 @@ export function createSnsGrowthRouter({
             if (!['sns_posting', 'sns_metrics'].includes(purpose)) {
                 return res.status(400).json({ error: 'invalid account default purpose', code: 'invalid_account_default_purpose' });
             }
-            const actor = defaultActor();
+            const actor = snsAuthorityFromRequest(req);
             const visibleAccount = await findVisibleAccount(accounts, req.params.id, actor);
             if (!visibleAccount || visibleAccount.service !== 'x') return res.status(404).json({ error: 'account not found' });
             await accounts.setDefault({
                 subject_type: 'person',
-                subject_id: 'sato_keigo',
+                subject_id: actor.owner_person_id,
                 service: 'x',
                 purpose,
                 account_id: req.params.id
             }, actor);
             const account = await accounts.repository.findById(req.params.id);
-            res.json({ account: await accountWithUiState(accounts, account || visibleAccount, env) });
+            res.json({ account: await accountWithUiState(accounts, account || visibleAccount, actor, env) });
         } catch (error) {
             sendRouteError(res, error);
         }
@@ -199,7 +194,8 @@ export function createSnsGrowthRouter({
 
     router.post('/accounts/:id/health-check', async (req, res) => {
         try {
-            const account = await findVisibleAccount(accounts, req.params.id, defaultActor());
+            const actor = snsAuthorityFromRequest(req);
+            const account = await findVisibleAccount(accounts, req.params.id, actor);
             if (!account || account.service !== 'x') return res.status(404).json({ error: 'account not found' });
             if (!accountProvider?.healthCheck) {
                 return res.status(503).json({ error: 'X account provider unavailable', code: 'x_account_provider_unavailable' });
@@ -214,7 +210,7 @@ export function createSnsGrowthRouter({
                 }
             }
             res.json({
-                account: await accountWithUiState(accounts, account, env),
+                account: await accountWithUiState(accounts, account, actor, env),
                 health: {
                     ok: Boolean(healthResult?.ok),
                     reason: healthResult?.reason || null,
@@ -229,6 +225,7 @@ export function createSnsGrowthRouter({
 
     router.post('/posts/:id/publish', async (req, res) => {
         try {
+            const actor = snsAuthorityFromRequest(req);
             if (req.body?.dry_run !== true) {
                 return res.status(409).json({
                     error: 'Direct public SNS publish is disabled; use the scheduled publisher',
@@ -242,7 +239,7 @@ export function createSnsGrowthRouter({
                 });
             }
             const result = await publishService.publishPost(req.params.id, {
-                actor: defaultActor(),
+                actor,
                 dry_run: true,
                 confirm_public_post: false
             });
@@ -254,7 +251,8 @@ export function createSnsGrowthRouter({
 
     router.post('/posts/:id/feedback', async (req, res) => {
         try {
-            const existing = await ledger.findById(req.params.id);
+            const actor = snsAuthorityFromRequest(req);
+            const existing = await ledger.findById(req.params.id, actor);
             if (!existing) return res.status(404).json({ error: 'sns post not found' });
             const metricsSnapshot = normalizeMetricsSnapshot(req.body?.metrics_snapshot || req.body?.metrics);
             const markLearningReady = req.body?.mark_learning_ready === true;
@@ -274,7 +272,7 @@ export function createSnsGrowthRouter({
             const patch = {};
             if (metricsSnapshot) patch.metrics_snapshot = metricsSnapshot;
             if (markLearningReady && existing.status === 'posted') patch.status = 'learning_ready';
-            const post = await ledger.updatePost(req.params.id, patch, defaultActor());
+            const post = await ledger.updatePost(req.params.id, patch, actor);
             res.json({ post });
         } catch (error) {
             sendRouteError(res, error);
@@ -283,10 +281,11 @@ export function createSnsGrowthRouter({
 
     router.patch('/posts/:id', async (req, res) => {
         try {
-            const existing = await ledger.findById(req.params.id);
+            const actor = snsAuthorityFromRequest(req);
+            const existing = await ledger.findById(req.params.id, actor);
             if (!existing) return res.status(404).json({ error: 'sns post not found' });
             const patch = normalizeOperationalPatch(existing, req.body || {});
-            const post = await ledger.updatePost(req.params.id, patch, defaultActor());
+            const post = await ledger.updatePost(req.params.id, patch, actor);
             if (!post) return res.status(404).json({ error: 'sns post not found' });
             res.json({ post });
         } catch (error) {

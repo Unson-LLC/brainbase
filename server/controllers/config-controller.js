@@ -4,7 +4,9 @@
  * 設定管理のHTTPリクエスト処理
  */
 import { asyncHandler } from '../lib/async-handler.js';
-import { AppError } from '../lib/errors.js';
+import { AppError, ErrorCodes } from '../lib/errors.js';
+import { filterProjectsForAccess } from '../services/project-access/project-code-matcher.js';
+import { loadRuntimeProjectCatalog } from '../services/project-access/runtime-project-catalog.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
@@ -14,10 +16,36 @@ export class ConfigController {
      * @param {any} configParser
      * @param {any} configService
      */
-    constructor(configParser, configService, runtimePaths = null) {
+    constructor(configParser, configService, runtimePaths = null, projectCatalogParser = configParser) {
         this.configParser = configParser;
+        this.projectCatalogParser = projectCatalogParser;
         this.configService = configService;
         this.runtimePaths = runtimePaths;
+    }
+
+    _projectAccess(req) {
+        return req.access || {};
+    }
+
+    async _requireCanonicalProject(projectId, req) {
+        const isRuntimeCatalog = typeof this.projectCatalogParser?.runForOrganization === 'function';
+        if (!isRuntimeCatalog) return null;
+
+        const catalog = await loadRuntimeProjectCatalog(
+            this.projectCatalogParser,
+            this._projectAccess(req)
+        );
+        if (catalog.source?.status !== 'loaded') {
+            throw new AppError(
+                'Project catalog is unavailable',
+                ErrorCodes.PROJECT_CATALOG_UNAVAILABLE
+            );
+        }
+        const project = (catalog.projects || []).find(candidate => candidate.id === projectId);
+        if (!project) {
+            throw AppError.notFound('project', projectId);
+        }
+        return project;
     }
 
     /**
@@ -63,8 +91,31 @@ export class ConfigController {
     /** GET /api/config/projects */
     /** @param {Request} req @param {Response} res */
     getProjects = asyncHandler(async (req, res) => {
-        const projects = await this.configParser.getProjects();
-        res.json(projects);
+        const organizationId = req.access?.organizationId || req.access?.tenantId || null;
+        const isRuntimeCatalog = typeof this.projectCatalogParser?.runForOrganization === 'function';
+        if (isRuntimeCatalog && !organizationId) {
+            return res.json({
+                projects: [],
+                source: { status: 'organization_context_required', mode: 'registry_scope_required' }
+            });
+        }
+        const catalog = organizationId && this.projectCatalogParser?.runForOrganization
+            ? await this.projectCatalogParser.runForOrganization(
+                organizationId,
+                () => this.projectCatalogParser.getProjects()
+            )
+            : await this.projectCatalogParser.getProjects();
+        const source = catalog?.source || (isRuntimeCatalog
+            ? { status: 'runtime_catalog_source_required', mode: 'runtime_catalog_source_required' }
+            : null);
+        const projects = isRuntimeCatalog && source?.status !== 'loaded'
+            ? []
+            : filterProjectsForAccess(catalog.projects || [], req.access || {});
+        res.json({
+            ...catalog,
+            ...(source ? { source } : {}),
+            projects
+        });
     });
 
     /** POST /api/config/projects, PUT /api/config/projects/:projectId */
@@ -74,6 +125,7 @@ export class ConfigController {
 
         const payload = req.body || {};
         const projectId = req.params.projectId || payload.id;
+        const canonicalProject = await this._requireCanonicalProject(projectId, req);
         const glob = Array.isArray(payload.glob_include)
             ? payload.glob_include
             : String(payload.glob_include || '')
@@ -83,21 +135,21 @@ export class ConfigController {
 
         await this.configService.upsertProject({
             id: projectId,
-            emoji: payload.emoji,
             local_path: payload.local_path,
             glob_include: glob,
-            archived: payload.archived
-        });
+            ...(canonicalProject ? {} : { emoji: payload.emoji, archived: payload.archived })
+        }, this._projectAccess(req));
 
-        res.json({ ok: true });
+        res.json({ ok: true, ...(canonicalProject ? { scope: 'technical_metadata' } : {}) });
     });
 
     /** DELETE /api/config/projects/:projectId */
     /** @param {Request} req @param {Response} res */
     deleteProject = asyncHandler(async (req, res) => {
         this._requireConfigService();
-        await this.configService.deleteProject(req.params.projectId);
-        res.json({ ok: true });
+        const canonicalProject = await this._requireCanonicalProject(req.params.projectId, req);
+        await this.configService.deleteProject(req.params.projectId, this._projectAccess(req));
+        res.json({ ok: true, ...(canonicalProject ? { scope: 'technical_metadata' } : {}) });
     });
 
     /** GET /api/config/github */
@@ -113,7 +165,13 @@ export class ConfigController {
      */
     /** @param {Request} req @param {Response} res */
     checkIntegrity = asyncHandler(async (req, res) => {
-        const integrity = await this.configParser.checkIntegrity();
+        const organizationId = req.access?.organizationId || req.access?.tenantId || null;
+        const integrity = organizationId && this.projectCatalogParser?.runForOrganization
+            ? await this.projectCatalogParser.runForOrganization(
+                organizationId,
+                () => this.projectCatalogParser.checkIntegrity()
+            )
+            : await this.projectCatalogParser.checkIntegrity();
 
         res.json({
             ...integrity,
@@ -228,20 +286,27 @@ export class ConfigController {
     upsertGitHub = asyncHandler(async (req, res) => {
         const payload = req.body || {};
         const projectId = req.params.projectId || payload.project_id;
+        const canonicalProject = await this._requireCanonicalProject(projectId, req);
+        if (canonicalProject && (!canonicalProject.github?.owner || !canonicalProject.github?.repo)) {
+            throw AppError.conflict(
+                'GitHub repository must be registered in the Graph project before branch metadata can be updated'
+            );
+        }
         const mapping = await this.configService.upsertGitHubMapping({
             project_id: projectId,
-            owner: payload.owner,
-            repo: payload.repo,
+            owner: canonicalProject ? canonicalProject.github.owner : payload.owner,
+            repo: canonicalProject ? canonicalProject.github.repo : payload.repo,
             branch: payload.branch
-        });
-        res.json({ ok: true, github: mapping });
+        }, this._projectAccess(req));
+        res.json({ ok: true, github: mapping, ...(canonicalProject ? { scope: 'technical_metadata' } : {}) });
     });
 
     /** DELETE /api/config/github/:projectId */
     /** @param {Request} req @param {Response} res */
     deleteGitHub = asyncHandler(async (req, res) => {
-        await this.configService.deleteGitHubMapping(req.params.projectId);
-        res.json({ ok: true });
+        const canonicalProject = await this._requireCanonicalProject(req.params.projectId, req);
+        await this.configService.deleteGitHubMapping(req.params.projectId, this._projectAccess(req));
+        res.json({ ok: true, ...(canonicalProject ? { scope: 'technical_metadata' } : {}) });
     });
 
     /** POST /api/config/nocodb, PUT /api/config/nocodb/:projectId */
@@ -249,21 +314,23 @@ export class ConfigController {
     upsertNocoDB = asyncHandler(async (req, res) => {
         const payload = req.body || {};
         const projectId = req.params.projectId || payload.project_id;
+        const canonicalProject = await this._requireCanonicalProject(projectId, req);
         const mapping = await this.configService.upsertNocoDBMapping({
             project_id: projectId,
             base_id: payload.base_id,
             nocodb_project_id: payload.nocodb_project_id,
             base_name: payload.base_name,
             url: payload.url
-        });
-        res.json({ ok: true, nocodb: mapping });
+        }, this._projectAccess(req));
+        res.json({ ok: true, nocodb: mapping, ...(canonicalProject ? { scope: 'technical_metadata' } : {}) });
     });
 
     /** DELETE /api/config/nocodb/:projectId */
     /** @param {Request} req @param {Response} res */
     deleteNocoDB = asyncHandler(async (req, res) => {
-        await this.configService.deleteNocoDBMapping(req.params.projectId);
-        res.json({ ok: true });
+        const canonicalProject = await this._requireCanonicalProject(req.params.projectId, req);
+        await this.configService.deleteNocoDBMapping(req.params.projectId, this._projectAccess(req));
+        res.json({ ok: true, ...(canonicalProject ? { scope: 'technical_metadata' } : {}) });
     });
 
     _requireConfigService() {

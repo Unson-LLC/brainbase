@@ -1,77 +1,43 @@
 // @ts-check
 import { describe, expect, it } from 'vitest';
 
-import {
-    createSnsPostingLedgerRepository,
-    resolveSnsPostingLedgerDatabaseUrl
-} from '../../../server/bootstrap/register-api-routes.js';
-import {
-    JsonFileSnsPostingLedgerRepository,
-    SnsPostingLedgerUnavailableRepository
-} from '../../../server/services/sns/posting-ledger-repository.js';
 import { databaseConfig, selectedMigrations } from '../../../scripts/migrate-m5a-production-schema.js';
 
-describe('SNS posting ledger runtime database config', () => {
-    it('prefers an explicitly bound release database over service-specific URLs', () => {
+describe('SNS廃止後の共通M5-A移行設定', () => {
+    it('共通の明示的な移行先をSNS専用DB設定より優先する', () => {
         expect(databaseConfig({
             M5A_DATABASE_URL: 'postgres://release-db',
-            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://sns-ledger',
+            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://retired-sns-ledger',
             INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
         })).toEqual({ connectionString: 'postgres://release-db' });
     });
 
-    it('prefers a dedicated SNS ledger database URL when configured', () => {
-        expect(resolveSnsPostingLedgerDatabaseUrl({
-            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://sns-ledger',
-            INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
-        })).toBe('postgres://sns-ledger');
+    it('SNS専用DB設定があっても既存の共通Info SSOTを使う', () => {
         expect(databaseConfig({
-            DATABASE_URL: 'postgres://generic',
-            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://sns-ledger',
-            INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
-        })).toEqual({ connectionString: 'postgres://sns-ledger' });
-    });
-
-    it('falls back to the existing Info SSOT PostgreSQL URL for the shared Lightsail database', () => {
-        expect(resolveSnsPostingLedgerDatabaseUrl({
-            INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
-        })).toBe('postgres://info-ssot');
-        expect(databaseConfig({
-            DATABASE_URL: 'postgres://generic',
+            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://retired-sns-ledger',
             INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
         })).toEqual({ connectionString: 'postgres://info-ssot' });
     });
 
-    it('keeps database discovery disabled in test mode unless a dedicated SNS URL is configured', () => {
-        expect(resolveSnsPostingLedgerDatabaseUrl({
-            BRAINBASE_TEST_MODE: 'true',
-            INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
-        })).toBe('');
-        expect(resolveSnsPostingLedgerDatabaseUrl({
-            BRAINBASE_TEST_MODE: 'true',
-            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://sns-ledger',
-            INFO_SSOT_DATABASE_URL: 'postgres://info-ssot'
-        })).toBe('postgres://sns-ledger');
+    it('SNS専用DB設定だけでは共通移行先を構成しない', () => {
+        expect(databaseConfig({
+            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://retired-sns-ledger',
+            PGDATABASE: 'common',
+            PGUSER: 'app'
+        })).toMatchObject({ database: 'common', user: 'app' });
+        expect(databaseConfig({
+            SNS_POSTING_LEDGER_DATABASE_URL: 'postgres://retired-sns-ledger'
+        })).toMatchObject({ host: '127.0.0.1', port: 25432 });
     });
 
-    it('uses JSON only when both test mode and the explicit json_test mode are configured', () => {
-        const runtimePaths = { varDir: '/tmp/brainbase-sns-ledger-config-test' };
-        expect(createSnsPostingLedgerRepository(runtimePaths, {
-            env: {
-                BRAINBASE_TEST_MODE: 'true',
-                SNS_POSTING_LEDGER_MODE: 'json_test'
-            }
-        })).toBeInstanceOf(JsonFileSnsPostingLedgerRepository);
-        expect(createSnsPostingLedgerRepository(runtimePaths, {
-            env: { BRAINBASE_TEST_MODE: 'true' }
-        })).toBeInstanceOf(SnsPostingLedgerUnavailableRepository);
-        expect(createSnsPostingLedgerRepository(runtimePaths, {
-            env: { SNS_POSTING_LEDGER_MODE: 'json_test' }
-        })).toBeInstanceOf(SnsPostingLedgerUnavailableRepository);
+    it('M5-Aの既定移行からSNS台帳を除外する', () => {
+        const migrations = selectedMigrations([]);
+        expect(migrations.some(({ id }) => id === 'sns-posting-ledger')).toBe(false);
+        expect(migrations.filter(({ id }) => id === 'personal-knowledge')).toHaveLength(2);
     });
 
-    it('can scope M5 migration to the SNS posting ledger schema', () => {
-        expect(selectedMigrations(['--only', 'sns-posting-ledger']).map((migration) => migration.path))
-            .toEqual(['server/sql/sns-posting-ledger-schema.sql']);
+    it('廃止されたSNS台帳の明示選択を拒否する', () => {
+        expect(() => selectedMigrations(['--only', 'sns-posting-ledger']))
+            .toThrow('Unknown migration id: sns-posting-ledger');
     });
 });

@@ -1,7 +1,12 @@
 import express from 'express';
 import { logger } from '../../utils/logger.js';
-import { cacheMiddleware } from '../../middleware/cache.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import { filterProjectsForAccess } from '../../services/project-access/project-code-matcher.js';
+import {
+    catalogTechnicalMetadataUnavailable,
+    catalogUnavailableResponse,
+    loadRuntimeProjectCatalog
+} from '../../services/project-access/runtime-project-catalog.js';
 
 export function createBrainbaseOverviewRouter(options = {}) {
     const router = express.Router();
@@ -11,22 +16,38 @@ export function createBrainbaseOverviewRouter(options = {}) {
         storageService,
         nocodbService,
         configParser,
+        projectCatalogParser = configParser,
         projectCatalogAuthGuard = (_req, res) => res.status(503).json({
             error: 'Project catalog authentication is not configured'
         })
     } = options;
+    const isRuntimeCatalog = typeof projectCatalogParser?.runForOrganization === 'function';
+    const catalogReadGuard = isRuntimeCatalog
+        ? projectCatalogAuthGuard
+        : (_req, _res, next) => next();
+    const catalogReadGuardUnlessFixture = (req, res, next) => (
+        req.query.test === 'true' ? next() : catalogReadGuard(req, res, next)
+    );
 
     /**
      * GET /api/brainbase
      * すべての監視情報を一括取得
      */
-    router.get('/', asyncHandler(async (req, res) => {
+    router.get('/', projectCatalogAuthGuard, asyncHandler(async (req, res) => {
+        const access = req.access || null;
+        const organizationId = access?.organizationId || access?.tenantId || null;
         const [github, system, projects] = await Promise.all([
             getGitHubInfo(),
             systemService.getSystemStatus(),
-            getProjectsWithHealth()
+            getProjectsWithHealth(access, organizationId, { requireLoadedSource: isRuntimeCatalog })
         ]);
-        res.json({ github, system, projects, timestamp: new Date().toISOString() });
+        res.json({
+            github,
+            system,
+            projects: projects.projects,
+            ...(projects.source ? { source: projects.source } : {}),
+            timestamp: new Date().toISOString()
+        });
     }));
 
     router.get('/github/runners', asyncHandler(async (req, res) => {
@@ -59,8 +80,17 @@ export function createBrainbaseOverviewRouter(options = {}) {
     });
 
     router.get('/projects', projectCatalogAuthGuard, asyncHandler(async (req, res) => {
-        const projectCodes = Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [];
-        res.json(await getProjectsWithHealth(projectCodes));
+        const access = req.access || {};
+        const organizationId = access.organizationId || access.tenantId || null;
+        const catalog = await getProjectsWithHealth(access, organizationId, {
+            requireLoadedSource: isRuntimeCatalog
+        });
+
+        // Keep the legacy bare-array response for parsers that do not expose a
+        // catalog source. Registry-backed catalogs use the envelope so source
+        // status (including an unavailable fallback) is not lost at this API
+        // boundary.
+        res.json(catalog.source ? catalog : catalog.projects);
     }));
 
     /**
@@ -68,7 +98,7 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * Critical Alerts取得（ブロッカー + 期限超過タスク）
      * クエリパラメータ: ?test=true でテストデータを返す
      */
-    router.get('/critical-alerts', cacheMiddleware(300), asyncHandler(async (req, res) => {
+    router.get('/critical-alerts', catalogReadGuardUnlessFixture, asyncHandler(async (req, res) => {
         if (req.query.test === 'true') {
             return res.json({
                 alerts: [
@@ -82,9 +112,11 @@ export function createBrainbaseOverviewRouter(options = {}) {
             });
         }
 
-        const config = await configParser.getAll();
-        const projects = (config.projects?.projects || [])
-            .filter((p) => !p.archived && p.nocodb?.project_id)
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const projects = catalog.projects
+            .filter((p) => p.nocodb?.project_id)
             .map((p) => ({ id: p.id, project_id: p.nocodb.project_id }));
 
         const alerts = await nocodbService.getCriticalAlerts(projects);
@@ -96,10 +128,12 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * GET /api/brainbase/strategic-overview
      * 戦略的意思決定支援情報（プロジェクト優先度 + リソース配分）
      */
-    router.get('/strategic-overview', cacheMiddleware(300), asyncHandler(async (req, res) => {
-        const config = await configParser.getAll();
-        const projects = (config.projects?.projects || [])
-            .filter((p) => !p.archived && p.nocodb?.project_id)
+    router.get('/strategic-overview', catalogReadGuard, asyncHandler(async (req, res) => {
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const projects = catalog.projects
+            .filter((p) => p.nocodb?.project_id)
             .map((p) => ({ id: p.id, project_id: p.nocodb.project_id }));
 
         const stats = await Promise.all(
@@ -159,13 +193,13 @@ export function createBrainbaseOverviewRouter(options = {}) {
      * 指定プロジェクトの統計を返す
      * @param {string} id - プロジェクトID（config.ymlのprojects[].id）
      */
-    router.get('/projects/:id/stats', asyncHandler(async (req, res) => {
+    router.get('/projects/:id/stats', catalogReadGuard, asyncHandler(async (req, res) => {
         const { id } = req.params;
 
-        const config = await configParser.getAll();
-        const projects = config.projects?.projects || [];
-
-        const project = projects.find((p) => p.id === id);
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const project = catalog.projects.find((p) => p.id === id);
 
         if (!project || project.archived || !project.nocodb?.project_id) {
             return res.status(404).json({
@@ -191,21 +225,40 @@ export function createBrainbaseOverviewRouter(options = {}) {
         };
     }
 
-    async function getProjectsWithHealth(allowedProjectCodes = null) {
+    async function getProjectsWithHealth(access = null, organizationId = null, { requireLoadedSource = false } = {}) {
         try {
-            const config = await configParser.getAll();
-            let projects = (config.projects?.projects || [])
-                .filter((p) => !p.archived)
+            if (requireLoadedSource && !organizationId) {
+                return {
+                    projects: [],
+                    source: { status: 'organization_context_required', mode: 'registry_scope_required' }
+                };
+            }
+            const loadCatalog = async () => {
+                if (typeof projectCatalogParser.getProjects === 'function') {
+                    return projectCatalogParser.getProjects();
+                }
+                const legacyConfig = await projectCatalogParser.getAll();
+                return legacyConfig.projects || { projects: [] };
+            };
+            const config = organizationId && projectCatalogParser?.runForOrganization
+                ? await projectCatalogParser.runForOrganization(organizationId, loadCatalog)
+                : await loadCatalog();
+            const source = config?.source || (requireLoadedSource
+                ? { status: 'runtime_catalog_source_required', mode: 'runtime_catalog_source_required' }
+                : null);
+            if (requireLoadedSource && source.status !== 'loaded') {
+                return { projects: [], source };
+            }
+            const activeProjects = (config.projects || []).filter((p) => !p.archived);
+            const accessibleProjects = access && typeof access === 'object'
+                ? filterProjectsForAccess(activeProjects, access)
+                : activeProjects;
+            const projects = accessibleProjects
                 .map((p) => ({
                     id: p.id,
                     name: p.name || p.id,
                     project_id: p.nocodb?.project_id || null
                 }));
-
-            if (Array.isArray(allowedProjectCodes)) {
-                const allowed = new Set(allowedProjectCodes.map(normalizeProjectCode).filter(Boolean));
-                projects = projects.filter((project) => allowed.has(normalizeProjectCode(project.id)));
-            }
 
             const mappedProjects = projects.filter((p) => p.project_id);
 
@@ -260,7 +313,7 @@ export function createBrainbaseOverviewRouter(options = {}) {
                 }];
             }));
 
-            return projects
+            const healthyProjects = projects
                 .map((project) => healthById.get(project.id) || {
                     id: project.id,
                     name: project.name,
@@ -280,16 +333,15 @@ export function createBrainbaseOverviewRouter(options = {}) {
                     if (aHasScore) return b.healthScore - a.healthScore;
                     return a.name.localeCompare(b.name);
                 });
+
+            return {
+                projects: healthyProjects,
+                ...(source ? { source } : {})
+            };
         } catch (error) {
             logger.error('Error getting projects health', { error });
             throw error;
         }
-    }
-
-    function normalizeProjectCode(value) {
-        if (typeof value !== 'string') return null;
-        const normalized = value.trim().toLowerCase().replace(/_/g, '-');
-        return normalized || null;
     }
 
     return router;

@@ -1,7 +1,7 @@
 ---
 adr_id: ADR-011
 title: SNS Posting Ledger 境界
-status: accepted
+status: retired
 date: 2026-05-12
 related_stories:
   - story-sns-posting-cockpit
@@ -15,6 +15,14 @@ superseded_by: []
 ---
 
 # ADR-011: SNS Posting Ledger 境界
+
+## 2026-09-04 廃止決定
+
+利用者の決定により、SNS運用をBrainbaseの対象から外す。
+[SNS廃止仕様](../specs/retire-sns-spec.md)に従い、API・専用CLI・予約実行の入口と共通M5-A移行から切り離す。
+既存台帳は保全し、削除・帰属変更・バックフィルは行わない。共通の個人知識・権限・昇格機能は維持する。
+以下は導入当時の判断を残す歴史資料であり、SNS機能の再有効化や移行実行を指示するものではない。
+本番停止と台帳保全の実機確認が完了するまでは、廃止作業完了とは扱わない。
 
 ## 文脈
 

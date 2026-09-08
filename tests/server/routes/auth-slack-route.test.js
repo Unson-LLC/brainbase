@@ -12,6 +12,104 @@ function createApp(authService) {
 }
 
 describe('Slack auth routes', () => {
+    it('GET /api/auth/organizations returns only organizations granted to the authenticated Slack identity', async () => {
+        const authService = {
+            verifyToken: vi.fn(() => ({
+                sub: 'per_sato',
+                slackUserId: 'U_SATO',
+                slackWorkspaceId: 'T_UNSON',
+                organizationId: 'unson'
+            })),
+            listOrganizationAccess: vi.fn(async () => [
+                { organizationId: 'unson', name: 'UNSON', role: 'ceo', projectCodes: ['brainbase'] },
+                { organizationId: 'sato-personal', name: '佐藤個人', role: 'ceo', projectCodes: ['fx', 'keiba'] }
+            ])
+        };
+        const app = createApp(authService);
+
+        const res = await request(app)
+            .get('/api/auth/organizations')
+            .set('Authorization', 'Bearer access-token')
+            .expect(200);
+
+        expect(authService.listOrganizationAccess).toHaveBeenCalledWith({
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_UNSON'
+        });
+        expect(res.body.currentOrganizationId).toBe('unson');
+        expect(res.body.organizations).toHaveLength(2);
+    });
+
+    it('POST /api/auth/organizations/switch issues an organization-scoped session', async () => {
+        const authService = {
+            accessTtlSeconds: 3600,
+            refreshTtlSeconds: 7200,
+            verifyToken: vi.fn(() => ({
+                sub: 'per_sato',
+                slackUserId: 'U_SATO',
+                slackWorkspaceId: 'T_UNSON',
+                organizationId: 'unson'
+            })),
+            switchOrganization: vi.fn(async () => ({
+                token: 'personal-access-token',
+                refresh_token: 'personal-refresh-token',
+                access: { personId: 'per_sato', organizationId: 'sato-personal', projectCodes: ['fx', 'keiba'] }
+            }))
+        };
+        const app = createApp(authService);
+
+        const res = await request(app)
+            .post('/api/auth/organizations/switch')
+            .set('Authorization', 'Bearer access-token')
+            .send({ organizationId: 'sato-personal' })
+            .expect(200);
+
+        expect(authService.switchOrganization).toHaveBeenCalledWith({
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_UNSON',
+            organizationId: 'sato-personal'
+        });
+        expect(res.body.access.organizationId).toBe('sato-personal');
+    });
+
+    it('organization routes reject insecure header authentication', async () => {
+        const previous = process.env.ALLOW_INSECURE_AUTH_HEADERS;
+        process.env.ALLOW_INSECURE_AUTH_HEADERS = 'true';
+        try {
+            const authService = { verifyToken: vi.fn() };
+            const app = createApp(authService);
+            await request(app)
+                .get('/api/auth/organizations')
+                .set('x-brainbase-role', 'ceo')
+                .set('x-brainbase-projects', 'fx,keiba')
+                .expect(401);
+        } finally {
+            if (previous === undefined) delete process.env.ALLOW_INSECURE_AUTH_HEADERS;
+            else process.env.ALLOW_INSECURE_AUTH_HEADERS = previous;
+        }
+    });
+
+    it('POST /api/auth/refresh ignores organizationId in the request body', async () => {
+        const authService = {
+            accessTtlSeconds: 3600,
+            refreshTtlSeconds: 7200,
+            assertReady: vi.fn(),
+            refreshSession: vi.fn(async () => ({
+                token: 'unson-access-token',
+                refresh_token: 'unson-refresh-token',
+                access: { organizationId: 'unson' }
+            }))
+        };
+        const app = createApp(authService);
+        const res = await request(app)
+            .post('/api/auth/refresh')
+            .send({ refresh_token: 'bound-refresh-token', organizationId: 'sato-personal' })
+            .expect(200);
+
+        expect(authService.refreshSession).toHaveBeenCalledWith('bound-refresh-token');
+        expect(res.body.access.organizationId).toBe('unson');
+    });
+
     it('GET /api/auth/slack/start stores admin redirect in OAuth state', async () => {
         const authService = {
             assertReady: vi.fn(),

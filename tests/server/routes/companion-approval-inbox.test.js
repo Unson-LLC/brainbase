@@ -9,7 +9,13 @@ import { InMemoryWorkflowRepository } from '../../../server/services/workflow/wo
 import { WorkflowRunner } from '../../../server/services/workflow/workflow-runner.js';
 import { TestAutomationRuntime } from '../../helpers/test-automation-runtime.js';
 
-function createAuthService({ valid = true, serviceValid = true, personId = 'per_keigo', projectCodes = ['sample-project'] } = {}) {
+function createAuthService({
+    valid = true,
+    serviceValid = true,
+    personId = 'per_keigo',
+    projectCodes = ['sample-project'],
+    organizationId = 'org_unson'
+} = {}) {
     return {
         verifyServiceToken: vi.fn(() => {
             if (!serviceValid) throw new Error('invalid service token');
@@ -18,6 +24,7 @@ function createAuthService({ valid = true, serviceValid = true, personId = 'per_
                 projectCodes,
                 clearance: ['internal'],
                 personId: 'service_api',
+                organizationId,
                 sub: 'service_api'
             };
         }),
@@ -27,7 +34,8 @@ function createAuthService({ valid = true, serviceValid = true, personId = 'per_
                 role: 'gm',
                 projectCodes,
                 clearance: ['internal'],
-                personId
+                personId,
+                organizationId
             };
         })
     };
@@ -38,6 +46,7 @@ function createTestAutomationRuntime(repository = new InMemoryWorkflowRepository
     const configParser = {
         async getProjects() {
             return {
+                source: { status: 'loaded', mode: 'registry_scoped' },
                 projects: [
                     { id: 'sample-project', session_select: true, aliases: ['sample'] },
                     { id: 'other-project', session_select: true }
@@ -87,6 +96,10 @@ function makeBootstrapApp({
             workspace: {}
         },
         testMode: true,
+        canonicalTaskStoreConfig: {
+            ownerPersonId: 'sato_keigo',
+            ownerAliasIds: ['per_keigo']
+        },
         configParser: {},
         configService: {},
         runtimePaths: { varDir: '/tmp' },
@@ -889,6 +902,7 @@ describe('companion approval inbox route', () => {
         const configParser = {
             async getProjects() {
                 return {
+                    source: { status: 'loaded', mode: 'registry_scoped' },
                     projects: [
                         { id: 'sample-project', session_select: true, aliases: ['sample'] },
                         { id: 'other-project', session_select: true }

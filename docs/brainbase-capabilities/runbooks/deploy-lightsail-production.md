@@ -31,7 +31,13 @@ grep -Eq '^[0-9a-f]{40}$' <<<"$ROLLBACK_SHA"
 printf 'Record this Lightsail rollback SHA before deployment: %s\n' "$ROLLBACK_SHA"
 ```
 
-Do not proceed if the worktree is dirty — inspect the diff first and decide whether it is server-only state that must be preserved or stale changes.
+Do not proceed if the worktree is dirty. First save the exact patch, untracked
+file list, HEAD, service status, and `/api/version` response in an operator-only
+rollback directory outside the checkout. Classify every tracked change against
+the intended target commit. Restore a clean checkout only after proving each
+change is already present in the target or preserving it as a reviewed patch;
+never reset, clean, or stash an unclassified production change. Read back the
+instance and public version with `dirty=false` before starting section 2.
 
 ## 2. Fast-forward to the target develop commit
 
@@ -47,8 +53,11 @@ Only fast-forward merges are allowed. If `--ff-only` fails, the server checkout 
 If `package.json` / `package-lock.json` changed in the range:
 
 ```bash
-npm ci --omit=dev
+npm ci --include=dev
+npm prune --omit=dev --ignore-scripts
 ```
+
+The full install intentionally runs production dependency install scripts (including native addons) while Husky is available. The prune step removes development dependencies without rerunning lifecycle scripts.
 
 Before restarting or switching the API/MCP service, run the mandatory Info SSOT RLS gate. A failed gate means no restart or SHA switch may proceed; verify the current service state and do not treat a previous Receipt as a successful current apply.
 
@@ -109,15 +118,85 @@ postflightは、移行対象request ID集合が全件`pending_owner_approval`へ
 
 このmigration適用後は、A0署名昇格対応前のSHAへ通常rollbackしてはならない。対応SHAが起動できない場合は`brainbase-ssot.service`を停止したままpromotion writeを全面停止し、readback済みのA0対応SHAへforward fixする。DB down migrationや旧writerの再公開はしない。
 
+### Slack installation failure diagnosticを含むrelease
+
+対象差分に`013_slack_installation_failure_diagnostics.sql`、`tenant-production-provisioning-schema.sql`のSlack diagnostic列、またはそれらを参照するruntimeが含まれる場合は、runtimeより先にschemaを適用する。新runtimeは`failure_stage`と`cleanup_status`を通常経路で参照するため、schema未適用のままserviceを再起動してはならない。
+
+```bash
+(
+set -euo pipefail
+TARGET_SHA="$(git rev-parse HEAD)"
+grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
+
+# systemdと同じ秘密管理envを読み、URL自体は表示しない。
+set -a
+. /home/ubuntu/brainbase/.env
+. /home/ubuntu/brainbase/.env.infisical
+set +a
+test -n "${INFO_SSOT_DATABASE_URL:-${INFO_SSOT_DB_URL:-}}"
+
+# apply前に同じDDLをtransaction内で検証し、lock timeout超過時は停止する。
+node scripts/migrate-tenant-production-provisioning.js --dry-run
+
+# 対象環境、TARGET_SHA、actorをrelease記録へ固定した承認済みoperatorだけが実行する。
+BRAINBASE_MIGRATION_ACTOR="<approved operator>" \
+  node scripts/migrate-tenant-production-provisioning.js --apply --approve-apply
+
+# 列、CHECK制約、migration ledgerのschema hashを再読込する。
+node scripts/migrate-tenant-production-provisioning.js --check
+)
+```
+
+`--dry-run`、`--apply`、`--check`のいずれかが失敗した場合はsection 3へ進まず、現在のserviceを維持する。適用前に本番台帳件数と実行中transactionを確認し、`lock_timeout=5s`内に安全に取得できない場合は負荷の低い時間帯へ延期する。apply後は列をdown migrationしない。新runtimeの起動後に失敗した場合はserviceを停止し、追加列を無視できる読戻し済みのservice SHAへ戻すかforward fixする。旧SHAが追加列と互換であることを確認できない場合は起動しない。
+
 ## 3. Restart the service
 
 ```bash
 sudo systemctl restart brainbase-ssot.service
-sleep 3
+node scripts/wait-for-brainbase-runtime.mjs http://127.0.0.1:55123/api/health
 systemctl status brainbase-ssot.service --no-pager | head -8
 ```
 
 The unit is `/etc/systemd/system/brainbase-ssot.service` with drop-ins (`infisical-env.conf`, `memory.conf`, `project-catalog-mode.conf`). Env comes from `/home/ubuntu/brainbase/.env` and `.env.infisical` — do not export secrets in the shell.
+
+Slack workspace installation OAuthを有効にするreleaseでは、次の名前をInfisical正本から`.env.infisical`へ同時に投影する。TechKnightではoperator-local target `techknight-slack-installation-prod`を使う。事業体固有のproject mappingは共有repoへ固定せず、`~/.brainbase/infisical-targets.json`だけで管理する。値は端末へ表示しない。`BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI`はSlack App管理画面のRedirect URLと完全一致させる。
+
+```text
+BRAINBASE_SLACK_INSTALLATION_APP_ID
+BRAINBASE_SLACK_INSTALLATION_CLIENT_ID
+BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET
+BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI
+BRAINBASE_SLACK_INSTALLATION_STATE_SECRET
+BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES
+BRAINBASE_SLACK_INSTALLATION_TOKEN_URL
+```
+
+Mac側で対象project・environment・pathと7個の必須名を値非表示で確定する。`--json`は非秘密metadataだけを返す。`--check`が失敗した場合は投影・再起動へ進まない。
+
+```bash
+scripts/infisical-target-run.sh --target techknight-slack-installation-prod --json
+scripts/infisical-target-run.sh --target techknight-slack-installation-prod --check
+```
+
+再起動前後に、値ではなく必須名の存在だけをsystemdと同じenv filesで検証する。欠落が一つでもあれば再起動しない。
+
+```bash
+set -a
+source /home/ubuntu/brainbase/.env
+source /home/ubuntu/brainbase/.env.infisical
+set +a
+for name in \
+  BRAINBASE_SLACK_INSTALLATION_APP_ID \
+  BRAINBASE_SLACK_INSTALLATION_CLIENT_ID \
+  BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET \
+  BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI \
+  BRAINBASE_SLACK_INSTALLATION_STATE_SECRET \
+  BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES \
+  BRAINBASE_SLACK_INSTALLATION_TOKEN_URL; do
+  test -n "$(printenv "$name")" || { echo "missing:$name" >&2; exit 1; }
+done
+echo "Slack installation OAuth required names are present"
+```
 
 ## 4. Verify
 
@@ -142,15 +221,7 @@ From your Mac, bind the same merged develop SHA explicitly and verify the public
 ```bash
 TARGET_SHA="<40-character merged develop SHA>"
 [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]
-curl -fsS https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
-const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
-const git = value.runtime?.git;
-if (git?.sha !== process.env.TARGET_SHA || git?.dirty !== false) {
-  console.error(`Unexpected public runtime Git state: ${JSON.stringify(git)}`);
-  process.exit(1);
-}
-console.log(JSON.stringify(git));
-'
+node scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"
 curl -fsS -o /dev/null -w "%{http_code}\n" https://bb.unson.jp/api/health
 TOKEN=$(jq -r .access_token ~/.brainbase/tokens.json)
 curl -s -H "Authorization: Bearer $TOKEN" \
@@ -192,6 +263,9 @@ test -z "$(git status --porcelain)"
 FAILED_SHA="$(git rev-parse HEAD)"
 grep -Eq '^[0-9a-f]{40}$' <<<"$FAILED_SHA"
 git cat-file -e "${ROLLBACK_SHA}^{commit}"
+ROLLBACK_READY_DIR="$(mktemp -d /tmp/brainbase-runtime-ready.XXXXXX)"
+install -m 600 scripts/wait-for-brainbase-runtime.mjs "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs"
+trap 'rm -rf -- "$ROLLBACK_READY_DIR"' EXIT
 INFO_SSOT_GIT_SHA="$FAILED_SHA" \
 INFO_SSOT_ROLLBACK_SHA="$ROLLBACK_SHA" \
 INFO_SSOT_OPERATION_MODE="rollback_prepare" \
@@ -199,17 +273,19 @@ INFO_SSOT_APPLY_RECEIPT_PATH="var/info-ssot-rollback-receipt.json" \
 bash scripts/info-ssot-apply.sh
 git switch --detach "$ROLLBACK_SHA"
 if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
-  npm ci --omit=dev
+  npm ci --include=dev
+  npm prune --omit=dev --ignore-scripts
 fi
 sudo systemctl restart brainbase-ssot.service
-sleep 3
-curl -fsS http://127.0.0.1:55123/api/health
+node "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs" http://127.0.0.1:55123/api/health
 curl -fsS http://127.0.0.1:55123/api/version | TARGET_SHA="$ROLLBACK_SHA" node -e '
 const value = JSON.parse(require("node:fs").readFileSync(0, "utf8"));
 const git = value.runtime?.git;
 if (git?.sha !== process.env.TARGET_SHA || git?.dirty !== false) process.exit(1);
 console.log(JSON.stringify(git));
 '
+rm -rf -- "$ROLLBACK_READY_DIR"
+trap - EXIT
 ```
 
 From the Mac, repeat the public `/api/version`, `/api/health`, and authenticated Graph checks from section 4 with `TARGET_SHA="$ROLLBACK_SHA"`. A successful instance check alone does not complete rollback.

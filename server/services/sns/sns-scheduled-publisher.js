@@ -1,5 +1,6 @@
 // @ts-check
 import { ContractError } from '../multitenant/errors.js';
+import { requireSnsAuthority } from './sns-authority.js';
 
 const DEFAULT_LIMIT = 20;
 
@@ -39,8 +40,9 @@ export class SnsScheduledPublisher {
         auto_publish_enabled = false,
         limit = DEFAULT_LIMIT
     } = {}) {
+        const authority = requireSnsAuthority(actor);
         const currentNow = toDate(this.now());
-        const scheduled = await this.ledgerRepository.listPosts({ status: 'scheduled' });
+        const scheduled = await this.ledgerRepository.listPosts({ status: 'scheduled' }, authority);
         const duePosts = scheduled
             .filter((post) => isDue(post, currentNow))
             .sort((a, b) => String(a.scheduled_at).localeCompare(String(b.scheduled_at)))
@@ -71,7 +73,7 @@ export class SnsScheduledPublisher {
 
         for (const post of duePosts) {
             await this._authorizeTenantBoundary(post);
-            const claimed = await this._claim(post, currentNow, actor);
+            const claimed = await this._claim(post, currentNow, authority);
             if (!claimed) {
                 result.skipped += 1;
                 result.skipped_posts.push({ post_id: post.id, reason: 'claim_lost' });
@@ -79,7 +81,7 @@ export class SnsScheduledPublisher {
             }
             try {
                 const published = await this.publishService.publishPost(claimed.id, {
-                    actor,
+                    actor: authority,
                     dry_run: false,
                     confirm_public_post: true
                 });
@@ -93,7 +95,7 @@ export class SnsScheduledPublisher {
                 const failed = await this.ledgerRepository.updatePost(claimed.id, {
                     status: 'publish_failed',
                     memo: [claimed.memo, failureMemo(error, currentNow)].filter(Boolean).join('\n')
-                }, actor);
+                }, authority);
                 result.failed_posts.push({
                     post_id: claimed.id,
                     error: error?.message || String(error),
@@ -135,7 +137,7 @@ export class SnsScheduledPublisher {
         if (typeof this.ledgerRepository.claimScheduledPost === 'function') {
             return this.ledgerRepository.claimScheduledPost(post.id, { now }, actor);
         }
-        const fresh = await this.ledgerRepository.findById(post.id);
+        const fresh = await this.ledgerRepository.findById(post.id, actor);
         if (!isDue(fresh, now)) return null;
         return this.ledgerRepository.updatePost(post.id, { status: 'publishing' }, actor);
     }

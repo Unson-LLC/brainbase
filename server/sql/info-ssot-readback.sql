@@ -13,7 +13,14 @@ DECLARE
     'events',
     'raci_assignments',
     'graph_entities',
-    'graph_edges'
+    'graph_edges',
+    'project_registry',
+    'project_provisioning_runs',
+    'project_provisioning_steps',
+    'outcome_cases',
+    'judgment_receipts',
+    'vibepro_handoff_adoption_grants',
+    'vibepro_handoff_adoptions'
   ];
   required_function text;
   required_functions text[] := ARRAY[
@@ -92,5 +99,179 @@ BEGIN
   END LOOP;
 END
 $info_ssot_readback$;
+
+DO $project_provisioning_readback$
+DECLARE
+  required_table text;
+  required_function regprocedure;
+BEGIN
+  -- Table, FORCE RLS, and policy checks are performed by the shared loop above.
+  IF to_regprocedure(format('%I.prevent_project_provisioning_receipt_mutation()', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning receipt guard';
+  END IF;
+  IF to_regprocedure(format('%I.prevent_project_provisioning_step_receipt_mutation()', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning step receipt guard';
+  END IF;
+  IF to_regprocedure(format('%I.project_code_collision_sources(text,text)', current_schema())) IS NULL
+     OR to_regprocedure(format('%I.claim_project_code(text,text)', current_schema())) IS NULL
+     OR to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())) IS NULL
+     OR to_regprocedure(format('%I.guard_project_graph_entity_write()', current_schema())) IS NULL
+     OR to_regprocedure(format('%I.project_graph_identity_probe(text,text)', current_schema())) IS NOT NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project code claim functions';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid = to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema()))
+      AND prosecdef
+      AND provolatile = 's'
+      AND EXISTS (
+        SELECT 1 FROM unnest(coalesce(proconfig, ARRAY[]::text[])) AS setting
+        WHERE setting = 'search_path=pg_catalog, public'
+      )
+      AND NOT has_function_privilege(
+        'public',
+        to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())),
+        'EXECUTE'
+      )
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project graph identity probe security contract mismatch';
+  END IF;
+  FOREACH required_function IN ARRAY ARRAY[
+    to_regprocedure(format('%I.project_code_collision_sources(text,text)', current_schema())),
+    to_regprocedure(format('%I.claim_project_code(text,text)', current_schema()))
+  ] LOOP
+    IF required_function IS NULL OR NOT EXISTS (
+      SELECT 1 FROM pg_proc
+      WHERE oid = required_function
+        AND prosecdef
+        AND EXISTS (
+          SELECT 1 FROM unnest(coalesce(proconfig, ARRAY[]::text[])) AS setting
+          WHERE setting = 'search_path=pg_catalog, public'
+        )
+        AND NOT has_function_privilege('public', required_function, 'EXECUTE')
+    ) THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project provisioning function security contract mismatch';
+    END IF;
+  END LOOP;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_proc
+    WHERE oid = to_regprocedure(format('%I.guard_project_graph_entity_write()', current_schema()))
+      AND prosecdef
+      AND EXISTS (
+        SELECT 1 FROM unnest(coalesce(proconfig, ARRAY[]::text[])) AS setting
+        WHERE setting = 'search_path=pg_catalog, public'
+      )
+      AND NOT has_function_privilege(
+        'public',
+        to_regprocedure(format('%I.guard_project_graph_entity_write()', current_schema())),
+        'EXECUTE'
+      )
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project Graph entity guard security contract mismatch';
+  END IF;
+  -- brainbase_app is the canonical production role, but local/staging
+  -- installations may intentionally use another role.  Validate the explicit
+  -- grant only when that role exists; PUBLIC remains denied above in all cases.
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_app') THEN
+    IF NOT has_function_privilege('brainbase_app', to_regprocedure(format('%I.project_code_collision_sources(text,text)', current_schema())), 'EXECUTE')
+       OR NOT has_function_privilege('brainbase_app', to_regprocedure(format('%I.project_graph_identity_probe(text)', current_schema())), 'EXECUTE')
+       OR NOT has_function_privilege('brainbase_app', to_regprocedure(format('%I.claim_project_code(text,text)', current_schema())), 'EXECUTE') THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: brainbase_app cannot execute project provisioning functions';
+    END IF;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.role_table_grants
+    WHERE table_schema=current_schema() AND table_name='project_code_claims' AND grantee='PUBLIC'
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project code claims table is publicly readable';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.graph_entities', current_schema()))
+      AND tgname = 'project_graph_entity_write_guard'
+      AND NOT tgisinternal
+      AND tgenabled = 'O'
+      AND tgfoid = to_regprocedure(format('%I.guard_project_graph_entity_write()', current_schema()))
+      -- ROW (1) + BEFORE (2) + INSERT (4) + DELETE (8) + UPDATE (16).
+      AND tgtype = 31
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: project Graph entity guard trigger binding mismatch';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.project_provisioning_runs', current_schema()))
+      AND tgname = 'project_provisioning_receipts_no_mutation'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning receipt trigger';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.project_provisioning_steps', current_schema()))
+      AND tgname = 'project_provisioning_step_receipts_no_mutation'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing project provisioning step receipt trigger';
+  END IF;
+END
+$project_provisioning_readback$;
+
+DO $outcome_case_readback$
+DECLARE
+  required_column text;
+BEGIN
+  IF to_regclass(format('%I.outcome_cases', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome_cases table';
+  END IF;
+  FOREACH required_column IN ARRAY ARRAY[
+    'case_id', 'project_code', 'capability_id', 'authority',
+    'reference_resolution', 'evaluation_history', 'run_receipt_refs',
+    'terminal_evaluation', 'closure_status', 'revision'
+  ] LOOP
+    IF NOT EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = 'outcome_cases'
+        AND column_name = required_column
+    ) THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome_cases column %', required_column;
+    END IF;
+  END LOOP;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.outcome_cases', current_schema()))
+      AND tgname = 'outcome_case_evaluation_history_append_only'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing outcome case append-only history trigger';
+  END IF;
+END
+$outcome_case_readback$;
+
+DO $judgment_handoff_readback$
+DECLARE
+  immutable_table text;
+BEGIN
+  FOREACH immutable_table IN ARRAY ARRAY['judgment_receipts', 'vibepro_handoff_adoptions'] LOOP
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_trigger
+      WHERE tgrelid = to_regclass(format('%I.%I', current_schema(), immutable_table))
+        AND tgname = immutable_table || '_immutable'
+        AND NOT tgisinternal AND tgenabled = 'O' AND tgtype = 27
+        AND tgfoid = to_regprocedure(format('%I.%I()', current_schema(), immutable_table || '_immutable'))
+    ) THEN
+      RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: immutable handoff trigger binding mismatch';
+    END IF;
+  END LOOP;
+  IF EXISTS (
+    SELECT 1 FROM pg_policies
+    WHERE schemaname = current_schema() AND tablename = 'vibepro_handoff_adoption_grants'
+      AND cmd <> 'SELECT'
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: handoff grant write policy';
+  END IF;
+END
+$judgment_handoff_readback$;
 
 SELECT 'INFO_SSOT_READBACK_OK' AS marker;

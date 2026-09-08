@@ -1,0 +1,1059 @@
+import { GraphMaintenanceService } from '../graph-maintenance-service.js';
+import { AuthGrantService } from './auth-grant-service.js';
+import { GitHubRepositoryBootstrap } from './github-repository-bootstrap.js';
+import {
+    fingerprintProjectProvisioningManifest,
+    normalizeProjectProvisioningManifest
+} from './project-provisioning-manifest.js';
+import { PgProjectProvisioningRepository } from './project-provisioning-repository.js';
+import { ProjectRegistryCatalogAdapter } from './project-registry-catalog-adapter.js';
+
+const STEP_ORDER = ['registry', 'graph', 'auth_grants', 'repository'];
+
+function matchesProjectSubject(entity, manifest) {
+    return entity?.id === manifest.project_code
+        && entity.entity_type === 'project'
+        && entity.lifecycle_status === 'active'
+        && entity.payload?.catalog_project_id === manifest.project_code
+        && entity.payload?.catalog_version === manifest.catalog_version
+        && entity.payload?.source_ref === `project-catalog:${manifest.project_code}@${manifest.catalog_version}`
+        && entity.payload?.name === manifest.display_name;
+}
+
+function matchesRegistryProject(project, manifest, organizationId) {
+    return project?.project_code === manifest.project_code
+        && project.organization_id === organizationId
+        && project.display_name === manifest.display_name
+        && project.kind === manifest.kind
+        && project.catalog_version === manifest.catalog_version
+        && project.lifecycle_status === 'active'
+        && project.session_select === manifest.session_select
+        && project.organization_entity_id === manifest.organization_entity_id
+        && project.owner_person_id === manifest.owner_person_id;
+}
+
+function assertCompatibleProjectSubject(entities, manifest) {
+    const existing = entities.find((entity) => entity.id === manifest.project_code);
+    if (!existing) return null;
+    if (!matchesProjectSubject(existing, manifest)) {
+        const error = new Error('Existing Graph project subject does not match the Project Catalog identity');
+        error.code = 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT';
+        error.statusCode = 409;
+        throw error;
+    }
+    return existing;
+}
+
+function completedGraphMaterializationReceipt(run, subject) {
+    const graphStep = run?.steps?.find((step) => step.step_name === 'graph');
+    const receipt = graphStep?.receipt;
+    const expectedProjectCode = run?.manifest?.project_code;
+    const expectedCatalogVersion = run?.manifest?.catalog_version;
+    const expectedSourceRef = `project-catalog:${expectedProjectCode}@${expectedCatalogVersion}`;
+    const expectedIdempotencyKey = `project-provisioning:${run?.run_id}:graph`;
+    if (!(graphStep?.state === 'completed'
+        && subject?.project_code === expectedProjectCode
+        && subject?.payload?.catalog_version === expectedCatalogVersion
+        && subject?.payload?.source_ref === expectedSourceRef
+        && receipt?.project_code === expectedProjectCode
+        && receipt?.catalog_version === expectedCatalogVersion
+        && receipt?.source_ref === expectedSourceRef
+        && receipt?.idempotency_key === expectedIdempotencyKey
+        && receipt?.status !== 'already_materialized'
+        && typeof receipt?.plan_id === 'string'
+        && receipt.plan_id.length > 0
+        && typeof receipt?.apply?.receipt_id === 'string'
+        && receipt.apply.receipt_id.length > 0
+        && receipt?.validation?.valid === true)) return null;
+    return receipt;
+}
+
+function completedGraphReuseReceipt(run, subject) {
+    const graphStep = run?.steps?.find((step) => step.step_name === 'graph');
+    const receipt = graphStep?.receipt;
+    if (!(graphStep?.state === 'completed'
+        && receipt?.status === 'already_materialized'
+        && receipt?.project_code === subject?.project_code
+        && receipt?.entity_version === subject?.version
+        && typeof receipt?.snapshot_hash === 'string'
+        && receipt.snapshot_hash.length > 0)) return null;
+    return receipt;
+}
+const AUTHORITY_FIELDS = [
+    'organization_exists',
+    'owner_person_exists',
+    'organization_entity_exists',
+    'owner_has_organization_grant'
+];
+
+function errorPayload(error) {
+    return {
+        code: error?.code || 'PROJECT_PROVISIONING_STEP_FAILED',
+        message: error?.message || 'Unknown error',
+        ...(error?.details !== undefined ? { details: error.details } : {})
+    };
+}
+
+function assertOperator(actor) {
+    if (!['gm', 'ceo'].includes(String(actor?.role || '').toLowerCase())) {
+        const error = new Error('Project Provisioning requires gm or ceo');
+        error.code = 'PROJECT_PROVISIONING_FORBIDDEN';
+        error.statusCode = 403;
+        throw error;
+    }
+    const organizationId = String(actor?.organizationId || '').trim();
+    const tenantId = String(actor?.tenantId || '').trim();
+    if (organizationId && tenantId && organizationId !== tenantId) {
+        const error = new Error('organizationId and tenantId must match');
+        error.code = 'PROJECT_PROVISIONING_TENANT_IDENTITY_MISMATCH';
+        error.statusCode = 409;
+        throw error;
+    }
+    if (!(organizationId || tenantId)) {
+        const error = new Error('organizationId is required');
+        error.code = 'PROJECT_PROVISIONING_ORGANIZATION_REQUIRED';
+        error.statusCode = 409;
+        throw error;
+    }
+}
+
+function slackIdentityForGrant(actor, grant) {
+    if (grant.person_id !== actor.personId) return {};
+    if (!actor.slackUserId || !actor.slackWorkspaceId) {
+        const error = new Error('Provisioning a grant for the acting person requires an exact Slack identity');
+        error.code = 'PROJECT_PROVISIONING_SLACK_IDENTITY_REQUIRED';
+        error.statusCode = 409;
+        throw error;
+    }
+    return { slackUserId: actor.slackUserId, slackWorkspaceId: actor.slackWorkspaceId };
+}
+
+function graphVisibilityAccess(actor, manifest, organizationId) {
+    const actorProjectCodes = Array.isArray(actor?.projectCodes) ? actor.projectCodes : [];
+    return {
+        ...actor,
+        role: actor?.role || 'member',
+        organizationId,
+        projectCodes: [...new Set([...actorProjectCodes, manifest.project_code])],
+        clearance: Array.isArray(actor?.clearance) ? actor.clearance : []
+    };
+}
+
+function approvalBindingError(message, details = {}) {
+    const error = new Error(message);
+    error.code = 'PROJECT_PROVISIONING_HUMAN_GATE_BINDING_MISMATCH';
+    error.statusCode = 409;
+    error.details = details;
+    return error;
+}
+
+function readbackError(code, message, details = {}) {
+    const error = new Error(message);
+    error.code = code;
+    error.statusCode = 503;
+    error.details = details;
+    return error;
+}
+
+function assertAuthorityReadback(authority) {
+    const missingFields = AUTHORITY_FIELDS.filter((field) => typeof authority?.[field] !== 'boolean');
+    if (missingFields.length) {
+        throw readbackError(
+            'PROJECT_PROVISIONING_AUTHORITY_READBACK_INVALID',
+            'Manifest authority verification returned an incomplete result',
+            { missing_fields: missingFields }
+        );
+    }
+    return authority;
+}
+
+function assertIdentityCollisionReadback(identityCollisions) {
+    if (!Array.isArray(identityCollisions)) {
+        throw readbackError(
+            'PROJECT_PROVISIONING_IDENTITY_COLLISION_READBACK_INVALID',
+            'Identity collision verification returned an invalid result',
+            { reason: 'result_must_be_array' }
+        );
+    }
+    const invalidRows = identityCollisions
+        .map((row, index) => ({ row, index }))
+        .filter(({ row }) => (
+            !row || typeof row !== 'object' || Array.isArray(row)
+            || typeof row.id !== 'string' || !row.id.trim()
+        ))
+        .map(({ index }) => index);
+    if (invalidRows.length) {
+        throw readbackError(
+            'PROJECT_PROVISIONING_IDENTITY_COLLISION_READBACK_INVALID',
+            'Identity collision verification returned an invalid result',
+            { invalid_rows: invalidRows }
+        );
+    }
+    return identityCollisions;
+}
+
+function assertProjectSubjectIdentityReadback(identity) {
+    if (identity === null || identity === undefined) return null;
+    if (
+        typeof identity !== 'object' || Array.isArray(identity)
+        || !['same_organization', 'other_organization'].includes(identity.scope_relation)
+        || typeof identity.entity_id !== 'string' || !identity.entity_id.trim()
+    ) {
+        throw readbackError(
+            'PROJECT_PROVISIONING_GRAPH_IDENTITY_READBACK_INVALID',
+            'Graph project identity verification returned an invalid result'
+        );
+    }
+    return identity;
+}
+
+function projectSubjectFromIdentity(identity) {
+    if (!identity || identity.scope_relation !== 'same_organization') return null;
+    return {
+        id: identity.entity_id,
+        entity_type: identity.entity_type,
+        lifecycle_status: identity.lifecycle_status,
+        project_code: identity.project_code,
+        version: identity.entity_version,
+        payload: {
+            name: identity.display_name,
+            catalog_project_id: identity.catalog_project_id,
+            catalog_version: identity.catalog_version,
+            source_ref: identity.source_ref
+        }
+    };
+}
+
+function graphPreflightError(code, message, details = {}) {
+    const error = new Error(message);
+    error.code = code;
+    error.statusCode = 409;
+    error.details = details;
+    return error;
+}
+
+function canonicalGateSet(value) {
+    if (!Array.isArray(value) || value.some((gate) => typeof gate !== 'string')) return null;
+    const gates = value.map((gate) => gate.trim());
+    if (gates.some((gate) => gate.length === 0)) return null;
+    return [...new Set(gates)].sort();
+}
+
+function validateApprovalBinding(run) {
+    const requiredGates = canonicalGateSet(run?.plan?.required_human_gates);
+    if (!requiredGates || requiredGates.length === 0) {
+        throw approvalBindingError('The persisted human-gate set is invalid', {
+            required_gates: run?.plan?.required_human_gates
+        });
+    }
+
+    // The three persisted manifest fingerprints (receipt, run, and plan) must
+    // also agree with the manifest read back from storage before any write.
+    const receipt = run?.human_gate_receipt;
+    const runFingerprint = run?.manifest_fingerprint;
+    const planFingerprint = run?.plan?.manifest_fingerprint;
+    const manifestFingerprint = run?.manifest
+        ? fingerprintProjectProvisioningManifest(run.manifest)
+        : null;
+    const fingerprints = {
+        receipt_fingerprint: receipt?.manifest_fingerprint ?? null,
+        run_fingerprint: runFingerprint ?? null,
+        plan_fingerprint: planFingerprint ?? null,
+        manifest_fingerprint: manifestFingerprint
+    };
+    const persistedFingerprintValues = [runFingerprint, planFingerprint, manifestFingerprint];
+    if (
+        persistedFingerprintValues.some((fingerprint) => typeof fingerprint !== 'string' || fingerprint.length === 0) ||
+        persistedFingerprintValues.some((fingerprint) => fingerprint !== persistedFingerprintValues[0])
+    ) {
+        throw approvalBindingError('The persisted human-gate fingerprint binding is invalid', {
+            fingerprints
+        });
+    }
+
+    if (!receipt) return { requiredGates, approvedGates: null, fingerprints };
+
+    const fingerprintValues = Object.values(fingerprints);
+    if (
+        typeof fingerprints.receipt_fingerprint !== 'string' ||
+        fingerprints.receipt_fingerprint.length === 0 ||
+        fingerprintValues.some((fingerprint) => fingerprint !== fingerprintValues[0])
+    ) {
+        throw approvalBindingError('The persisted human-gate fingerprint binding is invalid', {
+            fingerprints
+        });
+    }
+
+    const approvedGates = canonicalGateSet(receipt.approved_gates);
+    if (!approvedGates) {
+        throw approvalBindingError('The persisted approved human-gate set is invalid', {
+            approved_gates: receipt.approved_gates
+        });
+    }
+    const missingGates = requiredGates.filter((gate) => !approvedGates.includes(gate));
+    const unsupportedGates = approvedGates.filter((gate) => !requiredGates.includes(gate));
+    if (
+        missingGates.length > 0 ||
+        unsupportedGates.length > 0 ||
+        approvedGates.length !== requiredGates.length
+    ) {
+        throw approvalBindingError('The approved human-gate set does not exactly match the plan', {
+            required_gates: requiredGates,
+            approved_gates: approvedGates,
+            missing_gates: missingGates,
+            unsupported_gates: unsupportedGates
+        });
+    }
+
+    return { requiredGates, approvedGates, fingerprints };
+}
+
+export class ProjectProvisioningService {
+    constructor({
+        repository, graphService, authGrantService, repositoryBootstrap = null,
+        catalogAdapter = null, now = () => new Date()
+    }) {
+        this.repository = repository;
+        this.graphService = graphService;
+        this.authGrantService = authGrantService;
+        this.repositoryBootstrap = repositoryBootstrap;
+        this.catalogAdapter = catalogAdapter;
+        this.now = now;
+    }
+
+    async check(actor, input) {
+        assertOperator(actor);
+        const manifest = normalizeProjectProvisioningManifest(input);
+        if (manifest.owner_person_id === actor.personId) {
+            slackIdentityForGrant(actor, { person_id: manifest.owner_person_id });
+        }
+        for (const grant of manifest.initial_grants) slackIdentityForGrant(actor, grant);
+        const organizationId = actor.organizationId || actor.tenantId;
+        if (typeof this.repository.verifyManifestAuthority !== 'function') {
+            const error = new Error('Manifest authority verification is unavailable');
+            error.code = 'PROJECT_PROVISIONING_AUTHORITY_READBACK_UNAVAILABLE';
+            error.statusCode = 503;
+            throw error;
+        }
+        if (typeof this.repository.findIdentityCollisions !== 'function') {
+            const error = new Error('Identity collision verification is unavailable');
+            error.code = 'PROJECT_PROVISIONING_IDENTITY_COLLISION_CHECK_UNAVAILABLE';
+            error.statusCode = 503;
+            throw error;
+        }
+        if (typeof this.repository.findProjectSubjectIdentity !== 'function') {
+            const error = new Error('Graph project identity verification is unavailable');
+            error.code = 'PROJECT_PROVISIONING_GRAPH_IDENTITY_CHECK_UNAVAILABLE';
+            error.statusCode = 503;
+            throw error;
+        }
+        const existing = await this.repository.getProject(manifest.project_code, organizationId);
+        const legacyCollisions = this.repository.findProjectCodeCollision
+            ? await this.repository.findProjectCodeCollision(
+                manifest.project_code, organizationId
+            )
+            : [];
+        const registryProject = existing
+            ? { status: matchesRegistryProject(existing, manifest, organizationId) ? 'reusable' : 'conflict' }
+            : { status: 'absent' };
+        const collisions = [
+            ...(registryProject.status === 'conflict'
+                ? [{ field: 'project_code', value: manifest.project_code, source: 'project_registry' }]
+                : []),
+            ...legacyCollisions.map((row) => ({ field: 'project_code', value: manifest.project_code, source: row.source }))
+        ];
+        const authority = assertAuthorityReadback(
+            await this.repository.verifyManifestAuthority(manifest, actor)
+        );
+        for (const field of AUTHORITY_FIELDS) {
+            const valid = authority[field];
+            if (!valid) collisions.push({ field, value: false, source: 'authority_readback' });
+        }
+        const identityCollisions = assertIdentityCollisionReadback(
+            await this.repository.findIdentityCollisions(manifest, actor)
+        );
+        collisions.push(...identityCollisions.map((row) => ({
+            field: 'display_name', value: manifest.display_name, source: 'graph_entity', entity_id: row.id
+        })));
+        const projectSubjectIdentity = assertProjectSubjectIdentityReadback(
+            await this.repository.findProjectSubjectIdentity(manifest.project_code, organizationId, {
+                access: graphVisibilityAccess(actor, manifest, organizationId)
+            })
+        );
+        let graphProjectSubject = { status: 'absent' };
+        if (projectSubjectIdentity) {
+            const existingSubject = projectSubjectFromIdentity(projectSubjectIdentity);
+            if (!existingSubject || !matchesProjectSubject(existingSubject, manifest)) {
+                graphProjectSubject = { status: 'conflict' };
+                collisions.push({
+                    field: 'graph_entity_id', value: manifest.project_code, source: 'graph_identity_conflict'
+                });
+            } else if (!Array.isArray(actor.projectCodes) || !actor.projectCodes.includes(existingSubject.project_code)) {
+                graphProjectSubject = { status: 'conflict' };
+                collisions.push({
+                    field: 'graph_project_scope', value: manifest.project_code, source: 'graph_scope_unavailable'
+                });
+            } else {
+                graphProjectSubject = {
+                    status: 'reusable',
+                    project_code: existingSubject.project_code,
+                    entity_version: existingSubject.version
+                };
+            }
+        }
+        let repositoryState = { mode: manifest.repository.mode, status: 'not_requested' };
+        if (manifest.repository.mode !== 'none') {
+            if (!this.repositoryBootstrap?.read) {
+                const error = new Error('Repository Bootstrap readback adapter is not configured');
+                error.code = 'PROJECT_PROVISIONING_REPOSITORY_READBACK_UNAVAILABLE';
+                error.statusCode = 503;
+                throw error;
+            }
+            const repository = await this.repositoryBootstrap.read(manifest.repository, { organizationId });
+            repositoryState = repository
+                ? { mode: manifest.repository.mode, status: 'exists', repository }
+                : { mode: manifest.repository.mode, status: 'missing' };
+            if (manifest.repository.mode === 'link_existing' && !repository) {
+                collisions.push({ field: 'repository', value: `${manifest.repository.owner}/${manifest.repository.repo}`, source: 'repository_missing' });
+            }
+            if (manifest.repository.mode === 'create' && repository) {
+                collisions.push({ field: 'repository', value: `${manifest.repository.owner}/${manifest.repository.repo}`, source: 'repository_already_exists' });
+            }
+            if (repository && repository.visibility !== manifest.repository.visibility) {
+                collisions.push({ field: 'repository.visibility', value: repository.visibility, source: 'repository_visibility' });
+            }
+        }
+        return {
+            ok: collisions.length === 0,
+            manifest,
+            collisions,
+            repository_state: repositoryState,
+            registry_project: registryProject,
+            graph_project_subject: graphProjectSubject,
+            authority,
+            writes_performed: 0
+        };
+    }
+
+    async assertFreshGraphPreflight(actor, run, { client = null } = {}) {
+        const expected = run?.plan?.preflight?.graph_project_subject;
+        const isLegacyPlan = expected === undefined;
+        if (!isLegacyPlan && (!expected || !['absent', 'reusable'].includes(expected.status))) {
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_PREFLIGHT_INVALID',
+                'Persisted Graph project preflight is invalid'
+            );
+        }
+        const organizationId = actor.organizationId || actor.tenantId;
+        const graphAccess = graphVisibilityAccess(actor, run.manifest, organizationId);
+        const identity = assertProjectSubjectIdentityReadback(
+            await this.repository.findProjectSubjectIdentity(
+                run.manifest.project_code,
+                organizationId,
+                { access: graphAccess, ...(client ? { client } : {}) }
+            )
+        );
+        if (!identity) {
+            if (isLegacyPlan || expected.status === 'absent') return { status: 'absent' };
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_PREFLIGHT_STALE',
+                'Reusable Graph project subject disappeared after plan approval'
+            );
+        }
+        const subject = projectSubjectFromIdentity(identity);
+        if (!subject || !matchesProjectSubject(subject, run.manifest)) {
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_IDENTITY_CONFLICT',
+                'Graph project identity changed after plan approval'
+            );
+        }
+        if ((isLegacyPlan || expected.status === 'absent')
+            && await this.verifyOwnCompletedGraphMaterialization(actor, run, subject, { client })) {
+            return {
+                status: 'materialized_by_run',
+                project_code: subject.project_code,
+                entity_version: subject.version
+            };
+        }
+        if (!Array.isArray(actor.projectCodes) || !actor.projectCodes.includes(subject.project_code)) {
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_SCOPE_UNAVAILABLE',
+                'Apply actor cannot access the reusable Graph project scope'
+            );
+        }
+        if (expected?.status === 'absent' && completedGraphReuseReceipt(run, subject)) {
+            return {
+                status: 'reused_by_run',
+                project_code: subject.project_code,
+                entity_version: subject.version
+            };
+        }
+        if (isLegacyPlan) {
+            return {
+                status: 'reusable',
+                project_code: subject.project_code,
+                entity_version: subject.version
+            };
+        }
+        if (expected.status !== 'reusable'
+            || expected.project_code !== subject.project_code
+            || expected.entity_version !== subject.version) {
+            throw graphPreflightError(
+                'PROJECT_PROVISIONING_GRAPH_PREFLIGHT_STALE',
+                'Graph project subject no longer matches the approved preflight',
+                {
+                    expected_project_code: expected.project_code || null,
+                    expected_entity_version: expected.entity_version ?? null
+                }
+            );
+        }
+        return expected;
+    }
+
+    async verifyOwnCompletedGraphMaterialization(actor, run, subject, { client = null } = {}) {
+        const stored = completedGraphMaterializationReceipt(run, subject);
+        if (!stored || typeof this.graphService?.getPlanReceipt !== 'function') return false;
+        const organizationId = actor.organizationId || actor.tenantId;
+        const access = {
+            ...actor,
+            organizationId,
+            projectCodes: [...new Set([...(actor.projectCodes || []), run.manifest.project_code])]
+        };
+        let fresh;
+        try {
+            fresh = await this.graphService.getPlanReceipt(
+                access,
+                { projectCode: run.manifest.project_code, planId: stored.plan_id },
+                ...(client ? [{ client }] : [])
+            );
+        } catch {
+            return false;
+        }
+        const expectedIdempotencyKey = `project-provisioning:${run.run_id}:graph`;
+        const applyReceipt = fresh?.receipts?.find((receipt) => (
+            receipt?.receipt_id === stored.apply.receipt_id
+            && receipt?.plan_id === stored.plan_id
+            && receipt?.receipt_type === 'apply'
+            && receipt?.status === 'completed'
+        ));
+        return fresh?.plan_id === stored.plan_id
+            && applyReceipt?.result?.idempotency_key === expectedIdempotencyKey;
+    }
+
+    async plan(actor, input, { idempotencyKey }) {
+        assertOperator(actor);
+        const organizationId = actor.organizationId || actor.tenantId;
+        if (!String(idempotencyKey || '').trim()) {
+            const error = new Error('Idempotency-Key is required');
+            error.code = 'PROJECT_PROVISIONING_IDEMPOTENCY_KEY_REQUIRED';
+            error.statusCode = 400;
+            throw error;
+        }
+        const normalized = normalizeProjectProvisioningManifest(input);
+        const normalizedFingerprint = fingerprintProjectProvisioningManifest(normalized);
+        if (this.repository.getRunByIdempotencyKey) {
+            const replay = await this.repository.getRunByIdempotencyKey(idempotencyKey, organizationId);
+            if (replay) {
+                if (replay.manifest_fingerprint !== normalizedFingerprint) {
+                    const error = new Error('Idempotency key is already bound to another manifest');
+                    error.code = 'PROJECT_PROVISIONING_IDEMPOTENCY_CONFLICT';
+                    error.statusCode = 409;
+                    throw error;
+                }
+                return replay;
+            }
+        }
+        const checked = await this.check(actor, input);
+        if (!checked.ok) {
+            const error = new Error(`Project code collision: ${checked.manifest.project_code}`);
+            error.code = 'PROJECT_PROVISIONING_PROJECT_COLLISION';
+            error.statusCode = 409;
+            error.details = checked.collisions;
+            throw error;
+        }
+        const manifest = checked.manifest;
+        const requiredGates = ['manifest_plan_approval'];
+        if (manifest.repository.mode === 'create') requiredGates.push('repository_create');
+        if (manifest.repository.visibility === 'public') requiredGates.push('public_repository');
+        if (manifest.initial_grants.some((grant) => grant.role === 'ceo')) requiredGates.push('broad_grant');
+        const plan = {
+            schema_version: 'project-provisioning-plan.v1',
+            project_code: manifest.project_code,
+            manifest_fingerprint: normalizedFingerprint,
+            steps: STEP_ORDER.map((name) => ({ name, action: name === 'repository' ? manifest.repository.mode : 'apply' })),
+            required_human_gates: requiredGates,
+            preflight: {
+                authority: checked.authority,
+                repository_state: checked.repository_state,
+                registry_project: checked.registry_project,
+                graph_project_subject: checked.graph_project_subject,
+                collisions: checked.collisions
+            },
+            rollback_boundary: 'Completed steps are retained and resume is forward-only',
+            generated_at: this.now().toISOString()
+        };
+        return this.repository.savePlan({
+            idempotencyKey,
+            fingerprint: plan.manifest_fingerprint,
+            manifest,
+            plan,
+            actor: { personId: actor.personId || null, role: actor.role, organizationId: actor.organizationId || actor.tenantId }
+        });
+    }
+
+    async status(actor, runId) {
+        assertOperator(actor);
+        const organizationId = actor.organizationId || actor.tenantId;
+        const run = await this.repository.getRun(runId, organizationId);
+        if (!run) {
+            const error = new Error(`Unknown provisioning run: ${runId}`);
+            error.code = 'PROJECT_PROVISIONING_RUN_NOT_FOUND';
+            error.statusCode = 404;
+            throw error;
+        }
+        return run;
+    }
+
+    async approve(actor, runId, { approvedGates = [], reviewRef = null } = {}) {
+        assertOperator(actor);
+        if (actor.authSource !== 'bearer' || !actor.personId) {
+            const error = new Error('Human Gate approval requires a signed human Bearer principal');
+            error.code = 'PROJECT_PROVISIONING_SIGNED_HUMAN_REQUIRED';
+            error.statusCode = 403;
+            throw error;
+        }
+        const organizationId = actor.organizationId || actor.tenantId;
+        const run = await this.status(actor, runId);
+        const binding = validateApprovalBinding(run);
+        const required = binding.requiredGates;
+        const approved = canonicalGateSet(approvedGates) || [];
+        const missing = required.filter((gate) => !approved.includes(gate));
+        const unsupported = approved.filter((gate) => !required.includes(gate));
+        if (missing.length || unsupported.length || !String(reviewRef || '').trim()) {
+            const error = new Error('Human Gate receipt must approve the exact plan scope');
+            error.code = 'PROJECT_PROVISIONING_HUMAN_GATE_SCOPE_MISMATCH';
+            error.statusCode = 409;
+            error.details = { missing_gates: missing, unsupported_gates: unsupported };
+            throw error;
+        }
+        if (run.human_gate_receipt) return run;
+        return this.repository.recordHumanGate(runId, organizationId, {
+            approved_gates: approved,
+            approved_by: actor.personId,
+            review_ref: reviewRef,
+            manifest_fingerprint: run.manifest_fingerprint,
+            approved_at: this.now().toISOString()
+        });
+    }
+
+    async applyRegistryAndGraphAtomically(actor, run, executionToken) {
+        const organizationId = actor.organizationId || actor.tenantId;
+        if (typeof this.repository.withOrganizationTransaction !== 'function') {
+            return null;
+        }
+        return this.repository.withOrganizationTransaction(organizationId, async (client) => {
+            if (typeof this.repository.acquireProjectGraphIdentityLock === 'function') {
+                await this.repository.acquireProjectGraphIdentityLock(run.manifest.project_code, client);
+            }
+            const graphProjectSubject = await this.assertFreshGraphPreflight(actor, run, { client });
+            const transactionRun = {
+                ...run,
+                plan: {
+                    ...run.plan,
+                    preflight: {
+                        ...(run.plan?.preflight || {}),
+                        graph_project_subject: graphProjectSubject
+                    }
+                }
+            };
+            await this.repository.setStep(run.run_id, organizationId, 'registry', 'applying', {
+                executionToken, client
+            });
+            const registryReceipt = await this.applyStep('registry', actor, transactionRun, { client });
+            await this.repository.setStep(run.run_id, organizationId, 'registry', 'completed', {
+                receipt: registryReceipt, executionToken, client
+            });
+            await this.repository.setStep(run.run_id, organizationId, 'graph', 'applying', {
+                executionToken, client
+            });
+            const graphReceipt = await this.applyStep('graph', actor, transactionRun, { client });
+            await this.repository.setStep(run.run_id, organizationId, 'graph', 'completed', {
+                receipt: graphReceipt, executionToken, client
+            });
+            return { graphProjectSubject };
+        });
+    }
+
+    async apply(actor, runId, { recoverStaleApplying = false } = {}) {
+        assertOperator(actor);
+        const organizationId = actor.organizationId || actor.tenantId;
+        let run = await this.status(actor, runId);
+        if (run.state === 'active') return run;
+        const binding = validateApprovalBinding(run);
+        const recordedGates = binding.approvedGates || [];
+        const missingGates = binding.requiredGates.filter((gate) => !recordedGates.includes(gate));
+        if (missingGates.length) {
+            return this.repository.setRunState(runId, organizationId, 'manual_intervention_required', {
+                failure: { code: 'PROJECT_PROVISIONING_HUMAN_GATE_REQUIRED', missing_gates: missingGates }
+            });
+        }
+        const graphProjectSubject = await this.assertFreshGraphPreflight(actor, run);
+        run = {
+            ...run,
+            plan: {
+                ...run.plan,
+                preflight: {
+                    ...(run.plan?.preflight || {}),
+                    graph_project_subject: graphProjectSubject
+                }
+            }
+        };
+        run = this.repository.claimRun
+            ? await this.repository.claimRun(runId, organizationId, { recoverStaleApplying })
+            : await this.repository.setRunState(runId, organizationId, 'applying');
+        run = {
+            ...run,
+            plan: {
+                ...run.plan,
+                preflight: {
+                    ...(run.plan?.preflight || {}),
+                    graph_project_subject: graphProjectSubject
+                }
+            }
+        };
+        if (run.state === 'active') return run;
+        const executionToken = run.execution_token || null;
+        let heartbeatFailure = null;
+        const heartbeat = executionToken && this.repository.heartbeatRun
+            ? setInterval(() => {
+                this.repository.heartbeatRun(runId, organizationId, executionToken)
+                    .catch((error) => { heartbeatFailure = error; });
+            }, 60_000)
+            : null;
+        heartbeat?.unref?.();
+        const completed = new Set(run.steps.filter((step) => step.state === 'completed').map((step) => step.step_name));
+        try {
+            for (const stepName of STEP_ORDER) {
+                if (completed.has(stepName)) continue;
+                if (heartbeatFailure) throw heartbeatFailure;
+                if (stepName === 'registry'
+                    && !completed.has('graph')
+                    && typeof this.repository.withOrganizationTransaction === 'function') {
+                    const atomicResult = await this.applyRegistryAndGraphAtomically(actor, run, executionToken);
+                    run = {
+                        ...run,
+                        plan: {
+                            ...run.plan,
+                            preflight: {
+                                ...(run.plan?.preflight || {}),
+                                graph_project_subject: atomicResult.graphProjectSubject
+                            }
+                        }
+                    };
+                    completed.add('registry');
+                    completed.add('graph');
+                    continue;
+                }
+                await this.repository.setStep(runId, organizationId, stepName, 'applying', { executionToken });
+                const receipt = await this.applyStep(stepName, actor, run);
+                if (heartbeatFailure) throw heartbeatFailure;
+                await this.repository.setStep(runId, organizationId, stepName, 'completed', { receipt, executionToken });
+            }
+            const receipt = await this.verify(actor, runId);
+            if (!receipt.verified) {
+                const error = new Error('Project Provisioning readback verification failed');
+                error.code = 'PROJECT_PROVISIONING_READBACK_FAILED';
+                error.statusCode = 409;
+                error.details = receipt.verification_failures;
+                throw error;
+            }
+            return this.repository.setRunState(runId, organizationId, 'active', { receipt, executionToken });
+        } catch (error) {
+            const current = await this.repository.getRun(runId, organizationId);
+            if (executionToken && current?.execution_token !== executionToken) throw error;
+            const step = current.steps
+                .find((candidate) => candidate.state === 'applying');
+            if (step) {
+                await this.repository.setStep(
+                    runId, organizationId, step.step_name, 'failed', { failure: errorPayload(error), executionToken }
+                );
+            }
+            await this.repository.setRunState(
+                runId, organizationId, 'partial_failed', { failure: errorPayload(error), executionToken }
+            );
+            throw error;
+        } finally {
+            if (heartbeat) clearInterval(heartbeat);
+        }
+    }
+
+    async resume(actor, runId, options = {}) {
+        const run = await this.status(actor, runId);
+        if (!['partial_failed', 'manual_intervention_required', 'applying', 'planned'].includes(run.state)) return run;
+        return this.apply(actor, runId, { ...options, recoverStaleApplying: true });
+    }
+
+    async applyStep(stepName, actor, run, { client = null } = {}) {
+        const manifest = run.manifest;
+        const organizationId = actor.organizationId || actor.tenantId;
+        if (stepName === 'registry') {
+            return this.repository.upsertProject(manifest, {
+                organizationId,
+                ...(client ? { client } : {})
+            });
+        }
+        if (stepName === 'auth_grants') {
+            const grants = [];
+            for (const grant of manifest.initial_grants) {
+                const actorSlackIdentity = slackIdentityForGrant(actor, grant);
+                grants.push(await this.authGrantService.addProjectGrant({
+                    personId: grant.person_id, role: grant.role, projectCode: manifest.project_code,
+                    organizationId, ...actorSlackIdentity
+                }));
+            }
+            return { grants };
+        }
+        if (stepName === 'repository') {
+            if (manifest.repository.mode === 'none') return { mode: 'none', status: 'not_requested' };
+            if (!this.repositoryBootstrap) {
+                const error = new Error('Repository Bootstrap adapter is not configured');
+                error.code = 'PROJECT_PROVISIONING_REPOSITORY_BOOTSTRAP_UNAVAILABLE';
+                error.statusCode = 503;
+                throw error;
+            }
+            if (manifest.repository.mode === 'link_existing') {
+                return this.repositoryBootstrap.link(manifest.repository, { organizationId });
+            }
+            return this.repositoryBootstrap.create(manifest.repository, { organizationId });
+        }
+        const applyGraph = async () => {
+            const access = {
+                ...actor,
+                organizationId,
+                projectCodes: [...new Set([...(actor.projectCodes || []), manifest.project_code])],
+                role: actor.role
+            };
+            const approvedGraphSubject = run.plan.preflight.graph_project_subject;
+            const accessibleProjectCodes = this.graphService.listAccessibleProjectCodes
+                ? await this.graphService.listAccessibleProjectCodes(
+                    access, ...(client ? [{ client }] : [])
+                )
+                : [manifest.project_code];
+            const includeProjectCodes = approvedGraphSubject.status === 'reusable'
+                ? [approvedGraphSubject.project_code].filter((code) => code !== manifest.project_code)
+                : accessibleProjectCodes.filter((code) => code !== manifest.project_code);
+            const snapshot = await this.graphService.exportSnapshot(
+                access,
+                { projectCode: manifest.project_code, includeProjectCodes },
+                ...(client ? [{ client }] : [])
+            );
+            const existingSubject = assertCompatibleProjectSubject(snapshot.entities, manifest);
+            if (existingSubject) {
+                if (typeof this.repository.bindExistingProjectSubject === 'function') {
+                    await this.repository.bindExistingProjectSubject(manifest, existingSubject.id, {
+                        organizationId,
+                        ...(client ? { client } : {})
+                    });
+                }
+                return {
+                    status: 'already_materialized',
+                    snapshot_hash: snapshot.snapshot_hash,
+                    project_code: existingSubject.project_code,
+                    entity_version: existingSubject.version
+                };
+            }
+            const graphPlan = await this.graphService.planMutations(
+                access,
+                {
+                    projectCode: manifest.project_code,
+                    snapshotId: snapshot.snapshot_id,
+                    idempotencyKey: `project-provisioning:${run.run_id}:graph`,
+                    reason: 'Project Provisioning Graph materialization',
+                    operations: [{
+                        operation: 'materialize_project_subject',
+                        catalog_project_id: manifest.project_code,
+                        name: manifest.display_name,
+                        catalog_version: manifest.catalog_version,
+                        kind: manifest.kind,
+                        organization_entity_id: manifest.organization_entity_id,
+                        owner_person_id: manifest.owner_person_id,
+                        source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`,
+                        expected_version: 0
+                    }]
+                },
+                ...(client ? [{ client }] : [])
+            );
+            const applied = await this.graphService.applyPlan(
+                access,
+                {
+                    projectCode: manifest.project_code,
+                    planId: graphPlan.plan_id,
+                    snapshotHash: graphPlan.snapshot_hash
+                },
+                ...(client ? [{ client }] : [])
+            );
+            const graphReceipt = await this.graphService.getPlanReceipt(
+                access,
+                { projectCode: manifest.project_code, planId: graphPlan.plan_id },
+                ...(client ? [{ client }] : [])
+            );
+            const validation = await this.graphService.validate(
+                access,
+                { projectCode: manifest.project_code },
+                ...(client ? [{ client }] : [])
+            );
+            if (validation?.valid !== true) {
+                const error = new Error('Graph validation failed after project materialization');
+                error.code = 'PROJECT_PROVISIONING_GRAPH_VALIDATION_FAILED';
+                error.statusCode = 409;
+                error.details = validation;
+                throw error;
+            }
+            return {
+                plan_id: graphPlan.plan_id,
+                project_code: manifest.project_code,
+                catalog_version: manifest.catalog_version,
+                source_ref: `project-catalog:${manifest.project_code}@${manifest.catalog_version}`,
+                idempotency_key: `project-provisioning:${run.run_id}:graph`,
+                apply: applied,
+                receipt: graphReceipt,
+                validation
+            };
+        };
+        return this.catalogAdapter
+            ? this.catalogAdapter.runForOrganization(
+                organizationId,
+                applyGraph,
+                ...(client ? [{ client }] : [])
+            )
+            : applyGraph();
+    }
+
+    async verify(actor, runId) {
+        const run = await this.status(actor, runId);
+        const organizationId = actor.organizationId || actor.tenantId;
+        const project = await this.repository.getProject(
+            run.manifest.project_code, organizationId
+        );
+        const incomplete = run.steps.filter((step) => step.state !== 'completed').map((step) => step.step_name);
+        const failures = [];
+        const registryMatches = project
+            && project.lifecycle_status === 'active'
+            && project.project_code === run.manifest.project_code
+            && project.display_name === run.manifest.display_name
+            && project.kind === run.manifest.kind
+            && project.catalog_version === run.manifest.catalog_version
+            && project.session_select === run.manifest.session_select
+            && project.organization_entity_id === run.manifest.organization_entity_id
+            && project.owner_person_id === run.manifest.owner_person_id;
+        if (!registryMatches) {
+            failures.push({ layer: 'project_registry', code: 'registry_readback_mismatch' });
+        }
+        let catalogReadback = null;
+        if (this.catalogAdapter) {
+            catalogReadback = await this.catalogAdapter.runForOrganization(
+                organizationId,
+                () => this.catalogAdapter.getProjects()
+            );
+            const catalogProject = catalogReadback.projects?.find((candidate) => candidate.id === run.manifest.project_code);
+            if (catalogReadback.source?.status !== 'loaded') {
+                failures.push({
+                    layer: 'runtime_catalog',
+                    code: 'catalog_readback_unavailable',
+                    source_status: catalogReadback.source?.status || 'unknown'
+                });
+            } else if (!catalogProject
+                || catalogProject.name !== run.manifest.display_name
+                || catalogProject.session_select !== run.manifest.session_select) {
+                failures.push({ layer: 'runtime_catalog', code: 'catalog_readback_mismatch' });
+            }
+        } else {
+            failures.push({ layer: 'runtime_catalog', code: 'catalog_readback_unavailable' });
+        }
+        const graphAccess = graphVisibilityAccess(actor, run.manifest, organizationId);
+        const graphStep = run.steps.find((step) => step.step_name === 'graph');
+        const reusedSubject = graphStep?.receipt?.status === 'already_materialized'
+            ? graphStep.receipt
+            : null;
+        if (reusedSubject) {
+            const identity = assertProjectSubjectIdentityReadback(
+                await this.repository.findProjectSubjectIdentity(run.manifest.project_code, organizationId, {
+                    access: graphAccess
+                })
+            );
+            const subject = projectSubjectFromIdentity(identity);
+            if (!subject
+                || !matchesProjectSubject(subject, run.manifest)
+                || subject.project_code !== reusedSubject.project_code
+                || subject.version !== reusedSubject.entity_version) {
+                failures.push({ layer: 'graph', code: 'reused_subject_readback_mismatch' });
+            }
+        }
+        // A compatible Project subject may be stored in a legacy parent scope.
+        // Provisioning verifies the project being registered; validating the
+        // storage scope would make unrelated legacy issues block this run.
+        const graphValidationProjectCode = run.manifest.project_code;
+        const graphValidationAccess = {
+            ...graphAccess,
+            projectCodes: [graphValidationProjectCode]
+        };
+        const graphValidation = await (this.catalogAdapter
+            ? this.catalogAdapter.runForOrganization(actor.organizationId || actor.tenantId, () => (
+                this.graphService.validate(graphValidationAccess, { projectCode: graphValidationProjectCode })
+            ))
+            : this.graphService.validate(graphValidationAccess, { projectCode: graphValidationProjectCode }));
+        if (graphValidation?.valid !== true) failures.push({ layer: 'graph', code: 'graph_validation_failed' });
+        for (const grant of run.manifest.initial_grants) {
+            const actorSlackIdentity = slackIdentityForGrant(actor, grant);
+            const readback = await this.authGrantService.readProjectGrant?.({
+                personId: grant.person_id, role: grant.role, projectCode: run.manifest.project_code,
+                organizationId, ...actorSlackIdentity
+            });
+            if (!readback) failures.push({ layer: 'auth_grants', code: 'grant_readback_missing', person_id: grant.person_id, role: grant.role });
+        }
+        let repositoryReadback = null;
+        if (run.manifest.repository.mode !== 'none') {
+            repositoryReadback = await this.repositoryBootstrap?.read(
+                run.manifest.repository,
+                { organizationId }
+            );
+            if (!repositoryReadback
+                || repositoryReadback.visibility !== run.manifest.repository.visibility
+                || repositoryReadback.repo !== run.manifest.repository.repo
+                || repositoryReadback.owner !== run.manifest.repository.owner) {
+                failures.push({ layer: 'repository', code: 'repository_readback_mismatch' });
+            }
+        }
+        return {
+            schema_version: 'project-provisioning-receipt.v1',
+            run_id: runId,
+            project_code: run.manifest.project_code,
+            verified: Boolean(project) && incomplete.length === 0 && failures.length === 0,
+            incomplete_steps: incomplete,
+            verification_failures: failures,
+            graph_validation: graphValidation,
+            repository_readback: repositoryReadback,
+            project_registry: project,
+            runtime_catalog: catalogReadback,
+            steps: run.steps.map(({ step_name, state, receipt }) => ({ step_name, state, receipt })),
+            verified_at: this.now().toISOString()
+        };
+    }
+}
+
+export function createProjectProvisioningService({ infoSSOTService, configParser = null }) {
+    const repository = new PgProjectProvisioningRepository({
+        pool: infoSSOTService?.pool,
+        infoSSOTService
+    });
+    const catalog = new ProjectRegistryCatalogAdapter({ repository, fallbackConfigParser: configParser });
+    const service = new ProjectProvisioningService({
+        repository,
+        graphService: new GraphMaintenanceService({ infoSSOTService, configParser: catalog }),
+        authGrantService: new AuthGrantService({ pool: infoSSOTService?.pool }),
+        repositoryBootstrap: new GitHubRepositoryBootstrap(),
+        catalogAdapter: catalog
+    });
+    service.runtimeCatalog = catalog;
+    return service;
+}

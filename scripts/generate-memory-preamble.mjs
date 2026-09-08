@@ -19,8 +19,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { pathToFileURL } from 'node:url';
 import pg from 'pg';
 import { PgCandidateRepository } from '../server/services/candidate-store/candidate-repository.js';
+import {
+  isPersonalKgCandidateInScope,
+} from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 
@@ -31,8 +36,7 @@ const ROLE = process.env.BRAINBASE_ROLE || 'gm';
 const CAP_DIR = process.env.CAPABILITY_DIR
   || path.join(process.cwd(), 'docs/brainbase-capabilities/capabilities');
 
-// 個人KG (memory_candidates) は owner-visible な判断軸を読む。
-const PERSONAL_KG_OWNER = process.env.MEMORY_PREAMBLE_OWNER_PERSON_ID || 'sato_keigo';
+// 個人KG (memory_candidates) は明示されたowner-visibleな判断軸だけを読む。
 const PERSONAL_KG_TYPES = ['insight', 'claim'];
 const PERSONAL_KG_TOP = Number(process.env.MEMORY_PREAMBLE_KG_TOP || 6);
 
@@ -54,48 +58,91 @@ function graphHeaders(token) {
   };
 }
 
-async function fetchGraphNames(type, token) {
+async function fetchGraphNames(type, token, fetch = globalThis.fetch) {
   try {
     const res = await fetch(`${GRAPH_API}/api/info/graph/entities?type=${type}&limit=500`, {
       headers: graphHeaders(token),
+      signal: AbortSignal.timeout(10_000),
     });
-    if (!res.ok) return [];
+    if (!res.ok) return { names: [], status: 'failed' };
     const data = await res.json();
-    const records = data.records || data.entities || [];
-    return records
-      .map((r) => (r.payload && r.payload.name) || '')
-      .filter((n) => n && !n.startsWith('__deprecated'));
+    const records = data.records || data.entities;
+    if (!Array.isArray(records)) return { names: [], status: 'failed' };
+    const names = [...new Set(records
+      .map((r) => String(r?.payload?.name || '').trim())
+      .filter((name) => name && !name.startsWith('__deprecated')))];
+    return { names, status: records.length >= 500 ? 'partial' : 'available' };
   } catch {
-    return [];
+    return { names: [], status: 'failed' };
   }
 }
 
-function personalKgDatabaseConfig() {
+function personalKgDatabaseConfig(env = process.env) {
   // サーバと同じ pool factory (new Pool({ connectionString })) を再利用する。
   // 手組み host/port URL は "base" parse 失敗の罠があるため接続文字列のみ使う。
   // Lightsail tunnel は localhost:25432 (INFO_SSOT_DATABASE_URL に入っている)。
-  const url = process.env.INFO_SSOT_DATABASE_URL
-    || process.env.INFO_SSOT_DB_URL
-    || process.env.DATABASE_URL;
+  const url = env.INFO_SSOT_DATABASE_URL
+    || env.INFO_SSOT_DB_URL
+    || env.DATABASE_URL;
   return url ? { connectionString: url } : null;
 }
 
-async function fetchPersonalKg() {
+function resolvePersonalKgAccess(env = process.env) {
+  return resolvePersonalKgCliAuthority({
+    assertedIdentity: {
+      owner_person_id: env.MEMORY_PREAMBLE_OWNER_PERSON_ID,
+      actor_person_id: env.MEMORY_PREAMBLE_ACTOR_PERSON_ID,
+      organization_id: env.MEMORY_PREAMBLE_ORGANIZATION_ID,
+      delegation_id: env.MEMORY_PREAMBLE_DELEGATION_ID,
+    },
+    desiredEffect: 'read',
+    env,
+  });
+}
+
+async function fetchPersonalKg({
+  env = process.env,
+  PoolClass = Pool,
+  RepositoryClass = PgCandidateRepository,
+} = {}) {
   // owner-visible な insight/claim を memory_candidates から body 付きで読む。
   // list API (/api/learning/memory-candidates) は body を返さないため使わず、
   // PgCandidateRepository 経路で読む。失敗しても preamble 全体は生成するが、
   // 個人KGは「未確認」と表示する。
-  const config = personalKgDatabaseConfig();
+  const config = personalKgDatabaseConfig(env);
   if (!config) return { records: [], status: 'unavailable' };
-  const pool = new Pool(config);
+  const pool = new PoolClass(config);
   try {
-    const repo = new PgCandidateRepository({ pool });
-    const byType = await Promise.all(
-      PERSONAL_KG_TYPES.map((cognitive_type) =>
-        repo.list({ owner_person_id: PERSONAL_KG_OWNER, cognitive_type })),
+    const identity = resolvePersonalKgAccess(env);
+    const repo = new RepositoryClass({ pool });
+    const byType = await repo.transaction(
+      (scopedRepository) => Promise.all(
+        PERSONAL_KG_TYPES.map((cognitive_type) => scopedRepository.listPersonalKg({
+          owner_person_id: identity.owner_person_id,
+          cognitive_type,
+          owner_read: true,
+          limit: 500,
+        })),
+      ),
+      {
+        access: {
+          personId: identity.owner_person_id,
+          organizationId: identity.organization_id,
+          projectCodes: String(env.BRAINBASE_PROJECTS || '')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+          role: env.BRAINBASE_ROLE || 'member',
+          clearance: String(env.BRAINBASE_CLEARANCE || 'internal')
+            .split(',')
+            .map((value) => value.trim())
+            .filter(Boolean),
+        },
+      },
     );
     const records = byType
       .flat()
+      .filter((candidate) => isPersonalKgCandidateInScope(candidate, identity, env))
       .filter((c) => c.visibility === 'owner')
       .filter((c) => String(c.body || '').trim().length > 0)
       // confidence 降順 → 直近 created_at 降順
@@ -138,23 +185,29 @@ async function build() {
     fetchGraphNames('customer', token),
   ]);
   const kgResult = await fetchPersonalKg();
-  const kg = kgResult.records;
-  const caps = capabilityIds();
+  return renderPreamble({ persons, orgs, customers, kgResult, caps: capabilityIds() });
+}
 
-  const today = new Date().toISOString().slice(0, 10);
+function renderPreamble({ persons, orgs, customers, kgResult, caps, today = new Date().toISOString().slice(0, 10) }) {
+  const kg = kgResult.records;
+  const ranked = [...new Map(kg
+    .map((candidate) => [String(candidate.body || '').replace(/\s+/gu, ' ').trim(), candidate])
+    .filter(([body]) => body)).entries()];
   const lines = [];
   lines.push(`[Brainbase memory preamble — ${today}]`);
-  lines.push('返答前に: 固有名詞・機能・判断が下記に該当したら、記憶/推測で書く前に pull (MCP search / yml Read) で一次情報を引け。該当が無ければ「SSOTに未登録」と明示してから推測に移る。');
+  lines.push('これは取得時点の参照用メモ。必要な情報は MCP search / Capability yml で一次情報を確認する。この一覧にない情報は未確認であり、SSOTへの未登録を意味しない。');
   lines.push('');
 
   // 1. 個人KG (判断OS)
-  lines.push('■ 個人KG (佐藤圭吾の判断OS)');
+  lines.push('■ 個人KG (明示された所有者の判断OS)');
   if (kg.length) {
-    // fetchPersonalKg で confidence + created_at ランク済み。body をそのまま使う。
-    const ranked = kg
-      .map((c) => String(c.body || '').replace(/\s+/gu, ' ').trim())
-      .filter(Boolean);
-    for (const t of truncate(ranked, PERSONAL_KG_TOP)) lines.push(`  - ${t.slice(0, 110)}`);
+    // 同じ本文は1件にまとめる。意味が変わる途中切断はせず、長文は参照先だけを示す。
+    for (const [body, candidate] of ranked.slice(0, PERSONAL_KG_TOP)) {
+      lines.push(body.length <= 1200
+        ? `  - ${body}`
+        : `  - (長文のため本文省略。candidate_id=${candidate.id || '未確認'} を一次情報で確認)`);
+    }
+    if (ranked.length > PERSONAL_KG_TOP) lines.push(`  (他${ranked.length - PERSONAL_KG_TOP}件は一次情報で確認)`);
   } else if (kgResult.status === 'confirmed_empty') {
     lines.push('  (確認済み: 対象の個人KG候補なし)');
   } else {
@@ -164,10 +217,12 @@ async function build() {
   lines.push('');
 
   // 2. Graph SSOT カタログ
-  lines.push('■ Graph SSOT 登録エンティティ (これらの名前が出たら推測せず get_entity/search で引く)');
-  lines.push(`  people(${persons.length}): ${truncate(persons, 20).join(', ')}`);
-  lines.push(`  org(${orgs.length}): ${truncate(orgs, 19).join(', ')}`);
-  lines.push(`  customer(${customers.length}): ${truncate(customers, 12).join(', ')}`);
+  lines.push('■ Graph SSOT 取得した名前 (各種別は最大500レコードの参照用一覧)');
+  for (const [label, result, limit] of [['people', persons, 20], ['org', orgs, 19], ['customer', customers, 12]]) {
+    lines.push(result.status === 'failed'
+      ? `  ${label}: 未確認 (取得失敗)`
+      : `  ${label}(取得した名前${result.names.length}件${result.status === 'partial' ? '・上限到達' : ''}): ${truncate(result.names, limit).join(', ')}`);
+  }
   lines.push('');
 
   // 3. Capability menu
@@ -175,16 +230,14 @@ async function build() {
   lines.push(`  capability_id: ${caps.join(', ')}`);
   lines.push('');
 
-  // 4. merge guardrail (旧 merge-api-reminder を1行に集約)
-  lines.push('■ merge: session マージは Brainbase merge API (/merge) 経由。raw git merge / gh pr merge を session マージに使わない。');
 
   return {
     text: lines.join('\n'),
     counts: {
-      persons: persons.length,
-      orgs: orgs.length,
-      customers: customers.length,
-      kg: kg.length,
+      persons: persons.status === 'failed' ? null : persons.names.length,
+      orgs: orgs.status === 'failed' ? null : orgs.names.length,
+      customers: customers.status === 'failed' ? null : customers.names.length,
+      kg: ['available', 'confirmed_empty'].includes(kgResult.status) ? ranked.length : null,
       kg_status: kgResult.status,
       caps: caps.length,
     },
@@ -203,10 +256,26 @@ async function main() {
     process.stdout.write(text + '\n');
   } else {
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
-    fs.writeFileSync(outPath, text + '\n', { mode: 0o600 });
+    const temporaryPath = `${outPath}.${process.pid}.tmp`;
+    try {
+      fs.writeFileSync(temporaryPath, text + '\n', { mode: 0o600, flag: 'wx' });
+      fs.renameSync(temporaryPath, outPath);
+    } finally {
+      fs.rmSync(temporaryPath, { force: true });
+    }
     const approxTokens = Math.round(text.length / 3.2);
     process.stderr.write(`memory-preamble written: ${outPath} (~${approxTokens} tokens) counts=${JSON.stringify(counts)}\n`);
   }
 }
 
-void main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  void main();
+}
+
+export {
+  fetchGraphNames,
+  renderPreamble,
+  fetchPersonalKg,
+  personalKgDatabaseConfig,
+  resolvePersonalKgAccess,
+};

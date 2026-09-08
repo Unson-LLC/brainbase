@@ -1,33 +1,980 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { writePrivateJsonAtomically } from '../../scripts/lib/infisical-export.mjs';
+import { waitForBrainbaseRuntime } from '../../scripts/wait-for-brainbase-runtime.mjs';
 
 function read(path) {
     return readFileSync(path, 'utf8');
 }
 
+function expectProductionNotRunInUserFacingPrBody(body) {
+    expect(body).not.toContain('保存済み説明は現在の証拠と一致しないため表示していません');
+    const acceptanceCriteriaIndex = body.indexOf('## Acceptance criteria');
+    expect(acceptanceCriteriaIndex).toBeGreaterThanOrEqual(0);
+    const userFacingSummary = body.slice(0, acceptanceCriteriaIndex);
+    expect(userFacingSummary).toContain('現在の本番実行状態は production_execution_status=not_run');
+}
+
 describe('judgment resolver publication surfaces', () => {
+    it('本番runtime readyを再試行し、SHA不一致とtimeoutをfail-closedにする', async () => {
+        const targetSha = 'a'.repeat(40);
+        let calls = 0;
+        const retryResult = await waitForBrainbaseRuntime({
+            url: 'https://bb.example/api/version',
+            expectedSha: targetSha,
+            attempts: 3,
+            delayMs: 0,
+            sleep: async () => {},
+            fetchImpl: async () => {
+                calls += 1;
+                if (calls === 1) return { ok: false };
+                return {
+                    ok: true,
+                    json: async () => ({ runtime: { git: { sha: targetSha, dirty: false } } }),
+                };
+            },
+        });
+        expect(retryResult).toEqual({ attempts: 2 });
+        expect(calls).toBe(2);
+
+        await expect(
+            waitForBrainbaseRuntime({
+                url: 'https://bb.example/api/version',
+                expectedSha: targetSha,
+                attempts: 2,
+                delayMs: 0,
+                sleep: async () => {},
+                fetchImpl: async () => ({
+                    ok: true,
+                    json: async () => ({ runtime: { git: { sha: 'b'.repeat(40), dirty: false } } }),
+                }),
+            })
+        ).rejects.toThrow('did not become ready after 2 attempts');
+
+        let timeoutCalls = 0;
+        await expect(
+            waitForBrainbaseRuntime({
+                url: 'https://bb.example/api/health',
+                attempts: 3,
+                delayMs: 0,
+                sleep: async () => {},
+                fetchImpl: async () => {
+                    timeoutCalls += 1;
+                    throw new Error('connection refused');
+                },
+            })
+        ).rejects.toThrow('did not become ready after 3 attempts');
+        expect(timeoutCalls).toBe(3);
+    });
+
+    it('knowledge readback trace is included in the assistant audit prefix and verified by Stop', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/knowledge-resolve.md');
+        expect(runbook).toContain('machine-readable owner-audit metadata envelope');
+        expect(runbook).toContain('`PostToolUse` validates the envelope');
+        expect(runbook).toContain('The final assistant answer must begin with the exact Host-derived audit block');
+        expect(runbook).toContain('`Stop` validates that each journaled trace appears exactly once and in order');
+        expect(runbook).toContain('is not owner-visible proof');
+    });
+
+    it('本番hotfix退避先を複数行出力から1件だけ抽出し、不正markerを拒否する', () => {
+        const parser = 'scripts/extract-lightsail-hotfix-backup-dir.mjs';
+        const validPath = '/home/ubuntu/brainbase-production-hotfix-20260902T000000Z';
+        const run = (input) =>
+            spawnSync(process.execPath, [parser], {
+                input,
+                encoding: 'utf8',
+            });
+
+        const valid = run(
+            `[rollback/production-hotfix 123] preserve\n4 files changed\nBRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=${validPath}\n`
+        );
+        expect(valid.status).toBe(0);
+        expect(valid.stdout).toBe(`${validPath}\n`);
+
+        for (const invalid of [
+            'commit output only\n',
+            `BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=${validPath}\nBRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=${validPath}-2\n`,
+            'BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=/tmp/brainbase-production-hotfix-invalid\n',
+        ]) {
+            const result = run(invalid);
+            expect(result.status).not.toBe(0);
+            expect(result.stdout).toBe('');
+        }
+
+        const shellIntegration = spawnSync(
+            'bash',
+            [
+                '-eu',
+                '-o',
+                'pipefail',
+                '-c',
+                `BACKUP_DIR="$(printf 'invalid\\n' | ${process.execPath} ${parser})"; export BACKUP_DIR; printf 'survived\\n'`,
+            ],
+            { encoding: 'utf8' }
+        );
+        expect(shellIntegration.status).not.toBe(0);
+        expect(shellIntegration.stdout).not.toContain('survived');
+
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        expect(runbook).not.toContain('export BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR="$(');
+        expect(runbook).toMatch(
+            /BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR="\$\([\s\S]*?extract-lightsail-hotfix-backup-dir\.mjs[\s\S]*?\)"\nexport BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR/u
+        );
+    });
+
+    it('本番hotfixの復旧証跡を検証してからmerge済みSHAへ切り替える', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const forward = runbook.slice(
+            runbook.indexOf('production dirty hotfix reconciliationを実行した場合'),
+            runbook.indexOf('### Verification')
+        );
+
+        expect(runbook).toContain('node scripts/extract-lightsail-hotfix-backup-dir.mjs');
+        expect(forward).toContain('test "$(cat "$HOTFIX_BACKUP_DIR/rollback.sha")" = "$ROLLBACK_SHA"');
+        expect(forward).toContain('sha256sum -c "$HOTFIX_BACKUP_DIR/content.sha256"');
+        expect(forward).toContain('test "$(git rev-parse origin/develop)" = "$TARGET_SHA"');
+        expect(forward).toContain('git switch --detach "$TARGET_SHA"');
+        expect(forward.indexOf('rollback.sha')).toBeLessThan(
+            forward.indexOf('git switch --detach "$TARGET_SHA"')
+        );
+        expect(forward.indexOf('content.sha256')).toBeLessThan(
+            forward.indexOf('git switch --detach "$TARGET_SHA"')
+        );
+    });
+
+    it('本番収束receiptが設定・4面・Ontology・Graph検証を同一runへ束縛する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const convergence = runbook.slice(
+            runbook.indexOf('### Production convergence receipt'),
+            runbook.indexOf('### Verification')
+        );
+
+        expect(convergence).toContain('BRAINBASE_PRODUCTION_RUN_ID');
+        expect(convergence).toContain('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(convergence).toContain('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY');
+        expect(convergence).toContain('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID');
+        expect(convergence).toContain('public_key_override_present_before');
+        expect(convergence).toContain('public_key_override_present_after');
+        expect(convergence).toContain('private_key_preserved');
+        expect(convergence).toContain('key_id_preserved');
+        expect(convergence).toContain('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(convergence).toContain('--type shared');
+        expect(convergence).toContain('global_hook_sha');
+        expect(convergence).toContain('local_ui_sha');
+        expect(convergence).toContain('mcp_runtime_sha');
+        expect(convergence).toContain('/health/version');
+        expect(convergence).toContain('mcp.version.json');
+        expect(convergence).toContain('lightsail_sha');
+        expect(convergence).toContain('surfaces.evidence.json');
+        expect(convergence).toContain('process_sha');
+        expect(convergence).toContain('readiness');
+        expect(convergence).toContain('entrypoint_sha256');
+        expect(convergence).toContain('npm run ontology:verify');
+        expect(convergence).toContain('ontology.evidence.json');
+        expect(convergence).toContain('repository_digest');
+        expect(convergence).toContain('production_digest');
+        expect(convergence).toContain('production.publication_verification');
+        expect(convergence).toContain('trust_source: verification.trust_source');
+        expect(convergence).toContain('signature_verification: verification.status');
+        expect(convergence).toContain("evidence.trust_source !== 'git_trust_store'");
+        expect(convergence).toContain("evidence.signature_verification !== 'verified'");
+        expect(convergence).toContain('/api/info/graph/maintenance/validate');
+        expect(convergence).toContain('"strict_collection":true');
+        expect(convergence).toContain('graph_http_status');
+        expect(convergence).toContain('snapshot_hash');
+        expect(convergence).toContain('collection_complete');
+        expect(convergence).toContain('suppressed_edge_count');
+        expect(convergence).toContain('suppression_reasons');
+        expect(convergence).toContain('structural_violation_count');
+        expect(convergence).toContain('ontology_violation_count');
+        expect(convergence).toContain('graph_valid');
+        expect(convergence).toContain('production-convergence-receipt.json');
+        expect(convergence).toContain('cp "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"');
+
+        expect(convergence.indexOf('public_key_override_present_before')).toBeLessThan(
+            convergence.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
+        );
+        expect(convergence.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')).toBeLessThan(
+            convergence.indexOf('public_key_override_present_after')
+        );
+        expect(convergence.indexOf('npm run ontology:verify')).toBeLessThan(
+            convergence.indexOf('/api/info/graph/maintenance/validate')
+        );
+
+        expect(convergence).toMatch(/suppressed_edge_count !== 0[\s\S]*?process\.exit\(1\)/u);
+    });
+
+    it('本番収束の途中失敗を秘密値なしのoperator向けreceiptへ固定する', () => {
+        const runDir = mkdtempSync(join(tmpdir(), 'brainbase-production-failure-'));
+        try {
+            const result = spawnSync(
+                process.execPath,
+                ['scripts/write-production-convergence-failure-receipt.mjs'],
+                {
+                    encoding: 'utf8',
+                    env: {
+                        ...process.env,
+                        BRAINBASE_PRODUCTION_RUN_DIR: runDir,
+                        BRAINBASE_PRODUCTION_RUN_ID: 'production-convergence-test',
+                        BRAINBASE_PRODUCTION_TARGET_SHA: 'a'.repeat(40),
+                        BRAINBASE_PRODUCTION_STAGE: 'infisical_snapshot_before',
+                        BRAINBASE_PRODUCTION_STATE_CHANGED: 'true',
+                        BRAINBASE_PRODUCTION_EXIT_CODE: '23',
+                        ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'must-not-leak',
+                    },
+                }
+            );
+
+            expect(result.status).toBe(0);
+            const receiptPath = join(runDir, 'production-convergence-failure.json');
+            const raw = readFileSync(receiptPath, 'utf8');
+            const receipt = JSON.parse(raw);
+            expect(receipt).toMatchObject({
+                schema_version: 'brainbase.production-convergence-failure.v1',
+                run_id: 'production-convergence-test',
+                target_sha: 'a'.repeat(40),
+                status: 'failed',
+                failed_stage: 'infisical_snapshot_before',
+                state_changed: true,
+                rollback_required: true,
+                secret_cleanup: {
+                    local_attempted: false,
+                    local_confirmed: false,
+                    remote_attempted: false,
+                    remote_confirmed: false,
+                },
+                exit_code: 23,
+            });
+            expect(receipt.evidence_paths).toEqual(expect.any(Array));
+            expect(raw).not.toContain('must-not-leak');
+            expect(result.stderr).toContain('rollback_required=true');
+        } finally {
+            rmSync(runDir, { recursive: true, force: true });
+        }
+
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const convergence = runbook.slice(
+            runbook.indexOf('### Production convergence receipt'),
+            runbook.indexOf('### Verification')
+        );
+        expect(convergence).toContain("trap 'write_production_failure_receipt $?' ERR");
+        expect(convergence).toContain('BRAINBASE_PRODUCTION_STAGE=');
+        expect(convergence).toContain('BRAINBASE_PRODUCTION_STATE_CHANGED=true');
+        expect(convergence).not.toContain('BRAINBASE_PRODUCTION_STATE_CHANGED=false');
+        expect(convergence.indexOf("trap 'write_production_failure_receipt $?' ERR")).toBeLessThan(
+            convergence.indexOf('$(date -u +%Y%m%dT%H%M%SZ)')
+        );
+        expect(convergence.indexOf("trap 'write_production_failure_receipt $?' ERR")).toBeLessThan(
+            convergence.indexOf('$(mktemp -d')
+        );
+        expect(convergence).toContain('status=unknown stage=%s rollback_required=true');
+        expect(convergence).not.toContain('${TARGET_SHA:?');
+        expect(convergence).not.toContain('${BRAINBASE_ROLLBACK_STATE_DIR:?');
+        expect(convergence.indexOf('BRAINBASE_PRODUCTION_STATE_CHANGED=true')).toBeLessThan(
+            convergence.indexOf('BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_before')
+        );
+        expect(convergence.indexOf('BRAINBASE_PRODUCTION_STATE_CHANGED=true')).toBeLessThan(
+            convergence.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
+        );
+        expect(convergence).toContain('production-convergence-failure.json');
+        expect(convergence).toContain('rollback_required');
+        expect(convergence).toContain('trap - ERR');
+
+        const initialization = convergence.slice(
+            convergence.indexOf('set -euo pipefail'),
+            convergence.indexOf('INFISICAL=')
+        );
+        const {
+            TARGET_SHA: _targetSha,
+            BRAINBASE_ROLLBACK_STATE_DIR: _rollbackStateDir,
+            ...initializationEnv
+        } = process.env;
+        const initializationFailure = spawnSync('/bin/bash', ['-c', initialization], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            env: initializationEnv,
+        });
+        expect(initializationFailure.status).not.toBe(0);
+        expect(initializationFailure.stderr).toContain('status=unknown stage=preflight rollback_required=true');
+    });
+
+    it('本番収束の正常・失敗経路でlocalとremoteの秘密一時ファイルを削除する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const convergence = runbook.slice(
+            runbook.indexOf('### Production convergence receipt'),
+            runbook.indexOf('### Verification')
+        );
+        const cleanupStart = convergence.indexOf('cleanup_production_secrets() {');
+        const cleanupEnd = convergence.indexOf('\nwrite_production_failure_receipt()', cleanupStart);
+        expect(cleanupStart).toBeGreaterThanOrEqual(0);
+        expect(cleanupEnd).toBeGreaterThan(cleanupStart);
+        const cleanupBlock = convergence.slice(cleanupStart, cleanupEnd);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-production-secret-cleanup-'));
+        for (const name of [
+            'infisical.before.json',
+            'infisical.deployed-before.json',
+            'infisical.after.json',
+            '.env.infisical',
+        ]) writeFileSync(join(root, name), 'secret-value\n', { mode: 0o600 });
+        const cleanup = spawnSync('bash', ['-c', `set -euo pipefail\n${cleanupBlock}\ncleanup_production_secrets`], {
+            encoding: 'utf8',
+            env: { ...process.env, BRAINBASE_PRODUCTION_RUN_DIR: root },
+        });
+        expect(cleanup.status).toBe(0);
+        for (const name of [
+            'infisical.before.json',
+            'infisical.deployed-before.json',
+            'infisical.after.json',
+            '.env.infisical',
+        ]) expect(existsSync(join(root, name))).toBe(false);
+        expect(convergence).toContain("trap 'cleanup_production_secrets >/dev/null 2>&1 || true' EXIT");
+        expect(convergence).toContain('trap cleanup_remote_env EXIT');
+        expect(convergence).toContain('test ! -e "$REMOTE_ENV"');
+        expect(convergence).toContain('BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=true');
+        expect(convergence).toContain('if (!Object.values(receipt.secret_cleanup).every(Boolean)) process.exit(1)');
+
+        const remoteStart = convergence.indexOf(
+            'set -euo pipefail\nREMOTE_ENV="$1"\nTARGET_SHA="$2"\ncleanup_remote_env()'
+        );
+        const remoteEnd = convergence.indexOf('\nREMOTE\nthen', remoteStart);
+        expect(remoteStart).toBeGreaterThanOrEqual(0);
+        expect(remoteEnd).toBeGreaterThan(remoteStart);
+        const remoteBlock = convergence.slice(remoteStart, remoteEnd);
+        const remoteRoot = mkdtempSync(join(tmpdir(), 'brainbase-production-remote-cleanup-'));
+        const remoteBin = join(remoteRoot, 'bin');
+        mkdirSync(remoteBin);
+        writeFileSync(join(remoteBin, 'sudo'), '#!/bin/sh\nexit 19\n', { mode: 0o755 });
+        const remoteTransfer = join(remoteRoot, 'remote.env');
+        writeFileSync(remoteTransfer, 'remote-secret-value\n', { mode: 0o600 });
+        const remoteFailure = spawnSync('bash', ['-c', remoteBlock, 'remote-cleanup', remoteTransfer, 'a'.repeat(40)], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${remoteBin}:${process.env.PATH}` },
+        });
+        expect(remoteFailure.status).not.toBe(0);
+        expect(existsSync(remoteTransfer)).toBe(false);
+        rmSync(root, { recursive: true, force: true });
+        rmSync(remoteRoot, { recursive: true, force: true });
+    });
+
+    it('利用者向けPR本文がAC引用とは別に本番実行前であることを明示する', () => {
+        const marker = 'production_execution_status=not_run';
+        expect(read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md')).toContain(
+            marker
+        );
+        expect(read('docs/architecture/story-brainbase-production-artifact-reconciliation.md')).toContain(marker);
+        expect(read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json')).toContain(marker);
+
+        expectProductionNotRunInUserFacingPrBody(`### 保存済みの判断説明
+
+現在の本番実行状態は production_execution_status=not_run。PR・CI完了後に本番反映します。
+
+## Acceptance criteria
+
+- AC-007: ${marker}
+`);
+        expect(() => expectProductionNotRunInUserFacingPrBody(`### 保存済みの判断説明
+
+> ⚠️ 保存済み説明は現在の証拠と一致しないため表示していません。
+
+## Acceptance criteria
+
+- AC-007: ${marker}
+`)).toThrow();
+
+        const generatedPrBody = '.vibepro/pr/story-brainbase-production-artifact-reconciliation/pr-body.md';
+        if (existsSync(generatedPrBody)) expectProductionNotRunInUserFacingPrBody(read(generatedPrBody));
+    });
+
+    it('通常taskと委譲taskの本番証拠を別E2E・別rollback条件に保つ', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const story = read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md');
+        const spec = read('docs/specs/story-brainbase-production-artifact-reconciliation-v1.md');
+        const machineSpec = JSON.parse(read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json'));
+        const normalVerifier = 'tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts';
+        const delegatedVerifier = 'tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts';
+        const normalCase = 'story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰suite・final receiptを検証する';
+        const delegatedCase = 'delegated fresh task proves post-generation recovery without impersonating UserPromptSubmit';
+
+        expect(runbook).toContain('route_application=pre_generation');
+        expect(runbook).toContain('episode_origin=stop_delegation_recovery');
+        expect(runbook).toContain('route_application=post_generation_recovery');
+        expect(runbook).toContain(delegatedVerifier);
+        expect(runbook).toContain('session_meta.payload.id');
+        expect(runbook).toContain('exact final assistant `response_item`');
+        expect(runbook).toContain('owner_audit_source=assistant_answer');
+        expect(runbook).toContain('audit block must occur exactly once at the beginning');
+        expect(runbook).toContain('never use a recovered Stop episode as evidence that `UserPromptSubmit` guided generation');
+        expect(runbook).toContain("Never substitute one path's evidence for the other");
+        expect(read(normalVerifier)).toContain('readFinalAssistantMessage');
+        expect(read(normalVerifier)).toContain("'assistant_answer'");
+        expect(read(normalVerifier)).toContain('Final receipt must bind the model-authored assistant body');
+        expect(read(normalVerifier)).toContain('session_meta.payload.id');
+        expect(read(delegatedVerifier)).toContain('finalAnswer');
+        expect(read(delegatedVerifier)).toContain('session_meta.payload.id');
+        expect(read(delegatedVerifier)).toContain('Delegated continuation canary must record exactly one value proof');
+        expect(read(delegatedVerifier)).toContain("'assistant_answer'");
+        expect(read(delegatedVerifier)).toContain('Assistant answer must contain each delegated audit line exactly once');
+        expect(read(delegatedVerifier)).toContain('Stop recovery must never claim pre-generation guidance');
+        expect(story).toContain('2つのfresh task');
+        expect(spec).toContain('2つの新しいCodexタスク');
+        expect(spec).toContain(normalVerifier);
+        expect(spec).toContain(delegatedVerifier);
+        for (const id of ['C-005', 'S-003']) {
+            const contract = machineSpec.clauses.find((entry) => entry.id === id);
+            expect(contract.origin.test_refs).toEqual(expect.arrayContaining([
+                { file: normalVerifier, case: normalCase },
+                { file: delegatedVerifier, case: delegatedCase }
+            ]));
+            expect(contract.verifiable_by.test_pattern).toEqual(expect.arrayContaining([
+                { file_glob: normalVerifier, must_cover: normalCase },
+                { file_glob: delegatedVerifier, must_cover: delegatedCase }
+            ]));
+        }
+    });
+
+    it('公開鍵override除去をforward-only修復としてrollback後も維持する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const verifier = read('scripts/verify-production-signing-config.mjs');
+        const capture = runbook.slice(
+            runbook.indexOf('### Pre-deployment rollback capture'),
+            runbook.indexOf('### Production convergence receipt')
+        );
+        const rollback = runbook.slice(
+            runbook.indexOf('### Rollback'),
+            runbook.indexOf('## Autonomy Gate rollout')
+        );
+
+        expect(capture).toContain('infisical.before.json');
+        expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(capture).toContain('is optional here');
+        expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY');
+        expect(capture).toContain('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID');
+        expect(rollback).toContain('forward-only incident remediation');
+        expect(rollback).toContain('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY');
+        expect(rollback).toContain('infisical.rollback-final.json');
+        expect(rollback).toContain('$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" final');
+        expect(verifier).toContain('private_key_preserved_after_rollback');
+        expect(verifier).toContain('key_id_preserved_after_rollback');
+        expect(rollback).toContain('infisical.rollback.evidence.json');
+        expect(verifier).toContain('private_key_preserved_before_delete');
+        expect(verifier).toContain('key_id_preserved_before_delete');
+        expect(rollback.indexOf('$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" pre-delete')).toBeLessThan(
+            rollback.indexOf('secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY')
+        );
+        expect(rollback).toContain('REMOTE_TRANSFER_SHA');
+        expect(rollback.indexOf('test "$REMOTE_TRANSFER_SHA" = "$EXPECTED_ENV_SHA"')).toBeLessThan(
+            rollback.indexOf('sudo mv "$REMOTE_TARGET_NEXT" "$TARGET_ENV"')
+        );
+        expect(rollback).toContain('test "$ACTUAL_ENV_SHA" = "$EXPECTED_ENV_SHA"');
+        expect(rollback.indexOf('infisical.rollback.evidence.json')).toBeLessThan(
+            rollback.indexOf('Restore the exact previous Hook config last')
+        );
+        for (const contract of [
+            read('docs/management/stories/active/story-brainbase-production-artifact-reconciliation.md'),
+            read('docs/architecture/story-brainbase-production-artifact-reconciliation.md'),
+            read('.vibepro/spec/story-brainbase-production-artifact-reconciliation/spec.json')
+        ]) {
+            expect(contract).toContain('forward-only incident remediation');
+            expect(contract).toContain('秘密鍵');
+            expect(contract).toContain('key_id');
+            expect(contract).toContain('Lightsail');
+        }
+    });
+
+    it('署名設定rollbackを変更前と変更後に秘密値非表示でfail-closed検証する', () => {
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-signing-rollback-'));
+        const script = 'scripts/verify-production-signing-config.mjs';
+        const writeJson = (name, value) => {
+            const path = join(root, name);
+            writeFileSync(path, JSON.stringify(value), { mode: 0o600 });
+            return path;
+        };
+        const beforeValue = {
+            ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY: 'invalid-public',
+            ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'private-secret',
+            ONTOLOGY_PUBLICATION_SIGNING_KEY_ID: 'key-id',
+        };
+        const before = writeJson('before.json', beforeValue);
+        const run = (mode, observedValue, evidenceName) => {
+            const observed = writeJson(`${evidenceName}.observed.json`, observedValue);
+            const evidencePath = join(root, `${evidenceName}.evidence.json`);
+            const result = spawnSync(process.execPath, [script, mode, before, observed, evidencePath], { encoding: 'utf8' });
+            return { result, evidence: JSON.parse(readFileSync(evidencePath, 'utf8')) };
+        };
+
+        const ready = run('pre-delete', beforeValue, 'ready');
+        expect(ready.result.status).toBe(0);
+        expect(ready.evidence.status).toBe('ready_to_repair');
+
+        const drift = run('pre-delete', { ...beforeValue, ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'drifted-secret' }, 'drift');
+        expect(drift.result.status).not.toBe(0);
+        expect(drift.evidence).toMatchObject({
+            status: 'blocked',
+            rollback_complete: false,
+            partial_state: true,
+            next_action: 'stop_and_inspect_saved_rollback_state',
+            private_key_preserved_before_delete: false,
+        });
+        const driftOutput = `${drift.result.stdout}${drift.result.stderr}${JSON.stringify(drift.evidence)}`;
+        expect(driftOutput).not.toContain('private-secret');
+        expect(driftOutput).not.toContain('drifted-secret');
+
+        const repaired = { ...beforeValue };
+        delete repaired.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        const final = run('final', repaired, 'final');
+        expect(final.result.status).toBe(0);
+        expect(final.evidence).toMatchObject({
+            status: 'signing_config_repaired',
+            rollback_complete: false,
+            signing_config_repair_complete: true,
+            public_key_override_present: false,
+        });
+
+        const keyIdDrift = run('pre-delete', { ...beforeValue, ONTOLOGY_PUBLICATION_SIGNING_KEY_ID: 'drifted-key-id' }, 'key-id-drift');
+        expect(keyIdDrift.result.status).not.toBe(0);
+        expect(keyIdDrift.evidence).toMatchObject({ status: 'blocked', key_id_preserved_before_delete: false });
+
+        const outsideCwdEvidence = join(root, 'outside-cwd.evidence.json');
+        const outsideCwd = spawnSync(process.execPath, [join(process.cwd(), script), 'pre-delete', before, before, outsideCwdEvidence], {
+            cwd: root,
+            encoding: 'utf8',
+        });
+        expect(outsideCwd.status).toBe(0);
+        expect(JSON.parse(readFileSync(outsideCwdEvidence, 'utf8')).status).toBe('ready_to_repair');
+
+        const ambiguousDelete = run('final', beforeValue, 'ambiguous-delete');
+        expect(ambiguousDelete.result.status).not.toBe(0);
+        expect(ambiguousDelete.evidence).toMatchObject({ status: 'blocked', rollback_complete: false, public_key_override_present: true });
+
+        const asRows = (value) => Object.entries(value).map(([key, itemValue]) => ({
+            key,
+            value: itemValue,
+            type: 'shared',
+            secretPath: '/',
+        }));
+        const arrayReady = run('pre-delete', asRows(beforeValue).reverse(), 'array-ready');
+        expect(arrayReady.result.status).toBe(0);
+        expect(arrayReady.evidence.status).toBe('ready_to_repair');
+
+        const alreadyRepaired = { ...beforeValue };
+        delete alreadyRepaired.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        const arrayAlreadyRepaired = run('pre-delete', asRows(alreadyRepaired), 'array-already-repaired');
+        expect(arrayAlreadyRepaired.result.status).toBe(0);
+        expect(arrayAlreadyRepaired.evidence).toMatchObject({
+            status: 'ready_to_repair',
+            public_key_override_present: false,
+        });
+        const arrayFinal = run('final', asRows(alreadyRepaired), 'array-final');
+        expect(arrayFinal.result.status).toBe(0);
+
+        const mutateSigningRow = (key, mutation) => asRows(beforeValue).map((row) => (
+            row.key === key ? { ...row, ...mutation } : row
+        ));
+        for (const [name, invalid] of [
+            ['duplicate', [...asRows(beforeValue), {
+                key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY',
+                value: 'private-secret',
+                type: 'shared',
+                secretPath: '/',
+            }]],
+            ['missing-value', [{ key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY' }]],
+            ['empty-key', [{ key: ' ', value: 'secret' }]],
+            ['wrong-type', mutateSigningRow('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', { type: 'personal' })],
+            ['wrong-secret-path', mutateSigningRow('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', { secretPath: '/nested' })],
+            ['invalid-top-level', null],
+        ]) {
+            const invalidRun = run('pre-delete', invalid, name);
+            expect(invalidRun.result.status).not.toBe(0);
+            expect(invalidRun.evidence).toMatchObject({ status: 'blocked', partial_state: true });
+            expect(`${invalidRun.result.stdout}${invalidRun.result.stderr}${JSON.stringify(invalidRun.evidence)}`).not.toContain('private-secret');
+        }
+        rmSync(root, { recursive: true, force: true });
+    }, 30_000);
+
+    it('Infisical実配列を秘密値を出力せず安全に正規化する', () => {
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-infisical-normalize-'));
+        const snapshot = join(root, 'snapshot.json');
+        writeFileSync(snapshot, JSON.stringify([
+            { key: 'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY', value: 'normalizer-private', type: 'shared', secretPath: '/' },
+            { key: 'ONTOLOGY_PUBLICATION_SIGNING_KEY_ID', value: 'normalizer-key-id', type: 'shared', secretPath: '/' },
+        ]), { mode: 0o600 });
+        const result = spawnSync(process.execPath, ['scripts/normalize-infisical-export.mjs', snapshot], { encoding: 'utf8' });
+        expect(result.status).toBe(0);
+        expect(`${result.stdout}${result.stderr}`).not.toContain('normalizer-private');
+        expect(JSON.parse(readFileSync(snapshot, 'utf8'))).toEqual({
+            ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY: 'normalizer-private',
+            ONTOLOGY_PUBLICATION_SIGNING_KEY_ID: 'normalizer-key-id',
+        });
+        expect(statSync(snapshot).mode & 0o777).toBe(0o600);
+
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const exports = [...runbook.matchAll(/--format json \\\n\s+--output-file "([^"]+)"/gu)];
+        expect(exports.length).toBeGreaterThanOrEqual(4);
+        for (const match of exports) {
+            const tail = runbook.slice(match.index, match.index + 500);
+            expect(tail).toContain('normalize-infisical-export.mjs');
+            expect(tail).toContain(`"${match[1]}"`);
+        }
+        expect(runbook).toContain('umask 077');
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Infisical正規化のrename失敗時に秘密一時ファイルを残さない', () => {
+        const calls = [];
+        const temporaryPath = '/safe/.infisical-normalized.tmp';
+
+        expect(() => writePrivateJsonAtomically('/safe/snapshot.json', { secret: 'private' }, {
+            temporaryPath,
+            writeFileSync: (...args) => calls.push(['write', ...args]),
+            chmodSync: (...args) => calls.push(['chmod', ...args]),
+            renameSync: () => {
+                throw new Error('rename failed');
+            },
+            unlinkSync: (...args) => calls.push(['unlink', ...args]),
+        })).toThrow('rename failed');
+
+        expect(calls.map(([operation]) => operation)).toEqual(['write', 'chmod', 'unlink']);
+        expect(calls.at(-1)).toEqual(['unlink', temporaryPath]);
+    });
+
+    it('Lightsail env転送checksum不一致時はlive targetを変更しない', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const marker = 'set -euo pipefail\nREMOTE_ROLLBACK_ENV="$1"\nEXPECTED_ENV_SHA="$2"\nTARGET_ENV="$3"';
+        const start = runbook.lastIndexOf(marker);
+        const end = runbook.indexOf('\nREMOTE\nthen', start);
+        expect(start).toBeGreaterThanOrEqual(0);
+        expect(end).toBeGreaterThan(start);
+        const remoteBlock = runbook.slice(start, end);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-env-transfer-'));
+        const bin = join(root, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'sudo'), '#!/bin/sh\nexec "$@"\n', { mode: 0o755 });
+        const transfer = join(root, 'transfer.env');
+        const target = join(root, 'live.env');
+        writeFileSync(transfer, 'new-value\n', { mode: 0o600 });
+        writeFileSync(target, 'original-value\n', { mode: 0o600 });
+        const result = spawnSync('bash', ['-c', remoteBlock, 'rollback-env-test', transfer, 'definitely-wrong-checksum', target, 'unused.service', 'unused-sha', '1', '0'], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+        expect(result.status).not.toBe(0);
+        expect(readFileSync(target, 'utf8')).toBe('original-value\n');
+        expect(existsSync(transfer)).toBe(false);
+        expect(result.stderr).toContain('target unchanged; rollback_complete=false');
+        expect(JSON.parse(result.stdout)).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'transfer_checksum',
+            rollback_complete: false,
+            target_changed: false,
+        });
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Lightsail scp失敗時もremote秘密一時ファイルをcleanupしてReceiptを残す', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const start = runbook.lastIndexOf('ROLLBACK_REMOTE_EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-env-rollback.evidence.json"');
+        const end = runbook.indexOf('if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s --', start);
+        expect(start).toBeGreaterThanOrEqual(0);
+        expect(end).toBeGreaterThan(start);
+        const scpBlock = runbook.slice(start, end);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-env-scp-'));
+        const bin = join(root, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'scp'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'ssh'), '#!/bin/sh\nprintf cleanup-attempted > "$SSH_CLEANUP_MARKER"\nexit 0\n', { mode: 0o755 });
+        const cleanupMarker = join(root, 'cleanup.marker');
+        const result = spawnSync('bash', ['-c', scpBlock], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH}`,
+                HOME: root,
+                BRAINBASE_ROLLBACK_STATE_DIR: root,
+                ROLLBACK_ENV: join(root, 'rollback.env'),
+                REMOTE_ROLLBACK_ENV: '/tmp/partial-secret.env',
+                SSH_CLEANUP_MARKER: cleanupMarker,
+            },
+        });
+        expect(result.status).not.toBe(0);
+        expect(existsSync(cleanupMarker)).toBe(true);
+        expect(result.stderr).toContain('Lightsail env transfer blocked');
+        expect(JSON.parse(readFileSync(join(root, 'lightsail-env-rollback.evidence.json'), 'utf8'))).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'lightsail_env_scp',
+            rollback_complete: false,
+            rollback_required: false,
+            target_changed: false,
+            remote_secret_cleanup_confirmed: true,
+        });
+        expect(runbook).toContain('failed_stage: "lightsail_env_ssh"');
+        expect(runbook).toContain('target_changed: "unknown"');
+        expect(runbook).toContain('rollback_required: "unknown"');
+
+        const unwritableState = join(root, 'not-a-directory');
+        writeFileSync(unwritableState, 'occupied');
+        const unknownReceipt = spawnSync('bash', ['-c', scpBlock], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH}`,
+                HOME: root,
+                BRAINBASE_ROLLBACK_STATE_DIR: unwritableState,
+                ROLLBACK_ENV: join(root, 'rollback.env'),
+                REMOTE_ROLLBACK_ENV: '/tmp/partial-secret.env',
+                SSH_CLEANUP_MARKER: cleanupMarker,
+            },
+        });
+        expect(unknownReceipt.status).not.toBe(0);
+        expect(unknownReceipt.stderr).toContain('Receipt status is unknown');
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Lightsail SSH結果不明とcleanup失敗をunknown Receiptへ収束する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const start = runbook.lastIndexOf('ROLLBACK_REMOTE_EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-env-rollback.evidence.json"');
+        const end = runbook.indexOf('\ncleanup_rollback_secrets\nROLLBACK_STAGE=public_readiness_after_env_projection', start);
+        expect(start).toBeGreaterThanOrEqual(0);
+        expect(end).toBeGreaterThan(start);
+        const transportBlock = runbook.slice(start, end);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-env-ssh-unknown-'));
+        const bin = join(root, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'scp'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'ssh'), '#!/bin/sh\nexit 17\n', { mode: 0o755 });
+        const result = spawnSync('bash', ['-c', transportBlock], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                PATH: `${bin}:${process.env.PATH}`,
+                HOME: root,
+                BRAINBASE_ROLLBACK_STATE_DIR: root,
+                ROLLBACK_ENV: join(root, 'rollback.env'),
+                REMOTE_ROLLBACK_ENV: '/tmp/partial-secret.env',
+                EXPECTED_ENV_SHA: 'expected-env-sha',
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(result.status).toBe(17);
+        expect(result.stderr).toContain('Lightsail env rollback blocked');
+        expect(JSON.parse(readFileSync(join(root, 'lightsail-env-rollback.evidence.json'), 'utf8'))).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'lightsail_env_ssh',
+            rollback_complete: false,
+            rollback_required: 'unknown',
+            target_changed: 'unknown',
+            remote_secret_cleanup_confirmed: false,
+        });
+        rmSync(root, { recursive: true, force: true });
+    });
+
+    it('Lightsail env反映後にruntime SHAをbounded readbackしReceiptへ残す', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        const marker = 'set -euo pipefail\nREMOTE_ROLLBACK_ENV="$1"\nEXPECTED_ENV_SHA="$2"\nTARGET_ENV="$3"';
+        const start = runbook.lastIndexOf(marker);
+        const end = runbook.indexOf('\nREMOTE\nthen', start);
+        const remoteBlock = runbook.slice(start, end);
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-env-readiness-'));
+        const bin = join(root, 'bin');
+        mkdirSync(bin);
+        writeFileSync(join(bin, 'sudo'), '#!/bin/sh\nexec "$@"\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'install'), '#!/bin/sh\nshift 6\ncp "$1" "$2"\nchmod 600 "$2"\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'systemctl'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+        writeFileSync(join(bin, 'curl'), '#!/bin/sh\nprintf \'%s\\n\' \'{"runtime":{"git":{"sha":"expected-sha","dirty":false}}}\'\n', { mode: 0o755 });
+        const transfer = join(root, 'transfer.env');
+        const target = join(root, 'live.env');
+        writeFileSync(transfer, 'new-value\n', { mode: 0o600 });
+        writeFileSync(target, 'original-value\n', { mode: 0o600 });
+        const expected = spawnSync('sha256sum', [transfer], { encoding: 'utf8' }).stdout.split(/\s+/)[0];
+        const run = (sha, name) => spawnSync('bash', ['-c', remoteBlock, name, transfer, expected, target, 'service', sha, '2', '0'], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+
+        const success = run('expected-sha', 'success');
+        expect(success.status).toBe(0);
+        expect(readFileSync(target, 'utf8')).toBe('new-value\n');
+        expect(JSON.parse(success.stdout)).toMatchObject({
+            status: 'lightsail_projection_ready',
+            rollback_complete: false,
+            lightsail_projection_complete: true,
+            rollback_required: true,
+            target_changed: true,
+            remote_secret_cleanup_confirmed: true,
+        });
+
+        writeFileSync(transfer, 'next-value\n', { mode: 0o600 });
+        const nextExpected = spawnSync('sha256sum', [transfer], { encoding: 'utf8' }).stdout.split(/\s+/)[0];
+        const timeout = spawnSync('bash', ['-c', remoteBlock, 'timeout', transfer, nextExpected, target, 'service', 'wrong-sha', '2', '0'], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+        expect(timeout.status).not.toBe(0);
+        expect(timeout.stderr).toContain('local readiness after env rollback timed out');
+        expect(JSON.parse(timeout.stdout)).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'local_readiness',
+            rollback_required: true,
+            lightsail_projection_complete: false,
+            target_changed: true,
+        });
+
+        writeFileSync(transfer, 'cleanup-failure-value\n', { mode: 0o600 });
+        const cleanupExpected = spawnSync('sha256sum', [transfer], { encoding: 'utf8' }).stdout.split(/\s+/)[0];
+        writeFileSync(join(bin, 'rm'), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+        const cleanupFailure = spawnSync('bash', ['-c', remoteBlock, 'cleanup-failure', transfer, cleanupExpected, target, 'service', 'expected-sha', '2', '0'], {
+            encoding: 'utf8',
+            env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        });
+        expect(cleanupFailure.status).not.toBe(0);
+        expect(JSON.parse(cleanupFailure.stdout)).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'remote_secret_cleanup',
+            rollback_complete: false,
+            rollback_required: true,
+            lightsail_projection_complete: true,
+            target_changed: true,
+            remote_secret_cleanup_confirmed: false,
+        });
+        rmSync(root, { recursive: true, force: true });
+    }, 15_000);
+
+    it('env反映後の外側の失敗もproduction rollback Receiptへ収束する', () => {
+        const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
+        expect(runbook).toContain('ROLLBACK_INFISICAL_BEFORE="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"');
+        expect(runbook).toContain('rm -f "$ROLLBACK_INFISICAL_BEFORE" || cleanup_ok=false');
+        expect(runbook).toContain('local_secret_cleanup_confirmed:true');
+        const cleanupStart = runbook.lastIndexOf('ROLLBACK_INFISICAL_BEFORE=');
+        const cleanupEnd = runbook.indexOf('\ntrap cleanup_rollback_secrets EXIT', cleanupStart);
+        expect(cleanupStart).toBeGreaterThanOrEqual(0);
+        expect(cleanupEnd).toBeGreaterThan(cleanupStart);
+        const cleanupBlock = runbook.slice(cleanupStart, cleanupEnd);
+        const cleanupRoot = mkdtempSync(join(tmpdir(), 'brainbase-rollback-secret-cleanup-'));
+        for (const name of [
+            'infisical.before.json',
+            'infisical.rollback-current.json',
+            'infisical.rollback-final.json',
+            '.env.infisical.rollback',
+        ]) writeFileSync(join(cleanupRoot, name), 'secret-value\n', { mode: 0o600 });
+        const cleanup = spawnSync('bash', ['-c', `set -euo pipefail\n${cleanupBlock}\ncleanup_rollback_secrets`], {
+            encoding: 'utf8',
+            env: { ...process.env, BRAINBASE_ROLLBACK_STATE_DIR: cleanupRoot },
+        });
+        expect(cleanup.status).toBe(0);
+        for (const name of [
+            'infisical.before.json',
+            'infisical.rollback-current.json',
+            'infisical.rollback-final.json',
+            '.env.infisical.rollback',
+        ]) expect(existsSync(join(cleanupRoot, name))).toBe(false);
+        const start = runbook.lastIndexOf('ROLLBACK_STAGE=lightsail_env_export');
+        const end = runbook.indexOf('\n"$INFISICAL" export --silent', start);
+        expect(start).toBeGreaterThanOrEqual(0);
+        expect(end).toBeGreaterThan(start);
+        const receiptTrap = runbook.slice(start, end);
+        expect(runbook.indexOf('trap write_incomplete_rollback_receipt EXIT', start)).toBeLessThan(
+            runbook.indexOf('if ! scp -i', start)
+        );
+        expect(runbook.indexOf('trap write_incomplete_rollback_receipt EXIT', start)).toBeLessThan(
+            runbook.indexOf('cleanup_rollback_secrets\nROLLBACK_STAGE=public_readiness_after_env_projection', start)
+        );
+        const root = mkdtempSync(join(tmpdir(), 'brainbase-production-rollback-receipt-'));
+        const failure = spawnSync('bash', ['-c', `set -euo pipefail\ncleanup_rollback_secrets() { :; }\n${receiptTrap}\nLIGHTSAIL_PROJECTION_STATUS=verified\nROLLBACK_STAGE=test_post_projection\nfalse`], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                BRAINBASE_ROLLBACK_STATE_DIR: root,
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(failure.status).not.toBe(0);
+        expect(JSON.parse(readFileSync(join(root, 'production-rollback.evidence.json'), 'utf8'))).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'test_post_projection',
+            rollback_complete: false,
+            rollback_required: true,
+            target_sha: 'expected-production-sha',
+            target_changed: true,
+            signing_config_repair_complete: true,
+            lightsail_projection_complete: true,
+            lightsail_projection_status: 'verified',
+            hook_restore_status: 'not_started',
+            hook_restored: false,
+            local_secret_cleanup_attempted: true,
+            local_secret_cleanup_confirmed: true,
+        });
+
+        const cleanupFailureRoot = mkdtempSync(join(tmpdir(), 'brainbase-local-secret-cleanup-'));
+        const cleanupFailure = spawnSync('bash', ['-c', `set -euo pipefail\ncleanup_rollback_secrets() { return 1; }\n${receiptTrap}\nROLLBACK_STAGE=test_local_secret_cleanup\nfalse`], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                BRAINBASE_ROLLBACK_STATE_DIR: cleanupFailureRoot,
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(cleanupFailure.status).not.toBe(0);
+        expect(JSON.parse(readFileSync(join(cleanupFailureRoot, 'production-rollback.evidence.json'), 'utf8'))).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'test_local_secret_cleanup',
+            rollback_required: true,
+            local_secret_cleanup_attempted: true,
+            local_secret_cleanup_confirmed: false,
+        });
+
+        const changedRoot = mkdtempSync(join(tmpdir(), 'brainbase-hook-restore-receipt-'));
+        const changedUnverified = spawnSync('bash', ['-c', `set -euo pipefail\ncleanup_rollback_secrets() { :; }\n${receiptTrap}\nLIGHTSAIL_PROJECTION_STATUS=verified\nHOOK_RESTORE_STATUS=changed_unverified\nROLLBACK_STAGE=hook_restore\nfalse`], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                BRAINBASE_ROLLBACK_STATE_DIR: changedRoot,
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(changedUnverified.status).not.toBe(0);
+        expect(JSON.parse(readFileSync(join(changedRoot, 'production-rollback.evidence.json'), 'utf8'))).toMatchObject({
+            status: 'blocked',
+            failed_stage: 'hook_restore',
+            hook_restore_status: 'changed_unverified',
+            hook_restored: false,
+        });
+
+        const unwritableState = join(root, 'not-a-directory');
+        writeFileSync(unwritableState, 'occupied');
+        const unknownReceipt = spawnSync('bash', ['-c', `set -euo pipefail\ncleanup_rollback_secrets() { :; }\n${receiptTrap}\nROLLBACK_STAGE=test_receipt_write\nfalse`], {
+            encoding: 'utf8',
+            env: {
+                ...process.env,
+                BRAINBASE_ROLLBACK_STATE_DIR: unwritableState,
+                TARGET_SHA: 'expected-production-sha',
+            },
+        });
+        expect(unknownReceipt.status).not.toBe(0);
+        expect(unknownReceipt.stderr).toContain('status=unknown rollback_complete=false rollback_required=true');
+        expect(unknownReceipt.stderr).toContain('next_action=stop_and_inspect_saved_rollback_state');
+        expect(runbook).toContain('ROLLBACK_STAGE=hook_restore');
+        expect(runbook).toContain('ROLLBACK_STAGE=mcp_runtime_readiness');
+        expect(runbook).toContain('ROLLBACK_STAGE=final_public_health');
+        expect(runbook).toContain('ROLLBACK_COMPLETE=true\ntrap - EXIT');
+        rmSync(root, { recursive: true, force: true });
+        rmSync(changedRoot, { recursive: true, force: true });
+        rmSync(cleanupFailureRoot, { recursive: true, force: true });
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:14
     it('CLAUDEとAGENTSのalways-loaded Host contractを同一に保つ', () => {
         const claude = read('CLAUDE.md');
         const agents = read('AGENTS.md');
         expect(agents).toBe(claude);
-        expect(claude).toContain('model生成前に1つのjudgment episodeを開始');
+        expect(claude).toContain('未解決episodeを開くだけ');
         expect(claude).toContain('PostToolUse');
         expect(claude).toContain('Stop');
-        expect(claude).toContain('modelはResolverを呼ばず');
-        expect(claude).toContain('canonical context');
-        expect(claude).toContain('clarification receiptでも回答生成へ進む');
-        expect(claude).toContain('project access不能だけで判断を止めない');
+        expect(claude).toContain('model-callable `brainbase_resolve_turn`');
+        expect(claude).toContain('canonical turn input');
         expect(claude).toContain('通常の権限・承認を置き換えない');
-        expect(claude).toContain('現行Resolverは内部LLMを持たず');
-        expect(claude).toContain('専門matcher未一致の非follow-up入力はserver-owned `general/answer` fallback');
-        expect(claude).toContain('Claude Codeは将来のHost adapter候補');
-        expect(claude).toContain('現行episode lifecycle hook integrationには含まれない');
-        expect(claude).toContain('最初の修復可能なStopで`decision:block`を返し');
-        expect(claude).toContain('`judgment_stop_repair_exhausted`で非zero終了し');
-        expect(claude).toContain('Brainbase callが0件で参照必須でないturnも0件だったことを明示する');
-        expect(claude).toContain('episodeのないorphan Stopも成功へ潰さない');
-        expect(claude).toContain('journalに記録されたStop修復だけを最終監査へ表示し');
+        expect(claude).toContain('未一致を`general/answer`へ落としたり必要能力を減らしたりしない');
     });
 
     it('wrapperがUserPromptSubmit・PostToolUse・Stopのepisode lifecycleを起動する', () => {
@@ -42,7 +989,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('startEpisode');
         expect(host).toContain('recordBrainbaseToolUse');
         expect(host).toContain('finalizeEpisode');
-        expect(host).toContain('answerContainsExactAuditPrefix');
+        expect(host).toContain('completedAuditOutput');
+        expect(host).toContain('owner_audit_source');
+        expect(host).toContain("'assistant_answer'");
         expect(host).toContain('BEGIN IMMEDIATE');
         expect(host).toContain('transition.sqlite');
         expect(host).toContain('judgment_episode_transition_timeout');
@@ -55,12 +1004,12 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).not.toContain('新しいCodex taskを作り、同じ依頼を送ってください');
         expect(host).toContain('Settings → Hooks');
         expect(host).toContain("completion_status: 'complete'");
-        expect(host).toContain('owner.audit.display');
+        expect(host).toContain('autonomy.continuation');
         expect(host).toContain('there is no one-call-per-turn limit');
         expect(host).not.toContain('classification_proposal');
     });
 
-    it('Skill・capability・runbook・specがmodel非依存の同じ境界を公開する', () => {
+    it('Skill・capability・runbook・specがmodel-firstの同じ境界を公開する', () => {
         const skill = read('.claude/skills/brainbase-judgment-resolver/SKILL.md');
         const capability = read('docs/brainbase-capabilities/capabilities/judgment.resolve.yml');
         const runbook = read('docs/brainbase-capabilities/runbooks/judgment-resolve.md');
@@ -71,7 +1020,7 @@ describe('judgment resolver publication surfaces', () => {
 
         for (const surface of surfaces) {
             expect(surface).toMatch(/model.*(call|呼|Resolver)/iu);
-            expect(surface).toMatch(/before model generation|model生成前|pre-model/iu);
+            expect(surface).toContain('brainbase_resolve_turn');
             expect(surface).toContain('conversation_context');
             expect(surface).toMatch(/judgment episode|判断episode|判断エピソード/iu);
             expect(surface).toContain('PostToolUse');
@@ -79,43 +1028,39 @@ describe('judgment resolver publication surfaces', () => {
             expect(surface).toMatch(/0\.\.N|0-N|何度でも|複数回/iu);
             expect(surface).toMatch(/project.*(context|文脈)/iu);
             expect(surface).toMatch(/authorize|authorization|権限|許可/iu);
-            expect(surface).toMatch(
-                /(内部|internal).*(LLM|model)|LLM.*(ない|持たない|使わない)|no LLM/iu
-            );
+            expect(surface).toMatch(/model interpretation|modelの意味解釈|モデルの意味解釈/iu);
             expect(surface).toMatch(/Codex/iu);
-            expect(surface).toContain('general/answer');
+            expect(surface).toMatch(/未一致|unmatched/iu);
             expect(surface).not.toContain('classification_proposal');
             expect(surface).toContain('ready_for_fresh_task');
             expect(surface).toContain('proven_active');
         }
 
-        expect(capability).toContain('mcp: []');
+        expect(capability).toContain('brainbase_resolve_turn');
         expect(capability).toContain('POST http://127.0.0.1:39002/host/judgment/resolve');
         expect(runbook).toContain('structural filtering');
         expect(runbook).toContain('records every completed tool call as execution evidence');
         expect(runbook).toContain('satisfies the execution requirement even when the result is `unconfirmed` or the tool fails');
         expect(runbook).toContain('Only `resolved` qualifies as successful');
-        expect(spec).toContain('Resolver determines classification');
-        expect(spec).toContain('Plain non-follow-up matcher misses use the `general/answer` fallback instead');
+        expect(spec).toContain('The Codex model proposes semantic classification');
+        expect(spec).toContain('An unmatched keyword rule never removes a capability');
         expect(spec).toContain('one authentic exact `mcp__brainbase__brainbase_knowledge_resolve` `PostToolUse` event regardless of response outcome');
         expect(architecture).toContain('trust-boundary defect');
         expect(architecture).toContain('Every completed call produces a non-visible execution event');
-        expect(story).toContain('model-callable toolとして公開しない');
+        expect(story).toContain('model-callable `brainbase_resolve_turn`');
         expect(story).toContain('Brainbase knowledge/retrieval toolを0..N回');
         expect(story).toContain('initial/final receiptは判断と監査の証拠');
         expect(story).toContain('project bindingは判断文脈であり、action authorityではない');
-        expect(story).toContain('専門domain/intent matcherに一致しない非follow-up入力');
+        expect(story).toContain('matcher未一致');
         expect(story).toContain('## 影響範囲');
         expect(architecture).toMatch(/Claude Code.*future Host-adapter candidate/iu);
         expect(spec).toMatch(/Claude Code.*future Host-adapter candidate/iu);
-        expect(runbook).toMatch(/Claude Code.*future Host-adapter candidate/iu);
         expect(capability).toMatch(/Claude Code.*future Host-adapter candidate/iu);
-        expect(skill).toContain('Claude Codeは同じ責務分割を適用できる将来のHost adapter候補');
         expect(skill).toContain('SQLite');
         expect(skill).toContain('非zero exit');
         expect(capability).toContain('non-final `audit_degraded` receipt');
         expect(capability).toContain('rejects a late Start for the same identity');
-        expect(capability).toContain('model-authored `🛠️` line without that marker is rejected');
+        expect(capability).toMatch(/unjournaled|model-authored.*🛠️/u);
         expect(spec).toContain('rejects a late Start for the same identity');
         expect(architecture).toContain('Codex lifecycle Host adapter');
         expect(architecture).toContain('BEGIN IMMEDIATE');
@@ -130,18 +1075,29 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('Resolver API/server verifier hold the two runtime copies');
         expect(runbook).toContain('future Claude Code adapter must not hold or receive either copy');
         expect(runbook).toContain('SQLite');
-        expect(runbook).toContain('active repeated Stop exits non-zero with `judgment_stop_repair_exhausted`');
+        expect(runbook).toContain('finalizes as `audit_degraded` and exits 0');
         expect(runbook).toContain('🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓');
         expect(runbook).toContain('never fabricates `.final.json` or asks the operator to create a new task');
         expect(runbook).toContain('official `hooks/list` RPC');
         expect(runbook).toContain('Open `/hooks`');
         expect(runbook).toContain('must never calculate or write Codex `trusted_hash`');
-        expect(runbook).toContain('transcript task was created before the current Hook/trust files');
+        expect(runbook).toContain('transcript task predates the trusted Hook files');
         expect(spec).toContain('BEGIN IMMEDIATE');
         expect(spec).toContain('explicit non-zero hook failure');
         expect(spec).toContain('Repository code never writes Codex `trusted_hash`');
         expect(capability).toContain('scripts/check-codex-judgment-hook-readiness.mjs');
         expect(skill).toContain('既存task、過去artifact、direct entrypoint実行はlive activationの代用にならない');
+    });
+
+    it('公開面が全runtimeのStop単一確定境界を同じ言葉で説明する', () => {
+        const readme = read('docs/brainbase-capabilities/README.md');
+        const capabilityMap = read('.claude/skills/brainbase-capability-map/SKILL.md');
+        const entrypoint = read('scripts/codex-hooks/judgment-resolver-entry.sh');
+
+        for (const surface of [readme, capabilityMap, entrypoint]) {
+            expect(surface).toContain('PostToolUse');
+            expect(surface).toMatch(/Stop[\s\S]{0,160}(sole[\s#]+finalization|だけ|alone)/iu);
+        }
     });
 
     it('audit fail-closed Story・Architecture・Spec・Taskを公開する', () => {
@@ -159,7 +1115,7 @@ describe('judgment resolver publication surfaces', () => {
         }
         expect(architecture).toContain('judgment_episode_identity_missing');
         expect(architecture).toContain('judgment_episode_not_found');
-        expect(spec).toContain('Open /hooks and approve the three current Resolver hooks.');
+        expect(spec).toContain('現在Hostが列挙する必須Resolver Hookの承認案内');
         expect(story).toContain('Brainbaseはtrust hashを計算・書換しない');
     });
 
@@ -186,9 +1142,9 @@ describe('judgment resolver publication surfaces', () => {
         const readme = read('docs/brainbase-capabilities/README.md');
 
         expect(readme).toContain('Codex Host opens one canonical-context-bound judgment episode');
-        expect(readme).toContain('internal-LLM-free Resolver deterministically selects the initial route');
-        expect(readme).toContain('`PostToolUse` records all completed tool calls as execution evidence');
-        expect(readme).toContain('one non-authorizing receipt');
+        expect(readme).toContain('the Codex model supplies the semantic interpretation and the internal-LLM-free Resolver reconciles it');
+        expect(readme).toContain('`PostToolUse` records completed tool calls as execution evidence without finalizing');
+        expect(readme).toContain('The resulting receipt is non-authorizing');
         expect(readme).toContain('Claude Code remains a future Host-adapter candidate');
     });
 
@@ -221,23 +1177,14 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_NONCE');
         expect(runbook).toContain('BRAINBASE_JUDGMENT_E2E_RUN_QUERY');
-        expect(runbook).toContain('query-embedded source HEAD differs');
-        expect(runbook).toContain('final receipt is at most one hour old');
-        expect(capability).toContain('exact Stop Hook-visible answer body');
-        expect(runbook).toContain('exact Stop Hook-visible answer body');
-        for (const surface of [capability, runbook]) {
-            expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
-            expect(surface).toMatch(/incomplete, embedded, or multiple citation block.*fails closed/iu);
-            expect(surface).not.toContain('answer digest binds that rendered message');
-            expect(surface).not.toContain('answer digest must match that rendered message');
-        }
-        for (const surface of [architecture, spec]) {
-            expect(surface).toContain('exact Stop Hook-visible answer body');
-            expect(surface).toContain('only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block');
-            expect(surface).toMatch(/incomplete, embedded, or multiple citation blocks.*fail(?:s)? closed/iu);
-            expect(surface).not.toMatch(/answer digest.*final assistant (?:message|`response_item`).*canonical JSONL transcript/iu);
-            expect(surface).not.toContain('that its digest matches the final receipt');
-            expect(surface).not.toContain('answer digest matching the final assistant message');
+        expect(runbook).toContain('session_meta.payload.id');
+        expect(runbook).toContain('exact final assistant `response_item`');
+        expect(runbook).toContain('bound source HEAD differs');
+        for (const surface of [capability, runbook, architecture, spec]) {
+            expect(surface).toContain('assistant_answer');
+            expect(surface).toMatch(/assistant (?:answer|response)|assistant回答/iu);
+            expect(surface).toMatch(/model-authored.*(?:last_assistant_message|answer)/iu);
+            expect(surface).toMatch(/(?:final (?:user-visible )?(?:answer|assistant (?:answer|message)).*(?:begins?|starts)|final user-visible answer starts|最終assistant回答.*先頭)/iu);
         }
         expect(runbook).toContain('scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"');
         expect(runbook).toContain('brainbase-mcp-reconcile.last');
@@ -253,6 +1200,11 @@ describe('judgment resolver publication surfaces', () => {
         expect(runbook).toContain('PIN_TMP="$(mktemp "${BRAINBASE_RUNTIME_PIN_FILE}.XXXXXX")"');
         expect(runbook).toContain('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"');
         expect(runbook).toContain('brainbase_wait_for_runtime_ready');
+        expect(runbook).toContain('scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"');
+        expect(runbook).toContain('BRAINBASE_PRODUCTION_STAGE=lightsail_public_readiness');
+        expect(runbook.indexOf('scripts/wait-for-brainbase-runtime.mjs')).toBeLessThan(
+            runbook.indexOf('# 3. 4面を推測せず個別取得する。')
+        );
         expect(runbook).not.toMatch(/launchctl kickstart[^\n]*\n(?:sleep )/u);
         expect(runbook.indexOf('mv "$PIN_TMP" "$BRAINBASE_RUNTIME_PIN_FILE"')).toBeLessThan(
             runbook.indexOf('launchctl kickstart -k "gui/$(id -u)/com.brainbase.ui"')
@@ -284,8 +1236,24 @@ describe('judgment resolver publication surfaces', () => {
         const lightsailRunbook = read('docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md');
         expect(lightsailRunbook).toContain('TARGET_SHA="$(git rev-parse HEAD)"');
         expect(lightsailRunbook).toContain('git?.sha !== process.env.TARGET_SHA');
-        expect(lightsailRunbook).toContain('Unexpected public runtime Git state');
-        expect(lightsailRunbook).toContain('https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node');
+        expect(read('scripts/wait-for-brainbase-runtime.mjs')).toContain(
+          'git?.sha === expectedSha',
+        );
+        expect(lightsailRunbook).toContain('node scripts/wait-for-brainbase-runtime.mjs http://127.0.0.1:55123/api/health');
+        expect(lightsailRunbook).toContain('ROLLBACK_READY_DIR="$(mktemp -d /tmp/brainbase-runtime-ready.XXXXXX)"');
+        expect(lightsailRunbook).toContain('install -m 600 scripts/wait-for-brainbase-runtime.mjs "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs"');
+        expect(lightsailRunbook.indexOf('install -m 600 scripts/wait-for-brainbase-runtime.mjs')).toBeLessThan(
+          lightsailRunbook.indexOf('git switch --detach "$ROLLBACK_SHA"'),
+        );
+        expect(lightsailRunbook).toContain('node "$ROLLBACK_READY_DIR/wait-for-brainbase-runtime.mjs" http://127.0.0.1:55123/api/health');
+        expect(lightsailRunbook).toContain('scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"');
+        expect(lightsailRunbook.match(/npm ci --include=dev/gu)).toHaveLength(2);
+        expect(lightsailRunbook.match(/npm prune --omit=dev --ignore-scripts/gu)).toHaveLength(2);
+        expect(lightsailRunbook).not.toContain('npm ci --omit=dev --ignore-scripts');
+        expect(runbook).toContain('npm ci --include=dev');
+        expect(runbook).toContain('npm prune --omit=dev --ignore-scripts');
+        expect(runbook).not.toContain('npm ci --omit=dev');
+        expect(lightsailRunbook).not.toContain('sleep 3');
         expect(lightsailRunbook).toContain('git switch --detach "$ROLLBACK_SHA"');
         expect(lightsailRunbook).toContain('four-surface rollback order');
         expect(lightsailRunbook).not.toContain('127.0.0.1:55123/api/version | jq');

@@ -99,7 +99,7 @@ function fakeClient() {
             return { rows: [{ project_id: 'prj_brainbase_deployment', project_code: 'brainbase-deployment' }] };
         }
         if (compact.includes('FROM brainbase_service_actors')) {
-            return { rows: [{ actor_id: 'mana_autonomy_v0', tenant_key: 'unson-business', canonical_project_id: 'prj_brainbase_deployment', status: 'active' }] };
+            return { rows: [{ actor_id: 'mana_autonomy_v0', tenant_key: 'unson-business', canonical_project_id: 'prj_service_home', status: 'active' }] };
         }
         if (compact.includes('FROM brainbase_service_actor_capabilities')) {
             return { rows: [{ capability_id: parameters[2] }] };
@@ -225,6 +225,22 @@ describe('service company authority provisioning', () => {
         expect(client.state.identities).toHaveLength(0);
         expect(client.state.bindings).toHaveLength(0);
         expect(client.queries.at(-1)?.sql).toBe('ROLLBACK');
+    });
+
+    it('scopes a tenant service actor to an explicitly bound project outside its registry home', async () => {
+        const client = fakeClient();
+        const result = await provisionServiceCompanyAuthority({
+            client,
+            manifest: manifest(),
+            actorId: 'operator-keigo',
+            commit: true
+        });
+        expect(result.snapshot_after.identity).toMatchObject({
+            authenticated_subject_id: 'mana_autonomy_v0',
+            project_id: 'prj_brainbase_deployment'
+        });
+        expect(result.snapshot_after.bindings.map((binding) => binding.project_id))
+            .toEqual(['prj_brainbase_deployment', 'prj_brainbase_deployment']);
     });
 
     it('commits an exact authority set and becomes a no-op on replay', async () => {

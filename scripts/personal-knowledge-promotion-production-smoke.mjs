@@ -43,6 +43,12 @@ function assert(condition, code) {
     if (!condition) fail(code);
 }
 
+function requireDecisionRevision(value, code) {
+    const revision = String(value ?? '');
+    assert(/^(?:0|[1-9]\d*)$/u.test(revision), code);
+    return revision;
+}
+
 function sha256(value) {
     return createHash('sha256').update(String(value)).digest('hex');
 }
@@ -81,6 +87,260 @@ function assertAuthority(value, { label, action, resourceRef, requestId, normali
     assert(authority.resource_ref === resourceRef, `${label}_authority_target_mismatch`);
     assert((authority.request_id ?? null) === (requestId ?? null), `${label}_authority_request_mismatch`);
     assert((authority.normalized_payload_hash ?? null) === (normalizedPayloadHash ?? null), `${label}_authority_hash_mismatch`);
+}
+
+const REVIEWER_ROLES = new Set(['gm', 'ceo']);
+const READBACK_SETTINGS = Object.freeze([
+    'app.person_id',
+    'app.actor_person_id',
+    'app.organization_id',
+    'app.project_codes',
+    'app.role',
+    'app.clearance'
+]);
+
+function strictAccessString(value, code) {
+    assert(typeof value === 'string' && value.length > 0 && value.trim() === value, code);
+    assert(!value.includes(',') && !/\s/u.test(value), code);
+    return value;
+}
+
+function strictAccessList(value, code) {
+    assert(Array.isArray(value) && value.length > 0, code);
+    assert(value.every((item) => typeof item === 'string'
+        && item.length > 0
+        && item.trim() === item
+        && !item.includes(',')
+        && !/\s/u.test(item)), code);
+    assert(new Set(value).size === value.length, code);
+    return [...value];
+}
+
+function assertAccessShape(access, label) {
+    assert(access && typeof access === 'object' && !Array.isArray(access), `${label}_access_missing`);
+    const personId = strictAccessString(access.personId, `${label}_person_missing`);
+    const organizationId = strictAccessString(access.organizationId, `${label}_organization_missing`);
+    const projectCodes = strictAccessList(access.projectCodes, `${label}_project_access_missing`);
+    const role = strictAccessString(access.role, `${label}_role_missing`);
+    const clearance = strictAccessList(access.clearance, `${label}_clearance_missing`);
+    return {
+        personId,
+        actorPersonId: personId,
+        organizationId,
+        projectCodes,
+        role,
+        clearance
+    };
+}
+
+/**
+ * Verify the access the production API derives from a real Bearer token.
+ * The returned actor ID is intentionally derived only from access.personId.
+ */
+export async function verifySmokeAccess(fetchImpl, baseUrl, token, {
+    label, projectCode, reviewer = false, sessionId
+} = {}) {
+    assert(typeof label === 'string' && label, 'auth_label_invalid');
+    assert(typeof token === 'string' && token, `${label}_token_missing`);
+    const response = await requestJson(fetchImpl, baseUrl, {
+        path: '/api/auth/verify', token, sessionId
+    });
+    const payload = expectStatus(response, 200, `${label}_auth_verify_failed`);
+    assert(payload.ok === true, `${label}_auth_verify_failed`);
+    assert(payload.authMode === 'bearer', `${label}_auth_mode_invalid`);
+    const access = assertAccessShape(payload.access, label);
+    assert(typeof projectCode === 'string' && projectCode.length > 0, 'fixture_project_code_missing');
+    assert(access.projectCodes.includes(projectCode), `${label}_project_access_missing`);
+    if (reviewer) assert(REVIEWER_ROLES.has(access.role), `${label}_reviewer_role_invalid`);
+    return access;
+}
+
+/**
+ * Bind a producer-issued TenantContext (the direct issuer wire shape) to the
+ * verified API access. authenticated_subject_id remains an external subject;
+ * canonical person identity is always actor.principal_id.
+ */
+export function assertSignedContextAccessBinding(context, access, {
+    label, expectedProjectId, expectedOrganizationId = access?.organizationId
+} = {}) {
+    assert(typeof label === 'string' && label, 'context_label_invalid');
+    const verifiedAccess = assertAccessShape(access, label);
+    assertSignedContext(context, label);
+    const actor = context.actor;
+    const authorization = context.authorization;
+    assert(actor && typeof actor === 'object' && !Array.isArray(actor), `${label}_context_actor_missing`);
+    assert(actor.principal_type === 'person', `${label}_context_actor_invalid`);
+    const principalId = strictAccessString(actor.principal_id, `${label}_context_person_missing`);
+    strictAccessString(actor.authenticated_subject_id, `${label}_context_subject_missing`);
+    assert(principalId === verifiedAccess.personId, `${label}_context_person_mismatch`);
+    assert(authorization && typeof authorization === 'object' && !Array.isArray(authorization),
+        `${label}_context_authorization_missing`);
+    const organizationIds = strictAccessList(authorization.organization_ids, `${label}_context_organization_missing`);
+    const projectIds = strictAccessList(authorization.project_ids, `${label}_context_project_missing`);
+    strictAccessList(authorization.capability_ids, `${label}_context_capability_missing`);
+    const organizationId = strictAccessString(expectedOrganizationId, `${label}_context_organization_missing`);
+    assert(organizationIds.includes(organizationId), `${label}_context_organization_mismatch`);
+    if (expectedProjectId !== undefined) {
+        const canonicalProjectId = strictAccessString(expectedProjectId, `${label}_context_project_missing`);
+        assert(projectIds.includes(canonicalProjectId), `${label}_context_project_mismatch`);
+    }
+    return projectIds;
+}
+
+function signedTenantBinding(context, label) {
+    assertSignedContext(context, label);
+    const tenantId = strictAccessString(context.tenant?.tenant_id, `${label}_context_tenant_missing`);
+    const organizationIds = strictAccessList(
+        context.authorization?.organization_ids,
+        `${label}_context_organization_missing`
+    );
+    assert(organizationIds.length === 1, `${label}_context_organization_mismatch`);
+    return { tenantId, tenantOrganizationId: organizationIds[0] };
+}
+
+export async function resolveCanonicalGraphOrganization(pool, { tenantId, tenantOrganizationId } = {}) {
+    const resolvedTenantId = strictAccessString(tenantId, 'context_tenant_missing');
+    const resolvedTenantOrganizationId = strictAccessString(
+        tenantOrganizationId,
+        'context_organization_missing'
+    );
+    assert(pool && typeof pool.connect === 'function', 'readback_pool_invalid');
+    const client = await pool.connect();
+    let destroy = true;
+    let began = false;
+    try {
+        assert(client && typeof client.query === 'function' && typeof client.release === 'function', 'readback_pool_invalid');
+        destroy = false;
+        await client.query('BEGIN READ ONLY');
+        began = true;
+        await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [resolvedTenantId]);
+        const result = await client.query(
+            `SELECT organization.tenant_id, organization.organization_id,
+                    organization.organization_payload, tenant.status AS tenant_status
+               FROM tenant_organizations AS organization
+               JOIN brainbase_tenants AS tenant
+                 ON tenant.tenant_id = organization.tenant_id
+              WHERE organization.tenant_id = $1 AND organization.organization_id = $2
+                AND tenant.status = 'active'
+              LIMIT 1`,
+            [resolvedTenantId, resolvedTenantOrganizationId]
+        );
+        const binding = result?.rows?.[0];
+        const graphOrganizationId = binding?.organization_payload?.graph_organization_id;
+        assert(binding?.tenant_id === resolvedTenantId
+            && binding?.organization_id === resolvedTenantOrganizationId
+            && binding?.tenant_status === 'active'
+            && binding?.organization_payload?.status === 'active'
+            && typeof graphOrganizationId === 'string'
+            && graphOrganizationId.length > 0
+            && graphOrganizationId.trim() === graphOrganizationId,
+        'context_organization_binding_invalid');
+        await client.query('COMMIT');
+        began = false;
+        return graphOrganizationId;
+    } catch (error) {
+        if (began) {
+            try {
+                await client.query('ROLLBACK');
+            } catch {
+                destroy = true;
+            }
+        } else {
+            destroy = true;
+        }
+        if (error instanceof SmokeFailure) throw error;
+        fail('context_organization_binding_invalid');
+    } finally {
+        client?.release?.(destroy);
+    }
+}
+
+function normalizeReadbackAccess(access) {
+    const verifiedAccess = assertAccessShape(access, 'readback');
+    assert(access.actorPersonId === verifiedAccess.personId, 'readback_actor_person_mismatch');
+    return verifiedAccess;
+}
+
+export async function withReadOnlyAccessTransaction(pool, access, text, params = []) {
+    const normalizedAccess = normalizeReadbackAccess(access);
+    assert(pool && typeof pool.connect === 'function', 'readback_pool_invalid');
+    const client = await pool.connect();
+    let destroy = true;
+    let began = false;
+    try {
+        assert(client && typeof client.query === 'function' && typeof client.release === 'function', 'readback_pool_invalid');
+        destroy = false;
+        await client.query('BEGIN READ ONLY');
+        began = true;
+        const values = [
+            normalizedAccess.personId,
+            normalizedAccess.actorPersonId,
+            normalizedAccess.organizationId,
+            normalizedAccess.projectCodes.join(','),
+            normalizedAccess.role,
+            normalizedAccess.clearance.join(',')
+        ];
+        for (const [index, setting] of READBACK_SETTINGS.entries()) {
+            await client.query('SELECT set_config($1, $2, true)', [setting, values[index]]);
+        }
+        const result = await client.query(text, params);
+        await client.query('COMMIT');
+        return result;
+    } catch (error) {
+        if (began) {
+            try {
+                await client.query('ROLLBACK');
+            } catch {
+                destroy = true;
+            }
+        } else {
+            // A failed BEGIN leaves the transaction state unknown.
+            destroy = true;
+        }
+        throw error;
+    } finally {
+        if (client && typeof client.release === 'function') client.release(destroy);
+    }
+}
+
+/**
+ * Reject administrative readback roles so RLS evidence cannot be bypassed.
+ */
+export async function assertReadbackRole(pool) {
+    assert(pool && typeof pool.connect === 'function', 'readback_pool_invalid');
+    const client = await pool.connect();
+    let destroy = true;
+    let began = false;
+    try {
+        assert(client && typeof client.query === 'function' && typeof client.release === 'function', 'readback_pool_invalid');
+        destroy = false;
+        await client.query('BEGIN READ ONLY');
+        began = true;
+        const result = await client.query(`
+          SELECT rolsuper, rolbypassrls
+          FROM pg_roles
+          WHERE rolname = current_user`);
+        assert(Array.isArray(result?.rows) && result.rows.length === 1, 'readback_role_invalid');
+        const [row] = result.rows;
+        assert(row.rolsuper === false && row.rolbypassrls === false, 'readback_role_invalid');
+        await client.query('COMMIT');
+    } catch (error) {
+        if (began) {
+            try {
+                await client.query('ROLLBACK');
+            } catch {
+                destroy = true;
+            }
+        } else {
+            // A failed BEGIN leaves the transaction state unknown.
+            destroy = true;
+        }
+        if (error instanceof SmokeFailure) throw error;
+        fail('readback_role_invalid');
+    } finally {
+        if (client && typeof client.release === 'function') client.release(destroy);
+    }
+    return true;
 }
 
 /**
@@ -181,10 +441,35 @@ export function redactReceipt(response) {
     };
 }
 
+const RECEIPT_FIELDS = Object.freeze([
+    'request_id',
+    'organization_event_id',
+    'graph_entity_id',
+    'owner_consent_receipt_id',
+    'organization_review_receipt_id'
+]);
+
+function assertReceiptComplete(receipt, code) {
+    assert(
+        RECEIPT_FIELDS.every((field) => typeof receipt?.[field] === 'string' && receipt[field]),
+        code
+    );
+    return true;
+}
+
+export function assertReceiptMatchesDb(receipt, promotion) {
+    assertReceiptComplete(receipt, 'organization_receipt_incomplete');
+    const dbReceipt = redactReceipt(promotion);
+    assertReceiptComplete(dbReceipt, 'db_receipt_incomplete');
+    assert(equalStable(receipt, dbReceipt), 'organization_receipt_db_mismatch');
+    return dbReceipt;
+}
+
 function safeDbRow(row) {
     if (!row) return null;
     return {
         event_id: row.event_id ?? null,
+        request_id: row.request_id ?? null,
         body_hash: row.body_hash ?? null,
         body_present: Boolean(row.body_present),
         body_length: row.body_length === null || row.body_length === undefined ? null : Number(row.body_length),
@@ -208,39 +493,49 @@ function safeOrganizationEventRow(row) {
     };
 }
 
-async function readDbState(pool, { eventId, requestId, entityId, body }) {
+export async function readDbState(pool, { eventId, requestId, entityId, body, access }) {
+    normalizeReadbackAccess(access);
+    const readQuery = (text, params) => withReadOnlyAccessTransaction(pool, access, text, params);
     const [events, requests, lineage, authorities, organizationEvents, graphEdges] = await Promise.all([
-        pool.query(`
+        readQuery(`
           SELECT event_id, body_hash, body IS NOT NULL AS body_present, length(body) AS body_length
           FROM personal_knowledge_events WHERE event_id = $1`, [eventId]),
-        pool.query(`
+        readQuery(`
           SELECT request_id, personal_event_id, organization_event_id, graph_entity_id, status,
                  normalized_payload_hash, owner_consent_receipt_id, organization_review_receipt_id
           FROM knowledge_promotion_requests WHERE request_id = $1`, [requestId]),
-        pool.query(`
+        readQuery(`
           SELECT lineage_id, personal_event_id, organization_event_id, promotion_request_id,
                  sanitization->>'normalized_payload_hash' AS normalized_payload_hash,
                  sanitization->>'owner_consent_receipt_id' AS owner_consent_receipt_id,
                  sanitization->>'organization_review_receipt_id' AS organization_review_receipt_id,
                  sanitization->>'graph_entity_id' AS graph_entity_id
           FROM knowledge_promotion_lineage WHERE promotion_request_id = $1`, [requestId]),
-        pool.query(`
+        readQuery(`
           SELECT action, count(*)::int AS count
           FROM knowledge_promotion_authority_uses WHERE request_id = $1
           GROUP BY action ORDER BY action`, [requestId]),
-        pool.query(`
+        readQuery(`
           SELECT event.event_id, event.semantic_state,
                  event.current_result->>'graph_entity_id' AS graph_entity_id,
                  position($2 in COALESCE(event.payload::text, '')) > 0 AS personal_body_found_in_payload
-          FROM knowledge_events event
+          FROM knowledge_event_current event
           JOIN knowledge_promotion_requests request
             ON request.organization_event_id = event.event_id
           WHERE request.request_id = $1`, [requestId, body]),
-        pool.query(`
+        readQuery(`
           SELECT count(*)::int AS count
           FROM graph_edges
           WHERE from_id = $1 OR to_id = $1`, [entityId])
     ]);
+    assert(Array.isArray(graphEdges?.rows) && graphEdges.rows.length === 1, 'db_graph_edge_count_invalid');
+    const rawGraphEdgeCount = graphEdges.rows[0]?.count;
+    const graphEdgeCount = typeof rawGraphEdgeCount === 'number'
+        ? rawGraphEdgeCount
+        : typeof rawGraphEdgeCount === 'string' && /^(?:0|[1-9][0-9]*)$/u.test(rawGraphEdgeCount)
+            ? Number(rawGraphEdgeCount)
+            : Number.NaN;
+    assert(Number.isSafeInteger(graphEdgeCount) && graphEdgeCount >= 0, 'db_graph_edge_count_invalid');
     return {
         event: safeDbRow(events.rows[0]),
         promotion: safeDbRow(requests.rows[0]),
@@ -256,7 +551,7 @@ async function readDbState(pool, { eventId, requestId, entityId, body }) {
             graph_entity_id: row.graph_entity_id
         })),
         authority_uses: authorities.rows.map((row) => ({ action: row.action, count: Number(row.count) })),
-        incident_graph_edge_count: Number(graphEdges.rows[0]?.count || 0)
+        incident_graph_edge_count: graphEdgeCount
     };
 }
 
@@ -317,7 +612,12 @@ async function requestJson(fetchImpl, baseUrl, {
 }
 
 function expectStatus(result, status, code) {
-    assert(result?.status === status, code);
+    if (result?.status !== status) {
+        const upstreamCode = result?.payload?.error;
+        fail(typeof upstreamCode === 'string' && SAFE_FAILURE_CODE.test(upstreamCode)
+            ? upstreamCode
+            : code);
+    }
     return result.payload || {};
 }
 
@@ -346,14 +646,33 @@ export function assertInitialState(state) {
 export function assertAcceptedState(state, parsed) {
     assert(state.db.event?.event_id === parsed.eventId, 'db_event_readback_mismatch');
     assert(state.db.event.body_present === true, 'db_event_missing_body');
+    assert(state.db.event.body_hash === parsed.event.body_hash, 'db_event_body_hash_mismatch');
+    assert(state.db.event.body_length === Array.from(parsed.event.body).length, 'db_event_body_length_mismatch');
     assert(state.db.promotion?.request_id === parsed.requestId, 'db_promotion_readback_mismatch');
     assert(state.db.promotion.status === 'org_accepted', 'db_promotion_not_accepted');
+    assert(state.db.promotion.personal_event_id === parsed.eventId, 'db_promotion_personal_event_mismatch');
     assert(state.db.promotion.graph_entity_id === parsed.entityId, 'db_graph_id_readback_mismatch');
+    assert(state.db.promotion.normalized_payload_hash === parsed.normalizedPayloadHash, 'db_normalized_payload_hash_mismatch');
+    assertReceiptComplete(redactReceipt(state.db.promotion), 'db_receipt_incomplete');
     assert(state.db.organization_event?.event_id === state.db.promotion.organization_event_id, 'db_organization_event_readback_mismatch');
     assert(state.db.organization_event.graph_entity_id === parsed.entityId, 'db_organization_event_graph_id_mismatch');
     assert(state.db.organization_event.personal_body_found_in_payload === false, 'personal_body_copied_to_organization_event');
     assert(state.db.lineage.length === 1, 'db_lineage_readback_mismatch');
-    assert(state.db.authority_uses.reduce((sum, row) => sum + row.count, 0) === 3, 'db_authority_use_count_mismatch');
+    const expectedAuthorityActions = ['request', 'owner_consent', 'organization_review'];
+    assert(
+        state.db.authority_uses.length === expectedAuthorityActions.length
+        && state.db.authority_uses.every((row) => expectedAuthorityActions.includes(row.action) && row.count === 1)
+        && new Set(state.db.authority_uses.map((row) => row.action)).size === expectedAuthorityActions.length,
+        'db_authority_use_count_mismatch'
+    );
+    const [lineage] = state.db.lineage;
+    assert(lineage.personal_event_id === parsed.eventId, 'db_lineage_personal_event_mismatch');
+    assert(lineage.organization_event_id === state.db.promotion.organization_event_id, 'db_lineage_organization_event_mismatch');
+    assert(lineage.promotion_request_id === parsed.requestId, 'db_lineage_promotion_request_mismatch');
+    assert(lineage.normalized_payload_hash === parsed.normalizedPayloadHash, 'db_lineage_normalized_hash_mismatch');
+    assert(lineage.owner_consent_receipt_id === state.db.promotion.owner_consent_receipt_id, 'db_lineage_owner_receipt_mismatch');
+    assert(lineage.organization_review_receipt_id === state.db.promotion.organization_review_receipt_id, 'db_lineage_organization_receipt_mismatch');
+    assert(lineage.graph_entity_id === parsed.entityId, 'db_lineage_graph_id_mismatch');
     assert(state.db.incident_graph_edge_count === parsed.normalizedPayload.edges.length, 'db_graph_edge_count_mismatch');
     assert(state.graph.length === 1 && state.graph[0].id === parsed.entityId, 'graph_readback_mismatch');
 }
@@ -381,9 +700,41 @@ export async function runSmoke({
     assert(typeof databaseUrl === 'string' && databaseUrl, 'database_url_missing');
     assert(typeof fetchImpl === 'function', 'fetch_unavailable');
 
-    const pool = poolFactory(databaseUrl);
+    const ownerAccess = await verifySmokeAccess(fetchImpl, baseUrl, ownerToken, {
+        label: 'owner', projectCode: parsed.projectCode, sessionId
+    });
+    const reviewerAccess = await verifySmokeAccess(fetchImpl, baseUrl, reviewerToken, {
+        label: 'reviewer', projectCode: parsed.projectCode, reviewer: true, sessionId
+    });
+    assert(ownerAccess.personId !== reviewerAccess.personId, 'distinct_reviewer_required');
+    assert(ownerAccess.organizationId === reviewerAccess.organizationId, 'organization_access_mismatch');
+    const requestTenant = signedTenantBinding(parsed.requestContext, 'request');
+    const ownerTenant = signedTenantBinding(parsed.ownerContext, 'owner');
+    const reviewerTenant = signedTenantBinding(parsed.organizationContext, 'organization');
+    assert(ownerTenant.tenantId === requestTenant.tenantId
+        && reviewerTenant.tenantId === requestTenant.tenantId
+        && ownerTenant.tenantOrganizationId === requestTenant.tenantOrganizationId
+        && reviewerTenant.tenantOrganizationId === requestTenant.tenantOrganizationId,
+    'context_organization_mismatch');
+    const [requestProjectId] = assertSignedContextAccessBinding(parsed.requestContext, ownerAccess, {
+        label: 'request', expectedOrganizationId: requestTenant.tenantOrganizationId
+    });
+    assertSignedContextAccessBinding(parsed.ownerContext, ownerAccess, {
+        label: 'owner', expectedProjectId: requestProjectId,
+        expectedOrganizationId: requestTenant.tenantOrganizationId
+    });
+    assertSignedContextAccessBinding(parsed.organizationContext, reviewerAccess, {
+        label: 'organization', expectedProjectId: requestProjectId,
+        expectedOrganizationId: requestTenant.tenantOrganizationId
+    });
+
+    let pool = null;
     let csrfToken = suppliedCsrfToken;
     try {
+        pool = poolFactory(databaseUrl);
+        await assertReadbackRole(pool);
+        const graphOrganizationId = await resolveCanonicalGraphOrganization(pool, requestTenant);
+        assert(graphOrganizationId === ownerAccess.organizationId, 'context_organization_mismatch');
         if (!csrfToken) csrfToken = await loadCsrfToken(fetchImpl, baseUrl, sessionId);
         const graphBeforeResponse = await requestJson(fetchImpl, baseUrl, {
             path: `/api/info/graph/entities?id=${encodeURIComponent(parsed.entityId)}&project=${encodeURIComponent(parsed.projectCode)}`,
@@ -392,7 +743,7 @@ export async function runSmoke({
         expectStatus(graphBeforeResponse, 200, 'graph_before_read_failed');
         assertGraphBodyAbsent(graphBeforeResponse.payload, parsed.event.body);
         const before = projectBeforeAfter({
-            db: await readDbState(pool, { ...parsed, body: parsed.event.body }),
+            db: await readDbState(pool, { ...parsed, body: parsed.event.body, access: ownerAccess }),
             graph: safeGraphProjection(graphBeforeResponse.payload),
             receipt: null
         });
@@ -426,25 +777,47 @@ export async function runSmoke({
         });
         const requestPayload = expectStatus(requestResponse, 202, 'promotion_request_failed');
         assert(requestPayload.request_id === parsed.requestId, 'promotion_request_id_mismatch');
+        const ownerDecisionRevision = requireDecisionRevision(
+            requestPayload.owner_decision_revision,
+            'owner_decision_revision_missing'
+        );
 
         const ownerResponse = await requestJson(fetchImpl, baseUrl, {
             method: 'POST', path: `/api/personal-knowledge/promotions/${encodeURIComponent(parsed.requestId)}/owner-decision`,
             token: ownerToken, context: parsed.ownerContext, csrfToken, sessionId,
-            body: { decision: 'approve', normalized_payload_hash: parsed.normalizedPayloadHash }
+            body: {
+                decision: 'approve',
+                normalized_payload_hash: parsed.normalizedPayloadHash,
+                expected_owner_decision_revision: ownerDecisionRevision
+            }
         });
         const ownerPayload = expectStatus(ownerResponse, 200, 'owner_consent_failed');
         assert(ownerPayload.owner_consent_receipt_id, 'owner_consent_receipt_missing');
+        const organizationReviewRevision = requireDecisionRevision(
+            ownerPayload.organization_review_revision,
+            'organization_review_revision_missing'
+        );
 
         const organizationResponse = await requestJson(fetchImpl, baseUrl, {
             method: 'POST', path: `/api/personal-knowledge/promotions/${encodeURIComponent(parsed.requestId)}/organization-decision`,
             token: reviewerToken, context: parsed.organizationContext, csrfToken, sessionId,
-            body: { decision: 'approve', reason: `synthetic smoke ${parsed.runId}` }
+            body: {
+                decision: 'approve',
+                reason: `synthetic smoke ${parsed.runId}`,
+                expected_organization_review_revision: organizationReviewRevision
+            }
         });
         const organizationPayload = expectStatus(organizationResponse, 200, 'organization_review_failed');
         assertSafeOrganizationResponse(organizationPayload, { body: parsed.event.body, ownerToken, reviewerToken });
         const firstReceipt = redactReceipt(organizationPayload);
         assert(firstReceipt.graph_entity_id === parsed.entityId, 'organization_receipt_graph_id_missing');
         assert(firstReceipt.organization_review_receipt_id, 'organization_receipt_missing');
+        assertReceiptComplete(firstReceipt, 'organization_receipt_incomplete');
+        assert(ownerPayload.owner_consent_receipt_id === firstReceipt.owner_consent_receipt_id, 'owner_consent_receipt_mismatch');
+        const replayOrganizationReviewRevision = requireDecisionRevision(
+            organizationPayload.organization_review_revision,
+            'organization_replay_revision_missing'
+        );
 
         const graphAfterFirstResponse = await requestJson(fetchImpl, baseUrl, {
             path: `/api/info/graph/entities?id=${encodeURIComponent(parsed.entityId)}&project=${encodeURIComponent(parsed.projectCode)}`,
@@ -452,17 +825,23 @@ export async function runSmoke({
         });
         expectStatus(graphAfterFirstResponse, 200, 'graph_after_read_failed');
         assertGraphBodyAbsent(graphAfterFirstResponse.payload, parsed.event.body);
+        const afterFirstDb = await readDbState(pool, { ...parsed, body: parsed.event.body, access: ownerAccess });
+        const afterFirstReceipt = assertReceiptMatchesDb(firstReceipt, afterFirstDb.promotion);
         const afterFirst = projectBeforeAfter({
-            db: await readDbState(pool, { ...parsed, body: parsed.event.body }),
+            db: afterFirstDb,
             graph: safeGraphProjection(graphAfterFirstResponse.payload),
-            receipt: firstReceipt
+            receipt: afterFirstReceipt
         });
         assertAcceptedState(afterFirst, parsed);
 
         const replayResponse = await requestJson(fetchImpl, baseUrl, {
             method: 'POST', path: `/api/personal-knowledge/promotions/${encodeURIComponent(parsed.requestId)}/organization-decision`,
             token: reviewerToken, context: parsed.organizationContext, csrfToken, sessionId,
-            body: { decision: 'approve', reason: `synthetic smoke ${parsed.runId}` }
+            body: {
+                decision: 'approve',
+                reason: `synthetic smoke ${parsed.runId}`,
+                expected_organization_review_revision: replayOrganizationReviewRevision
+            }
         });
         assert(replayResponse.status === 409, 'replay_not_rejected');
         assert(replayResponse.payload?.error === 'personal_knowledge_promotion_authority_replayed', 'replay_error_mismatch');
@@ -473,10 +852,13 @@ export async function runSmoke({
         });
         expectStatus(graphAfterReplayResponse, 200, 'graph_replay_read_failed');
         assertGraphBodyAbsent(graphAfterReplayResponse.payload, parsed.event.body);
+        const replayDb = await readDbState(pool, { ...parsed, body: parsed.event.body, access: ownerAccess });
+        const replayReceipt = redactReceipt(replayDb.promotion);
+        assertReceiptComplete(replayReceipt, 'db_receipt_incomplete');
         const replayState = projectBeforeAfter({
-            db: await readDbState(pool, { ...parsed, body: parsed.event.body }),
+            db: replayDb,
             graph: safeGraphProjection(graphAfterReplayResponse.payload),
-            receipt: firstReceipt
+            receipt: replayReceipt
         });
         assertAcceptedState(replayState, parsed);
         const dbMutationDiffZero = equalStable(afterFirst.db, replayState.db);
@@ -517,7 +899,7 @@ export async function runSmoke({
         assertSafeEvidence(evidence, { body: parsed.event.body, ownerToken, reviewerToken });
         return evidence;
     } finally {
-        await pool.end();
+        if (pool && typeof pool.end === 'function') await pool.end();
     }
 }
 

@@ -8,9 +8,32 @@ const project = { project_code: { type: 'string', minLength: 1 } } as const;
 const operationNames = [
   'patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity', 'upsert_edge',
   'link_decision_subject', 'materialize_project_subject', 'link_decision_project_subject',
-  'retire_edge', 'normalize_alias',
+  'retire_edge', 'normalize_alias', 'normalize_merged_lifecycle',
 ] as const;
 const planId = { plan_id: { type: 'string', minLength: 1 } } as const;
+const suppressionReasonCounts = {
+  type: 'object',
+  properties: {
+    noncanonical_cross_tenant_marker: { type: 'integer', minimum: 1 },
+    unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 1 },
+  },
+  additionalProperties: false,
+} as const;
+const suppressionSummary = {
+  type: 'object',
+  properties: {
+    edge_count: { type: 'integer', minimum: 0 },
+    reasons: suppressionReasonCounts,
+  },
+  required: ['edge_count', 'reasons'],
+  additionalProperties: false,
+} as const;
+const suppressionSummaryTransition = {
+  type: 'object',
+  properties: { before: suppressionSummary, after: suppressionSummary },
+  required: ['before', 'after'],
+  additionalProperties: false,
+} as const;
 const humanGateOperationScope = {
   oneOf: [
     {
@@ -46,8 +69,9 @@ const humanGateOperationScope = {
         after_snapshot_hash: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         operations_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
         diff_fingerprint: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
+        suppression_summary: suppressionSummaryTransition,
       },
-      required: ['operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint'],
+      required: ['operation', 'decision_id', 'plan_id', 'base_snapshot_hash', 'after_snapshot_hash', 'operations_fingerprint', 'diff_fingerprint', 'suppression_summary'],
       additionalProperties: false,
     },
     {
@@ -145,7 +169,7 @@ export const graphMaintenanceTools: Tool[] = [
   },
   {
     name: 'graph_validate', description: 'Validate ontology, referential integrity, duplicates, orphans, versions, and snapshot hash.',
-    inputSchema: { type: 'object', properties: { ...project, include_project_codes: { type: 'array', items: { type: 'string', minLength: 1 }, uniqueItems: true } }, required: ['project_code'], additionalProperties: false },
+    inputSchema: { type: 'object', properties: { ...project, include_project_codes: { type: 'array', items: { type: 'string', minLength: 1 }, uniqueItems: true }, strict_collection: { type: 'boolean' } }, required: ['project_code'], additionalProperties: false },
   },
 ];
 
@@ -157,7 +181,7 @@ function requestFor(name: string, args: Record<string, unknown>) {
   if (name === 'graph_apply_plan') return { path: `/api/info/graph/maintenance/plans/${id}/apply`, method: 'POST', body: { project_code: args.project_code, snapshot_hash: args.snapshot_hash, human_gate_receipt: args.human_gate_receipt } };
   if (name === 'graph_get_plan_receipt') return { path: `/api/info/graph/maintenance/plans/${id}/receipt?project_code=${encodeURIComponent(String(args.project_code))}`, method: 'GET' };
   if (name === 'graph_rollback_plan') return { path: `/api/info/graph/maintenance/plans/${id}/rollback`, method: 'POST', body: { project_code: args.project_code, apply_receipt_id: args.apply_receipt_id } };
-  return { path: '/api/info/graph/maintenance/validate', method: 'POST', body: { project_code: args.project_code, ...(args.include_project_codes ? { include_project_codes: args.include_project_codes } : {}) } };
+  return { path: '/api/info/graph/maintenance/validate', method: 'POST', body: { project_code: args.project_code, ...(args.include_project_codes ? { include_project_codes: args.include_project_codes } : {}), ...(args.strict_collection === true ? { strict_collection: true } : {}) } };
 }
 
 export async function handleGraphMaintenanceToolCall(name: string, args: Record<string, unknown>, dependencies: Dependencies): Promise<ToolResult | null> {

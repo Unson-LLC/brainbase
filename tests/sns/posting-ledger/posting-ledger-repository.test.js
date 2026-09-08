@@ -10,6 +10,50 @@ import {
     JsonFileSnsPostingLedgerRepository,
     PgSnsPostingLedgerRepository
 } from '../../../server/services/sns/posting-ledger-repository.js';
+import { SnsAuthorityError } from '../../../server/services/sns/sns-authority.js';
+
+const DEFAULT_AUTHORITY = Object.freeze({
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    sub: 'sato_keigo',
+    role: 'ceo',
+    org_ids: ['unson'],
+    projectCodes: ['brainbase']
+});
+
+const OTHER_PERSON_AUTHORITY = Object.freeze({
+    ...DEFAULT_AUTHORITY,
+    owner_person_id: 'other_person',
+    actor_person_id: 'other_person',
+    sub: 'other_person'
+});
+
+const OTHER_ORGANIZATION_AUTHORITY = Object.freeze({
+    ...DEFAULT_AUTHORITY,
+    organization_id: 'org_other',
+    org_ids: ['org_other']
+});
+
+function upsertReviewPack(repository, input, authority = DEFAULT_AUTHORITY) {
+    return repository.upsertReviewPack(input, authority);
+}
+
+function listPosts(repository, filters = {}, authority = DEFAULT_AUTHORITY) {
+    return repository.listPosts(filters, authority);
+}
+
+function findPost(repository, postId, authority = DEFAULT_AUTHORITY) {
+    return repository.findById(postId, authority);
+}
+
+function updatePost(repository, postId, patch, authority = DEFAULT_AUTHORITY) {
+    return repository.updatePost(postId, patch, authority);
+}
+
+function claimScheduledPost(repository, postId, options = {}, authority = DEFAULT_AUTHORITY) {
+    return repository.claimScheduledPost(postId, options, authority);
+}
 
 const baseDraft = {
     id: 'week_2026-05-18_1_trust_balance',
@@ -61,6 +105,95 @@ const baseDraft = {
 };
 
 describe('InMemorySnsPostingLedgerRepository', () => {
+    it('requires a canonical authority for every ledger operation', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+
+        expect(() => repository.upsertReviewPack({
+            account_id: 'acc_x_sato',
+            drafts: [baseDraft]
+        })).toThrow(SnsAuthorityError);
+        expect(() => repository.listPosts({})).toThrow(SnsAuthorityError);
+        expect(() => repository.findById('missing')).toThrow(SnsAuthorityError);
+        expect(() => repository.updatePost('missing', {})).toThrow(SnsAuthorityError);
+        expect(() => repository.claimScheduledPost('missing')).toThrow(SnsAuthorityError);
+    });
+
+    it('overwrites client-supplied identity fields with the authenticated authority', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+        const result = upsertReviewPack(repository, {
+            account_id: 'acc_x_sato',
+            drafts: [{
+                ...baseDraft,
+                owner_person_id: 'spoofed_owner',
+                actor_person_id: 'spoofed_actor',
+                organization_id: 'spoofed_organization'
+            }]
+        });
+
+        expect(result.created[0]).toMatchObject({
+            owner_person_id: DEFAULT_AUTHORITY.owner_person_id,
+            actor_person_id: DEFAULT_AUTHORITY.actor_person_id,
+            organization_id: DEFAULT_AUTHORITY.organization_id
+        });
+    });
+
+    it('allows the same account date and slot to coexist for different authorities', () => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+        const draft = {
+            ...baseDraft,
+            id: undefined,
+            ledger_id: undefined,
+            body: 'authorityごとに同一slotを独立して保持する'
+        };
+
+        const ownerResult = upsertReviewPack(repository, {
+            account_id: 'acc_shared',
+            drafts: [draft]
+        }, DEFAULT_AUTHORITY);
+        const otherResult = upsertReviewPack(repository, {
+            account_id: 'acc_shared',
+            drafts: [draft]
+        }, OTHER_PERSON_AUTHORITY);
+
+        expect(ownerResult.created).toHaveLength(1);
+        expect(otherResult.created).toHaveLength(1);
+        expect(otherResult.created[0].id).not.toBe(ownerResult.created[0].id);
+        expect(listPosts(repository, {}, DEFAULT_AUTHORITY)).toHaveLength(1);
+        expect(listPosts(repository, {}, OTHER_PERSON_AUTHORITY)).toHaveLength(1);
+    });
+
+    it.each([
+        ['person', OTHER_PERSON_AUTHORITY],
+        ['organization', OTHER_ORGANIZATION_AUTHORITY]
+    ])('rejects a cross-%s authority from list/find/update/claim operations', (_scope, foreignAuthority) => {
+        const repository = new InMemorySnsPostingLedgerRepository();
+        const result = upsertReviewPack(repository, {
+            account_id: 'acc_x_sato',
+            drafts: [{
+                ...baseDraft,
+                id: undefined,
+                ledger_id: undefined,
+                body: `authenticated authority only: ${_scope}`
+            }]
+        });
+        const post = result.created[0];
+
+        expect(listPosts(repository, {}, foreignAuthority)).toHaveLength(0);
+        expect(findPost(repository, post.id, foreignAuthority)).toBeNull();
+        expect(() => updatePost(repository, post.id, { body: 'cross-authority update' }, foreignAuthority))
+            .toThrow(SnsAuthorityError);
+
+        let scheduled = updatePost(repository, post.id, { status: 'approved' });
+        scheduled = updatePost(repository, scheduled.id, {
+            status: 'scheduled',
+            scheduled_at: '2026-05-18T00:00:00.000Z'
+        });
+        expect(() => claimScheduledPost(repository, scheduled.id, {
+            now: new Date('2026-05-18T00:01:00.000Z')
+        }, foreignAuthority)).toThrow(SnsAuthorityError);
+        expect(findPost(repository, post.id)?.status).toBe('scheduled');
+    });
+
     it('AC-005 persists only the canonical background job tenant binding with the scheduled row', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
         const tenantBoundary = {
@@ -73,13 +206,13 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             resource_ref: { object_type: 'project', resource_id: 'project_sns' }
         };
 
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{ ...baseDraft, tenant_boundary: tenantBoundary }]
         });
 
-        expect(repository.listPosts({})[0].evidence.tenant_boundary).toEqual(tenantBoundary);
-        expect(JSON.stringify(repository.listPosts({})[0])).not.toMatch(/credential|secret|token/iu);
+        expect(listPosts(repository)[0].evidence.tenant_boundary).toEqual(tenantBoundary);
+        expect(JSON.stringify(listPosts(repository)[0])).not.toMatch(/credential|secret|token/iu);
     });
 
     it('AC-005 re-imports a canonical binding onto an existing mutable row', () => {
@@ -93,26 +226,26 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             },
             resource_ref: { object_type: 'project', resource_id: 'project_sns' }
         };
-        repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
+        upsertReviewPack(repository, { account_id: 'acc_x_sato', drafts: [baseDraft] });
 
-        const result = repository.upsertReviewPack({
+        const result = upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{ ...baseDraft, tenant_boundary: tenantBoundary }]
         });
 
         expect(result.updated).toHaveLength(1);
-        expect(repository.listPosts({})[0].evidence.tenant_boundary).toEqual(tenantBoundary);
+        expect(listPosts(repository)[0].evidence.tenant_boundary).toEqual(tenantBoundary);
     });
 
     it('upserts a weekly review pack idempotently by date and slot', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
 
-        const first = repository.upsertReviewPack({
+        const first = upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             account_handle: '@AIBizNavigator',
             drafts: [baseDraft]
         });
-        const second = repository.upsertReviewPack({
+        const second = upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             account_handle: '@AIBizNavigator',
             drafts: [{ ...baseDraft, body: 'edited by generation rerun' }]
@@ -122,7 +255,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
         expect(second.created).toHaveLength(0);
         expect(second.updated).toHaveLength(1);
 
-        const posts = repository.listPosts({ startDate: '2026-05-18', endDate: '2026-05-18' });
+        const posts = listPosts(repository, { startDate: '2026-05-18', endDate: '2026-05-18' });
         expect(posts).toHaveLength(1);
         expect(posts[0].body).toBe('edited by generation rerun');
         expect(posts[0].status).toBe('review_needed');
@@ -141,7 +274,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
     it('treats generated date and time as JST when deriving scheduled_at', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
 
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 ...baseDraft,
@@ -151,7 +284,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             }]
         });
 
-        const post = repository.listPosts({})[0];
+        const post = listPosts(repository)[0];
         expect(post.time).toBe('18:00');
         expect(post.scheduled_at).toBe('2026-05-24T09:00:00.000Z');
     });
@@ -159,7 +292,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
     it('preserves an explicit scheduled_at instant instead of reinterpreting it as JST', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
 
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 ...baseDraft,
@@ -169,40 +302,40 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             }]
         });
 
-        expect(repository.listPosts({})[0].scheduled_at).toBe('2026-05-24T18:00:00.000Z');
+        expect(listPosts(repository)[0].scheduled_at).toBe('2026-05-24T18:00:00.000Z');
     });
 
     it('stores body revisions and explicit operational status transitions', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
-        repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
-        const post = repository.listPosts({})[0];
+        upsertReviewPack(repository, { account_id: 'acc_x_sato', drafts: [baseDraft] });
+        const post = listPosts(repository)[0];
 
-        const edited = repository.updatePost(post.id, {
+        const edited = updatePost(repository, post.id, {
             body: '会社でClaude Codeを使うなら、権限とレビュー境界を先に決める',
             status: 'approved'
-        }, { actor_person_id: 'sato_keigo' });
+        });
 
         expect(edited.status).toBe('approved');
         expect(edited.body).toContain('権限とレビュー境界');
         expect(edited.revisions).toHaveLength(1);
         expect(edited.revisions[0].previous_body).toContain('運用設計');
 
-        const scheduled = repository.updatePost(post.id, {
+        const scheduled = updatePost(repository, post.id, {
             status: 'scheduled',
             scheduled_at: '2026-05-18T00:00:00.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        });
         expect(scheduled.status).toBe('scheduled');
         expect(scheduled.scheduled_at).toBe('2026-05-18T00:00:00.000Z');
     });
 
     it('rejects invalid status transitions before mutating the ledger', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
-        repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
-        const post = repository.listPosts({})[0];
+        upsertReviewPack(repository, { account_id: 'acc_x_sato', drafts: [baseDraft] });
+        const post = listPosts(repository)[0];
 
-        expect(() => repository.updatePost(post.id, { status: 'posted' }, { actor_person_id: 'sato_keigo' }))
+        expect(() => updatePost(repository, post.id, { status: 'posted' }))
             .toThrow(InvalidSnsPostTransitionError);
-        expect(repository.findById(post.id)?.status).toBe('review_needed');
+        expect(findPost(repository, post.id)?.status).toBe('review_needed');
     });
 
     it('skips duplicate body text already reserved by another live ledger row', () => {
@@ -213,7 +346,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             'CLAUDE.md、スキル、hook、レビュー、権限'
         ].join('\n');
 
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 ...baseDraft,
@@ -223,7 +356,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             }]
         });
 
-        const result = repository.upsertReviewPack({
+        const result = upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 ...baseDraft,
@@ -238,23 +371,23 @@ describe('InMemorySnsPostingLedgerRepository', () => {
         expect(result.skipped).toHaveLength(1);
         expect(result.skipped[0]).toMatchObject({
             reason: 'duplicate_body',
-            existing_post_id: 'sns_20260513_2_trust_balance'
+            existing_post_id: 'sns_unson_sato_keigo_20260513_2_trust_balance'
         });
-        expect(repository.listPosts({ startDate: '2026-05-18', endDate: '2026-05-18' })).toHaveLength(0);
+        expect(listPosts(repository, { startDate: '2026-05-18', endDate: '2026-05-18' })).toHaveLength(0);
     });
 
     it('does not overwrite posted rows when a review pack reuses the same account date and slot', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
-        repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
-        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, {
+        upsertReviewPack(repository, { account_id: 'acc_x_sato', drafts: [baseDraft] });
+        let post = updatePost(repository, listPosts(repository)[0].id, { status: 'approved' });
+        post = updatePost(repository, post.id, { status: 'scheduled' });
+        post = updatePost(repository, post.id, {
             status: 'posted',
             posted_url: 'https://x.com/AIBizNavigator/status/2055199687339303164',
             posted_at: '2026-05-15T08:12:43.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        });
 
-        const result = repository.upsertReviewPack({
+        const result = upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 ...baseDraft,
@@ -266,7 +399,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
         expect(result.updated).toHaveLength(0);
         expect(result.skipped).toHaveLength(1);
         expect(result.skipped[0].reason).toBe('immutable_status');
-        expect(repository.findById(post.id)).toMatchObject({
+        expect(findPost(repository, post.id)).toMatchObject({
             status: 'posted',
             body: baseDraft.body,
             posted_url: 'https://x.com/AIBizNavigator/status/2055199687339303164'
@@ -275,21 +408,21 @@ describe('InMemorySnsPostingLedgerRepository', () => {
 
     it('marks a posted record as deleted while preserving the posted URL and deletion metadata', () => {
         const repository = new InMemorySnsPostingLedgerRepository();
-        repository.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
-        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, {
+        upsertReviewPack(repository, { account_id: 'acc_x_sato', drafts: [baseDraft] });
+        let post = updatePost(repository, listPosts(repository)[0].id, { status: 'approved' });
+        post = updatePost(repository, post.id, { status: 'scheduled' });
+        post = updatePost(repository, post.id, {
             status: 'posted',
             posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
             posted_at: '2026-05-14T03:00:00.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        });
 
-        const deleted = repository.updatePost(post.id, {
+        const deleted = updatePost(repository, post.id, {
             status: 'deleted',
             deleted_at: '2026-05-14T04:00:00.000Z',
             deletion_source: 'manual_x_delete',
             deletion_reason: 'X上で削除した'
-        }, { actor_person_id: 'sato_keigo' });
+        });
 
         expect(deleted).toMatchObject({
             status: 'deleted',
@@ -299,7 +432,7 @@ describe('InMemorySnsPostingLedgerRepository', () => {
             deletion_source: 'manual_x_delete',
             deletion_reason: 'X上で削除した'
         });
-        expect(repository.findById(post.id)?.status).toBe('deleted');
+        expect(findPost(repository, post.id)?.status).toBe('deleted');
     });
 
     it('persists the ledger to a JSON file across repository instances', () => {
@@ -307,12 +440,12 @@ describe('InMemorySnsPostingLedgerRepository', () => {
         const filePath = path.join(dir, 'ledger.json');
         try {
             const writer = new JsonFileSnsPostingLedgerRepository({ filePath });
-            writer.upsertReviewPack({ account_id: 'acc_x_sato', drafts: [baseDraft] });
-            const post = writer.listPosts({})[0];
-            writer.updatePost(post.id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+            upsertReviewPack(writer, { account_id: 'acc_x_sato', drafts: [baseDraft] });
+            const post = listPosts(writer)[0];
+            updatePost(writer, post.id, { status: 'approved' });
 
             const reader = new JsonFileSnsPostingLedgerRepository({ filePath });
-            const restored = reader.listPosts({});
+            const restored = listPosts(reader);
             expect(restored).toHaveLength(1);
             expect(restored[0].status).toBe('approved');
             expect(restored[0].body).toContain('Claude Code法人導入');
@@ -331,6 +464,7 @@ describe('PgSnsPostingLedgerRepository', () => {
             async query(sql, params = []) {
                 calls.push({ sql, params });
                 if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+                if (sql.includes("set_config('app.person_id'")) return { rows: [] };
                 if (sql.includes('SELECT id FROM sns_posting_ledger_posts')) return { rows: [] };
                 if (sql.includes('INSERT INTO sns_posting_ledger_posts')) {
                     return {
@@ -338,29 +472,32 @@ describe('PgSnsPostingLedgerRepository', () => {
                             id: params[0],
                             account_id: params[1],
                             account_handle: params[2],
-                            platform: params[3],
+                            owner_person_id: params[3],
+                            actor_person_id: params[4],
+                            organization_id: params[5],
+                            platform: params[6],
                             date: new Date(2026, 4, 18),
-                            slot_index: params[5],
-                            time: params[6],
-                            title: params[7],
-                            status: params[8],
-                            lane: params[9],
-                            format: params[10],
-                            body: params[11],
-                            scheduled_at: params[12],
-                            posted_at: params[13],
-                            posted_url: params[14],
-                            deleted_at: params[15],
-                            deletion_source: params[16],
-                            deletion_reason: params[17],
-                            source: JSON.parse(params[18]),
-                            evidence: JSON.parse(params[19]),
-                            memo: params[20],
-                            learning_candidate_id: params[21],
-                            revisions: JSON.parse(params[22]),
-                            metrics_snapshots: JSON.parse(params[23]),
-                            created_at: params[24],
-                            updated_at: params[25]
+                            slot_index: params[8],
+                            time: params[9],
+                            title: params[10],
+                            status: params[11],
+                            lane: params[12],
+                            format: params[13],
+                            body: params[14],
+                            scheduled_at: params[15],
+                            posted_at: params[16],
+                            posted_url: params[17],
+                            deleted_at: params[18],
+                            deletion_source: params[19],
+                            deletion_reason: params[20],
+                            source: JSON.parse(params[21]),
+                            evidence: JSON.parse(params[22]),
+                            memo: params[23],
+                            learning_candidate_id: params[24],
+                            revisions: JSON.parse(params[25]),
+                            metrics_snapshots: JSON.parse(params[26]),
+                            created_at: params[27],
+                            updated_at: params[28]
                         }]
                     };
                 }
@@ -378,7 +515,7 @@ describe('PgSnsPostingLedgerRepository', () => {
                 lane: 'peer_circle',
                 source_url: 'https://x.com/near/status/1'
             }]
-        });
+        }, DEFAULT_AUTHORITY);
 
         expect(result.created).toHaveLength(1);
         expect(result.created[0].date).toBe('2026-05-18');
@@ -388,9 +525,16 @@ describe('PgSnsPostingLedgerRepository', () => {
         expect(result.created[0].source.url).toBe('https://x.com/near/status/1');
         expect(result.created[0].evidence.persona_brain.target_person).toContain('AI導入');
         expect(result.created[0].evidence.generation_context_evidence.recommended_lanes).toContain('trust_balance');
+        const authorityContext = calls.find((call) => call.sql.includes("set_config('app.person_id'"));
+        expect(authorityContext?.params).toEqual(['sato_keigo', 'sato_keigo', 'unson']);
+        const slotSelect = calls.find((call) => call.sql.includes('WHERE account_id = $1 AND date = $2 AND slot_index = $3'));
+        expect(slotSelect?.params.slice(3)).toEqual(['sato_keigo', 'unson']);
         const insertParams = calls.find((call) => call.sql.includes('INSERT INTO sns_posting_ledger_posts'))?.params;
-        expect(insertParams?.[6]).toBe('09:00');
-        expect(insertParams?.[12]).toBe('2026-05-18T00:00:00.000Z');
+        expect(insertParams?.[3]).toBe('sato_keigo');
+        expect(insertParams?.[4]).toBe('sato_keigo');
+        expect(insertParams?.[5]).toBe('unson');
+        expect(insertParams?.[9]).toBe('09:00');
+        expect(insertParams?.[15]).toBe('2026-05-18T00:00:00.000Z');
         expect(calls.some((call) => call.sql.includes('sns_posting_ledger_posts'))).toBe(true);
     });
 
@@ -399,6 +543,9 @@ describe('PgSnsPostingLedgerRepository', () => {
             id: 'sns_20260524_4_trust_balance',
             account_id: 'acc_x_sato',
             account_handle: '@AIBizNavigator',
+            owner_person_id: 'sato_keigo',
+            actor_person_id: 'sato_keigo',
+            organization_id: 'unson',
             platform: 'x',
             date: new Date(2026, 4, 24),
             slot_index: 4,
@@ -428,6 +575,7 @@ describe('PgSnsPostingLedgerRepository', () => {
             async query(sql, params = []) {
                 calls.push({ sql, params });
                 if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK') return { rows: [] };
+                if (sql.includes("set_config('app.person_id'")) return { rows: [] };
                 if (sql.includes('WHERE account_id = $1 AND date = $2 AND slot_index = $3')) {
                     return { rows: [existingRow] };
                 }
@@ -463,7 +611,7 @@ describe('PgSnsPostingLedgerRepository', () => {
                 time: '18:00',
                 body: 'rerun body'
             }]
-        });
+        }, DEFAULT_AUTHORITY);
 
         expect(result.updated).toHaveLength(1);
         expect(result.updated[0]).toMatchObject({

@@ -40,6 +40,9 @@ describe('multitenant persistence schema', () => {
         const sql = await readFile(schemaPath, 'utf8');
         expect(sql).toContain('credential_ref TEXT NOT NULL');
         expect(sql).toContain('refresh_revision BIGINT NOT NULL');
+        expect(sql).toContain('credential_broker_refs_refresh_revision_check');
+        expect(sql).toContain('CHECK (refresh_revision >= 0)');
+        expect(sql).toContain('DROP CONSTRAINT IF EXISTS credential_broker_refs_refresh_revision_check');
         expect(sql).toContain('lease_token_digest TEXT NOT NULL');
         expect(sql).toContain("max_uses SMALLINT NOT NULL CHECK (max_uses = 1)");
         expect(sql).toContain("expires_at <= issued_at + INTERVAL '60 seconds'");

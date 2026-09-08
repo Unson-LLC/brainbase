@@ -57,6 +57,22 @@ const MODE_CONFIG = {
                 safety: { draft_only: true, dry_run: true, requires_confirmation: true }
             }
         ]
+    },
+    retro: {
+        label: 'Retro',
+        defaultTitle: '週次レトロ',
+        sections: [
+            ['outcomes', '今週変わった現実'],
+            ['decisionReplays', '判断のReplay'],
+            ['changedJudgments', '過去判断との違い'],
+            ['mistakenAssumptions', '誤っていた前提'],
+            ['repeatedPatterns', '繰り返した問題'],
+            ['systemChanges', '来週から変える仕組み'],
+            ['personalKgReviews', 'Personal KGレビュー'],
+            ['graphPromotionReviews', 'Graph昇格レビュー'],
+            ['sourceCoverage', '確認範囲']
+        ],
+        actions: []
     }
 };
 

@@ -189,6 +189,7 @@ The trust boundary is intentionally asymmetric: source connectors may inspect ra
 
 ## Verification
 
+- S-011: `tests/server/services/run-receipt-ingest-service.test.js` は組織・取得済みcatalog・project grantを持つ通常メンバーで5 sourceの保存→Inbox取得を検証する。同じ台帳の未認可projectを除外し、組織なし・grantなしでは結果を開示しない。認可policyをmockで迂回しない。
 - AC1/AC4/AC6/AC8: `tests/server/services/run-receipt-contract.test.js` rejects pre-fix invalid status/evidence, raw-key bypasses, oversized text, nested metrics, and delivery/status conflation.
 - AC2/AC3/AC9/AC15: `tests/server/services/run-receipt-contract.test.js`、`tests/server/services/run-receipt-ingest-service.test.js`、`tests/server/services/workflow-repository-transaction.test.js`、`tests/server/services/external-runner-ingest-service.test.js` がcontract、冪等性、transaction、Candidate Store境界を検証する。Meeting noteはprovider固有reconcilerを持たず、`tests/server/services/meeting-automation-service.test.js` がhandoffとwrite-back境界を検証する。
 - AC4/AC5/AC13/AC14: `tests/server/services/run-receipt-inbox-service.test.js` uses fixtures for all six reachable priority buckets, composed filters, connector observation, omitted count, uncertainty preservation, and latest-run collapse. Pre-fix fixtures prove old blocked + new success returns only the success, blocked filtering does not resurrect old history, a separate workflow remains visible, equal instants written with different offsets use the persisted-created-at/run-id tie-break, full cross-identity order is total, repeated limited queries are stable, and count/has_more/omitted_count are computed after collapse and filters.

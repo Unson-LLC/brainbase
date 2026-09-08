@@ -42,6 +42,12 @@ function deriveProjectCodes(member) {
 
 const data = parse(readFileSync(MEMBERS_PATH, 'utf-8'));
 const pool = new pg.Pool({ connectionString: DB_URL });
+const ORGANIZATION_BY_WORKSPACE = Object.freeze({
+  salestailor: 'salestailor',
+  techknight: 'techknight',
+  unson: 'unson',
+  baao: 'unson'
+});
 
 // Group by person_id to merge across workspaces
 const personMap = new Map();
@@ -80,16 +86,18 @@ for (const [personId, person] of personMap) {
 
   // Insert one row per slack ID
   for (const slack of person.slackIds) {
+    const organizationId = ORGANIZATION_BY_WORKSPACE[slack.workspace];
+    if (!organizationId) throw new Error(`organization mapping is missing: ${slack.workspace}`);
     await pool.query(
-      `INSERT INTO auth_grants (id, person_id, person_name, slack_user_id, slack_workspace_id, role, project_codes, clearance, active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+      `INSERT INTO auth_grants (id, person_id, person_name, slack_user_id, slack_workspace_id, organization_id, role, project_codes, clearance, active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
        ON CONFLICT (id) DO UPDATE SET
          person_name = EXCLUDED.person_name,
          role = EXCLUDED.role,
          project_codes = EXCLUDED.project_codes,
          clearance = EXCLUDED.clearance,
          updated_at = NOW()`,
-      [`grant_${personId}_${slack.workspace}`, personId, person.name, slack.id, slack.workspace, role, finalProjects, clearance]
+      [`grant_${personId}_${slack.workspace}`, personId, person.name, slack.id, slack.workspace, organizationId, role, finalProjects, clearance]
     );
     count++;
     console.log(`  ${person.name} (${slack.workspace}) → role=${role} projects=[${finalProjects.join(',')}]`);

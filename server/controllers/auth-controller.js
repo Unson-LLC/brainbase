@@ -359,6 +359,8 @@ export class AuthController {
             if (!refreshToken) {
                 return res.status(400).json({ error: 'refresh_token is required' });
             }
+            // A refresh token is already bound to one organization.  Never let
+            // request data silently turn refresh into an organization switch.
             const payload = await this.authService.refreshSession(refreshToken);
             setAuthCookies(res, req, this.authService, {
                 accessToken: payload.token,
@@ -369,6 +371,53 @@ export class AuthController {
         } catch (error) {
             logger.error('Refresh token exchange failed', { error });
             return res.status(401).json({ error: getErrorMessage(error) || 'Refresh failed' });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    organizations = async (req, res) => {
+        const access = req.access || {};
+        if (!access.slackUserId || !access.slackWorkspaceId) {
+            return res.status(403).json({ error: 'Slack user session is required' });
+        }
+        const organizations = await this.authService.listOrganizationAccess({
+            slackUserId: access.slackUserId,
+            slackWorkspaceId: access.slackWorkspaceId
+        });
+        return res.json({
+            currentOrganizationId: access.organizationId || null,
+            organizations
+        });
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    switchOrganization = async (req, res) => {
+        try {
+            const access = req.access || {};
+            const organizationId = typeof req.body?.organizationId === 'string'
+                ? req.body.organizationId.trim()
+                : '';
+            if (!access.slackUserId || !access.slackWorkspaceId) {
+                return res.status(403).json({ error: 'Slack user session is required' });
+            }
+            if (!organizationId) {
+                return res.status(400).json({ error: 'organizationId is required' });
+            }
+            const payload = await this.authService.switchOrganization({
+                slackUserId: access.slackUserId,
+                slackWorkspaceId: access.slackWorkspaceId,
+                organizationId
+            });
+            setAuthCookies(res, req, this.authService, {
+                accessToken: payload.token,
+                refreshToken: payload.refresh_token,
+                targetOrigin: null
+            });
+            return res.json(payload);
+        } catch (error) {
+            const message = getErrorMessage(error) || 'Organization switch failed';
+            const status = message === 'Organization access is not granted' ? 403 : 400;
+            return res.status(status).json({ error: message });
         }
     };
 
@@ -472,6 +521,45 @@ export class AuthController {
         } catch (error) {
             logger.error('Service token issue failed', { error });
             return res.status(500).json({ error: getErrorMessage(error) || 'Service token issue failed' });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    createRoutineServiceToken = async (req, res) => {
+        try {
+            const issuer = req.access || {};
+            const issuerRole = String(issuer.role || 'member').toLowerCase();
+            if (roleRank(issuerRole) < ROLE_RANK.gm) {
+                return res.status(403).json({ error: 'GM or CEO role is required' });
+            }
+            const routine = typeof req.body?.routine === 'string' ? req.body.routine.trim() : '';
+            const ownerPersonId = typeof req.body?.ownerPersonId === 'string'
+                ? req.body.ownerPersonId.trim()
+                : '';
+            if (!['oyasumi', 'retro'].includes(routine) || !ownerPersonId) {
+                return res.status(400).json({ error: 'routine and ownerPersonId are required' });
+            }
+            if (!issuer.organizationId) {
+                return res.status(403).json({ error: 'Organization context is required' });
+            }
+            const result = this.authService.issueRoutineServiceToken({
+                routine,
+                ownerPersonId,
+                organizationId: issuer.organizationId,
+                createdBy: issuer.personId || null,
+                ttlSeconds: req.body?.ttlSeconds
+            });
+            await this.authService.createAuditLog({
+                personId: issuer.personId || null,
+                slackUserId: issuer.slackUserId || null,
+                slackWorkspaceId: issuer.slackWorkspaceId || null,
+                eventType: 'ROUTINE_SERVICE_TOKEN_ISSUE',
+                metadata: { routine, owner_person_id: ownerPersonId, expires_at: result.expires_at }
+            });
+            return res.status(201).json(result);
+        } catch (error) {
+            logger.error('Routine service token issue failed', { error });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Routine service token issue failed' });
         }
     };
 

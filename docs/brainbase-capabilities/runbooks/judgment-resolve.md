@@ -1,33 +1,64 @@
 # Judgment episode runbook
 
-Judgment Resolver is a Host lifecycle boundary. Every Codex turn opens one judgment episode because choosing how to answer is itself a judgment. The model does not call Resolver and does not author classification or `conversation_context`.
+Judgment Resolver is a Host lifecycle boundary. Every managed Codex turn has one judgment episode because choosing how to answer is itself a judgment. `UserPromptSubmit` opens an unresolved episode and preserves canonical `conversation_context`; it does not classify meaning. The Codex model authors a semantic model interpretation and calls `brainbase_resolve_turn` before other work. A Codex App delegated turn whose `UserPromptSubmit` did not fire may recover only at the first Stop and is explicitly marked as post-generation recovery.
+
+The preferred Resolver call is exactly `{ turn_ref, model_interpretation }`. `turn_ref` is the Host-issued `<sessionRef>/<turnRef>` pointer to the journal-saved input. `model_interpretation` must contain exactly `intent`, `domains`, `action_kind`, `risk`, `confidence`, and `signals`; the Codex model supplies these semantic fields. The Resolver validates them, applies manifest-owned policy and monotonic safety floors, and returns the immutable TurnContract. Raw `turn_input`, absolute journal paths, and extra interpretation fields are not part of the preferred model path; legacy `turn_input` forms remain migration compatibility only.
+
+## ツール未公開時の切り分け
+
+`model_interpretation_missing`はモデルの意味解釈が未提出であることを示す。利用者の依頼対象が不明という証拠ではない。未確定の判断契約を確定済みとして扱わず、利用者への対象確認に置き換えない。
+
+復旧確認は次の順に分ける。
+
+1. Codexの`mcp_servers.brainbase`に設定された起動先を読む。作業コピーのビルド失敗を、別checkoutから動くMCPの停止と混同しない。
+2. 設定されたstdio launcherの`--check`で認証・API・署名の事前確認を行う。秘密値を表示しない。
+3. 同じlauncherのMCP `tools/list`で`brainbase_resolve_turn`の公開を確認する。`--check`成功だけではツール公開を証明しない。
+4. Codexの`mcpServerStatus/list`と、実行中モデルが呼べるツールを照合する。前者に存在しても、実行中の会話へ公開された証拠にはならない。
+5. 実行中モデルからHostの`turn_ref`と意味解釈を渡し、実際の呼び出し・PostToolUse・Stopの回答読戻しまで確認する。
+
+一覧にない場合の診断出力やモデルの自己申告を、成功したResolver呼び出しとして登録しない。実呼び出しが`is not a function`等で失敗した場合は既存の未接続処理で監査を縮退させる。HTTPや別SDKからの呼び出しでこの会話のMCP成功証跡を代用しない。接続回復を実証できるまでは復旧未完了と報告する。
 
 ## Component responsibilities
 
 | Component | Responsibility |
 | --- | --- |
-| Codex lifecycle Host adapter | Build canonical context, call the loopback bridge, verify the returned receipt binding, own the episode journal and lifecycle, and display evidence. It does not hold the Resolver signing secret. |
-| Persistent Brainbase Host bridge | Hold the API token, its signer copy of the shared `BRAINBASE_JUDGMENT_BINDING_SECRET`, and adapter identity outside model context, then bind and sign the Resolver API request. |
+| Codex lifecycle Host adapter | Build canonical context, store it in the episode journal, give the model a `turn_ref`, verify the returned receipt binding, own the episode lifecycle, and display evidence. It does not hold the Resolver signing secret. |
+| Persistent Brainbase Host bridge | Hold the API token, its signer copy of the shared `BRAINBASE_JUDGMENT_BINDING_SECRET`, and adapter identity outside model context, then bind and sign the model-initiated Resolver API request. |
 | Resolver API/server | Hold the verifier copy of the same shared `BRAINBASE_JUDGMENT_BINDING_SECRET`, then verify the bridge signature and binding before invoking the Judgment Resolver service. |
-| Judgment Resolver | Deterministically apply manifest-owned `semantic_matchers`, bounded prior-context inheritance, safety floors, and policies to select the initial route. It has no internal LLM. |
-| Codex model | Act as the open-ended LLM inside the selected DAG: decide how to answer, refine queries from results, and call knowledge/retrieval tools 0..N times. |
+| Judgment Resolver | Accept the model's semantic interpretation, then deterministically apply manifest-owned `semantic_matchers`, bounded prior-context inheritance, safety floors, and policies to select the initial route. It has no second internal LLM. |
+| Codex model | Call `brainbase_resolve_turn` with `turn_ref` and its semantic interpretation, then act as the open-ended LLM inside the selected DAG: decide how to answer, refine queries from results, and call knowledge/retrieval tools 0..N times. |
 | Knowledge Resolver | Deterministically select the canonical source route. It does not search or retrieve content. |
-| Retrieval tools | Perform the actual Graph, Personal KG, repo, Drive, or wiki operations. The current episode records every completed tool call as execution evidence through `PostToolUse`; direct `mcp__brainbase__*` outcomes additionally produce owner-visible Brainbase audit lines. |
+| Retrieval tools | Perform the actual Graph, Personal KG, repo, Drive, or wiki operations. The current episode records every completed tool call as execution evidence through `PostToolUse`; direct `mcp__brainbase__*` outcomes additionally derive Brainbase audit lines for the final assistant answer. The event alone is not owner-visible evidence. |
 
 ## Turn flow
 
-1. `UserPromptSubmit` sends the turn to `scripts/codex-hooks/judgment-resolver-entry.sh`.
+1. `UserPromptSubmit` normally sends the turn to `scripts/codex-hooks/judgment-resolver-entry.sh`. It records `episode_origin=user_prompt_submit` and `route_application=pre_generation`.
 2. The Codex lifecycle Host adapter validates the hook payload, reads the canonical JSONL transcript, and performs structural filtering. It preserves ordered raw user/assistant text while excluding envelopes, summaries, reasoning, tool arguments, and tool output.
-3. Before model generation, the lifecycle adapter builds canonical `conversation_context` and calls loopback `POST /host/judgment/resolve`. The persistent Brainbase Host bridge binds and signs the Resolver API request, the Resolver API/server verifies that signature, and the lifecycle adapter verifies the returned receipt binding before atomically opening one episode with its initial route receipt.
-4. The model follows only the returned active DAG. The Host-fixed initial route and classification are immutable; the model does not recalculate or change them. When `knowledge.resolve` is required, the initial context names the allowed exact tool `mcp__brainbase__brainbase_knowledge_resolve` and explains that this capability selects the canonical source and next retrieval path without retrieving the answer body. The same capability-action definition generates the first Stop repair instruction. The model may call Brainbase knowledge/retrieval tools 0..N times, using each result to decide the next lookup.
-5. Every completed tool call triggers `PostToolUse`. The Host stores one immutable safe event; direct `mcp__brainbase__*` calls also display an accurate short owner audit line, while other tools remain non-visible execution evidence. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction, so concurrent calls receive a unique `event_sequence` in atomic journal-commit order. Process exit releases the transaction lock through SQLite and the OS; the Host never guesses that a lock path is stale and deletes it. `brainbase_knowledge_resolve` selects a reference destination; it is not itself a search or retrieval.
-6. `Stop` validates the event set and the actual `last_assistant_message`, then atomically creates one complete final episode receipt only when the episode-start contract is satisfied. The answer must begin with the stored `🧠` line followed by every stored `📚`/`⚠️` line in journal-commit order, with no extra copies. If a `continue` receipt detects an unnecessary user question, the first Stop returns `decision:block` plus `systemMessage: 🔁 確認不要と判定しました。回答を差し戻して処理を続けています` and stores count `1`, trigger, Resolver reason, and `requested` status in immutable `continuation.json`. The retry must add `🔁 自律継続: 不要な確認を1回差し戻し → 継続完了 ✓` after the Brainbase audit lines; final then records the same structured evidence with `completed` status. Every repairable Stop rejection also stores `stop_repair: { count: 1, status: requested }`. A successful retry must add `🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓`; final records the same marker with `completed` status. A `🔁` or `🛠️` line authored by the model without matching journal evidence is rejected. If required `knowledge.resolve` or that rendered audit prefix is missing, the first repairable Stop returns `decision:block` and writes no final receipt. If the `stop_hook_active=true` retry is still incomplete, it exits non-zero with `judgment_stop_repair_exhausted` instead of regenerating forever. When knowledge is optional and zero Brainbase calls were recorded, the episode-bound prefix includes `📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`. For an audit-only repair, the Host stores the normalized business-body digest and character count—not the answer text—after removing only the leading Host audit namespace block, including malformed variants. It refuses completion if the regenerated answer deleted, summarized, or replaced that body. A true orphan Stop cannot fabricate the model-generation-before route: it requests the exact degraded warning at most once, then records an immutable `audit_degraded` receipt and exits successfully so a long-running task does not require a new task. The warning explicitly says that work continues and that creating a new task or operating Hooks is unnecessary. `audit_degraded` is never a complete final, retrieval success, task completion, prior finalized judgment, or action authorization. Identity, diagnostic-integrity, episode-integrity, and transaction-acquisition failures remain terminal fail-closed errors.
+3. Before model generation, the lifecycle adapter stores canonical turn input in the journal and gives the model only its `turn_ref`. The model calls `brainbase_resolve_turn` with that reference and its semantic interpretation. The MCP server reads the canonical input directly from the journal, applies manifest-backed safety floors and policies, and returns the immutable TurnContract receipt.
+4. The model follows only the returned active DAG. The resolved route and classification are immutable after that call. When `knowledge.resolve` is required, the receipt names the allowed exact tool `mcp__brainbase__brainbase_knowledge_resolve` and explains that this capability selects the canonical source and next retrieval path without retrieving the answer body. The same capability-action definition generates the first Stop repair instruction. The model may call Brainbase knowledge/retrieval tools 0..N times, using each result to decide the next lookup.
+5. Every completed tool call triggers `PostToolUse`; Claude Code failure triggers `PostToolUseFailure`. The Host stores one immutable safe event; a failure retains the exact tool identity but forces `success=false` and stores only a fixed failure code plus error/interruption digests, never raw error text or the raw interruption flag. Direct `mcp__brainbase__*` calls also derive an accurate short audit line for the final assistant answer, while other tools remain non-visible execution evidence. A tool event or its `systemMessage` alone is not owner-visible proof. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction, so concurrent calls receive a unique `event_sequence` in atomic journal-commit order. Process exit releases the transaction lock through SQLite and the OS; the Host never guesses that a lock path is stale and deletes it. `brainbase_knowledge_resolve` selects a reference destination; it is not itself a search or retrieval.
+6. Before drafting the final answer, call `brainbase_judgment_audit_read({ turn_ref })`. It reads the same verified Host journal and audit-line builder used by Stop and returns `data.prefix`; copy that prefix exactly once at the beginning of the first answer. For implementation/operation turns, read it after all business tools and value proof, immediately before the final `brainbase_judgment_state_record` call. Re-read after any further Brainbase business call. This control read neither supplies business execution evidence nor finalizes the episode. Missing or invalid journal bindings fail closed. Do not deliberately draft an answer with an unknown prefix to obtain it through Stop repair.
+7. `Stop` first checks for an existing episode. If none exists, it may recover one complete current-turn `<codex_delegation>` or one ordered same-source creation-and-follow-up input chain from trusted `codex_app` delegation outputs, as defined in `docs/specs/delegation-input-chain.md`. A recovered route is always `post_generation_recovery` and never claims pre-generation guidance. `Stop` is the sole finalization boundary: it validates the event set, required capabilities, autonomy, continuation, business-body preservation, and the exact model-authored `last_assistant_message`. The final answer must begin with the complete journal-derived owner audit block. Exact retries with the same tool and input digest remain append-only in the journal but collapse to one terminal owner line; recovered success reports the prior failure count, while a terminal failure remains a warning. Distinct requests retain terminal commit order. Every required line must appear exactly once; an unjournaled `🔁` or `🛠️` line is rejected. Successful finalization records `owner_audit_source=assistant_answer` and an `answer_digest` of the exact answer. A Host `systemMessage`, stored journal line, or completed state `PostToolUse` is not owner-visible proof. On the first repairable failure, Stop returns `decision:block`, supplies the exact audit block, and stores one repair marker. Audit-only repair also binds the original non-audit body digest and refuses deletion, summarization, or replacement. Audit-only repair blocks once; actual safe-work continuation can request up to three resumptions, as specified below. Unresolved active retries converge to `audit_degraded` and never reach the knowledge outbox. True orphans and integrity failures remain fail-closed as defined below.
 
 ## Autonomy contract
 
-For implement/operate requests on runtime 2.3 or later, Stop does not infer completion from prose. The model appends exactly one hidden `brainbase-stop-state-v1` record. `pending` or `pending_safe_work=true` is rejected with trigger `unfinished_safe_work`; `waiting_human` passes only when its reason code matches both the allowed runtime reasons and the visible `⚠️` marker; `completed` passes only with at least one successful same-episode `PostToolUse` event. A missing or malformed state fails closed. Runtime 2.2 and older episodes retain the prose detector only as rollout compatibility. A successful retry requires the episode-bound `🔁 実行継続: 方針説明での停止を1回差し戻し → 作業完了 ✓` line. This deterministic state-and-evidence boundary does not change `content_verification_status=not_evaluated` into semantic verification; tests, readback, and domain checks still establish whether the executed change is correct.
+### Stop継続の更新（2026-09-05）
 
-The initial receipt fixes `autonomy_decision` deterministically. Low/medium-risk in-scope work is `continue`; high/critical risk, external action, unresolved classification, or policy conflict is `escalate`. New runtime receipts supersede the legacy Stop-time model evaluator, which remains only for already-open legacy episodes during rollout.
+監査表示の修復と実作業の継続を分離し、要求回数と実行証跡をjournalで管理する。
+
+- 監査表示だけの修復は1回。本文保存を維持し、未修復のactive再Stopは `audit_degraded` へ収束する。
+- 安全な残作業の継続は最大3回要求する。Codexの `stop_hook_active=true` による再Stopで回数を進め、初回要求の同一payload再送は冪等に扱う。
+- 初回 `.continuation.json` は変更せず、2・3回目は `.continuation-retry-2.json` と `.continuation-retry-3.json` に保存する。プロセスが変わっても回数と初回実行境界を引き継ぐ。
+- 継続要求後の成功した作業tool eventが必要。要求前の作業、状態・判断・価値証明登録、既知の管理toolだけでは継続後の実行にならない。状態登録の欠落だけで残作業ありと決めつけない。
+- 新episodeの表示は `🔁 実行継続: 安全な残作業の再開要求を記録` または `🔁 自律継続: 不要な確認を差し戻し、再開要求を記録`。旧episodeは保存済み契約を保持し、契約のない旧episodeに新しい表示要件を追加しない。
+- finalの継続状態は `completed`、正当な確認待ちなら `waiting_human`、3回要求後も不足があれば `unresolved`。未解決の場合は `audit_degraded` と `audit_protocol_incomplete` を残し、警告表示で完了と区別する。`attempt_count` と `execution_event_count` を記録する。
+- 実行を観測しても成果の意味的な正しさは別途検証する。稼働中の効果はruntime更新、`/hooks` 再承認、新規タスクの実ログ照合で確認する。
+
+For implement/operate requests on runtime 2.4 or later, Stop does not infer completion from prose or an answer marker. The model calls `brainbase_judgment_state_record` as its final tool call; PostToolUse binds the state to the current episode journal. `pending` or `pending_safe_work=true` is rejected with trigger `unfinished_safe_work`; `waiting_human` passes only when its reason code matches both the allowed runtime reasons and the visible `⚠️` marker; `completed` passes only when the state event is last and at least one earlier successful same-episode execution event exists. A valid `completed` state never bypasses answer compliance: an unnecessary confirmation question is still rejected and continued. Missing, malformed, or stale state fails closed. Runtime 2.3 retains the answer marker and runtime 2.2 retains the prose detector only as rollout compatibility. The state is never rendered in the user-facing answer. A retry requires the exact episode-bound continuation line; new episodes use the request-recorded wording above, while legacy episodes retain their stored wording. After `brainbase_resolve_turn` succeeds, its confirmed owner line supersedes any bootstrap `classification_missing` line and question from the prior Stop repair. This deterministic state-and-evidence boundary does not change `content_verification_status=not_evaluated` into semantic verification; tests, readback, and domain checks still establish whether the executed change is correct.
+
+The initial receipt fixes `autonomy_decision` deterministically. Escalation is never derived from classification (risk/action_kind) alone. It is `escalate` only for (1) unresolved classification (`classification_missing`), (2) a policy conflict (`policy_conflict`), or (3) an applicable policy whose `human_approval` rule (`action_kinds`/`risks`) matches this turn's classification (`risk_or_external`, with the matched policy ids recorded as `autonomy_policy_ids`); every other in-scope turn is `continue`. Only genuinely high-stakes policies (production deploy, external send to a third party, shared-data delete, a charge) declare `human_approval`; routine git push/merge/CI/restart/local write/company Slack post never escalate on their own. New runtime receipts supersede the legacy Stop-time model evaluator, which remains only for already-open legacy episodes during rollout.
+
+A human only answers an `escalate` once per session: once a turn ends `waiting_human`, the Host records that approval in a session-scoped append-only `<journal>/<sessionRef>/approvals.json` (`{reason_code, policy_ids, prior_turn_ref}`), and any later turn in the same session whose `autonomy_policy_ids` (or `reason_code`, when policy-less) are already approved continues automatically instead of re-escalating; the finalized episode records the approval it used as `approval_ref`.
 
 Stop does not ask another model to grade the answer. It mechanically checks that a `continue` turn did not hand routine work back as an unnecessary question. Runtime escalation is allowed only for `irreversible_action`, `missing_authority`, `owner_value_choice`, `required_input_unavailable`, or `evidenced_terminal_blocker`, using an exact `⚠️ 確認が必要[reason_code]:` line. An `escalate` turn must ask one necessary question with the Resolver reason. This contract never grants action permission.
 
@@ -42,7 +73,7 @@ Stop does not ask another model to grade the answer. It mechanically checks that
 - repo-relative instruction bindings with content digests
 - completeness marker and canonical `source_digest`
 
-The Host does not summarize history or guess semantic relevance. Resolver uses deterministic manifest-backed matching to classify the canonical context and select the initial route; the current runtime does not call an LLM provider. Non-follow-up input with no explicit specialist match uses the server-owned `general/answer` fallback. An unresolved follow-up reference or a knowledge route without required project context uses the clarification DAG. The current Codex model then owns open-ended query formulation and iterative investigation inside that route. Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration. Project binding is judgment context, not action authority; inaccessible project policy is omitted without making general judgment unavailable.
+The Host does not summarize history or guess semantic relevance. The Codex model interprets the request, while Resolver combines that model interpretation with canonical input and manifest-backed policy to select the active route. Deterministic keyword matching is a monotonic safety rail: matches may add obligations, action floors, risks, domains, or signals; unmatched text cannot remove requirements or force a `general/answer` fallback. An unresolved follow-up reference or a knowledge route without required project context uses the clarification DAG. Project binding is judgment context, not action authority; inaccessible project policy is omitted without making general judgment unavailable.
 
 ## Episode journal
 
@@ -55,23 +86,25 @@ For each hashed session/turn, the Host maintains owner-only append-only files:
 <turn>.final.json
 ```
 
-- `episode.json` binds the turn to its canonical request/context and initial route.
+- `episode.json` binds the turn to its canonical request/context, initial route, and lifecycle origin/application. Legacy episodes without lifecycle fields remain readable; newly written episodes always distinguish pre-generation start from post-generation recovery.
 - `episode.json` also binds the exact owner-audit contract used by Stop. A runtime deployment does not retroactively add a display requirement to an already-open episode. Legacy episodes without this binding use the legacy minimum prefix instead of adopting the current runtime contract.
 - Every event stores tool identity, outcome, bounded safe projection, and digests; raw arguments, raw responses, secrets, absolute paths, and unbounded text are not saved.
-- `continuation.json` proves that one required-capability, owner-display, autonomy, or Stop-repair continuation was requested. An autonomy continuation stores only structured count, trigger, Resolver reason, and status. Every repairable rejection stores one `stop_repair` count and status. Both progress/completion wordings are fixed and digest-bound in `episode.json`; a final receipt changes their status to `completed`. An audit-only continuation may also bind the normalized non-audit body digest and character count; it never stores the answer body itself.
-- `final.json` binds the immutable event-set digest, exact answer digest, owner-display status, and records `complete`. Historical incomplete journals remain readable but are not newly created.
+- `continuation.json` proves that one required-capability, owner-display, autonomy, or Stop-repair continuation was requested. An autonomy continuation stores only structured count, trigger, Resolver reason, and status. Every repairable rejection stores one `stop_repair` count and status. Both wordings are fixed and digest-bound in `episode.json`. Stop repair records `completed` only when verified; autonomy continuation records `completed`, `waiting_human`, or `unresolved` according to the checks above. An audit-only continuation may also bind the normalized non-audit body digest and character count; it never stores the answer body itself.
+- `final.json` binds the immutable event-set digest, the exact raw model-authored `last_assistant_message` digest, the owner-display status/source, and records `complete`. A Hook `systemMessage` is an instruction surface only and is not owner-visible proof. Historical incomplete journals remain readable but are not newly created.
 
-Initial route and final episode receipt are different facts. The initial route says what should guide the turn. The final receipt says what actually happened before Stop. Only complete finalized episodes become prior-receipt context; legacy v1/v2 adoption journals remain readable.
+Initial route and final episode receipt are different facts. The initial route says what should guide the turn. The final receipt says what actually happened before the contract-defined completing lifecycle event. Only complete finalized episodes become prior-receipt context; legacy v1/v2 adoption journals remain readable.
 
 `final.json` also records whether autonomy was `continued`, `runtime_escalated`, or `escalated`; this is answer-contract evidence, not semantic proof that every implementation claim is true.
 
 ## Owner-visible traces
 
-The final user-facing response starts with the stored initial judgment line once, after all Brainbase calls are known. Intermediate commentary does not carry the audit block:
+The final assistant answer starts with the stored initial judgment line and each owner-projected terminal `📚`/`⚠️` outcome. Exact retries remain fully journaled but share one terminal owner line; distinct requests retain terminal commit order, followed by optional journal-proven continuation, repair, and value-proof lines. `Stop` validates that exact answer and is the only finalization boundary. Intermediate `systemMessage` and commentary do not count as the completed owner-visible audit surface:
 
 ```text
 🧠 判断参照: 直前の「ログイン後の白画面」を参照 → 実装依頼として継続 ✓
 ```
+
+When Stop has actually rejected the answer once and the repaired answer passes, the journal-proven completion line is exactly `🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓`. An answer that invents this line without the marker is rejected.
 
 Each actual Brainbase call gets its own `PostToolUse` trace. The wording must match the operation:
 
@@ -83,7 +116,9 @@ Each actual Brainbase call gets its own `PostToolUse` trace. The wording must ma
 
 Never show `検索` or `取得` for `brainbase_knowledge_resolve`; it only selects a route. An authentic canonical route `PostToolUse` event satisfies the execution requirement even when the result is `unconfirmed` or the tool fails, because the route was already invoked and must not be duplicated. Only `resolved` is a successful routing result; `unconfirmed` and tool failure remain warning outcomes with `success=false` and must not claim a selected source or retrieval success.
 
-The additional context and Hook `systemMessage` guide the model and may show short in-progress status, but they are not accepted as final owner-visible evidence by themselves. `Stop` checks the final answer and requests one corrected rendering when the stored lines are missing, duplicated, or out of journal-commit order. For an audit-only retry, it also requires the first rejected answer's business body to remain unchanged after presentation normalization. A leading reserved line beginning with `🧠 判断参照:`, `📚 Brainbase`, `⚠️ Brainbase`, `🔁 `, or `🛠️ ` is presentation metadata even when malformed; the same text after the business body starts remains body content except that an unjournaled `🔁` or `🛠️` completion claim is always rejected. A journal-proven successful retry appends exactly one `🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓` after the other audit lines; a normal turn has no repair line. A short acknowledgement cannot replace the detailed implementation report. Trailing spaces or tabs at line ends are presentation-equivalent; the audit text, order, and multiplicity remain exact. An active repeated Stop exits non-zero with `judgment_stop_repair_exhausted` when the repair is still incomplete.
+The additional context and Hook `systemMessage` may show short in-progress status or an exact repair instruction. Final owner-visible evidence comes only from the exact assistant answer inspected at `Stop`. The answer begins with the complete audit namespace and then preserves the business body. Stop records `owner_audit_source=assistant_answer` and binds the exact raw `last_assistant_message` in `answer_digest`. `PostToolUse` records tool and state events but never finalizes the episode. Transcript comparison may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application; malformed or multiple citation blocks fail closed. A short acknowledgement cannot replace the detailed implementation report.
+
+差し戻し済みruntime 2.4 continuationで必須value proofが欠けたcompleted state PostToolUseは`decision:block`をそのまま返し、finalを作らない。value proofと新しい最後のstateが揃った後もPostToolUseは状態を記録するだけで、後続Stopが実際の最終assistant回答を検証して確定する。
 
 ## Completion invariant
 
@@ -102,9 +137,9 @@ Initial and final receipts constrain reasoning and provide audit evidence. They 
 - A conflicting same-turn episode or tool-use event fails loudly; it is never overwritten.
 - A Host crash can leave an open episode journal, but SQLite and the OS release its per-turn transaction lock when the process exits. The next process can continue without stale-lock path reclamation.
 - If a live transaction remains busy past the bounded wait, the first Stop returns a visible continuation failure; an active repeated Stop exits non-zero with an explicit stderr diagnostic and never reports `{}` unless a final receipt exists.
-- Orphan `PostToolUse` events are not attached to an episode; each leaves a digest-only orphan marker and visible warning without consuming the Stop repair state. A late `UserPromptSubmit` after that marker is blocked with `judgment_orphan_tool_event_start_conflict`: the marker intentionally lacks the raw event required to reconstruct a complete audit, so starting a normal episode would falsely claim completeness. Orphan `Stop` writes a digest-only diagnostic and returns one visible block requesting the exact `⚠️ Brainbase監査未完了:` prefix while preserving the answer body. The next Stop for that identity records `audit_degraded` and exits 0 even if the warning/body verification booleans are false; it never fabricates `.final.json` or asks the operator to create a new task. Replayed first-phase payloads do not create another repair loop. Missing identity, diagnostic tampering, conflicting immutable evidence, and other Stop integrity failures remain explicit non-zero failures and may still suggest checking Hook trust in Settings → Hooks.
-- Missing required knowledge or an invalid owner-visible audit prefix returns `decision:block` on the first repairable Stop without a final receipt; an incomplete active repeated Stop exits non-zero with `judgment_stop_repair_exhausted`.
-- An audit-only repair that drops or summarizes the original answer body is rejected; the first Stop returns `decision:block`, and an incomplete active retry terminates without a final receipt.
+- Orphan `PostToolUse` events are not attached to an episode; each leaves a digest-only orphan marker and visible warning without consuming the Stop repair state. A late `UserPromptSubmit` after that marker is blocked with `judgment_orphan_tool_event_start_conflict`: the marker intentionally lacks the raw event required to reconstruct a complete audit, so starting a normal episode would falsely claim completeness. An episode-less Stop first attempts the bounded Codex App delegation recovery above. When it proves one current-session/current-turn delegation or an unambiguous same-source input chain, it validates every orphan marker, binds only their count and canonical set digest as `pre_episode_audit_gap`, and requires the work and final state to be recorded again inside the recovered episode. Those markers never satisfy execution, state, or required-capability evidence, and the resulting final remains `audit_degraded: pre_episode_tool_events`. If delegation recovery cannot be proved, the true orphan `Stop` writes a digest-only diagnostic and returns one visible `systemMessage` block while preserving the answer body. The next Stop for that identity records `audit_degraded` and exits 0 even if the warning/body verification booleans are false; it never fabricates `.final.json` or asks the operator to create a new task. Replayed first-phase payloads do not create another repair loop. Missing identity, marker or diagnostic tampering, conflicting immutable evidence, and other Stop integrity failures remain explicit non-zero failures and may still suggest checking Hook trust in Settings → Hooks.
+- Missing required knowledge, autonomy, continuation, or business-body evidence returns `decision:block` on the first repairable Stop without a final receipt; an incomplete active repeated Stop may request safe-work continuation up to three times, then finalizes as `audit_degraded` and exits 0. Audit-only repair retains the one-request limit. A completed Stop's owner-visible audit/value surface is the exact assistant answer, and `audit_degraded` finals never reach the knowledge outbox.
+- An audit-only repair that drops or summarizes the original answer body is rejected; the first Stop returns `decision:block`, and an incomplete active retry finalizes as `audit_degraded`, not as a successful body repair.
 - Preserve specific 4xx codes such as `judgment_resolution_input_invalid`; do not flatten them into a generic API error.
 - `brainbase_project_not_accessible` must not arise merely because project policy is outside the caller scope.
 - If a log or explanation refers to a "Resolver LLM", treat it as documentation drift unless a future architecture explicitly introduces and verifies such a provider.
@@ -113,13 +148,14 @@ A `continue` receipt that ends in an unapproved decision request returns `decisi
 
 ## Runtime and deployment
 
-Register the canonical deployed wrapper for all three user-level hooks in `~/.codex/hooks.json`:
+Register the canonical deployed wrapper for all four user-level hooks in `~/.codex/hooks.json`:
 
 ```json
 {
   "hooks": {
     "UserPromptSubmit": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
     "PostToolUse": [{"matcher": ".*", "hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
+    "PostToolUseFailure": [{"matcher": ".*", "hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}],
     "Stop": [{"hooks": [{"type": "command", "command": "bash /Users/ksato/workspace/repos/.runtime/brainbase-judgment-hook/scripts/codex-hooks/judgment-resolver-entry.sh"}]}]
   }
 }
@@ -135,9 +171,78 @@ Files in `hooks.json`, a `config.toml` trust section, matching source content, a
 npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CONTRACT_ROOT"
 ```
 
-The checker uses the official `hooks/list` RPC. On macOS it prefers the Codex Desktop bundled executable so a Rosetta Node process cannot accidentally route through an architecture-mismatched PATH wrapper; other environments fall back to `codex`, and `--codex-bin` remains available for an explicit override. It succeeds only when the canonical `UserPromptSubmit`, matching `PostToolUse`, and `Stop` definitions are enabled, matcher-correct, and currently trusted; the result is `ready_for_fresh_task`. `modified`, `untrusted`, missing, disabled, or matcher-mismatched state returns non-zero as `trust_required` or configuration error. Open `/hooks` and approve the three current Resolver Hooks, then rerun the checker. Repository scripts and deployment automation must never calculate or write Codex `trusted_hash`.
+The checker uses the official `hooks/list` RPC. On macOS it prefers the Codex Desktop bundled executable so a Rosetta Node process cannot accidentally route through an architecture-mismatched PATH wrapper; other environments fall back to `codex`, and `--codex-bin` remains available for an explicit override. It succeeds only when the canonical `UserPromptSubmit`, matching `PostToolUse`, and `Stop` definitions are enabled, matcher-correct, and currently trusted; the result is `ready_for_fresh_task`. If the Host enumerates `PostToolUseFailure`, that definition is also required and fully validated. A Host that does not enumerate it reports `postToolUseFailure_not_enumerated_by_host` as a compatibility gap, not a configuration failure. `modified`, `untrusted`, missing, disabled, or matcher-mismatched state for an enumerated required Hook returns non-zero as `trust_required` or configuration error. Open `/hooks` and approve the current Resolver Hooks, then rerun the checker. Repository scripts and deployment automation must never calculate or write Codex `trusted_hash`.
 
-Trust approval affects the Host lifecycle boundary. Create a new Codex task after approval; an already-open task, a past transcript, or direct entrypoint invocation cannot prove current activation. Only a new task with matching episode/event/final journals and transcript evidence is `proven_active`.
+Trust approval affects the Host lifecycle boundary. Create a new Codex task after approval; an already-open task, a past transcript, or direct entrypoint invocation cannot prove current activation. A new task with matching episode/event/final journals and transcript evidence proves `judgment_lifecycle_active`. Only the separate value-proof task described below can prove `proven_active`.
+
+### Production dirty hotfix reconciliation
+
+通常の事前取得は全実行面がcleanであることを要求する。Lightsailに既知の4ファイルだけのhotfixが残る場合は、先に以下で復旧専用commitへ保全する。`FORMAL_HOTFIX_COMMIT`はレビュー済みの同一hotfix commitを指定する。許可外の差分、patch ID不一致、退避物の欠落が1つでもあれば停止する。
+
+```bash
+set -euo pipefail
+umask 077
+: "${FORMAL_HOTFIX_COMMIT:?Set the reviewed hotfix commit SHA}"
+export BRAINBASE_DIRTY_RECONCILIATION_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brainbase-production-hotfix.XXXXXX")"
+chmod 700 "$BRAINBASE_DIRTY_RECONCILIATION_DIR"
+printf '%s\n' "$FORMAL_HOTFIX_COMMIT" > "$BRAINBASE_DIRTY_RECONCILIATION_DIR/formal-hotfix.sha"
+git cat-file -e "${FORMAL_HOTFIX_COMMIT}^{commit}"
+git diff "${FORMAL_HOTFIX_COMMIT}^" "$FORMAL_HOTFIX_COMMIT" -- \
+  mcp/brainbase/src/remote-judgment-hook-http.ts \
+  mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts \
+  scripts/codex-hooks/judgment-resolver-host.mjs \
+  tests/unit/judgment-resolver-host.test.js \
+  | git patch-id --stable | awk '{print $1}' \
+  > "$BRAINBASE_DIRTY_RECONCILIATION_DIR/formal-hotfix.patch-id"
+
+scp -i "$HOME/.ssh/lightsail-brainbase.pem" \
+  "$BRAINBASE_DIRTY_RECONCILIATION_DIR/formal-hotfix.patch-id" \
+  ubuntu@176.34.20.239:/tmp/brainbase-formal-hotfix.patch-id
+RECONCILIATION_OUTPUT="$(ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "$(date -u +%Y%m%dT%H%M%SZ)" <<'REMOTE'
+set -euo pipefail
+STAMP="$1"
+cd /home/ubuntu/brainbase
+EXPECTED_FILES="$(cat <<'FILES'
+mcp/brainbase/src/remote-judgment-hook-http.ts
+mcp/brainbase/tests/auth/remote-judgment-hook-http.test.ts
+scripts/codex-hooks/judgment-resolver-host.mjs
+tests/unit/judgment-resolver-host.test.js
+FILES
+)"
+ACTUAL_FILES="$(git status --porcelain --untracked-files=all | sed -E 's/^...//' | sort)"
+test "$ACTUAL_FILES" = "$(printf '%s\n' "$EXPECTED_FILES" | sort)"
+BACKUP_DIR="/home/ubuntu/brainbase-production-hotfix-$STAMP"
+install -d -m 700 "$BACKUP_DIR"
+git rev-parse HEAD > "$BACKUP_DIR/base.sha"
+git status --porcelain --untracked-files=all > "$BACKUP_DIR/status.txt"
+git diff --binary -- $EXPECTED_FILES > "$BACKUP_DIR/hotfix.patch"
+test -s "$BACKUP_DIR/hotfix.patch"
+sha256sum $EXPECTED_FILES > "$BACKUP_DIR/content.sha256"
+git diff -- $EXPECTED_FILES | git patch-id --stable | awk '{print $1}' > "$BACKUP_DIR/hotfix.patch-id"
+cmp -s "$BACKUP_DIR/hotfix.patch-id" /tmp/brainbase-formal-hotfix.patch-id
+rm -f /tmp/brainbase-formal-hotfix.patch-id
+ROLLBACK_BRANCH="rollback/production-hotfix-$STAMP"
+git switch -c "$ROLLBACK_BRANCH"
+git add -- $EXPECTED_FILES
+git diff --cached --name-only | sort | diff -u - <(printf '%s\n' "$EXPECTED_FILES" | sort)
+git commit -m 'chore(production): preserve deployed judgment hotfix'
+test -z "$(git status --porcelain --untracked-files=all)"
+git rev-parse HEAD > "$BACKUP_DIR/rollback.sha"
+printf '%s\n' "$ROLLBACK_BRANCH" > "$BACKUP_DIR/rollback.branch"
+sha256sum -c "$BACKUP_DIR/content.sha256" >/dev/null
+printf 'BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR=%s\n' "$BACKUP_DIR"
+REMOTE
+)"
+printf '%s\n' "$RECONCILIATION_OUTPUT"
+BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR="$(
+  printf '%s\n' "$RECONCILIATION_OUTPUT" \
+    | node scripts/extract-lightsail-hotfix-backup-dir.mjs
+)"
+export BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR
+```
+
+この時点のLightsailは、旧SHA＋hotfixと同じ実効内容を持つcleanなrollback commitである。同じshellで次の事前取得を実行し、`BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR`をrollback stateへ必ず結合する。rollback時は保存済み`rollback.sha`へ戻し、`content.sha256`を照合する。
 
 ### Pre-deployment rollback capture
 
@@ -145,12 +250,50 @@ Before changing any of the four runtime surfaces, capture the exact working Hook
 
 ```bash
 set -euo pipefail
+umask 077
 export BRAINBASE_SOURCE_ROOT=/Users/ksato/workspace/repos/brainbase
 export BRAINBASE_UI_RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
 export BRAINBASE_MCP_RUNTIME_ROOT="$BRAINBASE_UI_RUNTIME_ROOT"
 export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
 export BRAINBASE_ROLLBACK_STATE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/brainbase-judgment-rollback.XXXXXX")"
 chmod 700 "$BRAINBASE_ROLLBACK_STATE_DIR"
+if test -n "${BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR:-}"; then
+  printf '%s\n' "$BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR" \
+    > "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir"
+fi
+INFISICAL="$HOME/.local/bin/infisical"
+INFISICAL_DOMAIN=https://infisical.unson.jp
+INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format json \
+  --output-file "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+chmod 600 "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+node scripts/normalize-infisical-export.mjs \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+# ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY is optional here because a prior
+# forward-only repair may already have removed it. Private key and key_id remain mandatory.
+INFISICAL_SNAPSHOT="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" node <<'NODE'
+const values = JSON.parse(require('node:fs').readFileSync(process.env.INFISICAL_SNAPSHOT, 'utf8'));
+for (const name of [
+  'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY',
+  'ONTOLOGY_PUBLICATION_SIGNING_KEY_ID'
+]) {
+  if (!Object.hasOwn(values, name) || typeof values[name] !== 'string' || !values[name].trim()) process.exit(1);
+}
+NODE
+mkdir -p "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/lib"
+cp scripts/verify-production-signing-config.mjs \
+  scripts/normalize-infisical-export.mjs \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/"
+cp scripts/lib/infisical-export.mjs "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/lib/"
+chmod 500 "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/normalize-infisical-export.mjs"
+chmod 400 "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/lib/infisical-export.mjs"
+shasum -a 256 \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/normalize-infisical-export.mjs" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/lib/infisical-export.mjs" \
+  > "$BRAINBASE_ROLLBACK_STATE_DIR/signing-verifiers.sha256"
 source "$BRAINBASE_SOURCE_ROOT/scripts/launchd/brainbase-runtime-readiness.sh"
 CAPTURE_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
 CAPTURE_MAX_TIMEOUT_SECONDS="${BRAINBASE_RUNTIME_READINESS_MAX_TIMEOUT_SECONDS:-10}"
@@ -183,7 +326,7 @@ shasum -a 256 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" > "$BRAINBASE_ROLLBACK_
 HOOKS_FILE="$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" node <<'NODE' \
   > "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint"
 const hooks = JSON.parse(require('node:fs').readFileSync(process.env.HOOKS_FILE, 'utf8')).hooks ?? {};
-const events = ['UserPromptSubmit', 'PostToolUse', 'Stop'];
+const events = ['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop'];
 const resolved = events.map((event) => {
   const commands = (hooks[event] ?? []).flatMap((group) => group.hooks ?? [])
     .filter((hook) => hook.type === 'command')
@@ -222,9 +365,24 @@ if test -e "$BRAINBASE_RUNTIME_PIN_FILE"; then
 else
   printf 'absent\n' > "$BRAINBASE_ROLLBACK_STATE_DIR/runtime-pin.state"
 fi
-ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 \
-  'set -euo pipefail; cd /home/ubuntu/brainbase; test "$(git rev-parse --is-inside-work-tree)" = true; test "$(git rev-parse --show-toplevel)" = /home/ubuntu/brainbase; status="$(git status --porcelain)"; test -z "$status"; git rev-parse HEAD' \
+ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "${BRAINBASE_LIGHTSAIL_HOTFIX_BACKUP_DIR:-}" <<'REMOTE' \
   > "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha"
+set -euo pipefail
+HOTFIX_BACKUP_DIR="$1"
+cd /home/ubuntu/brainbase
+test "$(git rev-parse --is-inside-work-tree)" = true
+test "$(git rev-parse --show-toplevel)" = /home/ubuntu/brainbase
+test -z "$(git status --porcelain --untracked-files=all)"
+BRANCH="$(git symbolic-ref --quiet --short HEAD || true)"
+if [[ "$BRANCH" == rollback/production-hotfix-* ]]; then
+  test -n "$HOTFIX_BACKUP_DIR"
+  test "$(cat "$HOTFIX_BACKUP_DIR/rollback.branch")" = "$BRANCH"
+  test "$(cat "$HOTFIX_BACKUP_DIR/rollback.sha")" = "$(git rev-parse HEAD)"
+  sha256sum -c "$HOTFIX_BACKUP_DIR/content.sha256" >/dev/null
+fi
+git rev-parse HEAD
+REMOTE
 
 for file in global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha; do
   grep -Eq '^[0-9a-f]{40}$' "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
@@ -233,6 +391,395 @@ printf 'Rollback state: %s\n' "$BRAINBASE_ROLLBACK_STATE_DIR"
 ```
 
 Do not infer one surface SHA from another. The files intentionally preserve all four observed values even when they currently match.
+
+production dirty hotfix reconciliationを実行した場合は、標準Lightsail deployの前に次の一度だけ、復旧専用commitからmerge済み`develop`へ切り替える。これにより履歴分岐を`git merge --ff-only`へ渡さず、退避branchとrollback artifactを保持したまま、標準runbookを`TARGET_SHA`上から開始できる。
+
+```bash
+set -euo pipefail
+: "${TARGET_SHA:?Set the merged develop SHA}"
+: "${BRAINBASE_ROLLBACK_STATE_DIR:?Set the captured rollback directory}"
+test -s "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir"
+ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "$TARGET_SHA" \
+  "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail.sha")" \
+  "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir")" <<'REMOTE'
+set -euo pipefail
+TARGET_SHA="$1"
+ROLLBACK_SHA="$2"
+HOTFIX_BACKUP_DIR="$3"
+cd /home/ubuntu/brainbase
+test -z "$(git status --porcelain --untracked-files=all)"
+test "$(git rev-parse HEAD)" = "$ROLLBACK_SHA"
+test "$(cat "$HOTFIX_BACKUP_DIR/rollback.sha")" = "$ROLLBACK_SHA"
+sha256sum -c "$HOTFIX_BACKUP_DIR/content.sha256" >/dev/null
+git fetch origin develop
+test "$(git rev-parse origin/develop)" = "$TARGET_SHA"
+git cat-file -e "${TARGET_SHA}^{commit}"
+git switch --detach "$TARGET_SHA"
+test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+test -z "$(git status --porcelain --untracked-files=all)"
+REMOTE
+```
+
+続けて[`deploy-lightsail-production.md`](./deploy-lightsail-production.md)を実行する。開始時点ですでに`TARGET_SHA = origin/develop = HEAD`なので、同runbookの`git merge --ff-only origin/develop`はno-opとなり、依存関係、migration、service restart、readiness、public readbackを正規手順で実行できる。
+
+### Production convergence receipt
+
+マージ済みSHAの4面反映後、設定修復・Ontology・Graph Validateを同じ`BRAINBASE_PRODUCTION_RUN_ID`へ束縛する。以下は秘密値を標準出力やReceiptへ書かず、公開鍵overrideだけが削除され、秘密鍵と`key_id`が同一値のまま維持された場合にだけ進む。途中失敗、HTTP 503、部分取得、未知の応答は非zeroで停止し、成功として扱わない。
+
+```bash
+set -euo pipefail
+umask 077
+export BRAINBASE_PRODUCTION_STAGE=preflight
+# この手順は4面をTARGET_SHAへ切り替えた後に開始する。設定変更前の失敗でも
+# release全体は変更済みなので、必ず保存済み4面stateからrollbackする。
+export BRAINBASE_PRODUCTION_STATE_CHANGED=true
+export BRAINBASE_PRODUCTION_RUN_ID=''
+export BRAINBASE_PRODUCTION_RUN_DIR=''
+export BRAINBASE_PRODUCTION_TARGET_SHA="${TARGET_SHA:-}"
+export BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_ATTEMPTED=false
+export BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_CONFIRMED=false
+export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_ATTEMPTED=false
+export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=false
+cleanup_production_secrets() {
+  local cleanup_ok=true
+  export BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_ATTEMPTED=true
+  if test -n "${BRAINBASE_PRODUCTION_RUN_DIR:-}"; then
+    rm -f "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json" || cleanup_ok=false
+    rm -f "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json" || cleanup_ok=false
+    rm -f "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json" || cleanup_ok=false
+    rm -f "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical" || cleanup_ok=false
+  fi
+  export BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_CONFIRMED="$cleanup_ok"
+  test "$cleanup_ok" = true
+}
+write_production_failure_receipt() {
+  local exit_code="$1"
+  trap - ERR
+  cleanup_production_secrets || true
+  if test -n "${BRAINBASE_PRODUCTION_RUN_DIR:-}" \
+    && test -d "$BRAINBASE_PRODUCTION_RUN_DIR" \
+    && test -n "${BRAINBASE_PRODUCTION_RUN_ID:-}" \
+    && grep -Eq '^[0-9a-f]{40}$' <<<"${BRAINBASE_PRODUCTION_TARGET_SHA:-}"; then
+    BRAINBASE_PRODUCTION_EXIT_CODE="$exit_code" \
+      node scripts/write-production-convergence-failure-receipt.mjs && return "$exit_code"
+  fi
+  printf 'Production convergence failure receipt could not be written; status=unknown stage=%s rollback_required=true\n' \
+    "${BRAINBASE_PRODUCTION_STAGE:-preflight}" >&2
+  return "$exit_code"
+}
+trap 'write_production_failure_receipt $?' ERR
+trap 'cleanup_production_secrets >/dev/null 2>&1 || true' EXIT
+test -n "${TARGET_SHA:-}"
+test -n "${BRAINBASE_ROLLBACK_STATE_DIR:-}"
+grep -Eq '^[0-9a-f]{40}$' <<<"$TARGET_SHA"
+export TARGET_SHA
+export BRAINBASE_PRODUCTION_TARGET_SHA="$TARGET_SHA"
+export BRAINBASE_PRODUCTION_RUN_ID="production-convergence-$(date -u +%Y%m%dT%H%M%SZ)"
+export BRAINBASE_PRODUCTION_RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/${BRAINBASE_PRODUCTION_RUN_ID}.XXXXXX")"
+chmod 700 "$BRAINBASE_PRODUCTION_RUN_DIR"
+export BRAINBASE_PRODUCTION_RECEIPT="$BRAINBASE_PRODUCTION_RUN_DIR/production-convergence-receipt.json"
+INFISICAL="$HOME/.local/bin/infisical"
+INFISICAL_DOMAIN=https://infisical.unson.jp
+INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
+
+# 1. 変更前後の値は0600の一時ファイルだけへ保存し、Receiptには存在・同一性だけを書く。
+BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_before
+test -s "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+cp "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json" \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json"
+chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json"
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format json \
+  --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json"
+chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json"
+node scripts/normalize-infisical-export.mjs \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json"
+BEFORE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json" \
+DEPLOYED_BEFORE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.deployed-before.json" \
+EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node <<'NODE'
+const fs = require('node:fs');
+const before = JSON.parse(fs.readFileSync(process.env.BEFORE, 'utf8'));
+const deployedBefore = JSON.parse(fs.readFileSync(process.env.DEPLOYED_BEFORE, 'utf8'));
+const names = Object.keys(before);
+const evidence = {
+  public_key_override_present_before: names.includes('ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY'),
+  private_key_present_before: names.includes('ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY'),
+  key_id_present_before: names.includes('ONTOLOGY_PUBLICATION_SIGNING_KEY_ID')
+};
+if (!evidence.private_key_present_before || !evidence.key_id_present_before) process.exit(1);
+for (const name of [
+  'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY',
+  'ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY',
+  'ONTOLOGY_PUBLICATION_SIGNING_KEY_ID'
+]) {
+  if (Object.hasOwn(before, name) !== Object.hasOwn(deployedBefore, name) || before[name] !== deployedBefore[name]) process.exit(1);
+}
+fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence));
+fs.chmodSync(process.env.EVIDENCE, 0o600);
+NODE
+
+BRAINBASE_PRODUCTION_STAGE=infisical_public_key_removal
+# deleteはサーバー反映後の応答断でも非zeroになり得る。上で設定した
+# 変更済み状態を維持し、失敗時にrollback不要と誤記録しない。
+if EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node -e '
+const evidence=JSON.parse(require("node:fs").readFileSync(process.env.EVIDENCE,"utf8"));
+process.exit(evidence.public_key_override_present_before ? 0 : 1);
+'; then
+  "$INFISICAL" secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY \
+    --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+    --projectId "$INFISICAL_PROJECT_ID" --type shared
+fi
+BRAINBASE_PRODUCTION_STAGE=infisical_snapshot_after
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format json \
+  --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json"
+chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json"
+node scripts/normalize-infisical-export.mjs \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json"
+BEFORE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.before.json" \
+AFTER="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.after.json" \
+EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node <<'NODE'
+const fs = require('node:fs');
+const before = JSON.parse(fs.readFileSync(process.env.BEFORE, 'utf8'));
+const after = JSON.parse(fs.readFileSync(process.env.AFTER, 'utf8'));
+const evidence = JSON.parse(fs.readFileSync(process.env.EVIDENCE, 'utf8'));
+Object.assign(evidence, {
+  public_key_override_present_after: Object.hasOwn(after, 'ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY'),
+  private_key_preserved: before.ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY === after.ONTOLOGY_PUBLICATION_SIGNING_PRIVATE_KEY,
+  key_id_preserved: before.ONTOLOGY_PUBLICATION_SIGNING_KEY_ID === after.ONTOLOGY_PUBLICATION_SIGNING_KEY_ID
+});
+if (evidence.public_key_override_present_after || !evidence.private_key_preserved || !evidence.key_id_preserved) process.exit(1);
+fs.writeFileSync(process.env.EVIDENCE, JSON.stringify(evidence));
+NODE
+
+# 2. 修復済みproduction正本をsystemdの既定0600ファイルへ再投影して再起動する。
+BRAINBASE_PRODUCTION_STAGE=lightsail_environment_projection
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format dotenv \
+  --output-file "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical"
+chmod 600 "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical"
+REMOTE_ENV="/tmp/${BRAINBASE_PRODUCTION_RUN_ID}.env.infisical"
+export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_ATTEMPTED=true
+if ! scp -i "$HOME/.ssh/lightsail-brainbase.pem" \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/.env.infisical" \
+  "ubuntu@176.34.20.239:$REMOTE_ENV"; then
+  if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 \
+    "rm -f '$REMOTE_ENV' && test ! -e '$REMOTE_ENV'"; then
+    export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=true
+  fi
+  false
+fi
+if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "$REMOTE_ENV" "$TARGET_SHA" <<'REMOTE'
+set -euo pipefail
+REMOTE_ENV="$1"
+TARGET_SHA="$2"
+cleanup_remote_env() { rm -f "$REMOTE_ENV"; }
+trap cleanup_remote_env EXIT
+test "$(sudo stat -c '%U:%G:%a' /home/ubuntu/brainbase/.env.infisical)" = root:root:600
+sudo install -m 600 -o root -g root "$REMOTE_ENV" /home/ubuntu/brainbase/.env.infisical
+rm -f "$REMOTE_ENV"
+test ! -e "$REMOTE_ENV"
+cd /home/ubuntu/brainbase
+test "$(git rev-parse HEAD)" = "$TARGET_SHA"
+test -z "$(git status --porcelain --untracked-files=all)"
+sudo systemctl restart brainbase-ssot.service
+systemctl is-active --quiet brainbase-ssot.service
+REMOTE
+then
+  export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=true
+else
+  if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 \
+    "rm -f '$REMOTE_ENV' && test ! -e '$REMOTE_ENV'"; then
+    export BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED=true
+  fi
+  false
+fi
+
+# Lightsailのsystemd activeはHTTP readyを保証しない。公開面が対象SHAを返すまで
+# bounded pollingし、再起動直後の502をMCP障害として誤判定しない。
+BRAINBASE_PRODUCTION_STAGE=lightsail_public_readiness
+node scripts/wait-for-brainbase-runtime.mjs https://bb.unson.jp/api/version "$TARGET_SHA"
+
+# 3. 4面を推測せず個別取得する。
+BRAINBASE_PRODUCTION_STAGE=runtime_surface_readback
+HOOK_ROOT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.root")"
+git -C "$HOOK_ROOT" rev-parse HEAD > "$BRAINBASE_PRODUCTION_RUN_DIR/global_hook_sha"
+test -z "$(git -C "$HOOK_ROOT" status --porcelain --untracked-files=all)"
+curl -fsS http://127.0.0.1:31013/api/version > "$BRAINBASE_PRODUCTION_RUN_DIR/local-ui.version.json"
+LOCAL_VERSION="$BRAINBASE_PRODUCTION_RUN_DIR/local-ui.version.json" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(process.env.LOCAL_VERSION,"utf8"));
+const git=value.runtime?.git;
+if(git?.sha!==process.env.TARGET_SHA||git?.dirty!==false)process.exit(1);
+process.stdout.write(git.sha+"\n");
+' > "$BRAINBASE_PRODUCTION_RUN_DIR/local_ui_sha"
+git -C /Users/ksato/workspace/repos/.runtime/brainbase-31013 rev-parse HEAD \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/mcp_runtime_sha"
+test -z "$(git -C /Users/ksato/workspace/repos/.runtime/brainbase-31013 status --porcelain --untracked-files=all)"
+scripts/run-brainbase-mcp.sh --check
+grep -Fx "sha=$TARGET_SHA" /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
+launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.launchctl.txt"
+grep -Eq 'state = running|pid = [1-9][0-9]*' "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.launchctl.txt"
+grep -F '/Users/ksato/workspace/repos/.runtime/brainbase-31013' \
+  "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.launchctl.txt"
+curl -fsS http://127.0.0.1:39002/health/version \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/mcp.version.json"
+MCP_VERSION="$BRAINBASE_PRODUCTION_RUN_DIR/mcp.version.json" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(process.env.MCP_VERSION,"utf8"));
+const runtime=value.runtime;
+if(value.ready!==true||runtime?.git?.sha!==process.env.TARGET_SHA||runtime?.git?.dirty!==false
+  ||!Number.isInteger(runtime?.pid)||runtime.pid<1||!Number.isFinite(Date.parse(runtime?.started_at)))process.exit(1);
+'
+curl -fsS https://bb.unson.jp/api/version > "$BRAINBASE_PRODUCTION_RUN_DIR/lightsail.version.json"
+LIGHTSAIL_VERSION="$BRAINBASE_PRODUCTION_RUN_DIR/lightsail.version.json" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(process.env.LIGHTSAIL_VERSION,"utf8"));
+const git=value.runtime?.git;
+if(git?.sha!==process.env.TARGET_SHA||git?.dirty!==false)process.exit(1);
+process.stdout.write(git.sha+"\n");
+' > "$BRAINBASE_PRODUCTION_RUN_DIR/lightsail_sha"
+for file in global_hook_sha local_ui_sha mcp_runtime_sha lightsail_sha; do
+  test "$(cat "$BRAINBASE_PRODUCTION_RUN_DIR/$file")" = "$TARGET_SHA"
+done
+RUN_DIR="$BRAINBASE_PRODUCTION_RUN_DIR" TARGET_SHA="$TARGET_SHA" \
+HOOK_ENTRYPOINT="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.entrypoint")" node <<'NODE' \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/surfaces.evidence.json"
+const fs = require('node:fs');
+const crypto = require('node:crypto');
+const read = (name) => fs.readFileSync(`${process.env.RUN_DIR}/${name}`, 'utf8').trim();
+const localVersion = JSON.parse(read('local-ui.version.json'));
+const mcpVersion = JSON.parse(read('mcp.version.json'));
+const lightsailVersion = JSON.parse(read('lightsail.version.json'));
+const hookBytes = fs.readFileSync(process.env.HOOK_ENTRYPOINT);
+const sha = (name) => read(name);
+const surfaces = {
+  global_hook: {
+    checkout_sha: sha('global_hook_sha'), dirty: false,
+    entrypoint_sha256: crypto.createHash('sha256').update(hookBytes).digest('hex'),
+    readiness: 'entrypoint_readback_passed'
+  },
+  local_ui: {
+    checkout_sha: sha('local_ui_sha'), process_sha: localVersion.runtime?.git?.sha,
+    dirty: localVersion.runtime?.git?.dirty, readiness: 'version_readback_passed'
+  },
+  mcp_runtime: {
+    checkout_sha: sha('mcp_runtime_sha'), process_sha: mcpVersion.runtime?.git?.sha,
+    dirty: mcpVersion.runtime?.git?.dirty, pid: mcpVersion.runtime?.pid,
+    started_at: mcpVersion.runtime?.started_at,
+    readiness: 'launcher_check_and_launchctl_running'
+  },
+  lightsail: {
+    checkout_sha: sha('lightsail_sha'), process_sha: lightsailVersion.runtime?.git?.sha,
+    dirty: lightsailVersion.runtime?.git?.dirty, readiness: 'public_version_readback_passed'
+  }
+};
+for (const value of Object.values(surfaces)) {
+  if (value.checkout_sha !== process.env.TARGET_SHA || value.dirty !== false
+    || !value.readiness || ('process_sha' in value && value.process_sha !== process.env.TARGET_SHA)) process.exit(1);
+}
+process.stdout.write(JSON.stringify(surfaces));
+NODE
+
+# 4. Git信頼ストア、production Ontology、Graph全体検証を同じrunへ保存する。
+BRAINBASE_PRODUCTION_STAGE=ontology_verification
+npm run ontology:verify > "$BRAINBASE_PRODUCTION_RUN_DIR/ontology.verify.txt"
+TOKEN="$(jq -er .access_token "$HOME/.brainbase/tokens.json")"
+curl -fsS -H "Authorization: Bearer $TOKEN" \
+  https://bb.unson.jp/api/info/ontology/releases/1.1.0 \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/ontology.production.json"
+ONTOLOGY="$BRAINBASE_PRODUCTION_RUN_DIR/ontology.production.json" \
+INFISICAL_EVIDENCE="$BRAINBASE_PRODUCTION_RUN_DIR/infisical.evidence.json" node <<'NODE' \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/ontology.evidence.json"
+const fs = require('node:fs');
+const production = JSON.parse(fs.readFileSync(process.env.ONTOLOGY, 'utf8'));
+const index = JSON.parse(fs.readFileSync('config/ontology/index.json', 'utf8'));
+const entry = index.releases.find((item) => item.version === '1.1.0');
+const infisical = JSON.parse(fs.readFileSync(process.env.INFISICAL_EVIDENCE, 'utf8'));
+const verification = production.publication_verification || {};
+const evidence = {
+  version: production.version,
+  repository_digest: entry.content_digest,
+  production_digest: production.digest,
+  key_id: verification.key_id,
+  trust_source: verification.trust_source,
+  signature_verification: verification.status,
+  receipt_digest: verification.receipt_digest,
+  public_key_override_present: infisical.public_key_override_present_after
+};
+if (evidence.version !== '1.1.0' || evidence.repository_digest !== evidence.production_digest
+  || !evidence.key_id || evidence.trust_source !== 'git_trust_store'
+  || evidence.signature_verification !== 'verified'
+  || !/^[a-f0-9]{64}$/.test(evidence.receipt_digest || '')
+  || evidence.public_key_override_present !== false) process.exit(1);
+process.stdout.write(JSON.stringify(evidence));
+NODE
+BRAINBASE_PRODUCTION_STAGE=graph_strict_validation
+GRAPH_BODY="$BRAINBASE_PRODUCTION_RUN_DIR/graph.validate.json"
+GRAPH_STATUS="$(curl -sS -o "$GRAPH_BODY" -w '%{http_code}' \
+  -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -X POST https://bb.unson.jp/api/info/graph/maintenance/validate \
+  --data '{"project_code":"brainbase","strict_collection":true}')"
+test "$GRAPH_STATUS" = 200
+GRAPH_BODY="$GRAPH_BODY" GRAPH_STATUS="$GRAPH_STATUS" node <<'NODE' \
+  > "$BRAINBASE_PRODUCTION_RUN_DIR/graph.evidence.json"
+const fs = require('node:fs');
+const graph = JSON.parse(fs.readFileSync(process.env.GRAPH_BODY, 'utf8'));
+const suppressionSummary = graph.suppression_summary || {};
+const evidence = {
+  graph_http_status: Number(process.env.GRAPH_STATUS),
+  strict_collection: graph.validation_scope?.strict_collection === true,
+  collection_complete: graph.collection_complete === true,
+  snapshot_hash: typeof graph.snapshot_hash === 'string' ? graph.snapshot_hash : null,
+  structural_violation_count: Array.isArray(graph.issues) ? graph.issues.length : null,
+  ontology_violation_count: Array.isArray(graph.ontology?.violations) ? graph.ontology.violations.length : null,
+  suppressed_edge_count: Number.isInteger(suppressionSummary.edge_count) ? suppressionSummary.edge_count : 0,
+  suppression_reasons: suppressionSummary.reasons && typeof suppressionSummary.reasons === 'object'
+    ? suppressionSummary.reasons
+    : {},
+  graph_valid: graph.valid === true
+};
+if (evidence.graph_http_status !== 200 || !evidence.strict_collection || !evidence.collection_complete
+  || !/^sha256:[a-f0-9]{64}$/.test(evidence.snapshot_hash || '')
+  || evidence.structural_violation_count !== 0 || evidence.ontology_violation_count !== 0
+  || evidence.suppressed_edge_count !== 0
+  || !evidence.graph_valid) process.exit(1);
+process.stdout.write(JSON.stringify(evidence));
+NODE
+
+# 5. Receiptは秘密値を含まず、同一run IDと統合SHAへ固定する。
+BRAINBASE_PRODUCTION_STAGE=success_receipt
+cleanup_production_secrets
+RUN_DIR="$BRAINBASE_PRODUCTION_RUN_DIR" RUN_ID="$BRAINBASE_PRODUCTION_RUN_ID" \
+TARGET_SHA="$TARGET_SHA" RECEIPT="$BRAINBASE_PRODUCTION_RECEIPT" node <<'NODE'
+const fs = require('node:fs');
+const read = (name) => fs.readFileSync(`${process.env.RUN_DIR}/${name}`, 'utf8').trim();
+const receipt = {
+  schema_version: 'brainbase.production-convergence.v1',
+  run_id: process.env.RUN_ID,
+  target_sha: process.env.TARGET_SHA,
+  infisical: JSON.parse(read('infisical.evidence.json')),
+  surfaces: JSON.parse(read('surfaces.evidence.json')),
+  ontology: JSON.parse(read('ontology.evidence.json')),
+  graph: JSON.parse(read('graph.evidence.json')),
+  secret_cleanup: {
+    local_attempted: process.env.BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_ATTEMPTED === 'true',
+    local_confirmed: process.env.BRAINBASE_PRODUCTION_LOCAL_SECRET_CLEANUP_CONFIRMED === 'true',
+    remote_attempted: process.env.BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_ATTEMPTED === 'true',
+    remote_confirmed: process.env.BRAINBASE_PRODUCTION_REMOTE_SECRET_CLEANUP_CONFIRMED === 'true'
+  },
+  status: 'passed'
+};
+if (!Object.values(receipt.secret_cleanup).every(Boolean)) process.exit(1);
+fs.writeFileSync(process.env.RECEIPT, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });
+NODE
+chmod 600 "$BRAINBASE_PRODUCTION_RECEIPT"
+trap - ERR
+trap - EXIT
+printf 'Production convergence receipt: %s\n' "$BRAINBASE_PRODUCTION_RECEIPT"
+```
+
+`production-convergence-receipt.json`の`status=passed`は、同じrunで全判定を通過した場合だけ作られる。途中停止時は秘密値を含まない`production-convergence-failure.json`へ`status`、`failed_stage`、`state_changed`、`rollback_required`、取得済み証跡パスを保存してoperatorへ表示する。失敗Receipt自体を作れない場合は`status=unknown`として標準エラーへ表示する。`rollback_required=true`なら推測で再実行せず、保存済みの`infisical.before.json`と`BRAINBASE_ROLLBACK_STATE_DIR`から復旧境界を確定する。
 
 ### Verification
 
@@ -245,7 +792,9 @@ cmp -s CLAUDE.md AGENTS.md
 npm run check:judgment-hook-readiness -- --cwd "$BRAINBASE_CONTRACT_ROOT"
 ```
 
-The bridge preflight is a signed read-only probe. It is not proof that the global hook or all lifecycle events use the new checkout. The readiness checker separately proves current Host trust and returns `ready_for_fresh_task`; it still does not prove that any task executed the Hooks. Verify the deployed commit, then create one new task after trust approval and inspect its PostToolUse event count, complete Stop final, and owner-visible wording.
+The bridge preflight is a signed read-only probe. It is not proof that the global hook or all lifecycle events use the new checkout. The readiness checker separately proves current Host trust and returns `ready_for_fresh_task`; it still does not prove that any task executed the Hooks. Verify the deployed commit, then prove the normal fresh-task path below. If the release or rollback also affects Codex App delegation, prove the delegated recovery path separately; never use a recovered Stop episode as evidence that `UserPromptSubmit` guided generation.
+
+Every resolved Hook runtime must be content-equivalent to the current contract checkout. This content check is not proof that the installed Hook checkout has the same Git SHA; verify the merged/deployed checkout SHA separately after deployment.
 
 To verify the live Codex path, first bind the contract checkout and a unique nonce:
 
@@ -278,13 +827,25 @@ export BRAINBASE_JUDGMENT_E2E_TRANSCRIPT_PATH="$JUDGMENT_E2E_TRANSCRIPTS"
 node --test tests/e2e/story-brainbase-judgment-resolver-v1-live-session.spec.ts
 ```
 
-The command fails if the current `hooks/list` state is not `ready_for_fresh_task`, if the transcript task was created before the current Hook/trust files, if the nonce resolves to zero or multiple episodes/transcripts, or if the query-embedded source HEAD differs from `BRAINBASE_JUDGMENT_E2E_EXPECTED_HEAD`; it also requires that the final receipt is at most one hour old. It reads the installed global Hook bindings, the owner-only journal, and the exact Codex JSONL transcript. It passes only when `UserPromptSubmit`, `PostToolUse`, and `Stop` resolve to the same installed entrypoint, both lifecycle adapter files at every resolved Hook root are content-equivalent to the current contract checkout, the post-approval fresh episode has a verified initial route, the four successful Brainbase events preserve the result-dependent query sequence, and the final user-visible `response_item` starts with the stored `🧠` plus every stored `📚`/`⚠️` line exactly in journal-commit order. The final receipt answer digest binds the exact Stop Hook-visible answer body. When comparing the transcript, the verifier may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application; an incomplete, embedded, or multiple citation block remains part of the comparison and fails closed on mismatch. This result is `proven_active`; it is not proof that the installed Hook checkout has the same Git SHA as the contract checkout. The check does not manufacture tool events or treat a synthetic entrypoint test as live model evidence.
+The verifier reads `session_meta.payload.id` and the exact final assistant `response_item` from the canonical Codex session transcript. It fails if the current `hooks/list` state is not `ready_for_fresh_task`, if the transcript task predates the trusted Hook files, if the nonce resolves ambiguously, or if the bound source HEAD differs from the expected deployed SHA. It passes only when all lifecycle hooks resolve to the deployed entrypoint, the fresh episode has `route_application=pre_generation`, the required Brainbase events preserve journal order, and the final receipt has `owner_audit_complete=true` with `owner_audit_source=assistant_answer`. The complete audit block must occur exactly once at the beginning of that assistant response, and `answer_digest` must match its exact model-authored text. A Hook `systemMessage`, journal entry, screenshot, or hand-authored artifact alone cannot satisfy this acceptance condition.
+
+For a Codex App delegated fresh task, use a distinct canary after the normal path passes. The delegated prompt must request one bounded, reversible update plus canonical readback. The first Stop must contain an unnecessary confirmation question so the Host records one continuation candidate; on retry, complete the safe action, read it back from the canonical source, record exactly one value proof, and record judgment state last. Bind the recovered episode, its exact transcript, the merged target SHA, and the source task id, then run the separate verifier:
+
+```bash
+export BRAINBASE_JUDGMENT_DELEGATION_E2E_EXPECTED_HEAD="$TARGET_SHA"
+export BRAINBASE_JUDGMENT_DELEGATION_E2E_SOURCE_THREAD_ID="<source-task-id>"
+export BRAINBASE_JUDGMENT_DELEGATION_E2E_EPISODE_PATH="<owner-journal-episode.json>"
+export BRAINBASE_JUDGMENT_DELEGATION_E2E_TRANSCRIPT_PATH="<codex-session.jsonl>"
+node --test tests/e2e/story-brainbase-judgment-resolver-delegation-recovery-live-session.spec.ts
+```
+
+This verifier accepts only one complete current-turn delegation envelope. It requires `episode_origin=stop_delegation_recovery` and `route_application=post_generation_recovery`, execution evidence, canonical readback, the required value proof and state event, `owner_audit_source=assistant_answer`, and an exact assistant-answer digest. The complete audit/value surface must appear once at the beginning of the final assistant response. It explicitly rejects any claim that recovered Stop routing was applied before generation. Passing both this verifier and the normal fresh-task verifier proves `proven_active`; either result alone does not.
 
 Verify the merged/deployed checkout SHA separately after deployment. Use one target SHA and prove each deployment surface independently; do not infer complete deployment from only one row:
 
 | Surface | Proof |
 | --- | --- |
-| Global Codex lifecycle Hook checkout | Resolve all three entrypoint commands from `~/.codex/hooks.json`; they must name the same absolute entrypoint. Run `git -C <resolved-checkout-root> rev-parse HEAD` and `git -C <resolved-checkout-root> status --short`; the SHA must equal the merged target and the checkout must be clean. |
+| Global Codex lifecycle Hook checkout | Resolve all four entrypoint commands from `~/.codex/hooks.json`; they must name the same absolute entrypoint. Run `git -C <resolved-checkout-root> rev-parse HEAD` and `git -C <resolved-checkout-root> status --short`; the SHA must equal the merged target and the checkout must be clean. |
 | Canonical local UI/API | Follow [`verify-31013-source.md`](./verify-31013-source.md). `GET http://127.0.0.1:31013/api/version` must report the target SHA with `dirty=false`; use [`restart-31013-launchd.md`](./restart-31013-launchd.md) when restart is required. |
 | Persistent MCP Host bridge | Run `scripts/reconcile-brainbase-mcp-runtime.sh "$TARGET_SHA"`, then `scripts/run-brainbase-mcp.sh --check`. `/Users/ksato/workspace/var/brainbase-mcp-reconcile.last` must contain `sha=$TARGET_SHA`, and `launchctl print gui/$(id -u)/com.brainbase.mcp-brainbase` must report a running job. |
 | Lightsail Resolver API/server | Follow [`deploy-lightsail-production.md`](./deploy-lightsail-production.md). Both the instance and public `GET /api/version` must report the target SHA with `dirty=false`, and public health plus the authenticated Graph probe must pass. |
@@ -302,9 +863,22 @@ export BRAINBASE_SOURCE_ROOT=/Users/ksato/workspace/repos/brainbase
 export BRAINBASE_UI_RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
 export BRAINBASE_MCP_RUNTIME_ROOT="$BRAINBASE_UI_RUNTIME_ROOT"
 export BRAINBASE_RUNTIME_PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
-for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha runtime-pin.state; do
+for file in hooks.json hooks.sha256 global-hook.entrypoint global-hook.root global-hook.sha local-ui.sha mcp-runtime.sha lightsail.sha runtime-pin.state infisical.before.json; do
   test -s "$BRAINBASE_ROLLBACK_STATE_DIR/$file"
 done
+ROLLBACK_INFISICAL_BEFORE="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.before.json"
+ROLLBACK_INFISICAL_CURRENT="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-current.json"
+ROLLBACK_INFISICAL_FINAL="$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback-final.json"
+ROLLBACK_ENV="$BRAINBASE_ROLLBACK_STATE_DIR/.env.infisical.rollback"
+cleanup_rollback_secrets() {
+  local cleanup_ok=true
+  rm -f "$ROLLBACK_INFISICAL_BEFORE" || cleanup_ok=false
+  rm -f "$ROLLBACK_INFISICAL_CURRENT" || cleanup_ok=false
+  rm -f "$ROLLBACK_INFISICAL_FINAL" || cleanup_ok=false
+  rm -f "$ROLLBACK_ENV" || cleanup_ok=false
+  test "$cleanup_ok" = true
+}
+trap cleanup_rollback_secrets EXIT
 require_git_root() {
   local root="$1" actual
   test -d "$root"
@@ -364,6 +938,10 @@ launchctl print "gui/$(id -u)/com.brainbase.mcp-brainbase" | grep -q 'state = ru
 # and prove both the instance and public proxy report the captured SHA.
 LIGHTSAIL_CONNECT_TIMEOUT_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_CONNECT_TIMEOUT_SECONDS:-5}"
 LIGHTSAIL_MAX_TIMEOUT_SECONDS="${BRAINBASE_LIGHTSAIL_READINESS_MAX_TIMEOUT_SECONDS:-10}"
+LIGHTSAIL_HOTFIX_BACKUP_DIR=""
+if test -s "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir"; then
+  LIGHTSAIL_HOTFIX_BACKUP_DIR="$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-hotfix-backup-dir")"
+fi
 if ! [[ "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
   printf '[brainbase-runtime] Lightsail connect timeout must be a finite positive number\n' >&2
   exit 2
@@ -377,13 +955,15 @@ ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
   "${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}" \
   "${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}" \
   "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" \
-  "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" <<'REMOTE'
+  "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" \
+  "$LIGHTSAIL_HOTFIX_BACKUP_DIR" <<'REMOTE'
 set -euo pipefail
 ROLLBACK_SHA="$1"
 MAX_ATTEMPTS="$2"
 DELAY_SECONDS="$3"
 CONNECT_TIMEOUT_SECONDS="$4"
 MAX_TIMEOUT_SECONDS="$5"
+HOTFIX_BACKUP_DIR="$6"
 [[ "$MAX_ATTEMPTS" =~ ^[1-9][0-9]*$ ]]
 [[ "$DELAY_SECONDS" =~ ^[0-9]+([.][0-9]+)?$ ]]
 if ! [[ "$CONNECT_TIMEOUT_SECONDS" =~ ^(0\.[0-9]*[1-9][0-9]*|[1-9][0-9]*(\.[0-9]+)?)$ ]]; then
@@ -403,9 +983,14 @@ FAILED_SHA="$(git rev-parse HEAD)"
 git cat-file -e "${ROLLBACK_SHA}^{commit}"
 git switch --detach "$ROLLBACK_SHA"
 if ! git diff --quiet "$ROLLBACK_SHA" "$FAILED_SHA" -- package.json package-lock.json; then
-  npm ci --omit=dev
+  npm ci --include=dev
+  npm prune --omit=dev --ignore-scripts
 fi
 sudo systemctl restart brainbase-ssot.service
+if test -n "$HOTFIX_BACKUP_DIR"; then
+  test "$(cat "$HOTFIX_BACKUP_DIR/rollback.sha")" = "$ROLLBACK_SHA"
+  sha256sum -c "$HOTFIX_BACKUP_DIR/content.sha256"
+fi
 local_ready=0
 for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt+=1)); do
   if curl -fsS \
@@ -451,23 +1036,351 @@ if (( public_ready != 1 )); then
   exit 1
 fi
 
-# 3. Restore the exact previous Hook config last. The captured clean Hook
+# 3. Removing the invalid public-key override is forward-only incident remediation.
+# A code/runtime rollback must not restore it. Re-read Infisical, preserve the
+# captured private key and key_id, project the repaired dotenv again, and prove
+# the installed Lightsail file has exactly the exported checksum.
+INFISICAL="$HOME/.local/bin/infisical"
+INFISICAL_DOMAIN=https://infisical.unson.jp
+INFISICAL_PROJECT_ID=ce20541c-02b9-4523-bbe0-49d50b2fcc19
+: > "$ROLLBACK_INFISICAL_CURRENT"
+chmod 600 "$ROLLBACK_INFISICAL_CURRENT"
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format json \
+  --output-file "$ROLLBACK_INFISICAL_CURRENT"
+chmod 600 "$ROLLBACK_INFISICAL_CURRENT"
+shasum -a 256 -c "$BRAINBASE_ROLLBACK_STATE_DIR/signing-verifiers.sha256"
+node "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/normalize-infisical-export.mjs" \
+  "$ROLLBACK_INFISICAL_CURRENT"
+# Fail before mutation if the current signing identity drifted from the
+# pre-deployment capture. This writes a secret-free operator receipt before a
+# non-zero exit. The public override may be present or already absent.
+node "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" pre-delete \
+  "$ROLLBACK_INFISICAL_BEFORE" \
+  "$ROLLBACK_INFISICAL_CURRENT" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.pre-delete.evidence.json"
+if CURRENT="$ROLLBACK_INFISICAL_CURRENT" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(process.env.CURRENT,"utf8"));
+process.exit(Object.hasOwn(value,"ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY") ? 0 : 1);
+'; then
+  DELETE_EXIT=0
+  "$INFISICAL" secrets delete ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY \
+    --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+    --projectId "$INFISICAL_PROJECT_ID" --type shared || DELETE_EXIT=$?
+  # The delete response can be ambiguous after the server commits. The final
+  # export below is authoritative; DELETE_EXIT alone never decides rollback success.
+fi
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format json \
+  --output-file "$ROLLBACK_INFISICAL_FINAL"
+chmod 600 "$ROLLBACK_INFISICAL_FINAL"
+node "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/normalize-infisical-export.mjs" \
+  "$ROLLBACK_INFISICAL_FINAL"
+node "$BRAINBASE_ROLLBACK_STATE_DIR/scripts/verify-production-signing-config.mjs" final \
+  "$ROLLBACK_INFISICAL_BEFORE" \
+  "$ROLLBACK_INFISICAL_FINAL" \
+  "$BRAINBASE_ROLLBACK_STATE_DIR/infisical.rollback.evidence.json"
+
+# From this point onward the signing configuration repair is proven. Replace
+# the cleanup-only trap before any further production mutation so every later
+# failure leaves a production-level Receipt as well as removing local secrets.
+ROLLBACK_STAGE=lightsail_env_export
+ROLLBACK_COMPLETE=false
+LIGHTSAIL_PROJECTION_STATUS=not_started
+HOOK_RESTORE_STATUS=not_started
+write_incomplete_rollback_receipt() {
+  code=$?
+  if test "$code" -eq 0 || test "$ROLLBACK_COMPLETE" = true; then return; fi
+  trap - EXIT
+  set +e
+  LOCAL_SECRET_CLEANUP_CONFIRMED=false
+  if cleanup_rollback_secrets; then LOCAL_SECRET_CLEANUP_CONFIRMED=true; fi
+  if ! EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/production-rollback.evidence.json" \
+  ROLLBACK_STAGE="$ROLLBACK_STAGE" \
+  LIGHTSAIL_PROJECTION_STATUS="$LIGHTSAIL_PROJECTION_STATUS" \
+  HOOK_RESTORE_STATUS="$HOOK_RESTORE_STATUS" TARGET_SHA="$TARGET_SHA" \
+  LOCAL_SECRET_CLEANUP_CONFIRMED="$LOCAL_SECRET_CLEANUP_CONFIRMED" node -e '
+const fs=require("node:fs");
+const evidence={
+  status:"blocked",
+  failed_stage:process.env.ROLLBACK_STAGE,
+  rollback_complete:false,
+  rollback_required:true,
+  target_sha:process.env.TARGET_SHA,
+  target_changed:true,
+  signing_config_repair_complete:true,
+  lightsail_projection_status:process.env.LIGHTSAIL_PROJECTION_STATUS,
+  lightsail_projection_complete:process.env.LIGHTSAIL_PROJECTION_STATUS === "verified",
+  hook_restore_status:process.env.HOOK_RESTORE_STATUS,
+  hook_restored:process.env.HOOK_RESTORE_STATUS === "verified",
+  local_secret_cleanup_attempted:true,
+  local_secret_cleanup_confirmed:process.env.LOCAL_SECRET_CLEANUP_CONFIRMED === "true",
+  next_action:"stop_and_inspect_saved_rollback_state"
+};
+const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
+fs.writeFileSync(tmp,JSON.stringify(evidence)+"\n",{mode:0o600});
+fs.renameSync(tmp,process.env.EVIDENCE);
+'
+  then
+    printf '[brainbase-runtime] status=unknown rollback_complete=false rollback_required=true stage=%s next_action=stop_and_inspect_saved_rollback_state\n' \
+      "$ROLLBACK_STAGE" >&2
+  fi
+  exit "$code"
+}
+trap write_incomplete_rollback_receipt EXIT
+
+"$INFISICAL" export --silent --domain "$INFISICAL_DOMAIN" --env prod --path / \
+  --projectId "$INFISICAL_PROJECT_ID" --format dotenv \
+  --output-file "$ROLLBACK_ENV"
+chmod 600 "$ROLLBACK_ENV"
+EXPECTED_ENV_SHA="$(sha256sum "$ROLLBACK_ENV" | awk '{print $1}')"
+REMOTE_ROLLBACK_ENV="/tmp/brainbase-infisical-rollback-${EXPECTED_ENV_SHA}.env"
+ROLLBACK_REMOTE_EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/lightsail-env-rollback.evidence.json"
+ROLLBACK_REMOTE_EVIDENCE_TMP="$ROLLBACK_REMOTE_EVIDENCE.tmp"
+ROLLBACK_STAGE=lightsail_env_scp
+if ! scp -i "$HOME/.ssh/lightsail-brainbase.pem" "$ROLLBACK_ENV" \
+  "ubuntu@176.34.20.239:$REMOTE_ROLLBACK_ENV"; then
+  REMOTE_CLEANUP_CONFIRMED=false
+  if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" \
+    -o ConnectTimeout=5 ubuntu@176.34.20.239 \
+    rm -f "$REMOTE_ROLLBACK_ENV"; then
+    REMOTE_CLEANUP_CONFIRMED=true
+  fi
+  if ! REMOTE_CLEANUP_CONFIRMED="$REMOTE_CLEANUP_CONFIRMED" \
+  EVIDENCE="$ROLLBACK_REMOTE_EVIDENCE" node -e '
+const fs = require("node:fs");
+const evidence = {
+  status: "blocked",
+  failed_stage: "lightsail_env_scp",
+  rollback_complete: false,
+  rollback_required: false,
+  target_changed: false,
+  remote_secret_cleanup_confirmed: process.env.REMOTE_CLEANUP_CONFIRMED === "true",
+  next_action: "stop_and_inspect_saved_rollback_state"
+};
+const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
+fs.writeFileSync(tmp, JSON.stringify(evidence) + "\n", {mode: 0o600});
+fs.renameSync(tmp, process.env.EVIDENCE);
+'
+  then
+    printf '[brainbase-runtime] Lightsail env transfer failed and Receipt status is unknown; evidence=%s\n' \
+      "$ROLLBACK_REMOTE_EVIDENCE" >&2
+  fi
+  printf '[brainbase-runtime] Lightsail env transfer blocked; evidence=%s; rollback_complete=false\n' \
+    "$ROLLBACK_REMOTE_EVIDENCE" >&2
+  exit 1
+fi
+ROLLBACK_STAGE=lightsail_env_ssh
+LIGHTSAIL_PROJECTION_STATUS=unknown
+if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" ubuntu@176.34.20.239 bash -s -- \
+  "$REMOTE_ROLLBACK_ENV" "$EXPECTED_ENV_SHA" \
+  /home/ubuntu/brainbase/.env.infisical brainbase-ssot.service \
+  "$TARGET_SHA" "${BRAINBASE_LIGHTSAIL_READINESS_ATTEMPTS:-30}" \
+  "${BRAINBASE_LIGHTSAIL_READINESS_DELAY_SECONDS:-2}" \
+  > "$ROLLBACK_REMOTE_EVIDENCE_TMP" <<'REMOTE'
+set -euo pipefail
+REMOTE_ROLLBACK_ENV="$1"
+EXPECTED_ENV_SHA="$2"
+TARGET_ENV="$3"
+TARGET_SERVICE="$4"
+TARGET_SHA="$5"
+MAX_ATTEMPTS="$6"
+DELAY_SECONDS="$7"
+REMOTE_TARGET_NEXT="${TARGET_ENV}.next.$$"
+STAGE=remote_start
+TARGET_CHANGED=false
+PROJECTION_COMPLETE=false
+CLEANUP_CONFIRMED=false
+cleanup() {
+  cleanup_ok=true
+  rm -f "$REMOTE_ROLLBACK_ENV" || cleanup_ok=false
+  sudo rm -f "$REMOTE_TARGET_NEXT" || cleanup_ok=false
+  if test "$cleanup_ok" = true; then CLEANUP_CONFIRMED=true; fi
+}
+finish() {
+  code=$?
+  trap - EXIT
+  set +e
+  cleanup
+  if test "$CLEANUP_CONFIRMED" != true; then
+    code=1
+    STAGE=remote_secret_cleanup
+  fi
+  if ! STATUS_CODE="$code" STAGE="$STAGE" TARGET_CHANGED="$TARGET_CHANGED" \
+  PROJECTION_COMPLETE="$PROJECTION_COMPLETE" CLEANUP_CONFIRMED="$CLEANUP_CONFIRMED" node -e '
+const passed = process.env.STATUS_CODE === "0";
+const targetChanged = process.env.TARGET_CHANGED === "true";
+process.stdout.write(JSON.stringify({
+  status: passed ? "lightsail_projection_ready" : "blocked",
+  failed_stage: passed ? null : process.env.STAGE,
+  rollback_complete: false,
+  rollback_required: targetChanged,
+  lightsail_projection_complete: process.env.PROJECTION_COMPLETE === "true",
+  target_changed: targetChanged,
+  remote_secret_cleanup_attempted: true,
+  remote_secret_cleanup_confirmed: process.env.CLEANUP_CONFIRMED === "true",
+  next_action: passed ? null : "stop_and_inspect_saved_rollback_state"
+}) + "\n");
+'
+  then
+    printf '[brainbase-runtime] Lightsail remote Receipt status is unknown; rollback_complete=false\n' >&2
+    code=1
+  fi
+  exit "$code"
+}
+trap finish EXIT
+STAGE=transfer_checksum
+REMOTE_TRANSFER_SHA="$(sha256sum "$REMOTE_ROLLBACK_ENV" | awk '{print $1}')"
+if test "$REMOTE_TRANSFER_SHA" != "$EXPECTED_ENV_SHA"; then
+  printf '[brainbase-runtime] Lightsail env transfer checksum mismatch; target unchanged; rollback_complete=false\n' >&2
+  exit 1
+fi
+STAGE=staged_target_checksum
+sudo install -o root -g root -m 600 "$REMOTE_ROLLBACK_ENV" "$REMOTE_TARGET_NEXT"
+NEXT_ENV_SHA="$(sudo sha256sum "$REMOTE_TARGET_NEXT" | awk '{print $1}')"
+test "$NEXT_ENV_SHA" = "$EXPECTED_ENV_SHA"
+STAGE=atomic_target_replace
+sudo mv "$REMOTE_TARGET_NEXT" "$TARGET_ENV"
+TARGET_CHANGED=true
+STAGE=target_checksum
+ACTUAL_ENV_SHA="$(sudo sha256sum "$TARGET_ENV" | awk '{print $1}')"
+test "$ACTUAL_ENV_SHA" = "$EXPECTED_ENV_SHA"
+STAGE=service_restart
+sudo systemctl restart "$TARGET_SERVICE"
+STAGE=local_readiness
+local_ready=0
+for ((attempt=1; attempt<=MAX_ATTEMPTS; attempt+=1)); do
+  if curl -fsS --connect-timeout 5 --max-time 10 -- http://127.0.0.1:55123/api/version | \
+    TARGET_SHA="$TARGET_SHA" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
+const git=value.runtime?.git;
+if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
+'; then
+    local_ready=1
+    break
+  fi
+  if (( attempt < MAX_ATTEMPTS )); then sleep "$DELAY_SECONDS"; fi
+done
+if (( local_ready != 1 )); then
+  printf '[brainbase-runtime] Lightsail local readiness after env rollback timed out; rollback_complete=false\n' >&2
+  exit 1
+fi
+PROJECTION_COMPLETE=true
+STAGE=completed
+REMOTE
+then
+  LIGHTSAIL_PROJECTION_STATUS=verified
+  mv "$ROLLBACK_REMOTE_EVIDENCE_TMP" "$ROLLBACK_REMOTE_EVIDENCE"
+  chmod 600 "$ROLLBACK_REMOTE_EVIDENCE"
+else
+  SSH_EXIT=$?
+  REMOTE_CLEANUP_CONFIRMED=false
+  if ssh -i "$HOME/.ssh/lightsail-brainbase.pem" \
+    -o ConnectTimeout=5 ubuntu@176.34.20.239 \
+    rm -f "$REMOTE_ROLLBACK_ENV"; then
+    REMOTE_CLEANUP_CONFIRMED=true
+  fi
+  if ROLLBACK_REMOTE_EVIDENCE_TMP="$ROLLBACK_REMOTE_EVIDENCE_TMP" node -e '
+const fs=require("node:fs");
+const value=JSON.parse(fs.readFileSync(process.env.ROLLBACK_REMOTE_EVIDENCE_TMP,"utf8"));
+if (!value || value.status !== "blocked" || value.rollback_complete !== false) process.exit(1);
+'; then
+    mv "$ROLLBACK_REMOTE_EVIDENCE_TMP" "$ROLLBACK_REMOTE_EVIDENCE"
+    chmod 600 "$ROLLBACK_REMOTE_EVIDENCE"
+  else
+    if ! REMOTE_CLEANUP_CONFIRMED="$REMOTE_CLEANUP_CONFIRMED" \
+    EVIDENCE="$ROLLBACK_REMOTE_EVIDENCE" node -e '
+const fs = require("node:fs");
+const evidence = {
+  status: "blocked",
+  failed_stage: "lightsail_env_ssh",
+  rollback_complete: false,
+  rollback_required: "unknown",
+  target_changed: "unknown",
+  remote_secret_cleanup_confirmed: process.env.REMOTE_CLEANUP_CONFIRMED === "true",
+  next_action: "stop_and_inspect_saved_rollback_state"
+};
+const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
+fs.writeFileSync(tmp, JSON.stringify(evidence) + "\n", {mode: 0o600});
+fs.renameSync(tmp, process.env.EVIDENCE);
+console.error(`[brainbase-runtime] Lightsail env rollback blocked; evidence=${process.env.EVIDENCE}; rollback_complete=false`);
+'
+    then
+      printf '[brainbase-runtime] Lightsail SSH failed and Receipt status is unknown; evidence=%s\n' \
+        "$ROLLBACK_REMOTE_EVIDENCE" >&2
+    fi
+    rm -f "$ROLLBACK_REMOTE_EVIDENCE_TMP"
+  fi
+  printf '[brainbase-runtime] Lightsail env rollback blocked; evidence=%s; rollback_complete=false\n' \
+    "$ROLLBACK_REMOTE_EVIDENCE" >&2
+  exit "$SSH_EXIT"
+fi
+cleanup_rollback_secrets
+ROLLBACK_STAGE=public_readiness_after_env_projection
+
+# The env projection restarted Lightsail, so re-prove the public version surface
+# instead of relying on the readiness check completed before the env change.
+public_ready=0
+for ((attempt=1; attempt<=PUBLIC_ATTEMPTS; attempt+=1)); do
+  if curl -fsS \
+    --connect-timeout "$PUBLIC_CONNECT_TIMEOUT_SECONDS" \
+    --max-time "$PUBLIC_MAX_TIMEOUT_SECONDS" \
+    -- https://bb.unson.jp/api/version | TARGET_SHA="$TARGET_SHA" node -e '
+const value=JSON.parse(require("node:fs").readFileSync(0,"utf8"));
+const git=value.runtime?.git;
+if (git?.sha!==process.env.TARGET_SHA || git?.dirty!==false) process.exit(1);
+'; then
+    public_ready=1
+    break
+  fi
+  if (( attempt < PUBLIC_ATTEMPTS )); then sleep "$PUBLIC_DELAY_SECONDS"; fi
+done
+if (( public_ready != 1 )); then
+  printf '[brainbase-runtime] Lightsail public readiness after env rollback timed out; rollback_complete=false\n' >&2
+  exit 1
+fi
+
+# 4. Restore the exact previous Hook config last. The captured clean Hook
 # checkout was never mutated, so restoring hooks.json is sufficient.
+ROLLBACK_STAGE=hook_restore
 install -m 600 "$BRAINBASE_ROLLBACK_STATE_DIR/hooks.json" "$HOME/.codex/hooks.json"
+HOOK_RESTORE_STATUS=changed_unverified
 (cd "$BRAINBASE_ROLLBACK_STATE_DIR" && shasum -a 256 -c hooks.sha256)
 test "$(git -C "$BRAINBASE_HOOK_ROOT" rev-parse HEAD)" = "$(cat "$BRAINBASE_ROLLBACK_STATE_DIR/global-hook.sha")"
 require_clean_tracked_root "$BRAINBASE_HOOK_ROOT"
+HOOK_RESTORE_STATUS=verified
+ROLLBACK_STAGE=mcp_runtime_readiness
 require_git_root "$BRAINBASE_SOURCE_ROOT"
 (cd "$BRAINBASE_MCP_RUNTIME_ROOT" && scripts/run-brainbase-mcp.sh --check)
 npm --prefix "$BRAINBASE_HOOK_ROOT" run check:judgment-hook-readiness -- --cwd "$BRAINBASE_HOOK_ROOT"
+ROLLBACK_STAGE=final_public_health
 curl -fsS \
   --connect-timeout "$LIGHTSAIL_CONNECT_TIMEOUT_SECONDS" \
   --max-time "$LIGHTSAIL_MAX_TIMEOUT_SECONDS" \
   -o /dev/null \
   -- https://bb.unson.jp/api/health
+EVIDENCE="$BRAINBASE_ROLLBACK_STATE_DIR/production-rollback.evidence.json" \
+TARGET_SHA="$TARGET_SHA" node -e '
+const fs=require("node:fs");
+const evidence={
+  status:"passed",
+  rollback_complete:true,
+  target_sha:process.env.TARGET_SHA,
+  signing_config_repair_complete:true,
+  lightsail_projection_complete:true,
+  hook_restored_last:true,
+  local_secret_cleanup_attempted:true,
+  local_secret_cleanup_confirmed:true
+};
+const tmp=`${process.env.EVIDENCE}.${process.pid}.tmp`;
+fs.writeFileSync(tmp,JSON.stringify(evidence)+"\n",{mode:0o600});
+fs.renameSync(tmp,process.env.EVIDENCE);
+'
+ROLLBACK_COMPLETE=true
+trap - EXIT
 ```
 
-Keep the runtime pin in place after rollback; removing it would allow the periodic updater to reapply the failed `origin/develop`. Clear it only as part of a separately verified forward deployment. After these commands, run one fresh Codex turn and the live transcript verification above. Until `UserPromptSubmit` opens a valid episode and the final transcript shows the exact audit prefix, report the rollback as incomplete. Never remove `~/.codex/var/judgment-resolver`; its existing episode/event/final files remain audit evidence.
+Keep the runtime pin in place after rollback; removing it would allow the periodic updater to reapply the failed `origin/develop`. Clear it only as part of a separately verified forward deployment. After these commands, run one normal fresh Codex turn and the live verification above. Until `UserPromptSubmit` opens a valid `route_application=pre_generation` episode, the final receipt records `owner_audit_source=assistant_answer`, and the exact assistant response begins with the complete audit block, report the normal rollback path as incomplete. Never substitute a Hook `systemMessage`, journal receipt, or delegated-path evidence for this normal-path readback. Never substitute one path's evidence for the other. Never remove `~/.codex/var/judgment-resolver`; its existing episode/event/final files remain audit evidence.
 
 ## Autonomy Gate rollout
 
@@ -480,6 +1393,20 @@ Stop finalization can evaluate human-directed approval or choice questions befor
 
 The Gate preserves a clarification selected by the accepted route receipt and fails closed for destructive production changes, authority or secret gaps, sensitive-data transfer, and financial or legal commitments. A routine or semantically resolvable question creates one immutable `brainbase-judgment-autonomy-receipt-v1` and returns `decision:block` so the same Codex turn continues. Repeating the same unnecessary escalation fails with `judgment_autonomy_continuation_exhausted`.
 
-Runtime 2.3以降の実装・操作turnでは、日本語の質問表現や「完了しました」という語を主要な判定材料にしない。モデルは最終回答末尾に非表示の`brainbase-stop-state-v1`を1件置き、`completed`、`pending`、`waiting_human`を申告する。Stopはschemaと許可理由を検証し、`pending`を差し戻す。`completed`は同じepisodeに成功した`PostToolUse`証跡がある場合だけ受理する。状態の欠落・重複・不正形式は旧キーワード判定へ戻さずfail-closedとする。Runtime 2.2以前だけは互換処理として既存の自然文検出を使う。これは実行証跡の存在を検証する契約であり、`content_verification_status: not_evaluated`の通り、変更内容の意味的な正しさを自動証明するものではない。
+Runtime 2.4以降の実装・操作turnでは、日本語の質問表現、「完了しました」という語、回答内HTMLコメントを判定材料にしない。モデルは最後のtool callとして`brainbase_judgment_state_record`を1回実行し、PostToolUse Hostが同一episodeのjournalへ状態を保存する。Stopはjournalのschema・許可理由・event順序を検証し、`pending`や古い状態を差し戻す。`completed`は状態eventより前に成功した実行証跡がある場合だけ受理する。状態の欠落・不正形式は旧判定へ戻さずfail-closedとする。Runtime 2.3だけは回答内marker、Runtime 2.2以前は自然文検出をrollout互換として使う。これは実行証跡の存在を検証する契約であり、`content_verification_status: not_evaluated`の通り、変更内容の意味的な正しさを自動証明するものではない。
 
 Autonomy continuation and owner-audit repair have separate bounded retries. Resolver Provider decisions, when injected by a Host adapter, must be bound to the case ID, include non-empty Brainbase basis, and cannot expand action authority.
+
+### MCPの接続と依存先の準備を分離する
+
+stdioの接続受付・ツール一覧はローカルの公開定義から返す。接続成立は認証成功、Graph参照成功、判断契約の確定を意味しない。Infisical取得と既存のtask API・judgment binding検査はバックエンド準備として実施し、その完了前に業務呼び出しを転送しない。
+
+Graphの全件インデックスはGraph検索・取得時に読み込む。Resolverは全件インデックスを待たないが、Resolver自身の認証・ポリシー・必要な参照は従来どおり適用する。インデックスの取得失敗を空の正常結果へ変換しない。並行する取得は共有し、完全に取得できたスナップショットだけを公開する。思想参照の失敗も正常結果へ変換しない。
+
+受入確認では次を分けて検証する。
+
+- 外部依存先が遅延・停止していてもinitializeとtools/listが成功する。
+- 準備中・失敗時の業務呼び出しは明示的なエラーとなり、判断契約・検索結果・書き込み成功を生成しない。
+- 依存先の復旧後、同じMCP接続から再試行できる。送信済みの業務呼び出しを自動再実行しない。
+- Graphの部分取得失敗は不完全として扱い、成功した参照には従来のPhilosophy Contextが含まれる。
+- 独立したクライアントの接続成功と、既存Codexタスクのツール公開復旧は別の証拠として扱う。

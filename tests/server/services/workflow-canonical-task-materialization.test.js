@@ -302,6 +302,14 @@ describe('AutomationRunService Canonical Task materialization', () => {
         expect(repository.create).toHaveBeenCalledTimes(3);
         expect(second.materialized_task_ids).toEqual(first.materialized_task_ids);
         expect(second.materialization.replayed).toBe(true);
+        expect(second.materialization.operation_refs).toHaveLength(3);
+        expect(second.materialization.operation_refs).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                scope: 'workflow-task-create',
+                operation_key: expect.stringMatching(/^workflow:out-task-review:/),
+                task_id: expect.stringMatching(/^task-/)
+            })
+        ]));
     });
 
     it('SC-033 normalizes legacy string candidates before approval materialization', async () => {

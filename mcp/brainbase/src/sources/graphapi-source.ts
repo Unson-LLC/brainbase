@@ -22,6 +22,7 @@ import type {
   AssignmentEntry,
 } from '../indexer/types.js';
 import type { TokenProvider } from '../auth/request-token-context.js';
+import type { TokenRequestOptions } from '../auth/token-manager.js';
 import {
   EXTENSION_ENTITY_TYPE_SET,
   getExtensionRegistrations,
@@ -79,6 +80,80 @@ export interface PhilosophyContext {
   anti_patterns?: string[];
 }
 
+export interface GraphAPISourceOptions {
+  /** Maximum time allowed to build one complete Graph snapshot. */
+  initializeTimeoutMs?: number;
+  /** Maximum time allowed for one Graph API request, including its body. */
+  fetchTimeoutMs?: number;
+  /** Maximum time allowed for a token refresh after a 401. */
+  tokenRefreshTimeoutMs?: number;
+}
+
+type GraphSourceErrorCode = 'graph_source_unavailable' | 'graph_source_timeout';
+
+export class GraphSourceUnavailableError extends Error {
+  readonly code: GraphSourceErrorCode;
+  readonly entityType?: string;
+  readonly status?: number;
+
+  constructor(
+    message: string,
+    options: {
+      code?: GraphSourceErrorCode;
+      entityType?: string;
+      status?: number;
+      cause?: unknown;
+    } = {},
+  ) {
+    super(message, { cause: options.cause });
+    this.name = 'GraphSourceUnavailableError';
+    this.code = options.code || 'graph_source_unavailable';
+    this.entityType = options.entityType;
+    this.status = options.status;
+  }
+}
+
+const DEFAULT_INITIALIZE_TIMEOUT_MS = 45_000;
+const DEFAULT_FETCH_TIMEOUT_MS = 15_000;
+const DEFAULT_TOKEN_REFRESH_TIMEOUT_MS = 15_000;
+
+function configuredTimeout(value: number | undefined, fallback: number, envName: string): number {
+  const raw = value === undefined ? process.env[envName]?.trim() : undefined;
+  const parsed = value === undefined && raw ? Number(raw) : value;
+  if (parsed === undefined) return fallback;
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`${envName} must be a finite positive number of milliseconds`);
+  }
+  return Math.max(1, Math.floor(parsed));
+}
+
+function createDeadlineSignal(
+  parentSignal: AbortSignal | undefined,
+  timeoutMs: number,
+  operation: string,
+): { signal: AbortSignal; cleanup: () => void } {
+  const controller = new AbortController();
+  const onParentAbort = () => controller.abort(parentSignal?.reason);
+  if (parentSignal) {
+    if (parentSignal.aborted) {
+      controller.abort(parentSignal.reason);
+    } else {
+      parentSignal.addEventListener('abort', onParentAbort, { once: true });
+    }
+  }
+  const timer = setTimeout(() => {
+    controller.abort(new Error(`${operation} timed out after ${timeoutMs}ms`));
+  }, timeoutMs);
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      parentSignal?.removeEventListener('abort', onParentAbort);
+    },
+  };
+}
+
 function graphMetadata(entity: GraphEntity): {
   project_code?: string;
   source?: string;
@@ -109,82 +184,269 @@ export class GraphAPISource implements EntitySource {
   private tokenManager: TokenProvider;
   private projectCodes?: string[];
   private entities: GraphEntity[] = [];
+  private initializeTimeoutMs: number;
+  private fetchTimeoutMs: number;
+  private tokenRefreshTimeoutMs: number;
 
-  constructor(apiUrl: string, tokenManager: TokenProvider, projectCodes?: string[]) {
+  constructor(
+    apiUrl: string,
+    tokenManager: TokenProvider,
+    projectCodes?: string[],
+    options: GraphAPISourceOptions = {},
+  ) {
     this.apiUrl = apiUrl;
     this.tokenManager = tokenManager;
     this.projectCodes = projectCodes;
+    this.initializeTimeoutMs = configuredTimeout(
+      options.initializeTimeoutMs,
+      DEFAULT_INITIALIZE_TIMEOUT_MS,
+      'BRAINBASE_GRAPH_INDEX_INITIALIZE_TIMEOUT_MS',
+    );
+    this.fetchTimeoutMs = configuredTimeout(
+      options.fetchTimeoutMs,
+      DEFAULT_FETCH_TIMEOUT_MS,
+      'BRAINBASE_GRAPH_FETCH_TIMEOUT_MS',
+    );
+    this.tokenRefreshTimeoutMs = configuredTimeout(
+      options.tokenRefreshTimeoutMs,
+      DEFAULT_TOKEN_REFRESH_TIMEOUT_MS,
+      'BRAINBASE_GRAPH_TOKEN_REFRESH_TIMEOUT_MS',
+    );
   }
 
   async initialize(): Promise<void> {
     console.error('[GraphAPISource] Fetching entities from Graph API...');
+    const deadline = createDeadlineSignal(
+      undefined,
+      this.initializeTimeoutMs,
+      'Graph index initialization',
+    );
 
-    const token = await this.tokenManager.getToken();
-    const baseUrl = `${this.apiUrl}/api/info/graph/entities`;
-    const allEntities: GraphEntity[] = [];
+    try {
+      const tokenOptions: TokenRequestOptions = {
+        signal: deadline.signal,
+        timeoutMs: this.tokenRefreshTimeoutMs,
+      };
+      const token = await this.tokenManager.getToken(tokenOptions);
+      const baseUrl = `${this.apiUrl}/api/info/graph/entities`;
+      const allEntities: GraphEntity[] = [];
 
-    for (const type of getGraphFetchTypes()) {
-      const response = await this.fetchWithRetry(`${baseUrl}?type=${type}&limit=500`, token);
+      for (const type of getGraphFetchTypes()) {
+        const response = await this.fetchWithRetry(
+          `${baseUrl}?type=${type}&limit=500`,
+          token,
+          deadline.signal,
+        );
 
-      if (!response.ok) {
-        console.error(`[GraphAPISource] Failed to fetch ${type}: ${response.status}`);
-        continue;
+        if (!response.ok) {
+          throw this.unavailableForResponse(type, response);
+        }
+
+        const data = await response.json() as unknown;
+        const records = this.recordsFromResponse(data, type).map(r => {
+          const raw = r as unknown as Record<string, unknown>;
+          return {
+            ...r,
+            entity_id: r.entity_id || raw.id as string,
+            entity_type: getPublicType((r.entity_type || type) as string),
+          };
+        });
+        allEntities.push(...records);
+        if (records.length > 0) {
+          console.error(`[GraphAPISource]   ${type}: ${records.length}`);
+        }
       }
 
-      const data = await response.json() as Record<string, unknown>;
-      const records = ((data.entities || data.records || []) as GraphEntity[]).map(r => {
-        const raw = r as unknown as Record<string, unknown>;
-        return {
-          ...r,
-          entity_id: r.entity_id || raw.id as string,
-          entity_type: getPublicType((r.entity_type || type) as string),
-        };
-      });
-      allEntities.push(...records);
-      if (records.length > 0) {
-        console.error(`[GraphAPISource]   ${type}: ${records.length}`);
+      const aliasEntities: GraphEntity[] = [];
+      for (const type of GRAPH_ALIAS_TYPES) {
+        const response = await this.fetchWithRetry(
+          `${baseUrl}?type=${type}&limit=500`,
+          token,
+          deadline.signal,
+        );
+        if (!response.ok) {
+          throw this.unavailableForResponse(type, response);
+        }
+        const data = await response.json() as unknown;
+        const records = this.recordsFromResponse(data, type).map(r => {
+          const raw = r as unknown as Record<string, unknown>;
+          return {
+            ...r,
+            entity_id: r.entity_id || raw.id as string,
+            entity_type: r.entity_type || type,
+          };
+        });
+        aliasEntities.push(...records);
       }
+
+      // A deadline can fire between the last body read and this assignment.
+      // Keep publication atomic: the caller must never observe a timed-out
+      // snapshot as if it were complete.
+      if (deadline.signal.aborted) {
+        throw new GraphSourceUnavailableError(
+          `Graph index initialization timed out after ${this.initializeTimeoutMs}ms`,
+          { code: 'graph_source_timeout', cause: deadline.signal.reason },
+        );
+      }
+
+      // Publish only a complete snapshot. A failed refresh leaves the last
+      // known-good snapshot intact for the caller to handle explicitly.
+      this.entities = mergeGraphAliasPointers(allEntities, aliasEntities);
+      console.error(`[GraphAPISource] Loaded ${this.entities.length} entities from Graph API`);
+    } catch (error) {
+      if (error instanceof GraphSourceUnavailableError) {
+        throw error;
+      }
+      if (deadline.signal.aborted) {
+        throw new GraphSourceUnavailableError(
+          `Graph index initialization timed out after ${this.initializeTimeoutMs}ms`,
+          { code: 'graph_source_timeout', cause: error },
+        );
+      }
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new GraphSourceUnavailableError(`Graph API initialization unavailable: ${detail}`, { cause: error });
+    } finally {
+      deadline.cleanup();
     }
-
-    const aliasEntities: GraphEntity[] = [];
-    for (const type of GRAPH_ALIAS_TYPES) {
-      const response = await this.fetchWithRetry(`${baseUrl}?type=${type}&limit=500`, token);
-      if (!response.ok) {
-        console.error(`[GraphAPISource] Failed to fetch ${type}: ${response.status}`);
-        continue;
-      }
-      const data = await response.json() as Record<string, unknown>;
-      const records = ((data.entities || data.records || []) as GraphEntity[]).map(r => {
-        const raw = r as unknown as Record<string, unknown>;
-        return {
-          ...r,
-          entity_id: r.entity_id || raw.id as string,
-          entity_type: r.entity_type || type,
-        };
-      });
-      aliasEntities.push(...records);
-    }
-
-    this.entities = mergeGraphAliasPointers(allEntities, aliasEntities);
-    console.error(`[GraphAPISource] Loaded ${this.entities.length} entities from Graph API`);
   }
 
-  private async fetchWithRetry(url: string, token: string): Promise<Response> {
-    let response = await fetch(url, {
-      headers: this.buildHeaders(token),
-    });
+  private async fetchWithRetry(
+    url: string,
+    token: string,
+    parentSignal?: AbortSignal,
+  ): Promise<Response> {
+    const fetchOnce = async (requestToken: string): Promise<Response> => {
+      const deadline = createDeadlineSignal(
+        parentSignal,
+        this.fetchTimeoutMs,
+        'Graph API request',
+      );
+      try {
+        const response = await fetch(url, {
+          headers: this.buildHeaders(requestToken),
+          signal: deadline.signal,
+        });
 
+        // Keep the actual request signal alive while callers consume the body;
+        // a response promise can resolve before response.json() finishes.
+        if (response.ok && typeof response.json === 'function') {
+          const json = response.json.bind(response);
+          response.json = async () => {
+            try {
+              return await json();
+            } catch (error) {
+              if (deadline.signal.aborted) {
+                throw this.requestDeadlineError(parentSignal, error);
+              }
+              throw error;
+            } finally {
+              deadline.cleanup();
+            }
+          };
+        } else {
+          // Failed responses are not consumed by the caller. Release their
+          // body so a persistent Graph connection cannot remain occupied.
+          try {
+            await response.body?.cancel();
+          } catch {
+            // The status is already the useful failure; body cancellation is best effort.
+          }
+          deadline.cleanup();
+        }
+        return response;
+      } catch (error) {
+        deadline.cleanup();
+        if (parentSignal?.aborted || deadline.signal.aborted) {
+          throw this.requestDeadlineError(parentSignal, error);
+        }
+        throw new GraphSourceUnavailableError('Graph API request unavailable', {
+          cause: error,
+        });
+      }
+    };
+
+    let response = await fetchOnce(token);
     if (response.status === 401) {
       console.error('[GraphAPISource] Token expired, refreshing...');
       if (!this.tokenManager.refresh) return response;
-      await this.tokenManager.refresh();
-      const newToken = await this.tokenManager.getToken();
-      response = await fetch(url, {
-        headers: this.buildHeaders(newToken),
+      await this.tokenManager.refresh({
+        signal: parentSignal,
+        timeoutMs: this.tokenRefreshTimeoutMs,
       });
+      const newToken = await this.tokenManager.getToken({
+        signal: parentSignal,
+        timeoutMs: this.tokenRefreshTimeoutMs,
+      });
+      response = await fetchOnce(newToken);
     }
 
     return response;
+  }
+
+  private requestDeadlineError(parentSignal: AbortSignal | undefined, cause: unknown): GraphSourceUnavailableError {
+    const parentReason = parentSignal?.reason;
+    const reason = parentSignal?.aborted
+      ? parentReason instanceof Error && /timed out after/.test(parentReason.message)
+        ? parentReason.message
+        : 'cancelled by the caller'
+      : `timed out after ${this.fetchTimeoutMs}ms`;
+    return new GraphSourceUnavailableError(`Graph API request ${reason}`, {
+      code: 'graph_source_timeout',
+      cause,
+    });
+  }
+
+  private unavailableForResponse(type: string, response: Response): GraphSourceUnavailableError {
+    const statusText = response.statusText ? ` ${response.statusText}` : '';
+    return new GraphSourceUnavailableError(
+      `Graph API snapshot incomplete: failed to fetch ${type} (${response.status}${statusText})`,
+      {
+        entityType: type,
+        status: response.status,
+      },
+    );
+  }
+
+  private recordsFromResponse(data: unknown, type: string): GraphEntity[] {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new GraphSourceUnavailableError(
+        `Graph API snapshot incomplete: ${type} response was not an object`,
+        { entityType: type },
+      );
+    }
+    const container = data as Record<string, unknown>;
+    const records = container.entities ?? container.records;
+    if (!Array.isArray(records)) {
+      throw new GraphSourceUnavailableError(
+        `Graph API snapshot incomplete: ${type} response did not include an entities array`,
+        { entityType: type },
+      );
+    }
+    return records.map((record, index) => {
+      if (!record || typeof record !== 'object' || Array.isArray(record)) {
+        throw new GraphSourceUnavailableError(
+          `Graph API snapshot incomplete: ${type} response included an invalid record at index ${index}`,
+          { entityType: type },
+        );
+      }
+      const raw = record as Record<string, unknown>;
+      const entityId = [raw.entity_id, raw.id].find(
+        (value): value is string => typeof value === 'string' && value.trim().length > 0,
+      );
+      if (!entityId) {
+        throw new GraphSourceUnavailableError(
+          `Graph API snapshot incomplete: ${type} response record at index ${index} did not include a non-empty entity_id or id`,
+          { entityType: type },
+        );
+      }
+      if (!raw.payload || typeof raw.payload !== 'object' || Array.isArray(raw.payload)) {
+        throw new GraphSourceUnavailableError(
+          `Graph API snapshot incomplete: ${type} response record at index ${index} did not include an object payload`,
+          { entityType: type },
+        );
+      }
+      return { ...raw, entity_id: entityId } as GraphEntity;
+    });
   }
 
   private buildHeaders(token: string): Record<string, string> {
@@ -272,7 +534,7 @@ export class GraphAPISource implements EntitySource {
     if (!EXTENSION_ENTITY_TYPE_SET.has(publicType) || !query.trim()) {
       return [];
     }
-    const token = await this.tokenManager.getToken();
+    const token = await this.tokenManager.getToken({ timeoutMs: this.tokenRefreshTimeoutMs });
     const params = new URLSearchParams({
       type: getStorageType(type),
       query: query.trim(),
@@ -286,7 +548,7 @@ export class GraphAPISource implements EntitySource {
       throw new Error(`Failed to search ${type} entities: ${response.status}`);
     }
     const data = await response.json() as Record<string, unknown>;
-    return ((data.entities || data.records || []) as GraphEntity[])
+    return this.recordsFromResponse(data, type)
       .map(record => ({
         ...record,
         entity_id: record.entity_id || (record as unknown as Record<string, unknown>).id as string,
@@ -296,7 +558,7 @@ export class GraphAPISource implements EntitySource {
   }
 
   async getPhilosophyContext(request: PhilosophyContextRequest): Promise<PhilosophyContext> {
-    const token = await this.tokenManager.getToken();
+    const token = await this.tokenManager.getToken({ timeoutMs: this.tokenRefreshTimeoutMs });
     const params = new URLSearchParams({
       project: request.projectCode,
       types: 'project',

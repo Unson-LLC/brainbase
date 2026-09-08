@@ -4,6 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { OntologyRegistry } from '../../server/services/ontology-registry.js';
+import { InfoSSOTService } from '../../server/services/info-ssot-service.js';
+import { GraphMaintenanceService } from '../../server/services/graph-maintenance-service.js';
+import { hashGraphSnapshot } from '../../server/services/graph-maintenance-engine.js';
 import { createProposedOntologyFixture } from '../helpers/ontology-test-fixtures.js';
 
 const storyId = 'story-brainbase-ontology-production-compatibility';
@@ -45,7 +48,7 @@ test(`${storyId} ac:2 accepts verified many-to-many project membership`, async (
   expect(result.violations, `${storyId} ac:2 verified memberships`).toEqual([]);
 });
 
-test(`${storyId} ac:3 validates and infers decided Decisions from Graph edges`, async () => {
+test('story-brainbase-ontology-production-compatibility ac:3 validates and infers decided Decisions from Graph edges', async () => {
   const { kernel } = proposedRelease();
   const entities = [
     { id: 'decision:a', type: 'decision', payload: { status: 'decided' } },
@@ -85,6 +88,55 @@ test(`${storyId} ac:3 validates and infers decided Decisions from Graph edges`, 
   );
   expect(invalidScopeInference.decisions['decision:a']).toMatchObject({ status: 'decided' });
   expect(invalidScopeInference.decisions['decision:b']).toMatchObject({ status: 'decided' });
+});
+
+test('story-ontology-scoped-validation-and-decision-authority ac:1-3 validates Graph maintenance scope with the real OntologyKernel', async () => {
+  const snapshot = {
+    project_code: 'brainbase',
+    entities: [
+      { id: 'decision:active', entity_type: 'decision', lifecycle_status: 'active', payload: { status: 'decided' } },
+      { id: 'decision:retired', entity_type: 'decision', lifecycle_status: 'retired', payload: { status: 'decided' } },
+      { id: 'decision:superseded', entity_type: 'decision', lifecycle_status: 'superseded', payload: { status: 'decided' } },
+      { id: 'retired:unknown', entity_type: 'unknown_retired_type', lifecycle_status: 'retired', payload: {} }
+    ],
+    external_entities: [
+      { id: 'app:external', entity_type: 'app', lifecycle_status: 'active', payload: {} }
+    ],
+    edges: []
+  };
+  snapshot.hash = hashGraphSnapshot(snapshot);
+  const infoSSOTService = new InfoSSOTService({ pool: {} });
+  infoSSOTService.withAccessContext = async (_access, callback) => callback({});
+  const graphMaintenanceService = new GraphMaintenanceService({ infoSSOTService });
+  graphMaintenanceService.loadSnapshot = async () => ({ snapshot });
+
+  const result = await graphMaintenanceService.validate({
+    organizationId: 'org:unson', projectCodes: ['brainbase'], role: 'gm'
+  }, { projectCode: 'brainbase' });
+
+  expect(result.ontology.violations).toEqual(expect.arrayContaining([
+    expect.objectContaining({ rule_id: 'CON-DECISION-DECIDER-001', entity_id: 'decision:active' }),
+    expect.objectContaining({ rule_id: 'CON-DECISION-SCOPE-001', entity_id: 'decision:active' }),
+    expect.objectContaining({ rule_id: 'entity-type-registered', entity_id: 'retired:unknown' })
+  ]));
+  expect(result.ontology.violations).not.toEqual(expect.arrayContaining([
+    expect.objectContaining({ rule_id: 'CON-DECISION-DECIDER-001', entity_id: 'decision:retired' }),
+    expect.objectContaining({ rule_id: 'CON-DECISION-SCOPE-001', entity_id: 'decision:retired' }),
+    expect.objectContaining({ rule_id: 'CON-DECISION-DECIDER-001', entity_id: 'decision:superseded' }),
+    expect.objectContaining({ rule_id: 'CON-DECISION-SCOPE-001', entity_id: 'decision:superseded' }),
+    expect.objectContaining({ rule_id: 'CON-APP-OWNER-001', entity_id: 'app:external' })
+  ]));
+  expect(result.required_relation_scope_summary).toEqual({
+    included: { active_local_entities: 1 },
+    excluded: {
+      retired_local_entities: 2,
+      superseded_local_entities: 1,
+      external_metadata_entities: 1
+    }
+  });
+  expect(JSON.stringify(result.required_relation_scope_summary)).not.toContain('decision:retired');
+  expect(JSON.stringify(result.required_relation_scope_summary)).not.toContain('decision:superseded');
+  expect(JSON.stringify(result.required_relation_scope_summary)).not.toContain('app:external');
 });
 
 test(`${storyId} ac:3 entity-only validation cannot approve an effective Decision without authority edges`, async () => {

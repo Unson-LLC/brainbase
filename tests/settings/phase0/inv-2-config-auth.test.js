@@ -3,7 +3,11 @@ import { describe, it, expect } from 'vitest';
 import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import { createConfigRouter, requireConfigAuth, requireConfigWriteRole } from '../../../server/routes/config.js';
+import {
+    createConfigRouter,
+    requireConfigAuth,
+    requireConfigWriteRole
+} from '../../../server/routes/config.js';
 
 function makeApp({ actor } = {}) {
     const app = express();
@@ -38,6 +42,7 @@ describe('phase0 INV-2: config write requires auth', () => {
         const { default: request } = await import('supertest');
         const res = await request(app).put('/api/config/projects/x').send({});
         expect(res.status).toBe(403);
+        expect(res.body).toEqual({ error: 'role required: gm or ceo', actual: 'member' });
     });
 
     it('INV-2: middleware exported and composable', () => {

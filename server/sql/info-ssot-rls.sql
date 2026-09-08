@@ -114,6 +114,62 @@ ALTER TABLE graph_entities ENABLE ROW LEVEL SECURITY;
 ALTER TABLE graph_entities FORCE ROW LEVEL SECURITY;
 ALTER TABLE graph_edges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE graph_edges FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_registry ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_registry FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_runs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_runs FORCE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_steps ENABLE ROW LEVEL SECURITY;
+ALTER TABLE project_provisioning_steps FORCE ROW LEVEL SECURITY;
+ALTER TABLE outcome_cases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE outcome_cases FORCE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS outcome_cases_project_scope ON outcome_cases;
+DROP POLICY IF EXISTS outcome_cases_tenant_project_scope ON outcome_cases;
+CREATE POLICY outcome_cases_tenant_project_scope ON outcome_cases
+  FOR ALL
+  USING (
+    organization_id = NULLIF(current_setting('app.organization_id', true), '')
+    AND project_code = ANY(app_project_codes())
+    AND EXISTS (
+      SELECT 1 FROM projects project
+       WHERE project.code = outcome_cases.project_code
+         AND project.organization_id = outcome_cases.organization_id
+    )
+  )
+  WITH CHECK (
+    organization_id = NULLIF(current_setting('app.organization_id', true), '')
+    AND project_code = ANY(app_project_codes())
+    AND EXISTS (
+      SELECT 1 FROM projects project
+       WHERE project.code = outcome_cases.project_code
+         AND project.organization_id = outcome_cases.organization_id
+    )
+  );
+
+DROP POLICY IF EXISTS project_registry_organization_isolation ON project_registry;
+CREATE POLICY project_registry_organization_isolation ON project_registry
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (organization_id = current_setting('app.organization_id', true));
+
+DROP POLICY IF EXISTS project_provisioning_runs_organization_isolation ON project_provisioning_runs;
+CREATE POLICY project_provisioning_runs_organization_isolation ON project_provisioning_runs
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (organization_id = current_setting('app.organization_id', true));
+
+DROP POLICY IF EXISTS project_provisioning_steps_organization_isolation ON project_provisioning_steps;
+CREATE POLICY project_provisioning_steps_organization_isolation ON project_provisioning_steps
+  FOR ALL
+  USING (organization_id = current_setting('app.organization_id', true))
+  WITH CHECK (
+    organization_id = current_setting('app.organization_id', true)
+    AND EXISTS (
+      SELECT 1 FROM project_provisioning_runs r
+      WHERE r.run_id = project_provisioning_steps.run_id
+        AND r.organization_id = project_provisioning_steps.organization_id
+    )
+  );
 
 DROP POLICY IF EXISTS info_decisions_select ON decisions;
 CREATE POLICY info_decisions_select ON decisions
@@ -385,6 +441,32 @@ SET search_path FROM CURRENT
 AS $body$
   SELECT COALESCE((
   SELECT CASE
+    -- A canonical Person may intentionally be global and belong to more than
+    -- one organization.  Keep that identity projectless, but allow a scoped
+    -- decision to name it as owner, or a scoped RACI assignment to name it as
+    -- assignee, when the Person has a visible membership in the source
+    -- organization. Other cross-organization edge shapes continue through the
+    -- strict organization checks below.
+    WHEN edge_rel_type IN ('owned_by', 'assigned_to')
+      AND (edge_rel_type <> 'assigned_to' OR source_entity.entity_type = 'raci_assignment')
+      AND source_entity.project_id IS NOT NULL
+      AND target_entity.project_id IS NULL
+      AND target_entity.entity_type = 'person'
+      AND source_project.organization_id IS NOT NULL
+      AND source_project.code = ANY(app_project_codes())
+      AND EXISTS (
+        SELECT 1
+        FROM graph_edges membership
+        JOIN projects membership_project ON membership_project.id = membership.project_id
+        WHERE membership.from_id = target_entity.id
+          AND membership.rel_type = 'member_of'
+          AND membership.lifecycle_status = 'active'
+          AND app_current_role_rank() >= app_role_rank(membership.role_min)
+          AND membership.sensitivity = ANY(app_clearance())
+          AND membership_project.organization_id = source_project.organization_id
+          AND membership_project.code = ANY(app_project_codes())
+      )
+    THEN TRUE
     WHEN app_graph_entity_organization_id(source_entity.id) IS NULL
       OR app_graph_entity_organization_id(target_entity.id) IS NULL
     THEN FALSE
@@ -498,17 +580,44 @@ END $do$;
 CREATE POLICY info_graph_edges_select ON graph_edges
   FOR SELECT
   USING (
-    app_current_role_rank() >= app_role_rank(role_min)
-    AND sensitivity = ANY(app_clearance())
-    AND EXISTS (
-      SELECT 1 FROM projects p
-      WHERE p.id = graph_edges.project_id
-        AND p.code = ANY(app_project_codes())
+    (
+      (
+        current_setting('app.graph_maintenance_mode', true) = 'true'
+        AND rel_type = 'member_of'
+        AND lifecycle_status = 'active'
+      )
+      OR (
+        app_current_role_rank() >= app_role_rank(role_min)
+        AND sensitivity = ANY(app_clearance())
+      )
     )
     AND (
-      rel_type = 'member_of'
-      OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
+      EXISTS (
+        SELECT 1 FROM projects p
+        WHERE p.id = graph_edges.project_id
+          AND p.code = ANY(app_project_codes())
+      )
+      -- Maintenance must see every active membership when proving that a
+      -- projectless Person belongs to exactly one organization. Snapshot
+      -- queries still select only source-project edges and redact unresolved
+      -- endpoints before returning any data.
+      OR (
+        current_setting('app.graph_maintenance_mode', true) = 'true'
+        AND rel_type = 'member_of'
+        AND lifecycle_status = 'active'
+      )
     )
+    AND CASE
+      -- CASE is intentional: PostgreSQL may evaluate every branch of a plain
+      -- OR expression. Large maintenance snapshots must not run the expensive
+      -- endpoint visibility function once per edge when this bounded forensic
+      -- mode has already authorized the row's own project above.
+      WHEN current_setting('app.graph_maintenance_mode', true) = 'true' THEN TRUE
+      ELSE (
+        rel_type = 'member_of'
+        OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
+      )
+    END
   );
 
 DROP POLICY IF EXISTS info_graph_edges_insert ON graph_edges;
@@ -560,8 +669,18 @@ CREATE POLICY info_graph_edges_update ON graph_edges
     AND (
       rel_type = 'member_of'
       OR app_graph_edge_scope_visible(from_id, to_id, rel_type, payload, role_min, sensitivity)
+      -- Permit maintenance transactions to lock legacy rows for a stable
+      -- snapshot. WITH CHECK below still rejects an invalid post-update row.
+      OR current_setting('app.graph_maintenance_mode', true) = 'true'
     )
-    AND app_graph_edge_source_project_matches(from_id, rel_type, project_id, payload)
+    AND (
+      app_graph_edge_source_project_matches(from_id, rel_type, project_id, payload)
+      -- replaceSnapshot updates entities before their incident edges. During a
+      -- validated maintenance move, the stored edge can therefore temporarily
+      -- retain its old project while its source already has the new project.
+      -- WITH CHECK remains strict and rejects any invalid final edge scope.
+      OR current_setting('app.graph_maintenance_mode', true) = 'true'
+    )
   )
   WITH CHECK (
     app_current_role_rank() >= app_role_rank(role_min)

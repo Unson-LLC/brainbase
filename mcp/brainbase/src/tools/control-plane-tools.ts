@@ -22,6 +22,11 @@ interface ProjectCatalogItem {
   [key: string]: unknown;
 }
 
+interface ProjectCatalogSource {
+  status: string;
+  [key: string]: unknown;
+}
+
 interface RunReceiptInboxItem {
   project_id: string;
   [key: string]: unknown;
@@ -66,7 +71,7 @@ interface BootstrapConfig {
 interface ControlPlaneData {
   projects?: ProjectCatalogItem[];
   items?: RunReceiptInboxItem[];
-  source?: RunReceiptSourceIdentity;
+  source?: RunReceiptSourceIdentity | ProjectCatalogSource;
   receipt?: RunReceiptInboxItem;
   diagnosis?: RunReceiptDiagnosis;
   run?: AutomationRunDetail;
@@ -346,6 +351,18 @@ function effectiveProjectCodes(tokenCodes: string[], configuredCodes?: string[])
 
 function projectId(project: ProjectCatalogItem): string | null {
   return normalizeProjectCode(project.id);
+}
+
+function projectAccessKeys(project: ProjectCatalogItem): string[] {
+  const github = project.github && typeof project.github === 'object' && !Array.isArray(project.github)
+    ? project.github as Record<string, unknown>
+    : null;
+  const aliases = Array.isArray(project.aliases) ? project.aliases : [];
+  const candidates = [project.id, project.project_code, github?.repo, ...aliases];
+  return Array.from(new Set(candidates.flatMap((value) => {
+    const normalized = typeof value === 'string' ? normalizeProjectCode(value) : null;
+    return normalized ? [normalized] : [];
+  })));
 }
 
 function optionalStringArgument(args: Record<string, unknown>, key: string): string | null {
@@ -831,6 +848,52 @@ function parseAdminResult(payload: unknown): ControlPlaneData {
   return { admin_result: payload as Record<string, unknown> };
 }
 
+function parseProjectCatalog(payload: unknown): {
+  projects: ProjectCatalogItem[];
+  source?: ProjectCatalogSource;
+} {
+  let rawProjects: unknown;
+  let source: ProjectCatalogSource | undefined;
+
+  if (Array.isArray(payload)) {
+    // The bare array is the legacy /api/brainbase/projects contract. Keep
+    // accepting it so older Brainbase servers remain usable.
+    rawProjects = payload;
+  } else {
+    if (!payload || typeof payload !== 'object') {
+      throw new Error('Expected a project catalog array or object');
+    }
+    const record = payload as Record<string, unknown>;
+    rawProjects = record.projects;
+    if (!Array.isArray(rawProjects)) {
+      throw new Error('Project catalog projects must be an array');
+    }
+
+    if (record.source !== undefined) {
+      if (!record.source || typeof record.source !== 'object' || Array.isArray(record.source)) {
+        throw new Error('Project catalog source is invalid');
+      }
+      const sourceRecord = record.source as Record<string, unknown>;
+      if (typeof sourceRecord.status !== 'string' || !sourceRecord.status.trim()) {
+        throw new Error('Project catalog source status is invalid');
+      }
+      source = sourceRecord as ProjectCatalogSource;
+    }
+  }
+
+  const projects = (rawProjects as unknown[]).filter((project): project is ProjectCatalogItem => (
+    Boolean(project)
+      && typeof project === 'object'
+      && !Array.isArray(project)
+      && typeof (project as Record<string, unknown>).id === 'string'
+  ));
+  if (projects.length !== (rawProjects as unknown[]).length) {
+    throw new Error('Project catalog contains invalid entries');
+  }
+
+  return { projects, ...(source ? { source } : {}) };
+}
+
 function createAudit(
   tool: string,
   source: string,
@@ -1161,14 +1224,9 @@ export async function handleControlPlaneToolCall(
     }
   }
 
-  let projects: ProjectCatalogItem[];
+  let catalog: { projects: ProjectCatalogItem[]; source?: ProjectCatalogSource };
   try {
-    const payload = await response.json();
-    if (!Array.isArray(payload)) throw new Error('Expected an array project catalog');
-    projects = payload.filter((project): project is ProjectCatalogItem => (
-      Boolean(project) && typeof project === 'object' && typeof project.id === 'string'
-    ));
-    if (projects.length !== payload.length) throw new Error('Project catalog contains invalid entries');
+    catalog = parseProjectCatalog(await response.json());
   } catch (error) {
     return failure(
       'error',
@@ -1180,18 +1238,38 @@ export async function handleControlPlaneToolCall(
   }
 
   const allowed = new Set(scope);
-  const scopedProjects = projects.filter((project) => {
-    const id = projectId(project);
-    return id ? allowed.has(id) : false;
-  });
+  const scopedProjects = catalog.projects.filter((project) => (
+    projectAccessKeys(project).some((key) => allowed.has(key))
+  ));
+
+  const data: ControlPlaneData = {
+    projects: scopedProjects,
+    count: scopedProjects.length,
+    ...(catalog.source ? { source: catalog.source } : {}),
+  };
+
+  // A successful HTTP response is not sufficient evidence that the catalog
+  // is usable. Registry fallback responses deliberately carry source.status
+  // so callers can distinguish an unavailable source from a confirmed empty
+  // catalog (which remains status=ok).
+  if (catalog.source && catalog.source.status !== 'loaded') {
+    const sourceStatus = catalog.source.status;
+    return {
+      status: 'unavailable',
+      scope: { project_codes: scope },
+      audit,
+      data,
+      error: {
+        code: 'brainbase_project_catalog_unavailable',
+        message: `Project catalog source status is '${sourceStatus}'`,
+      },
+    };
+  }
 
   return {
     status: 'ok',
     scope: { project_codes: scope },
     audit,
-    data: {
-      projects: scopedProjects,
-      count: scopedProjects.length,
-    },
+    data,
   };
 }

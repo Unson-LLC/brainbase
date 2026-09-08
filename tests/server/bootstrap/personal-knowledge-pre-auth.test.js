@@ -62,16 +62,28 @@ describe('personal knowledge pre-auth registration', () => {
         expect(downstream).not.toHaveBeenCalled();
     });
 
-    it('認証済みブラウザーPOSTのCSRF保護を維持する', async () => {
+    it('認証済みMCP Bearer POSTはCSRFを通過し、route guardへ到達する', async () => {
+        const { app, downstream } = createApp(authService);
+
+        await request(app)
+            .post('/api/personal-knowledge/events')
+            .set('authorization', 'Bearer valid-token')
+            .send({})
+            .expect(204);
+
+        expect(downstream).toHaveBeenCalledOnce();
+    });
+
+    it('cookie-only POST is rejected before reaching the route', async () => {
         const { app, downstream } = createApp(authService);
 
         const response = await request(app)
             .post('/api/personal-knowledge/events')
-            .set('authorization', 'Bearer valid-token')
+            .set('cookie', 'session=browser-session')
             .send({})
-            .expect(403);
+            .expect(401);
 
-        expect(response.body).toMatchObject({ message: 'CSRF token required' });
+        expect(response.body).toMatchObject({ error: 'Authorization token required' });
         expect(downstream).not.toHaveBeenCalled();
     });
 

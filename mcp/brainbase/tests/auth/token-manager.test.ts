@@ -87,6 +87,19 @@ describe('TokenManager', () => {
       assert.strictEqual(token, 'service-env-token');
     });
 
+    it('should ignore the service environment token for owner-scoped requests', async () => {
+      process.env.BRAINBASE_GRAPH_API_TOKEN = 'service-env-token';
+
+      const tokenManager = new TokenManager(
+        'http://localhost:31013',
+        testTokensPath,
+        { allowEnvironmentToken: false },
+      );
+      const token = await tokenManager.getToken();
+
+      assert.strictEqual(token, 'mock-access-token');
+    });
+
     it('should auto-refresh if token is expired', async () => {
       // Create expired token
       const nowSeconds = Math.floor(Date.now() / 1000);
@@ -178,6 +191,188 @@ describe('TokenManager', () => {
   });
 
   describe('refresh', () => {
+    it('should abort the CSRF handshake when token refresh exceeds its deadline', async () => {
+      const signals: AbortSignal[] = [];
+      const mockFetch = mock.fn(async (_url: string, options: any) => {
+        const signal = options.signal as AbortSignal;
+        signals.push(signal);
+        await new Promise<never>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+        });
+        throw new Error('unreachable');
+      });
+      global.fetch = mockFetch as any;
+
+      const tokenManager = new TokenManager(
+        'http://localhost:31013',
+        testTokensPath,
+        { refreshTimeoutMs: 20 },
+      );
+      await tokenManager.getToken();
+
+      await assert.rejects(
+        tokenManager.refresh(),
+        (error: any) => {
+          assert.strictEqual(error.code, 'token_refresh_timeout');
+          assert.match(error.message, /Graph token refresh timed out after 20ms/);
+          return true;
+        },
+      );
+      assert.strictEqual(signals.length, 1);
+      assert.strictEqual(signals[0].aborted, true);
+    });
+
+    it('should skip the refresh request when the caller has already cancelled', async () => {
+      const mockFetch = mock.fn(async () => {
+        throw new Error('refresh should not start');
+      });
+      global.fetch = mockFetch as any;
+
+      const tokenManager = new TokenManager('http://localhost:31013', testTokensPath);
+      await tokenManager.getToken();
+      const controller = new AbortController();
+      controller.abort(new Error('cancelled by test'));
+
+      await assert.rejects(
+        tokenManager.refresh({ signal: controller.signal }),
+        (error: any) => {
+          assert.strictEqual(error.code, 'token_refresh_timeout');
+          assert.match(error.message, /Graph token refresh cancelled by the caller/);
+          return true;
+        },
+      );
+      assert.strictEqual(mockFetch.mock.callCount(), 0);
+    });
+
+    it('should keep a shared refresh alive for callers with longer deadlines', async () => {
+      const refreshedJwt = createJwt(Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000) + 3600);
+      const signals: AbortSignal[] = [];
+      const mockFetch = mock.fn(async (url: string, options: any) => {
+        const signal = options.signal as AbortSignal;
+        signals.push(signal);
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(() => {
+            signal.removeEventListener('abort', onAbort);
+            resolve();
+          }, 50);
+          const onAbort = () => {
+            clearTimeout(timer);
+            reject(signal.reason);
+          };
+          signal.addEventListener('abort', onAbort, { once: true });
+          if (signal.aborted) onAbort();
+        });
+        return url.endsWith('/api/csrf-token')
+          ? { ok: true, json: async () => ({ token: 'csrf-token' }) }
+          : { ok: true, json: async () => ({ token: refreshedJwt, refresh_token: 'next-refresh-token' }) };
+      });
+      global.fetch = mockFetch as any;
+
+      const tokenManager = new TokenManager('http://localhost:31013', testTokensPath);
+      await tokenManager.getToken();
+
+      const shortWait = tokenManager.refresh({ timeoutMs: 20 });
+      const longWait = tokenManager.refresh({ timeoutMs: 1_000 });
+      await assert.rejects(
+        shortWait,
+        (error: any) => {
+          assert.strictEqual(error.code, 'token_refresh_timeout');
+          assert.match(error.message, /Graph token refresh timed out after 20ms/);
+          return true;
+        },
+      );
+      assert.strictEqual(signals.length, 1);
+      assert.strictEqual(signals[0].aborted, false);
+
+      await longWait;
+      assert.strictEqual(mockFetch.mock.callCount(), 2);
+      assert.strictEqual(signals.every(signal => !signal.aborted), true);
+    });
+
+    it('should abort the shared refresh when all callers cancel', async () => {
+      const signals: AbortSignal[] = [];
+      const mockFetch = mock.fn(async (_url: string, options: any) => {
+        const signal = options.signal as AbortSignal;
+        signals.push(signal);
+        await new Promise<never>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+          if (signal.aborted) reject(signal.reason);
+        });
+        throw new Error('unreachable');
+      });
+      global.fetch = mockFetch as any;
+
+      const tokenManager = new TokenManager('http://localhost:31013', testTokensPath);
+      await tokenManager.getToken();
+      const firstController = new AbortController();
+      const secondController = new AbortController();
+      const firstWait = tokenManager.refresh({ signal: firstController.signal, timeoutMs: 1_000 });
+      const secondWait = tokenManager.refresh({ signal: secondController.signal, timeoutMs: 1_000 });
+      const firstRejected = assert.rejects(firstWait, /Graph token refresh cancelled by the caller/);
+      const secondRejected = assert.rejects(secondWait, /Graph token refresh cancelled by the caller/);
+
+      firstController.abort(new Error('first caller cancelled'));
+      secondController.abort(new Error('second caller cancelled'));
+      await Promise.all([firstRejected, secondRejected]);
+
+      assert.strictEqual(signals.length, 1);
+      assert.strictEqual(signals[0].aborted, true);
+    });
+
+    it('should serialize a refresh re-invocation while token persistence is in progress', async () => {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const firstJwt = createJwt(nowSeconds, nowSeconds + 3600);
+      const secondJwt = createJwt(nowSeconds, nowSeconds + 7200);
+      let refreshCallCount = 0;
+      const mockFetch = mock.fn(async (url: string) => url.endsWith('/api/csrf-token')
+        ? { ok: true, json: async () => ({ token: 'csrf-token' }) }
+        : {
+            ok: true,
+            json: async () => ({
+              token: refreshCallCount++ === 0 ? firstJwt : secondJwt,
+              refresh_token: 'next-refresh-token',
+            }),
+          });
+      global.fetch = mockFetch as any;
+
+      const tokenManager = new TokenManager('http://localhost:31013', testTokensPath);
+      await tokenManager.getToken();
+
+      let resolveSaveStarted!: () => void;
+      const saveStarted = new Promise<void>(resolve => {
+        resolveSaveStarted = resolve;
+      });
+      let resolveSave!: () => void;
+      const saveGate = new Promise<void>(resolve => {
+        resolveSave = resolve;
+      });
+      const originalSaveTokens = (tokenManager as any).saveTokens.bind(tokenManager);
+      let saveCallCount = 0;
+      (tokenManager as any).saveTokens = async (tokenData: unknown) => {
+        saveCallCount += 1;
+        if (saveCallCount === 1) {
+          resolveSaveStarted();
+          await saveGate;
+        }
+        return originalSaveTokens(tokenData);
+      };
+
+      const firstController = new AbortController();
+      const firstWait = tokenManager.refresh({ signal: firstController.signal, timeoutMs: 1_000 });
+      await saveStarted;
+      firstController.abort(new Error('first caller cancelled during save'));
+      await assert.rejects(firstWait, /Graph token refresh cancelled by the caller/);
+
+      const secondWait = tokenManager.refresh({ timeoutMs: 1_000 });
+      assert.strictEqual(mockFetch.mock.callCount(), 2);
+      resolveSave();
+      await secondWait;
+
+      assert.strictEqual(mockFetch.mock.callCount(), 2);
+      const savedTokens = JSON.parse(await fs.readFile(testTokensPath, 'utf-8'));
+      assert.strictEqual(savedTokens.access_token, firstJwt);
+    });
+
     it('should refresh token and save to file', async () => {
       const nowSeconds = Math.floor(Date.now() / 1000);
       const refreshedJwt = createJwt(nowSeconds, nowSeconds + 7200);

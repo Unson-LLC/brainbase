@@ -32,7 +32,7 @@ function createPayload(overrides = {}) {
     };
 }
 
-function createAuthService({ valid = true, personId = 'per_keigo' } = {}) {
+function createAuthService({ valid = true, personId = 'per_keigo', organizationId = 'unson' } = {}) {
     return {
         verifyToken: vi.fn(() => {
             if (!valid) throw new Error('invalid');
@@ -40,22 +40,27 @@ function createAuthService({ valid = true, personId = 'per_keigo' } = {}) {
                 role: 'gm',
                 projectCodes: ['brainbase'],
                 clearance: ['internal', 'restricted'],
-                personId
+                personId,
+                organizationId
             };
         })
     };
 }
 
-function createApp({ service, authService = createAuthService() }) {
+function createApp({
+    service,
+    authService = createAuthService(),
+    accessGuardOptions = {
+        ownerPersonId: 'sato_keigo',
+        ownerAliasIds: ['per_keigo']
+    }
+}) {
     const app = express();
     app.use(express.json());
     app.use('/api/companion', createCompanionRouter({
         replyDraftService: service,
         authGuard: requireAuth(authService),
-        accessGuardOptions: {
-            ownerPersonId: 'sato_keigo',
-            ownerAliasIds: ['per_keigo']
-        }
+        accessGuardOptions
     }));
     return app;
 }
@@ -97,7 +102,11 @@ function createBootstrapApp({ authService = createAuthService(), infoSSOTService
         workspaceRoot: '/tmp',
         uploadsDir: '/tmp/uploads',
         runtimeInfo: {},
-        brainbaseRoot: '/tmp'
+        brainbaseRoot: '/tmp',
+        canonicalTaskStoreConfig: {
+            ownerPersonId: 'sato_keigo',
+            ownerAliasIds: ['per_keigo']
+        }
     });
     return app;
 }
@@ -423,6 +432,24 @@ describe('companion reply draft route', () => {
             error: 'personal_kg_owner_required',
             code: 'personal_kg_owner_required'
         });
+        expect(infoSSOTService.getContext).not.toHaveBeenCalled();
+        expect(learningService.searchPersonalKgCandidates).not.toHaveBeenCalled();
+    });
+
+    it('fails closed when no Personal KG owner is configured', async () => {
+        const app = createApp({
+            service,
+            authService: createAuthService({ personId: 'sato_keigo' }),
+            accessGuardOptions: { ownerPersonId: null, ownerAliasIds: [] }
+        });
+
+        const res = await request(app)
+            .post('/api/companion/reply-draft')
+            .set('Authorization', 'Bearer user-token')
+            .send(createPayload())
+            .expect(403);
+
+        expect(res.body.code).toBe('personal_kg_owner_required');
         expect(infoSSOTService.getContext).not.toHaveBeenCalled();
         expect(learningService.searchPersonalKgCandidates).not.toHaveBeenCalled();
     });

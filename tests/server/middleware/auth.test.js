@@ -137,6 +137,61 @@ describe('auth middleware', () => {
         expect(res.body.access.tenantId).toBe('unson');
     });
 
+    it('tenant-only旧JWTは検証済みtenantを保ったまま組織を補完する', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({
+                role: 'member',
+                projectCodes: ['brainbase'],
+                clearance: ['internal'],
+                sub: 'per_legacy_tenant',
+                tenantId: 'org_unson'
+            }),
+            resolveOrganizationIdForAccess: async (access) => {
+                expect(access.tenantId).toBe('org_unson');
+                expect(access.organizationId).toBeNull();
+                return 'org_unson';
+            }
+        };
+        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer legacy-tenant-token')
+            .expect(200);
+
+        expect(res.body.access).toMatchObject({
+            tenantId: 'org_unson',
+            organizationId: 'org_unson'
+        });
+    });
+
+    it('organization-only旧JWTは検証済み組織をtenantとしても扱う', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({
+                role: 'member',
+                projectCodes: ['brainbase'],
+                clearance: ['internal'],
+                sub: 'per_legacy_organization',
+                organizationId: 'ten_unson'
+            })
+        };
+        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer legacy-organization-token')
+            .expect(200);
+
+        expect(res.body.access).toMatchObject({
+            tenantId: 'ten_unson',
+            organizationId: 'ten_unson'
+        });
+    });
+
     it('bbsvc tokenがある時_service-token認証で通す', async () => {
         const app = express();
         const authService = {

@@ -65,7 +65,8 @@
       "credential"
     ],
     "desired_effect_values": ["read", "write", "external_side_effect"],
-    "desired_effect_is_required": true
+    "desired_effect_is_required": true,
+    "delivery_binding_rule": "delivery may be omitted only for a fail-closed response that emits no context; every successful signed context requires non-empty delivery.event_id and delivery.channel_id"
   },
   "canonical_context": {
     "type": "CanonicalExecutionContextV1",

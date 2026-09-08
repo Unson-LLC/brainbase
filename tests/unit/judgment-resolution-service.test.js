@@ -32,7 +32,6 @@ function proposal(overrides = {}) {
 }
 
 function input(request, classificationProposal = proposal(), overrides = {}) {
-    void classificationProposal;
     const hasProjectCode = Object.hasOwn(overrides, 'project_code');
     const projectCode = hasProjectCode ? overrides.project_code : 'brainbase';
     const legacyContext = overrides.conversation_context;
@@ -77,6 +76,7 @@ function input(request, classificationProposal = proposal(), overrides = {}) {
     return {
         request,
         turn_id: 'host-turn-1',
+        ...(classificationProposal === undefined ? {} : { model_interpretation: classificationProposal }),
         ...(projectCode === undefined ? {} : { project_code: projectCode }),
         conversation_context: conversationContext,
         ...rest
@@ -220,6 +220,30 @@ describe('JudgmentResolutionService', () => {
         personalOwnerAliasIds: ['person_alias']
     });
 
+    it('小さな実装でも観測後・仮説前にGraphify参照を選ぶ', () => {
+        const receipt = service.resolve(input('表示の一文字を直して', proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.selected_dag_ids).toContain('engineering-implementation.v1');
+        expect(receipt.active_edges).toEqual(expect.arrayContaining([
+            ['observe', 'graphify-impact'], ['graphify-impact', 'hypothesis']
+        ]));
+        expect(receipt.active_nodes.indexOf('graphify-impact')).toBeGreaterThan(receipt.active_nodes.indexOf('observe'));
+        expect(receipt.active_nodes.indexOf('graphify-impact')).toBeLessThan(receipt.active_nodes.indexOf('hypothesis'));
+        const node = receipt.active_node_definitions.find((entry) => entry.id === 'graphify-impact');
+        expect(node.instruction).toContain('scripts/graphify-impact-context.mjs');
+        expect(node.required_capability_template).toBeNull();
+        expect(receipt.required_capabilities).toEqual([]);
+    });
+
+    it.each(['answer', 'investigate', 'diagnose', 'design', 'review', 'operate'])('%sには実装専用のGraphify工程を追加しない', (intent) => {
+        const receipt = service.resolve(input('現在の構成を確認', proposal({
+            intent, domains: ['engineering'], action_kind: 'read'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.active_nodes).not.toContain('graphify-impact');
+        expect(receipt.selected_dag_ids).toContain('engineering.v1');
+    });
+
     it('repository共有goldenでcanonical JSONとmanifest digestを固定する', () => {
         const golden = readFixture('judgment-runtime-golden-vectors.json');
         const manifest = readFixture('judgment-runtime-manifest.json');
@@ -269,7 +293,7 @@ describe('JudgmentResolutionService', () => {
         const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.status).toBe('resolved');
-        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt.selected_dag_ids).toEqual(['engineering-implementation.v1', 'authority.v1']);
         expect(receipt.context_digest).toBe(sha256Hex(canonicalJson(rawInput.conversation_context)));
         expect(receipt.active_node_definitions.map((node) => node.id)).toEqual(receipt.active_nodes);
     });
@@ -279,8 +303,8 @@ describe('JudgmentResolutionService', () => {
             intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
         })), { access: ACCESS, hostBinding: binding() });
 
-        expect(receipt.status).toBe('needs_classification');
-        expect(receipt.reconciliation_reasons).toContain('conversation_referent_missing');
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification).toMatchObject({ intent: 'implement', domains: ['engineering'] });
     });
 
     it.each([
@@ -312,7 +336,9 @@ describe('JudgmentResolutionService', () => {
             '## My request:'
         ].join('\n');
 
-        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
 
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification).toMatchObject({
@@ -335,7 +361,7 @@ describe('JudgmentResolutionService', () => {
 
         expect(receipt.status).toBe('resolved');
         expect(receipt.selected_dag_ids).toEqual([
-            'engineering.v1',
+            'engineering-implementation.v1',
             'cumulative-complexity.v1',
             'parallel.v1',
             'authority.v1'
@@ -373,7 +399,7 @@ describe('JudgmentResolutionService', () => {
         ['complexity_growth', 'API設計の正味複雑性を確認して', ['engineering.v1', 'cumulative-complexity.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1', 'global.external-outcome-first.v1', 'global.subtraction-first.v1']],
         ['threshold_proposal', 'API設計の閾値を確認して', ['engineering.v1', 'threshold.v1'], ['global.goal-before-solution.v1', 'global.no-unsupported-threshold.v1', 'global.problem-frame-rederive.v1']],
         ['parallel_exploration', 'API設計の並列な候補生成を確認して', ['engineering.v1', 'parallel.v1'], ['global.goal-before-solution.v1', 'global.preserve-parallel-exploration.v1', 'global.problem-frame-rederive.v1']],
-        ['authority_boundary', 'API設計の権限境界を確認して', ['engineering.v1', 'authority.v1'], ['global.action-authorization-separate.v1', 'global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
+        ['authority_boundary', 'API設計の権限境界を確認して', ['engineering.v1', 'authority.v1'], ['global.high-stakes-human-approval.v1', 'global.action-authorization-separate.v1', 'global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
         ['problem_frame_uncertain', 'API設計の問題設定を確認して', ['engineering.v1', 'problem-frame.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1']],
         ['external_outcome', 'API設計の外部成果を確認して', ['engineering.v1', 'external-outcome.v1'], ['global.goal-before-solution.v1', 'global.problem-frame-rederive.v1', 'global.external-outcome-first.v1']]
     ])('%s signalは対応するconstraint DAGを合成する', (signal, request, dagIds, policyIds) => {
@@ -490,6 +516,20 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.selected_dag_ids).toContain('problem-frame.v1');
     });
 
+    it.each(['これは？', 'こちらはどう？'])('短い「これ／こちらは」の追従質問は直前の生発話を継承する: %s', (request) => {
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        }), {
+            conversation_context: {
+                text: 'Brainbaseの認証APIを実装して',
+                source_turn_ids: ['prior-engineering']
+            }
+        }), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.reconciliation_reasons).toEqual(['classification_inherited_from_prior_turn']);
+        expect(receipt.classification).toMatchObject({ intent: 'implement', domains: ['engineering'], action_kind: 'write' });
+    });
+
     it('直前のgeneral receiptより前の生発話にあるengineering文脈を短い修正依頼へ継承する', () => {
         const contextWithoutDigest = {
             schema_version: 'brainbase-conversation-context-v1',
@@ -512,7 +552,9 @@ describe('JudgmentResolutionService', () => {
             instruction_bindings: [],
             completeness: 'complete'
         };
-        const rawInput = input('それでいい。修正して', proposal(), {
+        const rawInput = input('それでいい。修正して', proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        }), {
             conversation_context: {
                 ...contextWithoutDigest,
                 source_digest: sha256Hex(canonicalJson(contextWithoutDigest))
@@ -526,9 +568,9 @@ describe('JudgmentResolutionService', () => {
             intent: 'implement', domains: ['engineering'], action_kind: 'write'
         });
         expect(receipt.classification_evidence).toMatchObject({
-            source: 'prior_message', source_turn_ids: ['turn-engineering']
+            source: 'current_request', source_turn_ids: ['host-turn-1']
         });
-        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt.selected_dag_ids).toEqual(['engineering-implementation.v1', 'authority.v1']);
     });
 
     it('PR採用は人材採用ではなくengineeringとして分類する', () => {
@@ -552,17 +594,222 @@ describe('JudgmentResolutionService', () => {
 
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification).toMatchObject({ intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low' });
-        expect(receipt.classification_evidence.matcher_ids).toEqual([]);
+        expect(receipt.classification_evidence.matcher_ids).toEqual(['model_interpretation']);
     });
 
-    it('現在の命令にあるPR公開は引き続きexternalとして分類する', () => {
-        const receipt = service.resolve(input('PRを外部公開して'), { access: ACCESS, hostBinding: binding() });
+    it('現在の命令にあるPR公開は引き続きexternalとして分類するが、人間承認ポリシーが明示されない限りescalateしない', () => {
+        const receipt = service.resolve(input('PRを外部公開して', proposal({
+            intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high'
+        })), { access: ACCESS, hostBinding: binding() });
         expect(receipt.classification).toMatchObject({ intent: 'operate', domains: ['engineering'], action_kind: 'external', risk: 'high' });
+        // PR公開はrisk=highだがcriticalではないので、human_approvalを明示するポリシーに
+        // マッチしない。分類（action_kind=external / risk=high）だけからの自動escalateは
+        // もう存在しない: routine devワークフローとして自律的に継続する。
         expect(receipt).toMatchObject({
-            autonomy_decision: 'escalate',
-            autonomy_reason_code: 'risk_or_external',
-            allowed_runtime_escalation_reasons: []
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: []
         });
+        expect(receipt.allowed_runtime_escalation_reasons).toEqual([
+            'irreversible_action', 'missing_authority', 'owner_value_choice',
+            'required_input_unavailable', 'evidenced_terminal_blocker'
+        ]);
+    });
+
+    it('fresh taskの禁止境界を実行要求へ反転せずローカル書込みとして解決する', () => {
+        const receipt = service.resolve(input([
+            'これはBrainbase判断価値表示のfresh task実動確認です。最初の応答では「/tmp/brainbase-value-e2e-20260902-1103.txt を作成してよいですか？」とだけ質問してください。',
+            'その確認がBrainbase Hostにより不要として差し戻されたら、同じタスク内でそのファイルへ brainbase-value-e2e-20260902-1103 を1行だけ書き、読み戻して完全一致を確認してください。',
+            '最終回答には、実行結果と、Hostが生成するBrainbase判断レシートを省略せず表示してください。',
+            'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。'
+        ].join('\n'), proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope'
+        });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('intent:operate');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('domain:operations');
+    });
+
+    it('禁止した外部送信と依頼したローカル書込みを分離する', () => {
+        const receipt = service.resolve(input('外部送信はしないでください。ローカルファイルへ書いてください。', proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), {
+            access: ACCESS, hostBinding: binding()
+        });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it.each([
+        'ローカルファイルへ書いて、外部送信はしないでください。',
+        '外部送信はしないでください。ローカルファイルへ書いてください。',
+        'ローカルファイルへ書いて、外部送信は禁止です。',
+        '外部送信は禁止です。ローカルファイルへ書いてください。',
+        '外部送信は禁止です、ローカルファイルへ書いてください。',
+        '外部送信は不可です、ローカルファイルへ書いてください。',
+        'ローカルファイルへ書いて、外部送信しないこと。',
+        '外部送信するな。ローカルファイルへ書いてください。',
+        '外部送信は避けてください。ローカルファイルへ書いてください。',
+        'Write the local file, but do not publish externally.',
+        'Do not publish externally. Write the local file.',
+        'Write the local file, but never publish externally.',
+        'Never publish externally. Write the local file.',
+        'Write the local file; publishing externally is prohibited.',
+        'No external publishing. Write the local file.',
+        'Do not publish externally, and write the local file.',
+        'ローカルファイルを作って、外部送信はしないでください。',
+        'ローカルファイルを削除して、外部送信はしないでください。',
+        'Delete the local file, but do not publish externally.',
+        'Do not publish externally, but write the local file.'
+    ])('禁止節の前後順に関係なく肯定されたローカル書込みだけを分類する: %s', (request) => {
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it.each([
+        'PRをマージして、デプロイはしないでください。',
+        'Merge the PR, but do not deploy.'
+    ])('禁止節の前にある肯定されたマージ操作を保持する: %s', (request) => {
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'operate', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'operate', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it('Manifest正本の肯定操作語彙で禁止節との境界を分類する', () => {
+        const cases = [
+            ['ローカルファイルを削除して、外部送信はしないでください。', 'implement', 'write', 'medium'],
+            ['Delete the local file, but do not publish externally.', 'implement', 'write', 'medium'],
+            ['PRをマージして、デプロイはしないでください。', 'operate', 'write', 'medium'],
+            ['Merge the PR, but do not deploy.', 'operate', 'write', 'medium'],
+            ['ローカルの状態を確認して、外部送信はしないでください。', 'investigate', 'read', 'low']
+        ];
+
+        for (const [request, intent, actionKind, risk] of cases) {
+            expect(service.resolve(input(request, proposal({
+                intent, action_kind: actionKind, risk
+            })), { access: ACCESS, hostBinding: binding() })).toMatchObject({
+                classification: { intent, action_kind: actionKind, risk },
+                autonomy_decision: 'continue',
+                autonomy_reason_code: 'routine_in_scope'
+            });
+        }
+    });
+
+    it.each([
+        'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。',
+        '外部送信は行いません。',
+        '外部送信は不可です。',
+        '外部送信しないこと。',
+        '外部送信するな。',
+        '外部送信は避けてください。',
+        'Do not merge, deploy, or publish externally.',
+        'Never publish externally.',
+        'Publishing externally is prohibited.'
+    ])('禁止だけの文を肯定された操作として分類しない: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'answer', action_kind: 'none', risk: 'low' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+    });
+
+    it.each([
+        '外部送信は禁止です、更新は完了済みです。',
+        'Do not publish externally, and update is complete.',
+        '外部送信は禁止です、更新してあります。',
+        '更新してあります、外部送信は禁止です。',
+        '外部送信は禁止です、実装しています。',
+        '実装しています、外部送信は禁止です。',
+        '外部送信は禁止です、昨日更新してもらった。',
+        '昨日更新してもらった、外部送信は禁止です。',
+        '外部送信は禁止です、昨日更新していただいた。',
+        '昨日更新していただいた、外部送信は禁止です。',
+        '外部送信は禁止です、昨日更新してもらえた。',
+        '昨日更新してもらえた、外部送信は禁止です。',
+        '外部送信は禁止です、昨日更新していただけた。',
+        '昨日更新していただけた、外部送信は禁止です。',
+        '外部送信は禁止です、ローカルファイルを更新していただけたでしょうか。',
+        'You must not write the local file, and do not publish externally.',
+        'The local file is being written, but do not publish externally.'
+    ])('禁止節後の説明を肯定された操作へ昇格しない: %s', (request) => {
+        const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'answer', action_kind: 'none', risk: 'low' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+    });
+
+    it.each([
+        '外部送信は禁止です、ローカルファイルを更新してもらえますか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけますか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけますでしょうか。',
+        '外部送信は禁止です、ローカルファイルを更新してもらえませんか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけませんか。',
+        '外部送信は禁止です、ローカルファイルを更新してもらえないですか。',
+        '外部送信は禁止です、ローカルファイルを更新していただけないですか。'
+    ])('禁止節後の依頼活用は肯定された操作として保持する: %s', (request) => {
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it('You must で始まる英語命令を禁止節から保持する', () => {
+        const receipt = service.resolve(input('You must write the local file, but do not publish externally.', proposal({
+            intent: 'implement', action_kind: 'write', risk: 'medium'
+        })), {
+            access: ACCESS,
+            hostBinding: binding()
+        });
+
+        expect(receipt.classification).toMatchObject({ intent: 'implement', action_kind: 'write', risk: 'medium' });
+        expect(receipt).toMatchObject({ autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope' });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+    });
+
+    it.each([
+        ['不可逆操作をレビューして。', 'review', 'read', 'low'],
+        ['禁止事項を更新して。', 'implement', 'write', 'medium'],
+        ['No-code appを作ってください。', 'implement', 'write', 'medium']
+    ])('禁止表現の部分一致で通常の肯定依頼を消去しない: %s', (request, intent, actionKind, risk) => {
+        const receipt = service.resolve(input(request, proposal({
+            intent, action_kind: actionKind, risk
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({ intent, action_kind: actionKind, risk });
+    });
+
+    it('禁止だけの入力は肯定操作へ昇格しない', () => {
+        for (const request of [
+            'マージ、デプロイ、外部送信、リポジトリ内の変更はしないでください。',
+            'Do not merge, deploy, or publish externally.'
+        ]) {
+            const receipt = service.resolve(input(request), { access: ACCESS, hostBinding: binding() });
+
+            expect(receipt.classification).toMatchObject({ intent: 'answer', action_kind: 'none', risk: 'low' });
+            expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:external');
+            expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+        }
     });
 
     it('明示的な人材採用はorganizationとして分類する', () => {
@@ -587,16 +834,13 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.action_kind).toBe('none');
         expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        // risk=high (not critical) and action_kind=none never match the
+        // human_approval rule on global.high-stakes-human-approval.v1, so this
+        // stays autonomous — classification alone no longer auto-escalates.
         expect(receipt).toMatchObject({
             autonomy_decision: 'continue',
             autonomy_reason_code: 'routine_in_scope',
-            allowed_runtime_escalation_reasons: [
-                'irreversible_action',
-                'missing_authority',
-                'owner_value_choice',
-                'required_input_unavailable',
-                'evidenced_terminal_blocker'
-            ]
+            autonomy_policy_ids: []
         });
     });
 
@@ -627,6 +871,61 @@ describe('JudgmentResolutionService', () => {
         ]);
     });
 
+    it.each([
+        '更新後の新規Codexタスクとして、読み取り専用で確認してください。',
+        '更新の有無を調査して確認してください。',
+        '読み取り専用で更新状況を確認してください。'
+    ])('状態説明の更新語でmodelのinvestigateをimplementへ上書きせずaction/riskも維持する: %s', (request) => {
+        const receipt = service.resolve(input(request, proposal({
+            intent: 'investigate',
+            domains: ['engineering', 'operations'],
+            action_kind: 'read',
+            risk: 'low',
+            signals: ['problem_frame_uncertain']
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({
+            intent: 'investigate',
+            action_kind: 'read',
+            risk: 'low'
+        });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('intent:implement');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+    });
+
+    it('明示的な更新命令はmodelのintentを保持したまま安全floorを適用する', () => {
+        const receipt = service.resolve(input('認証APIを更新して', proposal({
+            intent: 'investigate',
+            domains: ['engineering'],
+            action_kind: 'read',
+            risk: 'low'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({
+            intent: 'investigate',
+            action_kind: 'write',
+            risk: 'medium'
+        });
+        expect(receipt.classification_evidence.matcher_ids).toContain('intent:implement');
+    });
+
+    it('更新しない依頼はmodelのinvestigateを保持し安全floorを追加しない', () => {
+        const receipt = service.resolve(input('認証APIを更新しないでください', proposal({
+            intent: 'investigate',
+            domains: ['engineering'],
+            action_kind: 'read',
+            risk: 'low'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.classification).toMatchObject({
+            intent: 'investigate',
+            action_kind: 'read',
+            risk: 'low'
+        });
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('intent:implement');
+        expect(receipt.classification_evidence.matcher_ids).not.toContain('effect:write');
+    });
+
     it('明示的なマージ命令は引き続きwrite要求として分類する', () => {
         const receipt = service.resolve(input('認証APIをマージして', proposal({
             intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
@@ -634,7 +933,7 @@ describe('JudgmentResolutionService', () => {
 
         expect(receipt.status).toBe('resolved');
         expect(receipt.classification.action_kind).toBe('write');
-        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt.selected_dag_ids).toEqual(['engineering-implementation.v1', 'authority.v1']);
     });
 
     it('依頼表現のマージしてもらえるを条件言及に落とさない', () => {
@@ -647,14 +946,13 @@ describe('JudgmentResolutionService', () => {
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:9
-    it('専門依頼はmodel提案なしでserverが分類しaction floorを適用する', () => {
-        const receipt = service.resolve(input('認証APIを実装して'), { access: ACCESS, hostBinding: binding() });
+    it('model解釈がないturnをserver分類だけで確定しない', () => {
+        const rawInput = input('認証APIを実装して');
+        delete rawInput.model_interpretation;
+        const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
 
-        expect(receipt.status).toBe('resolved');
-        expect(receipt.classification).toMatchObject({
-            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
-        });
-        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+        expect(receipt.status).toBe('needs_classification');
+        expect(receipt.unresolved).toContain('model_interpretation_missing');
     });
 
     it('modelがclassification_proposalを注入できない', () => {
@@ -664,11 +962,12 @@ describe('JudgmentResolutionService', () => {
         }, { access: ACCESS, hostBinding: binding() })).toThrowError(/classification_proposal is not allowed/u);
     });
 
-    it('proposalがなくても一般依頼を毎turn判断する', () => {
-        const receipt = service.resolve(input('もっと良くして'), { access: ACCESS, hostBinding: binding() });
-        expect(receipt.status).toBe('resolved');
-        expect(receipt.classification).toMatchObject({ intent: 'answer', domains: ['general'], action_kind: 'none' });
-        expect(receipt.classification_evidence.source).toBe('current_request');
+    it('model解釈がない一般依頼をgeneralとして自動確定しない', () => {
+        const rawInput = input('もっと良くして');
+        delete rawInput.model_interpretation;
+        const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
+        expect(receipt.status).toBe('needs_classification');
+        expect(receipt.unresolved).toContain('model_interpretation_missing');
     });
 
     // Trace: story-brainbase-judgment-resolver-v1:ac:8
@@ -691,6 +990,22 @@ describe('JudgmentResolutionService', () => {
         }]);
     });
 
+    it.each([
+        [['general', 'knowledge', 'personal_judgment'], 'personal', 'personal_knowledge'],
+        [['general', 'knowledge', 'operations'], 'team', 'operational_state']
+    ])('generalを含む複合domainを保ちknowledge handoffを具体化する', (domains, audience, contentType) => {
+        const receipt = service.resolve(input('判断履歴を調べて', proposal({
+            intent: 'investigate', domains, action_kind: 'read'
+        })), { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.domains).toEqual(expect.arrayContaining(domains));
+        expect(receipt.required_capabilities).toEqual([expect.objectContaining({
+            capability: 'knowledge.resolve',
+            input: expect.objectContaining({ audience, content_type: contentType })
+        })]);
+    });
+
     it('knowledgeの検索詳細は後段Knowledge Resolverへ委譲する', () => {
         const receipt = service.resolve(input('判断履歴を調べて'), { access: ACCESS, hostBinding: binding() });
         expect(receipt.status).toBe('resolved');
@@ -700,7 +1015,9 @@ describe('JudgmentResolutionService', () => {
     });
 
     it('knowledge project不足は不完全なhandoffを返さずclarificationへ落とす', () => {
-        const rawInput = input('判断履歴を調べて', proposal(), { project_code: undefined });
+        const rawInput = input('判断履歴を調べて', proposal({
+            intent: 'investigate', domains: ['knowledge'], action_kind: 'read'
+        }), { project_code: undefined });
         const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
         expect(receipt.status).toBe('needs_classification');
         expect(receipt.reconciliation_reasons).toContain('knowledge_project_code_missing');
@@ -791,11 +1108,12 @@ describe('JudgmentResolutionService', () => {
         }));
         const firstReceipt = service.resolve(first, { access: ACCESS, hostBinding: binding() });
         const secondReceipt = service.resolve(second, { access: ACCESS, hostBinding: binding() });
-        expect(firstReceipt.request_digest).toBe(secondReceipt.request_digest);
+        expect(firstReceipt.request_digest).not.toBe(secondReceipt.request_digest);
         expect(firstReceipt.plan_digest).toBe(secondReceipt.plan_digest);
         expectExactResolvedPlan(firstReceipt, {
             dagIds: ['engineering.v1', 'operations.v1', 'authority.v1', 'external-outcome.v1'],
             policyIds: [
+                'global.high-stakes-human-approval.v1',
                 'global.action-authorization-separate.v1',
                 'global.goal-before-solution.v1',
                 'global.problem-frame-rederive.v1',
@@ -870,12 +1188,27 @@ describe('judgment policy resolution', () => {
 });
 
 describe('judgment manifest validation', () => {
+    it('実装専用selectorがない旧manifestでは既存engineering DAGを使う', () => {
+        const service = serviceWithManifest((manifest) => { delete manifest.selectors.engineering_implementation_dag; });
+        const receipt = service.resolve(input('この修正を実装して', proposal({
+            intent: 'implement', domains: ['engineering'], action_kind: 'write', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'authority.v1']);
+    });
+
+    it('実装専用DAGを含む合成cycleを起動時に拒否する', () => {
+        expect(() => serviceWithManifest((manifest) => {
+            manifest.composition_edges.push(['hypothesis', 'graphify-impact']);
+        })).toThrowError(/selectable judgment graph contains a cycle/);
+    });
+
     it.each([
         ['policy field', (manifest) => { delete manifest.policies[0].version; }, /version is invalid/],
         ['node capability reference', (manifest) => { manifest.nodes.find((node) => node.id === 'knowledge-handoff').required_capability_template = null; }, /capability reference is required/],
         ['DAG policy reference', (manifest) => { manifest.dags[0].policy_ids.push('missing.policy'); }, /missing policy/],
         ['DAG cycle', (manifest) => { manifest.dags[0].path.push(manifest.dags[0].path[0]); }, /contains a cycle/],
         ['selector reference', (manifest) => { manifest.selectors.domain_dags.engineering = 'missing.dag'; }, /missing DAG/],
+        ['implementation selector reference', (manifest) => { manifest.selectors.engineering_implementation_dag = 'missing.dag'; }, /missing DAG/],
         ['matcher reference', (manifest) => { manifest.semantic_matchers.signals.unsupported = ['x']; }, /unsupported selector or matcher/],
         ['composition edge reference', (manifest) => { manifest.composition_edges.push(['missing-node', 'generate']); }, /composition edge references/],
         ['composition edge self reference', (manifest) => { manifest.composition_edges.push(['generate', 'generate']); }, /cannot reference itself/],
@@ -888,6 +1221,108 @@ describe('judgment manifest validation', () => {
         expect(() => serviceWithManifest((manifest) => {
             manifest.composition_edges.push(['generate', 'constraints']);
         })).toThrowError(/selectable judgment graph contains a cycle/);
+    });
+});
+
+describe('policy human_approval駆動のautonomy escalation', () => {
+    // Trace: judgment-host-direct-channel-v1:change-c
+    // 分類（risk/action_kind）からの自動escalateは廃止された。escalateするのは
+    // (1) needs_classification、(2) needs_policy_resolution、(3) 適用ポリシーが
+    // human_approvalを明示し、かつ分類がそれにマッチする場合、の3つだけ。
+
+    it('human_approval.risksにマッチする適用ポリシーがあればautonomy_policy_idsを添えてescalateする', () => {
+        const service = serviceWithManifest((manifest) => {
+            addPoliciesToDirect(manifest, [testPolicy('test.requires-human-approval.v1', {
+                priority: 200,
+                human_approval: { risks: ['critical'] }
+            })]);
+        });
+        const receipt = service.resolve(input('この作業を進めて', proposal({
+            intent: 'operate', domains: ['general'], action_kind: 'write', risk: 'critical'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.status).toBe('resolved');
+        // risk=critical also matches the manifest's own
+        // global.high-stakes-human-approval.v1 (risks: ['critical']) once
+        // authority.v1 is selected; autonomy_policy_ids lists every matching
+        // policy id, sorted deterministically by id.
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'risk_or_external',
+            allowed_runtime_escalation_reasons: [],
+            autonomy_policy_ids: ['global.high-stakes-human-approval.v1', 'test.requires-human-approval.v1']
+        });
+    });
+
+    it('human_approval.action_kindsにマッチする適用ポリシーがあればescalateする', () => {
+        const service = serviceWithManifest((manifest) => {
+            addPoliciesToDirect(manifest, [testPolicy('test.requires-human-approval-action.v1', {
+                priority: 200,
+                human_approval: { action_kinds: ['external'] }
+            })]);
+        });
+        const receipt = service.resolve(input('第三者へ共有ファイルを外部送信して', proposal({
+            intent: 'operate', domains: ['general'], action_kind: 'external', risk: 'medium'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'risk_or_external',
+            autonomy_policy_ids: ['test.requires-human-approval-action.v1']
+        });
+    });
+
+    it('マッチするhuman_approvalポリシーが無ければ分類のrisk/action_kindだけでは自動escalateしない', () => {
+        const receipt = serviceWithManifest(() => {}).resolve(input('リポジトリへ変更をpushして', proposal({
+            intent: 'operate', domains: ['general'], action_kind: 'external', risk: 'high'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt).toMatchObject({
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: []
+        });
+    });
+
+    it('needs_classificationとneeds_policy_resolutionのautonomy_policy_idsは常に空', () => {
+        const bootstrapInput = input('意味を説明して', undefined);
+        delete bootstrapInput.model_interpretation;
+        const bootstrap = serviceWithManifest(() => {}).resolve(bootstrapInput, { access: ACCESS, hostBinding: binding() });
+        expect(bootstrap.status).toBe('needs_classification');
+        expect(bootstrap).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'classification_missing',
+            autonomy_policy_ids: []
+        });
+
+        const conflicted = serviceWithManifest((manifest) => {
+            addPoliciesToDirect(manifest, [
+                testPolicy('test.conflict-require.v1', { priority: 100, effect: { decision: 'require', target: 'test.conflict' } }),
+                testPolicy('test.conflict-forbid.v1', { priority: 100, effect: { decision: 'forbid', target: 'test.conflict' } })
+            ]);
+        }).resolve(input('意味を説明して'), { access: ACCESS, hostBinding: binding() });
+        expect(conflicted.status).toBe('needs_policy_resolution');
+        expect(conflicted).toMatchObject({
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'policy_conflict',
+            autonomy_policy_ids: []
+        });
+    });
+
+    it.each([
+        ['action_kindsが空配列', { human_approval: { action_kinds: [] } }, /human_approval action_kinds is invalid/],
+        ['risksに未知の値', { human_approval: { risks: ['imaginary'] } }, /human_approval risks is invalid/],
+        ['未知のキー', { human_approval: { channels: ['slack'] } }, /human_approval is invalid/],
+        ['空オブジェクト', { human_approval: {} }, /human_approval is invalid/]
+    ])('不正なhuman_approval形状(%s)を起動時に拒否する', (_label, overrides, expected) => {
+        expect(() => serviceWithManifest((manifest) => {
+            addPoliciesToDirect(manifest, [testPolicy('test.invalid-human-approval.v1', overrides)]);
+        })).toThrowError(expected);
+    });
+
+    it('manifestのescalate_risks/escalate_action_kindsは空配列を許容し、autonomy決定には使われない', () => {
+        expect(MANIFEST.autonomy.escalate_risks).toEqual([]);
+        expect(MANIFEST.autonomy.escalate_action_kinds).toEqual([]);
+        // 空配列でもmanifestは正常にロードできる（過去バージョンのように固定の
+        // ['high','critical'] / ['external'] を強制しない）。
+        expect(() => serviceWithManifest(() => {})).not.toThrow();
     });
 });
 

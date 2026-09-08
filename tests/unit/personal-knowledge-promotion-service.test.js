@@ -35,7 +35,8 @@ function authorityFor(access, capabilityId, overrides = {}) {
         capabilityId,
         actorPersonId: access.actorPersonId || access.personId,
         organizationIds: [access.organizationId],
-        projectIds: ['brainbase'],
+        projectIds: overrides.projectIds ?? ['prj_brainbase'],
+        projectCode: overrides.projectCode ?? 'brainbase',
         operationId: `op_test_${authoritySequence}`,
         idempotencyKey: `ik_test_${authoritySequence}`,
         ...target
@@ -57,6 +58,8 @@ function requestFixture(overrides = {}) {
         organization_id: 'org_a',
         project_code: 'brainbase',
         status: 'pending_owner_approval',
+        owner_decision_revision: 0,
+        organization_review_revision: 0,
         sanitized_preview: '個人用の元メモ',
         subject: { type: 'decision', id: 'decision_1' },
         body_hash: 'sha256:source_evidence',
@@ -110,6 +113,8 @@ function consentedRequest(payload = normalizedDecision(), overrides = {}) {
     const normalization = normalizeFixture(payload);
     const request = requestFixture({
         status: 'pending_org_review',
+        owner_decision_revision: 1,
+        organization_review_revision: 0,
         owner_decided_by: 'person_a_auth',
         owner_decided_at: '2026-08-14T00:00:00.000Z',
         normalized_payload: normalization.normalized,
@@ -174,6 +179,15 @@ function promotionHarness({ request, eventResult = null, graphEdgeCount = 0 } = 
 }
 
 describe('PersonalKnowledgePromotionService two-stage organization promotion', () => {
+    it('DBからDateで読んだowner_decided_atでも発行時と同じ同意receiptを検証する', () => {
+        const request = consentedRequest();
+        const issuedReceipt = request.owner_consent_receipt_id;
+
+        request.owner_decided_at = new Date(request.owner_decided_at);
+
+        expect(ownerConsentReceipt(request)).toBe(issuedReceipt);
+    });
+
     it('rejects omitted authority before every promotion side effect', async () => {
         const repository = {
             transaction: vi.fn(transaction),
@@ -191,13 +205,112 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         expect(repository.createPromotionRequest).not.toHaveBeenCalled();
     });
 
+    it('accepts one canonical project id while auditing the authorized project code', async () => {
+        const repository = {
+            transaction: vi.fn(transaction),
+            findById: vi.fn(async () => ({
+                event_id: 'pke_1', owner_person_id: 'person_a', organization_id: 'org_a'
+            })),
+            createPromotionRequest: vi.fn(async (request) => request),
+            claimPromotionAuthorityUse: vi.fn(async () => undefined)
+        };
+        const service = new PersonalKnowledgePromotionService({ repository });
+
+        await expect(service.requestPromotion('pke_1', {
+            project_code: 'brainbase', summary: '共有可能な判断', normalized_payload: normalizedDecision()
+        }, requestContext())).resolves.toMatchObject({ project_code: 'brainbase' });
+
+        expect(repository.claimPromotionAuthorityUse).toHaveBeenCalledWith(
+            expect.objectContaining({ project_code: 'brainbase' }),
+            expect.any(Object)
+        );
+    });
+
+    it('accepts request authority after middleware maps intentional null fields to camelCase', async () => {
+        const repository = {
+            transaction: vi.fn(transaction),
+            findById: vi.fn(async () => ({
+                event_id: 'pke_1', owner_person_id: 'person_a', organization_id: 'org_a'
+            })),
+            createPromotionRequest: vi.fn(async (request) => request),
+            claimPromotionAuthorityUse: vi.fn(async () => undefined)
+        };
+        const service = new PersonalKnowledgePromotionService({ repository });
+        const context = requestContext();
+        const authority = context.promotionAuthority;
+        context.promotionAuthority = {
+            capabilityId: authority.capabilityId,
+            actorPersonId: authority.actorPersonId,
+            organizationIds: authority.organizationIds,
+            projectIds: authority.projectIds,
+            projectCode: authority.projectCode,
+            operationId: authority.operationId,
+            idempotencyKey: authority.idempotencyKey,
+            schemaVersion: authority.schema_version,
+            canonicalCapabilityId: authority.capability_id,
+            action: authority.action,
+            resourceRef: authority.resource_ref,
+            requestId: authority.request_id,
+            normalizedPayloadHash: authority.normalized_payload_hash
+        };
+
+        await expect(service.requestPromotion('pke_1', {
+            project_code: 'brainbase', summary: '共有可能な判断', normalized_payload: normalizedDecision()
+        }, context)).resolves.toMatchObject({ project_code: 'brainbase' });
+    });
+
+    it('rejects a canonical project binding for another project code', async () => {
+        const repository = {
+            transaction: vi.fn(transaction),
+            findById: vi.fn(async () => ({
+                event_id: 'pke_1', owner_person_id: 'person_a', organization_id: 'org_a'
+            })),
+            createPromotionRequest: vi.fn(),
+            claimPromotionAuthorityUse: vi.fn()
+        };
+        const service = new PersonalKnowledgePromotionService({ repository });
+
+        await expect(service.requestPromotion('pke_1', {
+            project_code: 'brainbase', summary: '共有可能な判断', normalized_payload: normalizedDecision()
+        }, requestContext(ownerAccess, {
+            projectIds: ['prj_other'], projectCode: 'other'
+        }))).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
+        });
+
+        expect(repository.createPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+    });
+
+    it('rejects missing or ambiguous canonical project ids before promotion effects', async () => {
+        for (const projectIds of [[], ['', 'prj_brainbase'], ['prj_brainbase', 'prj_other']]) {
+            const repository = {
+                transaction: vi.fn(transaction),
+                findById: vi.fn(async () => ({
+                    event_id: 'pke_1', owner_person_id: 'person_a', organization_id: 'org_a'
+                })),
+                createPromotionRequest: vi.fn(),
+                claimPromotionAuthorityUse: vi.fn()
+            };
+            const service = new PersonalKnowledgePromotionService({ repository });
+
+            await expect(service.requestPromotion('pke_1', {
+                project_code: 'brainbase', summary: '共有可能な判断', normalized_payload: normalizedDecision()
+            }, requestContext(ownerAccess, { projectIds }))).rejects.toMatchObject({
+                message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
+            });
+            expect(repository.createPromotionRequest).not.toHaveBeenCalled();
+            expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+        }
+    });
+
     it('rejects unknown_tenant and ambiguous_tenant authority before Graph effects', async () => {
         const request = consentedRequest();
         const { service, knowledgeGraphRepository } = promotionHarness({ request });
         const baseAuthority = {
             capabilityId: 'personal_knowledge_promotion:organization_review',
             actorPersonId: reviewerAccess.actorPersonId,
-            organizationIds: ['org_unknown'], projectIds: ['brainbase'],
+            organizationIds: ['org_unknown'], projectIds: ['prj_brainbase'], projectCode: 'brainbase',
             operationId: 'op_unknown', idempotencyKey: 'ik_unknown',
             ...buildPersonalKnowledgePromotionAuthority({
                 action: 'organization_review', requestId: 'kpr_1',
@@ -312,7 +425,7 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             capabilityId: 'personal_knowledge_promotion:organization_review',
             actorPersonId: reviewerAccess.actorPersonId,
             organizationIds: [reviewerAccess.organizationId],
-            projectIds: ['brainbase'],
+            projectIds: ['prj_brainbase'], projectCode: 'brainbase',
             operationId: 'op_replay_1',
             idempotencyKey: 'ik_replay_1',
             ...buildPersonalKnowledgePromotionAuthority({
@@ -321,10 +434,14 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             })
         };
 
-        await service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+        await service.reviewOrganizationPromotion('kpr_1', {
+            decision: 'approve', expected_organization_review_revision: 0
+        }, {
             access: reviewerAccess, promotionAuthority
         });
-        await expect(service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+        await expect(service.reviewOrganizationPromotion('kpr_1', {
+            decision: 'approve', expected_organization_review_revision: 0
+        }, {
             access: reviewerAccess, promotionAuthority
         })).rejects.toThrow('personal_knowledge_promotion_authority_replayed');
 
@@ -405,7 +522,9 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         });
 
         const result = await service.decideOwnerPromotion('kpr_1', {
-            decision: 'approve', normalized_payload_hash: normalization.normalized_payload_hash
+            decision: 'approve',
+            normalized_payload_hash: normalization.normalized_payload_hash,
+            expected_owner_decision_revision: 0
         }, ownerContext());
 
         expect(result).toMatchObject({
@@ -414,7 +533,28 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             owner_decided_at: '2026-08-14T00:00:00.000Z',
             owner_consent_receipt_id: expect.stringMatching(/^pkoc_[a-f0-9]{24}$/)
         });
+        expect(repository.decideOwnerPromotionRequest).toHaveBeenCalledWith(
+            'kpr_1',
+            expect.objectContaining({ expected_owner_decision_revision: '0' }),
+            expect.any(Object)
+        );
         expect(knowledgeEventService.ingest).not.toHaveBeenCalled();
+    });
+
+    it('rejects owner consent when bearer access lacks the request project code', async () => {
+        const request = consentedRequest();
+        const { service, repository } = promotionHarness({ request });
+        const access = { ...ownerAccess, projectCodes: ['other'] };
+
+        await expect(service.decideOwnerPromotion('kpr_1', {
+            decision: 'approve',
+            normalized_payload_hash: request.normalized_payload_hash,
+            expected_owner_decision_revision: request.owner_decision_revision
+        }, ownerContext(access))).rejects.toMatchObject({
+            message: 'personal_knowledge_project_access_denied', status: 403
+        });
+
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
     });
 
     it('rejects replayed owner-consent authority before returning an already approved request', async () => {
@@ -433,7 +573,11 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             { normalizedPayloadHash: request.normalized_payload_hash }
         );
         const context = { access: ownerAccess, promotionAuthority };
-        const input = { decision: 'approve', normalized_payload_hash: request.normalized_payload_hash };
+        const input = {
+            decision: 'approve',
+            normalized_payload_hash: request.normalized_payload_hash,
+            expected_owner_decision_revision: 1
+        };
 
         await expect(service.decideOwnerPromotion('kpr_1', input, context)).resolves.toBe(request);
         await expect(service.decideOwnerPromotion('kpr_1', input, context)).rejects.toMatchObject({
@@ -464,6 +608,35 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         }, ownerContext())).rejects.toMatchObject({
             message: 'personal_knowledge_promotion_authority_scope_mismatch', status: 403
         });
+        expect(repository.decideOwnerPromotionRequest).not.toHaveBeenCalled();
+    });
+
+    it('rejects a stale owner decision revision before claiming authority', async () => {
+        const normalization = normalizeFixture(normalizedDecision());
+        const request = requestFixture({
+            owner_decision_revision: 2,
+            normalized_payload: normalization.normalized,
+            normalized_payload_hash: normalization.normalized_payload_hash
+        });
+        const repository = {
+            transaction: vi.fn(transaction),
+            findPromotionRequest: vi.fn(async () => request),
+            claimPromotionAuthorityUse: vi.fn(),
+            decideOwnerPromotionRequest: vi.fn()
+        };
+        const service = new PersonalKnowledgePromotionService({ repository });
+
+        await expect(service.decideOwnerPromotion('kpr_1', {
+            decision: 'approve',
+            normalized_payload_hash: normalization.normalized_payload_hash,
+            expected_owner_decision_revision: 1
+        }, ownerContext())).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_stale_revision', status: 409,
+            details: expect.objectContaining({
+                action: 'owner_consent', expected_revision: '1', current_revision: '2'
+            })
+        });
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
         expect(repository.decideOwnerPromotionRequest).not.toHaveBeenCalled();
     });
 
@@ -515,7 +688,9 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         const service = new PersonalKnowledgePromotionService({ repository, knowledgeEventService });
 
         const result = await service.reviewOrganizationPromotion('kpr_1', {
-            decision: 'reject', reason: '組織知識としては局所的'
+            decision: 'reject',
+            reason: '組織知識としては局所的',
+            expected_organization_review_revision: 0
         }, organizationContext());
 
         expect(result).toMatchObject({
@@ -523,6 +698,11 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             organization_reviewed_by: 'person_reviewer_auth',
             organization_review_reason: '組織知識としては局所的'
         });
+        expect(repository.reviewOrganizationPromotionRequest).toHaveBeenCalledWith(
+            'kpr_1',
+            expect.objectContaining({ expected_organization_review_revision: '0' }),
+            expect.any(Object)
+        );
         expect(knowledgeEventService.ingest).not.toHaveBeenCalled();
     });
 
@@ -612,11 +792,32 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         const knowledgeEventService = { ingest: vi.fn() };
         const service = new PersonalKnowledgePromotionService({ repository, knowledgeEventService });
 
-        await expect(service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+        await expect(service.reviewOrganizationPromotion('kpr_1', {
+            decision: 'approve', expected_organization_review_revision: 0
+        }, {
             ...organizationContext()
         })).rejects.toMatchObject({ message: 'personal_knowledge_normalized_payload_required', status: 409 });
         expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
         expect(knowledgeEventService.ingest).not.toHaveBeenCalled();
+    });
+
+    it('rejects a stale organization review revision before Knowledge Event or Graph effects', async () => {
+        const request = consentedRequest(normalizedDecision(), { organization_review_revision: 2 });
+        const { service, repository, knowledgeGraphRepository, knowledgeEventService } = promotionHarness({ request });
+
+        await expect(service.reviewOrganizationPromotion('kpr_1', {
+            decision: 'approve', expected_organization_review_revision: 1
+        }, organizationContext())).rejects.toMatchObject({
+            message: 'personal_knowledge_promotion_stale_revision', status: 409,
+            details: expect.objectContaining({
+                action: 'organization_review', expected_revision: '1', current_revision: '2'
+            })
+        });
+        expect(repository.claimPromotionAuthorityUse).not.toHaveBeenCalled();
+        expect(knowledgeEventService.ingestInTransaction).not.toHaveBeenCalled();
+        expect(knowledgeGraphRepository.commitNormalizedPromotion).not.toHaveBeenCalled();
+        expect(repository.reviewOrganizationPromotionRequest).not.toHaveBeenCalled();
+        expect(repository.createLineage).not.toHaveBeenCalled();
     });
 
     it('publishes normalized knowledge and receipts without copying Personal text into organization data', async () => {
@@ -626,7 +827,9 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         const { service, repository, knowledgeGraphRepository, knowledgeEventService } = promotionHarness({ request });
 
         const result = await service.reviewOrganizationPromotion('kpr_1', {
-            decision: 'approve', reason: '組織の設計判断として採用'
+            decision: 'approve',
+            reason: '組織の設計判断として採用',
+            expected_organization_review_revision: 0
         }, organizationContext());
 
         expect(result.status).toBe('org_accepted');
@@ -660,7 +863,9 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
         const request = consentedRequest(normalizedRelation());
         const { service, knowledgeGraphRepository } = promotionHarness({ request, graphEdgeCount: 1 });
 
-        await service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+        await service.reviewOrganizationPromotion('kpr_1', {
+            decision: 'approve', expected_organization_review_revision: 0
+        }, {
             ...organizationContext(reviewerAccess, {
                 normalizedPayloadHash: normalizePromotionPayload(normalizedRelation()).normalized_payload_hash
             })
@@ -685,7 +890,9 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
             }
         });
 
-        await expect(service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+        await expect(service.reviewOrganizationPromotion('kpr_1', {
+            decision: 'approve', expected_organization_review_revision: 0
+        }, {
             ...organizationContext()
         })).rejects.toMatchObject({
             message: 'personal_knowledge_graph_promotion_quarantined', status: 409
@@ -697,9 +904,13 @@ describe('PersonalKnowledgePromotionService two-stage organization promotion', (
     });
 
     it('records a fresh authority use after organization acceptance without duplicate effects', async () => {
-        const request = consentedRequest(normalizedDecision(), { status: 'org_accepted' });
+        const request = consentedRequest(normalizedDecision(), {
+            status: 'org_accepted', organization_review_revision: 1
+        });
         const { service, repository, knowledgeGraphRepository, knowledgeEventService } = promotionHarness({ request });
-        const result = await service.reviewOrganizationPromotion('kpr_1', { decision: 'approve' }, {
+        const result = await service.reviewOrganizationPromotion('kpr_1', {
+            decision: 'approve', expected_organization_review_revision: 1
+        }, {
             ...organizationContext()
         });
         expect(result).toBe(request);

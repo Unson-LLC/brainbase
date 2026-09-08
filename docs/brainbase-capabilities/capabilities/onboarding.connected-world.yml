@@ -35,7 +35,6 @@ verification:
     - npm run test:run -- tests/unit/onboarding-source-inventory.test.js
     - npm run test:run -- tests/server/onboarding-runtime-service.test.js tests/integration/onboarding-routes.test.js
     - npm test --prefix mcp/brainbase
-    - npm run vibepro:doc-trace
     - npm run vibepro:graph-ssot
   expected:
     - A ready source without authorization, scope, health timestamp, or evidence reference is downgraded to unconfirmed.

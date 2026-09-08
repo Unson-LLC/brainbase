@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-g0-authority-bound-execution",
+  "role": "dataflow",
+  "status": "pass",
+  "summary": "Company Authority承認からsuccess・failed・timeout・skipped_lockedまでreceipt/source帰属が維持され、汎用rerunを409拒否することを再現確認。新たなblockingなし。",
+  "recorded_at": "2026-09-05T23:56:21.509Z",
+  "findings": [],
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 6 file(s)",
+    "recorded_head_sha": null,
+    "surface_files": [
+      {
+        "path": "server/services/automation-run/automation-run-service.js",
+        "sha256": "f38573bee5b8b887d2751125809c93c9a18d733c8bc8ee20f27f468c5152f72b",
+        "size": 46371
+      },
+      {
+        "path": "server/services/external-runner/contract-schema.js",
+        "sha256": "f0bc045937e2f0c9e257d4b87867ca951549dba1367de5d7260a50b2cab13610",
+        "size": 14059
+      },
+      {
+        "path": "server/services/external-runner/external-runtime-adapter.js",
+        "sha256": "8b463ee87b56be13d6a2d573ab4f6bdc6b735a3295b06cd9a5eedc93eaf47ab6",
+        "size": 15546
+      },
+      {
+        "path": "server/services/workflow/workflow-runner.js",
+        "sha256": "93b9546a6d4b64f12199da0c05e2690af07bb41cec0e6ec2cb61b865ed2fd2a6",
+        "size": 22652
+      },
+      {
+        "path": "tests/server/services/automation-run-company-authority-human-approval.test.js",
+        "sha256": "1cae0610191283da2afffb7c73b1ac8be3f0243b6c3ef848ead74f80d49cd740",
+        "size": 16773
+      },
+      {
+        "path": "tests/server/services/external-runner-company-authority-handoff.test.js",
+        "sha256": "5703403440d93e39d6e4e4b3494a0d4664019c14edc61afe7c71f0a9fe1708ea",
+        "size": 12221
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "d9a68688bcc9a536f196bf03e39c9f884c617320ae1f0d40aec2ea68660330ec"
+  },
+  "reviewer": {
+    "system": "codex",
+    "id": "trace_g0_dataflow"
+  }
+}

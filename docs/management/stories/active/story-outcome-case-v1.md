@@ -1,0 +1,38 @@
+---
+story_id: story-outcome-case-v1
+title: OutcomeCase v1 組織成果の閉鎖判断
+status: done
+production_evidence: not_collected
+done: true
+---
+
+# OutcomeCase v1 組織成果の閉鎖判断
+
+## 利用者成果
+
+組織は、成果を「HTTP 200・テスト成功・保存・デプロイ」で完了と取り違えず、技術証拠、既存 RunReceipt、外部読戻し、制約確認を分離して、閉鎖可否を再現可能に判断できる。
+
+## 受け入れ条件
+
+- [x] AC-001: OutcomeCase は `organization_id`、case_id、project_code、capability_id、利用者可観測成果、保護制約、非目標、Info SSOT RACI で解決した authority と provenance、domain pack、追記専用の評価履歴、閉鎖状態、外部状態、各参照、参照解決状態、不解決失敗境界、revision、時刻を保持する。各評価履歴には当時の外部状態・不解決境界・結果 revision/status に加え、参照した RunReceipt の `source_status`、`evidence_state`、`action_required`、issue codes、recommended action、diagnostics を保存し、GET で同じ診断 snapshot を読戻せる。DB trigger が旧履歴の不変・1件だけの追記を強制する。
+- [x] AC-002: create/read/evaluate の最小 API だけを `workflowAuthGuard` 配下で提供し、既存 RunReceipt v1 の schema・ingest・query 契約を変更しない。全 OutcomeCase repository CRUD は actor から作る `InfoSSOTService.withAccessContext(..., { requireCanonicalTenant: true })` の scoped client で実行し、認証済み canonical `organization_id` と明示 projectCodes の両方を強制する。この必須化は既存の汎用 Info SSOT 呼出しへは波及させない。OutcomeCase schema と FORCE RLS は既存の idempotent Info SSOT 適用経路へ登録する。
+- [x] AC-003: `closed` は technical evidence が confirmed、初回以降に保持した**全** RunReceipt 参照が confirmed かつ `source_status = success` で action-required diagnosis がなく、external readback が confirm、constraints が satisfied、project/capability と closure authority が authoritative read-only resolver で confirmed、かつ認証済み actor が解決済み authority の閉鎖許可者である場合に限る。request は authority を自己申告できず、認証境界の clearance は空でも `internal` に補完しない。
+- [x] AC-004: HTTP 応答、テスト、保存、デプロイ、または confirmed evidence はそれだけで close 判定へ変換されない。RunReceipt が `waiting_human` なら `waiting_human`、`failed` / `blocked` / `cancelled` なら `incomplete` とし、診断の欠落・要対応も fail-closed にする。証拠未収集・参照不明・外部読戻し no_data・resolver 未解決は close しない。internal/admin/ceo を含め、空の project scope または organization scope は read/create/evaluate を許可しない。他組織候補は監査識別子付きで deny し、FORCE RLS で record を不可視にする。
+- [x] AC-005: Graph に未知の entity type を書き込まない。OutcomeCase は既存 project/capability への参照を持つ制御面 record とし、本 Story では本番 Graph 書込み・外部送信・deploy を実施しない。resolver は read-only で、capability registry が未適用なら明示的に unresolved とする。
+
+## 非目標
+
+KnowledgeEvent の自動昇格、汎用 workflow engine、RunReceipt v1 の変更、Graph ontology の active release 更新、本番 migration、外部送信、deploy。
+
+## 実装済みローカル証拠
+
+- `tests/server/services/outcome-case-service.test.js`: 追記履歴、保持 receipt 全件診断、評価ごとの状態/revision、自己申告 authority 拒否、actor/project scope、resolver 障害の close 禁止。`derives closure only when technical evidence is confirmed (%s)` は confirmed-only の予防的不変条件であり、`unconfirmed` / `no_data` を許すよう条件を弱める決定的な変異で失敗する。
+- `tests/server/routes/outcome-cases.test.js`: 実 `registerApiRoutes` + `workflowAuthGuard` の未認証拒否と create/read/evaluate 配線。
+- `tests/server/services/outcome-case-reference-resolver.test.js`: scope 付き read-only project/capability/RACI resolver、access-context/query 障害時の unresolved、empty clearance を internal に格上げしないこと。
+- `tests/server/scripts/info-ssot-apply.test.js`: OutcomeCase schema/RLS/readback/negative smoke を含む idempotent apply bundle の二回実行。
+- `tests/server/services/outcome-case-postgres-rls.integration.test.js` と `scripts/verify-outcome-case-postgres-rls-integration.sh`: ephemeral PostgreSQL の NOSUPERUSER/NOBYPASSRLS role で、実 API/repository の scoped create/read/evaluate、cross-project と cross-organization の不可視・挿入拒否、履歴短縮・書換え拒否、empty clearance では internal RACI authority を使えないことを確認する。
+- `tests/server/services/outcome-case-postgres-rls.integration.test.js`: 既定の `RunReceiptQueryService.diagnose` を通し、confirmed でも `waiting_human` / `failed` / `blocked` / `cancelled` の各 source status が close せず、評価 POST 後の GET に診断 snapshot が残ることを確認する。
+
+本番 migration、production DB の readback、外部受領は未実施であり、ここでのチェック完了はその証拠ではない。
+
+`546a2bd30` の親には `technicalEvidence.status === 'confirmed'` が既にあり、同コミットはテスト追加だけだった。そのため上記は過去不具合の再現テストではなく、履歴上の pre-fix 感度は該当しない。代わりに confirmed / unconfirmed / no_data の真偽表で閉鎖判定そのものを固定する。

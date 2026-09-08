@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { RunReceiptContractError } from '../../../server/services/run-receipt/contract.js';
 import { RunReceiptIngestService } from '../../../server/services/run-receipt/ingest-service.js';
@@ -190,6 +190,86 @@ describe('RunReceiptIngestService', () => {
             metrics: { processed: 12 }
         });
         expect(JSON.stringify(result.audit_logs)).not.toMatch(/raw_log|customer_text|transcript/);
+    });
+
+    it('links Mana outcome_case artifact refs to the persisted receipt without triggering evaluation', async () => {
+        const outcomeCaseService = {
+            linkRunReceipt: vi.fn(async () => ({ status: 'linked' })),
+            evaluate: vi.fn()
+        };
+        const { service } = makeService({ outcomeCaseService });
+        const actor = { person_id: 'per_owner', projectCodes: ['brainbase'], organizationId: 'org_unson' };
+
+        const result = await service.ingest(makeReceipt({
+            run: {
+                evidence_refs: [
+                    { kind: 'artifact_ref', ref: 'outcome_case:oc_01' },
+                    { kind: 'artifact_ref', ref: 'outcome_case:oc_01' },
+                    { kind: 'log_ref', ref: 'cloudwatch:log-stream/example' }
+                ]
+            }
+        }), actor);
+
+        expect(outcomeCaseService.linkRunReceipt).toHaveBeenCalledTimes(1);
+        expect(outcomeCaseService.linkRunReceipt).toHaveBeenCalledWith({
+            caseId: 'oc_01',
+            runReceiptRef: result.run.id,
+            projectCode: 'brainbase',
+            organizationId: null
+        }, actor);
+        expect(result).toMatchObject({
+            status: 'created',
+            outcome_case_links: [{
+                case_id: 'oc_01',
+                run_receipt_ref: result.run.id,
+                status: 'linked'
+            }]
+        });
+        expect(outcomeCaseService.evaluate).not.toHaveBeenCalled();
+        expect(result.run.closure_state).toBe('closed');
+    });
+
+    it('fails closed when a declared OutcomeCase ref cannot be linked, then retries linking on duplicate replay', async () => {
+        const outcomeCaseService = {
+            linkRunReceipt: vi.fn()
+                .mockRejectedValueOnce(Object.assign(new Error('OutcomeCase is not ready'), {
+                    code: 'outcome_case_not_found'
+                }))
+                .mockResolvedValueOnce({ status: 'linked' }),
+            evaluate: vi.fn()
+        };
+        const { repository, service } = makeService({ outcomeCaseService });
+        const receipt = makeReceipt({
+            run: {
+                evidence_refs: [{ kind: 'artifact_ref', ref: 'outcome_case:oc_01' }]
+            }
+        });
+
+        await expect(service.ingest(receipt)).rejects.toMatchObject({
+            code: 'outcome_case_receipt_link_failed',
+            details: {
+                outcome_case_links: [{
+                    case_id: 'oc_01',
+                    status: 'unresolved',
+                    error_code: 'outcome_case_not_found'
+                }],
+                retryable: true
+            }
+        });
+        expect(repository.listRuns({ limit: null })).toHaveLength(1);
+
+        const replay = await service.ingest(receipt);
+        expect(replay).toMatchObject({
+            status: 'duplicate',
+            outcome_case_links: [{
+                case_id: 'oc_01',
+                run_receipt_ref: replay.run.id,
+                evaluation_required: true,
+                status: 'linked'
+            }]
+        });
+        expect(outcomeCaseService.linkRunReceipt).toHaveBeenCalledTimes(2);
+        expect(outcomeCaseService.evaluate).not.toHaveBeenCalled();
     });
 
     it.each(['receipt-first', 'external-runner-first'])(
@@ -438,7 +518,7 @@ describe('RunReceiptIngestService', () => {
         ]));
     });
 
-    it('5 sourceすべてをingest永続化しInbox source filterでround-tripする', async () => {
+    it('5 sourceの保存結果を権限内のInboxへ返し、未認可projectを開示しない', async () => {
         const repository = new InMemoryWorkflowRepository();
         const receiptService = new RunReceiptIngestService({ workflowRepository: repository });
         const sourceTypes = ['mana', 'codex_automations', 'github_actions', 'salestailor', 'openryoko'];
@@ -449,16 +529,40 @@ describe('RunReceiptIngestService', () => {
                 run: { external_run_id: `${sourceType}:run:1` }
             }));
         }
-        const workflowService = new TestAutomationRuntime({ repository, runner: {}, configParser: null });
+        await receiptService.ingest(makeReceipt({
+            run: { project_id: 'restricted-project' }
+        }));
+        const actor = { organizationId: 'org-test', projectCodes: ['brainbase'] };
+        const workflowService = new TestAutomationRuntime({
+            repository,
+            runner: {},
+            configParser: {
+                async getProjects() {
+                    return {
+                        projects: [{ id: 'brainbase' }, { id: 'restricted-project' }],
+                        source: { status: 'loaded' }
+                    };
+                }
+            }
+        });
 
-        expect(repository.listRuns({ limit: null })).toHaveLength(5);
+        expect(repository.listRuns({ limit: null })).toHaveLength(6);
         for (const sourceType of sourceTypes) {
-            const inbox = await workflowService.runReceiptQueryService.listInbox({ sourceType }, {});
+            const inbox = await workflowService.runReceiptQueryService.listInbox({ sourceType }, actor);
             expect(inbox.items).toHaveLength(1);
             expect(inbox.items[0]).toMatchObject({
                 source: { type: sourceType },
                 project_id: 'brainbase'
             });
+        }
+        for (const unauthorizedActor of [
+            {},
+            { projectCodes: actor.projectCodes },
+            { ...actor, projectCodes: [] }
+        ]) {
+            const inbox = await workflowService.runReceiptQueryService.listInbox({}, unauthorizedActor);
+            expect(inbox.items).toEqual([]);
+            expect(inbox.count).toBe(0);
         }
     });
 

@@ -31,17 +31,29 @@ function sameWorkflowIdentity(existing, normalized) {
         && identity?.source_workflow_id === expected.source_workflow_id;
 }
 
+function outcomeCaseIds(normalized) {
+    if (normalized.source.type !== 'mana') return [];
+    return [...new Set((normalized.run.evidence_refs || [])
+        .filter((evidence) => evidence.kind === 'artifact_ref')
+        .map((evidence) => evidence.ref)
+        .filter((ref) => typeof ref === 'string' && ref.startsWith('outcome_case:'))
+        .map((ref) => ref.slice('outcome_case:'.length))
+        .filter(Boolean))];
+}
+
 export class RunReceiptIngestService {
     constructor({
         workflowRepository,
         lockAcquireTimeoutMs = 5000,
         lockRetryMs = 20,
-        lockTtlMs = 30000
+        lockTtlMs = 30000,
+        outcomeCaseService = null
     }) {
         this.workflowRepository = workflowRepository;
         this.lockAcquireTimeoutMs = lockAcquireTimeoutMs;
         this.lockRetryMs = lockRetryMs;
         this.lockTtlMs = lockTtlMs;
+        this.outcomeCaseService = outcomeCaseService;
     }
 
     normalize(payload) {
@@ -55,13 +67,14 @@ export class RunReceiptIngestService {
         };
     }
 
-    async ingest(payload) {
+    async ingest(payload, actor = {}) {
         const normalized = this.normalize(payload);
         this._requireRepositoryCapabilities();
         const lockedBy = `run-receipt:${randomUUID()}`;
         const lock = await this._acquireIdentityLock(normalized.lock, lockedBy);
+        let result;
         try {
-            return await this.workflowRepository.transaction(() => this._persist(normalized));
+            result = await this.workflowRepository.transaction(() => this._persist(normalized));
         } finally {
             if (lock) {
                 await this.workflowRepository.releaseWorkflowLock({
@@ -70,6 +83,55 @@ export class RunReceiptIngestService {
                 });
             }
         }
+        return this._linkOutcomeCases(normalized, result, actor);
+    }
+
+    async _linkOutcomeCases(normalized, result, actor = {}) {
+        const caseIds = outcomeCaseIds(normalized);
+        if (!caseIds.length) return result;
+
+        const links = [];
+        for (const caseId of caseIds) {
+            const link = {
+                case_id: caseId,
+                run_receipt_ref: result.run.id,
+                evaluation_required: true
+            };
+            if (typeof this.outcomeCaseService?.linkRunReceipt !== 'function') {
+                links.push({ ...link, status: 'unavailable', error_code: 'outcome_case_receipt_link_unavailable' });
+                continue;
+            }
+            try {
+                const linked = await this.outcomeCaseService.linkRunReceipt({
+                    caseId,
+                    runReceiptRef: result.run.id,
+                    projectCode: normalized.run.project_id,
+                    organizationId: normalized.run.org_id || null
+                }, actor);
+                links.push({ ...link, status: linked?.status || 'unknown' });
+            } catch (error) {
+                links.push({
+                    ...link,
+                    status: 'unresolved',
+                    error_code: typeof error?.code === 'string'
+                        ? error.code
+                        : 'outcome_case_receipt_link_failed'
+                });
+            }
+        }
+        const failedLinks = links.filter((link) => !['linked', 'duplicate'].includes(link.status));
+        if (failedLinks.length) {
+            fail(
+                'outcome_case_receipt_link_failed',
+                'RunReceipt was persisted, but one or more OutcomeCase references could not be linked; retry the exact receipt to retry linking',
+                {
+                    run_id: result.run.id,
+                    outcome_case_links: links,
+                    retryable: true
+                }
+            );
+        }
+        return { ...result, outcome_case_links: links };
     }
 
     _requireRepositoryCapabilities() {

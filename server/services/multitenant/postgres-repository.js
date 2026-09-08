@@ -3,11 +3,16 @@ import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
 import { isCanonicalId } from './ids.js';
 import {
+    normalizeSlackInstallationFailureCode,
+    normalizeSlackInstallationFailureStage
+} from './slack-installation-diagnostics.js';
+import {
     calculateQuotaDecision,
     resolveQuotaWindowPolicy,
     validateQuotaDecision,
     validateQuotaRequest
 } from './contract-usage-ledger.js';
+import { authorityProjectBinding } from './authority-project-binding.js';
 
 const OWNED_RESOURCE_TABLES = Object.freeze({
     tenant: { table: 'brainbase_tenants', id: 'tenant_id', revision: 'tenant_revision' },
@@ -23,6 +28,35 @@ const OWNED_RESOURCE_TABLES = Object.freeze({
 });
 
 const SLACK_INSTALLATION_CLAIM_STALE_SECONDS = 120;
+const SLACK_INSTALLATION_CLEANUP_STATUSES = new Set(['not_needed', 'revoked', 'failed']);
+const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/u;
+const FIXED_MANA_SLACK_SCOPES = Object.freeze([
+    'app_mentions:read', 'assistant:write', 'canvases:read', 'canvases:write',
+    'channels:history', 'channels:read', 'chat:write', 'chat:write.customize',
+    'commands', 'files:read', 'files:write', 'groups:history', 'groups:read',
+    'im:history', 'im:read', 'im:write', 'mpim:history', 'mpim:read', 'mpim:write',
+    'reactions:read', 'reactions:write', 'users:read', 'users:read.email'
+].sort());
+
+function safeStoredSlackInstallationDiagnostic(row) {
+    const failureStage = normalizeSlackInstallationFailureStage(row.failure_stage);
+    const failureCode = row.failure_stage === null || row.failure_stage === undefined
+        ? null
+        : normalizeSlackInstallationFailureCode(row.failure_code, failureStage);
+    const cleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(row.cleanup_status)
+        ? row.cleanup_status
+        : null;
+    const attempt = Number(row.attempt);
+    return {
+        tenant_id: row.tenant_id,
+        installation_intent_id: row.installation_intent_id,
+        request_digest: SHA256_DIGEST.test(String(row.request_digest)) ? row.request_digest : null,
+        attempt: Number.isSafeInteger(attempt) && attempt > 0 ? attempt : null,
+        failure_stage: failureStage,
+        failure_code: failureCode,
+        cleanup_status: cleanupStatus
+    };
+}
 
 function sha256(value) {
     return `sha256:${createHash('sha256').update(String(value), 'utf8').digest('hex')}`;
@@ -59,6 +93,76 @@ function quotaReplayUnavailable() {
         retryable: true,
         fault_domain: 'brainbase_cloud'
     });
+}
+
+function fixedManaSlackDefinition(definition) {
+    const required = [
+        'tenant_id', 'connection_id', 'connection_revision', 'provider', 'workspace_id',
+        'app_id', 'installation_id', 'credential_mode'
+    ];
+    if (!definition || typeof definition !== 'object' || required.some((field) => !definition[field])) {
+        throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+    }
+    if (definition.tenant_id !== 'ten_01M0HMA228ES64N4TFX846V8T8'
+        || definition.connection_id !== 'wsc_01M0HRK94FG2Y8DMBFYJHYT14K'
+        || String(definition.connection_revision) !== '1'
+        || definition.provider !== 'slack'
+        || definition.workspace_id !== 'T0882T8N9UH'
+        || definition.app_id !== 'A0BPM2J33SN'
+        || definition.installation_id !== 'slack_T0882T8N9UH_A0BPM2J33SN'
+        || definition.credential_mode !== 'customer_oauth'
+        || !Array.isArray(definition.required_scopes)) {
+        throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+    }
+    const scopes = definition.required_scopes.map(String).sort();
+    if (new Set(scopes).size !== scopes.length
+        || JSON.stringify(scopes) !== JSON.stringify(FIXED_MANA_SLACK_SCOPES)) {
+        throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+    }
+    return { ...definition, connection_revision: '1', required_scopes: scopes };
+}
+
+function fixedManaSlackCredential(credential) {
+    const refreshRevision = String(credential?.refresh_revision ?? '');
+    if (!credential || typeof credential.credential_ref !== 'string'
+        || credential.credential_ref.length === 0 || credential.credential_ref.length > 512
+        || credential.credential_mode !== 'customer_oauth'
+        || !/^[1-9][0-9]*$/u.test(refreshRevision)) {
+        throw new ContractError('FIXED_MANA_SLACK_CREDENTIAL_STORE_INVALID', { status: 503 });
+    }
+    return {
+        credential_ref: credential.credential_ref,
+        credential_mode: credential.credential_mode,
+        refresh_revision: refreshRevision
+    };
+}
+
+function fixedManaSlackSnapshot(definition, credential, contract, tenantRevision, installedAt) {
+    return {
+        tenant_id: definition.tenant_id,
+        connection_id: definition.connection_id,
+        connection_revision: definition.connection_revision,
+        provider: definition.provider,
+        installation_id: definition.installation_id,
+        workspace_id: definition.workspace_id,
+        app_id: definition.app_id,
+        granted_scopes: [...definition.required_scopes],
+        status: 'active',
+        credential_ref: credential.credential_ref,
+        credential_mode: credential.credential_mode,
+        refresh_revision: credential.refresh_revision,
+        deployment_id: contract.deployment_id,
+        profile: contract.profile,
+        contract_revision: String(contract.contract_revision),
+        tenant_revision_at_write: String(tenantRevision),
+        installed_at: installedAt
+    };
+}
+
+function publicFixedManaSlackSnapshot(snapshot) {
+    if (!snapshot || typeof snapshot !== 'object') return null;
+    const { credential_ref: _credentialRef, ...safeSnapshot } = snapshot;
+    return safeSnapshot;
 }
 
 function contractFromRow(contract) {
@@ -305,6 +409,227 @@ export class MultitenantPostgresRepository {
         }));
     }
 
+    async inspectFixedManaSlackConnection({ definition }) {
+        const fixed = fixedManaSlackDefinition(definition);
+        return this.withTenant(fixed.tenant_id, async (client) => {
+            const orphanResult = await client.query(
+                `SELECT connection_id
+                   FROM fixed_mana_slack_connection_adoption_orphans
+                  WHERE tenant_id = $1 AND connection_id = $2 AND connection_revision = $3
+                  FOR SHARE`,
+                [fixed.tenant_id, fixed.connection_id, fixed.connection_revision]
+            );
+            if (orphanResult.rows[0]) return { state: 'orphaned' };
+
+            const currentResult = await client.query(
+                `SELECT wc.tenant_id, wc.connection_id, wc.connection_revision, wc.status,
+                        wc.provider, wc.installation_id, wc.workspace_id, wc.app_id,
+                        wc.granted_scopes, wc.credential_ref AS current_credential_ref,
+                        revision.connection_snapshot, cbr.credential_ref, cbr.credential_mode,
+                        cbr.refresh_revision
+                   FROM workspace_connections AS wc
+                   LEFT JOIN workspace_connection_revisions AS revision
+                     ON revision.tenant_id = wc.tenant_id
+                    AND revision.connection_id = wc.connection_id
+                    AND revision.connection_revision = wc.connection_revision
+                   LEFT JOIN credential_broker_refs AS cbr
+                     ON cbr.tenant_id = wc.tenant_id
+                    AND cbr.connection_id = wc.connection_id
+                    AND cbr.connection_revision = wc.connection_revision
+                  WHERE wc.tenant_id = $1 AND wc.provider = 'slack'
+                    AND wc.workspace_id = $2 AND wc.app_id = $3
+                    AND wc.status IN ('pending', 'active', 'reauth_required')
+                  LIMIT 2
+                  FOR SHARE OF wc`,
+                [fixed.tenant_id, fixed.workspace_id, fixed.app_id]
+            );
+            if ((currentResult.rows ?? []).length === 0) return { state: 'absent' };
+            if ((currentResult.rows ?? []).length !== 1) return { state: 'conflict' };
+
+            const current = currentResult.rows[0];
+            const snapshot = parseJsonValue(current.connection_snapshot);
+            const scopes = Array.isArray(current.granted_scopes) ? current.granted_scopes.map(String).sort() : [];
+            const snapshotScopes = Array.isArray(snapshot?.granted_scopes)
+                ? snapshot.granted_scopes.map(String).sort() : [];
+            const exact = current.connection_id === fixed.connection_id
+                && String(current.connection_revision) === fixed.connection_revision
+                && current.status === 'active'
+                && current.provider === fixed.provider
+                && current.installation_id === fixed.installation_id
+                && current.workspace_id === fixed.workspace_id
+                && current.app_id === fixed.app_id
+                && JSON.stringify(scopes) === JSON.stringify(fixed.required_scopes)
+                && current.current_credential_ref === current.credential_ref
+                && current.credential_mode === fixed.credential_mode
+                && String(current.refresh_revision) === fixed.connection_revision
+                && snapshot?.credential_ref === current.credential_ref
+                && snapshot?.credential_mode === current.credential_mode
+                && String(snapshot?.refresh_revision) === String(current.refresh_revision)
+                && snapshot?.status === 'active'
+                && snapshot?.connection_id === fixed.connection_id
+                && String(snapshot?.connection_revision) === fixed.connection_revision
+                && snapshot?.tenant_id === fixed.tenant_id
+                && snapshot?.provider === fixed.provider
+                && snapshot?.installation_id === fixed.installation_id
+                && snapshot?.workspace_id === fixed.workspace_id
+                && snapshot?.app_id === fixed.app_id
+                && JSON.stringify(snapshotScopes) === JSON.stringify(fixed.required_scopes);
+            if (!exact) return { state: 'conflict', snapshot: publicFixedManaSlackSnapshot(snapshot) };
+            return {
+                state: 'existing',
+                snapshot: publicFixedManaSlackSnapshot(snapshot),
+                credential: {
+                    credential_ref: current.credential_ref,
+                    credential_mode: current.credential_mode,
+                    refresh_revision: String(current.refresh_revision)
+                }
+            };
+        });
+    }
+
+    async adoptFixedManaSlackConnection({ definition, credential, now = this.now().toISOString() }) {
+        const fixed = fixedManaSlackDefinition(definition);
+        const opaqueCredential = fixedManaSlackCredential(credential);
+        const installedAt = canonicalTimestamp(now);
+        if (!installedAt) throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+        return this.withTenant(fixed.tenant_id, async (client) => {
+            const orphanResult = await client.query(
+                `SELECT connection_id
+                   FROM fixed_mana_slack_connection_adoption_orphans
+                  WHERE tenant_id = $1 AND connection_id = $2 AND connection_revision = $3
+                  FOR UPDATE`,
+                [fixed.tenant_id, fixed.connection_id, fixed.connection_revision]
+            );
+            if (orphanResult.rows[0]) {
+                throw new ContractError('FIXED_MANA_SLACK_CREDENTIAL_ORPHANED', { status: 503 });
+            }
+            const tenantResult = await client.query(
+                `SELECT tenant_revision, status
+                   FROM brainbase_tenants
+                  WHERE tenant_id = $1
+                  FOR SHARE`,
+                [fixed.tenant_id]
+            );
+            const tenant = tenantResult.rows[0];
+            if (!tenant || tenant.status !== 'active') {
+                throw new ContractError('TENANT_UNKNOWN', { status: 403 });
+            }
+            const contractResult = await client.query(
+                `SELECT c.contract_revision, rb.deployment_id, rb.profile
+                   FROM tenant_contract_revisions AS c
+                   JOIN tenant_contract_revision_runtime_bindings AS rb
+                     ON rb.tenant_id = c.tenant_id
+                    AND rb.contract_id = c.contract_id
+                    AND rb.contract_revision = c.contract_revision
+                  WHERE c.tenant_id = $1 AND c.status = 'active'
+                    AND c.effective_from <= $2
+                    AND (c.effective_until IS NULL OR c.effective_until > $2)
+                  ORDER BY c.contract_revision DESC
+                  LIMIT 1
+                  FOR SHARE`,
+                [fixed.tenant_id, installedAt]
+            );
+            const contract = contractResult.rows[0];
+            if (!contract) {
+                throw new ContractError('CONTRACT_UNAVAILABLE', {
+                    status: 503, retryable: true, fault_domain: 'brainbase_cloud'
+                });
+            }
+            const currentResult = await client.query(
+                `SELECT connection_id, connection_revision, status
+                   FROM workspace_connections
+                  WHERE tenant_id = $1 AND provider = 'slack'
+                    AND workspace_id = $2 AND app_id = $3
+                    AND status IN ('pending', 'active', 'reauth_required')
+                  LIMIT 2
+                  FOR UPDATE`,
+                [fixed.tenant_id, fixed.workspace_id, fixed.app_id]
+            );
+            if ((currentResult.rows ?? []).length !== 0) {
+                throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+            }
+            const snapshot = fixedManaSlackSnapshot(fixed, opaqueCredential, contract, tenant.tenant_revision, installedAt);
+            await client.query(
+                `INSERT INTO workspace_connection_revisions (
+                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
+                [fixed.tenant_id, fixed.connection_id, fixed.connection_revision, canonicalJson(snapshot), installedAt]
+            );
+            await client.query(
+                `INSERT INTO workspace_connections (
+                    connection_id, connection_revision, tenant_id, tenant_revision_at_write,
+                    provider, installation_id, workspace_id, enterprise_id, app_id, installer_id,
+                    granted_scopes, status, credential_ref, installed_at,
+                    deployment_id, profile, contract_revision
+                 ) VALUES ($1,$2,$3,$4,'slack',$5,$6,NULL,$7,NULL,$8,'active',$9,$10,$11,$12,$13)`,
+                [fixed.connection_id, fixed.connection_revision, fixed.tenant_id, tenant.tenant_revision,
+                    fixed.installation_id, fixed.workspace_id, fixed.app_id, fixed.required_scopes,
+                    opaqueCredential.credential_ref, installedAt, contract.deployment_id,
+                    contract.profile, String(contract.contract_revision)]
+            );
+            await client.query(
+                `INSERT INTO credential_broker_refs (
+                    credential_ref, tenant_id, connection_id, connection_revision,
+                    credential_mode, refresh_revision, created_at, updated_at
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$7)`,
+                [opaqueCredential.credential_ref, fixed.tenant_id, fixed.connection_id,
+                    fixed.connection_revision, opaqueCredential.credential_mode,
+                    opaqueCredential.refresh_revision, installedAt]
+            );
+            return publicFixedManaSlackSnapshot(snapshot);
+        });
+    }
+
+    async recordFixedManaSlackConnectionAdoptionOrphan({ definition, credential, failure_code }) {
+        const fixed = fixedManaSlackDefinition(definition);
+        const opaqueCredential = fixedManaSlackCredential(credential);
+        if (failure_code !== 'FIXED_MANA_SLACK_DB_REGISTRATION_FAILED') {
+            throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+        }
+        return this.withTenant(fixed.tenant_id, async (client) => {
+            await client.query(
+                `INSERT INTO fixed_mana_slack_connection_adoption_orphans (
+                    tenant_id, connection_id, connection_revision, credential_ref,
+                    credential_mode, failure_code, created_at
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+                 ON CONFLICT (tenant_id, connection_id, connection_revision) DO NOTHING`,
+                [fixed.tenant_id, fixed.connection_id, fixed.connection_revision,
+                    opaqueCredential.credential_ref, opaqueCredential.credential_mode,
+                    failure_code, this.now().toISOString()]
+            );
+            return { state: 'orphaned' };
+        });
+    }
+
+    async readFixedManaSlackConnection({ definition }) {
+        const fixed = fixedManaSlackDefinition(definition);
+        return this.withTenant(fixed.tenant_id, async (client) => {
+            const result = await client.query(
+                `SELECT wc.connection_id, wc.status, revision.connection_revision,
+                        cbr.credential_mode
+                   FROM workspace_connections AS wc
+                   JOIN workspace_connection_revisions AS revision
+                     ON revision.tenant_id = wc.tenant_id
+                    AND revision.connection_id = wc.connection_id
+                    AND revision.connection_revision = wc.connection_revision
+                   JOIN credential_broker_refs AS cbr
+                     ON cbr.tenant_id = wc.tenant_id
+                    AND cbr.connection_id = wc.connection_id
+                    AND cbr.connection_revision = wc.connection_revision
+                  WHERE wc.tenant_id = $1 AND wc.connection_id = $2
+                  FOR SHARE OF wc, revision, cbr`,
+                [fixed.tenant_id, fixed.connection_id]
+            );
+            const row = result.rows[0];
+            if (!row) return null;
+            return {
+                connection: { connection_id: row.connection_id, status: row.status },
+                revision: { connection_revision: String(row.connection_revision) },
+                credential: { credential_mode: row.credential_mode }
+            };
+        });
+    }
+
     async resolveOwnedResource({ tenant_id: tenantId, object_type: objectType, resource_id: resourceId }) {
         const descriptor = OWNED_RESOURCE_TABLES[objectType];
         if (!descriptor || typeof resourceId !== 'string' || resourceId.length === 0) {
@@ -328,6 +653,48 @@ export class MultitenantPostgresRepository {
                 tenant_id: row.tenant_id,
                 tenant_revision_at_write: String(row.tenant_revision_at_write)
             } : null;
+        });
+    }
+
+    async resolveProjectBindingById({ tenant_id: tenantId, project_id: projectId }) {
+        if (![tenantId, projectId].every((value) => typeof value === 'string' && value.length > 0)) {
+            throw new ContractError('PROJECT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT project.tenant_id, project.project_id, project.project_code,
+                        project.project_payload, tenant.status AS project_status
+                   FROM tenant_projects AS project
+                   JOIN brainbase_tenants AS tenant
+                     ON tenant.tenant_id = project.tenant_id
+                  WHERE project.tenant_id = $1 AND project.project_id = $2
+                    AND tenant.status = 'active'
+                  LIMIT 1
+                  FOR SHARE`,
+                [tenantId, projectId]
+            );
+            return result.rows[0] ?? null;
+        });
+    }
+
+    async resolveOrganizationBindingById({ tenant_id: tenantId, organization_id: organizationId }) {
+        if (![tenantId, organizationId].every((value) => typeof value === 'string' && value.length > 0)) {
+            throw new ContractError('ORGANIZATION_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT organization.tenant_id, organization.organization_id,
+                        organization.organization_payload, tenant.status AS tenant_status
+                   FROM tenant_organizations AS organization
+                   JOIN brainbase_tenants AS tenant
+                     ON tenant.tenant_id = organization.tenant_id
+                  WHERE organization.tenant_id = $1 AND organization.organization_id = $2
+                    AND tenant.status = 'active'
+                  LIMIT 1
+                  FOR SHARE`,
+                [tenantId, organizationId]
+            );
+            return result.rows[0] ?? null;
         });
     }
 
@@ -360,8 +727,8 @@ export class MultitenantPostgresRepository {
         expected_connection_revision = null,
         issued_at,
         expires_at
-    }) {
-        return this.withTenant(tenant_id, async (client) => {
+    }, { client: transactionClient = null } = {}) {
+        const createIntent = async (client) => {
             const tenantResult = await client.query(
                 `SELECT tenant_id, tenant_revision, status
                    FROM brainbase_tenants
@@ -390,7 +757,9 @@ export class MultitenantPostgresRepository {
             );
             if (!result.rows[0]) throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400 });
             return result.rows[0];
-        });
+        };
+        if (transactionClient) return createIntent(transactionClient);
+        return this.withTenant(tenant_id, createIntent);
     }
 
     async claimSlackInstallationExchange({
@@ -468,6 +837,7 @@ export class MultitenantPostgresRepository {
                         SET status = 'processing', request_digest = $3,
                             claim_token_hash = $4, claimed_at = $5,
                             attempt = attempt + 1, failure_code = NULL,
+                            failure_stage = NULL, cleanup_status = NULL,
                             connection_id = NULL, connection_revision = NULL,
                             response_payload = NULL, completed_at = NULL
                       WHERE tenant_id = $1 AND installation_intent_id = $2`,
@@ -509,6 +879,21 @@ export class MultitenantPostgresRepository {
             }
             if (row.consumed_at) throw new ContractError('INSTALLATION_STATE_REPLAYED', { status: 409 });
             return null;
+        });
+    }
+
+    async readSlackInstallationFailureDiagnostic({ tenant_id, installation_intent_id }) {
+        return this.withTenant(tenant_id, async (client) => {
+            const result = await client.query(
+                `SELECT tenant_id, installation_intent_id, request_digest, status,
+                        attempt, failure_stage, failure_code, cleanup_status
+                   FROM slack_installation_exchange_ledger
+                  WHERE tenant_id = $1 AND installation_intent_id = $2`,
+                [tenant_id, installation_intent_id]
+            );
+            const row = result.rows[0];
+            if (!row || row.status !== 'failed') return null;
+            return safeStoredSlackInstallationDiagnostic(row);
         });
     }
 
@@ -868,6 +1253,7 @@ export class MultitenantPostgresRepository {
                 `UPDATE slack_installation_exchange_ledger
                     SET status = 'completed', claim_token_hash = NULL,
                         claimed_at = NULL, failure_code = NULL,
+                        failure_stage = NULL, cleanup_status = NULL,
                         connection_id = $3, connection_revision = $4,
                         response_payload = $5::jsonb, completed_at = $6
                   WHERE tenant_id = $1 AND installation_intent_id = $2
@@ -890,26 +1276,31 @@ export class MultitenantPostgresRepository {
         intent,
         claim_token,
         request_digest,
+        failure_stage,
         failure_code = 'INSTALLATION_EXCHANGE_FAILED',
+        cleanup_status = 'not_needed',
         now = this.now().toISOString()
     }) {
         if (!intent || typeof claim_token !== 'string' || typeof request_digest !== 'string') return false;
-        const safeFailureCode = /^[A-Z0-9_:-]{1,128}$/u.test(String(failure_code))
-            ? String(failure_code)
-            : 'INSTALLATION_EXCHANGE_FAILED';
+        const safeFailureStage = normalizeSlackInstallationFailureStage(failure_stage);
+        const safeFailureCode = normalizeSlackInstallationFailureCode(failure_code, safeFailureStage);
+        const safeCleanupStatus = SLACK_INSTALLATION_CLEANUP_STATUSES.has(cleanup_status)
+            ? cleanup_status
+            : 'failed';
         return this.withTenant(intent.tenant_id, async (client) => {
             const result = await client.query(
                 `UPDATE slack_installation_exchange_ledger
                     SET status = 'failed', claim_token_hash = NULL,
                         claimed_at = NULL, failure_code = $3,
+                        failure_stage = $4, cleanup_status = $5,
                         completed_at = NULL, response_payload = NULL,
                         connection_id = NULL, connection_revision = NULL
                   WHERE tenant_id = $1 AND installation_intent_id = $2
                     AND status = 'processing'
-                    AND request_digest = $4
-                    AND claim_token_hash = $5`,
+                    AND request_digest = $6
+                    AND claim_token_hash = $7`,
                 [intent.tenant_id, intent.installation_intent_id, safeFailureCode,
-                    request_digest, sha256(claim_token)]
+                    safeFailureStage, safeCleanupStatus, request_digest, sha256(claim_token)]
             );
             if (result.rowCount !== 1) return false;
             return true;
@@ -1064,6 +1455,38 @@ export class MultitenantPostgresRepository {
                 || String(lease.connection_revision) !== String(input.connection_revision)) {
                 throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
             }
+            let projectBinding = null;
+            const hasProjectScope = Object.hasOwn(input, 'project_id')
+                || Object.hasOwn(input, 'project_code');
+            if (hasProjectScope) {
+                if (![input.project_id, input.project_code]
+                    .every((value) => typeof value === 'string' && value.length > 0)) {
+                    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+                }
+                const projectResult = await client.query(
+                    `SELECT project.tenant_id, project.project_id, project.project_code,
+                            project.project_payload, tenant.status AS project_status
+                       FROM tenant_projects AS project
+                       JOIN brainbase_tenants AS tenant
+                         ON tenant.tenant_id = project.tenant_id
+                      WHERE project.tenant_id = $1 AND project.project_id = $2
+                        AND tenant.status = 'active'
+                      LIMIT 1
+                      FOR SHARE`,
+                    [input.tenant_id, input.project_id]
+                );
+                try {
+                    projectBinding = authorityProjectBinding(projectResult.rows[0], {
+                        tenantId: input.tenant_id,
+                        projectId: input.project_id
+                    });
+                } catch {
+                    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+                }
+                if (projectBinding.project_code !== input.project_code) {
+                    throw new ContractError('CREDENTIAL_LEASE_SCOPE_MISMATCH', { status: 403 });
+                }
+            }
             if (lease.current_connection_status !== undefined
                 && (lease.current_connection_status !== 'active'
                     || String(lease.current_connection_revision) !== String(lease.connection_revision)
@@ -1092,7 +1515,8 @@ export class MultitenantPostgresRepository {
                 contract_revision: lease.contract_revision,
                 operation_id: lease.operation_id,
                 audience: lease.audience,
-                provider: lease.provider
+                provider: lease.provider,
+                ...(projectBinding ?? {})
             };
         });
     }

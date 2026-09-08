@@ -8,6 +8,26 @@ import {
     SnsMetricsPoller
 } from '../../../server/services/sns/sns-metrics-poller.js';
 
+const SNS_AUTHORITY = Object.freeze({
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'org_unson',
+    sub: 'sato_keigo',
+    org_ids: ['org_unson'],
+    role: 'member',
+    projectCodes: []
+});
+
+const OTHER_AUTHORITY = Object.freeze({
+    owner_person_id: 'other_person',
+    actor_person_id: 'other_person',
+    organization_id: 'org_other',
+    sub: 'other_person',
+    org_ids: ['org_other'],
+    role: 'member',
+    projectCodes: []
+});
+
 function makePostedLedger({
     status = 'posted',
     date = '2026-05-15',
@@ -23,16 +43,16 @@ function makePostedLedger({
             lane: 'learn_in_public',
             body: '投稿後の反応をLedgerに戻す'
         }]
-    });
-    let post = ledgerRepository.updatePost(ledgerRepository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
-    post = ledgerRepository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+    }, SNS_AUTHORITY);
+    let post = ledgerRepository.updatePost(ledgerRepository.listPosts({}, SNS_AUTHORITY)[0].id, { status: 'approved' }, SNS_AUTHORITY);
+    post = ledgerRepository.updatePost(post.id, { status: 'scheduled' }, SNS_AUTHORITY);
     post = ledgerRepository.updatePost(post.id, {
         status: 'posted',
         posted_url,
         posted_at: '2026-05-15T03:00:00.000Z'
-    }, { actor_person_id: 'sato_keigo' });
+    }, SNS_AUTHORITY);
     if (status === 'learning_ready') {
-        post = ledgerRepository.updatePost(post.id, { status: 'learning_ready' }, { actor_person_id: 'sato_keigo' });
+        post = ledgerRepository.updatePost(post.id, { status: 'learning_ready' }, SNS_AUTHORITY);
     }
     if (status === 'deleted') {
         post = ledgerRepository.updatePost(post.id, {
@@ -40,7 +60,7 @@ function makePostedLedger({
             deleted_at: '2026-05-15T04:00:00.000Z',
             deletion_source: 'manual_x_delete',
             deletion_reason: 'X上で削除した'
-        }, { actor_person_id: 'sato_keigo' });
+        }, SNS_AUTHORITY);
     }
     return { ledgerRepository, post };
 }
@@ -48,10 +68,12 @@ function makePostedLedger({
 function addPostedLedgerPost(ledgerRepository, {
     date = '2026-05-16',
     slot_index = 2,
-    posted_url = 'https://x.com/AIBizNavigator/status/2055000000000000002'
+    posted_url = 'https://x.com/AIBizNavigator/status/2055000000000000002',
+    account_id = 'acc_x_sato',
+    authority = SNS_AUTHORITY
 } = {}) {
     ledgerRepository.upsertReviewPack({
-        account_id: 'acc_x_sato',
+        account_id,
         account_handle: '@AIBizNavigator',
         drafts: [{
             date,
@@ -59,18 +81,18 @@ function addPostedLedgerPost(ledgerRepository, {
             lane: 'learn_in_public',
             body: `投稿後の反応をLedgerに戻す ${slot_index}`
         }]
-    });
-    let post = ledgerRepository.listPosts({ startDate: date, endDate: date })[0];
-    post = ledgerRepository.updatePost(post.id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
-    post = ledgerRepository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
+    }, authority);
+    let post = ledgerRepository.listPosts({ startDate: date, endDate: date }, authority)[0];
+    post = ledgerRepository.updatePost(post.id, { status: 'approved' }, authority);
+    post = ledgerRepository.updatePost(post.id, { status: 'scheduled' }, authority);
     return ledgerRepository.updatePost(post.id, {
         status: 'posted',
         posted_url,
         posted_at: `${date}T03:00:00.000Z`
-    }, { actor_person_id: 'sato_keigo' });
+    }, authority);
 }
 
-function makeAccountRepository() {
+function makeAccountRepository({ includeOtherPerson = false } = {}) {
     const accountRepository = new InMemoryAccountRepository();
     accountRepository.create({
         id: 'acc_x_sato',
@@ -82,6 +104,18 @@ function makeAccountRepository() {
         capabilities: ['post', 'read'],
         created_by_person_id: 'sato_keigo'
     });
+    if (includeOtherPerson) {
+        accountRepository.create({
+            id: 'acc_x_other',
+            service: 'x',
+            scope_type: 'personal',
+            owner_person_id: 'other_person',
+            display_name: 'other @X',
+            credential_ref: { provider: 'infisical', path: '/integrations/x/other', version: 'v1' },
+            capabilities: ['post', 'read'],
+            created_by_person_id: 'other_person'
+        });
+    }
     return accountRepository;
 }
 
@@ -94,6 +128,81 @@ describe('SnsMetricsPoller', () => {
         expect(extractTweetIdFromUrl('https://x.com/i/web/status/67890'))
             .toBe('67890');
         expect(extractTweetIdFromUrl('not a tweet')).toBeNull();
+    });
+
+    it('requires a canonical actor before reading the ledger or invoking X', async () => {
+        const ledgerRepository = {
+            listPosts: vi.fn(),
+            updatePost: vi.fn()
+        };
+        const xClient = { fetchTweetMetrics: vi.fn() };
+        const poller = new SnsMetricsPoller({
+            ledgerRepository,
+            accountRepository: makeAccountRepository(),
+            xClient
+        });
+
+        await expect(poller.run({ dry_run: true })).rejects.toThrow('owner_person_id is required');
+        expect(ledgerRepository.listPosts).not.toHaveBeenCalled();
+        expect(xClient.fetchTweetMetrics).not.toHaveBeenCalled();
+    });
+
+    it('keeps posts from another person and organization out of the polling run', async () => {
+        const ledgerRepository = new InMemorySnsPostingLedgerRepository();
+        const ownPost = addPostedLedgerPost(ledgerRepository, {
+            date: '2026-05-17',
+            slot_index: 1,
+            posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000003'
+        });
+        const otherPost = addPostedLedgerPost(ledgerRepository, {
+            date: '2026-05-17',
+            slot_index: 2,
+            posted_url: 'https://x.com/Other/status/2055000000000000004',
+            authority: OTHER_AUTHORITY
+        });
+        const xClient = {
+            fetchTweetMetrics: vi.fn(async () => ({
+                impressions: 12,
+                likes: 1,
+                reposts: 0,
+                replies: 0,
+                bookmarks: 0
+            }))
+        };
+        const poller = new SnsMetricsPoller({
+            ledgerRepository,
+            accountRepository: makeAccountRepository({ includeOtherPerson: true }),
+            xClient
+        });
+
+        const result = await poller.run({ limit: 10, date: '2026-05-17', actor: SNS_AUTHORITY });
+
+        expect(result).toMatchObject({ scanned: 1, polled: 1, failed: 0, skipped: 0 });
+        expect(result.polled_posts.map((entry) => entry.post_id)).toEqual([ownPost.id]);
+        expect(xClient.fetchTweetMetrics).toHaveBeenCalledTimes(1);
+        expect(ledgerRepository.findById(otherPost.id, OTHER_AUTHORITY).metrics_snapshots).toHaveLength(0);
+    });
+
+    it('does not use an account row outside the actor scope', async () => {
+        const ledgerRepository = new InMemorySnsPostingLedgerRepository();
+        const post = addPostedLedgerPost(ledgerRepository, {
+            date: '2026-05-18',
+            slot_index: 1,
+            account_id: 'acc_x_other',
+            posted_url: 'https://x.com/Other/status/2055000000000000005'
+        });
+        const xClient = { fetchTweetMetrics: vi.fn() };
+        const poller = new SnsMetricsPoller({
+            ledgerRepository,
+            accountRepository: makeAccountRepository({ includeOtherPerson: true }),
+            xClient
+        });
+
+        const result = await poller.run({ limit: 10, date: '2026-05-18', actor: SNS_AUTHORITY });
+
+        expect(result).toMatchObject({ scanned: 1, polled: 0, failed: 0, skipped: 1 });
+        expect(result.skipped_posts).toEqual([{ post_id: post.id, reason: 'account_outside_authority' }]);
+        expect(xClient.fetchTweetMetrics).not.toHaveBeenCalled();
     });
 
     it('polls posted Ledger records and appends metrics snapshots without changing status', async () => {
@@ -115,14 +224,14 @@ describe('SnsMetricsPoller', () => {
             now: () => new Date('2026-05-15T12:00:00.000Z')
         });
 
-        const result = await poller.run({ limit: 10 });
+        const result = await poller.run({ limit: 10, actor: SNS_AUTHORITY });
 
         expect(result).toMatchObject({ scanned: 1, polled: 1, failed: 0 });
         expect(xClient.fetchTweetMetrics).toHaveBeenCalledWith(
             { provider: 'infisical', path: '/integrations/x/sato', version: 'v1' },
             '2055000000000000001'
         );
-        const updated = ledgerRepository.findById(post.id);
+        const updated = ledgerRepository.findById(post.id, SNS_AUTHORITY);
         expect(updated.status).toBe('posted');
         expect(updated.metrics_snapshots).toHaveLength(1);
         expect(updated.metrics_snapshots[0]).toMatchObject({
@@ -144,7 +253,7 @@ describe('SnsMetricsPoller', () => {
             xClient: { fetchTweetMetrics: vi.fn() }
         });
 
-        const result = await poller.run();
+        const result = await poller.run({ actor: SNS_AUTHORITY });
 
         expect(result.scanned).toBe(0);
         expect(result.polled).toBe(0);
@@ -158,7 +267,7 @@ describe('SnsMetricsPoller', () => {
             xClient: { fetchTweetMetrics: vi.fn() }
         });
 
-        const result = await poller.run({ date: '2026-05-15', mark_learning_ready: true });
+        const result = await poller.run({ date: '2026-05-15', mark_learning_ready: true, actor: SNS_AUTHORITY });
 
         expect(result).toMatchObject({
             scanned: 1,
@@ -194,7 +303,7 @@ describe('SnsMetricsPoller', () => {
             xClient
         });
 
-        const result = await poller.run({ limit: 10, date: '2026-05-15' });
+        const result = await poller.run({ limit: 10, date: '2026-05-15', actor: SNS_AUTHORITY });
 
         expect(result).toMatchObject({
             date: '2026-05-15',
@@ -228,7 +337,7 @@ describe('SnsMetricsPoller', () => {
             now: () => new Date('2026-05-15T12:00:00.000Z')
         });
 
-        const result = await poller.run({ limit: 10, mark_learning_ready: true });
+        const result = await poller.run({ limit: 10, mark_learning_ready: true, actor: SNS_AUTHORITY });
 
         expect(result.polled_posts[0]).toMatchObject({
             post_id: post.id,
@@ -240,7 +349,7 @@ describe('SnsMetricsPoller', () => {
             promoted: 1,
             after: 1
         });
-        const updated = ledgerRepository.findById(post.id);
+        const updated = ledgerRepository.findById(post.id, SNS_AUTHORITY);
         expect(updated.status).toBe('learning_ready');
         expect(updated.metrics_snapshots).toHaveLength(1);
     });
@@ -261,7 +370,7 @@ describe('SnsMetricsPoller', () => {
             }
         });
 
-        const result = await poller.run({ limit: 10, dry_run: true, mark_learning_ready: true });
+        const result = await poller.run({ limit: 10, dry_run: true, mark_learning_ready: true, actor: SNS_AUTHORITY });
 
         expect(result).toMatchObject({
             dry_run: true,
@@ -273,7 +382,7 @@ describe('SnsMetricsPoller', () => {
                 after: 0
             }
         });
-        const updated = ledgerRepository.findById(post.id);
+        const updated = ledgerRepository.findById(post.id, SNS_AUTHORITY);
         expect(updated.status).toBe('posted');
         expect(updated.metrics_snapshots).toHaveLength(0);
     });
@@ -292,7 +401,7 @@ describe('SnsMetricsPoller', () => {
             }
         });
 
-        const result = await poller.run({ limit: 10, mark_learning_ready: true });
+        const result = await poller.run({ limit: 10, mark_learning_ready: true, actor: SNS_AUTHORITY });
 
         expect(result).toMatchObject({
             scanned: 1,
@@ -308,7 +417,7 @@ describe('SnsMetricsPoller', () => {
                 code: 'missing_tweet_data'
             }]
         });
-        expect(ledgerRepository.findById(post.id).status).toBe('posted');
+        expect(ledgerRepository.findById(post.id, SNS_AUTHORITY).status).toBe('posted');
     });
 
     it('fires anomaly notifier when reply ratio crosses the configured threshold', async () => {
@@ -330,7 +439,7 @@ describe('SnsMetricsPoller', () => {
             now: () => new Date('2026-05-15T12:00:00.000Z')
         });
 
-        const result = await poller.run();
+        const result = await poller.run({ actor: SNS_AUTHORITY });
 
         expect(result.anomalies).toHaveLength(1);
         expect(anomalyNotifier).toHaveBeenCalledTimes(1);
@@ -339,7 +448,7 @@ describe('SnsMetricsPoller', () => {
             tweet_id: '2055000000000000001',
             reason: 'reply-impression-ratio:0.130'
         });
-        expect(ledgerRepository.findById(post.id).metrics_snapshots[0].anomaly).toMatchObject({
+        expect(ledgerRepository.findById(post.id, SNS_AUTHORITY).metrics_snapshots[0].anomaly).toMatchObject({
             reason: 'reply-impression-ratio:0.130'
         });
     });

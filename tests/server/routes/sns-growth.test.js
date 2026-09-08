@@ -8,27 +8,69 @@ import { AccountService } from '../../../server/services/account/account-service
 import { InMemoryAccountRepository } from '../../../server/services/account/account-repository.js';
 import { InMemorySnsPostingLedgerRepository } from '../../../server/services/sns/posting-ledger-repository.js';
 
-function makeApp() {
+const DEFAULT_ACCESS = Object.freeze({
+    personId: 'sato_keigo',
+    organizationId: 'unson',
+    role: 'ceo',
+    projectCodes: ['brainbase']
+});
+
+const DEFAULT_AUTHORITY = Object.freeze({
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    sub: 'sato_keigo',
+    role: 'ceo',
+    org_ids: ['unson'],
+    projectCodes: ['brainbase']
+});
+
+function installTestAccess(app, access = DEFAULT_ACCESS) {
+    app.use((req, _res, next) => {
+        req.access = { ...access };
+        next();
+    });
+}
+
+function upsertReviewPack(repository, input, authority = DEFAULT_AUTHORITY) {
+    return repository.upsertReviewPack(input, authority);
+}
+
+function listPosts(repository, filters = {}, authority = DEFAULT_AUTHORITY) {
+    return repository.listPosts(filters, authority);
+}
+
+function findPost(repository, postId, authority = DEFAULT_AUTHORITY) {
+    return repository.findById(postId, authority);
+}
+
+function updatePost(repository, postId, patch, authority = DEFAULT_AUTHORITY) {
+    return repository.updatePost(postId, patch, authority);
+}
+
+function makeApp({ access = DEFAULT_ACCESS } = {}) {
     const repository = new InMemorySnsPostingLedgerRepository();
     const app = express();
     app.use(express.json());
+    installTestAccess(app, access);
     app.use('/api/sns-growth', createSnsGrowthRouter({ repository }));
     return { app, repository };
 }
 
-function makePublishingApp({ publishResult = { success: true, url: 'https://x.com/i/web/status/2055000000000000001' } } = {}) {
+function makePublishingApp({ publishResult = { success: true, url: 'https://x.com/i/web/status/2055000000000000001' }, access = DEFAULT_ACCESS } = {}) {
     const repository = new InMemorySnsPostingLedgerRepository();
     const app = express();
     app.use(express.json());
+    installTestAccess(app, access);
     const calls = [];
     const publishService = {
         async publishPost(postId, options) {
             calls.push({ postId, options });
             if (options.dry_run) {
-                const post = repository.findById(postId);
+                const post = repository.findById(postId, options.actor);
                 return { post, dry_run: true, publish_result: { dry_run: true, text: post.body } };
             }
-            const current = repository.findById(postId);
+            const current = repository.findById(postId, options.actor);
             let post = current;
             if (post.status === 'approved') {
                 post = repository.updatePost(post.id, { status: 'scheduled' }, options.actor);
@@ -80,9 +122,83 @@ describe('sns-growth routes', () => {
         expect(res.body.summary.by_status.review_needed).toBe(1);
     });
 
+    it('rejects another person from reading or updating the same post ID', async () => {
+        const { repository } = makeApp();
+        upsertReviewPack(repository, {
+            account_id: 'acc_x_sato',
+            drafts: [{
+                id: 'week_2026-05-18_1_person_scope',
+                date: '2026-05-18',
+                slot_index: 1,
+                lane: 'trust_balance',
+                body: 'person境界を越えてSNS投稿を読ませない'
+            }]
+        });
+        const post = listPosts(repository)[0];
+        const { app } = makeApp({
+            access: {
+                ...DEFAULT_ACCESS,
+                personId: 'other_person'
+            }
+        });
+
+        const list = await request(app)
+            .get('/api/sns-growth/posts?startDate=2026-05-18&endDate=2026-05-18')
+            .expect(200);
+        expect(list.body.posts.map((item) => item.id)).not.toContain(post.id);
+
+        const read = await request(app)
+            .post(`/api/sns-growth/posts/${post.id}/feedback`)
+            .send({ metrics_snapshot: { impressions: 1 } });
+        expect([403, 404]).toContain(read.status);
+
+        const update = await request(app)
+            .patch(`/api/sns-growth/posts/${post.id}`)
+            .send({ body: '別personによる更新は拒否する' });
+        expect([403, 404]).toContain(update.status);
+        expect(findPost(repository, post.id)?.body).toBe('person境界を越えてSNS投稿を読ませない');
+    });
+
+    it('rejects another organization from reading or updating the same post ID', async () => {
+        const { repository } = makeApp();
+        upsertReviewPack(repository, {
+            account_id: 'acc_x_sato',
+            drafts: [{
+                id: 'week_2026-05-18_1_organization_scope',
+                date: '2026-05-18',
+                slot_index: 1,
+                lane: 'trust_balance',
+                body: 'organization境界を越えてSNS投稿を読ませない'
+            }]
+        });
+        const post = listPosts(repository)[0];
+        const { app } = makeApp({
+            access: {
+                ...DEFAULT_ACCESS,
+                organizationId: 'org_other'
+            }
+        });
+
+        const list = await request(app)
+            .get('/api/sns-growth/posts?startDate=2026-05-18&endDate=2026-05-18')
+            .expect(200);
+        expect(list.body.posts.map((item) => item.id)).not.toContain(post.id);
+
+        const read = await request(app)
+            .post(`/api/sns-growth/posts/${post.id}/feedback`)
+            .send({ metrics_snapshot: { impressions: 1 } });
+        expect([403, 404]).toContain(read.status);
+
+        const update = await request(app)
+            .patch(`/api/sns-growth/posts/${post.id}`)
+            .send({ body: '別organizationによる更新は拒否する' });
+        expect([403, 404]).toContain(update.status);
+        expect(findPost(repository, post.id)?.body).toBe('organization境界を越えてSNS投稿を読ませない');
+    });
+
     it('reports duplicate review-pack rows as skipped instead of calendar posts', async () => {
         const { app, repository } = makeApp();
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 date: '2026-05-13',
@@ -110,12 +226,12 @@ describe('sns-growth routes', () => {
         expect(res.body.updated).toHaveLength(0);
         expect(res.body.skipped).toHaveLength(1);
         expect(res.body.skipped[0].reason).toBe('duplicate_body');
-        expect(repository.listPosts({ startDate: '2026-05-18', endDate: '2026-05-18' })).toHaveLength(0);
+        expect(listPosts(repository, { startDate: '2026-05-18', endDate: '2026-05-18' })).toHaveLength(0);
     });
 
     it('updates a post body and status through the operational API', async () => {
         const { app, repository } = makeApp();
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 id: 'week_2026-05-18_1_trust_balance',
@@ -130,7 +246,7 @@ describe('sns-growth routes', () => {
                 safety: { persona_affect: { likely_reader_feeling: '現場に接続できる' } }
             }]
         });
-        const post = repository.listPosts({})[0];
+        const post = listPosts(repository)[0];
 
         const res = await request(app)
             .patch(`/api/sns-growth/posts/${post.id}`)
@@ -147,7 +263,7 @@ describe('sns-growth routes', () => {
 
     it('dry-runs publishing without mutating the approved Ledger post', async () => {
         const { app, repository, calls } = makePublishingApp();
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 date: '2026-05-14',
@@ -156,7 +272,7 @@ describe('sns-growth routes', () => {
                 body: 'Claude Codeを会社で使うなら、レビュー境界を先に決める'
             }]
         });
-        const post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        const post = updatePost(repository, listPosts(repository)[0].id, { status: 'approved' });
 
         const res = await request(app)
             .post(`/api/sns-growth/posts/${post.id}/publish`)
@@ -166,12 +282,12 @@ describe('sns-growth routes', () => {
         expect(calls[0]).toMatchObject({ postId: post.id, options: { dry_run: true } });
         expect(res.body.dry_run).toBe(true);
         expect(res.body.post.status).toBe('approved');
-        expect(repository.findById(post.id).status).toBe('approved');
+        expect(findPost(repository, post.id).status).toBe('approved');
     });
 
     it('AC-005 rejects direct confirmed public publish without calling the provider', async () => {
         const { app, repository, calls } = makePublishingApp();
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 date: '2026-05-14',
@@ -180,7 +296,7 @@ describe('sns-growth routes', () => {
                 body: 'Claude Codeを会社で使うなら、レビュー境界を先に決める'
             }]
         });
-        const post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
+        const post = updatePost(repository, listPosts(repository)[0].id, { status: 'approved' });
 
         const res = await request(app)
             .post(`/api/sns-growth/posts/${post.id}/publish`)
@@ -189,12 +305,12 @@ describe('sns-growth routes', () => {
 
         expect(res.body).toMatchObject({ code: 'sns_direct_public_publish_disabled' });
         expect(calls).toHaveLength(0);
-        expect(repository.findById(post.id).status).toBe('approved');
+        expect(findPost(repository, post.id).status).toBe('approved');
     });
 
     it('marks a posted Ledger record as deleted without clearing the posted URL', async () => {
         const { app, repository } = makeApp();
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 date: '2026-05-14',
@@ -203,13 +319,13 @@ describe('sns-growth routes', () => {
                 body: 'Claude Codeを会社で使うなら、レビュー境界を先に決める'
             }]
         });
-        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, {
+        let post = updatePost(repository, listPosts(repository)[0].id, { status: 'approved' });
+        post = updatePost(repository, post.id, { status: 'scheduled' });
+        post = updatePost(repository, post.id, {
             status: 'posted',
             posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
             posted_at: '2026-05-14T03:00:00.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        });
 
         const res = await request(app)
             .patch(`/api/sns-growth/posts/${post.id}`)
@@ -232,7 +348,7 @@ describe('sns-growth routes', () => {
 
     it('records feedback metrics and advances a posted Ledger record to learning_ready', async () => {
         const { app, repository } = makeApp();
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 date: '2026-05-14',
@@ -241,13 +357,13 @@ describe('sns-growth routes', () => {
                 body: '投稿後の反応を学習候補に戻す'
             }]
         });
-        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, {
+        let post = updatePost(repository, listPosts(repository)[0].id, { status: 'approved' });
+        post = updatePost(repository, post.id, { status: 'scheduled' });
+        post = updatePost(repository, post.id, {
             status: 'posted',
             posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
             posted_at: '2026-05-14T03:00:00.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        });
 
         const res = await request(app)
             .post(`/api/sns-growth/posts/${post.id}/feedback`)
@@ -272,12 +388,12 @@ describe('sns-growth routes', () => {
             replies: 18,
             bookmarks: 21
         });
-        expect(repository.findById(post.id).status).toBe('learning_ready');
+        expect(findPost(repository, post.id).status).toBe('learning_ready');
     });
 
     it('rejects learning_ready transition without metrics evidence', async () => {
         const { app, repository } = makeApp();
-        repository.upsertReviewPack({
+        upsertReviewPack(repository, {
             account_id: 'acc_x_sato',
             drafts: [{
                 date: '2026-05-14',
@@ -286,13 +402,13 @@ describe('sns-growth routes', () => {
                 body: 'metricsなしで学習候補にしない'
             }]
         });
-        let post = repository.updatePost(repository.listPosts({})[0].id, { status: 'approved' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, { status: 'scheduled' }, { actor_person_id: 'sato_keigo' });
-        post = repository.updatePost(post.id, {
+        let post = updatePost(repository, listPosts(repository)[0].id, { status: 'approved' });
+        post = updatePost(repository, post.id, { status: 'scheduled' });
+        post = updatePost(repository, post.id, {
             status: 'posted',
             posted_url: 'https://x.com/AIBizNavigator/status/2055000000000000001',
             posted_at: '2026-05-14T03:00:00.000Z'
-        }, { actor_person_id: 'sato_keigo' });
+        });
 
         const res = await request(app)
             .post(`/api/sns-growth/posts/${post.id}/feedback`)
@@ -300,7 +416,7 @@ describe('sns-growth routes', () => {
             .expect(400);
 
         expect(res.body.code).toBe('sns_feedback_metrics_required');
-        expect(repository.findById(post.id).status).toBe('posted');
+        expect(findPost(repository, post.id).status).toBe('posted');
     });
 
     it('lists visible X accounts with redacted credential refs and default-purpose flags', async () => {
@@ -327,6 +443,7 @@ describe('sns-growth routes', () => {
         }, actor);
         const app = express();
         app.use(express.json());
+        installTestAccess(app);
         app.use('/api/sns-growth', createSnsGrowthRouter({
             repository: new InMemorySnsPostingLedgerRepository(),
             accountService,
@@ -371,6 +488,7 @@ describe('sns-growth routes', () => {
         }, actor);
         const app = express();
         app.use(express.json());
+        installTestAccess(app);
         app.use('/api/sns-growth', createSnsGrowthRouter({
             repository: new InMemorySnsPostingLedgerRepository(),
             accountService
@@ -399,6 +517,7 @@ describe('sns-growth routes', () => {
         }, { sub: 'other_person', actor_person_id: 'other_person', role: 'ceo', org_ids: [] });
         const app = express();
         app.use(express.json());
+        installTestAccess(app);
         app.use('/api/sns-growth', createSnsGrowthRouter({
             repository: new InMemorySnsPostingLedgerRepository(),
             accountService
@@ -430,6 +549,7 @@ describe('sns-growth routes', () => {
         };
         const app = express();
         app.use(express.json());
+        installTestAccess(app);
         app.use('/api/sns-growth', createSnsGrowthRouter({
             repository: new InMemorySnsPostingLedgerRepository(),
             accountService,
@@ -468,6 +588,7 @@ describe('sns-growth routes', () => {
         };
         const app = express();
         app.use(express.json());
+        installTestAccess(app);
         app.use('/api/sns-growth', createSnsGrowthRouter({
             repository: new InMemorySnsPostingLedgerRepository(),
             accountService,
@@ -518,6 +639,7 @@ describe('sns-growth routes', () => {
         };
         const app = express();
         app.use(express.json());
+        installTestAccess(app);
         app.use('/api/sns-growth', createSnsGrowthRouter({
             repository: new InMemorySnsPostingLedgerRepository(),
             accountService,
@@ -565,6 +687,7 @@ describe('sns-growth routes', () => {
         }, actor);
         const app = express();
         app.use(express.json());
+        installTestAccess(app);
         app.use('/api/sns-growth', createSnsGrowthRouter({
             repository: new InMemorySnsPostingLedgerRepository(),
             accountService,

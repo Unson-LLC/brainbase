@@ -1,0 +1,232 @@
+{
+  "schema_version": "0.1.0",
+  "tool": "vibepro",
+  "workspace": ".vibepro",
+  "output": {
+    "language": "ja"
+  },
+  "execution": {
+    "managed_worktree": "preferred"
+  },
+  "budgets": {
+    "pr_artifact_bytes": 16384
+  },
+  "brainbase": {
+    "stories": [
+      {
+        "story_id": "story-vibepro-diagnosis-commercialization-roadmap",
+        "title": "M1: VibePro 診断→商用化ロードマップ",
+        "ssot": "NocoDB",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null
+      },
+      {
+        "story_id": "story-brainbase-production-artifact-reconciliation",
+        "title": "本番artifact差分とGraph検証を同一releaseへ収束する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-t0-slack-installation-failure-diagnostics",
+        "title": "Slack installation失敗を秘密なしで段階別に再読込できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-delegation-turn-input-handoff",
+        "title": "委任復旧時の判断入力をMCPへ渡せる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-judgment-episode-live-value-receipt",
+        "title": "新規Codexタスクで判断レシートを本番表示する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-judgment-owner-audit-visibility-v1",
+        "title": "最終回答にBrainbase監査行を確実に表示する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-canonical-company-authority-context",
+        "title": "Brainbaseが会社権限を正本解決しMANAへ署名済みcontextを渡す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-mcp-auth-context-1396",
+        "title": "対話型MCPの判断と参照を同じ認証で実行する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-outcome-case-v1",
+        "title": "OutcomeCase v1 組織成果の閉鎖判断",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-t0-dedicated-slack-installation-oauth",
+        "title": "TechKnight専用Slack OAuthで別テナント接続できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-t0-human-tenant-access-provisioning",
+        "title": "別事業体の実利用者をテナント境界付きで登録できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-t0-initial-tenant-slack-oauth-bootstrap",
+        "title": "初期テナント管理者が最初のSlack接続を安全に作れる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-t0-slack-provider-error-readback",
+        "title": "Slack OAuth失敗を安全な固定コードで読戻せる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-p0-canonical-project-authority",
+        "title": "P0正規プロジェクト権限で個人知識を組織Graphへ昇格できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-g0-authority-bound-execution",
+        "title": "G0の権限必須承認を実行結果へ束縛する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-g0-post-approval-redelivery",
+        "title": "承認後の外部run再送を冪等に処理する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix",
+        "acceptance_criteria": [
+          "同一external run payloadは、人承認でrunとhuman stepの状態が更新された後に再送されてもduplicateとして200を返す。",
+          "同じrun IDで元payloadの内容が変わった再送は承認後もduplicate_payload_mismatchで拒否する。",
+          "承認後再送で承認処理やTask生成を再実行せず、既存Taskが1件のまま残る。"
+        ]
+      },
+      {
+        "story_id": "story-admin-read-tenant-boundary-repair",
+        "title": "認証済み管理ビューの読み取り経路を復旧する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix",
+        "acceptance_criteria": [
+          "認証済みの管理読み取りは、既存の人物・役割・プロジェクト・機密区分による制御を維持したまま応答する。",
+          "未認証の管理読み取りは401で拒否する。",
+          "監査書込みなどテナント所有資源を変更する経路は署名済みテナント境界を維持する。",
+          "実MCPから管理ビューを読み戻し、HTTP 400 TENANT_CONTEXT_INVALIDが解消したことを確認する。"
+        ]
+      }
+    ],
+    "current_story_id": "story-admin-read-tenant-boundary-repair"
+  }
+}

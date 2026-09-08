@@ -33,7 +33,8 @@ export function createAutomationRuntimeServices({
     canonicalTaskService = null,
     meetingKnowledgeEventBridge = null,
     meetingTaskOwnerResolver = null,
-    projectAccessPolicy = null
+    projectAccessPolicy = null,
+    companyAuthorityHumanApprovalService = null
 }) {
     const accessPolicy = projectAccessPolicy || new ProjectAccessPolicy({ configParser });
     const controlRuntime = new AutomationControlRuntime({
@@ -45,7 +46,7 @@ export function createAutomationRuntimeServices({
     const ownerResolver = meetingTaskOwnerResolver || new MeetingTaskOwnerResolver({ infoSSOTService });
     const runReceiptQueryService = new RunReceiptQueryService({
         repository,
-        prepareProjectAccess: () => accessPolicy.prepare(),
+        prepareProjectAccess: (actor) => accessPolicy.prepare(actor),
         assertProjectAccess: (projectId, actor) => accessPolicy.assertProjectAccess(projectId, actor),
         canAccessProject: (projectId, actor) => accessPolicy.canAccessProject(projectId, actor)
     });
@@ -66,11 +67,12 @@ export function createAutomationRuntimeServices({
         repository,
         runner,
         ensureDefaultWorkflows: () => automationRuntimeDefaultsService.ensure(),
-        prepareProjectAccess: () => accessPolicy.prepare(),
-        assertProjectSelectable: (projectId) => accessPolicy.assertProjectSelectable(projectId),
+        prepareProjectAccess: (actor) => accessPolicy.prepare(actor),
+        assertProjectSelectable: (projectId, actor) => accessPolicy.assertProjectSelectable(projectId, actor),
         assertProjectAccess: (projectId, actor) => accessPolicy.assertProjectAccess(projectId, actor),
         assertHumanStepAccess: assertActorCanResolveHumanStep,
-        canonicalTaskService
+        canonicalTaskService,
+        companyAuthorityHumanApprovalService
     });
     const companionApprovalInboxService = new CompanionApprovalInboxService({
         repository,
@@ -86,6 +88,7 @@ export function createAutomationRuntimeServices({
         companionApprovalInboxService,
         automationRuntimeDefaultsService,
         projectAccessPolicy: accessPolicy,
-        meetingTaskOwnerResolver: ownerResolver
+        meetingTaskOwnerResolver: ownerResolver,
+        companyAuthorityHumanApprovalService
     };
 }

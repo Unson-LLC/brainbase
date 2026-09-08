@@ -6,6 +6,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { loadRuntimeEnv } from '../../lib/load-runtime-env.js';
 import expectationManifest from '../../server/config/routine-expectations.json' with { type: 'json' };
 import { parseRoutineExpectations } from '../../server/services/routine-runtime/expectation-parser.js';
+import {
+    loadCompanyAuthorityResponse,
+    resolvePersonalKgCliAuthority
+} from '../lib/personal-kg-cli-authority.js';
 
 import {
     buildCodexAutomationReceipt,
@@ -13,6 +17,7 @@ import {
     enqueueCodexAutomationReceipt
 } from '../run-receipt/codex-automations-reporter.mjs';
 import { resolveRoutineReceiptPaths } from './runtime-paths.mjs';
+import { buildDailyOpsReportHtml, normalizeDailyOpsReport } from '../daily-ops-report.mjs';
 
 const ROUTINE_NAMES = Object.freeze(['ohayo', 'oyasumi', 'retro']);
 const routineExpectations = parseRoutineExpectations(expectationManifest);
@@ -95,21 +100,33 @@ export function serializeRoutineCliResult(result) {
         if (typeof result.routine_output.headline === 'string') {
             safeRoutineOutput.headline = result.routine_output.headline.slice(0, 2000);
         }
+        if (['deep', 'shallow', 'unconfirmed'].includes(result.routine_output.sleep_state)) {
+            safeRoutineOutput.sleep_state = result.routine_output.sleep_state;
+        }
         const reviewKeys = new Set([
             'personal_kg_registration_candidates',
             'personal_kg_registration_reviews',
             'graph_promotion_reviews'
         ]);
+        const feedbackKeys = new Set(['consolidated_memories', 'feedback_targets']);
         for (const key of [
-            'today_focus', 'immediate_decisions', 'warnings', 'carryovers', 'references',
+            'today_focus', 'ai_actions', 'immediate_decisions', 'warnings', 'carryovers', 'source_coverage', 'references',
+            'sleep_causes', 'consolidated_memories', 'associations', 'feedback_targets', 'unresolved_items',
             'tomorrow_focus', 'closed', 'personal_kg_registration_candidates',
-            'system_changes', 'repeated_patterns', 'personal_kg_registration_reviews', 'graph_promotion_reviews'
+            'system_changes', 'repeated_patterns', 'personal_kg_registration_reviews', 'graph_promotion_reviews',
+            'outcomes', 'decision_replays', 'changed_judgments', 'mistaken_assumptions'
         ]) {
             if (!Array.isArray(result.routine_output[key])) continue;
             safeRoutineOutput[key] = result.routine_output[key].slice(0, 10).map((item) => ({
                 ...(reviewKeys.has(key) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
+                ...(feedbackKeys.has(key) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
                 ...(reviewKeys.has(key) && typeof item?.status === 'string' ? { status: item.status.slice(0, 100) } : {}),
-                ...(key === 'references' && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
+                ...((key === 'references' || key === 'source_coverage' || feedbackKeys.has(key)) && typeof item?.source === 'string'
+                    ? { source: item.source.slice(0, 100) } : {}),
+                ...(key === 'source_coverage' && typeof item?.status === 'string'
+                    ? { status: item.status.slice(0, 100) } : {}),
+                ...(key === 'sleep_causes' && typeof item?.code === 'string' ? { code: item.code.slice(0, 100) } : {}),
+                ...(key === 'sleep_causes' && Number.isFinite(item?.count) ? { count: item.count } : {}),
                 ...(typeof item?.summary === 'string' ? { summary: item.summary.slice(0, 2000) } : {}),
                 ...(item?.applies_changes === false ? { applies_changes: false } : {})
             })).filter((item) => item.summary);
@@ -151,6 +168,80 @@ function persistRoutineSummary({ routine, routineSummary, varDir }) {
     const discoverableTarget = path.join(varDir, 'routine-artifacts', `${routine}-${contentSha256}.json`);
     if (!fs.existsSync(discoverableTarget)) fs.linkSync(target, discoverableTarget);
     return { kind: 'artifact_ref', ref: relativePath, label: 'routine_summary' };
+}
+
+function persistOhayoDayView({ input, routineOutput, varDir }) {
+    const dayView = input?.day_view;
+    if (!dayView || typeof dayView !== 'object' || !varDir) return null;
+    const date = typeof dayView.date === 'string' && /^\d{4}-\d{2}-\d{2}$/u.test(dayView.date)
+        ? dayView.date : new Date().toISOString().slice(0, 10);
+    const sourceCoverage = Array.isArray(routineOutput?.source_coverage)
+        ? routineOutput.source_coverage
+        : (Array.isArray(dayView.source_coverage) ? dayView.source_coverage : []);
+    const coverageEvidence = sourceCoverage
+        .map((item) => ({
+            label: `${String(item?.source || 'source')}: ${String(item?.status || 'unavailable')}`,
+            ref: String(item?.summary || '確認範囲を取得できませんでした')
+        }));
+    const priorityItems = (items, status) => (Array.isArray(items) ? items : []).map((item) => ({
+        ...item,
+        meta: { ...(item?.meta || {}), status }
+    }));
+    const report = normalizeDailyOpsReport({
+        mode: 'ohayo',
+        date,
+        title: '今日の見通し',
+        summary: [routineOutput?.headline, dayView.summary].filter(Boolean).join('。'),
+        calendar: dayView.calendar,
+        mail: dayView.mail,
+        slack: dayView.slack,
+        priorityTasks: [
+            ...priorityItems(dayView.today_focus, '今日の到達点'),
+            ...priorityItems(dayView.ai_actions, 'AIが進める'),
+            ...priorityItems(dayView.human_decisions, '要判断'),
+            ...priorityItems(dayView.carryovers, '持ち越し'),
+            ...(Array.isArray(dayView.priority_tasks) ? dayView.priority_tasks : [])
+        ],
+        evidence: [...coverageEvidence, ...(Array.isArray(dayView.evidence) ? dayView.evidence : [])]
+    });
+    const relativePath = path.posix.join('daily-ops-reports', `ohayo-${date}.html`);
+    const target = path.join(varDir, ...relativePath.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(target, buildDailyOpsReportHtml(report), { mode: 0o600 });
+    fs.writeFileSync(target.replace(/\.html$/u, '.json'), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+    return { kind: 'artifact_ref', ref: `ohayo-day-view:${relativePath}`, label: 'ohayo_day_view' };
+}
+
+function persistRetroWeekView({ input, routineOutput, varDir }) {
+    const weekView = input?.week_view;
+    if (!weekView || typeof weekView !== 'object' || !varDir) return null;
+    const until = typeof weekView.until === 'string' ? weekView.until.slice(0, 10) : new Date().toISOString().slice(0, 10);
+    const item = (value, status) => (Array.isArray(value) ? value : []).map((entry) => ({
+        ...entry,
+        meta: { ...(entry?.meta || {}), status }
+    }));
+    const report = normalizeDailyOpsReport({
+        mode: 'retro',
+        date: until,
+        title: '週次レトロ',
+        summary: routineOutput?.headline || weekView.summary || '',
+        outcomes: item(routineOutput?.outcomes, '確認済みOutcome'),
+        decisionReplays: item(routineOutput?.decision_replays, 'Replay'),
+        changedJudgments: item(routineOutput?.changed_judgments, '判断差分'),
+        mistakenAssumptions: item(routineOutput?.mistaken_assumptions, '要修正'),
+        repeatedPatterns: item(routineOutput?.repeated_patterns, '反復'),
+        systemChanges: item(routineOutput?.system_changes, '候補・未適用'),
+        personalKgReviews: item(routineOutput?.personal_kg_registration_reviews, '要レビュー'),
+        graphPromotionReviews: item(routineOutput?.graph_promotion_reviews, '要レビュー'),
+        sourceCoverage: item(routineOutput?.source_coverage, '確認範囲'),
+        evidence: Array.isArray(weekView.evidence) ? weekView.evidence : []
+    });
+    const relativePath = path.posix.join('daily-ops-reports', `retro-${until}.html`);
+    const target = path.join(varDir, ...relativePath.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(target, buildDailyOpsReportHtml(report), { mode: 0o600 });
+    fs.writeFileSync(target.replace(/\.html$/u, '.json'), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+    return { kind: 'artifact_ref', ref: `retro-week-view:${relativePath}`, label: 'retro_week_view' };
 }
 
 export function buildRoutineRunReceipt({
@@ -226,15 +317,67 @@ export async function runRoutine({
             routine_summary: { routine, status: 'failed', anomaly_count: 1 }
         };
     }
+    const varDir = env.BRAINBASE_VAR_DIR || resolveRoutineReceiptPaths({ repoDir, env }).varDir;
+    let dayViewRef = null;
+    if (routine === 'ohayo' && input?.day_view) {
+        try {
+            dayViewRef = persistOhayoDayView({
+                input,
+                routineOutput: cycleResult?.routine_output || cycleResult?.routine_summary?.routine_output,
+                varDir
+            });
+        } catch {
+            const anomalies = [
+                ...(Array.isArray(cycleResult?.anomalies) ? cycleResult.anomalies : []),
+                { code: 'ohayo_day_view_persistence_failed' }
+            ];
+            cycleResult = {
+                ...cycleResult,
+                status: cycleResult?.status === 'failed' ? 'failed' : 'partial',
+                coverage: 'partial',
+                anomalies,
+                routine_summary: {
+                    ...(cycleResult?.routine_summary || {}),
+                    routine,
+                    status: cycleResult?.status === 'failed' ? 'failed' : 'partial',
+                    coverage: 'partial',
+                    anomaly_count: anomalies.length
+                }
+            };
+        }
+    }
+    let weekViewRef = null;
+    if (routine === 'retro' && input?.week_view) {
+        try {
+            weekViewRef = persistRetroWeekView({
+                input,
+                routineOutput: cycleResult?.routine_output || cycleResult?.routine_summary?.routine_output,
+                varDir
+            });
+        } catch {
+            const anomalies = [
+                ...(Array.isArray(cycleResult?.anomalies) ? cycleResult.anomalies : []),
+                { code: 'retro_week_view_persistence_failed' }
+            ];
+            cycleResult = {
+                ...cycleResult,
+                status: cycleResult?.status === 'failed' ? 'failed' : 'partial',
+                coverage: 'partial',
+                anomalies
+            };
+        }
+    }
     const summaryRef = persistRoutineSummary({
         routine,
         routineSummary: cycleResult?.routine_summary,
-        varDir: env.BRAINBASE_VAR_DIR || resolveRoutineReceiptPaths({ repoDir, env }).varDir
+        varDir
     });
     const evidenceRefs = Array.isArray(cycleResult?.evidence_refs)
         ? cycleResult.evidence_refs.filter((ref) => !summaryRef || ref?.label !== 'routine_summary')
         : [];
     if (summaryRef) evidenceRefs.push(summaryRef);
+    if (dayViewRef) evidenceRefs.push(dayViewRef);
+    if (weekViewRef) evidenceRefs.push(weekViewRef);
     const receiptInput = {
         ...cycleResult,
         status: cycleResult?.status === 'partial' ? 'waiting_human' : cycleResult?.status,
@@ -268,6 +411,7 @@ export async function runRoutine({
         ...cycleResult,
         status: cycleResult.status,
         cycle_status: cycleResult.status,
+        evidence_refs: evidenceRefs,
         queued: queued.status,
         delivery
     };
@@ -281,22 +425,23 @@ export async function executeRoutineOverHttp({ routine, input = {}, env = proces
     if (!auth.serviceToken && !auth.internalApiKey) {
         throw new Error('routine authentication is required');
     }
-    const personId = env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID;
-    const organizationId = env.BRAINBASE_ORGANIZATION_ID;
-    if (!personId || !organizationId) {
-        throw new Error('BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID and BRAINBASE_ORGANIZATION_ID are required');
+    const useServerResolvedAuthority = Boolean(auth.internalApiKey);
+    const useRoutineServiceAuthority = ['oyasumi', 'retro'].includes(routine) && Boolean(auth.serviceToken);
+    let companyAuthorityResponse;
+    if (!useServerResolvedAuthority && !useRoutineServiceAuthority) {
+        resolvePersonalKgCliAuthority({ desiredEffect: 'read', env });
+        companyAuthorityResponse = loadCompanyAuthorityResponse(env);
     }
     const headers = {
         'Content-Type': 'application/json',
-        ...routineAuthHeaders(auth),
-        'x-brainbase-proxy-person-id': personId,
-        'x-brainbase-organization-id': organizationId
+        ...routineAuthHeaders(auth)
     };
     const response = await fetchImpl(`${baseUrl}/api/routines/${routine}/execute`, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-            thread_id: env.CODEX_THREAD_ID,
+            ...(env.CODEX_THREAD_ID ? { thread_id: env.CODEX_THREAD_ID } : {}),
+            ...(companyAuthorityResponse ? { company_authority_response: companyAuthorityResponse } : {}),
             input
         })
     });

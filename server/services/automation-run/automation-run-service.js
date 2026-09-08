@@ -157,7 +157,8 @@ export class AutomationRunService {
         assertProjectAccess = () => {},
         assertHumanStepAccess = () => {},
         canonicalTaskService = null,
-        checkpointRepository = null
+        checkpointRepository = null,
+        companyAuthorityHumanApprovalService = null
     }) {
         this.repository = repository;
         this.runner = runner;
@@ -167,6 +168,7 @@ export class AutomationRunService {
         this.assertProjectAccess = assertProjectAccess;
         this.assertHumanStepAccess = assertHumanStepAccess;
         this.canonicalTaskService = canonicalTaskService;
+        this.companyAuthorityHumanApprovalService = companyAuthorityHumanApprovalService;
         const operationRepository = canonicalTaskService?.operationRepository || null;
         this.checkpointRepository = checkpointRepository
             || (operationRepository?.pool && operationRepository?.writerToken
@@ -184,19 +186,21 @@ export class AutomationRunService {
     }
 
     async runWorkflow(workflowId, options = {}) {
-        await this.ensureDefaultWorkflows();
-        await this.prepareProjectAccess();
-        const workflow = this.repository.getWorkflow(workflowId);
-        if (!workflow) throw AppError.notFound('workflow', workflowId);
-        if (isRunReceiptWorkflow(workflow)) throw AppError.notFound('workflow', workflowId);
-        await this.assertProjectSelectable(workflow.project_id);
-        this.assertProjectAccess(workflow.project_id, {
+        const actor = {
             sub: options.actorId,
             person_id: options.actorId,
             projectCodes: options.projectCodes || [],
             role: options.role,
-            authSource: options.authSource
-        });
+            authSource: options.authSource,
+            organizationId: options.organizationId || options.organization_id || options.tenantId || null
+        };
+        await this.ensureDefaultWorkflows();
+        await this.prepareProjectAccess(actor);
+        const workflow = this.repository.getWorkflow(workflowId);
+        if (!workflow) throw AppError.notFound('workflow', workflowId);
+        if (isRunReceiptWorkflow(workflow)) throw AppError.notFound('workflow', workflowId);
+        await this.assertProjectSelectable(workflow.project_id, actor);
+        this.assertProjectAccess(workflow.project_id, actor);
         if (workflow.enabled === false) {
             throw AppError.validation(`workflow '${workflowId}' is disabled`);
         }
@@ -205,11 +209,34 @@ export class AutomationRunService {
     }
 
     async rerun(runId, options = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const previous = this.repository.getRun(runId);
         if (!previous) throw AppError.notFound('workflow_run', runId);
         if (isRunReceiptRun(previous)) throw AppError.notFound('workflow_run', runId);
         this.assertProjectAccess(previous.project_id, actor);
+        const companyAuthorityHumanStep = this.repository.listHumanSteps(runId).find((step) => (
+            step.metadata?.company_authority_required === true
+            || Object.prototype.hasOwnProperty.call(
+                step.metadata || {},
+                'company_authority_human_approval'
+            )
+            || Boolean(this.companyAuthorityHumanApprovalService?.isBound?.(step))
+        ));
+        if (
+            companyAuthorityHumanStep
+            || previous.company_authority_approval_receipt_id
+            || previous.source_human_step_id
+        ) {
+            const error = AppError.conflict(
+                `workflow run '${runId}' is bound to Company Authority approval and cannot be rerun`,
+                {
+                    code: 'company_authority_approved_run_rerun_forbidden',
+                    source_human_step_id: previous.source_human_step_id || companyAuthorityHumanStep?.id || null
+                }
+            );
+            error.code = 'company_authority_approved_run_rerun_forbidden';
+            throw error;
+        }
         const workflow = this.repository.getWorkflow(previous.workflow_id);
         assertWorkflowRunAllowed(workflow);
         return this.runWorkflow(previous.workflow_id, {
@@ -217,6 +244,7 @@ export class AutomationRunService {
             projectCodes: actor.projectCodes || [],
             role: actor.role,
             authSource: actor.authSource,
+            organizationId: actor.organizationId || actor.organization_id || actor.tenantId || null,
             parentRunId: runId,
             triggerType: 'retry',
             env: previous.env
@@ -225,7 +253,7 @@ export class AutomationRunService {
 
     async getRun(runId, actor = {}) {
         await this._reconcileCanonicalTaskCheckpoints({ runId });
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const run = this.repository.getRun(runId);
         if (!run) throw AppError.notFound('workflow_run', runId);
         if (isRunReceiptRun(run)) throw AppError.notFound('workflow_run', runId);
@@ -379,6 +407,18 @@ export class AutomationRunService {
         } : result;
     }
 
+    _withCompanyAuthorityApproval(result, approval) {
+        return approval ? {
+            ...result,
+            company_authority_approval: {
+                receipt: approval.receipt,
+                consumed_at: approval.consumed_at,
+                consumed_by: approval.consumed_by,
+                fresh_context: approval.fresh_context
+            }
+        } : result;
+    }
+
     _recordMaterialization(step, materialization, actor) {
         if (!materialization) return step;
         const auditId = `audit_canonical_task_materialization_${step.id}`;
@@ -399,6 +439,7 @@ export class AutomationRunService {
                 after: {
                     human_step_id: step.id,
                     task_ids: materialization.task_ids || [],
+                    operation_refs: materialization.operation_refs || [],
                     status: materialization.status || 'completed'
                 }
             });
@@ -607,22 +648,50 @@ export class AutomationRunService {
     }
 
     async resolveHumanStep(stepId, input = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         let initialStep = this.repository.getHumanStep(stepId);
         if (!initialStep) throw AppError.notFound('workflow_human_step', stepId);
         if (input.run_id && input.run_id !== initialStep.workflow_run_id) {
             throw AppError.validation(`human step '${stepId}' does not belong to run '${input.run_id}'`);
         }
-        this.assertProjectAccess(initialStep.project_id, actor);
+        const hasCompanyAuthorityMarker = Object.prototype.hasOwnProperty.call(
+            initialStep.metadata || {},
+            'company_authority_human_approval'
+        );
+        const projectAccessBinding = hasCompanyAuthorityMarker
+            && this.companyAuthorityHumanApprovalService?.verifiedProjectAccessBinding
+            ? this.companyAuthorityHumanApprovalService.verifiedProjectAccessBinding(initialStep)
+            : null;
+        const projectAccessId = projectAccessBinding
+            ? projectAccessBinding.project_access_key
+            : initialStep.project_id;
+        this.assertProjectAccess(projectAccessId, actor);
         this.assertHumanStepAccess(initialStep, actor);
         if (this._isCanonicalTaskHumanStep(initialStep)) input = this._canonicalTaskApprovalInput(initialStep, input);
         const initialResolution = input.resolution || input.status || 'approved';
+        const companyAuthorityRequired = initialStep.metadata?.company_authority_required === true;
+        const companyAuthorityBound = companyAuthorityRequired
+            || hasCompanyAuthorityMarker
+            || Boolean(this.companyAuthorityHumanApprovalService?.isBound?.(initialStep));
+        if (
+            companyAuthorityBound
+            && initialStep.status === 'pending'
+            && isApprovedHumanResolution(initialResolution)
+            && !this.companyAuthorityHumanApprovalService?.resolve
+        ) {
+            throw new AppError(
+                'Company Authority human approval service is unavailable',
+                { code: 'company_authority_human_approval_unavailable', statusCode: 503 }
+            );
+        }
+        let companyAuthorityApproval = null;
         const shouldPrepareCanonicalTaskCheckpoint = initialStep.status === 'pending'
             && isApprovedHumanResolution(initialResolution)
             && this._isCanonicalTaskHumanStep(initialStep)
             && Boolean(this.canonicalTaskService?.materializeWorkflowApproval)
             && this.checkpointRepository
-            && isApprovalOnlyIngestWorkflow(this.repository.getWorkflow(initialStep.workflow_id));
+            && isApprovalOnlyIngestWorkflow(this.repository.getWorkflow(initialStep.workflow_id))
+            && !companyAuthorityBound;
         if (shouldPrepareCanonicalTaskCheckpoint) {
             return this._resolveWithCheckpoint(initialStep, input, actor);
         }
@@ -667,18 +736,37 @@ export class AutomationRunService {
             && materializationEnabled
             && this.checkpointRepository
             && isApprovalOnlyIngestWorkflow(this.repository.getWorkflow(initialStep.workflow_id))
+            && !companyAuthorityBound
         ) {
             return this._resolveWithCheckpoint(initialStep, input, actor);
         }
-        const materialization = approvedResolution && materializationEnabled
-            ? await this._materializeCanonicalTaskApproval(initialStep, input, actor)
-            : null;
+        let materialization = null;
         const resolvedStatus = approvedResolution ? 'approved' : resolution;
-        const mutation = await this._transaction(() => {
+        const mutation = await this._transaction(async () => {
             const step = this.repository.getHumanStep(stepId);
             if (!step) throw AppError.notFound('workflow_human_step', stepId);
             if (step.status !== 'pending') {
                 throw AppError.conflict(`human step '${stepId}' is already ${step.status}`);
+            }
+            if (companyAuthorityBound && approvedResolution) {
+                companyAuthorityApproval = await this.companyAuthorityHumanApprovalService.resolve({
+                    step,
+                    input,
+                    actor
+                });
+                if (!companyAuthorityApproval
+                    || !companyAuthorityApproval.receipt?.receipt_id
+                    || !companyAuthorityApproval.consumed_at
+                    || !companyAuthorityApproval.consumed_by
+                    || !companyAuthorityApproval.fresh_context) {
+                    throw new AppError(
+                        'Company Authority human approval did not produce a valid consumed receipt',
+                        { code: 'company_authority_human_approval_invalid', statusCode: 503 }
+                    );
+                }
+            }
+            if (approvedResolution && materializationEnabled) {
+                materialization = await this._materializeCanonicalTaskApproval(step, input, actor);
             }
             const resolved = this.repository.updateHumanStep(stepId, {
                 status: resolvedStatus,
@@ -743,7 +831,12 @@ export class AutomationRunService {
                         status: closedRun?.status || 'cancelled'
                     }
                 });
-                return { terminal: this._withMaterialization({ human_step: resolved, resumed_run: closedRun }, materialization) };
+                return {
+                    terminal: this._withCompanyAuthorityApproval(
+                        this._withMaterialization({ human_step: resolved, resumed_run: closedRun }, materialization),
+                        companyAuthorityApproval
+                    )
+                };
             }
             if (isApprovalOnlyIngestWorkflow(workflow) && previousRun) {
                 const approvalLabel = isMeetingReviewPackageWorkflow(workflow) ? 'Meeting Review Package' : 'Agent report';
@@ -756,12 +849,17 @@ export class AutomationRunService {
                 const rejectedHumanSteps = allHumanSteps.filter((humanStep) => isRejectedHumanStepStatus(humanStep.status));
                 const allApproved = allHumanSteps.length > 0 && approvedHumanSteps.length === allHumanSteps.length;
                 const hasRejectedStep = rejectedHumanSteps.length > 0 || previousRun.status === 'cancelled';
+                const companyAuthorityRunLink = companyAuthorityApproval ? {
+                    company_authority_approval_receipt_id: companyAuthorityApproval.receipt.receipt_id,
+                    source_human_step_id: stepId
+                } : {};
                 const updatedRun = hasRejectedStep
                     ? this.repository.updateRun(previousRun.id, {
                         status: 'cancelled',
                         closure_state: 'closed',
                         human_waiting: false,
                         action_required: 'none',
+                        ...companyAuthorityRunLink,
                         message: `${approvalLabel} human approvals stopped after rejected gate`,
                         finished_at: new Date().toISOString()
                     })
@@ -770,6 +868,7 @@ export class AutomationRunService {
                         closure_state: allApproved ? 'closed' : 'open',
                         human_waiting: !allApproved,
                         action_required: allApproved ? 'none' : 'approve',
+                        ...companyAuthorityRunLink,
                         message: allApproved
                             ? `${approvalLabel} human approvals completed`
                             : `${approvalLabel} is waiting for ${pendingHumanSteps.length} human approval(s)`,
@@ -795,7 +894,12 @@ export class AutomationRunService {
                         closure_state: updatedRun?.closure_state || previousRun.closure_state
                     }
                 });
-                return { terminal: this._withMaterialization({ human_step: resolved, resumed_run: updatedRun }, materialization) };
+                return {
+                    terminal: this._withCompanyAuthorityApproval(
+                        this._withMaterialization({ human_step: resolved, resumed_run: updatedRun }, materialization),
+                        companyAuthorityApproval
+                    )
+                };
             }
             return { step, resolved, previousRun };
         });
@@ -803,9 +907,11 @@ export class AutomationRunService {
         const { step, resolved, previousRun } = mutation;
         const resume = await this.runWorkflow(step.workflow_id, {
             actorId: actor.person_id || actor.sub || 'system',
+            originalRequesterId: step.requested_by || previousRun?.started_by || null,
             projectCodes: actor.projectCodes || [],
             role: actor.role,
             authSource: actor.authSource,
+            organizationId: actor.organizationId || actor.organization_id || actor.tenantId || actor.tenant_id || null,
             parentRunId: step.workflow_run_id,
             triggerType: 'human_resume',
             env: previousRun?.env || 'local',
@@ -813,7 +919,8 @@ export class AutomationRunService {
                 stepId,
                 resolution,
                 responseRef: resolved.response_ref,
-                reason: resolved.reason
+                reason: resolved.reason,
+                companyAuthorityApprovalReceiptId: companyAuthorityApproval?.receipt?.receipt_id || null
             }
         });
         await this._transaction(() => {
@@ -831,7 +938,10 @@ export class AutomationRunService {
                 }
             });
         });
-        return this._withMaterialization({ human_step: resolved, resumed_run: resume.run }, materialization);
+        return this._withCompanyAuthorityApproval(
+            this._withMaterialization({ human_step: resolved, resumed_run: resume.run }, materialization),
+            companyAuthorityApproval
+        );
     }
 
     async _transaction(callback) {

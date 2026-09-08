@@ -92,6 +92,25 @@ function recentHistoryGenerationContext() {
       },
     },
     personal_kg: {
+      retrieval_purpose: 'public_lifelog_generation',
+      lifelog_entries: [
+        {
+          id: 'lifelog_duplicate',
+          body: 'SNS運用を「投稿を作る仕組み」じゃなくて、読者理解を学習に戻す個人ナレッジグラフとして作ってる。Xで反応を見る。反応から読者理解を更新する。次の仮説に戻す。投稿生成よりこっちが本体なんよな',
+          source_system: 'oyasumi-meeting-personal-kg',
+          category: 'work_log',
+          occurred_at: '2026-05-22T20:00:00.000Z',
+          evidence_ids: [{ uri: 'brainbase:test:lifelog_duplicate' }],
+        },
+        {
+          id: 'lifelog_mana_result',
+          body: '今日はMANAの実運用を振り返った。会議時間90%削減とPM工数75%削減を、自分の次の判断材料として残しておく。',
+          source_system: 'oyasumi-meeting-personal-kg',
+          category: 'work_log',
+          occurred_at: '2026-05-23T08:00:00.000Z',
+          evidence_ids: [{ uri: 'brainbase:test:lifelog_mana_result' }],
+        },
+      ],
       anchors: [
         'AI活用支援では、相手の決断の怖さを減らして責任を支えることが人間の仕事になる',
       ],
@@ -119,7 +138,7 @@ test('str-brainbase-sns-ohayo-dedupe-generation ac:1 generation context exposes 
 
   const context = await service.buildContext({
     date: '2026-05-23',
-    viewer: { actor_person_id: 'sato_keigo', org_ids: ['unson'] },
+    viewer: { owner_person_id: 'sato_keigo', actor_person_id: 'sato_keigo', organization_id: 'unson', org_ids: ['unson'] },
   });
 
   // str.brainbase.sns-ohayo-dedupe-generation ac:1
@@ -134,7 +153,7 @@ test('str-brainbase-sns-ohayo-dedupe-generation ac:1 generation context exposes 
   expect(context.generation_policy.recent_history.used_source_urls).toContain('https://x.com/near_ai_pm/status/2050000000000000001');
 });
 
-test('str-brainbase-sns-ohayo-dedupe-generation ac:2 ac:3 ac:4 avoids recent bodies and source URLs before Ledger import', async () => {
+test('str-brainbase-sns-ohayo-dedupe-generation ac:2 ac:3 ac:4 emits only new first-person lifelog bodies', async () => {
   const brief = buildBrief({
     date: '2026-05-23',
     jpTweets: JSON.parse(fs.readFileSync(jpFixture, 'utf8')),
@@ -151,19 +170,18 @@ test('str-brainbase-sns-ohayo-dedupe-generation ac:2 ac:3 ac:4 avoids recent bod
   expect(bodies).not.toContain('SNS運用を「投稿を作る仕組み」じゃなくて');
   expect('AC-2: `/ohayo` review pack does not emit a body that is identical or near-identical to a recent ledger body.').toContain('AC-2');
   // str.brainbase.sns-ohayo-dedupe-generation ac:3
-  // AC-3: Baseline posts vary by weekly plan topic, Personal KG anchors/proof points, and recent posting history instead of using only two fixed templates.
-  expect(brief.signals.reviewPack.posts.find((post) => post.slot === 'baseline_1')?.body).toContain('MANA');
-  expect('AC-3: Baseline posts vary by weekly plan topic, Personal KG anchors/proof points, and recent posting history instead of using only two fixed templates.').toContain('AC-3');
+  // AC-3: Current public-lifelog generation emits a new first-person Personal KG entry instead of a fixed baseline template.
+  expect(brief.signals.reviewPack.posts.find((post) => post.slot === 'lifelog_2')?.body).toContain('MANA');
+  expect('AC-3: Current public-lifelog generation emits a new first-person Personal KG entry instead of a fixed baseline template.').toContain('AC-3');
   // str.brainbase.sns-ohayo-dedupe-generation ac:4
-  // AC-4: Peer/news quote comments vary by source topic and avoid reusing previously used source URLs.
-  expect(brief.signals.reviewPack.posts.some((post) => post.source_url === 'https://x.com/near_ai_pm/status/2050000000000000001')).toBe(false);
-  expect('AC-4: Peer/news quote comments vary by source topic and avoid reusing previously used source URLs.').toContain('AC-4');
+  // AC-4: External peer/news URLs may become reflection prompts but never become public-lifelog posts.
+  expect(brief.signals.reviewPack.posts.every((post) => post.source_url === null)).toBe(true);
+  expect('AC-4: External peer/news URLs may become reflection prompts but never become public-lifelog posts.').toContain('AC-4');
   expect(brief.signals.reviewPack.holds).toEqual(expect.arrayContaining([
     expect.objectContaining({ reasons: expect.arrayContaining(['duplicate_recent_body']) }),
-    expect.objectContaining({ reasons: expect.arrayContaining(['source_url_already_used']) }),
   ]));
   expect(brief.markdown).toContain('duplicate_recent_body');
-  expect(brief.markdown).toContain('source_url_already_used');
+  expect(brief.markdown).toContain('外部情報からの内省プロンプト（投稿案ではない）');
 });
 
 test('str-brainbase-sns-ohayo-dedupe-generation ac:5 ac:6 Ledger import fails loudly for empty or all-skipped review packs', async () => {

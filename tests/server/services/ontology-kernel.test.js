@@ -174,6 +174,30 @@ describe('OntologyKernel', () => {
         }));
     });
 
+    it('required relationの対象外Entityもentity-level制約は検証する', () => {
+        const result = kernel().validateSnapshot({
+            entities: [
+                { id: 'decision_active', type: 'decision', payload: { status: 'active' } },
+                { id: 'decision_retired', type: 'decision', payload: { status: 'active' } }
+            ],
+            edges: [],
+            required_relation_validation_entity_ids: ['decision_active']
+        });
+
+        expect(result.violations).toContainEqual(expect.objectContaining({
+            rule_id: 'active-decision-context-required',
+            entity_id: 'decision_retired'
+        }));
+        expect(result.violations).not.toContainEqual(expect.objectContaining({
+            rule_id: 'effective-decision-decider-required',
+            entity_id: 'decision_retired'
+        }));
+        expect(result.violations).toContainEqual(expect.objectContaining({
+            rule_id: 'effective-decision-decider-required',
+            entity_id: 'decision_active'
+        }));
+    });
+
     it('does not approve a decided Decision on the entity-only validation path', () => {
         const result = kernel().validateEntity({ id: 'dec_entity_only', type: 'decision', payload: { status: 'decided' } });
         expect(result.valid).toBe(false);

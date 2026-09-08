@@ -21,6 +21,46 @@ function clientFor(repository, options) {
     return options.client;
 }
 
+function readablePersonalBody(body) {
+    if (typeof body !== 'string' || !body.trim()) return null;
+    const raw = body.trim();
+    try {
+        const parsed = JSON.parse(raw);
+        const preferred = [
+            parsed?.summary,
+            parsed?.principle,
+            parsed?.statement,
+            parsed?.decision?.statement,
+            parsed?.title,
+            parsed?.outcome,
+            parsed?.description
+        ].find((value) => typeof value === 'string' && value.trim());
+        if (preferred) return preferred.trim().slice(0, 2000);
+    } catch {
+        // Plain text is already suitable for the report.
+    }
+    return raw.slice(0, 2000);
+}
+
+function personalSleepReportMemory(event) {
+    const summary = readablePersonalBody(event?.body);
+    if (!event?.event_id || !summary) return null;
+    return { id: event.event_id, source: 'personal_kg', summary };
+}
+
+function personalSleepReportAssociations(events) {
+    const byEpisode = new Map();
+    for (const event of events) {
+        const memory = personalSleepReportMemory(event);
+        if (!memory || !event?.parent_episode_id) continue;
+        if (!byEpisode.has(event.parent_episode_id)) byEpisode.set(event.parent_episode_id, []);
+        byEpisode.get(event.parent_episode_id).push(memory.summary);
+    }
+    return [...byEpisode.values()].filter((summaries) => summaries.length > 1).map((summaries) => ({
+        summary: `「${summaries[0]}」と「${summaries[1]}」を同じ経験として関連付けました`
+    }));
+}
+
 export class PgPersonalKnowledgeRepository {
     constructor({ pool }) {
         if (!pool?.query) throw new Error('PgPersonalKnowledgeRepository requires pool');
@@ -154,7 +194,14 @@ export class PgPersonalKnowledgeRepository {
 
     async compressRoutineEpisodes({ project_id: projectCode, episode_ids: episodeIds = [] } = {}, options = {}) {
         const ids = [...new Set(episodeIds.filter(Boolean))];
-        if (ids.length === 0) return { confirmed: true, episode_ids: [], missing_ids: [] };
+        if (ids.length === 0) return {
+            confirmed: true,
+            episode_ids: [],
+            missing_ids: [],
+            consolidated_memories: [],
+            associations: [],
+            feedback_targets: []
+        };
         const client = clientFor(this, options);
         const { rows: events } = await client.query(
             `SELECT event_id, parent_episode_id, body_hash, body
@@ -197,7 +244,16 @@ export class PgPersonalKnowledgeRepository {
         );
         const savedIds = new Set(saved.map((row) => row.episode_id));
         const missingIds = ids.filter((id) => !savedIds.has(id));
-        return { confirmed: missingIds.length === 0, episode_ids: [...savedIds], missing_ids: missingIds };
+        const confirmedEvents = events.filter((event) => savedIds.has(event.parent_episode_id));
+        const consolidatedMemories = confirmedEvents.map(personalSleepReportMemory).filter(Boolean);
+        return {
+            confirmed: missingIds.length === 0,
+            episode_ids: [...savedIds],
+            missing_ids: missingIds,
+            consolidated_memories: consolidatedMemories,
+            associations: personalSleepReportAssociations(confirmedEvents),
+            feedback_targets: consolidatedMemories
+        };
     }
 
     async verifyRoutineRetrievability({ episode_ids: episodeIds = [] } = {}, options = {}) {
@@ -245,7 +301,7 @@ export class PgPersonalKnowledgeRepository {
 
     async findPromotionRequest(requestId, options = {}) {
         const { rows } = await clientFor(this, options).query(
-            'SELECT * FROM knowledge_promotion_requests WHERE request_id = $1 LIMIT 1', [requestId]
+            'SELECT * FROM knowledge_promotion_requests WHERE request_id = $1 LIMIT 1 FOR UPDATE', [requestId]
         );
         return rows[0] || null;
     }
@@ -280,18 +336,17 @@ export class PgPersonalKnowledgeRepository {
     }
 
     async createLineage(lineage, options = {}) {
-        const { rows } = await clientFor(this, options).query(
+        const result = await clientFor(this, options).query(
             `INSERT INTO knowledge_promotion_lineage
              (lineage_id, personal_event_id, organization_event_id, promotion_request_id,
               owner_person_id, organization_id, sanitization, created_at)
-             VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
-             ON CONFLICT (personal_event_id, organization_event_id) DO UPDATE
-             SET lineage_id = knowledge_promotion_lineage.lineage_id RETURNING *`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)`,
             [lineage.lineage_id, lineage.personal_event_id, lineage.organization_event_id,
                 lineage.promotion_request_id, lineage.owner_person_id, lineage.organization_id,
                 JSON.stringify(lineage.sanitization), lineage.created_at]
         );
-        return rows[0];
+        if (result.rowCount !== 1) throw new Error('personal_knowledge_promotion_lineage_insert_failed');
+        return { lineage_id: lineage.lineage_id, persisted: true };
     }
 }
 import { createHash } from 'node:crypto';

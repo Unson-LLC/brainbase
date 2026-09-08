@@ -39,6 +39,30 @@ function activeRegistryWith(overrides = {}) {
 }
 
 describe('InfoSSOTService ontology API', () => {
+    it('publishes the production receipt verification source without exposing key material', () => {
+        const previousPublicKey = process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+        try {
+            const result = new InfoSSOTService({
+                ontologyRegistry: new OntologyRegistry({ rootDir: sourceRoot })
+            }).describeOntology({ version: '1.1.0' });
+            expect(result).toMatchObject({
+                version: '1.1.0',
+                publication_verification: {
+                    status: 'verified',
+                    key_id: 'brainbase-ontology-production-2026-08-03',
+                    signature_algorithm: 'ed25519',
+                    trust_source: 'git_trust_store',
+                    receipt_digest: expect.stringMatching(/^[a-f0-9]{64}$/)
+                }
+            });
+            expect(JSON.stringify(result.publication_verification)).not.toContain('PUBLIC KEY');
+        } finally {
+            if (previousPublicKey === undefined) delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;
+            else process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY = previousPublicKey;
+        }
+    });
+
     it('describes an explicit immutable release with its digest', () => {
         const result = createService().describeOntology({ version: '1.0.0' });
         expect(result).toMatchObject({ version: '1.0.0', effective_status: 'proposed' });
@@ -193,7 +217,7 @@ describe('InfoSSOTService ontology API', () => {
             })
         });
         expect(statements).toContain('ROLLBACK');
-        expect(statements.filter((sql) => sql.trim().startsWith('INSERT INTO graph_entities'))).toHaveLength(1);
+        expect(statements.filter((sql) => sql.trim().startsWith('INSERT INTO graph_entities'))).toHaveLength(0);
     });
 
     it('rejects caller-declared context entities that do not exist in the canonical Graph', async () => {
@@ -354,7 +378,8 @@ describe('InfoSSOTService ontology API', () => {
             }
         );
 
-        const lockCalls = calls.filter(({ text }) => text.includes('pg_advisory_xact_lock'));
+        const lockCalls = calls.filter(({ text, params }) => text.includes('pg_advisory_xact_lock')
+            && String(params[0]).startsWith('ontology-aggregate:'));
         expect(lockCalls.map(({ params }) => params[0])).toEqual([
             'ontology-aggregate:app:new-concurrent',
             'ontology-aggregate:org:z-owner'

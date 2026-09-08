@@ -1,11 +1,19 @@
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import express from 'express';
+import jwt from 'jsonwebtoken';
 import pg from 'pg';
+import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { runTenantProvisioningMigration } from '../../../../scripts/migrate-tenant-production-provisioning.js';
+import { csrfMiddleware } from '../../../../server/middleware/csrf.js';
+import { registerSlackInstallationControlPlaneApiRoute } from '../../../../server/bootstrap/register-api-routes.js';
+import { createSlackInstallationControlPlaneFromEnv } from '../../../../server/bootstrap/slack-installation-control-plane.js';
 import { SlackInstallationControlPlane } from '../../../../server/services/multitenant/slack-installation-control-plane.js';
 import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
+import { ContractError } from '../../../../server/services/multitenant/errors.js';
+import { SLACK_INSTALLATION_SERVICE_CAPABILITY } from '../../../../server/services/multitenant/slack-installation-auth.js';
 
 const { Pool } = pg;
 
@@ -15,6 +23,8 @@ const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
 const intentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FAZ';
 const concurrentIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB3';
 const reinstallIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB4';
+const failedIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB6';
+const failedCredentialStoreIntentId = 'insi_01ARZ3NDEKTSV4RRFFQ69G5FB7';
 const contractId = 'ctr_01ARZ3NDEKTSV4RRFFQ69G5FB1';
 const deploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FB2';
 const appId = 'A0123456789';
@@ -25,6 +35,10 @@ const reinstallAppId = 'A9876543210';
 const reinstallWorkspaceId = 'T9876543210';
 const reinstallEnterpriseId = 'E9876543210';
 const reinstallInstallerId = 'U9876543210';
+const composedAppId = 'A1111111111';
+const composedWorkspaceId = 'T1111111111';
+const composedEnterpriseId = 'E1111111111';
+const composedInstallerId = 'U1111111111';
 const now = new Date('2026-08-19T00:00:00.000Z');
 
 describe.sequential('Slack installation control-plane PostgreSQL integration', () => {
@@ -82,15 +96,14 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
                 installer_id: installerId,
                 installation_id: `slack:${appId}:${workspaceId}`,
                 granted_scopes: ['chat:write', 'commands'],
-                credential_material: 'xoxb-integration-secret',
-                credential_refresh_material: 'xoxr-integration-secret'
+                credential_material: 'xoxb-integration-secret'
             }))
         };
         credentialStore = {
             store: vi.fn(async () => ({
                 credential_ref: 'vault://slack/unson-business/A0123456789/T0123456789',
                 credential_mode: 'customer_oauth',
-                refresh_revision: 1
+                refresh_revision: 0
             })),
             revoke: vi.fn()
         };
@@ -123,7 +136,26 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             });
     }, 120_000);
 
-    it('writes and reads back the intent, connection revision, opaque credential and exchange ledger atomically', async () => {
+    it('upgrades the legacy refresh revision constraint to allow zero', async () => {
+        await pool.query(`ALTER TABLE credential_broker_refs
+            DROP CONSTRAINT credential_broker_refs_refresh_revision_check`);
+        await pool.query(`ALTER TABLE credential_broker_refs
+            ADD CONSTRAINT credential_broker_refs_refresh_revision_check
+            CHECK (refresh_revision > 0)`);
+
+        const schema = await readFile(resolve(process.cwd(), 'server/sql/multitenant-platform-schema.sql'), 'utf8');
+        await pool.query(schema);
+
+        const constraint = await pool.query(
+            `SELECT pg_get_constraintdef(oid) AS definition
+               FROM pg_constraint
+              WHERE conrelid = 'credential_broker_refs'::regclass
+                AND conname = 'credential_broker_refs_refresh_revision_check'`
+        );
+        expect(constraint.rows).toEqual([{ definition: 'CHECK ((refresh_revision >= 0))' }]);
+    }, 120_000);
+
+    it('registers and reads back a Slack connection with refresh revision zero when no refresh token is issued', async () => {
         const intent = {
             installation_intent_id: intentId,
             tenant_id: tenantId,
@@ -188,14 +220,12 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             profile: 'shared_cloud',
             contract_revision: '1',
             credential_mode: 'customer_oauth',
-            refresh_revision: '1',
+            refresh_revision: '0',
             status: 'completed'
         });
         expect(stored.consumed_at).not.toBeNull();
         expect(stored.connection_snapshot).not.toContain('xoxb-integration-secret');
-        expect(stored.connection_snapshot).not.toContain('xoxr-integration-secret');
         expect(stored.response_payload).not.toContain('xoxb-integration-secret');
-        expect(stored.response_payload).not.toContain('xoxr-integration-secret');
 
         // Exchange retries read the completed ledger before calling Slack or
         // the secret store, so one OAuth event has one registration effect.
@@ -211,6 +241,405 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             'SELECT count(*)::integer AS count FROM slack_installation_exchange_ledger WHERE tenant_id = $1',
             [tenantId]
         )).toMatchObject({ rows: [{ count: 1 }] });
+    }, 120_000);
+
+    it('composes local bootstrap -> auth/CSRF -> authorize/exchange -> OAuth/credential adapter -> PostgreSQL failure readback (repository-level operator boundary)', async () => {
+        const humanSecret = 'slack-installation-composed-human-secret';
+        const serviceSecret = 'slack-installation-composed-service-secret';
+        const serviceDeploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FB9';
+        const serviceToken = `bbsvc_${jwt.sign({
+            typ: 'service',
+            issuer: 'brainbase',
+            subject: 'svc_mana_slack_installation_composed',
+            audience: 'mana-runtime',
+            deployment_id: serviceDeploymentId,
+            expires_at: '2030-01-01T00:00:00.000Z',
+            capabilities: [SLACK_INSTALLATION_SERVICE_CAPABILITY]
+        }, serviceSecret)}`;
+        const env = {
+            BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: serviceToken,
+            BRAINBASE_SERVICE_TOKEN_SECRET: serviceSecret,
+            BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: serviceDeploymentId,
+            BRAINBASE_SLACK_CREDENTIAL_STORE_URL: 'https://secrets.example.test/v1/credentials',
+            BRAINBASE_SLACK_CREDENTIAL_STORE_TOKEN: 'credential-store-token'
+        };
+        const authService = {
+            slackClientId: composedAppId,
+            slackClientSecret: 'oauth-client-secret-local-only',
+            tokenUrl: 'https://slack.example.test/api/oauth.v2.access',
+            slackMode: 'oauth',
+            verifyToken: (token) => jwt.verify(token, humanSecret)
+        };
+        const fetchImpl = vi.fn(async (url, init) => {
+            if (url === authService.tokenUrl) {
+                const body = new URLSearchParams(init.body);
+                expect(body.get('code')).toBe('oauth-composed-code');
+                expect(body.get('client_id')).toBe(composedAppId);
+                return Response.json({
+                    ok: true,
+                    api_app_id: composedAppId,
+                    team: { id: composedWorkspaceId },
+                    enterprise: { id: composedEnterpriseId },
+                    authed_user: { id: composedInstallerId },
+                    scope: 'chat:write,commands',
+                    access_token: 'xoxb-composed-secret',
+                    refresh_token: 'xoxr-composed-secret'
+                });
+            }
+            throw new Error('credential-store-network-secret');
+        });
+        const previousProcessEnv = new Map([
+            ...Object.keys(env),
+            'BRAINBASE_JWT_SECRET',
+            'NODE_ENV'
+        ].map((key) => [key, process.env[key]]));
+
+        try {
+            process.env.NODE_ENV = 'production';
+            process.env.BRAINBASE_JWT_SECRET = humanSecret;
+            for (const [key, value] of Object.entries(env)) process.env[key] = value;
+
+            // Build the route from the production bootstrap so this one path
+            // exercises the real OAuth and credential-store adapters.
+            const runtime = createSlackInstallationControlPlaneFromEnv({
+                pool,
+                authService,
+                env,
+                now: () => now,
+                fetchImpl
+            });
+            expect(runtime).toMatchObject({ ready: true, reason: null, appId: composedAppId });
+
+            const app = express();
+            app.use(express.json());
+            app.use(csrfMiddleware());
+            registerSlackInstallationControlPlaneApiRoute(app, {
+                controlPlane: runtime.controlPlane,
+                authMiddleware: runtime.authMiddleware,
+                appId: runtime.appId,
+                resolvePreProvisionedConnection: runtime.resolvePreProvisionedConnection,
+                authEnv: env,
+                authNow: () => now
+            });
+
+            const humanToken = jwt.sign({
+                typ: 'user',
+                sub: personId,
+                role: 'tenant_admin',
+                organizationId: tenantId,
+                projectCodes: ['mana'],
+                clearance: ['internal']
+            }, humanSecret, { expiresIn: '10m' });
+            const authorizeResponse = await request(app)
+                .post('/api/v1/slack-installations:authorize')
+                .set('Authorization', `Bearer ${humanToken}`)
+                .send({
+                    app_id: composedAppId,
+                    expected_workspace_id: composedWorkspaceId,
+                    expected_enterprise_id: composedEnterpriseId
+                });
+            expect(authorizeResponse.status).toBe(200);
+            const intent = authorizeResponse.body.result;
+            expect(intent).toMatchObject({
+                installation_intent_id: expect.any(String),
+                tenant_id: tenantId,
+                app_id: composedAppId,
+                expected_workspace_id: composedWorkspaceId,
+                expected_enterprise_id: composedEnterpriseId,
+                initiated_by_person_id: personId
+            });
+
+            const exchangeResponse = await request(app)
+                .post('/api/v1/slack-installations:exchange-and-register')
+                .set('Authorization', `Bearer ${serviceToken}`)
+                .send({
+                    authorization_code: 'oauth-composed-code',
+                    redirect_uri: 'https://mana.example.test/oauth/slack/composed-callback',
+                    intent
+                });
+            expect(exchangeResponse.status).toBe(503);
+            expect(exchangeResponse.body).toEqual({
+                error: { code: 'UPSTREAM_UNAVAILABLE', retryable: true, fault_domain: 'brainbase_cloud' }
+            });
+            expect(JSON.stringify(exchangeResponse.body)).not.toContain('xoxb-composed-secret');
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+            expect(fetchImpl.mock.calls[1][0]).toContain('/v1/credentials');
+
+            // Repository-level diagnostic readback is the current operator
+            // acceptance boundary; no public diagnostic API or UI is added.
+            await expect(repository.readSlackInstallationFailureDiagnostic({
+                tenant_id: tenantId,
+                installation_intent_id: intent.installation_intent_id
+            })).resolves.toMatchObject({
+                tenant_id: tenantId,
+                installation_intent_id: intent.installation_intent_id,
+                attempt: 1,
+                failure_stage: 'credential_store',
+                failure_code: 'CREDENTIAL_STORE_UNAVAILABLE',
+                cleanup_status: 'not_needed'
+            });
+        } finally {
+            for (const [key, value] of previousProcessEnv) {
+                if (value === undefined) delete process.env[key];
+                else process.env[key] = value;
+            }
+        }
+    }, 120_000);
+
+    it('composes dedicated bootstrap -> human authorize -> signed HTTPS callback -> OAuth/store -> PostgreSQL readback', async () => {
+        const humanSecret = 'slack-installation-success-human-secret';
+        const serviceSecret = 'slack-installation-success-service-secret';
+        const dedicatedAppId = 'A2222222222';
+        const dedicatedWorkspaceId = 'T2222222222';
+        const dedicatedInstallerId = 'U2222222222';
+        const redirectUri = 'https://bb.unson.jp/api/v1/slack-installations:callback';
+        const env = {
+            BRAINBASE_SLACK_INSTALLATION_APP_ID: dedicatedAppId,
+            BRAINBASE_SLACK_INSTALLATION_CLIENT_ID: 'dedicated-client-id',
+            BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET: 'dedicated-client-secret',
+            BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI: redirectUri,
+            BRAINBASE_SLACK_INSTALLATION_STATE_SECRET: 'dedicated-state-secret-long-enough-for-tests',
+            BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES: 'chat:write,commands',
+            BRAINBASE_SLACK_INSTALLATION_TOKEN_URL: 'https://dedicated-slack.example.test/api/oauth.v2.access',
+            BRAINBASE_SLACK_INSTALLATION_CONTROL_PLANE_SERVICE_TOKEN: 'bbsvc_not-used-by-browser-callback',
+            BRAINBASE_SERVICE_TOKEN_SECRET: serviceSecret,
+            BRAINBASE_SLACK_INSTALLATION_SERVICE_DEPLOYMENT_ID: 'dep_01ARZ3NDEKTSV4RRFFQ69FB8',
+            BRAINBASE_SLACK_CREDENTIAL_STORE_URL: 'https://secrets.example.test/v1/credentials',
+            BRAINBASE_SLACK_CREDENTIAL_STORE_TOKEN: 'credential-store-token'
+        };
+        const authService = {
+            slackClientId: 'login-client-id-must-not-be-used',
+            slackClientSecret: 'login-client-secret-must-not-be-used',
+            tokenUrl: 'https://slack.example.test/api/oauth.v2.access',
+            slackMode: 'oauth',
+            verifyToken: (token) => jwt.verify(token, humanSecret)
+        };
+        const fetchImpl = vi.fn(async (url, init) => {
+            if (url === env.BRAINBASE_SLACK_INSTALLATION_TOKEN_URL) {
+                const body = new URLSearchParams(init.body);
+                expect(body.get('client_id')).toBe('dedicated-client-id');
+                expect(body.get('client_secret')).toBe('dedicated-client-secret');
+                expect(body.get('redirect_uri')).toBe(redirectUri);
+                return Response.json({
+                    ok: true,
+                    api_app_id: dedicatedAppId,
+                    team: { id: dedicatedWorkspaceId },
+                    authed_user: { id: dedicatedInstallerId },
+                    scope: 'chat:write,commands',
+                    access_token: 'xoxb-dedicated-secret'
+                });
+            }
+            if (url === env.BRAINBASE_SLACK_CREDENTIAL_STORE_URL) {
+                expect(init.headers.authorization).toBe('Bearer credential-store-token');
+                const body = JSON.parse(init.body);
+                expect(body.credential_material).toBe('xoxb-dedicated-secret');
+                return Response.json({ result: {
+                    credential_ref: 'credref://techknight/slack/primary',
+                    credential_mode: 'customer_oauth',
+                    refresh_revision: 1
+                } });
+            }
+            throw new Error('unexpected URL');
+        });
+        const previousProcessEnv = new Map([
+            ...Object.keys(env),
+            'BRAINBASE_JWT_SECRET',
+            'NODE_ENV'
+        ].map((key) => [key, process.env[key]]));
+
+        try {
+            process.env.NODE_ENV = 'production';
+            process.env.BRAINBASE_JWT_SECRET = humanSecret;
+            for (const [key, value] of Object.entries(env)) process.env[key] = value;
+            const runtime = createSlackInstallationControlPlaneFromEnv({
+                pool,
+                authService,
+                env,
+                now: () => now,
+                fetchImpl
+            });
+            expect(runtime).toMatchObject({ ready: true, appId: dedicatedAppId });
+
+            const app = express();
+            app.use(express.json());
+            app.use(csrfMiddleware());
+            registerSlackInstallationControlPlaneApiRoute(app, {
+                controlPlane: runtime.controlPlane,
+                authMiddleware: runtime.authMiddleware,
+                appId: runtime.appId,
+                oauthFlow: runtime.oauthFlow
+            });
+            const humanToken = jwt.sign({
+                typ: 'user',
+                sub: personId,
+                role: 'tenant_admin',
+                organizationId: tenantId,
+                projectCodes: ['mana'],
+                clearance: ['internal']
+            }, humanSecret, { expiresIn: '10m' });
+            const authorizeResponse = await request(app)
+                .post('/api/v1/slack-installations:authorize')
+                .set('Authorization', `Bearer ${humanToken}`)
+                .send({ app_id: dedicatedAppId, expected_workspace_id: dedicatedWorkspaceId });
+            expect(authorizeResponse.status).toBe(200);
+            const authorizationUrl = new URL(authorizeResponse.body.result.authorization_url);
+            const signedState = authorizationUrl.searchParams.get('state');
+            const tamperedState = `${signedState.slice(0, -1)}${signedState.endsWith('a') ? 'b' : 'a'}`;
+
+            const tamperedCallbackResponse = await request(app)
+                .get('/api/v1/slack-installations:callback')
+                .query({ code: 'must-not-be-exchanged', state: tamperedState });
+            expect(tamperedCallbackResponse.status).toBe(400);
+            expect(tamperedCallbackResponse.body).toEqual({
+                error: { code: 'INSTALLATION_STATE_INVALID', retryable: false, fault_domain: 'protocol' }
+            });
+            expect(fetchImpl).not.toHaveBeenCalled();
+
+            const beforeExchange = await pool.query(
+                `SELECT (SELECT count(*)::int FROM workspace_connections
+                          WHERE tenant_id = $1 AND workspace_id = $2) AS connection_count,
+                        consumed_at
+                   FROM slack_installation_intents
+                  WHERE tenant_id = $1 AND installation_intent_id = $3`,
+                [tenantId, dedicatedWorkspaceId, authorizeResponse.body.result.installation_intent_id]
+            );
+            expect(beforeExchange.rows).toEqual([{
+                connection_count: 0,
+                consumed_at: null
+            }]);
+
+            const callbackResponse = await request(app)
+                .get('/api/v1/slack-installations:callback')
+                .query({ code: 'dedicated-one-time-code', state: signedState });
+            expect(callbackResponse.status).toBe(200);
+            expect(callbackResponse.text).not.toContain('dedicated-one-time-code');
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+            const duplicateCallbackResponse = await request(app)
+                .get('/api/v1/slack-installations:callback')
+                .query({ code: 'dedicated-one-time-code', state: signedState });
+            expect(duplicateCallbackResponse.status).toBe(200);
+            expect(duplicateCallbackResponse.text).not.toContain('dedicated-one-time-code');
+            expect(fetchImpl).toHaveBeenCalledTimes(2);
+
+            const stored = await pool.query(
+                `SELECT wc.tenant_id, wc.workspace_id, wc.app_id, wc.credential_ref,
+                        ledger.status, intent.consumed_at
+                   FROM workspace_connections wc
+                   JOIN slack_installation_exchange_ledger ledger
+                     ON ledger.tenant_id = wc.tenant_id
+                    AND ledger.connection_id = wc.connection_id
+                   JOIN slack_installation_intents intent
+                     ON intent.tenant_id = ledger.tenant_id
+                    AND intent.installation_intent_id = ledger.installation_intent_id
+                  WHERE wc.tenant_id = $1 AND wc.workspace_id = $2`,
+                [tenantId, dedicatedWorkspaceId]
+            );
+            expect(stored.rows).toEqual([expect.objectContaining({
+                tenant_id: tenantId,
+                workspace_id: dedicatedWorkspaceId,
+                app_id: dedicatedAppId,
+                credential_ref: 'credref://techknight/slack/primary',
+                status: 'completed',
+                consumed_at: expect.any(Date)
+            })]);
+        } finally {
+            for (const [key, value] of previousProcessEnv) {
+                if (value === undefined) delete process.env[key];
+                else process.env[key] = value;
+            }
+        }
+    }, 120_000);
+
+    it('writes and reads a bounded failed diagnostic without retaining claim or response data', async () => {
+        const intent = {
+            installation_intent_id: failedIntentId,
+            tenant_id: tenantId,
+            app_id: appId,
+            expected_workspace_id: workspaceId,
+            expected_enterprise_id: enterpriseId,
+            initiated_by_person_id: personId
+        };
+        await controlPlane.authorizeBinding(intent);
+        oauthClient.exchangeCode.mockRejectedValueOnce(
+            new ContractError('CREDENTIAL_STORE_UNAVAILABLE', { status: 503 })
+        );
+
+        await expect(controlPlane.exchange_and_register({
+            authorization_code: 'oauth-failure-code',
+            redirect_uri: 'https://mana.example.test/oauth/slack/callback',
+            intent
+        })).rejects.toMatchObject({ code: 'CREDENTIAL_STORE_UNAVAILABLE' });
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: failedIntentId
+        })).resolves.toMatchObject({
+            tenant_id: tenantId,
+            installation_intent_id: failedIntentId,
+            attempt: 1,
+            failure_stage: 'oauth_exchange',
+            failure_code: 'OAUTH_EXCHANGE_FAILED',
+            cleanup_status: 'not_needed'
+        });
+
+        const { rows: [ledger] } = await pool.query(
+            `SELECT status, failure_stage, failure_code, cleanup_status,
+                    claim_token_hash, response_payload, connection_id, connection_revision
+               FROM slack_installation_exchange_ledger
+              WHERE tenant_id = $1 AND installation_intent_id = $2`,
+            [tenantId, failedIntentId]
+        );
+        expect(ledger).toEqual(expect.objectContaining({
+            status: 'failed',
+            failure_stage: 'oauth_exchange',
+            failure_code: 'OAUTH_EXCHANGE_FAILED',
+            cleanup_status: 'not_needed',
+            claim_token_hash: null,
+            response_payload: null,
+            connection_id: null,
+            connection_revision: null
+        }));
+    }, 120_000);
+
+    it('records cleanup as not needed when credential storage fails before returning a reference', async () => {
+        const intent = {
+            installation_intent_id: failedCredentialStoreIntentId,
+            tenant_id: tenantId,
+            app_id: appId,
+            expected_workspace_id: workspaceId,
+            expected_enterprise_id: enterpriseId,
+            initiated_by_person_id: personId,
+            expected_connection_revision: '1'
+        };
+        const failingCredentialStore = {
+            store: vi.fn(async () => { throw new Error('credential store unavailable'); }),
+            revoke: vi.fn()
+        };
+        const failingControlPlane = new SlackInstallationControlPlane({
+            repository,
+            oauthClient,
+            credentialStore: failingCredentialStore,
+            now: () => now,
+            ttlSeconds: 600
+        });
+        await failingControlPlane.authorizeBinding(intent);
+
+        await expect(failingControlPlane.exchange_and_register({
+            authorization_code: 'oauth-credential-store-failure-code',
+            redirect_uri: 'https://mana.example.test/oauth/slack/callback',
+            intent
+        })).rejects.toThrow('credential store unavailable');
+        expect(failingCredentialStore.revoke).not.toHaveBeenCalled();
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: failedCredentialStoreIntentId
+        })).resolves.toMatchObject({
+            failure_stage: 'credential_store',
+            failure_code: 'CREDENTIAL_STORE_FAILED',
+            cleanup_status: 'not_needed'
+        });
     }, 120_000);
 
     it('claims concurrent callbacks before OAuth so only one external exchange and registration occur', async () => {

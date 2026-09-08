@@ -9,6 +9,13 @@ import {
     parseArgs
 } from '../../../scripts/oyasumi-conversation-personal-kg-backlog.js';
 
+const IDENTITY = {
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
+    org_ids: ['unson']
+};
+
 let tmpHome;
 
 function writeJsonl(filePath, rows) {
@@ -85,7 +92,8 @@ describe('oyasumi conversation personal KG backlog', () => {
                         source_ref: existingSourceRef
                     }
                 }
-            }]
+            }],
+            identity: IDENTITY
         });
 
         expect(backlog.raw_log_file_count).toBe(2);

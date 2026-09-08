@@ -31,7 +31,8 @@ function createPorts(overrides = {}) {
         list: vi.fn(async (filter) => filter.promotion_status === 'candidate' ? [{
             id: 'candidate-personal-1',
             body: '午前は設計を優先する',
-            promotion_status: 'candidate'
+            promotion_status: 'candidate',
+            requires_approval: false
         }] : [{
             id: 'candidate-graph-1',
             body: '顧客Aの正式方針',
@@ -161,22 +162,50 @@ describe('ProductionRoutinePorts', () => {
         });
     });
 
-    it('oyasumiは残件と登録先を分けた夜の結論を作る', async () => {
+    it('oyasumiは浅い眠りの原因・記憶の再編・翌朝の訂正対象をレポートにする', async () => {
         const { dependencies, ports } = createPorts();
 
         await expect(ports.buildNightOutput({
             input: {
                 tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
-                personal_kg_registration_candidates: [{ id: 'personal-1', summary: '午前は設計を優先する' }],
+                personal_kg_registration_candidates: [
+                    { id: 'personal-1', summary: '午前は設計を優先する' },
+                    { id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true }
+                ],
                 graph_promotion_reviews: [{ id: 'graph-1', summary: '顧客Aの正式方針' }]
             },
-            reconciliation: { unprocessed_count: 1, contradiction_count: 0, expired_count: 0, outbox_count: 0 }
+            reconciliation: { unprocessed_count: 1, contradiction_count: 1, expired_count: 0, outbox_count: 0 },
+            compression: {
+                consolidated_memories: [{ id: 'kev_1', source: 'graph_ssot', summary: '設計判断を記憶として固定した' }],
+                associations: [{ summary: '設計判断と顧客の反応を同じ経験として関連付けた' }],
+                feedback_targets: [{ id: 'kev_1', source: 'graph_ssot', summary: '設計判断を記憶として固定した' }]
+            },
+            verification: { retrievable: true }
         }, context)).resolves.toMatchObject({
-            headline: '残件を確認してから今日を閉じる',
-            carryovers: [{ summary: '未処理が1件あります' }],
+            headline: expect.stringContaining('浅い睡眠'),
+            sleep_state: 'shallow',
+            sleep_causes: [
+                expect.objectContaining({ code: 'unprocessed', count: 1, summary: expect.stringContaining('未処理') }),
+                expect.objectContaining({ code: 'contradiction', count: 1, summary: expect.stringContaining('矛盾') })
+            ],
+            consolidated_memories: [{ id: 'kev_1', source: 'graph_ssot', summary: '設計判断を記憶として固定した' }],
+            associations: [{ summary: '設計判断と顧客の反応を同じ経験として関連付けた' }],
+            feedback_targets: [{ id: 'kev_1', source: 'graph_ssot', summary: '設計判断を記憶として固定した' }],
+            unresolved_items: [
+                { summary: '未処理が1件あります' },
+                { summary: '矛盾が1件あります' }
+            ],
             personal_kg_registration_candidates: [
                 { id: 'personal-1', summary: '午前は設計を優先する' },
-                { id: 'candidate-personal-1', status: 'candidate', summary: '午前は設計を優先する' }
+                { id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true },
+                { id: 'candidate-personal-1', status: 'candidate', requires_approval: false, summary: '午前は設計を優先する' }
+            ],
+            personal_kg_memories: [
+                { id: 'personal-1', summary: '午前は設計を優先する' },
+                { id: 'candidate-personal-1', status: 'candidate', requires_approval: false, summary: '午前は設計を優先する' }
+            ],
+            personal_kg_review_exceptions: [
+                { id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true }
             ],
             graph_promotion_reviews: [
                 { id: 'graph-1', summary: '顧客Aの正式方針' },
@@ -187,6 +216,21 @@ describe('ProductionRoutinePorts', () => {
             expect.any(Function),
             { access: context.access }
         );
+    });
+
+    it('oyasumiは全処理と再読取が成立した時だけ深い眠りとする', async () => {
+        const { ports } = createPorts();
+
+        await expect(ports.buildNightOutput({
+            reconciliation: { unprocessed_count: 0, contradiction_count: 0, expired_count: 0, outbox_count: 0 },
+            compression: { confirmed: true, consolidated_memories: [], associations: [], feedback_targets: [] },
+            verification: { retrievable: true }
+        }, context)).resolves.toMatchObject({
+            headline: expect.stringContaining('深い睡眠'),
+            sleep_state: 'deep',
+            sleep_causes: [],
+            unresolved_items: []
+        });
     });
 
     it('ohayoはInfoSSOT Graphと認証本人のPersonal Vaultだけを想起する', async () => {
@@ -345,13 +389,93 @@ describe('ProductionRoutinePorts', () => {
             memories: [{ summary: '判断1' }, { summary: '判断2' }, { summary: '判断3' }]
         });
         expect(result.morning_output.routine_output).toMatchObject({
-            headline: '今日は「判断1」を判断軸に進める',
-            today_focus: [{ summary: '判断1' }],
-            immediate_decisions: [{ summary: '判断2' }, { summary: '判断3' }]
+            headline: '今日進めることは未確定です',
+            today_focus: [],
+            immediate_decisions: [],
+            warnings: [
+                { code: 'one', summary: '例外1' },
+                { code: 'two', summary: '例外2' },
+                { code: 'three', summary: '例外3' },
+                { summary: '朝の予定・メール・Slackは未確認です' }
+            ],
+            references: [
+                { source: 'graph_ssot', summary: '判断1' },
+                { source: 'graph_ssot', summary: '判断2' },
+                { source: 'graph_ssot', summary: '判断3' }
+            ]
         });
         expect(JSON.stringify(result.morning_output)).not.toContain('raw-graph');
         expect(JSON.stringify(result.morning_output)).not.toContain('/secret/one.json');
         expect(JSON.stringify(result.morning_output)).not.toContain('判断4');
+    });
+
+    it('ohayoは必須ソースの入力欠落を0件ではなくunavailableとして残す', async () => {
+        const { ports } = createPorts();
+        const result = await ports.generate({
+            input: {
+                day_view: {
+                    today_focus: [],
+                    source_coverage: [
+                        { source: 'calendar', status: 'confirmed', summary: '全アカウント確認済み' }
+                    ]
+                }
+            },
+            exceptions: [],
+            graph_memories: [],
+            personal_memories: []
+        }, context);
+
+        expect(result.morning_output.routine_output.source_coverage).toEqual([
+            { source: 'calendar', status: 'confirmed', summary: '全アカウント確認済み' },
+            { source: 'mail', status: 'unavailable', summary: '確認結果が入力されていません' },
+            { source: 'slack', status: 'unavailable', summary: '確認結果が入力されていません' }
+        ]);
+        expect(result.anomalies).toEqual([
+            expect.objectContaining({ code: 'ohayo_source_unconfirmed', source: 'mail', status: 'unavailable' }),
+            expect.objectContaining({ code: 'ohayo_source_unconfirmed', source: 'slack', status: 'unavailable' })
+        ]);
+    });
+
+    it('ohayoは想起順を今日の目的にせず、収集済みday_viewから行動と人間判断を分ける', async () => {
+        const { ports } = createPorts();
+        const result = await ports.generate({
+            input: {
+                day_view: {
+                    today_focus: [{ summary: '顧客Aの提案を合意可能な状態にする' }],
+                    ai_actions: [{ summary: '会議前に論点と選択肢を整理する' }],
+                    human_decisions: [{ summary: '値引きを許容するか決める' }],
+                    carryovers: [{ summary: '昨日の契約条項確認' }],
+                    source_coverage: [
+                        { source: 'calendar', status: 'confirmed', summary: '2アカウント確認済み' },
+                        { source: 'mail', status: 'partial', summary: '1アカウント認証切れ' },
+                        { source: 'slack', status: 'confirmed', summary: '3ワークスペース確認済み' }
+                    ]
+                }
+            },
+            exceptions: [],
+            graph_memories: [{ id: 'graph-1', source_event_id: 'kev_graph_1', name: '過去の判断' }],
+            personal_memories: []
+        }, context);
+
+        expect(result.anomalies).toEqual([
+            expect.objectContaining({ code: 'ohayo_source_unconfirmed', source: 'mail' })
+        ]);
+        expect(result.morning_output.routine_output).toMatchObject({
+            headline: '今日は「顧客Aの提案を合意可能な状態にする」まで進める',
+            today_focus: [{ summary: '顧客Aの提案を合意可能な状態にする' }],
+            ai_actions: [{ summary: '会議前に論点と選択肢を整理する' }],
+            immediate_decisions: [{ summary: '値引きを許容するか決める' }],
+            carryovers: [{ summary: '昨日の契約条項確認' }],
+            source_coverage: [
+                { source: 'calendar', status: 'confirmed', summary: '2アカウント確認済み' },
+                { source: 'mail', status: 'partial', summary: '1アカウント認証切れ' },
+                { source: 'slack', status: 'confirmed', summary: '3ワークスペース確認済み' }
+            ],
+            references: [{ source: 'graph_ssot', summary: '過去の判断' }]
+        });
+        expect(result.morning_output.routine_output.warnings).toEqual([
+            { summary: 'mail: 1アカウント認証切れ' }
+        ]);
     });
 
     it('ohayoはGraph実返却payloadとPersonal KGから正式knowledge event IDだけを解決する', async () => {
@@ -432,7 +556,7 @@ describe('ProductionRoutinePorts', () => {
         expect(dependencies.runReceiptQueryService.summarizeRoutineState).toHaveBeenCalled();
     });
 
-    it('retroはpending_approvalのGraph昇格候補を読むだけで状態を変更しない', async () => {
+    it('retroはPersonal KGの確認必須例外とGraph昇格候補だけを読み、通常記憶はレビューへ戻さない', async () => {
         const { dependencies, ports } = createPorts();
 
         await expect(ports.listKnowledgeReviews({
@@ -443,8 +567,7 @@ describe('ProductionRoutinePorts', () => {
             limit: 10
         }, context)).resolves.toEqual({
             personal_kg_registration_reviews: [
-                { id: 'personal-1', summary: '個人の判断基準' },
-                { id: 'candidate-personal-1', status: 'candidate', summary: '午前は設計を優先する' }
+                { id: 'personal-1', summary: '個人の判断基準' }
             ],
             graph_promotion_reviews: [{ id: 'candidate-graph-1', status: 'pending_approval', summary: '顧客Aの正式方針' }]
         });

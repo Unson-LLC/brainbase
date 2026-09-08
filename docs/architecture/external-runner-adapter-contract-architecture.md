@@ -63,3 +63,15 @@ Brainbaseは外部ランタイムのsession作成、stream polling、provider固
 ## Auth Boundary
 
 `/api/external-runner/ingest` はserver-to-server APIであり、cookie認証だけのbrowser requestを受け付けない。bearer、service token、internal API keyなどのserver credentialを使う。service/internal credential以外ではowner、cost owner、approval ownerを認証主体以外へ委任できない。
+
+## Company Authorityが必要な承認
+
+外部実行が会社権限を必要とするhuman stepは、`human_steps[].company_authority_required=true` と `company_authority_handoff` を同時に渡す。既存のhandoff付きstepは権限必須として扱い、通常承認へ縮退させない。
+
+- `company_authority_required=true` なのにhandoffがない入力は、workflow、run、human stepを保存する前に拒否する。
+- adapterは権限必須宣言とhandoffから作った署名markerをhuman step metadataへ保存する。
+- 承認時は宣言またはmarkerのどちらかが存在すればCompany Authority経路として扱う。service不在、marker欠落、未消費receiptではstepをpendingのまま維持し、workflow handlerを呼ばない。
+- 承認後にworkflow handlerが作るoutputは、`company_authority_approval_receipt_id` と `source_human_step_id` をmetadataへ保存する。同じstepの再承認は拒否し、handlerとoutputを重複生成しない。
+- 承認後の再開runは、成功・失敗・時間切れ・workflow lock競合の各状態で同じreceipt/source帰属を保持する。これらのrunは汎用rerunを拒否し、外部副作用が不明な場合は照合後に新しい依頼から再開する。
+
+`agent_report` とMeeting Review Packageは、取り込み時に保存した成果物を人が承認して閉じる承認専用runである。承認後の業務handlerを持たないため、そのoutputをCompany Authorityによる承認後実行の証拠には使わない。

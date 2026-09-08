@@ -1,4 +1,14 @@
+import { ContractError } from './errors.js';
+
 const MAX_CREDENTIAL_BYTES = 64 * 1024;
+
+function storeError(code, { status = 502, retryable = false } = {}) {
+    return new ContractError(code, {
+        status,
+        retryable,
+        fault_domain: 'brainbase_cloud'
+    });
+}
 
 function required(env, names) {
     for (const name of names) {
@@ -49,18 +59,26 @@ function parseJson(text) {
     try {
         return text ? JSON.parse(text) : {};
     } catch {
-        throw new Error('tenant_credential_store_invalid');
+        throw storeError('CREDENTIAL_STORE_INVALID');
     }
 }
 
 function assertResult(body) {
     if (!body || typeof body !== 'object' || Array.isArray(body.result)) {
-        throw new Error('tenant_credential_store_rejected');
+        throw storeError('CREDENTIAL_STORE_REJECTED');
     }
     if (!body.result || typeof body.result !== 'object') {
-        throw new Error('tenant_credential_store_rejected');
+        throw storeError('CREDENTIAL_STORE_REJECTED');
     }
     return body.result;
+}
+
+function assertOperationResult(operation, body) {
+    const result = assertResult(body);
+    if (operation === 'revoke' && result.status !== 'revoked') {
+        throw storeError('CREDENTIAL_STORE_REJECTED');
+    }
+    return result;
 }
 
 function assertBinding(binding) {
@@ -115,17 +133,17 @@ function createClient({ env = process.env, fetchImpl = globalThis.fetch } = {}) 
                 body: JSON.stringify({ operation, ...input })
             });
         } catch {
-            throw new Error('tenant_credential_store_unavailable');
+            throw storeError('CREDENTIAL_STORE_UNAVAILABLE', { status: 503, retryable: true });
         }
         let body;
         try {
             body = parseJson(await response.text());
         } catch (error) {
-            if (error?.message === 'tenant_credential_store_invalid') throw error;
-            throw new Error('tenant_credential_store_invalid');
+            if (error instanceof ContractError && error.code === 'CREDENTIAL_STORE_INVALID') throw error;
+            throw storeError('CREDENTIAL_STORE_INVALID');
         }
-        if (!response.ok) throw new Error('tenant_credential_store_rejected');
-        return assertResult(body);
+        if (!response.ok) throw storeError('CREDENTIAL_STORE_REJECTED');
+        return assertOperationResult(operation, body);
     }
     return { call, strict: isCanonicalEndpoint(url) };
 }
@@ -169,7 +187,20 @@ export function createRemoteCredentialMaterializer({ env = process.env, fetchImp
     const store = createRemoteCredentialStore({ env, fetchImpl });
     return {
         async materialize(credentialRef, binding) {
-            const result = await store.materialize(credentialRef, binding);
+            let result;
+            try {
+                result = await store.materialize(credentialRef, binding);
+            } catch (error) {
+                const legacyMessages = {
+                    CREDENTIAL_STORE_UNAVAILABLE: 'tenant_credential_store_unavailable',
+                    CREDENTIAL_STORE_INVALID: 'tenant_credential_store_invalid',
+                    CREDENTIAL_STORE_REJECTED: 'tenant_credential_store_rejected'
+                };
+                if (error instanceof ContractError && legacyMessages[error.code]) {
+                    throw new Error(legacyMessages[error.code]);
+                }
+                throw error;
+            }
             if (typeof result.credential_material !== 'string'
                 || Buffer.byteLength(result.credential_material, 'utf8') > MAX_CREDENTIAL_BYTES) {
                 throw new Error('tenant_credential_store_invalid');

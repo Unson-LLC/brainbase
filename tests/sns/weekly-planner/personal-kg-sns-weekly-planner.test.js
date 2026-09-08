@@ -13,6 +13,9 @@ import {
 
 const viewer = {
     sub: 'sato_keigo',
+    owner_person_id: 'sato_keigo',
+    actor_person_id: 'sato_keigo',
+    organization_id: 'unson',
     role: 'ceo',
     workspace: 'unson',
     org_ids: ['unson'],

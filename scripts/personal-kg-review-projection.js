@@ -5,8 +5,13 @@ import process from 'node:process';
 import pg from 'pg';
 
 import { SOURCE_SYSTEM } from '../server/services/sns/oyasumi-meeting-personal-kg-service.js';
+import {
+    candidateOrganizationId,
+    isPersonalKgCandidateInScope,
+    requirePersonalKgIdentity
+} from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
-const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
 const POLICY_KEY = 'oyasumi_meeting_personal_kg';
 const ACTIVE_STATUSES = new Set(['candidate', 'pending_approval', 'approved']);
 const REVIEW_STATUSES = new Set(['candidate', 'pending_approval']);
@@ -23,8 +28,10 @@ function parseArgs(argv) {
         decisionFile: null,
         projectionPlan: false,
         write: false,
-        ownerPersonId: DEFAULT_OWNER_PERSON_ID,
-        actorPersonId: DEFAULT_OWNER_PERSON_ID,
+        ownerPersonId: null,
+        actorPersonId: null,
+        organizationId: null,
+        delegationId: null,
         sourceSystem: SOURCE_SYSTEM,
         limit: null,
         includeApprovalCandidates: false,
@@ -40,10 +47,17 @@ function parseArgs(argv) {
         else if (arg === '--projection-plan') args.projectionPlan = true;
         else if (arg === '--write') args.write = true;
         else if (arg === '--dry-run') args.write = false;
-        else if (arg === '--owner') args.ownerPersonId = argv[++index];
+        else if (arg === '--owner' || arg === '--owner-person-id') args.ownerPersonId = argv[++index];
         else if (arg.startsWith('--owner=')) args.ownerPersonId = arg.slice('--owner='.length);
-        else if (arg === '--actor') args.actorPersonId = argv[++index];
+        else if (arg.startsWith('--owner-person-id=')) args.ownerPersonId = arg.slice('--owner-person-id='.length);
+        else if (arg === '--actor' || arg === '--actor-person-id') args.actorPersonId = argv[++index];
         else if (arg.startsWith('--actor=')) args.actorPersonId = arg.slice('--actor='.length);
+        else if (arg.startsWith('--actor-person-id=')) args.actorPersonId = arg.slice('--actor-person-id='.length);
+        else if (arg === '--organization' || arg === '--organization-id') args.organizationId = argv[++index];
+        else if (arg.startsWith('--organization=')) args.organizationId = arg.slice('--organization='.length);
+        else if (arg.startsWith('--organization-id=')) args.organizationId = arg.slice('--organization-id='.length);
+        else if (arg === '--delegation-id') args.delegationId = argv[++index];
+        else if (arg.startsWith('--delegation-id=')) args.delegationId = arg.slice('--delegation-id='.length);
         else if (arg === '--source-system') args.sourceSystem = argv[++index];
         else if (arg.startsWith('--source-system=')) args.sourceSystem = arg.slice('--source-system='.length);
         else if (arg === '--include-approval-candidates') args.includeApprovalCandidates = true;
@@ -60,6 +74,18 @@ function parseArgs(argv) {
         throw new Error('--review-scope must be one of needs_review, redaction, all');
     }
     return args;
+}
+
+function personalKgIdentity(options) {
+    return requirePersonalKgIdentity({
+        owner_person_id: options?.owner_person_id || options?.ownerPersonId,
+        actor_person_id: options?.actor_person_id || options?.actorPersonId,
+        organization_id: options?.organization_id || options?.organizationId,
+        org_ids: options?.org_ids,
+        project_code: options?.project_code || options?.projectCode,
+        authority_resolution_receipt_id: options?.authority_resolution_receipt_id,
+        identity_resolution_receipt_id: options?.identity_resolution_receipt_id
+    });
 }
 
 function databaseConfig() {
@@ -107,10 +133,14 @@ function candidateReviewReasons(candidate, { includeApprovalCandidates = false, 
     return reasons;
 }
 
-function isScopedCandidate(candidate, { ownerPersonId = DEFAULT_OWNER_PERSON_ID, sourceSystem = SOURCE_SYSTEM } = {}) {
-    if (candidate.owner_person_id !== ownerPersonId) return false;
-    if (candidate.source_system !== sourceSystem) return false;
-    return Boolean(candidate.permission_snapshot?.[POLICY_KEY]);
+function isScopedCandidate(candidate, options = {}) {
+    if (candidate.source_system !== (options.sourceSystem || SOURCE_SYSTEM)) return false;
+    if (!candidate.permission_snapshot?.[POLICY_KEY]) return false;
+    try {
+        return isPersonalKgCandidateInScope(candidate, personalKgIdentity(options));
+    } catch {
+        return false;
+    }
 }
 
 function isPolicyCandidate(candidate, { sourceSystem = SOURCE_SYSTEM } = {}) {
@@ -160,10 +190,23 @@ function buildReviewQueue(candidates = [], options = {}) {
     return Number.isInteger(limit) ? queue.slice(0, limit) : queue;
 }
 
-function projectionBlockers(candidate, { ownerPersonId = DEFAULT_OWNER_PERSON_ID } = {}) {
+function projectionBlockers(candidate, options = {}) {
     const kg = policy(candidate);
     const blockers = [];
-    if (candidate.owner_person_id !== ownerPersonId) blockers.push('owner_person_id:not_requested_owner');
+    let identity = null;
+    try {
+        identity = personalKgIdentity(options);
+    } catch {
+        blockers.push('identity:required');
+    }
+    if (identity && candidate.owner_person_id !== identity.owner_person_id) {
+        blockers.push('owner_person_id:not_requested_owner');
+    }
+    const organizationId = candidateOrganizationId(candidate);
+    if (!organizationId) blockers.push('organization_id:missing');
+    else if (identity && organizationId !== identity.organization_id) {
+        blockers.push('organization_id:not_requested_organization');
+    }
     if (candidate.visibility !== 'owner') blockers.push('visibility:not_owner');
     if (memoryLayer(candidate) !== 'personal_kg_core') blockers.push(`memory_layer:${memoryLayer(candidate) || 'missing'}`);
     if (!ACTIVE_STATUSES.has(candidate.promotion_status || 'candidate')) blockers.push(`promotion_status:${candidate.promotion_status || 'missing'}`);
@@ -320,9 +363,12 @@ function readJsonFile(filePath) {
     throw new Error(`${filePath} must contain an array, candidates[], or decisions[]`);
 }
 
-async function loadCandidatesFromDatabase({ connectionString, ownerPersonId, sourceSystem }) {
+async function loadCandidatesFromDatabase({ connectionString, ownerPersonId, organizationId, sourceSystem }) {
     if (!connectionString) {
         throw new Error('INFO_SSOT_DATABASE_URL, INFO_SSOT_DB_URL, DATABASE_URL, or --input-json is required');
+    }
+    if (!ownerPersonId || !organizationId) {
+        throw new Error('ownerPersonId and organizationId are required for Personal KG database reads');
     }
     const pool = new pg.Pool({ connectionString });
     try {
@@ -335,10 +381,11 @@ async function loadCandidatesFromDatabase({ connectionString, ownerPersonId, sou
                     confidence, expires_at, created_at, updated_at, LENGTH(body) AS body_length
              FROM memory_candidates
              WHERE owner_person_id = $1
-               AND source_system = $2
-               AND permission_snapshot ? $3
+               AND organization_id = $2
+               AND source_system = $3
+               AND permission_snapshot ? $4
              ORDER BY created_at ASC, id ASC`,
-            [ownerPersonId, sourceSystem, POLICY_KEY]
+            [ownerPersonId, organizationId, sourceSystem, POLICY_KEY]
         );
         return result.rows;
     } finally {
@@ -410,13 +457,14 @@ async function applyDecisionPlan({ connectionString, plan, candidates, actorPers
 }
 
 function buildOutput({ candidates, args, decisionRecords = null, applyResult = null }) {
+    const identity = personalKgIdentity(args);
     const reviewQueue = buildReviewQueue(candidates, args);
     const projectionPlan = args.projectionPlan ? buildSnsProjectionPlan(candidates, args) : null;
     const decisionPlan = decisionRecords ? buildDecisionPlan(candidates, decisionRecords, args) : null;
     return {
         mode: 'personal_kg_review_projection',
         source_system: args.sourceSystem,
-        owner_person_id: args.ownerPersonId,
+        owner_person_id: identity.owner_person_id,
         write: args.write,
         summary: {
             input_candidates: candidates.filter((candidate) => isScopedCandidate(candidate, args)).length,
@@ -454,16 +502,29 @@ function outputText(output) {
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
+    const identity = resolvePersonalKgCliAuthority({
+        assertedIdentity: args,
+        desiredEffect: args.write ? 'write' : 'read'
+    });
+    const scopedArgs = {
+        ...args,
+        ownerPersonId: identity.owner_person_id,
+        actorPersonId: identity.actor_person_id,
+        organizationId: identity.organization_id,
+        delegationId: identity.delegation_id || args.delegationId || null,
+        org_ids: identity.org_ids
+    };
     const candidates = args.inputJson
         ? readJsonFile(args.inputJson)
         : await loadCandidatesFromDatabase({
             connectionString: databaseConfig()?.connectionString,
-            ownerPersonId: args.ownerPersonId,
+            ownerPersonId: identity.owner_person_id,
+            organizationId: identity.organization_id,
             sourceSystem: args.sourceSystem
         });
     const decisionRecords = args.decisionFile ? readJsonFile(args.decisionFile) : null;
     let applyResult = null;
-    const dryRunOutput = buildOutput({ candidates, args: { ...args, write: false }, decisionRecords });
+    const dryRunOutput = buildOutput({ candidates, args: { ...scopedArgs, write: false }, decisionRecords });
     if (args.write) {
         if (!decisionRecords) throw new Error('--write requires --decision-file');
         if (dryRunOutput.decision_plan?.summary.blocked > 0) throw new Error('decision plan has blocked items; rerun without --write');
@@ -471,7 +532,7 @@ async function main() {
             connectionString: databaseConfig()?.connectionString,
             plan: dryRunOutput.decision_plan,
             candidates,
-            actorPersonId: args.actorPersonId
+            actorPersonId: identity.actor_person_id
         });
     }
     const output = args.write

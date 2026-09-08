@@ -115,7 +115,21 @@ describe('PgKnowledgeEventRepository', () => {
         expect(sourceSelect).toMatch(/semantic_state/i);
         expect(sourceSelect).toMatch(/result/i);
         expect(client.query.mock.calls.filter(([sql]) => /episode_compaction/i.test(String(sql)))).toHaveLength(2);
-        expect(result).toMatchObject({ episode_ids: ['episode-1'], confirmed: true });
+        expect(result).toMatchObject({
+            episode_ids: ['episode-1'],
+            confirmed: true,
+            consolidated_memories: [{
+                id: 'kev-1',
+                source: 'graph_ssot',
+                summary: '価格を10万円に決定'
+            }],
+            associations: [],
+            feedback_targets: [{
+                id: 'kev-1',
+                source: 'graph_ssot',
+                summary: '価格を10万円に決定'
+            }]
+        });
     });
 
     it('Episode圧縮はepisode_compaction.v1 artifactの必須状態を同一transactionで永続化する', async () => {

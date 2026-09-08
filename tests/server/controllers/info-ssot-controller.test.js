@@ -10,7 +10,7 @@ describe('InfoSSOTController Graph entity read contract', () => {
         else process.env.ALLOW_INSECURE_SSOT_HEADERS = original;
     });
 
-    it('id/ids/type/query/limitをserviceへ渡して検索を可能にする', async () => {
+    it('id/ids/type/query/limit/includeMergedをserviceへ渡して検索を可能にする', async () => {
         process.env.ALLOW_INSECURE_SSOT_HEADERS = 'true';
         const service = { listGraphEntities: vi.fn().mockResolvedValue([{ id: 'baao', entity_type: 'org' }]) };
         const controller = new InfoSSOTController(service);
@@ -21,7 +21,8 @@ describe('InfoSSOTController Graph entity read contract', () => {
                 project: 'brainbase',
                 type: 'org',
                 query: '佐藤',
-                limit: '25'
+                limit: '25',
+                includeMerged: 'true'
             },
             get: vi.fn((name) => ({
                 'x-brainbase-role': 'gm',
@@ -44,7 +45,8 @@ describe('InfoSSOTController Graph entity read contract', () => {
                 projectCode: 'brainbase',
                 entityType: 'org',
                 query: '佐藤',
-                limit: '25'
+                limit: '25',
+                includeMerged: true
             }
         );
         expect(res.json).toHaveBeenCalledWith({ records: [{ id: 'baao', entity_type: 'org' }] });

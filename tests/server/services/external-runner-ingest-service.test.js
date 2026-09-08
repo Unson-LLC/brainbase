@@ -1160,6 +1160,76 @@ describe('ExternalRunnerIngestService', () => {
         ]));
     });
 
+    it('treats an identical replay after human approval lifecycle updates as a duplicate', async () => {
+        const { repository, service } = makeService();
+        const payload = makePayload({
+            runner: {
+                type: 'agent_report',
+                external_run_id: 'agent-report-approved-replay',
+                agent_id: 'report-agent',
+                trace_ref: 'agent-report://trace/approved-replay'
+            },
+            run: {
+                project_id: 'brainbase',
+                role_agent_id: 'reporter',
+                workflow_id: 'wf_agent_report_approval',
+                workflow_name: 'Agent report approval',
+                status: 'waiting_human',
+                selected_workflow_reason: '人間承認後に業務結果を確定する'
+            },
+            human_steps: [{
+                id: 'hs-agent-report-approved-replay',
+                step_type: 'approval',
+                prompt: 'Agent reportを承認する'
+            }]
+        });
+
+        const first = await service.ingest(payload);
+        repository.updateHumanStep('hs-agent-report-approved-replay', {
+            status: 'approved',
+            response_ref: 'approval://approved-replay',
+            resolved_at: '2026-09-06T00:00:00.000Z',
+            resolved_by: 'keigo'
+        });
+        repository.updateRun(first.run.id, {
+            status: 'success',
+            closure_state: 'closed',
+            action_required: 'none',
+            human_waiting: false,
+            message: 'Agent report human approvals completed',
+            finished_at: '2026-09-06T00:00:00.000Z'
+        });
+
+        const replay = await service.ingest(payload);
+
+        expect(replay).toMatchObject({
+            status: 'duplicate',
+            run: {
+                id: first.run.id,
+                status: 'success',
+                closure_state: 'closed'
+            }
+        });
+        expect(repository.listRuns({ limit: null })).toHaveLength(1);
+        expect(repository.listHumanSteps(first.run.id)).toEqual([
+            expect.objectContaining({
+                id: 'hs-agent-report-approved-replay',
+                status: 'approved'
+            })
+        ]);
+
+        await expect(service.ingest({
+            ...payload,
+            outputs: [{
+                ...payload.outputs[0],
+                body: '同じrun IDで変更されたAgent report'
+            }]
+        })).rejects.toMatchObject({
+            code: 'duplicate_payload_mismatch'
+        });
+        expect(repository.listRuns({ limit: null })).toHaveLength(1);
+    });
+
     it('serializes concurrent identical ingests across JsonFile repository instances', async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-external-runner-race-'));
         tempDirs.push(dir);
@@ -1660,6 +1730,7 @@ describe('ExternalRunnerIngestService', () => {
             configParser: {
                 async getProjects() {
                     return {
+                        source: { status: 'loaded', mode: 'registry_scoped' },
                         projects: [{ id: 'brainbase', session_select: true }]
                     };
                 }
@@ -1701,7 +1772,8 @@ describe('ExternalRunnerIngestService', () => {
                 person_id: 'keigo',
                 projectCodes: ['brainbase'],
                 role: 'member',
-                authSource: 'test'
+                authSource: 'test',
+                organizationId: 'brainbase'
             }
         );
 
@@ -1734,7 +1806,10 @@ describe('ExternalRunnerIngestService', () => {
             runner,
             configParser: {
                 async getProjects() {
-                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                    return {
+                        source: { status: 'loaded', mode: 'registry_scoped' },
+                        projects: [{ id: 'brainbase', session_select: true }]
+                    };
                 }
             }
         });
@@ -1763,7 +1838,13 @@ describe('ExternalRunnerIngestService', () => {
         const resolved = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-ceo',
             { resolution: 'approved' },
-            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+            {
+                person_id: 'keigo',
+                projectCodes: ['brainbase'],
+                role: 'member',
+                authSource: 'test',
+                organizationId: 'brainbase'
+            }
         );
 
         expect(resolved.human_step).toMatchObject({ status: 'approved' });
@@ -1795,7 +1876,10 @@ describe('ExternalRunnerIngestService', () => {
             runner,
             configParser: {
                 async getProjects() {
-                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                    return {
+                        source: { status: 'loaded', mode: 'registry_scoped' },
+                        projects: [{ id: 'brainbase', session_select: true }]
+                    };
                 }
             }
         });
@@ -1823,14 +1907,26 @@ describe('ExternalRunnerIngestService', () => {
         const first = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-cso-1',
             { resolution: 'approved' },
-            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+            {
+                person_id: 'keigo',
+                projectCodes: ['brainbase'],
+                role: 'member',
+                authSource: 'test',
+                organizationId: 'brainbase'
+            }
         );
         expect(first.resumed_run).toMatchObject({ status: 'waiting_human', closure_state: 'open' });
 
         const second = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-cso-2',
             { resolution: 'approved' },
-            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+            {
+                person_id: 'keigo',
+                projectCodes: ['brainbase'],
+                role: 'member',
+                authSource: 'test',
+                organizationId: 'brainbase'
+            }
         );
         expect(second.resumed_run).toMatchObject({ status: 'success', closure_state: 'closed' });
 
@@ -1848,7 +1944,10 @@ describe('ExternalRunnerIngestService', () => {
             runner,
             configParser: {
                 async getProjects() {
-                    return { projects: [{ id: 'brainbase', session_select: true }] };
+                    return {
+                        source: { status: 'loaded', mode: 'registry_scoped' },
+                        projects: [{ id: 'brainbase', session_select: true }]
+                    };
                 }
             }
         });
@@ -1871,7 +1970,13 @@ describe('ExternalRunnerIngestService', () => {
         const rejected = await workflowService.automationRunService.resolveHumanStep(
             'hs-agent-report-retro',
             { resolution: 'rejected' },
-            { person_id: 'keigo', projectCodes: ['brainbase'], role: 'member', authSource: 'test' }
+            {
+                person_id: 'keigo',
+                projectCodes: ['brainbase'],
+                role: 'member',
+                authSource: 'test',
+                organizationId: 'brainbase'
+            }
         );
 
         expect(rejected.resumed_run).toMatchObject({ status: 'cancelled', closure_state: 'closed' });

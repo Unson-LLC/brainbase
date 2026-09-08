@@ -18,13 +18,13 @@ Canonical locations and prior routing evidence are not caller inputs. The resolv
 2. Follow `retrieval_capability` at `canonical_location`.
 3. Do not show a search trace yet: the routing receipt has not read knowledge.
 4. Record the source actually searched and evidence found in a downstream receipt.
-5. After the read succeeds, show exactly one trace from that real receipt. Brainbase MCP tools generate it; reproduce it exactly once in the next user-facing assistant message:
+5. After the read succeeds, the Brainbase MCP tool returns a machine-readable owner-audit metadata envelope. `PostToolUse` validates the envelope and journals the actual call. The final assistant answer must begin with the exact Host-derived audit block, and `Stop` validates that each journaled trace appears exactly once and in order:
 
    ```text
    📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 結果を取得 ✓
    ```
 
-   A direct read uses `📚 Brainbase取得:`. A no-result read says `該当なし（不在確定ではない）`. Repeated tool calls produce repeated traces; reuse of existing evidence does not.
+   A direct read uses `📚 Brainbase取得:`. A no-result read says `該当なし（不在確定ではない）`. Repeated validated tool calls produce repeated traces; reuse of existing evidence does not. A Hook `systemMessage` is only an interim notice or repair instruction and is not owner-visible proof.
 6. If the result is `unconfirmed`, search only `next_route`, then update searched and unsearched scope before continuing.
 
 ## Stop conditions

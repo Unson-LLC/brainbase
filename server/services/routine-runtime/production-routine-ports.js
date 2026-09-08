@@ -1,10 +1,10 @@
 const ROUTINE_PROJECT_ID = 'brainbase';
-const DEFAULT_PERSONAL_KG_OWNER_PERSON_ID = 'sato_keigo';
 const ROUTINE_AUTOMATION_IDS = Object.freeze([
     'brainbase-ohayo',
     'brainbase-oyasumi',
     'brainbase-retro'
 ]);
+const OHAYO_REQUIRED_SOURCES = Object.freeze(['calendar', 'mail', 'slack']);
 
 function projectInput(input = {}) {
     const projectId = input?.input?.project_id || input?.project_id || ROUTINE_PROJECT_ID;
@@ -77,12 +77,33 @@ function reviewItem(item) {
     return {
         ...(typeof item?.id === 'string' ? { id: item.id } : {}),
         ...(typeof item?.promotion_status === 'string' ? { status: item.promotion_status } : {}),
+        ...(typeof item?.requires_approval === 'boolean' ? { requires_approval: item.requires_approval } : {}),
         summary
     };
 }
 
 function uniqueReviews(items) {
     return [...new Map(items.filter(Boolean).map((item) => [item.id || item.summary, item])).values()];
+}
+
+function safeDayItems(items) {
+    return (Array.isArray(items) ? items : []).map(safeMemory).filter(Boolean);
+}
+
+function safeSourceCoverage(items) {
+    const normalized = (Array.isArray(items) ? items : []).map((item) => {
+        const summary = safeMemory(item)?.summary;
+        const source = typeof item?.source === 'string' ? item.source.trim().slice(0, 100) : '';
+        const status = ['confirmed', 'partial', 'unavailable'].includes(item?.status)
+            ? item.status : 'unavailable';
+        return summary && source ? { source, status, summary } : null;
+    }).filter(Boolean);
+    const bySource = new Map(normalized.map((item) => [item.source, item]));
+    return OHAYO_REQUIRED_SOURCES.map((source) => bySource.get(source) || {
+        source,
+        status: 'unavailable',
+        summary: '確認結果が入力されていません'
+    });
 }
 
 export class ProductionRoutinePorts {
@@ -95,8 +116,6 @@ export class ProductionRoutinePorts {
         listJudgmentOutboxExceptions,
         knowledgeFeedbackService,
         countRunReceiptOutbox = null,
-        personalKgOwnerPersonId = process.env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID
-            || DEFAULT_PERSONAL_KG_OWNER_PERSON_ID,
         personalVaultReadEnabled = process.env.BRAINBASE_PERSONAL_VAULT_READ_ENABLED !== '0',
         now = () => new Date()
     } = {}) {
@@ -108,7 +127,6 @@ export class ProductionRoutinePorts {
         this.listJudgmentOutboxExceptions = listJudgmentOutboxExceptions;
         this.knowledgeFeedbackService = knowledgeFeedbackService;
         this.countRunReceiptOutbox = countRunReceiptOutbox;
-        this.personalKgOwnerPersonId = personalKgOwnerPersonId;
         this.personalVaultReadEnabled = personalVaultReadEnabled;
         this.now = now;
     }
@@ -190,19 +208,52 @@ export class ProductionRoutinePorts {
                 ...(organization.episode_ids || []),
                 ...(personal.episode_ids || [])
             ],
+            consolidated_memories: [
+                ...(organization.consolidated_memories || []),
+                ...(personal.consolidated_memories || [])
+            ],
+            associations: [
+                ...(organization.associations || []),
+                ...(personal.associations || [])
+            ],
+            feedback_targets: [
+                ...(organization.feedback_targets || []),
+                ...(personal.feedback_targets || [])
+            ],
             confirmed: organization.confirmed === true && personal.confirmed === true
         };
     }
 
-    async buildNightOutput({ input = {}, reconciliation = {} } = {}, context) {
-        const carryovers = [
-            ['未処理', reconciliation.unprocessed_count],
-            ['矛盾', reconciliation.contradiction_count],
-            ['期限切れ', reconciliation.expired_count],
-            ['未配信', reconciliation.outbox_count]
-        ].filter(([, count]) => Number(count) > 0)
-            .map(([label, count]) => ({ summary: `${label}が${count}件あります` }));
-        const confirmedClosed = carryovers.length === 0;
+    async buildNightOutput({ input = {}, reconciliation = {}, compression = {}, verification = {} } = {}, context) {
+        const causeDefinitions = [
+            ['unprocessed', '未処理', reconciliation.unprocessed_count, '経験を記憶へ統合しきれませんでした'],
+            ['contradiction', '矛盾', reconciliation.contradiction_count, 'どの記憶を優先するか確定できませんでした'],
+            ['expired', '期限切れ', reconciliation.expired_count, '古い記憶の整理が残りました'],
+            ['outbox', '未配信', reconciliation.outbox_count, '経験の取り込みが完了していません']
+        ];
+        const sleepCauses = causeDefinitions
+            .filter(([, , count]) => Number(count) > 0)
+            .map(([code, label, count, impact]) => ({
+                code,
+                count: Number(count),
+                summary: `${label}が${Number(count)}件あり、${impact}`
+            }));
+        if (compression.confirmed === false) {
+            sleepCauses.push({
+                code: 'compression_unconfirmed',
+                summary: '記憶の再編が完了したことを確認できませんでした'
+            });
+        }
+        if (verification.retrievable !== true) {
+            sleepCauses.push({
+                code: 'retrievability_unconfirmed',
+                summary: '再編した記憶を思い出せることを確認できませんでした'
+            });
+        }
+        const unresolvedItems = causeDefinitions
+            .filter(([, , count]) => Number(count) > 0)
+            .map(([, label, count]) => ({ summary: `${label}が${Number(count)}件あります` }));
+        const sleepState = sleepCauses.length === 0 ? 'deep' : 'shallow';
         const candidateRepository = requireDependency(this.candidateRepository, 'candidateRepository', 'transaction');
         const projectCode = projectInput({ input }).project_id;
         const [personalCandidates, graphCandidates] = await candidateRepository.transaction(
@@ -225,16 +276,28 @@ export class ProductionRoutinePorts {
             ]),
             { access: context?.access }
         );
+        const personalKgCandidates = uniqueReviews([
+            ...(Array.isArray(input.personal_kg_registration_candidates)
+                ? input.personal_kg_registration_candidates.map(reviewItem) : []),
+            ...personalCandidates.map(reviewItem)
+        ]);
         return {
-            headline: confirmedClosed ? '今日は閉じてよい' : '残件を確認してから今日を閉じる',
+            headline: sleepState === 'deep'
+                ? '深い睡眠です。経験の整理と検索確認が完了しました'
+                : `浅い睡眠です。${sleepCauses[0].summary}`,
+            sleep_state: sleepState,
+            sleep_causes: sleepCauses,
+            consolidated_memories: Array.isArray(compression.consolidated_memories)
+                ? compression.consolidated_memories : [],
+            associations: Array.isArray(compression.associations) ? compression.associations : [],
+            feedback_targets: Array.isArray(compression.feedback_targets) ? compression.feedback_targets : [],
+            unresolved_items: unresolvedItems,
             tomorrow_focus: Array.isArray(input.tomorrow_focus) ? input.tomorrow_focus : [],
             closed: Array.isArray(input.closed) ? input.closed : [],
-            carryovers,
-            personal_kg_registration_candidates: uniqueReviews([
-                ...(Array.isArray(input.personal_kg_registration_candidates)
-                    ? input.personal_kg_registration_candidates.map(reviewItem) : []),
-                ...personalCandidates.map(reviewItem)
-            ]),
+            carryovers: unresolvedItems,
+            personal_kg_memories: personalKgCandidates.filter((item) => item.requires_approval !== true),
+            personal_kg_review_exceptions: personalKgCandidates.filter((item) => item.requires_approval === true),
+            personal_kg_registration_candidates: personalKgCandidates,
             graph_promotion_reviews: uniqueReviews([
                 ...(Array.isArray(input.graph_promotion_reviews)
                     ? input.graph_promotion_reviews.map(reviewItem) : []),
@@ -309,7 +372,8 @@ export class ProductionRoutinePorts {
     async generate({
         exceptions,
         graph_memories: graphMemories,
-        personal_memories: personalMemories
+        personal_memories: personalMemories,
+        input = {}
     } = {}) {
         const graph = Array.isArray(graphMemories) ? graphMemories : [];
         const personal = Array.isArray(personalMemories) ? personalMemories : [];
@@ -330,8 +394,30 @@ export class ProductionRoutinePorts {
                 summary: memory.summary
             } : null;
         }).filter(Boolean);
-        const focus = displayedMemories.slice(0, 1);
+        const dayView = input?.day_view && typeof input.day_view === 'object' ? input.day_view : null;
+        const focus = dayView ? safeDayItems(dayView.today_focus).slice(0, 3) : [];
+        const aiActions = dayView ? safeDayItems(dayView.ai_actions) : [];
+        const humanDecisions = dayView ? safeDayItems(dayView.human_decisions) : [];
+        const carryovers = dayView ? safeDayItems(dayView.carryovers) : [];
+        const sourceCoverage = dayView ? safeSourceCoverage(dayView.source_coverage) : [];
+        const coverageWarnings = sourceCoverage
+            .filter((item) => item.status !== 'confirmed')
+            .map((item) => ({ summary: `${item.source}: ${item.summary}` }));
+        const anomalies = (dayView ? sourceCoverage
+            .filter((item) => item.status !== 'confirmed')
+            .map((item) => ({
+                code: 'ohayo_source_unconfirmed',
+                source: item.source,
+                status: item.status,
+                summary: item.summary
+            })) : [{
+                code: 'ohayo_day_view_missing',
+                source: 'day_view',
+                status: 'unavailable',
+                summary: '朝の予定・メール・Slack確認結果が入力されていません'
+            }]);
         return {
+            anomalies,
             exceptions: visibleExceptions,
             graph_memories: graph,
             personal_memories: personal,
@@ -343,12 +429,19 @@ export class ProductionRoutinePorts {
                 memories: displayedMemories,
                 routine_output: {
                     headline: focus[0]
-                        ? `今日は「${focus[0].summary}」を判断軸に進める`
+                        ? dayView
+                            ? `今日は「${focus[0].summary}」まで進める`
+                            : `今日は「${focus[0].summary}」を判断軸に進める`
                         : '今日進めることは未確定です',
                     today_focus: focus,
-                    immediate_decisions: displayedMemories.slice(1),
-                    warnings: visibleExceptions,
-                    carryovers: [],
+                    ai_actions: aiActions,
+                    immediate_decisions: humanDecisions,
+                    warnings: [
+                        ...visibleExceptions,
+                        ...(dayView ? coverageWarnings : [{ summary: '朝の予定・メール・Slackは未確認です' }])
+                    ],
+                    carryovers,
+                    source_coverage: sourceCoverage,
                     references
                 }
             }
@@ -451,7 +544,7 @@ export class ProductionRoutinePorts {
             personal_kg_registration_reviews: uniqueReviews([
                 ...(Array.isArray(input.personal_kg_registration_reviews)
                     ? input.personal_kg_registration_reviews.map(reviewItem) : []),
-                ...personalCandidates.map(reviewItem)
+                ...personalCandidates.filter((item) => item.requires_approval === true).map(reviewItem)
             ]),
             graph_promotion_reviews: uniqueReviews(graphCandidates.map(reviewItem))
         };

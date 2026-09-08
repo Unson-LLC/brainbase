@@ -32,7 +32,8 @@ function actorFromRequest(req) {
         person_id: req.access?.personId || req.auth?.person_id || req.auth?.sub || null,
         projectCodes: Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [],
         role: req.access?.role || req.auth?.role || null,
-        authSource: req.authSource || null
+        authSource: req.authSource || null,
+        organizationId: req.access?.organizationId || req.access?.tenantId || null
     };
 }
 
@@ -56,11 +57,12 @@ export function createRunReceiptRouter({ ingestService, queryService, routineLiv
             return;
         }
         try {
-            const result = await ingestService.ingest(req.body);
+            const result = await ingestService.ingest(req.body, actorFromRequest(req));
             res.status(result.status === 'duplicate' ? 200 : 201).json(result);
         } catch (error) {
             if (error instanceof RunReceiptContractError) {
-                const retryable = error.code === 'run_receipt_lock_timeout';
+                const retryable = error.code === 'run_receipt_lock_timeout'
+                    || error.code === 'outcome_case_receipt_link_failed';
                 if (retryable) res.set('Retry-After', '1');
                 res.status(retryable ? 503 : 400).json({
                     error: error.message,

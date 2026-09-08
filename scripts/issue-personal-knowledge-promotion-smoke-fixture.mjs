@@ -131,15 +131,14 @@ function resolveCanonicalBinding(env = process.env) {
 function syntheticPayload(entityId) {
     return normalizePromotionPayload({
         schema_version: 'personal_knowledge_normalized.v1',
-        kind: 'decision',
+        kind: 'entity',
         entity: {
             id: entityId,
-            type: 'decision',
-            payload: { statement: 'synthetic production smoke decision' }
+            type: 'glossary_term',
+            payload: { label: 'synthetic production smoke term' }
         },
         edges: [],
         context_entities: [],
-        decision_domain: 'production_smoke',
         sensitivity: 'internal',
         role_min: 'member'
     });
@@ -215,7 +214,7 @@ export function buildSmokeFixtureInput({ runId, binding, now = new Date() }) {
         request: {
             project_code: binding.project_code,
             summary: 'synthetic production smoke',
-            subject: { type: 'decision', id: entityId },
+            subject: { type: 'glossary_term', id: entityId },
             normalized_payload: normalized.normalized,
             producer_request: contextRequest({
                 binding,

@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 import { resolveSnsRoot } from './workspace-paths.js';
+import { throwRetiredSnsCli } from './lib/retired-sns-cli.js';
 
 const ROOT = process.cwd();
 const X_SEARCH_DIR = path.join(ROOT, '.claude/skills/x-research-skill');
@@ -387,6 +388,7 @@ export function buildBrief({
 }
 
 async function main() {
+    throwRetiredSnsCli('generate-sns-ohayo-brief.js');
     const args = parseArgs(process.argv.slice(2));
     const out = args.out || path.join(DEFAULT_OUT_DIR, `${args.date}.md`);
     const signalsOut = args.signalsOut || path.join(DEFAULT_OUT_DIR, `${args.date}-signals.json`);

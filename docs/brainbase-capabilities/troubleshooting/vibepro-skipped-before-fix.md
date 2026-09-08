@@ -1,26 +1,7 @@
-# VibePro Was Skipped Before Fixing
+# Graphify参照を省略した場合
 
-Symptom: an agent patches a graph-sensitive behavior, then later discovers VibePro Graphify should have been used first.
+導入済みGraphifyは改修規模によらず軽量参照する。同条件の結果があれば再利用し、実行した証明だけのために再生成しない。
 
-Likely causes:
+`../runbooks/vibepro-impact-review.md`のコマンドで、対象ファイルの周辺関係を確認する。関連箇所から読むコードと必要なテストを選び、通常のPRへ進む。
 
-- The task matched a known capability, but the agent relied on memory instead of `brainbase-capability-map`.
-- VibePro diagnose was run without Graphify impact review.
-- The PR gate existed, but the agent did not use it until after implementation.
-- The failure looked local to one file, but the runtime path crossed hooks, server state, WebSocket, client state, and sorting.
-
-Recovery:
-
-1. Stop expanding the patch.
-2. Open `docs/brainbase-capabilities/capabilities/vibepro.impact-review.yml`.
-3. Run `vibepro graph . --run-graphify`.
-4. List graph-sensitive changed files and impacted adjacent paths.
-5. Add or update contract tests for the state transition or runtime path.
-6. Update the PR body with `Graphify Impact Review` evidence.
-7. Run `node scripts/vibepro-graphify-impact-gate.mjs` locally before pushing.
-
-Prevention:
-
-- Use the `vibepro-workflow` skill as the agent entrypoint.
-- Keep this capability map as the source of truth.
-- Make gate failure messages point to this troubleshooting page.
+未導入、グラフ欠落、解析不足、鮮度不明、実行失敗はそれぞれ未確認として扱い、コードの直接確認で補う。必要な場合だけ更新・深掘りする。Graphifyを導入できないことを理由に不要な確認質問や新しいPRゲートを作らない。

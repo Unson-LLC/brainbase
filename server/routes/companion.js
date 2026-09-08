@@ -1,8 +1,6 @@
 import express from 'express';
 import { CompanionController } from '../controllers/companion-controller.js';
 
-const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
-
 function splitCsv(value) {
     return String(value || '')
         .split(',')
@@ -30,7 +28,7 @@ function isServerToServerOrNativeAuth(req) {
 }
 
 function createCompanionAccessGuard({
-    ownerPersonId = process.env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID || DEFAULT_OWNER_PERSON_ID,
+    ownerPersonId = process.env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID || null,
     ownerAliasIds = splitCsv(process.env.BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS)
 } = {}) {
     const allowedOwnerIds = new Set([ownerPersonId, ...ownerAliasIds].filter(Boolean));
@@ -64,7 +62,7 @@ function createCompanionAccessGuard({
 }
 
 function createCanonicalTaskAccessGuard({
-    ownerPersonId = process.env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID || DEFAULT_OWNER_PERSON_ID,
+    ownerPersonId = process.env.BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID || null,
     ownerAliasIds = splitCsv(process.env.BRAINBASE_PERSONAL_KG_OWNER_ALIAS_IDS)
 } = {}) {
     const allowedOwnerIds = new Set([ownerPersonId, ...ownerAliasIds].filter(Boolean));

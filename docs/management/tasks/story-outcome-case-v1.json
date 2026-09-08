@@ -1,0 +1,102 @@
+{
+  "task_id": "story-outcome-case-v1",
+  "status": "done",
+  "done": true,
+  "deliverables": [
+    "docs/management/stories/active/story-outcome-case-v1.md",
+    "docs/architecture/story-outcome-case-v1.md",
+    ".vibepro/spec/story-outcome-case-v1/spec.json",
+    "server/services/outcome-case/outcome-case-service.js",
+    "server/services/outcome-case/outcome-case-postgres-repository.js",
+    "server/services/outcome-case/outcome-case-reference-resolver.js",
+    "server/lib/canonical-tenant-identity.js",
+    "server/middleware/auth.js",
+    "server/services/info-ssot-service.js",
+    "server/sql/outcome-case-schema.sql",
+    "server/sql/info-ssot-rls.sql",
+    "server/sql/info-ssot-readback.sql",
+    "server/sql/info-ssot-negative-smoke.sql",
+    "scripts/info-ssot-apply.sh",
+    "server/routes/outcome-cases.js",
+    "tests/server/services/outcome-case-service.test.js",
+    "tests/server/routes/outcome-cases.test.js",
+    "tests/server/middleware/auth.test.js",
+    "tests/server/services/info-ssot-service.test.js",
+    "tests/server/services/outcome-case-reference-resolver.test.js",
+    "tests/server/services/outcome-case-postgres-rls.integration.test.js",
+    "scripts/verify-outcome-case-postgres-rls-integration.sh",
+    "tests/server/scripts/info-ssot-apply.test.js",
+    "docs/management/tasks/story-outcome-case-v1.authority.json"
+  ],
+  "acceptance_boundary": "local contract and route tests only; no production Graph write, external send, deploy, or production migration",
+  "acceptance_traceability": {
+    "AC-001": ["evaluation_history append-only DB trigger", "evaluation state/revision snapshot", "RACI authority provenance", "outcome-case-service.test.js", "outcome-case-postgres-rls.integration.test.js"],
+    "AC-002": ["scripts/info-ssot-apply.sh", "Info SSOT FORCE RLS/readback/negative smoke", "InfoSSOTService.withAccessContext CRUD", "outcome-case-postgres-rls.integration.test.js", "registerApiRoutes HTTP integration"],
+    "AC-003": ["retained RunReceipt diagnosis", "authenticated actor", "read-only RACI authority resolver", "self-delegation rejection", "empty clearance does not become internal authority"],
+    "AC-004": ["unresolved/no_data close prohibition", "resolver exception regression", "cross-project RLS denial", "empty privileged scope rejection", "outcome-case-service.test.js", "outcome-case-postgres-rls.integration.test.js"],
+    "AC-005": ["read-only resolver", "no Graph writes", "outcome-case-reference-resolver.test.js"]
+  },
+  "regression_guard": {
+    "closure_must_remain_incomplete_or_waiting_human": [
+      "technical_evidence.status = unconfirmed または no_data",
+      "retained RunReceipt readback = no_data",
+      "external_readback.status = no_data",
+      "constraints_status = unknown",
+      "authoritative tenant = unknown または ambiguous",
+      "cross-organization candidate",
+      "organization/project scope = empty",
+      "authenticated clearance = empty"
+    ],
+    "C-002/C-003_technical_evidence_negative_tests": [
+      "tests/server/services/outcome-case-service.test.js: derives closure only when technical evidence is confirmed (%s)",
+      "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
+      "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
+    ],
+    "confirmed_only_test_classification": {
+      "test_case": "tests/server/services/outcome-case-service.test.js: derives closure only when technical evidence is confirmed (%s)",
+      "classification": "prevention_invariant",
+      "pre_fix_sensitivity": "not_applicable: 546a2bd30^ already required technicalEvidence.status === confirmed; 546a2bd30 changed only the test file",
+      "deterministic_mutation_sensitivity": "weakening the predicate to technicalEvidence.status !== no_data makes the unconfirmed table row fail"
+    }
+  },
+  "path_surface_coverage": {
+    "route_auth": [
+      "server/bootstrap/register-api-routes.js",
+      "server/middleware/auth.js",
+      "server/routes/outcome-cases.js",
+      "tests/server/routes/outcome-cases.test.js"
+    ],
+    "canonical_identity": [
+      "server/lib/canonical-tenant-identity.js",
+      "tests/server/services/outcome-case-service.test.js"
+    ],
+    "outcome_case_control_plane": [
+      "server/services/outcome-case/outcome-case-service.js",
+      "server/services/outcome-case/outcome-case-postgres-repository.js",
+      "server/services/outcome-case/outcome-case-reference-resolver.js",
+      "tests/server/services/outcome-case-service.test.js",
+      "tests/server/services/outcome-case-postgres-repository.test.js",
+      "tests/server/services/outcome-case-reference-resolver.test.js"
+    ],
+    "info_ssot_access_context": [
+      "server/services/info-ssot-service.js",
+      "tests/server/services/info-ssot-service.test.js"
+    ],
+    "schema_rls": [
+      "server/sql/outcome-case-schema.sql",
+      "server/sql/info-ssot-rls.sql",
+      "tests/server/services/outcome-case-postgres-rls.integration.test.js"
+    ],
+    "C-002/C-003_technical_evidence_negative_tests": [
+      "tests/server/services/outcome-case-service.test.js: derives closure only when technical evidence is confirmed (%s)",
+      "tests/server/services/outcome-case-service.test.js: does not close from technical evidence when receipt readback is unconfirmed",
+      "tests/server/services/outcome-case-service.test.js: keeps no_data and unknown constraints out of closure and requires a real evidence ref for confirm"
+    ]
+  },
+  "forbidden": [
+    "RunReceipt v1 schema change",
+    "KnowledgeEvent automatic promotion",
+    "generic workflow engine",
+    "closure inferred from HTTP, test, persistence, or deploy"
+  ]
+}

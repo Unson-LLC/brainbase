@@ -207,6 +207,8 @@ personal_candidate
 
 `owner_approved_for_personal_use`だけでは組織Knowledge EventまたはGraphへ書かない。
 
+各decisionは、直前stateのrevisionを期待値として受け取り、成功時にrevisionを1つ進める。owner consentとorganization reviewは、それぞれのactor、decision revision、receiptを保持する。stale revisionまたは同じrevisionの再配送は状態を進めず、Graph writeを含む下流effectより前に拒否する。
+
 組織へ昇格できるのは次だけである。
 
 - 正規化した事実

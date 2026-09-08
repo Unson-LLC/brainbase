@@ -1,5 +1,7 @@
 # brainbase 運用ダッシュボード - 実装プロンプト（Phase 1）
 
+> **履歴資料（実装入力には使用しない）**: これは2025-12-31時点のPhase 1案です。現在のAPI認証、組織スコープ、Project Grant、Catalog取得元状態を反映していません。実装時は [API.md](./API.md) と [AITM_Dashboard_Design_Spec.md](./AITM_Dashboard_Design_Spec.md) を正本として使用してください。
+
 **作成日**: 2025-12-31
 **対象**: AI開発アシスタント（Claude / Cursor / その他）
 **目的**: brainbase監視ダッシュボードのフロントエンド実装（Phase 1）

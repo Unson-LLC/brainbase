@@ -6,6 +6,22 @@ import { buildScopedMemoryResult } from './memory-scope-policy.js';
 import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
 import { canonicalJson, ONTOLOGY_PUBLICATION_RECEIPT_SCHEMA_VERSION } from './ontology-publication.js';
+import { assertCatalogProjectSubjectMutation, lockProjectGraphIdentity } from './project-graph-identity-lock.js';
+import { requireCanonicalTenantIdentity } from '../lib/canonical-tenant-identity.js';
+
+function isMergedGraphEntity(row) {
+    const status = row?.payload?.status;
+    return typeof status === 'string' && status.trim().toLowerCase() === 'merged';
+}
+
+function getCanonicalEntityId(row) {
+    const canonicalEntityId = row?.payload?.canonical_entity_id;
+    return typeof canonicalEntityId === 'string' ? canonicalEntityId.trim() : '';
+}
+
+function isTrue(value) {
+    return value === true || (typeof value === 'string' && value.trim().toLowerCase() === 'true');
+}
 
 const ROLE_RANK = {
     member: 1,
@@ -78,7 +94,11 @@ export class InfoSSOTService {
 
     describeOntology({ version, asOf } = {}) {
         const release = this.resolveOntology({ version, asOf });
-        return { ...release.kernel.describe(), digest: release.digest };
+        return {
+            ...release.kernel.describe(),
+            digest: release.digest,
+            publication_verification: release.publicationVerification
+        };
     }
 
     describeOntologyType(id, { version, asOf } = {}) {
@@ -127,6 +147,7 @@ export class InfoSSOTService {
         this.assertWriteAccess(access, { projectCode: input.projectCode, roleMin, sensitivity });
 
         const commit = async (client) => {
+            await lockProjectGraphIdentity(client, entity.id);
             const contextIds = [...new Set(contextEntities
                 .map((item) => item?.id)
                 .filter((id) => id && id !== entity.id))];
@@ -598,6 +619,13 @@ export class InfoSSOTService {
                 { deferRequiredRelations: true }
             ));
         }
+        await assertCatalogProjectSubjectMutation(client, {
+            id,
+            entityType,
+            projectId,
+            payload,
+            allowCompatible: false
+        });
         await client.query(
             `INSERT INTO graph_entities (
                 id,
@@ -1040,8 +1068,14 @@ export class InfoSSOTService {
         }
     }
 
-    async withAccessContext(access, handler, { client: externalClient } = {}) {
+    async withAccessContext(access, handler, { client: externalClient, requireCanonicalTenant = false } = {}) {
         this.assertReady();
+        // Info SSOT predates organization-scoped RLS. Keep its established
+        // generic context contract intact; callers that own a tenant boundary
+        // must opt in explicitly instead of silently changing every consumer.
+        const organizationId = requireCanonicalTenant
+            ? requireCanonicalTenantIdentity(access)
+            : (access.organizationId || access.tenantId || '');
         const client = externalClient || await this.pool.connect();
         const ownsTransaction = !externalClient;
         try {
@@ -1049,7 +1083,7 @@ export class InfoSSOTService {
             await client.query('SELECT set_config($1, $2, true)', ['app.role', access.role]);
             await client.query('SELECT set_config($1, $2, true)', ['app.project_codes', access.projectCodes.join(',')]);
             await client.query('SELECT set_config($1, $2, true)', ['app.clearance', access.clearance.join(',')]);
-            await client.query('SELECT set_config($1, $2, true)', ['app.organization_id', access.organizationId || access.tenantId || '']);
+            await client.query('SELECT set_config($1, $2, true)', ['app.organization_id', organizationId]);
             await client.query('SELECT set_config($1, $2, true)', ['app.graph_maintenance_mode', access.graphMaintenanceMode === true ? 'true' : 'false']);
             const result = await handler(client);
             if (ownsTransaction) await client.query('COMMIT');
@@ -1062,11 +1096,12 @@ export class InfoSSOTService {
         }
     }
 
-    async fetchGraphEntities(client, access, { projectCode, entityType, query, limit }) {
+    async fetchGraphEntities(client, access, { projectCode, entityType, query, limit, includeMerged } = {}) {
         const roleRank = this.getRoleRank(access.role);
         const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
         const trimmedQuery = typeof query === 'string' ? query.trim() : '';
         const compactQuery = trimmedQuery.replace(/\s+/g, '');
+        const includeMergedEntities = isTrue(includeMerged);
         const { rows } = await client.query(
             `SELECT ge.*,
                     p.code AS project_code,
@@ -1097,6 +1132,7 @@ export class InfoSSOTService {
              FROM graph_entities ge
              LEFT JOIN projects p ON p.id = ge.project_id
              WHERE COALESCE(ge.payload->>'searchable', 'true') <> 'false'
+               AND ($8::boolean = true OR LOWER(COALESCE(ge.payload->>'status', '')) <> 'merged')
                AND (
                $1::text IS NULL
                OR p.code = $1
@@ -1145,7 +1181,7 @@ export class InfoSSOTService {
                  )
                )
              ORDER BY ge.updated_at DESC
-             LIMIT $8`,
+             LIMIT $9`,
             [
                 projectCode || null,
                 entityType || null,
@@ -1154,6 +1190,7 @@ export class InfoSSOTService {
                 roleRank,
                 trimmedQuery || null,
                 compactQuery || null,
+                includeMergedEntities,
                 safeLimit
             ]
         );
@@ -1345,35 +1382,18 @@ export class InfoSSOTService {
             [projectCode]
         );
         if (rows.length > 0) {
-            const projectId = rows[0].id;
-            await this.upsertGraphEntity(client, {
-                id: projectId,
-                entityType: 'project',
-                projectId,
-                payload: { code: projectCode, name: projectName || '' },
-                roleMin: 'member',
-                sensitivity: 'internal'
-            });
-            return projectId;
+            // `projects.id` is a technical storage/auth scope. The canonical
+            // Project subject uses project_code as its Graph identity and is
+            // managed only by Project Provisioning. Creating/updating a Graph
+            // entity at this technical id produced duplicate Project subjects
+            // and let stale caller labels overwrite the canonical name.
+            return rows[0].id;
         }
-        if (!projectName) {
-            throw new Error(`Unknown project: ${projectCode}`);
-        }
-        const id = this.generateId('prj');
-        await client.query(
-            `INSERT INTO projects (id, code, name, organization_id)
-             VALUES ($1, $2, $3, NULLIF(current_setting('app.organization_id', true), ''))`,
-            [id, projectCode, projectName]
-        );
-        await this.upsertGraphEntity(client, {
-            id,
-            entityType: 'project',
-            projectId: id,
-            payload: { code: projectCode, name: projectName },
-            roleMin: 'member',
-            sensitivity: 'internal'
-        });
-        return id;
+        // New project identity is intentionally not created from a generic
+        // entity writer. Project Provisioning owns the only registration path
+        // and creates the technical scope plus the canonical Graph subject in
+        // one transaction.
+        throw new Error(`Unknown project: ${projectCode}`);
     }
 
     async getProjectId(client, projectCode) {
@@ -1388,8 +1408,19 @@ export class InfoSSOTService {
     }
 
     async ensurePerson(client, { personId, personName, aliases = [], email = '' }) {
-        if (personId) {
-            return personId;
+        const canonicalPersonId = String(personId || '').trim();
+        if (canonicalPersonId) {
+            const { rows: graphRows } = await client.query(
+                'SELECT id, entity_type FROM graph_entities WHERE id = $1 LIMIT 1',
+                [canonicalPersonId]
+            );
+            if (graphRows.length > 0) {
+                if (graphRows[0].entity_type !== 'person') {
+                    throw new Error(`Graph entity is not a person: ${canonicalPersonId}`);
+                }
+                return canonicalPersonId;
+            }
+            throw new Error(`Unknown Graph personId: ${canonicalPersonId}`);
         }
         if (!personName || typeof personName !== 'string') {
             throw new Error('personId or personName is required');
@@ -1579,6 +1610,7 @@ export class InfoSSOTService {
         }
 
         return this.withAccessContext(access, async (client) => {
+            await lockProjectGraphIdentity(client, id);
             const projectId = await this.ensureProject(client, { projectCode, projectName });
             await this.validateGraphMutation(client, {
                 entityOverrides: [{ id, type: entityType, payload: payload || {} }],
@@ -1848,7 +1880,7 @@ export class InfoSSOTService {
         });
     }
 
-    async createRaci(access, input) {
+    async createRaci(access, input, { client: externalClient, access_context_applied: accessContextApplied = false } = {}) {
         const roleMin = this.normalizeRole(input.roleMin || input.sensitivityMin || input.roleCode);
         const sensitivity = this.normalizeSensitivity(input.sensitivity || 'internal');
         this.assertWriteAccess(access, {
@@ -1858,12 +1890,18 @@ export class InfoSSOTService {
         });
         const guard = this.getOntologyGuard();
 
-        return this.withAccessContext(access, async (client) => {
+        const commit = async (client) => {
             const projectId = await this.ensureProject(client, input);
             const personId = await this.ensurePerson(client, {
                 personId: input.personId,
                 personName: input.personName
             });
+            const actorPersonId = input.actorPersonId
+                ? await this.ensurePerson(client, {
+                    personId: input.actorPersonId,
+                    personName: input.actorPersonName
+                })
+                : personId;
 
             const eventId = this.generateId('evt');
             const desiredRaciId = this.generateId('rac');
@@ -1885,7 +1923,7 @@ export class InfoSSOTService {
                 [
                     eventId,
                     projectId,
-                    personId,
+                    actorPersonId,
                     'RACI_ASSIGNED',
                     JSON.stringify({
                         role_code: input.roleCode,
@@ -1974,7 +2012,10 @@ export class InfoSSOTService {
                 sensitivity: 'internal'
             });
             return { raci_id: raciId, event_id: eventId, ...guard };
-        });
+        };
+        if (externalClient && accessContextApplied) return commit(externalClient);
+        if (externalClient) return this.withAccessContext(access, commit, { client: externalClient });
+        return this.withAccessContext(access, commit);
     }
 
     async listDecisions(access, { projectCode, since }) {
@@ -2039,8 +2080,17 @@ export class InfoSSOTService {
         });
     }
 
-    async listGraphEntities(access, { id, ids, projectCode, entityType, query, limit } = {}) {
+    async listGraphEntities(access, {
+        id,
+        ids,
+        projectCode,
+        entityType,
+        query,
+        limit,
+        includeMerged
+    } = {}) {
         this.assertReady();
+        const includeMergedEntities = isTrue(includeMerged);
         return this.withAccessContext(access, async (client) => {
             const entityIds = [
                 ...(id ? [id] : []),
@@ -2048,20 +2098,47 @@ export class InfoSSOTService {
             ].filter(Boolean);
             if (entityIds.length) {
                 const rows = await this.fetchGraphEntitiesByIds(client, access, { ids: entityIds, projectCode });
-                if (!entityType) return rows;
-                const canonicalRows = rows.filter((row) => row.entity_type === entityType);
+                if (!entityType) {
+                    return includeMergedEntities ? rows : rows.filter((row) => !isMergedGraphEntity(row));
+                }
+                const canonicalRows = rows
+                    .filter((row) => row.entity_type === entityType)
+                    .filter((row) => includeMergedEntities || !isMergedGraphEntity(row));
                 if (!['org', 'person'].includes(entityType)) return canonicalRows;
                 const aliases = await this.fetchGraphAliasTargetsByIds(client, access, { ids: entityIds, entityType });
-                const canonicalIds = [...new Set(aliases.map((row) => row.canonical_entity_id).filter(Boolean))];
+                const mergedPersonCanonicalIds = entityType === 'person'
+                    ? rows
+                        .filter((row) => row.entity_type === 'person' && isMergedGraphEntity(row))
+                        .map(getCanonicalEntityId)
+                        .filter(Boolean)
+                    : [];
+                const canonicalIds = [...new Set([
+                    ...aliases.map((row) => row.canonical_entity_id).filter(Boolean),
+                    ...mergedPersonCanonicalIds
+                ])];
                 const resolvedRows = canonicalIds.length
                     ? await this.fetchGraphEntitiesByIds(client, access, { ids: canonicalIds, projectCode })
                     : [];
+                const mergedPersonIdsWithCanonical = new Set(
+                    entityType === 'person'
+                        ? rows
+                            .filter((row) => row.entity_type === 'person' && isMergedGraphEntity(row) && getCanonicalEntityId(row))
+                            .map((row) => row.id)
+                        : []
+                );
                 return [...new Map(
-                    [...canonicalRows, ...resolvedRows.filter((row) => row.entity_type === entityType)]
+                    [
+                        ...canonicalRows.filter((row) => !mergedPersonIdsWithCanonical.has(row.id)),
+                        ...resolvedRows
+                            .filter((row) => row.entity_type === entityType)
+                            .filter((row) => !isMergedGraphEntity(row))
+                    ]
                         .map((row) => [row.id, row])
                 ).values()];
             }
-            return this.fetchGraphEntities(client, access, { projectCode, entityType, query, limit });
+            const graphOptions = { projectCode, entityType, query, limit };
+            if (includeMergedEntities) graphOptions.includeMerged = true;
+            return this.fetchGraphEntities(client, access, graphOptions);
         });
     }
 

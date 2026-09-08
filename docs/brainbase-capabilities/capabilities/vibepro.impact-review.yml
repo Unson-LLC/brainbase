@@ -1,48 +1,44 @@
 id: vibepro.impact-review
-name: VibePro Graphify impact review
-purpose: Ensure graph-sensitive Brainbase changes use VibePro/Graphify to identify affected code paths, record evidence, and select focused verification before implementation is claimed complete.
+name: 改修ごとのGraphify軽量参照
+purpose: Every implementation consults installed Graphify without a change-size exemption; reuse unchanged context and deepen only when evidence is insufficient.
 surfaces:
   ui:
     - Agent implementation and review responses
-    - Pull request body Graphify Impact Review section
   api:
-    - VibePro CLI status, story, graph, diagnose commands
-    - GitHub pull request checks
+    - node scripts/graphify-impact-context.mjs --repo <repo> --file <relative-path>
   code:
-    - scripts/vibepro-graphify-impact-gate.mjs
-    - tests/unit/vibepro-graphify-impact-gate.test.js
+    - scripts/graphify-impact-context.mjs
+    - config/judgment-runtime-manifest.json
+    - server/services/judgment-resolution-service.js
     - .claude/skills/vibepro-workflow/SKILL.md
   data:
+    - graphify-out/graph.json
     - .vibepro/graphify/graph.json
-    - docs/session-activity-indicator-lifecycle.md
-    - docs/brainbase-capabilities/
 depends_on:
   - code.reading
   - verification.testing
-  - graph.ssot
 visibility_rules:
-  - VibePro and Graphify are validation and impact-review aids, not the source of truth.
-  - Capability records, implementation files, tests, runtime APIs, and logs remain the source of truth.
-  - Graph-sensitive changes require a PR body section titled "Graphify Impact Review".
-  - Generic VibePro diagnose output is not enough when the change depends on runtime state-machine or realtime UI relationships.
-  - A selected or newly created VibePro story should be recorded when the work is part of a repeated issue stream.
+  - Installed Graphify receives a bounded lookup for every implementation, regardless of size.
+  - Reuse requires the same repository, source state, target files, and graph content.
+  - Missing, unmatched, stale, incomplete, or failed graph evidence is unknown, never no impact.
+  - Graph freshness is unknown unless supported by verifiable evidence; timestamps alone are insufficient.
+  - Update or deepen only when needed; do not install automatically or rebuild on every edit.
+  - Graph context guides code and test selection; it is not correctness proof or merge authority.
+  - Do not require a PR-body section, generated artifact, score, Gate, or command transcript.
 verification:
   commands:
-    - vibepro status . --json
-    - vibepro story select . --id <story-id>
-    - vibepro graph . --run-graphify
-    - node scripts/vibepro-graphify-impact-gate.mjs --changed-file <path> --pr-body <body>
+    - node scripts/graphify-impact-context.mjs --repo <repo> --file <relative-path>
+    - npm run test:run -- tests/unit/graphify-impact-context.test.js tests/unit/judgment-resolution-service.test.js
   expected:
-    - The changed graph-sensitive files are listed before implementation or PR completion.
-    - The PR body contains Graphify Impact Review evidence with a VibePro or graphify command.
-    - Targeted contract tests or runtime checks are selected from the impacted path, not from memory alone.
-    - The Graphify impact gate fails with a pointer to this capability when evidence is missing.
+    - Engineering implementation selects observe -> graphify-impact -> hypothesis.
+    - Other intents retain the existing engineering DAG without a mandatory lookup.
+    - Repeated identical lookups reuse results and source or graph changes invalidate them.
+    - Unknown or truncated context never becomes a claim of no impact.
 common_failures:
-  - Patching graph-sensitive state-machine code before running Graphify.
-  - Running VibePro diagnose but skipping `vibepro graph . --run-graphify`.
-  - Forgetting to select or create the relevant VibePro story.
-  - Writing PR evidence that says Graphify was used without command or artifact evidence.
-  - Treating VibePro output as authoritative over code, tests, API responses, or Capability Map records.
+  - Skipping a lookup merely because the change is small.
+  - Rebuilding on every edit or repeating identical lookups.
+  - Treating graph presence or a successful command as fresh complete evidence.
+  - Expanding a focused change to satisfy a retired Gate.
 runbooks:
   - ../runbooks/vibepro-impact-review.md
 troubleshooting:

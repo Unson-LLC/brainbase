@@ -14,6 +14,27 @@ function queryable(repository, options = {}) {
     return options.client || repository.pool;
 }
 
+function sleepReportMemory(row) {
+    const summary = row?.payload?.decision?.statement
+        || row?.payload?.summary
+        || row?.result?.outcome;
+    if (!row?.event_id || typeof summary !== 'string' || !summary.trim()) return null;
+    return { id: row.event_id, source: 'graph_ssot', summary: summary.trim().slice(0, 2000) };
+}
+
+function sleepReportAssociations(rows) {
+    const byEpisode = new Map();
+    for (const row of rows) {
+        const memory = sleepReportMemory(row);
+        if (!memory || !row?.parent_episode_id) continue;
+        if (!byEpisode.has(row.parent_episode_id)) byEpisode.set(row.parent_episode_id, []);
+        byEpisode.get(row.parent_episode_id).push(memory.summary);
+    }
+    return [...byEpisode.values()].filter((summaries) => summaries.length > 1).map((summaries) => ({
+        summary: `「${summaries[0]}」と「${summaries[1]}」を同じ経験として関連付けました`
+    }));
+}
+
 function normalizeEvent(row) {
     if (!row) return null;
     const result = row.current_result || row.result || undefined;
@@ -337,9 +358,14 @@ export class PgKnowledgeEventRepository {
                 }
             }
             const unconfirmedEpisodeIds = requestedEpisodeIds.filter((id) => !persistedEpisodeIds.includes(id));
+            const confirmedRows = rows.filter((row) => persistedEpisodeIds.includes(row.parent_episode_id));
+            const consolidatedMemories = confirmedRows.map(sleepReportMemory).filter(Boolean);
             return {
                 episode_ids: compressedEpisodeIds,
                 confirmed: unconfirmedEpisodeIds.length === 0,
+                consolidated_memories: consolidatedMemories,
+                associations: sleepReportAssociations(confirmedRows),
+                feedback_targets: consolidatedMemories,
                 ...(missingEpisodeIds.length > 0 ? { missing_episode_ids: missingEpisodeIds } : {})
             };
         }, { access: context.access });

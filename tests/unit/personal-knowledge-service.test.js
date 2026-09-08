@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { describe, expect, it, vi } from 'vitest';
 
 import { PersonalKnowledgeService } from '../../server/services/personal-knowledge/personal-knowledge-service.js';
@@ -41,6 +43,89 @@ describe('PersonalKnowledgeService', () => {
             event_id: 'pke_1', body_hash: 'sha256:one',
             source: { type: 'codex' }, source_pointer: { uri: 'codex://threads/changed' }
         }, { access })).rejects.toThrow('personal_knowledge_event_identity_conflict');
+    });
+
+    it('reuses the legacy generated event ID when replaying input without an explicit ID', async () => {
+        const input = {
+            body_hash: 'sha256:legacy', body: 'legacy personal note',
+            source: { type: 'codex' }, source_pointer: { uri: 'codex://legacy/1' }
+        };
+        const legacyEvent = {
+            event_id: `pke_${createHash('sha256').update(JSON.stringify(input)).digest('hex').slice(0, 24)}`,
+            body_hash: input.body_hash, body: input.body,
+            source: input.source, source_pointer: input.source_pointer, parent_episode_id: null
+        };
+        const repository = {
+            transaction: vi.fn(async (handler) => handler({ client: { id: 'legacy-tx' } })),
+            findById: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(legacyEvent),
+            createEvent: vi.fn(),
+            appendTransition: vi.fn()
+        };
+        const service = new PersonalKnowledgeService({ repository });
+
+        const result = await service.ingest(input, { access });
+
+        expect(repository.findById).toHaveBeenCalledTimes(2);
+        expect(repository.findById.mock.calls[1][0]).toBe(legacyEvent.event_id);
+        expect(repository.findById.mock.calls[0][0]).not.toBe(legacyEvent.event_id);
+        expect(repository.createEvent).not.toHaveBeenCalled();
+        expect(repository.appendTransition).not.toHaveBeenCalled();
+        expect(result).toEqual({ ...legacyEvent, idempotent: true });
+    });
+
+    it('reuses the namespaced generated event ID when input key order changes', async () => {
+        const stored = new Map();
+        const repository = {
+            transaction: vi.fn(async (handler) => handler({ client: { id: 'canonical-tx' } })),
+            findById: vi.fn(async (eventIdValue) => stored.get(eventIdValue) || null),
+            createEvent: vi.fn(async (event) => {
+                stored.set(event.event_id, event);
+                return event;
+            }),
+            appendTransition: vi.fn(async (_id, transition) => transition)
+        };
+        const service = new PersonalKnowledgeService({
+            repository,
+            now: () => new Date('2026-08-14T00:00:00.000Z')
+        });
+        const firstInput = {
+            body_hash: 'sha256:canonical', body: 'canonical personal note',
+            source: { type: 'codex', channel: 'dm' },
+            source_pointer: { uri: 'codex://canonical/1', message_id: 'm1' }
+        };
+        const replayInput = {
+            source_pointer: { message_id: 'm1', uri: 'codex://canonical/1' },
+            source: { channel: 'dm', type: 'codex' },
+            body: 'canonical personal note', body_hash: 'sha256:canonical'
+        };
+
+        const first = await service.ingest(firstInput, { access });
+        const replay = await service.ingest(replayInput, { access });
+
+        expect(replay.event_id).toBe(first.event_id);
+        expect(replay.idempotent).toBe(true);
+        expect(repository.createEvent).toHaveBeenCalledOnce();
+        expect(repository.appendTransition).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not append transitions after a concurrent event ID collision', async () => {
+        const repository = {
+            transaction: vi.fn(async (handler) => handler({ client: { id: 'collision-tx' } })),
+            findById: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+                event_id: 'pke_collision', body_hash: 'sha256:other',
+                source: {}, source_pointer: {}, parent_episode_id: null
+            }),
+            createEvent: vi.fn(async () => null),
+            appendTransition: vi.fn()
+        };
+        const service = new PersonalKnowledgeService({ repository });
+
+        await expect(service.ingest({
+            event_id: 'pke_collision', body_hash: 'sha256:incoming', body: 'incoming'
+        }, { access })).rejects.toThrow('personal_knowledge_event_identity_conflict');
+
+        expect(repository.createEvent).toHaveBeenCalledOnce();
+        expect(repository.appendTransition).not.toHaveBeenCalled();
     });
 
     it('searches only the authenticated owner scope', async () => {
@@ -90,6 +175,68 @@ describe('PersonalKnowledgeService', () => {
             transition_type: 'usage',
             payload: { routine: 'ohayo', outcome: 'used' }
         }), { access, client: { id: 'usage-tx' } });
+    });
+
+    it('records an oyasumi adoption as owner-scoped feedback', async () => {
+        const repository = {
+            transaction: vi.fn(async (handler) => handler({ client: { id: 'feedback-tx' } })),
+            findById: vi.fn(async () => ({ event_id: 'pke_1', semantic_state: 'active' })),
+            appendTransition: vi.fn(async (_eventId, transition) => transition)
+        };
+        const service = new PersonalKnowledgeService({ repository, now: () => new Date('2026-08-14T00:00:00.000Z') });
+
+        const result = await service.recordFeedback({ event_id: 'pke_1', action: 'adopt', reason: '正しい' }, { access });
+
+        expect(repository.appendTransition).toHaveBeenCalledWith('pke_1', expect.objectContaining({
+            transition_type: 'feedback',
+            payload: { routine: 'oyasumi', action: 'adopt', reason: '正しい' }
+        }), { access, client: { id: 'feedback-tx' } });
+        expect(result).toEqual({ event_id: 'pke_1', action: 'adopt', semantic_state: 'active' });
+    });
+
+    it('retracts a wrong personal memory from oyasumi feedback', async () => {
+        const repository = {
+            transaction: vi.fn(async (handler) => handler({ client: { id: 'feedback-tx' } })),
+            findById: vi.fn(async () => ({ event_id: 'pke_1', semantic_state: 'active' })),
+            appendTransition: vi.fn(async (_eventId, transition) => transition)
+        };
+        const service = new PersonalKnowledgeService({ repository });
+
+        const result = await service.recordFeedback({ event_id: 'pke_1', action: 'reject' }, { access });
+
+        expect(repository.appendTransition).toHaveBeenCalledWith('pke_1', expect.objectContaining({
+            transition_type: 'semantic_state', semantic_state: 'retracted'
+        }), expect.any(Object));
+        expect(result).toEqual({ event_id: 'pke_1', action: 'reject', semantic_state: 'retracted' });
+    });
+
+    it('supersedes a corrected personal memory and creates the replacement in one transaction', async () => {
+        const repository = {
+            transaction: vi.fn(async (handler) => handler({ client: { id: 'feedback-tx' } })),
+            findById: vi.fn(async (eventIdValue) => eventIdValue === 'pke_old'
+                ? { event_id: 'pke_old', semantic_state: 'active' } : null),
+            createEvent: vi.fn(async (event) => event),
+            appendTransition: vi.fn(async (_eventId, transition) => transition)
+        };
+        const service = new PersonalKnowledgeService({ repository, now: () => new Date('2026-08-14T00:00:00.000Z') });
+
+        const result = await service.recordFeedback({
+            event_id: 'pke_old',
+            action: 'correct',
+            correction_event: {
+                event_id: 'pke_new', corrects_event_id: 'pke_old', body_hash: 'sha256:new', body: '訂正後の記憶'
+            }
+        }, { access });
+
+        expect(repository.createEvent).toHaveBeenCalledWith(expect.objectContaining({
+            event_id: 'pke_new', owner_person_id: 'person_a', body: '訂正後の記憶'
+        }), expect.objectContaining({ client: { id: 'feedback-tx' }, access }));
+        expect(repository.appendTransition).toHaveBeenCalledWith('pke_old', expect.objectContaining({
+            transition_type: 'semantic_state', semantic_state: 'superseded', supersedes_event_id: 'pke_new'
+        }), expect.any(Object));
+        expect(result).toEqual({
+            event_id: 'pke_old', action: 'correct', semantic_state: 'superseded', replacement_event_id: 'pke_new'
+        });
     });
 
     it('runs routine summary, compaction and verification inside owner-scoped transactions', async () => {

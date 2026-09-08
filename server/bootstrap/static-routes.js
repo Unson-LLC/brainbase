@@ -2,6 +2,25 @@ import fs from 'fs/promises';
 import path from 'path';
 import express from 'express';
 
+const retiredStaticPaths = [
+    '/test-infrastructure.html',
+    '/meeting-workflow-pack.html',
+    '/workflows',
+    '/workflows.html',
+    '/sns-growth',
+    '/sns-growth.html',
+    '/style.css',
+    '/ttyd/custom_ttyd_index.html',
+    '/ttyd/ttyd_index.html',
+    '/admin',
+    '/admin.html',
+    '/admin.css',
+    '/modules/pages/admin-visualization-page.js',
+    '/setup',
+    '/setup.html',
+    '/modules/setup/setup-controller.js'
+];
+
 function renderApiFallbackPage() {
     return `
 <!DOCTYPE html>
@@ -89,6 +108,10 @@ export function registerStaticRoutes(app, { publicDir, log = console }) {
             owner: 'Codex app and CLI',
             replacement: 'Use Codex tasks and Brainbase MCP'
         });
+    });
+
+    app.get(retiredStaticPaths, (req, res) => {
+        res.sendStatus(404);
     });
 
     for (const page of ['device']) {

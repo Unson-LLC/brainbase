@@ -6,6 +6,7 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { timingSafeEqual } from 'node:crypto';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   CallToolRequestSchema,
   ListResourcesRequestSchema,
@@ -31,10 +32,19 @@ import {
   type EntityType,
 } from './indexer/index.js';
 import { CORE_ENTITY_TYPES } from './indexer/ontology.js';
-import { loadConfig, resolveBrainbaseApiUrl } from './config.js';
+import {
+  loadConfig,
+  normalizePersonalKgApiUrl,
+  resolveBrainbaseApiUrl,
+  type PersonalKgStorageMode,
+} from './config.js';
+import {
+  PersonalKnowledgeClient,
+  type PersonalKnowledgeEvent,
+} from './personal-knowledge-client.js';
 import { GraphAPISource } from './sources/graphapi-source.js';
 import type { EntitySource } from './sources/entity-source.js';
-import { TokenManager } from './auth/token-manager.js';
+import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
 import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
 import { RequestTokenContext, type TokenProvider } from './auth/request-token-context.js';
 import { filterWikiPages } from './tools/wiki-search.js';
@@ -51,7 +61,10 @@ import {
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/graph-maintenance-tools.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
-import { judgmentResolutionTools, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
+import { judgmentResolutionTools, handleJudgmentResolutionToolCall, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
+import { judgmentAuditTools, handleJudgmentAuditToolCall } from './tools/judgment-audit-tools.js';
+import { judgmentStateTools, handleJudgmentStateToolCall } from './tools/judgment-state-tools.js';
+import { judgmentValueProofTools, handleJudgmentValueProofToolCall } from './tools/judgment-value-proof-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
 import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
@@ -66,6 +79,7 @@ import {
   REMOTE_JUDGMENT_HOOK_PATH,
   type RemoteJudgmentHookDispatchResult,
 } from './remote-judgment-hook-http.js';
+import { readRuntimeVersion } from './runtime-version.js';
 
 // Global index. Runtime lookups rebuild and atomically swap this snapshot.
 let entityIndex: EntityIndex;
@@ -80,9 +94,20 @@ const taskApiToken = process.env.BRAINBASE_TASK_API_TOKEN;
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
 let globalTokenManager: TokenProvider;
+let globalOwnerTokenManager: TokenProvider;
+let personalKgStorageMode: PersonalKgStorageMode | undefined;
+let personalKgApiUrl: string | undefined;
+let personalKnowledgeClient: PersonalKnowledgeClient | null = null;
 let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
+
+function resolveWikiApiBaseUrl(
+  graphApiUrl: string,
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  return (env.BRAINBASE_WIKI_API_URL?.trim() || graphApiUrl).replace(/\/+$/, '');
+}
 
 type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
 type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
@@ -92,7 +117,7 @@ function createDefaultJudgmentResolutionDependencies(): JudgmentResolutionDispat
   return {
     apiUrl: resolveBrainbaseApiUrl(),
     configuredProjectCodes,
-    tokenManager: globalTokenManager,
+    tokenManager: globalOwnerTokenManager,
     bindingSecret: process.env.BRAINBASE_JUDGMENT_BINDING_SECRET || '',
     adapterId: process.env.BRAINBASE_JUDGMENT_ADAPTER_ID || 'brainbase-mcp',
     adapterVersion: process.env.BRAINBASE_JUDGMENT_ADAPTER_VERSION || '1',
@@ -139,6 +164,17 @@ async function dispatchExtensionToolCall(
   handlers: Array<ToolHandler<unknown>>,
 ) {
   return dispatchFirst(handlers, name, args);
+}
+
+function buildToolResponseContent(
+  name: string,
+  toolArgs: Record<string, unknown>,
+  result: string,
+) {
+  return buildKnowledgeToolContent(
+    result,
+    buildKnowledgeOwnerAudit(name, toolArgs, result),
+  );
 }
 
 async function refreshEntityIndex(): Promise<void> {
@@ -210,6 +246,17 @@ export function statelessMcpHttpMethodNotAllowed(
     },
     body: JSON.stringify({ error: 'Method Not Allowed', message: 'The stateless MCP endpoint accepts POST requests only.' }),
   };
+}
+
+export function handleHealthVersionRequest(
+  req: Pick<IncomingMessage, 'method' | 'url'>,
+  res: Pick<ServerResponse, 'writeHead' | 'end'>,
+  readback: ReturnType<typeof readRuntimeVersion> = readRuntimeVersion(),
+): boolean {
+  if (req.method !== 'GET' || req.url !== '/health/version') return false;
+  res.writeHead(readback.status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(readback.body));
+  return true;
 }
 
 async function dispatchRemoteJudgmentHook(
@@ -509,16 +556,44 @@ interface PersonalKgHit {
   created_at: string;
 }
 
-async function fetchPersonalKgSearch(
+function asPersonalKnowledgeRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+}
+
+function canonicalPersonalKgHit(event: PersonalKnowledgeEvent): PersonalKgHit {
+  const record = asPersonalKnowledgeRecord(event);
+  const source = asPersonalKnowledgeRecord(record.source);
+
+  return {
+    id: record.event_id as string,
+    cognitive_type: 'event',
+    body: nonEmptyString(record.body) || '',
+    confidence: null,
+    source_system: nonEmptyString(source.type) || 'personal_knowledge',
+    created_at: nonEmptyString(record.created_at)
+      || nonEmptyString(record.occurred_at)
+      || nonEmptyString(record.captured_at)
+      || '',
+  };
+}
+
+async function fetchLegacyPersonalKgSearch(
   query: string,
   options: { cognitiveType?: string; limit?: number } = {}
 ): Promise<PersonalKgHit[]> {
-  const token = await globalTokenManager.getToken();
+  const token = await globalOwnerTokenManager.getToken();
   const url = new URL('/api/learning/memory-candidates/search', wikiApiBaseUrl);
   url.searchParams.set('q', query);
   if (options.cognitiveType) url.searchParams.set('cognitive_type', options.cognitiveType);
   if (options.limit) url.searchParams.set('limit', String(options.limit));
   const response = await fetch(url.toString(), {
+    redirect: 'error',
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
@@ -526,6 +601,38 @@ async function fetchPersonalKgSearch(
   }
   const data = (await response.json()) as { candidates?: PersonalKgHit[] };
   return data.candidates || [];
+}
+
+function getPersonalKnowledgeClient(): PersonalKnowledgeClient {
+  if (!personalKgStorageMode || !personalKgApiUrl) {
+    throw new Error(
+      'Personal KG canonical access requires explicit BRAINBASE_PERSONAL_KG_STORAGE_MODE and its API URL.'
+    );
+  }
+  if (!personalKnowledgeClient) {
+    personalKnowledgeClient = new PersonalKnowledgeClient({
+      mode: personalKgStorageMode,
+      apiUrl: personalKgApiUrl,
+      tokenManager: globalOwnerTokenManager,
+    });
+  }
+  return personalKnowledgeClient;
+}
+
+async function fetchPersonalKgSearch(
+  query: string,
+  options: { cognitiveType?: string; limit?: number } = {}
+): Promise<PersonalKgHit[]> {
+  if (!personalKgStorageMode) {
+    return fetchLegacyPersonalKgSearch(query, options);
+  }
+
+  if (options.cognitiveType?.trim()) {
+    throw new Error('Personal KG cognitive_type filtering is unavailable in canonical storage mode.');
+  }
+
+  const events = await getPersonalKnowledgeClient().search(query, options.limit);
+  return events.map(canonicalPersonalKgHit);
 }
 
 function wikiPathToResourceUri(pagePath: string): string {
@@ -786,13 +893,46 @@ const tools: Tool[] = [
       required: ['query'],
     },
   },
+  {
+    name: 'register_personal_kg',
+    description:
+      'Register an event in the authenticated owner\'s canonical Personal Vault. The server derives owner and organization from authentication; this tool never promotes content to the organization KG.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        event: {
+          type: 'object',
+          description: 'Personal Vault event fields persisted by the canonical API. Do not include owner_person_id or organization_id.',
+          properties: {
+            event_id: { type: 'string', minLength: 1 },
+            occurred_at: { type: 'string' },
+            captured_at: { type: 'string' },
+            source: { type: 'object' },
+            source_pointer: { type: 'object' },
+            body_hash: { type: 'string', minLength: 1 },
+            body: { type: 'string', minLength: 1 },
+            parent_episode_id: { type: 'string' },
+            permission_snapshot: { type: 'object' },
+            sensitivity: { type: 'string' },
+          },
+          additionalProperties: false,
+          required: ['body', 'body_hash'],
+        },
+      },
+      required: ['event'],
+      additionalProperties: false,
+    },
+  },
 ];
 
 /**
  * Handle tool calls
  */
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
-  if (name === 'search' || name === 'resolve_entity' || name === 'list_entities' || name === 'list_extension_entities') {
+  // Every index consumer must await a fresh, complete snapshot. Metadata and
+  // Resolver calls do not depend on the full Graph index.
+  if (['search', 'resolve_entity', 'list_entities', 'list_extension_entities', 'get_context', 'get_entity'].includes(name)
+    || (name === 'search_personal_kg' && typeof args.person_entity_id === 'string' && args.person_entity_id.trim())) {
     await refreshEntityIndex();
   }
   if (name === 'resolve_entity' || name === 'list_extension_entities') {
@@ -854,11 +994,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const id = args.id as string;
       const entity = getEntity(entityIndex, type, id);
 
-      if (!entity) {
-        return `Entity not found: ${type}/${id}`;
-      }
-
-      return prependPhilosophyContext(formatEntity(entity), args, {
+      return prependPhilosophyContext(entity ? formatEntity(entity) : `Entity not found: ${type}/${id}`, args, {
         scope: 'graph',
         objectType: type,
         operation: 'read',
@@ -970,7 +1106,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         : undefined;
       const needsAuthenticatedOwner = containsFirstPersonReference(query);
       const token = needsAuthenticatedOwner
-        ? await globalTokenManager?.getToken()
+        ? await globalOwnerTokenManager?.getToken()
         : undefined;
       const result = resolveEntities(entityIndex, {
         query,
@@ -1024,7 +1160,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
         : '';
       let ownerName = '認証済みの本人';
       if (requestedPersonId) {
-        const token = await globalTokenManager.getToken();
+        const token = await globalOwnerTokenManager.getToken();
         const authenticatedId = authenticatedPersonId(token);
         const requestedPerson = resolveCanonicalActivePerson(entityIndex, requestedPersonId);
         const authenticatedPerson = authenticatedId
@@ -1050,17 +1186,32 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return lines.join('\n');
     }
 
+    case 'register_personal_kg': {
+      if (!personalKgStorageMode) {
+        throw new Error(
+          'Personal KG registration requires explicit BRAINBASE_PERSONAL_KG_STORAGE_MODE; no legacy write fallback is available.'
+        );
+      }
+      const receipt = await getPersonalKnowledgeClient().register(
+        args.event as PersonalKnowledgeEvent,
+      );
+      return JSON.stringify(receipt, null, 2);
+    }
+
     default:
       return `Unknown tool: ${name}`;
   }
 }
 
-const publishedTools = annotateToolCapabilities([
+export const publishedTools = annotateToolCapabilities([
   ...tools,
   ...controlPlaneTools,
   ...onboardingTools,
   ...graphMaintenanceTools,
   ...judgmentResolutionTools,
+  ...judgmentAuditTools,
+  ...judgmentValueProofTools,
+  ...judgmentStateTools,
   ...knowledgeResolutionTools,
   ...meetingMinutesContextTools,
   ...taskTools,
@@ -1075,8 +1226,17 @@ export const __testing = {
   dispatchJudgmentResolutionBeforeModel,
   dispatchKnowledgeResolutionToolCall,
   dispatchExtensionToolCall,
+  buildToolResponseContent,
   createDefaultJudgmentResolutionDependencies,
   resolveBrainbaseApiUrl,
+  resolveWikiApiBaseUrl,
+  setPersonalKgStorage(mode: PersonalKgStorageMode | null | undefined, apiUrl?: string): void {
+    personalKgStorageMode = mode || undefined;
+    personalKgApiUrl = personalKgStorageMode
+      ? normalizePersonalKgApiUrl(apiUrl || '', personalKgStorageMode)
+      : undefined;
+    personalKnowledgeClient = null;
+  },
   setEntityIndex(index: EntityIndex): void {
     entityIndex = index;
   },
@@ -1088,6 +1248,10 @@ export const __testing = {
   },
   setTokenManager(manager: { getToken(): Promise<string> }): void {
     globalTokenManager = manager;
+    globalOwnerTokenManager = manager;
+  },
+  setOwnerTokenManager(manager: { getToken(): Promise<string> }): void {
+    globalOwnerTokenManager = manager;
   },
   setWikiApiBaseUrl(url: string): void {
     wikiApiBaseUrl = url;
@@ -1129,10 +1293,16 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     console.error(`  - Project codes: ${config.projectCodes.join(', ')}`);
   }
 
-  const tokenManager = new TokenManager(config.graphApiUrl);
+  const { mode: connectionAuthMode, tokenManager } = createConnectionTokenManager(config.graphApiUrl);
+  console.error(`[brainbase] Authentication mode: ${connectionAuthMode}`);
   const requestTokenContext = new RequestTokenContext(tokenManager);
   globalTokenManager = requestTokenContext;
-  wikiApiBaseUrl = process.env.BRAINBASE_WIKI_API_URL || 'http://localhost:31013';
+  // All routes share the connection actor. Personal APIs still enforce owner authorization.
+  globalOwnerTokenManager = requestTokenContext;
+  personalKgStorageMode = config.personalKgStorageMode;
+  personalKgApiUrl = config.personalKgApiUrl;
+  personalKnowledgeClient = null;
+  wikiApiBaseUrl = resolveWikiApiBaseUrl(config.graphApiUrl);
   const source = new GraphAPISource(config.graphApiUrl, requestTokenContext, config.projectCodes);
   globalGraphSource = source;
   indexRefreshEnabled = true;
@@ -1140,31 +1310,17 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   configuredProjectCodes = config.projectCodes;
   console.error('[brainbase] Using Graph API source');
 
-  // Keep wiki resources/tools available even when the graph API is down.
-  console.error(`[brainbase] Building index...`);
-  try {
-    entityIndex = await buildIndex(source);
-
-    console.error(`[brainbase] Index built:`);
-    console.error(`  - Projects: ${entityIndex.projects.size}`);
-    console.error(`  - People: ${entityIndex.people.size}`);
-    console.error(`  - Orgs: ${entityIndex.orgs.size}`);
-    console.error(`  - RACI: ${entityIndex.raci.size}`);
-    console.error(`  - Apps: ${entityIndex.apps.size}`);
-    console.error(`  - Customers: ${entityIndex.customers.size}`);
-    console.error(`  - Decisions: ${entityIndex.decisions.size}`);
-    console.error(`  - Person aliases: ${entityIndex.aliasToPersonId.size}`);
-    console.error(`  - Org aliases: ${entityIndex.aliasToOrgId.size}`);
-  } catch (error) {
-    console.error('[brainbase] Index build failed, continuing with empty graph index:', error);
-    entityIndex = createEmptyIndex();
-  }
+  // The full Graph projection is loaded on demand by index consumers. Do not
+  // hold the transport or Resolver hostage to it, or turn a failed load into
+  // a successful empty result. refreshEntityIndex atomically publishes only
+  // a complete snapshot and shares concurrent loads.
+  entityIndex = createEmptyIndex();
 
   // Create the MCP server.
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
   // build one Server per request — the heavy shared state (entityIndex,
   // resolved Brainbase API URL) lives outside each request handler.
-  function createServer() {
+  function createServer(requestContext: { companyAuthorityResponse?: string } = {}) {
   const server = new Server(
     {
       name: 'brainbase',
@@ -1246,6 +1402,15 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           tokenManager: globalTokenManager,
         }),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleJudgmentResolutionToolCall(
+          toolName, extensionArgs, {
+            ...createDefaultJudgmentResolutionDependencies(),
+            companyAuthorityResponse: requestContext.companyAuthorityResponse,
+          },
+        ),
+        (toolName, extensionArgs) => handleJudgmentAuditToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleJudgmentValueProofToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleJudgmentStateToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
           getToken: () => globalTokenManager.getToken(),
@@ -1261,10 +1426,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         : typeof extensionResult === 'string'
           ? extensionResult
           : JSON.stringify(extensionResult, null, 2);
-      const ownerAudit = extensionResult === null
-        ? buildKnowledgeOwnerAudit(name, toolArgs, result)
-        : null;
-      return { content: buildKnowledgeToolContent(result, ownerAudit) };
+      return { content: buildToolResponseContent(name, toolArgs, result) };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
@@ -1327,6 +1489,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         res.end('ok');
         return;
       }
+      if (handleHealthVersionRequest(req, res)) return;
       const auth = await authenticateMcpHttpRequest(req.headers.authorization, {
         mode: authMode,
         sharedBearerToken: bearerToken,
@@ -1436,7 +1599,12 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }
       }
 
-      const server = createServer();
+      const rawCompanyAuthority = req.headers['x-brainbase-company-authority-response'];
+      const server = createServer({
+        companyAuthorityResponse: Array.isArray(rawCompanyAuthority)
+          ? rawCompanyAuthority[0]
+          : rawCompanyAuthority,
+      });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => {
         void transport.close();

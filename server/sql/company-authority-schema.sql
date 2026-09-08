@@ -89,3 +89,70 @@ CREATE POLICY company_authority_bindings_tenant_policy
     ON company_authority_bindings
     USING (tenant_id = current_setting('brainbase.tenant_id', true))
     WITH CHECK (tenant_id = current_setting('brainbase.tenant_id', true));
+
+CREATE OR REPLACE FUNCTION public.resolve_company_authority_route(
+    requested_provider TEXT,
+    requested_subject_id TEXT,
+    requested_workspace_id TEXT,
+    requested_app_id TEXT,
+    requested_enterprise_id TEXT,
+    requested_project_hint TEXT
+) RETURNS TABLE (
+    tenant_id TEXT,
+    tenant_revision BIGINT,
+    connection_id TEXT,
+    connection_revision BIGINT,
+    workspace_id TEXT,
+    app_id TEXT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = pg_catalog
+SET row_security = off
+AS $$
+    SELECT identity.tenant_id,
+           tenant.tenant_revision,
+           connection.connection_id,
+           connection.connection_revision,
+           connection.workspace_id,
+           connection.app_id
+      FROM public.company_external_identities AS identity
+      JOIN public.brainbase_tenants AS tenant
+        ON tenant.tenant_id = identity.tenant_id
+      JOIN public.workspace_connections AS connection
+        ON connection.tenant_id = identity.tenant_id
+       AND connection.provider = identity.provider
+       AND connection.workspace_id = identity.workspace_id
+       AND connection.app_id = identity.app_id
+      JOIN public.tenant_memberships AS membership
+        ON membership.tenant_id = identity.tenant_id
+       AND membership.membership_id = identity.membership_id
+      JOIN public.tenant_projects AS project
+        ON project.tenant_id = identity.tenant_id
+       AND project.project_id = identity.project_id
+     WHERE identity.provider = requested_provider
+       AND identity.authenticated_subject_id = requested_subject_id
+       AND identity.status = 'active'
+       AND tenant.status = 'active'
+       AND connection.status = 'active'
+       AND membership.membership_payload->>'status' = 'active'
+       AND (requested_workspace_id IS NULL OR identity.workspace_id = requested_workspace_id)
+       AND (requested_app_id IS NULL OR identity.app_id = requested_app_id)
+       AND (requested_enterprise_id IS NULL OR connection.enterprise_id = requested_enterprise_id)
+       AND (requested_project_hint IS NULL
+            OR project.project_id = requested_project_hint
+            OR project.project_code = requested_project_hint)
+     ORDER BY identity.identity_revision DESC
+     LIMIT 2
+$$;
+
+REVOKE ALL ON FUNCTION public.resolve_company_authority_route(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT)
+    FROM PUBLIC;
+
+DO $company_authority_runtime_grant$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_app') THEN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.resolve_company_authority_route(TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) TO brainbase_app';
+    END IF;
+END
+$company_authority_runtime_grant$;

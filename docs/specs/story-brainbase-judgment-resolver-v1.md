@@ -24,7 +24,9 @@ diagrams:
 
 ## 1. Invariant
 
-Every managed Codex turn has exactly one judgment episode. The Host opens it before model generation with one context-bound initial route receipt, records 0..N actual tool events, and creates exactly one final receipt at `Stop`. The model cannot call Judgment Resolver or author classification/`conversation_context`.
+Every managed Codex turn has exactly one judgment episode. The Host opens it at `UserPromptSubmit` with canonical input but no semantic classification. The Codex model authors `model_interpretation` and calls model-callable `brainbase_resolve_turn`; the Host then records 0..N actual tool events and creates at most one final receipt at `Stop`. The model cannot author or alter canonical `conversation_context`.
+
+Codex App delegation currently has one explicit recovery path: when `UserPromptSubmit` did not fire, the first `Stop` may recover one current-turn `codex_delegation` or one ordered same-source creation-and-follow-up input chain (see `docs/specs/delegation-input-chain.md`) from a transcript containing only the current session alias component. That episode records `episode_origin=stop_delegation_recovery` and `route_application=post_generation_recovery`. Its route governs only the Stop decision and later continuation; it must never claim that the route guided the already-produced pre-Stop model output. Normal starts record `episode_origin=user_prompt_submit` and `route_application=pre_generation`.
 
 The invariant is not one network call or one knowledge call per turn. Bounded transport retry is allowed before episode creation, and knowledge/retrieval calls may repeat as new evidence changes the next question.
 
@@ -32,7 +34,7 @@ The invariant is not one network call or one knowledge call per turn. Bounded tr
 
 ### UserPromptSubmit
 
-Required input is `session_id`, `turn_id`, non-empty `prompt`, optional `transcript_path`, `cwd`, `model`, and `permission_mode`. The Host constructs canonical context and resolves the initial route before model generation. An invalid payload or untrusted/mismatched context fails closed.
+Canonical `turn_input` contains `session_id`, `turn_id`, non-empty `prompt`, optional `transcript_path`, `cwd`, `model`, and `permission_mode`. The Host constructs canonical context and saves that exact input. The preferred model path submits only the Host-issued `turn_ref` with `model_interpretation`; the server loads the unchanged canonical input from the Host journal. Cached-schema compatibility may submit `turn_input.turn_ref`, `turn_input_path`, or full `turn_input`, but those legacy forms are not the new canonical ownership path. An invalid payload or untrusted/mismatched context fails closed.
 
 ### PostToolUse
 
@@ -40,17 +42,35 @@ For every completed tool, input includes the session/turn binding, `tool_name`, 
 
 ### Stop
 
-Input includes the session/turn binding, `stop_hook_active`, and optional answer text. The Host evaluates required capabilities against immutable events and requires the final answer to begin with the stored owner judgment line plus every stored tool-event line in atomic journal-commit order, with no extra copies. For a `continue` receipt, an unnecessary user question produces one short `🔁` in-progress `systemMessage` and an immutable structured continuation record. A successful retry must include the Host-bound `🔁` completion line and final records completed status; an unjournaled model-authored completion claim is rejected. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction. The Host prefers Node's built-in SQLite so Codex and shell processes with different CPU/ABI runtimes share the same portable implementation; Node 20 falls back to the locally installed `better-sqlite3` build. The OS releases the transaction lock on process exit, so the Host never reclaims or deletes a guessed-stale process lock file. Missing required knowledge or an invalid owner-visible prefix returns `decision:block` on the first repairable Stop and writes no final receipt. If `stop_hook_active=true` and the repair is still incomplete, the Host exits non-zero with `judgment_stop_repair_exhausted` instead of regenerating indefinitely. Transaction-acquisition failure follows the terminal fail-closed boundary.
+Input includes the session/turn binding, `stop_hook_active`, and optional answer text. If the episode is missing, the Host may use only a complete `codex_app` `create_thread` or `send_message_to_thread` delegation envelope for the same turn and one connected session-alias component. Multiple inputs are accepted only as the ordered same-source creation-and-follow-up chain defined in `docs/specs/delegation-input-chain.md`, preserving every prompt. Ambiguous chains, foreign session components, malformed envelopes, or other tools fail closed as true orphans. A recovered route is explicitly post-generation and cannot be represented as a normal pre-generation episode. The Host evaluates required capabilities, autonomy, continuation, business-body evidence, and the exact `last_assistant_message` against immutable events. The final assistant answer must begin with the complete journal-derived audit/value block exactly once. Exact retries with the same tool and input digest remain append-only internally but collapse to one terminal owner line; distinct requests retain terminal atomic commit order. A Hook `systemMessage` may carry an interim notice or the exact repair instruction, but never proves owner-visible completion. For a `continue` receipt, an unnecessary user question produces one short `🔁` in-progress `systemMessage` and an immutable structured continuation record; the repaired final answer includes the journal-bound `🔁` completion line. Episode start, event commits, and Stop finalization for the same turn share one per-turn SQLite `BEGIN IMMEDIATE` transaction. The Host prefers Node's built-in SQLite so Codex and shell processes with different CPU/ABI runtimes share the same portable implementation; Node 20 falls back to the locally installed `better-sqlite3` build. The OS releases the transaction lock on process exit, so the Host never reclaims or deletes a guessed-stale process lock file. Missing required knowledge, autonomy, continuation, business-body, or owner-display evidence returns `decision:block` on the first repairable Stop and writes no final receipt. If `stop_hook_active=true` and repair remains incomplete after that one block, the Host converges to `audit_degraded` instead of regenerating indefinitely. Transaction-acquisition failure follows the terminal fail-closed boundary.
 
-For runtime 2.3 implement/operate episodes, the answer also contains exactly one hidden `brainbase-stop-state-v1`. `pending` or `pending_safe_work=true` blocks; `waiting_human` is accepted only when its reason code is allowed and matches the visible `⚠️` marker; `completed` is accepted only when `runtime_reason_code` is null and at least one successful same-episode `PostToolUse` event exists. Missing or malformed state blocks instead of falling back to prose. Runtime 2.2 and older episodes retain the prose detector only for compatibility. Successful tool evidence establishes execution, not the truth of implementation claims; `content_verification_status` remains `not_evaluated` unless separate tests/readback establish it.
+### Resolver保存失敗時の監査
+
+`story-judgment-owner-audit-visibility-v1:AC-007` に対応する。現在のturnを指す入力と意味解釈を送信したResolverが `status: unavailable`、`error.code: brainbase_api_unavailable` を返した場合は、成功契約の欠落と呼び出し未実施を区別する。直接の結果とMCPの `content` 内のJSON結果を扱い、通常の文章中に同じエラー名があるだけでは利用不能と判定しない。
+
+- 現在のturnとの入力束縛を検証してから `success: false` のイベントを記録する。旧形式の参照・パス・完全な入力も現在turnとの一致を確認する。失敗した呼び出しは必要能力の成功証拠にならない。
+- 呼び出し失敗の監査行を表示し、呼び出したのに「実呼び出し0回」と表示しない。
+- 成功契約を受け取った場合のturn、context、request digest検証は維持する。別turnの入力や不正な成功結果を利用不能へ変換して通さない。
+- Stopは既存の `audit_degraded / turn_resolution_unavailable` 経路を使い、`classification_missing` の確認やResolverの再呼び出しを要求しない。元の業務本文と正確な監査表示の検証は維持する。
+- raw入力、rawエラー、秘密情報をイベントへ保存しない。判断結果のDB保存や実ランタイムの復旧は、このHost修正の成功条件とは別に検証する。
+
+For runtime 2.4 implement/operate episodes, the answer contains no Stop state. The final tool call is `brainbase_judgment_state_record`; PostToolUse validates its response and stores the state in the same episode journal but does not finalize. `pending` or `pending_safe_work=true` blocks at Stop; `waiting_human` is accepted only when its reason code is allowed and matches the visible `⚠️` marker; `completed` is accepted only when `runtime_reason_code` is null, the state event is last, and at least one earlier successful same-episode execution event exists. For a previously rejected continuation, a completed state PostToolUse with missing required value proof returns its `decision:block` unchanged and creates no final. After proof and a new completed state, PostToolUse still records state only; Stop remains the sole finalizer and verifies the exact assistant answer. Missing, malformed, stale, or answer-embedded state blocks instead of falling back to prose. Runtime 2.3 retains the answer marker and runtime 2.2 retains the prose detector only for compatibility. Successful tool evidence establishes execution, not the truth of implementation claims; `content_verification_status` remains `not_evaluated` unless separate tests/readback establish it.
 
 Orphan PostToolUse events are not attached to an episode; each leaves a digest-only orphan marker and visible warning without consuming the Stop repair state. A true orphan Stop cannot create a complete episode or reconstruct the pre-generation route. It writes a digest-only diagnostic, requests one exact degraded-warning/body-preservation repair, then converges to an immutable non-final `audit_degraded` receipt. That receipt is not completion, retrieval success, prior finalized judgment, or action authorization. Missing identity and integrity conflicts remain terminal failures.
+
+### 保存先組織と既存権限
+
+`story-judgment-owner-audit-visibility-v1:AC-008` に対応する。保存するprojectが認証scope内にあることを確認し、`projects.organization_id` を正規の保存先として取得する。同じ組織なら既存accessを保つ。組織が異なる場合はBearer認証に限り、対象組織・Slack user・Slack workspace・person・対象projectがすべて一致する有効な `auth_grants` が一件だけ存在することを確認する。
+
+保存専用のaccessは対象組織と対象projectだけを持ち、roleは元の認証とgrantの低い方、clearanceは共通部分とする。元のreq.access、JWT、セッション、所属、権限行、RLSを変更しない。Cookie・service token・内部認証による暗黙の組織越境、権限なし・複数候補・不明な所属は403で拒否する。DB障害は従来の秘密情報を含まない503を維持する。
+
+正規所属・本人・workspace・project scopeの一致と不一致、非Bearer、権限昇格防止、同一組織の互換性、403/503の区別を回帰テストで検証する。
 
 ## 3. Canonical Resolver input
 
 The public request contains only `request`, `turn_id`, optional `project_code`, and required `conversation_context` using `brainbase-conversation-context-v1`. Context preserves ordered exact user/assistant text, current request exactly once, prior complete episode projections, runtime/project binding, repo-relative instruction digests, completeness, and `source_digest`.
 
-The Host performs structural filtering. It excludes developer envelopes, compaction summaries, reasoning, tool arguments, tool output, raw session identity, and personal absolute paths. Resolver deterministically determines classification and the initial route from that canonical context; there is no caller-supplied classification and no Host-generated semantic summary.
+The Host performs structural filtering. It excludes developer envelopes, compaction summaries, reasoning, tool arguments, tool output, raw session identity, and personal absolute paths. The Codex model supplies the semantic classification as `model_interpretation`; Resolver combines it with the unchanged canonical context and manifest-owned policy to reconcile safety floors and select the initial route. The Host does not generate or inject a semantic summary.
 
 ## 4. Canonical JSON and digests
 
@@ -65,11 +85,11 @@ The Host performs structural filtering. It excludes developer envelopes, compact
 
 All digests are lowercase SHA-256 hexadecimal strings.
 
-## 5. Server-owned classification and DAG
+## 5. Model interpretation reconciliation and DAG
 
-Resolver determines classification with manifest-backed deterministic code. It matches explicit request/context evidence against `semantic_matchers`, may inherit a bounded classification for an under-specified follow-up from the latest prior complete episode or prior raw user message, and applies the current request's minimum action/risk floor. When a request is not a follow-up and has no explicit specialist domain or intent match, v1 applies a server-owned `general/answer` fallback; this is a deterministic default, not evidence of semantic model inference. It owns intent, domain, signal, effect, risk, confidence, policy, and active-DAG selection. It has no LLM provider or model API dependency; `semantic` describes the classification purpose, not the implementation mechanism.
+The Codex model proposes semantic classification as `model_interpretation`. Resolver validates it against canonical input and manifest-backed deterministic policy, may inherit bounded context for an under-specified follow-up, and applies minimum action/risk floors. Keyword matches are monotonic safety evidence: they may add obligations, domains, signals, action floors, or risk, but never subtract model-derived requirements. An unmatched keyword rule never removes a capability and never implies a server-owned `general/answer` fallback. Resolver owns policy reconciliation and active-DAG selection, not natural-language understanding.
 
-A follow-up with no resolvable referent, or a knowledge classification without the required project context, returns managed `needs_classification` with a clarification DAG. Plain non-follow-up matcher misses use the `general/answer` fallback instead. This is not a transport failure. Only returned `active_nodes`, `active_edges`, and matching `active_node_definitions` execute.
+A missing model interpretation, a follow-up with no resolvable referent, or a knowledge classification without the required project context returns managed `needs_classification` with a clarification DAG. An unmatched keyword rule does not auto-pass. This is not a transport failure. Only returned `active_nodes`, `active_edges`, and matching `active_node_definitions` execute.
 
 After the initial route, the current Codex model is the open-ended reasoning loop. It follows the selected DAG, decides how to answer, formulates and refines knowledge queries from observed results, and may call knowledge/retrieval tools 0..N times. It cannot reclassify or replace the initial route. Knowledge Resolver separately chooses a canonical source route with deterministic rules; it does not retrieve content. Claude Code is a future Host-adapter candidate for the same responsibility split, but is not part of the current episode-lifecycle hook integration.
 
@@ -86,7 +106,7 @@ The journal path uses hashed session and turn IDs with owner-only permissions:
 <turn>.final.json
 ```
 
-Creation uses unique temporary files and hard links, so concurrent writers cannot overwrite first-writer evidence. `episode.json` contains the verified initial route and owner judgment audit. Event files never persist raw tool input/response. `final.json` binds event count, qualifying count, event-set digest, final status, and answer digest without storing the answer body.
+Creation uses unique temporary files and hard links, so concurrent writers cannot overwrite first-writer evidence. `episode.json` contains the verified initial route and owner judgment audit. Event files never persist raw tool input/response. `PostToolUse` only appends event/state evidence. `Stop` is the sole finalization boundary and records `owner_audit_source=assistant_answer` plus the exact raw model-authored answer digest after verifying the audit prefix.
 
 Legacy v1/v2 adopted receipt journals, including historical incomplete finals, remain readable. Only `complete` finalized episode projections may enter later `conversation_context`; open or historical incomplete episodes cannot silently become prior accepted judgment. New incomplete finals are not created.
 
@@ -94,7 +114,7 @@ Legacy v1/v2 adopted receipt journals, including historical incomplete finals, r
 
 Required `knowledge.resolve` execution is satisfied by one authentic exact `mcp__brainbase__brainbase_knowledge_resolve` `PostToolUse` event regardless of response outcome, because repeating an already executed route call would duplicate the tool action. Only `resolved` is a successful routing result. `unconfirmed` and tool failure remain non-qualifying warning results with `success=false`; they do not claim a selected source or retrieval success. Unrelated Brainbase calls, search calls, Graph reads, and retrievals do not substitute for executing the routing tool.
 
-`brainbase_knowledge_resolve` means reference-destination routing, not retrieval. Its visible event line uses `📚 Brainbase参照先:`. Search, retrieval, and write tools use distinct wording based on the actual tool event.
+`brainbase_knowledge_resolve` means reference-destination routing, not retrieval. Its journal-derived audit line uses `📚 Brainbase参照先:`. Search, retrieval, and write tools use distinct wording based on the actual tool event. These lines become owner-visible evidence only when Stop verifies them in the final assistant answer.
 
 ## 8. Transport and Host bridge
 
@@ -104,9 +124,9 @@ Recognized transient timeout/connection/429/502/503/504 failures may retry only 
 
 ## 9. Finalization and authorization boundary
 
-At Stop, the Host creates one immutable complete final receipt only after the contract is satisfied. When required knowledge is absent, or the exact stored audit lines are missing, duplicated, or out of journal-commit order in `last_assistant_message`, the first repairable Stop returns `decision:block` with a continuation reason and the exact safe lines to render. If the active repeated Stop is still incomplete, it exits non-zero with `judgment_stop_repair_exhausted`. A true orphan Stop instead requests one degraded warning and answer-body preservation, then records `audit_degraded` and exits 0 without `.final.json` or a new-task instruction; another first-phase payload cannot reopen the repair loop. Missing identity, immutable diagnostic conflict, diagnostic integrity failure, and transaction-acquisition timeout are explicit non-zero hook failures. When knowledge is optional and zero Brainbase calls were recorded, the required prefix contains `📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`. Audit-only body preservation removes only the leading Host audit namespace block, including malformed variants, while keeping audit-like content after the business body starts. A replay reuses an existing complete final. The final records `owner_audit_complete=true`, the expected line count, and an answer digest bound to the exact Stop Hook-visible answer body; transcript comparison may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application. Incomplete, embedded, or multiple citation blocks remain part of the answer body and fail closed on mismatch.
+At `Stop`, the Host creates one immutable complete final receipt only after required capabilities, autonomy, continuation, business-body preservation, and the exact `last_assistant_message` satisfy the contract. The assistant answer must begin with the complete journal-derived owner audit block exactly once. Exact retries with the same tool and input digest collapse only in the owner projection, while all events remain in the immutable set and distinct requests retain terminal order. A first repairable failure returns `decision:block` with the exact block; audit-only repair binds the original business-body digest. An incomplete active retry converges to `audit_degraded` instead of regenerating indefinitely and never sets `owner_audit_complete=true`. A Hook `systemMessage` is only an interim notice or repair instruction. Production verification reads the exact assistant response and matches it to `owner_audit_source=assistant_answer` and `answer_digest`.
 
-For runtime 2.3 implement/operate episodes, final receipt additionally records the validated Stop state and successful evidence-event count. This does not authorize the action or semantically grade its result.
+For runtime 2.4 implement/operate episodes, final receipt additionally records the journal-derived Stop state, its source, and successful evidence-event count. This does not authorize the action or semantically grade its result. Runtime 2.3 receipts remain readable during rollout.
 
 Initial and final receipts are judgment and audit evidence. They do not authorize writes or external action. Platform permission, explicit approval, and executor authorization remain unchanged; no separate Effect Guard is added.
 
@@ -116,16 +136,16 @@ Initial and final receipts are judgment and audit evidence. They do not authoriz
 - terminal event: same `tool_use_id` with a different fingerprint
 - recoverable Host crash: SQLite and the OS release the per-turn transaction lock when the process exits; no stale-lock reclamation or path deletion is performed
 - explicit active-Stop contention: failure to acquire the per-turn transaction within the bounded wait exits non-zero and writes a diagnostic without fabricating a final receipt
-- terminal Stop: missing identity, immutable orphan diagnostic/degraded integrity conflict, or transaction timeout exits non-zero without a final receipt; a true missing episode receives one warning-preserving `decision:block` and then converges to non-final `audit_degraded` with exit 0; that immutable orphan state rejects a late Start for the same identity; repairable required-capability or owner-visible-prefix omissions on an existing episode return one `decision:block`, then an incomplete active retry exits non-zero with `judgment_stop_repair_exhausted`
+- terminal Stop: missing identity, immutable orphan diagnostic/degraded integrity conflict, or transaction timeout is an explicit non-zero hook failure without a final receipt; a true missing episode receives one warning-preserving `decision:block` and then converges to non-final `audit_degraded` with exit 0; that immutable orphan state rejects a late Start for the same identity; repairable required-capability, autonomy, continuation, business-body, or owner-display omissions on an existing episode return one `decision:block`, then an incomplete active retry finalizes as `audit_degraded`
 - replay: verified immutable episode/event/final is returned without new Resolver or tool evidence
 
 Specific API errors remain distinct. `brainbase_project_not_accessible` is not used merely because project policy is outside the caller's scope.
 
 ## 11. Release and rollback contract
 
-- `release_note`: This release adds a Codex Host `hooks/list` readiness checker, keeps evidence-incomplete active `Stop` explicitly fail-closed, and makes true orphan Stop converge to a non-final `audit_degraded` receipt without fabricating a route or requiring a new task. It does not change the public Resolver request schema or add an internal Resolver LLM.
+- `release_note`: This release adds a Codex Host `hooks/list` readiness checker, keeps the first evidence-incomplete `Stop` explicitly fail-closed, and makes an incomplete active retry or true orphan Stop converge to `audit_degraded` without an infinite repair loop. It does not add an internal Resolver LLM.
 - `rollout_plan`: After merge, align the canonical global Hook checkout, local `:31013` runtime, persistent MCP runtime, and Lightsail `brainbase-ssot.service` to the same merge SHA. Run `npm run check:judgment-hook-readiness`; when it returns `trust_required`, the owner approves the current three Hook definitions through `/hooks`. Only then create a fresh Codex task for live verification. Repository code never writes Codex `trusted_hash`.
-- `observability_evidence`: Success requires `dirty=false` plus the target SHA from local and public `/api/version`, healthy local/public endpoints, a successful MCP runtime check, `ready_for_fresh_task`, and one transcript from a task created after trust approval whose episode contains the expected actual Brainbase events and whose complete final receipt has `owner_audit_complete=true` with an answer digest bound to the exact Stop Hook-visible answer body. Transcript comparison may exclude only one complete trailing `<oai-mem-citation>...</oai-mem-citation>` block added later by the Codex application; incomplete, embedded, or multiple citation blocks fail closed on mismatch. Only that state is `proven_active`.
+- `observability_evidence`: Success requires `dirty=false` plus the target SHA from deployment surfaces, healthy endpoints, a successful MCP runtime check, `ready_for_fresh_task`, and a fresh task. That task must complete with `owner_audit_complete=true`, `owner_audit_source=assistant_answer`, and an answer digest bound to the exact assistant response whose first lines are the complete audit block. Only that state is `proven_active`.
 - `rollback_instruction`: Before rollout, capture the exact Hook file and the independently observed SHA for all four runtime surfaces. On failure, follow `docs/brainbase-capabilities/runbooks/judgment-resolve.md#rollback`: keep the global Hook on its independent clean checkout until the exact prior Hook file is restored last; restore the shared local UI/MCP disposable runtime with the recorded pinned commit SHA; restore Lightsail separately to its recorded SHA; then verify one fresh turn. Never switch, reset, clean, or stash the dirty canonical source checkout, and never delete the owner journal during rollback.
 
 The operator commands and the four-surface rollback order are canonical in `docs/brainbase-capabilities/runbooks/judgment-resolve.md`; Lightsail-specific deployment and rollback commands are canonical in `docs/brainbase-capabilities/runbooks/deploy-lightsail-production.md`.
@@ -134,18 +154,19 @@ The operator commands and the four-surface rollback order are canonical in `docs
 
 - S-001 `workflow state transition`: episodeが存在しないmanaged turnの`UserPromptSubmit`は、検証済みinitial routeを持つopen episodeを正確に1件作る。同一入力のreplayは同じepisodeを返し、再解決しない。
 - S-002 `workflow state transition`: open episodeのmatching `PostToolUse`は、同一turnのSQLite transaction内で次の`event_sequence`へ安全なevent projectionを1件追加する。同じ`tool_use_id`と同じfingerprintはreplay、異なるfingerprintはconflictであり既存eventを上書きしない。
-- S-003 `workflow state transition`: required capabilityとowner-visible prefixを満たすopen episodeの`Stop`は、ordered event setとanswer digestを束縛したcomplete finalへ1回だけ遷移する。
-- S-004 `workflow state transition`: required capabilityまたはowner-visible prefixが不足する最初の`Stop`は`decision:block`でcontinuationを要求し、なお不完全な`stop_hook_active=true`の再Stopは`judgment_stop_repair_exhausted`で非zero終了する。どちらもfinalを作らない。
+- S-003 `workflow state transition`: required capability・autonomy・continuation・business-body・owner-display条件を満たすopen episodeは、`Stop`でのみcomplete finalへ1回だけ遷移する。最終assistant回答はowner audit/value surfaceで始まり、`owner_audit_source=assistant_answer`とmodel-authored answer digestを束縛する。`PostToolUse`はevent/stateを記録するだけでfinalizeしない。
+- S-004 `workflow state transition`: required capability・autonomy・continuation・business-body evidenceが不足する最初の`Stop`は`decision:block`でcontinuationを要求し、なお不完全な`stop_hook_active=true`の再Stopは`audit_degraded` finalへ有限収束する。complete finalやknowledge outbox enqueueは作らない。
 - S-005 `workflow state transition`: final済みepisodeへの`Stop` replayは保存済みfinalを返し、新しいfinal、Resolver call、tool eventを作らない。
 - S-006 `workflow state transition`: activeな再Stopがbounded wait内にSQLite transactionを取得できない場合、またはidentity/integrityを安全に束縛できない場合は非zeroで明示的に失敗する。episode自体が存在しないorphanは警告修復を1回だけ要求し、その後は非finalの`audit_degraded`へ収束してcompleteへ偽装しない。
 - S-007 `workflow state transition`: process crashではOSがSQLite transaction lockを解放し、次processは既存のimmutable episode/eventを再利用して継続する。推測したstale lock fileの削除は行わない。
 
 ## 13. Verification matrix
 
-- service/API: strict schema, signing, deterministic manifest-backed classification without an LLM dependency, follow-up inheritance, policy scope, DAG topology
+- service/API: strict schema and signing, model-supplied classification reconciliation with deterministic manifest-backed safety floors, follow-up inheritance, policy scope, and DAG topology
 - UserPromptSubmit Host: transcript extraction, structural exclusion, privacy, exact current message, retry/create/reuse/conflict
 - PostToolUse Host: 0..N events, exact capability qualification, replay, conflict, safe projection, accurate reference/search/retrieval wording
-- Stop Host: explicit zero-call audit when allowed, exact ordered owner-audit prefix, repeated repairable continuation with no final, orphan Stop one-shot degraded convergence, diagnostic integrity fail-closed, complete final, replay
+- Stop Host: explicit zero-call audit when allowed, exact ordered assistant-answer audit prefix, answer-body preservation, repeated repairable continuation, active retry degraded convergence, orphan Stop one-shot degraded convergence, diagnostic integrity fail-closed, complete final, replay
+- continuation PostToolUse Host: records the completed state event but does not finalize; the later Stop verifies the exact assistant answer and audit prefix
 - end-to-end: Codex Host initial dispatch -> Codex open-ended reasoning and repeated model/tool loop -> final episode receipt
 - publication: `CLAUDE.md`/`AGENTS.md`, Skill, capability, runbook, story, and tests expose the same lifecycle
 

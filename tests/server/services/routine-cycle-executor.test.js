@@ -121,6 +121,52 @@ describe('RoutineCycleExecutor', () => {
         );
     });
 
+    it('ohayoは朝の入力ソースが未確認ならcompletedにせずpartialを返す', async () => {
+        const executor = new RoutineCycleExecutor({
+            livenessService: { listExceptions: vi.fn(async () => []) },
+            recallService: {
+                recallGraph: vi.fn(async () => []),
+                recallPersonalKg: vi.fn(async () => [])
+            },
+            ohayoGenerator: {
+                generate: vi.fn(async () => ({
+                    anomalies: [{
+                        code: 'ohayo_source_unconfirmed',
+                        source: 'mail',
+                        status: 'unavailable',
+                        summary: '認証切れで確認できませんでした'
+                    }],
+                    morning_output: {
+                        exceptions: [],
+                        memories: [],
+                        routine_output: {
+                            headline: '今日進めることは未確定です',
+                            source_coverage: [{
+                                source: 'mail',
+                                status: 'unavailable',
+                                summary: '認証切れで確認できませんでした'
+                            }]
+                        }
+                    }
+                }))
+            },
+            feedbackService: { recordUsage: vi.fn(async () => ({})) }
+        });
+
+        const result = await executor.execute({ routine: 'ohayo', input: {} });
+
+        expect(result).toMatchObject({
+            status: 'partial',
+            coverage: 'partial',
+            anomalies: [expect.objectContaining({ code: 'ohayo_source_unconfirmed', source: 'mail' })],
+            routine_output: {
+                source_coverage: [{
+                    source: 'mail', status: 'unavailable', summary: '認証切れで確認できませんでした'
+                }]
+            }
+        });
+    });
+
     it('認証contextをretroの評価・候補作成portへ伝播する', async () => {
         const context = {
             access: { personId: 'routine-worker', projectCodes: ['brainbase'], role: 'member' },
@@ -744,7 +790,10 @@ describe('RoutineCycleExecutor', () => {
             }
         });
 
-        await expect(executor.execute({ routine: 'retro' })).resolves.toMatchObject({ status: 'completed' });
+        await expect(executor.execute({
+            routine: 'retro',
+            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
+        })).resolves.toMatchObject({ status: 'completed' });
     });
 
     it('retroは5指標を評価しStory/PR候補を最大3件返すだけで本番状態を直接変更しない', async () => {
@@ -764,10 +813,14 @@ describe('RoutineCycleExecutor', () => {
         };
         const executor = new RoutineCycleExecutor({ retroService });
 
-        const result = await executor.execute({ routine: 'retro' });
+        const result = await executor.execute({
+            routine: 'retro',
+            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
+        });
 
         expect(retroService.evaluateMetrics).toHaveBeenCalledWith({
-            metrics: ['misregistration_rate', 'correction_rate', 'open_contradictions', 'processing_time_ms', 'stoppage_count']
+            metrics: ['misregistration_rate', 'correction_rate', 'open_contradictions', 'processing_time_ms', 'stoppage_count'],
+            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
         });
         expect(retroService.createImprovementCandidates).toHaveBeenCalledWith({ metrics, limit: 3, output: 'story_pr' });
         expect(result.improvement_candidates).toEqual(['story-1', 'story-2', 'story-3']);
@@ -813,13 +866,21 @@ describe('RoutineCycleExecutor', () => {
         expect(result.routine_summary.routine_output).toEqual(result.routine_output);
     });
 
-    it('oyasumiはPersonal KG登録候補とGraph昇格レビュー待ちを混ぜない', async () => {
+    it('oyasumiは通常のPersonal KG記憶、確認必須の例外、Graph昇格待ちを混ぜない', async () => {
         const routineOutput = {
-            headline: '今日は閉じてよい',
+            headline: '深い睡眠です。経験の整理と検索確認が完了しました',
+            sleep_state: 'deep',
+            sleep_causes: [],
+            consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '午前は設計を優先する' }],
+            associations: [{ summary: '集中時間と設計品質を関連付けた' }],
+            feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '午前は設計を優先する' }],
+            unresolved_items: [],
             tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
             closed: [{ summary: '設計方針を決定した' }],
             carryovers: [],
             personal_kg_registration_candidates: [{ id: 'personal-draft-1', summary: '午前は設計を優先する' }],
+            personal_kg_memories: [{ id: 'personal-draft-1', summary: '午前は設計を優先する' }],
+            personal_kg_review_exceptions: [{ id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true }],
             graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針' }]
         };
         const executor = new RoutineCycleExecutor({
@@ -833,8 +894,20 @@ describe('RoutineCycleExecutor', () => {
 
         const result = await executor.execute({ routine: 'oyasumi' });
 
+        expect(result.routine_output).toMatchObject({
+            sleep_state: 'deep',
+            consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '午前は設計を優先する' }],
+            associations: [{ summary: '集中時間と設計品質を関連付けた' }],
+            feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '午前は設計を優先する' }]
+        });
         expect(result.routine_output.personal_kg_registration_candidates).toEqual([
             { id: 'personal-draft-1', summary: '午前は設計を優先する' }
+        ]);
+        expect(result.routine_output.personal_kg_memories).toEqual([
+            { id: 'personal-draft-1', summary: '午前は設計を優先する' }
+        ]);
+        expect(result.routine_output.personal_kg_review_exceptions).toEqual([
+            { id: 'personal-review-1', summary: '本人は常に即断する', requires_approval: true }
         ]);
         expect(result.routine_output.graph_promotion_reviews).toEqual([
             { id: 'candidate-1', summary: '顧客Aの正式方針' }
@@ -861,7 +934,10 @@ describe('RoutineCycleExecutor', () => {
         };
         const executor = new RoutineCycleExecutor({ retroService });
 
-        const result = await executor.execute({ routine: 'retro' });
+        const result = await executor.execute({
+            routine: 'retro',
+            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
+        });
 
         expect(result.routine_output).toMatchObject({
             personal_kg_registration_reviews: [{ id: 'personal-draft-1', summary: '個人の判断基準' }],
@@ -870,5 +946,43 @@ describe('RoutineCycleExecutor', () => {
         expect(result.routine_output.system_changes[0]).toMatchObject({ applies_changes: false });
         expect(retroService.approveCandidate).not.toHaveBeenCalled();
         expect(retroService.promoteToGraph).not.toHaveBeenCalled();
+    });
+
+    it('retroは週のOutcomeと判断Replayがなければ成功扱いしない', async () => {
+        const executor = new RoutineCycleExecutor({
+            retroService: {
+                evaluateMetrics: vi.fn(async () => ({
+                    misregistration_rate: 0, correction_rate: 0, open_contradictions: 0,
+                    processing_time_ms: 0, stoppage_count: 0
+                })),
+                createImprovementCandidates: vi.fn(async () => [])
+            }
+        });
+
+        await expect(executor.execute({ routine: 'retro' })).resolves.toMatchObject({
+            status: 'partial',
+            coverage: 'partial',
+            anomalies: [expect.objectContaining({ code: 'retro_week_view_missing' })]
+        });
+    });
+
+    it('retroは確認範囲が空なら0件確認済みとみなさない', async () => {
+        const executor = new RoutineCycleExecutor({
+            retroService: {
+                evaluateMetrics: vi.fn(async () => ({
+                    misregistration_rate: 0, correction_rate: 0, open_contradictions: 0,
+                    processing_time_ms: 0, stoppage_count: 0
+                })),
+                createImprovementCandidates: vi.fn(async () => [])
+            }
+        });
+
+        await expect(executor.execute({
+            routine: 'retro',
+            input: { week_view: { source_coverage: [] } }
+        })).resolves.toMatchObject({
+            status: 'partial',
+            anomalies: [expect.objectContaining({ code: 'retro_source_coverage_missing' })]
+        });
     });
 });

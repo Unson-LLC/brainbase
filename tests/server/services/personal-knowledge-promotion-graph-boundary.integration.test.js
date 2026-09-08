@@ -50,6 +50,8 @@ function buildRequest(normalization) {
         body_hash: 'sha256:source-evidence-graph-boundary',
         owner_decided_by: 'person_owner',
         owner_decided_at: '2026-08-25T00:00:00.000Z',
+        owner_decision_revision: 1,
+        organization_review_revision: 0,
         normalized_payload: normalization.normalized,
         normalized_payload_hash: normalization.normalized_payload_hash,
         owner_consent_receipt_id: null
@@ -95,6 +97,10 @@ function createCandidateRepository() {
             };
             candidates.set(candidate.id, candidate);
             return structuredClone(candidate);
+        }),
+        findById: vi.fn(async (id) => {
+            const candidate = candidates.get(id);
+            return candidate ? structuredClone(candidate) : null;
         }),
         transitionProcessingStage: vi.fn(async () => undefined),
         transitionWithAudit: vi.fn(async (id, nextStatus, _audit, options = {}) => {
@@ -185,7 +191,8 @@ describe('personal knowledge promotion Graph write boundary', () => {
             capabilityId: 'personal_knowledge_promotion:organization_review',
             actorPersonId: ACCESS.actorPersonId,
             organizationIds: [ACCESS.organizationId],
-            projectIds: ['brainbase'],
+            projectIds: ['prj_brainbase'],
+            projectCode: 'brainbase',
             operationId: 'op_graph_boundary_1',
             idempotencyKey: 'ik_graph_boundary_1',
             ...buildPersonalKnowledgePromotionAuthority({
@@ -197,7 +204,7 @@ describe('personal knowledge promotion Graph write boundary', () => {
 
         const result = await service.reviewOrganizationPromotion(
             request.request_id,
-            { decision: 'approve' },
+            { decision: 'approve', expected_organization_review_revision: 0 },
             { access: ACCESS, promotionAuthority }
         );
 
@@ -210,6 +217,7 @@ describe('personal knowledge promotion Graph write boundary', () => {
         expect(infoSSOTService.commitOntologyGraph).toHaveBeenCalledOnce();
         expect(getGraphVersion()).toBe(1);
         expect(candidateRepository.candidates.get('candidate_graph_boundary_1')).toMatchObject({
+            visibility: 'org',
             promotion_status: 'promoted_to_graph',
             promoted_graph_entity_id: normalization.normalized.entity.id,
             requires_approval: false
@@ -248,7 +256,7 @@ describe('personal knowledge promotion Graph write boundary', () => {
 
         await expect(service.reviewOrganizationPromotion(
             request.request_id,
-            { decision: 'approve' },
+            { decision: 'approve', expected_organization_review_revision: 0 },
             { access: ACCESS, promotionAuthority }
         )).rejects.toThrow('personal_knowledge_promotion_authority_replayed');
 

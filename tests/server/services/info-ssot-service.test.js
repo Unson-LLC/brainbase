@@ -63,6 +63,48 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         vi.restoreAllMocks();
     });
 
+    it('existing project scope does not create or overwrite a second Graph project subject', async () => {
+        const { service, client } = buildService();
+        const upsertGraphEntity = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+
+        await expect(service.ensureProject(client, {
+            projectCode: 'brainbase',
+            projectName: 'Caller supplied stale name'
+        })).resolves.toBe('prj_1');
+
+        expect(upsertGraphEntity).not.toHaveBeenCalled();
+    });
+
+    it('generic Graph writers cannot register a new project outside Project Provisioning', async () => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValueOnce({ rows: [] });
+        const upsertGraphEntity = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+
+        await expect(service.ensureProject(client, {
+            projectCode: 'new-project', projectName: 'New Project'
+        })).rejects.toThrow('Unknown project: new-project');
+
+        expect(upsertGraphEntity).not.toHaveBeenCalled();
+        expect(client.query).not.toHaveBeenCalledWith(expect.stringContaining('INSERT INTO projects'), expect.anything());
+    });
+
+    it('keeps the generic access context compatible while allowing tenant-bound callers to require a canonical claim', async () => {
+        const { service, client } = buildService();
+        await service.withAccessContext(accessContext, async () => 'generic');
+        expect(client.query).toHaveBeenCalledWith(
+            'SELECT set_config($1, $2, true)',
+            ['app.organization_id', '']
+        );
+
+        const handler = vi.fn();
+        await expect(service.withAccessContext({
+            ...accessContext, organizationId: 'org_unson', tenantId: 'org_other'
+        }, handler, { requireCanonicalTenant: true })).rejects.toMatchObject({
+            code: 'canonical_tenant_identity_invalid', status: 403
+        });
+        expect(handler).not.toHaveBeenCalled();
+    });
+
     it.each(['fetchGraphEntities', 'fetchGraphEntitiesByIds'])('%sはactiveかつ閲覧可能なmember_ofだけでprojectless Personを公開する', async (method) => {
         const { service, client } = buildService();
         client.query.mockResolvedValue({ rows: [] });
@@ -289,6 +331,40 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         })).resolves.toMatchObject({ entity_id: 'app_one', guard_status: 'active_current' });
     });
 
+    it('technical project IDをGraph identityとして追加lock・書込しない', async () => {
+        const { service, client } = buildService();
+        service.withAccessContext = async (_access, callback) => callback(client);
+        vi.spyOn(service, 'validateGraphMutation').mockResolvedValue(undefined);
+        let identityLockCount = 0;
+        client.query.mockImplementation(async (sql) => {
+            if (String(sql).includes('pg_try_advisory_xact_lock')) {
+                identityLockCount += 1;
+                return { rows: [{ acquired: true }] };
+            }
+            if (String(sql).startsWith('SELECT id FROM projects')) {
+                return { rows: [{ id: 'prj_1' }] };
+            }
+            return { rows: [], rowCount: 1 };
+        });
+
+        await expect(service.createOrUpdateGraphEntity(accessContext, {
+            id: 'app_one',
+            entityType: 'app',
+            projectCode: 'brainbase',
+            payload: { name: 'Updated' },
+            roleMin: 'member',
+            sensitivity: 'internal'
+        })).resolves.toMatchObject({ entity_id: 'app_one' });
+        expect(identityLockCount).toBe(2);
+        const identityLockKeys = client.query.mock.calls
+            .filter(([sql]) => String(sql).includes('pg_try_advisory_xact_lock'))
+            .map(([, values]) => values[0]);
+        expect(identityLockKeys.every((key) => key.endsWith('app_one'))).toBe(true);
+        const graphWrites = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
+        expect(graphWrites).toHaveLength(1);
+        expect(graphWrites[0][1][0]).toBe('app_one');
+    });
+
     it('active ontology rejects a second owner edge before persistence', async () => {
         const { service, client } = buildService();
         client.query.mockImplementation(async (sql) => {
@@ -419,6 +495,91 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(rows.map((row) => row.id)).toEqual(['per_canonical']);
     });
 
+    it('merged personのtyped getはpayloadのcanonical_entity_idで正本へ解決する', async () => {
+        const { service } = buildService();
+        const byIdsSpy = vi.spyOn(service, 'fetchGraphEntitiesByIds')
+            .mockResolvedValueOnce([{
+                id: 'per_merged',
+                entity_type: 'person',
+                payload: { status: 'merged', canonical_entity_id: 'per_canonical' }
+            }])
+            .mockResolvedValueOnce([{
+                id: 'per_canonical',
+                entity_type: 'person',
+                payload: { name: '佐藤 圭吾' }
+            }]);
+        vi.spyOn(service, 'fetchGraphAliasTargetsByIds').mockResolvedValue([]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            id: 'per_merged',
+            projectCode: 'brainbase',
+            entityType: 'person'
+        });
+
+        expect(rows).toEqual([{
+            id: 'per_canonical',
+            entity_type: 'person',
+            payload: { name: '佐藤 圭吾' }
+        }]);
+        expect(byIdsSpy).toHaveBeenNthCalledWith(2, expect.anything(), accessContext, {
+            ids: ['per_canonical'],
+            projectCode: 'brainbase'
+        });
+    });
+
+    it('listGraphEntities呼び出し時_includeMergedをGraph一覧へ渡す', async () => {
+        const { service } = buildService();
+        const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([]);
+
+        await service.listGraphEntities(accessContext, {
+            projectCode: 'brainbase',
+            entityType: 'person',
+            includeMerged: true
+        });
+
+        expect(listSpy).toHaveBeenCalledWith(expect.anything(), accessContext, {
+            projectCode: 'brainbase',
+            entityType: 'person',
+            query: undefined,
+            limit: undefined,
+            includeMerged: true
+        });
+    });
+
+    it.each([
+        [undefined, false],
+        [true, true]
+    ])('Graph entity一覧のmerged除外フラグをincludeMerged=%sでSQLへ渡す', async (includeMerged, expected) => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValue({ rows: [] });
+
+        await service.fetchGraphEntities(client, accessContext, {
+            projectCode: 'brainbase',
+            entityType: 'person',
+            includeMerged
+        });
+
+        const [sql, params] = client.query.mock.calls[0];
+        expect(sql).toContain("LOWER(COALESCE(ge.payload->>'status', '')) <> 'merged'");
+        expect(params[7]).toBe(expected);
+        expect(params[8]).toBe(200);
+    });
+
+    it('id指定の通常一覧はmerged personを除外する', async () => {
+        const { service } = buildService();
+        vi.spyOn(service, 'fetchGraphEntitiesByIds').mockResolvedValue([
+            { id: 'per_merged', entity_type: 'person', payload: { status: 'merged' } },
+            { id: 'per_active', entity_type: 'person', payload: { status: 'active' } }
+        ]);
+
+        const rows = await service.listGraphEntities(accessContext, {
+            ids: ['per_merged', 'per_active'],
+            projectCode: 'brainbase'
+        });
+
+        expect(rows.map((row) => row.id)).toEqual(['per_active']);
+    });
+
     it('org/personの型付き一覧はalias解決を行わずcanonical型だけを列挙する', async () => {
         const { service } = buildService();
         const listSpy = vi.spyOn(service, 'fetchGraphEntities').mockResolvedValue([
@@ -481,6 +642,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             1,
             null,
             null,
+            false,
             20
         ]);
     });
@@ -796,6 +958,86 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         const edgeCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_edges'));
         const relTypes = edgeCalls.map(([, params]) => params?.[3]).filter(Boolean);
         expect(relTypes).toContain('member_of');
+    });
+
+    it('createRaci can join an already-authorized provisioning transaction', async () => {
+        const { service, client } = buildService();
+        vi.spyOn(service, 'ensureProject').mockResolvedValue('prj_1');
+        vi.spyOn(service, 'ensurePerson')
+            .mockResolvedValueOnce('per_sato')
+            .mockResolvedValueOnce('per_provisioning_operator');
+        vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+        vi.spyOn(service, 'upsertGraphEdge').mockResolvedValue();
+        const withAccessContext = vi.spyOn(service, 'withAccessContext');
+
+        await expect(service.createRaci({
+            role: 'ceo', projectCodes: ['brainbase'], clearance: ['internal'],
+            organizationId: 'unson', tenantId: 'unson'
+        }, {
+            projectCode: 'brainbase',
+            personId: 'per_sato',
+            actorPersonId: 'per_provisioning_operator',
+            roleCode: 'outcome_case:close',
+            roleMin: 'gm',
+            sensitivity: 'internal',
+            authorityScope: 'outcome_case.close'
+        }, { client, access_context_applied: true })).resolves.toMatchObject({ raci_id: expect.any(String) });
+
+        expect(withAccessContext).not.toHaveBeenCalled();
+        expect(client.query).not.toHaveBeenCalledWith('BEGIN');
+        expect(client.query).not.toHaveBeenCalledWith('COMMIT');
+        const eventCall = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO events'));
+        expect(eventCall?.[1]?.[2]).toBe('per_provisioning_operator');
+    });
+
+    it('ensurePerson_personId指定時にGraphの既存person IDだけを返す', async () => {
+        const { service, client } = buildService();
+        const upsertSpy = vi.spyOn(service, 'upsertGraphEntity').mockResolvedValue();
+
+        client.query.mockImplementation(async (text, params) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes('WHERE id = $1')) {
+                expect(params).toEqual(['per_sato']);
+                return { rows: [{ id: 'per_sato', entity_type: 'person' }] };
+            }
+            return { rows: [] };
+        });
+
+        const id = await service.ensurePerson(client, { personId: 'per_sato' });
+
+        expect(id).toBe('per_sato');
+        expect(upsertSpy).not.toHaveBeenCalled();
+    });
+
+    it('ensurePerson_personId指定時にGraph上の別entity typeをpersonとして扱わない', async () => {
+        const { service, client } = buildService();
+        client.query.mockImplementation(async (text) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes('WHERE id = $1')) {
+                return { rows: [{ id: 'per_conflict', entity_type: 'org' }] };
+            }
+            return { rows: [] };
+        });
+
+        await expect(service.ensurePerson(client, { personId: 'per_conflict' }))
+            .rejects.toThrow('Graph entity is not a person: per_conflict');
+    });
+
+    it('ensurePerson_personId指定時にlegacy peopleにだけ存在するIDも自動復元しない', async () => {
+        const { service, client } = buildService();
+        client.query.mockImplementation(async (text) => {
+            const sql = String(text);
+            if (sql.includes('FROM graph_entities') && sql.includes('WHERE id = $1')) {
+                return { rows: [] };
+            }
+            if (sql.includes('FROM people') && sql.includes('WHERE id = $1')) {
+                return { rows: [{ id: 'per_legacy', name: '旧人物' }] };
+            }
+            return { rows: [] };
+        });
+
+        await expect(service.ensurePerson(client, { personId: 'per_legacy' }))
+            .rejects.toThrow('Unknown Graph personId: per_legacy');
     });
 
     it('ensurePerson_既存personが見つかった場合_payloadを上書きしない', async () => {

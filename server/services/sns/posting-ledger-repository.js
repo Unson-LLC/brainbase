@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { OWNED_OBJECT_TYPES } from '../multitenant/tenant-boundary.js';
+import { assertSnsRecordAuthority, isSnsRecordInAuthority, requireSnsAuthority } from './sns-authority.js';
 /**
  * SNS Posting Ledger repository.
  *
@@ -217,7 +218,7 @@ function evidenceFromDraft(draft) {
 }
 
 function idempotencyKey(record) {
-    return `${record.account_id || 'default'}|${record.date}|${record.slot_index}`;
+    return `${record.organization_id || 'legacy'}|${record.owner_person_id || 'legacy'}|${record.account_id || 'default'}|${record.date}|${record.slot_index}`;
 }
 
 function normalizeBodyFingerprint(body) {
@@ -232,7 +233,28 @@ function normalizeBodyFingerprint(body) {
 function bodyKey(record) {
     const fingerprint = normalizeBodyFingerprint(record.body);
     if (!fingerprint) return null;
-    return `${record.account_id || 'default'}|${fingerprint}`;
+    return `${record.organization_id || 'legacy'}|${record.owner_person_id || 'legacy'}|${record.account_id || 'default'}|${fingerprint}`;
+}
+
+function optionalAuthority(input) {
+    if (!input || typeof input !== 'object') return null;
+    const hasOrganization = input.organization_id || input.organizationId || input.tenant_id || input.tenantId;
+    if (!hasOrganization) return null;
+    return requireSnsAuthority(input);
+}
+
+function requiredAuthority(input, fallback = null) {
+    return requireSnsAuthority(input || fallback || {});
+}
+
+async function setAuthorityContext(client, authority) {
+    await client.query(
+        `SELECT
+            set_config('app.person_id', $1, true),
+            set_config('app.actor_person_id', $2, true),
+            set_config('app.organization_id', $3, true)`,
+        [authority.owner_person_id, authority.actor_person_id, authority.organization_id]
+    );
 }
 
 function reservesBody(record) {
@@ -269,7 +291,7 @@ function normalizeRecord(record) {
     };
 }
 
-function draftToRecord(draft, defaults = {}) {
+function draftToRecord(draft, defaults = {}, authority = null) {
     if (!draft || typeof draft !== 'object') throw new SnsPostValidationError('draft required');
     const date = dateOnly(draft.date || defaults.date);
     const slotIndex = Number(draft.slot_index || draft.slot || 1);
@@ -279,10 +301,16 @@ function draftToRecord(draft, defaults = {}) {
     const accountId = defaults.account_id || draft.account_id || 'acc_x_sato';
     const time = timeFromDraft(draft);
     const now = nowIso();
+    const identityPrefix = authority
+        ? `${authority.organization_id}_${authority.owner_person_id}_`.replace(/[^a-z0-9_]/giu, '_')
+        : '';
     return {
-        id: draft.ledger_id || `sns_${date.replaceAll('-', '')}_${slotIndex}_${String(draft.lane || 'draft').replace(/[^a-z0-9_]/giu, '_')}`,
+        id: draft.ledger_id || `sns_${identityPrefix}${date.replaceAll('-', '')}_${slotIndex}_${String(draft.lane || 'draft').replace(/[^a-z0-9_]/giu, '_')}`,
         account_id: accountId,
         account_handle: defaults.account_handle || draft.account_handle || '@AIBizNavigator',
+        owner_person_id: authority?.owner_person_id || draft.owner_person_id || null,
+        actor_person_id: authority?.actor_person_id || draft.actor_person_id || null,
+        organization_id: authority?.organization_id || draft.organization_id || null,
         platform: draft.platform || 'x',
         date,
         slot_index: slotIndex,
@@ -325,7 +353,8 @@ function assertTransition(from, to) {
 }
 
 export class InMemorySnsPostingLedgerRepository {
-    constructor({ initialPosts = [] } = {}) {
+    constructor({ initialPosts = [], authority = null } = {}) {
+        this.authority = optionalAuthority(authority);
         /** @type {Map<string, any>} */
         this.posts = new Map();
         /** @type {Map<string, string>} */
@@ -337,13 +366,14 @@ export class InMemorySnsPostingLedgerRepository {
         }
     }
 
-    upsertReviewPack({ account_id, account_handle, drafts = [] }) {
+    upsertReviewPack({ account_id, account_handle, drafts = [] }, authorityInput = null) {
+        const authority = requiredAuthority(authorityInput, this.authority);
         if (!Array.isArray(drafts)) throw new SnsPostValidationError('drafts must be array');
         const created = [];
         const updated = [];
         const skipped = [];
         for (const draft of drafts) {
-            const next = draftToRecord(draft, { account_id, account_handle });
+            const next = draftToRecord(draft, { account_id, account_handle }, authority);
             assertValidStatus(next.status);
             const key = idempotencyKey(next);
             const existingId = this.keys.get(key);
@@ -382,8 +412,10 @@ export class InMemorySnsPostingLedgerRepository {
         return { created, updated, skipped };
     }
 
-    listPosts({ startDate = null, endDate = null, status = null } = {}) {
+    listPosts({ startDate = null, endDate = null, status = null } = {}, authorityInput = null) {
+        const authority = requiredAuthority(authorityInput, this.authority);
         return Array.from(this.posts.values())
+            .filter((post) => isSnsRecordInAuthority(post, authority))
             .filter((post) => !startDate || post.date >= startDate)
             .filter((post) => !endDate || post.date <= endDate)
             .filter((post) => !status || post.status === status)
@@ -391,14 +423,18 @@ export class InMemorySnsPostingLedgerRepository {
             .map(normalizeRecord);
     }
 
-    findById(id) {
+    findById(id, authorityInput = null) {
+        const authority = requiredAuthority(authorityInput, this.authority);
         const record = this.posts.get(id);
+        if (record && !isSnsRecordInAuthority(record, authority)) return null;
         return record ? normalizeRecord(record) : null;
     }
 
     updatePost(id, patch = {}, actor = {}) {
+        const authority = requiredAuthority(actor, this.authority);
         const existing = this.posts.get(id);
         if (!existing) return null;
+        assertSnsRecordAuthority(existing, authority);
         const nextStatus = patch.status || existing.status;
         assertTransition(existing.status, nextStatus);
         const now = nowIso();
@@ -441,11 +477,13 @@ export class InMemorySnsPostingLedgerRepository {
     }
 
     claimScheduledPost(id, { now = new Date() } = {}, actor = {}) {
+        const authority = requiredAuthority(actor, this.authority);
         const existing = this.posts.get(id);
         if (!existing || existing.status !== 'scheduled') return null;
+        assertSnsRecordAuthority(existing, authority);
         const scheduledAt = existing.scheduled_at ? new Date(existing.scheduled_at) : null;
         if (!scheduledAt || Number.isNaN(scheduledAt.getTime()) || scheduledAt > now) return null;
-        return this.updatePost(id, { status: 'publishing' }, actor);
+        return this.updatePost(id, { status: 'publishing' }, authority);
     }
 
     _findDuplicateBody(next, allowedExistingId = null) {
@@ -468,8 +506,8 @@ export class JsonFileSnsPostingLedgerRepository extends InMemorySnsPostingLedger
         this.filePath = filePath;
     }
 
-    upsertReviewPack(input) {
-        const result = super.upsertReviewPack(input);
+    upsertReviewPack(input, authority = null) {
+        const result = super.upsertReviewPack(input, authority);
         this._persist();
         return result;
     }
@@ -489,7 +527,7 @@ export class JsonFileSnsPostingLedgerRepository extends InMemorySnsPostingLedger
     _persist() {
         const dir = path.dirname(this.filePath);
         fs.mkdirSync(dir, { recursive: true });
-        const posts = this.listPosts({});
+        const posts = Array.from(this.posts.values()).map(normalizeRecord);
         const payload = {
             schema_version: '0.1.0',
             updated_at: nowIso(),
@@ -507,7 +545,8 @@ export class PgSnsPostingLedgerRepository {
         this.pool = pool;
     }
 
-    async upsertReviewPack({ account_id, account_handle, drafts = [] }) {
+    async upsertReviewPack({ account_id, account_handle, drafts = [] }, authorityInput = null) {
+        const authority = requiredAuthority(authorityInput);
         if (!Array.isArray(drafts)) throw new SnsPostValidationError('drafts must be array');
         const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
         await client.query('BEGIN');
@@ -515,14 +554,16 @@ export class PgSnsPostingLedgerRepository {
         const updated = [];
         const skipped = [];
         try {
+            await setAuthorityContext(client, authority);
             for (const draft of drafts) {
-                const next = draftToRecord(draft, { account_id, account_handle });
+                const next = draftToRecord(draft, { account_id, account_handle }, authority);
                 assertValidStatus(next.status);
                 const existing = await client.query(
                     `SELECT * FROM sns_posting_ledger_posts
                      WHERE account_id = $1 AND date = $2 AND slot_index = $3
+                       AND ($4::text IS NULL OR (owner_person_id = $4 AND organization_id = $5))
                      FOR UPDATE`,
-                    [next.account_id, next.date, next.slot_index]
+                    [next.account_id, next.date, next.slot_index, authority.owner_person_id, authority.organization_id]
                 );
                 const existingRow = existing.rows[0] ? normalizeRecord(existing.rows[0]) : null;
                 if (existingRow && IMPORT_IMMUTABLE_STATUSES.has(existingRow.status)) {
@@ -537,17 +578,19 @@ export class PgSnsPostingLedgerRepository {
                 if (!existingRow) {
                     const inserted = await client.query(
                         `INSERT INTO sns_posting_ledger_posts (
-                            id, account_id, account_handle, platform, date, slot_index, time,
+                            id, account_id, account_handle, owner_person_id, actor_person_id, organization_id,
+                            platform, date, slot_index, time,
                             title, status, lane, format, body, scheduled_at, posted_at, posted_url,
                             deleted_at, deletion_source, deletion_reason,
                             source, evidence, memo, learning_candidate_id, revisions, metrics_snapshots,
                             created_at, updated_at
                         ) VALUES (
-                            $1, $2, $3, $4, $5, $6, $7,
-                            $8, $9, $10, $11, $12, $13, $14, $15,
-                            $16, $17, $18,
-                            $19::jsonb, $20::jsonb, $21, $22, $23::jsonb, $24::jsonb,
-                            $25, $26
+                            $1, $2, $3, $4, $5, $6,
+                            $7, $8, $9, $10,
+                            $11, $12, $13, $14, $15, $16, $17, $18,
+                            $19, $20, $21,
+                            $22::jsonb, $23::jsonb, $24, $25, $26::jsonb, $27::jsonb,
+                            $28, $29
                         )
                         RETURNING *`,
                         postParams(next)
@@ -594,7 +637,8 @@ export class PgSnsPostingLedgerRepository {
         }
     }
 
-    async listPosts({ startDate = null, endDate = null, status = null } = {}) {
+    async listPosts({ startDate = null, endDate = null, status = null } = {}, authorityInput = null) {
+        const authority = requiredAuthority(authorityInput);
         const clauses = [];
         const params = [];
         const add = (sql, value) => {
@@ -604,24 +648,57 @@ export class PgSnsPostingLedgerRepository {
         if (startDate) add('date >= ?', startDate);
         if (endDate) add('date <= ?', endDate);
         if (status) add('status = ?', status);
+        add('owner_person_id = ?', authority.owner_person_id);
+        add('organization_id = ?', authority.organization_id);
         const where = clauses.length ? ` WHERE ${clauses.join(' AND ')}` : '';
-        const { rows } = await this.pool.query(
-            `SELECT * FROM sns_posting_ledger_posts${where} ORDER BY date ASC, time ASC, slot_index ASC`,
-            params
-        );
-        return rows.map(normalizeRecord);
-    }
-
-    async findById(id) {
-        const { rows } = await this.pool.query('SELECT * FROM sns_posting_ledger_posts WHERE id = $1', [id]);
-        return rows[0] ? normalizeRecord(rows[0]) : null;
-    }
-
-    async updatePost(id, patch = {}, actor = {}) {
         const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
         await client.query('BEGIN');
         try {
-            const { rows } = await client.query('SELECT * FROM sns_posting_ledger_posts WHERE id = $1 FOR UPDATE', [id]);
+            await setAuthorityContext(client, authority);
+            const { rows } = await client.query(
+                `SELECT * FROM sns_posting_ledger_posts${where} ORDER BY date ASC, time ASC, slot_index ASC`,
+                params
+            );
+            await client.query('COMMIT');
+            return rows.map(normalizeRecord);
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            if (typeof client.release === 'function') client.release();
+        }
+    }
+
+    async findById(id, authorityInput = null) {
+        const authority = requiredAuthority(authorityInput);
+        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
+        await client.query('BEGIN');
+        try {
+            await setAuthorityContext(client, authority);
+            const { rows } = await client.query(
+                'SELECT * FROM sns_posting_ledger_posts WHERE id = $1 AND owner_person_id = $2 AND organization_id = $3',
+                [id, authority.owner_person_id, authority.organization_id]
+            );
+            await client.query('COMMIT');
+            return rows[0] ? normalizeRecord(rows[0]) : null;
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            if (typeof client.release === 'function') client.release();
+        }
+    }
+
+    async updatePost(id, patch = {}, actor = {}) {
+        const authority = requiredAuthority(actor);
+        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
+        await client.query('BEGIN');
+        try {
+            await setAuthorityContext(client, authority);
+            const { rows } = await client.query(
+                'SELECT * FROM sns_posting_ledger_posts WHERE id = $1 AND owner_person_id = $2 AND organization_id = $3 FOR UPDATE',
+                [id, authority.owner_person_id, authority.organization_id]
+            );
             const existing = rows[0] ? normalizeRecord(rows[0]) : null;
             if (!existing) {
                 await client.query('ROLLBACK');
@@ -694,16 +771,19 @@ export class PgSnsPostingLedgerRepository {
     }
 
     async claimScheduledPost(id, { now = new Date() } = {}, actor = {}) {
+        const authority = requiredAuthority(actor);
         const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
         await client.query('BEGIN');
         try {
+            await setAuthorityContext(client, authority);
             const { rows } = await client.query(
                 `SELECT * FROM sns_posting_ledger_posts
                  WHERE id = $1
                    AND status = 'scheduled'
                    AND scheduled_at <= $2
+                   AND ($3::text IS NULL OR (owner_person_id = $3 AND organization_id = $4))
                  FOR UPDATE`,
-                [id, now instanceof Date ? now.toISOString() : String(now)]
+                [id, now instanceof Date ? now.toISOString() : String(now), authority.owner_person_id, authority.organization_id]
             );
             if (!rows[0]) {
                 await client.query('ROLLBACK');
@@ -753,6 +833,9 @@ function postParams(post) {
         post.id,
         post.account_id,
         post.account_handle,
+        post.owner_person_id,
+        post.actor_person_id,
+        post.organization_id,
         post.platform,
         post.date,
         post.slot_index,

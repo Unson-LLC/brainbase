@@ -9,6 +9,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCHEMA_PATH = path.join(ROOT, 'server/sql/multitenant-platform-schema.sql');
 const MIGRATION_ID = 'multitenant-platform-schema.v2';
 const ADVISORY_LOCK_NAME = 'brainbase:multitenant-platform-schema:v2';
+const CREDENTIAL_REFRESH_REVISION_CONSTRAINT = 'credential_broker_refs_refresh_revision_check';
 const QUOTA_AUTHORITY_COLUMN_TYPES = Object.freeze({
     'tenant_contract_revisions.quota_window_policy': Object.freeze({ data_type: 'jsonb', udt_name: 'jsonb' }),
     'tenant_quota_decisions.requested_value': Object.freeze({ data_type: 'numeric', udt_name: 'numeric' }),
@@ -173,6 +174,22 @@ async function readbackSchema(client, contract) {
         );
     }
 
+    const refreshConstraintResult = await client.query(
+        `SELECT pg_get_constraintdef(oid) AS definition
+           FROM pg_constraint
+          WHERE conrelid = 'credential_broker_refs'::regclass
+            AND conname = $1`,
+        [CREDENTIAL_REFRESH_REVISION_CONSTRAINT]
+    );
+    const refreshConstraint = refreshConstraintResult.rows[0]?.definition ?? '';
+    if (refreshConstraintResult.rows.length !== 1
+        || !/refresh_revision\s*>=\s*0/iu.test(refreshConstraint)) {
+        throw new SchemaMigrationError(
+            'SCHEMA_READBACK_FAILED',
+            'Multitenant schema does not allow credential refresh revision zero'
+        );
+    }
+
     const ledgerResult = await client.query(
         `SELECT schema_sha256
            FROM brainbase_schema_migrations
@@ -192,6 +209,7 @@ async function readbackSchema(client, contract) {
         column_count: [...contract.tableColumns.values()].reduce((sum, columns) => sum + columns.length, 0),
         rls_table_count: contract.rlsTables.length,
         policy_table_count: policyResult.rows.length,
+        credential_refresh_revision_zero_allowed: true,
         ledger_matches: true
     };
 }

@@ -2,6 +2,7 @@ import { ContractError } from '../services/multitenant/errors.js';
 import { MultitenantPostgresRepository } from '../services/multitenant/postgres-repository.js';
 import { SlackInstallationControlPlane } from '../services/multitenant/slack-installation-control-plane.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
+import { createSlackInstallationOAuthFlow } from '../services/multitenant/slack-installation-oauth-flow.js';
 import { createRemoteCredentialStore } from '../services/multitenant/remote-credential-store.js';
 
 function unavailableControlPlane() {
@@ -31,14 +32,53 @@ function parseJson(text) {
     try {
         return text ? JSON.parse(text) : {};
     } catch {
-        throw new Error('upstream_response_invalid');
+        throw new ContractError('OAUTH_EXCHANGE_INVALID', {
+            status: 502,
+            fault_domain: 'external_provider'
+        });
     }
 }
 
-function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = {}) {
-    const clientId = authService?.slackClientId;
-    const clientSecret = authService?.slackClientSecret;
-    const tokenUrl = authService?.tokenUrl;
+const SLACK_OAUTH_FAILURE_CODES = Object.freeze({
+    invalid_code: 'OAUTH_EXCHANGE_INVALID_CODE',
+    bad_redirect_uri: 'OAUTH_EXCHANGE_REDIRECT_MISMATCH',
+    bad_client_secret: 'OAUTH_EXCHANGE_CLIENT_CREDENTIAL_REJECTED',
+    invalid_client_id: 'OAUTH_EXCHANGE_CLIENT_CREDENTIAL_REJECTED',
+    oauth_authorization_url_mismatch: 'OAUTH_EXCHANGE_FLOW_MISMATCH',
+    invalid_code_verifier: 'OAUTH_EXCHANGE_PKCE_REJECTED',
+    pkce_not_allowed: 'OAUTH_EXCHANGE_PKCE_REJECTED',
+    access_denied: 'OAUTH_EXCHANGE_ACCESS_DENIED',
+    no_scopes: 'OAUTH_EXCHANGE_ACCESS_DENIED',
+    team_access_not_granted: 'OAUTH_EXCHANGE_ACCESS_DENIED',
+    internal_error: 'OAUTH_EXCHANGE_UNAVAILABLE',
+    fatal_error: 'OAUTH_EXCHANGE_UNAVAILABLE',
+    service_unavailable: 'OAUTH_EXCHANGE_UNAVAILABLE',
+    request_timeout: 'OAUTH_EXCHANGE_UNAVAILABLE',
+    ratelimited: 'OAUTH_EXCHANGE_UNAVAILABLE'
+});
+
+function slackOAuthFailureCode(value) {
+    if (typeof value !== 'string') return 'OAUTH_EXCHANGE_REJECTED';
+    return SLACK_OAUTH_FAILURE_CODES[value] ?? 'OAUTH_EXCHANGE_REJECTED';
+}
+
+function createSlackOAuthClient({ authService, env = process.env, fetchImpl = globalThis.fetch } = {}) {
+    const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
+    const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
+    const dedicatedAppId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID');
+    const dedicatedTokenUrl = required(env, 'BRAINBASE_SLACK_INSTALLATION_TOKEN_URL');
+    const dedicatedMode = Boolean(
+        dedicatedAppId || dedicatedClientId || dedicatedClientSecret || dedicatedTokenUrl
+    );
+    if (Boolean(dedicatedClientId) !== Boolean(dedicatedClientSecret)
+        || (dedicatedMode && (!dedicatedAppId || !dedicatedClientId || !dedicatedClientSecret
+            || !dedicatedTokenUrl))) {
+        throw new Error('slack_installation_oauth_configuration_incomplete');
+    }
+    const clientId = dedicatedClientId ?? authService?.slackClientId;
+    const clientSecret = dedicatedClientSecret ?? authService?.slackClientSecret;
+    const tokenUrl = dedicatedTokenUrl ?? authService?.tokenUrl;
+    const appId = dedicatedAppId ?? authService?.slackClientId;
     if (typeof fetchImpl !== 'function' || !clientId || !clientSecret || !tokenUrl) {
         throw new Error('slack_oauth_configuration_required');
     }
@@ -61,23 +101,39 @@ function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = 
                     body
                 });
             } catch {
-                throw new Error('slack_oauth_exchange_unavailable');
+                throw new ContractError('OAUTH_EXCHANGE_UNAVAILABLE', {
+                    status: 503,
+                    retryable: true,
+                    fault_domain: 'external_provider'
+                });
             }
             let payload;
             try {
                 payload = parseJson(await response.text());
-            } catch {
-                throw new Error('slack_oauth_exchange_invalid');
+            } catch (error) {
+                if (error instanceof ContractError && error.code === 'OAUTH_EXCHANGE_INVALID') throw error;
+                throw new ContractError('OAUTH_EXCHANGE_INVALID', {
+                    status: 502,
+                    fault_domain: 'external_provider'
+                });
             }
             if (!response.ok || payload.ok === false) {
-                throw new Error('slack_oauth_exchange_rejected');
+                const code = slackOAuthFailureCode(payload.error);
+                throw new ContractError(code, {
+                    status: code === 'OAUTH_EXCHANGE_UNAVAILABLE' ? 503 : 502,
+                    retryable: code === 'OAUTH_EXCHANGE_UNAVAILABLE',
+                    fault_domain: 'external_provider'
+                });
             }
 
             const credentialMaterial = payload.access_token
                 ?? payload.authed_user?.access_token
                 ?? null;
             if (typeof credentialMaterial !== 'string' || credentialMaterial.length === 0) {
-                throw new Error('slack_oauth_credential_missing');
+                throw new ContractError('OAUTH_CREDENTIAL_MISSING', {
+                    status: 502,
+                    fault_domain: 'external_provider'
+                });
             }
             const workspaceId = payload.team?.id ?? payload.team_id ?? null;
             const enterpriseId = payload.enterprise?.id ?? payload.enterprise_id ?? null;
@@ -85,8 +141,15 @@ function createSlackOAuthClient({ authService, fetchImpl = globalThis.fetch } = 
                 ?? payload.authed_user_id
                 ?? payload.user_id
                 ?? null;
+            const providerAppId = payload.api_app_id ?? payload.app_id ?? null;
+            if (dedicatedMode && !providerAppId) {
+                throw new ContractError('OAUTH_EXCHANGE_INVALID', {
+                    status: 502,
+                    fault_domain: 'external_provider'
+                });
+            }
             return {
-                app_id: payload.api_app_id ?? payload.app_id ?? clientId,
+                app_id: providerAppId ?? appId,
                 workspace_id: workspaceId,
                 ...(enterpriseId ? { enterprise_id: enterpriseId } : {}),
                 installer_id: installerId,
@@ -125,18 +188,35 @@ export function createSlackInstallationControlPlaneFromEnv({
     now,
     fetchImpl = globalThis.fetch
 } = {}) {
+    const dedicatedClientId = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_ID');
+    const dedicatedClientSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_CLIENT_SECRET');
+    const dedicatedRedirectUri = required(env, 'BRAINBASE_SLACK_INSTALLATION_REDIRECT_URI');
+    const dedicatedStateSecret = required(env, 'BRAINBASE_SLACK_INSTALLATION_STATE_SECRET');
+    const dedicatedBotScopes = required(env, 'BRAINBASE_SLACK_INSTALLATION_BOT_SCOPES');
+    const dedicatedAppId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID');
+    const dedicatedTokenUrl = required(env, 'BRAINBASE_SLACK_INSTALLATION_TOKEN_URL');
+    const dedicatedRequested = Boolean(
+        dedicatedAppId || dedicatedClientId || dedicatedClientSecret || dedicatedRedirectUri
+        || dedicatedStateSecret || dedicatedBotScopes || dedicatedTokenUrl
+    );
+    const dedicatedComplete = Boolean(
+        dedicatedAppId && dedicatedClientId && dedicatedClientSecret && dedicatedRedirectUri
+        && dedicatedStateSecret && dedicatedBotScopes && dedicatedTokenUrl
+    );
+    const appId = dedicatedAppId
+        ?? authService?.slackClientId
+        ?? '';
     const authMiddleware = createSlackInstallationControlPlaneAuthMiddleware({
         authService,
         env,
-        now
+        now,
+        trustedAppId: appId
     });
-    const appId = required(env, 'BRAINBASE_SLACK_INSTALLATION_APP_ID')
-        ?? authService?.slackClientId
-        ?? '';
     const unavailable = (reason) => ({
         controlPlane: unavailableControlPlane(),
         authMiddleware,
         appId,
+        oauthFlow: null,
         resolvePreProvisionedConnection: null,
         ready: false,
         reason
@@ -144,11 +224,24 @@ export function createSlackInstallationControlPlaneFromEnv({
 
     if (!pool) return unavailable('database_pool_required');
     if (!appId) return unavailable('slack_installation_app_id_required');
+    if (dedicatedRequested && !dedicatedComplete) {
+        return unavailable('slack_installation_oauth_configuration_incomplete');
+    }
 
     try {
         const repository = new MultitenantPostgresRepository({ pool, now });
-        const oauthClient = createSlackOAuthClient({ authService, fetchImpl });
+        const oauthClient = createSlackOAuthClient({ authService, env, fetchImpl });
         const credentialStore = createCredentialStore({ env, fetchImpl });
+        const oauthFlow = dedicatedComplete
+            ? createSlackInstallationOAuthFlow({
+                clientId: dedicatedClientId,
+                redirectUri: dedicatedRedirectUri,
+                stateSecret: dedicatedStateSecret,
+                botScopes: dedicatedBotScopes,
+                authorizeUrl: required(env, 'BRAINBASE_SLACK_INSTALLATION_AUTHORIZE_URL') ?? undefined,
+                now
+            })
+            : null;
         const controlPlane = new SlackInstallationControlPlane({
             repository,
             oauthClient,
@@ -159,6 +252,7 @@ export function createSlackInstallationControlPlaneFromEnv({
             controlPlane,
             authMiddleware,
             appId,
+            oauthFlow,
             resolvePreProvisionedConnection: null,
             ready: true,
             reason: null

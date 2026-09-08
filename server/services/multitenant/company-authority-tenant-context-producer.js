@@ -205,7 +205,7 @@ export class TenantContextProducer {
         return { tenant, workspace_connection, contract_revision };
     }
 
-    async resolveContext(input) {
+    async #resolve(input, { includeCompanyAuthorityCapability = false } = {}) {
         const preliminaryRequest = observedRequest(input);
         const canonicalRuntime = await this.#loadCanonicalRuntime(preliminaryRequest);
         const request = canonicalizeRequest(preliminaryRequest, canonicalRuntime);
@@ -228,7 +228,12 @@ export class TenantContextProducer {
             slack_event_id: request.slack.event_id,
             operation_id: request.operation_id
         });
-        return createSignedTenantContext({
+        const authorization = structuredClone(resolvedAuthority.authorization);
+        if (includeCompanyAuthorityCapability
+            && !authorization.capability_ids.includes('company_authority_v1')) {
+            authorization.capability_ids.push('company_authority_v1');
+        }
+        const context = createSignedTenantContext({
             schema_version: '1.0',
             protocol_id: 'mana-brainbase-tenant-context',
             protocol_version: '1.0',
@@ -248,7 +253,7 @@ export class TenantContextProducer {
                 app_id: connection.app_id
             },
             actor: structuredClone(resolvedAuthority.actor),
-            authorization: structuredClone(resolvedAuthority.authorization),
+            authorization,
             ...(promotionAuthority ? { authority: promotionAuthority } : {}),
             placement: {
                 deployment_id: this.deploymentId,
@@ -271,5 +276,14 @@ export class TenantContextProducer {
             key_id: this.signingKey.key_id,
             private_key: this.signingKey.private_key
         });
+        return { context, company_authority: resolvedAuthority.company_authority };
+    }
+
+    async resolveContext(input) {
+        return (await this.#resolve(input)).context;
+    }
+
+    async resolveContextWithAuthority(input) {
+        return this.#resolve(input, { includeCompanyAuthorityCapability: true });
     }
 }

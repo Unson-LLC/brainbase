@@ -28,6 +28,8 @@ function projectOrganizationReview(value = {}) {
         normalization_contract_version: value.normalization_contract_version,
         owner_consent_receipt_id: value.owner_consent_receipt_id,
         owner_decided_at: value.owner_decided_at,
+        owner_decision_revision: value.owner_decision_revision,
+        organization_review_revision: value.organization_review_revision,
         created_at: value.created_at
     };
 }
@@ -40,7 +42,9 @@ function projectOrganizationDecisionReceipt(value = {}) {
         graph_entity_id: value.graph_entity_id,
         owner_consent_receipt_id: value.owner_consent_receipt_id,
         organization_review_receipt_id: value.organization_review_receipt_id,
+        owner_decision_revision: value.owner_decision_revision,
         normalized_payload_hash: value.normalized_payload_hash,
+        organization_review_revision: value.organization_review_revision,
         organization_reviewed_at: value.organization_reviewed_at,
         organization_review_reason: value.organization_review_reason
     };
@@ -62,8 +66,20 @@ export function createPersonalKnowledgeRouter({
     router.post('/events', async (req, res) => {
         try { res.status(201).json(await personalKnowledgeService.ingest(req.body || {}, context(req))); } catch (error) { sendError(res, error); }
     });
+    router.post('/feedback', async (req, res) => {
+        try { res.json(await personalKnowledgeService.recordFeedback(req.body || {}, context(req))); } catch (error) { sendError(res, error); }
+    });
     router.get('/search', async (req, res) => {
         try { res.json(await personalKnowledgeService.search({ query: req.query.q || req.query.query, limit: req.query.limit }, context(req))); } catch (error) { sendError(res, error); }
+    });
+    router.post('/search', async (req, res) => {
+        const query = req.body?.query;
+        const limit = req.body?.limit ?? 10;
+        if (typeof query !== 'string' || !query.trim() || query.length > 4000
+            || !Number.isInteger(limit) || limit < 1 || limit > 50) {
+            return res.status(400).json({ error: 'personal_knowledge_search_input_invalid' });
+        }
+        try { res.json(await personalKnowledgeService.search({ query: query.trim(), limit }, context(req))); } catch (error) { sendError(res, error); }
     });
     router.get('/cycles/:eventId', async (req, res) => {
         try {

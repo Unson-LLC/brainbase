@@ -190,6 +190,14 @@ CHECK_SCRIPT='
 
 RUN_SCRIPT="$CHECK_SCRIPT"'
   cd "${REPO_ROOT}"
+  runtime_git_sha="$(git rev-parse HEAD)"
+  if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+    echo "BRAINBASE_MCP_UNAVAILABLE: runtime checkout is dirty" >&2
+    exit 78
+  fi
+  export BRAINBASE_RUNTIME_GIT_SHA="$runtime_git_sha"
+  export BRAINBASE_RUNTIME_GIT_DIRTY=false
+  export BRAINBASE_RUNTIME_STARTED_AT="$(date -u +%FT%TZ)"
   exec node "${MCP_ENTRY}"
 '
 

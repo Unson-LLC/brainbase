@@ -5,6 +5,7 @@ import { ulid } from 'ulid';
 import { logger } from '../utils/logger.js';
 import { OntologyError } from './ontology-kernel.js';
 import { OntologyRegistry } from './ontology-registry.js';
+import { assertCatalogProjectSubjectMutation } from './project-graph-identity-lock.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -791,23 +792,42 @@ export class LearningService {
      */
     async searchPersonalKgCandidates({
         query,
-        ownerPersonId = 'sato_keigo',
+        ownerPersonId,
         cognitiveTypes = null,
         limit = 10
     } = {}, context = {}) {
+        const authenticatedPersonId = normalizeOptionalString(context?.access?.personId);
+        const organizationId = normalizeOptionalString(context?.access?.organizationId);
+        if (!authenticatedPersonId || !organizationId) {
+            const error = new Error('personal_knowledge_identity_required');
+            error.status = 403;
+            throw error;
+        }
+
+        const requestedOwnerPersonId = normalizeOptionalString(ownerPersonId);
+        if (requestedOwnerPersonId && requestedOwnerPersonId !== authenticatedPersonId) {
+            const error = new Error('personal_knowledge_scope_spoofing_rejected');
+            error.status = 403;
+            throw error;
+        }
+
         const q = normalizeOptionalString(query);
         if (!q) throw new Error('query is required');
         if (!this.candidateRepository?.searchPersonalKg) {
             throw new Error('LearningService requires candidateRepository.searchPersonalKg');
         }
-        const owner = normalizeOptionalString(ownerPersonId) || 'sato_keigo';
+        const access = {
+            ...context.access,
+            personId: authenticatedPersonId,
+            organizationId
+        };
         const safeLimit = Math.min(Math.max(Number.parseInt(limit, 10) || 10, 1), 50);
         const tokens = personalKgSearchTokens(q);
         const types = Array.isArray(cognitiveTypes)
             ? cognitiveTypes.map((t) => normalizeOptionalString(t)).filter(Boolean)
             : [];
-        const rows = await this._withCandidateAccess(context, (repository) => repository.searchPersonalKg({
-            owner_person_id: owner,
+        const rows = await this._withCandidateAccess({ ...context, access }, (repository) => repository.searchPersonalKg({
+            owner_person_id: authenticatedPersonId,
             query: q,
             tokens,
             cognitive_types: types,
@@ -1000,6 +1020,13 @@ export class LearningService {
         const client = await this.pool.connect();
         try {
             await client.query('BEGIN');
+            await assertCatalogProjectSubjectMutation(client, {
+                id: graphEntityId,
+                entityType,
+                projectId,
+                payload,
+                allowCompatible: false
+            });
             if (projectCode) {
                 await client.query(
                 `INSERT INTO projects (id, code, name)

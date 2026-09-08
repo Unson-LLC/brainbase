@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 export const GRAPH_MAINTENANCE_OPERATIONS = Object.freeze([
     'patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity',
     'upsert_edge', 'link_decision_subject', 'materialize_project_subject',
-    'link_decision_project_subject', 'retire_edge', 'normalize_alias'
+    'link_decision_project_subject', 'retire_edge', 'normalize_alias',
+    'normalize_merged_lifecycle'
 ]);
 export const GRAPH_MAINTENANCE_MAX_OPERATIONS = 100;
 
@@ -223,6 +224,23 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
                 if (edge.to_id === source.id) { edge.to_id = target.id; changed = true; }
                 if (changed) edge.version += 1;
             }
+        } else if (operation.operation === 'normalize_merged_lifecycle') {
+            const source = findEntity(state, operation.entity_id);
+            const target = findEntity(state, operation.target_entity_id);
+            requireVersion(source, operation);
+            requireVersion(target, { expected_version: operation.target_expected_version });
+            if (source.id === target.id) throw new Error('source and target must differ');
+            if (source.project_code !== target.project_code) throw new Error('project scope mismatch');
+            if (source.entity_type !== target.entity_type) throw new Error('entity_type mismatch');
+            if (source.lifecycle_status !== 'merged') throw new Error('source lifecycle_status must be merged');
+            if (source.payload?.canonical_entity_id !== target.id) throw new Error('canonical_entity_id mismatch');
+            if (target.lifecycle_status !== 'active') throw new Error('target must be active');
+            if (state.edges.some((edge) => edge.lifecycle_status === 'active'
+                && (edge.from_id === source.id || edge.to_id === source.id))) {
+                throw new Error('source still has active edges');
+            }
+            source.lifecycle_status = 'superseded';
+            source.version += 1;
         } else if (operation.operation === 'upsert_edge') {
             const fromEntity = findEntity(state, operation.from_id);
             const toEntity = findEntity(state, operation.to_id);
@@ -276,7 +294,11 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
                     name: operation.name,
                     catalog_project_id: operation.catalog_project_id,
                     catalog_version: operation.catalog_version,
-                    source_ref: operation.source_ref
+                    source_ref: operation.source_ref,
+                    ...(operation.kind ? { kind: operation.kind } : {}),
+                    ...(operation.organization_entity_id
+                        ? { organization_entity_id: operation.organization_entity_id } : {}),
+                    ...(operation.owner_person_id ? { owner_person_id: operation.owner_person_id } : {})
                 },
                 role_min: 'member',
                 sensitivity: 'internal',
@@ -470,14 +492,25 @@ export function validateGraphSnapshot(snapshot) {
         }
         const source = entitiesById.get(edge.from_id);
         const target = entitiesById.get(edge.to_id);
-        if (source && target && externalEntityIds.has(target.id) && source.project_code !== target.project_code) {
+        const targetIsCrossTenant = externalEntityIds.has(target?.id)
+            && target.reference_scope !== 'same_organization';
+        if (source && target
+            && (targetIsCrossTenant || edge.payload?.cross_tenant === true)
+            && source.project_code !== target.project_code) {
             const canonicalCrossTenant = edge.rel_type === 'governs'
                 && edge.project_code === source.project_code
                 && edge.payload?.cross_tenant === true
                 && edge.payload?.target_project_code === target.project_code
                 && edge.role_min === 'ceo'
                 && edge.sensitivity === 'restricted';
-            if (!canonicalCrossTenant) issues.push({ category: 'cross_tenant_edge', id: edge.id });
+            if (!canonicalCrossTenant
+                || source.entity_type !== 'decision'
+                || source.lifecycle_status !== 'active'
+                || target.entity_type !== 'product'
+                || target.reference_scope === 'same_organization'
+                || target.lifecycle_status !== 'active') {
+                issues.push({ category: 'cross_tenant_edge', id: edge.id });
+            }
         }
         const key = `${edge.from_id}\u0000${edge.to_id}\u0000${edge.rel_type}`;
         if (edgeKeys.has(key)) issues.push({ category: 'duplicate_edge', id: edge.id });

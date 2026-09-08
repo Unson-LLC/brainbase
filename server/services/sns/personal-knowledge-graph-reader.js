@@ -7,6 +7,11 @@
  * 書き込み・promote・投稿は行わず、SNS curator の graphReader contract に合わせて source entity を返す。
  */
 
+import {
+    isPersonalKgCandidateInScope,
+    requirePersonalKgIdentity
+} from './personal-kg-identity.js';
+
 const SNS_SOURCE_SYSTEMS = new Set(['sns-curator', 'sns-lifelog-curator']);
 const EXCLUDED_STATUSES = new Set(['rejected', 'expired']);
 const ALLOWED_COGNITIVE_TYPES = new Set([
@@ -42,6 +47,7 @@ function toSourceEntity(candidate) {
         agency_level: candidate.agency_level,
         sensitivity: candidate.sensitivity,
         owner_person_id: candidate.owner_person_id,
+        organization_id: candidate.organization_id || null,
         visibility: candidate.visibility,
         org_ids: asArray(candidate.org_ids),
         project_ids: asArray(candidate.project_ids),
@@ -68,17 +74,15 @@ export class PersonalKnowledgeGraphReader {
 
     /**
      * SnsReadonlyCurator graphReader contract.
-     * @param {{ since?: string, viewer: { sub: string } }} options
+     * @param {{ since?: string, viewer: object }} options
      * @returns {Promise<Array<any>>}
      */
     async listRecentEntities({ since, viewer }) {
-        if (!viewer || !viewer.sub) {
-            throw new Error('viewer.sub required');
-        }
+        const identity = requirePersonalKgIdentity(viewer);
 
-        const candidates = await this.candidateService.listCandidates({}, viewer);
+        const candidates = await this.candidateService.listCandidates({}, identity);
         return candidates
-            .filter((candidate) => candidate.owner_person_id === viewer.sub)
+            .filter((candidate) => isPersonalKgCandidateInScope(candidate, identity))
             .filter((candidate) => candidate.visibility === 'owner')
             .filter((candidate) => !SNS_SOURCE_SYSTEMS.has(candidate.source_system))
             .filter((candidate) => ALLOWED_COGNITIVE_TYPES.has(candidate.cognitive_type))

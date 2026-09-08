@@ -1,0 +1,44 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ontology-scoped-validation-and-decision-authority",
+  "created_at": "2026-09-01T15:13:17.064Z",
+  "status": "ready",
+  "git": {
+    "head_sha": "0c53f940e54fec625cf70671a0a56352f4bbe27b"
+  },
+  "checks": [
+    {
+      "id": "story_selected",
+      "status": "pass",
+      "reason": "Story is registered in .vibepro/config.json (brainbase.stories[])"
+    },
+    {
+      "id": "graphify_context",
+      "status": "pass",
+      "reason": "Graphify graph has 8739 nodes and 20162 edges"
+    },
+    {
+      "id": "story_diagnosis",
+      "status": "pass",
+      "reason": "Story diagnosis run exists: 2026-09-01T144858Z"
+    }
+  ],
+  "graphify": {
+    "available": true,
+    "artifact": ".vibepro/graphify/graph.json",
+    "node_count": 8739,
+    "edge_count": 20162,
+    "edge_source_key": "links"
+  },
+  "diagnosis": {
+    "run_id": "2026-09-01T144858Z",
+    "gate_status": "needs_review",
+    "evidence_artifact": ".vibepro/diagnostics/2026-09-01T144858Z/evidence.json"
+  },
+  "engineering_judgment": null,
+  "pr_prepare": {
+    "created_at": "2026-09-01T15:13:16.983Z",
+    "artifact": ".vibepro/pr/story-ontology-scoped-validation-and-decision-authority/pr-prepare.json"
+  },
+  "next_actions": []
+}

@@ -55,7 +55,7 @@ brainbase SNS運用の価値は「AIが投稿文を書く」ことではない�
 ## Scope
 
 - `/oyasumi YYYY-MM-DD` が、対象日のmana議事録を取得・抽出したあと、SNSに使えるpersonal KG candidateを作る。
-- candidateは `memory_candidates` に `owner_person_id=sato_keigo`, `visibility=owner`, `promotion_status=candidate` として保存する。
+- candidateは `memory_candidates` に、署名検証済み会社権限context由来の `owner_person_id`, `visibility=owner`, `promotion_status=candidate` として保存する。
 - candidateは議事録全体をそのまま入れず、SNS生成に使える単位へ圧縮する。
   - `philosophy`: さとけいの思想として再利用できる主張
   - `sales_philosophy`: SalesTailor/営業/信頼形成に関する思想
@@ -82,7 +82,7 @@ brainbase SNS運用の価値は「AIが投稿文を書く」ことではない�
 - [ ] AC-2: 2026-05-15 SalesTailor議事録を入力した場合、AI活用、営業代行、信頼形成、SalesTailor実績に関するcandidateが作られる。
 - [ ] AC-3: 家族、医療、健康、個人の私的事情は `sns_ready` には出ず、SNS生成Contextにも出ない。
 - [ ] AC-3b: 判断再現に必要なprivate/confidential detailsは `personal_kg_core` に owner-visible + sensitivity tag + provenance付きで保持できる。
-- [ ] AC-4: candidateは `owner_person_id=sato_keigo`, `visibility=owner`, `sensitivity` 適切値、`project_code` 適切値、`source_system=oyasumi-meeting-personal-kg` を持つ。
+- [ ] AC-4: candidateは署名検証済み会社権限context由来の `owner_person_id` と `organization_id`, `visibility=owner`, `sensitivity` 適切値、`project_code` 適切値、`source_system=oyasumi-meeting-personal-kg` を持つ。自己申告identityと未検証の委任IDは拒否する。
 - [ ] AC-5: candidateの `source_event_ids` から、GitHub repo/path/date/slugへ戻れる。
 - [ ] AC-6: 同じ議事録を再処理しても重複candidateを作らない。
 - [ ] AC-7: `sns_generation_context.json` は新規candidateを `personal_kg.candidate_sources` に含め、使えるものを `anchors` / `proof_points` へ分類する。
@@ -107,7 +107,7 @@ brainbase SNS運用の価値は「AIが投稿文を書く」ことではない�
   "source_event_ids": [
     "github:Unson-LLC/salestailor-project:meetings/minutes/2026-05-15_social-gathering-business-networking-talk.md#sales_philosophy:ai-sales-agency"
   ],
-  "owner_person_id": "sato_keigo",
+  "owner_person_id": "<verified context.scope.owner_person_id>",
   "project_code": "salestailor",
   "visibility": "owner",
   "sensitivity": "internal",

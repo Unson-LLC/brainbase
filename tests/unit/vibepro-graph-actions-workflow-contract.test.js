@@ -23,22 +23,8 @@ function expectNodeActionsWithoutPackageCache(job) {
 }
 
 describe('VibePro Graph Actions workflow contract', () => {
-  it('Graphify ImpactをLinuxセルフホストrunnerでPRごとに排他実行する', () => {
-    const workflow = loadWorkflow('vibepro-graphify-impact.yml');
-    const job = workflow.jobs['graphify-impact'];
-
-    expect(workflow.permissions).toEqual({ contents: 'read' });
-    expect(workflow.concurrency).toEqual({
-      group: '${{ github.workflow }}-${{ github.event.pull_request.number }}',
-      'cancel-in-progress': true,
-    });
-    expect(workflow.on.pull_request.branches).toEqual(['main', 'develop']);
-    expect(workflow.on.push).toBeUndefined();
-    expect(job['runs-on']).toEqual(selfHostedLinuxRunner);
-    expect(job['timeout-minutes']).toBe(10);
-    expectNodeActionsWithoutPackageCache(job);
-    expect(job.steps.map((step) => step.run).filter(Boolean).join('\n'))
-      .toContain('vibepro-graph-actions-workflow-contract.test.js');
+  it('GraphifyのPR証跡Gateを廃止した状態を固定する', () => {
+    expect(fs.existsSync(path.join(repoRoot, '.github/workflows/vibepro-graphify-impact.yml'))).toBe(false);
   });
 
   it('Graph SSOTのPR・push・定期実行を別責務に分け、同一pushの履歴検証を中断しない', () => {

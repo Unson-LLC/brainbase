@@ -169,6 +169,47 @@ describe('Graph maintenance Phase 0 contract', () => {
             source_expected_version: 1, target_expected_version: 1
         }], { projectCode: 'brainbase' })).toThrow('duplicate_edge');
     });
+    it('旧APIでmergedになった統合済みノードだけをsupersededへ正規化する', () => {
+        const legacyMergedSnapshot = {
+            project_code: 'smart-front',
+            entities: [
+                { id: 'legacy', entity_type: 'project', project_code: 'smart-front', payload: { canonical_entity_id: 'smart-front' }, role_min: 'gm', sensitivity: 'internal', lifecycle_status: 'merged', version: 4 },
+                { id: 'smart-front', entity_type: 'project', project_code: 'smart-front', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3 }
+            ],
+            edges: []
+        };
+
+        const after = applyGraphOperations(legacyMergedSnapshot, [{
+            operation: 'normalize_merged_lifecycle', entity_id: 'legacy', expected_version: 4,
+            target_entity_id: 'smart-front', target_expected_version: 3
+        }], { projectCode: 'smart-front' });
+
+        expect(after.entities.find((entity) => entity.id === 'legacy')).toMatchObject({
+            lifecycle_status: 'superseded', version: 5,
+            payload: { canonical_entity_id: 'smart-front' }
+        });
+        expect(after.entities.find((entity) => entity.id === 'smart-front')).toMatchObject({ lifecycle_status: 'active', version: 3 });
+        expect(validateGraphSnapshot(after)).toMatchObject({ valid: true });
+
+        const mismatched = structuredClone(legacyMergedSnapshot);
+        mismatched.entities.find((entity) => entity.id === 'legacy').payload.canonical_entity_id = 'other';
+        expect(() => applyGraphOperations(mismatched, [{
+            operation: 'normalize_merged_lifecycle', entity_id: 'legacy', expected_version: 4,
+            target_entity_id: 'smart-front', target_expected_version: 3
+        }], { projectCode: 'smart-front' })).toThrow('canonical_entity_id mismatch');
+
+        const stillLinked = structuredClone(legacyMergedSnapshot);
+        stillLinked.edges.push({
+            id: 'legacy_link', from_id: 'legacy', to_id: 'smart-front', rel_type: 'related_to',
+            project_code: 'smart-front', payload: {}, role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 1
+        });
+        expect(() => applyGraphOperations(stillLinked, [{
+            operation: 'normalize_merged_lifecycle', entity_id: 'legacy', expected_version: 4,
+            target_entity_id: 'smart-front', target_expected_version: 3
+        }], { projectCode: 'smart-front' })).toThrow('source still has active edges');
+    });
+
     it('rehomeは旧所属をretireし、新所属をactiveで作成し、無関係edgeを変更しない', () => {
         const rehomeSnapshot = {
             project_code: 'brainbase',
@@ -301,6 +342,90 @@ describe('Graph maintenance Phase 0 contract', () => {
             sensitivity: 'internal', lifecycle_status: 'active', version: 1
         }];
         expect(validateGraphSnapshot(malformed).issues).toContainEqual({ category: 'cross_tenant_edge', id: 'edge_malformed' });
+    });
+
+    it.each([
+        ['source type', { entity_type: 'person' }, {}],
+        ['source lifecycle', { lifecycle_status: 'retired' }, {}],
+        ['target type', {}, { entity_type: 'person' }],
+        ['target reference scope', {}, { reference_scope: 'same_organization' }],
+        ['target lifecycle', {}, { lifecycle_status: 'retired' }]
+    ])('existing canonical cross-tenant Edge requires active Decision to active Product (%s)', (_caseName, sourcePatch, targetPatch) => {
+        const invalid = {
+            project_code: 'brainbase',
+            entities: [{
+                id: 'decision', entity_type: 'decision', project_code: 'brainbase', payload: {},
+                role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1,
+                ...sourcePatch
+            }],
+            external_entities: [{
+                id: 'product_aitle', entity_type: 'product', project_code: 'aitle',
+                role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1,
+                ...targetPatch
+            }],
+            edges: [{
+                id: 'edge_existing_canonical', from_id: 'decision', to_id: 'product_aitle', rel_type: 'governs',
+                project_code: 'brainbase', payload: { cross_tenant: true, target_project_code: 'aitle' },
+                role_min: 'ceo', sensitivity: 'restricted', lifecycle_status: 'active', version: 1
+            }]
+        };
+
+        expect(validateGraphSnapshot(invalid).issues).toContainEqual({
+            category: 'cross_tenant_edge', id: 'edge_existing_canonical'
+        });
+    });
+
+    it('same-organization external endpointは通常の跨project Edgeを孤立扱いしない', () => {
+        const sameOrganization = {
+            project_code: 'brainbase',
+            entities: [{
+                id: 'project_brainbase', entity_type: 'project', project_code: 'brainbase', payload: {},
+                role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            }],
+            external_entities: [{
+                id: 'per_yajima_tsuyoshi', entity_type: 'person', project_code: 'techknight',
+                reference_scope: 'same_organization', role_min: 'member', sensitivity: 'internal',
+                lifecycle_status: 'active', version: 3
+            }],
+            edges: [{
+                id: 'edge_yajima_member_of', from_id: 'per_yajima_tsuyoshi', to_id: 'project_brainbase',
+                rel_type: 'member_of', project_code: 'brainbase', payload: {}, role_min: 'member',
+                sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            }, {
+                id: 'edge_brainbase_related_yajima', from_id: 'project_brainbase', to_id: 'per_yajima_tsuyoshi',
+                rel_type: 'related_to', project_code: 'brainbase', payload: {}, role_min: 'member',
+                sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            }]
+        };
+
+        expect(validateGraphSnapshot(sameOrganization)).toMatchObject({
+            valid: true,
+            counts: { orphans: 0 }
+        });
+    });
+
+    it('cross-tenant markerとmarkerなし旧Snapshotは非canonical Edgeを拒否する', () => {
+        const base = {
+            project_code: 'brainbase',
+            entities: [{
+                id: 'decision', entity_type: 'decision', project_code: 'brainbase', payload: {},
+                role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1
+            }],
+            edges: [{
+                id: 'edge_noncanonical', from_id: 'decision', to_id: 'product_aitle', rel_type: 'related_to',
+                project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal',
+                lifecycle_status: 'active', version: 1
+            }]
+        };
+        const endpoint = {
+            id: 'product_aitle', entity_type: 'product', project_code: 'aitle', role_min: 'member',
+            sensitivity: 'internal', lifecycle_status: 'active', version: 4
+        };
+
+        for (const external of [{ ...endpoint, reference_scope: 'cross_tenant' }, endpoint]) {
+            expect(validateGraphSnapshot({ ...base, external_entities: [external] }).issues)
+                .toContainEqual({ category: 'cross_tenant_edge', id: 'edge_noncanonical' });
+        }
     });
 
     it('Catalog Projectを最小projectionとして生成し同一PlanでDecision subjectへ接続する', () => {

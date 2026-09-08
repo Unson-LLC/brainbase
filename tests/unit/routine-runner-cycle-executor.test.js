@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import * as routineRunner from '../../scripts/routines/run.mjs';
+import { createPersonalKgAuthorityEnv } from '../helpers/personal-kg-authority-fixture.ts';
 
 const { runRoutine } = routineRunner;
 
@@ -43,10 +44,9 @@ describe('Routine Runner cycle execution', () => {
             env: {
                 CODEX_THREAD_ID: 'thread-local-auth',
                 BRAINBASE_API_URL: 'https://bb.unson.jp',
+                BRAINBASE_ROUTINE_SERVICE_TOKEN: 'routine-must-not-be-used-locally',
                 BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-must-not-be-used-locally',
                 INTERNAL_API_SECRET: 'local-internal-key',
-                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
-                BRAINBASE_ORGANIZATION_ID: 'unson',
                 BRAINBASE_VAR_DIR: path.join(repoDir, 'canonical-var')
             },
             fetchImpl,
@@ -64,15 +64,36 @@ describe('Routine Runner cycle execution', () => {
             });
             expect(call.options.headers).not.toHaveProperty('Authorization');
         }
-        expect(calls[0].options.headers).toMatchObject({
-            'x-brainbase-proxy-person-id': 'sato_keigo',
-            'x-brainbase-organization-id': 'unson'
-        });
+        expect(calls[0].options.headers).not.toHaveProperty('x-brainbase-proxy-person-id');
+        expect(calls[0].options.headers).not.toHaveProperty('x-brainbase-organization-id');
+        expect(calls[0].body).not.toHaveProperty('company_authority_response');
         expect(result).toMatchObject({ status: 'completed', delivery: { delivered: 1 } });
 
         const runnerSource = fs.readFileSync(path.join(process.cwd(), 'scripts/routines/run.mjs'), 'utf8');
         expect(runnerSource).toContain('loadRuntimeEnv');
         expect(runnerSource).toMatch(/loadRuntimeEnv\(\{[\s\S]*cwd:\s*DEFAULT_REPO_DIR/);
+    });
+
+    it.each(['ohayo', 'retro', 'oyasumi'])('%sのローカル実行は追加tokenやCompany Authority設定を要求しない', async (routine) => {
+        const fetchImpl = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'completed' })
+        }));
+
+        await routineRunner.executeRoutineOverHttp({
+            routine,
+            env: {
+                BRAINBASE_ROUTINE_API_URL: 'http://127.0.0.1:31013',
+                INTERNAL_API_SECRET: 'local-internal-key'
+            },
+            fetchImpl
+        });
+
+        const request = fetchImpl.mock.calls[0][1];
+        expect(request.headers).toMatchObject({ 'x-internal-api-key': 'local-internal-key' });
+        expect(request.headers).not.toHaveProperty('Authorization');
+        expect(JSON.parse(request.body)).toEqual({ input: {} });
     });
 
     it('CLI終了コードはcompletedだけ0、partialは2、failedとblockedは非zeroにする', () => {
@@ -95,13 +116,53 @@ describe('Routine Runner cycle execution', () => {
             routine: 'ohayo',
             env: {
                 BRAINBASE_ROUTINE_API_URL: 'https://routine.example',
-                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-token',
-                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
-                BRAINBASE_ORGANIZATION_ID: 'unson'
+                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'receipt-token'
             },
             fetchImpl
         })).rejects.toThrow('routine authentication is required');
         expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('retroは専用service tokenだけを送り、Personal KG ownerをAutomation環境へ要求しない', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'completed' })
+        }));
+
+        await routineRunner.executeRoutineOverHttp({
+            routine: 'retro',
+            env: {
+                BRAINBASE_ROUTINE_API_URL: 'https://brainbase.example',
+                BRAINBASE_ROUTINE_SERVICE_TOKEN: 'bbsvc_retro'
+            },
+            fetchImpl
+        });
+
+        const request = fetchImpl.mock.calls[0][1];
+        expect(request.headers.Authorization).toBe('Bearer bbsvc_retro');
+        expect(JSON.parse(request.body)).toEqual({ input: {} });
+    });
+
+    it('oyasumiも専用service tokenだけを送り、Personal KG ownerをAutomation環境へ要求しない', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            ok: true,
+            status: 200,
+            json: async () => ({ status: 'completed' })
+        }));
+
+        await routineRunner.executeRoutineOverHttp({
+            routine: 'oyasumi',
+            env: {
+                BRAINBASE_ROUTINE_API_URL: 'https://brainbase.example',
+                BRAINBASE_ROUTINE_SERVICE_TOKEN: 'bbsvc_oyasumi'
+            },
+            fetchImpl
+        });
+
+        const request = fetchImpl.mock.calls[0][1];
+        expect(request.headers.Authorization).toBe('Bearer bbsvc_oyasumi');
+        expect(JSON.parse(request.body)).toEqual({ input: {} });
     });
 
     it('completedでもroutine_summary欠落ならrequired_artifact_missingのfailed Receiptを残す', async () => {
@@ -164,13 +225,12 @@ describe('Routine Runner cycle execution', () => {
             routine: 'ohayo',
             repoDir,
             env: {
+                ...createPersonalKgAuthorityEnv({ projectId: 'brainbase' }),
                 CODEX_THREAD_ID: 'thread-http-1',
                 BRAINBASE_ROUTINE_API_URL: 'https://brainbase.example',
                 BRAINBASE_ROUTINE_SERVICE_TOKEN: 'routine-token',
                 BRAINBASE_RUN_RECEIPT_INGEST_URL: 'https://brainbase.example/api/run-receipts/ingest',
-                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'service-token',
-                BRAINBASE_PERSONAL_KG_OWNER_PERSON_ID: 'sato_keigo',
-                BRAINBASE_ORGANIZATION_ID: 'unson'
+                BRAINBASE_RUN_RECEIPT_SERVICE_TOKEN: 'service-token'
             },
             input: { requested_at: '2026-08-13T00:00:00.000Z' },
             fetchImpl,
@@ -183,13 +243,20 @@ describe('Routine Runner cycle execution', () => {
                 method: 'POST',
                 headers: expect.objectContaining({
                     Authorization: 'Bearer routine-token',
-                    'Content-Type': 'application/json',
-                    'x-brainbase-proxy-person-id': 'sato_keigo',
-                    'x-brainbase-organization-id': 'unson'
+                    'Content-Type': 'application/json'
                 })
             },
             body: {
                 thread_id: 'thread-http-1',
+                company_authority_response: expect.objectContaining({
+                    context: expect.objectContaining({
+                        scope: expect.objectContaining({
+                            owner_person_id: 'person-sato',
+                            organization_id: 'organization-tenant-a',
+                            project_id: 'brainbase'
+                        })
+                    })
+                }),
                 input: { requested_at: '2026-08-13T00:00:00.000Z' }
             }
         });
@@ -237,6 +304,125 @@ describe('Routine Runner cycle execution', () => {
             expect.objectContaining({ label: 'routine_summary' })
         ]);
         expect(result).toMatchObject({ delivery: { delivered: 1 } });
+    });
+
+    it('ohayoは全件を辿れるHTMLを成果物として保存し、要約で詳細を捨てない', async () => {
+        const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-ohayo-day-view-'));
+        temporaryDirectories.push(repoDir);
+        const varDir = path.join(repoDir, 'canonical-var');
+        const calendarItems = Array.from({ length: 12 }, (_, index) => ({
+            title: `予定${index + 1}`,
+            summary: `${index + 9}:00`,
+            htmlLink: `https://calendar.google.com/calendar/event?eid=${index + 1}`
+        }));
+
+        const result = await runRoutine({
+            routine: 'ohayo',
+            repoDir,
+            env: { CODEX_THREAD_ID: 'thread-ohayo-day-view', BRAINBASE_VAR_DIR: varDir },
+            input: {
+                day_view: {
+                    date: '2026-09-06',
+                    summary: '今日の焦点を先に示し、詳細はすべて辿れる',
+                    calendar: calendarItems,
+                    mail: [{ title: '返信依頼', summary: '本日中', url: 'https://mail.google.com/mail/u/0/#inbox/thread-1' }],
+                    slack: [{ title: '確認依頼', summary: '未対応', permalink: 'https://salestailor.slack.com/archives/C08SX913NER/p1778324649001229' }],
+                    today_focus: [{ title: '顧客合意', summary: '提案条件を確定する' }],
+                    ai_actions: [{ title: '論点整理', summary: '会議前に選択肢を並べる' }],
+                    human_decisions: [{ title: '値引き判断', summary: '許容幅を決める' }],
+                    priority_tasks: [{ title: '提案確定', summary: '午前中' }],
+                    source_coverage: [{ source: 'calendar', status: 'confirmed', summary: '全アカウント確認済み' }]
+                }
+            },
+            executeCycle: vi.fn(async () => ({
+                status: 'completed',
+                coverage: 'confirmed',
+                routine_summary: {
+                    routine: 'ohayo', status: 'completed', coverage: 'confirmed', anomaly_count: 0,
+                    headline: '今日は提案確定まで進める'
+                },
+                routine_output: {
+                    headline: '今日は提案確定まで進める',
+                    source_coverage: [
+                        { source: 'calendar', status: 'confirmed', summary: '全アカウント確認済み' },
+                        { source: 'mail', status: 'unavailable', summary: '確認結果が入力されていません' },
+                        { source: 'slack', status: 'unavailable', summary: '確認結果が入力されていません' }
+                    ]
+                },
+                evidence_refs: []
+            })),
+            now: () => new Date('2026-09-05T22:00:00.000Z')
+        });
+
+        const reportRef = result.evidence_refs.find((ref) => ref.label === 'ohayo_day_view');
+        expect(reportRef).toBeTruthy();
+        const reportRelativePath = reportRef.ref.replace(/^ohayo-day-view:/u, '');
+        const reportPath = path.join(varDir, ...reportRelativePath.split('/'));
+        const html = fs.readFileSync(reportPath, 'utf8');
+        expect(html).toContain('今日は提案確定まで進める');
+        expect(html).toContain('予定12');
+        expect(html).toContain('返信依頼');
+        expect(html).toContain('確認依頼');
+        expect(html).toContain('全アカウント確認済み');
+        expect(html).toContain('AIが進める');
+        expect(html).toContain('要判断');
+        expect(html).toContain('mail: unavailable');
+        expect(html).toContain('https://calendar.google.com/calendar/event?eid=12');
+    });
+
+    it('retroは一週間の判断とOutcomeを辿れるHTMLを成果物として保存する', async () => {
+        const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-retro-week-view-'));
+        temporaryDirectories.push(repoDir);
+        const varDir = path.join(repoDir, 'canonical-var');
+        const weekView = {
+            until: '2026-09-06',
+            summary: '判断をOutcomeまで追い、来週変える仕組みを決める',
+            source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分を確認済み' }],
+            evidence: [{ label: 'Run Receipt', ref: 'receipt-week-1' }]
+        };
+
+        const result = await runRoutine({
+            routine: 'retro',
+            repoDir,
+            env: { CODEX_THREAD_ID: 'thread-retro-week-view', BRAINBASE_VAR_DIR: varDir },
+            input: { week_view: weekView },
+            executeCycle: vi.fn(async () => ({
+                status: 'completed',
+                coverage: 'confirmed',
+                routine_summary: {
+                    routine: 'retro', status: 'completed', coverage: 'confirmed', anomaly_count: 0,
+                    headline: '来週は実行環境のpreflightを必須にする'
+                },
+                routine_output: {
+                    headline: '来週は実行環境のpreflightを必須にする',
+                    outcomes: [{ title: '定期実行のドリフトを特定', summary: '古いcheckoutが原因だった' }],
+                    decision_replays: [{ title: 'Automation登録判断', summary: '実行環境の成立確認が不足していた' }],
+                    changed_judgments: [{ title: '成功条件を変更', summary: '登録済みから実行結果のreadbackへ変更' }],
+                    mistaken_assumptions: [{ title: '誤った前提', summary: 'cwdはdevelopへ追随すると仮定していた' }],
+                    repeated_patterns: [{ title: '反復問題', summary: '稼働SHAを確認せず成功扱いした' }],
+                    system_changes: [{ title: 'preflight追加', summary: 'cwdとSHAを実行前に検証する' }],
+                    personal_kg_registration_reviews: [{ title: '個人KG候補', summary: '自動登録せずレビュー待ち' }],
+                    graph_promotion_reviews: [{ title: 'Graph候補', summary: '組織ルール化をレビューする' }],
+                    source_coverage: weekView.source_coverage
+                },
+                evidence_refs: []
+            })),
+            now: () => new Date('2026-09-06T22:00:00.000Z')
+        });
+
+        const reportRef = result.evidence_refs.find((ref) => ref.label === 'retro_week_view');
+        expect(reportRef).toBeTruthy();
+        const reportRelativePath = reportRef.ref.replace(/^retro-week-view:/u, '');
+        const reportPath = path.join(varDir, ...reportRelativePath.split('/'));
+        const html = fs.readFileSync(reportPath, 'utf8');
+        expect(html).toContain('来週は実行環境のpreflightを必須にする');
+        expect(html).toContain('定期実行のドリフトを特定');
+        expect(html).toContain('Automation登録判断');
+        expect(html).toContain('誤った前提');
+        expect(html).toContain('preflight追加');
+        expect(html).toContain('自動登録せずレビュー待ち');
+        expect(html).toContain('7日分を確認済み');
+        expect(html).toContain('receipt-week-1');
     });
 
     it('ohayo Runner公開結果が最大3例外とgenerator選択記憶の人間向け出力を保持する', async () => {
@@ -319,7 +505,11 @@ describe('Routine Runner cycle execution', () => {
             status: 'completed',
             coverage: 'confirmed',
             routine_output: {
-                headline: '今日は閉じてよい',
+                headline: '浅い睡眠です。未処理が残っています',
+                sleep_state: 'shallow',
+                sleep_causes: [{ code: 'unprocessed', count: 1, summary: '未処理が1件あります', secret: 'hidden' }],
+                consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '集中時間を守る' }],
+                feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '集中時間を守る' }],
                 tomorrow_focus: [{ id: 'internal-id', summary: '朝一で提案を確定する', secret: 'hidden' }],
                 graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針', status: 'pending_approval' }]
             }
@@ -329,13 +519,37 @@ describe('Routine Runner cycle execution', () => {
             status: 'completed',
             coverage: 'confirmed',
             routine_output: {
-                headline: '今日は閉じてよい',
+                headline: '浅い睡眠です。未処理が残っています',
+                sleep_state: 'shallow',
+                sleep_causes: [{ code: 'unprocessed', count: 1, summary: '未処理が1件あります' }],
+                consolidated_memories: [{ id: 'pke_1', source: 'personal_kg', summary: '集中時間を守る' }],
+                feedback_targets: [{ id: 'pke_1', source: 'personal_kg', summary: '集中時間を守る' }],
                 tomorrow_focus: [{ summary: '朝一で提案を確定する' }],
                 graph_promotion_reviews: [{ id: 'candidate-1', summary: '顧客Aの正式方針', status: 'pending_approval' }]
             }
         });
         expect(JSON.stringify(output)).not.toContain('hidden');
         expect(JSON.stringify(output)).not.toContain('internal-id');
+    });
+
+    it('CLI stdoutは朝のAI実行項目と取得元別の確認範囲を保持する', () => {
+        const output = JSON.parse(routineRunner.serializeRoutineCliResult({
+            status: 'partial',
+            coverage: 'partial',
+            routine_output: {
+                headline: '今日は提案確定まで進める',
+                today_focus: [{ summary: '提案を確定する' }],
+                ai_actions: [{ summary: '論点を整理する' }],
+                immediate_decisions: [{ summary: '価格方針を決める' }],
+                source_coverage: [{ source: 'mail', status: 'partial', summary: '1アカウント未確認' }]
+            }
+        }));
+
+        expect(output.routine_output).toMatchObject({
+            ai_actions: [{ summary: '論点を整理する' }],
+            immediate_decisions: [{ summary: '価格方針を決める' }],
+            source_coverage: [{ source: 'mail', status: 'partial', summary: '1アカウント未確認' }]
+        });
     });
 
     it('executorがthrowしてもfailed Receiptを正規Outboxへ永続化する', async () => {

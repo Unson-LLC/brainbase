@@ -32,7 +32,17 @@ npm run build
 | `BRAINBASE_API_URL` | No | - | `BRAINBASE_GRAPH_API_URL` の別名（Infisicalの既存secret名に合わせた alias） |
 | `BRAINBASE_API_BASE_URL` | No | - | `BRAINBASE_GRAPH_API_URL` の別名（後方互換） |
 | `BRAINBASE_PROJECT_CODES` | No | - | プロジェクトコードのカンマ区切りリスト（フィルタリング用） |
-| `BRAINBASE_GRAPH_API_TOKEN` | No | - | API Tokenの環境変数フォールバック |
+| `BRAINBASE_GRAPH_API_TOKEN` | No | - | サービス実行用のAPIトークン |
+| `BRAINBASE_AUTH_MODE` | No | トークン環境変数ありなら `service`、なしなら `interactive` | 接続全体の認証方式 |
+
+対話型のCodexでは、MCP接続設定に次を明示します。
+
+```toml
+[mcp_servers.brainbase.env]
+BRAINBASE_AUTH_MODE = "interactive"
+```
+
+`interactive` は保存済みユーザートークンだけを使い、環境変数のサービストークンを無視します。`service` は環境変数のトークンだけを使い、未設定なら認証エラーになります。保存済みユーザーへの切替は行いません。判断・参照は同じ接続の認証を共有します。JWTと設定済みプロジェクト範囲の積集合による制限は引き続き適用されます。設定変更後はMCPを再接続してください。
 
 ## JWT認証セットアップ
 

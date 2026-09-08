@@ -152,6 +152,65 @@ function quotaPool({ now = '2026-08-22T01:00:00.000Z', allowance = 100, legacyCo
 }
 
 describe('MultitenantPostgresRepository', () => {
+    it('tenant organizationをGraph正本organizationへ解決する', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const organization = {
+            tenant_id: tenantId,
+            organization_id: 'org_business',
+            organization_payload: { status: 'active', graph_organization_id: 'business' },
+            tenant_status: 'active'
+        };
+        const { pool, client } = poolWithRows({ 'FROM tenant_organizations': [organization] });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveOrganizationBindingById({
+            tenant_id: tenantId,
+            organization_id: organization.organization_id
+        })).resolves.toEqual(organization);
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('WHERE organization.tenant_id = $1 AND organization.organization_id = $2')
+            && values[0] === tenantId
+            && values[1] === organization.organization_id
+        ))).toBe(true);
+    });
+
+    it('authority project bindingをtenant RLS下でproject_idから正規project_codeへ解決する', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const project = {
+            tenant_id: tenantId,
+            project_id: 'project_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+            project_code: 'unson',
+            project_payload: { status: 'active' }
+        };
+        const { pool, client } = poolWithRows({ 'FROM tenant_projects': [project] });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveProjectBindingById({
+            tenant_id: tenantId,
+            project_id: project.project_id
+        })).resolves.toEqual(project);
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('WHERE project.tenant_id = $1 AND project.project_id = $2')
+            && values[0] === tenantId
+            && values[1] === project.project_id
+        ))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => (
+            sql.includes('JOIN brainbase_tenants AS tenant')
+            && sql.includes('tenant.status AS project_status')
+            && sql.includes("tenant.status = 'active'")
+        ))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => sql.includes("set_config('brainbase.tenant_id'"))).toBe(true);
+    });
+
+    it('authority project binding lookupはtenantまたはproject_id欠落を拒否する', async () => {
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn() } });
+
+        await expectContractErrorAsync(
+            () => repository.resolveProjectBindingById({ tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX', project_id: '' }),
+            { code: 'PROJECT_SCOPE_MISMATCH', status: 403 }
+        );
+    });
+
     it('keeps the original request digest across failed retries and rejects a changed OAuth request', async () => {
         const claimToken = 'claim-token-same-request';
         const requestDigest = digest('oauth-code-one');
@@ -234,6 +293,163 @@ describe('MultitenantPostgresRepository', () => {
             }),
             { code: 'INSTALLATION_STATE_REPLAYED', status: 409 }
         );
+    });
+
+    it('reads only the non-secret failed installation diagnostic', async () => {
+        const tenantId = CLAIM_INTENT.tenant_id;
+        const requestDigest = digest('oauth-code-and-redirect');
+        const { pool, client } = poolWithRows({
+            'FROM slack_installation_exchange_ledger': [{
+                tenant_id: tenantId,
+                installation_intent_id: CLAIM_INTENT.installation_intent_id,
+                request_digest: requestDigest,
+                status: 'failed',
+                attempt: 2,
+                failure_stage: 'credential_store',
+                failure_code: 'CREDENTIAL_STORE_UNAVAILABLE',
+                cleanup_status: 'not_needed'
+            }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id
+        })).resolves.toEqual({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id,
+            request_digest: requestDigest,
+            attempt: 2,
+            failure_stage: 'credential_store',
+            failure_code: 'CREDENTIAL_STORE_UNAVAILABLE',
+            cleanup_status: 'not_needed'
+        });
+        const sql = client.query.mock.calls.find(([statement]) => statement.includes('FROM slack_installation_exchange_ledger'))[0];
+        expect(sql).not.toMatch(/credential_ref|response_payload|claim_token_hash/u);
+    });
+
+    it('does not reclassify a legacy failed row when its stage is null', async () => {
+        const tenantId = CLAIM_INTENT.tenant_id;
+        const { pool } = poolWithRows({
+            'FROM slack_installation_exchange_ledger': [{
+                tenant_id: tenantId,
+                installation_intent_id: CLAIM_INTENT.installation_intent_id,
+                request_digest: digest('legacy-request'),
+                status: 'failed',
+                attempt: 1,
+                failure_stage: null,
+                failure_code: 'UPSTREAM_UNAVAILABLE',
+                cleanup_status: null
+            }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id
+        })).resolves.toMatchObject({
+            failure_stage: null,
+            failure_code: null
+        });
+    });
+
+    it('fails closed when a stored failure diagnostic contains untrusted values', async () => {
+        const tenantId = CLAIM_INTENT.tenant_id;
+        const { pool } = poolWithRows({
+            'FROM slack_installation_exchange_ledger': [{
+                tenant_id: tenantId,
+                installation_intent_id: CLAIM_INTENT.installation_intent_id,
+                request_digest: 'raw-authorization-code',
+                status: 'failed',
+                attempt: 'not-a-number',
+                failure_stage: 'secret_stage',
+                failure_code: 'RAW_PROVIDER_ERROR',
+                cleanup_status: 'success-ish'
+            }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.readSlackInstallationFailureDiagnostic({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id
+        })).resolves.toEqual({
+            tenant_id: tenantId,
+            installation_intent_id: CLAIM_INTENT.installation_intent_id,
+            request_digest: null,
+            attempt: null,
+            failure_stage: null,
+            failure_code: 'INSTALLATION_EXCHANGE_FAILED',
+            cleanup_status: null
+        });
+    });
+
+    it('normalizes an untrusted failure code to the stage allowlist fallback', async () => {
+        const query = vi.fn(async (sql, values = []) => {
+            if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK'
+                || sql.startsWith("SELECT set_config('brainbase.tenant_id'")) return { rows: [] };
+            if (sql.includes('UPDATE slack_installation_exchange_ledger')) return { rows: [], rowCount: 1 };
+            return { rows: [] };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn(async () => client) } });
+
+        await expect(repository.failSlackInstallationExchange({
+            intent: CLAIM_INTENT,
+            claim_token: 'claim-token',
+            request_digest: digest('request'),
+            failure_stage: 'credential_store',
+            failure_code: 'EVIL_RAW_CODE',
+            cleanup_status: 'not_needed'
+        })).resolves.toBe(true);
+        const update = query.mock.calls.find(([sql]) => sql.includes('UPDATE slack_installation_exchange_ledger'));
+        expect(update[1][2]).toBe('CREDENTIAL_STORE_FAILED');
+        expect(update[1]).not.toContain('EVIL_RAW_CODE');
+    });
+
+    it('preserves an existing stable reservation failure code', async () => {
+        const query = vi.fn(async (sql) => {
+            if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK'
+                || sql.startsWith("SELECT set_config('brainbase.tenant_id'")) return { rows: [] };
+            if (sql.includes('UPDATE slack_installation_exchange_ledger')) return { rows: [], rowCount: 1 };
+            return { rows: [] };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn(async () => client) } });
+
+        await repository.failSlackInstallationExchange({
+            intent: CLAIM_INTENT,
+            claim_token: 'claim-token',
+            request_digest: digest('request'),
+            failure_stage: 'connection_reserve',
+            failure_code: 'WORKSPACE_CONNECTION_STALE_REVISION',
+            cleanup_status: 'not_needed'
+        });
+
+        const update = query.mock.calls.find(([sql]) => sql.includes('UPDATE slack_installation_exchange_ledger'));
+        expect(update[1][2]).toBe('WORKSPACE_CONNECTION_STALE_REVISION');
+    });
+
+    it('normalizes a stable code from a different stage to the current stage fallback', async () => {
+        const query = vi.fn(async (sql) => {
+            if (sql === 'BEGIN' || sql === 'COMMIT' || sql === 'ROLLBACK'
+                || sql.startsWith("SELECT set_config('brainbase.tenant_id'")) return { rows: [] };
+            if (sql.includes('UPDATE slack_installation_exchange_ledger')) return { rows: [], rowCount: 1 };
+            return { rows: [] };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn(async () => client) } });
+
+        await repository.failSlackInstallationExchange({
+            intent: CLAIM_INTENT,
+            claim_token: 'claim-token',
+            request_digest: digest('request'),
+            failure_stage: 'oauth_exchange',
+            failure_code: 'CREDENTIAL_STORE_UNAVAILABLE',
+            cleanup_status: 'not_needed'
+        });
+
+        const update = query.mock.calls.find(([sql]) => sql.includes('UPDATE slack_installation_exchange_ledger'));
+        expect(update[1][2]).toBe('OAUTH_EXCHANGE_FAILED');
     });
 
     it('AC-005/AC-105/D-003: transaction-local tenant RLSを設定しauthoritative revisionをlock付きで読む', async () => {
@@ -439,6 +655,46 @@ describe('MultitenantPostgresRepository', () => {
         expect(client.query.mock.calls.some(([sql]) => sql.includes('consumed_at IS NULL'))).toBe(true);
         expect(client.query.mock.calls.every(([, params = []]) => (
             !params.includes('opaque-token-must-not-be-stored')
+        ))).toBe(true);
+    });
+
+    it('authority lease consumeは同一tenantのactive project bindingをexpected project_id/codeと照合する', async () => {
+        const binding = {
+            lease_id: 'lease_authority', tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: '3',
+            credential_ref: 'credref:a', credential_mode: 'customer_oauth', contract_revision: '11',
+            operation_id: 'op_authority', audience: 'bb.unson.jp', provider: 'brainbase',
+            lease_token_digest: `sha256:${'b'.repeat(64)}`, issued_at: '2026-08-18T00:00:00Z',
+            expires_at: '2026-08-18T00:01:00Z', max_uses: 1
+        };
+        const project = {
+            tenant_id: 'ten_a', project_id: 'project_a', project_code: 'unson',
+            project_payload: { status: 'active' }
+        };
+        const { pool, client } = poolWithRows({
+            'FROM tenant_credential_leases AS lease': [{ ...binding, consumed_at: null }],
+            'FROM tenant_projects': [project],
+            'UPDATE tenant_credential_leases': [{ lease_id: 'lease_authority' }]
+        });
+        const repository = new MultitenantPostgresRepository({
+            pool,
+            now: () => new Date('2026-08-18T00:00:30Z')
+        });
+
+        await expect(repository.consumeCredentialLease({
+            ...binding,
+            project_id: 'project_a',
+            project_code: 'unson',
+            consumed_at: '2026-08-18T00:00:30Z'
+        })).resolves.toMatchObject({
+            lease_id: 'lease_authority', project_id: 'project_a', project_code: 'unson'
+        });
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('FROM tenant_projects')
+            && sql.includes('JOIN brainbase_tenants AS tenant')
+            && sql.includes('tenant.status AS project_status')
+            && sql.includes("tenant.status = 'active'")
+            && values[0] === 'ten_a'
+            && values[1] === 'project_a'
         ))).toBe(true);
     });
 

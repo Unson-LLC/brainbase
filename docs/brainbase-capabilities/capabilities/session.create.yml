@@ -1,75 +1,34 @@
 id: session.create
 name: Session creation
 lifecycle: retired
-purpose: Historical record of Brainbase-owned session creation. Codex app/CLI now owns task and worktree creation.
+purpose: Historical record of retired Brainbase browser and server-side session creation. Codex app/CLI owns task and worktree creation.
 surfaces:
   ui:
-    - "#session-launch-picker"
-    - "#session-launch-project-select"
-    - "#session-launch-use-worktree-checkbox"
-    - "#session-startup-composer"
-    - "#session-startup-prompt-input"
+    - "#session-launch-picker (retired and unreachable)"
+    - "#focus-engine-modal (compatibility-only and fail-closed)"
+    - "#session-launch-project-select (retired and unreachable)"
   api:
     - POST /api/sessions
+    - POST /api/sessions/start
+    - POST /api/sessions/create-with-worktree
   code:
+    - public/modules/app/event-listeners-mixin.js
     - public/modules/app/session-creation-mixin.js
-    - public/modules/app/ui-setup-mixin.js
-    - public/modules/app/session-management-mixin.js
-    - public/modules/domain/session/session-service.js
     - server/controllers/session-controller.js
     - server/controllers/session/codex-app-server-startup.js
     - server/services/worktree-service.js
-  data:
-    - state sessions
-    - config projects
-depends_on:
-  - project.selector
-  - auth.grants
-  - runtime.launchd
 visibility_rules:
   - Do not restore this capability. ADR-019 assigns task and worktree lifecycle to Codex app/CLI.
-  - Brainbase session endpoints return 410 Gone.
-  - The selected project must appear in project.selector.
-  - Worktree availability depends on hasGitRepository(selectedProject).
-  - general uses the workspace root and always enables worktree by default.
-  - Session Launch Picker must only choose project, engine, and Git worktree usage before startup begins.
-  - The initial prompt belongs to Startup Composer and must be queued until the selected runtime is ready.
-  - Worktree session creation first shows a pending session shell, then completes worktree/runtime startup in the background.
-  - Pending session shells must not start terminal runtime or snapshot loading against the canonical project path.
-  - Text typed into the startup composer while the runtime is pending must be queued automatically and flushed once the runtime becomes ready.
-  - Submitting the startup composer after the runtime is ready must send immediately instead of showing a pending-startup error.
-  - Codex worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
-  - Claude Code worktree sessions must register the generated worktree path as trusted before launch so workspace trust prompts do not block startup.
-  - New Codex sessions request Codex App Server startup and must persist App Server thread metadata before creation is reported successful.
-  - Claude Code and legacy Codex fallback terminal behavior must remain available.
+  - Retired Brainbase-owned session creation and static app endpoints return 410 Gone.
+  - EVENTS.CREATE_SESSION shows a migration notice and must not open the legacy picker.
+  - The legacy Session Launch Picker is frozen historical code and unreachable. During migration, an old NocoDB EVENTS.START_TASK event may open FocusEngineModal as a downstream compatibility consumer; engine selection must show the Codex migration notice and never call a session API.
 verification:
   commands:
-    - GET /api/state or session list API after creation
-    - inspect state session.project
-    - inspect session path or worktree metadata
-    - npm test -- tests/ui/session-creation-mixin.test.js tests/domain/session/session-service.test.js tests/ui/integration/app-switch-session-runtime.test.js
+    - npx playwright test --config tests/e2e/project-provisioning.playwright.config.js tests/e2e/story-inline-session-creation-pr-gate.spec.ts tests/e2e/story-nocodb-task-start-retirement.spec.js
   expected:
-    - New session appears in the session list.
-    - session.project equals the selected project.
-    - Worktree sessions have expected worktree path and repo metadata.
-    - Worktree session creation closes Session Launch Picker and selects the pending shell before runtime startup completes.
-    - Startup Composer shows locked project, engine, and workspace metadata.
-    - Startup composer text typed during pending startup is sent after startup becomes ready without requiring an early send click.
-    - Startup composer send after startup is already ready delivers the prompt immediately.
-    - Codex worktree sessions reach the Codex prompt without a workspace trust picker.
-    - New Codex sessions have non-stale session.codexAppServer thread metadata after successful creation.
-    - Claude Code worktree sessions reach the Claude Code prompt without a workspace trust picker.
+    - session.create owns every retired picker and session-creation surface.
+    - EVENTS.CREATE_SESSION does not call openSessionLaunchPicker.
+    - NocoDB EVENTS.START_TASK may show FocusEngineModal but fails closed after engine selection without calling /api/sessions.
+    - project.selector contains only Workspace Setup selector surfaces.
 common_failures:
-  - Project missing from dropdown due to auth grant filtering.
-  - Project path resolves to fallback because config local.path is missing or stale.
-  - Existing Git locks or stale worktree registrations block worktree creation.
-  - Worktree startup starts before the Startup Composer is visible, so the user waits before typing the initial prompt.
-  - Startup composer text is persisted only as a draft, so startup completion has nothing queued to send.
-  - Startup composer send races the ready transition and incorrectly remains in a pending-startup state.
-  - Codex stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.codex/config.toml.
-  - Codex App Server metadata is not persisted before the client reloads sessions, so a new Codex session immediately falls back to xterm.
-  - Claude Code stops at a workspace trust prompt because the generated worktree path was not pre-registered in ~/.claude.json.
-runbooks:
-  - ../runbooks/missing-project-in-session-selector.md
-troubleshooting:
-  - ../troubleshooting/project-exists-but-selector-hides-it.md
+  - A compatibility route accidentally restores Brainbase-owned task or worktree creation.

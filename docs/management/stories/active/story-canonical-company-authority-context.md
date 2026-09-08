@@ -8,9 +8,11 @@ source:
 architecture_reason: "tenant分離だけでなく、canonical person、membership、organization、project、RACI、policy、Personal ownerをBrainbaseが正本解決し、runtimeの自己申告へ署名しない境界を固定する。"
 architecture_docs:
   - docs/architecture/ADR-023-brainbase-owned-company-authority.md
+  - docs/architecture/story-canonical-company-authority-context.md
   - docs/architecture/ADR-008-acl-vocabulary.md
   - docs/architecture/ADR-010-memory-promotion-kernel-boundary.md
-spec_docs: []
+spec_docs:
+  - .vibepro/spec/story-canonical-company-authority-context/spec.json
 related_tasks:
   - docs/management/milestones/M0-company-authority-and-personal-boundary.md
 ---
@@ -33,67 +35,23 @@ related_tasks:
 
 Personal KGの本文は本人だけが使い、組織へ共有する場合も本人同意と別の組織採用を経る。
 
-## Acceptance criteria
+## Acceptance Criteria
 
-### AC-001: observed identityとcanonical identityを分離する
-
-Slack user ID、Codex profile、Claude Code profile、service subjectをcanonical person IDとして直接採用しない。Brainbaseのidentity mappingとGraphから一意に解決する。
-
-### AC-002: membershipを正本解決する
-
-canonical personのactive membership、organization、membership revisionを同一authority resolutionで取得する。inactive、unknown、ambiguousを業務処理前に拒否する。
-
-### AC-003: organization、project、resourceを正本解決する
-
-workspace ID、organization名、project code、request bodyのownerを認可根拠にしない。tenant ownership、project membership、resource ownershipを正本から確認する。
-
-### AC-004: RACIとpolicyを正本解決する
-
-requested actionを`auto / approval / human_action / deny`へ分類し、Responsible、Accountable、Approver、delegation、policy revision、RACI revision、stop conditionを返す。
-
-### AC-005: runtime自己申告へ署名しない
-
-MANAまたは他runtimeから渡されたcanonical actor、organization、project、owner、RACI、approver、authority decisionをそのまま署名済みcontextへ含めない。
-
-### AC-006: CanonicalExecutionContextV1を署名する
-
-既存TenantContext、canonical actor、scope、authority、resolution receipt、revision、TTL、audience、deploymentを一つの署名済みcontextとして発行する。
-
-### AC-007: 全entry pointで同じcontextを強制する
-
-admin API、MCP、background job、migration、audit、Slack、Codex、Claude Code、MANA Queue、Container、provider writeが同じcontextを検証する。
-
-### AC-008: no-fallbackを保証する
-
-person、owner、organization、project、resource、RACI、policy、connectionが未解決・複数一致・古い場合、佐藤さん、雲孫、default tenant、default project、default placement、運営者credentialへfallbackしない。
-
-### AC-009: Personal KG ownerを本人から導出する
-
-Personal KG ownerは認証済みcanonical personまたは明示delegation receiptからのみ導出し、`sato_keigo`その他のdefault ownerを使わない。
-
-### AC-010: cross-personを非開示で拒否する
-
-佐藤さんから梅田さん、梅田さんから佐藤さんのPersonal KGを検索・取得・更新できず、存在自体を推測できない。
-
-### AC-011: Personal reviewとorganization reviewを分離する
-
-本人の個人利用承認、組織共有同意、組織reviewerの採用を別state・別actor・別revision・別receiptで保持する。
-
-### AC-012: Personal本文をGraphへコピーしない
-
-Graphへは正規化した事実・判断・関係・scope・evidence pointer・hashだけを昇格し、Personal本文、raw transcript、私的メモを保存しない。Graphから本文を復元できない。
-
-### AC-013: 2 tenant × 2 personのnegative E2Eを通す
-
-Tenant A／B、佐藤／梅田を使い、正常系、tenant越境、person越境、stale revision、scope外resource、誤承認者、再配送をfresh E2Eで証明する。
-
-### AC-014: Intent→Outcome証拠を閉じる
-
-identity resolution、authority resolution、実行、外部readback、UsageEvent、OperationReceiptを同一correlation IDへ関連付け、未取得を`not_collected`として残す。
-
-### AC-015: company authority欠落時の許可範囲を限定する
-
-`company_authority_v1`がない場合はhealth、protocol negotiation、provisioning、connection診断、tenant否定テストだけを許可し、会社データのread／write／external side effectを拒否する。
+- [ ] AC-001: Slack user ID、Codex profile、Claude Code profile、service subjectをcanonical person IDとして直接採用せず、Brainbaseのidentity mappingとGraphから一意に解決する。
+- [ ] AC-002: canonical personのactive membership、organization、membership revisionを同一authority resolutionで取得し、inactive、unknown、ambiguousを業務処理前に拒否する。
+- [ ] AC-003: workspace ID、organization名、project code、request bodyのownerを認可根拠にせず、tenant ownership、project membership、resource ownershipを正本から確認する。
+- [ ] AC-004: requested actionを`auto / approval / human_action / deny`へ分類し、Responsible、Accountable、Approver、delegation、policy revision、RACI revision、stop conditionを返す。
+- [ ] AC-005: MANAまたは他runtimeから渡されたcanonical actor、organization、project、owner、RACI、approver、authority decisionをそのまま署名済みcontextへ含めない。
+- [ ] AC-006: 既存TenantContext、canonical actor、scope、authority、resolution receipt、revision、TTL、audience、deploymentを一つの署名済みCanonicalExecutionContextV1として発行する。
+- [ ] AC-007: admin API、MCP、background job、migration、audit、Slack、Codex、Claude Code、MANA Queue、Container、provider writeが同じcontextを検証する。
+- [ ] AC-008: person、owner、organization、project、resource、RACI、policy、connectionが未解決・複数一致・古い場合、佐藤さん、雲孫、default tenant、default project、default placement、運営者credentialへfallbackしない。
+- [ ] AC-009: Personal KG ownerは認証済みcanonical personまたは明示delegation receiptからのみ導出し、`sato_keigo`その他のdefault ownerを使わない。
+- [ ] AC-010: 佐藤さんから梅田さん、梅田さんから佐藤さんのPersonal KGを検索・取得・更新できず、存在自体を推測できない。
+- [ ] AC-011: 本人の個人利用承認、組織共有同意、組織reviewerの採用を別state・別actor・別revision・別receiptで保持する。
+- [ ] AC-012: Graphへは正規化した事実・判断・関係・scope・evidence pointer・hashだけを昇格し、Personal本文、raw transcript、私的メモを保存しない。Graphから本文を復元できない。
+- [ ] AC-013: Tenant A／B、佐藤／梅田を使い、正常系、tenant越境、person越境、stale revision、scope外resource、誤承認者、再配送をfresh E2Eで証明する。
+- [ ] AC-014: identity resolution、authority resolution、実行、外部readback、UsageEvent、OperationReceiptを同一correlation IDへ関連付け、未取得を`not_collected`として残す。
+- [ ] AC-015: `company_authority_v1`がない場合はhealth、protocol negotiation、provisioning、connection診断、tenant否定テストだけを許可し、会社データのread／write／external side effectを拒否する。
 
 ## Out of scope
 

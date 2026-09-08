@@ -1,4 +1,5 @@
 import { isCanonicalId } from './ids.js';
+import { PostgresCompanyAuthorityRepository } from './postgres-company-authority-repository.js';
 
 const ROLE_FIELDS = ['role', 'role_code'];
 
@@ -77,7 +78,9 @@ function payloadList(payload, fields) {
 export function createSlackInstallationAccessResolver({
     authService,
     resolveCanonicalAccess,
-    graphResolver
+    graphResolver,
+    companyAuthorityRepository,
+    trustedAppId
 } = {}) {
     const explicitResolver = typeof resolveCanonicalAccess === 'function'
         ? resolveCanonicalAccess
@@ -87,14 +90,15 @@ export function createSlackInstallationAccessResolver({
                 ? authService.resolveCanonicalSlackInstallationAccess.bind(authService)
                 : null;
 
+    const repository = companyAuthorityRepository
+        ?? (authService?.pool ? new PostgresCompanyAuthorityRepository({ pool: authService.pool }) : null);
+
     return async ({ req, access = {}, auth = {} } = {}) => {
         const current = canonicalAccess(access, { fallbackIdentity: tokenIdentity({ access, auth }) });
-        if (current) return current;
-
         const identity = tokenIdentity({ access, auth });
-        if (!identity.slackUserId || !identity.slackWorkspaceId) return null;
 
         if (explicitResolver) {
+            if (!identity.slackUserId || !identity.slackWorkspaceId) return null;
             const resolved = await explicitResolver({
                 req,
                 auth,
@@ -105,37 +109,39 @@ export function createSlackInstallationAccessResolver({
             return canonicalAccess(resolved?.access ?? resolved, { fallbackIdentity: identity });
         }
 
-        const pool = authService?.pool;
-        if (!pool || typeof pool.connect !== 'function') return null;
-        const client = await pool.connect();
-        try {
-            const { rows } = await client.query(
-                `SELECT tm.tenant_id,
-                        tm.principal_id,
-                        tm.membership_payload
-                   FROM tenant_memberships tm
-                   JOIN brainbase_tenants bt ON bt.tenant_id = tm.tenant_id
-                  WHERE bt.status = 'active'
-                    AND tm.membership_payload ->> 'slack_user_id' = $1
-                    AND tm.membership_payload ->> 'slack_workspace_id' = $2`,
-                [identity.slackUserId, identity.slackWorkspaceId]
-            );
-            if (rows.length !== 1) return null;
-            const row = rows[0];
-            const payload = row.membership_payload && typeof row.membership_payload === 'object'
-                ? row.membership_payload
-                : {};
+        if (repository) {
+            if (!identity.slackUserId || !identity.slackWorkspaceId || !firstString(trustedAppId)) return null;
+            const route = await repository.resolveObservedRoute({
+                provider_identity: {
+                    provider: 'slack',
+                    authenticated_subject_id: identity.slackUserId,
+                    workspace_id: identity.slackWorkspaceId,
+                    app_id: trustedAppId.trim(),
+                    enterprise_id: null
+                },
+                requested_action: { project_hint: null }
+            });
+            const resolved = await repository.resolveCanonicalIdentity({
+                tenant_id: route.tenant_id,
+                provider: 'slack',
+                authenticated_subject_id: identity.slackUserId,
+                workspace_id: identity.slackWorkspaceId,
+                app_id: trustedAppId.trim(),
+                project_hint: null,
+                include_membership_access: true
+            });
+            const membershipAccess = resolved.membership_access ?? {};
             return canonicalAccess({
-                tenant_id: row.tenant_id,
-                principal_id: row.principal_id,
-                role: payloadField(payload, ROLE_FIELDS) ?? 'member',
-                projectCodes: payloadList(payload, ['project_codes', 'projectCodes']),
-                clearance: payloadList(payload, ['clearance']),
+                tenant_id: resolved.tenant_id,
+                principal_id: resolved.canonical_person_id,
+                role: payloadField(membershipAccess, ROLE_FIELDS) ?? 'member',
+                projectCodes: payloadList(membershipAccess, ['project_codes', 'projectCodes']),
+                clearance: payloadList(membershipAccess, ['clearance']),
                 slackUserId: identity.slackUserId,
                 slackWorkspaceId: identity.slackWorkspaceId
             }, { fallbackIdentity: identity });
-        } finally {
-            client.release();
         }
+
+        return current;
     };
 }

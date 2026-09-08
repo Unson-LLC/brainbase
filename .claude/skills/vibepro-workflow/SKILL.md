@@ -13,12 +13,16 @@ The standard loop is:
 
 > Story → Spec → implement → affected tests → one review wave → GitHub PR → CI → merge
 
+## When to Use
+
+Use this Skill for every Brainbase-managed repository turn whose immutable Judgment receipt has `classification.intent=implement`, even if the user did not mention VibePro. Debugging, TDD, and Git Skills are implementation methods inside this loop; they do not replace it. Do not inject this workflow for diagnose, answer, or pure operate receipts.
+
 ## Operating Contract
 
 1. Use the current Brainbase Judgment receipt and only the smallest relevant Knowledge/Graph context. Link canonical IDs or paths instead of copying organization policy into the Story.
 2. Keep one focused Story with one user-visible outcome and explicit acceptance criteria.
 3. Add or update Architecture/ADR only when the change materially alters a system boundary, ownership, data contract, security boundary, deployment model, or rollback strategy.
-4. Run Graphify or `vibepro story diagnose ... --run-graphify` only when graph evidence can change the implementation or test decision.
+4. For every implementation, regardless of size, follow `docs/brainbase-capabilities/runbooks/vibepro-impact-review.md`: check Graphify availability and read bounded impact context when installed. Reuse results only for unchanged source, targets, and graph. Update or deepen only when evidence is insufficient. Unknown is not no impact; do not add a PR gate.
 5. Write the smallest Spec that makes accepted behavior and invariants testable.
 6. Implement the change and run only affected tests locally. Let CI run the full suite.
 7. After implementation stabilizes, run at most one review wave with no more than three independent roles in parallel and five total dispatches.

@@ -260,6 +260,24 @@ describe('PgCandidateRepository contract', () => {
         expect(calls.filter(({ sql }) => sql.includes('FROM memory_candidates'))).toHaveLength(2);
     });
 
+    it('rejects conflicting organization aliases before opening a transaction', async () => {
+        const pg = new ScriptedPg();
+        const repo = new PgCandidateRepository({ pool: pg });
+
+        await expect(repo.transaction(async () => null, {
+            access: {
+                personId: 'sato_keigo',
+                organizationId: 'org_unson',
+                tenantId: 'org_other'
+            }
+        })).rejects.toMatchObject({
+            code: 'canonical_tenant_identity_invalid',
+            identityState: 'ambiguous',
+            status: 403
+        });
+        expect(pg.calls).toHaveLength(0);
+    });
+
     it('searches only active Personal KG rows', async () => {
         const pg = new ScriptedPg([{ rows: [dbRow()] }]);
         const repo = new PgCandidateRepository({ pool: pg });

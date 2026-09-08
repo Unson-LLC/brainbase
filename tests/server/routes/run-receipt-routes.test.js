@@ -29,9 +29,10 @@ function makeReceipt({
     evidenceState = 'confirmed',
     blockerReason = null,
     actionRequired = null,
-    finishedAt = '2026-07-15T00:00:00Z'
+    finishedAt = '2026-07-15T00:00:00Z',
+    evidenceRefs = null
 } = {}) {
-    const evidenceRefs = evidenceState === 'confirmed'
+    const defaultEvidenceRefs = evidenceState === 'confirmed'
         ? [{ kind: 'log_ref', ref: `cloudwatch:stream/${externalRunId}` }]
         : [];
     return {
@@ -47,7 +48,7 @@ function makeReceipt({
             status,
             evidence_state: evidenceState,
             finished_at: finishedAt,
-            evidence_refs: evidenceRefs,
+            evidence_refs: evidenceRefs || defaultEvidenceRefs,
             ...(blockerReason ? { blocker_reason: blockerReason } : {}),
             ...(actionRequired ? { action_required: actionRequired } : {})
         },
@@ -62,22 +63,36 @@ function createApp({
     authSource = 'internal',
     projectCodes = ['brainbase'],
     role = 'member',
+    organizationId = 'brainbase',
     repository = new InMemoryWorkflowRepository(),
     lockAcquireTimeoutMs = 100,
-    routineLivenessService = null
+    routineLivenessService = null,
+    outcomeCaseService = null
 } = {}) {
     const app = express();
     const ingestService = new RunReceiptIngestService({
         workflowRepository: repository,
         lockAcquireTimeoutMs,
-        lockRetryMs: 1
+        lockRetryMs: 1,
+        outcomeCaseService
     });
-    const workflowService = new TestAutomationRuntime({ repository, runner: {}, configParser: null });
+    const workflowService = new TestAutomationRuntime({
+        repository,
+        runner: {},
+        configParser: {
+            async getProjects() {
+                return {
+                    source: { status: 'loaded', mode: 'registry_scoped' },
+                    projects: [{ id: 'brainbase', session_select: true }]
+                };
+            }
+        }
+    });
     app.use(express.json());
     app.use((req, _res, next) => {
         req.authSource = authSource;
         req.auth = { sub: 'route-test', role };
-        req.access = { personId: 'route-test', role, projectCodes };
+        req.access = { personId: 'route-test', role, projectCodes, organizationId };
         next();
     });
     app.use('/api/run-receipts', createRunReceiptRouter({
@@ -112,6 +127,89 @@ describe('run receipt routes', () => {
         expect(created.body.status).toBe('created');
         expect(duplicate.body.status).toBe('duplicate');
         expect(repository.listRuns({ limit: null })).toHaveLength(1);
+    });
+
+    it('POST ingestはManaのOutcomeCase refをlinkerへ渡し、評価を自動起動しない', async () => {
+        const outcomeCaseService = {
+            linkRunReceipt: vi.fn(async () => ({ status: 'linked' })),
+            evaluate: vi.fn()
+        };
+        const { app } = createApp({ outcomeCaseService });
+        const response = await request(app)
+            .post('/api/run-receipts/ingest')
+            .send(makeReceipt({ evidenceRefs: [{ kind: 'artifact_ref', ref: 'outcome_case:oc_01' }] }))
+            .expect(201);
+
+        expect(outcomeCaseService.linkRunReceipt).toHaveBeenCalledWith({
+            caseId: 'oc_01',
+            runReceiptRef: response.body.run.id,
+            projectCode: 'brainbase',
+            organizationId: null
+        }, expect.objectContaining({
+            person_id: 'route-test',
+            projectCodes: ['brainbase'],
+            organizationId: 'brainbase'
+        }));
+        expect(response.body.outcome_case_links).toEqual([{
+            case_id: 'oc_01',
+            run_receipt_ref: response.body.run.id,
+            evaluation_required: true,
+            status: 'linked'
+        }]);
+        expect(response.body.run.closure_state).toBe('closed');
+        expect(outcomeCaseService.evaluate).not.toHaveBeenCalled();
+    });
+
+    it('POST ingestはOutcomeCase link失敗を503で返し、同一receiptのduplicate replayでlinkを再試行する', async () => {
+        const outcomeCaseService = {
+            linkRunReceipt: vi.fn()
+                .mockRejectedValueOnce(Object.assign(new Error('OutcomeCase is not ready'), {
+                    code: 'outcome_case_not_found'
+                }))
+                .mockResolvedValueOnce({ status: 'linked' }),
+            evaluate: vi.fn()
+        };
+        const { app, repository } = createApp({ outcomeCaseService });
+        const receipt = makeReceipt({
+            evidenceRefs: [{ kind: 'artifact_ref', ref: 'outcome_case:oc_01' }]
+        });
+
+        const failed = await request(app)
+            .post('/api/run-receipts/ingest')
+            .send(receipt)
+            .expect(503);
+
+        expect(failed.headers['retry-after']).toBe('1');
+        expect(failed.body).toMatchObject({
+            error: 'RunReceipt was persisted, but one or more OutcomeCase references could not be linked; retry the exact receipt to retry linking',
+            code: 'outcome_case_receipt_link_failed',
+            retryable: true,
+            details: {
+                outcome_case_links: [{
+                    case_id: 'oc_01',
+                    run_receipt_ref: expect.stringMatching(/^run_receipt_run_/),
+                    evaluation_required: true,
+                    status: 'unresolved',
+                    error_code: 'outcome_case_not_found'
+                }]
+            }
+        });
+        expect(repository.listRuns({ limit: null })).toHaveLength(1);
+
+        const replay = await request(app)
+            .post('/api/run-receipts/ingest')
+            .send(receipt)
+            .expect(200);
+
+        expect(replay.body.status).toBe('duplicate');
+        expect(replay.body.outcome_case_links).toEqual([{
+            case_id: 'oc_01',
+            run_receipt_ref: replay.body.run.id,
+            evaluation_required: true,
+            status: 'linked'
+        }]);
+        expect(outcomeCaseService.linkRunReceipt).toHaveBeenCalledTimes(2);
+        expect(outcomeCaseService.evaluate).not.toHaveBeenCalled();
     });
 
     it('POST ingest_cookie/session-only authは保存前に403で拒否する', async () => {

@@ -478,7 +478,8 @@ export class KnowledgeEventService {
             error.code = 'knowledge_event_graph_projection_reconciliation_invalid';
             throw error;
         }
-        if (typeof this.candidateRepository?.transitionWithAudit !== 'function') {
+        if (typeof this.candidateRepository?.findById !== 'function'
+            || typeof this.candidateRepository?.transitionWithAudit !== 'function') {
             const error = new Error('knowledge_event_candidate_repository_unavailable');
             error.code = 'knowledge_event_candidate_repository_unavailable';
             throw error;
@@ -488,21 +489,55 @@ export class KnowledgeEventService {
             error.code = 'knowledge_event_repository_unavailable';
             throw error;
         }
-        const candidateTransition = await this.candidateRepository.transitionWithAudit(
-            candidateId,
-            'promoted_to_graph',
-            {
-                actor_person_id: actorPersonId,
-                decision_owner_person_id: decisionOwnerPersonId,
-                decision_reason: 'knowledge_event_graph_promotion',
-                evidence_ids: eventId ? [eventId] : null
-            },
-            {
-                client,
-                requires_approval: false,
-                promoted_graph_entity_id: graphEntityId
-            }
-        );
+        const candidate = await this.candidateRepository.findById(candidateId, { client });
+        if (!candidate) {
+            const error = new Error(`candidate not found: ${candidateId}`);
+            error.code = 'knowledge_event_candidate_not_found';
+            throw error;
+        }
+        const transitionPlan = {
+            candidate: [
+                ['pending_approval', 'knowledge_event_graph_promotion_review_requested'],
+                ['approved', 'knowledge_event_graph_promotion_approved'],
+                ['promoted_to_graph', 'knowledge_event_graph_promotion']
+            ],
+            gate_classified: [
+                ['pending_approval', 'knowledge_event_graph_promotion_review_requested'],
+                ['approved', 'knowledge_event_graph_promotion_approved'],
+                ['promoted_to_graph', 'knowledge_event_graph_promotion']
+            ],
+            pending_approval: [
+                ['approved', 'knowledge_event_graph_promotion_approved'],
+                ['promoted_to_graph', 'knowledge_event_graph_promotion']
+            ],
+            approved: [['promoted_to_graph', 'knowledge_event_graph_promotion']],
+            auto_promoted: [['promoted_to_graph', 'knowledge_event_graph_promotion']]
+        }[candidate.promotion_status];
+        if (!transitionPlan) {
+            const error = new Error(`knowledge_event_candidate_reconciliation_invalid_status:${candidate.promotion_status}`);
+            error.code = 'knowledge_event_candidate_reconciliation_invalid_status';
+            throw error;
+        }
+        let candidateTransition = null;
+        for (const [nextStatus, decisionReason] of transitionPlan) {
+            candidateTransition = await this.candidateRepository.transitionWithAudit(
+                candidateId,
+                nextStatus,
+                {
+                    actor_person_id: actorPersonId,
+                    decision_owner_person_id: decisionOwnerPersonId,
+                    decision_reason: decisionReason,
+                    evidence_ids: [eventId]
+                },
+                {
+                    client,
+                    ...(nextStatus === 'promoted_to_graph' ? {
+                        requires_approval: false,
+                        promoted_graph_entity_id: graphEntityId
+                    } : {})
+                }
+            );
+        }
         const event = await this.eventRepository.saveResult(eventId, {
             event_id: eventId,
             candidate_id: candidateId,

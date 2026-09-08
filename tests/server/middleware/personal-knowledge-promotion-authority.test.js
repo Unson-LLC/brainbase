@@ -27,7 +27,7 @@ function envelope(overrides = {}) {
         tenant: { tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV', tenant_revision: '1' },
         workspace_connection: { connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', connection_revision: '1', status: 'active', provider: 'slack', installation_id: 'i', workspace_id: 'w', app_id: 'a' },
         actor: { principal_id: 'person_a_auth', principal_type: 'person', authenticated_subject_id: 'subject_a' },
-        authorization: { organization_ids: ['org_a'], project_ids: ['brainbase'], data_scopes: ['company'], capability_ids: [CAPABILITY] },
+        authorization: { organization_ids: ['org_a'], project_ids: ['prj_brainbase'], data_scopes: ['company'], capability_ids: [CAPABILITY] },
         placement: { deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV', profile: 'shared_cloud' },
         slack: { event_id: 'evt_p0_owner_1', channel_id: 'channel_a' },
         correlation_id: 'cor_01ARZ3NDEKTSV4RRFFQ69G5FAV', operation_id: 'op_01ARZ3NDEKTSV4RRFFQ69G5FAV',
@@ -48,7 +48,12 @@ function envelope(overrides = {}) {
     return value;
 }
 
-function harness({ now = NOW, tamper = false, envelopeOverrides = {} } = {}) {
+function harness({
+    now = NOW,
+    tamper = false,
+    envelopeOverrides = {},
+    connectionRegistry = projectRegistry()
+} = {}) {
     const { publicKey, privateKey } = generateKeyPairSync('ed25519');
     const signed = createSignedTenantContext(envelope(envelopeOverrides), { key_id: 'p0-key', private_key: privateKey });
     const supplied = tamper ? { ...signed, actor: { ...signed.actor, principal_id: 'attacker' } } : signed;
@@ -57,7 +62,8 @@ function harness({ now = NOW, tamper = false, envelopeOverrides = {} } = {}) {
         tenantContextVerifier: (input) => verifyTenantContext(input, {
             keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
             audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now
-        })
+        }),
+        connectionRegistry
     };
     const app = express();
     app.use(express.json());
@@ -67,6 +73,34 @@ function harness({ now = NOW, tamper = false, envelopeOverrides = {} } = {}) {
 
 function header(value) {
     return Buffer.from(JSON.stringify(value)).toString('base64url');
+}
+
+function projectRegistry(projectCode = 'brainbase') {
+    return {
+        resolveOrganizationBindingById: vi.fn(async ({ tenant_id, organization_id }) => ({
+            tenant_id,
+            organization_id,
+            organization_payload: { status: 'active', graph_organization_id: organization_id },
+            tenant_status: 'active'
+        })),
+        resolveProjectBindingById: vi.fn(async ({ tenant_id, project_id }) => ({
+            tenant_id,
+            project_id,
+            project_code: projectCode,
+            project_payload: { status: 'active' }
+        }))
+    };
+}
+
+function splitOrganizationRegistry() {
+    const registry = projectRegistry();
+    registry.resolveOrganizationBindingById = vi.fn(async ({ tenant_id, organization_id }) => ({
+        tenant_id,
+        organization_id,
+        organization_payload: { status: 'active', graph_organization_id: 'techknight' },
+        tenant_status: 'active'
+    }));
+    return registry;
 }
 
 function organizationReviewRuntime({
@@ -129,7 +163,8 @@ function organizationReviewRuntime({
                 tenantContextVerifier: (input) => verifyTenantContext(input, {
                     keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
                     audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
-                })
+                }),
+                connectionRegistry: projectRegistry()
             }, 'personal_knowledge_promotion:organization_review')
         }
     }));
@@ -159,6 +194,42 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
         const { app, supplied, effect } = harness();
         await request(app).post('/promotions/kpr_test/owner-decision').set('Brainbase-Tenant-Context', header(supplied)).expect(204);
         expect(effect).toHaveBeenCalledOnce();
+    });
+
+    it('maps a tenant organization to the canonical Graph organization before promotion', async () => {
+        const connectionRegistry = splitOrganizationRegistry();
+        const { app, supplied, effect } = harness({ connectionRegistry });
+        await request(app).post('/promotions/kpr_test/owner-decision').set('Brainbase-Tenant-Context', header(supplied)).expect(204);
+        expect(effect).toHaveBeenCalledOnce();
+        expect(connectionRegistry.resolveOrganizationBindingById).toHaveBeenCalledWith({
+            tenant_id: supplied.tenant.tenant_id,
+            organization_id: 'org_a'
+        });
+        expect(effect.mock.calls[0][0].personalKnowledgePromotionAuthority).toMatchObject({
+            organizationIds: ['techknight'],
+            tenantOrganizationIds: ['org_a'],
+            graphOrganizationId: 'techknight'
+        });
+    });
+
+    it('rejects when the canonical Graph organization binding cannot be resolved', async () => {
+        const connectionRegistry = projectRegistry();
+        connectionRegistry.resolveOrganizationBindingById = vi.fn(async () => null);
+        const { app, supplied, effect } = harness({ connectionRegistry });
+        await request(app)
+            .post('/promotions/kpr_test/owner-decision')
+            .set('Brainbase-Tenant-Context', header(supplied))
+            .expect(403);
+        expect(effect).not.toHaveBeenCalled();
+    });
+
+    it('rejects when the canonical project binding cannot be resolved', async () => {
+        const { app, supplied, effect } = harness({ connectionRegistry: {} });
+        await request(app)
+            .post('/promotions/kpr_test/owner-decision')
+            .set('Brainbase-Tenant-Context', header(supplied))
+            .expect(403);
+        expect(effect).not.toHaveBeenCalled();
     });
 
     it('rejects an expired context with downstream effects at zero', async () => {
@@ -222,7 +293,8 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
             normalized_payload_hash: normalized.normalized_payload_hash,
             normalized_by_person_id: 'person_owner_auth', normalized_at: '2026-08-25T00:00:00.000Z',
             normalization_contract_version: 'personal_knowledge_normalized.v1',
-            owner_decided_by: 'person_owner_auth', owner_decided_at: '2026-08-25T00:00:00.000Z'
+            owner_decided_by: 'person_owner_auth', owner_decided_at: '2026-08-25T00:00:00.000Z',
+            owner_decision_revision: 1, organization_review_revision: 0
         };
         promotionRequest.owner_consent_receipt_id = ownerConsentReceipt(promotionRequest);
         const claimed = new Set();
@@ -236,7 +308,10 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
                 claimed.add(use.operation_id);
             }),
             reviewOrganizationPromotionRequest: vi.fn(async (_id, decision) => {
-                Object.assign(promotionRequest, { status: decision.status });
+                Object.assign(promotionRequest, {
+                    status: decision.status,
+                    organization_review_revision: promotionRequest.organization_review_revision + 1
+                });
                 return promotionRequest;
             }),
             createLineage: vi.fn(async (lineage) => lineage)
@@ -260,7 +335,8 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
             tenantContextVerifier: (input) => verifyTenantContext(input, {
                 keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
                 audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
-            })
+            }),
+            connectionRegistry: projectRegistry()
         };
         const app = express();
         app.use(express.json());
@@ -281,13 +357,16 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
                 )
             }
         }));
-        const mutation = () => request(app)
+        const mutation = (expectedRevision) => request(app)
             .post('/promotions/kpr_runtime_replay/organization-decision')
             .set('Brainbase-Tenant-Context', header(signed))
-            .send({ decision: 'approve' });
+            .send({
+                decision: 'approve',
+                expected_organization_review_revision: expectedRevision
+            });
 
-        await mutation().expect(200);
-        await mutation().expect(409, { error: 'personal_knowledge_promotion_authority_replayed' });
+        await mutation(0).expect(200);
+        await mutation(1).expect(409, { error: 'personal_knowledge_promotion_authority_replayed' });
         expect(graphRepository.commitNormalizedPromotion).toHaveBeenCalledOnce();
         expect(repository.reviewOrganizationPromotionRequest).toHaveBeenCalledOnce();
         expect(repository.createLineage).toHaveBeenCalledOnce();
@@ -339,7 +418,8 @@ describe('Personal KG promotion A0 signed authority boundary', () => {
             tenantContextVerifier: (input) => verifyTenantContext(input, {
                 keys: [{ key_id: 'p0-key', status: 'current', public_key: publicKey }],
                 audience: 'brainbase-api', deployment_id: signed.placement.deployment_id, now: NOW
-            })
+            }),
+            connectionRegistry: projectRegistry()
         };
         const app = express();
         app.use(express.json());

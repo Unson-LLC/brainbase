@@ -1,50 +1,87 @@
 id: project.catalog
 name: Authenticated project catalog
-purpose: Provide the active configured project list within the authenticated actor's project grant for Web and Agent surfaces.
+purpose: Provide the active configured project list within the authenticated actor's project grant for authenticated CLI, API, and MCP surfaces.
 surfaces:
-  ui:
-    - Settings > Projects
+  cli:
+    - brainbase project provision status <run-id>
+    - brainbase project provision verify <run-id>
   mcp:
     - brainbase_projects
+  browser_consumer:
+    - "Workspace Setup project selector (local-path consumer only)"
   api:
-    - GET /api/config
     - GET /api/config/projects
+    - GET /api/brainbase
     - GET /api/brainbase/projects
   code:
     - server/routes/config.js
-    - public/modules/project-mapping.js
+    - server/routes/project-provisioning.js
+    - server/services/project-provisioning/project-provisioning-service.js
+    - cli/project-provisioning.js
     - server/routes/brainbase/overview-routes.js
     - mcp/brainbase/src/tools/control-plane-tools.ts
     - mcp/brainbase/src/server.ts
+    - public/modules/project-mapping.js
+    - public/modules/app/ui-setup-mixin.js
   data:
-    - runtime-injected configPath (config.yml; resolved by the host environment)
+    - graph_entities (project business metadata SSOT)
+    - project_registry (organization membership, repository configuration, and Graph binding)
+    - projects (technical authorization and storage scope)
+    - runtime-injected configPath (legacy local-only enrichment)
 depends_on:
   - config.projects.projects
 visibility_rules:
-  - /api/config and /api/config/projects expose the configured project catalog.
-  - archived projects remain in config but should not appear in active selectors.
-  - session_select:false hides a project from session creation even if it is active.
+  - /api/config is the legacy Workspace Setup topology surface for local paths; it is not the organization-scoped Project Catalog authority.
+  - /api/config/projects exposes the organization-scoped runtime catalog, filters it to the authenticated actor's project grants, and returns source.status so Registry failure is not mistaken for confirmed success.
+  - Project name, kind, lifecycle, organization entity, owner, and catalog version come from the bound Graph project entity. Registry fields with the same names are compatibility projections, not an independent authority.
+  - project_registry.graph_entity_id binds technical membership to the canonical Graph subject; unresolved, ambiguous, or conflicting bindings are excluded from loaded catalog results and remain visible in migration evidence.
+  - projects.id is a technical authorization/storage scope and must not be created or updated as a second Project Graph subject.
+  - Project grants match only the project ID, an explicit alias, or the GitHub repository name; prefix similarity never expands access.
+  - The provisioning CLI status and verify commands read back Registry, Graph validation, Auth Grant, Repository boundary, and runtime catalog state before reporting completion.
+  - Authentication, transport, or Registry availability failure is returned as unavailable or error and never retained as a legacy catalog result.
+  - A confirmed empty catalog is distinct from an unavailable or error catalog; callers must not treat either failure state as an empty success.
+  - /api/health and /api/config/integrity check Project Registry schema availability through the runtime catalog adapter.
+  - archived projects remain in config but are excluded from the active catalog.
   - /api/brainbase/projects requires a verified token and only returns active projects in access.projectCodes.
+  - /api/brainbase requires a verified token and carries the authenticated organization into its project catalog summary; unauthenticated callers receive 401.
   - brainbase_projects intersects JWT projectCodes with BRAINBASE_PROJECT_CODES; callers cannot expand scope through tool arguments.
   - brainbase_projects returns status ok, unavailable, or error together with scope and audit evidence.
-  - Project Catalogの正本パスはhost runtimeがConfigParserへ注入し、個人の絶対パスへ固定しない。
-  - "A confirmed empty catalog is status: ok with count: 0; auth, transport, upstream, and contract failures never become an empty catalog."
-  - Graph MaintenanceでProjectをbusiness subjectへ投影するprojectは、空でないnameと正の整数catalog_versionを持つ。
+  - "The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable; neither is a catalog surface, formal entry, or acceptance-evidence surface."
+  - "Project Provisioning has no production browser UI. The retained Workspace Setup selector module is a separate compatibility/contract consumer and is not currently served by a production static route; synthetic-host tests are not production browser E2E evidence."
+  - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs."
+  - Codex app/CLI owns task and worktree creation and ownership. Workspace Setup owns per-user local paths and is separate from Project Catalog and Project Provisioning.
+  - Project Catalogの公開APIとGraph Maintenanceは、Registry-aware runtime catalogを使用し、config.ymlのproject一覧へフォールバックしない。
+  - Graph上のProject business subjectは、空でないnameと正の整数catalog_versionを持つ。
   - Graph projectionのsource_refはproject-catalog:<id>@<catalog_version>としてサーバーが導出し、呼び出し元の自己申告値を採用しない。
+  - Projectの新規登録・更新はProject Provisioningまたは権限付きGraph Maintenanceだけを使用し、config.ymlへ保存する旧Project Profile API/CLIは公開しない。
+  - Project ProvisioningはRegistry、Graph、Auth Grant、Repository、runtime catalogを個別にreadbackし、未確認を成功へ集約しない。
 verification:
   commands:
-    - curl -s http://127.0.0.1:31013/api/config
+    - curl -s http://127.0.0.1:31013/api/config/projects -H 'Authorization: Bearer <token>'
+    - curl -s http://127.0.0.1:31013/api/brainbase -H 'Authorization: Bearer <token>'
     - curl -s http://127.0.0.1:31013/api/brainbase/projects -H 'Authorization: Bearer <token>'
+    - brainbase project provision status <run-id>
+    - brainbase project provision verify <run-id>
     - cd mcp/brainbase && npm test
   expected:
-    - salestailor-app exists in /api/config
-    - tech-knight exists in /api/config and /api/brainbase/projects
+    - salestailor-app exists in /api/config/projects when present in the actor grant
+    - tech-knight exists in /api/config/projects and /api/brainbase/projects when present in the actor grant
     - projects without NocoDB mappings are returned as healthStatus: unmapped
     - an unauthenticated /api/brainbase/projects request returns 401
+    - an unauthenticated /api/brainbase request returns 401
     - brainbase_projects exposes only the intersection of token and configured project scopes
+    - CLI status and verify expose individual readback results and never mark unavailable data as verified
     - Graph subjectとして投影するprojectのnameとcatalog_versionがProject Catalogから保持される
+    - Graphのnameを更新すると、組織別CatalogのnameがGraphから読まれ、Registry projectionも同じtransactionで同期される
+    - 未接続またはambiguousなRegistry行はloaded projectとして扱われない
+    - a short grant such as growin does not authorize growin-payroll
+    - Registry or catalog authentication failure remains unavailable/error and never falls back to the legacy topology
+    - Workspace Setup renders a loaded zero-project catalog as confirmed_empty with a 0件 message
+    - Graph and GitHub writer assertions use test fakes or adapter doubles; production writes are out of scope and production E2E is unverified
+    - config.ymlへ保存する旧Project Profile APIは404を返す
+    - CLIはGraph正本のProject Provisioningだけを案内する
 common_failures:
-  - A project exists in /api/config but is hidden from session selector by auth access filtering.
+  - A project exists in the local /api/config topology but is absent from the authenticated runtime catalog or actor grant.
   - A project exists in config but has no NocoDB mapping, so health data is N/A.
   - A dashboard count is mistaken for the complete configured project count.
   - An upstream failure is mistaken for a confirmed empty project catalog.
@@ -52,4 +89,3 @@ runbooks:
   - ../runbooks/missing-project-in-session-selector.md
 troubleshooting:
   - ../troubleshooting/nocodb-project-unmapped.md
-  - ../troubleshooting/project-exists-but-selector-hides-it.md

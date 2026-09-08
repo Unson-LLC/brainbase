@@ -66,6 +66,7 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 | ジョブ名 | トリガー | 目的 | ワークフロー | ランナー |
 |---|---|---|---|---|
 | Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `self-hosted`（Linux / WSL） |
+| Project Provisioning契約 | `develop`・`main`へのPull Requestとpush | 型検査、使い捨てPostgreSQLでのRLS・migration、API・CLI・MCP統合、Workspace Setup互換ブラウザ契約を検証する | `.github/workflows/project-provisioning-contract.yml` | `ubuntu-latest` |
 | VibePro Graphify影響ゲート | `develop`・`main`へのPull Request | Graph影響を伴う変更にGraphify証跡を要求する | `.github/workflows/vibepro-graphify-impact.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Graph SSOT（マージ前） | `develop`・`main`へのPull Request | チェッカーの単体テスト、Ontology履歴、外部Graph SSOTを検証する | `.github/workflows/vibepro-graph-ssot.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Ontology（push後） | `develop`・`main`・`session/**`へのpush | マージ後を含む実際のpush履歴でOntology公開契約を再検証する | `.github/workflows/vibepro-graph-ssot.yml` | `self-hosted`（Linux / WSL） |

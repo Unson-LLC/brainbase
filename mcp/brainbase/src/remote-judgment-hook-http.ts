@@ -37,8 +37,15 @@ export interface RemoteJudgmentHookResponse {
 }
 
 const PROJECT_CODE_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
-const SUPPORTED_HOOK_EVENTS = new Set(['UserPromptSubmit', 'PostToolUse', 'Stop']);
+const SUPPORTED_HOOK_EVENTS = new Set(['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop']);
 const SAFE_REASON_CODE = /^[a-z][a-z0-9_]{1,80}$/;
+
+function isInternalJudgmentControlTool(payload: Record<string, unknown>): boolean {
+  const toolName = payload.tool_name ?? payload.toolName;
+  return typeof toolName === 'string'
+    && ['mcp__brainbase__brainbase_judgment_state_record',
+      'mcp__brainbase__brainbase_judgment_audit_read'].includes(toolName);
+}
 
 function safeCauseReasonCode(error: unknown): string | undefined {
   let current = typeof error === 'object' && error && 'cause' in error ? error.cause : undefined;
@@ -96,7 +103,8 @@ export async function handleRemoteJudgmentHookRequest(
     if (!output || typeof output !== 'object' || Array.isArray(output)) {
       return { status: 503, body: { error: 'judgment_hook_output_invalid' } };
     }
-    if (eventName === 'PostToolUse'
+    if ((eventName === 'PostToolUse' || eventName === 'PostToolUseFailure')
+      && !isInternalJudgmentControlTool(hookPayload)
       && (typeof output.systemMessage !== 'string' || !output.systemMessage.trim())) {
       return { status: 503, body: { error: 'judgment_hook_audit_not_recorded' } };
     }

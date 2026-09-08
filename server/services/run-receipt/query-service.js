@@ -119,7 +119,7 @@ export class RunReceiptQueryService {
         evidenceState = null,
         limit = DEFAULT_RUN_RECEIPT_INBOX_LIMIT
     } = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const normalizedSourceType = normalizeEnum(sourceType, 'source_type', RUN_RECEIPT_SOURCE_TYPES);
         const normalizedRunStatus = normalizeEnum(runStatus, 'run_status', RUN_RECEIPT_STATUSES);
         const normalizedEvidenceState = normalizeEnum(
@@ -171,7 +171,7 @@ export class RunReceiptQueryService {
         sourceIdentity,
         limit = DEFAULT_RUN_RECEIPT_INBOX_LIMIT
     } = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const normalizedProjectId = requireString(projectId, 'project_id');
         const normalizedSourceType = normalizeEnum(
             requireString(sourceType, 'source_type'),
@@ -205,7 +205,7 @@ export class RunReceiptQueryService {
     }
 
     async diagnose({ projectId, runId } = {}, actor = {}) {
-        await this.prepareProjectAccess();
+        await this.prepareProjectAccess(actor);
         const normalizedProjectId = requireString(projectId, 'project_id');
         const normalizedRunId = requireString(runId, 'run_id');
         this.assertProjectAccess(normalizedProjectId, actor);
@@ -245,9 +245,9 @@ export class RunReceiptQueryService {
         until,
         routine_automation_ids: routineAutomationIds
     } = {}, context = {}) {
-        await this.prepareProjectAccess();
-        const normalizedProjectId = requireString(projectId, 'project_id');
         const actor = context.actor || context.access || context;
+        await this.prepareProjectAccess(actor);
+        const normalizedProjectId = requireString(projectId, 'project_id');
         this.assertProjectAccess(normalizedProjectId, actor);
         const lowerBound = since ? runReceiptEpoch(since) : null;
         const upperBound = until ? runReceiptEpoch(until) : null;

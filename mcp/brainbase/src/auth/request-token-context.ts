@@ -1,8 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
+import type { TokenRequestOptions } from './token-manager.js';
 
 export interface TokenProvider {
-  getToken(): Promise<string>;
-  refresh?(): Promise<void>;
+  getToken(options?: TokenRequestOptions): Promise<string>;
+  refresh?(options?: TokenRequestOptions): Promise<void>;
 }
 
 export interface RequestTokenState {
@@ -18,15 +19,15 @@ export class RequestTokenContext implements TokenProvider {
     return this.storage.run(state, callback);
   }
 
-  async getToken(): Promise<string> {
-    return this.storage.getStore()?.token ?? this.fallback.getToken();
+  async getToken(options?: TokenRequestOptions): Promise<string> {
+    return this.storage.getStore()?.token ?? this.fallback.getToken(options);
   }
 
-  async refresh(): Promise<void> {
+  async refresh(options?: TokenRequestOptions): Promise<void> {
     if (this.storage.getStore()) {
       throw new Error('The personal MCP token expired; refresh it in the client and reconnect.');
     }
     if (!this.fallback.refresh) throw new Error('Token refresh is not available.');
-    await this.fallback.refresh();
+    await this.fallback.refresh(options);
   }
 }

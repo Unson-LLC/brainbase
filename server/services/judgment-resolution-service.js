@@ -9,7 +9,7 @@ const MODULE_DIRECTORY = import.meta.url.startsWith('file:')
 const MANIFEST_PATH = resolve(MODULE_DIRECTORY, '../../config/judgment-runtime-manifest.json');
 const MANIFEST_LOCK_PATH = resolve(MODULE_DIRECTORY, '../../config/judgment-runtime-manifest-lock.json');
 
-const INPUT_FIELDS = new Set(['request', 'turn_id', 'project_code', 'conversation_context']);
+const INPUT_FIELDS = new Set(['request', 'turn_id', 'project_code', 'conversation_context', 'model_interpretation']);
 const CLASSIFICATION_FIELDS = new Set(['intent', 'domains', 'action_kind', 'risk', 'confidence', 'signals']);
 const CONVERSATION_CONTEXT_FIELDS = new Set([
     'schema_version', 'session_ref', 'messages', 'prior_receipts', 'runtime',
@@ -183,22 +183,58 @@ function includesTerm(request, terms) {
     });
 }
 
+function includesPositiveCommandClause(request, terms) {
+    const japaneseTerms = terms.filter((term) => !/^[a-z0-9_.-]+$/iu.test(term));
+    const normalizedRequest = request.toLocaleLowerCase('ja');
+    const includesJapaneseCommand = japaneseTerms.some((term) => {
+        const normalizedTerm = term.toLocaleLowerCase('ja');
+        let offset = normalizedRequest.indexOf(normalizedTerm);
+        while (offset >= 0) {
+            const remainder = normalizedRequest.slice(offset + normalizedTerm.length);
+            const endsCommand = /^(?:$|[\s、,;；。！？!?])/u.test(remainder)
+                || /^(?:(?:ください|下さい|くれ|ほしい|欲しい|おけ|みろ)|(?:おいて|みて)(?:ください|下さい)?|(?:もらえ|いただけ)(?:ます(?:か|でしょうか)|ません(?:か|でしょうか)|ないですか)|(?:もらいたい|いただきたい))(?=$|[\s、,;；。！？!?])/u.test(remainder);
+            if (endsCommand) {
+                return true;
+            }
+            offset = normalizedRequest.indexOf(normalizedTerm, offset + normalizedTerm.length);
+        }
+        return false;
+    });
+    if (includesJapaneseCommand) return true;
+    const englishTerms = terms.filter((term) => /^[a-z0-9_.-]+$/iu.test(term));
+    if (englishTerms.length === 0) return false;
+    const commandPattern = englishTerms.map(escapeRegExp).join('|');
+    const match = new RegExp(
+        `^(?:please\\s+|(?:can|could|would|will)\\s+you\\s+(?:please\\s+)?|you\\s+must\\s+)?(?:${commandPattern})\\b`,
+        'iu'
+    ).exec(request.trim());
+    if (!match) return false;
+    const remainder = request.trim().slice(match[0].length);
+    return !/^\s+(?:is|are|was|were|has|have|had)\b/iu.test(remainder);
+}
+
 function includesRequestedEffectTerm(request, terms) {
     const normalized = request.toLocaleLowerCase('ja');
     return terms.some((term) => {
         const normalizedTerm = term.toLocaleLowerCase('ja');
-        if (/^[a-z0-9_.-]+$/u.test(normalizedTerm)) {
-            return new RegExp(`(?<![a-z0-9_])${escapeRegExp(normalizedTerm)}(?![a-z0-9_])`, 'u').test(normalized);
-        }
-
         let offset = 0;
         while (offset < normalized.length) {
-            const index = normalized.indexOf(normalizedTerm, offset);
+            const matcher = /^[a-z0-9_.-]+$/u.test(normalizedTerm)
+                ? new RegExp(`(?<![a-z0-9_])${escapeRegExp(normalizedTerm)}(?![a-z0-9_])`, 'gu')
+                : null;
+            if (matcher) matcher.lastIndex = offset;
+            const match = matcher?.exec(normalized);
+            const index = matcher ? (match?.index ?? -1) : normalized.indexOf(normalizedTerm, offset);
             if (index < 0) return false;
             const continuation = normalized.slice(index + normalizedTerm.length).trimStart();
             const isConditionalTeForm = normalizedTerm.endsWith('して')
                 && /^(?:も(?!ら)|しま|いる|いた|ある|あった|おり|はいけ|はなら|よい|良い|いい|問題ない|可能|でき)/u.test(continuation);
-            if (!isConditionalTeForm) return true;
+            const sentenceTail = continuation.split(/[。！？\n]/u, 1)[0];
+            const negation = /(?:は|を|も)?(?:実行|実施)?(?:しない(?:でください)?|しません|行わない(?:でください)?|禁止)/u.exec(sentenceTail);
+            const listPrefix = negation ? sentenceTail.slice(0, negation.index) : '';
+            const isNegated = /(?:do not|don't|must not)\s*$/u.test(normalized.slice(Math.max(0, index - 16), index))
+                || Boolean(negation && !/(?:して|し、|し,|した|する|してください|せよ|しろ)/u.test(listPrefix));
+            if (!isConditionalTeForm && !isNegated) return true;
             offset = index + normalizedTerm.length;
         }
         return false;
@@ -239,6 +275,67 @@ function classificationRequest(request) {
     return [...commandParagraphs, ...annotationCommands].join('\n\n').trim();
 }
 
+function positiveClassificationRequest(request, manifest) {
+    const positiveCommandTerms = manifest.semantic_matchers.positive_commands;
+    return request
+        .split(/(?<=[。！？.!?\n])/u)
+        .map((sentence) => {
+            const japaneseBoundary = /(?:しないでください|行わないでください|実行しないでください|しないこと|するな|避けてください|しません|行いません|実行しません|禁止(?:です|されています)?(?=[、,;；。！？\s]|$)|不可(?:です)?(?=[、,;；。！？\s]|$))/u.exec(sentence);
+            if (japaneseBoundary) {
+                const beforeNegation = sentence.slice(0, japaneseBoundary.index);
+                const clauseBoundary = Math.max(
+                    beforeNegation.lastIndexOf('、'),
+                    beforeNegation.lastIndexOf(','),
+                    beforeNegation.lastIndexOf(';'),
+                    beforeNegation.lastIndexOf('；')
+                );
+                const positivePrefix = clauseBoundary >= 0
+                    ? beforeNegation.slice(0, clauseBoundary).trim()
+                    : '';
+                const keepPrefix = includesPositiveCommandClause(positivePrefix, positiveCommandTerms)
+                    ? positivePrefix
+                    : '';
+                const afterNegation = sentence.slice(japaneseBoundary.index + japaneseBoundary[0].length);
+                const tailBoundary = /^[、,;；]/u.exec(afterNegation);
+                const tailCandidate = tailBoundary
+                    ? afterNegation.slice(tailBoundary[0].length).replace(/^[、,;；。！？\s]+/u, '')
+                    : '';
+                const positiveTail = includesPositiveCommandClause(tailCandidate, positiveCommandTerms)
+                    ? tailCandidate
+                    : '';
+                return [keepPrefix, positiveTail].filter(Boolean).join('。');
+            }
+            const englishBoundary = /\b(?:do not|don't|must not|never|no(?!-)|is prohibited|are prohibited|is forbidden|are forbidden)\b/iu.exec(sentence);
+            if (englishBoundary) {
+                const beforeNegation = sentence.slice(0, englishBoundary.index);
+                const suffixProhibition = /^(?:is|are) (?:prohibited|forbidden)$/iu.test(englishBoundary[0]);
+                const clauseBoundary = Math.max(beforeNegation.lastIndexOf(','), beforeNegation.lastIndexOf(';'));
+                const positiveMaterial = suffixProhibition
+                    ? (clauseBoundary >= 0 ? beforeNegation.slice(0, clauseBoundary) : '')
+                    : beforeNegation;
+                const positivePrefix = positiveMaterial
+                    .replace(/\b(?:but|and)\s*$/iu, '')
+                    .replace(/[,;:\s]+$/u, '')
+                    .trim();
+                const keepPrefix = includesPositiveCommandClause(positivePrefix, positiveCommandTerms)
+                    ? positivePrefix
+                    : '';
+                const afterNegation = sentence.slice(englishBoundary.index + englishBoundary[0].length);
+                const tailBoundary = /(?:[;；]|,\s*(?:but|and(?: then)?)\s+)/iu.exec(afterNegation);
+                const tailCandidate = tailBoundary
+                    ? afterNegation.slice(tailBoundary.index + tailBoundary[0].length).replace(/^[,.;:!?\s]+/u, '')
+                    : '';
+                const positiveTail = includesPositiveCommandClause(tailCandidate, positiveCommandTerms)
+                    ? tailCandidate
+                    : '';
+                return [keepPrefix, positiveTail].filter(Boolean).join('. ');
+            }
+            return sentence;
+        })
+        .join('')
+        .trim();
+}
+
 function sortByOrder(values, order) {
     const indexes = new Map(order.map((value, index) => [value, index]));
     return [...values].sort((left, right) => (indexes.get(left) ?? Number.MAX_SAFE_INTEGER) - (indexes.get(right) ?? Number.MAX_SAFE_INTEGER));
@@ -247,7 +344,6 @@ function sortByOrder(values, order) {
 function validatedClassification(value, name, manifest) {
     exactFields(value, CLASSIFICATION_FIELDS, name);
     const domains = uniqueEnumArray(value.domains, `${name}.domains`, DOMAINS);
-    if (domains.includes('general') && domains.length > 1) fail('general cannot be combined with another domain');
     return {
         intent: enumValue(value.intent, `${name}.intent`, INTENTS),
         domains: sortByOrder(domains, manifest.selectors.domain_order),
@@ -278,6 +374,18 @@ function validatePolicy(policy, seen) {
     if (policy.strength === 'hard' && !['require', 'forbid'].includes(decision)) throw new TypeError(`policy ${policy.id} hard effect is invalid`);
     if (policy.strength === 'soft' && decision !== 'prefer') throw new TypeError(`policy ${policy.id} soft effect is invalid`);
     if (typeof policy.instruction !== 'string' || !policy.instruction) throw new TypeError(`policy ${policy.id} instruction is invalid`);
+    if (policy.human_approval !== undefined) {
+        const approval = policy.human_approval;
+        if (!approval || typeof approval !== 'object' || Array.isArray(approval)) throw new TypeError(`policy ${policy.id} human_approval is invalid`);
+        const keys = Object.keys(approval);
+        if (keys.length === 0 || keys.some((key) => !['action_kinds', 'risks'].includes(key))) throw new TypeError(`policy ${policy.id} human_approval is invalid`);
+        if (approval.action_kinds !== undefined && (!Array.isArray(approval.action_kinds) || approval.action_kinds.length === 0 || approval.action_kinds.some((kind) => !ACTIONS.includes(kind)))) {
+            throw new TypeError(`policy ${policy.id} human_approval action_kinds is invalid`);
+        }
+        if (approval.risks !== undefined && (!Array.isArray(approval.risks) || approval.risks.length === 0 || approval.risks.some((risk) => !RISKS.includes(risk)))) {
+            throw new TypeError(`policy ${policy.id} human_approval risks is invalid`);
+        }
+    }
 }
 
 function validateStringTerms(value, name, { allowEmpty = false } = {}) {
@@ -301,6 +409,10 @@ function validateSelectableGraphs(manifest) {
             .filter((domain) => domain !== 'general')
             .map((domain) => manifest.selectors.domain_dags[domain])
     ];
+    if (manifest.selectors.engineering_implementation_dag) {
+        domainGroups.push(domainGroups[1].map((id) => id === manifest.selectors.domain_dags.engineering
+            ? manifest.selectors.engineering_implementation_dag : id));
+    }
     for (const domainDagIds of domainGroups) {
         try {
             buildGraph([...new Set([...domainDagIds, ...commonDagIds])], manifest);
@@ -393,6 +505,7 @@ function validateManifest(manifest, lock) {
         selectors.authority_dag,
         selectors.clarification_dag
     ];
+    if (Object.hasOwn(selectors, 'engineering_implementation_dag')) selectorDagIds.push(selectors.engineering_implementation_dag);
     for (const dagId of selectorDagIds) if (!dags.has(dagId)) throw new TypeError(`judgment selector references missing DAG ${dagId}`);
     const matchers = manifest.semantic_matchers;
     validateExactKeys(matchers?.intents, INTENT_MATCHERS, 'judgment intent matchers');
@@ -403,16 +516,20 @@ function validateManifest(manifest, lock) {
     for (const [key, terms] of Object.entries(matchers.domains)) validateStringTerms(terms, `judgment domain matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.signals)) validateStringTerms(terms, `judgment signal matcher ${key}`);
     for (const [key, terms] of Object.entries(matchers.safety)) validateStringTerms(terms, `judgment safety matcher ${key}`);
+    validateStringTerms(matchers.positive_commands, 'judgment positive command matcher');
     validateStringTerms(matchers.follow_up, 'judgment follow-up matcher');
     const autonomy = manifest.autonomy;
     if (!autonomy || autonomy.schema_version !== 'brainbase-autonomy-policy-v1') throw new TypeError('judgment autonomy policy is invalid');
     validateStringTerms(autonomy.continue_risks, 'judgment autonomy continue risks');
-    validateStringTerms(autonomy.escalate_risks, 'judgment autonomy escalate risks');
-    validateStringTerms(autonomy.escalate_action_kinds, 'judgment autonomy escalate action kinds');
+    validateStringTerms(autonomy.escalate_risks, 'judgment autonomy escalate risks', { allowEmpty: true });
+    validateStringTerms(autonomy.escalate_action_kinds, 'judgment autonomy escalate action kinds', { allowEmpty: true });
     validateStringTerms(autonomy.runtime_escalation_reasons, 'judgment autonomy runtime escalation reasons');
+    // escalate_risks / escalate_action_kinds are no longer consulted by autonomyResolution
+    // (classification alone never auto-escalates); they stay schema-validated so a stale
+    // manifest cannot silently reintroduce a hidden auto-escalation source.
     if (canonicalJson(autonomy.continue_risks) !== canonicalJson(['low', 'medium'])
-        || canonicalJson(autonomy.escalate_risks) !== canonicalJson(['high', 'critical'])
-        || canonicalJson(autonomy.escalate_action_kinds) !== canonicalJson(['external'])
+        || autonomy.escalate_risks.some((risk) => !RISKS.includes(risk))
+        || autonomy.escalate_action_kinds.some((kind) => !ACTIONS.includes(kind))
         || autonomy.runtime_escalation_reasons.length !== RUNTIME_ESCALATION_REASONS.size
         || autonomy.runtime_escalation_reasons.some((reason) => !RUNTIME_ESCALATION_REASONS.has(reason))) {
         throw new TypeError('judgment autonomy policy boundary is invalid');
@@ -423,22 +540,40 @@ function validateManifest(manifest, lock) {
     return digest;
 }
 
-function autonomyResolution(status, classification, manifest) {
+// Policies whose `human_approval` rule matches this turn's classification, in
+// deterministic policy-id order. A non-empty result is the only source of a
+// risk_or_external escalation now — classification alone never auto-escalates.
+function humanApprovalPolicyIds(classification, applicablePolicies) {
+    const matched = [];
+    for (const policy of applicablePolicies) {
+        const rule = policy?.human_approval;
+        if (!rule) continue;
+        const riskMatch = Array.isArray(rule.risks) && rule.risks.includes(classification.risk);
+        const actionMatch = Array.isArray(rule.action_kinds) && rule.action_kinds.includes(classification.action_kind);
+        if (riskMatch || actionMatch) matched.push(policy.id);
+    }
+    return matched.sort(compareCodePoints);
+}
+
+function autonomyResolution(status, classification, manifest, applicablePolicies = []) {
     let decision;
     let reasonCode;
+    let policyIds = [];
     if (status === 'needs_classification') {
         decision = 'escalate';
         reasonCode = 'classification_missing';
     } else if (status === 'needs_policy_resolution') {
         decision = 'escalate';
         reasonCode = 'policy_conflict';
-    } else if (manifest.autonomy.escalate_risks.includes(classification.risk)
-        || manifest.autonomy.escalate_action_kinds.includes(classification.action_kind)) {
-        decision = 'escalate';
-        reasonCode = 'risk_or_external';
     } else {
-        decision = 'continue';
-        reasonCode = 'routine_in_scope';
+        policyIds = humanApprovalPolicyIds(classification, applicablePolicies);
+        if (policyIds.length > 0) {
+            decision = 'escalate';
+            reasonCode = 'risk_or_external';
+        } else {
+            decision = 'continue';
+            reasonCode = 'routine_in_scope';
+        }
     }
     if (!AUTONOMY_DECISIONS.has(decision) || !AUTONOMY_REASON_CODES.has(reasonCode)) {
         throw new TypeError('judgment autonomy resolution is invalid');
@@ -448,7 +583,8 @@ function autonomyResolution(status, classification, manifest) {
         autonomy_reason_code: reasonCode,
         allowed_runtime_escalation_reasons: decision === 'continue'
             ? [...manifest.autonomy.runtime_escalation_reasons]
-            : []
+            : [],
+        autonomy_policy_ids: policyIds
     };
 }
 
@@ -551,7 +687,65 @@ function validateInput(rawInput, manifest) {
         request,
         turn_id: turnId,
         project_code: rawInput.project_code === undefined ? null : requiredString(rawInput.project_code, 'project_code'),
-        conversation_context: conversationContext
+        conversation_context: conversationContext,
+        model_interpretation: rawInput.model_interpretation === undefined
+            ? null
+            : validatedClassification(rawInput.model_interpretation, 'model_interpretation', manifest)
+    };
+}
+
+function reconcileModelInterpretation(input, manifest) {
+    if (!input.model_interpretation) {
+        return {
+            status: 'needs_classification', classification: null, assurance: 'unknown',
+            reasons: ['model_interpretation_missing'],
+            evidence: { source: 'resolver', source_turn_ids: [], matcher_ids: [] }
+        };
+    }
+    // Host matchers are monotonic safety rails: they may only add risk,
+    // action floors, signals, and capabilities. They never replace or weaken
+    // the model's semantic interpretation.
+    const hardSignals = classify(input, manifest);
+    const hardClassification = hardSignals.classification;
+    const hardIsSpecific = hardClassification
+        && !(hardClassification.intent === 'answer' && hardClassification.domains.length === 1 && hardClassification.domains[0] === 'general');
+    const classification = {
+        ...input.model_interpretation,
+        intent: input.model_interpretation.intent,
+        domains: hardIsSpecific
+            ? (input.model_interpretation.domains.length === 1 && input.model_interpretation.domains[0] === 'general'
+                ? hardClassification.domains
+                : sortByOrder([...new Set([...input.model_interpretation.domains, ...hardClassification.domains])], manifest.selectors.domain_order))
+            : input.model_interpretation.domains,
+        action_kind: hardClassification
+            ? indexFloor(ACTIONS, input.model_interpretation.action_kind, hardClassification.action_kind)
+            : input.model_interpretation.action_kind,
+        risk: hardClassification
+            ? indexFloor(RISKS, input.model_interpretation.risk, hardClassification.risk)
+            : input.model_interpretation.risk,
+        signals: sortByOrder([
+            ...new Set([
+                ...input.model_interpretation.signals,
+                ...(hardClassification?.signals ?? [])
+            ])
+        ], manifest.selectors.signal_order)
+    };
+    if (classification.domains.includes('knowledge') && !input.project_code) {
+        return {
+            status: 'needs_classification', classification: null, assurance: 'unknown',
+            reasons: ['knowledge_project_code_missing'],
+            evidence: { source: 'resolver', source_turn_ids: [input.turn_id], matcher_ids: [] }
+        };
+    }
+    return {
+        status: 'resolved',
+        classification,
+        assurance: classification.confidence === 'confirmed' ? 'verified' : 'bounded',
+        reasons: hardSignals.reasons,
+        evidence: {
+            source: 'current_request', source_turn_ids: [input.turn_id],
+            matcher_ids: [...new Set(['model_interpretation', ...(hardSignals.evidence?.matcher_ids ?? [])])]
+        }
     };
 }
 
@@ -559,13 +753,43 @@ function matchingKeys(text, matchers, order) {
     return order.filter((key) => includesTerm(text, matchers[key]));
 }
 
+// Write/operate intent matchers must describe a requested command. State or
+// temporal mentions still remain available to the independent safety floors.
+function intentCommandTerms(terms) {
+    return terms.flatMap((term) => {
+        if (/^[a-z0-9_.-]+$/iu.test(term)) return [term];
+        if (/[、,;；。！？!?]$/u.test(term) || /(?:して|って|んで|いて|せよ|しろ)$/u.test(term)) {
+            return [term];
+        }
+        return [`${term}して`, `${term}しろ`, `${term}せよ`];
+    });
+}
+
+function includesRequestedIntentTerm(request, terms) {
+    return includesPositiveCommandClause(request, intentCommandTerms(terms));
+}
+
 function matchingIntent(text, manifest) {
     return INTENT_ORDER.find((intent) => {
         const terms = manifest.semantic_matchers.intents[intent];
         return ['implement', 'operate'].includes(intent)
-            ? includesRequestedEffectTerm(text, terms)
+            ? includesRequestedIntentTerm(text, terms)
             : includesTerm(text, terms);
     }) || null;
+}
+
+function includesFollowUpTerm(text, terms) {
+    const normalized = text.toLocaleLowerCase('ja');
+    return terms.some((term) => {
+        const normalizedTerm = term.toLocaleLowerCase('ja');
+        if (normalizedTerm === 'これ' || normalizedTerm === 'こちら') {
+            return new RegExp(`${escapeRegExp(normalizedTerm)}(?:は(?:[？?]|どう|何|どれ|どこ|いつ|誰|なぜ)|(?!は))`, 'u').test(normalized);
+        }
+        if (normalizedTerm === 'では') {
+            return /^(?:では)(?:[、,\s]|$)/u.test(normalized.trimStart());
+        }
+        return includesTerm(normalized, [normalizedTerm]);
+    });
 }
 
 function classificationFromPriorContext(input, manifest) {
@@ -601,11 +825,11 @@ function classificationFromPriorContext(input, manifest) {
 
 function classify(input, manifest) {
     const matchers = manifest.semantic_matchers;
-    const request = classificationRequest(input.request);
+    const request = positiveClassificationRequest(classificationRequest(input.request), manifest);
     const detectedDomains = matchingKeys(request, matchers.domains, manifest.selectors.domain_order.filter((domain) => domain !== 'general'));
     const detectedSignals = matchingKeys(request, matchers.signals, manifest.selectors.signal_order);
     const detectedIntent = matchingIntent(request, manifest);
-    const followsPrior = includesTerm(request, matchers.follow_up);
+    const followsPrior = includesFollowUpTerm(request, matchers.follow_up);
     const prior = followsPrior ? classificationFromPriorContext(input, manifest) : null;
     const inheritedDomains = detectedDomains.length === 0 && prior ? prior.classification.domains.filter((domain) => domain !== 'general') : [];
     const inheritedSignals = detectedSignals.length === 0 && prior ? prior.classification.signals : [];
@@ -755,7 +979,11 @@ function mergePolicies(policies) {
 
 function selectedDags(classification, manifest) {
     const selected = [];
-    for (const domain of classification.domains) selected.push(manifest.selectors.domain_dags[domain]);
+    for (const domain of classification.domains) {
+        const implementationDag = domain === 'engineering' && classification.intent === 'implement'
+            ? manifest.selectors.engineering_implementation_dag : null;
+        selected.push(implementationDag ?? manifest.selectors.domain_dags[domain]);
+    }
     for (const signal of classification.signals) selected.push(manifest.selectors.signal_dags[signal]);
     if (['high', 'critical'].includes(classification.risk) || ['write', 'external'].includes(classification.action_kind) || classification.signals.includes('authority_boundary')) {
         selected.push(manifest.selectors.authority_dag);
@@ -837,13 +1065,18 @@ function topologicallySortNodes(nodes, edges) {
 
 function knowledgeCapabilities(input, classification) {
     if (!classification?.domains.includes('knowledge')) return [];
+    const contentType = classification.domains.includes('personal_judgment')
+        ? 'personal_knowledge'
+        : classification.domains.includes('operations')
+            ? 'operational_state'
+            : 'unknown';
     return [{
         capability: 'knowledge.resolve',
         status: 'required',
         input: {
             intent: 'lookup',
             audience: classification.domains.includes('personal_judgment') ? 'personal' : 'team',
-            content_type: 'unknown',
+            content_type: contentType,
             project_code: input.project_code
         },
         receipt_required: true
@@ -881,7 +1114,7 @@ export class JudgmentResolutionService {
         if (!this.hasHostBinding(hostBinding.adapter_id, hostBinding.adapter_version)) {
             fail('host binding is not registered', 'judgment_host_binding_untrusted', 403);
         }
-        const reconciliation = classify(input, this.manifest);
+        const reconciliation = reconcileModelInterpretation(input, this.manifest);
         const wantsPersonal = reconciliation.classification?.domains.includes('personal_judgment');
         const allowedOwnerIds = new Set([this.personalOwnerPersonId, ...this.personalOwnerAliasIds].filter(Boolean));
         if (wantsPersonal && (access.personId === 'internal_api' || !allowedOwnerIds.has(access.personId))) {
@@ -907,7 +1140,7 @@ export class JudgmentResolutionService {
             : policies.conflict
                 ? 'needs_policy_resolution'
                 : 'resolved';
-        const autonomy = autonomyResolution(status, reconciliation.classification, this.manifest);
+        const autonomy = autonomyResolution(status, reconciliation.classification, this.manifest, policies.applicable);
         const requestDigest = computeRequestDigest(rawInput);
         const contextDigest = rawInput.conversation_context === undefined
             ? null
@@ -940,12 +1173,12 @@ export class JudgmentResolutionService {
             ...graph,
             active_node_definitions: materializeActiveNodeDefinitions(graph.active_nodes, this.manifest),
             unresolved: status === 'needs_classification'
-                ? ['classification']
+                ? reconciliation.reasons
                 : status === 'needs_policy_resolution'
                     ? ['policy_conflict']
                     : [],
             rationale: status === 'needs_classification'
-                ? ['Semantic classification was not verified by a server-owned matcher.']
+                ? ['Model semantic interpretation is required before the server can issue a TurnContract.']
                 : status === 'needs_policy_resolution'
                     ? ['Equally authoritative hard policies conflict; resolve policy before proceeding.']
                     : ['The server-owned manifest selected only the judgment branches required by this turn.']

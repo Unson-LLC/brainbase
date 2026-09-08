@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
@@ -61,6 +63,7 @@ function receipt(overrides: Record<string, unknown> = {}) {
       'irreversible_action', 'missing_authority', 'owner_value_choice',
       'required_input_unavailable', 'evidenced_terminal_blocker',
     ],
+    autonomy_policy_ids: [],
     runtime_version: 'judgment-runtime-2.1.0',
     manifest_digest: 'b'.repeat(64),
     host_binding: { adapter_id: 'brainbase-mcp', adapter_version: '1', status: 'managed', enforcement_level: 'host_contract' },
@@ -107,23 +110,183 @@ function dependencies(fetchImpl: typeof globalThis.fetch, configuredProjectCodes
 }
 
 describe('judgment resolver Host bridge', () => {
-  it('Resolverをmodel-callable tool listへ公開しない', async () => {
-    assert.deepEqual(judgmentResolutionTools, []);
-    assert.equal(serverTesting.tools.some((tool) => tool.name === 'brainbase_judgment_resolve'), false);
-    assert.equal(await handleJudgmentResolutionToolCall('brainbase_judgment_resolve', args, dependencies(async () => new Response())), null);
+  it('production dispatcher uses the owner token instead of the service token', async () => {
+    serverTesting.setTokenManager({ getToken: async () => 'service-token' });
+    serverTesting.setOwnerTokenManager({ getToken: async () => 'owner-token' });
+
+    const dependencies = serverTesting.createDefaultJudgmentResolutionDependencies();
+
+    assert.equal(await dependencies.tokenManager.getToken(), 'owner-token');
+  });
+
+  it('resolve_turnをmodel-callable toolとして公開しmodel解釈を原文へ結合する', async () => {
+    assert.deepEqual(judgmentResolutionTools.map((tool) => tool.name), ['brainbase_resolve_turn']);
+    assert.equal(serverTesting.tools.some((tool) => tool.name === 'brainbase_resolve_turn'), true);
+    const mergedArgs = { ...args, model_interpretation: classification };
+    let posted: unknown = null;
+    const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+      turn_input: args,
+      model_interpretation: classification,
+    }, dependencies(async (_url, init) => {
+      posted = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify(receipt({
+        request_digest: computeJudgmentRequestDigest(mergedArgs),
+      })), { status: 200 });
+    }));
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(posted, mergedArgs);
+  });
+
+  it('authority forwarderが注入したcanonical project_codeをturn_inputより優先する', async () => {
+    const mergedArgs = { ...args, model_interpretation: classification };
+    let posted: unknown = null;
+    const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+      turn_input: { ...args, project_code: 'caller-project' },
+      project_code: 'brainbase',
+      model_interpretation: classification,
+    }, dependencies(async (_url, init) => {
+      posted = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify(receipt({
+        request_digest: computeJudgmentRequestDigest(mergedArgs),
+      })), { status: 200 });
+    }));
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(posted, mergedArgs);
+  });
+
+  it('generalを含む複合domainのreceiptを受理する', async () => {
+    const mixedClassification = {
+      ...classification,
+      domains: ['general', 'knowledge', 'operations'],
+    };
+    const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(receipt({
+      classification: mixedClassification,
+    })), { status: 200 })));
+
+    assert.equal(result.status, 'ok');
+  });
+
+  it('turn_input_path参照ならjournal内のturn-inputファイルをserver側で読み込む', async () => {
+    const mergedArgs = { ...args, model_interpretation: classification };
+    const journalRoot = mkdtempSync(join(tmpdir(), 'brainbase-judgment-journal-'));
+    mkdirSync(join(journalRoot, 'session-ref'));
+    const path = join(journalRoot, 'session-ref', 'turn-ref.turn-input.json');
+    writeFileSync(path, JSON.stringify(args));
+    const outsideRoot = mkdtempSync(join(tmpdir(), 'brainbase-outside-'));
+    const outsidePath = join(outsideRoot, 'turn-ref.turn-input.json');
+    writeFileSync(outsidePath, JSON.stringify(args));
+    let posted: unknown = null;
+    const deps = {
+      ...dependencies(async (_url, init) => {
+        posted = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify(receipt({
+          request_digest: computeJudgmentRequestDigest(mergedArgs),
+        })), { status: 200 });
+      }),
+      judgmentJournalRoot: journalRoot,
+    };
+    try {
+      const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_input_path: path },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(result?.status, 'ok');
+      assert.deepEqual(posted, mergedArgs);
+      const outside = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_input_path: outsidePath },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(outside?.status, 'error');
+      const missing = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_input_path: join(journalRoot, 'missing.turn-input.json') },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(missing?.status, 'error');
+    } finally {
+      rmSync(journalRoot, { recursive: true, force: true });
+      rmSync(outsideRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('turn_refならjournal内のturn-inputファイルをserver側で読み込み、JSONもpathもmodelを経由しない', async () => {
+    const mergedArgs = { ...args, model_interpretation: classification };
+    const journalRoot = mkdtempSync(join(tmpdir(), 'brainbase-judgment-journal-'));
+    const sessionRef = 'a'.repeat(64);
+    const turnRef = 'b'.repeat(64);
+    mkdirSync(join(journalRoot, sessionRef));
+    writeFileSync(join(journalRoot, sessionRef, `${turnRef}.turn-input.json`), JSON.stringify(args));
+    let posted: unknown = null;
+    const deps = {
+      ...dependencies(async (_url, init) => {
+        posted = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify(receipt({
+          request_digest: computeJudgmentRequestDigest(mergedArgs),
+        })), { status: 200 });
+      }),
+      judgmentJournalRoot: journalRoot,
+    };
+    try {
+      const result = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: `${sessionRef}/${turnRef}`,
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(result?.status, 'ok');
+      assert.deepEqual(posted, mergedArgs);
+
+      // Legacy cached tool schema: old Codex threads still send a turn_input
+      // object, but its content may itself be {"turn_ref": "..."}.
+      posted = null;
+      const legacy = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_input: { turn_ref: `${sessionRef}/${turnRef}` },
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(legacy?.status, 'ok');
+      assert.deepEqual(posted, mergedArgs);
+
+      const malformed = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: 'not-a-valid-ref',
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(malformed?.status, 'error');
+
+      const missing = await handleJudgmentResolutionToolCall('brainbase_resolve_turn', {
+        turn_ref: `${sessionRef}/${'c'.repeat(64)}`,
+        model_interpretation: classification,
+      }, deps);
+      assert.equal(missing?.status, 'error');
+    } finally {
+      rmSync(journalRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('autonomy_policy_idsを持たない旧serverのreceiptを受理する', async () => {
+    const legacy = receipt() as Record<string, unknown>;
+    delete legacy.autonomy_policy_ids;
+    const legacyPlan = { ...legacy };
+    delete legacyPlan.resolution_id;
+    delete legacyPlan.resolved_at;
+    delete legacyPlan.request_digest;
+    delete legacyPlan.plan_digest;
+    legacy.plan_digest = createHash('sha256').update(canonicalJson(legacyPlan)).digest('hex');
+    const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(legacy), { status: 200 })));
+    assert.equal(result.status, 'ok', JSON.stringify(result));
   });
 
   it('Host内部callだけが署名付きAPI requestを送る', async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
-    const result = await resolveJudgmentBeforeModel(args, dependencies(async (url, init) => {
-      calls.push({ url: String(url), init });
-      return new Response(JSON.stringify(receipt()), { status: 200 });
-    }));
+    const result = await resolveJudgmentBeforeModel(args, {
+      ...dependencies(async (url, init) => {
+        calls.push({ url: String(url), init });
+        return new Response(JSON.stringify(receipt()), { status: 200 });
+      }),
+      companyAuthorityResponse: 'signed-company-authority',
+    });
     assert.equal(result.status, 'ok');
     assert.equal(calls[0].url, 'http://brainbase.test/api/judgment/resolve');
     assert.equal(JSON.parse(String(calls[0].init?.body)).conversation_context.schema_version, 'brainbase-conversation-context-v1');
     const headers = calls[0].init?.headers as Record<string, string>;
     assert.equal(headers['x-brainbase-judgment-adapter'], 'brainbase-mcp');
+    assert.equal(headers['x-brainbase-company-authority-response'], 'signed-company-authority');
     assert.match(headers['x-brainbase-judgment-signature'], /^[a-f0-9]{64}$/u);
   });
 
@@ -177,6 +340,34 @@ describe('judgment resolver Host bridge', () => {
       const result = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(invalid), { status: 200 })));
       assert.equal(result.error?.code, 'brainbase_api_response_invalid');
     }
+  });
+
+  it('model解釈なしのbootstrap receiptはserverのreconciliation reasonsをunresolvedとして受理する', async () => {
+    const bootstrap = receipt({
+      status: 'needs_classification',
+      autonomy_decision: 'escalate',
+      autonomy_reason_code: 'classification_missing',
+      allowed_runtime_escalation_reasons: [],
+      runtime_version: 'judgment-runtime-2.4.3',
+      classification: null,
+      classification_evidence: { source: 'resolver', source_turn_ids: [], matcher_ids: [] },
+      classification_assurance: 'unknown',
+      reconciliation_reasons: ['model_interpretation_missing'],
+      selected_dag_ids: ['clarification.v1'],
+      active_nodes: ['entry', 'reconcile', 'clarification', 'receipt'],
+      active_node_definitions: [
+        ['entry', 'common'], ['reconcile', 'common'], ['clarification', 'fail_closed'], ['receipt', 'common'],
+      ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
+      active_edges: [['entry', 'reconcile'], ['reconcile', 'clarification'], ['clarification', 'receipt']],
+      unresolved: ['model_interpretation_missing'],
+      rationale: ['Model semantic interpretation is required before the server can issue a TurnContract.'],
+    });
+    const accepted = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(bootstrap), { status: 200 })));
+    assert.equal(accepted.status, 'ok');
+
+    const mismatch = receipt({ ...bootstrap, unresolved: ['classification'] });
+    const rejected = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(mismatch), { status: 200 })));
+    assert.equal(rejected.error?.code, 'brainbase_api_response_invalid');
   });
 
   it('API 4xxの具体的なvalidation codeを隠さない', async () => {
@@ -249,7 +440,7 @@ describe('judgment Host contract', () => {
         ['entry', 'common'], ['reconcile', 'common'], ['clarification', 'fail_closed'], ['receipt', 'common'],
       ].map(([id, kind]) => ({ id, kind, instruction: `Execute ${id}.`, required_capability_template: null })),
       active_edges: [['entry', 'reconcile'], ['reconcile', 'clarification'], ['clarification', 'receipt']],
-      unresolved: ['classification'],
+      unresolved: ['conversation_referent_missing'],
       rationale: ['clarify'],
     });
     let continued = false;

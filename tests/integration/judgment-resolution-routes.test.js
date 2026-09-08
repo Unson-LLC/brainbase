@@ -2,7 +2,7 @@ import { createHmac } from 'node:crypto';
 
 import express from 'express';
 import request from 'supertest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createJudgmentResolutionRouter } from '../../server/routes/judgment-resolution.js';
 import {
@@ -34,6 +34,9 @@ function body(overrides = {}) {
         turn_id: turnId,
         ...(projectCode === undefined ? {} : { project_code: projectCode }),
         conversation_context: { ...contextWithoutDigest, source_digest: computeRequestDigest(contextWithoutDigest) },
+        model_interpretation: {
+            intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low', confidence: 'confirmed', signals: []
+        },
         ...rest
     };
 }
@@ -52,7 +55,7 @@ function bindingHeaders(payload, issuedAt = NOW.toISOString()) {
     };
 }
 
-function app({ access, service } = {}) {
+function app({ access, service, receiptWriter, resolveReceiptAccess } = {}) {
     const value = express();
     value.use(express.json());
     value.use((req, _res, next) => {
@@ -64,7 +67,8 @@ function app({ access, service } = {}) {
             now: () => NOW, id: () => 'jr_api', personalOwnerPersonId: 'person_owner'
         }),
         bindingSecret: SECRET,
-        now: () => NOW
+        now: () => NOW,
+        receiptWriter, resolveReceiptAccess
     }));
     return value;
 }
@@ -117,6 +121,72 @@ describe('judgment resolution API', () => {
         expect(response.body.applicable_policies.some((policy) => policy.scope.type === 'project')).toBe(false);
     });
 
+    it('confirmedな本人・組織・project scopeだけでraw receiptを保存してから返す', async () => {
+        const receiptWriter = { record: vi.fn().mockResolvedValue(undefined) };
+        const payload = body();
+        const response = await request(app({ receiptWriter })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload);
+
+        expect(response.status).toBe(200);
+        expect(receiptWriter.record).toHaveBeenCalledWith(expect.objectContaining({
+            resolution_id: 'jr_api', turn_id: 'host-turn-api', project_code: 'brainbase'
+        }), expect.objectContaining({ personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] }));
+    });
+
+    it.each([
+        ['scope外project', { personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] }, body({ project_code: 'salestailor' })],
+        ['tenant不明', { personId: 'person_owner', projectCodes: ['brainbase'] }, body()],
+        ['tenant矛盾', { personId: 'person_owner', tenantId: 'unson', organizationId: 'other', projectCodes: ['brainbase'] }, body()],
+        ['本人不明', { tenantId: 'unson', projectCodes: ['brainbase'] }, body()]
+    ])('%sでは従来応答を維持しraw receiptを保存しない', async (_label, access, payload) => {
+        const receiptWriter = { record: vi.fn() };
+        const response = await request(app({ access, receiptWriter })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload);
+
+        expect(response.status).toBe(200);
+        expect(receiptWriter.record).not.toHaveBeenCalled();
+    });
+
+    it('保存用accessだけを選択し元の判断主体を変更しない', async () => {
+        const access = { personId: 'person_owner', tenantId: 'unson', projectCodes: ['brainbase'] };
+        const selected = { ...access, tenantId: 'target', organizationId: 'target' };
+        const resolveReceiptAccess = vi.fn().mockResolvedValue(selected);
+        const receiptWriter = { record: vi.fn() };
+        const payload = body();
+        await request(app({ access, receiptWriter, resolveReceiptAccess })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload).expect(200);
+        expect(receiptWriter.record.mock.calls[0][1]).toBe(selected);
+        expect(access.tenantId).toBe('unson');
+    });
+
+    it.each([
+        ['judgment_receipt_access_denied', 403],
+        ['database_unavailable', 503]
+    ])('保存先の検証エラー%sを秘密情報なしで返す', async (code, status) => {
+        const receiptWriter = { record: vi.fn() };
+        const resolveReceiptAccess = vi.fn().mockRejectedValue(Object.assign(new Error('secret'), { code }));
+        const payload = body();
+        const response = await request(app({ receiptWriter, resolveReceiptAccess })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload).expect(status);
+        expect(response.body.error.code).toBe(status === 403 ? code : 'judgment_receipt_persistence_unavailable');
+        expect(JSON.stringify(response.body)).not.toContain('secret');
+        expect(receiptWriter.record).not.toHaveBeenCalled();
+    });
+
+    it('configured writerの故障を生情報なしの503へ写像する', async () => {
+        const receiptWriter = { record: vi.fn().mockRejectedValue(new Error('postgres secret: database unavailable')) };
+        const payload = body();
+        const response = await request(app({ receiptWriter })).post('/api/judgment/resolve')
+            .set(bindingHeaders(payload)).send(payload);
+
+        expect(response.status).toBe(503);
+        expect(response.body.error).toEqual({
+            code: 'judgment_receipt_persistence_unavailable',
+            message: 'Judgment receipt persistence is unavailable'
+        });
+        expect(JSON.stringify(response.body)).not.toContain('postgres secret');
+    });
+
     it('invalid public inputを400へ写像する', async () => {
         const payload = body({ dag_ids: ['direct.v1'] });
         const response = await request(app()).post('/api/judgment/resolve').set(bindingHeaders(payload)).send(payload);
@@ -127,7 +197,10 @@ describe('judgment resolution API', () => {
     it('knowledge requestのproject不足を不完全handoffではなくclarificationへ写像する', async () => {
         const payload = body({
             request: 'Brainbaseの判断履歴を調べて',
-            project_code: undefined
+            project_code: undefined,
+            model_interpretation: {
+                intent: 'investigate', domains: ['knowledge'], action_kind: 'read', risk: 'low', confidence: 'confirmed', signals: []
+            }
         });
         const response = await request(app()).post('/api/judgment/resolve').set(bindingHeaders(payload)).send(payload);
         expect(response.status).toBe(200);
@@ -142,7 +215,10 @@ describe('judgment resolution API', () => {
         ['service credential', 'internal_api']
     ])('personal judgmentを%sへ公開しない', async (_label, personId) => {
         const payload = body({
-            request: '俺の思考アルゴリズムで判断して'
+            request: '俺の思考アルゴリズムで判断して',
+            model_interpretation: {
+                intent: 'answer', domains: ['personal_judgment'], action_kind: 'none', risk: 'medium', confidence: 'confirmed', signals: []
+            }
         });
         const response = await request(app({
             access: { personId, tenantId: 'unson', projectCodes: ['brainbase'] }

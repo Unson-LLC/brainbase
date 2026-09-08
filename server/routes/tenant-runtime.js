@@ -4,6 +4,12 @@ import { serializeVerificationKeys } from '../services/multitenant/tenant-contex
 import { ContractError } from '../services/multitenant/errors.js';
 import { assertMigrationCandidateTargets, assertMigrationRowCandidates } from '../services/multitenant/migration-planner.js';
 import { assertTrustedProviderForwardRequest } from '../services/multitenant/trusted-provider-forwarder.js';
+import {
+    AUTHORITY_JUDGMENT_HOOK_OPERATION,
+    AUTHORITY_PROVIDER_OPERATIONS,
+    authorityProjectBinding,
+    deriveSingleAuthorityProjectId
+} from '../services/multitenant/authority-project-binding.js';
 import { MeetingMinutesContextReceiptError } from '../services/meeting-minutes/context-receipt-service.js';
 
 function asyncHandler(handler) {
@@ -266,6 +272,7 @@ export function createTenantRuntimeRouter({
     serviceAuth,
     verificationKeys = () => [],
     tenantAuthority,
+    companyAuthority,
     connectionRegistry,
     credentialBroker,
     usageLedger,
@@ -290,6 +297,14 @@ export function createTenantRuntimeRouter({
     router.post('/tenant-context:resolve', asyncHandler(async (req, res) => {
         if (!tenantAuthority?.resolveContext) throw Object.assign(new Error('Tenant Authority unavailable'), { code: 'UPSTREAM_UNAVAILABLE', status: 503, retryable: true });
         res.json(await tenantAuthority.resolveContext(req.body));
+    }));
+    router.post('/company-authority:resolve', asyncHandler(async (req, res) => {
+        if (!companyAuthority?.resolve) {
+            throw Object.assign(new Error('Company Authority unavailable'), {
+                code: 'UPSTREAM_UNAVAILABLE', status: 503, retryable: true
+            });
+        }
+        res.json(await companyAuthority.resolve(req.body));
     }));
     router.use(asyncHandler(async (req, _res, next) => {
         if (req.get('Brainbase-Protocol-Version') !== '1.0') {
@@ -333,6 +348,24 @@ export function createTenantRuntimeRouter({
             throw new ContractError('PROJECT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
         }
         return project;
+    }
+    async function resolveAuthorityProject(req) {
+        const projectId = deriveSingleAuthorityProjectId(req.tenantContext);
+        if (typeof connectionRegistry?.resolveProjectBindingById !== 'function') {
+            throw new ContractError('PROJECT_SCOPE_MISMATCH', {
+                status: 403,
+                fault_domain: 'protocol',
+                details: { scope_reason: 'project_resolver_unavailable' }
+            });
+        }
+        const project = await connectionRegistry.resolveProjectBindingById({
+            tenant_id: req.tenantContext.tenant.tenant_id,
+            project_id: projectId
+        });
+        return authorityProjectBinding(project, {
+            tenantId: req.tenantContext.tenant.tenant_id,
+            projectId
+        });
     }
     router.post('/workspace-connections:validate-revision', asyncHandler(async (req, res) => {
         res.json(await connectionRegistry.validateRevision(contextBoundInput(req)));
@@ -417,6 +450,22 @@ export function createTenantRuntimeRouter({
     }));
     router.post('/provider-requests:forward', asyncHandler(async (req, res) => {
         await revalidateAuthoritativeBinding(req);
+        const input = providerForwardInput(req);
+        if (AUTHORITY_PROVIDER_OPERATIONS.has(input.provider_operation)) {
+            const project = await resolveAuthorityProject(req);
+            if (input.provider_operation === AUTHORITY_JUDGMENT_HOOK_OPERATION) {
+                throw new ContractError('COMPANY_AUTHORITY_HOOK_SCOPE_UNAVAILABLE', {
+                    status: 503,
+                    retryable: false,
+                    fault_domain: 'customer_environment',
+                    details: {
+                        required_action: 'session_turn_binding_required',
+                        project_id: project.project_id
+                    }
+                });
+            }
+            input.authority_project_binding = project;
+        }
         if (typeof credentialBroker?.forwardProviderRequest !== 'function') {
             throw new ContractError('UPSTREAM_UNAVAILABLE', {
                 status: 503,
@@ -424,7 +473,7 @@ export function createTenantRuntimeRouter({
                 fault_domain: 'brainbase_cloud'
             });
         }
-        const result = await credentialBroker.forwardProviderRequest(providerForwardInput(req));
+        const result = await credentialBroker.forwardProviderRequest(input);
         res.status(result.status).json(result);
     }));
     router.post('/oauth-refresh:compare-and-swap', asyncHandler(async (req, res) => {
@@ -532,6 +581,13 @@ export function createTenantRuntimeRouter({
     }));
 
     router.use((error, req, res, _next) => {
+        console.error(JSON.stringify({
+            event: 'tenant_runtime_request_failed',
+            path: req.path,
+            code: typeof error?.code === 'string' ? error.code : 'INTERNAL_ERROR',
+            message: typeof error?.message === 'string' ? error.message : 'Unknown error',
+            stack: typeof error?.stack === 'string' ? error.stack : null
+        }));
         const problem = toProblem(error, req.body?.correlation_id ?? null);
         res.status(problem.status).type('application/problem+json').json(problem);
     });

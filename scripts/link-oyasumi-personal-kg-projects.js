@@ -2,6 +2,8 @@
 // @ts-check
 import process from 'node:process';
 import pg from 'pg';
+import { requirePersonalKgIdentity } from '../server/services/sns/personal-kg-identity.js';
+import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.js';
 
 const { Pool } = pg;
 const SOURCE_SYSTEM = 'oyasumi-meeting-personal-kg';
@@ -26,7 +28,7 @@ const PROJECT_CODE_ALIASES = {
 };
 
 function parseArgs(argv) {
-    const args = { write: false, limit: null, projectCode: null, json: false };
+    const args = { write: false, limit: null, projectCode: null, json: false, ownerPersonId: null, actorPersonId: null, organizationId: null, delegationId: null };
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index];
         if (arg === '--write') args.write = true;
@@ -36,9 +38,32 @@ function parseArgs(argv) {
         else if (arg.startsWith('--limit=')) args.limit = Number(arg.slice('--limit='.length));
         else if (arg === '--project-code') args.projectCode = argv[++index];
         else if (arg.startsWith('--project-code=')) args.projectCode = arg.slice('--project-code='.length);
+        else if (arg === '--owner' || arg === '--owner-person-id') args.ownerPersonId = argv[++index];
+        else if (arg.startsWith('--owner=')) args.ownerPersonId = arg.slice('--owner='.length);
+        else if (arg.startsWith('--owner-person-id=')) args.ownerPersonId = arg.slice('--owner-person-id='.length);
+        else if (arg === '--actor' || arg === '--actor-person-id') args.actorPersonId = argv[++index];
+        else if (arg.startsWith('--actor=')) args.actorPersonId = arg.slice('--actor='.length);
+        else if (arg.startsWith('--actor-person-id=')) args.actorPersonId = arg.slice('--actor-person-id='.length);
+        else if (arg === '--organization' || arg === '--organization-id') args.organizationId = argv[++index];
+        else if (arg.startsWith('--organization=')) args.organizationId = arg.slice('--organization='.length);
+        else if (arg.startsWith('--organization-id=')) args.organizationId = arg.slice('--organization-id='.length);
+        else if (arg === '--delegation-id') args.delegationId = argv[++index];
+        else if (arg.startsWith('--delegation-id=')) args.delegationId = arg.slice('--delegation-id='.length);
     }
     if (args.limit !== null && (!Number.isInteger(args.limit) || args.limit <= 0)) throw new Error('--limit must be a positive integer');
     return args;
+}
+
+function personalKgIdentity(options) {
+    return requirePersonalKgIdentity({
+        owner_person_id: options?.owner_person_id || options?.ownerPersonId,
+        actor_person_id: options?.actor_person_id || options?.actorPersonId,
+        organization_id: options?.organization_id || options?.organizationId,
+        org_ids: options?.org_ids,
+        project_code: options?.project_code || options?.projectCode,
+        authority_resolution_receipt_id: options?.authority_resolution_receipt_id,
+        identity_resolution_receipt_id: options?.identity_resolution_receipt_id
+    });
 }
 
 function databaseConfig() {
@@ -117,14 +142,15 @@ function mergeLinks(existing, nextLink) {
 }
 
 async function listCandidates(pool, args) {
-    const conditions = [`source_system = $1`, `permission_snapshot ? 'oyasumi_meeting_personal_kg'`, `project_code IS NOT NULL`];
-    const params = [SOURCE_SYSTEM];
+    const identity = personalKgIdentity(args.identity || args);
+    const conditions = [`source_system = $1`, `permission_snapshot ? 'oyasumi_meeting_personal_kg'`, `project_code IS NOT NULL`, `owner_person_id = $2`, `organization_id = $3`];
+    const params = [SOURCE_SYSTEM, identity.owner_person_id, identity.organization_id];
     if (args.projectCode) {
         params.push(args.projectCode);
         conditions.push(`project_code = $${params.length}`);
     }
     const { rows } = await pool.query(`
-        SELECT id, project_code, permission_snapshot
+        SELECT id, owner_person_id, organization_id, project_code, permission_snapshot
         FROM memory_candidates
         WHERE ${conditions.join(' AND ')}
         ORDER BY created_at ASC, id ASC
@@ -133,17 +159,22 @@ async function listCandidates(pool, args) {
     return rows;
 }
 
-async function updateCandidateLinks(pool, candidate, links) {
-    await pool.query(
-        `UPDATE memory_candidates SET permission_snapshot = $2::jsonb, updated_at = NOW() WHERE id = $1`,
-        [candidate.id, JSON.stringify({ ...(candidate.permission_snapshot || {}), personal_kg_entity_links: links })]
+async function updateCandidateLinks(pool, candidate, links, identity) {
+    const access = personalKgIdentity(identity);
+    const result = await pool.query(
+        `UPDATE memory_candidates
+         SET permission_snapshot = $2::jsonb, updated_at = NOW()
+         WHERE id = $1 AND owner_person_id = $3 AND organization_id = $4`,
+        [candidate.id, JSON.stringify({ ...(candidate.permission_snapshot || {}), personal_kg_entity_links: links }), access.owner_person_id, access.organization_id]
     );
+    if (result.rowCount !== 1) throw new Error(`personal_kg_candidate_scope_changed:${candidate.id}`);
 }
 
-async function linkOyasumiPersonalKgProjects({ write = false, limit = null, projectCode = null, pool = null } = {}) {
+async function linkOyasumiPersonalKgProjects({ write = false, limit = null, projectCode = null, pool = null, identity = null, ...identityOptions } = {}) {
+    const access = personalKgIdentity(identity || identityOptions);
     const activePool = pool || new Pool(databaseConfig());
     try {
-        const args = { write, limit, projectCode };
+        const args = { write, limit, projectCode, identity: access };
         const projectIndex = await loadProjectIndex(activePool);
         const candidates = await listCandidates(activePool, args);
         const summary = { mode: write ? 'write' : 'dry-run', scanned: candidates.length, linked: 0, unresolved: 0, unchanged: 0, by_project_code: {}, unresolved_project_codes: {} };
@@ -165,7 +196,7 @@ async function linkOyasumiPersonalKgProjects({ write = false, limit = null, proj
                 summary.unchanged += 1;
                 continue;
             }
-            if (write) await updateCandidateLinks(activePool, candidate, mergeLinks(currentLinks, nextLink));
+            if (write) await updateCandidateLinks(activePool, candidate, mergeLinks(currentLinks, nextLink), access);
             summary.linked += 1;
             bucket.linked += 1;
         }
@@ -177,7 +208,11 @@ async function linkOyasumiPersonalKgProjects({ write = false, limit = null, proj
 
 async function main() {
     const args = parseArgs(process.argv.slice(2));
-    const summary = await linkOyasumiPersonalKgProjects(args);
+    const identity = resolvePersonalKgCliAuthority({
+        assertedIdentity: args,
+        desiredEffect: args.write ? 'write' : 'read'
+    });
+    const summary = await linkOyasumiPersonalKgProjects({ ...args, identity });
     if (args.json) console.log(JSON.stringify(summary, null, 2));
     else {
         console.log(`mode: ${summary.mode}`);

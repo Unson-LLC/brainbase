@@ -45,10 +45,16 @@ function sha256(value) {
 }
 
 export class ExternalRunnerIngestService {
-    constructor({ workflowRepository, candidateRepository = null, adapter = new ExternalRuntimeAdapter() }) {
+    constructor({
+        workflowRepository,
+        candidateRepository = null,
+        adapter = new ExternalRuntimeAdapter(),
+        companyAuthorityHumanApprovalService = null
+    }) {
         this.workflowRepository = workflowRepository;
         this.candidateRepository = candidateRepository;
         this.adapter = adapter;
+        this.companyAuthorityHumanApprovalService = companyAuthorityHumanApprovalService;
     }
 
     async ingest(payload) {
@@ -82,13 +88,57 @@ export class ExternalRunnerIngestService {
             const existingWorkflow = this.workflowRepository.getWorkflow(normalized.workflow.id);
             this._assertExistingWorkflowCompatible(existingWorkflow, normalized.run);
             const workflow = existingWorkflow || this.workflowRepository.upsertWorkflow(normalized.workflow);
-            const run = this.workflowRepository.createRun(normalized.run);
+            const run = this.workflowRepository.createRun({
+                ...normalized.run,
+                metadata: {
+                    ...(normalized.run.metadata || {}),
+                    external_runner_ingest_source_digest: this._ingestSourceDigest(normalized)
+                }
+            });
             const contextSnapshots = normalized.contextSnapshots.map((snapshot) => (
                 this.workflowRepository.createContextSnapshot(snapshot)
             ));
-            const humanSteps = normalized.humanSteps.map((step) => (
-                this.workflowRepository.createHumanStep(step)
-            ));
+            const handoffs = new Map((normalized.companyAuthorityHandoffs || [])
+                .map((handoff) => [handoff.humanStepId, handoff]));
+            const humanSteps = normalized.humanSteps.map((step) => {
+                const handoff = handoffs.get(step.id);
+                if (!handoff) return this.workflowRepository.createHumanStep(step);
+                if (typeof this.companyAuthorityHumanApprovalService?.createBinding !== 'function') {
+                    throw new ExternalRunnerContractError(
+                        'company_authority_human_approval_unavailable',
+                        'Company Authority human approval binding is unavailable; the human step was not created',
+                        { human_step_id: step.id, workflow_run_id: normalized.run.id }
+                    );
+                }
+                let marker;
+                try {
+                    marker = this.companyAuthorityHumanApprovalService.createBinding(step, {
+                        observedRequest: handoff.observedRequest,
+                        authorityResponse: handoff.authorityResponse,
+                        executionHash: handoff.executionHash,
+                        handoffIdempotencyKey: handoff.handoffIdempotencyKey,
+                        targetApproverId: handoff.targetApproverId
+                    });
+                } catch (error) {
+                    if (error instanceof ExternalRunnerContractError) throw error;
+                    throw new ExternalRunnerContractError(
+                        'invalid_company_authority_human_approval_handoff',
+                        'Company Authority human approval handoff was rejected; the human step was not created',
+                        {
+                            human_step_id: step.id,
+                            workflow_run_id: normalized.run.id,
+                            cause: error?.code || error?.message || String(error)
+                        }
+                    );
+                }
+                return this.workflowRepository.createHumanStep({
+                    ...step,
+                    metadata: {
+                        ...(step.metadata || {}),
+                        company_authority_human_approval: marker
+                    }
+                });
+            });
             const outputs = normalized.outputs.map((output) => (
                 this.workflowRepository.createOutput(output)
             ));
@@ -195,13 +245,52 @@ export class ExternalRunnerIngestService {
                 }
             );
         }
-        this._assertDuplicatePayloadMatches(existingRun, normalized, {
+        const persisted = {
             contextSnapshots,
             humanSteps,
             outputs,
             auditLogs,
             learningCandidates
-        });
+        };
+        const storedSourceDigest = existingRun.metadata?.external_runner_ingest_source_digest;
+        if (storedSourceDigest) {
+            const replaySourceDigest = this._ingestSourceDigest(normalized);
+            if (storedSourceDigest === replaySourceDigest) {
+                this._assertPersistedSourceSurfaces(existingRun, normalized, persisted);
+                return;
+            }
+            this._assertDuplicatePayloadMatches(existingRun, normalized, persisted);
+            throw new ExternalRunnerContractError(
+                'duplicate_payload_mismatch',
+                `existing workflow_run '${existingRun.id}' duplicate replay differs from its ingest source`,
+                {
+                    workflow_run_id: existingRun.id,
+                    surface: 'ingest_source'
+                }
+            );
+        }
+        this._assertDuplicatePayloadMatches(existingRun, normalized, persisted);
+    }
+
+    _assertPersistedSourceSurfaces(existingRun, normalized, persisted) {
+        this._assertComparableSurface(
+            'run_identity',
+            existingRun,
+            this._runSourceIdentityShape(normalized.run),
+            existingRun.id
+        );
+        this._assertComparableSurface('context_snapshots', persisted.contextSnapshots, normalized.contextSnapshots, existingRun.id);
+        this._assertComparableSurface(
+            'human_step_identity',
+            persisted.humanSteps,
+            normalized.humanSteps.map((step) => this._humanStepSourceIdentityShape(step)),
+            existingRun.id
+        );
+        this._assertComparableSurface('outputs', persisted.outputs, normalized.outputs, existingRun.id);
+        this._assertExactListSurface('audit_logs', this._auditDuplicateShape(persisted.auditLogs, normalized.auditEvents), normalized.auditEvents.map((entry) => ({
+            action: entry.action,
+            after: entry.after
+        })), existingRun.id);
     }
 
     _writeDuplicateReplayAudit(existingRun, normalized) {
@@ -242,6 +331,43 @@ export class ExternalRunnerIngestService {
             ...stableRun
         } = run;
         return stableRun;
+    }
+
+    _runSourceIdentityShape(run) {
+        const {
+            status: _status,
+            closure_state: _closureState,
+            action_required: _actionRequired,
+            human_waiting: _humanWaiting,
+            message: _message,
+            output_count: _outputCount,
+            error: _error,
+            data_preview: _dataPreview,
+            duration_ms: _durationMs,
+            ...identity
+        } = this._runDuplicateShape(run);
+        return identity;
+    }
+
+    _humanStepSourceIdentityShape(step) {
+        const { status: _status, ...identity } = step;
+        return identity;
+    }
+
+    _ingestSourceDigest(normalized) {
+        return sha256(stableString({
+            contract_version: normalized.contractVersion,
+            runner_type: normalized.runnerType,
+            run: this._runDuplicateShape(normalized.run),
+            context_snapshots: sortComparableList(normalized.contextSnapshots),
+            human_steps: sortComparableList(normalized.humanSteps),
+            outputs: sortComparableList(normalized.outputs),
+            audit_events: sortComparableList(normalized.auditEvents.map((entry) => ({
+                action: entry.action,
+                after: entry.after
+            }))),
+            learning_candidates: sortComparableList(normalized.learningCandidates)
+        }));
     }
 
     _auditDuplicateShape(auditLogs, expectedAuditEvents) {

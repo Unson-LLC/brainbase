@@ -4,7 +4,34 @@ import { ContractError } from '../services/multitenant/errors.js';
 import { generateCanonicalId, isCanonicalId } from '../services/multitenant/ids.js';
 import { validateSlackInstallationBinding } from '../services/multitenant/slack-installation-control-plane.js';
 
+const INTERNAL_FAILURE_DIAGNOSTIC_CODES = new Set([
+    'OAUTH_EXCHANGE_UNAVAILABLE',
+    'OAUTH_EXCHANGE_INVALID',
+    'OAUTH_EXCHANGE_REJECTED',
+    'OAUTH_EXCHANGE_INVALID_CODE',
+    'OAUTH_EXCHANGE_REDIRECT_MISMATCH',
+    'OAUTH_EXCHANGE_CLIENT_CREDENTIAL_REJECTED',
+    'OAUTH_EXCHANGE_FLOW_MISMATCH',
+    'OAUTH_EXCHANGE_PKCE_REJECTED',
+    'OAUTH_EXCHANGE_ACCESS_DENIED',
+    'OAUTH_CREDENTIAL_MISSING',
+    'OAUTH_EXCHANGE_FAILED',
+    'EXCHANGE_NORMALIZATION_FAILED',
+    'CONNECTION_RESERVATION_FAILED',
+    'CREDENTIAL_REF_INVALID',
+    'CREDENTIAL_STORE_UNAVAILABLE',
+    'CREDENTIAL_STORE_INVALID',
+    'CREDENTIAL_STORE_REJECTED',
+    'CREDENTIAL_STORE_FAILED',
+    'DB_REGISTRATION_FAILED'
+]);
+
 function errorResponse(res, error) {
+    if (error instanceof ContractError && INTERNAL_FAILURE_DIAGNOSTIC_CODES.has(error.code)) {
+        return res.status(503).json({
+            error: { code: 'UPSTREAM_UNAVAILABLE', retryable: true, fault_domain: 'brainbase_cloud' }
+        });
+    }
     if (error instanceof ContractError) {
         return res.status(error.status).json({
             error: {
@@ -77,6 +104,7 @@ function safeBody(req, fields) {
 
 export function createSlackInstallationControlPlaneRouter({
     controlPlane,
+    oauthFlow,
     appId,
     resolvePreProvisionedConnection,
     authorizeRequest = (req) => defaultAuthorizeRequest(req, { appId, resolvePreProvisionedConnection })
@@ -93,11 +121,40 @@ export function createSlackInstallationControlPlaneRouter({
             // The route's auth middleware and optional pre-provisioned resolver
             // establish authority; only the resulting binding is persisted.
             const result = await controlPlane.authorizeBinding(binding);
-            return res.status(200).set('cache-control', 'no-store').json({ result });
+            const authorization = oauthFlow?.createAuthorization(result) ?? null;
+            return res.status(200).set('cache-control', 'no-store').json({
+                result: authorization ? {
+                    ...result,
+                    authorization_url: authorization.authorization_url,
+                    redirect_uri: authorization.redirect_uri
+                } : result
+            });
         } catch (error) {
             return errorResponse(res, error);
         }
     });
+    if (oauthFlow) {
+        router.get('/slack-installations\\:callback', async (req, res) => {
+            try {
+                if (typeof req.query?.code !== 'string' || typeof req.query?.state !== 'string'
+                    || Object.keys(req.query).some((field) => !['code', 'state'].includes(field))) {
+                    throw new ContractError('INSTALLATION_STATE_INVALID', { status: 400, fault_domain: 'protocol' });
+                }
+                const opened = oauthFlow.open(req.query.state);
+                await controlPlane.exchange_and_register({
+                    authorization_code: req.query.code,
+                    redirect_uri: opened.redirect_uri,
+                    intent: opened.intent
+                });
+                return res.status(200)
+                    .set('cache-control', 'no-store')
+                    .type('html')
+                    .send('<!doctype html><html lang="ja"><meta charset="utf-8"><title>Slack連携完了</title><body><h1>Slack連携が完了しました</h1><p>この画面を閉じてください。</p></body></html>');
+            } catch (error) {
+                return errorResponse(res, error);
+            }
+        });
+    }
     router.post('/slack-installations\\:exchange-and-register', async (req, res) => {
         try {
             const input = safeBody(req, ['authorization_code', 'redirect_uri', 'intent']);

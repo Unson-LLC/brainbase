@@ -89,6 +89,24 @@ function evidenceTranscriptIsBoundToSessions(path) {
         && path.endsWith('.jsonl');
 }
 
+function readSessionMetaIdentity(transcriptPath) {
+    const metadata = readFileSync(transcriptPath, 'utf8').split('\n').flatMap((line) => {
+        if (!line.trim()) return [];
+        const entry = JSON.parse(line);
+        if (entry?.type !== 'session_meta') return [];
+        return [{
+            taskId: entry.payload?.id,
+            timestamp: entry.payload?.timestamp || entry.timestamp
+        }];
+    });
+    const first = metadata.at(0);
+    assert.ok(first, 'Live transcript must contain session_meta for task identity');
+    assert.equal(typeof first.taskId, 'string', 'session_meta.payload.id must bind the owner-visible task');
+    assert.ok(first.taskId.trim(), 'session_meta.payload.id must not be empty');
+    assert.equal(typeof first.timestamp, 'string', 'session_meta must contain a task creation timestamp');
+    return { taskId: first.taskId, createdAt: first.timestamp };
+}
+
 function readFinalAssistantMessage(path, turnId) {
     const messages = readFileSync(path, 'utf8').split('\n').flatMap((line) => {
         if (!line.trim()) return [];
@@ -110,7 +128,7 @@ function readFinalAssistantMessage(path, turnId) {
     return messages.at(-1).text;
 }
 
-function hookVisibleFinalAnswer(renderedAnswer) {
+function modelAuthoredAnswerBeforeAppMetadata(renderedAnswer) {
     const openingTag = '<oai-mem-citation>';
     const closingTag = '</oai-mem-citation>';
     const openingTags = [...renderedAnswer.matchAll(/<oai-mem-citation>/gu)];
@@ -133,58 +151,49 @@ function hookVisibleFinalAnswer(renderedAnswer) {
     return prefix;
 }
 
-test('hookVisibleFinalAnswer preserves an answer without a citation block', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves an answer without a citation block', () => {
     const renderedAnswer = '本文のみ';
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-test('hookVisibleFinalAnswer removes one complete trailing citation block', () => {
+test('modelAuthoredAnswerBeforeAppMetadata removes one complete trailing citation block', () => {
     const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource\n</oai-mem-citation>';
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), '本文\n\n');
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), '本文\n\n');
 });
 
-test('hookVisibleFinalAnswer preserves an incomplete citation block', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves an incomplete citation block', () => {
     const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource';
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-test('hookVisibleFinalAnswer preserves an embedded citation block', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves an embedded citation block', () => {
     const renderedAnswer = '本文\n\n<oai-mem-citation>\nsource\n</oai-mem-citation>\n\n続き';
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-test('hookVisibleFinalAnswer preserves multiple citation blocks joined by one newline', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves multiple citation blocks joined by one newline', () => {
     const citation = '<oai-mem-citation>\nsource\n</oai-mem-citation>';
     const renderedAnswer = `本文\n${citation}\n${citation}`;
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-test('hookVisibleFinalAnswer preserves multiple citation blocks joined by a blank line', () => {
+test('modelAuthoredAnswerBeforeAppMetadata preserves multiple citation blocks joined by a blank line', () => {
     const citation = '<oai-mem-citation>\nsource\n</oai-mem-citation>';
     const renderedAnswer = `本文\n\n${citation}\n\n${citation}`;
-    assert.equal(hookVisibleFinalAnswer(renderedAnswer), renderedAnswer);
+    assert.equal(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer), renderedAnswer);
 });
 
-function assertRenderedAuditTrace(answer, expectedLines) {
+function assertAuditTracePrefixesAssistantBody(answer, expectedLines) {
     const lines = answer.replaceAll('\r\n', '\n').split('\n');
-    assert.deepEqual(
-        lines.slice(0, expectedLines.length),
-        expectedLines,
-        'The final user-visible answer must begin with the stored owner/tool audit lines in journal commit order'
-    );
-    const expectedCounts = new Map(expectedLines.map((line) => [
-        line,
-        expectedLines.filter((candidate) => candidate === line).length
-    ]));
-    for (const [line, count] of expectedCounts) {
+    for (const [index, line] of expectedLines.entries()) {
         assert.equal(
-            lines.filter((candidate) => candidate === line).length,
-            count,
-            `Stored audit line must appear exactly as many times as its recorded event: ${line}`
+            lines[index],
+            line,
+            `The assistant answer must begin with the journal audit in order: ${line}`
         );
+        assert.equal(lines.filter((candidate) => candidate === line).length, 1);
     }
 }
-
 function readBoundEpisode() {
     const eventDirectory = EVIDENCE_EPISODE_PATH.replace(/\.episode\.json$/u, '.events');
     const finalPath = EVIDENCE_EPISODE_PATH.replace(/\.episode\.json$/u, '.final.json');
@@ -236,21 +245,15 @@ function assertEffectiveHookReadiness() {
 }
 
 function assertFreshTaskBinding(transcriptPath) {
-    const sessionMeta = readFileSync(transcriptPath, 'utf8').split('\n').flatMap((line) => {
-        if (!line.trim()) return [];
-        const entry = JSON.parse(line);
-        if (entry?.type !== 'session_meta') return [];
-        const timestamp = entry.payload?.timestamp || entry.timestamp;
-        return typeof timestamp === 'string' ? [timestamp] : [];
-    }).at(0);
-    assert.ok(sessionMeta, 'Live transcript must contain a session creation timestamp');
-    const taskCreatedAt = Date.parse(sessionMeta);
+    const identity = readSessionMetaIdentity(transcriptPath);
+    const taskCreatedAt = Date.parse(identity.createdAt);
     assert.ok(Number.isFinite(taskCreatedAt), 'Live transcript session timestamp must be valid');
     const bindingUpdatedAt = Math.max(statSync(HOOK_CONFIG).mtimeMs, statSync(CODEX_CONFIG).mtimeMs);
     assert.ok(
         taskCreatedAt >= bindingUpdatedAt,
         'Live evidence must come from a task created after the current Hook definition and trust approval'
     );
+    return identity;
 }
 
 test('story-brainbase-judgment-resolver-v1 は旧HEADのlive episode証跡を拒否する', () => {
@@ -311,7 +314,7 @@ test('story-brainbase-judgment-resolver-v1 AC-9 ac:9 clarification continuation 
 
     assert.ok(
         REGRESSION_SCRIPT.includes(managedTurnTestPath)
-            && readFileSync(join(process.cwd(), managedTurnTestPath), 'utf8').includes('clarification.execution_status'),
+            && readFileSync(join(process.cwd(), managedTurnTestPath), 'utf8').includes("bootstrap.receipt.active_nodes).toContain('clarification')"),
         'AC-9/ac:9 clarification continuation regression must remain in the release suite'
     );
 });
@@ -331,7 +334,7 @@ test('story-brainbase-judgment-resolver-v1 AC-15 ac:15 future adapter boundary c
 
     assert.ok(
         REGRESSION_SCRIPT.includes(publicationTestPath)
-            && readFileSync(join(process.cwd(), publicationTestPath), 'utf8').includes('Claude Codeは将来のHost adapter候補'),
+            && readFileSync(join(process.cwd(), publicationTestPath), 'utf8').includes('future Host-adapter candidate'),
         'AC-15/ac:15 future adapter boundary regression must remain in the release suite'
     );
 });
@@ -341,7 +344,7 @@ test('story-brainbase-judgment-resolver-v1 AC-16 ac:16 publication consistency c
 
     assert.ok(
         REGRESSION_SCRIPT.includes(publicationTestPath)
-            && readFileSync(join(process.cwd(), publicationTestPath), 'utf8').includes('Skill・capability・runbook・specがmodel非依存の同じ境界を公開する'),
+            && readFileSync(join(process.cwd(), publicationTestPath), 'utf8').includes('Skill・capability・runbook・specがmodel-firstの同じ境界を公開する'),
         'AC-16/ac:16 publication consistency regression must remain in the release suite'
     );
 });
@@ -399,14 +402,14 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assertFreshTaskBinding(EVIDENCE_TRANSCRIPT_PATH);
 
     const config = readJson(HOOK_CONFIG);
-    for (const hookName of ['UserPromptSubmit', 'PostToolUse', 'Stop']) {
+    for (const hookName of ['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop']) {
         assert.ok(
             hookCommands(config, hookName).some((command) => command.includes(CANONICAL_ENTRYPOINT)),
             `${hookName} is not bound to ${CANONICAL_ENTRYPOINT}`
         );
     }
 
-    const installedEntrypoints = ['UserPromptSubmit', 'PostToolUse', 'Stop']
+    const installedEntrypoints = ['UserPromptSubmit', 'PostToolUse', 'PostToolUseFailure', 'Stop']
         .map((hookName) => ({
             hookName,
             path: canonicalEntrypointPath(config, hookName)
@@ -420,7 +423,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     assert.equal(
         new Set(installedEntrypoints.map((installed) => installed.path)).size,
         1,
-        'UserPromptSubmit, PostToolUse, and Stop must use the same installed lifecycle adapter checkout'
+        'UserPromptSubmit, PostToolUse, PostToolUseFailure, and Stop must use the same installed lifecycle adapter checkout'
     );
     for (const installed of installedEntrypoints) {
         const installedHookRoot = resolve(dirname(installed.path), '..', '..');
@@ -437,12 +440,19 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     }
 
     const candidate = readBoundEpisode();
+    const retrievalEvents = candidate.events.filter((event) => EXPECTED_TOOLS.includes(event.tool_name));
     const runtimeManifest = readJson(join(process.cwd(), 'config/judgment-runtime-manifest.json'));
     const expectedManifestDigest = createHash('sha256')
         .update(canonicalJson(runtimeManifest))
         .digest('hex');
     assert.equal(candidate.episode.state, 'open', 'Episode remains immutable after finalization');
-    assert.equal(candidate.episode.initial_route_receipt?.status, 'resolved');
+    assert.equal(candidate.episode.episode_origin, 'user_prompt_submit');
+    assert.equal(candidate.episode.route_application, 'pre_generation');
+    assert.equal(
+        candidate.episode.initial_route_receipt?.status,
+        'needs_classification',
+        'UserPromptSubmit must preserve the immutable pre-model receipt until the model supplies semantic interpretation'
+    );
     assert.equal(
         candidate.episode.initial_route_receipt?.runtime_version,
         runtimeManifest.runtime_version,
@@ -453,39 +463,59 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         expectedManifestDigest,
         'Live evidence must use the Resolver manifest declared by current HEAD'
     );
-    assert.deepEqual(candidate.events.map((event) => event.tool_name), EXPECTED_TOOLS);
+    assert.deepEqual(candidate.events.map((event) => event.tool_name), [
+        'mcp__brainbase__brainbase_resolve_turn',
+        ...EXPECTED_TOOLS,
+        'mcp__brainbase__brainbase_judgment_state_record'
+    ]);
+    const resolvedTurnContract = candidate.events[0]?.safe_metadata?.turn_contract;
+    assert.equal(
+        resolvedTurnContract?.status,
+        'resolved',
+        'The first lifecycle event must retain the model-assisted resolved TurnContract'
+    );
+    assert.equal(resolvedTurnContract?.turn_id, candidate.episode.initial_route_receipt?.turn_id);
+    assert.equal(resolvedTurnContract?.runtime_version, runtimeManifest.runtime_version);
+    assert.equal(resolvedTurnContract?.manifest_digest, expectedManifestDigest);
+    assert.equal(resolvedTurnContract?.classification_evidence?.source, 'current_request');
+    assert.deepEqual(retrievalEvents.map((event) => event.tool_name), EXPECTED_TOOLS);
     assert.deepEqual(
-        candidate.events.map((event) => event.success),
+        retrievalEvents.map((event) => event.success),
         [false, true, true, true],
         'Unconfirmed routing is executed once but must not be promoted to a successful result'
     );
     for (const [index, expected] of EXPECTED_QUERY_EXCERPTS.entries()) {
-        const excerpt = candidate.events[index].query_excerpt || '';
+        const excerpt = retrievalEvents[index].query_excerpt || '';
         assert.ok(expected.includes().every((token) => excerpt.includes(token)));
     }
     const runQuery = EXPECTED_RUN_QUERY;
-    assert.equal(candidate.events[0].input_digest, inputDigest({
+    assert.equal(retrievalEvents[0].input_digest, inputDigest({
         audience: 'team',
         content_type: 'unknown',
         intent: runQuery,
         project_code: 'brainbase'
     }));
-    assert.equal(candidate.events[1].input_digest, inputDigest({
+    assert.equal(retrievalEvents[1].input_digest, inputDigest({
         project: 'brainbase',
         query: runQuery
     }));
-    assert.match(candidate.events[1].display_line, /該当なし/u);
-    assert.match(candidate.events[2].display_line, /結果を取得/u);
-    assert.match(candidate.events[3].display_line, /結果を取得/u);
-    assert.match(candidate.events[0].display_line, /^(?:📚|⚠️) Brainbase参照先:/u);
-    assert.match(candidate.events[1].display_line, /^📚 Brainbase検索:/u);
-    assert.match(candidate.events[2].display_line, /^📚 Brainbase検索:/u);
-    assert.match(candidate.events[3].display_line, /^📚 Brainbase取得:/u);
-    assert.match(candidate.episode.owner_audit?.display_line || '', /^🧠 判断参照:/u);
+    assert.match(retrievalEvents[1].display_line, /該当なし/u);
+    assert.match(retrievalEvents[2].display_line, /結果を取得/u);
+    assert.match(retrievalEvents[3].display_line, /結果を取得/u);
+    assert.match(retrievalEvents[0].display_line, /^(?:📚|⚠️) Brainbase参照先:/u);
+    assert.match(retrievalEvents[1].display_line, /^📚 Brainbase検索:/u);
+    assert.match(retrievalEvents[2].display_line, /^📚 Brainbase検索:/u);
+    assert.match(retrievalEvents[3].display_line, /^📚 Brainbase取得:/u);
+    assert.match(
+        candidate.episode.owner_audit?.display_line || '',
+        /^⚠️ 判断参照:/u,
+        'The immutable owner audit must describe the pre-model classification state'
+    );
     assert.equal(candidate.final.completion_status, 'complete');
     assert.equal(candidate.final.owner_audit_complete, true);
     assert.equal(candidate.final.owner_audit_line_count, 5);
-    assert.equal(candidate.final.event_count, 4);
+    assert.equal(candidate.final.owner_audit_source, 'assistant_answer');
+    assert.equal(candidate.final.event_count, 6);
     assert.equal(candidate.final.qualifying_event_count, 0);
     assert.match(candidate.final.answer_digest, /^[0-9a-f]{64}$/u);
     const renderedAnswer = readFinalAssistantMessage(
@@ -494,13 +524,14 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
     );
     const expectedAuditLines = [
         candidate.episode.owner_audit.display_line,
-        ...candidate.events.map((event) => event.display_line)
+        ...retrievalEvents.map((event) => event.display_line)
     ];
-    assertRenderedAuditTrace(renderedAnswer, expectedAuditLines);
+    assert.match(renderedAnswer, /実ターンE2Eを完了しました。/u);
+    assertAuditTracePrefixesAssistantBody(renderedAnswer, expectedAuditLines);
     assert.equal(
         candidate.final.answer_digest,
-        createHash('sha256').update(hookVisibleFinalAnswer(renderedAnswer)).digest('hex'),
-        'Final receipt must bind the exact Stop Hook-visible final answer before app-added memory citation metadata'
+        createHash('sha256').update(modelAuthoredAnswerBeforeAppMetadata(renderedAnswer)).digest('hex'),
+        'Final receipt must bind the model-authored assistant body before app-added memory citation metadata'
     );
     const finalizedAt = Date.parse(candidate.final.finalized_at);
     const evidenceAgeMs = Date.now() - finalizedAt;
@@ -552,7 +583,7 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         'story-brainbase-judgment-resolver-v1 ac:8 structured Knowledge Resolver handoff evidence must pass'
     );
     assert.ok(
-        regressionCovers('tests/integration/judgment-managed-turn-e2e.test.js', 'clarification.execution_status', regression.status),
+        regressionCovers('tests/integration/judgment-managed-turn-e2e.test.js', "bootstrap.receipt.active_nodes).toContain('clarification')", regression.status),
         'story-brainbase-judgment-resolver-v1 ac:9 clarification continuation evidence must pass'
     );
     assert.ok(
@@ -568,21 +599,21 @@ test('story-brainbase-judgment-resolver-v1 がcurrent runのglobal hook・回帰
         'story-brainbase-judgment-resolver-v1 ac:12 digest and stable plan evidence must pass'
     );
     assert.ok(
-        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'model-callable toolとして公開しない', regression.status),
-        'story-brainbase-judgment-resolver-v1 ac:13 Host-only bridge publication evidence must pass'
+        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'model-callable `brainbase_resolve_turn`', regression.status),
+        'story-brainbase-judgment-resolver-v1 ac:13 bounded model-callable Resolver publication evidence must pass'
     );
     assert.ok(
-        candidate.events[1].display_line.includes('該当なし')
-            && candidate.events[2].display_line.includes('結果を取得')
-            && candidate.events[3].display_line.includes('結果を取得'),
+        retrievalEvents[1].display_line.includes('該当なし')
+            && retrievalEvents[2].display_line.includes('結果を取得')
+            && retrievalEvents[3].display_line.includes('結果を取得'),
         'story-brainbase-judgment-resolver-v1 ac:14 live result-dependent 0..N retrieval evidence must pass'
     );
     assert.ok(
-        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'Claude Codeは将来のHost adapter候補', regression.status),
+        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'future Host-adapter candidate', regression.status),
         'story-brainbase-judgment-resolver-v1 ac:15 future Claude Code adapter boundary evidence must pass'
     );
     assert.ok(
-        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'Skill・capability・runbook・specがmodel非依存の同じ境界を公開する', regression.status),
+        regressionCovers('tests/unit/judgment-resolution-publication.test.js', 'Skill・capability・runbook・specがmodel-firstの同じ境界を公開する', regression.status),
         'story-brainbase-judgment-resolver-v1 ac:16 publication surface consistency evidence must pass'
     );
     assert.ok(

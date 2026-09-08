@@ -22,8 +22,10 @@ export const ErrorCodes = {
     // 認証・認可 (401/403)
     UNAUTHORIZED: { code: 'UNAUTHORIZED', statusCode: 401 },
     FORBIDDEN: { code: 'FORBIDDEN', statusCode: 403 },
+    CROSS_TENANT_CANDIDATE: { code: 'CROSS_TENANT_CANDIDATE', statusCode: 403 },
 
     // リソース不在 (404)
+    PROJECT_NOT_FOUND: { code: 'PROJECT_NOT_FOUND', statusCode: 404 },
     SESSION_NOT_FOUND: { code: 'SESSION_NOT_FOUND', statusCode: 404 },
     TASK_NOT_FOUND: { code: 'TASK_NOT_FOUND', statusCode: 404 },
     SCHEDULE_NOT_FOUND: { code: 'SCHEDULE_NOT_FOUND', statusCode: 404 },
@@ -37,6 +39,9 @@ export const ErrorCodes = {
     // サーバーエラー (500)
     INTERNAL_ERROR: { code: 'INTERNAL_ERROR', statusCode: 500 },
     DATABASE_ERROR: { code: 'DATABASE_ERROR', statusCode: 500 },
+
+    // 依存サービス利用不能 (503)
+    PROJECT_CATALOG_UNAVAILABLE: { code: 'PROJECT_CATALOG_UNAVAILABLE', statusCode: 503 },
 
     // タイムアウト (504)
     TIMEOUT: { code: 'TIMEOUT', statusCode: 504 },

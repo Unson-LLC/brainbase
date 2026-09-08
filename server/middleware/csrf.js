@@ -252,6 +252,35 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Personal knowledge search and event registration are called by the
+        // authenticated MCP/Mana clients with a Bearer credential. Keep the
+        // exemption exact; the personal-knowledge route still verifies the
+        // principal, company authority, owner scope, and write payload.
+        if (
+            req.method === 'POST'
+            && (
+                req.path === '/api/personal-knowledge/search'
+                || req.path === '/api/personal-knowledge/events'
+            )
+            && typeof req.headers?.authorization === 'string'
+            && /^Bearer \S+$/.test(req.headers.authorization)
+        ) {
+            return next();
+        }
+
+        // Company Authority resolution is called by the private tenant-runtime
+        // bridge with a non-cookie Bearer service credential. Keep the exemption
+        // exact; the mounted tenant-runtime router still verifies service auth
+        // before resolving the authenticated Slack principal and requested scope.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/v1/runtime/company-authority:resolve'
+            && typeof req.headers?.authorization === 'string'
+            && /^Bearer \S+$/.test(req.headers.authorization)
+        ) {
+            return next();
+        }
+
         // Meeting-minutes context receipts are created by the mana runtime over
         // Bearer-authenticated server-to-server HTTP. Keep this exemption exact;
         // the mounted route still requires a service/internal identity and checks

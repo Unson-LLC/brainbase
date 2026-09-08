@@ -1,5 +1,7 @@
 // @ts-check
 
+import { validateObservedExecutionRequest } from '../../../contracts/mana-brainbase-company-authority/v1/reference/wire.mjs';
+
 const CONTRACT_VERSION = 'external_runner.v0';
 const ALLOWED_RUNNER_TYPES = new Set(['cloudflare_computer', 'agent_report']);
 const ALLOWED_RUN_STATUSES = new Set(['completed', 'approval_required', 'waiting_human', 'blocked', 'cancelled', 'failed']);
@@ -118,11 +120,83 @@ function validateRounds(rounds) {
     });
 }
 
+const COMPANY_AUTHORITY_HANDOFF_FIELDS = new Set([
+    'observed_request',
+    'authority_response',
+    'execution_hash',
+    'handoff_idempotency_key',
+    'target_approver_id',
+    'requested_by'
+]);
+
+function validateCompanyAuthorityHumanApprovalHandoff(handoff, path) {
+    const value = requireObject(handoff, path);
+    for (const key of Object.keys(value)) {
+        if (!COMPANY_AUTHORITY_HANDOFF_FIELDS.has(key)) {
+            throw new ExternalRunnerContractError(
+                'unknown_company_authority_handoff_field',
+                `${path}.${key} is not allowed`,
+                { path: `${path}.${key}` }
+            );
+        }
+    }
+    for (const field of ['observed_request', 'authority_response']) {
+        requireObject(value[field], `${path}.${field}`);
+    }
+    try {
+        validateObservedExecutionRequest(value.observed_request);
+    } catch (error) {
+        throw new ExternalRunnerContractError(
+            'invalid_company_authority_observed_request',
+            `${path}.observed_request is not a valid Company Authority request`,
+            { path: `${path}.observed_request`, cause: error?.code || error?.message }
+        );
+    }
+    requireString(value.handoff_idempotency_key, `${path}.handoff_idempotency_key`);
+    requireString(value.target_approver_id, `${path}.target_approver_id`);
+    validateOptionalString(value.execution_hash, `${path}.execution_hash`);
+    validateOptionalString(value.requested_by, `${path}.requested_by`);
+    return value;
+}
+
 function validateHumanSteps(payload) {
     const status = payload.run?.status;
     const allSteps = validateOptionalArray(payload.human_steps, 'human_steps');
     allSteps.forEach((step, index) => {
         requireObject(step, `human_steps[${index}]`);
+        if (
+            Object.prototype.hasOwnProperty.call(step, 'company_authority_required')
+            && typeof step.company_authority_required !== 'boolean'
+        ) {
+            throw new ExternalRunnerContractError(
+                'invalid_boolean',
+                `human_steps[${index}].company_authority_required must be a boolean`,
+                { path: `human_steps[${index}].company_authority_required` }
+            );
+        }
+        if (
+            step.company_authority_required === true
+            && (step.company_authority_handoff === undefined || step.company_authority_handoff === null)
+        ) {
+            throw new ExternalRunnerContractError(
+                'missing_company_authority_human_approval_handoff',
+                `human_steps[${index}] requires company_authority_handoff`,
+                { index }
+            );
+        }
+        if (Object.prototype.hasOwnProperty.call(step, 'company_authority_handoff')) {
+            if (!APPROVAL_REQUIRED_STATUSES.has(status)) {
+                throw new ExternalRunnerContractError(
+                    'company_authority_human_approval_requires_waiting_human',
+                    `human_steps[${index}].company_authority_handoff requires run.status=${[...APPROVAL_REQUIRED_STATUSES].join(' or ')}`,
+                    { index, status }
+                );
+            }
+            validateCompanyAuthorityHumanApprovalHandoff(
+                step.company_authority_handoff,
+                `human_steps[${index}].company_authority_handoff`
+            );
+        }
     });
     if (!APPROVAL_REQUIRED_STATUSES.has(status)) return;
     if (allSteps.length === 0) {
@@ -203,7 +277,85 @@ function validateOutputs(outputs) {
     const runnerOutputs = validateOptionalArray(outputs, 'outputs');
     runnerOutputs.forEach((output, index) => {
         requireObject(output, `outputs[${index}]`);
+        const target = validateOptionalString(output.write_back_target, `outputs[${index}].write_back_target`);
+        if (target !== null && target !== 'task_store') {
+            throw new ExternalRunnerContractError(
+                'unsupported_write_back_target',
+                `outputs[${index}].write_back_target=${target} is not supported`,
+                { path: `outputs[${index}].write_back_target`, value: target }
+            );
+        }
+        if (target === 'task_store') {
+            const outputType = requireString(output.output_type || output.type, `outputs[${index}].output_type`);
+            if (outputType !== 'task_candidates') {
+                throw new ExternalRunnerContractError(
+                    'invalid_task_candidate_output',
+                    `outputs[${index}] must use output_type=task_candidates for task_store`,
+                    { index, output_type: outputType }
+                );
+            }
+            requireArray(output.payload, `outputs[${index}].payload`);
+        }
     });
+}
+
+function validateTaskApprovalLinks(payload) {
+    const outputs = payload.outputs || [];
+    const humanSteps = payload.human_steps || [];
+    const taskOutputs = new Map();
+    outputs.forEach((output) => {
+        if (output.write_back_target === 'task_store') {
+            const outputId = requireString(output.id, 'outputs[].id');
+            if (taskOutputs.has(outputId)) {
+                throw new ExternalRunnerContractError(
+                    'duplicate_task_candidate_output_id',
+                    `Task candidate output '${outputId}' is duplicated`,
+                    { output_id: outputId }
+                );
+            }
+            taskOutputs.set(outputId, output);
+        }
+    });
+
+    const referencedOutputIds = new Set();
+    humanSteps.forEach((step, index) => {
+        const target = validateOptionalString(step.write_back_target, `human_steps[${index}].write_back_target`);
+        const hasOutputId = step.output_id !== undefined && step.output_id !== null;
+        if (target !== null && target !== 'task_store') {
+            throw new ExternalRunnerContractError(
+                'unsupported_write_back_target',
+                `human_steps[${index}].write_back_target=${target} is not supported`,
+                { path: `human_steps[${index}].write_back_target`, value: target }
+            );
+        }
+        if (target !== 'task_store' && !hasOutputId) return;
+        if (target !== 'task_store') {
+            throw new ExternalRunnerContractError(
+                'invalid_task_approval_output_reference',
+                `human_steps[${index}].output_id requires write_back_target=task_store`,
+                { index }
+            );
+        }
+        const outputId = requireString(step.output_id, `human_steps[${index}].output_id`);
+        if (!taskOutputs.has(outputId) || referencedOutputIds.has(outputId)) {
+            throw new ExternalRunnerContractError(
+                'invalid_task_approval_output_reference',
+                `human_steps[${index}] must reference one unique task_store output`,
+                { index, output_id: outputId }
+            );
+        }
+        referencedOutputIds.add(outputId);
+    });
+
+    for (const outputId of taskOutputs.keys()) {
+        if (!referencedOutputIds.has(outputId)) {
+            throw new ExternalRunnerContractError(
+                'invalid_task_approval_output_reference',
+                `Task candidate output '${outputId}' requires one task_store human step`,
+                { output_id: outputId }
+            );
+        }
+    }
 }
 
 export function validateExternalRunnerEnvelope(payload) {
@@ -251,6 +403,7 @@ export function validateExternalRunnerEnvelope(payload) {
     validateRounds(envelope.rounds);
     validateHumanSteps(envelope);
     validateOutputs(envelope.outputs);
+    validateTaskApprovalLinks(envelope);
     validateLearningCandidates(envelope.learning_candidates);
     return envelope;
 }

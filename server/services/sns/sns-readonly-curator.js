@@ -6,6 +6,8 @@
  * 投稿実行、読者最適化、助言生成は行わない。
  */
 
+import { requirePersonalKgIdentity } from './personal-kg-identity.js';
+
 const DEFAULT_DAILY_LIMIT = 30;
 const LIFELOG_CATEGORIES = new Set([
     'daily_log',
@@ -54,15 +56,17 @@ export class SnsReadonlyCurator {
     }
 
     async listSourceEntities(viewer, { lookbackDays = 7 } = {}) {
+        const identity = requirePersonalKgIdentity(viewer);
         const since = new Date(Date.now() - lookbackDays * 24 * 60 * 60 * 1000).toISOString();
-        const entities = await this.graphReader.listRecentEntities({ since, viewer });
+        const entities = await this.graphReader.listRecentEntities({ since, viewer: identity });
         return entities
             .filter((entity) => entity.agency_level !== 'none')
             .filter((entity) => lifelogCheck(entity).decision === 'pass');
     }
 
     async generateDrafts(viewer, { limit = 5 } = {}) {
-        const sources = await this.listSourceEntities(viewer);
+        const identity = requirePersonalKgIdentity(viewer);
+        const sources = await this.listSourceEntities(identity);
         return sources.slice(0, limit).map((source) => ({
             source_entity_id: source.id,
             cognitive_type: 'observation',
@@ -85,20 +89,22 @@ export class SnsReadonlyCurator {
 
     async saveDraftsToCandidateStore(drafts, viewer) {
         if (!this.candidateService) throw new Error('candidateService required');
+        const identity = requirePersonalKgIdentity(viewer);
         const saved = [];
         for (const draft of drafts) {
             if (draft.lifelog_check?.decision !== 'pass') {
                 throw new Error('lifelog_check pass required');
             }
-            if (this._todayCount(viewer.sub) >= this.dailyLimit) break;
+            if (this._todayCount(identity.owner_person_id) >= this.dailyLimit) break;
             const result = await this.candidateService.createCandidate({
                 cognitive_type: 'observation',
-                owner_person_id: viewer.sub,
-                actor_person_id: viewer.sub,
+                owner_person_id: identity.owner_person_id,
+                actor_person_id: identity.actor_person_id,
+                organization_id: identity.organization_id,
                 source_system: 'sns-lifelog-curator',
                 source_event_ids: [`lifelog-curator:${draft.source_entity_id}:${Date.now()}`],
-                workspace: viewer.workspace || 'unson',
-                org_ids: viewer.org_ids || ['unson'],
+                workspace: identity.workspace || identity.organization_id,
+                org_ids: identity.org_ids,
                 visibility: 'owner',
                 sensitivity: 'internal',
                 role_min: 'member',
@@ -113,7 +119,12 @@ export class SnsReadonlyCurator {
                         hash: 'sha256:source'
                     }],
                 permission_snapshot: {
-                    roles: [viewer.role || 'member'],
+                    roles: [identity.role || 'member'],
+                    personal_kg_identity: {
+                        owner_person_id: identity.owner_person_id,
+                        actor_person_id: identity.actor_person_id,
+                        organization_id: identity.organization_id
+                    },
                     seed: { category: draft.lifelog_check.source_category },
                     sns: {
                         mode: 'public_lifelog',
@@ -123,7 +134,7 @@ export class SnsReadonlyCurator {
                 recommended_subject_type: null
             });
             if (!result.blocked) {
-                this.dailyCounts.set(viewer.sub, [...(this.dailyCounts.get(viewer.sub) || []), Date.now()]);
+                this.dailyCounts.set(identity.owner_person_id, [...(this.dailyCounts.get(identity.owner_person_id) || []), Date.now()]);
                 saved.push({ candidate: result.candidate, scoreBreakdown: draft.breakdown, score: draft.score });
             }
         }

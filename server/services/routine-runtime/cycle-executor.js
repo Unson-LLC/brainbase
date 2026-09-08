@@ -56,14 +56,24 @@ function safeText(value) {
     return typeof value === 'string' && value.trim() ? value.trim().slice(0, 2000) : null;
 }
 
-function safeOutputItems(items, { review = false, reference = false } = {}) {
+function safeOutputItems(items, {
+    review = false,
+    approval = false,
+    reference = false,
+    feedback = false,
+    diagnostic = false
+} = {}) {
     return (Array.isArray(items) ? items : []).slice(0, 10).map((item) => {
         const summary = safeText(typeof item === 'string' ? item : item?.summary);
         if (!summary) return null;
         return {
-            ...(review && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
+            ...((review || feedback) && typeof item?.id === 'string' ? { id: item.id.slice(0, 200) } : {}),
             ...(review && typeof item?.status === 'string' ? { status: item.status.slice(0, 100) } : {}),
-            ...(reference && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
+            ...(approval && typeof item?.requires_approval === 'boolean'
+                ? { requires_approval: item.requires_approval } : {}),
+            ...((reference || feedback) && typeof item?.source === 'string' ? { source: item.source.slice(0, 100) } : {}),
+            ...(diagnostic && typeof item?.code === 'string' ? { code: item.code.slice(0, 100) } : {}),
+            ...(diagnostic && Number.isFinite(item?.count) ? { count: item.count } : {}),
             summary,
             ...(item?.applies_changes === false ? { applies_changes: false } : {})
         };
@@ -74,26 +84,37 @@ function safeRoutineOutput(routine, output = {}) {
     output = output || {};
     const headline = safeText(output?.headline) || ({
         ohayo: '今日進めることは未確定です',
-        oyasumi: '今日を閉じてよいか確認できていません',
+        oyasumi: '睡眠状態を確認できていません',
         retro: '来週から変える仕組みは未確定です'
     }[routine] || 'ルーティン結果を確認できていません');
     if (routine === 'ohayo') {
         return {
             headline,
             today_focus: safeOutputItems(output.today_focus),
+            ai_actions: safeOutputItems(output.ai_actions),
             immediate_decisions: safeOutputItems(output.immediate_decisions),
             warnings: safeOutputItems(output.warnings),
             carryovers: safeOutputItems(output.carryovers),
+            source_coverage: safeOutputItems(output.source_coverage, { review: true, reference: true }),
             references: safeOutputItems(output.references, { reference: true })
         };
     }
     if (routine === 'oyasumi') {
         return {
             headline,
+            sleep_state: ['deep', 'shallow', 'unconfirmed'].includes(output.sleep_state)
+                ? output.sleep_state : 'unconfirmed',
+            sleep_causes: safeOutputItems(output.sleep_causes, { diagnostic: true }),
+            consolidated_memories: safeOutputItems(output.consolidated_memories, { feedback: true }),
+            associations: safeOutputItems(output.associations),
+            feedback_targets: safeOutputItems(output.feedback_targets, { feedback: true }),
+            unresolved_items: safeOutputItems(output.unresolved_items),
             tomorrow_focus: safeOutputItems(output.tomorrow_focus),
             closed: safeOutputItems(output.closed),
             carryovers: safeOutputItems(output.carryovers),
-            personal_kg_registration_candidates: safeOutputItems(output.personal_kg_registration_candidates, { review: true }),
+            personal_kg_memories: safeOutputItems(output.personal_kg_memories, { review: true, approval: true }),
+            personal_kg_review_exceptions: safeOutputItems(output.personal_kg_review_exceptions, { review: true, approval: true }),
+            personal_kg_registration_candidates: safeOutputItems(output.personal_kg_registration_candidates, { review: true, approval: true }),
             graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true })
         };
     }
@@ -101,6 +122,12 @@ function safeRoutineOutput(routine, output = {}) {
         headline,
         system_changes: safeOutputItems(output.system_changes),
         repeated_patterns: safeOutputItems(output.repeated_patterns),
+        outcomes: safeOutputItems(output.outcomes),
+        decision_replays: safeOutputItems(output.decision_replays),
+        changed_judgments: safeOutputItems(output.changed_judgments),
+        mistaken_assumptions: safeOutputItems(output.mistaken_assumptions),
+        source_coverage: safeOutputItems(output.source_coverage, { review: true, reference: true }),
+        references: safeOutputItems(output.references, { reference: true }),
         personal_kg_registration_reviews: safeOutputItems(output.personal_kg_registration_reviews, { review: true }),
         graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true })
     };
@@ -292,6 +319,7 @@ export class RoutineCycleExecutor {
                 : recallPersonalKg({ input: input.input || {} }, context)
         ]);
         const generateInput = {
+            input: input.input || {},
             exceptions,
             graph_memories: graphKnowledge,
             personal_memories: personalKnowledge
@@ -304,7 +332,10 @@ export class RoutineCycleExecutor {
             ? generated.used_knowledge_ids
             : [])]
             .filter((id) => recalledIds.has(id));
-        const anomalies = morningExceptionAnomalies(exceptions);
+        const anomalies = [
+            ...morningExceptionAnomalies(exceptions),
+            ...(Array.isArray(generated?.anomalies) ? generated.anomalies : [])
+        ];
         if (judgmentOutboxDelivery) {
             const deliveryCode = judgmentOutboxDelivery.dead_lettered > 0
                 ? 'judgment_outbox_dead_lettered'
@@ -418,24 +449,53 @@ export class RoutineCycleExecutor {
                 : await listKnowledgeReviews({ input: input.input || {}, limit: 10 }, context);
         }
         const improvementCandidates = (Array.isArray(candidates) ? candidates : []).slice(0, 3);
+        const weekView = input?.input?.week_view;
+        const sourceCoverage = Array.isArray(weekView?.source_coverage) ? weekView.source_coverage : [];
+        const sourceAnomalies = weekView && sourceCoverage.length > 0
+            ? sourceCoverage.filter((item) => item?.status !== 'confirmed').map((item) => ({
+                code: 'retro_source_unconfirmed',
+                source: safeText(item?.source) || 'unknown',
+                status: safeText(item?.status) || 'unavailable',
+                summary: safeText(item?.summary) || '確認範囲を取得できませんでした'
+            }))
+            : [weekView ? {
+                code: 'retro_source_coverage_missing',
+                source: 'source_coverage',
+                status: 'unavailable',
+                summary: '一週間の取得元と確認状態が入力されていません'
+            } : {
+                code: 'retro_week_view_missing',
+                source: 'week_view',
+                status: 'unavailable',
+                summary: '一週間の判断・実行・Outcomeの確認結果が入力されていません'
+            }];
         return {
-            status: 'completed',
-            coverage: listKnowledgeReviews ? 'confirmed' : 'partial',
+            status: sourceAnomalies.length > 0 ? 'partial' : 'completed',
+            coverage: listKnowledgeReviews && sourceAnomalies.length === 0 ? 'confirmed' : 'partial',
             metrics,
             improvement_candidates: improvementCandidates,
             routine_output: {
-                headline: improvementCandidates.length > 0
+                headline: safeText(weekView?.headline) || (improvementCandidates.length > 0
                     ? '来週から、繰り返し起きた詰まりを仕組みで減らす'
-                    : '来週から変える仕組みはありません',
-                system_changes: improvementCandidates.map((candidate) => ({
+                    : '来週から変える仕組みはありません'),
+                outcomes: weekView?.outcomes || [],
+                decision_replays: weekView?.decision_replays || [],
+                changed_judgments: weekView?.changed_judgments || [],
+                mistaken_assumptions: weekView?.mistaken_assumptions || [],
+                system_changes: (Array.isArray(weekView?.system_changes)
+                    ? weekView.system_changes : improvementCandidates).slice(0, 3).map((candidate) => ({
                     summary: typeof candidate === 'string' ? candidate : candidate?.summary || candidate?.metric,
                     applies_changes: false
                 })),
-                repeated_patterns: [],
-                personal_kg_registration_reviews: reviews?.personal_kg_registration_reviews || [],
-                graph_promotion_reviews: reviews?.graph_promotion_reviews || []
+                repeated_patterns: weekView?.repeated_patterns || [],
+                source_coverage: sourceCoverage,
+                references: weekView?.references || [],
+                personal_kg_registration_reviews: reviews?.personal_kg_registration_reviews
+                    || weekView?.personal_kg_registration_reviews || [],
+                graph_promotion_reviews: reviews?.graph_promotion_reviews
+                    || weekView?.graph_promotion_reviews || []
             },
-            anomalies: []
+            anomalies: sourceAnomalies
         };
     }
 }

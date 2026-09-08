@@ -1,0 +1,516 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-p0-canonical-project-authority",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_organization_id -> graph_organization_id",
+      "resolved_from": [
+        "producer-signed tenant organization_id",
+        "tenant_organizations.organization_payload.graph_organization_id",
+        "verified bearer access",
+        "producer-signed canonical project_id",
+        "canonical tenant project registry"
+      ],
+      "resolution_point": "signed authority middleware before promotion service or mutation",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "bearer access",
+        "signed authority",
+        "canonical project registry",
+        "authority-use audit",
+        "promotion request"
+      ],
+      "verified_surfaces": [
+        "bearer access",
+        "signed authority",
+        "canonical project registry",
+        "authority-use audit",
+        "promotion request"
+      ]
+    },
+    "resources": [
+      {
+        "name": "personal knowledge promotion",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_code",
+        "trust_zone": "Brainbase API",
+        "residue_policy": "promotion state and immutable authority-use audit",
+        "data_owner": "personal knowledge owner",
+        "credential_scope": "signed authority bound to one canonical organization and project"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "one promotion action",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "personal knowledge owner"
+      ],
+      "residency": "Brainbase PostgreSQL and Graph SSOT",
+      "migration": "not required",
+      "rollback": "revert application change before any new promotion"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "missing_canonical_project_id",
+      "multiple_canonical_project_ids",
+      "bearer_lacks_project_code",
+      "canonical_project_resolver_unavailable",
+      "canonical_project_code_mismatch",
+      "missing_canonical_organization_binding",
+      "inactive_canonical_organization_binding"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "organization",
+        "project"
+      ],
+      "boundary_edges": [
+        "personal event to organization knowledge event"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "not_collected",
+      "scope": "project identity separation, revision propagation, one-use authority and Graph readback",
+      "evidence": {
+        "evidence_scope": "targeted_unit_verified_production_readback_pending",
+        "propagation_surfaces": [
+          "bearer access",
+          "signed authority",
+          "canonical project registry",
+          "authority-use audit",
+          "promotion request"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate",
+          "missing_canonical_project_id",
+          "multiple_canonical_project_ids",
+          "bearer_lacks_project_code",
+          "canonical_project_resolver_unavailable",
+          "canonical_project_code_mismatch",
+          "missing_canonical_organization_binding",
+          "inactive_canonical_organization_binding"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "personal knowledge promotion",
+              "tenant_key_source": "verified bearer access and producer-signed authority",
+              "trust_zone": "Brainbase API",
+              "data_owner": "personal knowledge owner"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "personal event to organization knowledge event",
+              "tenant_key_source": "organization_id with project_code partition",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "one promotion action",
+              "connection_mode": "signed authority and authenticated bearer",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "署名済み権限は正規プロジェクトIDを1件だけ持ち、そのIDを正規台帳で解決したproject_codeがBearer accessとpromotion requestのproject_codeに一致しなければならない。",
+      "rationale": "正規IDとプロジェクトコードは異なる識別子なので、署名検証後に正規台帳で対応を解決し、各境界で一致を検証する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0正規プロジェクト権限で個人知識を組織Graphへ昇格できる"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/middleware/personal-knowledge-promotion-authority.js",
+            "anchor": "createPersonalKnowledgePromotionAuthorityGuard"
+          },
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "function requirePromotionAuthority"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects when the canonical project binding cannot be resolved"
+          },
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "rejects a canonical project binding for another project code"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "rejects when the canonical project binding cannot be resolved"
+          },
+          {
+            "file_glob": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "must_cover": "rejects a canonical project binding for another project code"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T17:00:16.949Z",
+      "last_revised_at": "2026-09-05T17:05:49.964Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "権限使用監査のproject_codeにはpromotion requestで認可したproject_codeを保存する。",
+      "rationale": "正規プロジェクトIDをproject_code列へ保存すると監査の意味が壊れる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0の同一run証跡を正しいプロジェクト境界で残す"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "anchor": "async function claimPromotionAuthorityUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/personal-knowledge-promotion-service.test.js",
+            "case": "accepts one canonical project id while auditing the authorized project code"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/personal-knowledge/personal-knowledge-promotion-service.js",
+            "must_contain": "project_code: projectCode"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T17:00:16.949Z",
+      "last_revised_at": "2026-09-05T17:05:49.964Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "本番スモークはrequestとowner responseから現行改訂番号を読み、owner decision、organization decision、replayへ順に送る。",
+      "rationale": "現行の楽観ロック契約を満たし、authority replay拒否まで同じ経路で検証する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "scripts/personal-knowledge-promotion-production-smoke.mjs",
+            "anchor": "const ownerDecisionRevision"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "case": "sends the current owner and organization decision revisions"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "must_cover": "sends the current owner and organization decision revisions"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T17:00:16.949Z",
+      "last_revised_at": "2026-09-05T17:05:49.964Z"
+    },
+    {
+      "id": "S-002",
+      "type": "scenario",
+      "statement": "本番スモークはAPIが返した安全な固定エラーコードを保持し、境界ごとの汎用失敗コードへ潰さない。",
+      "rationale": "失敗した境界の原因を特定し、原因が説明できるまで次の本番介入を止めるため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "scripts/personal-knowledge-promotion-production-smoke.mjs",
+            "anchor": "function expectStatus"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "case": "preserves a safe API error code instead of collapsing the failed boundary"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "must_cover": "preserves a safe API error code instead of collapsing the failed boundary"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T18:53:30.300Z",
+      "last_revised_at": "2026-09-05T18:53:30.300Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "署名済みtenant organization_idは、同じtenantの有効なtenant_organizations対応表でGraph正本organization_idへ解決してから、Bearer access・promotion request・Graph書き込みの組織境界へ渡す。",
+      "rationale": "実行時テナントの組織IDとGraph正本の組織IDは別の名前空間にあり、未変換のIDでは正規projectが見えず、誤った組織へ流用してはならない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0正規プロジェクト権限で個人知識を組織Graphへ昇格できる"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-t0-human-tenant-access-provisioning.md",
+            "anchor": "runtime tenant organization and Graph organization"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/middleware/personal-knowledge-promotion-authority.js",
+            "anchor": "graphOrganizationId"
+          },
+          {
+            "file": "server/services/multitenant/postgres-repository.js",
+            "anchor": "resolveOrganizationBindingById"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "maps a tenant organization to the canonical Graph organization before promotion"
+          },
+          {
+            "file": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "case": "rejects when the canonical Graph organization binding cannot be resolved"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "maps a tenant organization to the canonical Graph organization before promotion"
+          },
+          {
+            "file_glob": "tests/server/middleware/personal-knowledge-promotion-authority.test.js",
+            "must_cover": "rejects when the canonical Graph organization binding cannot be resolved"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T19:20:00.000Z",
+      "last_revised_at": "2026-09-05T19:20:00.000Z"
+    },
+    {
+      "id": "S-003",
+      "type": "scenario",
+      "statement": "本番スモークは、署名済みテナント組織IDとBearerのGraph組織IDを直接比較せず、非管理者・RLS有効の読み取りでtenant_organizations対応表を確認してから書き込みを始める。",
+      "rationale": "実行時テナントとGraphは別の組織ID名前空間を使うため、正規の対応を検証しながら誤組織への本番書き込みを事前に拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/story-t0-human-tenant-access-provisioning.md",
+            "anchor": "runtime tenant organization and Graph organization"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/personal-knowledge-promotion-production-smoke.mjs",
+            "anchor": "resolveCanonicalGraphOrganization"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "case": "resolves a signed tenant organization to the canonical Graph organization before mutation"
+          },
+          {
+            "file": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "case": "rejects a tenant organization binding for another Graph organization before mutation"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "must_cover": "resolves a signed tenant organization to the canonical Graph organization before mutation"
+          },
+          {
+            "file_glob": "tests/server/scripts/personal-knowledge-promotion-production-smoke.test.js",
+            "must_cover": "rejects a tenant organization binding for another Graph organization before mutation"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-05T19:24:00.000Z",
+      "last_revised_at": "2026-09-05T19:24:00.000Z"
+    },
+    {
+      "id": "S-004",
+      "type": "scenario",
+      "statement": "組織審査で承認された非DecisionのCandidateは、同じtransaction内でpending_approval、approved、promoted_to_graphの正規順序を通り、最後にGraph entity IDを保持する。",
+      "rationale": "Graph書き込み後のCandidate同期でも状態機械を飛び越えず、組織審査とGraph反映の監査履歴を一貫させるため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/knowledge-event-service.js",
+            "anchor": "reconcileGraphProjection"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/knowledge-event-service.test.js",
+            "case": "承認済み組織eventを正規のCandidate状態遷移でGraph反映済みにする"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/knowledge-event-service.test.js",
+            "must_cover": "承認済み組織eventを正規のCandidate状態遷移でGraph反映済みにする"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-06T00:00:00.000Z",
+      "last_revised_at": "2026-09-06T00:00:00.000Z"
+    },
+    {
+      "id": "S-005",
+      "type": "scenario",
+      "statement": "組織審査者は、個人情報を含む系譜行を読み返さず、追加件数だけを確認して系譜を保存する。",
+      "rationale": "組織審査者には系譜の追加だけを許可し、個人情報を含む行の参照権限を与えないRLS境界を保つため。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "other",
+            "text_snippet": "P0を同一runでGraph readbackまで完了する"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "server/services/personal-knowledge/pg-personal-knowledge-repository.js",
+            "anchor": "async createLineage"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/pg-personal-knowledge-repository.test.js",
+            "case": "creates promotion lineage with reviewer insert permission without requiring row readback"
+          }
+        ]
+      },
+      "confidence": 1,
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/pg-personal-knowledge-repository.test.js",
+            "must_cover": "creates promotion lineage with reviewer insert permission without requiring row readback"
+          }
+        ]
+      },
+      "first_seen_at": "2026-09-06T01:00:00.000Z",
+      "last_revised_at": "2026-09-06T01:00:00.000Z"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-09-06T00:00:00.000Z",
+  "previous_spec_id": "2026-09-05T17:00:16.948Z"
+}

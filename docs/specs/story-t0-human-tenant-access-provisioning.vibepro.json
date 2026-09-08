@@ -1,0 +1,167 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-t0-human-tenant-access-provisioning",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "draft",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": ["strict provisioning manifest"],
+      "resolution_point": "inside the provisioning transaction before tenant-owned reads or writes",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["Graph organization", "workspace connection", "organization", "login grant", "membership", "external identity"],
+      "verified_surfaces": ["Graph organization", "workspace connection", "organization", "login grant", "membership", "external identity", "post-commit fresh-connection readback"]
+    },
+    "resources": [
+      {
+        "name": "human tenant access",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id/organization_id/person_id/workspace_id/app_id/project_id",
+        "trust_zone": "Brainbase production provisioning control plane",
+        "residue_policy": "explicit revocation or tenant lifecycle policy",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "no credentials; public identity binding only"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "workspace-bound public Slack identity only",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["Brainbase Tenant Authority"],
+      "residency": "Brainbase PostgreSQL",
+      "migration": "declarative create-or-noop with exact readback",
+      "rollback": "transaction rollback before any partial state is committed"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["managed_shared"],
+    "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+    "graph_metadata": {
+      "tenant_entities": ["tenant", "organization", "person", "membership", "external identity"],
+      "boundary_edges": ["Graph organization to tenant organization reference", "Slack subject to tenant membership", "membership to project authority"]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "scope": "strict manifest, transactional create-or-noop, PostgreSQL RLS and fresh-connection readback; production apply and genuine human login remain outside code verification",
+      "evidence": {
+        "propagation_surfaces": ["Graph organization", "workspace connection", "organization", "login grant", "membership", "external identity", "post-commit readback"],
+        "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["managed_shared"],
+          "tenant_entities": [{
+            "tenant_scope": "human login and company authority identity",
+            "tenant_key_source": "strict provisioning manifest tenant_id",
+            "trust_zone": "Brainbase production provisioning control plane",
+            "data_owner": "Brainbase Tenant Authority"
+          }],
+          "boundary_edges": [{
+            "tenant_scope": "one tenant, organization, project and Slack workspace/app",
+            "tenant_key_source": "manifest tenant_id plus tenant RLS context",
+            "sharing_mode": "tenant_partitioned",
+            "credential_scope": "public Slack subject only; no secret material",
+            "connection_mode": "managed shared control plane",
+            "deployment_mode": "managed_shared"
+          }]
+        },
+        "spec": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["managed_shared"]
+        },
+        "implementation": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["managed_shared"]
+        },
+        "evidence_refs": [
+          "tests/server/services/multitenant/human-company-authority-provisioner.test.js",
+          "tests/server/services/multitenant/human-company-authority-provisioner.integration.test.js",
+          "server/services/multitenant/human-company-authority-provisioner.js"
+        ]
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "tenant、organization、project、person、Slack workspaceとappはstrict manifestで完全に束縛し、未知fieldや秘密値を拒否する。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 0, "ac_id": "AC-001"}], "code_refs": [{"file": "server/services/multitenant/human-company-authority-provisioner.js", "anchor": "normalizeHumanCompanyAuthorityManifest"}], "test_refs": [{"file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "case": "validates the manifest and rejects forbidden input"}]},
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "must_cover": "manifest"}]}
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "check、dry-run、applyを分離し、applyは明示承認とactorを要求し、dry-runと途中失敗はrollbackする。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 1, "ac_id": "AC-002"}], "code_refs": [{"file": "scripts/provision-human-company-authority.js", "anchor": "runProvisionHumanCompanyAuthority"}], "test_refs": [{"file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "case": "rolls back dry-run and failed operations"}]},
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "must_cover": "rolls dry-run back"}]}
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "Graph organizationと同一tenantのactive Slack workspace connectionを検証し、apply後はpoolから再取得した接続で全状態をreadbackする。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 6, "ac_id": "AC-007"}], "code_refs": [{"file": "server/services/multitenant/human-company-authority-provisioner.js", "anchor": "readbackHumanCompanyAuthority"}], "test_refs": [{"file": "tests/server/services/multitenant/human-company-authority-provisioner.integration.test.js", "case": "commits, reads back on a fresh checkout, and remains invisible from another tenant"}]},
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.integration.test.js", "must_cover": "fresh checkout"}]}
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "person、login grant、membership、external identityは別々に保存し、各状態を個別にreadbackする。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 2, "ac_id": "AC-003"}], "code_refs": [{"file": "server/services/multitenant/human-company-authority-provisioner.js", "anchor": "provisionHumanCompanyAuthority"}], "test_refs": [{"file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "case": "creates and reads back every human access state"}]},
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "must_cover": "reads back"}]}
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "同じ宣言はnoop、同じ自然キーの異なる内容または複数候補はfail-closeする。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004"}], "code_refs": [{"file": "server/services/multitenant/human-company-authority-provisioner.js", "anchor": "prepareOrganization"}], "test_refs": [{"file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "case": "commits once and treats an exact second declaration as noop"}]},
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "must_cover": "conflict"}]}
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "transaction内でRLS tenant contextを固定し、別tenant所有のorganization IDへfallbackまたは更新しない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 4, "ac_id": "AC-005"}], "code_refs": [{"file": "server/services/multitenant/human-company-authority-provisioner.js", "anchor": "provisionHumanCompanyAuthority"}], "test_refs": [{"file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "case": "sets tenant RLS context and rejects organization conflicts"}]},
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "must_cover": "tenant"}]}
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "manifest、CLI出力、receiptにはtoken、secret、OAuth codeを含めない。",
+      "origin": {"story_refs": [{"kind": "acceptance_criteria", "index": 5, "ac_id": "AC-006"}], "code_refs": [{"file": "server/services/multitenant/human-company-authority-provisioner.js", "anchor": "scanSecrets"}], "test_refs": [{"file": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "case": "rejects secret material"}]},
+      "verifiable_by": {"test_pattern": [{"file_glob": "tests/server/services/multitenant/human-company-authority-provisioner.test.js", "must_cover": "secret"}]}
+    }
+  ]
+}

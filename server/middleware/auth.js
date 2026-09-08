@@ -10,7 +10,7 @@ import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 /**
  * @param {RequestLike} req
  * @param {AuthServiceLike} authService
- * @param {{ allowInsecureHeaders?: boolean }} [options]
+ * @param {{ allowInsecureHeaders?: boolean, structuredErrors?: boolean }} [options]
  */
 export function resolveAuthContext(req, authService, options = {}) {
     if (req?.method === 'OPTIONS') {
@@ -98,8 +98,8 @@ export function resolveAuthContext(req, authService, options = {}) {
                 personId: decoded.sub || decoded.personId || null,
                 slackUserId: null,
                 slackWorkspaceId: null,
-                tenantId: decoded.tenantId || decoded.organizationId || null,
-                organizationId: decoded.organizationId || decoded.tenantId || null
+                tenantId: decoded.tenantId || null,
+                organizationId: decoded.organizationId || null
             };
             return {
                 ok: true,
@@ -139,7 +139,7 @@ export function resolveAuthContext(req, authService, options = {}) {
 
 /**
  * @param {AuthServiceLike} authService
- * @param {{ allowInsecureHeaders?: boolean }} [options]
+ * @param {{ allowInsecureHeaders?: boolean, structuredErrors?: boolean }} [options]
  * @returns {(req: RequestLike, res: ResponseLike, next: NextLike) => unknown}
  */
 export function requireAuth(authService, options = {}) {
@@ -150,6 +150,14 @@ export function requireAuth(authService, options = {}) {
         }
 
         if (!result?.ok) {
+            if (options.structuredErrors) {
+                const message = result?.error === 'Authorization token required'
+                    ? '認証トークンが必要です'
+                    : '認証トークンが無効です';
+                return res.status(result?.status || 401).json({
+                    error: { code: 'UNAUTHORIZED', message }
+                });
+            }
             return res.status(result?.status || 401).json({ error: result?.error || 'Unauthorized' });
         }
 
@@ -159,7 +167,7 @@ export function requireAuth(authService, options = {}) {
                 const organizationId = await authService.resolveOrganizationIdForAccess(access);
                 if (organizationId) {
                     access.organizationId = organizationId;
-                    access.tenantId = organizationId;
+                    if (!access.tenantId) access.tenantId = organizationId;
                 }
             } catch {
                 // Generic authenticated routes remain available. Personal knowledge

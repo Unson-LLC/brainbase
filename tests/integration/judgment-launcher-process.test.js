@@ -42,6 +42,7 @@ async function listen(handler) {
 
 describe('brainbase MCP launcher judgment binding process contract', () => {
     let fixtureDir;
+    let launcherRepo;
     let mockInfisical;
     let entry;
     let marker;
@@ -49,6 +50,11 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
 
     beforeEach(() => {
         fixtureDir = mkdtempSync(join(tmpdir(), 'brainbase-judgment-launcher-'));
+        launcherRepo = join(fixtureDir, 'clean-repo');
+        execFileSync('git', ['clone', '--quiet', '--shared', REPO_ROOT, launcherRepo], {
+            cwd: REPO_ROOT,
+            stdio: 'ignore'
+        });
         mockInfisical = join(fixtureDir, 'infisical');
         entry = join(fixtureDir, 'entry.mjs');
         marker = join(fixtureDir, 'mcp-started');
@@ -67,8 +73,8 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
             ...process.env,
             INFISICAL_BIN: mockInfisical,
             INFISICAL_TOKEN: 'test-infisical-token',
-            INFISICAL_PROJECT_CONFIG_DIR: join(REPO_ROOT, 'config'),
-            BRAINBASE_REPO_ROOT: REPO_ROOT,
+            INFISICAL_PROJECT_CONFIG_DIR: join(launcherRepo, 'config'),
+            BRAINBASE_REPO_ROOT: launcherRepo,
             BRAINBASE_MCP_ENTRY: entry,
             MCP_STARTED_MARKER: marker,
             BRAINBASE_GRAPH_API_URL: 'http://127.0.0.1:9',
@@ -153,7 +159,7 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
     it('symlink経由のrepo rootでもbinding probe本体を実行する', async () => {
         const apiUrl = await healthyServer();
         const symlinkRoot = join(fixtureDir, 'repo-symlink');
-        symlinkSync(REPO_ROOT, symlinkRoot, 'dir');
+        symlinkSync(launcherRepo, symlinkRoot, 'dir');
         const result = await run('bash', [LAUNCHER, '--check'], {
             env: environment({
                 BRAINBASE_GRAPH_API_URL: apiUrl,
@@ -231,6 +237,24 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
         expect(readFileSync(reconcileLog, 'utf8').trim()).toBe(targetSha);
         expect(actualMcpSha).toBe(baseSha);
         expect(existsSync(join(fixtureDir, 'reconcile.receipt'))).toBe(false);
+    });
+
+    it('tracked dirtyなruntime checkoutはMCP起動前にexit 78で拒否する', async () => {
+        const apiUrl = await healthyServer();
+        writeFileSync(join(launcherRepo, 'README.md'), `${readFileSync(join(launcherRepo, 'README.md'), 'utf8')}dirty\n`);
+        const result = await run('bash', [LAUNCHER], { env: environment({ BRAINBASE_GRAPH_API_URL: apiUrl }) });
+        expect(result.code).toBe(78);
+        expect(result.stderr).toContain('runtime checkout is dirty');
+        expect(existsSync(marker)).toBe(false);
+    });
+
+    it('untracked dirtyなruntime checkoutはMCP起動前にexit 78で拒否する', async () => {
+        const apiUrl = await healthyServer();
+        writeFileSync(join(launcherRepo, 'untracked-fixture.txt'), 'dirty\n');
+        const result = await run('bash', [LAUNCHER], { env: environment({ BRAINBASE_GRAPH_API_URL: apiUrl }) });
+        expect(result.code).toBe(78);
+        expect(result.stderr).toContain('runtime checkout is dirty');
+        expect(existsSync(marker)).toBe(false);
     });
 
     it('全preflight成功後だけMCP entryを開始する', async () => {

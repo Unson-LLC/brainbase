@@ -1,5 +1,9 @@
 # SNS Feedback Metrics Poller Runbook
 
+## 廃止済み（2026-09-04）
+
+以下は履歴として残した旧運用手順です。コマンドの実行や定期取得の再有効化は行わないでください。現在の手順は [SNS廃止の配備・読戻し](retire-sns.md) を参照してください。既存台帳とログは保全します。
+
 ## 目的
 
 SNS Posting Ledger の `posted` / `learning_ready` record から X の反応 metrics を取得し、`metrics_snapshots` に append する。

@@ -1,6 +1,10 @@
 // @ts-check
 
-const DEFAULT_OWNER_PERSON_ID = 'sato_keigo';
+import {
+    isPersonalKgCandidateInScope,
+    requirePersonalKgIdentity
+} from './personal-kg-identity.js';
+
 const WINNING_STATUSES = new Set(['posted', 'learning_ready']);
 const GROUPS = ['by_lane', 'by_source_type', 'by_format', 'by_lifelog_integrity'];
 const DEDUPE_STATUSES = new Set([
@@ -381,18 +385,20 @@ export class SnsGenerationContextService {
     async buildContext({
         date,
         lookbackDays = 30,
-        viewer = { actor_person_id: DEFAULT_OWNER_PERSON_ID, org_ids: ['unson'] }
+        viewer
     }) {
+        const access = requirePersonalKgIdentity(viewer);
         const targetDate = toDateOnly(date);
         const startDate = addDays(targetDate, -Math.max(1, lookbackDays) + 1);
-        const posts = await this.ledgerRepository.listPosts({ startDate, endDate: targetDate });
+        const posts = await this.ledgerRepository.listPosts({ startDate, endDate: targetDate }, access);
         const allCandidates = this.candidateRepository
-            ? await this.candidateRepository.list({ owner_person_id: viewer.actor_person_id || DEFAULT_OWNER_PERSON_ID })
+            ? await this.candidateRepository.list({ owner_person_id: access.owner_person_id })
             : [];
-        const candidates = allCandidates.filter(isSnsContextReadableCandidate);
+        const scopedCandidates = allCandidates.filter((candidate) => isPersonalKgCandidateInScope(candidate, access));
+        const candidates = scopedCandidates.filter(isSnsContextReadableCandidate);
         const lookback = lookbackFor(targetDate);
         const strategy = extractStrategy(this.strategyText, this.contentPillarsText);
-        const personalKg = buildPersonalKgContext(candidates, { totalCandidateCount: allCandidates.length });
+        const personalKg = buildPersonalKgContext(candidates, { totalCandidateCount: scopedCandidates.length });
         const postingStats = {
             days_7: buildStats(posts, lookback.days_7),
             days_30: buildStats(posts, lookback.days_30)
@@ -415,7 +421,7 @@ export class SnsGenerationContextService {
             generation_policy: generationPolicy,
             evidence: [
                 { kind: 'sns_posting_ledger', ref: `sns_posting_ledger_posts:${startDate}..${targetDate}` },
-                { kind: 'candidate_store', ref: `memory_candidates owner:${viewer.actor_person_id || DEFAULT_OWNER_PERSON_ID}` },
+                { kind: 'candidate_store', ref: `memory_candidates owner:${access.owner_person_id} organization:${access.organization_id}` },
                 { kind: 'sns_strategy_os', ref: 'sns/sns_strategy_os.md' },
                 { kind: 'content_pillars', ref: 'sns/content_pillars.md' }
             ]

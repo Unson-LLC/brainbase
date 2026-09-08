@@ -1,0 +1,264 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Brainbase全体アーキテクチャ — OSS版 + 組織版",
+    "output": "generated/platform-overview.html",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "shared-kernel",
+        "label": "共通KernelとOSS版",
+        "focus": ["operating-surface", "shared-kernel", "oss-local-profile", "local-personal-ssot"],
+        "note": "OSS版は共通Judgment Kernel、CLI／stdio MCP、4つのローカル正本ファイルで成立する。"
+      },
+      {
+        "id": "organization-extension",
+        "label": "組織版はOSSを包含",
+        "focus": ["shared-kernel", "organization-runtime", "organization-sources", "company-authority"],
+        "note": "組織版はOSS packageを固定commitで取り込み、Server、UI、組織台帳、権限制御を外側へ追加する。"
+      },
+      {
+        "id": "bounded-operation",
+        "label": "境界付き自律実行",
+        "focus": ["company-authority", "governed-execution", "mana-runtime", "external-sors"],
+        "note": "Manaは権限を作らず、Brainbaseが解決したauthorityの範囲で実行し、外部readbackを返す。"
+      },
+      {
+        "id": "north-star",
+        "label": "業務別判断DAG",
+        "focus": ["domain-packs", "shared-kernel", "governed-execution"],
+        "note": "VibePro、Zeims、営業等は同じKernel上のDomain Judgment Packとして接続する到達像である。"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [40, 76],
+    "cols": 4,
+    "gapX": 52,
+    "gapY": 72,
+    "cellW": 280,
+    "cellH": 90
+  },
+  "components": [
+    {
+      "id": "operating-surface",
+      "type": "frontend",
+      "label": "Human + Agent Operating Surface",
+      "sublabel": "人間: 基準と責任 / AI: 探索・反証・実行",
+      "row": 0,
+      "col": 0,
+      "size": [250, 84],
+      "tag": "ENTRY"
+    },
+    {
+      "id": "shared-kernel",
+      "type": "backend",
+      "label": "Shared OSS Judgment Kernel",
+      "sublabel": "Ontology・Graph・DAG・Runner・Artifacts",
+      "row": 1,
+      "col": 1,
+      "size": [260, 90],
+      "tag": "CURRENT / J0 DONE"
+    },
+    {
+      "id": "oss-local-profile",
+      "type": "backend",
+      "label": "OSS Local-first Profile",
+      "sublabel": "CLI・stdio MCP・Onboarding",
+      "row": 2,
+      "col": 1,
+      "size": [250, 84],
+      "tag": "CURRENT OSS"
+    },
+    {
+      "id": "local-personal-ssot",
+      "type": "database",
+      "label": "Local Personal OS SSOT",
+      "sublabel": "Graph・Relations・Personal KG・Decisions",
+      "row": 3,
+      "col": 1,
+      "size": [260, 90],
+      "tag": "4 CANONICAL FILES"
+    },
+    {
+      "id": "organization-runtime",
+      "type": "backend",
+      "label": "brainbase-unson Organization Runtime",
+      "sublabel": "Express・Web UI・MCP・Org Services",
+      "row": 0,
+      "col": 2,
+      "size": [270, 90],
+      "tag": "CURRENT / CONSUMES OSS"
+    },
+    {
+      "id": "organization-sources",
+      "type": "database",
+      "label": "Organization Sources of Truth",
+      "sublabel": "PostgreSQL・legacy SQLite・Graph・Git SSOT",
+      "row": 1,
+      "col": 2,
+      "size": [270, 90],
+      "tag": "CURRENT / MIXED"
+    },
+    {
+      "id": "company-authority",
+      "type": "security",
+      "label": "Multi-tenant + Company Authority",
+      "sublabel": "Tenant・Identity・RACI・Policy・Signed Context",
+      "row": 0,
+      "col": 3,
+      "size": [265, 90],
+      "tag": "FRONTIER / T0+A0"
+    },
+    {
+      "id": "governed-execution",
+      "type": "security",
+      "label": "Governed Execution + Promotion",
+      "sublabel": "Approval・Promotion・Runner Binding・Audit",
+      "row": 1,
+      "col": 3,
+      "size": [265, 90],
+      "tag": "FRONTIER / P0+G0"
+    },
+    {
+      "id": "domain-packs",
+      "type": "messagebus",
+      "label": "Domain Judgment Packs",
+      "sublabel": "VibePro・Zeims・Sales・Marketing・Ops",
+      "row": 2,
+      "col": 2,
+      "size": [250, 84],
+      "tag": "NORTH STAR"
+    },
+    {
+      "id": "mana-runtime",
+      "type": "cloud",
+      "label": "Mana Runtime / Operator",
+      "sublabel": "Cadence・Priority・Stagnation・Follow-through",
+      "row": 2,
+      "col": 3,
+      "size": [250, 84],
+      "tag": "FRONTIER / O0"
+    },
+    {
+      "id": "external-sors",
+      "type": "external",
+      "label": "External Systems of Record",
+      "sublabel": "GitHub・Drive・CRM・Ledger・Secret Store",
+      "row": 3,
+      "col": 3,
+      "size": [260, 90],
+      "tag": "FINAL EXTERNAL STATE"
+    }
+  ],
+  "connections": [
+    {
+      "id": "surface-to-kernel",
+      "from": "operating-surface",
+      "to": "shared-kernel",
+      "label": "local context",
+      "variant": "emphasis"
+    },
+    {
+      "id": "surface-to-organization",
+      "from": "operating-surface",
+      "to": "organization-runtime",
+      "label": "MCP / API / Web",
+      "labelAt": [500, 180],
+      "variant": "emphasis"
+    },
+    {
+      "id": "organization-consumes-kernel",
+      "from": "organization-runtime",
+      "to": "shared-kernel",
+      "label": "pinned OSS package",
+      "variant": "emphasis"
+    },
+    {
+      "id": "kernel-to-oss",
+      "from": "shared-kernel",
+      "to": "oss-local-profile",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "emphasis"
+    },
+    {
+      "id": "oss-to-local-ssot",
+      "from": "oss-local-profile",
+      "to": "local-personal-ssot",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "organization-to-sources",
+      "from": "organization-runtime",
+      "to": "organization-sources"
+    },
+    {
+      "id": "organization-to-authority",
+      "from": "organization-runtime",
+      "to": "company-authority",
+      "label": "tenant context",
+      "labelAt": [1005, 60],
+      "variant": "security"
+    },
+    {
+      "id": "sources-to-authority",
+      "from": "organization-sources",
+      "to": "company-authority",
+      "label": "company facts",
+      "fromSide": "top",
+      "toSide": "bottom",
+      "variant": "security"
+    },
+    {
+      "id": "authority-to-governed",
+      "from": "company-authority",
+      "to": "governed-execution",
+      "variant": "dashed"
+    },
+    {
+      "id": "packs-to-governed",
+      "from": "domain-packs",
+      "to": "governed-execution",
+      "label": "typed DAG",
+      "variant": "dashed"
+    },
+    {
+      "id": "governed-to-mana",
+      "from": "governed-execution",
+      "to": "mana-runtime",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "dashed"
+    },
+    {
+      "id": "mana-to-sors",
+      "from": "mana-runtime",
+      "to": "external-sors",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "現在の構造",
+      "items": [
+        "OSS版は共通Kernelとlocal-first profileで完結し、組織版は同じKernelを固定commitで取り込む",
+        "PostgreSQL、Company Authority、Approval、ManaはOSS共通Kernelそのものではなく組織版側の拡張である"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "完成度を混ぜない",
+      "items": [
+        "CURRENT、program frontier、North Starをtagで分離し、箱の存在を本番完了とみなさない",
+        "Domain Judgment PacksとMana経営実行ループはExit Gateと本番readbackが揃って初めて完成扱いにする"
+      ]
+    }
+  ]
+}

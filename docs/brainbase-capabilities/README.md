@@ -17,7 +17,7 @@ Each file under `capabilities/` should use the same fields:
 
 ```yaml
 id: project.selector
-name: Session project selector
+name: Workspace Setup project selector
 purpose: What user or agent goal this capability serves
 surfaces:
   ui: []
@@ -41,7 +41,7 @@ troubleshooting: []
 | `runtime.launchd` | Canonical port `31013` is managed by launchd and syncs selected paths from `origin/develop` before startup. |
 | `runtime.lightsail` | Production SSOT on `bb.unson.jp` runs from `/home/ubuntu/brainbase` under systemd (`brainbase-ssot.service`); deploy is manual ff-merge + restart. |
 | `project.catalog` | Defines the configured project catalog, authenticated grant scope, MCP status envelope, and audit evidence. |
-| `project.selector` | Defines which projects appear in the session creation dropdown. |
+| `project.selector` | Defines which projects appear in the Workspace Setup selector. |
 | `auth.grants` | Defines user project access through `auth_grants.project_codes` and JWT/localStorage access payloads. |
 | `session.create` | Historical record of retired Brainbase session/worktree creation. Codex owns this lifecycle. |
 | `terminal.transport` | Historical record of retired Brainbase xterm/tmux/ttyd transport. |
@@ -52,7 +52,7 @@ troubleshooting: []
 | `meeting.automation` | Defines the live meeting-source ingest, external-runtime handoff/write-back, approval, and evidence path retained during Workflow retirement. |
 | `codex.app-server` | Historical record of the retired Brainbase Codex-like UI adapter. |
 | `graph.ssot` | Defines when Brainbase Graph is the canonical source for names, projects, terminology, and decisions. |
-| `judgment.resolve` | Codex Host opens one canonical-context-bound judgment episode before model generation; the internal-LLM-free Resolver deterministically selects the initial route, `PostToolUse` records all completed tool calls as execution evidence while Brainbase calls also produce owner-visible lines, and runtime 2.3 `Stop` verifies structured completion state plus same-episode evidence before finalizing one non-authorizing receipt. Claude Code remains a future Host-adapter candidate. |
+| `judgment.resolve` | Codex Host opens one canonical-context-bound judgment episode before model generation; the Codex model supplies the semantic interpretation and the internal-LLM-free Resolver reconciles it with canonical input and deterministic safety floors to select the initial route. `PostToolUse` records completed tool calls as execution evidence without finalizing. `PostToolUseFailure` records a failed call with the exact identity and digest-only failure audit. `Stop` verifies that the exact final assistant answer begins with the journal-derived owner audit block and is the sole finalization boundary. The resulting receipt is non-authorizing. Claude Code remains a future Host-adapter candidate. |
 | `knowledge.resolve` | Resolves the canonical knowledge source before search and preserves unsearched scope and uncertainty in a routing receipt. |
 | `onboarding.connected-world` | Defines the host-agent workflow that starts from callable MCP, Drive, Gmail, or explicit local folders, preserves unavailable states, and routes reviewed candidates through Promotion Gate. |
 | `requirements.nocodb` | Defines how `FRD-*`, `REQ-*`, and `BUG-*` references are resolved before scope or implementation changes. |
@@ -62,7 +62,7 @@ troubleshooting: []
 | `verification.testing` | Defines how test-related prompts and changed files map to required test execution. |
 | `requirements.coverage` | Defines how completed TODOs are checked against acceptance requirements before stopping. |
 | `vibepro.impact-review` | Defines when and how VibePro Graphify impact review is required for graph-sensitive changes. |
-| `vibepro.skills-usage` | Defines how Brainbase agents use VibePro Skills for workflow, story-driven refactoring, and human-review cockpit work. |
+| `vibepro.skills-usage` | BrainbaseでVibeProを補助として使い、通常の実装・テスト・PR手順へつなぐ方法を定義します。 |
 
 ## Operating Rules
 

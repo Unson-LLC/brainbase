@@ -1,0 +1,324 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ontology-scoped-validation-and-decision-authority",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "authenticated access context",
+        "projects.organization_id"
+      ],
+      "resolution_point": "GraphMaintenanceService.loadSnapshot",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "snapshot export",
+        "ontology validation"
+      ],
+      "verified_surfaces": [
+        "snapshot export",
+        "ontology validation"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Ontology validation snapshot",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_code",
+        "trust_zone": "Brainbase PostgreSQL maintenance transaction",
+        "residue_policy": "validation projection is regenerated from canonical Graph rows",
+        "data_owner": "Brainbase Graph entity and edge in their owning project",
+        "credential_scope": "organization and explicitly accessible project codes"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "organization and project scoped access context",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": [
+        "Brainbase Graph entity and edge in their owning project"
+      ],
+      "residency": "tenant-partitioned Brainbase PostgreSQL",
+      "migration": "after deployment, add only canonical decider edges for remaining active Decision violations through a bounded Graph Plan/Apply receipt; no bulk migration",
+      "rollback": "before Graph Apply, roll back the deployment; after Graph Apply, use the matching Graph rollback receipt and verify production readback"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": [
+      "managed_shared"
+    ],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "metadata_only_external_entity",
+      "retired_local_entity",
+      "active_local_missing_required_relation"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        "projects.organization_id",
+        "graph_entities.project_id",
+        "graph_edges.project_id"
+      ],
+      "boundary_edges": [
+        "same-organization cross-project endpoint reference"
+      ]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "evidence": {
+        "propagation_surfaces": [
+          "snapshot export",
+          "ontology validation"
+        ],
+        "negative_scenarios": [
+          "unknown_tenant",
+          "ambiguous_tenant",
+          "unavailable_connection",
+          "no_data",
+          "cross_tenant_candidate",
+          "metadata_only_external_entity",
+          "retired_local_entity",
+          "active_local_missing_required_relation"
+        ],
+        "graph": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ],
+          "tenant_entities": [
+            {
+              "tenant_scope": "Graph maintenance source and accessible endpoint projects",
+              "tenant_key_source": "authenticated organization_id and projects.organization_id",
+              "trust_zone": "Brainbase PostgreSQL maintenance transaction",
+              "data_owner": "Brainbase Graph entity and edge in their owning project"
+            }
+          ],
+          "boundary_edges": [
+            {
+              "tenant_scope": "same organization plus explicit project access",
+              "tenant_key_source": "projects.organization_id",
+              "sharing_mode": "tenant_partitioned",
+              "credential_scope": "organization and explicitly accessible project codes",
+              "connection_mode": "pooled PostgreSQL with access preflight",
+              "deployment_mode": "managed_shared"
+            }
+          ]
+        },
+        "spec": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "implementation": {
+          "tenant_key": "organization_id",
+          "sharing_modes": [
+            "tenant_partitioned"
+          ],
+          "deployment_modes": [
+            "managed_shared"
+          ]
+        },
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        }
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Graph maintenanceのOntology検証は対象projectのactive Entityだけをrequired relation検証対象にし、外部metadata-only Entityはendpoint型解決だけに使う。graph_validateは対象project群のactive local件数と、除外したretired・superseded local件数、external metadata件数をEntity ID・payloadなしの集計として返す。",
+      "rationale": "cross-project projectionとcanonical fact ownershipを混同せずfalse positiveを防ぐ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-001"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-002"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-003"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-006"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-007"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "validate"
+          }
+        ],
+    "test_refs": [
+      {
+        "file": "tests/server/services/graph-maintenance-service.test.js",
+        "case": "Ontology required relationの検証対象をactive local Entityへ限定する"
+      },
+      {
+        "file": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+        "case": "story-ontology-scoped-validation-and-decision-authority ac:1-3 validates Graph maintenance scope with the real OntologyKernel"
+      },
+      {
+        "file": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+        "case": "cross-scope snapshotとrehome targetは全scopeのpreflightを要求する"
+      },
+      {
+        "file": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+        "case": "複合scope rehomeをApplyしRollbackで全rowsを復元する"
+      }
+    ]
+  },
+  "verifiable_by": {
+    "test_pattern": [
+      {
+        "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+        "must_cover": "required_relation_scope_summary"
+      },
+      {
+        "file_glob": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+        "must_cover": "superseded_local_entities"
+      },
+      {
+        "file_glob": "mcp/brainbase/tests/tools/graph-maintenance-tools.test.ts",
+        "must_cover": "include_project_codes"
+      },
+      {
+        "file_glob": "tests/server/services/graph-maintenance-postgres.integration.test.js",
+        "must_cover": "required_relation_scope_summary"
+      }
+    ]
+  },
+      "confidence": 0.99,
+      "first_seen_at": "2026-09-01T14:52:33.746Z",
+  "last_revised_at": "2026-09-02T01:08:00.000Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "active local Entityのrequired relation欠損は検証対象に残し、Ontology規則を弱体化しない。",
+      "rationale": "false positive除去を実データ違反の隠蔽にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/ontology-kernel.js",
+            "anchor": "validateSnapshot"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/graph-maintenance-service.test.js",
+            "case": "Ontology required relationの検証対象をactive local Entityへ限定する"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/graph-maintenance-service.test.js",
+            "must_cover": "required_relation_validation_entity_ids"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-09-01T14:52:33.746Z",
+      "last_revised_at": "2026-09-01T15:13:18.131Z"
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "active Decisionのdecider欠損はデプロイ後にGraph mutation planとreceiptで修復し、production readbackと再検証で違反0件を確認するまで完了にしない。コード変更だけで合格にしない。",
+      "rationale": "正規の判断者はGraph edgeの正本事実であり、validatorの例外ではない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-004"
+          },
+          {
+            "kind": "acceptance_criteria",
+            "text_snippet": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/graph-maintenance-service.js",
+            "anchor": "planMutations"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+            "case": "story-brainbase-ontology-production-compatibility ac:3 validates and infers decided Decisions from Graph edges"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/e2e/story-brainbase-ontology-production-compatibility-contract.spec.ts",
+            "must_cover": "CON-DECISION-DECIDER-001"
+          }
+        ]
+      },
+      "confidence": 0.99,
+      "first_seen_at": "2026-09-01T15:06:35.548Z",
+      "last_revised_at": "2026-09-01T15:13:18.131Z"
+    }
+  ],
+  "generated_at": "2026-09-01T15:13:18.130Z",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": "2026-09-01T15:11:03.510Z"
+}

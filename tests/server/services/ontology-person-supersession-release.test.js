@@ -34,9 +34,9 @@ describe('Ontology 1.1.0 person supersession release', () => {
         expect(release110.inference_rules).toEqual(expect.arrayContaining(release100.inference_rules));
     });
 
-    it('keeps 1.1.0 proposed and current at signed 1.0.0 before publication', () => {
-        expect(ontologyIndex.current).toBe('1.0.0');
-        expect(ontologyIndex.releases.find((release) => release.version === '1.1.0')).toMatchObject({ status: 'proposed' });
+    it('keeps the signed 1.1.0 publication active and current', () => {
+        expect(ontologyIndex.current).toBe('1.1.0');
+        expect(ontologyIndex.releases.find((release) => release.version === '1.1.0')).toMatchObject({ status: 'active' });
         expect(release110.governance.decision_id).toBe('dec_01M0HJ3ATRZRK00X2AZNDFMMCG');
     });
 });

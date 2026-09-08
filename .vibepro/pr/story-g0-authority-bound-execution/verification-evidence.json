@@ -1,0 +1,401 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-g0-authority-bound-execution",
+  "updated_at": "2026-09-05T23:57:09.647Z",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-09-05T23:57:09.317Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.22",
+      "exact_version": "0.2.0-beta.22",
+      "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+      "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.22",
+          "package_json_sha256": "7d756059a51ef8b0fc4df295b76602a32678474a7ed5b780f4be677d95083770",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "b9b4184c814af2c6a8171f3e2ee1fe2a1bc3b084608898a1f15f97b12bbdc7df",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "verify record",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/private/tmp/brainbase-g0-authority-completion",
+      "actual_root": "/private/tmp/brainbase-g0-authority-completion",
+      "expected_root": null,
+      "expected_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "current_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+      "managed_worktree": null
+    }
+  ],
+  "commands": [
+    {
+      "kind": "typecheck",
+      "status": "pass",
+      "command": "npm run typecheck",
+      "summary": "公開JavaScriptの型検査が成功",
+      "artifact": null,
+      "artifact_check": {
+        "status": "missing",
+        "format": null,
+        "artifact_outcome": null,
+        "reason": "no machine-readable artifact was provided for a passing claim"
+      },
+      "artifact_observed_values": {},
+      "observation": {
+        "targets": [
+          "server/services/automation-run/automation-run-service.js",
+          "server/services/workflow/workflow-runner.js"
+        ],
+        "scenarios": [
+          "変更した公開JavaScriptがjsconfigの型制約を満たす"
+        ],
+        "values": {}
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "self_reported",
+      "executed_at": "2026-09-05T23:57:09.647Z",
+      "git_context": {
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "current_branch": "codex/g0-authority-completion",
+        "dirty": true,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "00c7498c92da9f22a16371c1822db6358ed94943e6153cb35b755b544e63ba6e",
+        "user_status_fingerprint_hash": "d208263558671208c5f3f76fce53324f75091bc79baa42b62f9c8f3e92cde31f",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-09-05T23:57:09.631Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "strict_head",
+        "status": "strict_head",
+        "reason": "strict HEAD binding was requested for this evidence",
+        "recorded_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "surface_files": [
+          {
+            "path": "server/services/automation-run/automation-run-service.js",
+            "sha256": "f38573bee5b8b887d2751125809c93c9a18d733c8bc8ee20f27f468c5152f72b",
+            "size": 46371
+          },
+          {
+            "path": "server/services/workflow/workflow-runner.js",
+            "sha256": "93b9546a6d4b64f12199da0c05e2690af07bb41cec0e6ec2cb61b865ed2fd2a6",
+            "size": 22652
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "552321d5ce94f87e5017b6dc1571d9901c7af0dab45d77125eee4d8eae7efe60"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-09-05T23:57:09.317Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.22",
+          "exact_version": "0.2.0-beta.22",
+          "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+          "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.22",
+              "package_json_sha256": "7d756059a51ef8b0fc4df295b76602a32678474a7ed5b780f4be677d95083770",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "b9b4184c814af2c6a8171f3e2ee1fe2a1bc3b084608898a1f15f97b12bbdc7df",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": {
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "verify record",
+        "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+        "repo_root": "/private/tmp/brainbase-g0-authority-completion",
+        "actual_root": "/private/tmp/brainbase-g0-authority-completion",
+        "expected_root": null,
+        "expected_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "current_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "managed_worktree": null
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "verify record",
+          "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-g0-authority-completion",
+          "actual_root": "/private/tmp/brainbase-g0-authority-completion",
+          "expected_root": null,
+          "expected_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "current_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "managed_worktree": null
+        }
+      ]
+    },
+    {
+      "kind": "unit",
+      "status": "pass",
+      "command": "npm run test:run -- tests/server/routes/external-runner-routes.test.js tests/server/services/external-runner-company-authority-handoff.test.js tests/server/services/external-runner-contract-schema.test.js tests/server/services/external-runner-ingest-service.test.js tests/server/services/workflow-runner.test.js tests/server/services/automation-run-company-authority-human-approval.test.js tests/server/services/automation-run-service.test.js tests/server/services/multitenant/company-authority-human-approval-service.test.js",
+      "summary": "外部runner、権限承認、workflow再開、transaction、lock競合、再実行拒否の関連8ファイル109件が成功",
+      "artifact": null,
+      "artifact_check": {
+        "status": "missing",
+        "format": null,
+        "artifact_outcome": null,
+        "reason": "no machine-readable artifact was provided for a passing claim"
+      },
+      "artifact_observed_values": {},
+      "observation": {
+        "targets": [
+          "server/services/external-runner/contract-schema.js",
+          "server/services/external-runner/external-runtime-adapter.js",
+          "server/services/automation-run/automation-run-service.js",
+          "server/services/workflow/workflow-runner.js"
+        ],
+        "scenarios": [
+          "Company Authority必須handoffから成功・失敗・lock競合までreceipt帰属を保持し、汎用rerunを拒否する"
+        ],
+        "values": {}
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "self_reported",
+      "executed_at": "2026-09-05T23:55:38.142Z",
+      "git_context": {
+        "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "current_branch": "codex/g0-authority-completion",
+        "dirty": true,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "6927cea879baf2b5724438e1f231052344ae18eae0bf99f40fea8349cf868ebe",
+        "user_status_fingerprint_hash": "ed536639128cd4f4b40d7568987445f2c87419c14df59ea783079f645d410c7d",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-09-05T23:55:38.125Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "strict_head",
+        "status": "strict_head",
+        "reason": "strict HEAD binding was requested for this evidence",
+        "recorded_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "surface_files": [
+          {
+            "path": "server/services/automation-run/automation-run-service.js",
+            "sha256": "f38573bee5b8b887d2751125809c93c9a18d733c8bc8ee20f27f468c5152f72b",
+            "size": 46371
+          },
+          {
+            "path": "server/services/external-runner/contract-schema.js",
+            "sha256": "f0bc045937e2f0c9e257d4b87867ca951549dba1367de5d7260a50b2cab13610",
+            "size": 14059
+          },
+          {
+            "path": "server/services/external-runner/external-runtime-adapter.js",
+            "sha256": "8b463ee87b56be13d6a2d573ab4f6bdc6b735a3295b06cd9a5eedc93eaf47ab6",
+            "size": 15546
+          },
+          {
+            "path": "server/services/workflow/workflow-runner.js",
+            "sha256": "93b9546a6d4b64f12199da0c05e2690af07bb41cec0e6ec2cb61b865ed2fd2a6",
+            "size": 22652
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "94a36917b4cd3e4349c9d26f9e69e0be8083017ebeceb5d2497ec405ab85ef3d"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-09-05T23:55:37.773Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.22",
+          "exact_version": "0.2.0-beta.22",
+          "root": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/.bin/vibepro",
+          "runtime_module": "/Volumes/UNSON-DRIVE/codex-runtime-staging/node-caches/npm-cache/_npx/6767a188bf873282/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.22",
+              "package_json_sha256": "7d756059a51ef8b0fc4df295b76602a32678474a7ed5b780f4be677d95083770",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "b9b4184c814af2c6a8171f3e2ee1fe2a1bc3b084608898a1f15f97b12bbdc7df",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": {
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "verify record",
+        "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+        "repo_root": "/private/tmp/brainbase-g0-authority-completion",
+        "actual_root": "/private/tmp/brainbase-g0-authority-completion",
+        "expected_root": null,
+        "expected_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "current_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+        "managed_worktree": null
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "verify record",
+          "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/private/tmp/brainbase-g0-authority-completion",
+          "actual_root": "/private/tmp/brainbase-g0-authority-completion",
+          "expected_root": null,
+          "expected_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "current_head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+          "managed_worktree": null
+        }
+      ]
+    }
+  ]
+}

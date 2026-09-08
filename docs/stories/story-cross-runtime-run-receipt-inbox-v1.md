@@ -129,6 +129,7 @@ Brainbase operatorとして、異なるruntimeの最終実行結果を同じAgen
 - Given: ingestまたはlistingへの認証、CSRF、project authorizationが不正である
 - When: APIへアクセスする
 - Then: 既存exemptionを広げず、他projectを開示せず、書込前に拒否する
+- 通常メンバーのInbox検証では、組織・取得済みproject catalog・project grantをそろえる。5 sourceの保存結果が権限内にだけ表示され、組織またはgrantがない場合は表示されないことを実際の認可policyで確認する。
 
 ### S-012: external runner candidate outboxを回復する
 

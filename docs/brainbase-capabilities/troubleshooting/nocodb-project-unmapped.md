@@ -22,8 +22,11 @@ The project should still appear in active project APIs and selectors. Health fie
 
 ```bash
 curl -s http://127.0.0.1:31013/api/brainbase/projects \
-  | jq '.[] | select(.healthStatus=="unmapped") | .id'
+  -H 'Authorization: Bearer <token>' \
+  | jq 'if .source.status != "loaded" then error("project catalog is not loaded") else .projects[] | select(.healthStatus=="unmapped") | .id end'
 ```
+
+`source.status` が `loaded` でなければ、未対応プロジェクトが0件だとは判定せず、Registryまたは認証の復旧を先に行います。
 
 ## Fix
 

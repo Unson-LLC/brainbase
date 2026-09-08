@@ -1,14 +1,29 @@
 import express from 'express';
 import { logger } from '../../utils/logger.js';
-import { cacheMiddleware } from '../../middleware/cache.js';
 import { asyncHandler } from '../../lib/async-handler.js';
+import {
+    catalogTechnicalMetadataUnavailable,
+    catalogUnavailableResponse,
+    loadRuntimeProjectCatalog
+} from '../../services/project-access/runtime-project-catalog.js';
 
 /**
  * トレンド分析APIルーター
  */
 export function createBrainbaseTrendsRouter(options = {}) {
     const router = express.Router();
-    const { nocodbService, configParser } = options;
+    const {
+        nocodbService,
+        configParser,
+        projectCatalogParser = configParser,
+        projectCatalogAuthGuard = (_req, _res, next) => next()
+    } = options;
+    const catalogReadGuard = typeof projectCatalogParser?.runForOrganization === 'function'
+        ? projectCatalogAuthGuard
+        : (_req, _res, next) => next();
+    const catalogReadGuardUnlessFixture = (req, res, next) => (
+        req.query.test === 'true' ? next() : catalogReadGuard(req, res, next)
+    );
 
     /**
      * GET /api/brainbase/trends
@@ -22,7 +37,7 @@ export function createBrainbaseTrendsRouter(options = {}) {
      *   - snapshots: 過去N日間のスナップショット一覧
      *   - trend_analysis: トレンド分析結果（up/down/stable, health_score変化量, alert_level）
      */
-    router.get('/trends', asyncHandler(async (req, res) => {
+    router.get('/trends', catalogReadGuard, asyncHandler(async (req, res) => {
         const projectId = req.query.project_id;
         const days = parseInt(req.query.days) || 30;
 
@@ -31,6 +46,13 @@ export function createBrainbaseTrendsRouter(options = {}) {
                 error: 'project_id is required',
                 message: 'Please provide a project_id query parameter'
             });
+        }
+
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        if (!catalog.projects.some((project) => project.nocodb?.project_id === projectId)) {
+            return res.status(404).json({ error: 'Project not found' });
         }
 
         const trends = await nocodbService.getTrends(projectId, days);
@@ -50,7 +72,7 @@ export function createBrainbaseTrendsRouter(options = {}) {
      *   - heatmap: 各プロジェクトの週次データ配列
      *   - chronic_alerts: 慢性的止まりプロジェクトのアラート配列
      */
-    router.get('/trends/heatmap', cacheMiddleware(600), asyncHandler(async (req, res) => {
+    router.get('/trends/heatmap', catalogReadGuardUnlessFixture, asyncHandler(async (req, res) => {
         const weeks = parseInt(req.query.weeks) || 8;
 
         if (req.query.test === 'true') {
@@ -103,9 +125,11 @@ export function createBrainbaseTrendsRouter(options = {}) {
         }
 
         const days = weeks * 7;
-        const config = await configParser.getAll();
-        const projects = (config.projects?.projects || [])
-            .filter(p => !p.archived && p.nocodb?.project_id)
+        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
+        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
+        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
+        const projects = catalog.projects
+            .filter(p => p.nocodb?.project_id)
             .map(p => ({ id: p.id, project_id: p.nocodb.project_id }));
 
         const heatmapData = await Promise.all(

@@ -30,6 +30,9 @@ describe('personal and organization knowledge schema', () => {
         const edgeScopeFunction = infoSsotRls.match(
             /CREATE OR REPLACE FUNCTION app_graph_edge_scope_visible\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/
         )?.[0] || '';
+        const edgeSelectPolicy = infoSsotRls.match(
+            /CREATE POLICY info_graph_edges_select[\s\S]*?(?=\n\nDROP POLICY IF EXISTS info_graph_edges_insert)/
+        )?.[0] || '';
         expect(infoSsotRls).toContain('app_graph_edge_scope_visible');
         expect(infoSsotRls).toContain('app_graph_entity_organization_id');
         expect(infoSsotRls).toContain("edge_rel_type = 'governs'");
@@ -39,11 +42,32 @@ describe('personal and organization knowledge schema', () => {
         expect(infoSsotRls).toContain('target_project.code = ANY(app_project_codes())');
         expect(edgeScopeFunction).toContain('app_graph_entity_organization_id(source_entity.id) IS NULL');
         expect(edgeScopeFunction).toContain('app_graph_entity_organization_id(target_entity.id) IS NULL');
+        expect(edgeScopeFunction).toContain("edge_rel_type IN ('owned_by', 'assigned_to')");
+        expect(edgeScopeFunction).toContain("edge_rel_type <> 'assigned_to'");
+        expect(edgeScopeFunction).toContain("source_entity.entity_type = 'raci_assignment'");
+        expect(edgeScopeFunction).toContain('membership_project.organization_id = source_project.organization_id');
         expect(edgeScopeFunction).toContain('IS DISTINCT FROM app_graph_entity_organization_id(target_entity.id)');
         expect(edgeScopeFunction).not.toContain("current_setting('app.graph_maintenance_mode', true) = 'true'");
         expect(edgeScopeFunction).not.toMatch(/app_current_role_rank\(\) >= app_role_rank\('gm'\)/);
         expect(edgeScopeFunction).toContain('SECURITY DEFINER');
         expect(edgeScopeFunction).toContain('SET search_path FROM CURRENT');
+        expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'/);
+        expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_select[\s\S]*app_project_codes\(\)[\s\S]*graph_maintenance_mode[\s\S]*rel_type = 'member_of'/);
+        expect(edgeSelectPolicy).toMatch(/current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*AND rel_type = 'member_of'[\s\S]*AND lifecycle_status = 'active'[\s\S]*\)[\s\S]*OR[\s\S]*\([\s\S]*app_current_role_rank\(\) >= app_role_rank\(role_min\)[\s\S]*AND sensitivity = ANY\(app_clearance\(\)\)/);
+        expect(edgeSelectPolicy).toMatch(/CASE[\s\S]*WHEN current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*THEN TRUE[\s\S]*ELSE \([\s\S]*rel_type = 'member_of'[\s\S]*OR app_graph_edge_scope_visible\([\s\S]*END/);
+        expect(edgeSelectPolicy.indexOf("p.code = ANY(app_project_codes())"))
+            .toBeLessThan(edgeSelectPolicy.indexOf("WHEN current_setting('app.graph_maintenance_mode', true) = 'true'"));
+        expect(edgeSelectPolicy.indexOf("THEN TRUE"))
+            .toBeLessThan(edgeSelectPolicy.indexOf('app_graph_edge_scope_visible('));
+        expect(infoSsotRls).toMatch(/CREATE POLICY info_graph_edges_update[\s\S]*USING[\s\S]*current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*WITH CHECK/);
+        const edgeInsertPolicy = infoSsotRls.match(
+            /CREATE POLICY info_graph_edges_insert[\s\S]*?(?=\n\nDROP POLICY IF EXISTS info_graph_edges_update)/
+        )?.[0] || '';
+        const edgeUpdatePolicy = infoSsotRls.match(
+            /CREATE POLICY info_graph_edges_update[\s\S]*$/
+        )?.[0] || '';
+        expect(edgeInsertPolicy).not.toMatch(/app_graph_edge_source_project_matches\([\s\S]*?OR current_setting\('app\.graph_maintenance_mode'/);
+        expect(edgeUpdatePolicy).toMatch(/USING \([\s\S]*?app_graph_edge_source_project_matches\([\s\S]*?OR current_setting\('app\.graph_maintenance_mode', true\) = 'true'[\s\S]*?WITH CHECK \([\s\S]*?app_graph_edge_source_project_matches\(/);
         expect(infoSsotRls.match(/CREATE OR REPLACE FUNCTION app_setting_array\([\s\S]*?\n(?:\$\$;|\s*\$function\$;)/)?.[0])
             .not.toContain('COALESCE((');
 
@@ -79,7 +103,11 @@ describe('personal and organization knowledge schema', () => {
         const sql = read('server/sql/personal-knowledge-two-stage-promotion.sql');
 
         expect(sql).toContain('owner_decided_by TEXT');
+        expect(sql).toContain('owner_decision_revision BIGINT NOT NULL DEFAULT 0');
         expect(sql).toContain('organization_reviewed_by TEXT');
+        expect(sql).toContain('organization_review_revision BIGINT NOT NULL DEFAULT 0');
+        expect(sql).toMatch(/status = 'pending_owner_approval' AND owner_decision_revision = 0/);
+        expect(sql).toMatch(/status IN \('org_accepted', 'org_rejected'\)[\s\S]*organization_review_revision = 1/);
         expect(sql).toContain("'pending_owner_approval'");
         expect(sql).toContain("'owner_rejected'");
         expect(sql).toContain("'pending_org_review'");
@@ -90,6 +118,15 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/owner_person_id <> app_person_id_required\(\)/);
         expect(sql).toMatch(/app_role_rank\(current_setting\('app.role', true\)\) >= app_role_rank\('gm'\)/);
         expect(sql).toMatch(/status IN \('pending_org_review', 'org_accepted', 'org_rejected'\)/);
+    });
+
+    it('uses optimistic CAS for each two-stage decision revision', () => {
+        const repository = read('server/services/personal-knowledge/two-stage-promotion-repository.js');
+
+        expect(repository).toMatch(/owner_decision_revision = owner_decision_revision \+ 1[\s\S]*owner_decision_revision = \$6/);
+        expect(repository).toMatch(/organization_review_revision = organization_review_revision \+ 1[\s\S]*organization_review_revision = \$9/);
+        expect(read('server/services/personal-knowledge/pg-personal-knowledge-repository.js'))
+            .toMatch(/knowledge_promotion_requests WHERE request_id = \$1 LIMIT 1 FOR UPDATE/);
     });
 
     it('requires normalized hashes, both receipts, Knowledge Event, and Graph readback for new acceptance', () => {

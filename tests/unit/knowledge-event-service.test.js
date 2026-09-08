@@ -6,6 +6,7 @@ import {
     KnowledgeEventService,
     KnowledgeEventValidationError
 } from '../../server/services/knowledge-event-service.js';
+import { InMemoryCandidateRepository } from '../../server/services/candidate-store/candidate-repository.js';
 import { InfoSSOTKnowledgeGraphRepository } from '../../server/services/knowledge-event/info-ssot-knowledge-graph-repository.js';
 
 const REQUIRED_FIELDS = [
@@ -76,6 +77,75 @@ function createHarness({ existing = null, authorityVerified = true, existingGrap
 }
 
 describe('KnowledgeEventService knowledge_event.v1 contract', () => {
+    it('承認済み組織eventを正規のCandidate状態遷移でGraph反映済みにする', async () => {
+        const candidateRepository = new InMemoryCandidateRepository();
+        const candidate = candidateRepository.create({
+            id: 'cand_org_entity_1',
+            cognitive_type: 'observation',
+            owner_person_id: 'person_owner',
+            actor_person_id: 'person_reviewer',
+            source_system: 'personal_knowledge_promotion',
+            source_event_ids: ['kev_org_entity_1'],
+            organization_id: 'org_a',
+            project_code: 'brainbase',
+            org_ids: ['org_a'],
+            project_ids: ['brainbase'],
+            visibility: 'org',
+            sensitivity: 'internal',
+            body: '組織へ共有する用語',
+            recommended_subject_type: 'glossary_term',
+            recommended_subject_id: 'term_org_entity_1',
+            target_tier: 'episode',
+            promotion_status: 'candidate',
+            requires_approval: true
+        });
+        const client = {};
+        const eventRepository = {
+            saveResult: vi.fn(async (_eventId, result) => ({ result }))
+        };
+        const service = new KnowledgeEventService({
+            eventRepository,
+            candidateRepository,
+            graphRepository: {},
+            externalActions: {}
+        });
+
+        const result = await service.reconcileGraphProjection(candidate.id, 'term_org_entity_1', {
+            client,
+            eventId: 'kev_org_entity_1',
+            actorPersonId: 'person_reviewer',
+            decisionOwnerPersonId: 'person_owner'
+        });
+
+        expect(candidateRepository.auditEvents.map((event) => [
+            event.previous_status,
+            event.next_status,
+            event.decision_reason
+        ])).toEqual([
+            ['candidate', 'pending_approval', 'knowledge_event_graph_promotion_review_requested'],
+            ['pending_approval', 'approved', 'knowledge_event_graph_promotion_approved'],
+            ['approved', 'promoted_to_graph', 'knowledge_event_graph_promotion']
+        ]);
+        expect(candidateRepository.findById(candidate.id)).toMatchObject({
+            promotion_status: 'promoted_to_graph',
+            promoted_graph_entity_id: 'term_org_entity_1',
+            requires_approval: false
+        });
+        expect(result.candidateTransition?.candidate).toMatchObject({
+            promotion_status: 'promoted_to_graph',
+            promoted_graph_entity_id: 'term_org_entity_1'
+        });
+        expect(eventRepository.saveResult).toHaveBeenCalledWith(
+            'kev_org_entity_1',
+            expect.objectContaining({
+                candidate_id: candidate.id,
+                graph_entity_id: 'term_org_entity_1',
+                processing_stage: 'retrievable'
+            }),
+            { client, access: null }
+        );
+    });
+
     it('eventから確定したorganizationを同一transactionのDB access contextへ渡す', async () => {
         const eventRepository = {
             withTransaction: vi.fn(async () => ({ event_id: 'kev_decision_1' }))

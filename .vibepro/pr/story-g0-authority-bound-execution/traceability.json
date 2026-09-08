@@ -1,0 +1,89 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-g0-authority-bound-execution",
+  "story_doc_path": "docs/management/stories/active/story-g0-authority-bound-execution.md",
+  "source": "pr_prepare",
+  "lifecycle": "in_progress",
+  "evidence": [
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-g0-authority-bound-execution/pr-body.md"
+    },
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-g0-authority-bound-execution/verification-evidence.json"
+    }
+  ],
+  "acceptance_criteria": [],
+  "scenario_clauses": [],
+  "scenario_lineage": null,
+  "accepted_spec_lineage": {
+    "status": "invalid",
+    "head_sha": "4f2c5bf3d7f6cc4f8a118797037f50ac88bf045d",
+    "spec_path": ".vibepro/spec/story-g0-authority-bound-execution/spec.json",
+    "spec_blob_oid": null,
+    "story_path": "docs/management/stories/active/story-g0-authority-bound-execution.md",
+    "story_blob_oid": null,
+    "mapping_source": "accepted_spec",
+    "clause_count": 5,
+    "resolved_clause_count": 0,
+    "reason_codes": [
+      "accepted_spec_not_in_head",
+      "story_not_in_head",
+      "unknown_story_ac",
+      "test_case_missing",
+      "test_ref_missing",
+      "test_pattern_missing"
+    ],
+    "failures": [
+      {
+        "clause_id": "C-001",
+        "reason_codes": [
+          "unknown_story_ac",
+          "test_case_missing"
+        ]
+      },
+      {
+        "clause_id": "C-002",
+        "reason_codes": [
+          "unknown_story_ac",
+          "test_case_missing"
+        ]
+      },
+      {
+        "clause_id": "C-003",
+        "reason_codes": [
+          "unknown_story_ac",
+          "test_case_missing"
+        ]
+      },
+      {
+        "clause_id": "C-004",
+        "reason_codes": [
+          "unknown_story_ac",
+          "test_case_missing"
+        ]
+      },
+      {
+        "clause_id": "INV-001",
+        "reason_codes": [
+          "unknown_story_ac",
+          "test_ref_missing",
+          "test_pattern_missing"
+        ]
+      }
+    ]
+  },
+  "coverage_summary": {
+    "clause_count": 0,
+    "acceptance_criteria_count": 0,
+    "scenario_clause_count": 0,
+    "mapped_count": 0,
+    "weakly_mapped_count": 0,
+    "unmapped_count": 0,
+    "scenario_lineage": null,
+    "examples": []
+  },
+  "created_at": "2026-09-05T23:24:31.070Z",
+  "updated_at": "2026-09-05T23:57:17.847Z"
+}

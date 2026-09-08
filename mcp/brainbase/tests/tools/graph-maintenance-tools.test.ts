@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import Ajv from 'ajv';
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from '../../src/tools/graph-maintenance-tools.js';
 import { __testing as serverTesting } from '../../src/server.js';
 
@@ -150,6 +151,23 @@ describe('Graph maintenance MCP tools', () => {
     assert.ok('human_gate_receipt' in applyTool.inputSchema.properties);
   });
 
+  it('Apply receiptのsuppression_summaryはzero-count reasonを拒否する', () => {
+    const receiptTool = graphMaintenanceTools.find((tool) => tool.name === 'graph_record_human_gate_receipt');
+    const scopeSchema = receiptTool?.inputSchema.properties?.evidence?.properties?.operation_scope;
+    assert.ok(scopeSchema && 'oneOf' in scopeSchema);
+    const applyScopeSchema = scopeSchema.oneOf.find((variant: any) => (
+      variant.properties.operation.enum[0] === 'apply_plan'
+    ));
+    assert.ok(applyScopeSchema);
+    const suppressionSummarySchema = applyScopeSchema.properties.suppression_summary;
+    const validate = new Ajv({ strict: false }).compile(suppressionSummarySchema);
+
+    assert.equal(validate({
+      before: { edge_count: 1, reasons: { noncanonical_cross_tenant_marker: 0 } },
+      after: { edge_count: 0, reasons: {} },
+    }), false);
+  });
+
   it('RESTの非2xx応答をstatus/error/http_statusへ変換する', async () => {
     const cases = [
       { name: 'graph_export_snapshot', args: { project_code: 'brainbase' } },
@@ -208,6 +226,29 @@ describe('Graph maintenance MCP tools', () => {
     assert.equal(result?.error?.http_status, 200);
   });
 
+  it('strict Graph抑止失敗を識別子なしでMCP利用者へ伝播する', async () => {
+    let body;
+    const payload = {
+      collection_complete: false,
+      valid: false,
+      validation_scope: { strict_collection: true },
+      snapshot_hash: `sha256:${'b'.repeat(64)}`,
+      suppression_summary: { edge_count: 1, reasons: { unresolved_or_inaccessible_endpoint: 1 } },
+    };
+    const result = await handleGraphMaintenanceToolCall('graph_validate', {
+      project_code: 'brainbase', strict_collection: true,
+    }, deps(async (_url, init) => {
+      body = JSON.parse(String(init?.body));
+      return new Response(JSON.stringify(payload), { status: 200 });
+    }));
+
+    assert.deepEqual(body, { project_code: 'brainbase', strict_collection: true });
+    assert.deepEqual(result, {
+      status: 'ok', scope: { project_codes: ['brainbase'] }, data: payload,
+    });
+    assert.equal(JSON.stringify(result).includes('hidden_entity'), false);
+  });
+
   it('scope外projectはHTTPへ到達する前に拒否する', async () => {
     let fetched = false;
     const result = await handleGraphMaintenanceToolCall('graph_validate', { project_code: 'other' }, deps(async () => {
@@ -260,10 +301,20 @@ describe('Graph maintenance MCP tools', () => {
       project_code: 'brainbase', include_project_codes: ['vibepro'],
     }, deps(async (_url, init) => {
       validateBody = JSON.parse(String(init?.body));
-      return new Response(JSON.stringify({ valid: true }));
+      return new Response(JSON.stringify({
+        valid: true,
+        required_relation_scope_summary: {
+          included: { active_local_entities: 3 },
+          excluded: { retired_local_entities: 1, superseded_local_entities: 1, external_metadata_entities: 2 },
+        },
+      }));
     }, ['brainbase', 'vibepro']));
     assert.equal(validated?.status, 'ok');
     assert.deepEqual(validateBody, { project_code: 'brainbase', include_project_codes: ['vibepro'] });
+    assert.deepEqual(validated?.data.required_relation_scope_summary, {
+      included: { active_local_entities: 3 },
+      excluded: { retired_local_entities: 1, superseded_local_entities: 1, external_metadata_entities: 2 },
+    });
 
     let fetched = false;
     const denied = await handleGraphMaintenanceToolCall('graph_plan_mutations', {
@@ -296,6 +347,46 @@ describe('Graph maintenance MCP tools', () => {
     assert.equal(applyScopeSchema.required.includes('decision_ids'), false);
     assert.deepEqual(applyScopeSchema.properties.decision_ids, {
       type: 'array', items: { type: 'string', minLength: 1 }, minItems: 1, uniqueItems: true,
+    });
+    assert.ok(applyScopeSchema.required.includes('suppression_summary'));
+    assert.deepEqual(applyScopeSchema.properties.suppression_summary, {
+      type: 'object',
+      properties: {
+        before: {
+          type: 'object',
+          properties: {
+            edge_count: { type: 'integer', minimum: 0 },
+            reasons: {
+              type: 'object',
+              properties: {
+                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 1 },
+                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 1 },
+              },
+              additionalProperties: false,
+            },
+          },
+          required: ['edge_count', 'reasons'],
+          additionalProperties: false,
+        },
+        after: {
+          type: 'object',
+          properties: {
+            edge_count: { type: 'integer', minimum: 0 },
+            reasons: {
+              type: 'object',
+              properties: {
+                noncanonical_cross_tenant_marker: { type: 'integer', minimum: 1 },
+                unresolved_or_inaccessible_endpoint: { type: 'integer', minimum: 1 },
+              },
+              additionalProperties: false,
+            },
+          },
+          required: ['edge_count', 'reasons'],
+          additionalProperties: false,
+        },
+      },
+      required: ['before', 'after'],
+      additionalProperties: false,
     });
     assert.equal(applyScopeSchema.additionalProperties, false);
 

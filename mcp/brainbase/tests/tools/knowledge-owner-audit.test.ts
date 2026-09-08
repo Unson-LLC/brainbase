@@ -5,6 +5,7 @@ import {
   buildKnowledgeOwnerAudit,
   buildKnowledgeToolContent,
 } from '../../src/tools/knowledge-owner-audit.js';
+import { __testing as serverTesting } from '../../src/server.js';
 
 describe('knowledge owner audit', () => {
   it('records an actual Graph search with its real query', () => {
@@ -72,22 +73,107 @@ describe('knowledge owner audit', () => {
     );
   });
 
-  it('appends exactly one audit block only when an actual retrieval ran', () => {
+  it('audits public structured retrievals and distinguishes confirmed empty results', () => {
+    assert.equal(
+      buildKnowledgeOwnerAudit(
+        'brainbase_projects',
+        {},
+        JSON.stringify({ status: 'ok', data: { projects: [], count: 0 } }),
+      )?.display_line,
+      '📚 Brainbase取得: Brainbaseから「プロジェクト一覧」を取得 → 該当なし（不在確定ではない）',
+    );
+    assert.equal(
+      buildKnowledgeOwnerAudit(
+        'brainbase_onboarding_get',
+        { run_id: 'run-204' },
+        JSON.stringify({ status: 'ok', data: null }),
+      )?.outcome,
+      '該当なし（不在確定ではない）',
+    );
+    assert.equal(
+      buildKnowledgeOwnerAudit(
+        'graph_validate',
+        { project_code: 'brainbase' },
+        JSON.stringify({ status: 'ok', data: { valid: true } }),
+      )?.outcome,
+      '結果を取得',
+    );
+  });
+
+  it('does not claim successful retrieval for structured failures', () => {
+    for (const status of ['error', 'unavailable', 'partial', 'failed', 'failure', 'unknown']) {
+      const result = JSON.stringify({
+        status,
+        error: { code: `brainbase_api_${status}` },
+      });
+
+      assert.equal(
+        buildKnowledgeOwnerAudit('brainbase_onboarding_get', { run_id: 'run-failed' }, result),
+        null,
+      );
+      const content = serverTesting.buildToolResponseContent(
+        'brainbase_onboarding_get',
+        { run_id: 'run-failed' },
+        result,
+      );
+      assert.deepStrictEqual(content, [{ type: 'text', text: result }]);
+      assert.doesNotMatch(JSON.stringify(content), /結果を取得 ✓/u);
+    }
+  });
+
+  it('does not claim successful retrieval for partial meeting context', () => {
+    const result = JSON.stringify({
+      status: 'partial',
+      receipt: {
+        receipt_id: 'receipt-partial',
+        status: 'partial',
+      },
+    });
+
+    assert.equal(
+      buildKnowledgeOwnerAudit(
+        'brainbase_get_meeting_minutes_context',
+        { run_id: 'run-partial' },
+        result,
+      ),
+      null,
+    );
+    const content = serverTesting.buildToolResponseContent(
+      'brainbase_get_meeting_minutes_context',
+      { run_id: 'run-partial' },
+      result,
+    );
+    assert.deepStrictEqual(content, [{ type: 'text', text: result }]);
+    assert.doesNotMatch(JSON.stringify(content), /結果を取得 ✓/u);
+  });
+
+  it('appends machine-readable audit metadata without instructing the model to reproduce owner output', () => {
     const audit = buildKnowledgeOwnerAudit('search', { query: '公開方針' }, '1 result');
 
     assert.deepStrictEqual(buildKnowledgeToolContent('1 result', audit), [
       { type: 'text', text: '1 result' },
       {
         type: 'text',
-        text: [
-          'Brainbase retrieval audit: reproduce the next line exactly once in the next user-facing assistant message.',
-          'Do not merge it with the turn-level Judgment audit and do not repeat it without another tool call.',
-          '📚 Brainbase検索: Graphで「公開方針」を検索 → 結果を取得 ✓',
-        ].join('\n'),
+        text: '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"検索","outcome":"結果を取得"} -->',
       },
     ]);
+    assert.doesNotMatch(JSON.stringify(buildKnowledgeToolContent('1 result', audit)), /reproduce|user-facing assistant message/u);
     assert.deepStrictEqual(buildKnowledgeToolContent('Graph route', null), [
       { type: 'text', text: 'Graph route' },
     ]);
+  });
+
+  it('wraps a public structured retrieval in the MCP content envelope consumed by the Host', () => {
+    const content = serverTesting.buildToolResponseContent(
+      'brainbase_onboarding_get',
+      { run_id: 'run-204' },
+      JSON.stringify({ status: 'ok', data: null }),
+    );
+    assert.equal(content.length, 2);
+    assert.equal(content[0]?.text, '{"status":"ok","data":null}');
+    assert.equal(
+      content[1]?.text,
+      '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"取得","outcome":"該当なし（不在確定ではない）"} -->',
+    );
   });
 });

@@ -101,8 +101,15 @@ describe('OntologyRegistry', () => {
         try {
             const registry = new OntologyRegistry({ rootDir: sourceRoot });
             expect(registry.resolve()).toMatchObject({
-                entry: { version: '1.0.0', status: 'active' },
-                kernel: { status: 'active' }
+                entry: { version: '1.1.0', status: 'active' },
+                kernel: { status: 'active' },
+                publicationVerification: {
+                    status: 'verified',
+                    key_id: 'brainbase-ontology-production-2026-08-03',
+                    signature_algorithm: 'ed25519',
+                    trust_source: 'git_trust_store',
+                    receipt_digest: expect.stringMatching(/^[a-f0-9]{64}$/)
+                }
             });
         } finally {
             if (previousPublicKey === undefined) delete process.env.ONTOLOGY_PUBLICATION_SIGNING_PUBLIC_KEY;

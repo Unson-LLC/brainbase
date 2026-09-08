@@ -21,16 +21,19 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'brainbase_meeting_automation_diagnosis',
   'brainbase_onboarding_get',
   'brainbase_knowledge_resolve',
+  'brainbase_resolve_turn',
+  'brainbase_judgment_audit_read',
   'brainbase_get_meeting_minutes_context',
   'authorize_tenant_resource',
-  'mesh_query',
   'mesh_peers',
-  'graph_export_snapshot',
   'graph_get_plan_receipt',
   'graph_validate',
 ]);
 
 const WRITE_TOOL_NAMES = new Set([
+  'register_personal_kg',
+  'brainbase_judgment_value_proof_record',
+  'brainbase_judgment_state_record',
   'brainbase_automation_human_step_resolve',
   'brainbase_onboarding_start',
   'brainbase_onboarding_ingest',
@@ -44,6 +47,8 @@ const WRITE_TOOL_NAMES = new Set([
   'graph_plan_mutations',
   'graph_apply_plan',
   'graph_rollback_plan',
+  'graph_export_snapshot',
+  'mesh_query',
 ]);
 
 export function annotateToolCapabilities(tools: Tool[]): Tool[] {

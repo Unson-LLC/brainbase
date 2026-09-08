@@ -45,6 +45,9 @@ export function sourceDecision(id = 'dec1', overrides = {}) {
 export function viewer(sub = 'sato_keigo', overrides = {}) {
     return {
         sub,
+        owner_person_id: sub,
+        actor_person_id: sub,
+        organization_id: 'unson',
         role: 'ceo',
         workspace: 'unson',
         org_ids: ['unson'],

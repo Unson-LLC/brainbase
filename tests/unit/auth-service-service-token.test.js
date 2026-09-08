@@ -54,6 +54,113 @@ describe('AuthService service tokens', () => {
         expect(() => authService.verifyServiceToken(authService.issueToken({ sub: 'per_1' }))).toThrow('Invalid service token');
     });
 
+    it('週次retro専用tokenを固定service actor・read-only Personal KG scopeで発行する', () => {
+        const authService = new AuthService();
+
+        const result = authService.issueRetroServiceToken({
+            ownerPersonId: 'person-sato',
+            organizationId: 'organization-unson',
+            createdBy: 'person-sato'
+        });
+        const decoded = authService.verifyServiceToken(result.token);
+
+        expect(decoded).toMatchObject({
+            sub: 'brainbase_retro',
+            projectCodes: ['brainbase'],
+            clearance: ['personal'],
+            capabilities: ['routine.retro.execute'],
+            routineAuthority: {
+                routine: 'retro',
+                capability_id: 'personal_read',
+                allowed_effects: ['read'],
+                owner_person_id: 'person-sato',
+                organization_id: 'organization-unson',
+                project_id: 'brainbase',
+                authority_resolution_receipt_id: expect.stringMatching(/^authres_/),
+                identity_resolution_receipt_id: expect.stringMatching(/^idres_/)
+            }
+        });
+    });
+
+    it('内部routine authorityはGraph grantから組織を解決し、3 routine共通で短命署名する', async () => {
+        const authService = new AuthService();
+        authService.pool = {
+            query: async () => ({ rows: [{ organization_id: 'organization-unson' }] })
+        };
+
+        for (const routine of ['ohayo', 'retro', 'oyasumi']) {
+            const claims = await authService.resolveCanonicalRoutineAuthority({
+                routine,
+                ownerPersonId: 'sato_keigo',
+                providerSubjectIds: ['U-SATO']
+            });
+
+            expect(claims).toMatchObject({
+                sub: `brainbase_${routine}`,
+                capabilities: [`routine.${routine}.execute`],
+                routineAuthority: {
+                    routine,
+                    owner_person_id: 'sato_keigo',
+                    organization_id: 'organization-unson',
+                    project_id: 'brainbase',
+                    allowed_effects: ['read']
+                }
+            });
+            expect(claims.exp - claims.iat).toBeLessThanOrEqual(60);
+        }
+    });
+
+    it('内部routine authorityはGraph grantが一意に解決できなければfail closedにする', async () => {
+        const authService = new AuthService();
+        authService.pool = { query: async () => ({ rows: [] }) };
+
+        await expect(authService.resolveCanonicalRoutineAuthority({
+            routine: 'ohayo',
+            ownerPersonId: 'sato_keigo',
+            providerSubjectIds: ['U-SATO']
+        })).rejects.toThrow('canonical routine authority is unresolved');
+    });
+
+    it('内部routine authorityはローカルprovider identityがなければDB照会前にfail closedにする', async () => {
+        const authService = new AuthService();
+        let queried = false;
+        authService.pool = { query: async () => { queried = true; return { rows: [] }; } };
+
+        await expect(authService.resolveCanonicalRoutineAuthority({
+            routine: 'ohayo',
+            ownerPersonId: 'sato_keigo'
+        })).rejects.toThrow('canonical routine authority is unresolved');
+        expect(queried).toBe(false);
+    });
+
+    it('夜間oyasumi専用tokenを固定service actor・read-only Personal KG scopeで発行する', () => {
+        const authService = new AuthService();
+
+        const result = authService.issueOyasumiServiceToken({
+            ownerPersonId: 'person-sato',
+            organizationId: 'organization-unson',
+            createdBy: 'person-sato'
+        });
+        const decoded = authService.verifyServiceToken(result.token);
+
+        expect(decoded).toMatchObject({
+            sub: 'brainbase_oyasumi',
+            projectCodes: ['brainbase'],
+            clearance: ['personal'],
+            capabilities: ['routine.oyasumi.execute'],
+            routineAuthority: {
+                routine: 'oyasumi',
+                capability_id: 'personal_read',
+                allowed_effects: ['read'],
+                owner_person_id: 'person-sato',
+                organization_id: 'organization-unson',
+                project_id: 'brainbase',
+                authority_resolution_receipt_id: expect.stringMatching(/^authres_/),
+                identity_resolution_receipt_id: expect.stringMatching(/^idres_/)
+            }
+        });
+    });
+
     it('issueServiceToken呼び出し時_不正なprojectCodesとclearanceは正規化する', () => {
         const authService = new AuthService();
 

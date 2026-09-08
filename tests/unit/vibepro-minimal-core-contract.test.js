@@ -26,6 +26,18 @@ describe('VibePro Minimal Core distribution contract', () => {
     expect(agents).toContain('VibePro is not a workflow engine, merge authority, safety decision engine');
   });
 
+  it('routes every implement receipt through VibePro without requiring an explicit product mention', () => {
+    const agents = read('AGENTS.md');
+    const workflow = read('.claude/skills/vibepro-workflow/SKILL.md');
+    expect(agents).toContain(
+      'When the Judgment Resolver fixes `classification.intent=implement`, use `vibepro-workflow` before changing code even if the user did not mention VibePro.'
+    );
+    expect(agents).toContain('Debugging, TDD, and Git Skills run inside this loop; they do not replace it.');
+    expect(workflow).toContain(
+      'Use this Skill for every Brainbase-managed repository turn whose immutable Judgment receipt has `classification.intent=implement`, even if the user did not mention VibePro.'
+    );
+  });
+
   it('removes retired authority language from active instructions and Skills', () => {
     const retiredImperatives = [
       'Use VibePro as the Story / Architecture / Spec / Graphify / Gate control plane',
@@ -40,21 +52,24 @@ describe('VibePro Minimal Core distribution contract', () => {
     }
   });
 
-  it('keeps Architecture, Graphify, review, and PR authority conditional', () => {
+  it('keeps installed Graphify lightweight and Architecture, review, and PR authority conditional', () => {
     const agents = read('AGENTS.md');
     const workflow = read('.claude/skills/vibepro-workflow/SKILL.md');
     const review = read('.claude/skills/vibepro-human-review/SKILL.md');
     const refactor = read('.claude/skills/vibepro-story-refactor/SKILL.md');
     expect(agents).toContain('Architecture is not a mandatory ceremony for every Story.');
-    expect(agents).toContain('Graphify is optional.');
+    expect(agents).toContain('For every implementation regardless of size, use the lightweight Graphify lookup');
+    expect(agents).toContain('Reuse unchanged results; update or deepen only when needed.');
+    expect(agents).toContain('Do not add a PR gate.');
     expect(agents).toContain('including `gh pr create` where that is the repository convention');
     expect(workflow).toContain('Legacy Gate, readiness, lifecycle, and stale-review projections are informational and cannot block the PR.');
     expect(review).toContain('VibePro does not replace human or policy authority.');
-    expect(refactor).toContain('Architecture, Graphify, Task artifacts, Gates, and special PR creation are conditional rather than mandatory ceremonies.');
+    expect(refactor).toContain('Architecture, Task artifacts, Gates, and special PR creation are conditional rather than mandatory ceremonies.');
   });
 
   it('runs this contract test whenever distributed VibePro instructions change', () => {
     const workflow = yaml.load(read('.github/workflows/vibepro-score-run.yml'));
+    expect(workflow.name).toBe('VibePro Minimal Core Contract');
     for (const eventName of ['pull_request', 'push']) {
       const paths = workflow.on[eventName].paths;
       expect(paths).toContain('AGENTS.md');
@@ -62,7 +77,11 @@ describe('VibePro Minimal Core distribution contract', () => {
       expect(paths).toContain('.claude/skills/vibepro-*/**');
       expect(paths).toContain('tests/unit/vibepro-minimal-core-contract.test.js');
     }
-    const commands = workflow.jobs['score-evidence'].steps.map((step) => step.run).filter(Boolean).join('\n');
+    const commands = workflow.jobs['minimal-core-contract'].steps.map((step) => step.run).filter(Boolean).join('\n');
     expect(commands).toContain('tests/unit/vibepro-minimal-core-contract.test.js');
+    expect(commands).not.toContain('vibepro:score-verify');
+    expect(commands).not.toContain('vibepro:development-dag');
+    expect(commands).not.toContain('vibepro:doc-trace');
+    expect(fs.existsSync(path.join(repoRoot, '.github/workflows/vibepro-graphify-impact.yml'))).toBe(false);
   });
 });

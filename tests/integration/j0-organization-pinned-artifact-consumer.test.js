@@ -4,7 +4,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { afterEach, describe, expect, it } from 'vitest';
 
-const PUBLIC_COMMIT = '9c0343c6b967cd34e1a45ed2d7c25d1c3f8ff3ae';
+const PUBLIC_COMMIT = 'd51550260407bff7782c1a621fa13b12ce9fbfa6';
 const DEPENDENCY = `github:Unson-LLC/brainbase#${PUBLIC_COMMIT}`;
 const RESOLVED_DEPENDENCY = `git+ssh://git@github.com/Unson-LLC/brainbase.git#${PUBLIC_COMMIT}`;
 const roots = [];

@@ -20,7 +20,8 @@ const EMPTY_LEDGER = {
     workflow_templates: [],
     workflow_bindings: [],
     workflow_triggers: [],
-    loop_intents: []
+    loop_intents: [],
+    company_authority_approval_receipts: []
 };
 
 function clone(value) {
@@ -149,7 +150,10 @@ function readLedgerFile(filePath) {
         workflow_templates: Array.isArray(parsed.workflow_templates) ? parsed.workflow_templates : [],
         workflow_bindings: Array.isArray(parsed.workflow_bindings) ? parsed.workflow_bindings : [],
         workflow_triggers: Array.isArray(parsed.workflow_triggers) ? parsed.workflow_triggers : [],
-        loop_intents: Array.isArray(parsed.loop_intents) ? parsed.loop_intents : []
+        loop_intents: Array.isArray(parsed.loop_intents) ? parsed.loop_intents : [],
+        company_authority_approval_receipts: Array.isArray(parsed.company_authority_approval_receipts)
+            ? parsed.company_authority_approval_receipts
+            : []
     };
 }
 
@@ -318,6 +322,59 @@ export class InMemoryWorkflowRepository {
 
     listHumanSteps(runId) {
         return clone(this.ledger.human_steps.filter((item) => item.workflow_run_id === runId));
+    }
+
+    createCompanyAuthorityApprovalReceipt(receipt) {
+        this._assertMutationAllowed();
+        if (!receipt?.id) throw new Error('company_authority_approval_receipts.id is required');
+        if (this.ledger.company_authority_approval_receipts.some((item) => item.id === receipt.id)) {
+            throw new Error(`company authority approval receipt '${receipt.id}' already exists`);
+        }
+        const next = {
+            created_at: nowIso(),
+            consumed_at: null,
+            consumed_by: null,
+            ...receipt
+        };
+        this.ledger.company_authority_approval_receipts.push(next);
+        this._persist();
+        return clone(next);
+    }
+
+    getCompanyAuthorityApprovalReceipt(receiptId) {
+        const receipt = this.ledger.company_authority_approval_receipts
+            .find((item) => item.id === receiptId);
+        return receipt ? clone(receipt) : null;
+    }
+
+    listCompanyAuthorityApprovalReceipts({ humanStepId = null, tenantId = null } = {}) {
+        return clone(this.ledger.company_authority_approval_receipts
+            .filter((item) => !humanStepId || item.human_step_id === humanStepId)
+            .filter((item) => !tenantId || item.tenant_id === tenantId));
+    }
+
+    consumeCompanyAuthorityApprovalReceipt(receiptId, {
+        consumed_at: consumedAt,
+        consumed_by: consumedBy,
+        expected = {}
+    } = {}) {
+        this._assertMutationAllowed();
+        const index = this.ledger.company_authority_approval_receipts
+            .findIndex((item) => item.id === receiptId);
+        if (index === -1) return null;
+        const current = this.ledger.company_authority_approval_receipts[index];
+        if (current.consumed_at) return null;
+        for (const [field, value] of Object.entries(expected)) {
+            if (value !== undefined && value !== null && current[field] !== value) return null;
+        }
+        const next = {
+            ...current,
+            consumed_at: consumedAt || nowIso(),
+            consumed_by: consumedBy || null
+        };
+        this.ledger.company_authority_approval_receipts[index] = next;
+        this._persist();
+        return clone(next);
     }
 
     createOutput(output) {

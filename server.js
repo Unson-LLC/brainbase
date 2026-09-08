@@ -268,7 +268,10 @@ async function writePortFiles(port) {
 }
 
 // Configuration
-const CODEX_PATH = path.join(__dirname, 'examples', 'codex');
+// Operational metadata (for example common/meta/slack/members.yml) lives under
+// the configured Brainbase root. Keep CODEX_PATH as an explicit override for
+// isolated fixtures, but never point production at the repository example.
+const CODEX_PATH = process.env.CODEX_PATH || BRAINBASE_ROOT;
 const CONFIG_PATH = existsSync(path.join(BRAINBASE_ROOT, 'config.yml'))
     ? path.join(BRAINBASE_ROOT, 'config.yml')
     : path.join(__dirname, 'config.yml');
@@ -290,6 +293,7 @@ const {
     configParser,
     configService,
     infoSSOTService,
+    projectProvisioningService,
     tenantRuntimeServices,
     canonicalTaskStoreConfig,
     canonicalTaskReadiness,
@@ -299,6 +303,7 @@ const {
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
+    slackInstallationOAuthFlow,
     resolvePreProvisionedSlackConnection,
     wikiService,
     learningService,
@@ -316,6 +321,10 @@ const {
     meetingAutomationService,
     automationRunService,
     runReceiptQueryService,
+    outcomeCaseService,
+    outcomeCaseAuditSink,
+    judgmentReceiptWriter,
+    vibeproHandoffRuntime,
     companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
@@ -424,6 +433,7 @@ registerApiRoutes(app, {
     projectsRoot: PROJECTS_ROOT,
     authService,
     infoSSOTService,
+    projectProvisioningService,
     canonicalTaskStoreConfig,
     canonicalTaskService,
     learningService,
@@ -442,6 +452,10 @@ registerApiRoutes(app, {
     meetingAutomationService,
     automationRunService,
     runReceiptQueryService,
+    outcomeCaseService,
+    outcomeCaseAuditSink,
+    judgmentReceiptWriter,
+    vibeproHandoffRuntime,
     companionApprovalInboxService,
     meetingSourceMcpSyncService,
     externalRunnerIngestService,
@@ -458,6 +472,7 @@ registerApiRoutes(app, {
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
+    slackInstallationOAuthFlow,
     resolvePreProvisionedSlackConnection
 });
 

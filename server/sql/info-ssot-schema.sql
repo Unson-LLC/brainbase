@@ -82,24 +82,102 @@ CREATE TABLE IF NOT EXISTS auth_grants (
   clearance text[] NOT NULL DEFAULT ARRAY[]::text[],
   active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT NOW(),
-  updated_at timestamptz NOT NULL DEFAULT NOW(),
-  UNIQUE (slack_user_id, slack_workspace_id)
+  updated_at timestamptz NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE auth_grants ALTER COLUMN slack_user_id DROP NOT NULL;
 ALTER TABLE auth_grants ALTER COLUMN slack_workspace_id DROP NOT NULL;
 ALTER TABLE auth_grants ADD COLUMN IF NOT EXISTS organization_id text;
 
+-- Legacy grants inferred their organization from the Slack workspace. Persist
+-- that resolved organization before allowing one Slack identity to hold more
+-- than one organization-scoped grant.
 DO $$
 BEGIN
-  -- Growinのような専用テナントDBには、共通permission catalogを置かない。
-  -- 任意テーブルがない環境でも認証スキーマ自体は適用できるようにする。
-  IF to_regclass('organizations') IS NOT NULL THEN
+  IF EXISTS (
+    SELECT 1
+    FROM pg_attribute
+    WHERE attrelid = to_regclass('organizations')
+      AND attname = 'workspace_id'
+      AND NOT attisdropped
+  ) THEN
     UPDATE auth_grants ag
-    SET organization_id = o.id
-    FROM organizations o
+    SET organization_id = matched.organization_id
+    FROM (
+      SELECT workspace_id, MIN(id) AS organization_id
+      FROM organizations
+      WHERE workspace_id IS NOT NULL
+      GROUP BY workspace_id
+      HAVING COUNT(*) = 1
+    ) matched
     WHERE ag.organization_id IS NULL
-      AND ag.slack_workspace_id = o.workspace_id;
+      AND ag.slack_workspace_id = matched.workspace_id;
+  END IF;
+END $$;
+
+-- Some login identities use a Slack installation that is not the
+-- organization's operational workspace. Resolve those legacy grants only
+-- when every project code with a catalog owner points to one organization.
+DO $$
+BEGIN
+  IF to_regclass('project_registry') IS NOT NULL THEN
+    UPDATE auth_grants ag
+    SET organization_id = matched.organization_id
+    FROM (
+      SELECT ag2.id, MIN(pr.organization_id) AS organization_id
+      FROM auth_grants ag2
+      JOIN LATERAL unnest(ag2.project_codes) code(project_code) ON true
+      JOIN project_registry pr ON pr.project_code = code.project_code
+      WHERE ag2.organization_id IS NULL
+      GROUP BY ag2.id
+      HAVING COUNT(DISTINCT pr.organization_id) = 1
+    ) matched
+    WHERE ag.id = matched.id;
+  END IF;
+END $$;
+
+-- A legacy project can predate Project Registry while already carrying an
+-- explicit owner in the canonical projects table. Use that owner only when
+-- every resolvable project in the grant agrees on one organization.
+UPDATE auth_grants ag
+SET organization_id = matched.organization_id
+FROM (
+  SELECT ag2.id, MIN(p.organization_id) AS organization_id
+  FROM auth_grants ag2
+  JOIN LATERAL unnest(ag2.project_codes) code(project_code) ON true
+  JOIN projects p ON p.code = code.project_code AND p.organization_id IS NOT NULL
+  WHERE ag2.organization_id IS NULL
+  GROUP BY ag2.id
+  HAVING COUNT(DISTINCT p.organization_id) = 1
+) matched
+WHERE ag.id = matched.id;
+
+ALTER TABLE auth_grants
+  DROP CONSTRAINT IF EXISTS auth_grants_slack_user_id_slack_workspace_id_key;
+
+DROP INDEX IF EXISTS auth_grants_slack_workspace_organization_unique;
+CREATE UNIQUE INDEX IF NOT EXISTS auth_grants_slack_workspace_organization_unique
+  ON auth_grants (slack_user_id, slack_workspace_id, organization_id);
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM auth_grants WHERE organization_id IS NULL) THEN
+    RAISE EXCEPTION 'auth_grants organization backfill is incomplete';
+  END IF;
+END $$;
+
+ALTER TABLE auth_grants ALTER COLUMN organization_id SET NOT NULL;
+
+DO $$
+BEGIN
+  IF to_regclass('organizations') IS NOT NULL AND NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'auth_grants_organization_id_fkey'
+      AND conrelid = to_regclass('auth_grants')
+  ) THEN
+    ALTER TABLE auth_grants
+      ADD CONSTRAINT auth_grants_organization_id_fkey
+      FOREIGN KEY (organization_id) REFERENCES organizations(id);
   END IF;
 END $$;
 
@@ -422,6 +500,99 @@ BEGIN
       FOR EACH ROW EXECUTE FUNCTION prevent_events_mutation();
   END IF;
 END $$;
+
+-- Project Provisioning v1. Read-only checks never create this schema at request time.
+CREATE TABLE IF NOT EXISTS project_registry (
+  project_code text PRIMARY KEY,
+  organization_id text NOT NULL,
+  display_name text NOT NULL,
+  kind text NOT NULL,
+  catalog_version integer NOT NULL CHECK (catalog_version > 0),
+  lifecycle_status text NOT NULL DEFAULT 'active',
+  session_select boolean NOT NULL DEFAULT true,
+  organization_entity_id text NOT NULL,
+  owner_person_id text NOT NULL,
+  repository jsonb NOT NULL DEFAULT '{"mode":"none"}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE project_registry
+  ADD COLUMN IF NOT EXISTS graph_entity_id text,
+  ADD COLUMN IF NOT EXISTS graph_binding_status text NOT NULL DEFAULT 'unresolved',
+  ADD COLUMN IF NOT EXISTS graph_binding_reason text,
+  ADD COLUMN IF NOT EXISTS graph_binding_evidence jsonb NOT NULL DEFAULT '{}'::jsonb;
+
+CREATE TABLE IF NOT EXISTS project_provisioning_runs (
+  run_id text PRIMARY KEY,
+  organization_id text NOT NULL,
+  project_code text NOT NULL,
+  idempotency_key text NOT NULL,
+  manifest_fingerprint text NOT NULL,
+  manifest jsonb NOT NULL,
+  plan jsonb NOT NULL,
+  state text NOT NULL CHECK (state IN ('draft','planned','applying','active','partial_failed','manual_intervention_required')),
+  actor jsonb NOT NULL DEFAULT '{}'::jsonb,
+  human_gate_receipt jsonb,
+  receipt jsonb,
+  failure jsonb,
+  attempt integer NOT NULL DEFAULT 0,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (organization_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS project_provisioning_steps (
+  run_id text NOT NULL REFERENCES project_provisioning_runs(run_id),
+  organization_id text NOT NULL,
+  step_name text NOT NULL,
+  state text NOT NULL CHECK (state IN ('pending','applying','completed','failed','manual_intervention_required')),
+  attempt integer NOT NULL DEFAULT 0,
+  receipt jsonb,
+  failure jsonb,
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (run_id, step_name)
+);
+
+ALTER TABLE project_provisioning_steps ADD COLUMN IF NOT EXISTS organization_id text;
+UPDATE project_provisioning_steps s
+SET organization_id = r.organization_id
+FROM project_provisioning_runs r
+WHERE r.run_id = s.run_id AND s.organization_id IS NULL;
+ALTER TABLE project_provisioning_steps ALTER COLUMN organization_id SET NOT NULL;
+
+CREATE OR REPLACE FUNCTION prevent_project_provisioning_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $body$
+BEGIN
+  IF OLD.receipt IS NOT NULL AND NEW.receipt IS DISTINCT FROM OLD.receipt THEN
+    RAISE EXCEPTION 'project provisioning receipt is immutable';
+  END IF;
+  IF OLD.human_gate_receipt IS NOT NULL AND NEW.human_gate_receipt IS DISTINCT FROM OLD.human_gate_receipt THEN
+    RAISE EXCEPTION 'project provisioning human gate receipt is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$body$;
+
+DROP TRIGGER IF EXISTS project_provisioning_receipts_no_mutation ON project_provisioning_runs;
+CREATE TRIGGER project_provisioning_receipts_no_mutation
+  BEFORE UPDATE ON project_provisioning_runs
+  FOR EACH ROW EXECUTE FUNCTION prevent_project_provisioning_receipt_mutation();
+
+CREATE OR REPLACE FUNCTION prevent_project_provisioning_step_receipt_mutation()
+RETURNS trigger LANGUAGE plpgsql AS $body$
+BEGIN
+  IF OLD.receipt IS NOT NULL AND NEW.receipt IS DISTINCT FROM OLD.receipt THEN
+    RAISE EXCEPTION 'project provisioning step receipt is immutable';
+  END IF;
+  RETURN NEW;
+END;
+$body$;
+
+DROP TRIGGER IF EXISTS project_provisioning_step_receipts_no_mutation ON project_provisioning_steps;
+CREATE TRIGGER project_provisioning_step_receipts_no_mutation
+  BEFORE UPDATE ON project_provisioning_steps
+  FOR EACH ROW EXECUTE FUNCTION prevent_project_provisioning_step_receipt_mutation();
 
 -- RLS policies are intentionally omitted here.
 -- Apply RLS with app.role/app.project_codes/app.clearance when enabling Policy Gate.

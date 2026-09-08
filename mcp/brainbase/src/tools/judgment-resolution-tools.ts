@@ -1,4 +1,8 @@
 import { createHash, createHmac } from 'node:crypto';
+import { readFileSync, realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
   authenticateProject,
   fetchAuthenticatedJson,
@@ -20,10 +24,80 @@ export type JudgmentResolutionDependencies = AuthenticatedApiDependencies & {
   adapterId: string;
   adapterVersion: string;
   now?: () => Date;
+  judgmentJournalRoot?: string;
+  readTurnInputFile?: (path: string) => string;
+  companyAuthorityResponse?: string;
 };
 
-// Judgment resolution is a Host pre-model contract, not a model-callable MCP tool.
-export const judgmentResolutionTools = [];
+export type TurnInput = {
+  request: string;
+  turn_id: string;
+  project_code?: string;
+  conversation_context: Record<string, unknown>;
+};
+
+export type ModelInterpretation = {
+  intent: typeof INTENTS[number];
+  domains: Array<typeof DOMAINS[number]>;
+  action_kind: typeof ACTIONS[number];
+  risk: typeof RISKS[number];
+  confidence: typeof CONFIDENCES[number];
+  signals: Array<typeof SIGNALS[number]>;
+};
+
+export type TurnContract = Record<string, unknown> & {
+  turn_id: string;
+  request_digest: string;
+  required_capabilities: Array<Record<string, unknown>>;
+};
+
+export type ToolEvidence = {
+  tool_name: string;
+  tool_use_id: string;
+  success: boolean;
+  satisfies: string[];
+};
+
+export type CompletionReceipt = {
+  turn_id: string;
+  event_count: number;
+  event_set_digest: string;
+};
+
+const classificationSchema = {
+  type: 'object',
+  properties: {
+    intent: { type: 'string', enum: INTENTS },
+    domains: { type: 'array', items: { type: 'string', enum: DOMAINS }, minItems: 1, uniqueItems: true },
+    action_kind: { type: 'string', enum: ACTIONS },
+    risk: { type: 'string', enum: RISKS },
+    confidence: { type: 'string', enum: CONFIDENCES },
+    signals: { type: 'array', items: { type: 'string', enum: SIGNALS }, uniqueItems: true },
+  },
+  required: ['intent', 'domains', 'action_kind', 'risk', 'confidence', 'signals'],
+  additionalProperties: false,
+} as const;
+
+export const judgmentResolutionTools: Tool[] = [{
+  name: 'brainbase_resolve_turn',
+  description: 'Resolve the current turn contract after the model has interpreted the user request. Call exactly once before other work; pass the Hook-provided turn_ref unchanged (preferred; e.g. turn_ref: "<sessionRef>/<turnRef>") and add only model_interpretation. Legacy forms turn_input: {"turn_ref": "..."}, turn_input: {"turn_input_path": "<path>"}, and a full turn_input object are also accepted for older callers.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      turn_ref: {
+        type: 'string',
+        description: 'The Hook-provided reference "<sessionRef>/<turnRef>" identifying the journal-saved *.turn-input.json; the server loads it itself so the content never passes through the model.',
+      },
+      turn_input: {
+        type: 'object',
+        description: 'Legacy: either the full Hook-provided turn_input object, {"turn_ref": "<sessionRef>/<turnRef>"}, or {"turn_input_path": "<absolute path of the Hook-saved *.turn-input.json>"}; the server loads referenced content itself so it never passes through the model.',
+      },
+      model_interpretation: classificationSchema,
+    },
+    required: ['model_interpretation'],
+    additionalProperties: false,
+  },
+}];
 
 function compareCodePoints(left: string, right: string): number {
   const a = Array.from(left, (value) => value.codePointAt(0) as number);
@@ -103,7 +177,6 @@ function isClassification(value: unknown): value is Record<string, unknown> {
   return INTENTS.includes(value.intent as typeof INTENTS[number])
     && isStringArray(domains, { nonEmpty: true, unique: true })
     && domains.every((domain) => DOMAINS.includes(domain as typeof DOMAINS[number]))
-    && (!domains.includes('general') || domains.length === 1)
     && ACTIONS.includes(value.action_kind as typeof ACTIONS[number])
     && RISKS.includes(value.risk as typeof RISKS[number])
     && CONFIDENCES.includes(value.confidence as typeof CONFIDENCES[number])
@@ -119,11 +192,29 @@ function isClassificationEvidence(value: unknown): boolean {
     && isStringArray(value.matcher_ids, { unique: true });
 }
 
+function isHumanApprovalRule(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  const keys = Object.keys(value);
+  if (keys.length === 0 || keys.some((key) => !['action_kinds', 'risks'].includes(key))) return false;
+  if (value.action_kinds !== undefined
+    && !(Array.isArray(value.action_kinds) && value.action_kinds.length > 0
+      && value.action_kinds.every((kind) => ACTIONS.includes(kind as typeof ACTIONS[number])))) return false;
+  if (value.risks !== undefined
+    && !(Array.isArray(value.risks) && value.risks.length > 0
+      && value.risks.every((risk) => RISKS.includes(risk as typeof RISKS[number])))) return false;
+  return true;
+}
+
 function isPolicy(value: unknown): boolean {
-  if (!isRecord(value) || !hasOnlyKeys(value, [
+  if (!isRecord(value)) return false;
+  const allowedKeys = [
     'id', 'version', 'priority', 'strength', 'scope', 'visibility', 'owner_person_id',
-    'evidence_requirement', 'effect', 'instruction',
-  ])) return false;
+    'evidence_requirement', 'effect', 'instruction', 'human_approval',
+  ];
+  const requiredKeys = allowedKeys.filter((key) => key !== 'human_approval');
+  const keys = Object.keys(value);
+  if (keys.some((key) => !allowedKeys.includes(key)) || !requiredKeys.every((key) => keys.includes(key))) return false;
+  if (value.human_approval !== undefined && !isHumanApprovalRule(value.human_approval)) return false;
   if (!isNonEmptyString(value.id) || !isNonEmptyString(value.version) || !Number.isInteger(value.priority)) return false;
   if (!['hard', 'soft'].includes(String(value.strength)) || !['organization', 'owner'].includes(String(value.visibility))) return false;
   if (value.owner_person_id !== null && !isNonEmptyString(value.owner_person_id)) return false;
@@ -190,13 +281,18 @@ function isJudgmentReceipt(
 ): value is Record<string, unknown> {
   const fields = [
     'resolution_id', 'resolved_at', 'turn_id', 'request_digest', 'context_digest', 'status', 'runtime_version',
-    'autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons',
+    'autonomy_decision', 'autonomy_reason_code', 'allowed_runtime_escalation_reasons', 'autonomy_policy_ids',
     'manifest_digest', 'host_binding', 'project_code', 'classification', 'classification_evidence',
     'classification_assurance', 'reconciliation_reasons', 'selected_dag_ids', 'applicable_policies',
     'suppressed_policies', 'required_capabilities', 'active_nodes', 'active_edges', 'active_node_definitions',
     'unresolved', 'rationale', 'plan_digest',
   ];
-  if (!isRecord(value) || !hasOnlyKeys(value, fields)) return false;
+  if (!isRecord(value)) return false;
+  // Servers before judgment-runtime-2.4.4 omit autonomy_policy_ids entirely.
+  const expectedFields = value.autonomy_policy_ids === undefined
+    ? fields.filter((field) => field !== 'autonomy_policy_ids')
+    : fields;
+  if (!hasOnlyKeys(value, expectedFields)) return false;
   if (!isNonEmptyString(value.resolution_id) || !isNonEmptyString(value.turn_id) || value.turn_id !== expected.args.turn_id) return false;
   if (typeof value.resolved_at !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value.resolved_at)) return false;
   const resolvedAt = new Date(value.resolved_at);
@@ -216,21 +312,27 @@ function isJudgmentReceipt(
     || value.host_binding.adapter_id !== expected.adapterId || value.host_binding.adapter_version !== expected.adapterVersion) return false;
   if (value.project_code !== (expected.args.project_code ?? null)) return false;
   if (value.classification !== null && !isClassification(value.classification)) return false;
-  const expectedReason = value.status === 'needs_classification'
-    ? 'classification_missing'
-    : value.status === 'needs_policy_resolution'
-      ? 'policy_conflict'
-      : ['high', 'critical'].includes(String((value.classification as Record<string, unknown>)?.risk))
-        || (value.classification as Record<string, unknown>)?.action_kind === 'external'
-        ? 'risk_or_external'
-        : 'routine_in_scope';
-  const expectedDecision = expectedReason === 'routine_in_scope' ? 'continue' : 'escalate';
+  // The server-owned manifest is the only place that decides *which* policy
+  // triggers a human-approval escalation (policy.human_approval matched against
+  // this turn's classification). The client no longer recomputes that decision
+  // from risk/action_kind — it only checks the receipt's internal shape is
+  // consistent: routine_in_scope iff continue, any other reason iff escalate,
+  // and the runtime-escalation-reason allowlist matches the decision.
+  if (value.status === 'needs_classification' && value.autonomy_reason_code !== 'classification_missing') return false;
+  if (value.status === 'needs_policy_resolution' && value.autonomy_reason_code !== 'policy_conflict') return false;
+  const expectedDecision = value.autonomy_reason_code === 'routine_in_scope' ? 'continue' : 'escalate';
   const expectedRuntimeReasons = expectedDecision === 'continue'
     ? ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker']
     : [];
   if (value.autonomy_decision !== expectedDecision
-    || value.autonomy_reason_code !== expectedReason
     || canonicalJson(value.allowed_runtime_escalation_reasons) !== canonicalJson(expectedRuntimeReasons)) return false;
+  // Servers before judgment-runtime-2.4.4 do not emit autonomy_policy_ids;
+  // treat absence as an empty list so a control-plane rollout lag never
+  // blocks every Codex turn with brainbase_api_response_invalid.
+  const policyIds = value.autonomy_policy_ids === undefined ? [] : value.autonomy_policy_ids;
+  if (!isStringArray(policyIds, { unique: true })) return false;
+  if (value.autonomy_decision === 'continue' && policyIds.length !== 0) return false;
+  if (value.autonomy_reason_code !== 'risk_or_external' && policyIds.length !== 0) return false;
   if (!isClassificationEvidence(value.classification_evidence)) return false;
   if (!['verified', 'bounded', 'unknown'].includes(String(value.classification_assurance))) return false;
   if (!isStringArray(value.reconciliation_reasons, { unique: true }) || !isStringArray(value.selected_dag_ids, { nonEmpty: true, unique: true })) return false;
@@ -246,7 +348,11 @@ function isJudgmentReceipt(
   if (!isAcyclic(value.active_nodes, value.active_edges as string[][])) return false;
   if (!isStringArray(value.unresolved, { unique: true }) || !isStringArray(value.rationale, { nonEmpty: true })) return false;
   if (value.status === 'resolved' && (value.classification === null || value.unresolved.length !== 0)) return false;
-  if (value.status === 'needs_classification' && (value.classification !== null || value.classification_assurance !== 'unknown' || canonicalJson(value.unresolved) !== canonicalJson(['classification']))) return false;
+  // The server reports why classification is still open (for example
+  // model_interpretation_missing on the bootstrap call, or
+  // conversation_referent_missing) and mirrors those reasons into unresolved.
+  if (value.status === 'needs_classification' && (value.classification !== null || value.classification_assurance !== 'unknown'
+    || value.unresolved.length === 0 || canonicalJson(value.unresolved) !== canonicalJson(value.reconciliation_reasons))) return false;
   if (value.status === 'needs_policy_resolution' && (value.classification === null || canonicalJson(value.unresolved) !== canonicalJson(['policy_conflict']))) return false;
   const planValue = { ...value };
   delete planValue.resolution_id;
@@ -274,6 +380,9 @@ export async function resolveJudgmentBeforeModel(
     adapterVersion: dependencies.adapterVersion,
     issuedAt,
   });
+  if (dependencies.companyAuthorityResponse) {
+    headers['x-brainbase-company-authority-response'] = dependencies.companyAuthorityResponse;
+  }
   const fetched = await fetchAuthenticatedJson(dependencies, context, {
     path: '/api/judgment/resolve', method: 'POST', body: args, headers,
   });
@@ -300,12 +409,126 @@ export async function resolveJudgmentBeforeModel(
   return { status: 'ok', scope: { project_codes: context.scope }, data: payload };
 }
 
-/** @deprecated Judgment Resolver is no longer model-callable. */
+/** Dispatch the model-callable turn resolver and the temporary internal compatibility name. */
+function pathInside(path: string, root: string): boolean {
+  const delta = relative(root, path);
+  return delta === '' || (!delta.startsWith(`..${sep}`) && delta !== '..' && !isAbsolute(delta));
+}
+
+// The Host saves turn_input to its journal because Codex Desktop cannot carry a
+// large turn_input through model context or tool output without truncation.
+function loadTurnInputReference(
+  reference: Record<string, unknown>,
+  dependencies: JudgmentResolutionDependencies,
+): { turnInput?: Record<string, unknown>; error?: string } {
+  const requested = reference.turn_input_path;
+  if (typeof requested !== 'string' || !requested.trim()) return { error: 'turn_input_path must be a non-empty string' };
+  const root = resolve(dependencies.judgmentJournalRoot ?? join(homedir(), '.codex', 'var', 'judgment-resolver'));
+  let canonical: string;
+  try {
+    canonical = realpathSync(resolve(requested));
+  } catch {
+    return { error: 'turn_input_path does not exist' };
+  }
+  let canonicalRoot = root;
+  try { canonicalRoot = realpathSync(root); } catch { /* keep configured root */ }
+  if (!pathInside(canonical, canonicalRoot) || !canonical.endsWith('.turn-input.json')) {
+    return { error: 'turn_input_path must point at a Hook-saved *.turn-input.json inside the judgment journal' };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse((dependencies.readTurnInputFile ?? ((path: string) => readFileSync(path, 'utf8')))(canonical));
+  } catch {
+    return { error: 'turn_input_path content is not valid JSON' };
+  }
+  if (!isRecord(parsed)) return { error: 'turn_input_path content is not a turn_input object' };
+  return { turnInput: parsed };
+}
+
+const TURN_REF_SEGMENT = /^[a-f0-9]{64}$/;
+
+function parseTurnRef(value: unknown): { sessionRef: string; turnRef: string } | null {
+  if (typeof value !== 'string') return null;
+  const segments = value.split('/');
+  if (segments.length !== 2) return null;
+  const [sessionRef, turnRef] = segments;
+  if (!TURN_REF_SEGMENT.test(sessionRef) || !TURN_REF_SEGMENT.test(turnRef)) return null;
+  return { sessionRef, turnRef };
+}
+
+// turn_ref is the Host↔server direct channel: the model carries only a
+// "<sessionRef>/<turnRef>" pointer, never the turn_input JSON or a filesystem
+// path, so the server reads the Host-saved journal file itself.
+function loadTurnInputByRef(
+  ref: { sessionRef: string; turnRef: string },
+  dependencies: JudgmentResolutionDependencies,
+): { turnInput?: Record<string, unknown>; error?: string } {
+  const root = resolve(dependencies.judgmentJournalRoot ?? join(homedir(), '.codex', 'var', 'judgment-resolver'));
+  const requested = join(root, ref.sessionRef, `${ref.turnRef}.turn-input.json`);
+  let canonical: string;
+  try {
+    canonical = realpathSync(requested);
+  } catch {
+    return { error: 'turn_ref does not resolve to an existing turn_input file' };
+  }
+  let canonicalRoot = root;
+  try { canonicalRoot = realpathSync(root); } catch { /* keep configured root */ }
+  if (!pathInside(canonical, canonicalRoot) || !canonical.endsWith('.turn-input.json')) {
+    return { error: 'turn_ref must point at a Hook-saved *.turn-input.json inside the judgment journal' };
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse((dependencies.readTurnInputFile ?? ((path: string) => readFileSync(path, 'utf8')))(canonical));
+  } catch {
+    return { error: 'turn_ref content is not valid JSON' };
+  }
+  if (!isRecord(parsed)) return { error: 'turn_ref content is not a turn_input object' };
+  return { turnInput: parsed };
+}
+
 export async function handleJudgmentResolutionToolCall(
   name: string,
   args: Record<string, unknown>,
   dependencies: JudgmentResolutionDependencies,
 ): Promise<ToolResult | null> {
+  if (name === 'brainbase_resolve_turn') {
+    if (!isRecord(args.model_interpretation)) {
+      return toolError('error', 'judgment_resolution_input_invalid', 'model_interpretation is required', []);
+    }
+    // Primary channel: a top-level turn_ref pointer.
+    const topLevelTurnRef = parseTurnRef(args.turn_ref);
+    // Legacy channel: a cached tool schema that still requires turn_input, whose
+    // content may itself be {"turn_ref": "..."}, {"turn_input_path": "..."}, or
+    // the full turn_input object.
+    const legacyTurnRef = isRecord(args.turn_input) && hasOnlyKeys(args.turn_input, ['turn_ref'])
+      ? parseTurnRef(args.turn_input.turn_ref)
+      : null;
+    const ref = topLevelTurnRef ?? legacyTurnRef;
+    let turnInput: Record<string, unknown>;
+    if (ref) {
+      const loaded = loadTurnInputByRef(ref, dependencies);
+      if (!loaded.turnInput) {
+        return toolError('error', 'judgment_resolution_input_invalid', loaded.error ?? 'turn_ref is invalid', []);
+      }
+      turnInput = loaded.turnInput;
+    } else if (isRecord(args.turn_input) && hasOnlyKeys(args.turn_input, ['turn_input_path'])) {
+      const loaded = loadTurnInputReference(args.turn_input, dependencies);
+      if (!loaded.turnInput) {
+        return toolError('error', 'judgment_resolution_input_invalid', loaded.error ?? 'turn_input_path is invalid', []);
+      }
+      turnInput = loaded.turnInput;
+    } else if (isRecord(args.turn_input)) {
+      turnInput = args.turn_input;
+    } else {
+      return toolError('error', 'judgment_resolution_input_invalid', 'turn_ref or turn_input is required', []);
+    }
+    const projectCode = typeof args.project_code === 'string' ? args.project_code : undefined;
+    return resolveJudgmentBeforeModel({
+      ...turnInput,
+      ...(projectCode === undefined ? {} : { project_code: projectCode }),
+      model_interpretation: args.model_interpretation,
+    }, dependencies);
+  }
   if (name !== 'brainbase_judgment_resolve_internal') return null;
   return resolveJudgmentBeforeModel(args, dependencies);
 }

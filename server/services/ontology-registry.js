@@ -132,7 +132,16 @@ export class OntologyRegistry {
         return {
             kernel: new OntologyKernel({ manifest, status: effectiveStatus }),
             digest,
-            entry: structuredClone(entry)
+            entry: structuredClone(entry),
+            publicationVerification: receiptTrust.verified
+                ? {
+                    status: 'verified',
+                    key_id: receiptTrust.receipt.key_id,
+                    signature_algorithm: receiptTrust.receipt.signature_algorithm,
+                    trust_source: this.publicKeyPem ? 'environment_override' : 'git_trust_store',
+                    receipt_digest: receiptTrust.receipt_digest
+                }
+                : { status: 'unverified', reason: receiptTrust.reason }
         };
     }
 
