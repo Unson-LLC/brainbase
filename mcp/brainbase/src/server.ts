@@ -177,6 +177,26 @@ function buildToolResponseContent(
   );
 }
 
+function isStructuredJudgmentToolFailure(name: string, extensionResult: unknown): boolean {
+  if (name !== 'brainbase_resolve_turn' || extensionResult === null || typeof extensionResult !== 'object') {
+    return false;
+  }
+  const status = (extensionResult as { status?: unknown }).status;
+  return status === 'error' || status === 'unavailable';
+}
+
+function buildMcpToolResult(
+  name: string,
+  toolArgs: Record<string, unknown>,
+  result: string,
+  extensionResult: unknown,
+) {
+  const response = { content: buildToolResponseContent(name, toolArgs, result) };
+  return isStructuredJudgmentToolFailure(name, extensionResult)
+    ? { ...response, isError: true }
+    : response;
+}
+
 async function refreshEntityIndex(): Promise<void> {
   if (!indexRefreshEnabled) return;
   if (!globalGraphSource) {
@@ -1227,6 +1247,7 @@ export const __testing = {
   dispatchKnowledgeResolutionToolCall,
   dispatchExtensionToolCall,
   buildToolResponseContent,
+  buildMcpToolResult,
   createDefaultJudgmentResolutionDependencies,
   resolveBrainbaseApiUrl,
   resolveWikiApiBaseUrl,
@@ -1426,7 +1447,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         : typeof extensionResult === 'string'
           ? extensionResult
           : JSON.stringify(extensionResult, null, 2);
-      return { content: buildToolResponseContent(name, toolArgs, result) };
+      return buildMcpToolResult(name, toolArgs, result, extensionResult);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {

@@ -110,6 +110,49 @@ function dependencies(fetchImpl: typeof globalThis.fetch, configuredProjectCodes
 }
 
 describe('judgment resolver Host bridge', () => {
+  it('構造化resolve_turn失敗をMCPのisErrorへ反映し、成功や他toolは変更しない', () => {
+    const toolArgs = { turn_id: args.turn_id };
+    for (const status of ['error', 'unavailable'] as const) {
+      const result = JSON.stringify({ status, error: { code: 'judgment_resolution_failed' } });
+      const response = serverTesting.buildMcpToolResult(
+        'brainbase_resolve_turn',
+        toolArgs,
+        result,
+        { status, scope: { project_codes: [] }, error: { code: 'judgment_resolution_failed', message: 'failed' } },
+      );
+      assert.equal(response.isError, true);
+      assert.deepEqual(response.content, serverTesting.buildToolResponseContent('brainbase_resolve_turn', toolArgs, result));
+    }
+
+    const successResult = {
+      status: 'ok' as const,
+      scope: { project_codes: ['brainbase'] },
+      data: receipt(),
+    };
+    const successResultText = JSON.stringify(successResult, null, 2);
+    const success = serverTesting.buildMcpToolResult(
+      'brainbase_resolve_turn',
+      toolArgs,
+      successResultText,
+      successResult,
+    );
+    assert.equal(success.isError, undefined);
+    assert.deepEqual(success.content, serverTesting.buildToolResponseContent(
+      'brainbase_resolve_turn',
+      toolArgs,
+      successResultText,
+    ));
+    assert.equal(success.content[0]?.text, successResultText);
+
+    const otherToolFailure = serverTesting.buildMcpToolResult(
+      'brainbase_knowledge_resolve',
+      toolArgs,
+      JSON.stringify({ status: 'error' }),
+      { status: 'error', scope: { project_codes: [] } },
+    );
+    assert.equal(otherToolFailure.isError, undefined);
+  });
+
   it('production dispatcher uses the owner token instead of the service token', async () => {
     serverTesting.setTokenManager({ getToken: async () => 'service-token' });
     serverTesting.setOwnerTokenManager({ getToken: async () => 'owner-token' });
