@@ -2125,6 +2125,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                         && turnResolution.context_digest === episode.initial_route_receipt.context_digest
                         && turnResolution.request_digest === sha256(canonicalJson({ ...turnInput, model_interpretation: interpretation }))
                     : turnResolutionUnavailable
+                        || (postToolUseFailure && record(payload?.error)?.code === 'tool_unavailable')
                         ? suppliedTurnRef === null || suppliedTurnRef === expectedTurnRef
                         : false);
             if (!bindingValid) {

@@ -4571,6 +4571,56 @@ describe('structured Resolver unavailable failures', () => {
         return readdirSync(directory).map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')));
     };
 
+    it('同一turnのtool_unavailableを失敗として保存し、生のエラーを残さない', async () => {
+        const sessionId = 'session-resolver-tool-unavailable';
+        const { root, env, payload, ownTurnRef, episode, invoke } = await startUnavailableEpisode({ sessionId });
+        const failure = {
+            ...payload,
+            hook_event_name: 'PostToolUseFailure',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'resolver-unavailable-attempt',
+            tool_input: { turn_ref: ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: null,
+            error: { code: 'tool_unavailable', message: 'private connection details' }
+        };
+        await expect(processHookPayload(failure, { env })).resolves.toBeDefined();
+        const [entry] = eventEntries(root, sessionId, 'turn-structured-unavailable');
+        expect(entry).toMatchObject({ event_kind: 'turn_resolution', success: false });
+        expect(entry.safe_metadata.turn_contract).toBeUndefined();
+        expect(JSON.stringify(entry)).not.toContain('private connection details');
+        await expect(processHookPayload(failure, { env })).resolves.toBeDefined();
+        expect(eventEntries(root, sessionId, 'turn-structured-unavailable')).toHaveLength(1);
+        await expect(processHookPayload({ ...failure,
+            error: { code: 'tool_unavailable', message: 'different failure' }
+        }, { env })).rejects.toThrow('judgment_tool_event_conflict');
+        await expect(processHookPayload({ ...failure, tool_use_id: 'unknown-failure-attempt',
+            error: { code: 'unknown_failure' }
+        }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        await expect(processHookPayload({ ...failure, tool_input: {
+            ...failure.tool_input, turn_ref: 'another-session/another-turn'
+        }, tool_use_id: 'cross-turn-attempt' }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        await expect(processHookPayload({ ...failure, tool_input: {
+            turn_ref: ownTurnRef
+        }, tool_use_id: 'missing-interpretation-attempt' }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        const receipt = {
+            ...validReceipt({ ...episode.turn_input, model_interpretation: modelInterpretation }),
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        await expect(invoke({ status: 'ok', data: receipt })).resolves.toBeDefined();
+        const entries = eventEntries(root, sessionId, 'turn-structured-unavailable');
+        expect(entries).toHaveLength(2);
+        expect(entries.filter((event) => event.success)).toEqual([
+            expect.objectContaining({ safe_metadata: expect.objectContaining({ turn_contract: receipt }) })
+        ]);
+    });
+
     it('directの構造化503を失敗イベントとして保存し、成功契約には昇格しない', async () => {
         const sessionId = 'session-structured-unavailable-direct';
         const { root, episode, invoke } = await startUnavailableEpisode({ sessionId });
