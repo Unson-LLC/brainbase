@@ -1,0 +1,95 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-resolver-event-binding",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "同一ターンに束縛された正規の分類保留契約を保存し、実際の不足理由を有効契約と監査へ反映する。",
+      "rationale": "Resolver実施済みと分類完了を区別し、古い未呼び出し理由で再実行を要求しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-1",
+            "text_snippet": "正規のneeds_classification契約を記録する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "function judgmentTurnResolutionData"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "needs_classification"
+          },
+          {
+            "file": "tests/integration/judgment-resolver-host-needs-classification.test.js",
+            "case": "needs_classification"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/integration/judgment-resolver-host-needs-classification.test.js",
+            "must_cover": "needs_classification"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-07T10:51:19.231Z",
+      "last_revised_at": "2026-09-07T10:51:19.231Z"
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "別ターン・入力不一致・不正形状は受理せず、分類保留を実行許可へ昇格しない。",
+      "rationale": "記録漏れ修正によって既存の束縛境界を緩めない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-3",
+            "text_snippet": "不正契約は受理せず確認要求を維持する"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "export function recordBrainbaseToolUse"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js",
+            "case": "binding"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host.test.js",
+            "must_cover": "binding"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-07T10:51:19.231Z",
+      "last_revised_at": "2026-09-07T10:51:19.231Z"
+    }
+  ],
+  "open_questions": [],
+  "generated_at": "2026-09-07T10:51:19.229Z",
+  "previous_spec_id": null
+}

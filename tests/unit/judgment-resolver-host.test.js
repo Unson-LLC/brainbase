@@ -4609,6 +4609,176 @@ describe('structured Resolver unavailable failures', () => {
         });
     });
 
+    it('正当なneeds_classification receiptを同一turnへ束縛し、Stop監査へ実理由を保持する', async () => {
+        const sessionId = 'session-structured-pending-classification';
+        const turnId = 'turn-structured-pending-classification';
+        const setup = await startUnavailableEpisode({ sessionId, turnId });
+        const pending = {
+            ...validReceipt(setup.episode.turn_input),
+            resolution_id: 'jr_pending_classification',
+            request_digest: hash(canonicalJson({
+                ...setup.episode.turn_input,
+                model_interpretation: modelInterpretation
+            })),
+            status: 'needs_classification',
+            classification: null,
+            classification_evidence: {
+                source: 'resolver', source_turn_ids: [turnId], matcher_ids: []
+            },
+            reconciliation_reasons: ['knowledge_project_code_missing'],
+            selected_dag_ids: ['clarification.v1'],
+            required_capabilities: [],
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'classification_missing',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: []
+        };
+
+        await expect(setup.invoke({ status: 'ok', data: pending })).resolves.toMatchObject({
+            systemMessage: expect.stringContaining('🧠 判断契約を確定しました')
+        });
+        const [entry] = eventEntries(setup.root, sessionId, turnId);
+        expect(entry).toMatchObject({
+            event_kind: 'turn_resolution',
+            success: true,
+            satisfies: ['judgment.resolve_turn'],
+            safe_metadata: {
+                turn_contract: pending
+            }
+        });
+        expect(entry.safe_metadata.turn_resolution_pending).toBeUndefined();
+
+        const audit = readEpisodeAudit(setup.ownTurnRef, { env: setup.env });
+        expect(audit.prefix).toContain('参照対象のprojectを確認できない');
+
+        const stopped = finalizeEpisode({
+            hook_event_name: 'Stop', session_id: sessionId, turn_id: turnId,
+            stop_hook_active: false,
+            last_assistant_message: '監査対象の判断契約を確認できません。'
+        }, { env: setup.env });
+        expect(stopped.output).toMatchObject({ decision: 'block' });
+        expect(stopped.output.reason).toContain('参照対象のprojectを確認できない');
+        expect(stopped.output.reason).not.toContain('mcp__brainbase__brainbase_resolve_turn');
+        expect(stopped.final).toBeNull();
+    });
+
+    it('正当なneeds_policy_resolution receiptを同一turnへ束縛し、方針衝突を監査へ保持する', async () => {
+        const sessionId = 'session-structured-policy-resolution';
+        const turnId = 'turn-structured-policy-resolution';
+        const setup = await startUnavailableEpisode({ sessionId, turnId });
+        const policy = {
+            ...validReceipt(setup.episode.turn_input),
+            resolution_id: 'jr_policy_resolution',
+            request_digest: hash(canonicalJson({
+                ...setup.episode.turn_input,
+                model_interpretation: modelInterpretation
+            })),
+            status: 'needs_policy_resolution',
+            classification: modelInterpretation,
+            classification_evidence: {
+                source: 'resolver', source_turn_ids: [turnId], matcher_ids: []
+            },
+            reconciliation_reasons: [],
+            selected_dag_ids: ['engineering.v1'],
+            required_capabilities: [],
+            autonomy_decision: 'escalate',
+            autonomy_reason_code: 'policy_conflict',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: []
+        };
+
+        await expect(setup.invoke({ status: 'ok', data: policy })).resolves.toMatchObject({
+            systemMessage: expect.stringContaining('🧠 判断契約を確定しました')
+        });
+        const [entry] = eventEntries(setup.root, sessionId, turnId);
+        expect(entry).toMatchObject({
+            event_kind: 'turn_resolution',
+            success: true,
+            satisfies: ['judgment.resolve_turn'],
+            safe_metadata: { turn_contract: policy }
+        });
+
+        const audit = readEpisodeAudit(setup.ownTurnRef, { env: setup.env });
+        expect(audit.prefix).toContain('方針衝突を要確認');
+    });
+
+    it('needs_classificationのautonomy continue改ざんを契約検証で拒否する', async () => {
+        const sessionId = 'session-structured-pending-autonomy-tamper';
+        const turnId = 'turn-structured-pending-autonomy-tamper';
+        const setup = await startUnavailableEpisode({ sessionId, turnId });
+        const tampered = {
+            ...validReceipt(setup.episode.turn_input),
+            resolution_id: 'jr_pending_autonomy_tamper',
+            request_digest: hash(canonicalJson({
+                ...setup.episode.turn_input,
+                model_interpretation: modelInterpretation
+            })),
+            status: 'needs_classification',
+            classification: null,
+            reconciliation_reasons: ['knowledge_project_code_missing'],
+            selected_dag_ids: ['clarification.v1'],
+            required_capabilities: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice',
+                'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+
+        await expect(setup.invoke({ status: 'ok', data: tampered }))
+            .rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        expect(existsSync(join(setup.root, 'journal', hash(sessionId), `${hash(turnId)}.events`))).toBe(false);
+    });
+
+    it.each([
+        ['foreign turn_ref', (ownTurnRef) => `${ownTurnRef}/foreign`, (pending) => pending],
+        ['request digest mismatch', (ownTurnRef) => ownTurnRef, (pending) => ({ ...pending, request_digest: '0'.repeat(64) })],
+        ['context digest mismatch', (ownTurnRef) => ownTurnRef, (pending) => ({ ...pending, context_digest: '0'.repeat(64) })],
+        ['malformed pending receipt', (ownTurnRef) => ownTurnRef, (pending) => {
+            const malformed = { ...pending };
+            delete malformed.reconciliation_reasons;
+            return malformed;
+        }],
+        ['missing autonomy contract', (ownTurnRef) => ownTurnRef, (pending) => {
+            const malformed = { ...pending };
+            delete malformed.autonomy_decision;
+            delete malformed.autonomy_reason_code;
+            delete malformed.allowed_runtime_escalation_reasons;
+            return malformed;
+        }],
+        ['conflicting managed statuses', (ownTurnRef) => ownTurnRef, (pending) => ({
+            ...pending,
+            result: {
+                ...pending,
+                resolution_id: `${pending.resolution_id}-resolved`,
+                status: 'resolved',
+                classification: modelInterpretation
+            }
+        })]
+    ])('%sはneeds_classificationの回復・縮退を迂回しない', async (label, turnRefFor, responseFor) => {
+        const sessionId = `session-pending-classification-invalid-${label.replaceAll(' ', '-')}`;
+        const turnId = `turn-pending-classification-invalid-${label.replaceAll(' ', '-')}`;
+        const setup = await startUnavailableEpisode({ sessionId, turnId });
+        const pending = {
+            ...validReceipt(setup.episode.turn_input),
+            resolution_id: `jr_pending_${label}`,
+            request_digest: hash(canonicalJson({
+                ...setup.episode.turn_input,
+                model_interpretation: modelInterpretation
+            })),
+            status: 'needs_classification', classification: null,
+            reconciliation_reasons: ['knowledge_project_code_missing'],
+            selected_dag_ids: ['clarification.v1'], required_capabilities: [],
+            autonomy_decision: 'escalate', autonomy_reason_code: 'classification_missing',
+            autonomy_policy_ids: [], allowed_runtime_escalation_reasons: []
+        };
+        await expect(setup.invoke({ status: 'ok', data: responseFor(pending) }, turnRefFor(setup.ownTurnRef)))
+            .rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        expect(existsSync(join(setup.root, 'journal', hash(sessionId), `${hash(turnId)}.events`))).toBe(false);
+    });
+
     it.each(['nested-ref', 'path', 'full'])('旧形式 %s でも現在turnの失敗を記録し、別turnは拒否する', async (format) => {
         const sessionId = `session-unavailable-legacy-${format}`;
         const { root, ownTurnRef, episode, invoke } = await startUnavailableEpisode({ sessionId });
