@@ -1024,7 +1024,50 @@ function adoptReceipt(args, receipt, env) {
     }
 }
 
-async function fetchAttempt(args, { env, fetchImpl }) {
+const INLINE_RESOLVER_FAILURE_REASONS = new Set([
+    'brainbase_api_unavailable', 'brainbase_api_response_invalid',
+    'brainbase_auth_unavailable', 'brainbase_auth_context_invalid',
+    'brainbase_project_not_accessible', 'brainbase_judgment_binding_unavailable',
+    'brainbase_api_error', 'judgment_resolution_input_invalid',
+    'judgment_resolver_unavailable', 'judgment_receipt_missing'
+]);
+
+async function resolveInlineAttempt(args, { env, resolveBeforeModel }) {
+    const controller = new AbortController();
+    let timeout;
+    try {
+        const payload = await Promise.race([
+            Promise.resolve().then(() => resolveBeforeModel(args, { signal: controller.signal })),
+            new Promise((_, reject) => {
+                timeout = setTimeout(() => {
+                    reject(new Error('judgment_host_timeout'));
+                    controller.abort();
+                }, Number(env.BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS || 15000));
+            })
+        ]);
+        if (record(payload) && payload.management_status === 'managed' && record(payload.receipt)) {
+            return payload.receipt;
+        }
+        throw new Error(INLINE_RESOLVER_FAILURE_REASONS.has(payload?.reason)
+            ? payload.reason : 'judgment_host_bridge_failed');
+    } catch (cause) {
+        // A callback may still be finishing after timeout. Never retry it or
+        // fall back to HTTP and create a second resolution for this attempt.
+        const reason = cause?.message === 'judgment_host_timeout'
+            || INLINE_RESOLVER_FAILURE_REASONS.has(cause?.message)
+            ? cause.message : 'judgment_host_bridge_failed';
+        const error = new Error(reason);
+        error.transient = false;
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function fetchAttempt(args, { env, fetchImpl, resolveBeforeModel }) {
+    if (resolveBeforeModel !== undefined) {
+        return resolveInlineAttempt(args, { env, resolveBeforeModel });
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Number(env.BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS || 15000));
     try {
@@ -1052,13 +1095,13 @@ async function fetchAttempt(args, { env, fetchImpl }) {
     }
 }
 
-async function resolveAndAdoptEntry(args, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
+async function resolveAndAdoptEntry(args, { env = process.env, fetchImpl = globalThis.fetch, resolveBeforeModel } = {}) {
     const accepted = existingAdoptionEntry(args, env);
     if (accepted) return accepted;
     let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-            const receipt = verifyReceipt(await fetchAttempt(args, { env, fetchImpl }), args);
+            const receipt = verifyReceipt(await fetchAttempt(args, { env, fetchImpl, resolveBeforeModel }), args);
             return adoptReceipt(args, receipt, env);
         } catch (error) {
             lastError = error;
@@ -1188,11 +1231,11 @@ function recoverEpisode(payload, identity, currentPaths, env) {
     return candidate;
 }
 
-async function resolveInitialRoute(args, { env, fetchImpl }) {
+async function resolveInitialRoute(args, { env, fetchImpl, resolveBeforeModel }) {
     let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-            return verifyReceipt(await fetchAttempt(args, { env, fetchImpl }), args);
+            return verifyReceipt(await fetchAttempt(args, { env, fetchImpl, resolveBeforeModel }), args);
         } catch (error) {
             lastError = error;
             const transportFailure = error?.name === 'AbortError'
@@ -1207,6 +1250,7 @@ async function resolveInitialRoute(args, { env, fetchImpl }) {
 export async function startEpisode(payload, {
     env = process.env,
     fetchImpl = globalThis.fetch,
+    resolveBeforeModel,
     episodeOrigin = 'user_prompt_submit',
     routeApplication = 'pre_generation'
 } = {}) {
@@ -1229,7 +1273,7 @@ export async function startEpisode(payload, {
         );
         const initialRouteReceipt = await withJudgmentStage(
             'judgment_episode_route_resolve_failed',
-            () => resolveInitialRoute(args, { env, fetchImpl })
+            () => resolveInitialRoute(args, { env, fetchImpl, resolveBeforeModel })
         );
         const hostSurface = withJudgmentStage(
             'judgment_episode_surface_detect_failed',

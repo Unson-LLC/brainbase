@@ -49,13 +49,13 @@ const classification = {
   intent: 'answer', domains: ['general'], action_kind: 'none', risk: 'low', confidence: 'confirmed', signals: [],
 };
 
-function receipt(overrides: Record<string, unknown> = {}) {
+function receipt(overrides: Record<string, unknown> = {}, resolutionArgs: typeof args = args) {
   const value: Record<string, unknown> = {
     resolution_id: 'jr_mcp',
     resolved_at: '2026-08-07T00:00:00.000Z',
-    turn_id: args.turn_id,
-    request_digest: computeJudgmentRequestDigest(args),
-    context_digest: createHash('sha256').update(canonicalJson(args.conversation_context)).digest('hex'),
+    turn_id: resolutionArgs.turn_id,
+    request_digest: computeJudgmentRequestDigest(resolutionArgs),
+    context_digest: createHash('sha256').update(canonicalJson(resolutionArgs.conversation_context)).digest('hex'),
     status: 'resolved',
     autonomy_decision: 'continue',
     autonomy_reason_code: 'routine_in_scope',
@@ -69,7 +69,7 @@ function receipt(overrides: Record<string, unknown> = {}) {
     host_binding: { adapter_id: 'brainbase-mcp', adapter_version: '1', status: 'managed', enforcement_level: 'host_contract' },
     project_code: 'brainbase',
     classification,
-    classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id], matcher_ids: ['intent:answer'] },
+    classification_evidence: { source: 'current_request', source_turn_ids: [resolutionArgs.turn_id], matcher_ids: ['intent:answer'] },
     classification_assurance: 'verified',
     reconciliation_reasons: [],
     selected_dag_ids: ['direct.v1'],
@@ -436,6 +436,58 @@ describe('judgment resolver Host bridge', () => {
     );
     assert.equal(unmanaged.management_status, 'unmanaged');
     assert.equal(unmanaged.receipt, null);
+  });
+
+  it('remote Hook dispatchは同一プロセスのResolver callbackへ接続し、signalをAPI fetchへ渡す', async () => {
+    const journalRoot = mkdtempSync(join(tmpdir(), 'brainbase-judgment-remote-'));
+    const envKeys = [
+      'BRAINBASE_RESOLVED_API_URL', 'BRAINBASE_GRAPH_API_URL', 'BRAINBASE_API_URL',
+      'BRAINBASE_API_BASE_URL', 'BRAINBASE_JUDGMENT_BINDING_SECRET',
+      'BRAINBASE_JUDGMENT_ADAPTER_ID', 'BRAINBASE_JUDGMENT_ADAPTER_VERSION',
+      'BRAINBASE_JUDGMENT_JOURNAL_DIR',
+    ];
+    const previousEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
+    const previousFetch = globalThis.fetch;
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    try {
+      process.env.BRAINBASE_RESOLVED_API_URL = 'http://inline-resolver.test';
+      process.env.BRAINBASE_JUDGMENT_BINDING_SECRET = 'mcp-secret';
+      process.env.BRAINBASE_JUDGMENT_ADAPTER_ID = 'brainbase-mcp';
+      process.env.BRAINBASE_JUDGMENT_ADAPTER_VERSION = '1';
+      process.env.BRAINBASE_JUDGMENT_JOURNAL_DIR = journalRoot;
+      serverTesting.setOwnerTokenManager({ getToken: async () => jwt({ projectCodes: ['brainbase'] }) });
+      globalThis.fetch = async (input, init) => {
+        calls.push({ url: String(input), init });
+        const routeArgs = JSON.parse(String(init?.body)) as typeof args;
+        return new Response(JSON.stringify(receipt({}, routeArgs)), { status: 200 });
+      };
+
+      const result = await serverTesting.dispatchRemoteJudgmentHook({
+        hook_event_name: 'UserPromptSubmit',
+        session_id: 'remote-inline-session',
+        turn_id: 'remote-inline-turn',
+        prompt: 'remote callbackを使う',
+        cwd: process.cwd(),
+        model: 'gpt-5',
+        permission_mode: 'workspace-write',
+      }, 'brainbase');
+
+      assert.equal(result.receiptId, 'jr_mcp');
+      assert.match(String(result.routeResolutionSha256), /^[a-f0-9]{64}$/u);
+      assert.equal(result.output.continue, true);
+      assert.equal(calls.length, 1);
+      assert.equal(calls[0]?.url, 'http://inline-resolver.test/api/judgment/resolve');
+      assert.equal(calls[0]?.init?.method, 'POST');
+      assert.ok(calls[0]?.init?.signal instanceof AbortSignal);
+    } finally {
+      globalThis.fetch = previousFetch;
+      for (const key of envKeys) {
+        const value = previousEnv.get(key);
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      rmSync(journalRoot, { recursive: true, force: true });
+    }
   });
 });
 

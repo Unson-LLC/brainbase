@@ -118,6 +118,125 @@ afterEach(() => {
     for (const path of temporaryPaths.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
+describe('inline judgment resolver callback', () => {
+    it('uses the normalized callback before HTTP and still verifies the returned receipt', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-inline-callback',
+            turn_id: 'turn-inline-callback', prompt: 'callbackで判断して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = validReceipt(args);
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+        const resolveBeforeModel = vi.fn(async (receivedArgs, options) => {
+            expect(receivedArgs).toEqual(args);
+            expect(options?.signal).toBeInstanceOf(AbortSignal);
+            expect(options.signal.aborted).toBe(false);
+            return { management_status: 'managed', reason: '', warning: '', receipt };
+        });
+
+        const episode = await startEpisode(payload, { env, fetchImpl, resolveBeforeModel });
+
+        expect(episode.initial_route_receipt).toEqual(receipt);
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).not.toHaveBeenCalled();
+        await startEpisode(payload, { env, fetchImpl, resolveBeforeModel });
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails closed for an unmanaged callback result without falling back to HTTP', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-inline-unmanaged',
+            turn_id: 'turn-inline-unmanaged', prompt: 'callbackが利用できない場合', cwd: process.cwd()
+        };
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+        const resolveBeforeModel = vi.fn(async () => ({
+            management_status: 'unmanaged', reason: 'brainbase_api_unavailable', warning: 'unavailable', receipt: null
+        }));
+
+        await expect(startEpisode(payload, { env, fetchImpl, resolveBeforeModel }))
+            .rejects.toThrow('judgment_episode_route_resolve_failed');
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('rejects an inline receipt whose request binding belongs to another input', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-inline-mismatch',
+            turn_id: 'turn-inline-mismatch', prompt: '現在の依頼', cwd: process.cwd()
+        };
+        const otherArgs = buildJudgmentRequest({ ...payload, prompt: '別の依頼' }, { env });
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+        const resolveBeforeModel = vi.fn(async () => ({
+            management_status: 'managed', reason: '', warning: '', receipt: validReceipt(otherArgs)
+        }));
+
+        await expect(startEpisode(payload, { env, fetchImpl, resolveBeforeModel }))
+            .rejects.toThrow('judgment_receipt_request_mismatch');
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('aborts a slow inline callback at the configured timeout without retrying it', async () => {
+        const root = temporaryDirectory();
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS: '5'
+        };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-inline-timeout',
+            turn_id: 'turn-inline-timeout', prompt: '遅いcallback', cwd: process.cwd()
+        };
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+        let callbackSignal;
+        const resolveBeforeModel = vi.fn((_, { signal }) => {
+            callbackSignal = signal;
+            return new Promise(() => {});
+        });
+
+        await expect(startEpisode(payload, { env, fetchImpl, resolveBeforeModel }))
+            .rejects.toThrow('judgment_host_timeout');
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(callbackSignal?.aborted).toBe(true);
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('uses the inline callback for adoption and does not resolve an adopted receipt again', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const args = buildJudgmentRequest({
+            session_id: 'session-inline-adoption', turn_id: 'turn-inline-adoption', prompt: '採用して', cwd: process.cwd()
+        }, { env });
+        const receipt = validReceipt(args);
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+
+        const resolveBeforeModel = vi.fn(async () => ({ management_status: 'managed', reason: '', warning: '', receipt }));
+        await expect(resolveAndAdopt(args, { env, fetchImpl, resolveBeforeModel })).resolves.toEqual(receipt);
+        await expect(resolveAndAdopt(args, { env, fetchImpl, resolveBeforeModel })).resolves.toEqual(receipt);
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['missing receipt', async () => ({ management_status: 'managed', receipt: null })],
+        ['unknown reason', async () => ({ management_status: 'unmanaged', reason: 'private diagnostic must not escape' })],
+        ['transport exception', async () => { throw Object.assign(new Error('private diagnostic must not escape'), { code: 'ECONNRESET' }); }]
+    ])('rejects %s without retrying or leaking callback details', async (_, callback) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const args = buildJudgmentRequest({ session_id: 'inline-invalid', turn_id: 'inline-invalid', prompt: '検証', cwd: process.cwd() }, { env });
+        const resolveBeforeModel = vi.fn(callback);
+        const fetchImpl = vi.fn();
+        await expect(resolveAndAdopt(args, { env, fetchImpl, resolveBeforeModel })).rejects.toThrow('judgment_host_bridge_failed');
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+});
+
 describe('Codex Judgment Resolver Host', () => {
     it('prior receiptの根拠turnから具体的な会話をowner向け1行へ投影する', () => {
         const args = {
