@@ -1449,13 +1449,68 @@ function judgmentBindingDiagnosticInnerErrorCode(response) {
     return codes.size === 1 ? [...codes][0] : null;
 }
 
-function logJudgmentBindingDiagnostic(response) {
+// Diagnostic traversal is independent of receipt extraction and never changes
+// its acceptance rules. Only fixed categories and bounded counts leave memory.
+function judgmentBindingResponseSummary(response) {
+    const keys = new Set();
+    const statuses = new Set();
+    const types = new Set();
+    const errorKinds = new Set();
+    const knownStatuses = new Set(['ok', 'error', 'unavailable', 'resolved', 'needs_classification', 'needs_policy_resolution', 'failed', 'completed']);
+    const knownKeys = ['status', 'error', 'code', 'resolution_id', 'classification', 'required_capabilities', 'isError', 'is_error', 'content', 'text', 'result', 'data', 'Ok', 'Err', 'structuredContent', 'receipt'];
+    const summary = { text_blocks: 0, json_parseable: 0, json_invalid: 0, non_json: 0, explicit_failure: false, truncated: false };
+    let visited = 0;
+    let parsedChars = 0;
+    function visit(value, depth = 0) {
+        if (depth > 8 || visited >= 128) { summary.truncated = true; return; }
+        visited += 1;
+        if (Array.isArray(value)) {
+            types.add('array');
+            if (value.length > 64) summary.truncated = true;
+            for (const entry of value.slice(0, 64)) visit(entry, depth + 1);
+            return;
+        }
+        if (typeof value === 'string') {
+            types.add('string');
+            summary.text_blocks += 1;
+            if (!isJsonContainerText(value)) { summary.non_json += 1; return; }
+            if (value.length > 65536 || parsedChars + value.length > 262144) { summary.truncated = true; return; }
+            parsedChars += value.length;
+            try {
+                const parsed = JSON.parse(value);
+                summary.json_parseable += 1;
+                visit(parsed, depth + 1);
+            } catch { summary.json_invalid += 1; }
+            return;
+        }
+        const item = record(value);
+        if (!item) { types.add(value === null ? 'null' : 'other'); return; }
+        types.add('record');
+        for (const key of knownKeys) if (Object.hasOwn(item, key)) keys.add(key);
+        if (Object.hasOwn(item, 'status')) statuses.add(knownStatuses.has(item.status) ? item.status : 'other');
+        if (item.isError === true || item.is_error === true) summary.explicit_failure = true;
+        if (record(item.error)) {
+            const code = item.error.code;
+            errorKinds.add(typeof code !== 'string' ? 'missing' : JUDGMENT_BINDING_DIAGNOSTIC_ERROR_CODES.has(code) ? 'known' : 'other');
+        }
+        for (const key of ['Ok', 'Err', 'data', 'structuredContent', 'result', 'receipt', 'content', 'text']) {
+            if (Object.hasOwn(item, key)) visit(item[key], depth + 1);
+        }
+    }
+    visit(response);
+    return { ...summary, value_types: [...types].sort(), known_keys: [...keys].sort(), statuses: [...statuses].sort(), error_code_kinds: [...errorKinds].sort() };
+}
+
+function logJudgmentBindingDiagnostic(response, toolUseId) {
     try {
         const diagnostic = {
             event: JUDGMENT_BINDING_DIAGNOSTIC_EVENT,
             wrapper_shape: judgmentBindingDiagnosticWrapperShape(response),
             receipt_present: judgmentBindingDiagnosticReceiptPresent(response),
-            inner_error_code: judgmentBindingDiagnosticInnerErrorCode(response)
+            inner_error_code: judgmentBindingDiagnosticInnerErrorCode(response),
+            hook_event_name: 'PostToolUse',
+            tool_use_ref: typeof toolUseId === 'string' && toolUseId ? sha256(toolUseId) : null,
+            response_summary: judgmentBindingResponseSummary(response)
         };
         // Best-effort diagnostics must not change the fail-closed binding
         // result if a host-provided stderr logger is unavailable.
@@ -2257,7 +2312,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
                     && toolName === TURN_RESOLUTION_TOOL_NAME
                     && !turnResolution
                     && causeCode === 'judgment_binding_contract_missing') {
-                    logJudgmentBindingDiagnostic(responseValue);
+                    logJudgmentBindingDiagnostic(responseValue, payload.tool_use_id);
                 }
                 throw new Error('judgment_turn_resolution_binding_invalid', { cause: new Error(causeCode) });
             }

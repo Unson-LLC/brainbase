@@ -4679,7 +4679,7 @@ describe('structured Resolver unavailable failures', () => {
         });
     });
 
-    it('contract_missingのPostToolUseだけ固定3項目を診断し、本文・未知コードを出さない', async () => {
+    it('contract_missingのPostToolUseだけ安全な診断を出し、本文・未知コードを出さない', async () => {
         const setup = await startUnavailableEpisode({ sessionId: 'binding-diagnostic-safe-log' });
         const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
         const response = {
@@ -4706,7 +4706,7 @@ describe('structured Resolver unavailable failures', () => {
 
         expect(errorSpy).toHaveBeenCalledTimes(1);
         const [line] = errorSpy.mock.calls[0];
-        expect(JSON.parse(line)).toEqual({
+        expect(JSON.parse(line)).toMatchObject({
             event: 'brainbase_judgment_binding_diagnostic',
             wrapper_shape: 'record',
             receipt_present: false,
@@ -4752,7 +4752,7 @@ describe('structured Resolver unavailable failures', () => {
 
         expect(errorSpy).toHaveBeenCalledTimes(1);
         const [line] = errorSpy.mock.calls[0];
-        expect(JSON.parse(line)).toEqual({
+        expect(JSON.parse(line)).toMatchObject({
             event: 'brainbase_judgment_binding_diagnostic',
             wrapper_shape: 'jsonrpc_result_record',
             receipt_present: true,
@@ -4760,6 +4760,35 @@ describe('structured Resolver unavailable failures', () => {
         });
         expect(line).not.toContain('jr-secret-value');
         expect(line).not.toContain('private upstream body');
+    });
+
+    it.each(['array', 'content_array'])('失敗応答の%sを本文なしで分類し、同じcallを相関できる', async (shape) => {
+        const setup = await startUnavailableEpisode({ sessionId: `binding-shape-${shape}` });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const content = [{ type: 'text', text: JSON.stringify({
+            status: 'error', error: { code: 'PRIVATE_UNKNOWN_CODE', message: 'PRIVATE_BODY' },
+            private_key: 'PRIVATE_VALUE'
+        }) }, { type: 'text', text: 'PRIVATE_PLAIN_TEXT' }, { type: 'text', text: '{PRIVATE_INVALID_JSON' }];
+        await expect(processHookPayload({ ...setup.payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'same-private-call',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: shape === 'array' ? content : { content }
+        }, { env: setup.env })).rejects.toMatchObject({
+            cause: { message: 'judgment_binding_contract_missing' }
+        });
+        const [line] = errorSpy.mock.calls[0];
+        expect(JSON.parse(line)).toMatchObject({
+            hook_event_name: 'PostToolUse', tool_use_ref: hash('same-private-call'),
+            response_summary: {
+                text_blocks: 3, json_parseable: 1, json_invalid: 1, non_json: 1,
+                statuses: ['error'], error_code_kinds: ['other'],
+                known_keys: expect.arrayContaining(['status', 'error', 'text']),
+                truncated: false
+            }
+        });
+        expect(line).not.toContain('PRIVATE');
+        expect(line).not.toContain('same-private-call');
+        expect(line).not.toContain('private_key');
     });
 
     it('成功契約・PostToolUseFailure・別causeでは固定診断を出さない', async () => {
