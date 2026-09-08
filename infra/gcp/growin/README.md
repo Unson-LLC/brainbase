@@ -35,10 +35,31 @@ unset BRAINBASE_SERVICE_TOKEN_SECRET
 scripts/growin/verify-remote-e2e.sh
 ```
 
-初期利用者の認証・権限登録Jobは、既定ではマイグレーション用イメージを再利用します。別イメージへ分ける場合だけ `auth_bootstrap_image` を指定します。Terraform適用後、必ず先に `brainbase-migrate` を実行して成功ログと適用receiptを確認し、その後に確認済みアドレスを登録します。
+初期利用者の認証・権限登録Jobは、既定ではマイグレーション用イメージを再利用します。別イメージへ分ける場合だけ `auth_bootstrap_image` を指定します。Terraform適用後、必ず先に `brainbase-migrate`、Candidate Store、Personal KGの順でスキーマを適用し、成功ログを確認してから確認済みアドレスを登録します。
 
 ```bash
 gcloud run jobs execute brainbase-migrate \
+  --project=brainbase-505912 \
+  --region=asia-northeast1 \
+  --account=k.sato.unson@gmail.com \
+  --wait
+
+gcloud run jobs execute brainbase-migrate-personal-kg \
+  --args=scripts/migrate-m5a-production-schema.js,--only=candidate-store \
+  --project=brainbase-505912 \
+  --region=asia-northeast1 \
+  --account=k.sato.unson@gmail.com \
+  --wait
+
+gcloud run jobs execute brainbase-migrate-personal-kg \
+  --args=scripts/migrate-m5a-production-schema.js,--only=knowledge-events \
+  --project=brainbase-505912 \
+  --region=asia-northeast1 \
+  --account=k.sato.unson@gmail.com \
+  --wait
+
+gcloud run jobs execute brainbase-migrate-personal-kg \
+  --args=scripts/migrate-m5a-production-schema.js,--only=personal-knowledge \
   --project=brainbase-505912 \
   --region=asia-northeast1 \
   --account=k.sato.unson@gmail.com \
