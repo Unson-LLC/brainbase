@@ -24,6 +24,7 @@ import {
     sanitizeJudgmentAnswer,
     toKnowledgeEventFromJudgmentEpisode
 } from '../../server/services/routine-runtime/judgment-event-adapter.js';
+import { normalizeJudgmentExecutionOutcome } from '../../server/services/judgment-execution-outcome.js';
 import {
     buildJudgmentValueProofProjection,
     extractJudgmentValueProofInput,
@@ -526,6 +527,7 @@ function journalPaths(sessionRef, turnId, env) {
         recovery: join(directory, `${turnRef}.recovery.json`),
         auditOrphanEvents: join(directory, `${turnRef}.audit-orphan-events`),
         final: join(directory, `${turnRef}.final.json`),
+        executionOutcome: join(directory, `${turnRef}.execution-outcome.json`),
         valueProof: join(directory, `${turnRef}.value-proof.json`),
         valueProofAttention: join(directory, `${turnRef}.value-proof-attention.json`),
         transitionDatabase: join(directory, `${turnRef}.transition.sqlite`)
@@ -2908,6 +2910,38 @@ function existingFinal(paths, episode) {
     }
 }
 
+function codexExecutionOutcome(payload, final) {
+    const episodeRef = `judgment-episode:je_${sha256(`${payload.session_id}:${payload.turn_id}`)}`;
+    return final.completion_status === 'complete'
+        ? normalizeJudgmentExecutionOutcome({
+            schema_version: 'judgment_execution_outcome.v1',
+            host: { type: 'codex', adapter_id: 'codex-hooks', adapter_version: '1' },
+            execution_id: payload.session_id,
+            turn_id: payload.turn_id,
+            scope: 'host_turn',
+            status: 'completed',
+            stage: 'finalize',
+            evidence: { state: 'confirmed', refs: [episodeRef] }
+        })
+        : normalizeJudgmentExecutionOutcome({
+            schema_version: 'judgment_execution_outcome.v1',
+            host: { type: 'codex', adapter_id: 'codex-hooks', adapter_version: '1' },
+            execution_id: payload.session_id,
+            turn_id: payload.turn_id,
+            scope: 'host_turn',
+            status: 'unknown',
+            stage: 'finalize',
+            failure: {
+                code: final.degradation_reason ?? 'audit_protocol_incomplete',
+                summary: '監査が縮退したため、このターンの完了を確認できませんでした。',
+                upstream_code: null,
+                retryable: true
+            },
+            resume_from: 'resolve',
+            evidence: { state: 'unconfirmed', refs: [episodeRef] }
+        });
+}
+
 function existingJudgmentValueProof(paths, finalized = null) {
     if (!finalized?.value_proof_digest) return null;
     try {
@@ -3611,7 +3645,20 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             || finalized.event_set_digest !== eventSetDigest) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
-        enqueueFinalKnowledgeEvent(payload, finalized, env);
+        let persistedOutcome = null;
+        try {
+            persistedOutcome = normalizeJudgmentExecutionOutcome(readJson(paths.executionOutcome));
+        } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+            if (finalized.execution_outcome_schema_version === 'judgment_execution_outcome.v1') {
+                persistedOutcome = codexExecutionOutcome(payload, finalized);
+                createImmutableJson(paths.executionOutcome, persistedOutcome, 'judgment_execution_outcome_conflict');
+            }
+        }
+        const finalizedWithOutcome = persistedOutcome
+            ? { ...finalized, execution_outcome: persistedOutcome }
+            : finalized;
+        enqueueFinalKnowledgeEvent(payload, finalizedWithOutcome, env);
         const persistedBaseOutput = completedAuditOutput(finalizedValueProof, finalizedValueProofAttention);
         const persistedOutput = finalized.completion_status === 'audit_degraded'
             && typeof finalized.degradation_reason === 'string'
@@ -3620,7 +3667,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             : persistedBaseOutput;
         return {
             output: persistedOutput,
-            final: finalized,
+            final: finalizedWithOutcome,
             auditRepairWasAlreadyActive: existingContinuation !== null
         };
     }
@@ -3901,6 +3948,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const finalAutonomyContract = episodeAutonomyContract(episode);
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
+        execution_outcome_schema_version: 'judgment_execution_outcome.v1',
         finalized_at: finalizedAt,
         ...(surfaceUnavailable ? {
             completion_status: 'audit_degraded',
@@ -3975,7 +4023,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 : {})
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
-    enqueueFinalKnowledgeEvent(payload, final, env);
+    const executionOutcome = codexExecutionOutcome(payload, entry);
+    createImmutableJson(paths.executionOutcome, executionOutcome, 'judgment_execution_outcome_conflict');
+    const finalWithOutcome = { ...final, execution_outcome: executionOutcome };
+    enqueueFinalKnowledgeEvent(payload, finalWithOutcome, env);
     const baseOutput = completedAuditOutput(valueProof, valueProofAttention);
     const immediateDegradationReason = preEpisodeAuditGap
         ? 'pre_episode_tool_events'
@@ -3989,7 +4040,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         : baseOutput;
     return {
         output,
-        final,
+        final: finalWithOutcome,
         auditRepairWasAlreadyActive: existingContinuation !== null
     };
 }

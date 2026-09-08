@@ -44,10 +44,61 @@ describe('completed judgment episode knowledge event adapter', () => {
             }
         });
         expect(first.event_id).toMatch(/^kev_/);
+        expect(first.payload).not.toHaveProperty('execution_outcome');
         expect(first).not.toHaveProperty('action_allowed');
         expect(first).not.toHaveProperty('approval_scope');
         expect(JSON.stringify(first)).not.toContain('deploy');
         expect(JSON.stringify(first)).not.toContain('send');
+    });
+
+    it('portable識別子をsource URIへ安全にエスケープする', () => {
+        const event = toKnowledgeEventFromJudgmentEpisode(completedEpisode({
+            execution_outcome: {
+                schema_version: 'judgment_execution_outcome.v1',
+                host: { type: 'claude-code', adapter_id: 'claude-code-hooks', adapter_version: '1' },
+                execution_id: 'session/with#mark', turn_id: 'turn?1', scope: 'host_turn',
+                status: 'completed', stage: 'finalize',
+                evidence: { state: 'confirmed', refs: ['journal:1'] }
+            }
+        }));
+        expect(event.source_pointer.uri).toBe('brainbase-judgment://claude-code/session%2Fwith%23mark#turn=turn%3F1');
+    });
+
+    it('秘密本文を隔離しても非秘密の共通結果は保持する', () => {
+        const event = toKnowledgeEventFromJudgmentEpisode(completedEpisode({
+            final_answer: 'password=correct-horse-battery-staple',
+            execution_outcome: {
+                schema_version: 'judgment_execution_outcome.v1',
+                host: { type: 'codex', adapter_id: 'codex-hooks', adapter_version: '1' },
+                execution_id: 'session-1', turn_id: 'turn-1', scope: 'host_turn',
+                status: 'completed', stage: 'finalize',
+                evidence: { state: 'confirmed', refs: ['journal:1'] }
+            }
+        }));
+        expect(event.payload).toMatchObject({
+            redaction_status: 'needs_redaction',
+            execution_outcome: { status: 'completed', evidence: { state: 'confirmed' } }
+        });
+        expect(event.payload).not.toHaveProperty('summary');
+    });
+
+    it.each(['codex', 'claude-code'])('%sの共通実行結果を同じKnowledge Eventへ変換する', (host) => {
+        const event = toKnowledgeEventFromJudgmentEpisode(completedEpisode({
+            execution_outcome: {
+                schema_version: 'judgment_execution_outcome.v1',
+                host: { type: host, adapter_id: `${host}-hooks`, adapter_version: '1' },
+                execution_id: `${host}-session-1`,
+                turn_id: 'turn-1',
+                scope: 'host_turn',
+                status: 'completed',
+                stage: 'finalize',
+                evidence: { state: 'confirmed', refs: ['judgment-episode:1'] }
+            }
+        }));
+
+        expect(event.source.ref).toBe(`${host}-session-1:turn-1`);
+        expect(event.source_pointer.uri).toBe(`brainbase-judgment://${host}/${host}-session-1#turn=turn-1`);
+        expect(event.payload.execution_outcome).toMatchObject({ status: 'completed', stage: 'finalize' });
     });
 
     it.each(['active', 'blocked', 'audit_degraded'])('%s episodeは登録対象にしない', (completionStatus) => {

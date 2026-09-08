@@ -47,6 +47,7 @@ const RUNTIME_ESCALATION_REASONS = new Set([
 const INTENT_MATCHERS = new Set(INTENT_ORDER);
 const ADAPTER_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 const ADAPTER_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
+const RUNTIME_HOSTS = new Set(['codex', 'claude-code']);
 
 function compareCodePoints(left, right) {
     const a = Array.from(left, (value) => value.codePointAt(0));
@@ -637,7 +638,7 @@ function validateInput(rawInput, manifest) {
         });
         exactFields(rawInput.conversation_context.runtime, RUNTIME_FIELDS, 'conversation_context.runtime');
         const runtime = rawInput.conversation_context.runtime;
-        if (runtime.host !== 'codex') fail('conversation_context.runtime.host is invalid');
+        if (!RUNTIME_HOSTS.has(runtime.host)) fail('conversation_context.runtime.host is invalid');
         for (const nullable of ['model', 'permission_mode', 'project_binding']) {
             if (runtime[nullable] !== null && (typeof runtime[nullable] !== 'string' || !runtime[nullable])) fail(`conversation_context.runtime.${nullable} is invalid`);
         }
