@@ -96,7 +96,7 @@
         "test_refs": [
           {
             "file": "tests/unit/judgment-resolver-host-subagent.test.js",
-            "case": "records child execution and Stop under parent without finalizing parent or satisfying capabilities"
+            "case": "records child execution only and keeps verified child Stop side-effect free"
           }
         ]
       },
@@ -104,7 +104,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/unit/judgment-resolver-host-subagent.test.js",
-            "must_cover": "records child execution and Stop under parent without finalizing parent or satisfying capabilities"
+            "must_cover": "records child execution only and keeps verified child Stop side-effect free"
           }
         ]
       }
@@ -112,7 +112,7 @@
     {
       "id": "C-004",
       "type": "contract",
-      "statement": "子のStopは報告を記録し、利用者向け最終監査は親だけが確定する。",
+      "statement": "子の完了はCodexの既存通知を親が確認する。専用の終了記録を要求せず、利用者向け最終監査は親だけが確定する。",
       "origin": {
         "story_refs": [
           {
@@ -130,7 +130,7 @@
         "test_refs": [
           {
             "file": "tests/unit/judgment-resolver-host-subagent.test.js",
-            "case": "denies child control tool"
+            "case": "records child execution only and keeps verified child Stop side-effect free"
           }
         ]
       },
@@ -138,7 +138,7 @@
         "test_pattern": [
           {
             "file_glob": "tests/unit/judgment-resolver-host-subagent.test.js",
-            "must_cover": "denies child control tool"
+            "must_cover": "records child execution only and keeps verified child Stop side-effect free"
           }
         ]
       }

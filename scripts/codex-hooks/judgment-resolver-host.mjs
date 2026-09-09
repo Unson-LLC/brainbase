@@ -4487,8 +4487,14 @@ function processSubagentHook(payload, binding, dependencies) {
         return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext:
             'Hostが親の有効な判断契約とこの子agentへの委任を確認しました。委任範囲内で作業し、結果を親へ返してください。通常の権限・承認は引き続き必要です。' } };
     }
-    if (['PostToolUse', 'PostToolUseFailure', 'Stop'].includes(eventName)) {
-        if (eventName !== 'Stop' && (!toolName || typeof payload.tool_use_id !== 'string' || !payload.tool_use_id)) {
+    if (eventName === 'Stop') {
+        // Codex already owns the child's completion notification. A verified
+        // child Stop must not create delegated evidence or fall through to the
+        // parent's independent Stop finalization path.
+        return {};
+    }
+    if (['PostToolUse', 'PostToolUseFailure'].includes(eventName)) {
+        if (!toolName || typeof payload.tool_use_id !== 'string' || !payload.tool_use_id) {
             throw new Error('judgment_delegated_tool_identity_missing');
         }
         // Record provenance as ordinary execution evidence. It cannot satisfy a
@@ -4496,14 +4502,12 @@ function processSubagentHook(payload, binding, dependencies) {
         recordBrainbaseToolUse({
             ...binding.parent,
             transcript_path: undefined,
-            hook_event_name: eventName === 'Stop' ? 'PostToolUse' : eventName,
-            tool_name: `delegated.${eventName === 'Stop' ? 'Stop' : toolName}`,
-            tool_use_id: `delegated:${binding.childThreadId}:${binding.childTurnId}:${eventName === 'Stop' ? 'stop' : payload.tool_use_id}`,
+            hook_event_name: eventName,
+            tool_name: `delegated.${toolName}`,
+            tool_use_id: `delegated:${binding.childThreadId}:${binding.childTurnId}:${payload.tool_use_id}`,
             tool_input: { child_thread_id: binding.childThreadId, child_turn_id: binding.childTurnId,
                 original_input_digest: sha256(canonicalJson(payload.tool_input ?? null)) },
-            tool_response: eventName === 'Stop'
-                ? { child_answer_digest: sha256(payload.last_assistant_message ?? '') }
-                : payload.tool_response
+            tool_response: payload.tool_response
         }, dependencies);
         return {};
     }

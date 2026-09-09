@@ -55,15 +55,28 @@ it.each(['resolve_turn', 'judgment_audit_read', 'judgment_state_record', 'judgme
     const f = await fixture(); f.child.tool_name = `mcp__brainbase__brainbase_${name}`;
     expect((await processHookPayload(f.child, { env: f.env })).hookSpecificOutput.permissionDecision).toBe('deny');
 });
-it('records child execution and Stop under parent without finalizing parent or satisfying capabilities', async () => {
+it('records child execution only and keeps verified child Stop side-effect free', async () => {
     const f = await fixture();
-    for (const name of ['PostToolUse', 'Stop']) await processHookPayload({ ...f.child, hook_event_name: name, last_assistant_message: 'done' }, { env: f.env });
+    await processHookPayload({ ...f.child, hook_event_name: 'PostToolUse' }, { env: f.env });
     const eventsDir = join(f.directory, `${f.prefix}.events`);
     const events = readdirSync(eventsDir).map(name => JSON.parse(readFileSync(join(eventsDir, name), 'utf8')));
-    expect(events).toHaveLength(2);
-    expect(events.map(x => x.tool_name).sort()).toEqual(['delegated.Bash', 'delegated.Stop']);
-    expect(events.every(x => x.event_kind === 'execution')).toBe(true);
-    expect(events.every(x => !x.satisfies?.length)).toBe(true);
+    expect(events).toHaveLength(1);
+    expect(events[0].tool_name).toBe('delegated.Bash');
+    expect(events[0].event_kind).toBe('execution');
+    expect(events[0].satisfies ?? []).toHaveLength(0);
+    const parentJournalBeforeStop = readdirSync(f.directory).sort();
+    const childDirectory = join(f.root, 'journal', hash(f.child.session_id));
+    const childJournalBeforeStop = existsSync(childDirectory) ? readdirSync(childDirectory).sort() : [];
+    const parentEpisode = join(f.directory, `${f.prefix}.episode.json`);
+    const parentFinal = join(f.directory, `${f.prefix}.final.json`);
+    const childEpisode = join(childDirectory, `${hash(f.child.turn_id)}.episode.json`);
+    const childFinal = join(childDirectory, `${hash(f.child.turn_id)}.final.json`);
+    const pathsBeforeStop = [parentEpisode, parentFinal, childEpisode, childFinal].map(path => [path, existsSync(path)]);
+    await processHookPayload({ ...f.child, hook_event_name: 'Stop', last_assistant_message: 'done' }, { env: f.env });
+    expect(readdirSync(eventsDir).map(name => JSON.parse(readFileSync(join(eventsDir, name), 'utf8')))).toEqual(events);
+    expect(readdirSync(f.directory).sort()).toEqual(parentJournalBeforeStop);
+    expect(existsSync(childDirectory) ? readdirSync(childDirectory).sort() : []).toEqual(childJournalBeforeStop);
+    expect(pathsBeforeStop.map(([path]) => [path, existsSync(path)])).toEqual(pathsBeforeStop);
     expect(existsSync(join(f.directory, `${f.prefix}.final.json`))).toBe(false);
 });
 it('rejects missing tool identity', async () => {
