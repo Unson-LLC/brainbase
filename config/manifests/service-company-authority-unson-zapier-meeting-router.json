@@ -30,6 +30,9 @@
         "resource_revision": "1",
         "policy_revision": "1",
         "raci_revision": "1",
+        "stop_conditions": [
+          "autonomy_kill_switch_active"
+        ],
         "valid_from": "2026-09-06T01:00:00.000Z",
         "valid_until": null,
         "registry_capability": "send_message"
