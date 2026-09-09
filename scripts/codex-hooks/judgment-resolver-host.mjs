@@ -4477,7 +4477,9 @@ function processSubagentHook(payload, binding, dependencies) {
         const controlTool = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))$/;
         const input = payload.tool_input;
         const orchestrationSource = typeof input === 'string' ? input : input?.code ?? '';
-        const wrappedControlCall = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))\s*\(/.test(orchestrationSource);
+        // Check the literal tool identifier, including bracket access and aliases.
+        // This is a misuse guard, not a sandbox for arbitrary JavaScript.
+        const wrappedControlCall = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))\b/.test(orchestrationSource);
         if (controlTool.test(toolName) || wrappedControlCall) {
             return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny',
                 permissionDecisionReason: 'この子agentは親の判断契約へ紐付け済みです。判断契約の再分類・監査確定は親が行います。委任された作業を実行し、結果を親へ返してください。' } };

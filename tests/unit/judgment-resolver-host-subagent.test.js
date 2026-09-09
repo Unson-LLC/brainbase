@@ -97,3 +97,14 @@ it('denies parent control tools invoked through functions.exec', async () => {
     f.child.tool_input = { code: 'await tools.mcp__brainbase__brainbase_judgment_state_record({status: "completed"})' };
     expect((await processHookPayload(f.child, { env: f.env })).hookSpecificOutput.permissionDecision).toBe('deny');
 });
+
+it.each([
+    'await tools["mcp__brainbase__brainbase_judgment_state_record"]({status: "completed"})',
+    'const finish = tools.mcp__brainbase__brainbase_judgment_state_record; await finish({status: "completed"})',
+    'Reflect.apply(tools.mcp__brainbase__brainbase_judgment_state_record, null, [{status: "completed"}])'
+])('denies literal control tool references through orchestration: %s', async code => {
+    const f = await fixture();
+    f.child.tool_name = 'functions.exec';
+    f.child.tool_input = { code };
+    expect((await processHookPayload(f.child, { env: f.env })).hookSpecificOutput.permissionDecision).toBe('deny');
+});
