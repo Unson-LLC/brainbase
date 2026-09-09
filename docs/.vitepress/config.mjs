@@ -25,6 +25,7 @@ export default {
         items: [
           { text: 'システム構成', link: '/guide/architecture' },
           { text: 'オントロジーとは', link: '/guide/ontology' },
+          { text: '検索の仕組み', link: '/guide/search' },
           { text: 'Judgment DAG', link: '/guide/judgment-system' }
         ]
       },
@@ -43,6 +44,7 @@ export default {
             { text: 'Brainbaseの全体像', link: '/guide/grand-design' },
             { text: '仕組みとシステム構成', link: '/guide/architecture' },
             { text: 'オントロジーとは', link: '/guide/ontology' },
+            { text: '検索の仕組み', link: '/guide/search' },
             { text: 'Judgment DAGの考え方', link: '/guide/judgment-system' },
             { text: '組織版の先行案内', link: '/organization' },
             { text: '現在の状態', link: '/guide/status' }

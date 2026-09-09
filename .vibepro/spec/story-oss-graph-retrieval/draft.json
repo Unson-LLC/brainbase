@@ -1,0 +1,164 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-oss-graph-retrieval",
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "外部API未設定でも正規IDから実関係をたどり根拠と不足を返す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1",
+            "text_snippet": "外部API未設定でも正規IDから実関係をたどり根拠と不足を返す。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/graph-retrieval.ts",
+            "anchor": "retrieveGraph"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/graph-retrieval.test.ts",
+            "case": "uses seed IDs and only follows actual typed active edges in a bounded plan"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/graph-retrieval.test.ts",
+            "must_cover": "uses seed IDs and only follows actual typed active edges in a bounded plan"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T16:29:06.821Z",
+      "last_revised_at": "2026-09-09T16:29:06.821Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "埋め込み生成は差し替え可能とし、設定なしでは通信しない。ローカルHTTPサービスと外部HTTPS APIを明示設定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2",
+            "text_snippet": "埋め込み生成は差し替え可能とし、設定なしでは通信しない。ローカルHTTPサービスと外部HTTPS APIを明示設定する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/embedding-provider.ts",
+            "anchor": "createEmbeddingProviderFromEnv"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/embedding-provider.test.ts",
+            "case": "does not create a network provider when embedding is not configured"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/embedding-provider.test.ts",
+            "must_cover": "does not create a network provider when embedding is not configured"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T16:29:06.821Z",
+      "last_revised_at": "2026-09-09T16:29:06.821Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "探索はプロジェクトと有効時点を守り、未知・不完全・根拠不足を成功や不存在にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3",
+            "text_snippet": "探索はプロジェクトと有効時点を守り、未知・不完全・根拠不足を成功や不存在にしない。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/graph-retrieval.ts",
+            "anchor": "retrieveGraph"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/graph-retrieval.test.ts",
+            "case": "strictly scopes project results and does not expose outside relation catalog entries"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/graph-retrieval.test.ts",
+            "must_cover": "strictly scopes project results and does not expose outside relation catalog entries"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T16:29:06.821Z",
+      "last_revised_at": "2026-09-09T16:29:06.821Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "MCPは探索計画を受け取り実関係と根拠を返す。旧Graphは移行が必要と明示する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4",
+            "text_snippet": "MCPは探索計画を受け取り実関係と根拠を返す。旧Graphは移行が必要と明示する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/server.ts",
+            "anchor": "callBrainbaseTool"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/graph-retrieval-mcp.test.ts",
+            "case": "follows a real relation without an embedding API through actual stdio"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/graph-retrieval-mcp.test.ts",
+            "must_cover": "follows a real relation without an embedding API through actual stdio"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T16:29:06.821Z",
+      "last_revised_at": "2026-09-09T16:29:06.821Z"
+    }
+  ],
+  "generated_at": "2026-09-09T16:29:06.820Z",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}
