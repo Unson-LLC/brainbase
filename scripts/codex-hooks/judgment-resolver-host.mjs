@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import {
     chmodSync,
@@ -4288,12 +4289,26 @@ function blockedOutput(reason) {
     };
 }
 
+function sameRepositoryScope(configuredCwd, cwd) {
+    if (samePath(configuredCwd, cwd)) return true;
+    // Git environment overrides must not make an unrelated directory appear local.
+    const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+    const commonDirectory = (directory) => realpathSync(execFileSync('git', [
+        '-C', directory, 'rev-parse', '--path-format=absolute', '--git-common-dir'
+    ], { env: gitEnv, encoding: 'utf8', timeout: 1000, stdio: ['ignore', 'pipe', 'ignore'] }).trim());
+    try {
+        return commonDirectory(configuredCwd) === commonDirectory(cwd);
+    } catch {
+        return false;
+    }
+}
+
 function diagnosticContinueEnabled(env, payload) {
     return env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue'
         && typeof env.BRAINBASE_JUDGMENT_CANARY_CWD === 'string'
         && isAbsolute(env.BRAINBASE_JUDGMENT_CANARY_CWD)
         && typeof payload?.cwd === 'string' && isAbsolute(payload.cwd)
-        && samePath(env.BRAINBASE_JUDGMENT_CANARY_CWD, payload.cwd);
+        && sameRepositoryScope(env.BRAINBASE_JUDGMENT_CANARY_CWD, payload.cwd);
 }
 
 function safeFailureReason(error) {
@@ -4412,11 +4427,13 @@ export async function processHookPayload(payload, dependencies = {}) {
     const eventName = payload?.hook_event_name || payload?.hookEventName;
     const env = dependencies.env ?? process.env;
     if (env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue' && eventName === 'PreToolUse') {
-        return diagnosticContinueEnabled(env, payload) && hasVerifiedStart(payload, env) ? {} : {
+        const inScope = diagnosticContinueEnabled(env, payload);
+        return inScope && hasVerifiedStart(payload, env) ? {} : {
             hookSpecificOutput: {
                 hookEventName: 'PreToolUse',
                 permissionDecision: 'deny',
-                permissionDecisionReason: START_FAILURE_WARNING
+                permissionDecisionReason: inScope ? START_FAILURE_WARNING
+                    : '⚠️ Brainbase監査未完了: この作業場所は設定されたリポジトリの対象外です。'
             }
         };
     }

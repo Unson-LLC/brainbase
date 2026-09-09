@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -356,7 +356,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         readSafeStderr(result.stderr, payload.prompt);
     }, 10_000);
 
-    it('明示opt-in時に検証済みepisodeがあるPreToolUseはdenyせず、Start失敗の説明限定を解除する', async () => {
+    it.each(['exact', 'same-repository'])('検証済みepisodeのPreToolUseを%sで許可する', async (scope) => {
         const root = temporaryDirectory();
         const payload = startPayload(
             'session-start-failure-pretool-verified',
@@ -372,6 +372,9 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
             BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
             BRAINBASE_JUDGMENT_CANARY_CWD: REPO_ROOT
         };
+        if (scope === 'same-repository') {
+            env.BRAINBASE_JUDGMENT_CANARY_CWD = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim().replace(/\/.git$/, '');
+        }
         const started = await runEntrypoint({ env, payload });
         expect(started).toMatchObject({ code: 0, signal: null, stderr: '' });
         expect(readJsonOutput(started.stdout)).toMatchObject({ continue: true, suppressOutput: true });
@@ -387,6 +390,15 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         });
         expect(preToolUse).toMatchObject({ code: 0, signal: null, stderr: '' });
         expect(readJsonOutput(preToolUse.stdout)).toEqual({});
+        const foreign = await runEntrypoint({
+            env: { ...env, GIT_DIR: execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim() },
+            payload: { ...payload, cwd: root, hook_event_name: 'PreToolUse', tool_name: 'mcp__brainbase__search' }
+        });
+        expect(readJsonOutput(foreign.stdout).hookSpecificOutput).toMatchObject({
+            permissionDecision: 'deny',
+            permissionDecisionReason: '⚠️ Brainbase監査未完了: この作業場所は設定されたリポジトリの対象外です。'
+        });
+
     }, 10_000);
 
     it('明示opt-in時に検証済みStop委任復旧episodeのResolver PreToolUseをdenyしない', async () => {
