@@ -1,0 +1,39 @@
+{
+  "tenant_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+  "organization_id": "unson",
+  "project": {
+    "project_id": "prj_01KGCS8C1PSSXPHXPBX1D4CKDT",
+    "project_code": "unson"
+  },
+  "version": "service-company-authority.v1",
+  "transport": {
+    "provider": "slack",
+    "authenticated_subject_id": "U0BL94R9UJE",
+    "workspace_id": "T0882T8N9UH",
+    "app_id": "A0BPM2J33SN"
+  },
+  "service_actor": {
+    "actor_id": "svc_mana_runtime",
+    "placement_id": "mana-runtime-task-board",
+    "bindings": [
+      {
+        "resource_ref": "project:prj_01KGCS8C1PSSXPHXPBX1D4CKDT",
+        "capability_id": "runtime.execute",
+        "decision": "auto",
+        "allowed_effects": [
+          "external_side_effect"
+        ],
+        "responsible_person_id": null,
+        "accountable_person_id": null,
+        "approver_person_id": null,
+        "delegated_by_person_id": null,
+        "resource_revision": "1",
+        "policy_revision": "1",
+        "raci_revision": "1",
+        "valid_from": "2026-09-06T01:00:00.000Z",
+        "valid_until": null,
+        "registry_capability": "send_message"
+      }
+    ]
+  }
+}
