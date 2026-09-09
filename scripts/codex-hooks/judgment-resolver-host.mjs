@@ -4432,8 +4432,11 @@ export function verifiedSubagentParent(payload, env = process.env) {
         if (!transcriptRoots(env).some((root) => pathInside(path, root))) return null;
         const entries = readFileSync(path, 'utf8').split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line));
         const metas = entries.filter((entry) => entry.type === 'session_meta');
-        if (metas.length !== 1) return null;
-        const meta = metas[0].payload;
+        const meta = metas[0]?.payload;
+        // Full-history forks include the parent's original session metadata.
+        // Only the first entry identifies this child; duplicates/foreign IDs fail.
+        if (!meta || metas.length > 2 || (metas.length === 2
+            && (metas[1].payload?.id !== meta.session_id || metas[1].payload?.id === meta.id))) return null;
         const source = meta?.source?.subagent?.thread_spawn;
         if (!source || typeof meta.id !== 'string' || typeof meta.session_id !== 'string'
             || meta.id === meta.session_id || source.parent_thread_id === meta.id
@@ -4471,7 +4474,11 @@ function processSubagentHook(payload, binding, dependencies) {
     const toolName = payload.tool_name ?? payload.toolName ?? '';
     if (eventName === 'PreToolUse') {
         // The child cannot reclassify or finalize the parent's judgment episode.
-        if (/brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))$/.test(toolName)) {
+        const controlTool = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))$/;
+        const input = payload.tool_input;
+        const orchestrationSource = typeof input === 'string' ? input : input?.code ?? '';
+        const wrappedControlCall = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))\s*\(/.test(orchestrationSource);
+        if (controlTool.test(toolName) || wrappedControlCall) {
             return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny',
                 permissionDecisionReason: 'この子agentは親の判断契約へ紐付け済みです。判断契約の再分類・監査確定は親が行います。委任された作業を実行し、結果を親へ返してください。' } };
         }

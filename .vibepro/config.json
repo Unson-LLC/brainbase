@@ -243,8 +243,26 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "parent-contract-delegation",
+        "title": "子エージェントが親の判断契約の委任範囲で作業できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null,
+        "acceptance_criteria": [
+          "Hostの親子情報と子turnへの委任メッセージを照合した子は独立Resolverなしで作業できる。",
+          "未解決・終了済みの親、偽装・不明・対象外の委任は拒否する。",
+          "子の実行結果は親契約へ紐付け、親の判断完了や必須能力の達成を代行しない。",
+          "子のStopは報告を記録し、利用者向け最終監査は親だけが確定する。"
+        ]
       }
     ],
-    "current_story_id": "story-resolver-event-binding"
+    "current_story_id": "parent-contract-delegation"
   }
 }

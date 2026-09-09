@@ -79,3 +79,16 @@ it('keeps child failure a failed execution event without exposing the error text
     expect(JSON.parse(text)).toMatchObject({ success: false, event_kind: 'execution', satisfies: [] });
     expect(text).not.toContain('sensitive failure text');
 });
+
+it('accepts a full-history fork with one inherited parent session metadata entry', async () => {
+    const f = await fixture();
+    f.entries.splice(1, 0, { type: 'session_meta', payload: { id: 'parent', session_id: 'parent' } });
+    f.save();
+    expect(verifiedSubagentParent(f.child, f.env)?.parent.turn_id).toBe('parent-turn');
+});
+it('denies parent control tools invoked through functions.exec', async () => {
+    const f = await fixture();
+    f.child.tool_name = 'functions.exec';
+    f.child.tool_input = { code: 'await tools.mcp__brainbase__brainbase_judgment_state_record({status: "completed"})' };
+    expect((await processHookPayload(f.child, { env: f.env })).hookSpecificOutput.permissionDecision).toBe('deny');
+});

@@ -1,0 +1,147 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "parent-contract-delegation",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "spec"
+  },
+  "lifecycle": "draft",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Hostの親子情報と子turnへの委任メッセージを照合した子は独立Resolverなしで作業できる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "processHookPayload"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-subagent.test.js",
+            "case": "verified direct child"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host-subagent.test.js",
+            "must_cover": "verified direct child"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "未解決・終了済みの親、偽装・不明・対象外の委任は拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "processHookPayload"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-subagent.test.js",
+            "case": "rejects invalid delegation"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host-subagent.test.js",
+            "must_cover": "rejects invalid delegation"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "子の実行結果は親契約へ紐付け、親の判断完了や必須能力の達成を代行しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "processHookPayload"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-subagent.test.js",
+            "case": "records child execution and Stop under parent without finalizing parent or satisfying capabilities"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host-subagent.test.js",
+            "must_cover": "records child execution and Stop under parent without finalizing parent or satisfying capabilities"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "子のStopは報告を記録し、利用者向け最終監査は親だけが確定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "anchor": "processHookPayload"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-subagent.test.js",
+            "case": "denies child control tool"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/unit/judgment-resolver-host-subagent.test.js",
+            "must_cover": "denies child control tool"
+          }
+        ]
+      }
+    }
+  ]
+}
