@@ -35,3 +35,9 @@ Host管理の子rolloutにある親ID・agent名・root_turn_idと、その子tu
 制御ツール名の検出は直接呼び出しとliteral参照の誤用防止であり、任意JavaScriptを隔離する仕組みではない。動的に構成されたツール名まで認可境界で遮断する保証は含めない。
 
 Graphifyの既存グラフは見つからず、グラフによる影響範囲はunknown。コードと対象テストで差分を確認した。VibeProのSpecは追跡可能なdraftとして保存し、旧readinessのグラフ必須判定を実装・PRの追加ゲートにはしない。
+
+### 実Hostでの終了再検証（2026-09-09）
+
+統合版 `e50e5d66f` で、履歴を引き継いだ子の再開と新規生成の2経路を実行した。両方とも独立Resolverなしで読み取りに成功し、親へSHAを返した。Codex rolloutの `task_complete` をそれぞれ08:35:26Z、08:37:02Zに確認。親journalには成功した `delegated.Bash` が2件、`satisfies` は両方空、検査時点で親finalは未作成だった。
+
+一方、`delegated.Stop` は0件。子の正常終了そのものは実機確認済みだが、終了を親journalへ記録する受入条件は未達。HookのStop通知経路のどの段階で欠落したかは未確定であり、単体テスト合格を実機合格に代用しない。PRはDraftを維持する。
