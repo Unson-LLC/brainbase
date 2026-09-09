@@ -33,6 +33,12 @@ function deps(records: unknown[], status = 200) {
   return {apiUrl: 'https://fixture.invalid', tokenManager: {getToken: async () => `x.${Buffer.from(JSON.stringify({projectCodes:['p']})).toString('base64url')}.x`}, fetch: fetch as typeof globalThis.fetch, embed: async (texts: string[]) => texts.map(() => [1,0])};
 }
 describe('authenticated Graph retrieval', () => {
+  it('rejects lexical mode without an API request or fallback', async () => {
+    const d = deps([]);
+    const result = await handleGraphRetrievalToolCall('search', {query: 'q', mode: 'lexical'}, d);
+    expect(result).toMatchObject({status: 'error', error: {code: 'graph_retrieval_lexical_disabled'}});
+    expect(d.fetch).not.toHaveBeenCalled();
+  });
   it('denies inaccessible projects before any API request', async () => {
     const d = deps([]); const r = await handleGraphRetrievalToolCall('search', {query:'q', project:'other'},d);
     expect(r?.error?.code).toBe('brainbase_project_not_accessible'); expect(d.fetch).not.toHaveBeenCalled();

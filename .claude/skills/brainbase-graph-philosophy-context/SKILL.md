@@ -24,20 +24,20 @@ Graph操作時に、entityの事実確認だけでなく `Brainbase Philosophy C
 - 人物、組織、顧客、パートナー、プロジェクト、用語、意思決定を書く時
 - Graph entity / edge を読む、作る、更新する時
 - 推進案件、CRM、NocoDB projection、診断、Growth導線を扱う時
-- MCP `brainbase` の `get_context` / `list_entities` / `get_entity` / `search` を使う時
+- MCP `brainbase` の `search` / `resolve_entity` / `get_entity` / `list_entities` を使う時
 - Graph APIを `curl` で直接叩く時
 
 ## MCPでの標準手順
 
-Graph系MCPツールを優先する。
+一般的な質問には `search` を使い、意味検索の候補から実在する関係をたどり、根拠と不足を確認する。`resolve_entity` / `list_entities` が返したIDには `get_entity`、名前・別名の特定には `resolve_entity`、型の列挙には `list_entities` を使う。名前照合の結果を質問への回答や不在の証明にしない。
+
+旧 `get_context`、`search_wiki`、`search(mode: "lexical")` は廃止済み。古いツール定義から呼んでも拒否される。
 
 ```typescript
-mcp__brainbase__get_context({
-  topic: "推進案件",
+mcp__brainbase__search({
+  query: "推進案件を進める際の判断基準と根拠",
   project: "brainbase",
-  scope: "crm",
-  objectType: "push_case",
-  operation: "read"
+  scope: "crm"
 })
 ```
 

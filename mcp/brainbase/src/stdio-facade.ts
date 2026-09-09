@@ -37,7 +37,7 @@ import {
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 
-import { publishedTools } from './server.js';
+import { publishedTools, rejectLegacySearchSurface } from './server.js';
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 60_000;
@@ -719,6 +719,11 @@ export function createFacadeServer(
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
+    try {
+      rejectLegacySearchSurface(request.params.name, request.params.arguments ?? {});
+    } catch (error) {
+      return {content: [{type: 'text', text: `Error: ${error instanceof Error ? error.message : String(error)}`}], isError: true};
+    }
     let client: BackendClient;
     try {
       client = await requireBackend(backend);

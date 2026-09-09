@@ -83,7 +83,7 @@ node dist/index.js
 
 ## MCPツール
 
-Graph系ツール（`get_context` / `list_entities` / `get_entity` / `search`）は、デフォルトでBrainbase Philosophy Contextを先頭に付与する。これはUI表示ではなく、Graph操作前に `CLAUDE.md` 的な判断前提を注入するためのもの。
+Graph系ツール（`search` / `resolve_entity` / `get_entity` / `list_entities`）は、デフォルトでBrainbase Philosophy Contextを先頭に付与する。これはUI表示ではなく、Graph操作前に `CLAUDE.md` 的な判断前提を注入するためのもの。
 
 無効化が必要な場合のみ `includePhilosophy: false` を渡す。scopeを指定する場合は `scope: "crm"` のように渡す。
 
@@ -152,16 +152,13 @@ mcp__brainbase__brainbase_run_receipt_diagnosis({
 
 Meeting Sourceの接続状態と直近scheduled syncを診断する。`blocked`、`unconfirmed`、`no_data`、`failed`、`healthy`を区別し、issue codeと復旧actionを返す。Meeting Packの実行基盤はBrainbase Coreに残り、汎用Workflow製品には戻さない。
 
-### `get_context`
+### 検索入口の使い分け
 
-トピック/エンティティに関連するコンテキストを取得。
+自然言語の質問は `search` で意味検索し、返された実在する関係を `plan` で探索する。根拠と不足を確認して回答し、類似度を根拠の充足と混同しない。
+`resolve_entity` / `list_entities` が返したIDは `get_entity`、名前・別名の候補特定は `resolve_entity`、型の列挙は `list_entities` / `list_extension_entities` を使う。
 
-**例**:
-```typescript
-// Claude Codeから実行
-mcp__brainbase__get_context({ topic: "佐藤圭吾" })
-mcp__brainbase__get_context({ topic: "推進案件", scope: "crm", objectType: "push_case" })
-```
+旧 `get_context` と `search_wiki` は通常公開から除外し、直接呼出しも拒否する。`search` の `mode: "lexical"` も拒否し、API障害を旧文字検索へ自動迂回しない。
+`search_personal_kg` は所有者限定の個人知識のキーワード検索であり、組織Graph検索の代用にしない。文書は `brainbase_knowledge_resolve` で正本を決めてから取得する。
 
 ### `list_entities`
 
@@ -183,7 +180,7 @@ mcp__brainbase__get_entity({ type: "person", id: "sato_keigo" })
 
 ### `search`
 
-キーワードでエンティティを検索。
+意味検索で候補を取得し、質問に応じたGraph探索と根拠取得を行う。省略時も意味検索になり、旧文字検索モードは受理しない。
 
 **例**:
 ```typescript
@@ -192,8 +189,7 @@ mcp__brainbase__search({ query: "brainbase" })
 
 ### `resolve_entity`
 
-自然文や複合クエリからGraph正本の候補を解決する。人物・組織・プロジェクトなどが
-Graphに存在しないと判断する前に使う。
+既知の名前・別名からGraph正本の候補を特定する。一般的な質問には `search` を使う。候補が見つからなくてもGraphでの不在は確定しない。
 
 `resolve_entity` は正規化、token分割、field-aware matchingを行い、
 `candidates`, `matched_terms`, `matched_fields`, `confidence`,

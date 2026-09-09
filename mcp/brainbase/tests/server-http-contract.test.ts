@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { spawn } from 'node:child_process';
 import type { ServerResponse } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
@@ -154,5 +156,22 @@ describe('MCP HTTP health version contract', () => {
       assert.equal(handleHealthVersionRequest(request, response), false);
       assert.deepEqual(calls, []);
     }
+  });
+});
+
+it('HTTP rejects retired search calls and publishes only semantic search', async () => {
+  await withRunningMcpHttpServer({BRAINBASE_AUTH_MODE: 'service', BRAINBASE_GRAPH_API_TOKEN: 'fixture', BRAINBASE_GRAPH_API_URL: 'http://127.0.0.1:1'}, async baseUrl => {
+    const client = new Client({name: 'search-contract-test', version: '1'});
+    try {
+      await client.connect(new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {requestInit: {headers: {Authorization: 'Bearer server-http-contract-token'}}}));
+      const catalog = await client.listTools();
+      assert.ok(!catalog.tools.some(tool => ['get_context', 'search_wiki'].includes(tool.name)));
+      assert.deepEqual((catalog.tools.find(tool => tool.name === 'search')!.inputSchema.properties!.mode as {enum: string[]}).enum, ['semantic']);
+      for (const [name, args] of [['get_context', {topic: 'q'}], ['search_wiki', {query: 'q'}], ['search', {query: 'q', mode: 'lexical'}]] as const) {
+        const result = await client.callTool({name, arguments: args});
+        assert.equal(result.isError, true);
+        assert.match(JSON.stringify(result), /removed|disabled/);
+      }
+    } finally { await client.close(); }
   });
 });

@@ -10,7 +10,15 @@ class RetrievalError extends Error {
 }
 function validate(args: Record<string, unknown>) {
   if (typeof args.query !== 'string' || !args.query.trim() || args.query.length > 6000) throw new RetrievalError('graph_retrieval_input_invalid', 'query must contain 1..6000 characters');
-  if (args.mode !== undefined && !['semantic', 'lexical'].includes(String(args.mode))) throw new RetrievalError('graph_retrieval_input_invalid', 'invalid search mode');
+  if (args.mode !== undefined && args.mode !== 'semantic') {
+    if (args.mode === 'lexical') {
+      throw new RetrievalError(
+        'graph_retrieval_lexical_disabled',
+        'Lexical search mode is disabled; call search without mode for semantic Graph retrieval, or use resolve_entity/get_entity for a known identifier',
+      );
+    }
+    throw new RetrievalError('graph_retrieval_input_invalid', 'mode must be semantic');
+  }
   if (args.project !== undefined && !text(args.project)) throw new RetrievalError('graph_retrieval_input_invalid', 'invalid project');
   if (args.top_k !== undefined && (!Number.isInteger(args.top_k) || Number(args.top_k) < 1 || Number(args.top_k) > 100)) throw new RetrievalError('graph_retrieval_input_invalid', 'top_k must be 1..100');
   const types = args.types ?? DEFAULT_GRAPH_RETRIEVAL_TYPES;
@@ -123,7 +131,6 @@ export async function handleGraphRetrievalToolCall(name: string, args: Record<st
   let scope: string[] = [];
   try {
     const input = validate(args);
-    if (args.mode === 'lexical') return null;
     const auth = await authenticateProject({project_code: args.project}, deps);
     if ('status' in auth) return auth;
     scope = auth.scope;

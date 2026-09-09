@@ -7,8 +7,8 @@ import { annotateToolCapabilities } from '../../src/tools/tool-annotations.js';
 describe('MCP tool capability annotations', () => {
   it('classifies every published tool explicitly', () => {
     const expectedReadOnly: Record<string, boolean> = {
-      get_context: true, list_entities: true, get_entity: true, list_extension_types: true,
-      list_extension_entities: true, search: true, resolve_entity: true, search_wiki: true,
+      list_entities: true, get_entity: true, list_extension_types: true,
+      list_extension_entities: true, search: true, resolve_entity: true,
       get_wiki_page: true, search_personal_kg: true, brainbase_projects: true,
       brainbase_bootstrap_config: true, brainbase_admin_read: true, brainbase_run_receipt_inbox: true,
       brainbase_run_receipt_history: true, brainbase_run_receipt_diagnosis: true,

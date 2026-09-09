@@ -42,6 +42,17 @@ test('published search traverses Graph and reports API failure through real stdi
   const client = new Client({name: 'retrieval-stdio-test', version: '1'});
   try {
     await client.connect(transport, {timeout: 10000});
+    const catalog = await client.listTools();
+    assert.ok(!catalog.tools.some(tool => ['get_context', 'search_wiki'].includes(tool.name)));
+    assert.deepEqual((catalog.tools.find(tool => tool.name === 'search')!.inputSchema.properties!.mode as {enum: string[]}).enum, ['semantic']);
+    for (const name of ['get_entity', 'resolve_entity', 'list_entities', 'search_personal_kg']) assert.ok(catalog.tools.some(tool => tool.name === name));
+    for (const [name, args] of [['get_context', {topic: 'q'}], ['search_wiki', {query: 'q'}], ['search', {query: 'q', mode: 'lexical'}]] as const) {
+      const rejected = await client.callTool({name, arguments: args});
+      assert.equal(rejected.isError, true); assert.match(JSON.stringify(rejected), /removed|disabled/);
+    }
+    const semantic = await client.callTool({name: 'search', arguments: {query: '根拠のある判断', project: 'fixture', types: ['decision'], includePhilosophy: false}});
+    assert.notEqual(semantic.isError, true);
+    assert.match(JSON.stringify(semantic), /decision-fixture/);
     const args = {query: '関連する決定', project: 'fixture', types: ['project', 'decision'], includePhilosophy: false,
       plan: {seed_ids: ['project-fixture'], steps: [{relation: 'belongs_to_project', direction: 'incoming', target_type: 'decision'}]}};
     const result = await client.callTool({name: 'search', arguments: args});
@@ -106,7 +117,7 @@ test('stdio discovery does not wait for or request the Graph projection', {timeo
     const catalog = await client.listTools();
     assert.ok(catalog.tools.some(tool => tool.name === 'brainbase_resolve_turn'));
     assert.equal(requests, 0, 'metadata discovery must not fetch Graph');
-    const failed = await client.callTool({name: 'get_context', arguments: {topic: 'fixture'}});
+    const failed = await client.callTool({name: 'get_entity', arguments: {type: 'project', id: 'fixture'}});
     assert.equal(failed.isError, true);
     assert.ok(requests > 0, 'Graph is loaded when actually needed');
     assert.doesNotMatch(JSON.stringify(failed), /No context found/);

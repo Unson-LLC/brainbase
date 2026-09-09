@@ -706,42 +706,8 @@ function resourceUriToWikiPath(uri: string): string {
  */
 const tools: Tool[] = [
   {
-    name: 'get_context',
-    description: 'Get relevant context for a topic or entity. Returns the primary entity and related entities (team members, projects, orgs, RACI). Use this for getting comprehensive context about a specific topic.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        topic: {
-          type: 'string',
-          description: 'The topic, project name, person name, or org name to get context for',
-        },
-        project: {
-          type: 'string',
-          description: 'Project code used to resolve Brainbase philosophy context. Defaults to first configured project or brainbase.',
-        },
-        scope: {
-          type: 'string',
-          description: 'Philosophy context scope. Examples: graph, crm, growth, automation, data, development.',
-        },
-        objectType: {
-          type: 'string',
-          description: 'Optional Graph object type being operated on, e.g. push_case or decision.',
-        },
-        operation: {
-          type: 'string',
-          description: 'Optional operation kind, e.g. read, write, review, upsert.',
-        },
-        includePhilosophy: {
-          type: 'boolean',
-          description: 'Whether to prepend Brainbase Philosophy Context. Defaults to true.',
-        },
-      },
-      required: ['topic'],
-    },
-  },
-  {
     name: 'list_entities',
-    description: 'List all core entities of a specific type. Extension types are exposed through list_extension_types/list_extension_entities.',
+    description: 'Enumerate all core Graph entities of an explicitly requested type. Use this for bounded enumeration, not for answering a general natural-language question; use search for that.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -768,7 +734,7 @@ const tools: Tool[] = [
   },
   {
     name: 'get_entity',
-    description: 'Get a specific core entity by type and ID. Supports name/alias lookup for people, organizations, and brands.',
+    description: 'Retrieve one known core Graph entity using the identifier returned by resolve_entity or list_entities. Name or alias lookup is only for identity disambiguation of people, organizations, and brands; use search for general questions.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -807,7 +773,7 @@ const tools: Tool[] = [
   },
   {
     name: 'list_extension_entities',
-    description: 'List or search entities for an explicitly requested extension type.',
+    description: 'Enumerate entities for an explicitly requested extension type. An optional query is a bounded identity or field filter, not general question search.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -825,7 +791,7 @@ const tools: Tool[] = [
   },
   {
     name: 'search',
-    description: 'Search authorized Graph entities semantically and retrieve evidence. First find seed IDs, then supply a plan of real relation types and directions to explore question-specific relationships. Inspect returned evidence and insufficiency before answering; similarity is not entailment. Use mode lexical only for legacy keyword lookup.',
+    description: 'Search authorized Graph entities with semantic retrieval and evidence, then optionally traverse a bounded plan of real relations. Use this as the only general organizational question search. Inspect evidence and insufficiency before answering; similarity is not entailment.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -833,7 +799,7 @@ const tools: Tool[] = [
           type: 'string',
           description: 'The search query',
         },
-        mode: { type: 'string', enum: ['semantic', 'lexical'], default: 'semantic' },
+        mode: { type: 'string', enum: ['semantic'], default: 'semantic', description: 'Compatibility field; semantic retrieval is the only supported mode.' },
         top_k: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
         inspect_relations: { type: 'boolean', default: true, description: 'Inspect actual relation names around the first three semantic candidates for a subsequent model-selected plan.' },
         types: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' } },
@@ -874,13 +840,13 @@ const tools: Tool[] = [
   },
   {
     name: 'resolve_entity',
-    description: 'Resolve raw user or agent text to canonical Graph entity candidates with field-level evidence. Use this before claiming Graph absence from a broad phrase.',
+    description: 'Resolve a known person, organization, project, brand, or other entity name or identifier to canonical Graph candidates with field-level evidence. Use for identity disambiguation, not as a replacement for general question search or absence claims.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Raw user or agent text to resolve into Graph entity candidates.',
+          description: 'Known entity name, alias, or identifier to resolve into Graph entity candidates.',
         },
         types: {
           type: 'array',
@@ -907,24 +873,6 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'search_wiki',
-    description: 'Search wiki pages by keyword. Returns matching page titles and paths from the brainbase wiki. Optionally filter by project_id.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'Search keyword to find wiki pages',
-        },
-        project_id: {
-          type: 'string',
-          description: 'Optional project ID to filter results (e.g. "brainbase", "salestailor")',
-        },
-      },
-      required: ['query'],
-    },
-  },
-  {
     name: 'get_wiki_page',
     description: 'Get the full content of a wiki page by its path.',
     inputSchema: {
@@ -941,7 +889,7 @@ const tools: Tool[] = [
   {
     name: 'search_personal_kg',
     description:
-      "Search the authenticated user's personal knowledge graph (owner-visible memory_candidates) by keyword over the full body text. Returns that user's accumulated judgment axes / decision principles / claims / insights (oyasumi 蓄積) with cognitive_type and confidence. Use this when a task needs the authenticated user's own stance, values, sales/content philosophy, or how they would decide — beyond the SessionStart preamble snapshot. Owner-only, non-redacted content.",
+      "Search the authenticated user's separate Personal KG (owner-visible memory_candidates) by keyword over the full body text. This is an owner-only source for the user's own stance, values, sales/content philosophy, or decision principles; it is not a substitute for general organizational Graph search. Returns cognitive_type and confidence. Owner-only, non-redacted content.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -1000,7 +948,20 @@ const tools: Tool[] = [
 /**
  * Handle tool calls
  */
+export function rejectLegacySearchSurface(name: string, args: Record<string, unknown>): void {
+  if (name === 'get_context') {
+    throw new Error('MCP tool "get_context" was removed from the normal search surface; use "search" for general Graph questions or "get_entity"/"resolve_entity" for a known identity.');
+  }
+  if (name === 'search_wiki') {
+    throw new Error('MCP tool "search_wiki" was removed from the normal search surface; use "brainbase_knowledge_resolve" to locate the canonical document source.');
+  }
+  if (name === 'search' && args.mode === 'lexical') {
+    throw new Error('Lexical search mode is disabled; call "search" without mode for semantic Graph retrieval, or use "resolve_entity"/"get_entity" for a known identifier.');
+  }
+}
+
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
+  rejectLegacySearchSurface(name, args);
   // Every index consumer must await a fresh, complete snapshot. Metadata and
   // Resolver calls do not depend on the full Graph index.
   if (['search', 'resolve_entity', 'list_entities', 'list_extension_entities', 'get_context', 'get_entity'].includes(name)
@@ -1459,6 +1420,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
 
     try {
       const toolArgs = args as Record<string, unknown>;
+      rejectLegacySearchSurface(name, toolArgs);
       const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
         async (toolName, extensionArgs) => {
           const retrieval = await handleGraphRetrievalToolCall(toolName, extensionArgs, {

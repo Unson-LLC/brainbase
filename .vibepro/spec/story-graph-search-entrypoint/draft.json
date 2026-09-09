@@ -1,0 +1,200 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-search-entrypoint",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "implementation"
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "一般的な組織の質問はsearchの意味検索とGraph探索を使い、lexical指定による旧検索への迂回を拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1",
+            "text_snippet": "一般的な組織の質問はsearchの意味検索とGraph探索を使い、lexical指定による旧検索への迂回を拒否する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts",
+            "anchor": "handleToolCall"
+          },
+          {
+            "file": "mcp/brainbase/src/tools/graph-retrieval.ts",
+            "anchor": "handleGraphRetrievalToolCall"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/server-startup.test.ts",
+            "case": "published search traverses Graph and reports API failure through real stdio"
+          },
+          {
+            "file": "mcp/brainbase/tests/server-http-contract.test.ts",
+            "case": "HTTP rejects retired search calls and publishes only semantic search"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/**/*.test.ts",
+            "must_cover": "search"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T15:34:41.494289+00:00",
+      "last_revised_at": "2026-09-09T15:45:04.951Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "get_contextとsearch_wikiを通常公開から除外し、古いクライアントの直接呼出しにも移行先を返して拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2",
+            "text_snippet": "get_contextとsearch_wikiを通常公開から除外し、古いクライアントの直接呼出しにも移行先を返して拒否する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts",
+            "anchor": "handleToolCall"
+          },
+          {
+            "file": "mcp/brainbase/src/tools/graph-retrieval.ts",
+            "anchor": "handleGraphRetrievalToolCall"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/server-startup.test.ts",
+            "case": "published search traverses Graph and reports API failure through real stdio"
+          },
+          {
+            "file": "mcp/brainbase/tests/server-http-contract.test.ts",
+            "case": "HTTP rejects retired search calls and publishes only semantic search"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/**/*.test.ts",
+            "must_cover": "search"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T15:34:41.494289+00:00",
+      "last_revised_at": "2026-09-09T15:45:04.951Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "ID・名前の特定、型の一覧、所有者限定の個人KG検索を、それぞれ用途が明確な入口として維持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3",
+            "text_snippet": "ID・名前の特定、型の一覧、所有者限定の個人KG検索を、それぞれ用途が明確な入口として維持する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts",
+            "anchor": "handleToolCall"
+          },
+          {
+            "file": "mcp/brainbase/src/tools/graph-retrieval.ts",
+            "anchor": "handleGraphRetrievalToolCall"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/server-startup.test.ts",
+            "case": "published search traverses Graph and reports API failure through real stdio"
+          },
+          {
+            "file": "mcp/brainbase/tests/server-http-contract.test.ts",
+            "case": "HTTP rejects retired search calls and publishes only semantic search"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/**/*.test.ts",
+            "must_cover": "search"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T15:34:41.494289+00:00",
+      "last_revised_at": "2026-09-09T15:45:04.951Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "HTTPとstdioで同じ契約を適用し、意味検索の根拠・不足・権限境界を維持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4",
+            "text_snippet": "HTTPとstdioで同じ契約を適用し、意味検索の根拠・不足・権限境界を維持する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts",
+            "anchor": "handleToolCall"
+          },
+          {
+            "file": "mcp/brainbase/src/tools/graph-retrieval.ts",
+            "anchor": "handleGraphRetrievalToolCall"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/server-startup.test.ts",
+            "case": "published search traverses Graph and reports API failure through real stdio"
+          },
+          {
+            "file": "mcp/brainbase/tests/server-http-contract.test.ts",
+            "case": "HTTP rejects retired search calls and publishes only semantic search"
+          },
+          {
+            "file": "mcp/brainbase/tests/stdio-facade.test.ts",
+            "case": "retired search calls do not wait for or call the facade backend"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "mcp/brainbase/tests/**/*.test.ts",
+            "must_cover": "search"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T15:34:41.494289+00:00",
+      "last_revised_at": "2026-09-09T15:45:04.951Z"
+    }
+  ],
+  "generated_at": "2026-09-09T15:45:04.950Z",
+  "previous_spec_id": null
+}

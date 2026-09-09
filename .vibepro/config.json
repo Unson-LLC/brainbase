@@ -255,8 +255,26 @@
         "started_at": null,
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-graph-search-entrypoint",
+        "title": "組織への質問を意味検索とGraph探索で調べる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null,
+        "acceptance_criteria": [
+          "一般的な組織の質問はsearchの意味検索とGraph探索を使い、lexical指定による旧検索への迂回を拒否する。",
+          "get_contextとsearch_wikiを通常公開から除外し、古いクライアントの直接呼出しにも移行先を返して拒否する。",
+          "ID・名前の特定、型の一覧、所有者限定の個人KG検索を、それぞれ用途が明確な入口として維持する。",
+          "HTTPとstdioで同じ契約を適用し、意味検索の根拠・不足・権限境界を維持する。"
+        ]
       }
     ],
-    "current_story_id": "STR-012"
+    "current_story_id": "story-graph-search-entrypoint"
   }
 }
