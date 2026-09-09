@@ -1,0 +1,53 @@
+{
+  "version": "slack-channel-authority.v1",
+  "policies": [
+    {
+      "provider": "slack",
+      "workspace_id": "T0882T8N9UH",
+      "app_id": "A0BPM2J33SN",
+      "tenant_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "graph_organization_id": "unson",
+      "capability_id": "runtime.execute",
+      "allowed_effects": [
+        "read",
+        "external_side_effect"
+      ],
+      "policy_revision": "1",
+      "status": "active",
+      "channel_id": "C0BKS6RL99T",
+      "projects": [
+        {
+          "project_id": "prj_01M04XZFSN3TWRE2K05MTD898P",
+          "project_code": "back-office",
+          "placement_id": "mana-accounting",
+          "resource_revision": "1"
+        }
+      ]
+    },
+    {
+      "provider": "slack",
+      "workspace_id": "T0882T8N9UH",
+      "app_id": "A0BPM2J33SN",
+      "tenant_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "graph_organization_id": "unson",
+      "capability_id": "runtime.execute",
+      "allowed_effects": [
+        "read",
+        "external_side_effect"
+      ],
+      "policy_revision": "1",
+      "status": "active",
+      "channel_id": "C0BMNSP6C80",
+      "projects": [
+        {
+          "project_id": "prj_01KGHVCMA35JHSMXTSWQAS04PS",
+          "project_code": "mana",
+          "placement_id": "mana-dev-biz",
+          "resource_revision": "1"
+        }
+      ]
+    }
+  ]
+}

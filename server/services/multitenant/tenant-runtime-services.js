@@ -1,9 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { createHash, createPrivateKey, createPublicKey, timingSafeEqual } from 'node:crypto';
 import { CompanyAuthorityResolver } from './company-authority-resolver.js';
 import { CompanyAuthorityContextProducer } from './company-authority-context-producer.js';
 import { CredentialBroker } from './credential-broker.js';
 import { ContractUsageLedger } from './contract-usage-ledger.js';
-import { PostgresCompanyAuthorityRepository } from './postgres-company-authority-repository.js';
+import { SlackChannelAuthorityRepository } from './slack-channel-authority-repository.js';
 import { MultitenantPostgresRepository } from './postgres-repository.js';
 import { PostgresContractUsageLedger } from './postgres-contract-usage-ledger.js';
 import { TenantContextProducer } from './tenant-context-producer.js';
@@ -134,6 +137,17 @@ function requiredEnv(env, name) {
     return value;
 }
 
+function slackChannelPolicies(env) {
+    const manifest = JSON.parse(env.BRAINBASE_SLACK_CHANNEL_AUTHORITY_JSON ?? readFileSync(
+        resolve(dirname(fileURLToPath(import.meta.url)), '../../../config/manifests/slack-channel-authority.json'),
+        'utf8'
+    ));
+    if (manifest?.version !== 'slack-channel-authority.v1' || !Array.isArray(manifest.policies)) {
+        throw new Error('Invalid trusted Slack channel authority manifest');
+    }
+    return manifest.policies;
+}
+
 export function createTenantRuntimeServicesFromEnv({
     env = process.env,
     pool,
@@ -155,7 +169,11 @@ export function createTenantRuntimeServicesFromEnv({
     };
     const repository = new MultitenantPostgresRepository({ pool, now });
     const companyAuthorityResolver = new CompanyAuthorityResolver({
-        repository: new PostgresCompanyAuthorityRepository({ pool, now })
+        repository: new SlackChannelAuthorityRepository({
+            pool,
+            now,
+            policies: slackChannelPolicies(env)
+        })
     });
     const resolvedCredentialMaterializer = credentialMaterializer
         ?? (isRemoteCredentialStoreConfigured(env)

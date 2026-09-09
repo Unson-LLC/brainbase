@@ -4,6 +4,7 @@ import { assertPersonalKnowledgePromotionAuthority } from '../personal-knowledge
 const EFFECTS = new Set(['read', 'write', 'external_side_effect']);
 const DECISIONS = new Set(['auto', 'approval', 'human_action', 'deny']);
 const PROVIDERS = new Set(['slack', 'codex', 'claude_code', 'service']);
+const BARE_PROJECT_RESOURCE_REF_PATTERN = /^project:([^#\s]+)$/u;
 const PAYLOAD_RESOURCE_REF_PATTERN = /^project:([^#\s]+)#payload_sha256=sha256:([0-9a-f]{64})$/u;
 const ENCODED_FRAGMENT_SEPARATOR_PATTERN = /%23/iu;
 
@@ -27,7 +28,8 @@ function nonEmptyString(value, field) {
 }
 
 /**
- * Validate and split the optional payload binding from a requested resource.
+ * Validate and split the optional payload binding from a requested resource,
+ * while recognizing bare project IDs and codes for canonical scope checks.
  *
  * The fragment is carried in the signed request, but authority grants remain
  * keyed by the stable project resource.  Keep this parser independent of the
@@ -52,10 +54,11 @@ export function parseCompanyAuthorityResourceRef(resourceRef) {
     }
 
     if (!resourceRef.includes('#')) {
+        const projectMatch = BARE_PROJECT_RESOURCE_REF_PATTERN.exec(resourceRef);
         return {
             originalResourceRef: resourceRef,
-            lookupResourceRef: resourceRef,
-            projectRef: null
+            lookupResourceRef: projectMatch ? `project:${projectMatch[1]}` : resourceRef,
+            projectRef: projectMatch ? projectMatch[1] : null
         };
     }
 
@@ -241,7 +244,10 @@ export class CompanyAuthorityResolver {
     async resolve(rawInput, canonicalRuntime) {
         const request = normalizeObservedExecutionRequest(rawInput);
         const resourceRefBinding = parseCompanyAuthorityResourceRef(request.requested_action.resource_ref);
-        const identity = await this.repository.resolveCanonicalIdentity({
+        const channelAuthority = typeof this.repository.resolveSlackChannelAuthority === 'function'
+            ? await this.repository.resolveSlackChannelAuthority(request)
+            : null;
+        const identity = channelAuthority !== null ? channelAuthority.identity : await this.repository.resolveCanonicalIdentity({
             tenant_id: request.tenant_id,
             provider: request.provider_identity.provider,
             authenticated_subject_id: request.provider_identity.authenticated_subject_id,
@@ -253,7 +259,7 @@ export class CompanyAuthorityResolver {
         const authorityResourceRef = resourceRefBinding.projectRef === null
             ? resourceRefBinding.lookupResourceRef
             : `project:${identity.project_id}`;
-        const authority = await this.repository.resolveCanonicalAuthority({
+        const authority = channelAuthority !== null ? channelAuthority.authority : await this.repository.resolveCanonicalAuthority({
             tenant_id: request.tenant_id,
             canonical_person_id: identity.canonical_person_id,
             membership_id: identity.membership_id,
