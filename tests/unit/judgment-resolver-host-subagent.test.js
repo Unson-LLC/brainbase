@@ -14,7 +14,7 @@ async function fixture({ status = 'resolved', autonomy = 'continue' } = {}) {
     const parent = { hook_event_name: 'UserPromptSubmit', session_id: 'parent', turn_id: 'parent-turn', prompt: 'Inspect delegated evidence', cwd: process.cwd() };
     const args = buildJudgmentRequest(parent, { env });
     const receipt = { resolution_id: 'test', turn_id: args.turn_id, request_digest: hash(canonicalJson(args)), context_digest: hash(canonicalJson(args.conversation_context)),
-        status, autonomy_decision: autonomy, autonomy_reason_code: autonomy === 'continue' ? 'routine_in_scope' : 'risk_or_external', allowed_runtime_escalation_reasons: autonomy === 'continue' ? ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'] : [], host_binding: { status: 'managed' }, classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] }, active_node_definitions: [], autonomy_policy_ids: [] };
+        status, autonomy_decision: autonomy, autonomy_reason_code: autonomy === 'continue' ? 'routine_in_scope' : status === 'needs_classification' ? 'classification_missing' : 'risk_or_external', allowed_runtime_escalation_reasons: autonomy === 'continue' ? ['irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'] : [], host_binding: { status: 'managed' }, classification_evidence: { source: 'current_request', source_turn_ids: [args.turn_id] }, active_node_definitions: [], autonomy_policy_ids: [] };
     await processHookPayload(parent, { env, fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) }) });
     const entries = [
         { type: 'session_meta', payload: { id: 'child', session_id: 'parent', cwd: process.cwd(), source: { subagent: { thread_spawn: { parent_thread_id: 'parent', depth: 1, agent_path: '/root/test' } } } } },
@@ -78,6 +78,11 @@ it('keeps child failure a failed execution event without exposing the error text
     const text = readFileSync(join(dir, readdirSync(dir)[0]), 'utf8');
     expect(JSON.parse(text)).toMatchObject({ success: false, event_kind: 'execution', satisfies: [] });
     expect(text).not.toContain('sensitive failure text');
+});
+
+it('rejects a parent whose semantic contract remains unresolved', async () => {
+    const f = await fixture({ status: 'needs_classification', autonomy: 'escalate' });
+    expect(verifiedSubagentParent(f.child, f.env)).toBeNull();
 });
 
 it('accepts a full-history fork with one inherited parent session metadata entry', async () => {
