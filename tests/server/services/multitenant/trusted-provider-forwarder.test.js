@@ -586,6 +586,65 @@ describe('trusted provider HTTP forwarder', () => {
         expect(JSON.stringify(result)).not.toContain(serviceToken);
     });
 
+    it('MCPのtext/event-stream応答をJSON化せずUTF-8本文として返す', async () => {
+        const serviceToken = randomBytes(32).toString('base64url');
+        const sseBody = 'event: message\ndata: {"jsonrpc":"2.0","result":{"text":"マナ"},"id":1}\n\n';
+        const json = vi.fn(async () => {
+            throw new Error('SSE response must not be parsed as JSON');
+        });
+        const text = vi.fn(async () => sseBody);
+        const fetchImpl = vi.fn(async (_url, init) => ({
+            status: 200,
+            headers: { get: () => 'text/event-stream' },
+            json,
+            text
+        }));
+        const env = {
+            MCP_HTTP_BEARER_TOKEN: serviceToken,
+            BRAINBASE_TENANT_PROVIDER_FORWARDERS_JSON: JSON.stringify({
+                'bb.unson.jp': {
+                    provider: 'brainbase',
+                    base_url: 'https://bb.unson.jp/runtime-mcp',
+                    operations: {
+                        'brainbase.mcp.post': {
+                            method: 'POST',
+                            path: '/mcp',
+                            body_encoding: 'json',
+                            response_encoding: 'utf8',
+                            credential_placement: 'none',
+                            allow_binding_provider_mismatch: true,
+                            service_bearer_env: 'MCP_HTTP_BEARER_TOKEN',
+                            fixed_headers: {
+                                accept: 'application/json, text/event-stream',
+                                'content-type': 'application/json'
+                            }
+                        }
+                    }
+                }
+            })
+        };
+        const forwarder = createTrustedProviderForwardersFromEnv({ env, fetchImpl })['bb.unson.jp'];
+
+        const result = await forwarder.forward({
+            credential: Buffer.alloc(0),
+            operation: 'brainbase.mcp.post',
+            request: { body: { jsonrpc: '2.0', method: 'tools/list', params: {}, id: 1 } }
+        });
+
+        const headers = new Headers(fetchImpl.mock.calls[0][1].headers);
+        expect(headers.get('authorization')).toBe(`Bearer ${serviceToken}`);
+        expect(headers.get('accept')).toBe('application/json, text/event-stream');
+        expect(json).not.toHaveBeenCalled();
+        expect(text).toHaveBeenCalledOnce();
+        expect(result).toEqual({
+            status: 200,
+            response_encoding: 'utf8',
+            content_type: 'text/event-stream',
+            body: sseBody
+        });
+        expect(JSON.stringify(result)).not.toContain(serviceToken);
+    });
+
     it('authority MCPはcanonical project bindingをserver-sideで注入しcaller overrideを除去する', async () => {
         const fetchImpl = vi.fn(async () => ({
             status: 200,
