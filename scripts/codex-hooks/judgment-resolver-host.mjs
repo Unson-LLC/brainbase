@@ -4423,9 +4423,92 @@ function stopFailureMessage(reason) {
     return `⚠️ Brainbase監査を確定できませんでした。原因と必要な復旧操作は未確認です。（詳細: ${reason}）`;
 }
 
+// Subagents do not emit UserPromptSubmit. Bind them to an open root contract
+// using Codex-owned transcript metadata, never a tool argument or model claim.
+export function verifiedSubagentParent(payload, env = process.env) {
+    try {
+        if (typeof payload.transcript_path !== 'string') return null;
+        const path = realpathSync(payload.transcript_path);
+        if (!transcriptRoots(env).some((root) => pathInside(path, root))) return null;
+        const entries = readFileSync(path, 'utf8').split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line));
+        const metas = entries.filter((entry) => entry.type === 'session_meta');
+        if (metas.length !== 1) return null;
+        const meta = metas[0].payload;
+        const source = meta?.source?.subagent?.thread_spawn;
+        if (!source || typeof meta.id !== 'string' || typeof meta.session_id !== 'string'
+            || meta.id === meta.session_id || source.parent_thread_id === meta.id
+            || typeof source.parent_thread_id !== 'string'
+            || source.depth !== 1 || source.parent_thread_id !== meta.session_id
+            || typeof source.agent_path !== 'string' || !/^\/root\/[a-z0-9_]+$/.test(source.agent_path)
+            || ![meta.id, meta.session_id].includes(payload.session_id)) return null;
+        const turns = entries.filter((entry) => entry.type === 'turn_context' && entry.payload?.turn_id === payload.turn_id);
+        if (turns.length !== 1) return null;
+        const rootTurnId = turns[0].payload.root_turn_id;
+        if (typeof rootTurnId !== 'string' || rootTurnId === payload.turn_id) return null;
+        const delegated = entries.some((entry) => entry.type === 'response_item'
+            && entry.payload?.type === 'agent_message'
+            && entry.payload.author === dirname(source.agent_path)
+            && entry.payload.recipient === source.agent_path
+            && entry.payload.internal_chat_message_metadata_passthrough?.turn_id === payload.turn_id);
+        if (!delegated) return null;
+        const parent = { ...payload, session_id: meta.session_id, turn_id: rootTurnId };
+        if (!hasVerifiedStart(parent, env)) return null;
+        const identity = payloadIdentity(parent);
+        const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+        if (existsSync(paths.final)) return null;
+        const episode = existingEpisode(parent, env);
+        const contract = effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt;
+        if (contract?.status !== 'resolved' || contract.autonomy_decision !== 'continue') return null;
+        if (!sameRepositoryScope(meta.cwd, payload.cwd)) return null;
+        return { parent, childThreadId: meta.id, childTurnId: payload.turn_id };
+    } catch {
+        return null;
+    }
+}
+
+function processSubagentHook(payload, binding, dependencies) {
+    const eventName = payload.hook_event_name ?? payload.hookEventName;
+    const toolName = payload.tool_name ?? payload.toolName ?? '';
+    if (eventName === 'PreToolUse') {
+        // The child cannot reclassify or finalize the parent's judgment episode.
+        if (/brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))$/.test(toolName)) {
+            return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny',
+                permissionDecisionReason: 'この子agentは親の判断契約へ紐付け済みです。判断契約の再分類・監査確定は親が行います。委任された作業を実行し、結果を親へ返してください。' } };
+        }
+        return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext:
+            'Hostが親の有効な判断契約とこの子agentへの委任を確認しました。委任範囲内で作業し、結果を親へ返してください。通常の権限・承認は引き続き必要です。' } };
+    }
+    if (['PostToolUse', 'PostToolUseFailure', 'Stop'].includes(eventName)) {
+        if (eventName !== 'Stop' && (!toolName || typeof payload.tool_use_id !== 'string' || !payload.tool_use_id)) {
+            throw new Error('judgment_delegated_tool_identity_missing');
+        }
+        // Record provenance as ordinary execution evidence. It cannot satisfy a
+        // parent's required knowledge capability or change its Stop state.
+        recordBrainbaseToolUse({
+            ...binding.parent,
+            transcript_path: undefined,
+            hook_event_name: eventName === 'Stop' ? 'PostToolUse' : eventName,
+            tool_name: `delegated.${eventName === 'Stop' ? 'Stop' : toolName}`,
+            tool_use_id: `delegated:${binding.childThreadId}:${binding.childTurnId}:${eventName === 'Stop' ? 'stop' : payload.tool_use_id}`,
+            tool_input: { child_thread_id: binding.childThreadId, child_turn_id: binding.childTurnId,
+                original_input_digest: sha256(canonicalJson(payload.tool_input ?? null)) },
+            tool_response: eventName === 'Stop'
+                ? { child_answer_digest: sha256(payload.last_assistant_message ?? '') }
+                : payload.tool_response
+        }, dependencies);
+        return {};
+    }
+    return null;
+}
+
 export async function processHookPayload(payload, dependencies = {}) {
     const eventName = payload?.hook_event_name || payload?.hookEventName;
     const env = dependencies.env ?? process.env;
+    const binding = diagnosticContinueEnabled(env, payload) ? verifiedSubagentParent(payload, env) : null;
+    if (binding) {
+        const result = processSubagentHook(payload, binding, dependencies);
+        if (result) return result;
+    }
     if (env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue' && eventName === 'PreToolUse') {
         const inScope = diagnosticContinueEnabled(env, payload);
         return inScope && hasVerifiedStart(payload, env) ? {} : {
