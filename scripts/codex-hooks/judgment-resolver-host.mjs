@@ -1033,14 +1033,27 @@ function adoptReceipt(args, receipt, env) {
 }
 
 async function fetchAttempt(args, { env, fetchImpl }) {
+    const hostUrl = env.BRAINBASE_JUDGMENT_HOST_URL || DEFAULT_HOST_URL;
+    const token = env.BRAINBASE_JUDGMENT_HOST_BEARER_TOKEN
+        || (hostUrl === DEFAULT_HOST_URL ? env.MCP_HTTP_BEARER_TOKEN : null);
+    const headers = { 'content-type': 'application/json' };
+    if (token) {
+        const url = new URL(hostUrl);
+        const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+        if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+            throw new Error('judgment_host_auth_transport_unsafe');
+        }
+        headers.authorization = `Bearer ${token}`;
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Number(env.BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS || 15000));
     try {
         let response;
         try {
-            response = await fetchImpl(env.BRAINBASE_JUDGMENT_HOST_URL || DEFAULT_HOST_URL, {
+            response = await fetchImpl(hostUrl, {
                 method: 'POST',
-                headers: { 'content-type': 'application/json' },
+                headers,
+                redirect: 'error',
                 body: JSON.stringify(args),
                 signal: controller.signal
             });
@@ -1049,15 +1062,18 @@ async function fetchAttempt(args, { env, fetchImpl }) {
             error.transient = true;
             throw error;
         }
+        const responseError = (reason) => Object.assign(new Error(reason), { httpStatus: response.status });
+        // Authentication failures stay identifiable even if a proxy returns HTML.
+        if (response.status === 401) throw responseError('judgment_host_unauthorized');
+        if (response.status === 403) throw responseError('judgment_host_forbidden');
         let payload;
-        try { payload = await response.json(); } catch (cause) {
-            const error = new Error('judgment_host_response_invalid', { cause });
-            error.httpStatus = response.status;
-            throw error;
+        try { payload = await response.json(); } catch {
+            throw responseError('judgment_host_response_invalid');
         }
         if (response.ok && payload?.management_status === 'managed') return payload.receipt;
-        const error = new Error(typeof payload?.reason === 'string' ? payload.reason : 'judgment_host_response_invalid');
-        error.httpStatus = response.status;
+        const reason = typeof payload?.reason === 'string' && /^(?:judgment_|brainbase_)[a-z0-9_]{1,100}$/.test(payload.reason)
+            ? payload.reason : 'judgment_host_response_invalid';
+        const error = responseError(reason);
         error.transient = [429, 502, 503, 504].includes(response.status) && TRANSIENT_REASONS.has(error.message);
         throw error;
     } finally {
