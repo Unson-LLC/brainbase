@@ -13,6 +13,7 @@
     "test:graph-maintenance": "tsx --test tests/tools/graph-maintenance-tools.test.ts --test-name-pattern='Graph maintenance MCP tools'"
   },
   "dependencies": {
+    "@huggingface/transformers": "3.8.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "gray-matter": "^4.0.3"
   },

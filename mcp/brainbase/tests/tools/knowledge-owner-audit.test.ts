@@ -8,6 +8,15 @@ import {
 import { __testing as serverTesting } from '../../src/server.js';
 
 describe('knowledge owner audit', () => {
+  it('keeps structured semantic emptiness distinct from retrieval errors', () => {
+    assert.equal(buildKnowledgeOwnerAudit('search', { query: 'missing' },
+      JSON.stringify({ status: 'ok', data: { candidates: [], coverage: 'partial' } }))?.outcome,
+    '該当なし（不在確定ではない）');
+    assert.equal(buildKnowledgeOwnerAudit('search', { query: 'missing' },
+      JSON.stringify({ status: 'unavailable', error: { code: 'semantic_model_unavailable' } })), null);
+    const failure = { status: 'error', error: { code: 'graph_response_invalid' } };
+    assert.equal(serverTesting.buildMcpToolResult('search', { query: 'missing' }, JSON.stringify(failure), failure).isError, true);
+  });
   it('records an actual Graph search with its real query', () => {
     assert.deepStrictEqual(
       buildKnowledgeOwnerAudit('search', { query: 'Judgment Resolver' }, '# Search Results (2 found)'),

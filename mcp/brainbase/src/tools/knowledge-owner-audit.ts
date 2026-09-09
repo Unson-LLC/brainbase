@@ -183,6 +183,7 @@ function isNoResult(toolName: string, result: string): boolean {
     if (toolName === 'brainbase_onboarding_get') return parsed.status === 'ok' && data === null;
     if (data && typeof data === 'object') {
       const record = data as Record<string, unknown>;
+      if (toolName === 'search') return Array.isArray(record.candidates) && record.candidates.length === 0;
       if (toolName === 'brainbase_projects') return record.count === 0 && Array.isArray(record.projects) && record.projects.length === 0;
       if (['brainbase_run_receipt_inbox', 'brainbase_run_receipt_history'].includes(toolName)) {
         return Array.isArray(record.items) && record.items.length === 0;

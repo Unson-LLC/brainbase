@@ -5,6 +5,59 @@ import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
 
+test('published search traverses Graph and reports API failure through real stdio', {timeout: 15000}, async () => {
+  let failing = false;
+  const token = `fixture.${Buffer.from(JSON.stringify({projectCodes: ['fixture']})).toString('base64url')}.signature`;
+  const nodes = [
+    {id: 'project-fixture', entity_type: 'project', project_code: 'fixture', payload: {name: 'Fixture'}},
+    {id: 'decision-fixture', entity_type: 'decision', project_code: 'fixture', payload: {statement: 'Use the verified source.'}},
+  ];
+  const api = createServer((req, res) => {
+    assert.equal(req.headers.authorization, `Bearer ${token}`);
+    assert.equal(req.headers['x-brainbase-projects'], 'fixture');
+    res.setHeader('content-type', 'application/json');
+    if (failing) { res.writeHead(503); res.end(JSON.stringify({error: 'fixture outage'})); return; }
+    const url = new URL(req.url!, 'http://localhost');
+    const records = url.pathname.endsWith('/edges')
+      ? [{id: 'edge-fixture', from_id: 'decision-fixture', to_id: 'project-fixture', rel_type: 'belongs_to_project'}]
+      : nodes.filter(node => (!url.searchParams.has('type') || node.entity_type === url.searchParams.get('type'))
+        && (!url.searchParams.has('ids') || url.searchParams.get('ids')!.split(',').includes(node.id)));
+    res.end(JSON.stringify({records}));
+  });
+  await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
+  const address = api.address();
+  assert.ok(address && typeof address !== 'string');
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: ['--import', 'tsx', fileURLToPath(new URL('../src/index.ts', import.meta.url))],
+    cwd: fileURLToPath(new URL('..', import.meta.url)),
+    env: {...getDefaultEnvironment(), BRAINBASE_AUTH_MODE: 'service',
+      BRAINBASE_GRAPH_API_TOKEN: token, BRAINBASE_GRAPH_API_URL: `http://127.0.0.1:${address.port}`},
+    stderr: 'pipe',
+  });
+  transport.stderr?.resume();
+  const client = new Client({name: 'retrieval-stdio-test', version: '1'});
+  try {
+    await client.connect(transport, {timeout: 10000});
+    const args = {query: '関連する決定', project: 'fixture', types: ['project', 'decision'], includePhilosophy: false,
+      plan: {seed_ids: ['project-fixture'], steps: [{relation: 'belongs_to_project', direction: 'incoming', target_type: 'decision'}]}};
+    const result = await client.callTool({name: 'search', arguments: args});
+    assert.notEqual(result.isError, true, JSON.stringify(result));
+    const content = result.content as {type: string; text: string}[];
+    const parsed = JSON.parse(content[0].text);
+    assert.deepEqual(parsed.data.candidates.map((candidate: {id: string}) => candidate.id), ['decision-fixture']);
+    assert.equal(parsed.data.candidates[0].evidence.statement, 'Use the verified source.');
+    assert.equal(parsed.data.candidates[0].paths[0].edges[0].id, 'edge-fixture');
+    failing = true;
+    const failed = await client.callTool({name: 'search', arguments: args});
+    assert.equal(failed.isError, true);
+    assert.doesNotMatch(JSON.stringify(failed), /結果を取得/);
+  } finally {
+    await client.close();
+    await new Promise<void>((resolve, reject) => api.close(error => error ? reject(error) : resolve()));
+  }
+});
+
 test('facade stdio stays discoverable when its backend process cannot start', {timeout: 15000}, async () => {
   const transport = new StdioClientTransport({
     command: process.execPath,

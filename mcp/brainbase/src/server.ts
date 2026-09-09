@@ -60,6 +60,7 @@ import {
 } from './tools/meeting-minutes-context-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/graph-maintenance-tools.js';
+import { handleGraphRetrievalToolCall } from './tools/graph-retrieval.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, handleJudgmentResolutionToolCall, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
 import { judgmentAuditTools, handleJudgmentAuditToolCall } from './tools/judgment-audit-tools.js';
@@ -211,7 +212,10 @@ function buildMcpToolResult(
   extensionResult: unknown,
 ) {
   const response = { content: buildToolResponseContent(name, toolArgs, result) };
-  return isStructuredJudgmentToolFailure(name, extensionResult)
+  const retrievalFailure = name === 'search' && extensionResult !== null
+    && typeof extensionResult === 'object'
+    && ['error', 'unavailable'].includes(String((extensionResult as Record<string, unknown>).status));
+  return (retrievalFailure || isStructuredJudgmentToolFailure(name, extensionResult))
     ? { ...response, isError: true }
     : response;
 }
@@ -821,7 +825,7 @@ const tools: Tool[] = [
   },
   {
     name: 'search',
-    description: 'Search all entities by keyword. Searches names, content, aliases, and descriptions.',
+    description: 'Search authorized Graph entities semantically and retrieve evidence. First find seed IDs, then supply a plan of real relation types and directions to explore question-specific relationships. Inspect returned evidence and insufficiency before answering; similarity is not entailment. Use mode lexical only for legacy keyword lookup.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -829,9 +833,32 @@ const tools: Tool[] = [
           type: 'string',
           description: 'The search query',
         },
+        mode: { type: 'string', enum: ['semantic', 'lexical'], default: 'semantic' },
+        top_k: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
+        inspect_relations: { type: 'boolean', default: true, description: 'Inspect actual relation names around the first three semantic candidates for a subsequent model-selected plan.' },
+        types: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' } },
+        plan: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            seed_ids: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' } },
+            steps: {
+              type: 'array', minItems: 1, maxItems: 3,
+              items: {
+                type: 'object', additionalProperties: false,
+                properties: {
+                  relation: { type: 'string', minLength: 1 },
+                  direction: { type: 'string', enum: ['incoming', 'outgoing'] },
+                  target_type: { type: 'string' },
+                },
+                required: ['relation', 'direction'],
+              },
+            },
+          },
+          required: ['seed_ids', 'steps'],
+        },
         project: {
           type: 'string',
-          description: 'Project code used to resolve Brainbase philosophy context.',
+          description: 'Optional authorized project filter for semantic Graph retrieval and philosophy context.',
         },
         scope: {
           type: 'string',
@@ -1433,6 +1460,17 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     try {
       const toolArgs = args as Record<string, unknown>;
       const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
+        async (toolName, extensionArgs) => {
+          const retrieval = await handleGraphRetrievalToolCall(toolName, extensionArgs, {
+            apiUrl: resolveBrainbaseApiUrl(),
+            configuredProjectCodes,
+            tokenManager: globalTokenManager,
+          });
+          if (!retrieval || retrieval.status !== 'ok') return retrieval;
+          return { ...retrieval, philosophy_context: await philosophyContextPrompt(extensionArgs, {
+            scope: 'graph', objectType: 'search', operation: 'read',
+          }) };
+        },
         (toolName, extensionArgs) => handleTenantBoundaryToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
           serviceToken: process.env.BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN,
