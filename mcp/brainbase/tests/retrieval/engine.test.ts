@@ -227,3 +227,18 @@ describe('retrieveGraph', () => {
     );
   });
 });
+
+
+describe('precomputed Graph scores', () => {
+  it('uses server ranking without local embeddings and retains missing score uncertainty', async () => {
+    const result = await retrieveGraph({query: 'source', coverage: 'complete', nodes: [node('a', {body: 'a'}), node('b', {body: 'b'})], edges: [],
+      precomputedScores: new Map([['a', 0.9]]), embed: async () => { throw new Error('local inference forbidden'); }});
+    assert.equal(result.candidates[0].id, 'a');
+    assert.equal(result.candidates.find(c => c.id === 'b')?.score, null);
+    assert.equal(result.coverage, 'partial');
+  });
+  it('rejects invalid scores from the upstream response', async () => {
+    await assert.rejects(() => retrieveGraph({query: 'source', coverage: 'complete', nodes: [node('a', {})], edges: [],
+      precomputedScores: new Map([['a', NaN]])}));
+  });
+});

@@ -17,7 +17,19 @@ function expect(value: any) {
 import { handleGraphRetrievalToolCall } from '../../src/tools/graph-retrieval.js';
 const entity = (id: string) => ({id, entity_type: 'decision', project_code: 'p', payload: {statement: id}});
 function deps(records: unknown[], status = 200) {
-  const fetch = mock.fn(async (url: any) => new Response(JSON.stringify({records: String(url).includes('/edges?') ? [] : records}), {status}));
+  const fetch = mock.fn(async (input: any, init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (status !== 200) return new Response(JSON.stringify({error: 'fixture outage'}), {status});
+    if (url.pathname.endsWith('/search')) {
+      return new Response(JSON.stringify({
+        records: records.map((record, index) => ({...record as object, score: 0.9 - index / 1000})),
+        coverage: records.length >= 500 ? 'partial' : 'complete',
+        partial_reasons: records.length >= 500 ? ['entity_limit'] : [],
+        index: {model: 'fixture-model', ready: 2, pending: 0},
+      }));
+    }
+    return new Response(JSON.stringify({records: url.pathname.endsWith('/edges') ? [] : records}));
+  });
   return {apiUrl: 'https://fixture.invalid', tokenManager: {getToken: async () => `x.${Buffer.from(JSON.stringify({projectCodes:['p']})).toString('base64url')}.x`}, fetch: fetch as typeof globalThis.fetch, embed: async (texts: string[]) => texts.map(() => [1,0])};
 }
 describe('authenticated Graph retrieval', () => {
@@ -33,6 +45,17 @@ describe('authenticated Graph retrieval', () => {
   it('keeps API failure distinct from empty results', async () => {
     expect(await handleGraphRetrievalToolCall('search',{query:'q',types:['decision']},deps([],503))).toMatchObject({status:'unavailable',error:{http_status:503}});
     expect(await handleGraphRetrievalToolCall('search',{query:'q',types:['decision']},deps([]))).toMatchObject({status:'ok',data:{sufficiency:'insufficient',absence_confirmed:false}});
+  });
+
+  it('uses the server vector search endpoint and never falls back to the injected embedder on failure', async () => {
+    const d = deps([], 503);
+    d.embed = async () => { throw new Error('local embedding must not run'); };
+    const result = await handleGraphRetrievalToolCall('search', {query:'q',types:['decision']}, d);
+    expect(result).toMatchObject({status:'unavailable',error:{http_status:503}});
+    expect(d.fetch).toHaveBeenCalledTimes(1);
+    const [input, init] = d.fetch.mock.calls[0].arguments as [string, RequestInit];
+    expect(String(input)).toBe('https://fixture.invalid/api/info/graph/search');
+    expect(init.method).toBe('POST');
   });
   it('marks the API entity cap partial', async () => {
     const r = await handleGraphRetrievalToolCall('search',{query:'q',types:['decision'],inspect_relations:false},deps(Array.from({length:500},(_,i)=>entity(String(i)))));

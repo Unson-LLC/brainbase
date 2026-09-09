@@ -82,7 +82,13 @@ export interface RetrieveGraphOptions {
   query: string;
   nodes: GraphNode[];
   edges: GraphEdge[];
-  embed: Embedder;
+  /**
+   * Local embedding is retained as an injectable test seam. Production
+   * callers should provide precomputedScores from the Graph API instead.
+   */
+  embed?: Embedder;
+  /** Scores returned by the server-side vector search, keyed by node id. */
+  precomputedScores?: ReadonlyMap<string, number | null>;
   top_k?: number;
   plan?: RetrievalPlan;
   coverage: 'complete' | 'partial' | 'unknown';
@@ -349,6 +355,14 @@ function validateVector(value: unknown, label: string, expectedDimension?: numbe
   return value;
 }
 
+function validatePrecomputedScore(value: unknown, label: string): number | null {
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < -1 || value > 1) {
+    throw validationError(`${label} must be a finite number between -1 and 1 or null`);
+  }
+  return value;
+}
+
 function cosineSimilarity(left: number[], right: number[]): number {
   let dot = 0;
   let leftNormSquared = 0;
@@ -481,7 +495,16 @@ export async function retrieveGraph(options: RetrieveGraphOptions): Promise<Retr
   validateCoverage(options.coverage);
   if (!Array.isArray(options.nodes)) throw validationError('nodes must be an array');
   if (!Array.isArray(options.edges)) throw validationError('edges must be an array');
-  if (typeof options.embed !== 'function') throw validationError('embed must be a function');
+  if (options.embed !== undefined && typeof options.embed !== 'function') throw validationError('embed must be a function');
+  if (options.precomputedScores !== undefined && typeof options.precomputedScores !== 'object') {
+    throw validationError('precomputedScores must be a map');
+  }
+  if (options.precomputedScores !== undefined) {
+    for (const [id, score] of options.precomputedScores.entries()) {
+      if (typeof id !== 'string' || !id.trim()) throw validationError('precomputedScores keys must be non-empty strings');
+      validatePrecomputedScore(score, `precomputed score for ${id}`);
+    }
+  }
   const plan = options.plan === undefined ? undefined : validatePlan(options.plan);
 
   const nodeById = new Map<string, GraphNode>();
@@ -514,7 +537,29 @@ export async function retrieveGraph(options: RetrieveGraphOptions): Promise<Retr
   const candidateNodes = candidateIds
     .map(id => nodeById.get(id))
     .filter((node): node is GraphNode => node !== undefined && isActiveNode(node));
-  const scores = plan ? new Map<string, number>() : await calculateScores(query, candidateNodes, options.embed);
+  let scores: Map<string, number | null>;
+  let scoreCoveragePartial = false;
+  if (options.precomputedScores !== undefined) {
+    scores = new Map<string, number | null>();
+    for (const candidate of candidateNodes) {
+      if (!options.precomputedScores.has(candidate.id)) {
+        scoreCoveragePartial = true;
+        continue;
+      }
+      scores.set(candidate.id, validatePrecomputedScore(
+        options.precomputedScores.get(candidate.id),
+        `precomputed score for ${candidate.id}`,
+      ));
+      if (scores.get(candidate.id) === null) scoreCoveragePartial = true;
+    }
+  } else if (plan) {
+    // A relation plan intentionally returns graph-selected candidates without
+    // ranking. Callers that need scores must provide the server response map.
+    scores = new Map<string, number | null>();
+  } else {
+    if (typeof options.embed !== 'function') throw validationError('embed must be a function when precomputedScores are absent');
+    scores = await calculateScores(query, candidateNodes, options.embed);
+  }
 
   const allCandidates = sortByScore(candidateNodes.map(node => {
     const evidence = extractEvidence(node.payload);
@@ -544,7 +589,7 @@ export async function retrieveGraph(options: RetrieveGraphOptions): Promise<Retr
     ? 'needs_model_verification'
     : 'insufficient';
 
-  const coverage = options.coverage === 'complete' && (graphTruncated || allCandidates.length > topK)
+  const coverage = options.coverage === 'complete' && (graphTruncated || allCandidates.length > topK || scoreCoveragePartial)
     ? 'partial'
     : options.coverage;
   return { candidates, coverage, sufficiency };

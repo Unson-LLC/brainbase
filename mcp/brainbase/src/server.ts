@@ -1696,7 +1696,9 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         void server.close();
       });
       const handleMcpRequest = async () => {
-        await refreshEntityIndex();
+        // Do not rebuild the legacy full Graph projection at the HTTP edge.
+        // Extension handlers use their own bounded API path, while legacy
+        // index consumers refresh immediately before their specific operation.
         await server.connect(transport);
         await transport.handleRequest(req, res, body);
       };

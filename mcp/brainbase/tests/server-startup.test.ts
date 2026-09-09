@@ -18,6 +18,9 @@ test('published search traverses Graph and reports API failure through real stdi
     res.setHeader('content-type', 'application/json');
     if (failing) { res.writeHead(503); res.end(JSON.stringify({error: 'fixture outage'})); return; }
     const url = new URL(req.url!, 'http://localhost');
+    if (url.pathname.endsWith('/search')) {
+      res.end(JSON.stringify({records: [{...nodes[1], score: 0.9}], coverage: 'complete', partial_reasons: [], index: {model: 'fixture', ready: 1, pending: 0}})); return;
+    }
     const records = url.pathname.endsWith('/edges')
       ? [{id: 'edge-fixture', from_id: 'decision-fixture', to_id: 'project-fixture', rel_type: 'belongs_to_project'}]
       : nodes.filter(node => (!url.searchParams.has('type') || node.entity_type === url.searchParams.get('type'))

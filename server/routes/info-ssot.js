@@ -24,6 +24,7 @@ export function createInfoSSOTRouter(infoSSOTService, { auditTenantGuard = (_req
 
     // Read (Graph SSOT only)
     router.get('/graph/entities', controller.listGraphEntities);
+    router.post('/graph/search', controller.searchGraph);
     router.get('/graph/edges', controller.listGraphEdges);
     router.get('/graph/expand', controller.expandGraph);
     router.get('/context', controller.getContext);
