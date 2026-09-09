@@ -36,6 +36,8 @@ const argsSchema = z.object({
   mode: z.never().optional()
 });
 
+const searchArgsSchema = argsSchema.pick({ dataDir: true, query: true, limit: true, project: true, as_of: true, asOf: true, seedIds: true, steps: true, mode: true }).strict();
+
 const mentionSpanSchema = z.object({
   start: z.number().int().nonnegative(),
   end: z.number().int().positive()
@@ -135,7 +137,7 @@ const connectedSchemas = {
 export const toolDefinitions = [
   {
     name: 'get_context',
-    description: 'Return initial owner context for onboarding only. For a question needing related judgments or evidence, use search with an explicit relation plan; this snapshot is not a retrieval answer.',
+    description: 'Return an initial owner context snapshot. For a question needing related judgments or evidence, use search with an explicit relation plan; this snapshot is not a retrieval answer.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -162,8 +164,10 @@ export const toolDefinitions = [
     inputSchema: {
       type: 'object',
       required: ['query'],
+      additionalProperties: false,
       properties: {
         dataDir: { type: 'string' },
+        asOf: { type: 'string', format: 'date-time', description: 'Compatibility alias for as_of.' },
         query: { type: 'string', minLength: 1 },
         seedIds: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' }, description: 'Canonical IDs chosen by the calling model; no embeddings needed.' },
         steps: { type: 'array', minItems: 1, maxItems: 3, items: {
@@ -374,7 +378,7 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
   if (name === 'resolve_entity') {
     return callResolveEntityTool(rawArgs);
   }
-  const args = argsSchema.parse(rawArgs ?? {});
+  const args: z.infer<typeof argsSchema> = (name === 'search' ? searchArgsSchema : argsSchema).parse(rawArgs ?? {});
   const dataDir = resolveDataDir(args.dataDir);
 
   switch (name) {

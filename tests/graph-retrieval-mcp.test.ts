@@ -38,5 +38,6 @@ describe('graph retrieval MCP',()=>{
     const dataDir=await fixture();
     await expect(callBrainbaseTool('search',{dataDir,query:'Atlas',steps:[{relation:'invented',direction:'incoming'}]})).rejects.toThrow();
     await expect(callBrainbaseTool('search',{dataDir,query:'Atlas',mode:'lexical'})).rejects.toThrow();
+    await expect(callBrainbaseTool('search',{dataDir,query:'Atlas',unexpected:true})).rejects.toThrow();
   });
 });
