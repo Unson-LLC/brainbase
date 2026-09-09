@@ -4432,8 +4432,11 @@ export function verifiedSubagentParent(payload, env = process.env) {
         if (!transcriptRoots(env).some((root) => pathInside(path, root))) return null;
         const entries = readFileSync(path, 'utf8').split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line));
         const metas = entries.filter((entry) => entry.type === 'session_meta');
-        if (metas.length !== 1) return null;
-        const meta = metas[0].payload;
+        const meta = metas[0]?.payload;
+        // Full-history forks include the parent's original session metadata.
+        // Only the first entry identifies this child; duplicates/foreign IDs fail.
+        if (!meta || metas.length > 2 || (metas.length === 2
+            && (metas[1].payload?.id !== meta.session_id || metas[1].payload?.id === meta.id))) return null;
         const source = meta?.source?.subagent?.thread_spawn;
         if (!source || typeof meta.id !== 'string' || typeof meta.session_id !== 'string'
             || meta.id === meta.session_id || source.parent_thread_id === meta.id
@@ -4471,15 +4474,27 @@ function processSubagentHook(payload, binding, dependencies) {
     const toolName = payload.tool_name ?? payload.toolName ?? '';
     if (eventName === 'PreToolUse') {
         // The child cannot reclassify or finalize the parent's judgment episode.
-        if (/brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))$/.test(toolName)) {
+        const controlTool = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))$/;
+        const input = payload.tool_input;
+        const orchestrationSource = typeof input === 'string' ? input : input?.code ?? '';
+        // Check the literal tool identifier, including bracket access and aliases.
+        // This is a misuse guard, not a sandbox for arbitrary JavaScript.
+        const wrappedControlCall = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))\b/.test(orchestrationSource);
+        if (controlTool.test(toolName) || wrappedControlCall) {
             return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny',
                 permissionDecisionReason: 'この子agentは親の判断契約へ紐付け済みです。判断契約の再分類・監査確定は親が行います。委任された作業を実行し、結果を親へ返してください。' } };
         }
         return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext:
             'Hostが親の有効な判断契約とこの子agentへの委任を確認しました。委任範囲内で作業し、結果を親へ返してください。通常の権限・承認は引き続き必要です。' } };
     }
-    if (['PostToolUse', 'PostToolUseFailure', 'Stop'].includes(eventName)) {
-        if (eventName !== 'Stop' && (!toolName || typeof payload.tool_use_id !== 'string' || !payload.tool_use_id)) {
+    if (eventName === 'Stop') {
+        // Codex already owns the child's completion notification. A verified
+        // child Stop must not create delegated evidence or fall through to the
+        // parent's independent Stop finalization path.
+        return {};
+    }
+    if (['PostToolUse', 'PostToolUseFailure'].includes(eventName)) {
+        if (!toolName || typeof payload.tool_use_id !== 'string' || !payload.tool_use_id) {
             throw new Error('judgment_delegated_tool_identity_missing');
         }
         // Record provenance as ordinary execution evidence. It cannot satisfy a
@@ -4487,14 +4502,12 @@ function processSubagentHook(payload, binding, dependencies) {
         recordBrainbaseToolUse({
             ...binding.parent,
             transcript_path: undefined,
-            hook_event_name: eventName === 'Stop' ? 'PostToolUse' : eventName,
-            tool_name: `delegated.${eventName === 'Stop' ? 'Stop' : toolName}`,
-            tool_use_id: `delegated:${binding.childThreadId}:${binding.childTurnId}:${eventName === 'Stop' ? 'stop' : payload.tool_use_id}`,
+            hook_event_name: eventName,
+            tool_name: `delegated.${toolName}`,
+            tool_use_id: `delegated:${binding.childThreadId}:${binding.childTurnId}:${payload.tool_use_id}`,
             tool_input: { child_thread_id: binding.childThreadId, child_turn_id: binding.childTurnId,
                 original_input_digest: sha256(canonicalJson(payload.tool_input ?? null)) },
-            tool_response: eventName === 'Stop'
-                ? { child_answer_digest: sha256(payload.last_assistant_message ?? '') }
-                : payload.tool_response
+            tool_response: payload.tool_response
         }, dependencies);
         return {};
     }
