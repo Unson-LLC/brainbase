@@ -1,4 +1,7 @@
+import { createOrganizationGraphConfig, createOrganizationGraphClient } from './organization-graph.js';
 import { createHash } from 'node:crypto';
+import { retrieveGraph } from './graph-retrieval.js';
+import { createEmbeddingProviderFromEnv, type EmbeddingProvider } from './embedding-provider.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -24,8 +27,17 @@ const argsSchema = z.object({
   ontologyVersion: z.string().optional(),
   asOf: z.string().datetime({ offset: true }).optional(),
   project: z.string().min(1).optional(),
-  as_of: z.string().datetime({ offset: true }).optional()
+  as_of: z.string().datetime({ offset: true }).optional(),
+  seedIds: z.array(z.string().min(1)).min(1).max(10).optional(),
+  steps: z.array(z.object({
+    relation: z.enum(['member_of', 'participates_in', 'accountable_for', 'owned_by', 'governs', 'supersedes']),
+    direction: z.enum(['incoming', 'outgoing']),
+    targetType: z.enum(['person', 'org', 'project', 'decision']).optional()
+  }).strict()).min(1).max(3).optional(),
+  mode: z.never().optional()
 });
+
+const searchArgsSchema = argsSchema.pick({ dataDir: true, query: true, limit: true, project: true, as_of: true, asOf: true, seedIds: true, steps: true, mode: true }).strict();
 
 const mentionSpanSchema = z.object({
   start: z.number().int().nonnegative(),
@@ -126,7 +138,7 @@ const connectedSchemas = {
 export const toolDefinitions = [
   {
     name: 'get_context',
-    description: 'Return initial AI context from local Graph and Personal KG canonical files.',
+    description: 'Return an initial owner context snapshot. For a question needing related judgments or evidence, use search with an explicit relation plan; this snapshot is not a retrieval answer.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -149,14 +161,24 @@ export const toolDefinitions = [
   },
   {
     name: 'search',
-    description: 'Search all canonical local stores: Graph entities, Personal KG, relationships, and decisions. Use this for people and projects.',
+    description: 'Find canonical Graph candidates, follow explicit typed relations, and return evidence and missing information. Use seedIds from resolve_entity/list_entities or previous results and steps from the observed relation catalog. Configured embeddings enable semantic discovery; without them discovery is lexical and reported as limited. Never treat similarity as proof or empty results as absence. Personal KG has its own search tool.',
     inputSchema: {
       type: 'object',
       required: ['query'],
+      additionalProperties: false,
       properties: {
         dataDir: { type: 'string' },
-        query: { type: 'string' },
-        limit: { type: 'number' },
+        asOf: { type: 'string', format: 'date-time', description: 'Compatibility alias for as_of.' },
+        query: { type: 'string', minLength: 1 },
+        seedIds: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' }, description: 'Canonical IDs chosen by the calling model; no embeddings needed.' },
+        steps: { type: 'array', minItems: 1, maxItems: 3, items: {
+          type: 'object', additionalProperties: false, required: ['relation', 'direction'], properties: {
+            relation: { enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'governs', 'supersedes'] },
+            direction: { enum: ['incoming', 'outgoing'] },
+            targetType: { enum: ['person', 'org', 'project', 'decision'] }
+          }
+        } },
+        limit: { type: 'integer', minimum: 1, maximum: 50 },
         project: { type: 'string', description: 'Optional canonical project ID, name, or alias.' },
         as_of: { type: 'string', format: 'date-time', description: 'RFC 3339 validity instant. Defaults to now.' }
       }
@@ -340,6 +362,16 @@ export const toolDefinitions = [
   }
 ] as const;
 
+let embeddingProvider: EmbeddingProvider | undefined;
+let embeddingProviderInitialized = false;
+function configuredEmbeddingProvider(): EmbeddingProvider | undefined {
+  if (!embeddingProviderInitialized) {
+    embeddingProvider = createEmbeddingProviderFromEnv();
+    embeddingProviderInitialized = true;
+  }
+  return embeddingProvider;
+}
+
 export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Promise<unknown> {
   if (name in connectedSchemas) {
     return callConnectedOnboardingTool(name as keyof typeof connectedSchemas, rawArgs);
@@ -347,7 +379,7 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
   if (name === 'resolve_entity') {
     return callResolveEntityTool(rawArgs);
   }
-  const args = argsSchema.parse(rawArgs ?? {});
+  const args: z.infer<typeof argsSchema> = (name === 'search' ? searchArgsSchema : argsSchema).parse(rawArgs ?? {});
   const dataDir = resolveDataDir(args.dataDir);
 
   switch (name) {
@@ -412,6 +444,13 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
       return getOntologyImpact(args.fromVersion);
   }
 
+  if (name === 'search') {
+    const organization = createOrganizationGraphConfig();
+    if (organization) {
+      return createOrganizationGraphClient(organization).search({ query: args.query!, limit: args.limit,
+        project: args.project, asOf: args.as_of ?? args.asOf, seedIds: args.seedIds, steps: args.steps });
+    }
+  }
   const os = await loadPersonalOs(dataDir);
 
   switch (name) {
@@ -423,7 +462,14 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
       if (!args.query) {
         throw new Error('search requires query');
       }
-      return { results: searchAll(os, args.query, args.limit, { project: args.project, asOf: args.as_of ?? args.asOf }) };
+      if (os.graph.version !== 2) {
+        if (args.seedIds || args.steps) throw new Error('graph_retrieval_migration_required');
+        return { results: searchAll(os, args.query, args.limit, { project: args.project, asOf: args.as_of ?? args.asOf }),
+          status: 'migration_required', discovery: 'legacy_lexical', absenceConfirmed: false,
+          sufficiency: 'insufficient', partialReasons: ['canonical_graph_v2_required'] };
+      }
+      return retrieveGraph(os, { query: args.query, limit: args.limit, project: args.project,
+        asOf: args.as_of ?? args.asOf, seedIds: args.seedIds, steps: args.steps }, args.seedIds ? undefined : configuredEmbeddingProvider());
     case 'search_personal_kg':
       if (!args.query) {
         throw new Error('search_personal_kg requires query');

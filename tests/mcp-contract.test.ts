@@ -294,9 +294,11 @@ describe('MCP contract', () => {
 
       const allSearch = await client.callTool({
         name: 'search',
-        arguments: { query: 'Codex' }
+        arguments: { query: 'Otawara' }
       });
-      expect(JSON.stringify(allSearch.content)).toContain('relationships');
+      const retrieval = JSON.parse(allSearch.content[0]?.type === 'text' ? allSearch.content[0].text : '{}');
+      expect(retrieval.results).toEqual(expect.arrayContaining([expect.objectContaining({ title: 'Otawara', recordClass: 'canonical' })]));
+      expect(retrieval.absenceConfirmed).toBe(false);
 
       const search = await client.callTool({
         name: 'search_personal_kg',

@@ -35,19 +35,43 @@ mcp__brainbase__list_entities({
 
 ## search
 
-GraphとPersonal KGを横断検索します。任意の`project`と`as_of`は、正規Graph由来の候補と関係経路のプロジェクト範囲・有効時点へ適用されます。互換用のlegacy投影は、結果上で`projection`または`unresolved`として区別されます。
+Graph v2から候補を見つけ、AIが選んだ関係をたどり、根拠と不足情報を返します。探索計画と埋め込み接続は今回追加する機能です。npm公開版への反映はリリース履歴で確認してください。
 
 ```ts
 mcp__brainbase__search({
-  query: "Cursorvers",
+  query: "Atlasで守る判断とその理由",
   project: "project-atlas",
-  as_of: "2026-08-17T00:00:00.000Z"
+  as_of: "2026-08-17T00:00:00.000Z",
+  seedIds: ["project-atlas"],
+  steps: [{ relation: "governs", direction: "incoming", targetType: "decision" }]
 })
 ```
 
-検索結果だけで「存在しない」と断定しないでください。表記ゆれがありそうな場合は、別名や関連語でも確認します。
+`seedIds`は`resolve_entity`や前回の検索結果で確認した正規IDです。最大10件、`steps`は最大3段です。関係は実際に記録されているものを選び、向きは`incoming`または`outgoing`を指定します。上の例は、プロジェクトに入ってくる`governs`をたどり、その案件に適用される判断を取得します。`limit`は1〜50です。
 
-Graph v2の結果は従来の`source`、`id`、`title`、`text`、`score`を維持しつつ、`canonicalEntityId`、`recordClass`、`projectionOf`、`projectionSources`、`relationPath`、`authority`を追加します。`recordClass`は`canonical`、`projection`、`unresolved`を区別します。同名候補が複数あるlegacy記録を正規IDへ推測接続しません。
+IDをまだ知らない場合は、`query`だけで候補を取得します。埋め込み未設定では文字一致、設定済みではベクトルによる候補検索を行います。実際に使った方式を結果に残すため、未設定の結果を意味検索として扱いません。AIが検索ごとに旧方式を選ぶ`mode`指定は受け付けません。
+
+候補には正規IDと実エッジの`relationPath`が付きます。記録された判断と理由、情報不足も返します。検索順位は根拠の強さではありません。AIは、取得した記録が質問への回答を支えるかを確認する必要があります。探索が途中で打ち切られた場合や根拠が不足する場合、不存在を断定しません。
+
+Graph v1は従来の候補を返しつつ`migration_required`を明示し、関係探索の指定を拒否します。[Graph v2への移行](/guide/ontology#graph-v1からv2へ移行する)を行ってください。個人の価値観や経験は`search_personal_kg`で検索します。`get_context`は初期文脈の取得用であり、質問に必要な根拠探索の代わりではありません。
+
+### 任意の埋め込み接続
+
+既定では埋め込みのための通信は行いません。利用者が起動したOpenAI互換のローカル埋め込みサービス、または外部HTTPS APIを設定できます。
+
+```bash
+# 自分で起動したローカルサービスの例。モデルは事前に用意します。
+BRAINBASE_EMBEDDING_URL=http://127.0.0.1:11434/v1/embeddings
+BRAINBASE_EMBEDDING_MODEL=<利用する埋め込みモデル名>
+# 認証が必要なサービスのみ設定
+BRAINBASE_EMBEDDING_API_KEY=<自分のキー>
+```
+
+MCPプロセスの環境変数として設定し、変更後は再起動します。サービスには質問と、候補を選ぶ前の対象スコープ内の全有効Graphエンティティ（ID・型・名前・別名・要約・タグ・メタデータ）が送信されます。プロジェクト未指定の場合は全プロジェクトが対象です。キャッシュ済みのテキストは再送しません。外部APIでは、そのサービスの料金・データ取扱条件が適用されます。送信先は利用者が設定し、検索ツールの引数から変更できません。
+
+埋め込みモデルは同梱しません。プロバイダーの応答不正や障害時はエラーを返し、別のモデルや文字検索へ自動的に切り替えません。正規IDを指定した関係探索には埋め込みを使いません。
+
+接続アダプターは、質問を含めて1回2048件まで、64件・1MB以下の単位で送信し、全体を10秒で打ち切ります。成功したベクトルはプロセス内で最大2048件再利用します。初回や再起動後は対象データの生成が必要です。上限を超える場合はプロジェクトで範囲を絞るか、正規IDから探索してください。
 
 ## resolve_entity
 

@@ -1,0 +1,278 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-oss-graph-retrieval",
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "外部API未設定でも正規IDから実関係をたどり根拠と不足を返す。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1",
+            "text_snippet": "外部API未設定でも正規IDから実関係をたどり根拠と不足を返す。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/graph-retrieval.ts",
+            "anchor": "retrieveGraph"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/graph-retrieval.test.ts",
+            "case": "uses seed IDs and only follows actual typed active edges in a bounded plan"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/graph-retrieval.test.ts",
+            "must_cover": "uses seed IDs and only follows actual typed active edges in a bounded plan"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T16:29:06.821Z",
+      "last_revised_at": "2026-09-10T02:00:19.885Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "埋め込み生成は差し替え可能とし、設定なしでは通信しない。ローカルHTTPサービスと外部HTTPS APIを明示設定する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2",
+            "text_snippet": "埋め込み生成は差し替え可能とし、設定なしでは通信しない。ローカルHTTPサービスと外部HTTPS APIを明示設定する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/embedding-provider.ts",
+            "anchor": "createEmbeddingProviderFromEnv"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/embedding-provider.test.ts",
+            "case": "does not create a network provider when embedding is not configured"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/embedding-provider.test.ts",
+            "must_cover": "does not create a network provider when embedding is not configured"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T16:29:06.821Z",
+      "last_revised_at": "2026-09-10T02:00:19.885Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "探索はプロジェクトと有効時点を守り、未知・不完全・根拠不足を成功や不存在にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3",
+            "text_snippet": "探索はプロジェクトと有効時点を守り、未知・不完全・根拠不足を成功や不存在にしない。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/graph-retrieval.ts",
+            "anchor": "retrieveGraph"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/graph-retrieval.test.ts",
+            "case": "strictly scopes project results and does not expose outside relation catalog entries"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/graph-retrieval.test.ts",
+            "must_cover": "strictly scopes project results and does not expose outside relation catalog entries"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T16:29:06.821Z",
+      "last_revised_at": "2026-09-10T02:00:19.885Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "MCPは探索計画を受け取り実関係と根拠を返す。旧Graphは移行が必要と明示する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4",
+            "text_snippet": "MCPは探索計画を受け取り実関係と根拠を返す。旧Graphは移行が必要と明示する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/server.ts",
+            "anchor": "callBrainbaseTool"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/graph-retrieval-mcp.test.ts",
+            "case": "follows a real relation without an embedding API through actual stdio"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/graph-retrieval-mcp.test.ts",
+            "must_cover": "follows a real relation without an embedding API through actual stdio"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-09T16:29:06.821Z",
+      "last_revised_at": "2026-09-10T02:00:19.885Z"
+    },
+    {
+      "id": "INV-005",
+      "type": "invariant",
+      "statement": "Graph v2と対応する判断根拠だけを移送し、ID・関係・期間・根拠を共通コアで保持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-5",
+            "text_snippet": "Graph v2と対応する判断根拠だけを移送し、ID・関係・期間・根拠を共通コアで保持する。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/portable-graph.ts",
+            "anchor": ""
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/portable-graph.test.ts",
+            "case": "round-trips byte and semantic content without changing relation evidence"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/portable-graph.test.ts",
+            "must_cover": "round-trips byte and semantic content without changing relation evidence"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-10T02:00:19.885Z",
+      "last_revised_at": "2026-09-10T02:00:19.885Z"
+    },
+    {
+      "id": "INV-006",
+      "type": "invariant",
+      "statement": "組織接続は明示設定し、同じ検索契約を使い、失敗をローカル成功に置換しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-6",
+            "text_snippet": "組織接続は明示設定し、同じ検索契約を使い、失敗をローカル成功に置換しない。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/organization-graph.ts",
+            "anchor": ""
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/organization-graph.test.ts",
+            "case": "does not read the local corpus or fall back when organization search fails"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/organization-graph.test.ts",
+            "must_cover": "does not read the local corpus or fall back when organization search fails"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-10T02:00:19.885Z",
+      "last_revised_at": "2026-09-10T02:00:19.885Z"
+    },
+    {
+      "id": "INV-007",
+      "type": "invariant",
+      "statement": "移行は保存後に全体を読み戻して照合し、元ファイルを変更しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-7",
+            "text_snippet": "移行は保存後に全体を読み戻して照合し、元ファイルを変更しない。"
+          }
+        ],
+        "architecture_refs": [],
+        "code_refs": [
+          {
+            "file": "src/cli.ts",
+            "anchor": ""
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/organization-graph.test.ts",
+            "case": "verifies the imported and returned bundle digests"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/organization-graph.test.ts",
+            "must_cover": "verifies the imported and returned bundle digests"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-10T02:00:19.885Z",
+      "last_revised_at": "2026-09-10T02:00:19.885Z"
+    }
+  ],
+  "generated_at": "2026-09-09T16:29:06.820Z",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}
