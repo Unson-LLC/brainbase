@@ -2285,7 +2285,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
             // failed result. Keep its original sequence and never add a duplicate.
             if (nativeFailureResult !== undefined && existing.success === false
                 && existing.tool_name === toolName && existing.input_digest === inputDigest
-                && existing.response_digest === sha256(canonicalJson(nativeFailureResult))) return existing;
+                && (existing.hook_event_name === 'PostToolUseFailure'
+                    || existing.response_digest === sha256(canonicalJson(nativeFailureResult)))) return existing;
             throw new Error('judgment_tool_event_conflict');
         } catch (error) {
             if (error?.code !== 'ENOENT') throw error;

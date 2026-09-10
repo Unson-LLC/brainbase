@@ -134,3 +134,21 @@ it.each(['missing-episode', 'missing-input', 'mismatched-input', 'legacy-episode
     expect(reconcileNativeMcpFailures(f.payload, { env: f.env })).toEqual([]);
     expect(f.events()).toEqual([]);
 });
+
+it('deduplicates a real PostToolUseFailure whose error representation differs from the native result', async () => {
+    const f = await fixture(); const item = f.entries[2].payload.item;
+    recordBrainbaseToolUse({ ...f.payload, hook_event_name: 'PostToolUseFailure', tool_name: 'mcp__brainbase__search', tool_use_id: item.id,
+        tool_input: item.arguments, error: 'private hook error string' }, { env: f.env });
+    const before = f.events();
+    reconcileNativeMcpFailures(f.payload, { env: f.env });
+    expect(f.events()).toEqual(before);
+    expect(JSON.stringify(f.events())).not.toContain('private hook error string');
+});
+it('rejects changed input for an existing PostToolUseFailure identity', async () => {
+    const f = await fixture(); const item = f.entries[2].payload.item;
+    recordBrainbaseToolUse({ ...f.payload, hook_event_name: 'PostToolUseFailure', tool_name: 'mcp__brainbase__search', tool_use_id: item.id,
+        tool_input: { query: 'different' }, error: 'private hook error string' }, { env: f.env });
+    const before = f.events();
+    expect(() => reconcileNativeMcpFailures(f.payload, { env: f.env })).toThrow('judgment_tool_event_conflict');
+    expect(f.events()).toEqual(before);
+});
