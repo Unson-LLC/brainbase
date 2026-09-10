@@ -18,6 +18,24 @@ afterEach(() => {
 });
 
 describe('Routine Runner cycle execution', () => {
+    it('CLI出力に安全な失敗原因を残す', () => {
+        const output = JSON.parse(routineRunner.serializeRoutineCliResult({
+            status: 'failed',
+            anomalies: [{
+                code: 'graph_timeout',
+                stage: 'recall',
+                dependency: 'recallService.recallGraph',
+                summary: 'Graphへの接続がタイムアウトしました'
+            }]
+        }));
+
+        expect(output.anomalies).toEqual([{
+            code: 'graph_timeout',
+            stage: 'recall',
+            dependency: 'recallService.recallGraph',
+            summary: 'Graphへの接続がタイムアウトしました'
+        }]);
+    });
     it('標準CLIは正規runtime envを読み、ローカルAPIとReceiptを内部APIキーで認証する', async () => {
         const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-local-auth-'));
         temporaryDirectories.push(repoDir);

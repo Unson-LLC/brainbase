@@ -254,6 +254,12 @@ export class ProductionRoutinePorts {
             .filter(([, , count]) => Number(count) > 0)
             .map(([, label, count]) => ({ summary: `${label}が${Number(count)}件あります` }));
         const sleepState = sleepCauses.length === 0 ? 'deep' : 'shallow';
+        const allReconciliationCountsConfirmedZero = [
+            reconciliation.unprocessed_count,
+            reconciliation.contradiction_count,
+            reconciliation.expired_count,
+            reconciliation.outbox_count
+        ].every((count) => typeof count === 'number' && count === 0);
         const candidateRepository = requireDependency(this.candidateRepository, 'candidateRepository', 'transaction');
         const projectCode = projectInput({ input }).project_id;
         const [personalCandidates, graphCandidates] = await candidateRepository.transaction(
@@ -293,7 +299,12 @@ export class ProductionRoutinePorts {
             feedback_targets: Array.isArray(compression.feedback_targets) ? compression.feedback_targets : [],
             unresolved_items: unresolvedItems,
             tomorrow_focus: Array.isArray(input.tomorrow_focus) ? input.tomorrow_focus : [],
-            closed: Array.isArray(input.closed) ? input.closed : [],
+            closed: [
+                ...(Array.isArray(input.closed) ? input.closed : []),
+                ...(allReconciliationCountsConfirmedZero ? [{
+                    summary: '未処理・矛盾・期限切れ・未配信が0件であることを確認しました'
+                }] : [])
+            ],
             carryovers: unresolvedItems,
             personal_kg_memories: personalKgCandidates.filter((item) => item.requires_approval !== true),
             personal_kg_review_exceptions: personalKgCandidates.filter((item) => item.requires_approval === true),

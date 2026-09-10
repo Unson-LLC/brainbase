@@ -82,6 +82,28 @@ function createPorts(overrides = {}) {
 }
 
 describe('ProductionRoutinePorts', () => {
+    it('oyasumiで全残件が確認済み0件なら閉じた内容を明示する', async () => {
+        const { ports } = createPorts({
+            candidateRepository: {
+                transaction: vi.fn(async (work) => work({ list: vi.fn(async () => []) }))
+            }
+        });
+
+        const result = await ports.buildNightOutput({
+            reconciliation: {
+                unprocessed_count: 0,
+                contradiction_count: 0,
+                expired_count: 0,
+                outbox_count: 0
+            },
+            compression: { confirmed: true },
+            verification: { retrievable: true }
+        }, { access: { personId: 'person-1' } });
+
+        expect(result.closed).toEqual([{
+            summary: '未処理・矛盾・期限切れ・未配信が0件であることを確認しました'
+        }]);
+    });
     it('依存未設定でserver起動を止めず、実行時に利用不能を明示する', async () => {
         const { knowledgeFeedbackService: _omitted, ...dependencies } = createPorts().dependencies;
 
