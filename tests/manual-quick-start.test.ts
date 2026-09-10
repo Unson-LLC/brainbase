@@ -14,7 +14,7 @@ describe('public manual quick start', () => {
     const home = await text('docs/manual/index.md');
     const config = await text('docs/.vitepress/config.mjs');
 
-    expect(home).toContain('text: 10分で試す');
+    expect(home).toContain('text: 自分の判断を1つ、AIへ渡してみる');
     expect(home).toContain('link: /guide/quick-start');
     expect(config).toContain("{ text: '最短で試す', link: '/guide/quick-start' }");
   });

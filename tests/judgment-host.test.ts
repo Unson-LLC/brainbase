@@ -817,7 +817,13 @@ describe('portable Judgment Resolver Host contract', () => {
     expect(Object.keys(config.hooks)).toEqual(['UserPromptSubmit', 'PostToolUse', 'Stop']);
     const hook = config.hooks.UserPromptSubmit[0].hooks[0];
     expect(hook.command).toContain('judgment:hook');
-    expect(JSON.stringify(config)).not.toMatch(/https?:\/\/|Infisical|Lightsail|Unson/iu);
+    // The user's checkout and Node installation may themselves contain an
+    // organization name (for example an external volume named UNSON-DRIVE).
+    expect(hook.command).toContain(process.cwd());
+    const portableConfig = JSON.stringify(config)
+      .replaceAll(process.cwd(), '<checkout>')
+      .replaceAll(process.execPath, '<node>');
+    expect(portableConfig).not.toMatch(/https?:\/\/|Infisical|Lightsail|Unson/iu);
   });
 
   it('generates an explicit one-project autonomy canary hook', async () => {
