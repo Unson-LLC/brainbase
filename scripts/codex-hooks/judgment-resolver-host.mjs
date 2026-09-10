@@ -1148,7 +1148,8 @@ function verifyEpisode(entry) {
     const application = entry.route_application;
     const legacyLifecycle = origin === undefined && application === undefined;
     const validLifecycle = (origin === 'user_prompt_submit' && application === 'pre_generation')
-        || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery');
+        || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery')
+        || (origin === 'pre_tool_delegation_recovery' && application === 'pre_tool_execution');
     if (!legacyLifecycle && !validLifecycle) throw new Error('judgment_episode_lifecycle_invalid');
     if (entry.pre_episode_audit_gap !== undefined) {
         if (origin !== 'stop_delegation_recovery' || application !== 'post_generation_recovery') {

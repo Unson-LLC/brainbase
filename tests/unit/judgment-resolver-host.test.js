@@ -119,6 +119,26 @@ afterEach(() => {
 });
 
 describe('inline judgment resolver callback', () => {
+    it.each([
+        ['pre_tool_execution', true], ['pre_generation', false], ['post_generation_recovery', false]
+    ])('MCP audit reader validates pre-tool delegation lifecycle: %s', async (application, valid) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'reader-session', turn_id: 'reader-turn', prompt: '確認して', cwd: process.cwd() };
+        const start = () => startEpisode(payload, {
+            env, episodeOrigin: 'pre_tool_delegation_recovery', routeApplication: application,
+            fetchImpl: async (_url, options) => ({ ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(JSON.parse(options.body)) }) })
+        });
+        if (!valid) {
+            await expect(start()).rejects.toThrow('judgment_episode_lifecycle_invalid');
+            return;
+        }
+        await start();
+        const audit = readEpisodeAudit(`${hash(payload.session_id)}/${hash(payload.turn_id)}`, { env });
+        expect(audit.prefix).toContain('確認して');
+    });
+
     it('uses the normalized callback before HTTP and still verifies the returned receipt', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
