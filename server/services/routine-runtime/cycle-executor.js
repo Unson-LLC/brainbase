@@ -56,6 +56,25 @@ function safeText(value) {
     return typeof value === 'string' && value.trim() ? value.trim().slice(0, 2000) : null;
 }
 
+function safeErrorSummary(error) {
+    const message = safeText(error?.publicMessage || error?.message);
+    if (!message) return 'ルーティン処理中に予期しないエラーが発生しました';
+    return message.split('\n', 1)[0]
+        .replace(/(bearer|token|password|secret|api[_ -]?key)(\s*[:=]\s*)\S+/giu, '$1$2[REDACTED]')
+        .slice(0, 500);
+}
+
+const MEANINGFUL_OUTPUT_FIELDS = Object.freeze({
+    ohayo: ['today_focus', 'ai_actions', 'immediate_decisions', 'warnings', 'carryovers'],
+    oyasumi: ['closed', 'consolidated_memories', 'associations', 'feedback_targets', 'unresolved_items', 'carryovers'],
+    retro: ['outcomes', 'decision_replays', 'changed_judgments', 'mistaken_assumptions', 'system_changes', 'repeated_patterns']
+});
+
+function hasMeaningfulRoutineContent(routine, output) {
+    return (MEANINGFUL_OUTPUT_FIELDS[routine] || [])
+        .some((field) => Array.isArray(output?.[field]) && output[field].length > 0);
+}
+
 function safeOutputItems(items, {
     review = false,
     approval = false,
@@ -181,19 +200,30 @@ export class RoutineCycleExecutor {
                 status: 'failed',
                 anomalies: [{
                     code: error?.code || 'routine_execution_failed',
-                    ...(error?.dependency ? { dependency: error.dependency } : {})
+                    ...(error?.dependency ? { dependency: error.dependency } : {}),
+                    stage: safeText(error?.stage) || error?.dependency || 'routine_execution',
+                    summary: safeErrorSummary(error)
                 }]
             });
         }
     }
 
     withSummary(routine, result) {
-        const status = result?.status || 'failed';
-        const anomalies = Array.isArray(result?.anomalies) ? result.anomalies : [];
-        const coverage = result?.coverage || (status === 'failed'
+        let status = result?.status || 'failed';
+        const anomalies = [...(Array.isArray(result?.anomalies) ? result.anomalies : [])];
+        const routineOutput = safeRoutineOutput(routine, result?.routine_output);
+        const contentEmpty = status === 'completed' && !hasMeaningfulRoutineContent(routine, routineOutput);
+        if (contentEmpty) {
+            status = 'partial';
+            anomalies.push({
+                code: 'routine_content_empty',
+                routine,
+                summary: '確認処理は終了しましたが、利用できる内容が生成されませんでした'
+            });
+        }
+        const coverage = contentEmpty ? 'partial' : result?.coverage || (status === 'failed'
             ? 'unavailable'
             : anomalies.length > 0 || status === 'partial' ? 'partial' : 'confirmed');
-        const routineOutput = safeRoutineOutput(routine, result?.routine_output);
         const summary = {
             routine,
             status,
@@ -204,6 +234,8 @@ export class RoutineCycleExecutor {
         };
         return {
             ...result,
+            status,
+            anomalies,
             summary,
             routine_summary: summary,
             routine_output: routineOutput,

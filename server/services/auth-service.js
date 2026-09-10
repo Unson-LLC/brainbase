@@ -804,17 +804,33 @@ export class AuthService {
         if (!this.pool || !owner || !project || subjects.length === 0) {
             throw new Error('canonical routine authority is unresolved');
         }
-        const { rows } = await this.pool.query(
-            `SELECT DISTINCT ag.person_id, ag.organization_id
-               FROM auth_grants ag
-              WHERE ag.slack_user_id = ANY($1::text[])
-                AND ag.organization_id IS NOT NULL
-                AND ag.active = true
-                AND $2 = ANY(ag.project_codes)
-              ORDER BY ag.person_id, ag.organization_id
-              LIMIT 2`,
-            [subjects, project]
-        );
+        let rows;
+        try {
+            ({ rows } = await this.pool.query(
+                `SELECT DISTINCT ag.person_id, ag.organization_id
+                   FROM auth_grants ag
+                  WHERE ag.slack_user_id = ANY($1::text[])
+                    AND ag.organization_id IS NOT NULL
+                    AND ag.active = true
+                    AND $2 = ANY(ag.project_codes)
+                  ORDER BY ag.person_id, ag.organization_id
+                  LIMIT 2`,
+                [subjects, project]
+            ));
+        } catch (error) {
+            if (error?.code !== '42703') throw error;
+            ({ rows } = await this.pool.query(
+                `SELECT DISTINCT ag.person_id, o.id AS organization_id
+                   FROM auth_grants ag
+                   JOIN organizations o ON $2 = ANY(o.projects)
+                  WHERE ag.slack_user_id = ANY($1::text[])
+                    AND ag.active = true
+                    AND $2 = ANY(ag.project_codes)
+                  ORDER BY ag.person_id, o.id
+                  LIMIT 2`,
+                [subjects, project]
+            ));
+        }
         if (rows.length !== 1 || !rows[0]?.organization_id) {
             throw new Error('canonical routine authority is unresolved');
         }

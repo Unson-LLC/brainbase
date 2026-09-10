@@ -81,6 +81,14 @@ export function serializeRoutineCliResult(result) {
     const output = { status: result?.status };
     if (result?.cycle_status) output.cycle_status = result.cycle_status;
     if (result?.coverage) output.coverage = result.coverage;
+    if (Array.isArray(result?.anomalies)) {
+        output.anomalies = result.anomalies.slice(0, 10).map((item) => ({
+            ...(typeof item?.code === 'string' ? { code: item.code.slice(0, 100) } : {}),
+            ...(typeof item?.stage === 'string' ? { stage: item.stage.slice(0, 200) } : {}),
+            ...(typeof item?.dependency === 'string' ? { dependency: item.dependency.slice(0, 200) } : {}),
+            ...(typeof item?.summary === 'string' ? { summary: item.summary.slice(0, 500) } : {})
+        })).filter((item) => item.code || item.summary);
+    }
     if (result?.morning_output) {
         output.morning_output = {
             exceptions: (Array.isArray(result.morning_output.exceptions) ? result.morning_output.exceptions : [])
