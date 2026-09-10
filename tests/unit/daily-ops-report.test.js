@@ -17,7 +17,7 @@ describe('daily-ops-report', () => {
         expect(report.actions).toEqual([]);
     });
 
-    it('ohayo report has required sections and draft-only default actions', () => {
+    it('ohayo report has decision-oriented sections without AI handoff actions', () => {
         const report = normalizeDailyOpsReport({
             mode: 'ohayo',
             date: '2026-05-09',
@@ -30,13 +30,12 @@ describe('daily-ops-report', () => {
             'calendar',
             'mail',
             'slack',
-            'priorityTasks'
+            'todayDecisions',
+            'todayOutcomes',
+            'aiWork',
+            'carryovers'
         ]);
-        expect(report.actions[0].instruction.safety).toEqual(expect.objectContaining({
-            draft_only: true,
-            dry_run: true,
-            requires_confirmation: true
-        }));
+        expect(report.actions).toEqual([]);
     });
 
     it('accepts command-collected top-level section arrays', () => {
@@ -53,11 +52,58 @@ describe('daily-ops-report', () => {
             calendar: 1,
             mail: 1,
             slack: 1,
-            priorityTasks: 1
+            todayDecisions: 0,
+            todayOutcomes: 1,
+            aiWork: 0,
+            carryovers: 0
         });
     });
 
-    it('escapes report content and script JSON payloads', () => {
+    it('removes AI instruction UI and Untitled placeholders from every report mode', () => {
+        for (const mode of ['ohayo', 'oyasumi', 'retro']) {
+            const report = normalizeDailyOpsReport({
+                mode,
+                sections: [{
+                    id: 'sample',
+                    title: '確認',
+                    items: [
+                        { summary: '本文だけの項目' },
+                        { title: 'Untitled', summary: '保存済みプレースホルダーの本文' }
+                    ]
+                }]
+            });
+            const html = buildDailyOpsReportHtml(report);
+
+            expect(report.actions).toEqual([]);
+            expect(html).not.toContain('AIに渡す次の指示');
+            expect(html).not.toContain('Untitled');
+            expect(html).not.toContain('id="action-data"');
+            expect(html).toContain('.layout-single { grid-template-columns: minmax(0, 1fr); }');
+            expect(html.match(/本文だけの項目/g)).toHaveLength(1);
+            expect(html.match(/保存済みプレースホルダーの本文/g)).toHaveLength(1);
+        }
+    });
+
+    it('separates ohayo priorities into decisions, outcomes, AI work, and carryovers', () => {
+        const report = normalizeDailyOpsReport({
+            mode: 'ohayo',
+            priorityTasks: [
+                { summary: '復旧順を決める', status: '要判断' },
+                { summary: '失敗境界を確定する', status: '今日の到達点' },
+                { summary: 'ログを読む', status: 'AIが進める' },
+                { summary: '配信確認', status: '未確認' }
+            ]
+        });
+
+        expect(Object.fromEntries(report.sections.slice(3).map((section) => [section.id, section.items.map((item) => item.title)]))).toEqual({
+            todayDecisions: ['復旧順を決める'],
+            todayOutcomes: ['失敗境界を確定する'],
+            aiWork: ['ログを読む'],
+            carryovers: ['配信確認']
+        });
+    });
+
+    it('escapes report content after action payloads are removed', () => {
         const report = normalizeDailyOpsReport({
             mode: 'oyasumi',
             date: '2026-05-09',
@@ -74,10 +120,10 @@ describe('daily-ops-report', () => {
 
         expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
         expect(html).not.toContain('</script><script>alert(1)</script>');
-        expect(html).toContain('\\u003c/script\\u003e');
+        expect(html).not.toContain('Custom');
     });
 
-    it('renders copy-only AI instruction handoff without dead Inbox API wiring', () => {
+    it('does not render the retired AI instruction handoff', () => {
         const report = normalizeDailyOpsReport({
             mode: 'ohayo',
             date: '2026-05-10'
@@ -85,7 +131,8 @@ describe('daily-ops-report', () => {
 
         const html = buildDailyOpsReportHtml(report);
 
-        expect(html).toContain('指示をコピー');
+        expect(html).not.toContain('指示をコピー');
+        expect(html).not.toContain('AIに渡す次の指示');
         expect(html).not.toContain("fetch(endpoint + '/api/inbox'");
         expect(html).not.toContain('Brainbase Inboxへ送る');
     });
