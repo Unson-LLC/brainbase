@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -581,6 +581,13 @@ describe('npm release CLI', () => {
     const { root, sha } = await releaseRoot();
     const artifactDirectory = await mkdtemp(path.join(tmpdir(), 'brainbase-npm-artifact-'));
     temporaryRoots.push(artifactDirectory);
+    const sourceManifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+    sourceManifest.files = ['dist'];
+    sourceManifest.scripts = { prepare: "node -e \"require('node:fs').accessSync('source-only')\"" };
+    await writeFile(path.join(root, 'package.json'), JSON.stringify(sourceManifest));
+    await writeFile(path.join(root, 'source-only'), 'build prerequisite');
+    await mkdir(path.join(root, 'dist'));
+    await writeFile(path.join(root, 'dist/index.js'), 'export const ready = true;');
     const artifact = await createReleaseArtifact(root, artifactDirectory, '0.1.0', sha);
     const manifest = JSON.parse(execFileSync(
       'tar',
@@ -592,6 +599,8 @@ describe('npm release CLI', () => {
       version: '0.1.0',
       gitHead: sha
     });
+    expect(manifest.scripts?.prepare).toBeUndefined();
+    expect(JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'))).toEqual(sourceManifest);
     expect(artifact.tarballSha256).toMatch(/^[a-f0-9]{64}$/u);
     expect(artifact.tarballIntegrity).toMatch(/^sha512-/u);
   }, 30_000);
