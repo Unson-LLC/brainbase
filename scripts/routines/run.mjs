@@ -220,6 +220,46 @@ function persistOhayoDayView({ input, routineOutput, varDir }) {
     return { kind: 'artifact_ref', ref: `ohayo-day-view:${relativePath}`, label: 'ohayo_day_view' };
 }
 
+function persistOyasumiReport({ input, routineOutput, varDir, now }) {
+    if (!routineOutput || typeof routineOutput !== 'object' || !varDir) return null;
+    const requestedDate = input?.date || input?.finished_at;
+    const date = typeof requestedDate === 'string' && /^\d{4}-\d{2}-\d{2}/u.test(requestedDate)
+        ? requestedDate.slice(0, 10)
+        : now().toISOString().slice(0, 10);
+    const item = (value, status) => (Array.isArray(value) ? value : []).map((entry) => ({
+        ...entry,
+        meta: { ...(entry?.meta || {}), status }
+    }));
+    const report = normalizeDailyOpsReport({
+        mode: 'oyasumi',
+        date,
+        title: '夜の振り返り',
+        summary: routineOutput.headline || '',
+        meetings: [],
+        decisions: [
+            ...item(routineOutput.consolidated_memories, '整理済み'),
+            ...item(routineOutput.associations, '関連付け'),
+            ...item(routineOutput.closed, '確認済み')
+        ],
+        wikiNocodb: item(routineOutput.feedback_targets, '翌朝に確認'),
+        personalKg: item(
+            routineOutput.personal_kg_registration_candidates || routineOutput.personal_kg_memories,
+            '登録候補'
+        ),
+        failures: item(routineOutput.unresolved_items, '未解決'),
+        carryovers: [
+            ...item(routineOutput.carryovers, '持ち越し'),
+            ...item(routineOutput.tomorrow_focus, '明日の焦点')
+        ]
+    });
+    const relativePath = path.posix.join('daily-ops-reports', `oyasumi-${date}.html`);
+    const target = path.join(varDir, ...relativePath.split('/'));
+    fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
+    fs.writeFileSync(target, buildDailyOpsReportHtml(report), { mode: 0o600 });
+    fs.writeFileSync(target.replace(/\.html$/u, '.json'), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });
+    return { kind: 'artifact_ref', ref: `oyasumi-report:${relativePath}`, label: 'oyasumi_report' };
+}
+
 function persistRetroWeekView({ input, routineOutput, varDir }) {
     const weekView = input?.week_view;
     if (!weekView || typeof weekView !== 'object' || !varDir) return null;
@@ -354,6 +394,28 @@ export async function runRoutine({
             };
         }
     }
+    let oyasumiReportRef = null;
+    if (routine === 'oyasumi') {
+        try {
+            oyasumiReportRef = persistOyasumiReport({
+                input,
+                routineOutput: cycleResult?.routine_output || cycleResult?.routine_summary?.routine_output,
+                varDir,
+                now
+            });
+        } catch {
+            const anomalies = [
+                ...(Array.isArray(cycleResult?.anomalies) ? cycleResult.anomalies : []),
+                { code: 'oyasumi_report_persistence_failed' }
+            ];
+            cycleResult = {
+                ...cycleResult,
+                status: cycleResult?.status === 'failed' ? 'failed' : 'partial',
+                coverage: 'partial',
+                anomalies
+            };
+        }
+    }
     let weekViewRef = null;
     if (routine === 'retro' && input?.week_view) {
         try {
@@ -385,6 +447,7 @@ export async function runRoutine({
         : [];
     if (summaryRef) evidenceRefs.push(summaryRef);
     if (dayViewRef) evidenceRefs.push(dayViewRef);
+    if (oyasumiReportRef) evidenceRefs.push(oyasumiReportRef);
     if (weekViewRef) evidenceRefs.push(weekViewRef);
     const receiptInput = {
         ...cycleResult,
