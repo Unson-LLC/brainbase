@@ -257,6 +257,9 @@ export async function createReleaseArtifact(root, artifactDirectory, expectedVer
       throw new Error('packed manifest does not match the expected Brainbase package identity');
     }
     stagedManifest.gitHead = expectedSha;
+    // npm 10 runs prepare even with --ignore-scripts. This artifact is already
+    // built and intentionally excludes the source needed by that script.
+    if (stagedManifest.scripts) delete stagedManifest.scripts.prepare;
     await writeFile(stagedManifestPath, `${JSON.stringify(stagedManifest, null, 2)}\n`);
 
     const final = packedResult(execute(
