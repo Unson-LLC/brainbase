@@ -121,6 +121,54 @@
           }
         ]
       }
+    },
+    {
+      "id": "INV-6",
+      "type": "invariant",
+      "statement": "既知IDの単体取得は認可されたGraph正本を参照し、未読込索引を該当なしと扱わない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "text_snippet": "既知IDの単体取得は認可されたGraph正本を参照し、未読込索引を該当なしと扱わない。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/get-entity-retrieval.test.ts"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-7",
+      "type": "invariant",
+      "statement": "Codexの実MCP失敗を次の監査前に同一turnへ一度だけ記録し、別turnや生成テキストを証跡にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "text_snippet": "Codexの実MCP失敗を次の監査前に同一turnへ一度だけ記録し、別turnや生成テキストを証跡にしない。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-native-mcp-failure.test.js"
+          }
+        ]
+      }
     }
   ]
 }

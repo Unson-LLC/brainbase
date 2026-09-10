@@ -1,3 +1,4 @@
+import { getStorageType } from '../indexer/ontology.js';
 import { authenticateProject, toolError, type AuthenticatedApiDependencies, type AuthenticatedProjectContext, type ToolResult } from './authenticated-api-tool.js';
 import { retrieveGraph, type Embedder, type GraphNode, type GraphEdge, type RetrievalPlan } from '../retrieval/engine.js';
 
@@ -257,5 +258,37 @@ export async function handleGraphRetrievalToolCall(name: string, args: Record<st
   } catch (error) {
     if (error instanceof RetrievalError) return toolError(error.httpStatus && error.httpStatus >= 500 || error.code === 'brainbase_api_unavailable' ? 'unavailable' : 'error', error.code, error.message, scope, error.httpStatus);
     return toolError('unavailable', 'graph_retrieval_engine_unavailable', error instanceof Error ? error.message : 'Graph retrieval failed', scope);
+  }
+}
+
+/** Read a known identity without depending on the lazily populated entity index. */
+export async function retrieveGraphEntity(args: Record<string, unknown>, deps: GraphRetrievalDependencies): Promise<ToolResult> {
+  let scope: string[] = [];
+  try {
+    if (!text(args.id) || args.id.includes(',') || !text(args.type) || args.type.includes(',')
+      || (args.project !== undefined && !text(args.project))) {
+      throw new RetrievalError('graph_retrieval_input_invalid', 'A single entity id and type are required');
+    }
+    const auth = await authenticateProject({ project_code: args.project }, deps);
+    if ('status' in auth) return auth;
+    scope = auth.scope;
+    if (!scope.length) return toolError('error', 'brainbase_project_not_accessible', 'No authorized project scope', scope);
+    const storageType = getStorageType(args.type);
+    const records = await rows(deps, auth, 'entities', {
+      ids: args.id, type: storageType, limit: '2',
+      ...(typeof args.project === 'string' ? { project: args.project } : {}),
+    });
+    const entities = records.map(node);
+    if (entities.some(entity => entity.id !== args.id || entity.entity_type !== storageType) || entities.length > 1) {
+      throw new RetrievalError('graph_retrieval_response_invalid', 'Graph exact identity response did not match the requested id and type');
+    }
+    if (entities.some(entity => entity.project_code && (!scope.includes(entity.project_code)
+      || (args.project && entity.project_code !== args.project)))) {
+      throw new RetrievalError('brainbase_project_not_accessible', 'Graph entity is outside the authorized project scope');
+    }
+    return { status: 'ok', scope: { project_codes: scope }, data: { entity: entities[0] ?? null, absence_confirmed: false } };
+  } catch (error) {
+    if (error instanceof RetrievalError) return toolError(error.httpStatus && error.httpStatus >= 500 || error.code === 'brainbase_api_unavailable' ? 'unavailable' : 'error', error.code, error.message, scope, error.httpStatus);
+    return toolError('unavailable', 'graph_retrieval_engine_unavailable', error instanceof Error ? error.message : 'Graph entity retrieval failed', scope);
   }
 }

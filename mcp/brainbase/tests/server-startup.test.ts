@@ -98,7 +98,8 @@ test('facade stdio stays discoverable when its backend process cannot start', {t
 
 test('stdio discovery does not wait for or request the Graph projection', {timeout: 15000}, async () => {
   let requests = 0;
-  const api = createServer((_req, res) => { requests++; res.writeHead(503); res.end(); });
+  let requestUrl = '';
+  const api = createServer((_req, res) => { requests++; requestUrl = _req.url || '';  res.writeHead(503); res.end(); });
   await new Promise<void>(resolve => api.listen(0, '127.0.0.1', resolve));
   const address = api.address();
   assert.ok(address && typeof address !== 'string');
@@ -107,7 +108,7 @@ test('stdio discovery does not wait for or request the Graph projection', {timeo
     args: ['--import', 'tsx', fileURLToPath(new URL('../src/index.ts', import.meta.url))],
     cwd: fileURLToPath(new URL('..', import.meta.url)),
     env: {...getDefaultEnvironment(), BRAINBASE_AUTH_MODE: 'service',
-      BRAINBASE_GRAPH_API_TOKEN: 'fixture-token', BRAINBASE_GRAPH_API_URL: `http://127.0.0.1:${address.port}`},
+      BRAINBASE_GRAPH_API_TOKEN: `x.${Buffer.from(JSON.stringify({projectCodes: ['brainbase']})).toString('base64url')}.x`, BRAINBASE_GRAPH_API_URL: `http://127.0.0.1:${address.port}`},
     stderr: 'pipe',
   });
   transport.stderr?.resume();
@@ -119,7 +120,11 @@ test('stdio discovery does not wait for or request the Graph projection', {timeo
     assert.equal(requests, 0, 'metadata discovery must not fetch Graph');
     const failed = await client.callTool({name: 'get_entity', arguments: {type: 'project', id: 'fixture'}});
     assert.equal(failed.isError, true);
-    assert.ok(requests > 0, 'Graph is loaded when actually needed');
+    assert.equal(requests, 1, 'known identity uses one bounded Graph request');
+    const requested = new URL(requestUrl, 'http://fixture');
+    assert.equal(requested.searchParams.get('ids'), 'fixture');
+    assert.equal(requested.searchParams.get('limit'), '2');
+    assert.match(JSON.stringify(failed), /graph_retrieval_api_error/);
     assert.doesNotMatch(JSON.stringify(failed), /No context found/);
   } finally {
     await client.close();

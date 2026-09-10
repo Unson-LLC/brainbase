@@ -156,6 +156,7 @@ function createDeadlineSignal(
 }
 
 function graphMetadata(entity: GraphEntity): {
+  graph_entity_id: string;
   project_code?: string;
   source?: string;
   source_path?: string;
@@ -169,6 +170,7 @@ function graphMetadata(entity: GraphEntity): {
   const semanticState = entity.semantic_state
     || (typeof entity.payload.semantic_state === 'string' ? entity.payload.semantic_state : undefined);
   return {
+    graph_entity_id: entity.entity_id,
     project_code: entity.project_code,
     source: entity.payload.source as string | undefined,
     source_path: entity.payload.source_path as string | undefined,
@@ -579,6 +581,25 @@ export class GraphAPISource implements EntitySource {
       throw new Error('Philosophy context is missing from Graph API response');
     }
     return data.philosophy_context;
+  }
+
+  /** Convert one authenticated API row with the same presentation as the snapshot index. */
+  convertEntity(entity: GraphEntity) {
+    const publicEntity = { ...entity, entity_type: getPublicType(entity.entity_type) };
+    switch (publicEntity.entity_type) {
+      case 'project': return this.convertToProject(publicEntity);
+      case 'person': return this.convertToPerson(publicEntity);
+      case 'org': return this.convertToOrg(publicEntity);
+      case 'brand': return this.convertToBrand(publicEntity);
+      case 'raci': return this.convertToRACI(publicEntity);
+      case 'app': return this.convertToApp(publicEntity);
+      case 'customer': return this.convertToCustomer(publicEntity);
+      case 'partner': return this.convertToPartner(publicEntity);
+      case 'decision': return this.convertToDecision(publicEntity);
+      case 'glossary_term': return this.convertToGlossaryTerm(publicEntity);
+      case 'document': return this.convertToDocument(publicEntity);
+      default: return this.convertToExtensionEntity(publicEntity);
+    }
   }
 
   private convertToProject(entity: GraphEntity): Project {
