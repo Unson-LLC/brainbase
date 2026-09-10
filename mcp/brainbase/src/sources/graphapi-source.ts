@@ -1,3 +1,4 @@
+import { extractEvidence, hasSubstantiveValue } from '../retrieval/evidence.js';
 /**
  * Graph API Source
  * Loads entities from Graph SSOT API
@@ -594,6 +595,7 @@ export class GraphAPISource implements EntitySource {
       apps: this.ensureArray(payload.apps),
       customers: this.ensureArray(payload.customers),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       beta_partners: payload.beta_partners as number | undefined,
       updated: entity.updated_at,
       ...graphMetadata(entity),
@@ -630,6 +632,7 @@ export class GraphAPISource implements EntitySource {
       aliases: this.ensureArray(payload.aliases),
       orgType: (payload.type as string) || 'unknown',
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -654,6 +657,7 @@ export class GraphAPISource implements EntitySource {
       visual_assets: this.ensureArray(payload.visual_assets),
       aliases: this.ensureArray(payload.aliases),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -685,6 +689,7 @@ export class GraphAPISource implements EntitySource {
       assignments,
       products: this.ensureArray(payload.products),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -739,6 +744,7 @@ export class GraphAPISource implements EntitySource {
       projects: this.ensureArray(payload.projects),
       aliases: this.ensureArray(payload.aliases),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -753,6 +759,7 @@ export class GraphAPISource implements EntitySource {
       decision_id: (payload.decision_id as string) || entity.entity_id,
       title: (payload.title as string) || '',
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       decided_at: (payload.decided_at as string) || '',
       decider: (payload.decider as string) || '',
       project_id: (payload.project_id as string) || undefined,
@@ -777,6 +784,7 @@ export class GraphAPISource implements EntitySource {
       aliases: this.ensureArray(payload.aliases),
       description: (payload.description as string) || '',
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -794,6 +802,7 @@ export class GraphAPISource implements EntitySource {
       path: (payload.path as string) || (payload.source_path as string) || undefined,
       tags: this.ensureArray(payload.tags),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -811,21 +820,18 @@ export class GraphAPISource implements EntitySource {
       status: typeof payload.status === 'string' ? payload.status : undefined,
       payload,
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
   }
 
   private contentFromPayload(payload: Record<string, unknown>): string {
-    return (
-      (payload.content as string) ||
-      (payload.markdown as string) ||
-      (payload.body_summary as string) ||
-      (payload.summary as string) ||
-      (payload.description as string) ||
-      (payload.notes as string) ||
-      ''
-    );
+    for (const field of ['content', 'markdown', 'body_summary', 'summary', 'description', 'notes', 'statement', 'decision', 'body', 'rationale']) {
+      const value = payload[field];
+      if (hasSubstantiveValue(value)) return typeof value === 'string' ? value : JSON.stringify(value);
+    }
+    return '';
   }
 
   private ensureArray(value: unknown): string[] {

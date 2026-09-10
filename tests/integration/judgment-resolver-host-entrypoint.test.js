@@ -911,7 +911,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(readFileSync(finalPath, 'utf8')).toBe(finalBefore);
     }, 20_000);
 
-    it('失敗したrequired routeを重複実行せずowner監査だけを修復できる', async () => {
+    it('失敗したrequired routeは有限な差し戻し後も監査縮退として残る', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
@@ -959,9 +959,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(recorded.code).toBe(0);
         const routeLine = JSON.parse(recorded.stdout).systemMessage;
 
-        // A failed-but-attempted knowledge.resolve call satisfies the required
-        // capability, while the owner audit must still be visible in the
-        // assistant answer itself.
+        // A failed route remains unmet after the bounded retry; the visible
+        // warning cannot turn it into a successful capability.
         const firstStop = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: false,
             last_assistant_message: '参照先を確定できなかった回答'
@@ -978,7 +977,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(repairedStop.stdout).decision).toBeUndefined();
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
-            completion_status: 'complete', event_count: 1, qualifying_event_count: 0
+            completion_status: 'audit_degraded', event_count: 1, qualifying_event_count: 0
         });
     }, 20_000);
 

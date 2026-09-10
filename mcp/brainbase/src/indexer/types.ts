@@ -4,6 +4,7 @@
 
 // Base entity interface
 export interface BaseEntity {
+  retrieval_evidence?: import('../retrieval/evidence.js').RetrievalEvidence;
   id: string;
   filePath: string;
   updated?: string;

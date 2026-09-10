@@ -1,3 +1,5 @@
+import { bodyEvidenceFields } from './retrieval/evidence.js';
+import { knowledgeEvidenceTools, handleKnowledgeEvidenceToolCall } from './tools/knowledge-evidence-tools.js';
 /**
  * brainbase MCP Server
  * Provides context from the brainbase Graph SSOT to Claude
@@ -190,10 +192,11 @@ function buildToolResponseContent(
   name: string,
   toolArgs: Record<string, unknown>,
   result: string,
+  entity?: unknown,
 ) {
   return buildKnowledgeToolContent(
     result,
-    buildKnowledgeOwnerAudit(name, toolArgs, result),
+    buildKnowledgeOwnerAudit(name, toolArgs, result, entity),
   );
 }
 
@@ -210,9 +213,10 @@ function buildMcpToolResult(
   toolArgs: Record<string, unknown>,
   result: string,
   extensionResult: unknown,
+  entity?: unknown,
 ) {
-  const response = { content: buildToolResponseContent(name, toolArgs, result) };
-  const retrievalFailure = name === 'search' && extensionResult !== null
+  const response = { content: buildToolResponseContent(name, toolArgs, result, entity) };
+  const retrievalFailure = ['search', 'brainbase_knowledge_evidence_record'].includes(name) && extensionResult !== null
     && typeof extensionResult === 'object'
     && ['error', 'unavailable'].includes(String((extensionResult as Record<string, unknown>).status));
   return (retrievalFailure || isStructuredJudgmentToolFailure(name, extensionResult))
@@ -395,7 +399,7 @@ function formatEntity(entity: unknown): string {
   const lines: string[] = [];
 
   // Basic info
-  lines.push(`## ${e.name || e.id}`);
+  lines.push(`## ${e.name || e.title || e.id}`);
   lines.push(`- **Type**: ${e.type}`);
   lines.push(`- **ID**: ${e.id}`);
 
@@ -432,6 +436,11 @@ function formatEntity(entity: unknown): string {
       const value = payload[field];
       if (typeof value === 'string' && value.trim()) lines.push(`- **${label}**: ${value.trim()}`);
     }
+  }
+
+  const evidence = e.retrieval_evidence as Record<string, unknown> | undefined;
+  for (const field of ['source_pointer', 'provenance']) {
+    if (evidence?.[field]) lines.push(`- **${field}**: ${typeof evidence[field] === 'string' ? evidence[field] : JSON.stringify(evidence[field])}`);
   }
 
   // Decision-specific fields
@@ -480,10 +489,14 @@ function formatEntity(entity: unknown): string {
   }
 
   // Content
-  if (e.content && typeof e.content === 'string' && e.content.trim()) {
-    lines.push('');
-    lines.push('### Content');
-    lines.push(e.content);
+  const bodyFields = bodyEvidenceFields(evidence ?? {});
+  if (bodyFields.length) {
+    for (const field of bodyFields) {
+      const value = evidence![field];
+      lines.push('', `### ${field}`, '', typeof value === 'string' ? value : JSON.stringify(value));
+    }
+  } else if (e.content && typeof e.content === 'string' && e.content.trim()) {
+    lines.push('', '## Content', '', e.content);
   }
 
   // New position-based RACI format
@@ -1245,6 +1258,7 @@ export const publishedTools = annotateToolCapabilities([
   ...judgmentAuditTools,
   ...judgmentValueProofTools,
   ...judgmentStateTools,
+  ...knowledgeEvidenceTools,
   ...knowledgeResolutionTools,
   ...meetingMinutesContextTools,
   ...taskTools,
@@ -1421,6 +1435,13 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     try {
       const toolArgs = args as Record<string, unknown>;
       rejectLegacySearchSurface(name, toolArgs);
+      if (name === 'get_entity') {
+        const entity = getEntity(entityIndex, toolArgs.type as EntityType, String(toolArgs.id));
+        const result = await prependPhilosophyContext(entity ? formatEntity(entity) : `Entity not found: ${toolArgs.type}/${toolArgs.id}`, toolArgs, {
+          scope: 'graph', objectType: toolArgs.type as EntityType, operation: 'read',
+        });
+        return buildMcpToolResult(name, toolArgs, result, null, entity ?? null);
+      }
       const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
         async (toolName, extensionArgs) => {
           const retrieval = await handleGraphRetrievalToolCall(toolName, extensionArgs, {
@@ -1457,6 +1478,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         ),
         (toolName, extensionArgs) => handleJudgmentAuditToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentValueProofToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleKnowledgeEvidenceToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentStateToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
