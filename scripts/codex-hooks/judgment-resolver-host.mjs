@@ -1137,7 +1137,8 @@ function verifyEpisode(entry) {
     const application = entry.route_application;
     const legacyLifecycle = origin === undefined && application === undefined;
     const validLifecycle = (origin === 'user_prompt_submit' && application === 'pre_generation')
-        || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery');
+        || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery')
+        || (origin === 'pre_tool_delegation_recovery' && application === 'pre_tool_execution');
     if (!legacyLifecycle && !validLifecycle) throw new Error('judgment_episode_lifecycle_invalid');
     if (entry.pre_episode_audit_gap !== undefined) {
         if (origin !== 'stop_delegation_recovery' || application !== 'post_generation_recovery') {
@@ -1314,7 +1315,7 @@ function persistTurnInput(payload, episode, env) {
     return `${identity.sessionRef}/${paths.turnRef}`;
 }
 
-async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
+async function bootstrapDelegatedEpisode(payload, dependencies, beforeTool = false) {
     const env = dependencies.env ?? process.env;
     const existing = existingEpisode(payload, env);
     if (existing) {
@@ -1325,8 +1326,8 @@ async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
     if (!prompt) return null;
     const episode = await startEpisode({ ...payload, prompt }, {
         ...dependencies,
-        episodeOrigin: 'stop_delegation_recovery',
-        routeApplication: 'post_generation_recovery'
+        episodeOrigin: beforeTool ? 'pre_tool_delegation_recovery' : 'stop_delegation_recovery',
+        routeApplication: beforeTool ? 'pre_tool_execution' : 'post_generation_recovery'
     });
     await dependencies.onEpisodeStarted?.(episode);
     withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
@@ -4408,6 +4409,8 @@ function hasVerifiedStart(payload, env) {
                 && episode.route_application === 'pre_generation')
             || (episode.episode_origin === 'stop_delegation_recovery'
                 && episode.route_application === 'post_generation_recovery')
+            || (episode.episode_origin === 'pre_tool_delegation_recovery'
+                && episode.route_application === 'pre_tool_execution')
         );
         if (!verifiedLifecycle) return false;
         const input = readJson(journalPaths(identity.sessionRef, identity.turnId, env).turnInput);
@@ -4524,6 +4527,34 @@ export async function processHookPayload(payload, dependencies = {}) {
     }
     if (env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue' && eventName === 'PreToolUse') {
         const inScope = diagnosticContinueEnabled(env, payload);
+        // A Codex App task may omit UserPromptSubmit. Recover only from the
+        // existing trusted, complete current-turn delegation parser. Never
+        // execute the intercepted tool: first hand the canonical reference to
+        // the model, then resume the normal resolver/Stop contract.
+        try {
+            if (inScope && !hasStartFailureOrUnreadableDiagnostic(payload, env)
+                && !existingEpisode(payload, env)) {
+                const episode = await bootstrapDelegatedEpisode(payload, dependencies, true);
+                if (episode) {
+                    const turnRef = persistTurnInput(payload, episode, env);
+                    const context = successOutput(
+                        episode.turn_input, episode.initial_route_receipt, episode.owner_audit,
+                        episodeAuditContract(episode), env, episode.host_surface ?? null,
+                        turnRef, episode.host_autonomy ?? null
+                    ).hookSpecificOutput.additionalContext.replace(
+                        'before model generation', 'before the first tool execution from verified Codex App delegation'
+                    );
+                    return { hookSpecificOutput: {
+                        hookEventName: 'PreToolUse', permissionDecision: 'deny',
+                        permissionDecisionReason: context
+                    } };
+                }
+            }
+        } catch {
+            // A corrupt existing journal or failed bootstrap is never permission.
+            return { hookSpecificOutput: { hookEventName: 'PreToolUse',
+                permissionDecision: 'deny', permissionDecisionReason: START_FAILURE_WARNING } };
+        }
         return inScope && hasVerifiedStart(payload, env) ? {} : {
             hookSpecificOutput: {
                 hookEventName: 'PreToolUse',
@@ -4592,7 +4623,7 @@ export async function processHookPayload(payload, dependencies = {}) {
                 : {};
     }
     if (eventName === 'Stop') {
-        await bootstrapDelegatedEpisodeAtStop(payload, dependencies);
+        await bootstrapDelegatedEpisode(payload, dependencies);
         const autonomyOutput = await evaluateAutonomyStop(payload, dependencies);
         if (autonomyOutput) return autonomyOutput;
 
