@@ -2462,6 +2462,11 @@ describe('Codex Judgment Resolver Host', () => {
         const blocked = finalizeEpisode({ ...payload, stop_hook_active: false, last_assistant_message: `${prefix()}\n回答` }, { env });
         expect(blocked.output.decision).toBe('block');
         expect(blocked.output.reason).toContain('brainbase_knowledge_evidence_record');
+        expect(blocked.output.reason).toContain('最新prefix');
+        expect(blocked.output.reason).toContain('実取得と根拠判定に基づいて回答本文を更新');
+        expect(blocked.output.reason).not.toContain('元の回答本文をそのまま');
+        expect(blocked.output.reason).not.toContain('最終回答の先頭に次の監査行');
+        expect(blocked.continuation.answer_body_binding).toBeUndefined();
         const retrieval = { status: status === 'sufficient' ? 'retrieved' : 'empty', coverage: 'partial', sufficiency: 'insufficient', absence_confirmed: false,
             references: status === 'sufficient' ? [{ id: 'dec-1', entity_type: 'decision', evidence_status: 'present', evidence_fields: ['statement'] }] : [] };
         record('search', 'search', { query: '決定' }, { content: [{ type: 'text', text: JSON.stringify({ status: 'ok' }) }, { type: 'text', text: `<!-- brainbase-knowledge-owner-audit:${JSON.stringify({ schema_version: 'brainbase-knowledge-owner-audit-v1', operation: '検索', outcome: '結果を取得', retrieval })} -->` }] });

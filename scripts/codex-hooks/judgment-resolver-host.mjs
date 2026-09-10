@@ -3923,7 +3923,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
             ] : []),
             ...((stopDecision.protocol_status === 'repair' || stopDecision.business_decision === 'CONTINUE') ? [
-                `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
+                missingKnowledgeEvidence
+                    ? `実取得と根拠判定の後に${JUDGMENT_AUDIT_READ_TOOL_NAME}を呼び、その時点の最新prefixを最終回答の先頭へ各1回だけ表示する。追加取得前の監査行を再利用しない`
+                    : `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
             ] : []),
             ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
             ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
@@ -3940,7 +3942,9 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         const reasonSequence = reasons.join('\nその後、');
         const completionInstruction = stopDecision.business_decision === 'CONTINUE'
             ? '作業・検証を先に行い、その結果に基づく状態を最後のtool callで記録してください。安全な残作業があればpendingのまま実行を続け、完了した範囲と未完了を区別して報告してください。'
-            : '監査行の後に、元の回答本文をそのまま続けてください。';
+            : missingKnowledgeEvidence
+                ? '監査行の後には、今回の実取得と根拠判定に基づいて回答本文を更新してください。取得前の「未取得」などの記述を現在の状態として残さず、本文不足や取得失敗なら不足を明示してください。'
+                : '監査行の後に、元の回答本文をそのまま続けてください。';
         const progressLine = stopDecision.business_decision === 'CONTINUE'
             ? continuationTriggerCode === 'unfinished_safe_work'
                 ? auditContract.outcome_continuation_progress_line
