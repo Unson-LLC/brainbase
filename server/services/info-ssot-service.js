@@ -1111,7 +1111,7 @@ export class InfoSSOTService {
                       JOIN projects px ON px.id = gx.project_id
                       WHERE gx.from_id = ge.id
                         AND gx.rel_type = 'member_of'
-                        AND gx.lifecycle_status = 'active'
+                        AND COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'
                         AND px.code = ANY($3)
                         AND gx.sensitivity = ANY($4)
                         AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
@@ -1123,7 +1123,7 @@ export class InfoSSOTService {
                       JOIN projects px ON px.id = gx.project_id
                       WHERE gx.from_id = ge.id
                         AND gx.rel_type = 'member_of'
-                        AND gx.lifecycle_status = 'active'
+                        AND COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'
                         AND px.code = ANY($3)
                         AND gx.sensitivity = ANY($4)
                         AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
@@ -1143,7 +1143,7 @@ export class InfoSSOTService {
                    JOIN projects px ON px.id = gx.project_id
                      WHERE gx.from_id = ge.id
                        AND gx.rel_type = 'member_of'
-                       AND gx.lifecycle_status = 'active'
+                       AND COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'
                        AND gx.sensitivity = ANY($4)
                        AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                        AND px.code = $1
@@ -1160,7 +1160,7 @@ export class InfoSSOTService {
                      JOIN projects py ON py.id = gy.project_id
                      WHERE gy.from_id = ge.id
                        AND gy.rel_type = 'member_of'
-                       AND gy.lifecycle_status = 'active'
+                       AND COALESCE(to_jsonb(gy)->>'lifecycle_status', 'active') = 'active'
                        AND gy.sensitivity = ANY($4)
                        AND (CASE gy.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                        AND py.code = ANY($3)
@@ -1292,7 +1292,7 @@ export class InfoSSOTService {
                       JOIN projects px ON px.id = gx.project_id
                       WHERE gx.from_id = ge.id
                         AND gx.rel_type = 'member_of'
-                        AND gx.lifecycle_status = 'active'
+                        AND COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'
                         AND px.code = ANY($3)
                         AND gx.sensitivity = ANY($4)
                         AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
@@ -1304,7 +1304,7 @@ export class InfoSSOTService {
                       JOIN projects px ON px.id = gx.project_id
                       WHERE gx.from_id = ge.id
                         AND gx.rel_type = 'member_of'
-                        AND gx.lifecycle_status = 'active'
+                        AND COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'
                         AND px.code = ANY($3)
                         AND gx.sensitivity = ANY($4)
                         AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
@@ -1324,7 +1324,7 @@ export class InfoSSOTService {
                      JOIN projects px ON px.id = gx.project_id
                      WHERE gx.from_id = ge.id
                        AND gx.rel_type = 'member_of'
-                       AND gx.lifecycle_status = 'active'
+                       AND COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'
                        AND gx.sensitivity = ANY($4)
                        AND (CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                        AND px.code = $2
@@ -1340,7 +1340,7 @@ export class InfoSSOTService {
                      JOIN projects py ON py.id = gy.project_id
                      WHERE gy.from_id = ge.id
                        AND gy.rel_type = 'member_of'
-                       AND gy.lifecycle_status = 'active'
+                     AND COALESCE(to_jsonb(gy)->>'lifecycle_status', 'active') = 'active'
                        AND gy.sensitivity = ANY($4)
                        AND (CASE gy.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
                        AND py.code = ANY($3)

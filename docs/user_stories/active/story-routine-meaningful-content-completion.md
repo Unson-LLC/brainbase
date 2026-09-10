@@ -10,4 +10,5 @@
 - 主要欄が空なら `partial` と `routine_content_empty` を返し、空の成功にしない。
 - `oyasumi` で残件が0件の場合も、何を確認して閉じたかを `closed` に残す。
 - 例外時は安全な `code`、`stage`、`summary` を成果物の anomalies に残す。
+- 移行中DBに `graph_edges.lifecycle_status` がなくてもGraph読取りで落ちず、列があるDBでは非active関係を公開しない。
 - 既存の認証、権限、Graph、Personal KG、通常PRの境界を変更しない。
