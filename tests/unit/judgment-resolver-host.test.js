@@ -2011,7 +2011,7 @@ describe('Codex Judgment Resolver Host', () => {
             brainbase_projects: 'retrieve', brainbase_bootstrap_config: 'retrieve', brainbase_admin_read: 'retrieve',
             brainbase_run_receipt_inbox: 'retrieve', brainbase_run_receipt_history: 'retrieve', brainbase_run_receipt_diagnosis: 'retrieve',
             brainbase_automation_run_detail: 'retrieve', brainbase_meeting_automation_diagnosis: 'retrieve', brainbase_onboarding_get: 'retrieve',
-            brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_judgment_audit_read: 'ignored', brainbase_get_meeting_minutes_context: 'retrieve', authorize_tenant_resource: 'retrieve',
+            brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_knowledge_evidence_record: 'evidence', brainbase_judgment_audit_read: 'ignored', brainbase_get_meeting_minutes_context: 'retrieve', authorize_tenant_resource: 'retrieve',
             mesh_peers: 'retrieve', graph_get_plan_receipt: 'retrieve', graph_validate: 'retrieve',
             brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
             brainbase_automation_human_step_resolve: 'write', brainbase_onboarding_start: 'write', brainbase_onboarding_ingest: 'write',
@@ -2441,6 +2441,37 @@ describe('Codex Judgment Resolver Host', () => {
         expect(repair.output.reason).not.toContain('🛠️ Stop修復');
     });
 
+    it.each(['sufficient', 'insufficient'])('Graph必須Stopは実取得と同じturnの%s判定を検証する', async (status) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: `session-evidence-${status}`, turn_id: 'turn-evidence', prompt: '決定の根拠を確認して', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: async () => ({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: {
+            ...validReceipt(buildJudgmentRequest(payload, { env })),
+            required_capabilities: [{ capability: 'knowledge.resolve', status: 'required' }]
+        } }) }) });
+        const record = (name, id, input, response) => recordBrainbaseToolUse({ ...payload,
+            hook_event_name: 'PostToolUse', tool_name: `mcp__brainbase__${name}`, tool_use_id: id,
+            tool_input: input, tool_response: response }, { env });
+        const routed = record('brainbase_knowledge_resolve', 'route', { intent: payload.prompt }, { status: 'ok', data: {
+            resolution_id: 'kr_graph', status: 'resolved', source_class: 'graph',
+            canonical_location: { url: 'https://bb.unson.jp' }, retrieval_capability: 'graph.search',
+            searched_scope: [], absence_confirmed: false, excluded_sources: []
+        } });
+        expect(routed.success).toBe(true);
+        const prefix = () => readEpisodeAudit(`${hash(payload.session_id)}/${hash(payload.turn_id)}`, { env }).prefix;
+        const blocked = finalizeEpisode({ ...payload, stop_hook_active: false, last_assistant_message: `${prefix()}\n回答` }, { env });
+        expect(blocked.output.decision).toBe('block');
+        expect(blocked.output.reason).toContain('brainbase_knowledge_evidence_record');
+        const retrieval = { status: status === 'sufficient' ? 'retrieved' : 'empty', coverage: 'partial', sufficiency: 'insufficient', absence_confirmed: false,
+            references: status === 'sufficient' ? [{ id: 'dec-1', entity_type: 'decision', evidence_status: 'present', evidence_fields: ['statement'] }] : [] };
+        record('search', 'search', { query: '決定' }, { content: [{ type: 'text', text: JSON.stringify({ status: 'ok' }) }, { type: 'text', text: `<!-- brainbase-knowledge-owner-audit:${JSON.stringify({ schema_version: 'brainbase-knowledge-owner-audit-v1', operation: '検索', outcome: '結果を取得', retrieval })} -->` }] });
+        const input = { status, reference_ids: status === 'sufficient' ? ['dec-1'] : [], reason: '取得した内容と質問を照合した' };
+        const assessed = record('brainbase_knowledge_evidence_record', 'assessment', input, { status: 'ok', data: { schema_version: 'brainbase-knowledge-evidence-assessment-v1', ...input } });
+        expect(assessed.success).toBe(true);
+        const completed = finalizeEpisode({ ...payload, stop_hook_active: true, last_assistant_message: `${prefix()}\n${status === 'sufficient' ? '根拠に基づく回答' : '根拠不足で判断できません'}` }, { env });
+        expect(completed.final).toMatchObject({ completion_status: 'complete', content_verification_status: status === 'sufficient' ? 'model_assessed_with_retrieval' : 'insufficient' });
+    });
+
     it('SQLite transition transactionでStopをfinal receiptへ収束させる', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
@@ -2524,7 +2555,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toThrow('judgment_episode_final_lifecycle_mismatch');
     });
 
-    it('継続中にknowledge routeを取得すればcompleteとして一度だけ確定する', async () => {
+    it('参照先が未確定のままの再Stopは縮退として一度だけ確定する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-complete', turn_id: 'turn-complete', prompt: '正本を確認', cwd: process.cwd() };
@@ -2571,11 +2602,12 @@ describe('Codex Judgment Resolver Host', () => {
         expect(result.output.systemMessage).toBe([
             episode.owner_audit.display_line,
             routed.display_line,
-            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
+            '⚠️ 監査縮退: knowledge.resolve'
         ].join('\n'));
         expect(result.final).toMatchObject({
             schema_version: 'brainbase-judgment-episode-final-v2',
-            completion_status: 'complete', event_count: 1, qualifying_event_count: 0
+            completion_status: 'audit_degraded', event_count: 1, qualifying_event_count: 0
         });
         expect(recordBrainbaseToolUse(routePayload, { env })).toEqual(routed);
         expect(() => recordBrainbaseToolUse({
@@ -4261,7 +4293,7 @@ describe('Codex Judgment Resolver Host', () => {
         });
     });
 
-    it('失敗したknowledge routeも実行済みとして安定した監査修復へ進む', async () => {
+    it('失敗したknowledge routeは必須能力を満たさず有限な監査縮退へ進む', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-prior', turn_id: 'turn-first', prompt: '正本を確認して', cwd: process.cwd() };
@@ -4288,9 +4320,8 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env });
         expect(failed).toMatchObject({ success: false, satisfies: ['knowledge.resolve'] });
 
-        // A failed-but-attempted knowledge.resolve call satisfies the required
-        // capability, but the visible answer still has to carry the exact
-        // warning block recorded by the Host.
+        // A failed route never satisfies the capability. The bounded second Stop
+        // preserves the failure as degraded, even with an exact audit block.
         const blocked = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: false,
             last_assistant_message: '参照先を確定できなかった回答'
@@ -4307,16 +4338,14 @@ describe('Codex Judgment Resolver Host', () => {
             ].join('\n')
         }, { env });
         expect(completed.final).toMatchObject({
-            completion_status: 'complete', qualifying_event_count: 0, event_count: 1,
+            completion_status: 'audit_degraded', qualifying_event_count: 0, event_count: 1,
             owner_audit_source: 'assistant_answer'
         });
 
         const next = buildJudgmentRequest({
             session_id: payload.session_id, turn_id: 'turn-next', prompt: '続けて', cwd: process.cwd()
         }, { env });
-        expect(next.conversation_context.prior_receipts).toEqual([
-            expect.objectContaining({ turn_id: 'turn-first', resolution_id: 'jr_host_test' })
-        ]);
+        expect(next.conversation_context.prior_receipts).toEqual([]);
     });
 
     // Traceability: story-judgment-audit-continuity-v1:ac:5
