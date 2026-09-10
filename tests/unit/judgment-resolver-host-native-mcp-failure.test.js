@@ -121,3 +121,16 @@ it('does not choose between conflicting structured upstream codes', async () => 
     reconcileNativeMcpFailures(f.payload, { env: f.env });
     expect(f.events()[0].safe_metadata.tool_failure.upstream_error_code).toBeUndefined();
 });
+
+it.each(['missing-episode', 'missing-input', 'mismatched-input', 'legacy-episode'])('does not bootstrap or reconcile from %s', async kind => {
+    const f = await fixture(); const base = join(f.root, 'journal', hash('session'), hash('turn'));
+    if (kind === 'missing-episode') rmSync(`${base}.episode.json`);
+    if (kind === 'missing-input') rmSync(`${base}.turn-input.json`);
+    if (kind === 'mismatched-input') writeFileSync(`${base}.turn-input.json`, JSON.stringify({ turn_id: 'other' }));
+    if (kind === 'legacy-episode') {
+        const path = `${base}.episode.json`; const episode = JSON.parse(readFileSync(path, 'utf8'));
+        delete episode.episode_origin; delete episode.route_application; writeFileSync(path, JSON.stringify(episode));
+    }
+    expect(reconcileNativeMcpFailures(f.payload, { env: f.env })).toEqual([]);
+    expect(f.events()).toEqual([]);
+});

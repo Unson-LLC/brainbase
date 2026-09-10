@@ -1,0 +1,198 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-hook-grounded-completion",
+  "clauses": [
+    {
+      "id": "INV-1",
+      "type": "invariant",
+      "statement": "Graph必須turnは参照先解決だけではStopを通過しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "text_snippet": "Graph必須turnは参照先解決だけではStopを通過しない。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-2",
+      "type": "invariant",
+      "statement": "同じturnで実取得した本文を持つIDにモデルの回答可能判定を束縛する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "text_snippet": "同じturnで実取得した本文を持つIDにモデルの回答可能判定を束縛する。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-3",
+      "type": "invariant",
+      "statement": "本文不足・空・取得失敗は不足として表示し、不在確定や十分な根拠へ変換しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "text_snippet": "本文不足・空・取得失敗は不足として表示し、不在確定や十分な根拠へ変換しない。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-4",
+      "type": "invariant",
+      "statement": "決定本文・理由・出典をget_entityまで保持し、空構造を本文扱いしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "text_snippet": "決定本文・理由・出典をget_entityまで保持し、空構造を本文扱いしない。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-5",
+      "type": "invariant",
+      "statement": "全体hooksを変更せずBrainbase限定で正常・不足・実エラーを検証する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "text_snippet": "全体hooksを変更せずBrainbase限定で正常・不足・実エラーを検証する。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host.test.js"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-6",
+      "type": "invariant",
+      "statement": "既知IDの単体取得は認可されたGraph正本を参照し、未読込索引を該当なしと扱わない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "text_snippet": "既知IDの単体取得は認可されたGraph正本を参照し、未読込索引を該当なしと扱わない。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "mcp/brainbase/src/server.ts"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "mcp/brainbase/tests/tools/graph-retrieval.test.ts"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-7",
+      "type": "invariant",
+      "statement": "Codexの実MCP失敗を次の監査前に同一turnへ一度だけ記録し、別turnや生成テキストを証跡にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 6,
+            "text_snippet": "Codexの実MCP失敗を次の監査前に同一turnへ一度だけ記録し、別turnや生成テキストを証跡にしない。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-native-mcp-failure.test.js"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-8",
+      "type": "invariant",
+      "statement": "コンテキスト圧縮で完全一致のturn_contextが再掲されても子タスクを拒否せず、不一致は拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 7,
+            "text_snippet": "コンテキスト圧縮で完全一致のturn_contextが再掲されても子タスクを拒否せず、不一致は拒否する。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-subagent.test.js"
+          }
+        ]
+      }
+    }
+  ]
+}
