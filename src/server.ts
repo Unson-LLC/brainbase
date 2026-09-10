@@ -1,3 +1,4 @@
+import { createOrganizationGraphConfig, createOrganizationGraphClient } from './organization-graph.js';
 import { createHash } from 'node:crypto';
 import { retrieveGraph } from './graph-retrieval.js';
 import { createEmbeddingProviderFromEnv, type EmbeddingProvider } from './embedding-provider.js';
@@ -443,6 +444,13 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
       return getOntologyImpact(args.fromVersion);
   }
 
+  if (name === 'search') {
+    const organization = createOrganizationGraphConfig();
+    if (organization) {
+      return createOrganizationGraphClient(organization).search({ query: args.query!, limit: args.limit,
+        project: args.project, asOf: args.as_of ?? args.asOf, seedIds: args.seedIds, steps: args.steps });
+    }
+  }
   const os = await loadPersonalOs(dataDir);
 
   switch (name) {

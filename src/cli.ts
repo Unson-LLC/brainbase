@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { createPortableGraph, portableGraphDigest } from './portable-graph.js';
+import { createOrganizationGraphConfig, createOrganizationGraphClient } from './organization-graph.js';
 import { constants, realpathSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
@@ -74,6 +76,18 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
       return 0;
     }
     switch (parsed.command) {
+      case 'graph:upgrade': {
+        const config = createOrganizationGraphConfig();
+        if (!config) throw new Error('graph:upgrade requires all BRAINBASE_ORGANIZATION_* settings');
+        const bundle = createPortableGraph(await loadPersonalOs(resolveDataDir(first(parsed, 'dir'))));
+        const client = createOrganizationGraphClient(config);
+        const imported = await client.importPortableGraph(bundle);
+        const readback = await client.readPortableGraph();
+        if (readback.digest !== portableGraphDigest(bundle)) throw new Error('organization_graph_readback_mismatch');
+        write(io, JSON.stringify({ status: imported.status, digest: readback.digest, readbackVerified: true,
+          sourceFilesUnchanged: true, graphId: config.graphId }) + '\n');
+        return 0;
+      }
       case 'onboard:init':
         return await onboardInit(parsed, io);
       case 'onboard:seed':
@@ -1205,6 +1219,7 @@ function usage(): string {
   brainbase onboard:skills --target codex|claude|portable [--skills id,id] [--out dir] [--format markdown|json]
   brainbase ontology:show
   brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0|2.0.0]
+  brainbase graph:upgrade [--dir path]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]

@@ -68,7 +68,7 @@ export interface GraphRetrievalResponse {
   schemaVersion: 1 | 2;
   status: 'ok' | 'migration_required';
   migrationRequired: boolean;
-  authority: 'local_graph';
+  authority: 'local_graph' | 'organization_graph';
   query: string;
   asOf: string;
   project?: { id: string; name: string };
