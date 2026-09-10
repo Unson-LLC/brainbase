@@ -22,6 +22,10 @@ export function createInfoSSOTRouter(infoSSOTService, { auditTenantGuard = (_req
     router.post('/ontology/graph/commit', controller.commitOntologyGraph);
     router.post('/ontology/publications/authorize', controller.authorizeOntologyPublication);
 
+    router.post('/graph/portable/:graphId/import', controller.importPortableGraph);
+    router.get('/graph/portable/:graphId', controller.readPortableGraph);
+    router.post('/graph/portable/:graphId/search', controller.searchPortableGraph);
+
     // Read (Graph SSOT only)
     router.get('/graph/entities', controller.listGraphEntities);
     router.post('/graph/search', controller.searchGraph);

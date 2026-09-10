@@ -347,7 +347,8 @@ export function csrfMiddleware() {
         // auth and requires a signed tenant identity plus project authorization.
         const requestPath = String(req.originalUrl || req.path || '').split('?')[0];
         if (
-            requestPath.startsWith('/api/info/graph/maintenance/')
+            (requestPath.startsWith('/api/info/graph/maintenance/')
+                || /^\/api\/info\/graph\/portable\/[A-Za-z0-9][A-Za-z0-9._~-]{0,127}\/(import|search)$/.test(requestPath))
             && typeof req.headers?.authorization === 'string'
             && req.headers.authorization.startsWith('Bearer ')
         ) {

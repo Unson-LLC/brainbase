@@ -1,3 +1,4 @@
+import { PortableGraphService } from '../services/portable-graph-service.js';
 // @ts-check
 import { logger } from '../utils/logger.js';
 import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
@@ -138,8 +139,25 @@ export class InfoSSOTController {
     /** @param {any} infoSSOTService */
     constructor(infoSSOTService, { configParser = null } = {}) {
         this.infoSSOTService = infoSSOTService;
+        this.portableGraphService = new PortableGraphService(infoSSOTService);
         this.graphMaintenanceService = new GraphMaintenanceService({ infoSSOTService, configParser });
     }
+
+    portableGraphOperation = async (req, res, operation) => {
+        try {
+            const access = this.maintenanceAccess(req);
+            const project = operation === 'read' ? req.query.project_code : req.body?.project_code;
+            const args = [access, project, req.params.graphId];
+            if (operation === 'import') args.push(req.body?.bundle);
+            if (operation === 'search') args.push(req.body?.input);
+            res.json(await this.portableGraphService[operation](...args));
+        } catch (error) {
+            res.status(resolveErrorStatus(error)).json({ error: error.code || 'portable_graph_request_denied' });
+        }
+    };
+    importPortableGraph = (req, res) => this.portableGraphOperation(req, res, 'import');
+    readPortableGraph = (req, res) => this.portableGraphOperation(req, res, 'read');
+    searchPortableGraph = (req, res) => this.portableGraphOperation(req, res, 'search');
 
     maintenanceAccess(req) {
         // Graph maintenance is deliberately restricted to a user Bearer token.

@@ -1,0 +1,141 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-oss-graph-upgrade",
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "署名済み所有者・組織・projectで移送Graphを隔離し、共有Graphへ自動公開しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1",
+            "text_snippet": "署名済み所有者・組織・projectで移送Graphを隔離し、共有Graphへ自動公開しない。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/oss-graph-upgrade.md",
+            "anchor": "判断と範囲"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/portable-graph-service.js",
+            "anchor": "PortableGraphService"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "scripts/verify-portable-graph-postgres.mjs",
+            "case": "real PostgreSQL owner/org/project RLS"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "scripts/verify-portable-graph-postgres.mjs",
+            "must_cover": "Direct SQL confirms the RLS boundary"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-10T02:02:58.143Z",
+      "last_revised_at": "2026-09-10T02:02:58.143Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "同じIDへの同内容再送は成功し、別内容は競合として拒否する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2",
+            "text_snippet": "同じIDへの同内容再送は成功し、別内容は競合として拒否する。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/oss-graph-upgrade.md",
+            "anchor": "判断と範囲"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/portable-graph-service.js",
+            "anchor": "PortableGraphService"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "scripts/verify-portable-graph-postgres.mjs",
+            "case": "real PostgreSQL owner/org/project RLS"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "scripts/verify-portable-graph-postgres.mjs",
+            "must_cover": "e.status === 409"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-10T02:02:58.143Z",
+      "last_revised_at": "2026-09-10T02:02:58.143Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "OSS共通検索コアで同じ質問・期間・探索計画の経路と根拠を保持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-3",
+            "text_snippet": "OSS共通検索コアで同じ質問・期間・探索計画の経路と根拠を保持する。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/oss-graph-upgrade.md",
+            "anchor": "判断と範囲"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/portable-graph-service.js",
+            "anchor": "PortableGraphService"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "scripts/verify-portable-graph-postgres.mjs",
+            "case": "real PostgreSQL owner/org/project RLS"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "scripts/verify-portable-graph-postgres.mjs",
+            "must_cover": "shared search"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-10T02:02:58.143Z",
+      "last_revised_at": "2026-09-10T02:02:58.143Z"
+    }
+  ],
+  "generated_at": "2026-09-10T02:02:58.142Z",
+  "generated_by": {
+    "caller": "unknown",
+    "stage": "ai_synthesis"
+  },
+  "previous_spec_id": null
+}

@@ -1,0 +1,26 @@
+{
+  "repository": "https://github.com/Unson-LLC/brainbase",
+  "source_commit": "527c7aebe11c0a4a1d97b7842322e54efc23c1fc",
+  "files": {
+    "portable-graph.js": {
+      "sha256": "e059b60861b68ff1fad33b5918e849676be8fdcdce27fc83cd33ec6ead2613f8",
+      "source_sha256": "7dc3d75d6538a8ed7b010455848dfc1dd05f16678b8c84fb4ba5e27d0296a627"
+    },
+    "graph-retrieval.js": {
+      "sha256": "0912da67d319c4d79349dbed4766a4494aa108677b43252de022dc2280e5b97d",
+      "source_sha256": "8897787e00365172935430660035f44460d648d33e89b95c183ba0372f6b24e9"
+    },
+    "canonical-graph.js": {
+      "sha256": "94560f7bfcf22f6cceb94df9b5932f0713f4037ab7c5b9c38ae3c8a934094f63",
+      "source_sha256": "4896c9a1411eff05e0178c4ef17711c950155248e473d9a9db424383000f6776"
+    },
+    "relation-registry.js": {
+      "sha256": "51d13b2b12a8c197766ab85ed7dbc692c48777ab3627fe885b79b263c185fdf7",
+      "source_sha256": "e86029fafe6b2709e3c9a285ab9aa9aa14a780cd317a48c54ef5df74b786a7ff"
+    },
+    "embedding-provider.js": {
+      "sha256": "87e10c44b484710608d57e6ee47fe2cf8de9b99699a54f4202d8f45727bfc72f",
+      "source_sha256": "94380513f7426163128ed6e62eb01c837bf9ed5e53e967aff44c9de078cd6c57"
+    }
+  }
+}

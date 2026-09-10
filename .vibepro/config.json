@@ -273,8 +273,25 @@
           "ID・名前の特定、型の一覧、所有者限定の個人KG検索を、それぞれ用途が明確な入口として維持する。",
           "HTTPとstdioで同じ契約を適用し、意味検索の根拠・不足・権限境界を維持する。"
         ]
+      },
+      {
+        "story_id": "story-oss-graph-upgrade",
+        "title": "OSSのGraphと検索を失わず組織環境へ移行する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null,
+        "acceptance_criteria": [
+          "署名済み所有者・組織・projectでGraphを隔離する。",
+          "同じ内容の再送と読戻しを保証し、別内容の上書きを拒否する。",
+          "OSS共通コアで同じ質問の関係経路・根拠・不足を保持する。"
+        ]
       }
     ],
-    "current_story_id": "story-graph-search-entrypoint"
+    "current_story_id": "story-oss-graph-upgrade"
   }
 }
