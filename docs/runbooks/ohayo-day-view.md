@@ -9,7 +9,7 @@
 ## 収集と整理
 
 1. `brainbase-graph-philosophy-context`に従い、今日の顧客価値、進行中の約束、権限境界をGraph SSOTから確認する。
-2. `gog auth list --check --json --no-input`で利用可能なGoogleアカウントを列挙する。認証済みの全アカウントについて、JST当日のCalendarと未処理Gmailを確認する。ページがある場合は最後まで取得する。
+2. `gog auth list --check --json --no-input`で利用可能なGoogleアカウントを列挙する。認証済みの全アカウントについて、JST当日のCalendarを確認する。Gmailはラベル情報から未読総数を取得し、`is:unread newer_than:7d -category:promotions -category:social -category:updates -category:forums`の要対応候補を全ページ取得する。未読総数は古い未読と自動分類を含む持ち越しとして表示する。古い未読本文や販促メールを毎朝全件走査して処理を止めない。
 3. `slack-mentions`に従い、起動前チェック後に`salestailor`、`unson`、`techknight`の3ワークスペースでメンションとDMを確認する。
 4. 前夜の`/oyasumi`結果、持ち越し、Graph SSOT、Personal KGを照合し、次の順に整理する。
    - `today_focus`: 今日、顧客または事業の状態をどこまで変えるか

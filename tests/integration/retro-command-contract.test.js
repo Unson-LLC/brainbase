@@ -13,6 +13,7 @@ function read(relativePath) {
 describe('Brainbase routine outcome contract', () => {
     const spec = read('docs/specs/brainbase-memory-routine-cycle-spec.md');
     const story = read('docs/stories/brainbase-memory-routine-cycle-story.md');
+    const ohayoRunbook = read('docs/runbooks/ohayo-day-view.md');
 
     it('daily commands remain thin runner entrypoints', () => {
         for (const name of ['oyasumi', 'ohayo']) {
@@ -44,6 +45,13 @@ describe('Brainbase routine outcome contract', () => {
         expect(spec).toContain('`personal_kg_memories`');
         expect(spec).toContain('`personal_kg_review_exceptions`');
         expect(spec).toContain('`graph_promotion_reviews`');
+    });
+
+    it('ohayo bounds Gmail detail collection without losing the unread backlog', () => {
+        expect(spec).toContain('Gmailの未読総数と直近7日の要対応候補');
+        expect(spec).toContain('古い未読と自動分類を含む持ち越し件数として表示');
+        expect(ohayoRunbook).toContain('`is:unread newer_than:7d -category:promotions -category:social -category:updates -category:forums`');
+        expect(ohayoRunbook).toContain('古い未読本文や販促メールを毎朝全件走査して処理を止めない');
     });
 
     it('retro separates registration from Graph promotion and never applies scheduled changes', () => {
