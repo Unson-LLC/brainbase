@@ -274,11 +274,37 @@ export function buildDailyOpsReportHtml(report) {
       line-height: 1.45;
     }
     .item-summary {
-      max-width: 78ch;
+      max-width: 68ch;
       color: #3e4652;
-      font-size: 14px;
-      line-height: 1.8;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.9;
       white-space: pre-wrap;
+    }
+    .item-details {
+      display: grid;
+      gap: 10px;
+      max-width: 72ch;
+      margin: 0;
+    }
+    .item-detail {
+      display: grid;
+      grid-template-columns: 7em minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .item-detail dt {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.8;
+    }
+    .item-detail dd {
+      margin: 0;
+      color: #343b46;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1.85;
     }
     .badge {
       flex: 0 0 auto;
@@ -337,6 +363,7 @@ export function buildDailyOpsReportHtml(report) {
       section { grid-template-columns: 1fr; }
       .section-heading { border-right: 0; border-bottom: 1px solid var(--line-soft); }
       .item-head { display: grid; }
+      .item-detail { grid-template-columns: 1fr; gap: 2px; }
       .badge { max-width: 100%; justify-self: start; }
     }
     @media print {
@@ -374,7 +401,7 @@ function renderSection(section) {
     return `<section>
   <div class="section-heading">
     <h2>${escapeHtml(section.title)}</h2>
-    <span class="section-count">${items.length} item${items.length === 1 ? '' : 's'}</span>
+    <span class="section-count">${items.length}件</span>
   </div>
   <div class="section-body">
     ${items.length ? items.map(renderItem).join('\n') : '<p class="empty">記録なし</p>'}
@@ -394,16 +421,23 @@ function renderItem(item) {
     const status = item.meta?.status ? String(item.meta.status) : '';
     const tone = getStatusTone(status);
     const hasHead = Boolean(item.title || status);
+    const details = renderDetails(item.details || []);
     return `<article class="item">
   ${hasHead ? `<div class="item-head">
     ${item.title ? `<p class="item-title">${escapeHtml(item.title)}</p>` : '<span></span>'}
     ${status ? `<span class="badge" data-tone="${escapeHtml(tone)}">${escapeHtml(status)}</span>` : ''}
   </div>` : ''}
   ${item.summary ? `<p class="item-summary">${escapeHtml(item.summary)}</p>` : ''}
+  ${details}
   ${meta ? `<p class="item-meta">${meta}</p>` : ''}
   ${links}
   ${evidence ? `<p class="evidence">${evidence}</p>` : ''}
 </article>`;
+}
+
+function renderDetails(details) {
+    if (!Array.isArray(details) || details.length === 0) return '';
+    return `<dl class="item-details">${details.map((detail) => `<div class="item-detail"><dt>${escapeHtml(detail.label)}</dt><dd>${escapeHtml(detail.text)}</dd></div>`).join('')}</dl>`;
 }
 
 function renderEvidenceSection(evidence) {
@@ -411,7 +445,7 @@ function renderEvidenceSection(evidence) {
     return `<section>
   <div class="section-heading">
     <h2>証跡</h2>
-    <span class="section-count">${evidence.length} item${evidence.length === 1 ? '' : 's'}</span>
+    <span class="section-count">${evidence.length}件</span>
   </div>
   <div class="section-body">
     ${evidence.map((entry) => `<article class="item"><p class="item-title">${escapeHtml(entry.label || entry.type || 'Evidence')}</p><p class="item-summary">${escapeHtml(entry.ref || '')}</p>${renderLinks(entry.url ? [{ label: 'Open', url: entry.url }] : [])}</article>`).join('\n')}
@@ -495,9 +529,14 @@ function normalizeItem(value) {
     const titleCandidate = value.title || value.name || value.subject || '';
     const explicitTitle = isPlaceholderTitle(titleCandidate) ? '' : titleCandidate;
     const body = value.summary || value.detail || value.body || value.description || '';
+    const details = normalizeDetails(value.details).length
+        ? normalizeDetails(value.details)
+        : parseStructuredSummary(body);
+    const promoteBody = !explicitTitle && !details.length && body.length <= 80;
     return {
-        title: explicitTitle || body,
-        summary: explicitTitle ? body : '',
+        title: explicitTitle || (promoteBody ? body : ''),
+        summary: details.length || promoteBody ? '' : body,
+        details,
         meta,
         links: mergeLinks(
             normalizeLinks(value.links || value.link || value.url || value.htmlLink || value.permalink || []),
@@ -505,6 +544,38 @@ function normalizeItem(value) {
         ),
         evidence
     };
+}
+
+function parseStructuredSummary(value) {
+    const text = String(value || '').trim();
+    const labelMap = {
+        Context: '背景',
+        Judgment: '判断',
+        'Reusable Pattern': '再利用できる考え方',
+        'Apply When': '使う場面',
+        'Do Not Apply When': '使わない場面'
+    };
+    const matches = [...text.matchAll(/(?:^|\s)(Context|Judgment|Reusable Pattern|Apply When|Do Not Apply When):\s*/g)]
+        .map((match) => ({
+            label: labelMap[match[1]],
+            index: match.index,
+            valueStart: match.index + match[0].length
+        }));
+    if (matches.length < 2) return [];
+    return matches.map((entry, index) => {
+        const end = matches[index + 1]?.index ?? text.length;
+        return { label: entry.label, text: text.slice(entry.valueStart, end).trim() };
+    }).filter((entry) => entry.text);
+}
+
+function normalizeDetails(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((entry) => ({
+            label: String(entry?.label || '').trim(),
+            text: String(entry?.text || '').trim()
+        }))
+        .filter((entry) => entry.label && entry.text);
 }
 
 function isPlaceholderTitle(value) {

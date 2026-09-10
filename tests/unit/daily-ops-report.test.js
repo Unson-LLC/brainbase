@@ -84,6 +84,50 @@ describe('daily-ops-report', () => {
         }
     });
 
+    it('turns judgment capsules into readable labeled rows instead of one bold paragraph', () => {
+        const report = normalizeDailyOpsReport({
+            mode: 'oyasumi',
+            sections: [{
+                id: 'sample',
+                title: '記憶候補',
+                items: [{
+                    title: 'Untitled',
+                    summary: 'Context: セッションが止まった。 Judgment: 原因も調べる。 Reusable Pattern: 復旧と再発防止を分ける。 Apply When: 障害時。 Do Not Apply When: 一時停止のみ。',
+                    status: '登録候補'
+                }]
+            }]
+        });
+        const item = report.sections[0].items[0];
+        const html = buildDailyOpsReportHtml(report);
+
+        expect(item.title).toBe('');
+        expect(item.summary).toBe('');
+        expect(item.details).toEqual([
+            { label: '背景', text: 'セッションが止まった。' },
+            { label: '判断', text: '原因も調べる。' },
+            { label: '再利用できる考え方', text: '復旧と再発防止を分ける。' },
+            { label: '使う場面', text: '障害時。' },
+            { label: '使わない場面', text: '一時停止のみ。' }
+        ]);
+        expect(html).toContain('<dt>判断</dt><dd>原因も調べる。</dd>');
+        expect(html).not.toContain('Context:');
+    });
+
+    it('preserves structured rows when a normalized report is normalized again', () => {
+        const once = normalizeDailyOpsReport({
+            mode: 'retro',
+            sections: [{
+                id: 'sample',
+                title: '判断',
+                items: [{ summary: 'Context: 背景。 Judgment: 判断。 Do Not Apply When: 対象外。' }]
+            }]
+        });
+        const twice = normalizeDailyOpsReport(once);
+
+        expect(twice.sections[0].items[0].details).toEqual(once.sections[0].items[0].details);
+        expect(twice.sections[0].items[0].details).toHaveLength(3);
+    });
+
     it('separates ohayo priorities into decisions, outcomes, AI work, and carryovers', () => {
         const report = normalizeDailyOpsReport({
             mode: 'ohayo',
