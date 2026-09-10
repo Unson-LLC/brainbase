@@ -1,3 +1,4 @@
+import { BODY_EVIDENCE_FIELDS, extractEvidence, hasSubstantiveValue, type BodyEvidenceField, type RetrievalEvidence } from './evidence.js';
 /**
  * Pure semantic and graph retrieval.
  *
@@ -45,15 +46,7 @@ export interface RetrievalPath {
   edges: GraphEdge[];
 }
 
-export interface RetrievalEvidence {
-  content?: unknown;
-  statement?: unknown;
-  decision?: unknown;
-  rationale?: unknown;
-  body?: unknown;
-  source_pointer?: unknown;
-  provenance?: unknown;
-}
+export type { RetrievalEvidence } from './evidence.js';
 
 export type RetrievalSufficiency = 'needs_model_verification' | 'insufficient';
 
@@ -104,18 +97,6 @@ const MAX_QUERY_LENGTH = 10_000;
 const MAX_PLAN_VALUE_LENGTH = 1_000;
 
 const RETIRED_LIFECYCLE_STATES = new Set(['retired', 'merged', 'inactive', 'superseded']);
-const EVIDENCE_FIELDS = [
-  'content',
-  'statement',
-  'decision',
-  'rationale',
-  'body',
-  'source_pointer',
-  'provenance',
-] as const;
-const BODY_EVIDENCE_FIELDS = ['content', 'statement', 'decision', 'rationale', 'body'] as const;
-
-type BodyEvidenceField = (typeof BODY_EVIDENCE_FIELDS)[number];
 
 interface InternalPath {
   node_ids: string[];
@@ -306,24 +287,6 @@ function passageText(node: GraphNode): string {
     }
   }
   return values.join('\n').slice(0, 8_000);
-}
-
-function hasSubstantiveValue(value: unknown): boolean {
-  if (value === null || value === undefined) return false;
-  if (typeof value === 'string') return value.trim().length > 0;
-  if (Array.isArray(value)) return value.length > 0;
-  if (isRecord(value)) return Object.keys(value).length > 0;
-  return true;
-}
-
-function extractEvidence(payload: Record<string, unknown>): RetrievalEvidence {
-  const evidence: RetrievalEvidence = {};
-  for (const field of EVIDENCE_FIELDS) {
-    if (Object.prototype.hasOwnProperty.call(payload, field) && payload[field] !== undefined) {
-      evidence[field] = payload[field];
-    }
-  }
-  return evidence;
 }
 
 function hasBodyEvidence(evidence: RetrievalEvidence): boolean {

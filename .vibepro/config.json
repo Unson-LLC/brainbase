@@ -290,8 +290,27 @@
           "同じ内容の再送と読戻しを保証し、別内容の上書きを拒否する。",
           "OSS共通コアで同じ質問の関係経路・根拠・不足を保持する。"
         ]
+      },
+      {
+        "story_id": "story-hook-grounded-completion",
+        "title": "Graphの実取得と根拠確認を終えてから回答を完了する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null,
+        "acceptance_criteria": [
+          "Graph必須turnは参照先解決だけではStopを通過しない。",
+          "同じturnで実取得した本文を持つIDにモデルの回答可能判定を束縛する。",
+          "本文不足・空・取得失敗は不足として表示し、不在確定や十分な根拠へ変換しない。",
+          "決定本文・理由・出典をget_entityまで保持し、空構造を本文扱いしない。",
+          "全体hooksを変更せずBrainbase限定で正常・不足・実エラーを検証する。"
+        ]
       }
     ],
-    "current_story_id": "story-oss-graph-upgrade"
+    "current_story_id": "story-hook-grounded-completion"
   }
 }

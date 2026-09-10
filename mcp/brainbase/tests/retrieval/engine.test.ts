@@ -173,10 +173,10 @@ describe('retrieveGraph', () => {
     assert.ok(withBody);
     assert.ok(withoutBody);
     assert.equal(withBody.evidence_status, 'present');
-    assert.deepEqual(withBody.missing_evidence, ['content', 'statement', 'decision', 'rationale']);
+    assert.deepEqual(withBody.missing_evidence, ['content', 'statement', 'decision', 'rationale', 'markdown', 'body_summary', 'summary', 'description', 'notes']);
     assert.equal(withBody.source_pointer_resolved, false);
     assert.equal(withoutBody.evidence_status, 'missing');
-    assert.deepEqual(withoutBody.missing_evidence, ['content', 'statement', 'decision', 'rationale', 'body']);
+    assert.deepEqual(withoutBody.missing_evidence, ['content', 'statement', 'decision', 'rationale', 'body', 'markdown', 'body_summary', 'summary', 'description', 'notes']);
     assert.equal(result.sufficiency, 'needs_model_verification');
     assert.equal(result.coverage, 'unknown');
   });

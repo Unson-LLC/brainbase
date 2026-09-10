@@ -1,3 +1,5 @@
+import { extractEvidence, bodyEvidenceFields } from '../retrieval/evidence.js';
+
 export interface KnowledgeOwnerAudit {
   schema_version: 'brainbase-knowledge-owner-audit-v1';
   source: 'Graph' | 'Personal KG' | 'Wiki互換面' | 'Brainbase';
@@ -5,6 +7,7 @@ export interface KnowledgeOwnerAudit {
   query: string;
   outcome: '結果を取得' | '該当なし（不在確定ではない）';
   display_line: string;
+  retrieval?: ReturnType<typeof buildRetrievalEvidence>;
 }
 
 export interface KnowledgeToolTextContent {
@@ -213,6 +216,7 @@ export function buildKnowledgeOwnerAudit(
   toolName: string,
   args: Record<string, unknown>,
   result: string,
+  entity?: unknown,
 ): KnowledgeOwnerAudit | null {
   const target = TARGETS[toolName];
   if (!target) return null;
@@ -231,6 +235,8 @@ export function buildKnowledgeOwnerAudit(
     : `${target.source}から「${query}」を取得`;
 
   return {
+    ...(toolName === 'search' || (toolName === 'get_entity' && entity !== undefined)
+      ? { retrieval: buildRetrievalEvidence(toolName, result, entity) } : {}),
     schema_version: 'brainbase-knowledge-owner-audit-v1',
     source: target.source,
     operation,
@@ -253,7 +259,32 @@ export function buildKnowledgeToolContent(
       schema_version: audit.schema_version,
       operation: audit.operation,
       outcome: audit.outcome,
+      ...(audit.retrieval ? { retrieval: audit.retrieval } : {}),
     })} -->`,
   });
   return content;
+}
+
+function buildRetrievalEvidence(tool: string, result: string, entity?: unknown) {
+  let data: Record<string, unknown> = {};
+  try { data = JSON.parse(result)?.data ?? {}; } catch { /* get_entity is rendered text */ }
+  const known = tool === 'get_entity' || (data && Array.isArray(data.candidates));
+  const candidates = tool === 'search' ? (Array.isArray(data.candidates) ? data.candidates : [])
+    : entity && typeof entity === 'object' ? [entity] : [];
+  const references = candidates.flatMap((candidate: Record<string, unknown>) => {
+    if (!candidate || typeof candidate !== 'object') return [];
+    const id = candidate.id;
+    if (typeof id !== 'string' || !id.trim()) return [];
+    const raw = (tool === 'search' ? candidate.evidence : candidate.retrieval_evidence)
+      ?? (tool === 'get_entity' ? candidate : {});
+    const evidence = extractEvidence(raw && typeof raw === 'object' ? raw as Record<string, unknown> : {});
+    const fields = bodyEvidenceFields(evidence);
+    return [{ id, entity_type: String(candidate.entity_type ?? candidate.type ?? 'unknown'),
+      evidence_status: fields.length ? 'present' : 'missing', evidence_fields: fields }];
+  });
+  const coverage = tool === 'get_entity' ? 'complete'
+    : ['complete', 'partial', 'unknown'].includes(String(data.coverage)) ? data.coverage : 'unknown';
+  return { status: !known ? 'unknown' : references.length ? 'retrieved' : 'empty', coverage,
+    sufficiency: references.some((ref) => ref.evidence_status === 'present') ? 'needs_model_verification' : 'insufficient',
+    references, absence_confirmed: false };
 }
