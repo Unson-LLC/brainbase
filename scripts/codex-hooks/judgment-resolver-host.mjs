@@ -438,6 +438,61 @@ function readCanonicalTranscript(payload, env) {
     };
 }
 
+// Only Codex-owned completed MCP items are execution evidence. Wrapper text and
+// response_item contents can be model-generated and must never be replayed.
+function nativeMcpUpstreamErrorCode(item) {
+    const codes = [item.error?.code, item.result?.error?.code];
+    for (const content of Array.isArray(item.result?.content) ? item.result.content : []) {
+        if (content?.type !== 'text' || typeof content.text !== 'string') continue;
+        try { codes.push(JSON.parse(content.text)?.error?.code); } catch { /* Unstructured errors remain digest-only. */ }
+    }
+    const valid = [...new Set(codes.filter(code => typeof code === 'string' && /^[a-z][a-z0-9_]{0,79}$/.test(code)))];
+    return valid.length === 1 ? valid[0] : null;
+}
+
+export function reconcileNativeMcpFailures(payload, { env = process.env } = {}) {
+    if (!hasVerifiedStart(payload, env) || typeof payload.transcript_path !== 'string') return [];
+    let entries;
+    try {
+        const path = realpathSync(payload.transcript_path);
+        if (!statSync(path).isFile() || !transcriptRoots(env).some(root => pathInside(path, root))) return [];
+        entries = readFileSync(path, 'utf8').split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
+    } catch { return []; }
+    // Do not accept inherited parent/child aliases or mixed-session transcripts.
+    const metas = entries.filter(entry => entry?.type === 'session_meta');
+    if (metas.length === 0 || metas.some(({ payload: meta }) => !meta
+        || meta.id !== payload.session_id || meta.session_id !== payload.session_id
+        || meta.source?.subagent)) return [];
+    const turns = entries.filter(entry => entry?.type === 'turn_context' && entry.payload?.turn_id === payload.turn_id);
+    if (turns.length === 0 || turns.some(({ payload: turn }) => turn.root_turn_id !== payload.turn_id)) return [];
+    const candidates = [];
+    for (const entry of entries) {
+        const completed = entry?.payload;
+        const item = completed?.item;
+        if (entry?.type !== 'event_msg' || completed?.type !== 'item_completed'
+            || completed.thread_id !== payload.session_id || completed.turn_id !== payload.turn_id
+            || item?.type !== 'McpToolCall' || item.server !== 'brainbase' || item.status !== 'failed'
+            || !nonEmptyString(item.id) || !Object.hasOwn(BRAINBASE_TOOL_KIND_BY_NAME, item.tool)
+            || !record(item.arguments)
+            || !(item.result?.isError === true || nonEmptyString(item.error) || record(item.error))) continue;
+        candidates.push(item);
+    }
+    // Reject conflicting duplicate identities before writing any event.
+    const unique = new Map();
+    for (const item of candidates) {
+        if (unique.has(item.id) && canonicalJson(unique.get(item.id)) !== canonicalJson(item)) {
+            throw new Error('judgment_native_mcp_item_conflict');
+        }
+        unique.set(item.id, item);
+    }
+    return [...unique.values()].map(item => recordBrainbaseToolUse({
+        ...payload, hook_event_name: 'PostToolUseFailure', tool_name: `mcp__brainbase__${item.tool}`,
+        tool_use_id: item.id, tool_input: item.arguments,
+        // Only fixed failure metadata and digests enter the journal.
+        tool_response: { isError: true }, error: { result: item.result ?? null, error: item.error ?? null }
+    }, { env, nativeFailureResult: item.result ?? null, nativeUpstreamErrorCode: nativeMcpUpstreamErrorCode(item) }));
+}
+
 function transcriptTurnResolutionSurface(payload, env) {
     const surface = readCanonicalTranscript(payload, env).turn_resolution_surface;
     return surface?.status === 'unavailable' ? surface : null;
@@ -1956,7 +2011,7 @@ function codexDesktopToolEvidence(payload, env) {
     }
 }
 
-export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
+export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailureResult, nativeUpstreamErrorCode } = {}) {
     const identity = payloadIdentity(payload);
     const hookEventName = payload?.hook_event_name ?? payload?.hookEventName;
     const postToolUseFailure = hookEventName === 'PostToolUseFailure';
@@ -1988,6 +2043,9 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
     // and digests still bind immutable replay/conflict detection.
     const failureAudit = postToolUseFailure ? {
         failure_code: 'tool_execution_failed',
+        ...(nativeFailureResult !== undefined && typeof nativeUpstreamErrorCode === 'string'
+            && /^[a-z][a-z0-9_]{0,79}$/.test(nativeUpstreamErrorCode)
+            ? { upstream_error_code: nativeUpstreamErrorCode } : {}),
         error_digest: sha256(canonicalJson(payload?.error ?? null)),
         interrupt_digest: sha256(canonicalJson(payload?.is_interrupt ?? null))
     } : null;
@@ -2161,7 +2219,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         if (judgmentValueProofTool && !valueProofRolloutEnabled(episode, env)) {
             throw new Error('judgment_value_proof_rollout_disabled');
         }
-        if (kind === 'turn_resolution') {
+        // A native failed call carries no contract and cannot satisfy resolution.
+        if (kind === 'turn_resolution' && nativeFailureResult === undefined) {
             const turnToolInput = record(inputValue);
             const suppliedTurnInput = record(turnToolInput?.turn_input);
             const expectedTurnRef = `${identity.sessionRef}/${paths.turnRef}`;
@@ -2222,6 +2281,11 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
         try {
             const existing = readJson(target);
             if (existing.event_fingerprint === fingerprint) return existing;
+            // A supported PostToolUse may already have recorded this same native
+            // failed result. Keep its original sequence and never add a duplicate.
+            if (nativeFailureResult !== undefined && existing.success === false
+                && existing.tool_name === toolName && existing.input_digest === inputDigest
+                && existing.response_digest === sha256(canonicalJson(nativeFailureResult))) return existing;
             throw new Error('judgment_tool_event_conflict');
         } catch (error) {
             if (error?.code !== 'ENOENT') throw error;
@@ -2251,7 +2315,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env } = {}) {
             ...(postToolUseFailure ? { hook_event_name: hookEventName } : {}),
             event_kind: kind,
             success,
-            satisfies: kind === 'turn_resolution'
+            satisfies: nativeFailureResult !== undefined ? [] : kind === 'turn_resolution'
                 ? ['judgment.resolve_turn']
                 : satisfiesKnowledgeExecution ? ['knowledge.resolve'] : [],
             input_digest: inputDigest,
@@ -4475,7 +4539,9 @@ export function verifiedSubagentParent(payload, env = process.env) {
             || typeof source.agent_path !== 'string' || !/^\/root\/[a-z0-9_]+$/.test(source.agent_path)
             || ![meta.id, meta.session_id].includes(payload.session_id)) return null;
         const turns = entries.filter((entry) => entry.type === 'turn_context' && entry.payload?.turn_id === payload.turn_id);
-        if (turns.length !== 1) return null;
+        // Compaction can repeat the exact same Codex-owned turn context.
+        // Accept identical replay only; any conflicting context still fails closed.
+        if (!turns.length || turns.some((entry) => canonicalJson(entry.payload) !== canonicalJson(turns[0].payload))) return null;
         const rootTurnId = turns[0].payload.root_turn_id;
         if (typeof rootTurnId !== 'string' || rootTurnId === payload.turn_id) return null;
         const delegated = entries.some((entry) => entry.type === 'response_item'
@@ -4551,6 +4617,10 @@ export async function processHookPayload(payload, dependencies = {}) {
     if (binding) {
         const result = processSubagentHook(payload, binding, dependencies);
         if (result) return result;
+    }
+    if (['PreToolUse', 'Stop'].includes(eventName)) {
+        // Before audit_read executes and before Stop obtains its transition lock.
+        reconcileNativeMcpFailures(payload, dependencies);
     }
     if (env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue' && eventName === 'PreToolUse') {
         const inScope = diagnosticContinueEnabled(env, payload);

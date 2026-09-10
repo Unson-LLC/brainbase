@@ -121,3 +121,19 @@ it.each([
     f.child.tool_input = { code };
     expect((await processHookPayload(f.child, { env: f.env })).hookSpecificOutput.permissionDecision).toBe('deny');
 });
+
+it('keeps delegated tools available after compaction repeats identical turn context', async () => {
+    const f = await fixture();
+    f.entries.push({ type: 'compacted', payload: {} }, JSON.parse(JSON.stringify(f.entries[1])));
+    f.save();
+    expect(verifiedSubagentParent(f.child, f.env)?.parent.turn_id).toBe('parent-turn');
+    expect((await processHookPayload(f.child, { env: f.env })).hookSpecificOutput.permissionDecision).toBeUndefined();
+});
+it.each(['root_turn_id', 'cwd'])('rejects conflicting repeated child context: %s', async field => {
+    const f = await fixture();
+    const replay = JSON.parse(JSON.stringify(f.entries[1]));
+    replay.payload[field] = 'conflicting-value';
+    f.entries.push(replay); f.save();
+    expect(verifiedSubagentParent(f.child, f.env)).toBeNull();
+    expect((await processHookPayload(f.child, { env: f.env })).hookSpecificOutput.permissionDecision).toBe('deny');
+});
