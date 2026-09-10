@@ -132,7 +132,7 @@ describe('Brainbase MCP server core ontology tools', () => {
     }
   });
 
-  it('SPEC-brainbase-mcp-core-ontology AC-5 AC-7: exposes fixed Core enum without extension noise', () => {
+  it('keeps list_entities Core-only while get_entity accepts exact Graph types', () => {
     const listTool = __testing.tools.find((tool) => tool.name === 'list_entities');
     const getTool = __testing.tools.find((tool) => tool.name === 'get_entity');
     const extensionTool = __testing.tools.find((tool) => tool.name === 'list_extension_entities');
@@ -142,13 +142,12 @@ describe('Brainbase MCP server core ontology tools', () => {
     assert.ok(extensionTool);
 
     const listEnum = listTool.inputSchema.properties?.type?.enum as string[];
-    const getEnum = getTool.inputSchema.properties?.type?.enum as string[];
+    assert.equal(getTool.inputSchema.properties?.type?.enum, undefined);
+    assert.equal(getTool.inputSchema.properties?.type?.type, 'string');
 
     assert.ok(listEnum.includes('brand'));
     assert.ok(listEnum.includes('document'));
     assert.ok(!listEnum.includes('frame'));
-    assert.ok(getEnum.includes('brand'));
-    assert.ok(!getEnum.includes('frame'));
     assert.strictEqual(extensionTool.inputSchema.properties?.type?.type, 'string');
   });
 

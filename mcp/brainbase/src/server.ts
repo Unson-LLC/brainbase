@@ -44,7 +44,7 @@ import {
   PersonalKnowledgeClient,
   type PersonalKnowledgeEvent,
 } from './personal-knowledge-client.js';
-import { GraphAPISource } from './sources/graphapi-source.js';
+import { GraphAPISource, type GraphEntity } from './sources/graphapi-source.js';
 import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
 import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
@@ -62,7 +62,7 @@ import {
 } from './tools/meeting-minutes-context-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/graph-maintenance-tools.js';
-import { handleGraphRetrievalToolCall } from './tools/graph-retrieval.js';
+import { handleGraphRetrievalToolCall, retrieveGraphEntity, type GraphRetrievalDependencies } from './tools/graph-retrieval.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, handleJudgmentResolutionToolCall, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
 import { judgmentAuditTools, handleJudgmentAuditToolCall } from './tools/judgment-audit-tools.js';
@@ -216,12 +216,26 @@ function buildMcpToolResult(
   entity?: unknown,
 ) {
   const response = { content: buildToolResponseContent(name, toolArgs, result, entity) };
-  const retrievalFailure = ['search', 'brainbase_knowledge_evidence_record'].includes(name) && extensionResult !== null
+  const retrievalFailure = ['search', 'get_entity', 'brainbase_knowledge_evidence_record'].includes(name) && extensionResult !== null
     && typeof extensionResult === 'object'
     && ['error', 'unavailable'].includes(String((extensionResult as Record<string, unknown>).status));
   return (retrievalFailure || isStructuredJudgmentToolFailure(name, extensionResult))
     ? { ...response, isError: true }
     : response;
+}
+
+async function dispatchGetEntity(args: Record<string, unknown>, deps: GraphRetrievalDependencies) {
+  const retrieval = await retrieveGraphEntity(args, deps);
+  if (retrieval.status !== 'ok') return buildMcpToolResult('get_entity', args, JSON.stringify(retrieval), retrieval);
+  const raw = (retrieval.data as { entity: (GraphEntity & { id: string }) | null }).entity;
+  const converted = raw ? new GraphAPISource(deps.apiUrl, deps.tokenManager, deps.configuredProjectCodes)
+    .convertEntity({ ...raw, entity_id: raw.id }) : null;
+  // Canonical API identity is retained even where legacy display IDs use a payload alias.
+  const entity = converted && raw ? { ...converted, id: raw.id } : null;
+  const result = await prependPhilosophyContext(entity ? formatEntity(entity) : `Entity not found: ${args.type}/${args.id}`, args, {
+    scope: 'graph', objectType: args.type as EntityType, operation: 'read',
+  });
+  return buildMcpToolResult('get_entity', args, result, retrieval, entity);
 }
 
 async function refreshEntityIndex(): Promise<void> {
@@ -401,7 +415,7 @@ function formatEntity(entity: unknown): string {
   // Basic info
   lines.push(`## ${e.name || e.title || e.id}`);
   lines.push(`- **Type**: ${e.type}`);
-  lines.push(`- **ID**: ${e.id}`);
+  lines.push(`- **ID**: ${e.graph_entity_id || e.id}`);
 
   if (e.status) lines.push(`- **Status**: ${e.status}`);
   if (e.lifecycle_status || e.lifecycle_state) lines.push(`- **Lifecycle**: ${e.lifecycle_status || e.lifecycle_state}`);
@@ -571,7 +585,7 @@ function formatEntityList(entities: unknown[]): string {
     const name = e.name || e.id;
     const type = e.type;
     const status = e.status ? ` [${e.status}]` : '';
-    lines.push(`- **${name}** (${type})${status}`);
+    lines.push(`- **${name}** (${type})${status} — ID: ${e.graph_entity_id || e.id}`);
   }
 
   return lines.join('\n');
@@ -747,18 +761,17 @@ const tools: Tool[] = [
   },
   {
     name: 'get_entity',
-    description: 'Retrieve one known core Graph entity using the identifier returned by resolve_entity or list_entities. Name or alias lookup is only for identity disambiguation of people, organizations, and brands; use search for general questions.',
+    description: 'Retrieve one known Graph entity by its canonical Graph ID. Use resolve_entity for identity disambiguation and search for general questions.',
     inputSchema: {
       type: 'object',
       properties: {
         type: {
           type: 'string',
-          enum: [...CORE_ENTITY_TYPES],
-          description: 'The entity type',
+          description: 'The Graph entity_type returned by search or resolve_entity',
         },
         id: {
           type: 'string',
-          description: 'The entity ID, name, or alias',
+          description: 'The canonical Graph entity ID',
         },
         project: {
           type: 'string',
@@ -1062,7 +1075,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const entities = query
         ? resolveEntities(entityIndex, { query, types: [type] }).candidates
           .map(candidate => getExtensionEntitiesByType(entityIndex, type)
-            .find(entity => entity.id === candidate.entity_id))
+            .find(entity => (entity.graph_entity_id || entity.id) === candidate.entity_id))
           .filter((entity): entity is NonNullable<typeof entity> => Boolean(entity))
         : getExtensionEntitiesByType(entityIndex, type);
       if (entities.length === 0) {
@@ -1269,6 +1282,7 @@ export const publishedTools = annotateToolCapabilities([
 export const __testing = {
   tools: publishedTools,
   formatEntity,
+  dispatchGetEntity,
   dispatchOnboardingToolCall,
   dispatchJudgmentResolutionBeforeModel,
   dispatchRemoteJudgmentHook,
@@ -1436,11 +1450,9 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       const toolArgs = args as Record<string, unknown>;
       rejectLegacySearchSurface(name, toolArgs);
       if (name === 'get_entity') {
-        const entity = getEntity(entityIndex, toolArgs.type as EntityType, String(toolArgs.id));
-        const result = await prependPhilosophyContext(entity ? formatEntity(entity) : `Entity not found: ${toolArgs.type}/${toolArgs.id}`, toolArgs, {
-          scope: 'graph', objectType: toolArgs.type as EntityType, operation: 'read',
+        return dispatchGetEntity(toolArgs, {
+          apiUrl: resolveBrainbaseApiUrl(), configuredProjectCodes, tokenManager: globalTokenManager,
         });
-        return buildMcpToolResult(name, toolArgs, result, null, entity ?? null);
       }
       const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
         async (toolName, extensionArgs) => {
