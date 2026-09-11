@@ -313,6 +313,8 @@ function readCanonicalTranscript(payload, env) {
     const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
     const messages = [];
     const delegations = [];
+    const automationInvocations = [];
+    const invalidAutomationTurns = new Set();
     const invalidDelegationTurns = new Set();
     const parsedEvents = [];
     const turnResolutionAttempts = new Map();
@@ -352,6 +354,11 @@ function readCanonicalTranscript(payload, env) {
     if (!sessionMatched || mixedSessionComponents) {
         return { messages: [], delegations: [], complete: false };
     }
+    const automationSession = parsedEvents.some(({ envelope, eventPayload }) => {
+        if (envelope.type !== 'session_meta' || eventPayload.thread_source !== 'automation') return false;
+        const ids = [eventPayload.id, eventPayload.session_id].filter((value) => typeof value === 'string');
+        return ids.some((id) => sessionAliases.has(id));
+    });
     let activeSessionMatched = false;
     let sequence = 0;
     for (const { envelope, eventPayload } of parsedEvents) {
@@ -377,6 +384,17 @@ function readCanonicalTranscript(payload, env) {
                 ?? record(eventPayload.metadata);
             const turnId = typeof metadata?.turn_id === 'string' ? metadata.turn_id : null;
             const output = typeof eventPayload.output === 'string' ? eventPayload.output.trim() : '';
+            const isAutomationTool = eventPayload.namespace === 'codex_app'
+                && eventPayload.name === 'automation_update';
+            if (isAutomationTool) {
+                const validEnvelope = /^Automation: .+\nAutomation ID: .+\nAutomation memory: .+\nLast run: .+\n\n[^\s][\s\S]*$/u.test(output);
+                if (automationSession && turnId && validEnvelope) {
+                    automationInvocations.push({ turn_id: turnId, prompt: output });
+                } else if (turnId) {
+                    invalidAutomationTurns.add(turnId);
+                }
+                continue;
+            }
             const allowedName = ['create_thread', 'send_message_to_thread'].includes(eventPayload.name);
             const inputTagCount = (output.match(/<input>/gu) ?? []).length;
             const closingInputTagCount = (output.match(/<\/input>/gu) ?? []).length;
@@ -431,6 +449,8 @@ function readCanonicalTranscript(payload, env) {
     return {
         messages,
         delegations,
+        automation_invocations: automationInvocations,
+        invalid_automation_turns: [...invalidAutomationTurns],
         invalid_delegation_turns: [...invalidDelegationTurns],
         turn_resolution_surface: turnResolutionSurface,
         injected_user_turns: [...injectedUserTurns],
@@ -547,6 +567,15 @@ function delegatedPromptForTurn(payload, env) {
             : `【追加指示 ${index + 1}/${exact.length}】`;
         return `${marker}\n${delegation.prompt}`;
     }).join('\n\n');
+}
+
+function automationPromptForTurn(payload, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return null;
+    const transcript = readCanonicalTranscript(payload, env);
+    if (!transcript.complete || transcript.invalid_automation_turns?.includes(identity.turnId)) return null;
+    const exact = transcript.automation_invocations?.filter((item) => item.turn_id === identity.turnId) ?? [];
+    return exact.length === 1 ? exact[0].prompt : null;
 }
 
 function findRepoRoot(start) {
@@ -1195,7 +1224,8 @@ function verifyEpisode(entry) {
     const legacyLifecycle = origin === undefined && application === undefined;
     const validLifecycle = (origin === 'user_prompt_submit' && application === 'pre_generation')
         || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery')
-        || (origin === 'pre_tool_delegation_recovery' && application === 'pre_tool_execution');
+        || (origin === 'pre_tool_delegation_recovery' && application === 'pre_tool_execution')
+        || (origin === 'pre_tool_automation_recovery' && application === 'pre_tool_execution');
     if (!legacyLifecycle && !validLifecycle) throw new Error('judgment_episode_lifecycle_invalid');
     if (entry.pre_episode_audit_gap !== undefined) {
         if (origin !== 'stop_delegation_recovery' || application !== 'post_generation_recovery') {
@@ -1379,11 +1409,17 @@ async function bootstrapDelegatedEpisode(payload, dependencies, beforeTool = fal
         withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, existing, env));
         return null;
     }
-    const prompt = delegatedPromptForTurn(payload, env);
+    const delegatedPrompt = delegatedPromptForTurn(payload, env);
+    const automationPrompt = beforeTool ? automationPromptForTurn(payload, env) : null;
+    if (delegatedPrompt && automationPrompt) return null;
+    const prompt = delegatedPrompt ?? automationPrompt;
     if (!prompt) return null;
+    const automationRecovery = Boolean(automationPrompt);
     const episode = await startEpisode({ ...payload, prompt }, {
         ...dependencies,
-        episodeOrigin: beforeTool ? 'pre_tool_delegation_recovery' : 'stop_delegation_recovery',
+        episodeOrigin: beforeTool
+            ? automationRecovery ? 'pre_tool_automation_recovery' : 'pre_tool_delegation_recovery'
+            : 'stop_delegation_recovery',
         routeApplication: beforeTool ? 'pre_tool_execution' : 'post_generation_recovery'
     });
     await dependencies.onEpisodeStarted?.(episode);
@@ -4506,6 +4542,8 @@ function hasVerifiedStart(payload, env) {
             || (episode.episode_origin === 'stop_delegation_recovery'
                 && episode.route_application === 'post_generation_recovery')
             || (episode.episode_origin === 'pre_tool_delegation_recovery'
+                && episode.route_application === 'pre_tool_execution')
+            || (episode.episode_origin === 'pre_tool_automation_recovery'
                 && episode.route_application === 'pre_tool_execution')
         );
         if (!verifiedLifecycle) return false;
