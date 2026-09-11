@@ -261,8 +261,25 @@
           "子の実行結果は親契約へ紐付け、親の判断完了や必須能力の達成を代行しない。",
           "子の完了はCodexの既存通知を親が確認する。専用の終了記録を要求せず、利用者向け最終監査は親だけが確定する。"
         ]
+      },
+      {
+        "story_id": "story-automation-turn-resolver-bootstrap",
+        "title": "自動化ターンのResolver開始を復旧する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix",
+        "acceptance_criteria": [
+          "UserPromptSubmitがないCodex App自動化でも、同一session・同一turnの正規automation_update出力から最初のPreToolUseでepisodeを開始する。",
+          "最初のtoolは実行せずturn_refを返し、その後のResolver呼び出しだけを通常契約で許可する。",
+          "通常セッション、別turn、別tool、不正形式、複数入力、対象外cwd、開始失敗は復旧せず拒否する。"
+        ]
       }
     ],
-    "current_story_id": "parent-contract-delegation"
+    "current_story_id": "story-automation-turn-resolver-bootstrap"
   }
 }

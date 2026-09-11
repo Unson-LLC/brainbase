@@ -658,6 +658,68 @@ describe('Codex Judgment Resolver Host', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
+    it('自動化は正規automation_update入力からPreToolUseでepisodeを開始する', async () => {
+        const root = temporaryDirectory();
+        const sessionId = 'automation-session';
+        const turnId = 'automation-turn';
+        const transcript = join(root, 'session.jsonl');
+        const prompt = 'Automation: Brainbase Hook 継続判定監査\nAutomation ID: brainbase-hook\nAutomation memory: enabled\nLast run: success\n\n監査を実行してください。';
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId, thread_source: 'automation' }),
+            event('response_item', {
+                type: 'function_call_output', name: 'automation_update', namespace: 'codex_app', output: prompt,
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
+            BRAINBASE_JUDGMENT_CANARY_CWD: process.cwd()
+        };
+        const fetchImpl = vi.fn(async (_url, options) => ({ ok: true, status: 200,
+            json: async () => ({ management_status: 'managed', receipt: validReceipt(JSON.parse(options.body)) }) }));
+        const payload = { hook_event_name: 'PreToolUse', session_id: sessionId, turn_id: turnId,
+            cwd: process.cwd(), transcript_path: transcript, tool_name: 'exec_command' };
+        const output = await processHookPayload(payload, { env, fetchImpl });
+        expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+        const base = join(root, 'journal', hash(sessionId), hash(turnId));
+        expect(JSON.parse(readFileSync(`${base}.episode.json`, 'utf8'))).toMatchObject({
+            episode_origin: 'pre_tool_automation_recovery', route_application: 'pre_tool_execution',
+            turn_input: { request: prompt }
+        });
+        expect(await processHookPayload({ ...payload, tool_name: 'mcp__brainbase__brainbase_resolve_turn' },
+            { env, fetchImpl })).toEqual({});
+    });
+
+    it.each(['normal_session', 'foreign_turn', 'wrong_tool', 'malformed', 'multiple'])(
+        'PreToolUseの自動化復旧は未確認入力を拒否する: %s', async (variant) => {
+            const root = temporaryDirectory();
+            const sessionId = 'automation-negative-session';
+            const turnId = 'automation-negative-turn';
+            const transcript = join(root, 'session.jsonl');
+            const valid = 'Automation: Audit\nAutomation ID: audit\nAutomation memory: enabled\nLast run: success\n\n確認して';
+            const item = event('response_item', { type: 'function_call_output',
+                name: variant === 'wrong_tool' ? 'create_thread' : 'automation_update', namespace: 'codex_app',
+                output: variant === 'malformed' ? '確認して' : valid,
+                internal_chat_message_metadata_passthrough: { turn_id: variant === 'foreign_turn' ? 'foreign' : turnId } });
+            writeFileSync(transcript, [
+                event('session_meta', { id: sessionId, thread_source: variant === 'normal_session' ? 'cli' : 'automation' }),
+                item, ...(variant === 'multiple' ? [item] : [])
+            ].join('\n'));
+            const env = { BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+                BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+                BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
+                BRAINBASE_JUDGMENT_CANARY_CWD: process.cwd() };
+            const fetchImpl = vi.fn();
+            const output = await processHookPayload({ hook_event_name: 'PreToolUse', session_id: sessionId,
+                turn_id: turnId, cwd: process.cwd(), transcript_path: transcript,
+                tool_name: 'mcp__brainbase__brainbase_resolve_turn' }, { env, fetchImpl });
+            expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+            expect(fetchImpl).not.toHaveBeenCalled();
+        }
+    );
+
     it.each(['foreign_turn', 'foreign_session', 'wrong_tool', 'malformed', 'outside_scope', 'failed_start'])(
         'PreToolUseの委任復旧は不正または未確認の入力を許可しない: %s', async (variant) => {
             const root = temporaryDirectory();
