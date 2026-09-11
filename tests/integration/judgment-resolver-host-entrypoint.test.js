@@ -1023,7 +1023,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(readFileSync(finalPath, 'utf8')).toBe(finalBefore);
     }, 20_000);
 
-    it('失敗したrequired routeを重複実行せずowner監査だけを修復できる', async () => {
+    it('失敗したrequired routeを重複実行せずowner監査修復後に監査縮退で確定する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
@@ -1090,7 +1090,12 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(repairedStop.stdout).decision).toBeUndefined();
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
-            completion_status: 'complete', event_count: 1, qualifying_event_count: 0
+            completion_status: 'audit_degraded',
+            degradation_reason: 'knowledge.resolve',
+            missing_capabilities: ['knowledge.resolve'],
+            event_count: 1,
+            qualifying_event_count: 0,
+            owner_audit_complete: true
         });
     }, 20_000);
 
