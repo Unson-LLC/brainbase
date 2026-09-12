@@ -731,7 +731,9 @@ function reconcileModelInterpretation(input, manifest) {
             ])
         ], manifest.selectors.signal_order)
     };
-    if (classification.domains.includes('knowledge') && !input.project_code) {
+    const knowledgeNeedsProject = classification.domains.includes('knowledge')
+        && !classification.domains.includes('personal_judgment');
+    if (knowledgeNeedsProject && !input.project_code) {
         return {
             status: 'needs_classification', classification: null, assurance: 'unknown',
             reasons: ['knowledge_project_code_missing'],
@@ -863,7 +865,9 @@ function classify(input, manifest) {
             : minimumAction === 'write'
                 ? 'medium'
                 : 'low';
-    if (domains.includes('knowledge') && !input.project_code) {
+    const knowledgeNeedsProject = domains.includes('knowledge')
+        && !domains.includes('personal_judgment');
+    if (knowledgeNeedsProject && !input.project_code) {
         return {
             status: 'needs_classification', classification: null, assurance: 'unknown',
             reasons: ['knowledge_project_code_missing'],
