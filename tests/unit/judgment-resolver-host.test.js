@@ -859,7 +859,7 @@ describe('Codex Judgment Resolver Host', () => {
         }
     );
 
-    it.each(['foreign_turn', 'foreign_session', 'wrong_tool', 'malformed', 'outside_scope', 'failed_start'])(
+    it.each(['foreign_turn', 'foreign_session', 'wrong_tool', 'malformed', 'outside_scope'])(
         'PreToolUseの委任復旧は不正または未確認の入力を許可しない: %s', async (variant) => {
             const root = temporaryDirectory();
             const sessionId = 'pre-tool-negative-session';
@@ -897,6 +897,24 @@ describe('Codex Judgment Resolver Host', () => {
             expect(existsSync(join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`))).toBe(false);
         }
     );
+
+    it('PreToolUseは壊れたstart-failure markerを監査未完了として通常権限へ戻す', async () => {
+        const root = temporaryDirectory();
+        const sessionId = 'pre-tool-failed-start-session';
+        const turnId = 'pre-tool-failed-start-turn';
+        const transcript = join(root, 'session.jsonl');
+        writeFileSync(transcript, event('session_meta', { id: sessionId }));
+        const env = { BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const dir = join(root, 'journal', 'diagnostics', hash(sessionId));
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, `${hash(turnId)}.start-failure.json`), '{}');
+        const output = await processHookPayload({ hook_event_name: 'PreToolUse', session_id: sessionId,
+            turn_id: turnId, cwd: process.cwd(), transcript_path: transcript,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn' }, { env, fetchImpl: vi.fn() });
+        expect(output.hookSpecificOutput.permissionDecision).toBeUndefined();
+        expect(output.hookSpecificOutput.additionalContext).toContain('通常の権限・承認境界');
+    });
 
     it('同一turn・同一送り元のcreateと後続sendを全入力順で結合してStop復旧する', async () => {
         const root = temporaryDirectory();

@@ -94,7 +94,7 @@ afterEach(async () => {
 });
 
 describe('Codex Judgment Resolver Host process entrypoint', () => {
-    it('node不在でも生stderrを出さず、グローバル既定どおりfail-closed診断を非zeroで返す', async () => {
+    it('node不在でも通常権限へ制御を戻し、安全な診断だけを返す', async () => {
         const root = temporaryDirectory();
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
         const prompt = 'entrypoint node missing secret must not leak';
@@ -113,20 +113,16 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
 
-        expect(result.code).not.toBe(0);
+        expect(result.code).toBe(0);
         expect(result.signal).toBeNull();
-        expect(result.stderr).toBe('');
+        expect(result.stderr).toContain('judgment_entrypoint_runtime_unavailable');
         const output = JSON.parse(result.stdout);
-        expect(output).toMatchObject({
-            continue: false,
-            suppressOutput: false,
-            stopReason: expect.stringContaining('judgment_entrypoint_runtime_unavailable')
-        });
+        expect(output).toEqual({});
         expect(`${result.stdout}\n${result.stderr}`).not.toContain(prompt);
         expect(`${result.stdout}\n${result.stderr}`).not.toContain('command not found');
     });
 
-    it('Hostの静的import失敗でもdiagnostic_continueを継続許可へ昇格せず、生stderrを出さない', async () => {
+    it('Hostの静的import失敗でも通常権限へ制御を戻し、秘密を出さない', async () => {
         const root = temporaryDirectory();
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
         const importFailure = join(root, 'host-import-failure.mjs');
@@ -151,15 +147,11 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
 
-        expect(result.code).not.toBe(0);
+        expect(result.code).toBe(0);
         expect(result.signal).toBeNull();
-        expect(result.stderr).toBe('');
+        expect(result.stderr).toContain('judgment_entrypoint_runtime_unavailable');
         const output = JSON.parse(result.stdout);
-        expect(output).toMatchObject({
-            continue: false,
-            suppressOutput: false,
-            stopReason: expect.stringContaining('judgment_entrypoint_runtime_unavailable')
-        });
+        expect(output).toEqual({});
         const combined = `${result.stdout}\n${result.stderr}`;
         expect(combined).not.toContain(prompt);
         expect(combined).not.toContain(secret);
@@ -793,9 +785,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         expect(lateStart).toMatchObject({ code: 0, stderr: '' });
         expect(JSON.parse(lateStart.stdout)).toMatchObject({
-            continue: false,
+            continue: true,
             suppressOutput: false,
-            stopReason: expect.stringContaining('judgment_audit_degraded_start_conflict')
+            systemMessage: expect.stringContaining('監査')
         });
         expect(existsSync(join(orphanDirectory, `${hash(orphanIdentity.turn_id)}.episode.json`))).toBe(false);
 
@@ -807,7 +799,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             })
         });
         expect(orphanReplay).toMatchObject({ code: 0, stderr: '' });
-        expect(JSON.parse(orphanReplay.stdout)).toEqual({});
+        expect(JSON.parse(orphanReplay.stdout)).toEqual({
+            systemMessage: expect.stringContaining('監査未完了')
+        });
 
         const degradedReceipt = JSON.parse(readFileSync(degradedPath, 'utf8'));
         delete degradedReceipt.finalized_at;
@@ -819,8 +813,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 last_assistant_message: `${warning}\n${originalBody}`
             })
         });
-        expect(malformedDegradedReplay.code).not.toBe(0);
-        expect(malformedDegradedReplay.stderr).toContain('judgment_audit_degraded_integrity_invalid');
+        expect(malformedDegradedReplay).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(malformedDegradedReplay.stdout)).toEqual({
+            systemMessage: expect.stringContaining('監査未完了')
+        });
 
         const falseRetryIdentity = { session_id: 'session-orphan-false-retry', turn_id: 'turn-orphan-false-retry' };
         const falseRetryPayload = {
@@ -864,8 +860,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             env,
             input: JSON.stringify({ ...tamperedPayload, stop_hook_active: true })
         });
-        expect(tamperedActive.code).not.toBe(0);
-        expect(tamperedActive.stderr).toContain('judgment_audit_failure_integrity_invalid');
+        expect(tamperedActive).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(tamperedActive.stdout)).toEqual({
+            systemMessage: expect.stringContaining('judgment_audit_failure_integrity_invalid')
+        });
         expect(existsSync(join(
             journal,
             hash(tamperedIdentity.session_id),
@@ -891,8 +889,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             env,
             input: JSON.stringify({ ...timestampPayload, stop_hook_active: true })
         });
-        expect(timestampActive.code).not.toBe(0);
-        expect(timestampActive.stderr).toContain('judgment_audit_failure_integrity_invalid');
+        expect(timestampActive).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(timestampActive.stdout)).toEqual({
+            systemMessage: expect.stringContaining('judgment_audit_failure_integrity_invalid')
+        });
 
         const damagedIdentity = { session_id: 'session-orphan-damaged', turn_id: 'turn-orphan-damaged' };
         const damagedFirst = await run('bash', [wrapper], {
@@ -926,11 +926,12 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             env,
             input: JSON.stringify({ hook_event_name: 'Stop', stop_hook_active: true })
         });
-        expect(invalidActive.code).not.toBe(0);
-        expect(invalidActive.stdout).toBe('');
-        expect(invalidActive.stderr).toContain('judgment_episode_identity_missing');
-        expect(invalidActive.stderr).toContain('原因と必要な復旧操作は未確認');
-        expect(invalidActive.stderr).not.toContain('Settings → Hooks');
+        expect(invalidActive).toMatchObject({ code: 0, stderr: '' });
+        expect(JSON.parse(invalidActive.stdout)).toEqual({
+            systemMessage: expect.stringContaining('judgment_episode_identity_missing')
+        });
+        expect(invalidActive.stdout).toContain('原因と必要な復旧操作は未確認');
+        expect(invalidActive.stdout).not.toContain('Settings → Hooks');
 
         const activeFirstIdentity = { session_id: 'session-orphan-active-first', turn_id: 'turn-orphan-active-first' };
         const activeFirst = await run('bash', [wrapper], {
@@ -1251,8 +1252,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         });
         expect(lateStart).toMatchObject({ code: 0, stderr: '' });
         expect(JSON.parse(lateStart.stdout)).toMatchObject({
-            continue: false,
-            stopReason: expect.stringContaining('judgment_orphan_tool_event_start_conflict')
+            continue: true,
+            suppressOutput: false,
+            systemMessage: expect.stringContaining('監査')
         });
         expect(existsSync(join(
             journal, hash(identity.session_id), `${hash(identity.turn_id)}.episode.json`
@@ -1273,7 +1275,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
                 last_assistant_message: '継続結果'
             })
         });
-        expect(JSON.parse(firstStop.stdout)).toMatchObject({ decision: 'block' });
+        expect(JSON.parse(firstStop.stdout)).toEqual({
+            systemMessage: expect.stringContaining('監査未完了')
+        });
     });
 
     // Traceability: story-judgment-audit-continuity-v1:ac:1
@@ -1607,7 +1611,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(new Set(events.map((event) => event.tool_use_id))).toEqual(new Set(['parallel-a', 'parallel-b']));
     }, 20_000);
 
-    it('live transition transactionとの競合をactive Stopで無音成功に変換しない', async () => {
+    it('live transition transactionとの競合をactive Stopで可視な監査未完了へ変換する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const hostUrl = await listen((request, response) => {
@@ -1655,16 +1659,17 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const lockHolder = new Database(transitionDatabase);
         lockHolder.exec('BEGIN IMMEDIATE');
         try {
-            const blocked = await run('bash', [wrapper], {
+            const degraded = await run('bash', [wrapper], {
                 env,
                 input: JSON.stringify({
                     hook_event_name: 'Stop', ...identity, stop_hook_active: true,
                     last_assistant_message: '回答'
                 })
             });
-            expect(blocked.code).not.toBe(0);
-            expect(blocked.stdout).toBe('');
-            expect(blocked.stderr).toContain('judgment_episode_transition_timeout');
+            expect(degraded).toMatchObject({ code: 0, stderr: '' });
+            expect(JSON.parse(degraded.stdout)).toEqual({
+                systemMessage: expect.stringContaining('judgment_episode_transition_timeout')
+            });
             expect(readdirSync(journalDirectory)).not.toContain(`${turnRef}.final.json`);
         } finally {
             lockHolder.exec('ROLLBACK');

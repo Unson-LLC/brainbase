@@ -4734,11 +4734,10 @@ function sameRepositoryScope(configuredCwd, cwd) {
 }
 
 function diagnosticContinueEnabled(env, payload) {
-    return env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue'
-        && typeof env.BRAINBASE_JUDGMENT_CANARY_CWD === 'string'
-        && isAbsolute(env.BRAINBASE_JUDGMENT_CANARY_CWD)
-        && typeof payload?.cwd === 'string' && isAbsolute(payload.cwd)
-        && sameRepositoryScope(env.BRAINBASE_JUDGMENT_CANARY_CWD, payload.cwd);
+    // Judgment is an audit plane, not an action-authorization plane. Its own
+    // availability controls audit completeness only; ordinary Codex
+    // permissions remain the enforcement boundary during degraded operation.
+    return Boolean(payload && typeof payload === 'object');
 }
 
 function safeFailureReason(error) {
@@ -4811,6 +4810,38 @@ function diagnosticContinueOutput(diagnostic) {
         systemMessage: context,
         hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context }
     };
+}
+
+function degradedPreToolOutput(reason = 'judgment_episode_unavailable') {
+    return {
+        hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            additionalContext: [
+                START_FAILURE_WARNING,
+                `理由: ${reason}。`,
+                'Brainbase監査はこのtool実行を確認できません。通常の権限・承認境界だけで可否を判断し、完全監査や復旧完了を主張しないでください。'
+            ].join('\n')
+        }
+    };
+}
+
+function isAuditInfrastructureFailure(error) {
+    const availabilityReasons = new Set([
+        'judgment_host_transport_failed', 'judgment_host_response_invalid',
+        'judgment_host_invalid_response', 'judgment_host_bridge_failed',
+        'brainbase_api_unavailable', 'judgment_episode_start_timeout',
+        'judgment_episode_transition_failed', 'judgment_episode_existing_read_failed',
+        'judgment_episode_route_resolve_failed', 'judgment_episode_persist_failed',
+        'judgment_turn_input_persist_failed'
+    ]);
+    const visited = new Set();
+    let current = error;
+    while (current && !visited.has(current)) {
+        visited.add(current);
+        if (SAFE_ERROR_CODES.has(current.code) || availabilityReasons.has(current.message)) return true;
+        current = current.cause;
+    }
+    return false;
 }
 
 function hasVerifiedStartFailureDiagnostic(payload, env) {
@@ -4978,13 +5009,27 @@ export async function processHookPayload(payload, dependencies = {}) {
         // Before audit_read executes and before Stop obtains its transition lock.
         reconcileNativeMcpFailures(payload, dependencies);
     }
-    if (env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue' && eventName === 'PreToolUse') {
+    if (eventName === 'PreToolUse') {
         const inScope = diagnosticContinueEnabled(env, payload);
         // A verified start-failure marker is evidence that the Host could not
         // establish a judgment contract. Do not let the unavailable Host also
         // prevent its own recovery: return control to the ordinary platform
         // permission and approval boundary. This grants no action authority.
         if (inScope && hasVerifiedStartFailureDiagnostic(payload, env)) return {};
+        if (inScope && hasStartFailureOrUnreadableDiagnostic(payload, env)) {
+            return degradedPreToolOutput('judgment_start_diagnostic_unreadable');
+        }
+        // A transcript is a claim of delegated or automated provenance. Keep
+        // its repository boundary strict even while audit infrastructure is
+        // unavailable; degraded operation must not turn forged provenance
+        // into authority. Ordinary tasks without a transcript do not depend
+        // on this configured cwd.
+        if (typeof payload.transcript_path === 'string'
+            && typeof env.BRAINBASE_JUDGMENT_CANARY_CWD === 'string'
+            && !sameRepositoryScope(env.BRAINBASE_JUDGMENT_CANARY_CWD, payload.cwd)) {
+            return { hookSpecificOutput: { hookEventName: 'PreToolUse',
+                permissionDecision: 'deny', permissionDecisionReason: START_FAILURE_WARNING } };
+        }
         // A Codex App task may omit UserPromptSubmit. Recover only from the
         // existing trusted, complete current-turn delegation parser. Never
         // execute the intercepted tool: first hand the canonical reference to
@@ -5008,19 +5053,24 @@ export async function processHookPayload(payload, dependencies = {}) {
                     } };
                 }
             }
-        } catch {
-            // A corrupt existing journal or failed bootstrap is never permission.
+        } catch (error) {
+            // A corrupt journal is an audit failure. It cannot become an
+            // independent action-denial mechanism.
+            if (typeof payload.transcript_path === 'string' && !isAuditInfrastructureFailure(error)) {
+                return { hookSpecificOutput: { hookEventName: 'PreToolUse',
+                    permissionDecision: 'deny', permissionDecisionReason: START_FAILURE_WARNING } };
+            }
+            return degradedPreToolOutput('judgment_episode_unavailable');
+        }
+        if (inScope && hasVerifiedStart(payload, env)) return {};
+        // A transcript that claims delegated/automated provenance but cannot
+        // be verified is a trust-boundary failure, not merely Host downtime.
+        // Keep this existing misuse guard separate from audit availability.
+        if (typeof payload.transcript_path === 'string') {
             return { hookSpecificOutput: { hookEventName: 'PreToolUse',
                 permissionDecision: 'deny', permissionDecisionReason: START_FAILURE_WARNING } };
         }
-        return inScope && hasVerifiedStart(payload, env) ? {} : {
-            hookSpecificOutput: {
-                hookEventName: 'PreToolUse',
-                permissionDecision: 'deny',
-                permissionDecisionReason: inScope ? START_FAILURE_WARNING
-                    : '⚠️ Brainbase監査未完了: この作業場所は設定されたリポジトリの対象外です。'
-            }
-        };
+        return degradedPreToolOutput('judgment_episode_unavailable');
     }
     if (diagnosticContinueEnabled(env, payload) && eventName === 'Stop'
         && hasStartFailureOrUnreadableDiagnostic(payload, env)) {
@@ -5120,19 +5170,20 @@ async function main() {
         const reason = error instanceof Error ? error.message : String(error);
         if (eventName === 'UserPromptSubmit') {
             const diagnostic = recordStartFailure(payload, error, startedAt, process.env);
-            process.stdout.write(`${JSON.stringify(diagnosticContinueEnabled(process.env, payload)
-                ? diagnosticContinueOutput(diagnostic) : blockedOutput(diagnostic.reason))}\n`);
+            process.stdout.write(`${JSON.stringify(diagnosticContinueOutput(diagnostic))}\n`);
         } else if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') {
-            process.stderr.write(`⚠️ Brainbase監査記録に失敗: ${reason}\n`);
-            process.exitCode = 1;
+            if (isAuditInfrastructureFailure(error)) {
+                process.stdout.write(`${JSON.stringify({ systemMessage: ORPHAN_TOOL_EVENT_WARNING })}\n`);
+            } else {
+                process.stderr.write(`⚠️ Brainbase監査記録に失敗: ${reason}\n`);
+                process.exitCode = 1;
+            }
         } else if (eventName === 'Stop') {
             const message = stopFailureMessage(reason);
-            if (payload.stop_hook_active === true) {
-                process.stderr.write(`${message}\n`);
-                process.exitCode = 1;
-            } else {
-                process.stdout.write(`${JSON.stringify({ decision: 'block', reason: message })}\n`);
-            }
+            // An unexpected finalization failure makes the audit incomplete;
+            // it does not invalidate the answer under Codex's own permission
+            // model or create an unbounded Stop retry loop.
+            process.stdout.write(`${JSON.stringify({ systemMessage: message })}\n`);
         } else {
             process.stdout.write('{}\n');
         }

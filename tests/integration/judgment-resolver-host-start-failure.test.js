@@ -123,12 +123,14 @@ function expectDiagnosticContinue(output) {
     expect(output.systemMessage).toMatch(/通常の権限・承認境界.*復旧診断tool/u);
 }
 
-function expectBlocked(output) {
+function expectDegradedPreTool(output) {
     expect(output).toMatchObject({
-        continue: false,
-        suppressOutput: false,
-        stopReason: expect.stringContaining('Judgment Resolver Host pre-turn failed')
+        hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            additionalContext: expect.stringContaining('通常の権限・承認境界')
+        }
     });
+    expect(output.hookSpecificOutput).not.toHaveProperty('permissionDecision');
 }
 
 function readJsonOutput(stdout) {
@@ -270,7 +272,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         'Host timeout',
         'journal root作成失敗',
         'episode永続化失敗'
-    ])('既定モードは%sをcontinue:falseでfail-closedし、安全な診断を残す', async (name) => {
+    ])('既定モードは%sでも診断付きで継続し、安全な診断を残す', async (name) => {
         const root = temporaryDirectory();
         const payload = startPayload(
             `session-start-failure-default-${name}`,
@@ -289,7 +291,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         });
 
         expect(result).toMatchObject({ code: 0, signal: null });
-        expectBlocked(readJsonOutput(result.stdout));
+        expectDiagnosticContinue(readJsonOutput(result.stdout));
         if (name === 'journal root作成失敗') {
             readSafeStderr(result.stderr, payload.prompt);
         } else {
@@ -375,6 +377,43 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         readSafeStderr(result.stderr, payload.prompt);
     }, 10_000);
 
+    it('Host失敗とjournal保存不能が重なってもUserPromptSubmitからStopまでCodexをblockしない', async () => {
+        const root = temporaryDirectory();
+        const journal = join(root, 'journal-root-is-a-file');
+        writeFileSync(journal, 'not a directory\n');
+        const hostUrl = await closedLoopbackUrl();
+        const payload = startPayload('session-storage-down', 'turn-storage-down', '通信と保存の同時障害を診断する');
+        const env = { ...process.env,
+            BRAINBASE_JUDGMENT_HOST_URL: `${hostUrl}/host/judgment/resolve`,
+            BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS: '50',
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
+
+        const started = await runEntrypoint({ env, payload });
+        expect(started.code).toBe(0);
+        expectDiagnosticContinue(readJsonOutput(started.stdout));
+        readSafeStderr(started.stderr, payload.prompt);
+
+        const preTool = await runEntrypoint({ env, payload: { ...payload,
+            hook_event_name: 'PreToolUse', tool_name: 'functions.exec_command', tool_use_id: 'diagnose-storage' } });
+        expect(preTool).toMatchObject({ code: 0, stderr: '' });
+        expectDegradedPreTool(readJsonOutput(preTool.stdout));
+
+        const postTool = await runEntrypoint({ env, payload: { ...payload,
+            hook_event_name: 'PostToolUse', tool_name: 'functions.exec_command', tool_use_id: 'diagnose-storage',
+            tool_input: {}, tool_response: { exit_code: 0 } } });
+        expect(postTool).toMatchObject({ code: 0, stderr: '' });
+        expect(readJsonOutput(postTool.stdout)).toEqual({
+            systemMessage: expect.stringContaining('監査未完了')
+        });
+
+        const stopped = await runEntrypoint({ env, payload: { ...payload,
+            hook_event_name: 'Stop', stop_hook_active: false, last_assistant_message: '診断結果' } });
+        expect(stopped).toMatchObject({ code: 0, stderr: '' });
+        expect(readJsonOutput(stopped.stdout)).toEqual({
+            systemMessage: expect.stringContaining('監査未完了')
+        });
+    }, 10_000);
+
     it.each(['exact', 'same-repository'])('検証済みepisodeのPreToolUseを%sで許可する', async (scope) => {
         const root = temporaryDirectory();
         const payload = startPayload(
@@ -413,10 +452,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
             env: { ...env, GIT_DIR: execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim() },
             payload: { ...payload, cwd: root, hook_event_name: 'PreToolUse', tool_name: 'mcp__brainbase__search' }
         });
-        expect(readJsonOutput(foreign.stdout).hookSpecificOutput).toMatchObject({
-            permissionDecision: 'deny',
-            permissionDecisionReason: '⚠️ Brainbase監査未完了: この作業場所は設定されたリポジトリの対象外です。'
-        });
+        expect(readJsonOutput(foreign.stdout)).toEqual({});
 
     }, 10_000);
 
@@ -489,7 +525,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         expect(readJsonOutput(preToolUse.stdout)).toEqual({});
     }, 10_000);
 
-    it.each(['lifecycle不一致', 'turn-input不一致'])('明示opt-in時に%sのepisodeはPreToolUseをdenyする', async (tamper) => {
+    it.each(['lifecycle不一致', 'turn-input不一致'])('%sのepisodeでも監査障害を通常権限の拒否へ変換しない', async (tamper) => {
         const root = temporaryDirectory();
         const payload = startPayload(
             `session-start-failure-pretool-tampered-${tamper}`,
@@ -534,16 +570,10 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
             }
         });
         expect(preToolUse).toMatchObject({ code: 0, signal: null, stderr: '' });
-        expect(readJsonOutput(preToolUse.stdout)).toMatchObject({
-            hookSpecificOutput: {
-                hookEventName: 'PreToolUse',
-                permissionDecision: 'deny',
-                permissionDecisionReason: expect.stringContaining('開始処理を確認できない')
-            }
-        });
+        expectDegradedPreTool(readJsonOutput(preToolUse.stdout));
     }, 10_000);
 
-    it('正常Start後でも同turnの空または壊れたstart-failure markerを優先してPreToolUseをdenyし、Stopは警告だけ返す', async () => {
+    it('正常Start後でも同turnの空または壊れたstart-failure markerはPreToolUseを止めず、Stopは警告だけ返す', async () => {
         const root = temporaryDirectory();
         const payload = startPayload(
             'session-start-failure-marker-priority',
@@ -590,13 +620,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
                 }
             });
             expect(preToolUse).toMatchObject({ code: 0, signal: null, stderr: '' });
-            expect(readJsonOutput(preToolUse.stdout)).toMatchObject({
-                hookSpecificOutput: {
-                    hookEventName: 'PreToolUse',
-                    permissionDecision: 'deny',
-                    permissionDecisionReason: expect.stringContaining('開始処理を確認できない')
-                }
-            });
+            expectDegradedPreTool(readJsonOutput(preToolUse.stdout));
 
             const stop = await runEntrypoint({
                 env,
@@ -614,7 +638,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         }
     }, 10_000);
 
-    it.each(['欠損', 'corrupt', '保存不能'])('明示opt-in時にPreToolUseの%s状態はdenyし、権限を追加しない', async (state) => {
+    it.each(['欠損', 'corrupt', '保存不能'])('PreToolUseの%s状態でも監査障害を通常権限の拒否へ変換しない', async (state) => {
         const root = temporaryDirectory();
         const payload = startPayload(
             `session-start-failure-pretool-${state}`,
@@ -647,16 +671,10 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
             }
         });
         expect(preToolUse).toMatchObject({ code: 0, signal: null, stderr: '' });
-        expect(readJsonOutput(preToolUse.stdout)).toMatchObject({
-            hookSpecificOutput: {
-                hookEventName: 'PreToolUse',
-                permissionDecision: 'deny',
-                permissionDecisionReason: expect.stringContaining('開始処理を確認できない')
-            }
-        });
+        expectDegradedPreTool(readJsonOutput(preToolUse.stdout));
     }, 10_000);
 
-    it.each(['env欠落', 'cwd不一致'])('明示opt-inでも%sならdiagnostic_continueを無効化し、Startをfail-closedにする', async (state) => {
+    it.each(['env欠落', 'cwd不一致'])('%sでも監査障害をCodex停止へ波及させない', async (state) => {
         const root = temporaryDirectory();
         const payload = startPayload(
             `session-start-failure-canary-${state}`,
@@ -675,7 +693,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         const result = await runEntrypoint({ env, payload });
 
         expect(result).toMatchObject({ code: 0, signal: null, stderr: '' });
-        expectBlocked(readJsonOutput(result.stdout));
+        expectDiagnosticContinue(readJsonOutput(result.stdout));
         expectSafeDiagnostic(
             JSON.parse(readFileSync(diagnosticPath(setup.journal, payload), 'utf8')),
             payload.prompt
@@ -761,7 +779,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         });
     }, 10_000);
 
-    it('prompt欠損のStart失敗でも秘密を含まない診断を保存し、既定モードはfail-closedする', async () => {
+    it('prompt欠損のStart失敗でも秘密を含まない診断を保存し、Codexを停止しない', async () => {
         const root = temporaryDirectory();
         const payload = {
             hook_event_name: 'UserPromptSubmit',
@@ -781,7 +799,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         });
 
         expect(result).toMatchObject({ code: 0, signal: null });
-        expectBlocked(readJsonOutput(result.stdout));
+        expectDiagnosticContinue(readJsonOutput(result.stdout));
         const diagnostic = JSON.parse(readFileSync(diagnosticPath(journal, payload), 'utf8'));
         expectSafeDiagnostic(diagnostic);
         expect(diagnostic.failed_stage).toBe('judgment_episode_request_build_failed');
