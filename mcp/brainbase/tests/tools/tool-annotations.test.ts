@@ -7,14 +7,14 @@ import { annotateToolCapabilities } from '../../src/tools/tool-annotations.js';
 describe('MCP tool capability annotations', () => {
   it('classifies every published tool explicitly', () => {
     const expectedReadOnly: Record<string, boolean> = {
-      get_context: true, list_entities: true, get_entity: true, list_extension_types: true,
-      list_extension_entities: true, search: true, resolve_entity: true, search_wiki: true,
+      list_entities: true, get_entity: true, list_extension_types: true,
+      list_extension_entities: true, search: true, resolve_entity: true,
       get_wiki_page: true, search_personal_kg: true, brainbase_projects: true,
       brainbase_bootstrap_config: true, brainbase_admin_read: true, brainbase_run_receipt_inbox: true,
       brainbase_run_receipt_history: true, brainbase_run_receipt_diagnosis: true,
       brainbase_automation_run_detail: true, brainbase_meeting_automation_diagnosis: true,
       brainbase_onboarding_get: true, brainbase_knowledge_resolve: true, brainbase_resolve_turn: true,
-      brainbase_judgment_audit_read: true,
+      brainbase_judgment_audit_read: true, brainbase_knowledge_evidence_record: true,
       brainbase_get_meeting_minutes_context: true, authorize_tenant_resource: true, mesh_peers: true,
       graph_get_plan_receipt: true, graph_validate: true,
       register_personal_kg: false,

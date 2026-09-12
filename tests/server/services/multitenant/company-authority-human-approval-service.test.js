@@ -186,7 +186,7 @@ describe('CompanyAuthorityHumanApprovalService', () => {
         );
     });
 
-    it('署名済みproject_hintとresource_refが異なる場合はaccess keyを返さない', async () => {
+    it('project_hintとresource_refが異なる場合は承認bindingの作成前に拒否する', async () => {
         const harness = createHarness();
         const input = observed({
             requested_action: {
@@ -196,13 +196,15 @@ describe('CompanyAuthorityHumanApprovalService', () => {
                 desired_effect: 'read'
             }
         });
-        const step = await createBoundStep(harness, input);
-
-        expect(() => harness.service.verifiedProjectAccessBinding(step)).toThrowError(
-            expect.objectContaining({
-                code: 'company_authority_human_approval_binding_mismatch'
-            })
-        );
+        const response = await harness.producer.resolve(input);
+        expect(response.context).toBeNull();
+        expect(response.error.code).toBe('AUTHORITY_SCOPE_MISMATCH');
+        await expect(createBoundStep(harness, input)).rejects.toMatchObject({
+            code: 'company_authority_human_approval_invalid'
+        });
+        expect(harness.authorityRepo.resolveCanonicalAuthority).not.toHaveBeenCalled();
+        expect(harness.repository.getHumanStep('human-step-1').metadata)
+            .not.toHaveProperty('company_authority_human_approval');
     });
 
     it('issues a signed, request-bound receipt with separate requester and approver, then consumes it once', async () => {

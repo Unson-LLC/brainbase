@@ -532,7 +532,7 @@ export class AuthManager {
         if (typeof window === 'undefined') return;
         this._ensureMessageListener();
         const authBase = this.resolveLoginBaseURL() || window.location.origin;
-        const url = new URL('/api/auth/slack/start', authBase);
+        const url = new URL('/api/auth/login/start', authBase);
         url.searchParams.set('origin', window.location.origin);
         if (redirectPath) {
             url.searchParams.set('redirect', redirectPath);

@@ -198,7 +198,7 @@ test('initialize, tools/list, and resource template discovery do not wait for ba
     assert.equal(state.connectCalls, 1, 'kickoff owns the only pending backend connect');
     const templates = await facade.client.listResourceTemplates();
     assert.equal(templates.resourceTemplates.length, 1);
-    const readiness = await facade.client.callTool({ name: 'get_context', arguments: {} });
+    const readiness = await facade.client.callTool({ name: 'get_entity', arguments: {} });
     assert.equal(readiness.isError, true);
     assert.equal((readiness._meta as Record<string, unknown>)['brainbase.retryable'], true);
   } finally {
@@ -250,15 +250,15 @@ test('startup failures retry on the same connection without replaying a business
   session.kickoff();
   const facade = await connectFacade(session);
   try {
-    const first = await facade.client.callTool({ name: 'get_context', arguments: {} });
+    const first = await facade.client.callTool({ name: 'get_entity', arguments: {} });
     assert.equal(first.isError, true);
     await waitUntil(() => session.state === 'failed');
 
-    const second = await facade.client.callTool({ name: 'get_context', arguments: {} });
+    const second = await facade.client.callTool({ name: 'get_entity', arguments: {} });
     assert.equal(second.isError, true);
     await waitUntil(() => session.state === 'ready');
 
-    const third = await facade.client.callTool({ name: 'get_context', arguments: {} });
+    const third = await facade.client.callTool({ name: 'get_entity', arguments: {} });
     assert.equal(third.isError, undefined);
     assert.equal(state.connectCalls, 2);
     assert.equal(state.callToolCalls, 1, 'only the explicit ready request reaches the backend');
@@ -328,15 +328,15 @@ test('concurrent dependent calls share one startup attempt', async () => {
   const facade = await connectFacade(session);
   try {
     const [first, second] = await Promise.all([
-      facade.client.callTool({ name: 'get_context', arguments: {} }),
-      facade.client.callTool({ name: 'get_context', arguments: {} }),
+      facade.client.callTool({ name: 'get_entity', arguments: {} }),
+      facade.client.callTool({ name: 'get_entity', arguments: {} }),
     ]);
     assert.equal(first.isError, true);
     assert.equal(second.isError, true);
     assert.equal(state.connectCalls, 1);
     release();
     await waitUntil(() => session.state === 'ready');
-    const result = await facade.client.callTool({ name: 'get_context', arguments: {} });
+    const result = await facade.client.callTool({ name: 'get_entity', arguments: {} });
     assert.equal(result.isError, undefined);
     assert.equal(state.callToolCalls, 1);
   } finally {
@@ -450,4 +450,22 @@ test('process group cleanup kills descendants after the direct child exits', { t
     }
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('retired search calls do not wait for or call the facade backend', async () => {
+  let readinessCalls = 0;
+  let toolCalls = 0;
+  const facade = await connectFacade({ensureReady: async () => {
+    readinessCalls++;
+    return {callTool: async () => { toolCalls++; throw new Error('must not forward'); }} as unknown as BackendClient;
+  }});
+  try {
+    for (const [name, args] of [['get_context', {topic: 'q'}], ['search_wiki', {query: 'q'}], ['search', {query: 'q', mode: 'lexical'}]] as const) {
+      const result = await facade.client.callTool({name, arguments: args});
+      assert.equal(result.isError, true);
+      assert.match(JSON.stringify(result), /removed|disabled/);
+    }
+    assert.equal(readinessCalls, 0);
+    assert.equal(toolCalls, 0);
+  } finally { await closeFacade(facade.client, facade.server); }
 });

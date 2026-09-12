@@ -505,6 +505,7 @@ function searchableFields(entity: ResolvableEntity): Array<{ field: string; valu
   };
 
   addField('id', entity.id);
+  addField('id', entity.graph_entity_id);
   addField('name', getEntityDisplayName(entity));
   addField('aliases', getEntityAliases(entity));
   addField('role', record.role);
@@ -594,7 +595,7 @@ export function resolveEntities(index: EntityIndex, options: EntityResolverOptio
     if (owner) {
       const ownerTerms = searchedTerms.filter(term => FIRST_PERSON_TERMS.has(term));
       candidatesByKey.set(`person:${owner.id}`, {
-        entity_id: owner.id,
+        entity_id: owner.graph_entity_id || owner.id,
         type: owner.type,
         name: owner.name,
         aliases: owner.aliases,
@@ -639,7 +640,7 @@ export function resolveEntities(index: EntityIndex, options: EntityResolverOptio
         ? contactDetails(entity.payload)
         : undefined;
       candidatesByKey.set(`${entity.type}:${entity.id}`, {
-        entity_id: entity.id,
+        entity_id: entity.graph_entity_id || entity.id,
         type: entity.type,
         name,
         aliases: getEntityAliases(entity),

@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   contract:
-    runs-on: [self-hosted, Linux, X64, wsl-linux]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     services:
       postgres:

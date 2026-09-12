@@ -377,6 +377,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             `${hash('turn-symlink-entrypoint')}.continuation.json`,
             `${hash('turn-symlink-entrypoint')}.episode.json`,
             `${hash('turn-symlink-entrypoint')}.events`,
+            `${hash('turn-symlink-entrypoint')}.execution-outcome.json`,
             `${hash('turn-symlink-entrypoint')}.final.json`,
             `${hash('turn-symlink-entrypoint')}.transition.sqlite`,
             `${hash('turn-symlink-entrypoint')}.turn-input.json`
@@ -1071,9 +1072,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(recorded.code).toBe(0);
         const routeLine = JSON.parse(recorded.stdout).systemMessage;
 
-        // A failed-but-attempted knowledge.resolve call satisfies the required
-        // capability, while the owner audit must still be visible in the
-        // assistant answer itself.
+        // A failed route remains unmet after the bounded retry; the visible
+        // warning cannot turn it into a successful capability.
         const firstStop = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: false,
             last_assistant_message: '参照先を確定できなかった回答'
@@ -2251,12 +2251,13 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             const recordedAudit = await run('bash', [wrapper], { env, input: JSON.stringify({
                 hook_event_name: 'PostToolUse', ...identity,
                 tool_name: 'mcp__brainbase__brainbase_judgment_audit_read', tool_use_id: 'tool-audit-read',
-                tool_input: { turn_ref: turnRef }, tool_response: auditResponse
+                tool_input: { turn_ref: turnRef },
+                tool_response: { content: [{ type: 'text', text: JSON.stringify(auditResponse) }] }
             }) });
             expect(recordedAudit).toMatchObject({ code: 0, stderr: '' });
             expect(JSON.parse(recordedAudit.stdout)).toEqual({});
             const auditEvent = JSON.parse(readFileSync(join(eventsPath, `${hash('tool-audit-read')}.json`), 'utf8'));
-            expect(auditEvent).toMatchObject({ event_kind: 'ignored', satisfies: [] });
+            expect(auditEvent).toMatchObject({ event_kind: 'ignored', success: true, satisfies: [] });
             auditPrefix = auditResponse.data.prefix;
             expect(auditPrefix.split('\n')).toEqual([
                 expect.stringMatching(/^🧠 判断参照:/u), routeLine

@@ -121,6 +121,33 @@ describe('AuthService service tokens', () => {
         })).rejects.toThrow('canonical routine authority is unresolved');
     });
 
+    it('organization_id移行前のauth_grantsでもorganizationsから組織を解決する', async () => {
+        const authService = new AuthService();
+        const queries = [];
+        authService.pool = {
+            query: async (sql, params) => {
+                queries.push({ sql, params });
+                if (queries.length === 1) {
+                    const error = new Error('column ag.organization_id does not exist');
+                    error.code = '42703';
+                    throw error;
+                }
+                return { rows: [{ person_id: 'person-sato', organization_id: 'organization-unson' }] };
+            }
+        };
+
+        const claims = await authService.resolveCanonicalRoutineAuthority({
+            routine: 'ohayo',
+            ownerPersonId: 'sato_keigo',
+            providerSubjectIds: ['U-SATO']
+        });
+
+        expect(queries).toHaveLength(2);
+        expect(queries[1].sql).toContain('JOIN organizations o ON $2 = ANY(o.projects)');
+        expect(queries[1].params).toEqual([['U-SATO'], 'brainbase']);
+        expect(claims.routineAuthority.organization_id).toBe('organization-unson');
+    });
+
     it('内部routine authorityはローカルprovider identityがなければDB照会前にfail closedにする', async () => {
         const authService = new AuthService();
         let queried = false;

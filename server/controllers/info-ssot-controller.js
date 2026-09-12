@@ -1,8 +1,10 @@
+import { PortableGraphService } from '../services/portable-graph-service.js';
 // @ts-check
 import { logger } from '../utils/logger.js';
 import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 import { OntologyError } from '../services/ontology-kernel.js';
 import { GraphMaintenanceService } from '../services/graph-maintenance-service.js';
+import { GraphVectorSearchService } from '../services/graph-vector-search-service.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
@@ -137,8 +139,25 @@ export class InfoSSOTController {
     /** @param {any} infoSSOTService */
     constructor(infoSSOTService, { configParser = null } = {}) {
         this.infoSSOTService = infoSSOTService;
+        this.portableGraphService = new PortableGraphService(infoSSOTService);
         this.graphMaintenanceService = new GraphMaintenanceService({ infoSSOTService, configParser });
     }
+
+    portableGraphOperation = async (req, res, operation) => {
+        try {
+            const access = this.maintenanceAccess(req);
+            const project = operation === 'read' ? req.query.project_code : req.body?.project_code;
+            const args = [access, project, req.params.graphId];
+            if (operation === 'import') args.push(req.body?.bundle);
+            if (operation === 'search') args.push(req.body?.input);
+            res.json(await this.portableGraphService[operation](...args));
+        } catch (error) {
+            res.status(resolveErrorStatus(error)).json({ error: error.code || 'portable_graph_request_denied' });
+        }
+    };
+    importPortableGraph = (req, res) => this.portableGraphOperation(req, res, 'import');
+    readPortableGraph = (req, res) => this.portableGraphOperation(req, res, 'read');
+    searchPortableGraph = (req, res) => this.portableGraphOperation(req, res, 'search');
 
     maintenanceAccess(req) {
         // Graph maintenance is deliberately restricted to a user Bearer token.
@@ -395,6 +414,20 @@ export class InfoSSOTController {
         } catch (error) {
             logger.error('Failed to list events', { error });
             res.status(resolveErrorStatus(error)).json({ error: getErrorMessage(error) || 'Failed to list events' });
+        }
+    };
+
+    searchGraph = async (req, res) => {
+        try {
+            const access = buildAccessContext(req);
+            assertAccessContext(access);
+            this.graphVectorSearchService ??= new GraphVectorSearchService(this.infoSSOTService);
+            res.json(await this.graphVectorSearchService.search(access, req.body || {}));
+        } catch (error) {
+            // Do not include provider bodies, document text or credentials.
+            const code = typeof error?.code === 'string' && /^[a-z_]+$/.test(error.code)
+                ? error.code : 'graph_vector_search_unavailable';
+            res.status(error?.status >= 400 && error.status <= 599 ? error.status : 503).json({ error: code, code });
         }
     };
 

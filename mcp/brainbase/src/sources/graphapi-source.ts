@@ -1,3 +1,4 @@
+import { extractEvidence, hasSubstantiveValue } from '../retrieval/evidence.js';
 /**
  * Graph API Source
  * Loads entities from Graph SSOT API
@@ -21,7 +22,8 @@ import type {
   DecisionEntry,
   AssignmentEntry,
 } from '../indexer/types.js';
-import { TokenManager, type TokenRequestOptions } from '../auth/token-manager.js';
+import type { TokenProvider } from '../auth/request-token-context.js';
+import type { TokenRequestOptions } from '../auth/token-manager.js';
 import {
   EXTENSION_ENTITY_TYPE_SET,
   getExtensionRegistrations,
@@ -154,6 +156,7 @@ function createDeadlineSignal(
 }
 
 function graphMetadata(entity: GraphEntity): {
+  graph_entity_id: string;
   project_code?: string;
   source?: string;
   source_path?: string;
@@ -167,6 +170,7 @@ function graphMetadata(entity: GraphEntity): {
   const semanticState = entity.semantic_state
     || (typeof entity.payload.semantic_state === 'string' ? entity.payload.semantic_state : undefined);
   return {
+    graph_entity_id: entity.entity_id,
     project_code: entity.project_code,
     source: entity.payload.source as string | undefined,
     source_path: entity.payload.source_path as string | undefined,
@@ -180,7 +184,7 @@ function graphMetadata(entity: GraphEntity): {
 
 export class GraphAPISource implements EntitySource {
   private apiUrl: string;
-  private tokenManager: TokenManager;
+  private tokenManager: TokenProvider;
   private projectCodes?: string[];
   private entities: GraphEntity[] = [];
   private initializeTimeoutMs: number;
@@ -189,7 +193,7 @@ export class GraphAPISource implements EntitySource {
 
   constructor(
     apiUrl: string,
-    tokenManager: TokenManager,
+    tokenManager: TokenProvider,
     projectCodes?: string[],
     options: GraphAPISourceOptions = {},
   ) {
@@ -367,6 +371,7 @@ export class GraphAPISource implements EntitySource {
     let response = await fetchOnce(token);
     if (response.status === 401) {
       console.error('[GraphAPISource] Token expired, refreshing...');
+      if (!this.tokenManager.refresh) return response;
       await this.tokenManager.refresh({
         signal: parentSignal,
         timeoutMs: this.tokenRefreshTimeoutMs,
@@ -578,6 +583,25 @@ export class GraphAPISource implements EntitySource {
     return data.philosophy_context;
   }
 
+  /** Convert one authenticated API row with the same presentation as the snapshot index. */
+  convertEntity(entity: GraphEntity) {
+    const publicEntity = { ...entity, entity_type: getPublicType(entity.entity_type) };
+    switch (publicEntity.entity_type) {
+      case 'project': return this.convertToProject(publicEntity);
+      case 'person': return this.convertToPerson(publicEntity);
+      case 'org': return this.convertToOrg(publicEntity);
+      case 'brand': return this.convertToBrand(publicEntity);
+      case 'raci': return this.convertToRACI(publicEntity);
+      case 'app': return this.convertToApp(publicEntity);
+      case 'customer': return this.convertToCustomer(publicEntity);
+      case 'partner': return this.convertToPartner(publicEntity);
+      case 'decision': return this.convertToDecision(publicEntity);
+      case 'glossary_term': return this.convertToGlossaryTerm(publicEntity);
+      case 'document': return this.convertToDocument(publicEntity);
+      default: return this.convertToExtensionEntity(publicEntity);
+    }
+  }
+
   private convertToProject(entity: GraphEntity): Project {
     const payload = entity.payload;
     return {
@@ -592,6 +616,7 @@ export class GraphAPISource implements EntitySource {
       apps: this.ensureArray(payload.apps),
       customers: this.ensureArray(payload.customers),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       beta_partners: payload.beta_partners as number | undefined,
       updated: entity.updated_at,
       ...graphMetadata(entity),
@@ -628,6 +653,7 @@ export class GraphAPISource implements EntitySource {
       aliases: this.ensureArray(payload.aliases),
       orgType: (payload.type as string) || 'unknown',
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -652,6 +678,7 @@ export class GraphAPISource implements EntitySource {
       visual_assets: this.ensureArray(payload.visual_assets),
       aliases: this.ensureArray(payload.aliases),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -683,6 +710,7 @@ export class GraphAPISource implements EntitySource {
       assignments,
       products: this.ensureArray(payload.products),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -737,6 +765,7 @@ export class GraphAPISource implements EntitySource {
       projects: this.ensureArray(payload.projects),
       aliases: this.ensureArray(payload.aliases),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -751,6 +780,7 @@ export class GraphAPISource implements EntitySource {
       decision_id: (payload.decision_id as string) || entity.entity_id,
       title: (payload.title as string) || '',
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       decided_at: (payload.decided_at as string) || '',
       decider: (payload.decider as string) || '',
       project_id: (payload.project_id as string) || undefined,
@@ -775,6 +805,7 @@ export class GraphAPISource implements EntitySource {
       aliases: this.ensureArray(payload.aliases),
       description: (payload.description as string) || '',
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -792,6 +823,7 @@ export class GraphAPISource implements EntitySource {
       path: (payload.path as string) || (payload.source_path as string) || undefined,
       tags: this.ensureArray(payload.tags),
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
@@ -809,21 +841,18 @@ export class GraphAPISource implements EntitySource {
       status: typeof payload.status === 'string' ? payload.status : undefined,
       payload,
       content: this.contentFromPayload(payload),
+      retrieval_evidence: extractEvidence(payload),
       updated: entity.updated_at,
       ...graphMetadata(entity),
     };
   }
 
   private contentFromPayload(payload: Record<string, unknown>): string {
-    return (
-      (payload.content as string) ||
-      (payload.markdown as string) ||
-      (payload.body_summary as string) ||
-      (payload.summary as string) ||
-      (payload.description as string) ||
-      (payload.notes as string) ||
-      ''
-    );
+    for (const field of ['content', 'markdown', 'body_summary', 'summary', 'description', 'notes', 'statement', 'decision', 'body', 'rationale']) {
+      const value = payload[field];
+      if (hasSubstantiveValue(value)) return typeof value === 'string' ? value : JSON.stringify(value);
+    }
+    return '';
   }
 
   private ensureArray(value: unknown): string[] {

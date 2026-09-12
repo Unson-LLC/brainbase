@@ -118,6 +118,145 @@ afterEach(() => {
     for (const path of temporaryPaths.splice(0)) rmSync(path, { recursive: true, force: true });
 });
 
+describe('inline judgment resolver callback', () => {
+    it.each([
+        ['pre_tool_execution', true], ['pre_generation', false], ['post_generation_recovery', false]
+    ])('MCP audit reader validates pre-tool delegation lifecycle: %s', async (application, valid) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'reader-session', turn_id: 'reader-turn', prompt: '確認して', cwd: process.cwd() };
+        const start = () => startEpisode(payload, {
+            env, episodeOrigin: 'pre_tool_delegation_recovery', routeApplication: application,
+            fetchImpl: async (_url, options) => ({ ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: validReceipt(JSON.parse(options.body)) }) })
+        });
+        if (!valid) {
+            await expect(start()).rejects.toThrow('judgment_episode_lifecycle_invalid');
+            return;
+        }
+        await start();
+        const audit = readEpisodeAudit(`${hash(payload.session_id)}/${hash(payload.turn_id)}`, { env });
+        expect(audit.prefix).toContain('確認して');
+    });
+
+    it('uses the normalized callback before HTTP and still verifies the returned receipt', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-inline-callback',
+            turn_id: 'turn-inline-callback', prompt: 'callbackで判断して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = validReceipt(args);
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+        const resolveBeforeModel = vi.fn(async (receivedArgs, options) => {
+            expect(receivedArgs).toEqual(args);
+            expect(options?.signal).toBeInstanceOf(AbortSignal);
+            expect(options.signal.aborted).toBe(false);
+            return { management_status: 'managed', reason: '', warning: '', receipt };
+        });
+
+        const episode = await startEpisode(payload, { env, fetchImpl, resolveBeforeModel });
+
+        expect(episode.initial_route_receipt).toEqual(receipt);
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).not.toHaveBeenCalled();
+        await startEpisode(payload, { env, fetchImpl, resolveBeforeModel });
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+    });
+
+    it('fails closed for an unmanaged callback result without falling back to HTTP', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-inline-unmanaged',
+            turn_id: 'turn-inline-unmanaged', prompt: 'callbackが利用できない場合', cwd: process.cwd()
+        };
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+        const resolveBeforeModel = vi.fn(async () => ({
+            management_status: 'unmanaged', reason: 'brainbase_api_unavailable', warning: 'unavailable', receipt: null
+        }));
+
+        await expect(startEpisode(payload, { env, fetchImpl, resolveBeforeModel }))
+            .rejects.toThrow('judgment_episode_route_resolve_failed');
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('rejects an inline receipt whose request binding belongs to another input', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-inline-mismatch',
+            turn_id: 'turn-inline-mismatch', prompt: '現在の依頼', cwd: process.cwd()
+        };
+        const otherArgs = buildJudgmentRequest({ ...payload, prompt: '別の依頼' }, { env });
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+        const resolveBeforeModel = vi.fn(async () => ({
+            management_status: 'managed', reason: '', warning: '', receipt: validReceipt(otherArgs)
+        }));
+
+        await expect(startEpisode(payload, { env, fetchImpl, resolveBeforeModel }))
+            .rejects.toThrow('judgment_receipt_request_mismatch');
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('aborts a slow inline callback at the configured timeout without retrying it', async () => {
+        const root = temporaryDirectory();
+        const env = {
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS: '5'
+        };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-inline-timeout',
+            turn_id: 'turn-inline-timeout', prompt: '遅いcallback', cwd: process.cwd()
+        };
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+        let callbackSignal;
+        const resolveBeforeModel = vi.fn((_, { signal }) => {
+            callbackSignal = signal;
+            return new Promise(() => {});
+        });
+
+        await expect(startEpisode(payload, { env, fetchImpl, resolveBeforeModel }))
+            .rejects.toThrow('judgment_host_timeout');
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(callbackSignal?.aborted).toBe(true);
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('uses the inline callback for adoption and does not resolve an adopted receipt again', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const args = buildJudgmentRequest({
+            session_id: 'session-inline-adoption', turn_id: 'turn-inline-adoption', prompt: '採用して', cwd: process.cwd()
+        }, { env });
+        const receipt = validReceipt(args);
+        const fetchImpl = vi.fn().mockRejectedValue(new Error('HTTP fallback must not be used'));
+
+        const resolveBeforeModel = vi.fn(async () => ({ management_status: 'managed', reason: '', warning: '', receipt }));
+        await expect(resolveAndAdopt(args, { env, fetchImpl, resolveBeforeModel })).resolves.toEqual(receipt);
+        await expect(resolveAndAdopt(args, { env, fetchImpl, resolveBeforeModel })).resolves.toEqual(receipt);
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['missing receipt', async () => ({ management_status: 'managed', receipt: null })],
+        ['unknown reason', async () => ({ management_status: 'unmanaged', reason: 'private diagnostic must not escape' })],
+        ['transport exception', async () => { throw Object.assign(new Error('private diagnostic must not escape'), { code: 'ECONNRESET' }); }]
+    ])('rejects %s without retrying or leaking callback details', async (_, callback) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const args = buildJudgmentRequest({ session_id: 'inline-invalid', turn_id: 'inline-invalid', prompt: '検証', cwd: process.cwd() }, { env });
+        const resolveBeforeModel = vi.fn(callback);
+        const fetchImpl = vi.fn();
+        await expect(resolveAndAdopt(args, { env, fetchImpl, resolveBeforeModel })).rejects.toThrow('judgment_host_bridge_failed');
+        expect(resolveBeforeModel).toHaveBeenCalledTimes(1);
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+});
+
 describe('Codex Judgment Resolver Host', () => {
     it('prior receiptの根拠turnから具体的な会話をowner向け1行へ投影する', () => {
         const args = {
@@ -2674,8 +2813,34 @@ describe('Codex Judgment Resolver Host', () => {
         ].join('\n'));
         expect(result.final).toMatchObject({
             schema_version: 'brainbase-judgment-episode-final-v2',
-            completion_status: 'audit_degraded', event_count: 1, qualifying_event_count: 0
+            completion_status: 'audit_degraded', event_count: 1, qualifying_event_count: 0,
+            execution_outcome: {
+                schema_version: 'judgment_execution_outcome.v1',
+                host: { type: 'codex', adapter_id: 'codex-hooks' },
+                scope: 'host_turn', status: 'unknown', stage: 'finalize',
+                evidence: { state: 'unconfirmed', refs: expect.any(Array) }
+            }
         });
+        const executionOutcomePath = join(
+            root, 'journal', hash(payload.session_id), `${hash(payload.turn_id)}.execution-outcome.json`
+        );
+        expect(JSON.parse(readFileSync(executionOutcomePath, 'utf8'))).toEqual(result.final.execution_outcome);
+
+        // finalのimmutable保存後、sidecar保存前にHostが中断した状態を再現する。
+        // 現行finalのmarkerから同一outcomeを決定的に復旧できなければならない。
+        rmSync(executionOutcomePath);
+        const recovered = finalizeEpisode({
+            session_id: payload.session_id, turn_id: payload.turn_id,
+            stop_hook_active: true,
+            last_assistant_message: [
+                episode.owner_audit.display_line,
+                routed.display_line,
+                '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
+                '参照先が未確定だと説明'
+            ].join('\n')
+        }, { env });
+        expect(recovered.final.execution_outcome).toEqual(result.final.execution_outcome);
+        expect(JSON.parse(readFileSync(executionOutcomePath, 'utf8'))).toEqual(result.final.execution_outcome);
         expect(recordBrainbaseToolUse(routePayload, { env })).toEqual(routed);
         expect(() => recordBrainbaseToolUse({
             ...routePayload,
@@ -4749,6 +4914,314 @@ describe('structured Resolver unavailable failures', () => {
         return readdirSync(directory).map((name) => JSON.parse(readFileSync(join(directory, name), 'utf8')));
     };
 
+    it.each([
+        { name: 'structured tool_unavailable', response: null, error: { code: 'tool_unavailable', message: 'private connection details' } },
+        { name: 'Mana transcript replay', response: { content: [{ type: 'text', text: 'private connection details' }] } },
+        { name: 'other execution failure', response: null, error: { code: 'unknown_failure', message: 'private connection details' } }
+    ])('同一turnの$nameを失敗として保存し、生のエラーを残さない', async ({ response, error }) => {
+        const sessionId = 'session-resolver-tool-unavailable';
+        const { root, env, payload, ownTurnRef, episode, invoke } = await startUnavailableEpisode({ sessionId });
+        const failure = {
+            ...payload,
+            hook_event_name: 'PostToolUseFailure',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'resolver-unavailable-attempt',
+            tool_input: { turn_ref: ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: response,
+            ...(error ? { error } : {})
+        };
+        const failureOutput = await processHookPayload(failure, { env });
+        expect(failureOutput.systemMessage).toMatch(/^⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗/);
+        const [entry] = eventEntries(root, sessionId, 'turn-structured-unavailable');
+        expect(entry).toMatchObject({ event_kind: 'turn_resolution', success: false });
+        expect(entry.safe_metadata.turn_contract).toBeUndefined();
+        expect(JSON.stringify(entry)).not.toContain('private connection details');
+        await expect(processHookPayload(failure, { env })).resolves.toEqual(failureOutput);
+        expect(eventEntries(root, sessionId, 'turn-structured-unavailable')).toHaveLength(1);
+        await expect(processHookPayload({ ...failure,
+            error: { code: 'tool_unavailable', message: 'different failure' }
+        }, { env })).rejects.toThrow('judgment_tool_event_conflict');
+        await expect(processHookPayload({ ...failure, tool_use_id: 'non-failure-attempt',
+            hook_event_name: 'PostToolUse'
+        }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        await expect(processHookPayload({ ...failure, tool_input: {
+            ...failure.tool_input, turn_ref: 'another-session/another-turn'
+        }, tool_use_id: 'cross-turn-attempt' }, { env })).rejects.toThrow('judgment_turn_resolution_binding_invalid');
+        await expect(processHookPayload({ ...failure, tool_input: {
+            turn_ref: ownTurnRef
+        }, tool_use_id: 'missing-interpretation-attempt' }, { env })).resolves.toBeDefined();
+        expect(eventEntries(root, sessionId, 'turn-structured-unavailable')).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                tool_use_id: 'missing-interpretation-attempt',
+                event_kind: 'turn_resolution',
+                success: false,
+                safe_metadata: expect.objectContaining({
+                    tool_failure: expect.objectContaining({ failure_code: 'tool_execution_failed' })
+                })
+            })
+        ]));
+        const receipt = {
+            ...validReceipt({ ...episode.turn_input, model_interpretation: modelInterpretation }),
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        await expect(invoke({ status: 'ok', data: receipt })).resolves.toBeDefined();
+        const entries = eventEntries(root, sessionId, 'turn-structured-unavailable');
+        expect(entries).toHaveLength(3);
+        expect(entries.filter((event) => event.success)).toEqual([
+            expect.objectContaining({ safe_metadata: expect.objectContaining({ turn_contract: receipt }) })
+        ]);
+        await expect(processHookPayload(failure, { env })).resolves.toEqual(failureOutput);
+        expect(eventEntries(root, sessionId, 'turn-structured-unavailable')).toEqual(entries);
+        expect(entries.filter((event) => ['search', 'retrieve'].includes(event.event_kind))).toEqual([]);
+        expect(existsSync(join(root, 'journal', hash(sessionId), `${hash('turn-structured-unavailable')}.final.json`))).toBe(false);
+    });
+
+    it.each([
+        ['missing_input', null, 'PostToolUseFailure', 'judgment_binding_turn_input_missing'],
+        ['wrong_ref', { turn_ref: 'other/turn', model_interpretation: {} }, 'PostToolUseFailure', 'judgment_binding_turn_ref_mismatch'],
+        ['missing_interpretation', 'own_ref_only', 'PostToolUse', 'judgment_binding_interpretation_missing'],
+        ['wrong_input', { turn_input: { changed: true }, model_interpretation: {} }, 'PostToolUseFailure', 'judgment_binding_turn_input_mismatch'],
+        ['missing_contract', 'valid_input', 'PostToolUse', 'judgment_binding_contract_missing']
+    ])('束縛拒否の%sを値を含まないcauseで区別する', async (name, input, hookEventName, cause) => {
+        const { env, payload, ownTurnRef } = await startUnavailableEpisode({ sessionId: `binding-diagnostic-${name}` });
+        const toolInput = input === 'valid_input' ? { turn_ref: ownTurnRef, model_interpretation: modelInterpretation }
+            : input === 'own_ref_only' ? { turn_ref: ownTurnRef } : input;
+        await expect(processHookPayload({ ...payload, hook_event_name: hookEventName,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'diagnostic-attempt',
+            tool_input: toolInput, tool_response: null
+        }, { env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid', cause: { message: cause }
+        });
+    });
+
+    it('contract_missingのPostToolUseだけ安全な診断を出し、本文・未知コードを出さない', async () => {
+        const setup = await startUnavailableEpisode({ sessionId: 'binding-diagnostic-safe-log' });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const response = {
+            status: 'error',
+            error: {
+                code: 'brainbase_api_response_invalid',
+                message: 'secret response body must not be logged',
+                private_token: 'sk-secret-diagnostic'
+            },
+            unexpected_key: 'free-form value must not be logged'
+        };
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-safe-log',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: response
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_contract_missing' }
+        });
+
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        const [line] = errorSpy.mock.calls[0];
+        expect(JSON.parse(line)).toMatchObject({
+            event: 'brainbase_judgment_binding_diagnostic',
+            wrapper_shape: 'record',
+            receipt_present: false,
+            inner_error_code: 'brainbase_api_response_invalid'
+        });
+        expect(line).not.toContain('secret response body');
+        expect(line).not.toContain('sk-secret-diagnostic');
+        expect(line).not.toContain('unexpected_key');
+    });
+
+    it('MCP JSON-RPC wrapperの固定診断はreceipt有無と許可コードだけを示し、未知コードはnullにする', async () => {
+        const setup = await startUnavailableEpisode({ sessionId: 'binding-diagnostic-jsonrpc' });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const response = {
+            jsonrpc: '2.0',
+            id: 7,
+            result: {
+                content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                        status: 'error',
+                        receipt: { resolution_id: 'jr-secret-value' },
+                        error: {
+                            code: 'upstream_private_error_code',
+                            message: 'private upstream body'
+                        }
+                    })
+                }]
+            }
+        };
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-jsonrpc',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: response
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_contract_missing' }
+        });
+
+        expect(errorSpy).toHaveBeenCalledTimes(1);
+        const [line] = errorSpy.mock.calls[0];
+        expect(JSON.parse(line)).toMatchObject({
+            event: 'brainbase_judgment_binding_diagnostic',
+            wrapper_shape: 'jsonrpc_result_record',
+            receipt_present: true,
+            inner_error_code: null
+        });
+        expect(line).not.toContain('jr-secret-value');
+        expect(line).not.toContain('private upstream body');
+    });
+
+    it.each(['array', 'content_array'])('失敗応答の%sを本文なしで分類し、同じcallを相関できる', async (shape) => {
+        const setup = await startUnavailableEpisode({ sessionId: `binding-shape-${shape}` });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const content = [{ type: 'text', text: JSON.stringify({
+            status: 'error', error: { code: 'PRIVATE_UNKNOWN_CODE', message: 'PRIVATE_BODY' },
+            private_key: 'PRIVATE_VALUE'
+        }) }, { type: 'text', text: 'PRIVATE_PLAIN_TEXT' }, { type: 'text', text: '{PRIVATE_INVALID_JSON' }];
+        await expect(processHookPayload({ ...setup.payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn', tool_use_id: 'same-private-call',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: shape === 'array' ? content : { content }
+        }, { env: setup.env })).rejects.toMatchObject({
+            cause: { message: 'judgment_binding_contract_missing' }
+        });
+        const [line] = errorSpy.mock.calls[0];
+        expect(JSON.parse(line)).toMatchObject({
+            hook_event_name: 'PostToolUse', tool_use_ref: hash('same-private-call'),
+            response_summary: {
+                text_blocks: 3, json_parseable: 1, json_invalid: 1, non_json: 1,
+                statuses: ['error'], error_code_kinds: ['other'],
+                known_keys: expect.arrayContaining(['status', 'error', 'text']),
+                truncated: false
+            }
+        });
+        expect(line).not.toContain('PRIVATE');
+        expect(line).not.toContain('same-private-call');
+        expect(line).not.toContain('private_key');
+    });
+
+    it('成功契約・PostToolUseFailure・別causeでは固定診断を出さない', async () => {
+        const setup = await startUnavailableEpisode({ sessionId: 'binding-diagnostic-boundary' });
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const resolved = {
+            ...validReceipt({ ...setup.episode.turn_input, model_interpretation: modelInterpretation }),
+            request_digest: hash(canonicalJson({
+                ...setup.episode.turn_input,
+                model_interpretation: modelInterpretation
+            })),
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUseFailure',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-failure-boundary',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: {
+                status: 'error',
+                error: { code: 'brainbase_api_response_invalid', message: 'private' }
+            }
+        }, { env: setup.env })).resolves.toBeDefined();
+        expect(errorSpy).not.toHaveBeenCalled();
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-other-cause',
+            tool_input: { turn_ref: 'other/turn', model_interpretation: modelInterpretation },
+            tool_response: { status: 'error', error: { code: 'brainbase_api_response_invalid' } }
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_turn_ref_mismatch' }
+        });
+        expect(errorSpy).not.toHaveBeenCalled();
+
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-success-boundary',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: { status: 'ok', data: resolved }
+        }, { env: setup.env })).resolves.toBeDefined();
+        expect(errorSpy).not.toHaveBeenCalled();
+
+        errorSpy.mockImplementation(() => {
+            throw new Error('diagnostic logger unavailable');
+        });
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: 'diagnostic-logger-failure',
+            tool_input: { turn_ref: setup.ownTurnRef, model_interpretation: modelInterpretation },
+            tool_response: null
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_contract_missing' }
+        });
+    });
+
+    it.each([
+        ['PostToolUse success contract', 'PostToolUse', { status: 'ok' }],
+        ['PostToolUse structured unavailable', 'PostToolUse', unavailableResponse],
+        ['PostToolUseFailure success contract', 'PostToolUseFailure', { status: 'ok' }]
+    ])('%sはmodel_interpretation欠落を受け入れない', async (label, hookEventName, response) => {
+        const sessionId = `binding-interpretation-required-${label.replaceAll(' ', '-')}`;
+        const setup = await startUnavailableEpisode({ sessionId });
+        const resolved = {
+            ...validReceipt(setup.episode.turn_input),
+            request_digest: hash(canonicalJson({
+                ...setup.episode.turn_input,
+                model_interpretation: modelInterpretation
+            })),
+            classification: modelInterpretation,
+            required_capabilities: [],
+            selected_dag_ids: [],
+            autonomy_decision: 'continue',
+            autonomy_reason_code: 'routine_in_scope',
+            autonomy_policy_ids: [],
+            allowed_runtime_escalation_reasons: [
+                'irreversible_action', 'missing_authority', 'owner_value_choice', 'required_input_unavailable', 'evidenced_terminal_blocker'
+            ]
+        };
+        const toolResponse = response.status === 'ok' ? { ...response, data: resolved } : response;
+        await expect(processHookPayload({
+            ...setup.payload,
+            hook_event_name: hookEventName,
+            tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+            tool_use_id: `interpretation-required-${label.replaceAll(' ', '-')}`,
+            tool_input: { turn_ref: setup.ownTurnRef },
+            tool_response: toolResponse
+        }, { env: setup.env })).rejects.toMatchObject({
+            message: 'judgment_turn_resolution_binding_invalid',
+            cause: { message: 'judgment_binding_interpretation_missing' }
+        });
+        expect(existsSync(join(setup.root, 'journal', hash(sessionId), `${hash('turn-structured-unavailable')}.events`))).toBe(false);
+    });
+
     it('directの構造化503を失敗イベントとして保存し、成功契約には昇格しない', async () => {
         const sessionId = 'session-structured-unavailable-direct';
         const { root, episode, invoke } = await startUnavailableEpisode({ sessionId });
@@ -5980,6 +6453,105 @@ describe('owner-audit preflight read', () => {
         expect(() => readEpisodeAudit(`${hash(payload.session_id)}/../${hash(payload.turn_id)}`, { env })).toThrow();
         expect(() => readEpisodeAudit(`${hash('unknown-session')}/${hash('unknown-turn')}`, { env })).toThrow();
         expect(eventJournalSnapshot(root, payload.session_id, payload.turn_id)).toEqual(before);
+    });
+
+    it.each([
+        ['valid MCP content envelope', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['🧠 判断参照: 「回答して」を参照 → 回答として処理 ✓'],
+                prefix: '🧠 判断参照: 「回答して」を参照 → 回答として処理 ✓'
+            } }) }]
+        }), undefined, true],
+        ['different data turn_ref', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: `${hash('other-session')}/${hash('other-turn')}`,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), undefined, false],
+        ['different input turn_ref', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), `${hash('other-session')}/${hash('other-turn')}`, false],
+        ['invalid schema version', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'wrong-schema', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), undefined, false],
+        ['extra audit data key', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行', extra: '拒否'
+            } }) }]
+        }), undefined, false],
+        ['empty lines', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: [], prefix: ''
+            } }) }]
+        }), undefined, false],
+        ['prefix mismatch', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '改変された監査行'
+            } }) }]
+        }), undefined, false],
+        ['generic status ok only', () => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok' }) }]
+        }), undefined, false],
+        ['error status with audit data', (turnRef) => ({
+            content: [{ type: 'text', text: JSON.stringify({ status: 'error', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), undefined, false],
+        ['isError true with valid content', (turnRef) => ({
+            isError: true,
+            content: [{ type: 'text', text: JSON.stringify({ status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            } }) }]
+        }), undefined, false],
+        ['outer explicit success remains accepted', (turnRef) => ({
+            status: 'ok', data: {
+                schema_version: 'brainbase-owner-audit-v1', turn_ref: turnRef,
+                lines: ['監査行'], prefix: '監査行'
+            }
+        }), undefined, true]
+    ])('MCP監査読取の意味的成功を%sに限定する', async (_caseName, buildResponse, inputTurnRef, expectedSuccess) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: `session-audit-mcp-${hash(_caseName).slice(0, 12)}`,
+            turn_id: `turn-audit-mcp-${hash(_caseName).slice(0, 12)}`, prompt: '回答して', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        const receipt = {
+            ...validReceipt(args),
+            classification: { intent: 'answer', action_kind: 'none', domains: ['general'] },
+            selected_dag_ids: ['general.v1']
+        };
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt })
+            })
+        });
+        const turnRef = `${hash(payload.session_id)}/${hash(payload.turn_id)}`;
+        const recorded = recordBrainbaseToolUse({
+            ...payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_audit_read',
+            tool_use_id: `audit-read-mcp-${hash(_caseName).slice(0, 12)}`,
+            tool_input: { turn_ref: inputTurnRef ?? turnRef },
+            tool_response: buildResponse(turnRef)
+        }, { env });
+
+        expect(recorded).toMatchObject({ event_kind: 'ignored', success: expectedSuccess, satisfies: [] });
     });
 
     it('runtime 2.4の未完了stateは正しい事前取得prefixでも初回Stopを継続させる', async () => {

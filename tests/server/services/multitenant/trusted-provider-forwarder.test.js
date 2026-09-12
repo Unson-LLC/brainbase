@@ -586,6 +586,65 @@ describe('trusted provider HTTP forwarder', () => {
         expect(JSON.stringify(result)).not.toContain(serviceToken);
     });
 
+    it('MCPのtext/event-stream応答をJSON化せずUTF-8本文として返す', async () => {
+        const serviceToken = randomBytes(32).toString('base64url');
+        const sseBody = 'event: message\ndata: {"jsonrpc":"2.0","result":{"text":"マナ"},"id":1}\n\n';
+        const json = vi.fn(async () => {
+            throw new Error('SSE response must not be parsed as JSON');
+        });
+        const text = vi.fn(async () => sseBody);
+        const fetchImpl = vi.fn(async (_url, init) => ({
+            status: 200,
+            headers: { get: () => 'text/event-stream' },
+            json,
+            text
+        }));
+        const env = {
+            MCP_HTTP_BEARER_TOKEN: serviceToken,
+            BRAINBASE_TENANT_PROVIDER_FORWARDERS_JSON: JSON.stringify({
+                'bb.unson.jp': {
+                    provider: 'brainbase',
+                    base_url: 'https://bb.unson.jp/runtime-mcp',
+                    operations: {
+                        'brainbase.mcp.post': {
+                            method: 'POST',
+                            path: '/mcp',
+                            body_encoding: 'json',
+                            response_encoding: 'utf8',
+                            credential_placement: 'none',
+                            allow_binding_provider_mismatch: true,
+                            service_bearer_env: 'MCP_HTTP_BEARER_TOKEN',
+                            fixed_headers: {
+                                accept: 'application/json, text/event-stream',
+                                'content-type': 'application/json'
+                            }
+                        }
+                    }
+                }
+            })
+        };
+        const forwarder = createTrustedProviderForwardersFromEnv({ env, fetchImpl })['bb.unson.jp'];
+
+        const result = await forwarder.forward({
+            credential: Buffer.alloc(0),
+            operation: 'brainbase.mcp.post',
+            request: { body: { jsonrpc: '2.0', method: 'tools/list', params: {}, id: 1 } }
+        });
+
+        const headers = new Headers(fetchImpl.mock.calls[0][1].headers);
+        expect(headers.get('authorization')).toBe(`Bearer ${serviceToken}`);
+        expect(headers.get('accept')).toBe('application/json, text/event-stream');
+        expect(json).not.toHaveBeenCalled();
+        expect(text).toHaveBeenCalledOnce();
+        expect(result).toEqual({
+            status: 200,
+            response_encoding: 'utf8',
+            content_type: 'text/event-stream',
+            body: sseBody
+        });
+        expect(JSON.stringify(result)).not.toContain(serviceToken);
+    });
+
     it('authority MCPはcanonical project bindingをserver-sideで注入しcaller overrideを除去する', async () => {
         const fetchImpl = vi.fn(async () => ({
             status: 200,
@@ -643,6 +702,8 @@ describe('trusted provider HTTP forwarder', () => {
         });
 
         const forwardedBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        const forwardedHeaders = new Headers(fetchImpl.mock.calls[0][1].headers);
+        expect(forwardedHeaders.get('accept')).toBe('application/json, text/event-stream');
         expect(forwardedBody).toMatchObject({
             jsonrpc: '2.0',
             method: 'tools/call',
@@ -667,7 +728,7 @@ describe('trusted provider HTTP forwarder', () => {
         expect(request.body.project_code).toBe('caller-code');
     });
 
-    it('authority MCPは正規resolve_turnのturn_refを維持しcanonical project_codeを注入する', async () => {
+    it('authority MCPは正規resolve_turnのturn_refとdigest対象入力を維持する', async () => {
         const fetchImpl = vi.fn(async () => ({
             status: 200,
             headers: { get: () => 'application/json' },
@@ -713,10 +774,10 @@ describe('trusted provider HTTP forwarder', () => {
             name: 'brainbase_resolve_turn',
             arguments: {
                 turn_ref: `${'a'.repeat(64)}/${'b'.repeat(64)}`,
-                project_code: 'unson',
                 model_interpretation: { intent: 'answer' }
             }
         });
+        expect(forwardedBody.params.arguments).not.toHaveProperty('project_code');
         expect(forwardedBody).not.toHaveProperty('project_code');
         expect(forwardedBody.params).not.toHaveProperty('project_code');
         expect(JSON.stringify(forwardedBody)).not.toContain('caller-code');
@@ -751,6 +812,129 @@ describe('trusted provider HTTP forwarder', () => {
         })).rejects.toMatchObject({ code: 'SCHEMA_INVALID', status: 400 });
         expect(fetchImpl).not.toHaveBeenCalled();
     });
+
+    it.each(['search_personal_kg', 'register_personal_kg'])(
+        'authority MCPは本人スコープで検証する%sをproject注入なしで転送する',
+        async (name) => {
+            const fetchImpl = vi.fn(async () => ({
+                status: 200,
+                headers: { get: () => 'application/json' },
+                json: async () => ({ jsonrpc: '2.0', result: { ok: true }, id: 1 })
+            }));
+            const forwarder = createTrustedHttpProviderForwarder({
+                provider: 'brainbase',
+                baseUrl: 'https://bb.unson.jp/runtime-mcp',
+                operations: {
+                    'brainbase.authority_mcp.post': {
+                        method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                        credential_placement: 'none', allow_binding_provider_mismatch: true
+                    }
+                },
+                fetchImpl
+            });
+            const arguments_ = name === 'search_personal_kg'
+                ? { query: '判断', project_code: 'caller-code' }
+                : { event: { body: '判断', body_hash: 'sha256:abc' }, project_code: 'caller-code' };
+
+            await forwarder.forward({
+                credential: Buffer.alloc(0),
+                operation: 'brainbase.authority_mcp.post',
+                request: {
+                    body: {
+                        jsonrpc: '2.0', method: 'tools/call', id: 1,
+                        params: { name, arguments: arguments_ }
+                    }
+                },
+                binding: {
+                    authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+                }
+            });
+
+            const forwardedBody = JSON.parse(fetchImpl.mock.calls[0][1].body);
+            expect(forwardedBody.params.name).toBe(name);
+            expect(forwardedBody.params.arguments).not.toHaveProperty('project_code');
+            expect(forwardedBody.params.arguments).not.toHaveProperty('project_id');
+        }
+    );
+
+    it.each([
+        ['brainbase_judgment_audit_read', { turn_ref: 'turn-1', project_code: 'spoofed' }, { turn_ref: 'turn-1' }],
+        ['brainbase_judgment_state_record', {
+            status: 'completed', pending_safe_work: false, runtime_reason_code: null,
+            project_code: 'spoofed'
+        }, { status: 'completed', pending_safe_work: false, runtime_reason_code: null }]
+    ])('P0-1: %sをproject非依存の引数のまま転送する', async (name, arguments_, expected) => {
+        const fetchImpl = vi.fn(async () => ({
+            status: 200,
+            headers: { get: () => 'application/json' },
+            json: async () => ({ jsonrpc: '2.0', id: 14, result: { status: 'ok' } })
+        }));
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://brainbase.example',
+            operations: {
+                'brainbase.authority_mcp.post': {
+                    method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                    credential_placement: 'none', allow_binding_provider_mismatch: true
+                }
+            },
+            fetchImpl
+        });
+
+        await forwarder.forward({
+            credential: Buffer.from('brainbase-service-token'),
+            operation: 'brainbase.authority_mcp.post',
+            binding: {
+                authority_project_binding: { project_id: 'project-1', project_code: 'mana' }
+            },
+            request: {
+                body: {
+                    jsonrpc: '2.0', id: 14, method: 'tools/call',
+                    params: {
+                        name,
+                        arguments: arguments_
+                    }
+                }
+            }
+        });
+
+        const forwarded = JSON.parse(fetchImpl.mock.calls[0][1].body);
+        expect(forwarded.params.arguments).toEqual(expected);
+    });
+
+    it.each(['initialize', 'notifications/initialized', 'ping', 'tools/list'])(
+        'authority MCPはMCP lifecycleの%sをproject overrideなしで転送する',
+        async (method) => {
+            const fetchImpl = vi.fn(async () => ({
+                status: 200,
+                headers: { get: () => 'application/json' },
+                json: async () => ({ jsonrpc: '2.0', result: {}, id: 1 })
+            }));
+            const forwarder = createTrustedHttpProviderForwarder({
+                provider: 'brainbase',
+                baseUrl: 'https://bb.unson.jp/runtime-mcp',
+                operations: {
+                    'brainbase.authority_mcp.post': {
+                        method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                        credential_placement: 'none', allow_binding_provider_mismatch: true
+                    }
+                },
+                fetchImpl
+            });
+            const request = { body: { jsonrpc: '2.0', method, params: {}, id: 1 } };
+
+            await forwarder.forward({
+                credential: Buffer.alloc(0),
+                operation: 'brainbase.authority_mcp.post',
+                request,
+                binding: {
+                    authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+                }
+            });
+
+            expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual(request.body);
+        }
+    );
 
     it('server-owned bearerは未定義envとtenant credential placementの併用を拒否する', () => {
         const operation = {

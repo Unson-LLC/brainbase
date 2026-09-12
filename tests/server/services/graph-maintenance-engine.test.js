@@ -169,6 +169,47 @@ describe('Graph maintenance Phase 0 contract', () => {
             source_expected_version: 1, target_expected_version: 1
         }], { projectCode: 'brainbase' })).toThrow('duplicate_edge');
     });
+    it('旧APIでmergedになった統合済みノードだけをsupersededへ正規化する', () => {
+        const legacyMergedSnapshot = {
+            project_code: 'smart-front',
+            entities: [
+                { id: 'legacy', entity_type: 'project', project_code: 'smart-front', payload: { canonical_entity_id: 'smart-front' }, role_min: 'gm', sensitivity: 'internal', lifecycle_status: 'merged', version: 4 },
+                { id: 'smart-front', entity_type: 'project', project_code: 'smart-front', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 3 }
+            ],
+            edges: []
+        };
+
+        const after = applyGraphOperations(legacyMergedSnapshot, [{
+            operation: 'normalize_merged_lifecycle', entity_id: 'legacy', expected_version: 4,
+            target_entity_id: 'smart-front', target_expected_version: 3
+        }], { projectCode: 'smart-front' });
+
+        expect(after.entities.find((entity) => entity.id === 'legacy')).toMatchObject({
+            lifecycle_status: 'superseded', version: 5,
+            payload: { canonical_entity_id: 'smart-front' }
+        });
+        expect(after.entities.find((entity) => entity.id === 'smart-front')).toMatchObject({ lifecycle_status: 'active', version: 3 });
+        expect(validateGraphSnapshot(after)).toMatchObject({ valid: true });
+
+        const mismatched = structuredClone(legacyMergedSnapshot);
+        mismatched.entities.find((entity) => entity.id === 'legacy').payload.canonical_entity_id = 'other';
+        expect(() => applyGraphOperations(mismatched, [{
+            operation: 'normalize_merged_lifecycle', entity_id: 'legacy', expected_version: 4,
+            target_entity_id: 'smart-front', target_expected_version: 3
+        }], { projectCode: 'smart-front' })).toThrow('canonical_entity_id mismatch');
+
+        const stillLinked = structuredClone(legacyMergedSnapshot);
+        stillLinked.edges.push({
+            id: 'legacy_link', from_id: 'legacy', to_id: 'smart-front', rel_type: 'related_to',
+            project_code: 'smart-front', payload: {}, role_min: 'member', sensitivity: 'internal',
+            lifecycle_status: 'active', version: 1
+        });
+        expect(() => applyGraphOperations(stillLinked, [{
+            operation: 'normalize_merged_lifecycle', entity_id: 'legacy', expected_version: 4,
+            target_entity_id: 'smart-front', target_expected_version: 3
+        }], { projectCode: 'smart-front' })).toThrow('source still has active edges');
+    });
+
     it('rehomeは旧所属をretireし、新所属をactiveで作成し、無関係edgeを変更しない', () => {
         const rehomeSnapshot = {
             project_code: 'brainbase',

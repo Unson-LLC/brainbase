@@ -5,6 +5,7 @@ import {
     provisionServiceCompanyAuthority,
     ServiceCompanyAuthorityProvisioningError
 } from '../../../../server/services/multitenant/service-company-authority-provisioner.js';
+import { runProvisionServiceCompanyAuthority } from '../../../../scripts/provision-service-company-authority.js';
 
 const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
 
@@ -119,10 +120,11 @@ function fakeClient() {
         }
         if (compact.startsWith('SELECT identity_id') && compact.includes('FROM company_external_identities')) {
             return { rows: state.identities.filter((row) =>
-                row.authenticated_subject_id === parameters[1]
-                && row.workspace_id === parameters[2]
-                && row.app_id === parameters[3]
-                && row.project_id === parameters[4])
+                row.provider === parameters[1]
+                && row.authenticated_subject_id === parameters[2]
+                && row.workspace_id === parameters[3]
+                && row.app_id === parameters[4]
+                && row.project_id === parameters[5])
                 .sort((left, right) => Number(right.identity_revision) - Number(left.identity_revision))
                 .slice(0, 2) };
         }
@@ -130,13 +132,13 @@ function fakeClient() {
             state.identities.push({
                 identity_id: parameters[0],
                 identity_revision: parameters[1],
-                provider: 'service',
-                authenticated_subject_id: parameters[4],
-                workspace_id: parameters[5],
-                app_id: parameters[6],
-                membership_id: parameters[7],
-                project_id: parameters[8],
-                placement_id: parameters[9],
+                provider: parameters[4],
+                authenticated_subject_id: parameters[5],
+                workspace_id: parameters[6],
+                app_id: parameters[7],
+                membership_id: parameters[8],
+                project_id: parameters[9],
+                placement_id: parameters[10],
                 principal_type: 'service',
                 status: 'active'
             });
@@ -196,6 +198,98 @@ describe('service company authority provisioning', () => {
             ...manifest(),
             client_secret: 'must-not-enter-control-plane'
         })).toThrowError(expect.objectContaining({ code: 'MANIFEST_SECRET_FORBIDDEN' }));
+    });
+
+    it('preserves an explicitly authenticated Slack service identity', async () => {
+        const slackManifest = manifest({
+            transport: {
+                provider: 'slack',
+                authenticated_subject_id: 'U_ZAPIER',
+                workspace_id: 'T_UNSON',
+                app_id: 'A_MANA'
+            }
+        });
+        const normalized = normalizeServiceCompanyAuthorityManifest(slackManifest);
+        expect(normalized.transport).toEqual({
+            provider: 'slack',
+            authenticated_subject_id: 'U_ZAPIER',
+            workspace_id: 'T_UNSON',
+            app_id: 'A_MANA'
+        });
+
+        const client = fakeClient();
+        const result = await provisionServiceCompanyAuthority({
+            client,
+            manifest: slackManifest,
+            actorId: 'operator-keigo',
+            commit: true
+        });
+        expect(result.snapshot_after.identity).toMatchObject({
+            provider: 'slack',
+            authenticated_subject_id: 'U_ZAPIER',
+            principal_type: 'service'
+        });
+        expect(client.queries.find(({ sql }) => sql.startsWith('INSERT INTO company_external_identities')))
+            .toMatchObject({ parameters: expect.arrayContaining(['slack', 'U_ZAPIER']) });
+    });
+
+    it('requires provider and authenticated subject to be declared together', () => {
+        expect(() => normalizeServiceCompanyAuthorityManifest(manifest({
+            transport: { provider: 'slack', workspace_id: 'T_UNSON', app_id: 'A_MANA' }
+        }))).toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+    });
+
+    it('rejects providers that cannot authenticate a service principal', () => {
+        expect(() => normalizeServiceCompanyAuthorityManifest(manifest({
+            transport: {
+                provider: 'github',
+                authenticated_subject_id: 'machine-user',
+                workspace_id: 'T_UNSON',
+                app_id: 'A_MANA'
+            }
+        }))).toThrowError(expect.objectContaining({ code: 'MANIFEST_INVALID' }));
+    });
+
+    it('keeps legacy service identity IDs stable when defaults are explicit', async () => {
+        const legacyClient = fakeClient();
+        const explicitClient = fakeClient();
+        const legacy = await provisionServiceCompanyAuthority({
+            client: legacyClient,
+            manifest: manifest(),
+            actorId: 'operator-keigo',
+            commit: false
+        });
+        const explicit = await provisionServiceCompanyAuthority({
+            client: explicitClient,
+            manifest: manifest({
+                transport: {
+                    provider: 'service',
+                    authenticated_subject_id: 'mana_autonomy_v0',
+                    workspace_id: 'T_UNSON',
+                    app_id: 'A_MANA'
+                }
+            }),
+            actorId: 'operator-keigo',
+            commit: false
+        });
+        expect(explicit.snapshot_after.identity.identity_id)
+            .toBe(legacy.snapshot_after.identity.identity_id);
+    });
+
+    it('accepts omitted stop conditions through the CLI double-normalization path', async () => {
+        const rawManifest = manifest();
+        rawManifest.service_actor.bindings.forEach((binding) => delete binding.stop_conditions);
+        const client = fakeClient();
+        const result = await runProvisionServiceCompanyAuthority({
+            argv: ['--dry-run', '--manifest', 'service-authority.json'],
+            env: {},
+            pool: { connect: async () => ({ ...client, release: () => {} }) },
+            readManifest: async () => JSON.stringify(rawManifest)
+        });
+        expect(result).toMatchObject({ ok: true, mode: 'dry-run', persisted: false });
+        expect(client.state.membership).toHaveLength(0);
+        expect(client.state.identities).toHaveLength(0);
+        expect(client.state.bindings).toHaveLength(0);
     });
 
     it('proves the full mutation and readback in a transaction, then rolls it back for dry-run', async () => {

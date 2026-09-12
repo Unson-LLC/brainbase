@@ -11,7 +11,7 @@ export class DeviceAuthController {
         this.userCodeInput = null;
         this.verifyBtn = null;
         this.verifyError = null;
-        this.slackLoginBtn = null;
+        this.organizationLoginBtn = null;
         this.approveBtn = null;
         this.denyBtn = null;
         this.backToInputBtn = null;
@@ -31,7 +31,7 @@ export class DeviceAuthController {
         this.userCodeInput = document.getElementById('user-code-input');
         this.verifyBtn = document.getElementById('verify-btn');
         this.verifyError = document.getElementById('verify-error');
-        this.slackLoginBtn = document.getElementById('slack-login-btn');
+        this.organizationLoginBtn = document.getElementById('organization-login-btn');
         this.approveBtn = document.getElementById('approve-btn');
         this.denyBtn = document.getElementById('deny-btn');
         this.backToInputBtn = document.getElementById('back-to-input-btn');
@@ -55,8 +55,7 @@ export class DeviceAuthController {
         // Verify user code
         this.verifyBtn.addEventListener('click', () => this.verifyUserCode());
 
-        // Slack login
-        this.slackLoginBtn.addEventListener('click', () => this.startSlackAuth());
+        this.organizationLoginBtn.addEventListener('click', () => this.startOrganizationAuth());
 
         // Approve/Deny
         this.approveBtn.addEventListener('click', () => this.approveDevice());
@@ -84,9 +83,9 @@ export class DeviceAuthController {
             this.verifyUserCode();
         }
 
-        // Check if returning from Slack OAuth
-        const slackCallback = params.get('slack_callback');
-        if (slackCallback === 'true') {
+        // Check if returning from the configured organization OAuth provider.
+        const authCallback = params.get('auth_callback');
+        if (authCallback === 'true') {
             const deviceCode = sessionStorage.getItem('brainbase_device_code');
             const userCode = sessionStorage.getItem('brainbase_user_code');
 
@@ -102,13 +101,13 @@ export class DeviceAuthController {
 
                 this.showStep('approve');
             } else {
-                this.showGlobalError('Slack認証情報が見つかりません。もう一度お試しください。');
+                this.showGlobalError('Google Workspace認証情報が見つかりません。もう一度お試しください。');
             }
         }
     }
 
     showStep(step) {
-        const steps = ['input', 'slack', 'approve', 'success', 'error'];
+        const steps = ['input', 'login', 'approve', 'success', 'error'];
         steps.forEach(s => {
             const el = document.getElementById(`step-${s}`);
             if (el) {
@@ -148,11 +147,11 @@ export class DeviceAuthController {
             this.userCodeDisplay.textContent = this.formatUserCode(userCode);
             this.userCodeDisplayApprove.textContent = this.formatUserCode(userCode);
 
-            // Save to sessionStorage for Slack callback
+            // Save to sessionStorage for the organization OAuth callback.
             sessionStorage.setItem('brainbase_device_code', this.deviceCode);
             sessionStorage.setItem('brainbase_user_code', this.formatUserCode(userCode));
 
-            this.showStep('slack');
+            this.showStep('login');
         } catch (error) {
             this.showError(error.message || 'コードの確認に失敗しました');
         } finally {
@@ -161,7 +160,7 @@ export class DeviceAuthController {
         }
     }
 
-    startSlackAuth() {
+    startOrganizationAuth() {
         if (!this.deviceCode) {
             this.showGlobalError('デバイスコードが見つかりません');
             return;
@@ -171,9 +170,9 @@ export class DeviceAuthController {
         sessionStorage.setItem('brainbase_device_code', this.deviceCode);
         sessionStorage.setItem('brainbase_user_code', this.userCode);
 
-        // Redirect to Slack OAuth
-        const returnUrl = `/device?slack_callback=true`;
-        const authUrl = `/api/auth/slack/start?origin=${encodeURIComponent(returnUrl)}&redirect=${encodeURIComponent(returnUrl)}`;
+        // The server selects the configured provider (Google Workspace for Growin).
+        const returnUrl = `/device?auth_callback=true`;
+        const authUrl = `/api/auth/login/start?origin=${encodeURIComponent(returnUrl)}&redirect=${encodeURIComponent(returnUrl)}`;
 
         window.location.href = authUrl;
     }

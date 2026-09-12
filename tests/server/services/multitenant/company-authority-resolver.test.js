@@ -105,6 +105,38 @@ function canonicalRuntime() {
 }
 
 describe('CompanyAuthorityResolver', () => {
+    it('uses a trusted channel result without requiring a per-project identity or grant', async () => {
+        const repository = canonicalRepository();
+        const identity = await repository.resolveCanonicalIdentity();
+        const authority = await repository.resolveCanonicalAuthority();
+        repository.resolveCanonicalIdentity.mockClear();
+        repository.resolveCanonicalAuthority.mockClear();
+        repository.resolveSlackChannelAuthority = vi.fn(async () => ({ identity, authority }));
+        const result = await new CompanyAuthorityResolver({ repository }).resolve(observed(), canonicalRuntime());
+        expect(result.actor.principal_id).toBe(identity.canonical_person_id);
+        expect(result.authorization.project_ids).toEqual([identity.project_id]);
+        expect(repository.resolveCanonicalIdentity).not.toHaveBeenCalled();
+        expect(repository.resolveCanonicalAuthority).not.toHaveBeenCalled();
+    });
+
+    it('keeps the existing authority path when no channel policy is selected', async () => {
+        const repository = canonicalRepository();
+        repository.resolveSlackChannelAuthority = vi.fn(async () => null);
+        await new CompanyAuthorityResolver({ repository }).resolve(observed(), canonicalRuntime());
+        expect(repository.resolveCanonicalIdentity).toHaveBeenCalledOnce();
+        expect(repository.resolveCanonicalAuthority).toHaveBeenCalledOnce();
+    });
+
+    it('never falls back after a selected channel policy denies or returns an incomplete result', async () => {
+        for (const channelResult of [async () => { throw Object.assign(new Error('denied'), { code: 'COMPANY_AUTHORITY_DENIED' }); }, async () => ({})]) {
+            const repository = canonicalRepository();
+            repository.resolveSlackChannelAuthority = vi.fn(channelResult);
+            await expect(new CompanyAuthorityResolver({ repository }).resolve(observed(), canonicalRuntime())).rejects.toThrow();
+            expect(repository.resolveCanonicalIdentity).not.toHaveBeenCalled();
+            expect(repository.resolveCanonicalAuthority).not.toHaveBeenCalled();
+        }
+    });
+
     it('rejects malformed provider connection scopes before authority resolution', () => {
         expect(() => normalizeObservedExecutionRequest(observed({
             required_connection_scopes: ['chat:write', '']
@@ -164,6 +196,74 @@ describe('CompanyAuthorityResolver', () => {
         const resolved = await resolver.resolve(input, canonicalRuntime());
 
         expect(resolved.authorization.data_scopes).toContain('personal');
+    });
+
+    it.each([
+        ['canonical project id', 'project-unson-backoffice', 'unson-backoffice'],
+        ['project code alias', 'unson-backoffice', 'project-unson-backoffice']
+    ])('canonicalizes a bare %s for authority lookup while retaining the requested resource', async (
+        _label,
+        projectRef,
+        projectHint
+    ) => {
+        const resourceRef = `project:${projectRef}`;
+        const input = observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: resourceRef,
+                project_hint: projectHint
+            }
+        });
+        const repository = canonicalRepository();
+        const resolver = new CompanyAuthorityResolver({ repository });
+
+        const resolved = await resolver.resolve(input, canonicalRuntime());
+
+        expect(repository.resolveCanonicalAuthority).toHaveBeenCalledWith(expect.objectContaining({
+            project_id: 'project-unson-backoffice',
+            resource_ref: 'project:project-unson-backoffice'
+        }));
+        expect(resolved.company_authority.resource_ref).toBe(resourceRef);
+        expect(resolved.authorization.data_scopes).toContain(
+            `company_authority:resource:${resourceRef}@12`
+        );
+    });
+
+    it.each([
+        'project:project-other',
+        'project:other-backoffice'
+    ])('rejects a bare project outside the canonical identity before authority lookup: %s', async (resourceRef) => {
+        const repository = canonicalRepository();
+        const resolver = new CompanyAuthorityResolver({ repository });
+
+        await expect(resolver.resolve(observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: resourceRef
+            }
+        }), canonicalRuntime())).rejects.toMatchObject({
+            code: 'PROJECT_SCOPE_MISMATCH'
+        });
+        expect(repository.resolveCanonicalIdentity).toHaveBeenCalledTimes(1);
+        expect(repository.resolveCanonicalAuthority).not.toHaveBeenCalled();
+    });
+
+    it('keeps non-project resources unchanged for authority lookup', async () => {
+        const resourceRef = 'personal://person-umeda/notes';
+        const repository = canonicalRepository();
+        const resolver = new CompanyAuthorityResolver({ repository });
+
+        const resolved = await resolver.resolve(observed({
+            requested_action: {
+                ...observed().requested_action,
+                resource_ref: resourceRef
+            }
+        }), canonicalRuntime());
+
+        expect(repository.resolveCanonicalAuthority).toHaveBeenCalledWith(expect.objectContaining({
+            resource_ref: resourceRef
+        }));
+        expect(resolved.company_authority.resource_ref).toBe(resourceRef);
     });
 
     it.each([

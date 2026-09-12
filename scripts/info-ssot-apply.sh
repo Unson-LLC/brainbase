@@ -7,6 +7,7 @@ SCHEMA_SQL="$REPO_ROOT/server/sql/info-ssot-schema.sql"
 PROJECT_PROVISIONING_SCHEMA_SQL="$REPO_ROOT/server/sql/project-provisioning-schema.sql"
 OUTCOME_CASE_SCHEMA_SQL="$REPO_ROOT/server/sql/outcome-case-schema.sql"
 RLS_SQL="$REPO_ROOT/server/sql/info-ssot-rls.sql"
+PORTABLE_GRAPH_SCHEMA_SQL="$REPO_ROOT/server/sql/portable-graph-schema.sql"
 JUDGMENT_RECEIPT_SCHEMA_SQL="$REPO_ROOT/server/sql/judgment-receipt-schema.sql"
 READBACK_SQL="$REPO_ROOT/server/sql/info-ssot-readback.sql"
 NEGATIVE_SMOKE_SQL="$REPO_ROOT/server/sql/info-ssot-negative-smoke.sql"
@@ -28,7 +29,7 @@ if [[ -z "$PSQL_BIN" ]]; then
   fi
 fi
 
-for sql_file in "$SCHEMA_SQL" "$PROJECT_PROVISIONING_SCHEMA_SQL" "$OUTCOME_CASE_SCHEMA_SQL" "$RLS_SQL" "$JUDGMENT_RECEIPT_SCHEMA_SQL" "$READBACK_SQL" "$NEGATIVE_SMOKE_SQL"; do
+for sql_file in "$SCHEMA_SQL" "$PROJECT_PROVISIONING_SCHEMA_SQL" "$OUTCOME_CASE_SCHEMA_SQL" "$RLS_SQL" "$PORTABLE_GRAPH_SCHEMA_SQL" "$JUDGMENT_RECEIPT_SCHEMA_SQL" "$READBACK_SQL" "$NEGATIVE_SMOKE_SQL"; do
   if [[ ! -r "$sql_file" ]]; then
     echo "Info SSOT SQL file is missing or unreadable: ${sql_file#"$REPO_ROOT/"}" >&2
     exit 1
@@ -93,9 +94,11 @@ if ! run_psql \
   -f "$PROJECT_PROVISIONING_SCHEMA_SQL" \
   -f "$OUTCOME_CASE_SCHEMA_SQL" \
   -f "$RLS_SQL" \
+  -f "$PORTABLE_GRAPH_SCHEMA_SQL" \
   -f "$JUDGMENT_RECEIPT_SCHEMA_SQL" \
   -f "$READBACK_SQL" \
   -f "$NEGATIVE_SMOKE_SQL" >"$MIGRATION_OUTPUT" 2>&1; then
+  tail -n 40 "$MIGRATION_OUTPUT" >&2
   echo "Info SSOT schema/RLS transaction failed; do not restart or switch API/MCP, and verify the current service state" >&2
   exit 1
 fi
@@ -172,3 +175,5 @@ mv -f -- "$RECEIPT_TMP" "$RECEIPT_PATH"
 RECEIPT_TMP=""
 
 echo "Info SSOT schema + RLS applied; receipt=${RECEIPT_PATH#"$REPO_ROOT/"}"
+# Cloud Run Jobではローカルファイルが終了時に消えるため、同じreceiptをCloud Loggingへ残す。
+echo "INFO_SSOT_APPLY_RECEIPT=$(tr -d '\n' < "$RECEIPT_PATH")"

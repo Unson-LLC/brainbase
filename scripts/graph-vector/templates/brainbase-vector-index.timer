@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh changed Brainbase Graph vectors
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=1min
+RandomizedDelaySec=10s
+Unit=brainbase-vector-index.service
+
+[Install]
+WantedBy=timers.target

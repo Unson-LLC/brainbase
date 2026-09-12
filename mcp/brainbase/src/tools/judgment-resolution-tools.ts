@@ -26,6 +26,7 @@ export type JudgmentResolutionDependencies = AuthenticatedApiDependencies & {
   now?: () => Date;
   judgmentJournalRoot?: string;
   readTurnInputFile?: (path: string) => string;
+  companyAuthorityResponse?: string;
 };
 
 export type TurnInput = {
@@ -379,6 +380,9 @@ export async function resolveJudgmentBeforeModel(
     adapterVersion: dependencies.adapterVersion,
     issuedAt,
   });
+  if (dependencies.companyAuthorityResponse) {
+    headers['x-brainbase-company-authority-response'] = dependencies.companyAuthorityResponse;
+  }
   const fetched = await fetchAuthenticatedJson(dependencies, context, {
     path: '/api/judgment/resolve', method: 'POST', body: args, headers,
   });

@@ -26,6 +26,7 @@ import {
     sanitizeJudgmentAnswer,
     toKnowledgeEventFromJudgmentEpisode
 } from '../../server/services/routine-runtime/judgment-event-adapter.js';
+import { normalizeJudgmentExecutionOutcome } from '../../server/services/judgment-execution-outcome.js';
 import {
     buildJudgmentValueProofProjection,
     extractJudgmentValueProofInput,
@@ -133,6 +134,7 @@ const STRUCTURED_STOP_STATE_PATTERN = /^<!-- brainbase-stop-state:(\{.*\}) -->$/
 const JUDGMENT_STATE_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_state_record';
 const JUDGMENT_VALUE_PROOF_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_value_proof_record';
 const JUDGMENT_AUDIT_READ_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_audit_read';
+const OWNER_AUDIT_SCHEMA_VERSION = 'brainbase-owner-audit-v1';
 const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'get_context', 'list_entities', 'get_entity', 'list_extension_types', 'list_extension_entities',
     'search', 'resolve_entity', 'search_wiki', 'get_wiki_page', 'search_personal_kg',
@@ -240,6 +242,19 @@ const TURN_RESOLUTION_RECEIPT_STATUSES = new Set([
     'resolved',
     'needs_classification',
     'needs_policy_resolution'
+]);
+const JUDGMENT_BINDING_DIAGNOSTIC_EVENT = 'brainbase_judgment_binding_diagnostic';
+// Keep this list finite and local to the MCP implementation. Upstream API
+// error.code values are not an allowlist and must never be copied to logs.
+const JUDGMENT_BINDING_DIAGNOSTIC_ERROR_CODES = new Set([
+    'brainbase_auth_unavailable',
+    'brainbase_auth_context_invalid',
+    'brainbase_project_not_accessible',
+    'brainbase_judgment_binding_unavailable',
+    'brainbase_api_unavailable',
+    'brainbase_api_error',
+    'brainbase_api_response_invalid',
+    'judgment_resolution_input_invalid'
 ]);
 // Mirrors the brainbase_resolve_turn inputSchema; exec-mode models do not
 // reliably read tool schemas, so the exact shape is stated in the context.
@@ -458,6 +473,22 @@ function readCanonicalTranscript(payload, env) {
     };
 }
 
+// Native reconciliation may only append to an already verified, persisted
+// episode. It never bootstraps an episode or authorizes a tool invocation.
+function hasVerifiedNativeMcpStart(payload, env) {
+    try {
+        const identity = payloadIdentity(payload);
+        if (!identity) return false;
+        const diagnostic = join(journalRoot(env), 'diagnostics', identity.sessionRef, `${sha256(identity.turnId)}.start-failure.json`);
+        try { readFileSync(diagnostic); return false; } catch (error) { if (error?.code !== 'ENOENT') return false; }
+        const episode = existingEpisode(payload, env);
+        if (!episode || !episode.episode_origin || !episode.route_application) return false;
+        const input = readJson(journalPaths(identity.sessionRef, identity.turnId, env).turnInput);
+        return input.conversation_context?.session_ref === identity.sessionRef && input.turn_id === identity.turnId
+            && canonicalJson(input) === canonicalJson(episode.turn_input);
+    } catch { return false; }
+}
+
 // Only Codex-owned completed MCP items are execution evidence. Wrapper text and
 // response_item contents can be model-generated and must never be replayed.
 function nativeMcpUpstreamErrorCode(item) {
@@ -471,7 +502,7 @@ function nativeMcpUpstreamErrorCode(item) {
 }
 
 export function reconcileNativeMcpFailures(payload, { env = process.env } = {}) {
-    if (!hasVerifiedStart(payload, env) || typeof payload.transcript_path !== 'string') return [];
+    if (!hasVerifiedNativeMcpStart(payload, env) || typeof payload.transcript_path !== 'string') return [];
     let entries;
     try {
         const path = realpathSync(payload.transcript_path);
@@ -636,6 +667,7 @@ function journalPaths(sessionRef, turnId, env) {
         recovery: join(directory, `${turnRef}.recovery.json`),
         auditOrphanEvents: join(directory, `${turnRef}.audit-orphan-events`),
         final: join(directory, `${turnRef}.final.json`),
+        executionOutcome: join(directory, `${turnRef}.execution-outcome.json`),
         valueProof: join(directory, `${turnRef}.value-proof.json`),
         valueProofAttention: join(directory, `${turnRef}.value-proof-attention.json`),
         transitionDatabase: join(directory, `${turnRef}.transition.sqlite`)
@@ -1119,7 +1151,50 @@ function adoptReceipt(args, receipt, env) {
     }
 }
 
-async function fetchAttempt(args, { env, fetchImpl }) {
+const INLINE_RESOLVER_FAILURE_REASONS = new Set([
+    'brainbase_api_unavailable', 'brainbase_api_response_invalid',
+    'brainbase_auth_unavailable', 'brainbase_auth_context_invalid',
+    'brainbase_project_not_accessible', 'brainbase_judgment_binding_unavailable',
+    'brainbase_api_error', 'judgment_resolution_input_invalid',
+    'judgment_resolver_unavailable', 'judgment_receipt_missing'
+]);
+
+async function resolveInlineAttempt(args, { env, resolveBeforeModel }) {
+    const controller = new AbortController();
+    let timeout;
+    try {
+        const payload = await Promise.race([
+            Promise.resolve().then(() => resolveBeforeModel(args, { signal: controller.signal })),
+            new Promise((_, reject) => {
+                timeout = setTimeout(() => {
+                    reject(new Error('judgment_host_timeout'));
+                    controller.abort();
+                }, Number(env.BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS || 15000));
+            })
+        ]);
+        if (record(payload) && payload.management_status === 'managed' && record(payload.receipt)) {
+            return payload.receipt;
+        }
+        throw new Error(INLINE_RESOLVER_FAILURE_REASONS.has(payload?.reason)
+            ? payload.reason : 'judgment_host_bridge_failed');
+    } catch (cause) {
+        // A callback may still be finishing after timeout. Never retry it or
+        // fall back to HTTP and create a second resolution for this attempt.
+        const reason = cause?.message === 'judgment_host_timeout'
+            || INLINE_RESOLVER_FAILURE_REASONS.has(cause?.message)
+            ? cause.message : 'judgment_host_bridge_failed';
+        const error = new Error(reason);
+        error.transient = false;
+        throw error;
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function fetchAttempt(args, { env, fetchImpl, resolveBeforeModel }) {
+    if (resolveBeforeModel !== undefined) {
+        return resolveInlineAttempt(args, { env, resolveBeforeModel });
+    }
     const hostUrl = env.BRAINBASE_JUDGMENT_HOST_URL || DEFAULT_HOST_URL;
     const token = env.BRAINBASE_JUDGMENT_HOST_BEARER_TOKEN
         || (hostUrl === DEFAULT_HOST_URL ? env.MCP_HTTP_BEARER_TOKEN : null);
@@ -1168,13 +1243,13 @@ async function fetchAttempt(args, { env, fetchImpl }) {
     }
 }
 
-async function resolveAndAdoptEntry(args, { env = process.env, fetchImpl = globalThis.fetch } = {}) {
+async function resolveAndAdoptEntry(args, { env = process.env, fetchImpl = globalThis.fetch, resolveBeforeModel } = {}) {
     const accepted = existingAdoptionEntry(args, env);
     if (accepted) return accepted;
     let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-            const receipt = verifyReceipt(await fetchAttempt(args, { env, fetchImpl }), args);
+            const receipt = verifyReceipt(await fetchAttempt(args, { env, fetchImpl, resolveBeforeModel }), args);
             return adoptReceipt(args, receipt, env);
         } catch (error) {
             lastError = error;
@@ -1308,11 +1383,11 @@ function recoverEpisode(payload, identity, currentPaths, env) {
     return candidate;
 }
 
-async function resolveInitialRoute(args, { env, fetchImpl }) {
+async function resolveInitialRoute(args, { env, fetchImpl, resolveBeforeModel }) {
     let lastError;
     for (let attempt = 0; attempt < 3; attempt += 1) {
         try {
-            return verifyReceipt(await fetchAttempt(args, { env, fetchImpl }), args);
+            return verifyReceipt(await fetchAttempt(args, { env, fetchImpl, resolveBeforeModel }), args);
         } catch (error) {
             lastError = error;
             const transportFailure = error?.name === 'AbortError'
@@ -1327,6 +1402,7 @@ async function resolveInitialRoute(args, { env, fetchImpl }) {
 export async function startEpisode(payload, {
     env = process.env,
     fetchImpl = globalThis.fetch,
+    resolveBeforeModel,
     episodeOrigin = 'user_prompt_submit',
     routeApplication = 'pre_generation'
 } = {}) {
@@ -1349,7 +1425,7 @@ export async function startEpisode(payload, {
         );
         const initialRouteReceipt = await withJudgmentStage(
             'judgment_episode_route_resolve_failed',
-            () => resolveInitialRoute(args, { env, fetchImpl })
+            () => resolveInitialRoute(args, { env, fetchImpl, resolveBeforeModel })
         );
         const hostSurface = withJudgmentStage(
             'judgment_episode_surface_detect_failed',
@@ -1528,6 +1604,124 @@ function isJsonContainerText(value) {
     return text.startsWith('{') || text.startsWith('[');
 }
 
+function judgmentBindingDiagnosticWrapperShape(response) {
+    if (response === null) return 'null';
+    if (Array.isArray(response)) return 'array';
+    if (typeof response === 'string') return isJsonContainerText(response) ? 'json_string' : 'string';
+    const item = record(response);
+    if (!item) return 'other';
+    if (item.type === 'tool_result') return 'tool_result_block';
+    if (item.jsonrpc === '2.0' && Object.hasOwn(item, 'result')) {
+        if (record(item.result)) return 'jsonrpc_result_record';
+        if (typeof item.result === 'string') return 'jsonrpc_result_string';
+        return 'jsonrpc_result_other';
+    }
+    if (Array.isArray(item.content)) return 'content_array';
+    if (typeof item.content === 'string') return 'content_string';
+    if (Object.hasOwn(item, 'result')) {
+        if (record(item.result)) return 'result_record';
+        if (typeof item.result === 'string') return 'result_string';
+        return 'result_other';
+    }
+    if (Object.hasOwn(item, 'data')) {
+        if (record(item.data)) return 'data_record';
+        if (typeof item.data === 'string') return 'data_string';
+        return 'data_other';
+    }
+    return 'record';
+}
+
+function judgmentBindingDiagnosticReceiptPresent(response) {
+    return nestedRecords(response).some((item) => (
+        typeof item.resolution_id === 'string' && item.resolution_id.trim().length > 0
+    ) || Boolean(record(item.receipt)));
+}
+
+function judgmentBindingDiagnosticInnerErrorCode(response) {
+    const codes = new Set();
+    for (const item of nestedRecords(response)) {
+        const nestedCode = record(item.error)?.code;
+        if (JUDGMENT_BINDING_DIAGNOSTIC_ERROR_CODES.has(nestedCode)) codes.add(nestedCode);
+        const status = String(item.status ?? '').toLowerCase();
+        if (['error', 'unavailable', 'failed', 'failure'].includes(status)
+            && JUDGMENT_BINDING_DIAGNOSTIC_ERROR_CODES.has(item.code)) {
+            codes.add(item.code);
+        }
+    }
+    return codes.size === 1 ? [...codes][0] : null;
+}
+
+// Diagnostic traversal is independent of receipt extraction and never changes
+// its acceptance rules. Only fixed categories and bounded counts leave memory.
+function judgmentBindingResponseSummary(response) {
+    const keys = new Set();
+    const statuses = new Set();
+    const types = new Set();
+    const errorKinds = new Set();
+    const knownStatuses = new Set(['ok', 'error', 'unavailable', 'resolved', 'needs_classification', 'needs_policy_resolution', 'failed', 'completed']);
+    const knownKeys = ['status', 'error', 'code', 'resolution_id', 'classification', 'required_capabilities', 'isError', 'is_error', 'content', 'text', 'result', 'data', 'Ok', 'Err', 'structuredContent', 'receipt'];
+    const summary = { text_blocks: 0, json_parseable: 0, json_invalid: 0, non_json: 0, explicit_failure: false, truncated: false };
+    let visited = 0;
+    let parsedChars = 0;
+    function visit(value, depth = 0) {
+        if (depth > 8 || visited >= 128) { summary.truncated = true; return; }
+        visited += 1;
+        if (Array.isArray(value)) {
+            types.add('array');
+            if (value.length > 64) summary.truncated = true;
+            for (const entry of value.slice(0, 64)) visit(entry, depth + 1);
+            return;
+        }
+        if (typeof value === 'string') {
+            types.add('string');
+            summary.text_blocks += 1;
+            if (!isJsonContainerText(value)) { summary.non_json += 1; return; }
+            if (value.length > 65536 || parsedChars + value.length > 262144) { summary.truncated = true; return; }
+            parsedChars += value.length;
+            try {
+                const parsed = JSON.parse(value);
+                summary.json_parseable += 1;
+                visit(parsed, depth + 1);
+            } catch { summary.json_invalid += 1; }
+            return;
+        }
+        const item = record(value);
+        if (!item) { types.add(value === null ? 'null' : 'other'); return; }
+        types.add('record');
+        for (const key of knownKeys) if (Object.hasOwn(item, key)) keys.add(key);
+        if (Object.hasOwn(item, 'status')) statuses.add(knownStatuses.has(item.status) ? item.status : 'other');
+        if (item.isError === true || item.is_error === true) summary.explicit_failure = true;
+        if (record(item.error)) {
+            const code = item.error.code;
+            errorKinds.add(typeof code !== 'string' ? 'missing' : JUDGMENT_BINDING_DIAGNOSTIC_ERROR_CODES.has(code) ? 'known' : 'other');
+        }
+        for (const key of ['Ok', 'Err', 'data', 'structuredContent', 'result', 'receipt', 'content', 'text']) {
+            if (Object.hasOwn(item, key)) visit(item[key], depth + 1);
+        }
+    }
+    visit(response);
+    return { ...summary, value_types: [...types].sort(), known_keys: [...keys].sort(), statuses: [...statuses].sort(), error_code_kinds: [...errorKinds].sort() };
+}
+
+function logJudgmentBindingDiagnostic(response, toolUseId) {
+    try {
+        const diagnostic = {
+            event: JUDGMENT_BINDING_DIAGNOSTIC_EVENT,
+            wrapper_shape: judgmentBindingDiagnosticWrapperShape(response),
+            receipt_present: judgmentBindingDiagnosticReceiptPresent(response),
+            inner_error_code: judgmentBindingDiagnosticInnerErrorCode(response),
+            hook_event_name: 'PostToolUse',
+            tool_use_ref: typeof toolUseId === 'string' && toolUseId ? sha256(toolUseId) : null,
+            response_summary: judgmentBindingResponseSummary(response)
+        };
+        // Best-effort diagnostics must not change the fail-closed binding
+        // result if a host-provided stderr logger is unavailable.
+        console.error(JSON.stringify(diagnostic));
+    } catch {
+        // Keep the original binding error as the only control-flow result.
+    }
+}
+
 function nestedRecords(value, depth = 0, { parseContent = true } = {}) {
     if (depth > 5) return [];
     if (Array.isArray(value)) {
@@ -1601,6 +1795,30 @@ function responseSucceeded(response, {
         || (allowExplicitSuccess && explicitEnvelope === item && (item.isError === false || item.is_error === false || item.ok === true || item.success === true || ['ok', 'success', 'completed'].includes(String(item.status).toLowerCase())))
         || (allowImplicitSuccess && response !== null && response !== undefined)
     )) || (allowTransportSuccess && !Array.isArray(response) && validCallToolResultEnvelope(response));
+}
+
+function judgmentAuditReadSemanticSuccess(response, { currentTurnRef, inputTurnRef } = {}) {
+    if (typeof currentTurnRef !== 'string' || typeof inputTurnRef !== 'string' || inputTurnRef !== currentTurnRef) return false;
+    const expectedKeys = ['lines', 'prefix', 'schema_version', 'turn_ref'];
+    return nestedRecords(response).some((item) => {
+        if (item.status !== 'ok') return false;
+        const data = record(item.data);
+        if (!data
+            || Object.keys(data).length !== expectedKeys.length
+            || expectedKeys.some((key) => !Object.hasOwn(data, key))
+            || data.schema_version !== OWNER_AUDIT_SCHEMA_VERSION
+            || data.turn_ref !== currentTurnRef
+            || data.turn_ref !== inputTurnRef
+            || !Array.isArray(data.lines)
+            || data.lines.length === 0
+            || !data.lines.every((line) => typeof line === 'string' && line.length > 0)
+            || typeof data.prefix !== 'string'
+            || data.prefix.length === 0
+            || data.prefix !== data.lines.join('\n')) {
+            return false;
+        }
+        return true;
+    });
 }
 
 function responseCount(response) {
@@ -2135,8 +2353,17 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
     const retrievalSemanticSuccess = BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME[toolName.replace(/^mcp__brainbase__/u, '')] === 'owner_audit'
         ? Boolean(retrieval)
         : Boolean(retrieval && semanticResult);
+    const auditReadSemanticSuccess = judgmentAuditReadTool
+        ? judgmentAuditReadSemanticSuccess(responseValue, {
+            currentTurnRef: `${identity.sessionRef}/${paths.turnRef}`,
+            inputTurnRef: record(inputValue)?.turn_ref
+        })
+        : false;
     const responseSuccess = judgmentAuditReadTool
-        ? responseSucceeded(responseValue, { allowExplicitSuccess: true })
+        ? responseSucceeded(responseValue, {
+            allowExplicitSuccess: true,
+            semanticSuccess: auditReadSemanticSuccess
+        })
         : Boolean(desktopEvidence) || responseSucceeded(responseValue, {
             allowTransportSuccess: brainbaseTool && ['search', 'retrieve'].includes(kind) && retrievalSemanticSuccess,
             allowExplicitSuccess: !brainbaseTool,
@@ -2203,6 +2430,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
                 : '呼出';
     const displayLine = turnResolutionUnavailable
         ? '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）'
+        : postToolUseFailure && kind === 'turn_resolution' && !turnResolution
+        ? '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（tool_execution_failed）'
         : !brainbaseTool || judgmentStateTool || judgmentValueProofTool || judgmentAuditReadTool || kind === 'turn_resolution'
         ? null
         : kind === 'evidence'
@@ -2278,18 +2507,37 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
                     ? episode.turn_input
                     : suppliedTurnInput;
             const interpretation = record(turnToolInput?.model_interpretation);
+            const failedAttemptWithoutContract = postToolUseFailure && !turnResolution;
             const bindingValid = turnInput
-                && interpretation
+                && (interpretation || failedAttemptWithoutContract)
                 && canonicalJson(turnInput) === canonicalJson(episode.turn_input)
                 && (turnResolution
                     ? turnResolution.turn_id === episode.initial_route_receipt.turn_id
                         && turnResolution.context_digest === episode.initial_route_receipt.context_digest
                         && turnResolution.request_digest === sha256(canonicalJson({ ...turnInput, model_interpretation: interpretation }))
                     : turnResolutionUnavailable
+                        || postToolUseFailure
                         ? suppliedTurnRef === null || suppliedTurnRef === expectedTurnRef
                         : false);
             if (!bindingValid) {
-                throw new Error('judgment_turn_resolution_binding_invalid');
+                // Fixed codes only: the existing MCP error sink can report the
+                // failed boundary without exposing input or contract contents.
+                const causeCode = suppliedTurnRef !== null && suppliedTurnRef !== expectedTurnRef ? 'judgment_binding_turn_ref_mismatch'
+                    : !turnInput ? 'judgment_binding_turn_input_missing'
+                    : !interpretation ? 'judgment_binding_interpretation_missing'
+                    : canonicalJson(turnInput) !== canonicalJson(episode.turn_input) ? 'judgment_binding_turn_input_mismatch'
+                    : turnResolution?.turn_id !== undefined && turnResolution.turn_id !== episode.initial_route_receipt.turn_id ? 'judgment_binding_contract_turn_mismatch'
+                    : turnResolution?.context_digest !== undefined && turnResolution.context_digest !== episode.initial_route_receipt.context_digest ? 'judgment_binding_context_digest_mismatch'
+                    : turnResolution ? 'judgment_binding_request_digest_mismatch'
+
+                    : 'judgment_binding_contract_missing';
+                if (hookEventName === 'PostToolUse'
+                    && toolName === TURN_RESOLUTION_TOOL_NAME
+                    && !turnResolution
+                    && causeCode === 'judgment_binding_contract_missing') {
+                    logJudgmentBindingDiagnostic(responseValue, payload.tool_use_id);
+                }
+                throw new Error('judgment_turn_resolution_binding_invalid', { cause: new Error(causeCode) });
             }
         }
         const auditTurnRef = `${identity.sessionRef}/${paths.turnRef}`;
@@ -3029,6 +3277,38 @@ function existingFinal(paths, episode) {
     }
 }
 
+function codexExecutionOutcome(payload, final) {
+    const episodeRef = `judgment-episode:je_${sha256(`${payload.session_id}:${payload.turn_id}`)}`;
+    return final.completion_status === 'complete'
+        ? normalizeJudgmentExecutionOutcome({
+            schema_version: 'judgment_execution_outcome.v1',
+            host: { type: 'codex', adapter_id: 'codex-hooks', adapter_version: '1' },
+            execution_id: payload.session_id,
+            turn_id: payload.turn_id,
+            scope: 'host_turn',
+            status: 'completed',
+            stage: 'finalize',
+            evidence: { state: 'confirmed', refs: [episodeRef] }
+        })
+        : normalizeJudgmentExecutionOutcome({
+            schema_version: 'judgment_execution_outcome.v1',
+            host: { type: 'codex', adapter_id: 'codex-hooks', adapter_version: '1' },
+            execution_id: payload.session_id,
+            turn_id: payload.turn_id,
+            scope: 'host_turn',
+            status: 'unknown',
+            stage: 'finalize',
+            failure: {
+                code: final.degradation_reason ?? 'audit_protocol_incomplete',
+                summary: '監査が縮退したため、このターンの完了を確認できませんでした。',
+                upstream_code: null,
+                retryable: true
+            },
+            resume_from: 'resolve',
+            evidence: { state: 'unconfirmed', refs: [episodeRef] }
+        });
+}
+
 function existingJudgmentValueProof(paths, finalized = null) {
     if (!finalized?.value_proof_digest) return null;
     try {
@@ -3734,7 +4014,20 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             || finalized.event_set_digest !== eventSetDigest) {
             throw new Error('judgment_episode_final_event_set_mismatch');
         }
-        enqueueFinalKnowledgeEvent(payload, finalized, env);
+        let persistedOutcome = null;
+        try {
+            persistedOutcome = normalizeJudgmentExecutionOutcome(readJson(paths.executionOutcome));
+        } catch (error) {
+            if (error?.code !== 'ENOENT') throw error;
+            if (finalized.execution_outcome_schema_version === 'judgment_execution_outcome.v1') {
+                persistedOutcome = codexExecutionOutcome(payload, finalized);
+                createImmutableJson(paths.executionOutcome, persistedOutcome, 'judgment_execution_outcome_conflict');
+            }
+        }
+        const finalizedWithOutcome = persistedOutcome
+            ? { ...finalized, execution_outcome: persistedOutcome }
+            : finalized;
+        enqueueFinalKnowledgeEvent(payload, finalizedWithOutcome, env);
         const persistedBaseOutput = completedAuditOutput(finalizedValueProof, finalizedValueProofAttention);
         const persistedOutput = finalized.completion_status === 'audit_degraded'
             && typeof finalized.degradation_reason === 'string'
@@ -3743,7 +4036,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             : persistedBaseOutput;
         return {
             output: persistedOutput,
-            final: finalized,
+            final: finalizedWithOutcome,
             auditRepairWasAlreadyActive: existingContinuation !== null
         };
     }
@@ -4034,6 +4327,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const finalAutonomyContract = episodeAutonomyContract(episode);
     const entry = {
         schema_version: 'brainbase-judgment-episode-final-v2',
+        execution_outcome_schema_version: 'judgment_execution_outcome.v1',
         finalized_at: finalizedAt,
         ...(surfaceUnavailable ? {
             completion_status: 'audit_degraded',
@@ -4109,7 +4403,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 : {})
     };
     const final = createImmutableJson(paths.final, entry, 'judgment_episode_final_conflict');
-    enqueueFinalKnowledgeEvent(payload, final, env);
+    const executionOutcome = codexExecutionOutcome(payload, entry);
+    createImmutableJson(paths.executionOutcome, executionOutcome, 'judgment_execution_outcome_conflict');
+    const finalWithOutcome = { ...final, execution_outcome: executionOutcome };
+    enqueueFinalKnowledgeEvent(payload, finalWithOutcome, env);
     const baseOutput = completedAuditOutput(valueProof, valueProofAttention);
     const immediateDegradationReason = preEpisodeAuditGap
         ? 'pre_episode_tool_events'
@@ -4123,7 +4420,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         : baseOutput;
     return {
         output,
-        final,
+        final: finalWithOutcome,
         auditRepairWasAlreadyActive: existingContinuation !== null
     };
 }

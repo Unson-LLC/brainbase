@@ -1,3 +1,5 @@
+import { bodyEvidenceFields } from './retrieval/evidence.js';
+import { knowledgeEvidenceTools, handleKnowledgeEvidenceToolCall } from './tools/knowledge-evidence-tools.js';
 /**
  * brainbase MCP Server
  * Provides context from the brainbase Graph SSOT to Claude
@@ -42,9 +44,11 @@ import {
   PersonalKnowledgeClient,
   type PersonalKnowledgeEvent,
 } from './personal-knowledge-client.js';
-import { GraphAPISource } from './sources/graphapi-source.js';
+import { GraphAPISource, type GraphEntity } from './sources/graphapi-source.js';
 import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
+import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
+import { RequestTokenContext, type TokenProvider } from './auth/request-token-context.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 import {
@@ -58,13 +62,17 @@ import {
 } from './tools/meeting-minutes-context-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/graph-maintenance-tools.js';
+import { handleGraphRetrievalToolCall, retrieveGraphEntity, type GraphRetrievalDependencies } from './tools/graph-retrieval.js';
 import { knowledgeResolutionTools, handleKnowledgeResolutionToolCall } from './tools/knowledge-resolution-tools.js';
 import { judgmentResolutionTools, handleJudgmentResolutionToolCall, resolveJudgmentBeforeModel } from './tools/judgment-resolution-tools.js';
 import { judgmentAuditTools, handleJudgmentAuditToolCall } from './tools/judgment-audit-tools.js';
 import { judgmentStateTools, handleJudgmentStateToolCall } from './tools/judgment-state-tools.js';
 import { judgmentValueProofTools, handleJudgmentValueProofToolCall } from './tools/judgment-value-proof-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
-import { normalizeJudgmentHostResult } from './tools/judgment-host-contract.js';
+import {
+  normalizeJudgmentHostResult,
+  type JudgmentManagementResult,
+} from './tools/judgment-host-contract.js';
 import { dispatchFirst, type ToolHandler } from './tools/tool-dispatcher.js';
 import { annotateToolCapabilities } from './tools/tool-annotations.js';
 import {
@@ -91,8 +99,8 @@ const taskApiToken = process.env.BRAINBASE_TASK_API_TOKEN;
 
 // Global refs for wiki API calls
 let wikiApiBaseUrl: string;
-let globalTokenManager: TokenManager;
-let globalOwnerTokenManager: TokenManager;
+let globalTokenManager: TokenProvider;
+let globalOwnerTokenManager: TokenProvider;
 let personalKgStorageMode: PersonalKgStorageMode | undefined;
 let personalKgApiUrl: string | undefined;
 let personalKnowledgeClient: PersonalKnowledgeClient | null = null;
@@ -110,6 +118,7 @@ function resolveWikiApiBaseUrl(
 type OnboardingDispatchDependencies = Parameters<typeof handleOnboardingToolCall>[2];
 type KnowledgeResolutionDispatchDependencies = Parameters<typeof handleKnowledgeResolutionToolCall>[2];
 type JudgmentResolutionDispatchDependencies = Parameters<typeof resolveJudgmentBeforeModel>[1];
+type JudgmentResolutionDispatchOptions = { signal?: AbortSignal };
 
 function createDefaultJudgmentResolutionDependencies(): JudgmentResolutionDispatchDependencies {
   return {
@@ -149,9 +158,24 @@ async function dispatchKnowledgeResolutionToolCall(
 async function dispatchJudgmentResolutionBeforeModel(
   args: Record<string, unknown>,
   dependencies?: JudgmentResolutionDispatchDependencies,
+  options: JudgmentResolutionDispatchOptions = {},
 ) {
+  const resolvedDependencies = dependencies ?? createDefaultJudgmentResolutionDependencies();
+  const callbackSignal = options.signal;
+  const dependenciesWithSignal = callbackSignal
+    ? (() => {
+      const fetchImpl = resolvedDependencies.fetch ?? globalThis.fetch;
+      const fetchWithSignal: typeof globalThis.fetch = (input, init) => fetchImpl(input, {
+        ...(init ?? {}),
+        signal: init?.signal
+          ? AbortSignal.any([init.signal, callbackSignal])
+          : callbackSignal,
+      });
+      return { ...resolvedDependencies, fetch: fetchWithSignal };
+    })()
+    : resolvedDependencies;
   const result = await resolveJudgmentBeforeModel(
-    args, dependencies ?? createDefaultJudgmentResolutionDependencies(),
+    args, dependenciesWithSignal,
   );
   return normalizeJudgmentHostResult(result);
 }
@@ -168,11 +192,50 @@ function buildToolResponseContent(
   name: string,
   toolArgs: Record<string, unknown>,
   result: string,
+  entity?: unknown,
 ) {
   return buildKnowledgeToolContent(
     result,
-    buildKnowledgeOwnerAudit(name, toolArgs, result),
+    buildKnowledgeOwnerAudit(name, toolArgs, result, entity),
   );
+}
+
+function isStructuredJudgmentToolFailure(name: string, extensionResult: unknown): boolean {
+  if (name !== 'brainbase_resolve_turn' || extensionResult === null || typeof extensionResult !== 'object') {
+    return false;
+  }
+  const status = (extensionResult as { status?: unknown }).status;
+  return status === 'error' || status === 'unavailable';
+}
+
+function buildMcpToolResult(
+  name: string,
+  toolArgs: Record<string, unknown>,
+  result: string,
+  extensionResult: unknown,
+  entity?: unknown,
+) {
+  const response = { content: buildToolResponseContent(name, toolArgs, result, entity) };
+  const retrievalFailure = ['search', 'get_entity', 'brainbase_knowledge_evidence_record'].includes(name) && extensionResult !== null
+    && typeof extensionResult === 'object'
+    && ['error', 'unavailable'].includes(String((extensionResult as Record<string, unknown>).status));
+  return (retrievalFailure || isStructuredJudgmentToolFailure(name, extensionResult))
+    ? { ...response, isError: true }
+    : response;
+}
+
+async function dispatchGetEntity(args: Record<string, unknown>, deps: GraphRetrievalDependencies) {
+  const retrieval = await retrieveGraphEntity(args, deps);
+  if (retrieval.status !== 'ok') return buildMcpToolResult('get_entity', args, JSON.stringify(retrieval), retrieval);
+  const raw = (retrieval.data as { entity: (GraphEntity & { id: string }) | null }).entity;
+  const converted = raw ? new GraphAPISource(deps.apiUrl, deps.tokenManager, deps.configuredProjectCodes)
+    .convertEntity({ ...raw, entity_id: raw.id }) : null;
+  // Canonical API identity is retained even where legacy display IDs use a payload alias.
+  const entity = converted && raw ? { ...converted, id: raw.id } : null;
+  const result = await prependPhilosophyContext(entity ? formatEntity(entity) : `Entity not found: ${args.type}/${args.id}`, args, {
+    scope: 'graph', objectType: args.type as EntityType, operation: 'read',
+  });
+  return buildMcpToolResult('get_entity', args, result, retrieval, entity);
 }
 
 async function refreshEntityIndex(): Promise<void> {
@@ -221,6 +284,31 @@ export function isAuthorizedMcpHttpRequest(authorization: string | undefined, ex
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+export function isPublicMcpHttpEndpoint(method: string | undefined, url: string | undefined): boolean {
+  return method === 'GET' && url === '/health';
+}
+
+/**
+ * The HTTP endpoint is intentionally stateless: every MCP request gets its own
+ * server and transport, and there is no session for a server-sent event GET to
+ * attach to. Rejecting GET explicitly also prevents an open stream from
+ * occupying the personal-auth request queue indefinitely.
+ */
+export function statelessMcpHttpMethodNotAllowed(
+  method: string | undefined,
+  url: string | undefined,
+): { status: 405; headers: Record<string, string>; body: string } | null {
+  if (method !== 'GET' || !url?.startsWith('/mcp')) return null;
+  return {
+    status: 405,
+    headers: {
+      'Allow': 'POST',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ error: 'Method Not Allowed', message: 'The stateless MCP endpoint accepts POST requests only.' }),
+  };
+}
+
 export function handleHealthVersionRequest(
   req: Pick<IncomingMessage, 'method' | 'url'>,
   res: Pick<ServerResponse, 'writeHead' | 'end'>,
@@ -243,6 +331,10 @@ async function dispatchRemoteJudgmentHook(
       dependencies?: {
         env?: NodeJS.ProcessEnv;
         onEpisodeStarted?: (episode: Record<string, unknown>) => void;
+        resolveBeforeModel?: (
+          args: Record<string, unknown>,
+          options: { signal: AbortSignal },
+        ) => Promise<JudgmentManagementResult>;
       },
     ) => Promise<Record<string, unknown>>;
   };
@@ -253,6 +345,8 @@ async function dispatchRemoteJudgmentHook(
       ...process.env,
       BRAINBASE_JUDGMENT_PROJECT_CODE: projectCode,
     },
+    resolveBeforeModel: (args, options) =>
+      dispatchJudgmentResolutionBeforeModel(args, undefined, options),
     onEpisodeStarted: (episode) => {
       const receipt = episode.initial_route_receipt;
       if (receipt && typeof receipt === 'object' && !Array.isArray(receipt)) {
@@ -319,9 +413,9 @@ function formatEntity(entity: unknown): string {
   const lines: string[] = [];
 
   // Basic info
-  lines.push(`## ${e.name || e.id}`);
+  lines.push(`## ${e.name || e.title || e.id}`);
   lines.push(`- **Type**: ${e.type}`);
-  lines.push(`- **ID**: ${e.id}`);
+  lines.push(`- **ID**: ${e.graph_entity_id || e.id}`);
 
   if (e.status) lines.push(`- **Status**: ${e.status}`);
   if (e.lifecycle_status || e.lifecycle_state) lines.push(`- **Lifecycle**: ${e.lifecycle_status || e.lifecycle_state}`);
@@ -356,6 +450,11 @@ function formatEntity(entity: unknown): string {
       const value = payload[field];
       if (typeof value === 'string' && value.trim()) lines.push(`- **${label}**: ${value.trim()}`);
     }
+  }
+
+  const evidence = e.retrieval_evidence as Record<string, unknown> | undefined;
+  for (const field of ['source_pointer', 'provenance']) {
+    if (evidence?.[field]) lines.push(`- **${field}**: ${typeof evidence[field] === 'string' ? evidence[field] : JSON.stringify(evidence[field])}`);
   }
 
   // Decision-specific fields
@@ -404,10 +503,14 @@ function formatEntity(entity: unknown): string {
   }
 
   // Content
-  if (e.content && typeof e.content === 'string' && e.content.trim()) {
-    lines.push('');
-    lines.push('### Content');
-    lines.push(e.content);
+  const bodyFields = bodyEvidenceFields(evidence ?? {});
+  if (bodyFields.length) {
+    for (const field of bodyFields) {
+      const value = evidence![field];
+      lines.push('', `### ${field}`, '', typeof value === 'string' ? value : JSON.stringify(value));
+    }
+  } else if (e.content && typeof e.content === 'string' && e.content.trim()) {
+    lines.push('', '## Content', '', e.content);
   }
 
   // New position-based RACI format
@@ -482,7 +585,7 @@ function formatEntityList(entities: unknown[]): string {
     const name = e.name || e.id;
     const type = e.type;
     const status = e.status ? ` [${e.status}]` : '';
-    lines.push(`- **${name}** (${type})${status}`);
+    lines.push(`- **${name}** (${type})${status} — ID: ${e.graph_entity_id || e.id}`);
   }
 
   return lines.join('\n');
@@ -630,42 +733,8 @@ function resourceUriToWikiPath(uri: string): string {
  */
 const tools: Tool[] = [
   {
-    name: 'get_context',
-    description: 'Get relevant context for a topic or entity. Returns the primary entity and related entities (team members, projects, orgs, RACI). Use this for getting comprehensive context about a specific topic.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        topic: {
-          type: 'string',
-          description: 'The topic, project name, person name, or org name to get context for',
-        },
-        project: {
-          type: 'string',
-          description: 'Project code used to resolve Brainbase philosophy context. Defaults to first configured project or brainbase.',
-        },
-        scope: {
-          type: 'string',
-          description: 'Philosophy context scope. Examples: graph, crm, growth, automation, data, development.',
-        },
-        objectType: {
-          type: 'string',
-          description: 'Optional Graph object type being operated on, e.g. push_case or decision.',
-        },
-        operation: {
-          type: 'string',
-          description: 'Optional operation kind, e.g. read, write, review, upsert.',
-        },
-        includePhilosophy: {
-          type: 'boolean',
-          description: 'Whether to prepend Brainbase Philosophy Context. Defaults to true.',
-        },
-      },
-      required: ['topic'],
-    },
-  },
-  {
     name: 'list_entities',
-    description: 'List all core entities of a specific type. Extension types are exposed through list_extension_types/list_extension_entities.',
+    description: 'Enumerate all core Graph entities of an explicitly requested type. Use this for bounded enumeration, not for answering a general natural-language question; use search for that.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -692,18 +761,17 @@ const tools: Tool[] = [
   },
   {
     name: 'get_entity',
-    description: 'Get a specific core entity by type and ID. Supports name/alias lookup for people, organizations, and brands.',
+    description: 'Retrieve one known Graph entity by its canonical Graph ID. Use resolve_entity for identity disambiguation and search for general questions.',
     inputSchema: {
       type: 'object',
       properties: {
         type: {
           type: 'string',
-          enum: [...CORE_ENTITY_TYPES],
-          description: 'The entity type',
+          description: 'The Graph entity_type returned by search or resolve_entity',
         },
         id: {
           type: 'string',
-          description: 'The entity ID, name, or alias',
+          description: 'The canonical Graph entity ID',
         },
         project: {
           type: 'string',
@@ -731,7 +799,7 @@ const tools: Tool[] = [
   },
   {
     name: 'list_extension_entities',
-    description: 'List or search entities for an explicitly requested extension type.',
+    description: 'Enumerate entities for an explicitly requested extension type. An optional query is a bounded identity or field filter, not general question search.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -749,7 +817,7 @@ const tools: Tool[] = [
   },
   {
     name: 'search',
-    description: 'Search all entities by keyword. Searches names, content, aliases, and descriptions.',
+    description: 'Search authorized Graph entities with semantic retrieval and evidence, then optionally traverse a bounded plan of real relations. Use this as the only general organizational question search. Inspect evidence and insufficiency before answering; similarity is not entailment.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -757,9 +825,32 @@ const tools: Tool[] = [
           type: 'string',
           description: 'The search query',
         },
+        mode: { type: 'string', enum: ['semantic'], default: 'semantic', description: 'Compatibility field; semantic retrieval is the only supported mode.' },
+        top_k: { type: 'integer', minimum: 1, maximum: 100, default: 10 },
+        inspect_relations: { type: 'boolean', default: true, description: 'Inspect actual relation names around the first three semantic candidates for a subsequent model-selected plan.' },
+        types: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' } },
+        plan: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            seed_ids: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' } },
+            steps: {
+              type: 'array', minItems: 1, maxItems: 3,
+              items: {
+                type: 'object', additionalProperties: false,
+                properties: {
+                  relation: { type: 'string', minLength: 1 },
+                  direction: { type: 'string', enum: ['incoming', 'outgoing'] },
+                  target_type: { type: 'string' },
+                },
+                required: ['relation', 'direction'],
+              },
+            },
+          },
+          required: ['seed_ids', 'steps'],
+        },
         project: {
           type: 'string',
-          description: 'Project code used to resolve Brainbase philosophy context.',
+          description: 'Optional authorized project filter for semantic Graph retrieval and philosophy context.',
         },
         scope: {
           type: 'string',
@@ -775,13 +866,13 @@ const tools: Tool[] = [
   },
   {
     name: 'resolve_entity',
-    description: 'Resolve raw user or agent text to canonical Graph entity candidates with field-level evidence. Use this before claiming Graph absence from a broad phrase.',
+    description: 'Resolve a known person, organization, project, brand, or other entity name or identifier to canonical Graph candidates with field-level evidence. Use for identity disambiguation, not as a replacement for general question search or absence claims.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Raw user or agent text to resolve into Graph entity candidates.',
+          description: 'Known entity name, alias, or identifier to resolve into Graph entity candidates.',
         },
         types: {
           type: 'array',
@@ -808,24 +899,6 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'search_wiki',
-    description: 'Search wiki pages by keyword. Returns matching page titles and paths from the brainbase wiki. Optionally filter by project_id.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        query: {
-          type: 'string',
-          description: 'Search keyword to find wiki pages',
-        },
-        project_id: {
-          type: 'string',
-          description: 'Optional project ID to filter results (e.g. "brainbase", "salestailor")',
-        },
-      },
-      required: ['query'],
-    },
-  },
-  {
     name: 'get_wiki_page',
     description: 'Get the full content of a wiki page by its path.',
     inputSchema: {
@@ -842,7 +915,7 @@ const tools: Tool[] = [
   {
     name: 'search_personal_kg',
     description:
-      "Search Keigo Sato's personal knowledge graph (owner-visible memory_candidates) by keyword over the full body text. Returns his accumulated judgment axes / decision principles / claims / insights (oyasumi 蓄積) with cognitive_type and confidence. Use this when a task needs Keigo's own stance, values, sales/content philosophy, or how he would decide — beyond the SessionStart preamble snapshot. Owner-only, non-redacted content.",
+      "Search the authenticated user's separate Personal KG (owner-visible memory_candidates) by keyword over the full body text. This is an owner-only source for the user's own stance, values, sales/content philosophy, or decision principles; it is not a substitute for general organizational Graph search. Returns cognitive_type and confidence. Owner-only, non-redacted content.",
     inputSchema: {
       type: 'object',
       properties: {
@@ -901,7 +974,20 @@ const tools: Tool[] = [
 /**
  * Handle tool calls
  */
+export function rejectLegacySearchSurface(name: string, args: Record<string, unknown>): void {
+  if (name === 'get_context') {
+    throw new Error('MCP tool "get_context" was removed from the normal search surface; use "search" for general Graph questions or "get_entity"/"resolve_entity" for a known identity.');
+  }
+  if (name === 'search_wiki') {
+    throw new Error('MCP tool "search_wiki" was removed from the normal search surface; use "brainbase_knowledge_resolve" to locate the canonical document source.');
+  }
+  if (name === 'search' && args.mode === 'lexical') {
+    throw new Error('Lexical search mode is disabled; call "search" without mode for semantic Graph retrieval, or use "resolve_entity"/"get_entity" for a known identifier.');
+  }
+}
+
 async function handleToolCall(name: string, args: Record<string, unknown>): Promise<string> {
+  rejectLegacySearchSurface(name, args);
   // Every index consumer must await a fresh, complete snapshot. Metadata and
   // Resolver calls do not depend on the full Graph index.
   if (['search', 'resolve_entity', 'list_entities', 'list_extension_entities', 'get_context', 'get_entity'].includes(name)
@@ -989,7 +1075,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       const entities = query
         ? resolveEntities(entityIndex, { query, types: [type] }).candidates
           .map(candidate => getExtensionEntitiesByType(entityIndex, type)
-            .find(entity => entity.id === candidate.entity_id))
+            .find(entity => (entity.graph_entity_id || entity.id) === candidate.entity_id))
           .filter((entity): entity is NonNullable<typeof entity> => Boolean(entity))
         : getExtensionEntitiesByType(entityIndex, type);
       if (entities.length === 0) {
@@ -1185,6 +1271,7 @@ export const publishedTools = annotateToolCapabilities([
   ...judgmentAuditTools,
   ...judgmentValueProofTools,
   ...judgmentStateTools,
+  ...knowledgeEvidenceTools,
   ...knowledgeResolutionTools,
   ...meetingMinutesContextTools,
   ...taskTools,
@@ -1195,11 +1282,14 @@ export const publishedTools = annotateToolCapabilities([
 export const __testing = {
   tools: publishedTools,
   formatEntity,
+  dispatchGetEntity,
   dispatchOnboardingToolCall,
   dispatchJudgmentResolutionBeforeModel,
+  dispatchRemoteJudgmentHook,
   dispatchKnowledgeResolutionToolCall,
   dispatchExtensionToolCall,
   buildToolResponseContent,
+  buildMcpToolResult,
   createDefaultJudgmentResolutionDependencies,
   resolveBrainbaseApiUrl,
   resolveWikiApiBaseUrl,
@@ -1220,11 +1310,11 @@ export const __testing = {
     indexRefreshEnabled = enabled;
   },
   setTokenManager(manager: { getToken(): Promise<string> }): void {
-    globalTokenManager = manager as TokenManager;
-    globalOwnerTokenManager = manager as TokenManager;
+    globalTokenManager = manager;
+    globalOwnerTokenManager = manager;
   },
   setOwnerTokenManager(manager: { getToken(): Promise<string> }): void {
-    globalOwnerTokenManager = manager as TokenManager;
+    globalOwnerTokenManager = manager;
   },
   setWikiApiBaseUrl(url: string): void {
     wikiApiBaseUrl = url;
@@ -1266,16 +1356,17 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     console.error(`  - Project codes: ${config.projectCodes.join(', ')}`);
   }
 
-  const { mode: authMode, tokenManager } = createConnectionTokenManager(config.graphApiUrl);
-  console.error(`[brainbase] Authentication mode: ${authMode}`);
-  globalTokenManager = tokenManager;
+  const { mode: connectionAuthMode, tokenManager } = createConnectionTokenManager(config.graphApiUrl);
+  console.error(`[brainbase] Authentication mode: ${connectionAuthMode}`);
+  const requestTokenContext = new RequestTokenContext(tokenManager);
+  globalTokenManager = requestTokenContext;
   // All routes share the connection actor. Personal APIs still enforce owner authorization.
-  globalOwnerTokenManager = tokenManager;
+  globalOwnerTokenManager = requestTokenContext;
   personalKgStorageMode = config.personalKgStorageMode;
   personalKgApiUrl = config.personalKgApiUrl;
   personalKnowledgeClient = null;
   wikiApiBaseUrl = resolveWikiApiBaseUrl(config.graphApiUrl);
-  const source = new GraphAPISource(config.graphApiUrl, tokenManager, config.projectCodes);
+  const source = new GraphAPISource(config.graphApiUrl, requestTokenContext, config.projectCodes);
   globalGraphSource = source;
   indexRefreshEnabled = true;
   defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
@@ -1292,7 +1383,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
   // build one Server per request — the heavy shared state (entityIndex,
   // resolved Brainbase API URL) lives outside each request handler.
-  function createServer() {
+  function createServer(requestContext: { companyAuthorityResponse?: string } = {}) {
   const server = new Server(
     {
       name: 'brainbase',
@@ -1357,7 +1448,24 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
 
     try {
       const toolArgs = args as Record<string, unknown>;
+      rejectLegacySearchSurface(name, toolArgs);
+      if (name === 'get_entity') {
+        return dispatchGetEntity(toolArgs, {
+          apiUrl: resolveBrainbaseApiUrl(), configuredProjectCodes, tokenManager: globalTokenManager,
+        });
+      }
       const extensionResult = await dispatchExtensionToolCall(name, toolArgs, [
+        async (toolName, extensionArgs) => {
+          const retrieval = await handleGraphRetrievalToolCall(toolName, extensionArgs, {
+            apiUrl: resolveBrainbaseApiUrl(),
+            configuredProjectCodes,
+            tokenManager: globalTokenManager,
+          });
+          if (!retrieval || retrieval.status !== 'ok') return retrieval;
+          return { ...retrieval, philosophy_context: await philosophyContextPrompt(extensionArgs, {
+            scope: 'graph', objectType: 'search', operation: 'read',
+          }) };
+        },
         (toolName, extensionArgs) => handleTenantBoundaryToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
           serviceToken: process.env.BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN,
@@ -1375,10 +1483,14 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }),
         (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentResolutionToolCall(
-          toolName, extensionArgs, createDefaultJudgmentResolutionDependencies(),
+          toolName, extensionArgs, {
+            ...createDefaultJudgmentResolutionDependencies(),
+            companyAuthorityResponse: requestContext.companyAuthorityResponse,
+          },
         ),
         (toolName, extensionArgs) => handleJudgmentAuditToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentValueProofToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleKnowledgeEvidenceToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentStateToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
@@ -1395,7 +1507,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         : typeof extensionResult === 'string'
           ? extensionResult
           : JSON.stringify(extensionResult, null, 2);
-      return { content: buildToolResponseContent(name, toolArgs, result) };
+      return buildMcpToolResult(name, toolArgs, result, extensionResult);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       return {
@@ -1420,27 +1532,69 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   const httpPort = process.env.MCP_HTTP_PORT ? Number(process.env.MCP_HTTP_PORT) : null;
   if (httpPort && Number.isFinite(httpPort)) {
     const bearerToken = process.env.MCP_HTTP_BEARER_TOKEN || '';
-    if (!bearerToken) throw new Error('MCP_HTTP_BEARER_TOKEN is required when MCP_HTTP_PORT is set');
+    const authMode = (process.env.MCP_HTTP_AUTH_MODE || 'shared-bearer') as McpHttpAuthMode;
+    if (!['shared-bearer', 'brainbase-jwt', 'hybrid'].includes(authMode)) {
+      throw new Error(`Unsupported MCP_HTTP_AUTH_MODE: ${authMode}`);
+    }
+    if (authMode === 'shared-bearer' && !bearerToken) {
+      throw new Error('MCP_HTTP_BEARER_TOKEN is required in shared-bearer mode');
+    }
+    const authVerifyUrl = process.env.MCP_HTTP_AUTH_VERIFY_URL
+      || `${config.graphApiUrl.replace(/\/$/, '')}/api/auth/verify`;
+    const requiredOrganizationId = process.env.MCP_HTTP_REQUIRED_ORGANIZATION_ID || undefined;
     const http = await import('node:http');
     const { StreamableHTTPServerTransport } = await import('@modelcontextprotocol/sdk/server/streamableHttp.js');
     const host = process.env.MCP_HTTP_HOST || '127.0.0.1';
+    // The entity index is process-global. In personal-auth modes, serialize MCP
+    // requests and rebuild it with the caller's token so one user's snapshot is
+    // never observed by another user with different permissions.
+    let authenticatedRequestQueue: Promise<void> = Promise.resolve();
+    async function runAuthenticatedRequest<T>(callback: () => Promise<T>): Promise<T> {
+      if (authMode === 'shared-bearer') return callback();
+      const previous = authenticatedRequestQueue;
+      let release!: () => void;
+      authenticatedRequestQueue = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await previous;
+      try {
+        return await callback();
+      } finally {
+        release();
+      }
+    }
 
     const httpServer = http.createServer(async (req, res) => {
-      if (req.method === 'GET' && req.url === '/health') {
+      if (isPublicMcpHttpEndpoint(req.method, req.url)) {
         res.writeHead(200, { 'Content-Type': 'text/plain' });
         res.end('ok');
         return;
       }
       if (handleHealthVersionRequest(req, res)) return;
+      const auth = await authenticateMcpHttpRequest(req.headers.authorization, {
+        mode: authMode,
+        sharedBearerToken: bearerToken,
+        verifyUrl: authVerifyUrl,
+        requiredOrganizationId,
+      });
+      if (!auth.ok) {
+        res.writeHead(401, {
+          'Content-Type': 'application/json',
+          'WWW-Authenticate': 'Bearer',
+        });
+        res.end(JSON.stringify({ error: 'unauthorized' }));
+        return;
+      }
+      // Stateless MCP has no session to associate with an SSE GET. Reject it
+      // after authentication but before the personal-auth request queue so a
+      // long-lived GET can never block subsequent POST requests.
+      const methodNotAllowed = statelessMcpHttpMethodNotAllowed(req.method, req.url);
+      if (methodNotAllowed) {
+        res.writeHead(methodNotAllowed.status, methodNotAllowed.headers);
+        res.end(methodNotAllowed.body);
+        return;
+      }
       if (req.method === 'POST' && req.url === REMOTE_JUDGMENT_HOOK_PATH) {
-        if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
-          res.writeHead(401, {
-            'Content-Type': 'application/json',
-            'WWW-Authenticate': 'Bearer',
-          });
-          res.end(JSON.stringify({ error: 'unauthorized' }));
-          return;
-        }
         const chunks: Buffer[] = [];
         let size = 0;
         for await (const chunk of req) {
@@ -1460,7 +1614,8 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           projectCode: Array.isArray(req.headers['x-brainbase-project-code'])
             ? req.headers['x-brainbase-project-code'][0]
             : req.headers['x-brainbase-project-code'],
-          isAuthorized: isAuthorizedMcpHttpRequest,
+          // The request has already passed the configured shared/JWT strategy above.
+          isAuthorized: () => true,
           dispatch: dispatchRemoteJudgmentHook,
           onDispatchError: (details) => {
             console.error(JSON.stringify({
@@ -1510,12 +1665,6 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         res.end();
         return;
       }
-      if (!isAuthorizedMcpHttpRequest(req.headers.authorization, bearerToken)) {
-        res.writeHead(401, { 'Content-Type': 'application/json', 'WWW-Authenticate': 'Bearer' });
-        res.end(JSON.stringify({ error: 'unauthorized' }));
-        return;
-      }
-
       let body: unknown;
       if (req.method === 'POST') {
         const chunks: Buffer[] = [];
@@ -1531,14 +1680,33 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }
       }
 
-      const server = createServer();
+      const rawCompanyAuthority = req.headers['x-brainbase-company-authority-response'];
+      const server = createServer({
+        companyAuthorityResponse: Array.isArray(rawCompanyAuthority)
+          ? rawCompanyAuthority[0]
+          : rawCompanyAuthority,
+      });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => {
         void transport.close();
         void server.close();
       });
-      await server.connect(transport);
-      await transport.handleRequest(req, res, body);
+      const handleMcpRequest = async () => {
+        // Do not rebuild the legacy full Graph projection at the HTTP edge.
+        // Extension handlers use their own bounded API path, while legacy
+        // index consumers refresh immediately before their specific operation.
+        await server.connect(transport);
+        await transport.handleRequest(req, res, body);
+      };
+      await runAuthenticatedRequest(async () => {
+        if (auth.kind === 'brainbase-jwt') {
+          await requestTokenContext.run({ token: auth.token }, handleMcpRequest);
+          return;
+        }
+        // A shared MCP bearer authenticates only the MCP edge. It must never be
+        // forwarded to Graph API; the fallback service token remains the caller.
+        await handleMcpRequest();
+      });
     });
 
     await new Promise<void>((resolve) => {

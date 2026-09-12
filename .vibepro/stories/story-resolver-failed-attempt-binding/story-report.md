@@ -1,0 +1,28 @@
+# Resolverの失敗試行を同じ判断記録に保存する
+
+Mana利用者として、Resolverツールの一時的な失敗後も、失敗を記録したうえで同じ依頼を続行できるようにする。
+
+本番のSlack返信試験では、失敗したResolver呼び出しのPostToolUseFailure再生が `judgment_turn_resolution_binding_invalid` となり、返信生成を停止した。監査読み取りの許可漏れを直した後に確認した別の境界である。
+
+受け入れ条件:
+
+- 同じturnに束縛されたResolverの失敗試行を、成功契約へ昇格させず失敗イベントとして保存する。
+- 別turnの参照、入力の改変、矛盾した再送を引き続き拒否する。
+- 生のエラー本文を監査記録へ保存しない。
+- 失敗後の正当なResolver成功と最終監査の検証を妨げない。
+
+Graphifyの対象グラフはなく、影響範囲はコードと関連テストで確認する。対象はHostのイベント記録と回帰テストに限定する。
+
+検証: 修正前に追加テストがjudgment_turn_resolution_binding_invalidで失敗し、修正後はHostテスト156件が成功。失敗後の成功契約保存、同一再送の冪等性、矛盾再送・別turn・解釈欠落・未知失敗の拒否を確認した。
+
+本番送信側の照合でManaの再送にerror項目がないことを確認した。失敗Hook自体を同turn入力へ束縛し、本文やエラーコードに依存せず失敗保存する。実再送形式の回帰テストで先行修正の不足を再現した。
+
+追加検証: Manaの実再送形式と任意の実行失敗でRED 2件を確認し、補正後はHostテスト158件が成功した。
+
+MCP常駐プロセスの反映漏れを修正してもfresh1336で束縛拒否が再発した。拒否条件は変更せず、固定causeコードを既存の安全なMCP診断ログへ接続し、入力値を出さず失敗条件を区別する。追加4件のREDを確認し、別turn参照の区別も加えHostテスト163件が成功した。
+
+実機causeReasonCodeで失敗再送がmodel_interpretation欠落として特定されたため、PostToolUseFailureの失敗試行だけはHost保存入力と同一turnへ束縛できれば解釈欠落を許可する。通常のPostToolUse（構造化unavailableを含む）、成功契約付き失敗再送は従来どおり解釈を必須とし、回帰テストで固定する。
+
+監査読取の追加検証では、MCP実形状である`content[0].text`内のJSONをHostが読み取る境界を対象にする。監査データの厳密なキー、schema・現在ターン・入力turnの一致、空でないlines、prefixの改行結合を意味的成功の条件とし、別ターン・スキーマ不正・prefix不一致・汎用statusだけを受理しない。共通の失敗応答判定と外側explicit成功の受理は維持する。
+
+REDでは既存のentrypoint統合テストへMCPのcontent wrapperを渡し、監査eventが`success:false`になる再現を確認した。Hostの監査読取へ専用の意味的成功判定を追加した後、Node.js 22.23.2でHost unit 177件、entrypoint統合23件が成功した。回帰には別data turn・別input turn・schema version不正・余分な監査キー・空lines・prefix不一致・content内の汎用status・status error・isError trueを含め、すべて失敗扱いを維持し、外側explicit成功は受理した。

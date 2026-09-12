@@ -8,6 +8,16 @@ import {
 import { __testing as serverTesting } from '../../src/server.js';
 
 describe('knowledge owner audit', () => {
+  it('keeps structured semantic emptiness distinct from retrieval errors', () => {
+    assert.equal(buildKnowledgeOwnerAudit('search', { query: 'missing' },
+      JSON.stringify({ status: 'ok', data: { candidates: [], coverage: 'partial' } }))?.outcome,
+    '該当なし（不在確定ではない）');
+    assert.equal(buildKnowledgeOwnerAudit('search', { query: 'missing' },
+      JSON.stringify({ status: 'unavailable', error: { code: 'semantic_model_unavailable' } })), null);
+    const failure = { status: 'error', error: { code: 'graph_response_invalid' } };
+    assert.equal(serverTesting.buildMcpToolResult('search', { query: 'missing' }, JSON.stringify(failure), failure).isError, true);
+    assert.equal(serverTesting.buildMcpToolResult('brainbase_knowledge_evidence_record', {}, JSON.stringify(failure), failure).isError, true);
+  });
   it('records an actual Graph search with its real query', () => {
     assert.deepStrictEqual(
       buildKnowledgeOwnerAudit('search', { query: 'Judgment Resolver' }, '# Search Results (2 found)'),
@@ -16,6 +26,7 @@ describe('knowledge owner audit', () => {
         source: 'Graph',
         operation: '検索',
         query: 'Judgment Resolver',
+        retrieval: { status: 'unknown', coverage: 'unknown', sufficiency: 'insufficient', references: [], absence_confirmed: false },
         outcome: '結果を取得',
         display_line: '📚 Brainbase検索: Graphで「Judgment Resolver」を検索 → 結果を取得 ✓',
       }
@@ -154,7 +165,7 @@ describe('knowledge owner audit', () => {
       { type: 'text', text: '1 result' },
       {
         type: 'text',
-        text: '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"検索","outcome":"結果を取得"} -->',
+        text: '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"検索","outcome":"結果を取得","retrieval":{"status":"unknown","coverage":"unknown","sufficiency":"insufficient","references":[],"absence_confirmed":false}} -->',
       },
     ]);
     assert.doesNotMatch(JSON.stringify(buildKnowledgeToolContent('1 result', audit)), /reproduce|user-facing assistant message/u);

@@ -15,6 +15,10 @@ DECLARE
   fixture_decision_id text := format('info_ssot_negative_smoke_decision_%s', txid_current());
   fixture_product_id text := format('info_ssot_negative_smoke_product_%s', txid_current());
   fixture_edge_id text := format('info_ssot_negative_smoke_wrong_owner_edge_%s', txid_current());
+  fixture_project_a_id text := format('info_ssot_negative_smoke_project_a_%s', txid_current());
+  fixture_project_b_id text := format('info_ssot_negative_smoke_project_b_%s', txid_current());
+  fixture_project_a_code text := format('info_ssot_smoke_a_%s', txid_current());
+  fixture_project_b_code text := format('info_ssot_smoke_b_%s', txid_current());
   fixture_registry_code text := format('info-ssot-rls-%s', txid_current());
   fixture_outcome_case_id text := format('outcome_case_rls_%s', txid_current());
   fixture_organization_id text := format('org_info_ssot_%s', txid_current());
@@ -23,6 +27,14 @@ DECLARE
   edge_count integer;
   edge_rejected boolean := false;
 BEGIN
+  -- A brand-new tenant database has no project rows yet. Keep this smoke test
+  -- self-contained by creating two transaction-local fixtures and removing
+  -- them before commit.
+  INSERT INTO projects (id, code, name, organization_id)
+  VALUES
+    (fixture_project_a_id, fixture_project_a_code, 'Info SSOT negative smoke A', fixture_organization_id),
+    (fixture_project_b_id, fixture_project_b_code, 'Info SSOT negative smoke B', fixture_organization_id);
+
   PERFORM set_config('app.organization_id', fixture_organization_id, true);
   INSERT INTO project_registry (
     project_code, organization_id, display_name, kind, catalog_version,
@@ -300,6 +312,9 @@ BEGIN
   IF visible_count <> 0 OR edge_count <> 0 THEN
     RAISE EXCEPTION 'INFO_SSOT_NEGATIVE_SMOKE_FAILED: fixture residual remained after cleanup';
   END IF;
+
+  DELETE FROM projects
+  WHERE id IN (fixture_project_a_id, fixture_project_b_id);
 END
 $info_ssot_negative_smoke$;
 

@@ -18,6 +18,24 @@ afterEach(() => {
 });
 
 describe('Routine Runner cycle execution', () => {
+    it('CLI出力に安全な失敗原因を残す', () => {
+        const output = JSON.parse(routineRunner.serializeRoutineCliResult({
+            status: 'failed',
+            anomalies: [{
+                code: 'graph_timeout',
+                stage: 'recall',
+                dependency: 'recallService.recallGraph',
+                summary: 'Graphへの接続がタイムアウトしました'
+            }]
+        }));
+
+        expect(output.anomalies).toEqual([{
+            code: 'graph_timeout',
+            stage: 'recall',
+            dependency: 'recallService.recallGraph',
+            summary: 'Graphへの接続がタイムアウトしました'
+        }]);
+    });
     it('標準CLIは正規runtime envを読み、ローカルAPIとReceiptを内部APIキーで認証する', async () => {
         const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-local-auth-'));
         temporaryDirectories.push(repoDir);
@@ -368,6 +386,57 @@ describe('Routine Runner cycle execution', () => {
         expect(html).toContain('要判断');
         expect(html).toContain('mail: unavailable');
         expect(html).toContain('https://calendar.google.com/calendar/event?eid=12');
+    });
+
+    it('oyasumiは内容付きの日別HTMLを成果物として保存する', async () => {
+        const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-routine-oyasumi-report-'));
+        temporaryDirectories.push(repoDir);
+        const varDir = path.join(repoDir, 'canonical-var');
+
+        const result = await runRoutine({
+            routine: 'oyasumi',
+            repoDir,
+            env: { CODEX_THREAD_ID: 'thread-oyasumi-report', BRAINBASE_VAR_DIR: varDir },
+            input: {},
+            executeCycle: vi.fn(async () => ({
+                status: 'completed',
+                coverage: 'confirmed',
+                routine_summary: {
+                    routine: 'oyasumi', status: 'completed', coverage: 'confirmed', anomaly_count: 0,
+                    headline: '深い睡眠です。経験の整理と検索確認が完了しました',
+                    routine_output: {
+                        headline: '深い睡眠です。経験の整理と検索確認が完了しました',
+                        consolidated_memories: [{ summary: '空の成功を完了扱いしない' }],
+                        feedback_targets: [{ summary: '翌朝に取得範囲を再確認する' }],
+                        unresolved_items: [],
+                        closed: [{ summary: '未処理が0件であることを確認しました' }],
+                        carryovers: [],
+                        personal_kg_registration_candidates: [{ summary: '受信側readbackを完了条件にする' }]
+                    }
+                },
+                routine_output: {
+                    headline: '深い睡眠です。経験の整理と検索確認が完了しました',
+                    consolidated_memories: [{ summary: '空の成功を完了扱いしない' }],
+                    feedback_targets: [{ summary: '翌朝に取得範囲を再確認する' }],
+                    unresolved_items: [],
+                    closed: [{ summary: '未処理が0件であることを確認しました' }],
+                    carryovers: [],
+                    personal_kg_registration_candidates: [{ summary: '受信側readbackを完了条件にする' }]
+                },
+                evidence_refs: []
+            })),
+            now: () => new Date('2026-09-10T07:00:00.000Z')
+        });
+
+        const reportRef = result.evidence_refs.find((ref) => ref.label === 'oyasumi_report');
+        expect(reportRef).toBeTruthy();
+        const reportRelativePath = reportRef.ref.replace(/^oyasumi-report:/u, '');
+        const reportPath = path.join(varDir, ...reportRelativePath.split('/'));
+        const html = fs.readFileSync(reportPath, 'utf8');
+        expect(html).toContain('深い睡眠です');
+        expect(html).toContain('空の成功を完了扱いしない');
+        expect(html).toContain('未処理が0件であることを確認しました');
+        expect(html).toContain('受信側readbackを完了条件にする');
     });
 
     it('retroは一週間の判断とOutcomeを辿れるHTMLを成果物として保存する', async () => {

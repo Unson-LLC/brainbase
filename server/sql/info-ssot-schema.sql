@@ -74,8 +74,8 @@ CREATE TABLE IF NOT EXISTS auth_grants (
   id text PRIMARY KEY,
   person_id text REFERENCES people(id),
   person_name text NOT NULL,
-  slack_user_id text NOT NULL,
-  slack_workspace_id text NOT NULL,
+  slack_user_id text,
+  slack_workspace_id text,
   organization_id text,
   role text NOT NULL,
   project_codes text[] NOT NULL DEFAULT ARRAY[]::text[],
@@ -85,6 +85,8 @@ CREATE TABLE IF NOT EXISTS auth_grants (
   updated_at timestamptz NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE auth_grants ALTER COLUMN slack_user_id DROP NOT NULL;
+ALTER TABLE auth_grants ALTER COLUMN slack_workspace_id DROP NOT NULL;
 ALTER TABLE auth_grants ADD COLUMN IF NOT EXISTS organization_id text;
 
 -- Legacy grants inferred their organization from the Slack workspace. Persist
@@ -179,6 +181,36 @@ BEGIN
   END IF;
 END $$;
 
+-- External login identities are deliberately separate from Brainbase people and
+-- authorization grants. Adding Google, Entra ID, or passkeys must not change the
+-- canonical person ID or the permission model.
+CREATE TABLE IF NOT EXISTS auth_identities (
+  id text PRIMARY KEY,
+  person_id text NOT NULL REFERENCES people(id),
+  provider text NOT NULL,
+  provider_subject text NOT NULL,
+  provider_tenant text NOT NULL DEFAULT '',
+  active boolean NOT NULL DEFAULT true,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT NOW(),
+  updated_at timestamptz NOT NULL DEFAULT NOW(),
+  UNIQUE (provider, provider_subject, provider_tenant)
+);
+
+INSERT INTO auth_identities (id, person_id, provider, provider_subject, provider_tenant, metadata)
+SELECT
+  'authid_slack_' || md5(slack_workspace_id || ':' || slack_user_id),
+  person_id,
+  'slack',
+  slack_user_id,
+  slack_workspace_id,
+  jsonb_build_object('migrated_from', 'auth_grants')
+FROM auth_grants
+WHERE person_id IS NOT NULL
+  AND slack_user_id IS NOT NULL
+  AND slack_workspace_id IS NOT NULL
+ON CONFLICT (provider, provider_subject, provider_tenant) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS auth_audit_logs (
   id text PRIMARY KEY,
   person_id text REFERENCES people(id),
@@ -270,6 +302,7 @@ CREATE INDEX IF NOT EXISTS idx_graph_entities_project_id ON graph_entities(proje
 CREATE INDEX IF NOT EXISTS idx_graph_edges_project_id ON graph_edges(project_id);
 CREATE INDEX IF NOT EXISTS idx_auth_grants_person_id ON auth_grants(person_id);
 CREATE INDEX IF NOT EXISTS idx_auth_grants_slack ON auth_grants(slack_user_id, slack_workspace_id);
+CREATE INDEX IF NOT EXISTS idx_auth_identities_person_id ON auth_identities(person_id);
 CREATE INDEX IF NOT EXISTS idx_auth_audit_person_id ON auth_audit_logs(person_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_from_id ON graph_edges(from_id);
 CREATE INDEX IF NOT EXISTS idx_graph_edges_to_id ON graph_edges(to_id);

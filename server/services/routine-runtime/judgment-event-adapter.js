@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import { normalizeJudgmentExecutionOutcome } from '../judgment-execution-outcome.js';
+
 function requiredString(value, field) {
     if (typeof value !== 'string' || value.length === 0) throw new Error(`${field} is required`);
     return value;
@@ -55,6 +57,10 @@ export function toKnowledgeEventFromJudgmentEpisode(episode) {
     const organizationId = typeof episode.organization_id === 'string' && episode.organization_id.length > 0
         ? episode.organization_id
         : null;
+    const hasPortableOutcome = Boolean(episode.execution_outcome);
+    const outcome = hasPortableOutcome ? normalizeJudgmentExecutionOutcome(episode.execution_outcome) : null;
+    if (outcome && outcome.status !== 'completed') return null;
+    const sourceType = outcome?.host.type === 'claude-code' ? 'agent_judgment' : 'codex_judgment';
 
     return {
         schema_version: 'knowledge_event.v1',
@@ -62,7 +68,7 @@ export function toKnowledgeEventFromJudgmentEpisode(episode) {
         event_id: eventIdFor(episode),
         occurred_at: completedAt,
         captured_at: completedAt,
-        source: { type: 'codex_judgment', ref: `${sessionId}:${turnId}` },
+        source: { type: sourceType, ref: outcome ? `${outcome.execution_id}:${outcome.turn_id}` : `${sessionId}:${turnId}` },
         subject: { type: 'judgment_episode', id: episodeId },
         decision_authority: {
             kind: 'judgment_receipt',
@@ -76,14 +82,24 @@ export function toKnowledgeEventFromJudgmentEpisode(episode) {
             ...(organizationId ? { organization_id: organizationId } : {})
         },
         permission_snapshot: { knowledge_registration: true, external_action: false },
-        source_pointer: { uri: `codex://threads/${sessionId}#turn=${turnId}` },
+        source_pointer: {
+            uri: hasPortableOutcome
+                ? `brainbase-judgment://${encodeURIComponent(outcome.host.type)}/${encodeURIComponent(outcome.execution_id)}#turn=${encodeURIComponent(outcome.turn_id)}`
+                : `codex://threads/${sessionId}#turn=${turnId}`
+        },
         body_hash: bodyHash,
         parent_episode_id: episodeId,
         ...(sanitized.sensitive ? {
             semantic_state: 'quarantined',
-            payload: { redaction_status: 'needs_redaction' }
+            payload: {
+                redaction_status: 'needs_redaction',
+                ...(outcome ? { execution_outcome: outcome } : {})
+            }
         } : {
-            payload: { summary: sanitized.summary }
+            payload: {
+                summary: sanitized.summary,
+                ...(outcome ? { execution_outcome: outcome } : {})
+            }
         })
     };
 }

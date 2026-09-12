@@ -36,6 +36,7 @@ afterEach(() => {
 });
 
 describe('ontology writer inventory vocabulary contract', () => {
+    // This case scans the real repository; allow bounded filesystem work while CI runs four workers.
     it('classifies every Graph maintenance service vocabulary literal in the repository manifest', () => {
         expect(verifyWriterInventory({ rootDir: process.cwd() })).toMatchObject({
             classifications: {
@@ -48,7 +49,7 @@ describe('ontology writer inventory vocabulary contract', () => {
                 }
             }
         });
-    });
+    }, 15_000);
 
     it('accepts writer literals classified by the manifest', () => {
         const rootDir = fixture({
@@ -231,7 +232,7 @@ describe('ontology writer inventory vocabulary contract', () => {
         const workflow = fs.readFileSync(path.resolve('.github/workflows/graph-writer-contract.yml'), 'utf8');
         expect(workflow).toContain('pull_request:');
         expect(workflow).toContain('- develop');
-        expect(workflow).toContain('runs-on: [self-hosted, Linux, X64, wsl-linux]');
+        expect(workflow).toContain('runs-on: ubuntu-latest');
         expect(workflow).toContain('- 5432');
         expect(workflow).toContain("${{ job.services.postgres.ports['5432'] }}");
         expect(workflow).toContain('npm run ontology:inventory');

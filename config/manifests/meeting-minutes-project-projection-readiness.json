@@ -1,0 +1,137 @@
+{
+  "version": "meeting-minutes-project-projection-readiness.v1",
+  "readback_required": true,
+  "destinations": [
+    {
+      "destination_id": "baao-growin",
+      "placement_id": "minutes-baao-growin",
+      "project_code": "baao",
+      "project_id": "prj_01KGCS8BC76XRHFCHRRQ8G25MY",
+      "workspace_id": "T0882T8N9UH",
+      "channel_id": "C0BKTFU9YS2",
+      "task_board_target_id": "minutes-baao-growin",
+      "task_board_project_codes": [
+        "baao"
+      ],
+      "membership_evidence_status": "production_readback_verified",
+      "apply_ready": true,
+      "destination_organization_label": "unson-business",
+      "source_organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "human_authority_status": "production_resolver_verified",
+      "generation_e2e_status": "completed",
+      "service_board_authority_status": "runtime_execute_and_task_board_send_production_resolver_verified",
+      "receipt_scope_status": "projected_to_production"
+    },
+    {
+      "destination_id": "zeims",
+      "placement_id": "minutes-zeims",
+      "project_code": "zeims",
+      "project_id": "prj_01KGCS8CFEXJDVZ7DQB1GR7YJK",
+      "workspace_id": "T0882T8N9UH",
+      "channel_id": "C0BKE4CM25V",
+      "task_board_target_id": "minutes-zeims",
+      "task_board_project_codes": [
+        "zeims"
+      ],
+      "membership_evidence_status": "production_readback_verified",
+      "apply_ready": true,
+      "destination_organization_label": "unson-business",
+      "source_organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "human_authority_status": "production_resolver_verified",
+      "generation_e2e_status": "not_run",
+      "service_board_authority_status": "runtime_execute_and_task_board_send_production_resolver_verified",
+      "receipt_scope_status": "projected_to_production"
+    },
+    {
+      "destination_id": "aitle",
+      "placement_id": "minutes-aitle",
+      "project_code": "aitle",
+      "project_id": "prj_01KGHVCM9PZ05R5VH1QMYEPEQ5",
+      "workspace_id": "T07A9J3PEMB",
+      "channel_id": "C08UNE2BVJ7",
+      "task_board_target_id": "minutes-aitle",
+      "task_board_project_codes": [
+        "aitle"
+      ],
+      "membership_evidence_status": "production_readback_verified",
+      "apply_ready": true,
+      "destination_organization_label": "tech-knight",
+      "source_organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "human_authority_status": "production_resolver_verified",
+      "generation_e2e_status": "not_run",
+      "service_board_authority_status": "cross_workspace_destination_token_path",
+      "receipt_scope_status": "projected_to_production"
+    },
+    {
+      "destination_id": "senpainurse",
+      "placement_id": "minutes-senpainurse",
+      "project_code": "senpainurse",
+      "project_id": "prj_01KQA2C88KRCGHFBGY36XKDYP2",
+      "workspace_id": "T07A9J3PEMB",
+      "channel_id": "C0A9J7UV1KL",
+      "task_board_target_id": "minutes-senpainurse",
+      "task_board_project_codes": [
+        "senpainurse"
+      ],
+      "membership_evidence_status": "production_readback_verified",
+      "apply_ready": true,
+      "destination_organization_label": "tech-knight",
+      "source_organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "human_authority_status": "production_resolver_verified",
+      "generation_e2e_status": "not_run",
+      "service_board_authority_status": "cross_workspace_destination_token_path",
+      "receipt_scope_status": "projected_to_production"
+    },
+    {
+      "destination_id": "kartz",
+      "placement_id": "minutes-kartz",
+      "project_code": "kartz",
+      "project_id": "prj_01M04XZFT3D6ZFZ4RMBZAVGV9Y",
+      "workspace_id": "T0882T8N9UH",
+      "channel_id": "C0BQA5BGTEH",
+      "task_board_target_id": "minutes-kartz",
+      "task_board_project_codes": [
+        "kartz"
+      ],
+      "membership_evidence_status": "canonical_owner_and_grant_missing",
+      "apply_ready": false,
+      "destination_organization_label": "unson-business",
+      "source_organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "human_authority_status": "not_applied",
+      "generation_e2e_status": "not_run",
+      "service_board_authority_status": "not_applied",
+      "receipt_scope_status": "not_granted"
+    },
+    {
+      "destination_id": "salestailor",
+      "placement_id": "minutes-salestailor",
+      "project_code": "salestailor",
+      "project_id": "prj_01KGCS8BHT2ER86AWAMJ81D96C",
+      "workspace_id": "T07LL5WV7N1",
+      "channel_id": "C0A9ESC81UZ",
+      "task_board_target_id": "minutes-salestailor",
+      "task_board_project_codes": [
+        "salestailor"
+      ],
+      "membership_evidence_status": "production_readback_verified",
+      "apply_ready": true,
+      "destination_organization_label": "unson",
+      "source_organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+      "human_authority_status": "production_resolver_verified",
+      "generation_e2e_status": "not_run",
+      "service_board_authority_status": "cross_workspace_destination_token_path",
+      "receipt_scope_status": "projected_to_production"
+    }
+  ],
+  "checked_at": "2026-09-08T05:31:00Z",
+  "source_transport": {
+    "tenant_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+    "tenant_key": "unson-business",
+    "provider": "slack",
+    "workspace_id": "T0882T8N9UH",
+    "app_id": "A0BPM2J33SN",
+    "connection_id": "wsc_01M0HRK94FG2Y8DMBFYJHYT14K",
+    "installation_id": "slack_T0882T8N9UH_A0BPM2J33SN",
+    "slack_user_id": "U088D1HBY6L"
+  }
+}

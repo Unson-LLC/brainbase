@@ -4,6 +4,9 @@
 
 // Base entity interface
 export interface BaseEntity {
+  /** Canonical Graph API identity; id may retain a legacy display/domain alias. */
+  graph_entity_id?: string;
+  retrieval_evidence?: import('../retrieval/evidence.js').RetrievalEvidence;
   id: string;
   filePath: string;
   updated?: string;

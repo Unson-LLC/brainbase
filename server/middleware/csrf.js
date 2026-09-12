@@ -228,6 +228,18 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Graph search uses POST for structured read-only queries from MCP.
+        // The mounted route still verifies the Bearer token and project scope;
+        // cookie-only requests and neighbouring Graph writes retain CSRF checks.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/info/graph/search'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         // Knowledge resolution is a read-only routing request from the MCP host.
         // The exact machine endpoint proceeds to strict Bearer authentication and
         // project-scope authorization; browser cookie fallback remains behind CSRF.
@@ -335,7 +347,8 @@ export function csrfMiddleware() {
         // auth and requires a signed tenant identity plus project authorization.
         const requestPath = String(req.originalUrl || req.path || '').split('?')[0];
         if (
-            requestPath.startsWith('/api/info/graph/maintenance/')
+            (requestPath.startsWith('/api/info/graph/maintenance/')
+                || /^\/api\/info\/graph\/portable\/[A-Za-z0-9][A-Za-z0-9._~-]{0,127}\/(import|search)$/.test(requestPath))
             && typeof req.headers?.authorization === 'string'
             && req.headers.authorization.startsWith('Bearer ')
         ) {

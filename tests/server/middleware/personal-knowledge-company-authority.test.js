@@ -27,6 +27,11 @@ function projectRegistry(projectCode = 'project-a') {
     };
 }
 
+function tamperSignature(value) {
+    const replacement = value[0] === 'A' ? 'B' : 'A';
+    return `${replacement}${value.slice(1)}`;
+}
+
 async function serviceRequest({
     authority,
     path = '/search',
@@ -170,8 +175,8 @@ describe('requirePersonalKnowledgeCompanyAuthority', () => {
     });
 
     it.each([
-        ['outer signature', (authority) => { authority.response.context.integrity.value = `${authority.response.context.integrity.value.slice(0, -1)}x`; }],
-        ['tenant signature', (authority) => { authority.response.context.tenant_context.integrity.value = `${authority.response.context.tenant_context.integrity.value.slice(0, -1)}x`; }]
+        ['outer signature', (authority) => { authority.response.context.integrity.value = tamperSignature(authority.response.context.integrity.value); }],
+        ['tenant signature', (authority) => { authority.response.context.tenant_context.integrity.value = tamperSignature(authority.response.context.tenant_context.integrity.value); }]
     ])('rejects %s before the service can run', async (_name, mutate) => {
         const authority = createPersonalKnowledgeAuthority();
         mutate(authority);
@@ -179,6 +184,71 @@ describe('requirePersonalKnowledgeCompanyAuthority', () => {
 
         expect(res.status).toHaveBeenCalledWith(403);
         expect(next).not.toHaveBeenCalled();
+    });
+
+    it('logs an explicit safe reason when the company authority public key is missing', async () => {
+        const authority = createPersonalKnowledgeAuthority();
+        const env = { ...authority.env };
+        delete env.BRAINBASE_COMPANY_AUTHORITY_PUBLIC_JWK_JSON;
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            const { res, next } = await serviceRequest({ authority, env, now: authority.now });
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(next).not.toHaveBeenCalled();
+            expect(log).toHaveBeenCalledWith(JSON.stringify({
+                event: 'personal_knowledge_company_authority_rejected',
+                reason: 'company_authority_public_jwk_missing'
+            }));
+        } finally {
+            log.mockRestore();
+        }
+    });
+
+    it('preserves a safe ContractError code in the rejection diagnostic', async () => {
+        const authority = createPersonalKnowledgeAuthority();
+        authority.response.context.integrity.value = tamperSignature(authority.response.context.integrity.value);
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            const { res, next } = await serviceRequest({ authority, now: authority.now });
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(next).not.toHaveBeenCalled();
+            expect(log).toHaveBeenCalledWith(JSON.stringify({
+                event: 'personal_knowledge_company_authority_rejected',
+                reason: 'AUTHORITY_CONTEXT_INVALID_SIGNATURE'
+            }));
+        } finally {
+            log.mockRestore();
+        }
+    });
+
+    it('does not emit an unknown uppercase error code in the rejection diagnostic', async () => {
+        const authority = createPersonalKnowledgeAuthority();
+        const connectionRegistry = {
+            resolveProjectBindingById: vi.fn(async () => {
+                const error = new Error('upstream secret');
+                error.code = 'UPSTREAM_SECRET';
+                throw error;
+            })
+        };
+        const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+        try {
+            const { res, next } = await serviceRequest({ authority, connectionRegistry });
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(next).not.toHaveBeenCalled();
+            expect(log).toHaveBeenCalledWith(JSON.stringify({
+                event: 'personal_knowledge_company_authority_rejected',
+                reason: 'contract_validation_failed'
+            }));
+            expect(log.mock.calls.flat().join(' ')).not.toContain('UPSTREAM_SECRET');
+        } finally {
+            log.mockRestore();
+        }
     });
 
     it('rejects a valid but expired signed context', async () => {

@@ -1054,9 +1054,9 @@ describe('judgment resolver publication surfaces', () => {
         expect(story).toContain('project bindingは判断文脈であり、action authorityではない');
         expect(story).toContain('matcher未一致');
         expect(story).toContain('## 影響範囲');
-        expect(architecture).toMatch(/Claude Code.*future Host-adapter candidate/iu);
-        expect(spec).toMatch(/Claude Code.*future Host-adapter candidate/iu);
-        expect(capability).toMatch(/Claude Code.*future Host-adapter candidate/iu);
+        expect(architecture).toMatch(/Claude Code lifecycle production and Hook activation remain separate, unfinished adapter work/iu);
+        expect(spec).toMatch(/Claude Code lifecycle adapter and its Hook activation are not yet implemented/iu);
+        expect(capability).toMatch(/Claude Code lifecycle production and Hook activation remain unfinished adapter work/iu);
         expect(skill).toContain('SQLite');
         expect(skill).toContain('非zero exit');
         expect(capability).toContain('non-final `audit_degraded` receipt');
@@ -1069,7 +1069,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(architecture).toContain('Persistent Brainbase Host bridge');
         expect(architecture).toContain('Resolver API/server');
         expect(architecture).toContain('Resolver API/server owns the verifier copy');
-        expect(architecture).toContain('would not receive either copy of the shared secret');
+        expect(architecture).toContain('Neither lifecycle adapter receives either copy of the shared secret');
         expect(runbook).toContain('Codex lifecycle Host adapter');
         expect(runbook).toContain('Persistent Brainbase Host bridge');
         expect(runbook).toContain('Resolver API/server');

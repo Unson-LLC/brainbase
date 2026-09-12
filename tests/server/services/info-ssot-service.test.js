@@ -114,10 +114,10 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             await service[method](client, accessContext, { ids: ['per_1'], projectCode: 'brainbase' });
         }
         const sql = client.query.mock.calls[0][0];
-        expect(sql).toContain("gx.lifecycle_status = 'active'");
+        expect(sql).toContain("COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'");
         expect(sql).toContain('gx.sensitivity = ANY($4)');
         expect(sql).toContain("CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
-        expect(sql).toContain("gy.lifecycle_status = 'active'");
+        expect(sql).toContain("COALESCE(to_jsonb(gy)->>'lifecycle_status', 'active') = 'active'");
         expect(sql).toContain('gy.sensitivity = ANY($4)');
         expect(sql.match(/px\.code = ANY\(\$3\)/g)).toHaveLength(2);
     });

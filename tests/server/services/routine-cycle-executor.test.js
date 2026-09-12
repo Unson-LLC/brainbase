@@ -3,6 +3,72 @@ import { describe, expect, it, vi } from 'vitest';
 import { RoutineCycleExecutor } from '../../../server/services/routine-runtime/cycle-executor.js';
 
 describe('RoutineCycleExecutor', () => {
+    it('completedでも主要欄が空ならpartialとして空の成功を防ぐ', async () => {
+        const executor = new RoutineCycleExecutor({
+            livenessService: { listExceptions: vi.fn(async () => []) },
+            recallService: {
+                recallGraph: vi.fn(async () => []),
+                recallPersonalKg: vi.fn(async () => [])
+            },
+            feedbackService: { recordUsage: vi.fn(async () => ({})) },
+            ohayoGenerator: {
+                generate: vi.fn(async () => ({
+                    anomalies: [],
+                    morning_output: {
+                        exceptions: [],
+                        memories: [],
+                        routine_output: {
+                            headline: '確認済みです',
+                            source_coverage: [{ source: 'calendar', status: 'confirmed', summary: '確認済み' }]
+                        }
+                    }
+                }))
+            }
+        });
+
+        await expect(executor.execute({ routine: 'ohayo' })).resolves.toMatchObject({
+            status: 'partial',
+            coverage: 'partial',
+            anomalies: [expect.objectContaining({ code: 'routine_content_empty', routine: 'ohayo' })]
+        });
+    });
+
+    it('空内容へ降格した場合は元のconfirmed coverageもpartialへ戻す', () => {
+        const executor = new RoutineCycleExecutor();
+
+        expect(executor.withSummary('retro', {
+            status: 'completed',
+            coverage: 'confirmed',
+            routine_output: { headline: '確認済みです' },
+            anomalies: []
+        })).toMatchObject({ status: 'partial', coverage: 'partial' });
+    });
+
+    it('例外時に安全な原因要約と失敗段階を成果物へ残す', async () => {
+        const error = Object.assign(new Error('Graphへの接続がタイムアウトしました'), {
+            code: 'graph_timeout',
+            dependency: 'recallService.recallGraph',
+            stage: 'recall'
+        });
+        const executor = new RoutineCycleExecutor({
+            livenessService: { listExceptions: vi.fn(async () => []) },
+            recallService: {
+                recallGraph: vi.fn(async () => { throw error; }),
+                recallPersonalKg: vi.fn(async () => [])
+            },
+            feedbackService: { recordUsage: vi.fn(async () => ({})) },
+            ohayoGenerator: { generate: vi.fn(async () => ({})) }
+        });
+
+        const result = await executor.execute({ routine: 'ohayo' });
+
+        expect(result.artifacts.anomalies).toEqual([expect.objectContaining({
+            code: 'graph_timeout',
+            dependency: 'recallService.recallGraph',
+            stage: 'recall',
+            summary: 'Graphへの接続がタイムアウトしました'
+        })]);
+    });
     it.each([
         ['completed', []],
         ['partial', [{ code: 'knowledge_retrievability_unconfirmed' }]]
@@ -15,7 +81,8 @@ describe('RoutineCycleExecutor', () => {
                     contradiction_count: 0,
                     expired_count: 0,
                     outbox_count: 0
-                }))
+                })),
+                buildNightOutput: vi.fn(async () => ({ closed: [{ summary: '確認済みの処理を閉じました' }] }))
             },
             episodeCompressor: { compress: vi.fn(async () => ({ episode_ids: [], confirmed: true })) },
             retrievabilityVerifier: { verify: vi.fn(async () => ({ retrievable })) }
@@ -25,7 +92,7 @@ describe('RoutineCycleExecutor', () => {
 
         expect(result).toMatchObject({
             status,
-            coverage: 'partial',
+            coverage: status === 'completed' ? 'confirmed' : 'partial',
             summary: {
                 routine: 'oyasumi',
                 status,
@@ -261,7 +328,8 @@ describe('RoutineCycleExecutor', () => {
                     contradiction_count: 0,
                     expired_count: 0,
                     outbox_count: 0
-                }))
+                })),
+                buildNightOutput: vi.fn(async () => ({ closed: [{ summary: '全残件が0件であることを確認しました' }] }))
             },
             episodeCompressor,
             retrievabilityVerifier
@@ -387,7 +455,10 @@ describe('RoutineCycleExecutor', () => {
         const feedbackService = { recordUsage: vi.fn(async () => {}) };
         const ohayoGenerator = {
             generate: vi.fn(async () => ({
-                used_knowledge_ids: ['kev_graph_1', 'kev_personal_1', 'kev_not_recalled']
+                used_knowledge_ids: ['kev_graph_1', 'kev_personal_1', 'kev_not_recalled'],
+                morning_output: {
+                    routine_output: { today_focus: [{ summary: '想起した判断を今日の作業へ反映する' }] }
+                }
             }))
         };
         const executor = new RoutineCycleExecutor({ livenessService, recallService, feedbackService, ohayoGenerator });
@@ -642,7 +713,10 @@ describe('RoutineCycleExecutor', () => {
                 recallGraph: vi.fn(async () => []),
                 recallPersonalKg: vi.fn(async () => [])
             },
-            ohayoGenerator: { generate: vi.fn(async () => ({ used_knowledge_ids: [] })) },
+            ohayoGenerator: { generate: vi.fn(async () => ({
+                used_knowledge_ids: [],
+                morning_output: { routine_output: { ai_actions: [{ summary: '配信済み判断を整理する' }] } }
+            })) },
             feedbackService: { recordUsage: vi.fn(async () => {}) }
         });
 
@@ -792,7 +866,10 @@ describe('RoutineCycleExecutor', () => {
 
         await expect(executor.execute({
             routine: 'retro',
-            input: { week_view: { source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }] } }
+            input: { week_view: {
+                outcomes: [{ summary: '対象期間の指標はすべて0件でした' }],
+                source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }]
+            } }
         })).resolves.toMatchObject({ status: 'completed' });
     });
 

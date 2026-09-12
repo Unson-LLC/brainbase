@@ -6,6 +6,7 @@
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert';
 import { GRAPH_ALIAS_TYPES, GraphAPISource } from '../../src/sources/graphapi-source.js';
+import { __testing as serverTesting } from '../../src/server.js';
 import { TokenManager } from '../../src/auth/token-manager.js';
 import { getGraphFetchTypes } from '../../src/indexer/ontology.js';
 
@@ -28,7 +29,7 @@ describe('GraphAPISource', () => {
             lifecycle_status: 'retired',
             semantic_state: 'superseded',
             version: 2,
-            payload: { title: '旧判断', status: 'decided' },
+            payload: { title: '旧判断', status: 'decided', statement: 'Graphを正本にする', rationale: '関係と決定を保持する', source_pointer: 'docs/policy.md', provenance: { commit: 'abc123' } },
           }] : [],
         }),
       };
@@ -43,6 +44,10 @@ describe('GraphAPISource', () => {
     assert.strictEqual(decision.lifecycle_state, 'retired');
     assert.strictEqual(decision.semantic_state, 'superseded');
     assert.strictEqual(decision.version, 2);
+    const rendered = serverTesting.formatEntity(decision);
+    for (const text of ['旧判断', 'Graphを正本にする', '関係と決定を保持する', 'docs/policy.md', 'abc123']) assert.ok(rendered.includes(text), text);
+    const response = serverTesting.buildMcpToolResult('get_entity', { id: decision.id, type: 'decision' }, rendered, null, decision);
+    assert.match(response.content.at(-1)!.text, /"evidence_status":"present"/u);
   });
 
   it('projects extension status and canonical summary from Graph payloads', async () => {

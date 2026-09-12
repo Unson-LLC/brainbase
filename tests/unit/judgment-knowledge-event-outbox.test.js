@@ -495,6 +495,7 @@ describe('Judgment Host knowledge event outbox', () => {
 
         expect(completed.final).toMatchObject({ completion_status: 'complete' });
         expect(replay.final).toEqual(completed.final);
+        expect(replay.final.execution_outcome).toEqual(completed.final.execution_outcome);
         const files = readdirSync(outboxDir).filter((name) => name.endsWith('.json'));
         expect(files).toHaveLength(1);
         const queued = JSON.parse(readFileSync(join(outboxDir, files[0]), 'utf8'));
@@ -504,9 +505,25 @@ describe('Judgment Host knowledge event outbox', () => {
             body_hash: completed.final.answer_digest,
             source: { type: 'codex_judgment', ref: `${payload.session_id}:${payload.turn_id}` },
             subject: { type: 'judgment_episode' },
-            payload: { summary: expect.stringContaining('回答本文') },
+            payload: {
+                summary: expect.stringContaining('回答本文'),
+                execution_outcome: {
+                    schema_version: 'judgment_execution_outcome.v1',
+                    host: {
+                        type: 'codex',
+                        adapter_id: 'codex-hooks'
+                    },
+                    scope: 'host_turn',
+                    status: 'completed',
+                    stage: 'finalize',
+                    evidence: {
+                        state: 'confirmed',
+                        refs: expect.any(Array)
+                    }
+                }
+            },
             source_pointer: {
-                uri: `codex://threads/${payload.session_id}#turn=${payload.turn_id}`
+                uri: `brainbase-judgment://codex/${encodeURIComponent(payload.session_id)}#turn=${encodeURIComponent(payload.turn_id)}`
             }
         });
         expect(queued.event.parent_episode_id).toBeTruthy();

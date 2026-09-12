@@ -1,7 +1,7 @@
 # Brainbase Platform Architecture
 
 > **As of:** 2026-08-31  
-> **Scope:** `Unson-LLC/brainbase` OSS版 + `Unson-LLC/brainbase-unson` 組織版  
+> **Scope:** `Unson-LLC/brainbase` OSS版 + `Unson-LLC/brainbase-unson` 組織版
 > **Visual source of truth:** `docs/architecture/diagrams/*.archify.json`
 
 Brainbase全体を最短で把握する入口です。詳細設計は各RepositoryのADR・Story・Specが正本であり、このページとArchify図はそれらを横断して読める投影です。

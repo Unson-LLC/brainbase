@@ -36,7 +36,6 @@ test('all index consumers reject failed initialization instead of returning abse
   const source = useSource();
   source.failure = true;
   for (const [name, args] of [
-    ['get_context', {topic: 'missing'}],
     ['get_entity', {type: 'project', id: 'missing'}],
     ['list_entities', {type: 'project'}],
     ['search', {query: 'missing'}],
@@ -51,13 +50,13 @@ test('all index consumers reject failed initialization instead of returning abse
 test('concurrent readers share initialization and recover on the same server after failure', async () => {
   const source = useSource();
   source.failure = true;
-  await assert.rejects(__testing.handleToolCall('get_context', {topic: 'missing'}));
+  await assert.rejects(__testing.handleToolCall('resolve_entity', {query: 'missing'}));
   source.failure = false;
   let release!: () => void;
   source.release = new Promise<void>(resolve => { release = resolve; });
   let completed = false;
   const reads = Promise.all([
-    __testing.handleToolCall('get_context', {topic: 'missing'}),
+    __testing.handleToolCall('resolve_entity', {query: 'missing'}),
     __testing.handleToolCall('list_entities', {type: 'project'}),
     __testing.handleToolCall('get_entity', {type: 'project', id: 'missing'}),
   ]).then(results => { completed = true; return results; });
@@ -73,5 +72,14 @@ test('concurrent readers share initialization and recover on the same server aft
 test('philosophy failure is propagated after a successful index load', async () => {
   const source = useSource();
   source.getPhilosophyContext = async () => { throw new Error('PHILOSOPHY_UNAVAILABLE'); };
-  await assert.rejects(__testing.handleToolCall('get_context', {topic: 'missing'}), /PHILOSOPHY_UNAVAILABLE/);
+  await assert.rejects(__testing.handleToolCall('resolve_entity', {query: 'missing'}), /PHILOSOPHY_UNAVAILABLE/);
+});
+
+ test('retired search paths reject before loading the Graph index', async () => {
+  const source = useSource(); source.failure = true;
+  for (const [name, args] of [
+    ['get_context', {topic: 'question'}], ['search_wiki', {query: 'question'}],
+    ['search', {query: 'question', mode: 'lexical'}],
+  ] as const) await assert.rejects(__testing.handleToolCall(name, args), /removed|disabled/);
+  assert.equal(source.loads, 0); assert.equal(source.philosophyLoads, 0);
 });

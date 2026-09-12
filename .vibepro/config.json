@@ -245,8 +245,20 @@
         "contract_type": null
       },
       {
-        "story_id": "parent-contract-delegation",
-        "title": "子エージェントが親の判断契約の委任範囲で作業できる",
+        "story_id": "STR-012",
+        "title": "MCPのイベントストリーム応答をマナへ返す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-graph-search-entrypoint",
+        "title": "組織への質問を意味検索とGraph探索で調べる",
         "ssot": "local",
         "status": "active",
         "horizon": null,
@@ -256,15 +268,15 @@
         "due_at": null,
         "contract_type": null,
         "acceptance_criteria": [
-          "Hostの親子情報と子turnへの委任メッセージを照合した子は独立Resolverなしで作業できる。",
-          "未解決・終了済みの親、偽装・不明・対象外の委任は拒否する。",
-          "子の実行結果は親契約へ紐付け、親の判断完了や必須能力の達成を代行しない。",
-          "子の完了はCodexの既存通知を親が確認する。専用の終了記録を要求せず、利用者向け最終監査は親だけが確定する。"
+          "一般的な組織の質問はsearchの意味検索とGraph探索を使い、lexical指定による旧検索への迂回を拒否する。",
+          "get_contextとsearch_wikiを通常公開から除外し、古いクライアントの直接呼出しにも移行先を返して拒否する。",
+          "ID・名前の特定、型の一覧、所有者限定の個人KG検索を、それぞれ用途が明確な入口として維持する。",
+          "HTTPとstdioで同じ契約を適用し、意味検索の根拠・不足・権限境界を維持する。"
         ]
       },
       {
-        "story_id": "story-automation-turn-resolver-bootstrap",
-        "title": "自動化ターンのResolver開始を復旧する",
+        "story_id": "story-oss-graph-upgrade",
+        "title": "OSSのGraphと検索を失わず組織環境へ移行する",
         "ssot": "local",
         "status": "active",
         "horizon": null,
@@ -272,14 +284,33 @@
         "period": null,
         "started_at": null,
         "due_at": null,
-        "contract_type": "bug_fix",
+        "contract_type": null,
         "acceptance_criteria": [
-          "UserPromptSubmitがないCodex App自動化でも、同一session・同一turnの正規automation_update出力から最初のPreToolUseでepisodeを開始する。",
-          "最初のtoolは実行せずturn_refを返し、その後のResolver呼び出しだけを通常契約で許可する。",
-          "通常セッション、別turn、別tool、不正形式、複数入力、対象外cwd、開始失敗は復旧せず拒否する。"
+          "署名済み所有者・組織・projectでGraphを隔離する。",
+          "同じ内容の再送と読戻しを保証し、別内容の上書きを拒否する。",
+          "OSS共通コアで同じ質問の関係経路・根拠・不足を保持する。"
+        ]
+      },
+      {
+        "story_id": "story-hook-grounded-completion",
+        "title": "Graphの実取得と根拠確認を終えてから回答を完了する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null,
+        "acceptance_criteria": [
+          "Graph必須turnは参照先解決だけではStopを通過しない。",
+          "同じturnで実取得した本文を持つIDにモデルの回答可能判定を束縛する。",
+          "本文不足・空・取得失敗は不足として表示し、不在確定や十分な根拠へ変換しない。",
+          "決定本文・理由・出典をget_entityまで保持し、空構造を本文扱いしない。",
+          "全体hooksを変更せずBrainbase限定で正常・不足・実エラーを検証する。"
         ]
       }
     ],
-    "current_story_id": "story-automation-turn-resolver-bootstrap"
+    "current_story_id": "story-hook-grounded-completion"
   }
 }

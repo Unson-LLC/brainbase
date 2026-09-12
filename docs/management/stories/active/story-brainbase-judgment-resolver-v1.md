@@ -75,6 +75,7 @@ Brainbaseは事実の正本と検索経路を持ち始めているが、問い�
 - [ ] Claude Codeは将来のHost adapter候補として明記し、現行episode lifecycle hook integrationの対応範囲に含めない。
 - [ ] capability YAML、runbook、README index、agent entry Skill/always-loaded instructionが実装境界と一致する。
 - [ ] 根拠のない固定閾値を追加せず、分類、reconciliation、適用理由を監査できる。
+- [ ] Resolver応答の契約欠落は、本文や秘密値を出さない固定項目のHost診断で調査できる。診断追加で既存の結合判定・HTTP応答を変えない。
 
 ## Release operation
 
