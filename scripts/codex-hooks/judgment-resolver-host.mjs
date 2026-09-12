@@ -78,8 +78,8 @@ const TRANSIENT_REASONS = new Set([
 const DEFAULT_LOCK_WAIT_ATTEMPTS = 5000;
 const DEFAULT_LOCK_WAIT_MS = 10;
 const NO_BRAINBASE_REFERENCE_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
-const AUTONOMY_CONTINUATION_PROGRESS_LINE = '🔁 確認不要と判定しました。回答を差し戻して処理を続けています';
-const AUTONOMY_CONTINUATION_COMPLETE_LINE = '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録';
+const AUTONOMY_CONTINUATION_PROGRESS_LINE = '🔁 俺なら返答: AIの確認を引き取り、処理を続けています';
+const AUTONOMY_CONTINUATION_COMPLETE_LINE = '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓';
 const OUTCOME_CONTINUATION_PROGRESS_LINE = '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています';
 const OUTCOME_CONTINUATION_COMPLETE_LINE = '🔁 実行継続: 安全な残作業の再開要求を記録';
 const MAX_CONTINUATION_ATTEMPTS = 3;
@@ -2758,6 +2758,7 @@ function episodeAuditContract(episode) {
 function verifiedAutonomyContinuation(marker, auditContract) {
     const continuation = record(marker?.autonomy_continuation);
     if (!continuation) return null;
+    verifyOreNaraReplyRequest(marker?.ore_nara_reply);
     const expectedCompleteLine = continuation.trigger_code === 'unfinished_safe_work'
         ? auditContract?.outcome_continuation_complete_line
         : auditContract?.autonomy_continuation_complete_line;
@@ -2991,6 +2992,40 @@ function displayedQuestion(answerBody) {
     return String(answerBody).split('\n')
         .map((line) => line.trim())
         .find((line) => /[?？]$/u.test(line)) ?? null;
+}
+
+function oreNaraReplyRequest(question) {
+    if (typeof question !== 'string' || !question.trim()) return null;
+    const normalizedQuestion = question.trim();
+    const asksSemanticChoice = /(?:どちら|どれ|どの|何を|何の|どう|優先|選)/u.test(normalizedQuestion);
+    const asksRoutineContinuation = /(?:確認|調査|テスト|検証|修正|作業|処理|続行|続け|進め|完了として確定).{0,48}(?:しますか|しましょうか|してもよいですか|してもいいですか|ますか|よいですか)[?？]?$/u.test(normalizedQuestion);
+    const personalKgRequired = asksSemanticChoice || !asksRoutineContinuation;
+    return {
+        schema_version: 'brainbase-ore-nara-reply-v1',
+        status: 'requested',
+        question_display_text: normalizedQuestion,
+        question_digest: `sha256:${sha256(normalizedQuestion)}`,
+        personal_kg_mode: personalKgRequired ? 'required' : 'not_required',
+        ...(personalKgRequired ? { personal_kg_query: normalizedQuestion } : {}),
+        fallback: 'continue_only_when_existing_authority_is_sufficient'
+    };
+}
+
+function verifyOreNaraReplyRequest(value) {
+    const request = record(value);
+    if (!request) return null;
+    if (request.schema_version !== 'brainbase-ore-nara-reply-v1'
+        || request.status !== 'requested'
+        || typeof request.question_display_text !== 'string'
+        || request.question_display_text.trim() !== request.question_display_text
+        || request.question_digest !== `sha256:${sha256(request.question_display_text)}`
+        || !['required', 'not_required'].includes(request.personal_kg_mode)
+        || (request.personal_kg_mode === 'required' && request.personal_kg_query !== request.question_display_text)
+        || (request.personal_kg_mode === 'not_required' && request.personal_kg_query !== undefined)
+        || request.fallback !== 'continue_only_when_existing_authority_is_sufficient') {
+        throw new Error('judgment_ore_nara_reply_invalid');
+    }
+    return request;
 }
 
 function runtimeAtLeast(receipt, major, minor) {
@@ -3895,6 +3930,18 @@ function continuationExecutionEvents(events, marker) {
             : Date.parse(event.recorded_at) > Date.parse(marker.requested_at)));
 }
 
+function oreNaraReplyEvidence(events, marker) {
+    const request = verifyOreNaraReplyRequest(marker?.ore_nara_reply);
+    if (!request || request.personal_kg_mode !== 'required') return [];
+    const expectedInputDigest = sha256(canonicalJson({ query: request.personal_kg_query }));
+    return events.filter((event) => event.success
+        && event.tool_name === 'mcp__brainbase__search_personal_kg'
+        && event.input_digest === expectedInputDigest
+        && (Number.isSafeInteger(marker.event_sequence_boundary)
+            ? Number.isSafeInteger(event.event_sequence) && event.event_sequence > marker.event_sequence_boundary
+            : Date.parse(event.recorded_at) > Date.parse(marker.requested_at)));
+}
+
 function deriveStopDecision({
     receipt,
     episodeOrigin,
@@ -4067,8 +4114,19 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             episode
         );
     const continuationExecution = continuationExecutionEvents(events, existingContinuation);
+    const oreNaraEvidence = oreNaraReplyEvidence(events, existingContinuation);
     const executionRequired = existingContinuation?.autonomy_continuation
         && ['implement', 'operate'].includes(episode.initial_route_receipt.classification?.intent);
+    if (existingContinuation?.ore_nara_reply?.personal_kg_mode === 'required'
+        && autonomyCompliance.status === 'continued'
+        && oreNaraEvidence.length === 0) {
+        autonomyCompliance = {
+            ...autonomyCompliance,
+            status: null,
+            triggerCode: 'unnecessary_user_question',
+            violation: '俺なら返答の質問文と完全一致するqueryでPersonal KGを実取得し、本人の根拠を適用してから作業を続ける。取得失敗を根拠なしや許可として扱わない'
+        };
+    }
     if (executionRequired && autonomyCompliance.status === 'continued' && continuationExecution.length === 0) {
         autonomyCompliance = {
             ...autonomyCompliance,
@@ -4214,7 +4272,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                                 source: 'autonomy_continuation'
                             }
                         } : {})
-                    }
+                    },
+                    ...(continuationTriggerCode === 'unnecessary_user_question'
+                        && autonomyCompliance.question ? {
+                        ore_nara_reply: oreNaraReplyRequest(autonomyCompliance.question)
+                    } : {})
                 } : {})
             };
             if (missingAutonomyCompliance) delete markerEntry.answer_body_binding;
@@ -4237,9 +4299,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             );
         }
         const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
+        const oreNaraReply = verifyOreNaraReplyRequest(marker?.ore_nara_reply);
         const reasons = [
             ...(stopDecision.business_decision === 'CONTINUE' ? [
                 'まず承認済み範囲の安全な次の作業・検証を実際に実行する。状態登録、監査行の追加、将来の作業予定だけで終了しない。権限・外部影響の境界は広げず、許可された確認理由が生じた場合だけwaiting_humanで止める'
+            ] : []),
+            ...(oreNaraReply?.personal_kg_mode === 'required' ? [
+                `「俺なら返答」として、mcp__brainbase__search_personal_kgをquery=${JSON.stringify(oreNaraReply.personal_kg_query)}で実行する。取得した本人の過去判断・好み・委任境界をこの質問への回答へ適用し、同じ質問を本人へ再送せず作業を続ける。根拠がない場合も既存の依頼と権限だけで安全に決められる範囲は続け、新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する`
+            ] : oreNaraReply ? [
+                '「俺なら返答」として、元の依頼とTurnContractですでに許可された定型・可逆作業を本人へ聞き返さず続ける。新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する'
             ] : []),
             ...(missingTurnResolution ? [
                 `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが判断契約を確定した旨をsystemMessageで通知する）`

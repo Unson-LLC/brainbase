@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-ore-nara-reply",
+  "role": "reviewer",
+  "status": "pass",
+  "summary": "質問固定とdigest検証、定型確認のKG不要化、意味選択の同文KG実取得必須化、既存の人間判断境界とHost障害時縮退を確認。関連unit 229件と入口integrationの対象ケースに合格。",
+  "recorded_at": "2026-09-12T06:22:27.743Z",
+  "findings": [],
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 4 file(s)",
+    "recorded_head_sha": null,
+    "surface_files": [
+      {
+        "path": "docs/architecture/story-ore-nara-reply.md",
+        "sha256": "2ea65e4187dad51f66c352d347a777e94658fff8170c786f65764ababc6212a1",
+        "size": 2049
+      },
+      {
+        "path": "scripts/codex-hooks/judgment-resolver-host.mjs",
+        "sha256": "17a88cf168e6bfe36cc3ce3228f1a0867bf5de01d7aeb7eb53c6bd5f9a452e17",
+        "size": 278443
+      },
+      {
+        "path": "tests/integration/judgment-resolver-host-entrypoint.test.js",
+        "sha256": "17b528e2f1e75f91fcc0c3514982332b8bc27a87ec4848691197d2b4960003b6",
+        "size": 131321
+      },
+      {
+        "path": "tests/unit/judgment-resolver-host.test.js",
+        "sha256": "87aa714cf0616b0ab54f39e48c2472c9cbc63009e4324e2bcb514f766a00b1d6",
+        "size": 388207
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "89914d9f16a7157268a675d7880278f715abf7e8f35d039f05e4fa513cadddb5"
+  },
+  "reviewer": {
+    "system": null,
+    "id": null
+  }
+}

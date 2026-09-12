@@ -1,0 +1,39 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ore-nara-reply",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "architecture"
+  },
+  "lifecycle": "final",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "acceptance_criterion",
+      "statement": "An unnecessary Codex question is bound to an immutable Ore Nara Reply request and resumed in the same turn without asking the owner again.",
+      "origin": {
+        "story_refs": [{ "kind": "user_request", "ac_id": "AC-001" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-ore-nara-reply.md", "section": "Story" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "oreNaraReplyRequest" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "continueなのに不要な確認質問" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "ore_nara_reply" }]
+      }
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Personal KG evidence cannot expand authority; irreversible actions, missing authority or secrets, material commitments, and new owner value choices still require the owner.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-ore-nara-reply.md", "section": "Boundary" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-autonomy.mjs", "anchor": "evaluateJudgmentAutonomy" }],
+        "test_refs": [{ "file": "tests/unit/judgment-autonomy.test.js", "case": "human_required" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/unit/judgment-autonomy.test.js", "must_cover": "human_required" }]
+      }
+    }
+  ]
+}

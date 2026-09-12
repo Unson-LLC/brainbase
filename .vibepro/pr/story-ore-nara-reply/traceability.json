@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ore-nara-reply",
+  "story_doc_path": null,
+  "source": "story_add",
+  "lifecycle": "declared_not_started",
+  "evidence": [],
+  "acceptance_criteria": [],
+  "scenario_clauses": [],
+  "scenario_lineage": null,
+  "accepted_spec_lineage": null,
+  "coverage_summary": {
+    "clause_count": 0,
+    "acceptance_criteria_count": 0,
+    "scenario_clause_count": 0,
+    "mapped_count": 0,
+    "weakly_mapped_count": 0,
+    "unmapped_count": 0,
+    "scenario_lineage": null,
+    "examples": []
+  },
+  "created_at": "2026-09-12T06:13:52.969Z",
+  "updated_at": "2026-09-12T06:13:52.969Z"
+}

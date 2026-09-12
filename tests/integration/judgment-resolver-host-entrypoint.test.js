@@ -530,7 +530,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(stopped).toMatchObject({ code: 0, stderr: '' });
         expect(JSON.parse(stopped.stdout)).toMatchObject({
             decision: 'block',
-            systemMessage: '🔁 確認不要と判定しました。回答を差し戻して処理を続けています'
+            systemMessage: '🔁 俺なら返答: AIの確認を引き取り、処理を続けています'
         });
         expect(requestCount).toBe(1);
         const directory = join(journal, hash(identity.session_id));
@@ -2103,16 +2103,18 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             proofToolArgs,
         );
         expect(proofToolResponse).toEqual({ status: 'ok', data: proofInput });
-        let readbackLine = null;
+        const brainbaseAuditLines = [];
         let completedStateOutput = null;
         for (const event of [
+            { tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: 'entrypoint-personal-kg', tool_input: { query: question }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('検索') }], structuredContent: { items: [{ id: 'owner-basis' }] } } },
             { tool_name: 'apply_patch', tool_use_id: 'entrypoint-execution', tool_input: { patch: '*** Begin Patch\n*** Update File: docs/example.md\n@@\n-old\n+new\n*** End Patch' }, tool_response: { success: true } },
             { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } }
         ]) {
             const recorded = await run('bash', [wrapper], { env, input: JSON.stringify({ hook_event_name: 'PostToolUse', ...identity, ...event }) });
             expect(recorded).toMatchObject({ code: 0, stderr: '' });
-            if (event.tool_use_id === 'entrypoint-evidence') {
-                readbackLine = JSON.parse(recorded.stdout).systemMessage;
+            if (event.tool_name.startsWith('mcp__brainbase__')) {
+                const auditLine = JSON.parse(recorded.stdout).systemMessage;
+                if (auditLine) brainbaseAuditLines.push(auditLine);
             }
         }
         const stateBeforeProof = await run('bash', [wrapper], { env, input: JSON.stringify({
@@ -2140,8 +2142,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(completedStateOutput).toEqual({});
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(existsSync(finalPath)).toBe(false);
-        const lastAssistantMessage = [ownerLine, readbackLine,
-            '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
+        const lastAssistantMessage = [ownerLine, ...brainbaseAuditLines,
+            '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
             '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓', '', '更新と検証を完了しました。'].join('\n');
         const completed = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: true,

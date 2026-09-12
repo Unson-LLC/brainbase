@@ -740,7 +740,7 @@ describe('Codex Judgment Resolver Host', () => {
 
         expect(fetchImpl).toHaveBeenCalledTimes(1);
         expect(result).toMatchObject({ decision: 'block' });
-        expect(result.systemMessage).toBe('🔁 確認不要と判定しました。回答を差し戻して処理を続けています');
+        expect(result.systemMessage).toBe('🔁 俺なら返答: AIの確認を引き取り、処理を続けています');
         expect(result.reason).toContain('状態登録、監査行の追加、将来の作業予定だけで終了しない');
         const episodeFiles = readdirSync(join(root, 'journal', hash(sessionId)))
             .filter((name) => name.endsWith('.episode.json'));
@@ -4082,11 +4082,11 @@ describe('Codex Judgment Resolver Host', () => {
     });
 
     it.each([
-        'どちらの実装にしますか？',
-        'package.jsonを確認すれば分かります。確認しますか？',
-        'こちらで調査しますか？',
-        'このまま作業を続けますか？'
-    ])('continueなのに不要な確認質問「%s」で終了した場合はStopが継続させる', async (question) => {
+        ['どちらの実装にしますか？', true],
+        ['package.jsonを確認すれば分かります。確認しますか？', false],
+        ['こちらで調査しますか？', false],
+        ['このまま作業を続けますか？', false]
+    ])('continueなのに不要な確認質問「%s」で終了した場合はStopが継続させる', async (question, personalKgRequired) => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-autonomy-continue', turn_id: 'turn-autonomy-continue', prompt: '修正して', cwd: process.cwd() };
@@ -4122,7 +4122,7 @@ describe('Codex Judgment Resolver Host', () => {
 
         expect(result.output).toMatchObject({ decision: 'block' });
         expect(result.output.systemMessage).toBe(
-            '🔁 確認不要と判定しました。回答を差し戻して処理を続けています'
+            '🔁 俺なら返答: AIの確認を引き取り、処理を続けています'
         );
         expect(result.output.reason).toContain('安全な範囲で作業を継続');
         expect(result.continuation).toMatchObject({
@@ -4132,27 +4132,65 @@ describe('Codex Judgment Resolver Host', () => {
                 trigger_code: 'unnecessary_user_question',
                 reason_code: 'routine_in_scope',
                 status: 'requested'
+            },
+            ore_nara_reply: {
+                schema_version: 'brainbase-ore-nara-reply-v1',
+                status: 'requested',
+                question_display_text: question,
+                question_digest: expect.stringMatching(/^sha256:/),
+                personal_kg_mode: personalKgRequired ? 'required' : 'not_required',
+                ...(personalKgRequired ? { personal_kg_query: question } : {}),
+                fallback: 'continue_only_when_existing_authority_is_sufficient'
             }
         });
+        expect(result.output.reason).toContain('俺なら返答');
+        if (personalKgRequired) {
+            expect(result.output.reason).toContain('mcp__brainbase__search_personal_kg');
+            expect(result.output.reason).toContain(question);
+        } else {
+            expect(result.output.reason).not.toContain('mcp__brainbase__search_personal_kg');
+        }
 
         recordBrainbaseToolUse({
             ...payload, tool_name: 'apply_patch', tool_use_id: 'continued-implementation',
             tool_input: {}, tool_response: { success: true }
         }, { env });
+        if (personalKgRequired) {
+            const missingPersonalKg = finalizeEpisode({
+                session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+                last_assistant_message: [
+                    episode.owner_audit.display_line,
+                    '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+                    '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
+                    '安全な範囲の実装と検証を完了しました。'
+                ].join('\n')
+            }, { env });
+            expect(missingPersonalKg.output).toMatchObject({ decision: 'block' });
+            expect(missingPersonalKg.output.reason).toContain('Personal KGを実取得');
+
+            recordBrainbaseToolUse({
+                ...payload, hook_event_name: 'PostToolUse',
+                tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: `ore-nara-${question}`,
+                tool_input: { query: question },
+                tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('検索') }] }
+            }, { env });
+        }
         const completed = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
+                '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
                 '安全な範囲の実装と検証を完了しました。'
             ].join('\n')
         }, { env });
 
         expect(completed.output.systemMessage).toBe([
             episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録'
+            personalKgRequired
+                ? `📚 Brainbase検索: search_personal_kg「${question}」→ 結果を取得 ✓`
+                : '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓'
         ].join('\n'));
         expect(completed.final).toMatchObject({
             completion_status: 'complete',
@@ -4458,10 +4496,10 @@ describe('Codex Judgment Resolver Host', () => {
             schema_version: 'brainbase-owner-audit-contract-v1',
             zero_call_display_line: '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
             zero_call_display_line_digest: hash('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'),
-            autonomy_continuation_progress_line: '🔁 確認不要と判定しました。回答を差し戻して処理を続けています',
-            autonomy_continuation_progress_line_digest: hash('🔁 確認不要と判定しました。回答を差し戻して処理を続けています'),
-            autonomy_continuation_complete_line: '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
-            autonomy_continuation_complete_line_digest: hash('🔁 自律継続: 不要な確認を差し戻し、再開要求を記録'),
+            autonomy_continuation_progress_line: '🔁 俺なら返答: AIの確認を引き取り、処理を続けています',
+            autonomy_continuation_progress_line_digest: hash('🔁 俺なら返答: AIの確認を引き取り、処理を続けています'),
+            autonomy_continuation_complete_line: '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
+            autonomy_continuation_complete_line_digest: hash('🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓'),
             outcome_continuation_progress_line: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています',
             outcome_continuation_progress_line_digest: hash('🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'),
             outcome_continuation_complete_line: '🔁 実行継続: 安全な残作業の再開要求を記録',
