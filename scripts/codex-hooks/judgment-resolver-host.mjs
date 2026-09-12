@@ -2210,7 +2210,7 @@ function codexDesktopReadCommandPath(item) {
         ? item.command.at(-1)
         : item.command;
     if (typeof command !== 'string') return null;
-    const match = command.match(/^(?:cat --|sed -n '1p' --) ([A-Za-z0-9_./-]+)$/u);
+    const match = command.match(/^(?:cat --|sed -n '1p') ([A-Za-z0-9_./-]+)$/u);
     if (!match) return null;
     return match[1];
 }
@@ -4356,7 +4356,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 { repair: true }
             )] : []),
             ...(missingValueProof ? [
-                `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使う。outcome.evidence_refsには、変更を行った成功イベントをkind=tool_eventで1件、その後に同じsubject_refを読み戻した別の成功イベントをkind=canonical_readbackで1件指定し、2件のtool_use_idを同じにしない。Codex Desktopでファイルを読み戻す場合は、別のBash呼び出しでsed -n '1p' -- <成果物path>だけを実行し、連結コマンドやpipeを含めない。実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
+                `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使う。outcome.evidence_refsには、変更を行った成功イベントをkind=tool_eventで1件、その後に同じsubject_refを読み戻した別の成功イベントをkind=canonical_readbackで1件指定し、2件のtool_use_idを同じにしない。Codex Desktopでファイルを読み戻す場合は、別のBash呼び出しでsed -n '1p' <成果物path>だけを実行し、--、連結コマンド、pipeを含めない。実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
             ] : []),
             ...((stopDecision.protocol_status === 'repair' || stopDecision.business_decision === 'CONTINUE') ? [
                 missingKnowledgeEvidence
@@ -4762,7 +4762,7 @@ function turnContractExecutionInstructions(receipt, env, { surfaceDegraded = fal
         ...mandatoryVibeProImplementationInstructions(receipt),
         ...requiredCapabilityActionContracts(receipt).map((contract) => capabilityActionInstruction(contract)),
         ...(journalStopStateRequired(receipt) && valueProofRolloutEnabled({ initial_route_receipt: receipt }, env) ? [
-            'Brainbaseが本当に人間判断を必要とした場合、またはHostが直前のStopで不要な確認質問を差し戻した場合だけ、全作業と検証の後にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。continued_without_humanでは、差し戻された質問文を一字一句同じquestion_display_textとして使う。outcome.evidence_refsには変更を行った成功イベントをkind=tool_eventで1件、その後に同じsubject_refを読み戻した別の成功イベントをkind=canonical_readbackで1件指定し、2件のtool_use_idを同じにしない。Codex Desktopでファイルを読み戻す場合は、別のBash呼び出しでsed -n \'1p\' -- <成果物path>だけを実行し、連結コマンドやpipeを含めない。canonical_readbackのsubject_refは実行成果物のrefと実際の取得入力に完全一致させ、結果ありの取得だけを指定する。先行する中断候補がない単なる代理判断ではvalue proofを記録しない。raw tool response、秘密情報、内部監査ログは入れない。',
+            'Brainbaseが本当に人間判断を必要とした場合、またはHostが直前のStopで不要な確認質問を差し戻した場合だけ、全作業と検証の後にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。continued_without_humanでは、差し戻された質問文を一字一句同じquestion_display_textとして使う。outcome.evidence_refsには変更を行った成功イベントをkind=tool_eventで1件、その後に同じsubject_refを読み戻した別の成功イベントをkind=canonical_readbackで1件指定し、2件のtool_use_idを同じにしない。Codex Desktopでファイルを読み戻す場合は、別のBash呼び出しでsed -n \'1p\' <成果物path>だけを実行し、--、連結コマンド、pipeを含めない。canonical_readbackのsubject_refは実行成果物のrefと実際の取得入力に完全一致させ、結果ありの取得だけを指定する。先行する中断候補がない単なる代理判断ではvalue proofを記録しない。raw tool response、秘密情報、内部監査ログは入れない。',
             'value proofを記録した場合も、その後にmcp__brainbase__brainbase_judgment_state_recordを実行し、状態toolを必ず最後のtool callにする。'
         ] : []),
         ...(journalStopStateRequired(receipt) ? [
