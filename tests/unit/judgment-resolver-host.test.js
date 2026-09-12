@@ -831,7 +831,7 @@ describe('Codex Judgment Resolver Host', () => {
     });
 
     it.each(['normal_session', 'foreign_turn', 'wrong_tool', 'malformed', 'multiple'])(
-        'PreToolUseの自動化復旧は未確認入力を拒否する: %s', async (variant) => {
+        'PreToolUseの自動化復旧は未確認入力を監査契約に採用せず通常権限へ戻す: %s', async (variant) => {
             const root = temporaryDirectory();
             const sessionId = 'automation-negative-session';
             const turnId = 'automation-negative-turn';
@@ -853,13 +853,14 @@ describe('Codex Judgment Resolver Host', () => {
             const output = await processHookPayload({ hook_event_name: 'PreToolUse', session_id: sessionId,
                 turn_id: turnId, cwd: process.cwd(), transcript_path: transcript,
                 tool_name: 'mcp__brainbase__brainbase_resolve_turn' }, { env, fetchImpl });
-            expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
+            expect(output.hookSpecificOutput.permissionDecision).toBeUndefined();
+            expect(output.hookSpecificOutput.additionalContext).toContain('通常の権限・承認境界');
             expect(fetchImpl).not.toHaveBeenCalled();
         }
     );
 
     it.each(['foreign_turn', 'foreign_session', 'wrong_tool', 'malformed', 'outside_scope'])(
-        'PreToolUseの委任復旧は不正または未確認の入力を許可しない: %s', async (variant) => {
+        'PreToolUseの委任復旧は未確認入力を監査契約に採用せず通常権限へ戻す: %s', async (variant) => {
             const root = temporaryDirectory();
             const sessionId = 'pre-tool-negative-session';
             const turnId = 'pre-tool-negative-turn';
@@ -891,11 +892,33 @@ describe('Codex Judgment Resolver Host', () => {
                 cwd: variant === 'outside_scope' ? root : process.cwd(), transcript_path: transcript,
                 tool_name: 'mcp__brainbase__brainbase_resolve_turn'
             }, { env, fetchImpl });
-            expect(output.hookSpecificOutput.permissionDecision).toBe('deny');
-            expect(fetchImpl).not.toHaveBeenCalled();
+            expect(output.hookSpecificOutput.permissionDecision).toBeUndefined();
+            expect(output.hookSpecificOutput.additionalContext).toContain('通常の権限・承認境界');
+            if (variant === 'outside_scope') expect(fetchImpl).toHaveBeenCalledTimes(1);
+            else expect(fetchImpl).not.toHaveBeenCalled();
             expect(existsSync(join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`))).toBe(false);
         }
     );
+
+    it('PreToolUseは別repositoryの通常Codex App taskを監査障害だけで拒否しない', async () => {
+        const root = temporaryDirectory();
+        const sessionId = 'ordinary-app-outside-canary-session';
+        const turnId = 'ordinary-app-outside-canary-turn';
+        const transcript = join(root, 'session.jsonl');
+        writeFileSync(transcript, event('session_meta', { id: sessionId }));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
+            BRAINBASE_JUDGMENT_CANARY_CWD: process.cwd()
+        };
+        const output = await processHookPayload({
+            hook_event_name: 'PreToolUse', session_id: sessionId, turn_id: turnId,
+            cwd: root, transcript_path: transcript, tool_name: 'exec_command'
+        }, { env, fetchImpl: vi.fn() });
+        expect(output.hookSpecificOutput.permissionDecision).toBeUndefined();
+        expect(output.hookSpecificOutput.additionalContext).toContain('通常の権限・承認境界');
+    });
 
     it('PreToolUseは壊れたstart-failure markerを監査未完了として通常権限へ戻す', async () => {
         const root = temporaryDirectory();

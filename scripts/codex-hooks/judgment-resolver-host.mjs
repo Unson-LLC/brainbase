@@ -5015,17 +5015,9 @@ export async function processHookPayload(payload, dependencies = {}) {
         if (inScope && hasStartFailureOrUnreadableDiagnostic(payload, env)) {
             return degradedPreToolOutput('judgment_start_diagnostic_unreadable');
         }
-        // A transcript is a claim of delegated or automated provenance. Keep
-        // its repository boundary strict even while audit infrastructure is
-        // unavailable; degraded operation must not turn forged provenance
-        // into authority. Ordinary tasks without a transcript do not depend
-        // on this configured cwd.
-        if (typeof payload.transcript_path === 'string'
-            && typeof env.BRAINBASE_JUDGMENT_CANARY_CWD === 'string'
-            && !sameRepositoryScope(env.BRAINBASE_JUDGMENT_CANARY_CWD, payload.cwd)) {
-            return { hookSpecificOutput: { hookEventName: 'PreToolUse',
-                permissionDecision: 'deny', permissionDecisionReason: START_FAILURE_WARNING } };
-        }
+        // Repository scope controls audit rollout only. A transcript may help
+        // recover delegated provenance, but it never grants action authority;
+        // therefore an audit-scope mismatch must not deny an ordinary tool.
         // A Codex App task may omit UserPromptSubmit. Recover only from the
         // existing trusted, complete current-turn delegation parser. Never
         // execute the intercepted tool: first hand the canonical reference to
@@ -5050,22 +5042,12 @@ export async function processHookPayload(payload, dependencies = {}) {
                 }
             }
         } catch (error) {
-            // A corrupt journal is an audit failure. It cannot become an
-            // independent action-denial mechanism.
-            if (typeof payload.transcript_path === 'string' && !isAuditInfrastructureFailure(error)) {
-                return { hookSpecificOutput: { hookEventName: 'PreToolUse',
-                    permissionDecision: 'deny', permissionDecisionReason: START_FAILURE_WARNING } };
-            }
+            // A corrupt journal or unverifiable transcript is an audit
+            // failure. Neither can become an independent action-denial
+            // mechanism; ordinary platform permissions remain authoritative.
             return degradedPreToolOutput('judgment_episode_unavailable');
         }
         if (inScope && hasVerifiedStart(payload, env)) return {};
-        // A transcript that claims delegated/automated provenance but cannot
-        // be verified is a trust-boundary failure, not merely Host downtime.
-        // Keep this existing misuse guard separate from audit availability.
-        if (typeof payload.transcript_path === 'string') {
-            return { hookSpecificOutput: { hookEventName: 'PreToolUse',
-                permissionDecision: 'deny', permissionDecisionReason: START_FAILURE_WARNING } };
-        }
         return degradedPreToolOutput('judgment_episode_unavailable');
     }
     if (diagnosticContinueEnabled(env, payload) && eventName === 'Stop'
