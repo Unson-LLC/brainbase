@@ -150,6 +150,26 @@ export function latestJudgmentValueProofEvent(events) {
   return successful[0] ?? null;
 }
 
+function relativeFileRef(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.replaceAll('\\', '/').replace(/^\.\//u, '');
+  if (!normalized || normalized.startsWith('/') || normalized === '..'
+    || normalized.startsWith('../') || normalized.includes('/../')) return null;
+  return normalized;
+}
+
+function sameSubjectRef(left, right) {
+  if (left === right) return true;
+  const normalizedLeft = typeof left === 'string' ? left.replaceAll('\\', '/') : '';
+  const normalizedRight = typeof right === 'string' ? right.replaceAll('\\', '/') : '';
+  const leftRelative = relativeFileRef(normalizedLeft);
+  const rightRelative = relativeFileRef(normalizedRight);
+  return (leftRelative && normalizedRight.startsWith('/')
+      && normalizedRight.endsWith(`/${leftRelative}`))
+    || (rightRelative && normalizedLeft.startsWith('/')
+      && normalizedLeft.endsWith(`/${rightRelative}`));
+}
+
 function verifiedEvidence(input, events, valueProofEvent) {
   const byToolUseId = new Map(events.map((event) => [event.tool_use_id, event]));
   const valueProofSequence = Number.isSafeInteger(valueProofEvent?.event_sequence)
@@ -159,17 +179,17 @@ function verifiedEvidence(input, events, valueProofEvent) {
     const source = byToolUseId.get(evidence.tool_use_id);
     const sourceSequence = Number.isSafeInteger(source?.event_sequence) ? source.event_sequence : null;
     const artifactBound = input.execution.artifact_refs.some((artifact) => (
-      artifact.ref === evidence.subject_ref
+      sameSubjectRef(artifact.ref, evidence.subject_ref)
     ));
     const digestBound = /^[0-9a-f]{64}$/u.test(String(source?.input_digest ?? ''))
       && /^[0-9a-f]{64}$/u.test(String(source?.response_digest ?? ''));
-    const retrievalBound = source?.query_excerpt === evidence.subject_ref
-      && source?.safe_metadata?.subject_ref === evidence.subject_ref
+    const retrievalBound = sameSubjectRef(source?.query_excerpt, evidence.subject_ref)
+      && sameSubjectRef(source?.safe_metadata?.subject_ref, evidence.subject_ref)
       && source?.safe_metadata?.retrieval_outcome === 'result'
       && digestBound;
     const executionBound = ['execution', 'write'].includes(source?.event_kind)
       && Array.isArray(source?.safe_metadata?.artifact_refs)
-      && source.safe_metadata.artifact_refs.includes(evidence.subject_ref)
+      && source.safe_metadata.artifact_refs.some((ref) => sameSubjectRef(ref, evidence.subject_ref))
       && digestBound;
     const evidenceBound = evidence.kind === 'canonical_readback'
       ? ['search', 'retrieve'].includes(source?.event_kind) && retrievalBound
@@ -259,7 +279,7 @@ export function buildJudgmentValueProofProjection({
       const refs = input.outcome.evidence_refs
         .map((evidence, index) => ({ evidence, projected: evidenceRefs[index] }))
         .filter(({ evidence, projected }) => (
-          evidence.subject_ref === artifact.ref && projected?.status === 'verified'
+          sameSubjectRef(evidence.subject_ref, artifact.ref) && projected?.status === 'verified'
         ));
       const executions = refs.filter(({ evidence }) => evidence.kind === 'tool_event');
       const readbacks = refs.filter(({ evidence }) => evidence.kind === 'canonical_readback');

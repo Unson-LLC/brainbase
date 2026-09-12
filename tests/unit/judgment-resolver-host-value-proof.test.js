@@ -224,13 +224,13 @@ describe('Judgment Resolver Host value proof integration', () => {
       interruption: { question_display_text: question },
       execution: {
         summary: '既存文書を更新した',
-        artifact_refs: [{ kind: 'file', ref: 'docs/existing.md', label: '既存文書' }],
+        artifact_refs: [{ kind: 'file', ref: artifact, label: '既存文書' }],
       },
       outcome: {
         status: 'outcome_verified', summary: '変更後の正本を読み戻した',
         evidence_refs: [
-          { kind: 'tool_event', tool_use_id: 'desktop-execution', subject_ref: 'docs/existing.md', label: '正本更新' },
-          { kind: 'canonical_readback', tool_use_id: 'desktop-readback', subject_ref: 'docs/existing.md', label: '正本読み戻し' },
+          { kind: 'tool_event', tool_use_id: 'desktop-execution', subject_ref: artifact, label: '正本更新' },
+          { kind: 'canonical_readback', tool_use_id: 'desktop-readback', subject_ref: artifact, label: '正本読み戻し' },
         ],
       },
     });
