@@ -740,7 +740,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         expect(outputs[2]).toEqual(outputs[0]);
     }, 10_000);
 
-    it('明示opt-inでもmarkerなしの孤立Stopは従来どおりdecision:blockとaudit-failureを生成する', async () => {
+    it('明示opt-inでもmarkerなしの孤立Stopは回答を保存し、監査警告とaudit-failureを生成する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const payload = {
@@ -760,9 +760,8 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         const result = await runEntrypoint({ env, payload });
 
         expect(result).toMatchObject({ code: 0, signal: null, stderr: '' });
-        expect(readJsonOutput(result.stdout)).toMatchObject({
-            decision: 'block',
-            reason: expect.stringContaining('judgment_episode_not_found')
+        expect(readJsonOutput(result.stdout)).toEqual({
+            systemMessage: '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。'
         });
         expect(() => readFileSync(diagnosticPath(journal, payload), 'utf8')).toThrow();
         const auditFailurePath = join(
