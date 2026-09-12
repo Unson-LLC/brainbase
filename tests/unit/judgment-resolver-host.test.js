@@ -5825,6 +5825,10 @@ describe('turn_input handoff and resolved judgment line', () => {
             stop_hook_active: false, last_assistant_message: 'この修正を進めてもよいですか？'
         }, { env });
         expect(blocked.output).toMatchObject({ decision: 'block' });
+        expect(blocked.output.reason).toContain('TurnContractが安全な作業継続を許可し');
+        expect(blocked.output.reason).toContain('別tool callで同じ対象をcanonical readback');
+        expect(blocked.output.reason).toContain('brainbase_judgment_value_proof_recordを1回実行');
+        expect(blocked.output.reason).toContain('brainbase_judgment_state_recordを最後のtool callとして実行');
         expect(blocked.continuation).toMatchObject({
             observed_interruption_candidate: {
                 resolution: 'continued_without_human',
