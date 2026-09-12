@@ -189,8 +189,8 @@ describe('Judgment Resolver Host value proof integration', () => {
         threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
         value: {
           type: 'commandExecution', id: 'desktop-readback', status: 'completed', exit_code: 0,
-          cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' -- ${artifact}`],
-          stdout: 'new\n', parsed_cmd: [{ type: 'unknown', cmd: `sed -n '1p' -- ${artifact}` }],
+          cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' ${artifact}`],
+          stdout: 'new\n', parsed_cmd: [{ type: 'read', cmd: `sed -n '1p' ${artifact}`, path: artifact }],
         },
       },
     ]);
