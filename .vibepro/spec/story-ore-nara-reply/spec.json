@@ -34,6 +34,20 @@
       "verifiable_by": {
         "test_pattern": [{ "file_glob": "tests/unit/judgment-autonomy.test.js", "must_cover": "human_required" }]
       }
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Quoted examples, fenced code, and non-terminal test instructions are not treated as owner-directed interruption questions.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-001" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-ore-nara-reply.md", "section": "Boundary" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "requestsUserInput" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host-stop-decision.test.js", "case": "説明中の入力手順と引用質問を本人への確認として扱わない" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host-stop-decision.test.js", "must_cover": "引用質問" }]
+      }
     }
   ]
 }

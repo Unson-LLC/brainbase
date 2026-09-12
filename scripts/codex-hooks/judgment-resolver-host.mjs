@@ -3072,9 +3072,22 @@ function parseStructuredStopState(answer) {
 
 function requestsUserInput(body) {
     if (typeof body !== 'string' || !body.trim()) return false;
-    const relevant = body.split('\n').map((line) => line.trim()).filter(Boolean)
+    let fenced = false;
+    const visibleLines = [];
+    for (const rawLine of body.split('\n')) {
+        const line = rawLine.trim();
+        if (/^```/u.test(line)) {
+            fenced = !fenced;
+            continue;
+        }
+        if (fenced || /^>/u.test(line)) continue;
+        visibleLines.push(line);
+    }
+    const relevant = visibleLines.filter(Boolean)
         .filter((line) => !/^(?:必要なら|必要であれば|ご希望なら|希望があれば|必要に応じて)/u.test(line));
-    return relevant.some((line) => (
+    const explicitRuntimeQuestion = relevant.find((line) => AUTONOMY_MARKER_PATTERN.test(line));
+    const candidates = explicitRuntimeQuestion ? [explicitRuntimeQuestion] : relevant.slice(-1);
+    return candidates.some((line) => (
         /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
         || /(?:か、|か，)[^?？]*か[?？]$/u.test(line)
         || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え|確定)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)

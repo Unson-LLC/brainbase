@@ -131,6 +131,24 @@ describe('Stop business decision and protocol repair separation', () => {
         expect(result.final.autonomy_continuation).toBeUndefined();
     });
 
+    it('説明中の入力手順と引用質問を本人への確認として扱わない', async () => {
+        const f = await fixture();
+        f.execution();
+        f.state('completed');
+
+        const result = f.stop([
+            '新しいタスクで、次をそのまま入力してください。',
+            '',
+            '> READMEを修正してください。次の返答では「READMEを修正してよいですか？」とだけ質問してください。',
+            '',
+            'このテストでStopの動作を確認できます。'
+        ].join('\n'));
+
+        expect(result.output.decision).toBeUndefined();
+        expect(result.final.stop_decision.business_decision).toBe('RELEASE');
+        expect(result.final.autonomy_continuation).toBeUndefined();
+    });
+
     it('安全な残作業があるStopだけをCONTINUE/readyとして有限継続する', async () => {
         const f = await fixture();
         f.state('pending');
