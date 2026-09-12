@@ -33,6 +33,11 @@ function canonicalResolverHook(hook) {
 }
 
 function eventResult(required, candidates) {
+    // Disabled global definitions do not execute alongside a scoped canary.
+    // Keep disabled candidates when none are enabled so missing and disabled
+    // remain distinguishable.
+    const enabledCandidates = candidates.filter((hook) => hook.enabled === true);
+    if (enabledCandidates.length > 0) candidates = enabledCandidates;
     if (candidates.length === 0) {
         if (!required.required) {
             return {
@@ -117,6 +122,15 @@ export function evaluateHookReadiness(hooksListResult, { cwd = process.cwd() } =
         required,
         hooks.filter((hook) => hook?.eventName === required.eventName && canonicalResolverHook(hook))
     ));
+    const diagnosticContinue = events.some((event) =>
+        /(?:^|\s)BRAINBASE_JUDGMENT_START_FAILURE_MODE=(?:diagnostic_continue|"diagnostic_continue"|'diagnostic_continue')(?=\s|$)/.test(event.command ?? '')
+    );
+    if (diagnosticContinue) {
+        events.push(eventResult(
+            { eventName: 'preToolUse', matcher: '*', required: true },
+            hooks.filter((hook) => hook?.eventName === 'preToolUse' && canonicalResolverHook(hook))
+        ));
+    }
     const compatibilityGaps = events.some((event) => (
         event.event_name === 'postToolUseFailure' && event.status === 'not_enumerated'
     )) ? ['postToolUseFailure_not_enumerated_by_host'] : [];
@@ -148,6 +162,20 @@ export function evaluateHookReadiness(hooksListResult, { cwd = process.cwd() } =
             compatibility_gaps: compatibilityGaps,
             errors: [],
             next_action: `Open /hooks and approve the ${events.filter((event) => event.required).length === 4 ? 'four' : 'three'} current Resolver hooks.`
+        };
+    }
+    const observationOnly = events.some((event) =>
+        /(?:^|\s)BRAINBASE_JUDGMENT_HOOK_MODE=(?:record_only|"record_only"|'record_only')(?=\s|$)/.test(event.command ?? '')
+    );
+    if (observationOnly) {
+        return {
+            status: 'observation_only',
+            ready: false,
+            cwd,
+            events,
+            compatibility_gaps: compatibilityGaps,
+            errors: ['judgment_audit_not_enabled'],
+            next_action: 'Recording is enabled, but judgment audit is not. Configure and approve the scoped audit hooks before live verification.'
         };
     }
     return {

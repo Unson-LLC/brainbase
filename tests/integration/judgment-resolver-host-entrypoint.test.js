@@ -50,6 +50,13 @@ function temporaryDirectory() {
     return path;
 }
 
+function nodeUnavailablePath() {
+    const bin = join(temporaryDirectory(), 'bin');
+    mkdirSync(bin);
+    symlinkSync('/usr/bin/dirname', join(bin, 'dirname'));
+    return bin;
+}
+
 function run(command, args, { env, input, timeoutMs = 10000 } = {}) {
     return new Promise((resolve, reject) => {
         const child = spawn(command, args, { cwd: REPO_ROOT, env });
@@ -87,6 +94,108 @@ afterEach(async () => {
 });
 
 describe('Codex Judgment Resolver Host process entrypoint', () => {
+    it('node不在でも生stderrを出さず、グローバル既定どおりfail-closed診断を非zeroで返す', async () => {
+        const root = temporaryDirectory();
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const prompt = 'entrypoint node missing secret must not leak';
+        const result = await run('/bin/bash', [wrapper], {
+            env: {
+                ...process.env,
+                PATH: nodeUnavailablePath(),
+                BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+            },
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit',
+                session_id: 'session-entrypoint-node-missing',
+                turn_id: 'turn-entrypoint-node-missing',
+                cwd: REPO_ROOT,
+                prompt
+            })
+        });
+
+        expect(result.code).not.toBe(0);
+        expect(result.signal).toBeNull();
+        expect(result.stderr).toBe('');
+        const output = JSON.parse(result.stdout);
+        expect(output).toMatchObject({
+            continue: false,
+            suppressOutput: false,
+            stopReason: expect.stringContaining('judgment_entrypoint_runtime_unavailable')
+        });
+        expect(`${result.stdout}\n${result.stderr}`).not.toContain(prompt);
+        expect(`${result.stdout}\n${result.stderr}`).not.toContain('command not found');
+    });
+
+    it('Hostの静的import失敗でもdiagnostic_continueを継続許可へ昇格せず、生stderrを出さない', async () => {
+        const root = temporaryDirectory();
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const importFailure = join(root, 'host-import-failure.mjs');
+        const secret = 'host import secret must not leak';
+        writeFileSync(importFailure, `throw new Error(${JSON.stringify(secret)});\n`);
+        const prompt = 'entrypoint import failure prompt must not leak';
+        const result = await run('/bin/bash', [wrapper], {
+            env: {
+                ...process.env,
+                PATH: `${join(process.execPath, '..')}:/usr/bin:/bin`,
+                NODE_OPTIONS: `--import=${importFailure}`,
+                BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
+                BRAINBASE_JUDGMENT_CANARY_CWD: REPO_ROOT,
+                BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+            },
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit',
+                session_id: 'session-entrypoint-import-failure',
+                turn_id: 'turn-entrypoint-import-failure',
+                cwd: REPO_ROOT,
+                prompt
+            })
+        });
+
+        expect(result.code).not.toBe(0);
+        expect(result.signal).toBeNull();
+        expect(result.stderr).toBe('');
+        const output = JSON.parse(result.stdout);
+        expect(output).toMatchObject({
+            continue: false,
+            suppressOutput: false,
+            stopReason: expect.stringContaining('judgment_entrypoint_runtime_unavailable')
+        });
+        const combined = `${result.stdout}\n${result.stderr}`;
+        expect(combined).not.toContain(prompt);
+        expect(combined).not.toContain(secret);
+        expect(combined).not.toContain(importFailure);
+        expect(combined).not.toContain('Error:');
+    });
+
+    it('record_onlyのNode不在は空JSONと安全stderrで観測契約を維持し、会話を止めない', async () => {
+        const root = temporaryDirectory();
+        const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
+        const prompt = 'record-only node missing secret must not leak';
+        const result = await run('/bin/bash', [wrapper], {
+            env: {
+                ...process.env,
+                PATH: nodeUnavailablePath(),
+                BRAINBASE_JUDGMENT_HOOK_MODE: 'record_only',
+                BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal')
+            },
+            input: JSON.stringify({
+                hook_event_name: 'UserPromptSubmit',
+                session_id: 'session-entrypoint-record-only-node-missing',
+                turn_id: 'turn-entrypoint-record-only-node-missing',
+                cwd: REPO_ROOT,
+                prompt
+            })
+        });
+
+        expect(result).toMatchObject({ code: 0, signal: null });
+        expect(JSON.parse(result.stdout)).toEqual({});
+        expect(result.stderr).toContain('"mode":"record_only"');
+        expect(result.stderr).toContain('"reason":"entrypoint_runtime_unavailable"');
+        expect(`${result.stdout}\n${result.stderr}`).not.toContain(prompt);
+        expect(`${result.stdout}\n${result.stderr}`).not.toContain('command not found');
+        expect(existsSync(join(root, 'journal'))).toBe(false);
+    });
+
     it('symlink経由でepisode開始・複数Brainbase参照・Stop確定を1つのturnへ束縛し、Knowledge Resolverの採用・除外理由をsystemMessageへ返す', async () => {
         const root = temporaryDirectory();
         const repositoryLink = join(root, 'code', 'brainbase');
@@ -598,7 +707,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const env = { ...process.env, BRAINBASE_JUDGMENT_JOURNAL_DIR: journal };
         const orphanIdentity = { session_id: 'session-orphan-stop', turn_id: 'turn-orphan-stop' };
         const originalBody = '長時間taskの作業結果';
-        const warning = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
+        const warning = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。';
 
         const orphanFirst = await run('bash', [wrapper], {
             env,
@@ -615,6 +724,9 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(orphanFirst.stdout).reason).toContain(warning);
         expect(JSON.parse(orphanFirst.stdout).reason).toContain('元の回答本文を削除・要約・置換せず');
         expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('新しいCodex task');
+        expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('新しいtask');
+        expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('新規task');
+        expect(JSON.parse(orphanFirst.stdout).reason).not.toContain('Hook操作');
 
         const orphanDirectory = join(journal, hash(orphanIdentity.session_id));
         const diagnosticPath = join(orphanDirectory, `${hash(orphanIdentity.turn_id)}.audit-failure.json`);
@@ -817,7 +929,8 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(invalidActive.code).not.toBe(0);
         expect(invalidActive.stdout).toBe('');
         expect(invalidActive.stderr).toContain('judgment_episode_identity_missing');
-        expect(invalidActive.stderr).toContain('Settings → Hooks');
+        expect(invalidActive.stderr).toContain('原因と必要な復旧操作は未確認');
+        expect(invalidActive.stderr).not.toContain('Settings → Hooks');
 
         const activeFirstIdentity = { session_id: 'session-orphan-active-first', turn_id: 'turn-orphan-active-first' };
         const activeFirst = await run('bash', [wrapper], {
@@ -911,7 +1024,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(readFileSync(finalPath, 'utf8')).toBe(finalBefore);
     }, 20_000);
 
-    it('失敗したrequired routeは有限な差し戻し後も監査縮退として残る', async () => {
+    it('失敗したrequired routeを重複実行せずowner監査修復後に監査縮退で確定する', async () => {
         const root = temporaryDirectory();
         const journal = join(root, 'journal');
         const wrapper = join(REPO_ROOT, 'scripts', 'codex-hooks', 'judgment-resolver-entry.sh');
@@ -977,7 +1090,12 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(JSON.parse(repairedStop.stdout).decision).toBeUndefined();
         const finalPath = join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.final.json`);
         expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
-            completion_status: 'audit_degraded', event_count: 1, qualifying_event_count: 0
+            completion_status: 'audit_degraded',
+            degradation_reason: 'knowledge.resolve',
+            missing_capabilities: ['knowledge.resolve'],
+            event_count: 1,
+            qualifying_event_count: 0,
+            owner_audit_complete: true
         });
     }, 20_000);
 

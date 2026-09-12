@@ -141,7 +141,7 @@
         ],
         "test_refs": [
           {
-            "file": "mcp/brainbase/tests/tools/get-entity-retrieval.test.ts"
+            "file": "mcp/brainbase/tests/tools/graph-retrieval.test.ts"
           }
         ]
       }
@@ -173,12 +173,36 @@
     {
       "id": "INV-8",
       "type": "invariant",
-      "statement": "根拠取得のためのStop差し戻し後は、実取得後の最新監査と回答本文へ更新する。監査形式だけの修復では本文保護を維持する。",
+      "statement": "コンテキスト圧縮で完全一致のturn_contextが再掲されても子タスクを拒否せず、不一致は拒否する。",
       "origin": {
         "story_refs": [
           {
             "kind": "acceptance_criteria",
             "index": 7,
+            "text_snippet": "コンテキスト圧縮で完全一致のturn_contextが再掲されても子タスクを拒否せず、不一致は拒否する。"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/codex-hooks/judgment-resolver-host.mjs"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/unit/judgment-resolver-host-subagent.test.js"
+          }
+        ]
+      }
+    },
+    {
+      "id": "INV-9",
+      "type": "invariant",
+      "statement": "根拠取得のためのStop差し戻し後は、実取得後の最新監査と回答本文へ更新する。監査形式だけの修復では本文保護を維持する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 8,
             "text_snippet": "根拠取得のためのStop差し戻し後は、実取得後の最新監査と回答本文へ更新する。監査形式だけの修復では本文保護を維持する。"
           }
         ],

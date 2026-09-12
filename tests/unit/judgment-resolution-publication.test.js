@@ -1002,7 +1002,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(host).toContain('ORPHAN_AUDIT_WARNING');
         expect(host).toContain("completion_status: 'audit_degraded'");
         expect(host).not.toContain('新しいCodex taskを作り、同じ依頼を送ってください');
-        expect(host).toContain('Settings → Hooks');
+        expect(host).toContain('原因と必要な復旧操作は未確認');
+        expect(host).not.toContain('Settings → Hooks');
         expect(host).toContain("completion_status: 'complete'");
         expect(host).toContain('autonomy.continuation');
         expect(host).toContain('there is no one-call-per-turn limit');

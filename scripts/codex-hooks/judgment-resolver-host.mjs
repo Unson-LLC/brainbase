@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { execFileSync } from 'node:child_process';
 import { evaluateKnowledgeEvidence, normalizeEvidenceAssessment, normalizeRetrievalEvidence } from './knowledge-evidence.mjs';
 import { createHash, randomUUID } from 'node:crypto';
 import {
@@ -83,7 +84,31 @@ const OUTCOME_CONTINUATION_PROGRESS_LINE = '🔁 未完了と判定しました�
 const OUTCOME_CONTINUATION_COMPLETE_LINE = '🔁 実行継続: 安全な残作業の再開要求を記録';
 const MAX_CONTINUATION_ATTEMPTS = 3;
 const STOP_REPAIR_COMPLETE_LINE = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
-const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。';
+const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。';
+const START_FAILURE_WARNING = '⚠️ Brainbase監査未完了: 開始処理を確認できないため、このturnは復旧診断中です。';
+const failureStages = new WeakMap();
+const SAFE_FAILURE_REASONS = new Set([
+    'judgment_host_transport_failed', 'judgment_host_response_invalid', 'judgment_host_invalid_response',
+    'judgment_host_bridge_failed', 'brainbase_api_unavailable', 'brainbase_api_error',
+    'judgment_receipt_turn_mismatch', 'judgment_receipt_request_mismatch',
+    'judgment_receipt_context_mismatch', 'judgment_receipt_binding_unmanaged',
+    'judgment_receipt_active_nodes_missing', 'judgment_receipt_autonomy_invalid',
+    'judgment_receipt_autonomy_mismatch', 'judgment_episode_start_timeout',
+    'judgment_episode_transition_failed', 'judgment_episode_existing_read_failed',
+    'judgment_episode_request_build_failed', 'judgment_episode_route_resolve_failed',
+    'judgment_episode_surface_detect_failed', 'judgment_episode_autonomy_detect_failed',
+    'judgment_episode_audit_build_failed', 'judgment_episode_persist_failed',
+    'judgment_turn_input_persist_failed', 'judgment_episode_start_conflict',
+    'judgment_host_payload_too_large', 'judgment_orphan_tool_event_start_conflict',
+    'judgment_orphan_audit_start_conflict',
+    'judgment_audit_degraded_start_conflict'
+]);
+const SAFE_ERROR_CODES = new Set([
+    'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND', 'EAI_AGAIN',
+    'EACCES', 'EPERM', 'ENOSPC', 'EROFS', 'ENOTDIR', 'EISDIR', 'ENOENT', 'EEXIST',
+    'SQLITE_BUSY', 'SQLITE_LOCKED', 'SQLITE_CANTOPEN', 'SQLITE_READONLY',
+    'ERR_SQLITE_ERROR', 'ERR_DLOPEN_FAILED', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET'
+]);
 const ORPHAN_TOOL_EVENT_WARNING = '⚠️ Brainbase監査未完了: Brainbase tool eventを開始episodeへ結合できませんでした。';
 const CAPABILITY_ACTION_CONTRACTS = Object.freeze({
     'knowledge.resolve': Object.freeze({
@@ -303,6 +328,8 @@ function readCanonicalTranscript(payload, env) {
     const sessionId = typeof payload.session_id === 'string' ? payload.session_id : '';
     const messages = [];
     const delegations = [];
+    const automationInvocations = [];
+    const invalidAutomationTurns = new Set();
     const invalidDelegationTurns = new Set();
     const parsedEvents = [];
     const turnResolutionAttempts = new Map();
@@ -342,6 +369,11 @@ function readCanonicalTranscript(payload, env) {
     if (!sessionMatched || mixedSessionComponents) {
         return { messages: [], delegations: [], complete: false };
     }
+    const automationSession = parsedEvents.some(({ envelope, eventPayload }) => {
+        if (envelope.type !== 'session_meta' || eventPayload.thread_source !== 'automation') return false;
+        const ids = [eventPayload.id, eventPayload.session_id].filter((value) => typeof value === 'string');
+        return ids.some((id) => sessionAliases.has(id));
+    });
     let activeSessionMatched = false;
     let sequence = 0;
     for (const { envelope, eventPayload } of parsedEvents) {
@@ -367,6 +399,17 @@ function readCanonicalTranscript(payload, env) {
                 ?? record(eventPayload.metadata);
             const turnId = typeof metadata?.turn_id === 'string' ? metadata.turn_id : null;
             const output = typeof eventPayload.output === 'string' ? eventPayload.output.trim() : '';
+            const isAutomationTool = eventPayload.namespace === 'codex_app'
+                && eventPayload.name === 'automation_update';
+            if (isAutomationTool) {
+                const validEnvelope = /^Automation: .+\nAutomation ID: .+\nAutomation memory: .+\nLast run: .+\n\n[^\s][\s\S]*$/u.test(output);
+                if (automationSession && turnId && validEnvelope) {
+                    automationInvocations.push({ turn_id: turnId, prompt: output });
+                } else if (turnId) {
+                    invalidAutomationTurns.add(turnId);
+                }
+                continue;
+            }
             const allowedName = ['create_thread', 'send_message_to_thread'].includes(eventPayload.name);
             const inputTagCount = (output.match(/<input>/gu) ?? []).length;
             const closingInputTagCount = (output.match(/<\/input>/gu) ?? []).length;
@@ -421,6 +464,8 @@ function readCanonicalTranscript(payload, env) {
     return {
         messages,
         delegations,
+        automation_invocations: automationInvocations,
+        invalid_automation_turns: [...invalidAutomationTurns],
         invalid_delegation_turns: [...invalidDelegationTurns],
         turn_resolution_surface: turnResolutionSurface,
         injected_user_turns: [...injectedUserTurns],
@@ -553,6 +598,15 @@ function delegatedPromptForTurn(payload, env) {
             : `【追加指示 ${index + 1}/${exact.length}】`;
         return `${marker}\n${delegation.prompt}`;
     }).join('\n\n');
+}
+
+function automationPromptForTurn(payload, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return null;
+    const transcript = readCanonicalTranscript(payload, env);
+    if (!transcript.complete || transcript.invalid_automation_turns?.includes(identity.turnId)) return null;
+    const exact = transcript.automation_invocations?.filter((item) => item.turn_id === identity.turnId) ?? [];
+    return exact.length === 1 ? exact[0].prompt : null;
 }
 
 function findRepoRoot(start) {
@@ -1141,14 +1195,27 @@ async function fetchAttempt(args, { env, fetchImpl, resolveBeforeModel }) {
     if (resolveBeforeModel !== undefined) {
         return resolveInlineAttempt(args, { env, resolveBeforeModel });
     }
+    const hostUrl = env.BRAINBASE_JUDGMENT_HOST_URL || DEFAULT_HOST_URL;
+    const token = env.BRAINBASE_JUDGMENT_HOST_BEARER_TOKEN
+        || (hostUrl === DEFAULT_HOST_URL ? env.MCP_HTTP_BEARER_TOKEN : null);
+    const headers = { 'content-type': 'application/json' };
+    if (token) {
+        const url = new URL(hostUrl);
+        const loopback = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
+        if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+            throw new Error('judgment_host_auth_transport_unsafe');
+        }
+        headers.authorization = `Bearer ${token}`;
+    }
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Number(env.BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS || 15000));
     try {
         let response;
         try {
-            response = await fetchImpl(env.BRAINBASE_JUDGMENT_HOST_URL || DEFAULT_HOST_URL, {
+            response = await fetchImpl(hostUrl, {
                 method: 'POST',
-                headers: { 'content-type': 'application/json' },
+                headers,
+                redirect: 'error',
                 body: JSON.stringify(args),
                 signal: controller.signal
             });
@@ -1157,10 +1224,18 @@ async function fetchAttempt(args, { env, fetchImpl, resolveBeforeModel }) {
             error.transient = true;
             throw error;
         }
+        const responseError = (reason) => Object.assign(new Error(reason), { httpStatus: response.status });
+        // Authentication failures stay identifiable even if a proxy returns HTML.
+        if (response.status === 401) throw responseError('judgment_host_unauthorized');
+        if (response.status === 403) throw responseError('judgment_host_forbidden');
         let payload;
-        try { payload = await response.json(); } catch { throw new Error('judgment_host_transport_failed'); }
-        if (response.ok && payload.management_status === 'managed') return payload.receipt;
-        const error = new Error(typeof payload.reason === 'string' ? payload.reason : `judgment_host_http_${response.status}`);
+        try { payload = await response.json(); } catch {
+            throw responseError('judgment_host_response_invalid');
+        }
+        if (response.ok && payload?.management_status === 'managed') return payload.receipt;
+        const reason = typeof payload?.reason === 'string' && /^(?:judgment_|brainbase_)[a-z0-9_]{1,100}$/.test(payload.reason)
+            ? payload.reason : 'judgment_host_response_invalid';
+        const error = responseError(reason);
         error.transient = [429, 502, 503, 504].includes(response.status) && TRANSIENT_REASONS.has(error.message);
         throw error;
     } finally {
@@ -1191,8 +1266,10 @@ export async function resolveAndAdopt(args, dependencies = {}) {
 
 function withJudgmentStage(reason, callback) {
     const wrap = (error) => {
-        if (error instanceof Error && /^judgment_[a-z0-9_]{1,80}$/u.test(error.message)) throw error;
-        throw new Error(reason, { cause: error });
+        const wrapped = error instanceof Error && /^judgment_[a-z0-9_]{1,80}$/u.test(error.message)
+            ? error : new Error(reason, { cause: error });
+        if (!failureStages.has(wrapped)) failureStages.set(wrapped, reason);
+        throw wrapped;
     };
     try {
         const result = callback();
@@ -1222,7 +1299,8 @@ function verifyEpisode(entry) {
     const legacyLifecycle = origin === undefined && application === undefined;
     const validLifecycle = (origin === 'user_prompt_submit' && application === 'pre_generation')
         || (origin === 'stop_delegation_recovery' && application === 'post_generation_recovery')
-        || (origin === 'pre_tool_delegation_recovery' && application === 'pre_tool_execution');
+        || (origin === 'pre_tool_delegation_recovery' && application === 'pre_tool_execution')
+        || (origin === 'pre_tool_automation_recovery' && application === 'pre_tool_execution');
     if (!legacyLifecycle && !validLifecycle) throw new Error('judgment_episode_lifecycle_invalid');
     if (entry.pre_episode_audit_gap !== undefined) {
         if (origin !== 'stop_delegation_recovery' || application !== 'post_generation_recovery') {
@@ -1400,19 +1478,25 @@ function persistTurnInput(payload, episode, env) {
     return `${identity.sessionRef}/${paths.turnRef}`;
 }
 
-async function bootstrapDelegatedEpisodeAtStop(payload, dependencies) {
+async function bootstrapDelegatedEpisode(payload, dependencies, beforeTool = false) {
     const env = dependencies.env ?? process.env;
     const existing = existingEpisode(payload, env);
     if (existing) {
         withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, existing, env));
         return null;
     }
-    const prompt = delegatedPromptForTurn(payload, env);
+    const delegatedPrompt = delegatedPromptForTurn(payload, env);
+    const automationPrompt = beforeTool ? automationPromptForTurn(payload, env) : null;
+    if (delegatedPrompt && automationPrompt) return null;
+    const prompt = delegatedPrompt ?? automationPrompt;
     if (!prompt) return null;
+    const automationRecovery = Boolean(automationPrompt);
     const episode = await startEpisode({ ...payload, prompt }, {
         ...dependencies,
-        episodeOrigin: 'stop_delegation_recovery',
-        routeApplication: 'post_generation_recovery'
+        episodeOrigin: beforeTool
+            ? automationRecovery ? 'pre_tool_automation_recovery' : 'pre_tool_delegation_recovery'
+            : 'stop_delegation_recovery',
+        routeApplication: beforeTool ? 'pre_tool_execution' : 'post_generation_recovery'
     });
     await dependencies.onEpisodeStarted?.(episode);
     withJudgmentStage('judgment_turn_input_persist_failed', () => persistTurnInput(payload, episode, env));
@@ -4635,18 +4719,314 @@ function blockedOutput(reason) {
     };
 }
 
+function sameRepositoryScope(configuredCwd, cwd) {
+    if (samePath(configuredCwd, cwd)) return true;
+    // Git environment overrides must not make an unrelated directory appear local.
+    const gitEnv = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_')));
+    const commonDirectory = (directory) => realpathSync(execFileSync('git', [
+        '-C', directory, 'rev-parse', '--path-format=absolute', '--git-common-dir'
+    ], { env: gitEnv, encoding: 'utf8', timeout: 1000, stdio: ['ignore', 'pipe', 'ignore'] }).trim());
+    try {
+        return commonDirectory(configuredCwd) === commonDirectory(cwd);
+    } catch {
+        return false;
+    }
+}
+
+function diagnosticContinueEnabled(env, payload) {
+    return env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue'
+        && typeof env.BRAINBASE_JUDGMENT_CANARY_CWD === 'string'
+        && isAbsolute(env.BRAINBASE_JUDGMENT_CANARY_CWD)
+        && typeof payload?.cwd === 'string' && isAbsolute(payload.cwd)
+        && sameRepositoryScope(env.BRAINBASE_JUDGMENT_CANARY_CWD, payload.cwd);
+}
+
+function safeFailureReason(error) {
+    return SAFE_FAILURE_REASONS.has(error?.message) ? error.message : 'judgment_start_failure_unknown';
+}
+
+function recordStartFailure(payload, error, startedAt, env) {
+    const identity = payloadIdentity(payload);
+    const chain = [];
+    const visited = new Set();
+    let current = error;
+    while (current && chain.length < 6 && !visited.has(current)) {
+        visited.add(current);
+        chain.push({
+            name: ['Error', 'TypeError', 'SyntaxError', 'RangeError', 'AbortError', 'AggregateError', 'SqliteError'].includes(current.name)
+                ? current.name : 'Error',
+            code: SAFE_ERROR_CODES.has(current.code) ? current.code : 'unknown',
+            reason: safeFailureReason(current),
+            ...(Number.isInteger(current.httpStatus) && current.httpStatus >= 100 && current.httpStatus <= 599
+                ? { http_status: current.httpStatus } : {})
+        });
+        current = current.cause;
+    }
+    if (chain.length === 0) chain.push({ name: 'Error', code: 'unknown', reason: 'judgment_start_failure_unknown' });
+    const diagnostic = {
+        schema_version: 'brainbase-judgment-start-failure-v1',
+        recorded_at: new Date().toISOString(),
+        session_ref: identity?.sessionRef ?? null,
+        turn_ref: identity ? sha256(identity.turnId) : null,
+        failed_stage: failureStages.get(error) ?? 'judgment_episode_start_failed',
+        reason: safeFailureReason(error),
+        error_chain: chain,
+        elapsed_ms: Math.max(0, Date.now() - startedAt),
+        input_shape: {
+            prompt_present: typeof payload?.prompt === 'string',
+            prompt_nonempty: typeof payload?.prompt === 'string' && payload.prompt.trim().length > 0,
+            session_id_present: typeof payload?.session_id === 'string' && payload.session_id.length > 0,
+            turn_id_present: typeof payload?.turn_id === 'string' && payload.turn_id.trim().length > 0,
+            transcript_path_present: typeof payload?.transcript_path === 'string' && payload.transcript_path.length > 0
+        },
+        audit_status: 'incomplete',
+        action_authorized: false
+    };
+    try {
+        if (!identity) throw new Error('judgment_identity_missing');
+        const path = join(journalRoot(env), 'diagnostics', identity.sessionRef, `${sha256(identity.turnId)}.start-failure.json`);
+        // Preserve the first failure. No episode transaction or successful
+        // bootstrap is needed to retain this diagnostic.
+        try { readJson(path); return diagnostic; } catch (readError) {
+            if (readError?.code !== 'ENOENT') throw readError;
+        }
+        createImmutableJson(path, diagnostic, 'judgment_start_diagnostic_conflict');
+    } catch {
+        process.stderr.write(`${JSON.stringify({ ...diagnostic, diagnostic_persisted: false })}\n`);
+    }
+    return diagnostic;
+}
+
+function diagnosticContinueOutput(diagnostic) {
+    const context = [
+        START_FAILURE_WARNING,
+        `失敗段階: ${diagnostic.failed_stage}。理由: ${diagnostic.reason}。`,
+        '権限の追加なし。保存済み診断が検証できる場合だけ、通常の権限・承認境界のまま復旧診断toolを実行できます。',
+        '完全監査・修復完了・作業完了を主張せず、確認済みと未確認を分けて説明してください。',
+        `最終回答の先頭に次の行を1回置いてください: ${START_FAILURE_WARNING}`
+    ].join('\n');
+    return {
+        continue: true,
+        suppressOutput: false,
+        systemMessage: context,
+        hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context }
+    };
+}
+
+function hasVerifiedStartFailureDiagnostic(payload, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return false;
+    const path = join(journalRoot(env), 'diagnostics', identity.sessionRef, `${sha256(identity.turnId)}.start-failure.json`);
+    try {
+        const diagnostic = readJson(path);
+        return diagnostic?.schema_version === 'brainbase-judgment-start-failure-v1'
+            && diagnostic?.audit_status === 'incomplete'
+            && diagnostic?.action_authorized === false
+            && typeof diagnostic?.failed_stage === 'string'
+            && typeof diagnostic?.reason === 'string';
+    } catch {
+        return false;
+    }
+}
+
+function hasStartFailureOrUnreadableDiagnostic(payload, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return false;
+    const path = join(journalRoot(env), 'diagnostics', identity.sessionRef, `${sha256(identity.turnId)}.start-failure.json`);
+    try { readFileSync(path); return true; } catch (error) {
+        return error?.code !== 'ENOENT';
+    }
+}
+
+function hasVerifiedStart(payload, env) {
+    try {
+        const identity = payloadIdentity(payload);
+        if (!identity) return false;
+        if (hasStartFailureOrUnreadableDiagnostic(payload, env)) return false;
+        const episode = existingEpisode(payload, env);
+        // A diagnostic-continue turn may reach PreToolUse after Stop has
+        // recovered a delegated turn that never emitted UserPromptSubmit.
+        // That recovery is safe only when the immutable lifecycle and the
+        // persisted canonical turn input are both verified below. Invalid,
+        // legacy, or partially initialized episodes remain denied.
+        const verifiedLifecycle = episode && (
+            (episode.episode_origin === 'user_prompt_submit'
+                && episode.route_application === 'pre_generation')
+            || (episode.episode_origin === 'stop_delegation_recovery'
+                && episode.route_application === 'post_generation_recovery')
+            || (episode.episode_origin === 'pre_tool_delegation_recovery'
+                && episode.route_application === 'pre_tool_execution')
+            || (episode.episode_origin === 'pre_tool_automation_recovery'
+                && episode.route_application === 'pre_tool_execution')
+        );
+        if (!verifiedLifecycle) return false;
+        const input = readJson(journalPaths(identity.sessionRef, identity.turnId, env).turnInput);
+        return input.conversation_context?.session_ref === identity.sessionRef && input.turn_id === identity.turnId
+            && canonicalJson(input) === canonicalJson(episode.turn_input);
+    } catch { return false; }
+}
+
 function stopFailureMessage(reason) {
     if (reason === 'judgment_episode_not_found') {
         return `${ORPHAN_AUDIT_WARNING}（詳細: ${reason}）`;
     }
-    return `⚠️ Brainbase監査を確定できませんでした。新しいCodex taskで同じ依頼を再送してください。再発する場合は、Settings → HooksでBrainbaseのユーザーHookを信頼し直してください。（詳細: ${reason}）`;
+    return `⚠️ Brainbase監査を確定できませんでした。原因と必要な復旧操作は未確認です。（詳細: ${reason}）`;
+}
+
+// Subagents do not emit UserPromptSubmit. Bind them to an open root contract
+// using Codex-owned transcript metadata, never a tool argument or model claim.
+export function verifiedSubagentParent(payload, env = process.env) {
+    try {
+        if (typeof payload.transcript_path !== 'string') return null;
+        const path = realpathSync(payload.transcript_path);
+        if (!transcriptRoots(env).some((root) => pathInside(path, root))) return null;
+        const entries = readFileSync(path, 'utf8').split('\n').filter((line) => line.trim()).map((line) => JSON.parse(line));
+        const metas = entries.filter((entry) => entry.type === 'session_meta');
+        const meta = metas[0]?.payload;
+        // Full-history forks include the parent's original session metadata.
+        // Only the first entry identifies this child; duplicates/foreign IDs fail.
+        if (!meta || metas.length > 2 || (metas.length === 2
+            && (metas[1].payload?.id !== meta.session_id || metas[1].payload?.id === meta.id))) return null;
+        const source = meta?.source?.subagent?.thread_spawn;
+        if (!source || typeof meta.id !== 'string' || typeof meta.session_id !== 'string'
+            || meta.id === meta.session_id || source.parent_thread_id === meta.id
+            || typeof source.parent_thread_id !== 'string'
+            || source.depth !== 1 || source.parent_thread_id !== meta.session_id
+            || typeof source.agent_path !== 'string' || !/^\/root\/[a-z0-9_]+$/.test(source.agent_path)
+            || ![meta.id, meta.session_id].includes(payload.session_id)) return null;
+        const turns = entries.filter((entry) => entry.type === 'turn_context' && entry.payload?.turn_id === payload.turn_id);
+        // Compaction can repeat the exact same Codex-owned turn context.
+        // Accept identical replay only; any conflicting context still fails closed.
+        if (!turns.length || turns.some((entry) => canonicalJson(entry.payload) !== canonicalJson(turns[0].payload))) return null;
+        const rootTurnId = turns[0].payload.root_turn_id;
+        if (typeof rootTurnId !== 'string' || rootTurnId === payload.turn_id) return null;
+        const delegated = entries.some((entry) => entry.type === 'response_item'
+            && entry.payload?.type === 'agent_message'
+            && entry.payload.author === dirname(source.agent_path)
+            && entry.payload.recipient === source.agent_path
+            && entry.payload.internal_chat_message_metadata_passthrough?.turn_id === payload.turn_id);
+        if (!delegated) return null;
+        const parent = { ...payload, session_id: meta.session_id, turn_id: rootTurnId };
+        if (!hasVerifiedStart(parent, env)) return null;
+        const identity = payloadIdentity(parent);
+        const paths = journalPaths(identity.sessionRef, identity.turnId, env);
+        if (existsSync(paths.final)) return null;
+        const episode = existingEpisode(parent, env);
+        const contract = effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt;
+        if (contract?.status !== 'resolved' || contract.autonomy_decision !== 'continue') return null;
+        if (!sameRepositoryScope(meta.cwd, payload.cwd)) return null;
+        return { parent, childThreadId: meta.id, childTurnId: payload.turn_id };
+    } catch {
+        return null;
+    }
+}
+
+function processSubagentHook(payload, binding, dependencies) {
+    const eventName = payload.hook_event_name ?? payload.hookEventName;
+    const toolName = payload.tool_name ?? payload.toolName ?? '';
+    if (eventName === 'PreToolUse') {
+        // The child cannot reclassify or finalize the parent's judgment episode.
+        const controlTool = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))$/;
+        const input = payload.tool_input;
+        const orchestrationSource = typeof input === 'string' ? input : input?.code ?? '';
+        // Check the literal tool identifier, including bracket access and aliases.
+        // This is a misuse guard, not a sandbox for arbitrary JavaScript.
+        const wrappedControlCall = /brainbase_(resolve_turn|judgment_(audit_read|state_record|value_proof_record))\b/.test(orchestrationSource);
+        if (controlTool.test(toolName) || wrappedControlCall) {
+            return { hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny',
+                permissionDecisionReason: 'この子agentは親の判断契約へ紐付け済みです。判断契約の再分類・監査確定は親が行います。委任された作業を実行し、結果を親へ返してください。' } };
+        }
+        return { hookSpecificOutput: { hookEventName: 'PreToolUse', additionalContext:
+            'Hostが親の有効な判断契約とこの子agentへの委任を確認しました。委任範囲内で作業し、結果を親へ返してください。通常の権限・承認は引き続き必要です。' } };
+    }
+    if (eventName === 'Stop') {
+        // Codex already owns the child's completion notification. A verified
+        // child Stop must not create delegated evidence or fall through to the
+        // parent's independent Stop finalization path.
+        return {};
+    }
+    if (['PostToolUse', 'PostToolUseFailure'].includes(eventName)) {
+        if (!toolName || typeof payload.tool_use_id !== 'string' || !payload.tool_use_id) {
+            throw new Error('judgment_delegated_tool_identity_missing');
+        }
+        // Record provenance as ordinary execution evidence. It cannot satisfy a
+        // parent's required knowledge capability or change its Stop state.
+        recordBrainbaseToolUse({
+            ...binding.parent,
+            transcript_path: undefined,
+            hook_event_name: eventName,
+            tool_name: `delegated.${toolName}`,
+            tool_use_id: `delegated:${binding.childThreadId}:${binding.childTurnId}:${payload.tool_use_id}`,
+            tool_input: { child_thread_id: binding.childThreadId, child_turn_id: binding.childTurnId,
+                original_input_digest: sha256(canonicalJson(payload.tool_input ?? null)) },
+            tool_response: payload.tool_response
+        }, dependencies);
+        return {};
+    }
+    return null;
 }
 
 export async function processHookPayload(payload, dependencies = {}) {
     const eventName = payload?.hook_event_name || payload?.hookEventName;
+    const env = dependencies.env ?? process.env;
+    const binding = diagnosticContinueEnabled(env, payload) ? verifiedSubagentParent(payload, env) : null;
+    if (binding) {
+        const result = processSubagentHook(payload, binding, dependencies);
+        if (result) return result;
+    }
     if (['PreToolUse', 'Stop'].includes(eventName)) {
         // Before audit_read executes and before Stop obtains its transition lock.
         reconcileNativeMcpFailures(payload, dependencies);
+    }
+    if (env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue' && eventName === 'PreToolUse') {
+        const inScope = diagnosticContinueEnabled(env, payload);
+        // A verified start-failure marker is evidence that the Host could not
+        // establish a judgment contract. Do not let the unavailable Host also
+        // prevent its own recovery: return control to the ordinary platform
+        // permission and approval boundary. This grants no action authority.
+        if (inScope && hasVerifiedStartFailureDiagnostic(payload, env)) return {};
+        // A Codex App task may omit UserPromptSubmit. Recover only from the
+        // existing trusted, complete current-turn delegation parser. Never
+        // execute the intercepted tool: first hand the canonical reference to
+        // the model, then resume the normal resolver/Stop contract.
+        try {
+            if (inScope && !hasStartFailureOrUnreadableDiagnostic(payload, env)
+                && !existingEpisode(payload, env)) {
+                const episode = await bootstrapDelegatedEpisode(payload, dependencies, true);
+                if (episode) {
+                    const turnRef = persistTurnInput(payload, episode, env);
+                    const context = successOutput(
+                        episode.turn_input, episode.initial_route_receipt, episode.owner_audit,
+                        episodeAuditContract(episode), env, episode.host_surface ?? null,
+                        turnRef, episode.host_autonomy ?? null
+                    ).hookSpecificOutput.additionalContext.replace(
+                        'before model generation', 'before the first tool execution from verified Codex App delegation'
+                    );
+                    return { hookSpecificOutput: {
+                        hookEventName: 'PreToolUse', permissionDecision: 'deny',
+                        permissionDecisionReason: context
+                    } };
+                }
+            }
+        } catch {
+            // A corrupt existing journal or failed bootstrap is never permission.
+            return { hookSpecificOutput: { hookEventName: 'PreToolUse',
+                permissionDecision: 'deny', permissionDecisionReason: START_FAILURE_WARNING } };
+        }
+        return inScope && hasVerifiedStart(payload, env) ? {} : {
+            hookSpecificOutput: {
+                hookEventName: 'PreToolUse',
+                permissionDecision: 'deny',
+                permissionDecisionReason: inScope ? START_FAILURE_WARNING
+                    : '⚠️ Brainbase監査未完了: この作業場所は設定されたリポジトリの対象外です。'
+            }
+        };
+    }
+    if (diagnosticContinueEnabled(env, payload) && eventName === 'Stop'
+        && hasStartFailureOrUnreadableDiagnostic(payload, env)) {
+        // Do not bootstrap a post-generation episode or repeatedly regenerate
+        // an explanation-only answer. This is not a complete final receipt.
+        return { systemMessage: START_FAILURE_WARNING };
     }
     if (eventName === 'UserPromptSubmit') {
         const episode = await startEpisode(payload, dependencies);
@@ -4701,7 +5081,7 @@ export async function processHookPayload(payload, dependencies = {}) {
                 : {};
     }
     if (eventName === 'Stop') {
-        await bootstrapDelegatedEpisodeAtStop(payload, dependencies);
+        await bootstrapDelegatedEpisode(payload, dependencies);
         const autonomyOutput = await evaluateAutonomyStop(payload, dependencies);
         if (autonomyOutput) return autonomyOutput;
 
@@ -4729,6 +5109,7 @@ async function main() {
         }
         return;
     }
+    const startedAt = Date.now();
     const input = readFileSync(0, 'utf8');
     let payload;
     try { payload = JSON.parse(input || '{}'); } catch { process.stdout.write(`${JSON.stringify(blockedOutput('hook_payload_invalid'))}\n`); return; }
@@ -4738,7 +5119,9 @@ async function main() {
     } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
         if (eventName === 'UserPromptSubmit') {
-            process.stdout.write(`${JSON.stringify(blockedOutput(reason))}\n`);
+            const diagnostic = recordStartFailure(payload, error, startedAt, process.env);
+            process.stdout.write(`${JSON.stringify(diagnosticContinueEnabled(process.env, payload)
+                ? diagnosticContinueOutput(diagnostic) : blockedOutput(diagnostic.reason))}\n`);
         } else if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') {
             process.stderr.write(`⚠️ Brainbase監査記録に失敗: ${reason}\n`);
             process.exitCode = 1;

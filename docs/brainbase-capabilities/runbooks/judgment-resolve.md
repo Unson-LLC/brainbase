@@ -1,6 +1,6 @@
 # Judgment episode runbook
 
-Judgment Resolver is a Host lifecycle boundary. Every managed Codex turn has one judgment episode because choosing how to answer is itself a judgment. `UserPromptSubmit` opens an unresolved episode and preserves canonical `conversation_context`; it does not classify meaning. The Codex model authors a semantic model interpretation and calls `brainbase_resolve_turn` before other work. A Codex App delegated turn whose `UserPromptSubmit` did not fire may recover only at the first Stop and is explicitly marked as post-generation recovery.
+Judgment Resolver is a Host lifecycle boundary. Every managed Codex turn has one judgment episode because choosing how to answer is itself a judgment. `UserPromptSubmit` opens an unresolved episode and preserves canonical `conversation_context`; it does not classify meaning. The Codex model authors a semantic model interpretation and calls `brainbase_resolve_turn` before other work. A Codex App delegated turn whose `UserPromptSubmit` did not fire may recover only at the first Stop and is explicitly marked as post-generation recovery. A Codex App automation may instead recover before execution from one trusted same-session, same-turn `automation_update` transcript item; its first tool is denied until Resolver receives the returned turn_ref.
 
 The preferred Resolver call is exactly `{ turn_ref, model_interpretation }`. `turn_ref` is the Host-issued `<sessionRef>/<turnRef>` pointer to the journal-saved input. `model_interpretation` must contain exactly `intent`, `domains`, `action_kind`, `risk`, `confidence`, and `signals`; the Codex model supplies these semantic fields. The Resolver validates them, applies manifest-owned policy and monotonic safety floors, and returns the immutable TurnContract. Raw `turn_input`, absolute journal paths, and extra interpretation fields are not part of the preferred model path; legacy `turn_input` forms remain migration compatibility only.
 
@@ -146,6 +146,16 @@ Initial and final receipts constrain reasoning and provide audit evidence. They 
 
 A `continue` receipt that ends in an unapproved decision request returns `decision:block` so the model continues. An `escalate` receipt without the exact reason marker and necessary input request is also blocked.
 
+## Host HTTP認証の確認
+
+`/health/version` の成功だけでは、`/host/judgment/resolve` の認証成功を確認できません。判断用APIのHTTP statusと応答を別に確認します。
+
+- 既定の `http://127.0.0.1:39002/host/judgment/resolve` には、Hookプロセスへ渡された `MCP_HTTP_BEARER_TOKEN` を利用します。
+- 明示した `BRAINBASE_JUDGMENT_HOST_BEARER_TOKEN` があれば優先します。接続先を変更した場合、既定のMCPトークンは転送しません。明示トークンの送信先はHTTPSまたはloopback HTTPに限定し、リダイレクトは追跡しません。
+- HTTP 401は `judgment_host_unauthorized`、403は `judgment_host_forbidden`。JSONでない応答でも認証拒否として扱い、再試行しません。JSON解析失敗は `judgment_host_response_invalid` とし、例外の `httpStatus` にstatusを保持します。
+- トークンをhooks.json、コマンド引数、ログへ直接書きません。既存の認証情報注入経路を使い、署名用 `BRAINBASE_JUDGMENT_BINDING_SECRET` をHookへ渡しません。
+- HTTP経路の検証と、CodexによるHook有効化・新規タスクでの実行検証は別です。
+
 ## Runtime and deployment
 
 Register the canonical deployed wrapper for all four user-level hooks in `~/.codex/hooks.json`:
@@ -162,6 +172,14 @@ Register the canonical deployed wrapper for all four user-level hooks in `~/.cod
 ```
 
 The persistent Brainbase Host bridge defaults to `http://127.0.0.1:39002/host/judgment/resolve` and remains loopback-only. The bridge signer and Resolver API/server verifier hold the two runtime copies of the shared `BRAINBASE_JUDGMENT_BINDING_SECRET`; the Codex lifecycle Host adapter and any future Claude Code adapter must not hold or receive either copy. Never put the secret in model context, command arguments, logs, or receipts.
+
+### Scoped delegated-task startup
+
+Story: a task created from Codex App must obtain its judgment contract before executing work, without first emitting a failed final answer to trigger Stop recovery.
+
+In the `diagnostic_continue` canary, the first `PreToolUse` can open a delegated episode using the existing trusted, complete current-turn transcript parser. It denies that intercepted call and supplies the Host-issued `turn_ref`; the model then calls `brainbase_resolve_turn` and continues under the normal contract. No tool-name substring or model-supplied request can authorize this bootstrap. Failed start diagnostics, corrupt journals, foreign scopes and invalid delegation evidence remain denied. Existing orphan tool events cannot be absorbed into this path.
+
+Acceptance: the fresh task records `episode_origin=pre_tool_delegation_recovery` and `route_application=pre_tool_execution`, reaches Resolver without an initial Stop, and ends with the exact final answer digest and `owner_audit_source=assistant_answer`. This proves recovery before tool execution, not `UserPromptSubmit` or pre-generation operation. The parent reads the final receipt after the child completes. Use the checker from the deployed hook checkout: older checkers count disabled global definitions as duplicates.
 
 ### Codex Hook readiness and trust
 
