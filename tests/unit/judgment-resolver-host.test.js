@@ -3595,9 +3595,9 @@ describe('Codex Judgment Resolver Host', () => {
             {
                 threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
                 value: {
-                    type: 'commandExecution', id: 'desktop-readback', status: 'completed', exitCode: 0, cwd: root,
-                    command: `sed -n '1p' ${artifact}`,
-                    commandActions: [{ type: 'read', path: artifact }]
+                    type: 'commandExecution', id: 'desktop-readback', status: 'completed', exit_code: 0,
+                    cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' -- ${artifact}`],
+                    stdout: 'new\n', parsed_cmd: [{ type: 'unknown', cmd: `sed -n '1p' -- ${artifact}` }]
                 }
             }
         ]);
@@ -3711,6 +3711,21 @@ describe('Codex Judgment Resolver Host', () => {
                     type: 'commandExecution', id: 'outside-read', status: 'completed', exitCode: 0, cwd: root,
                     commandActions: [{ type: 'read', path: join(root, '..', 'outside.md') }]
                 }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'compound-read', status: 'completed', exit_code: 0,
+                    cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' -- ${artifact} && wc -l ${artifact}`],
+                    stdout: 'new\n1\n'
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'failed-snake-read', status: 'completed', exit_code: 1,
+                    cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' -- ${artifact}`], stdout: 'new\n'
+                }
             }
         ]);
         const env = {
@@ -3728,7 +3743,8 @@ describe('Codex Judgment Resolver Host', () => {
         for (const toolUseId of [
             'wrong-session', 'wrong-turn', 'mismatched-tool', 'incomplete-item',
             'multiple-read', 'read-with-write', 'failed-read', 'outside-file-change',
-            'mixed-malformed-file-change', 'mismatched-item-type', 'outside-read'
+            'mixed-malformed-file-change', 'mismatched-item-type', 'outside-read',
+            'compound-read', 'failed-snake-read'
         ]) {
             const recorded = recordBrainbaseToolUse({
                 ...payload, hook_event_name: 'PostToolUse', tool_name: 'exec_command',
