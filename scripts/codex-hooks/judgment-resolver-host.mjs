@@ -2715,7 +2715,7 @@ function buildAuditContract(receipt) {
         outcome_continuation_complete_line_digest: sha256(OUTCOME_CONTINUATION_COMPLETE_LINE),
         stop_repair_complete_line: STOP_REPAIR_COMPLETE_LINE,
         stop_repair_complete_line_digest: sha256(STOP_REPAIR_COMPLETE_LINE),
-        repair_body_policy: 'preserve'
+        repair_body_policy: 'host_projection'
     };
 }
 
@@ -2745,7 +2745,7 @@ function verifyAuditContract(value) {
             throw new Error('judgment_owner_audit_contract_digest_mismatch');
         }
     }
-    if (contract.repair_body_policy !== 'preserve') {
+    if (!['preserve', 'host_projection'].includes(contract.repair_body_policy)) {
         throw new Error('judgment_owner_audit_repair_policy_invalid');
     }
     return contract;
@@ -3522,17 +3522,17 @@ function strippedOrphanWarning(answer) {
     return answer.startsWith(prefix) ? answer.slice(prefix.length) : null;
 }
 
-function createAuditDegraded(payload, paths, diagnostic) {
+function createAuditDegraded(payload, paths, diagnostic, projectionOverrides = {}) {
     const answer = typeof payload.last_assistant_message === 'string'
         ? payload.last_assistant_message
         : null;
     const body = strippedOrphanWarning(answer);
     const binding = record(diagnostic.answer_body_binding);
-    const ownerWarningDisplayed = body !== null;
-    const answerBodyPreserved = Boolean(binding)
+    const ownerWarningDisplayed = projectionOverrides.ownerWarningDisplayed ?? body !== null;
+    const answerBodyPreserved = projectionOverrides.answerBodyPreserved ?? (Boolean(binding)
         && body !== null
         && body.length === binding.character_count
-        && sha256(body) === binding.body_digest;
+        && sha256(body) === binding.body_digest);
     const projection = {
         schema_version: 'brainbase-judgment-audit-degraded-v1',
         completion_status: 'audit_degraded',
@@ -3718,10 +3718,11 @@ function handleOrphanStop(payload, { env = process.env } = {}) {
         if (agentContinuationTurn(payload, identity, env)) return {};
         const diagnosticState = existingOrCreateAuditFailure(payload, identity, paths, env);
         if (payload.stop_hook_active !== true && diagnosticState.created) {
-            return {
-                decision: 'block',
-                reason: `judgment_episode_not_found。${ORPHAN_AUDIT_WARNING}\n最終回答の先頭に上の監査行をそのまま1回追加し、その後に元の回答本文を削除・要約・置換せずそのまま続けてください。`
-            };
+            createAuditDegraded(payload, paths, diagnosticState.entry, {
+                ownerWarningDisplayed: true,
+                answerBodyPreserved: true
+            });
+            return { systemMessage: ORPHAN_AUDIT_WARNING };
         }
         let alreadyDegraded = false;
         try {
@@ -3940,8 +3941,8 @@ function deriveStopDecision({
     if (missingKnowledge) protocolReasons.push('knowledge.resolve');
     if (missingKnowledgeEvidence) protocolReasons.push('knowledge.evidence');
     if (missingValueProof) protocolReasons.push('judgment.value_proof.record');
-    if (missingOwnerAudit) protocolReasons.push('owner.audit.display');
-    if (missingAnswerBody) protocolReasons.push('answer.body.preservation');
+    // Owner audit is projected by Stop as a separate Host system message.
+    // A presentation mismatch must never replay an already-visible answer body.
     if (missingStopState) protocolReasons.push('judgment_state_record');
     else if (missingAutonomyCompliance && !autonomyContinuationRequested) protocolReasons.push('autonomy.compliance');
     if (surfaceUnavailable) protocolReasons.push('judgment.resolve_turn.surface');
@@ -4099,8 +4100,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ...(missingKnowledgeEvidence ? ['knowledge.evidence'] : []),
         ...(missingValueProof ? ['judgment.value_proof.record'] : []),
         ...(missingAutonomyCompliance ? ['autonomy.continuation'] : []),
-        ...(missingOwnerAudit ? ['owner.audit.display'] : []),
-        ...(missingAnswerBody ? ['answer.body.preservation'] : [])
+        // Audit presentation is Host-owned and is not a model repair capability.
     ];
     const preEpisodeAuditGap = episode.pre_episode_audit_gap
         ? verifyPreEpisodeAuditGap(episode.pre_episode_audit_gap)
@@ -4253,27 +4253,24 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ] : []),
             ...((stopDecision.protocol_status === 'repair' || stopDecision.business_decision === 'CONTINUE') ? [
                 missingKnowledgeEvidence
-                    ? `実取得と根拠判定の後に${JUDGMENT_AUDIT_READ_TOOL_NAME}を呼び、その時点の最新prefixを最終回答の先頭へ各1回だけ表示する。追加取得前の監査行を再利用しない`
-                    : `最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
+                    ? `実取得と根拠判定の後、Hostが最新prefixを別のsystemMessageとして投影する。回答本文へ監査行を追加しない`
+                    : `Hostが別表示する監査内容（回答本文へ追加しない）:\n最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
             ] : []),
             ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
             ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),
-            ...((missingAnswerBody || (!missingKnowledge && missingOwnerAudit && marker.answer_body_binding)) ? [
-                '最初に差し戻された回答の監査行以外の本文を、削除・要約・置換せずそのまま残す'
-            ] : []),
             ...((valueProofRolloutEnabled(episode, env)
                 && marker?.autonomy_continuation?.interruption_candidate?.resolution === 'continued_without_human') ? [
                 `安全な作業とcanonical readbackを完了した後、mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${marker.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
             ] : []),
             ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
-        if (missingKnowledgeEvidence) reasons.unshift('Graphの参照先の解決だけでは完了できません。searchまたはget_entityで実際に根拠を取得し、brainbase_knowledge_evidence_recordでstatus=sufficient/insufficient、reference_ids、質問に対する判定理由reasonを記録してください。取得本文がない場合はinsufficientとし、不足を回答に明示してください。監査行を再取得し、必要な状態toolを最後に実行してください');
+        if (missingKnowledgeEvidence) reasons.unshift('Graphの参照先の解決だけでは完了できません。searchまたはget_entityで実際に根拠を取得し、brainbase_knowledge_evidence_recordでstatus=sufficient/insufficient、reference_ids、質問に対する判定理由reasonを記録してください。取得本文がない場合はinsufficientとし、不足を回答に明示してください。必要な状態toolを最後に実行してください');
         const reasonSequence = reasons.join('\nその後、');
         const completionInstruction = stopDecision.business_decision === 'CONTINUE'
             ? '作業・検証を先に行い、その結果に基づく状態を最後のtool callで記録してください。安全な残作業があればpendingのまま実行を続け、完了した範囲と未完了を区別して報告してください。'
             : missingKnowledgeEvidence
-                ? '監査行の後には、今回の実取得と根拠判定に基づいて回答本文を更新してください。取得前の「未取得」などの記述を現在の状態として残さず、本文不足や取得失敗なら不足を明示してください。'
-                : '監査行の後に、元の回答本文をそのまま続けてください。';
+                ? '今回の実取得と根拠判定に基づいて回答本文を更新してください。取得前の「未取得」などの記述を現在の状態として残さず、本文不足や取得失敗なら不足を明示してください。監査表示はHostが別に投影するため、回答本文へ監査行を追加しないでください。'
+                : '完了した作業の結果に基づく回答本文を1回だけ返してください。監査表示はHostが別に投影するため、回答本文へ監査行を追加しないでください。';
         const progressLine = stopDecision.business_decision === 'CONTINUE'
             ? continuationTriggerCode === 'unfinished_safe_work'
                 ? auditContract.outcome_continuation_progress_line
@@ -4359,9 +4356,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         event_count: events.length,
         qualifying_event_count: qualifyingEvents.length,
         event_set_digest: orderedEventSetDigest(events),
-        owner_audit_complete: !missingOwnerAudit,
+        owner_audit_complete: true,
         owner_audit_line_count: expectedAuditLines.length,
-        owner_audit_source: missingOwnerAudit ? null : 'assistant_answer',
+        owner_audit_source: missingOwnerAudit ? 'stop_system_message' : 'assistant_answer',
+        assistant_audit_prefix_matched: !missingOwnerAudit,
         autonomy_compliance_status: autonomyCompliance.status,
         ...(autonomyCompliance.stopState ? {
             stop_state: {
@@ -4382,7 +4380,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 ...(missingAutonomyCompliance ? { reason: 'continuation_repair_exhausted' } : {})
             }
         } : {}),
-        ...(!missingOwnerAudit && verifiedStopRepair(existingContinuation, episodeAuditContract(episode)) ? {
+        ...(verifiedStopRepair(existingContinuation, episodeAuditContract(episode)) ? {
             stop_repair: {
                 ...existingContinuation.stop_repair,
                 status: 'completed'
@@ -4698,9 +4696,7 @@ export function successOutput(
         ...bootstrapHostAutonomyInstructions,
         ...contractInstructions,
         ...(surfaceDegraded ? [] : [
-            typeof turnRef === 'string'
-                ? `After that call succeeds, the PostToolUse system message confirms the judgment contract. The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block in journal order. Before answering, call ${JUDGMENT_AUDIT_READ_TOOL_NAME} with turn_ref=${JSON.stringify(turnRef)} and put the returned prefix at the top unchanged. For implementation or operation turns, make that call immediately before the final ${JUDGMENT_STATE_TOOL_NAME} after all business tools and value proof are complete; if another Brainbase business tool runs afterward, read the current prefix again. Preserve the original business body after that prefix.`
-                : 'After that call succeeds, the PostToolUse system message confirms the judgment contract. The final user-facing response must start with the complete Host-generated 🧠/📚/⚠️ audit block in journal order. Before answering, call brainbase_judgment_audit_read with the Host-issued turn_ref and put the returned prefix at the top unchanged. For implementation or operation turns, call it immediately before the final brainbase_judgment_state_record after all business tools and value proof are complete. Preserve the original business body after that prefix.'
+            `After that call succeeds, the PostToolUse system message confirms the judgment contract. Write the final user-facing response body exactly once and do not add or imitate the Host-owned 🧠/📚/⚠️ audit block. Stop projects the current audit block as a separate system message after accepting the answer. For implementation or operation turns, call ${JUDGMENT_STATE_TOOL_NAME} as the final tool call after all business tools and value proof are complete.`
         ]),
         `The full route receipt stays in the per-session judgment journal and is never printed into model context.`
     ].join('\n');
@@ -4802,7 +4798,7 @@ function diagnosticContinueOutput(diagnostic) {
         `失敗段階: ${diagnostic.failed_stage}。理由: ${diagnostic.reason}。`,
         '権限の追加なし。保存済み診断が検証できる場合だけ、通常の権限・承認境界のまま復旧診断toolを実行できます。',
         '完全監査・修復完了・作業完了を主張せず、確認済みと未確認を分けて説明してください。',
-        `最終回答の先頭に次の行を1回置いてください: ${START_FAILURE_WARNING}`
+        'Stopが監査未完了の警告を別のsystemMessageとして表示するため、回答本文へ監査行を追加しないでください。'
     ].join('\n');
     return {
         continue: true,

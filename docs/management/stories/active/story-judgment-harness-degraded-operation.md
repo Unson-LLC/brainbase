@@ -21,6 +21,7 @@ development_mode: SIMPLIFICATION
 - 故障時は完全監査済みとせず、安全な原因と監査未完了を表示する。
 - Brainbaseの判断receiptは操作許可として扱わず、外部送信・削除・本番操作などは通常のCodex権限と承認に従う。
 - Hostが正常なturnでは、既存のepisode、required capability、audit、Stop契約を維持する。
+- 最終回答の本文は1回だけ表示し、Host監査は別の表示としてStopが確定する。監査行の不足や不一致だけを理由に回答本文を差し戻さない。
 - 診断継続のためだけのcanary modeとcwd設定を不要にする。
 - 実エントリーポイントと隔離journalを使い、Host故障と入口故障の回帰テストを行う。
 

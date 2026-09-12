@@ -467,7 +467,7 @@ describe('Codex Judgment Resolver Host', () => {
         );
     });
 
-    it('bootstrap contextは最終回答の監査行を要求し、Stop一回の修復契約を明示する', () => {
+    it('bootstrap contextは本文一回とHost監査の別表示を明示する', () => {
         const args = {
             request: 'この設計をレビューして',
             turn_id: 'turn-current',
@@ -481,11 +481,10 @@ describe('Codex Judgment Resolver Host', () => {
         const output = successOutput(args, receipt);
         const context = output.hookSpecificOutput.additionalContext;
 
-        expect(context).toContain('The final user-facing response must start with the complete Host-generated');
-        expect(context).toContain('brainbase_judgment_audit_read');
+        expect(context).toContain('Write the final user-facing response body exactly once');
+        expect(context).toContain('Stop projects the current audit block as a separate system message');
         expect(context).not.toContain('Stop will reject the first answer once');
-        expect(context).toContain('Preserve the original business body after that prefix.');
-        expect(context).not.toContain('Stop always renders the complete owner-visible audit block itself as its own systemMessage');
+        expect(context).not.toContain('Preserve the original business body after that prefix.');
     });
 
     it('successOutputはフルreceipt JSONをモデル文脈に含めない', () => {
@@ -968,7 +967,8 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env, fetchImpl });
 
         expect(fetchImpl).toHaveBeenCalledTimes(1);
-        expect(result).toMatchObject({ decision: 'block' });
+        expect(result.decision).toBeUndefined();
+        expect(result.systemMessage).toContain('🧠 判断参照:');
         const episodePath = join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`);
         const episode = JSON.parse(readFileSync(episodePath, 'utf8'));
         expect(episode).toMatchObject({
@@ -1216,8 +1216,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env, fetchImpl });
 
         expect(fetchImpl).not.toHaveBeenCalled();
-        expect(result).toMatchObject({ decision: 'block' });
-        expect(result.reason).toContain('judgment_episode_not_found');
+        expect(result).toMatchObject({ systemMessage: '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。' });
     });
 
     it('同一turnに複数create_threadがある場合はStop時episodeへ推測採用しない', async () => {
@@ -1253,8 +1252,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env, fetchImpl });
 
         expect(fetchImpl).not.toHaveBeenCalled();
-        expect(result).toMatchObject({ decision: 'block' });
-        expect(result.reason).toContain('judgment_episode_not_found');
+        expect(result).toMatchObject({ systemMessage: '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。' });
     });
 
     it.each([
@@ -1307,8 +1305,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env, fetchImpl });
 
         expect(fetchImpl).not.toHaveBeenCalled();
-        expect(result).toMatchObject({ decision: 'block' });
-        expect(result.reason).toContain('judgment_episode_not_found');
+        expect(result).toMatchObject({ systemMessage: '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。' });
     });
 
     it('別session componentが混在するtranscriptは委任候補を採用しない', async () => {
@@ -1345,8 +1342,7 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env, fetchImpl });
 
         expect(fetchImpl).not.toHaveBeenCalled();
-        expect(result).toMatchObject({ decision: 'block' });
-        expect(result.reason).toContain('judgment_episode_not_found');
+        expect(result).toMatchObject({ systemMessage: '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。' });
     });
 
     it('rolloutとroot sessionの複数metaがあっても一致済みsessionを維持する', () => {
@@ -2043,16 +2039,12 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env });
         const recoveredLine = '📚 Brainbase取得: brainbase_admin_read「管理ビュー candidates・project=brainbase・最大100件」→ 結果を取得 ✓（再試行で復旧・過去1回失敗）';
         const failedLine = '⚠️ Brainbase取得: brainbase_admin_read「管理ビュー overview・project=brainbase・最大100件」→ 失敗または結果不明（同一条件で2回失敗）';
-        expect(stopped.output.reason).toContain([
+        expect(stopped.output.systemMessage).toContain([
             episode.owner_audit.display_line,
             recoveredLine,
-            failedLine,
-            episode.audit_contract.stop_repair_complete_line
+            failedLine
         ].join('\n'));
-        expect(stopped.output.reason).not.toContain('⚠️ Brainbase取得: brainbase_admin_read「管理ビュー candidates');
-        expect(stopped.continuation.answer_body_binding).toMatchObject({
-            schema_version: 'brainbase-answer-body-binding-v2'
-        });
+        expect(stopped.output.decision).toBeUndefined();
         const repaired = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true,
@@ -2067,7 +2059,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(repaired.final).toMatchObject({
             completion_status: 'complete',
             event_count: 5,
-            owner_audit_line_count: 4,
+            owner_audit_line_count: 3,
             owner_audit_complete: true
         });
     });
@@ -2607,7 +2599,7 @@ describe('Codex Judgment Resolver Host', () => {
         expect(JSON.parse(readFileSync(finalPath, 'utf8'))).toMatchObject({
             completion_status: 'audit_degraded',
             degradation_reason: 'knowledge.resolve',
-            missing_capabilities: ['knowledge.resolve', 'owner.audit.display']
+            missing_capabilities: ['knowledge.resolve']
         });
         // audit_degraded finals never reach the knowledge outbox (the
         // adapter ignores every completion_status other than 'complete').
@@ -3038,23 +3030,21 @@ describe('Codex Judgment Resolver Host', () => {
             })
         });
 
-        // Codex Desktop does not render Stop systemMessage into the visible
-        // assistant response. Missing audit lines must therefore block before
-        // a final receipt is written.
+        // The business body is never replayed. Stop projects Host audit
+        // separately and writes the final receipt in the same pass.
         const firstStop = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: false,
             last_assistant_message: 'こんにちは、ご質問ありがとうございます。'
         }, { env });
-        expect(firstStop.output).toMatchObject({ decision: 'block' });
-        expect(firstStop.output.reason).toContain('最終回答の先頭に次の監査行をそのまま');
-        expect(firstStop.final).toBeNull();
+        expect(firstStop.output.decision).toBeUndefined();
+        expect(firstStop.output.systemMessage).toContain(episode.owner_audit.display_line);
+        expect(firstStop.final).toMatchObject({
+            completion_status: 'complete', owner_audit_complete: true,
+            owner_audit_line_count: 2, owner_audit_source: 'stop_system_message'
+        });
 
-        const expectedAuditLines = [
-            episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            episode.audit_contract.stop_repair_complete_line
-        ];
+        const expectedAuditLines = [episode.owner_audit.display_line, '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'];
         const result = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true,
@@ -3068,12 +3058,12 @@ describe('Codex Judgment Resolver Host', () => {
         });
         expect(result.final).toMatchObject({
             completion_status: 'complete', event_count: 0, qualifying_event_count: 0,
-            owner_audit_complete: true, owner_audit_line_count: 3,
-            owner_audit_source: 'assistant_answer'
+            owner_audit_complete: true, owner_audit_line_count: 2,
+            owner_audit_source: 'stop_system_message'
         });
     });
 
-    it('不足した監査表示の再Stopをcompleteと誤認しない', async () => {
+    it('不足した監査表示はHost投影でcompleteにする', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-audit-degraded', turn_id: 'turn-audit-degraded', prompt: 'こんにちは', cwd: process.cwd() };
@@ -3099,12 +3089,11 @@ describe('Codex Judgment Resolver Host', () => {
             stop_hook_active: true, last_assistant_message: 'まだ監査行なし'
         }, { env });
         expect(degraded.final).toMatchObject({
-            completion_status: 'audit_degraded',
-            degradation_reason: 'owner.audit.display',
-            owner_audit_complete: false,
-            owner_audit_source: null
+            completion_status: 'complete',
+            owner_audit_complete: true,
+            owner_audit_source: 'stop_system_message'
         });
-        expect(degraded.output.systemMessage).toContain('⚠️ 監査縮退: owner.audit.display');
+        expect(degraded.output.systemMessage).toContain('🧠 判断参照:');
     });
 
     it('compaction後にsessionが変わっても同一turnのepisodeを再発見して既存chainを完了する', async () => {
@@ -3183,9 +3172,9 @@ describe('Codex Judgment Resolver Host', () => {
             ].join('\n')
         }, { env });
 
-        expect(result.output).toMatchObject({ decision: 'block' });
-        expect(result.output.reason).toContain('Hostが記録していない🛠️監査行を削除する');
-        expect(result.final).toBeNull();
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output.systemMessage).not.toContain('9回差し戻し');
+        expect(result.final).toMatchObject({ owner_audit_source: 'stop_system_message' });
     });
 
     it('runtime 2.3の実装turnは本文ではなく構造化pending状態から未完了を差し戻す', async () => {
@@ -4257,9 +4246,9 @@ describe('Codex Judgment Resolver Host', () => {
             ].join('\n')
         }, { env });
 
-        expect(result.output).toMatchObject({ decision: 'block' });
-        expect(result.output.reason).toContain('Hostが記録していない🔁監査行を削除する');
-        expect(result.final).toBeNull();
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output.systemMessage).not.toContain('9回差し戻し');
+        expect(result.final).toMatchObject({ owner_audit_source: 'stop_system_message' });
     });
 
     it('自律継続の再試行でも不要な質問を返した場合は有限終了しaudit_degradedで完了する', async () => {
@@ -4456,7 +4445,7 @@ describe('Codex Judgment Resolver Host', () => {
             outcome_continuation_complete_line_digest: hash('🔁 実行継続: 安全な残作業の再開要求を記録'),
             stop_repair_complete_line: '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
             stop_repair_complete_line_digest: hash('🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'),
-            repair_body_policy: 'preserve'
+            repair_body_policy: 'host_projection'
         });
     });
 
@@ -4607,11 +4596,11 @@ describe('Codex Judgment Resolver Host', () => {
             hook_event_name: 'Stop', ...identity, stop_hook_active: false,
             last_assistant_message: '元の回答'
         }, { env });
-        expect(first).toMatchObject({ decision: 'block' });
+        expect(first).toMatchObject({ systemMessage: expect.stringContaining('監査未完了') });
         await expect(processHookPayload({
             hook_event_name: 'Stop', ...identity, stop_hook_active: true,
             last_assistant_message: '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。作業は継続しており、新しいtaskの作成やHook操作は不要です。\n元の回答'
-        }, { env })).resolves.toMatchObject({ systemMessage: expect.stringContaining('監査未完了') });
+        }, { env })).resolves.toEqual({});
 
         const next = buildJudgmentRequest({
             session_id: identity.session_id,
@@ -5580,11 +5569,10 @@ describe('turn_input handoff and resolved judgment line', () => {
         expect(context).not.toContain(canonicalJson(args));
         expect(context).not.toContain(turnInputPath);
         expect(context).toContain('the PostToolUse system message confirms the judgment contract');
-        expect(context).toContain('The final user-facing response must start with the complete Host-generated');
-        expect(context).toContain('brainbase_judgment_audit_read');
+        expect(context).toContain('Write the final user-facing response body exactly once');
+        expect(context).toContain('Stop projects the current audit block as a separate system message');
         expect(context).not.toContain('Stop will reject the first answer once');
-        expect(context).toContain('Preserve the original business body after that prefix.');
-        expect(context).not.toContain('Stop always renders the complete owner-visible audit block itself as its own systemMessage');
+        expect(context).not.toContain('Preserve the original business body after that prefix.');
         expect(context).not.toContain('Autonomy decision: escalate.');
         expect(context).not.toContain('⚠️ 確認が必要[classification_missing]:');
         expect(context).not.toContain('This is an implementation request.');
@@ -5717,17 +5705,9 @@ describe('turn_input handoff and resolved judgment line', () => {
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: staleAnswer
         }, { env });
-        expect(secondBlocked.output).toMatchObject({ decision: 'block' });
-        expect(secondBlocked.final).toBeNull();
-        expect(secondBlocked.continuation).toMatchObject({
-            stop_attempt: 2,
-            initial_route_receipt_digest: hash(canonicalJson(resolved)),
-            missing_capabilities: ['owner.audit.display'],
-            answer_body_binding: {
-                body_digest: hash('E2E probe completed'),
-                character_count: 'E2E probe completed'.length
-            }
-        });
+        expect(secondBlocked.output.decision).toBeUndefined();
+        expect(secondBlocked.output.systemMessage).toContain(ownerLine);
+        expect(secondBlocked.final).toMatchObject({ owner_audit_source: 'stop_system_message' });
 
         const stopped = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
@@ -6031,7 +6011,7 @@ describe('turn_input handoff and resolved judgment line', () => {
         }, { env });
         expect(blocked.output).toMatchObject({ decision: 'block' });
         expect(blocked.continuation).toMatchObject({
-            missing_capabilities: ['knowledge.resolve', 'owner.audit.display'], stop_repair: { count: 1, status: 'requested' }
+            missing_capabilities: ['knowledge.resolve'], stop_repair: { count: 1, status: 'requested' }
         });
         expect(blocked.continuation.autonomy_continuation).toBeUndefined();
 
@@ -6195,7 +6175,7 @@ describe('agent continuation turns', () => {
             transcript_path: transcript, stop_hook_active: false,
             last_assistant_message: '監視を始めます。'
         }, { env });
-        expect(orphan).toMatchObject({ decision: 'block' });
+        expect(orphan).toMatchObject({ systemMessage: expect.stringContaining('監査未完了') });
     });
 });
 
@@ -6712,9 +6692,8 @@ describe('owner-audit preflight read', () => {
         expect(business).toMatchObject({ success: true });
         expect(stale.prefix).not.toContain(business.display_line);
         expect(fresh.prefix).toContain(business.display_line);
-        expect(blocked.output).toMatchObject({ decision: 'block' });
-        expect(blocked.output.reason).toContain(business.display_line);
-        expect(blocked.continuation.missing_capabilities).toContain('owner.audit.display');
-        expect(blocked.final).toBeNull();
+        expect(blocked.output.decision).toBeUndefined();
+        expect(blocked.output.systemMessage).toContain(business.display_line);
+        expect(blocked.final).toMatchObject({ owner_audit_source: 'stop_system_message' });
     });
 });
