@@ -5142,6 +5142,16 @@ export async function processHookPayload(payload, dependencies = {}) {
                 const episode = await bootstrapDelegatedEpisode(payload, dependencies, true);
                 if (episode) {
                     const turnRef = persistTurnInput(payload, episode, env);
+                    // A prior, Codex-owned failed resolver attempt proves that
+                    // this task surface cannot satisfy the injected resolver
+                    // instruction. Re-denying the intercepted tool would turn
+                    // the audit harness itself into an availability blocker.
+                    // Keep the immutable degraded episode, but return control
+                    // to the ordinary permission boundary so diagnostics and
+                    // canonical readback can continue.
+                    if (turnResolutionUnavailable(episode)) {
+                        return degradedPreToolOutput('turn_resolution_unavailable');
+                    }
                     const context = successOutput(
                         episode.turn_input, episode.initial_route_receipt, episode.owner_audit,
                         episodeAuditContract(episode), env, episode.host_surface ?? null,

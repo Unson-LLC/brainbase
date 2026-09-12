@@ -796,6 +796,63 @@ describe('Codex Judgment Resolver Host', () => {
         expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
+    it('Resolverが公開されていない委任タスクは最初の診断・readbackを監査だけで拒否しない', async () => {
+        const root = temporaryDirectory();
+        const sessionId = 'delegated-resolver-unavailable-session';
+        const turnId = 'delegated-resolver-unavailable-turn';
+        const transcript = join(root, 'session.jsonl');
+        const prompt = '作成済みREADMEを読み戻して結果を報告してください。';
+        const failureOutput = [
+            { type: 'input_text', text: 'Script failed\n' },
+            { type: 'input_text', text: 'TypeError: tools.mcp__brainbase__brainbase_resolve_turn is not a function' }
+        ];
+        writeFileSync(transcript, [
+            event('session_meta', { id: sessionId, session_id: sessionId }),
+            event('response_item', {
+                type: 'custom_tool_call', name: 'exec', call_id: 'resolver-prior',
+                input: 'await tools.mcp__brainbase__brainbase_resolve_turn({ turn_ref: "prior/ref" });',
+                internal_chat_message_metadata_passthrough: { turn_id: 'prior-turn' }
+            }),
+            event('response_item', {
+                type: 'custom_tool_call_output', call_id: 'resolver-prior', output: failureOutput,
+                internal_chat_message_metadata_passthrough: { turn_id: 'prior-turn' }
+            }),
+            event('response_item', {
+                type: 'function_call_output', name: 'send_message_to_thread', namespace: 'codex_app',
+                output: `<codex_delegation><source_thread_id>source-thread</source_thread_id><input>${prompt}</input></codex_delegation>`,
+                internal_chat_message_metadata_passthrough: { turn_id: turnId }
+            })
+        ].join('\n'));
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+            BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
+            BRAINBASE_JUDGMENT_CANARY_CWD: process.cwd()
+        };
+        const fetchImpl = vi.fn(async (_url, options) => ({
+            ok: true, status: 200,
+            json: async () => ({ management_status: 'managed', receipt: validReceipt(JSON.parse(options.body)) })
+        }));
+
+        const output = await processHookPayload({
+            hook_event_name: 'PreToolUse', session_id: sessionId, turn_id: turnId,
+            cwd: process.cwd(), transcript_path: transcript, tool_name: 'exec_command',
+            tool_input: { cmd: 'sed -n 1p README.md' }
+        }, { env, fetchImpl });
+
+        expect(output.hookSpecificOutput.permissionDecision).toBeUndefined();
+        expect(output.hookSpecificOutput.additionalContext).toContain('turn_resolution_unavailable');
+        const episode = JSON.parse(readFileSync(
+            join(root, 'journal', hash(sessionId), `${hash(turnId)}.episode.json`), 'utf8'
+        ));
+        expect(episode).toMatchObject({
+            episode_origin: 'pre_tool_delegation_recovery',
+            route_application: 'pre_tool_execution',
+            host_surface: { turn_resolution: 'unavailable' },
+            turn_input: { request: prompt }
+        });
+    });
+
     it('自動化は正規automation_update入力からPreToolUseでepisodeを開始する', async () => {
         const root = temporaryDirectory();
         const sessionId = 'automation-session';
