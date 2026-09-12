@@ -120,7 +120,7 @@ function expectDiagnosticContinue(output) {
     });
     expect(output.systemMessage).toMatch(/監査.*未完了|未完了.*監査/u);
     expect(output.systemMessage).toMatch(/権限.*追加なし|追加.*権限.*なし/u);
-    expect(output.systemMessage).toMatch(/読み取り.*説明|説明.*読み取り/u);
+    expect(output.systemMessage).toMatch(/通常の権限・承認境界.*復旧診断tool/u);
 }
 
 function expectBlocked(output) {
@@ -303,7 +303,7 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
         'Host不正応答',
         'Host timeout',
         'episode永続化失敗'
-    ])('明示opt-in時は%sを診断付きcontinue:trueで読み取り・説明限定にする', async (name) => {
+    ])('明示opt-in時は%sを診断付きcontinue:trueで通常権限下の復旧診断へ戻す', async (name) => {
         const root = temporaryDirectory();
         const payload = startPayload(
             `session-start-failure-diagnostic-${name}`,
@@ -329,6 +329,25 @@ describe('Judgment Resolver Host UserPromptSubmit start failures', () => {
             JSON.parse(readFileSync(diagnosticPath(setup.journal, payload), 'utf8')),
             payload.prompt
         );
+
+        const preToolUse = await runEntrypoint({
+            env: {
+                ...process.env,
+                BRAINBASE_JUDGMENT_HOST_URL: `${setup.hostUrl}/host/judgment/resolve`,
+                BRAINBASE_JUDGMENT_HOST_TIMEOUT_MS: setup.timeoutMs ?? '100',
+                BRAINBASE_JUDGMENT_JOURNAL_DIR: setup.journal,
+                BRAINBASE_JUDGMENT_START_FAILURE_MODE: 'diagnostic_continue',
+                BRAINBASE_JUDGMENT_CANARY_CWD: REPO_ROOT
+            },
+            payload: {
+                ...payload,
+                hook_event_name: 'PreToolUse',
+                tool_name: 'functions.exec_command',
+                tool_use_id: `tool-recovery-diagnostic-${name}`
+            }
+        });
+        expect(preToolUse).toMatchObject({ code: 0, signal: null, stderr: '' });
+        expect(readJsonOutput(preToolUse.stdout)).toEqual({});
     }, 10_000);
 
     it('明示opt-in時にjournal root作成失敗は診断付きcontinue:trueにし、診断保存不能をsafe JSONでstderrへ出す', async () => {
