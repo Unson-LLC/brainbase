@@ -84,7 +84,7 @@ const OUTCOME_CONTINUATION_COMPLETE_LINE = '🔁 実行継続: 安全な残作�
 const MAX_CONTINUATION_ATTEMPTS = 3;
 const STOP_REPAIR_COMPLETE_LINE = '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓';
 const ORPHAN_AUDIT_WARNING = '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。';
-const START_FAILURE_WARNING = '⚠️ Brainbase監査未完了: 開始処理を確認できないため、このturnでは説明のみ返します。';
+const START_FAILURE_WARNING = '⚠️ Brainbase監査未完了: 開始処理を確認できないため、このturnは復旧診断中です。';
 const failureStages = new WeakMap();
 const SAFE_FAILURE_REASONS = new Set([
     'judgment_host_transport_failed', 'judgment_host_response_invalid', 'judgment_host_invalid_response',
@@ -4504,7 +4504,7 @@ function diagnosticContinueOutput(diagnostic) {
     const context = [
         START_FAILURE_WARNING,
         `失敗段階: ${diagnostic.failed_stage}。理由: ${diagnostic.reason}。`,
-        '権限の追加なし。このturnは説明のみ返してください。読み取りを含むtool実行はPreToolUseで拒否します。',
+        '権限の追加なし。保存済み診断が検証できる場合だけ、通常の権限・承認境界のまま復旧診断toolを実行できます。',
         '完全監査・修復完了・作業完了を主張せず、確認済みと未確認を分けて説明してください。',
         `最終回答の先頭に次の行を1回置いてください: ${START_FAILURE_WARNING}`
     ].join('\n');
@@ -4514,6 +4514,22 @@ function diagnosticContinueOutput(diagnostic) {
         systemMessage: context,
         hookSpecificOutput: { hookEventName: 'UserPromptSubmit', additionalContext: context }
     };
+}
+
+function hasVerifiedStartFailureDiagnostic(payload, env) {
+    const identity = payloadIdentity(payload);
+    if (!identity) return false;
+    const path = join(journalRoot(env), 'diagnostics', identity.sessionRef, `${sha256(identity.turnId)}.start-failure.json`);
+    try {
+        const diagnostic = readJson(path);
+        return diagnostic?.schema_version === 'brainbase-judgment-start-failure-v1'
+            && diagnostic?.audit_status === 'incomplete'
+            && diagnostic?.action_authorized === false
+            && typeof diagnostic?.failed_stage === 'string'
+            && typeof diagnostic?.reason === 'string';
+    } catch {
+        return false;
+    }
 }
 
 function hasStartFailureOrUnreadableDiagnostic(payload, env) {
@@ -4667,6 +4683,11 @@ export async function processHookPayload(payload, dependencies = {}) {
     }
     if (env.BRAINBASE_JUDGMENT_START_FAILURE_MODE === 'diagnostic_continue' && eventName === 'PreToolUse') {
         const inScope = diagnosticContinueEnabled(env, payload);
+        // A verified start-failure marker is evidence that the Host could not
+        // establish a judgment contract. Do not let the unavailable Host also
+        // prevent its own recovery: return control to the ordinary platform
+        // permission and approval boundary. This grants no action authority.
+        if (inScope && hasVerifiedStartFailureDiagnostic(payload, env)) return {};
         // A Codex App task may omit UserPromptSubmit. Recover only from the
         // existing trusted, complete current-turn delegation parser. Never
         // execute the intercepted tool: first hand the canonical reference to
