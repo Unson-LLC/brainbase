@@ -30,6 +30,10 @@ function digest(value: unknown) {
     return `sha256:${createHash('sha256').update(canonicalJson(value)).digest('hex')}`;
 }
 
+function rawDigest(value: unknown) {
+    return createHash('sha256').update(canonicalJson(value)).digest('hex');
+}
+
 function boundPath(root: string, path: string, suffix: string) {
     if (!path || !isAbsolute(path) || !existsSync(path) || !path.endsWith(suffix)) return false;
     const child = relative(realpathSync(root), realpathSync(path));
@@ -86,7 +90,11 @@ test('delegated fresh task proves post-generation recovery without impersonating
     assert.ok(turnId, 'Recovered episode must retain its delegated turn id');
     assert.equal(episode.episode_origin, 'stop_delegation_recovery');
     assert.equal(episode.route_application, 'post_generation_recovery');
-    assert.equal(episode.initial_route_receipt?.status, 'resolved');
+    assert.equal(
+        episode.initial_route_receipt?.status,
+        'needs_classification',
+        'The recovery bootstrap is immutable and must not impersonate a pre-generation resolution'
+    );
 
     const entries = transcriptEntries();
     sessionMetaIdentity(entries);
@@ -110,6 +118,16 @@ test('delegated fresh task proves post-generation recovery without impersonating
         .filter((name) => name.endsWith('.json'))
         .map((name) => readJson(join(eventDirectory, name)))
         .sort((left, right) => left.event_sequence - right.event_sequence);
+    const resolvedContracts = events.flatMap((event) => (
+        event.success
+        && event.satisfies?.includes('judgment.resolve_turn')
+        && event.safe_metadata?.turn_contract?.status === 'resolved'
+            ? [event.safe_metadata.turn_contract]
+            : []
+    ));
+    assert.equal(resolvedContracts.length, 1, 'Delegated recovery must retain exactly one resolved TurnContract');
+    const resolvedContract = resolvedContracts[0];
+    assert.equal(resolvedContract.turn_id, turnId, 'Resolved TurnContract must remain bound to the recovered turn');
     const successfulEvidence = events.filter((event) => event.success && !['state', 'value_proof'].includes(event.event_kind));
     const executions = successfulEvidence.filter((event) => ['execution', 'write'].includes(event.event_kind));
     const readbacks = successfulEvidence.filter((event) => ['search', 'retrieve'].includes(event.event_kind));
@@ -127,6 +145,11 @@ test('delegated fresh task proves post-generation recovery without impersonating
     assert.equal(final.completion_status, 'complete');
     assert.equal(final.episode_origin, 'stop_delegation_recovery');
     assert.equal(final.route_application, 'post_generation_recovery');
+    assert.equal(
+        final.initial_route_receipt_digest,
+        rawDigest(resolvedContract),
+        'Final receipt must bind the effective resolved TurnContract, not the immutable bootstrap receipt'
+    );
     assert.equal(final.value_proof_state, 'outcome_verified');
     assert.equal(final.value_proof_digest, digest(valueProof));
     assert.equal(
