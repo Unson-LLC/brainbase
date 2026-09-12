@@ -209,6 +209,30 @@ describe('judgment resolver Host bridge', () => {
     assert.equal(result.status, 'ok');
   });
 
+  it('projectなしの個人KG capabilityを持つreceiptを受理する', async () => {
+    const projectlessArgs = structuredClone(args) as Record<string, unknown>;
+    delete projectlessArgs.project_code;
+    const personalClassification = {
+      ...classification,
+      intent: 'investigate',
+      domains: ['knowledge', 'personal_judgment'],
+      action_kind: 'read',
+    };
+    const result = await resolveJudgmentBeforeModel(projectlessArgs, dependencies(async () => new Response(JSON.stringify(receipt({
+      project_code: null,
+      classification: personalClassification,
+      selected_dag_ids: ['knowledge.v1', 'personal-judgment.v1'],
+      required_capabilities: [{
+        capability: 'knowledge.resolve',
+        status: 'required',
+        input: { intent: 'lookup', audience: 'personal', content_type: 'personal_knowledge', project_code: null },
+        receipt_required: true,
+      }],
+    }, projectlessArgs as typeof args)), { status: 200 })));
+
+    assert.equal(result.status, 'ok', JSON.stringify(result));
+  });
+
   it('turn_input_path参照ならjournal内のturn-inputファイルをserver側で読み込む', async () => {
     const mergedArgs = { ...args, model_interpretation: classification };
     const journalRoot = mkdtempSync(join(tmpdir(), 'brainbase-judgment-journal-'));
