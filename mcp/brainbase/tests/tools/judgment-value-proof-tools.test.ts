@@ -47,6 +47,7 @@ describe('brainbase_judgment_value_proof_record', () => {
     assert.equal(judgmentValueProofTools.length, 1);
     assert.equal(judgmentValueProofTools[0].name, 'brainbase_judgment_value_proof_record');
     assert.equal(judgmentValueProofTools[0].inputSchema.additionalProperties, false);
+    assert.match(judgmentValueProofTools[0].description, /do not pass schema_version/);
     assert.ok(serverTesting.tools.some((tool) => tool.name === 'brainbase_judgment_value_proof_record'));
   });
 
@@ -61,6 +62,15 @@ describe('brainbase_judgment_value_proof_record', () => {
       schema_version: 'brainbase-judgment-value-proof-input-v1',
       ...validInput(),
     });
+
+    assert.equal(normalizeJudgmentValueProofInput({
+      ...validInput(),
+      schema_version: 'brainbase-judgment-value-proof-input-v1',
+    })?.schema_version, 'brainbase-judgment-value-proof-input-v1');
+    assert.equal(normalizeJudgmentValueProofInput({
+      ...validInput(),
+      schema_version: 'wrong-schema',
+    }), null);
   });
 
   it('accepts a real human decision only with reason and option impacts', () => {

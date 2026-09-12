@@ -143,20 +143,27 @@ function parseHumanDecision(value: unknown): JudgmentValueProofInputV1['human_de
 }
 
 export function normalizeJudgmentValueProofInput(args: Record<string, unknown>): JudgmentValueProofInputV1 | null {
-  if (!exactKeys(args, [
+  const canonicalSchemaVersion = args.schema_version;
+  if (canonicalSchemaVersion !== undefined
+    && canonicalSchemaVersion !== 'brainbase-judgment-value-proof-input-v1') return null;
+  const input = canonicalSchemaVersion === undefined
+    ? args
+    : Object.fromEntries(Object.entries(args).filter(([key]) => key !== 'schema_version'));
+
+  if (!exactKeys(input, [
     'interruption', 'decision', 'execution', 'outcome', 'human_decision', 'feedback_requested',
   ])) return null;
 
-  const interruption = record(args.interruption);
-  const decision = record(args.decision);
-  const execution = record(args.execution);
-  const outcome = record(args.outcome);
+  const interruption = record(input.interruption);
+  const decision = record(input.decision);
+  const execution = record(input.execution);
+  const outcome = record(input.outcome);
   if (!interruption || !decision || !execution || !outcome
     || !exactKeys(interruption, ['resolution', 'question_display_text', 'reason_code'])
     || !exactKeys(decision, ['summary', 'work_impact', 'basis'])
     || !exactKeys(execution, ['summary', 'artifact_refs'])
     || !exactKeys(outcome, ['status', 'summary', 'evidence_refs'])
-    || typeof args.feedback_requested !== 'boolean') return null;
+    || typeof input.feedback_requested !== 'boolean') return null;
 
   if (!['continued_without_human', 'human_required'].includes(String(interruption.resolution))
     || !['outcome_verified', 'unconfirmed', 'not_applicable'].includes(String(outcome.status))) return null;
@@ -170,7 +177,7 @@ export function normalizeJudgmentValueProofInput(args: Record<string, unknown>):
   const basis = parseBasis(decision.basis);
   const artifactRefs = parseArtifacts(execution.artifact_refs);
   const evidenceRefs = parseEvidence(outcome.evidence_refs);
-  const humanDecision = parseHumanDecision(args.human_decision);
+  const humanDecision = parseHumanDecision(input.human_decision);
   if (questionDisplayText === undefined || reasonCode === undefined || decisionSummary === undefined
     || workImpact === undefined || executionSummary === undefined || outcomeSummary === undefined
     || !basis || !artifactRefs || !evidenceRefs || humanDecision === undefined) return null;
@@ -205,13 +212,13 @@ export function normalizeJudgmentValueProofInput(args: Record<string, unknown>):
       evidence_refs: evidenceRefs,
     },
     human_decision: humanDecision,
-    feedback_requested: args.feedback_requested,
+    feedback_requested: input.feedback_requested,
   };
 }
 
 export const judgmentValueProofTools: Tool[] = [{
   name: 'brainbase_judgment_value_proof_record',
-  description: 'Record a compact human-facing proof only when Brainbase resolved a real choice, avoided a user interruption, or a real human decision is required. Call after execution/verification and before brainbase_judgment_state_record; the state record must remain the final tool call. Do not include raw tool responses, secrets, or internal logs.',
+  description: 'Record a compact human-facing proof only when Brainbase resolved a real choice, avoided a user interruption, or a real human decision is required. Pass exactly the six fields in inputSchema; do not pass schema_version because the server adds it. Call after execution/verification and before brainbase_judgment_state_record; the state record must remain the final tool call. Do not include raw tool responses, secrets, or internal logs.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,

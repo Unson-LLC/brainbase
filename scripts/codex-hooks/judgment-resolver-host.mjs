@@ -4349,7 +4349,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 '「俺なら返答」として、元の依頼とTurnContractですでに許可された定型・可逆作業を本人へ聞き返さず続ける。新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する'
             ] : []),
             ...(missingTurnResolution ? [
-                `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが判断契約を確定した旨をsystemMessageで通知する）。TurnContractが安全な作業継続を許可し、確認質問を引き取って変更を実行した場合は、変更後に別tool callで同じ対象をcanonical readbackし、mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行してからbrainbase_judgment_state_recordを最後のtool callとして実行する`
+                `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが判断契約を確定した旨をsystemMessageで通知する）。TurnContractが安全な作業継続を許可し、確認質問を引き取って変更を実行した場合は、変更後に別tool callで同じ対象をcanonical readbackし、mcp__brainbase__brainbase_judgment_value_proof_recordをschema_versionを渡さずinputSchemaの6項目（interruption、decision、execution、outcome、human_decision、feedback_requested）だけで1回実行してからbrainbase_judgment_state_recordを最後のtool callとして実行する`
             ] : []),
             ...(missingKnowledge ? [capabilityActionInstruction(
                 CAPABILITY_ACTION_CONTRACTS['knowledge.resolve'],

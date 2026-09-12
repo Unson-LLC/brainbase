@@ -5827,7 +5827,9 @@ describe('turn_input handoff and resolved judgment line', () => {
         expect(blocked.output).toMatchObject({ decision: 'block' });
         expect(blocked.output.reason).toContain('TurnContractが安全な作業継続を許可し');
         expect(blocked.output.reason).toContain('別tool callで同じ対象をcanonical readback');
-        expect(blocked.output.reason).toContain('brainbase_judgment_value_proof_recordを1回実行');
+        expect(blocked.output.reason).toContain('brainbase_judgment_value_proof_recordをschema_versionを渡さず');
+        expect(blocked.output.reason).toContain('schema_versionを渡さずinputSchemaの6項目（');
+        expect(blocked.output.reason).toContain('interruption、decision、execution、outcome、human_decision、feedback_requested');
         expect(blocked.output.reason).toContain('brainbase_judgment_state_recordを最後のtool callとして実行');
         expect(blocked.continuation).toMatchObject({
             observed_interruption_candidate: {
