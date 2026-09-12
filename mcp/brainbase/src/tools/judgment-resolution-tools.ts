@@ -237,11 +237,15 @@ function isRequiredCapability(value: unknown, projectCode: unknown): boolean {
   if (!isRecord(value) || !hasOnlyKeys(value, ['capability', 'status', 'input', 'receipt_required'])) return false;
   if (value.capability !== 'knowledge.resolve' || value.status !== 'required' || value.receipt_required !== true || !isRecord(value.input)) return false;
   if (!hasOnlyKeys(value.input, ['intent', 'audience', 'content_type', 'project_code'])) return false;
+  const audience = String(value.input.audience);
+  const contentType = String(value.input.content_type);
+  const projectMatches = projectCode === null
+    ? audience === 'personal' && contentType === 'personal_knowledge' && value.input.project_code === null
+    : isNonEmptyString(value.input.project_code) && value.input.project_code === projectCode;
   return value.input.intent === 'lookup'
-    && ['personal', 'team', 'organization'].includes(String(value.input.audience))
-    && CONTENT_TYPES.includes(value.input.content_type as typeof CONTENT_TYPES[number])
-    && isNonEmptyString(value.input.project_code)
-    && value.input.project_code === projectCode;
+    && ['personal', 'team', 'organization'].includes(audience)
+    && CONTENT_TYPES.includes(contentType as typeof CONTENT_TYPES[number])
+    && projectMatches;
 }
 
 function isActiveNodeDefinition(value: unknown): boolean {

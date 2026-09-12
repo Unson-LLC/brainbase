@@ -1033,6 +1033,37 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.required_capabilities).toEqual([]);
     });
 
+    it('projectなしでも個人KGの判断はproject確認へ戻さず解決する', () => {
+        const rawInput = input('俺の判断基準を個人KGから調べて判断して', proposal({
+            intent: 'investigate', domains: ['knowledge', 'personal_judgment'], action_kind: 'read'
+        }), { project_code: undefined });
+        const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.selected_dag_ids).toEqual(expect.arrayContaining(['knowledge.v1', 'personal-judgment.v1']));
+        expect(receipt.required_capabilities).toEqual([expect.objectContaining({
+            capability: 'knowledge.resolve',
+            input: expect.objectContaining({
+                audience: 'personal', content_type: 'personal_knowledge', project_code: null
+            })
+        })]);
+    });
+
+    it('個人KGの明示語を一般knowledgeではなく本人の判断として補強する', () => {
+        const rawInput = input('Personal KGから既存の判断を調べて', proposal({
+            intent: 'investigate', domains: ['general'], action_kind: 'read'
+        }), { project_code: undefined });
+        const receipt = service.resolve(rawInput, { access: ACCESS, hostBinding: binding() });
+
+        expect(receipt.status).toBe('resolved');
+        expect(receipt.classification.domains).toEqual(expect.arrayContaining(['knowledge', 'personal_judgment']));
+        expect(receipt.required_capabilities).toEqual([expect.objectContaining({
+            input: expect.objectContaining({
+                audience: 'personal', content_type: 'personal_knowledge', project_code: null
+            })
+        })]);
+    });
+
     // Trace: story-brainbase-judgment-resolver-v1:ac:11
     it('personal judgmentはownerだけにpolicyを公開する', () => {
         const ownerReceipt = service.resolve(input('俺の思考アルゴリズムで判断して', proposal({

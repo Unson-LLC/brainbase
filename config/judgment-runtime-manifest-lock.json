@@ -60,6 +60,10 @@
     {
       "runtime_version": "judgment-runtime-2.4.5",
       "manifest_digest": "9106aa04a3e2549872d4a97e7331e1b1dba57bffcf0dd8af4a31f39082b3a1c1"
+    },
+    {
+      "runtime_version": "judgment-runtime-2.4.6",
+      "manifest_digest": "931c3d3587c8ca15cf1ca92052b8e0463fcef9cbd5dd6526d8d5dd6bd38e3b64"
     }
   ]
 }
