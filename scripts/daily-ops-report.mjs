@@ -9,7 +9,7 @@ const repoRoot = path.resolve(__dirname, '..');
 
 const MODE_CONFIG = {
     ohayo: {
-        label: 'Ohayo',
+        label: 'おはよう',
         defaultTitle: '朝のブリーフィング',
         sections: [
             ['calendar', 'Calendar'],
@@ -17,64 +17,45 @@ const MODE_CONFIG = {
             ['slack', 'Slack'],
             ['priorityTasks', '今日の優先タスク']
         ],
-        actions: [
-            {
-                id: 'draft-slack-replies',
-                label: 'Slack返信ドラフト',
-                intent: 'slack_reply_draft',
-                safety: { draft_only: true, dry_run: true, requires_confirmation: true }
-            },
-            {
-                id: 'create-focus-tasks',
-                label: 'タスク化案を作る',
-                intent: 'task_draft',
-                safety: { draft_only: true, dry_run: true, requires_confirmation: true }
-            }
-        ]
+        actions: []
     },
     oyasumi: {
-        label: 'Oyasumi',
+        label: 'おやすみ',
         defaultTitle: '夜の振り返り',
         sections: [
             ['meetings', '会議'],
-            ['decisions', 'Decision'],
-            ['wikiNocodb', 'Wiki/NocoDB反映'],
-            ['personalKg', 'Personal KG'],
+            ['decisions', '判断'],
+            ['wikiNocodb', '記録への反映'],
+            ['personalKg', '個人の記憶候補'],
             ['failures', '失敗・未完了'],
             ['carryovers', '翌日持ち越し']
         ],
-        actions: [
-            {
-                id: 'draft-decisions',
-                label: 'Decision下書き',
-                intent: 'decision_draft',
-                safety: { draft_only: true, dry_run: true, requires_confirmation: true }
-            },
-            {
-                id: 'draft-next-day-tasks',
-                label: '持ち越しタスク案',
-                intent: 'carryover_task_draft',
-                safety: { draft_only: true, dry_run: true, requires_confirmation: true }
-            }
-        ]
+        actions: []
     },
     retro: {
-        label: 'Retro',
+        label: 'レトロ',
         defaultTitle: '週次レトロ',
         sections: [
             ['outcomes', '今週変わった現実'],
-            ['decisionReplays', '判断のReplay'],
+            ['decisionReplays', '判断の振り返り'],
             ['changedJudgments', '過去判断との違い'],
             ['mistakenAssumptions', '誤っていた前提'],
             ['repeatedPatterns', '繰り返した問題'],
             ['systemChanges', '来週から変える仕組み'],
-            ['personalKgReviews', 'Personal KGレビュー'],
-            ['graphPromotionReviews', 'Graph昇格レビュー'],
-            ['sourceCoverage', '確認範囲']
+            ['personalKgReviews', '個人の記憶候補の見直し'],
+            ['graphPromotionReviews', '組織知識への昇格候補'],
+            ['sourceCoverage', '未確認・取得不能']
         ],
         actions: []
     }
 };
+
+const OHAYO_PRIORITY_GROUPS = [
+    { id: 'todayDecisions', title: '今日決めること' },
+    { id: 'todayOutcomes', title: '今日の到達点' },
+    { id: 'aiWork', title: 'AIが進めること' },
+    { id: 'carryovers', title: '持ち越し・未確認' }
+];
 
 const SLACK_TEAM_IDS_BY_DOMAIN = {
     salestailor: process.env.SLACK_TEAM_ID_SALESTAILOR
@@ -100,6 +81,16 @@ export function normalizeDailyOpsReport(input = {}, options = {}) {
             return normalizeSection(id, title, sectionsInput[id] ?? input[id]);
         });
 
+    const canonicalTitles = new Map([
+        ...config.sections,
+        ...(mode === 'ohayo' ? OHAYO_PRIORITY_GROUPS.map(({ id, title }) => [id, title]) : [])
+    ]);
+    const normalizedSections = sectionList.map((section) => {
+        const normalized = normalizeSection(section.id, section.title, section);
+        return canonicalTitles.has(normalized.id)
+            ? { ...normalized, title: canonicalTitles.get(normalized.id) }
+            : normalized;
+    });
     return {
         mode,
         modeLabel: config.label,
@@ -107,14 +98,59 @@ export function normalizeDailyOpsReport(input = {}, options = {}) {
         date,
         generatedAt: input.generatedAt || new Date().toISOString(),
         summary: input.summary || '',
-        sections: sectionList.map((section) => normalizeSection(section.id, section.title, section)),
+        sections: mode === 'ohayo' ? organizeOhayoSections(normalizedSections) : normalizedSections,
         evidence: normalizeEvidence(input.evidence || []),
-        actions: normalizeActions([...(input.actions || []), ...config.actions], { mode, date })
+        actions: []
     };
 }
 
+function organizeOhayoSections(sections) {
+    const groupIds = new Set(OHAYO_PRIORITY_GROUPS.map((group) => group.id));
+    const groupedItems = Object.fromEntries(OHAYO_PRIORITY_GROUPS.map((group) => [group.id, []]));
+    const baseSections = [];
+
+    for (const section of sections) {
+        if (groupIds.has(section.id)) {
+            groupedItems[section.id].push(...section.items);
+        } else if (section.id === 'priorityTasks') {
+            for (const item of section.items) groupedItems[classifyOhayoPriority(item)].push(item);
+        } else {
+            baseSections.push(section);
+        }
+    }
+
+    return [
+        ...baseSections,
+        ...OHAYO_PRIORITY_GROUPS.map((group) => ({ ...group, items: dedupeItems(groupedItems[group.id]) }))
+    ];
+}
+
+function classifyOhayoPriority(item) {
+    const status = String(item.meta?.status || '').toLowerCase();
+    if (status.includes('要判断')) return 'todayDecisions';
+    if (status.includes('aiが進める')) return 'aiWork';
+    if (/(持ち越し|未確認|要確認|partial|waiting|blocked)/i.test(status)) return 'carryovers';
+    return 'todayOutcomes';
+}
+
+function dedupeItems(items) {
+    const seen = new Set();
+    return items.filter((item) => {
+        const key = JSON.stringify([
+            item.title,
+            item.summary,
+            item.details || [],
+            item.meta || {},
+            item.links || [],
+            item.evidence || []
+        ]);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
 export function buildDailyOpsReportHtml(report) {
-    const actionJson = safeJsonForScript(report.actions);
     return `<!doctype html>
 <html lang="ja">
 <head>
@@ -152,7 +188,7 @@ export function buildDailyOpsReportHtml(report) {
       text-rendering: optimizeLegibility;
       -webkit-font-smoothing: antialiased;
     }
-    main { max-width: 1180px; margin: 0 auto; padding: 44px 22px 64px; }
+    main { max-width: 1040px; margin: 0 auto; padding: 44px 22px 64px; }
     header {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -212,18 +248,18 @@ export function buildDailyOpsReportHtml(report) {
       text-align: right;
     }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
-    .sections { display: grid; gap: 18px; }
+    .layout-single { grid-template-columns: minmax(0, 1fr); }
+    .sections { display: grid; gap: 28px; }
     section, aside {
-      background: var(--paper);
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      box-shadow: var(--shadow);
+      background: transparent;
+      border: 0;
+      border-top: 1px solid var(--line);
+      border-radius: 0;
+      box-shadow: none;
     }
-    section { display: grid; grid-template-columns: 190px minmax(0, 1fr); padding: 0; overflow: hidden; }
+    section { display: grid; grid-template-columns: 180px minmax(0, 1fr); padding: 20px 0 0; }
     .section-heading {
-      padding: 18px 18px 18px 20px;
-      border-right: 1px solid var(--line-soft);
-      background: rgba(255, 255, 255, 0.42);
+      padding: 0 24px 0 0;
     }
     .section-count {
       display: inline-block;
@@ -232,7 +268,7 @@ export function buildDailyOpsReportHtml(report) {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       font-size: 11px;
     }
-    .section-body { min-width: 0; padding: 2px 20px; }
+    .section-body { min-width: 0; padding: 0; }
     .item {
       display: grid;
       gap: 7px;
@@ -253,12 +289,51 @@ export function buildDailyOpsReportHtml(report) {
       line-height: 1.45;
     }
     .item-summary {
-      max-width: 78ch;
+      max-width: 68ch;
       color: #3e4652;
-      font-size: 14px;
-      line-height: 1.8;
+      font-size: 15px;
+      font-weight: 400;
+      line-height: 1.9;
       white-space: pre-wrap;
     }
+    .item-details {
+      display: grid;
+      gap: 8px;
+      max-width: 65ch;
+      margin: 0;
+    }
+    .item-detail {
+      display: grid;
+      grid-template-columns: 7em minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .item-detail dt {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.8;
+    }
+    .item-detail dd {
+      margin: 0;
+      color: #343b46;
+      font-size: 14px;
+      font-weight: 400;
+      line-height: 1.85;
+    }
+    .item-more {
+      max-width: 65ch;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .item-more summary {
+      width: fit-content;
+      cursor: pointer;
+      color: var(--accent);
+      font-weight: 700;
+    }
+    .item-more[open] summary { margin-bottom: 10px; }
     .badge {
       flex: 0 0 auto;
       max-width: 46%;
@@ -308,63 +383,15 @@ export function buildDailyOpsReportHtml(report) {
     }
     .item-link:hover { border-color: var(--accent); background: #eef8f5; }
     .empty { padding: 18px 0; color: var(--muted); }
-    .actions {
-      position: sticky;
-      top: 18px;
-      display: grid;
-      gap: 14px;
-      padding: 18px;
-      background: #fffdf9;
-    }
-    .actions h2 { margin-bottom: 7px; }
-    .action-grid { display: grid; gap: 8px; }
-    button {
-      border: 1px solid var(--line);
-      background: #ffffff;
-      color: var(--text);
-      border-radius: 8px;
-      min-height: 38px;
-      padding: 9px 11px;
-      font: inherit;
-      font-size: 13px;
-      cursor: pointer;
-      text-align: left;
-      transition: border-color .16s ease, background-color .16s ease, transform .16s ease;
-    }
-    button:hover { border-color: var(--accent); background: #fbfffd; }
-    button:active { transform: translateY(1px); }
-    .copy-btn { background: var(--accent); color: #fff; border-color: var(--accent); text-align: center; font-weight: 700; }
-    textarea {
-      width: 100%;
-      min-height: 230px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #fbfaf7;
-      color: #252b35;
-      padding: 12px;
-      font: 12px/1.65 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      resize: vertical;
-    }
-    input {
-      width: 100%;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #ffffff;
-      min-height: 36px;
-      padding: 8px 10px;
-      font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    }
-    .safety { color: var(--warn); font-size: 12px; line-height: 1.7; }
-    .status { color: var(--muted); font-size: 12px; min-height: 18px; }
     @media (max-width: 900px) {
       main { padding: 28px 14px 44px; }
       header { grid-template-columns: 1fr; }
       .generated { justify-self: stretch; text-align: left; }
       .layout { grid-template-columns: 1fr; }
-      .actions { position: static; }
       section { grid-template-columns: 1fr; }
-      .section-heading { border-right: 0; border-bottom: 1px solid var(--line-soft); }
+      .section-heading { padding: 0 0 12px; }
       .item-head { display: grid; }
+      .item-detail { grid-template-columns: 1fr; gap: 2px; }
       .badge { max-width: 100%; justify-self: start; }
     }
     @media print {
@@ -383,48 +410,15 @@ export function buildDailyOpsReportHtml(report) {
         <h1>${escapeHtml(report.title)}</h1>
         <p class="summary">${escapeHtml(report.summary)}</p>
       </div>
-      <p class="meta generated">Generated<br>${escapeHtml(formatGeneratedAt(report.generatedAt))}</p>
+      <p class="meta generated">生成日時<br>${escapeHtml(formatGeneratedAt(report.generatedAt))}</p>
     </header>
-    <div class="layout">
+    <div class="layout layout-single">
       <div class="sections">
-        ${report.sections.map(renderSection).join('\n')}
+        ${report.sections.filter((section) => section.items?.length).map(renderSection).join('\n')}
         ${renderEvidenceSection(report.evidence)}
       </div>
-      <aside class="actions">
-        <div>
-          <h2>AIに渡す次の指示</h2>
-          <p class="safety">外部副作用は既定で draft_only / dry_run。実送信・実削除・実更新は別確認が必要。</p>
-        </div>
-        <div class="action-grid">
-          ${report.actions.map((action) => `<button type="button" data-action-id="${escapeHtml(action.id)}">${escapeHtml(action.label)}</button>`).join('\n')}
-        </div>
-        <textarea id="ai-instruction" readonly placeholder="ボタンを押すと、AIに渡す構造化指示が入ります"></textarea>
-        <input id="brainbase-endpoint" value="http://127.0.0.1:31013" aria-label="Brainbase API endpoint">
-        <button type="button" class="copy-btn" id="copy-instruction">指示をコピー</button>
-        <p class="status" id="send-status"></p>
-      </aside>
     </div>
   </main>
-  <script type="application/json" id="action-data">${actionJson}</script>
-  <script>
-    const actions = JSON.parse(document.getElementById('action-data').textContent);
-    const textarea = document.getElementById('ai-instruction');
-    const sendStatus = document.getElementById('send-status');
-    let selectedAction = null;
-    document.querySelectorAll('[data-action-id]').forEach((button) => {
-      button.addEventListener('click', () => {
-        const action = actions.find((item) => item.id === button.dataset.actionId);
-        if (!action) return;
-        selectedAction = action;
-        textarea.value = JSON.stringify(action.instruction, null, 2);
-      });
-    });
-    document.getElementById('copy-instruction').addEventListener('click', async () => {
-      if (!textarea.value) return;
-      await navigator.clipboard.writeText(textarea.value);
-      sendStatus.textContent = 'コピーしました';
-    });
-  </script>
 </body>
 </html>
 `;
@@ -432,18 +426,20 @@ export function buildDailyOpsReportHtml(report) {
 
 function renderSection(section) {
     const items = section.items || [];
+    const statuses = [...new Set(items.map((item) => String(item.meta?.status || '')).filter(Boolean))];
+    const sharedStatus = statuses.length === 1 && items.every((item) => item.meta?.status) ? statuses[0] : '';
     return `<section>
   <div class="section-heading">
     <h2>${escapeHtml(section.title)}</h2>
-    <span class="section-count">${items.length} item${items.length === 1 ? '' : 's'}</span>
+    <span class="section-count">${items.length}件${sharedStatus ? `・${escapeHtml(sharedStatus)}` : ''}</span>
   </div>
   <div class="section-body">
-    ${items.length ? items.map(renderItem).join('\n') : '<p class="empty">記録なし</p>'}
+    ${items.map((item) => renderItem(item, sharedStatus)).join('\n')}
   </div>
 </section>`;
 }
 
-function renderItem(item) {
+function renderItem(item, sharedStatus = '') {
     const meta = Object.entries(item.meta || {})
         .filter(([key, value]) => key !== 'status' && value !== undefined && value !== null && value !== '')
         .map(([key, value]) => `${escapeHtml(key)}: ${escapeHtml(String(value))}`)
@@ -452,18 +448,31 @@ function renderItem(item) {
         .map((entry) => `${escapeHtml(entry.type || 'ref')}: ${escapeHtml(entry.ref || entry.label || '')}`)
         .join(' / ');
     const links = renderLinks(item.links || []);
-    const status = item.meta?.status ? String(item.meta.status) : '';
+    const status = item.meta?.status && item.meta.status !== sharedStatus ? String(item.meta.status) : '';
     const tone = getStatusTone(status);
+    const hasHead = Boolean(item.title || status);
+    const details = renderDetails(item.details || []);
     return `<article class="item">
-  <div class="item-head">
-    <p class="item-title">${escapeHtml(item.title || 'Untitled')}</p>
+  ${hasHead ? `<div class="item-head">
+    ${item.title ? `<p class="item-title">${escapeHtml(item.title)}</p>` : '<span></span>'}
     ${status ? `<span class="badge" data-tone="${escapeHtml(tone)}">${escapeHtml(status)}</span>` : ''}
-  </div>
+  </div>` : ''}
   ${item.summary ? `<p class="item-summary">${escapeHtml(item.summary)}</p>` : ''}
+  ${details}
   ${meta ? `<p class="item-meta">${meta}</p>` : ''}
   ${links}
   ${evidence ? `<p class="evidence">${evidence}</p>` : ''}
 </article>`;
+}
+
+function renderDetails(details) {
+    if (!Array.isArray(details) || details.length === 0) return '';
+    const primaryLabels = new Set(['判断', '再利用できる考え方']);
+    const primary = details.filter((detail) => primaryLabels.has(detail.label));
+    const secondary = details.filter((detail) => !primaryLabels.has(detail.label));
+    const renderList = (items) => `<dl class="item-details">${items.map((detail) => `<div class="item-detail"><dt>${escapeHtml(detail.label)}</dt><dd>${escapeHtml(detail.text)}</dd></div>`).join('')}</dl>`;
+    if (!primary.length) return renderList(details);
+    return `${renderList(primary)}${secondary.length ? `<details class="item-more"><summary>背景と適用条件</summary>${renderList(secondary)}</details>` : ''}`;
 }
 
 function renderEvidenceSection(evidence) {
@@ -471,7 +480,7 @@ function renderEvidenceSection(evidence) {
     return `<section>
   <div class="section-heading">
     <h2>証跡</h2>
-    <span class="section-count">${evidence.length} item${evidence.length === 1 ? '' : 's'}</span>
+    <span class="section-count">${evidence.length}件</span>
   </div>
   <div class="section-body">
     ${evidence.map((entry) => `<article class="item"><p class="item-title">${escapeHtml(entry.label || entry.type || 'Evidence')}</p><p class="item-summary">${escapeHtml(entry.ref || '')}</p>${renderLinks(entry.url ? [{ label: 'Open', url: entry.url }] : [])}</article>`).join('\n')}
@@ -486,12 +495,12 @@ function renderLinks(links) {
 
 function normalizeSection(id, fallbackTitle, value) {
     if (!value) return { id, title: fallbackTitle || id, items: [] };
-    if (Array.isArray(value)) return { id, title: fallbackTitle || id, items: value.map(normalizeItem) };
+    if (Array.isArray(value)) return { id, title: fallbackTitle || id, items: dedupeItems(value.map(normalizeItem)) };
     if (typeof value === 'string') return { id, title: fallbackTitle || id, items: [{ title: fallbackTitle || id, summary: value, meta: {}, evidence: [] }] };
     return {
         id: value.id || id,
         title: value.title || fallbackTitle || id,
-        items: Array.isArray(value.items) ? value.items.map(normalizeItem) : []
+        items: Array.isArray(value.items) ? dedupeItems(value.items.map(normalizeItem)) : []
     };
 }
 
@@ -552,9 +561,18 @@ function normalizeItem(value) {
         }
     }
     const evidence = normalizeEvidence(value.evidence || []);
+    const titleCandidate = value.title || value.name || value.subject || '';
+    const explicitTitle = isPlaceholderTitle(titleCandidate) ? '' : titleCandidate;
+    const body = value.summary || value.detail || value.body || value.description || '';
+    const details = normalizeDetails(value.details).length
+        ? normalizeDetails(value.details)
+        : parseStructuredSummary(body);
+    const judgment = details.find((detail) => detail.label === '判断')?.text || '';
+    const promoteBody = !explicitTitle && !details.length && body.length <= 80;
     return {
-        title: value.title || value.name || value.subject || 'Untitled',
-        summary: value.summary || value.detail || value.body || value.description || '',
+        title: explicitTitle || (judgment ? shortenTitle(judgment) : (promoteBody ? body : '')),
+        summary: details.length || promoteBody ? '' : body,
+        details,
         meta,
         links: mergeLinks(
             normalizeLinks(value.links || value.link || value.url || value.htmlLink || value.permalink || []),
@@ -562,6 +580,48 @@ function normalizeItem(value) {
         ),
         evidence
     };
+}
+
+function shortenTitle(value, maxLength = 44) {
+    const text = String(value || '').trim();
+    if (text.length <= maxLength) return text;
+    return `${text.slice(0, maxLength - 1).trimEnd()}…`;
+}
+
+function parseStructuredSummary(value) {
+    const text = String(value || '').trim();
+    const labelMap = {
+        Context: '背景',
+        Judgment: '判断',
+        'Reusable Pattern': '再利用できる考え方',
+        'Apply When': '使う場面',
+        'Do Not Apply When': '使わない場面'
+    };
+    const matches = [...text.matchAll(/(?:^|\s)(Context|Judgment|Reusable Pattern|Apply When|Do Not Apply When):\s*/g)]
+        .map((match) => ({
+            label: labelMap[match[1]],
+            index: match.index,
+            valueStart: match.index + match[0].length
+        }));
+    if (matches.length < 2) return [];
+    return matches.map((entry, index) => {
+        const end = matches[index + 1]?.index ?? text.length;
+        return { label: entry.label, text: text.slice(entry.valueStart, end).trim() };
+    }).filter((entry) => entry.text);
+}
+
+function normalizeDetails(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map((entry) => ({
+            label: String(entry?.label || '').trim(),
+            text: String(entry?.text || '').trim()
+        }))
+        .filter((entry) => entry.label && entry.text);
+}
+
+function isPlaceholderTitle(value) {
+    return /^untitled(?:\s+item)?$/i.test(String(value || '').trim());
 }
 
 function normalizeMeta(value) {
@@ -735,33 +795,6 @@ function normalizeEvidence(value) {
     });
 }
 
-function normalizeActions(actions, { mode, date }) {
-    const seen = new Set();
-    return actions
-        .filter((action) => action && action.id && !seen.has(action.id) && seen.add(action.id))
-        .map((action) => {
-            const safety = {
-                draft_only: true,
-                dry_run: true,
-                requires_confirmation: true,
-                ...(action.safety || {})
-            };
-            return {
-                id: action.id,
-                label: action.label || action.id,
-                instruction: {
-                    source: 'daily_ops_html_report',
-                    mode,
-                    date,
-                    intent: action.intent || action.id,
-                    safety,
-                    payload: action.payload || {},
-                    required_user_confirmation_for: ['send', 'delete', 'update_external_service']
-                }
-            };
-        });
-}
-
 function escapeHtml(value) {
     return String(value ?? '')
         .replace(/&/g, '&amp;')
@@ -769,22 +802,6 @@ function escapeHtml(value) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#39;');
-}
-
-function safeJsonForScript(value) {
-    return JSON.stringify(value)
-        .replace(/</g, '\\u003c')
-        .replace(/>/g, '\\u003e')
-        .replace(/&/g, '\\u0026')
-        .replace(/\u2028/g, '\\u2028')
-        .replace(/\u2029/g, '\\u2029');
-}
-
-function escapeJs(value) {
-    return String(value ?? '')
-        .replace(/\\/g, '\\\\')
-        .replace(/'/g, "\\'")
-        .replace(/\r?\n/g, ' ');
 }
 
 function parseArgs(argv) {

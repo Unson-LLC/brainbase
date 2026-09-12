@@ -17,7 +17,7 @@ describe('daily-ops-report', () => {
         expect(report.actions).toEqual([]);
     });
 
-    it('ohayo report has required sections and draft-only default actions', () => {
+    it('ohayo report has decision-oriented sections without AI handoff actions', () => {
         const report = normalizeDailyOpsReport({
             mode: 'ohayo',
             date: '2026-05-09',
@@ -30,13 +30,12 @@ describe('daily-ops-report', () => {
             'calendar',
             'mail',
             'slack',
-            'priorityTasks'
+            'todayDecisions',
+            'todayOutcomes',
+            'aiWork',
+            'carryovers'
         ]);
-        expect(report.actions[0].instruction.safety).toEqual(expect.objectContaining({
-            draft_only: true,
-            dry_run: true,
-            requires_confirmation: true
-        }));
+        expect(report.actions).toEqual([]);
     });
 
     it('accepts command-collected top-level section arrays', () => {
@@ -53,11 +52,129 @@ describe('daily-ops-report', () => {
             calendar: 1,
             mail: 1,
             slack: 1,
-            priorityTasks: 1
+            todayDecisions: 0,
+            todayOutcomes: 1,
+            aiWork: 0,
+            carryovers: 0
         });
     });
 
-    it('escapes report content and script JSON payloads', () => {
+    it('removes AI instruction UI and Untitled placeholders from every report mode', () => {
+        for (const mode of ['ohayo', 'oyasumi', 'retro']) {
+            const report = normalizeDailyOpsReport({
+                mode,
+                sections: [{
+                    id: 'sample',
+                    title: '確認',
+                    items: [
+                        { summary: '本文だけの項目' },
+                        { title: 'Untitled', summary: '保存済みプレースホルダーの本文' }
+                    ]
+                }]
+            });
+            const html = buildDailyOpsReportHtml(report);
+
+            expect(report.actions).toEqual([]);
+            expect(html).not.toContain('AIに渡す次の指示');
+            expect(html).not.toContain('Untitled');
+            expect(html).not.toContain('id="action-data"');
+            expect(html).toContain('.layout-single { grid-template-columns: minmax(0, 1fr); }');
+            expect(html.match(/本文だけの項目/g)).toHaveLength(1);
+            expect(html.match(/保存済みプレースホルダーの本文/g)).toHaveLength(1);
+        }
+    });
+
+    it('turns judgment capsules into readable labeled rows instead of one bold paragraph', () => {
+        const report = normalizeDailyOpsReport({
+            mode: 'oyasumi',
+            sections: [{
+                id: 'personalKg',
+                title: '記憶候補',
+                items: [{
+                    title: 'Untitled',
+                    summary: 'Context: セッションが止まった。 Judgment: 原因も調べる。 Reusable Pattern: 復旧と再発防止を分ける。 Apply When: 障害時。 Do Not Apply When: 一時停止のみ。',
+                    status: '登録候補'
+                }]
+            }]
+        });
+        const item = report.sections[0].items[0];
+        const html = buildDailyOpsReportHtml(report);
+
+        expect(item.title).toBe('原因も調べる。');
+        expect(item.summary).toBe('');
+        expect(item.details).toEqual([
+            { label: '背景', text: 'セッションが止まった。' },
+            { label: '判断', text: '原因も調べる。' },
+            { label: '再利用できる考え方', text: '復旧と再発防止を分ける。' },
+            { label: '使う場面', text: '障害時。' },
+            { label: '使わない場面', text: '一時停止のみ。' }
+        ]);
+        expect(html).toContain('<dt>判断</dt><dd>原因も調べる。</dd>');
+        expect(html).toContain('<details class="item-more">');
+        expect(html).toContain('<summary>背景と適用条件</summary>');
+        expect(html).toContain('<span class="section-count">1件・登録候補</span>');
+        expect(html).not.toContain('<span class="badge" data-tone="hold">登録候補</span>');
+        expect(html).toContain('<h2>個人の記憶候補</h2>');
+        expect(html).toContain('生成日時<br>');
+        expect(html).not.toContain('Context:');
+    });
+
+    it('deduplicates identical judgment candidates and hides empty sections', () => {
+        const candidate = {
+            title: 'Untitled',
+            summary: 'Context: 背景。 Judgment: 同じ判断。 Reusable Pattern: 同じ考え方。 Apply When: 対象。 Do Not Apply When: 対象外。',
+            status: '登録候補'
+        };
+        const report = normalizeDailyOpsReport({
+            mode: 'oyasumi',
+            sections: [
+                { id: 'personalKg', title: '個人の記憶候補', items: [candidate, candidate] },
+                { id: 'failures', title: '失敗・未完了', items: [] }
+            ]
+        });
+        const html = buildDailyOpsReportHtml(report);
+
+        expect(report.sections[0].items).toHaveLength(1);
+        expect(html.match(/同じ判断。/g)).toHaveLength(2);
+        expect(html).not.toContain('失敗・未完了');
+        expect(html).not.toContain('記録なし');
+    });
+
+    it('preserves structured rows when a normalized report is normalized again', () => {
+        const once = normalizeDailyOpsReport({
+            mode: 'retro',
+            sections: [{
+                id: 'sample',
+                title: '判断',
+                items: [{ summary: 'Context: 背景。 Judgment: 判断。 Do Not Apply When: 対象外。' }]
+            }]
+        });
+        const twice = normalizeDailyOpsReport(once);
+
+        expect(twice.sections[0].items[0].details).toEqual(once.sections[0].items[0].details);
+        expect(twice.sections[0].items[0].details).toHaveLength(3);
+    });
+
+    it('separates ohayo priorities into decisions, outcomes, AI work, and carryovers', () => {
+        const report = normalizeDailyOpsReport({
+            mode: 'ohayo',
+            priorityTasks: [
+                { summary: '復旧順を決める', status: '要判断' },
+                { summary: '失敗境界を確定する', status: '今日の到達点' },
+                { summary: 'ログを読む', status: 'AIが進める' },
+                { summary: '配信確認', status: '未確認' }
+            ]
+        });
+
+        expect(Object.fromEntries(report.sections.slice(3).map((section) => [section.id, section.items.map((item) => item.title)]))).toEqual({
+            todayDecisions: ['復旧順を決める'],
+            todayOutcomes: ['失敗境界を確定する'],
+            aiWork: ['ログを読む'],
+            carryovers: ['配信確認']
+        });
+    });
+
+    it('escapes report content after action payloads are removed', () => {
         const report = normalizeDailyOpsReport({
             mode: 'oyasumi',
             date: '2026-05-09',
@@ -74,10 +191,10 @@ describe('daily-ops-report', () => {
 
         expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
         expect(html).not.toContain('</script><script>alert(1)</script>');
-        expect(html).toContain('\\u003c/script\\u003e');
+        expect(html).not.toContain('Custom');
     });
 
-    it('renders copy-only AI instruction handoff without dead Inbox API wiring', () => {
+    it('does not render the retired AI instruction handoff', () => {
         const report = normalizeDailyOpsReport({
             mode: 'ohayo',
             date: '2026-05-10'
@@ -85,7 +202,8 @@ describe('daily-ops-report', () => {
 
         const html = buildDailyOpsReportHtml(report);
 
-        expect(html).toContain('指示をコピー');
+        expect(html).not.toContain('指示をコピー');
+        expect(html).not.toContain('AIに渡す次の指示');
         expect(html).not.toContain("fetch(endpoint + '/api/inbox'");
         expect(html).not.toContain('Brainbase Inboxへ送る');
     });
