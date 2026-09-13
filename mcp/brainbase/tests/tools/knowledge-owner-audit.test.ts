@@ -48,6 +48,7 @@ describe('knowledge owner audit', () => {
         source: 'Personal KG',
         operation: '検索',
         query: 'unknown principle',
+        retrieval: { status: 'empty', coverage: 'unknown', sufficiency: 'insufficient', references: [], absence_confirmed: false },
         outcome: '該当なし（不在確定ではない）',
         display_line: '📚 Brainbase検索: Personal KGで「unknown principle」を検索 → 該当なし（不在確定ではない）',
       }
@@ -59,6 +60,24 @@ describe('knowledge owner audit', () => {
     assert.equal(
       buildKnowledgeOwnerAudit('resolve_entity', { query: 'unknown' }, '{"candidates":[]}')?.outcome,
       '該当なし（不在確定ではない）',
+    );
+  });
+
+  it('binds Personal KG search output to the IDs and bodies actually returned', () => {
+    const result = '# Personal KG (佐藤圭吾) — "login" (1 hits)\n\n'
+      + '- **[decision conf=0.9]** 業務サービスはinfo@unson.jpを使う\n'
+      + '  _(brainbase · 2026-09-01 · pkg-account-policy)_';
+    assert.deepStrictEqual(buildKnowledgeOwnerAudit('search_personal_kg', { query: 'login' }, result)?.retrieval, {
+      status: 'retrieved', coverage: 'unknown', sufficiency: 'needs_model_verification',
+      references: [{ id: 'pkg-account-policy', entity_type: 'personal_kg', evidence_status: 'present', evidence_fields: ['body'] }],
+      absence_confirmed: false,
+    });
+  });
+
+  it('fails closed when a Personal KG result cannot be parsed into evidence', () => {
+    assert.deepStrictEqual(
+      buildKnowledgeOwnerAudit('search_personal_kg', { query: 'login' }, 'unexpected result shape')?.retrieval,
+      { status: 'unknown', coverage: 'unknown', sufficiency: 'unknown', references: [], absence_confirmed: false }
     );
   });
 

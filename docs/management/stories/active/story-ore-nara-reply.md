@@ -8,9 +8,10 @@ Codexが作業途中に投げる不要な質問へ、佐藤さんが毎回答え
 
 - 不要な質問は本人へ再送せず、同じturnで処理を続ける。
 - 意味判断が必要なら、質問文そのものをPersonal KG検索へ渡して根拠を適用する。
-- 意味判断では、Personal KGの実結果を得てから作業を変更する。該当なしや取得失敗を本人の回答として扱わない。
+- 意味判断では、Personal KGの実結果を得た後、AIが質問への直接回答性、適用可能性、矛盾、鮮度を判定する。検索件数だけで本人の回答とみなさない。
+- 質問digestと証拠IDへ束縛した意味判定が`resolved`の場合だけ自動回答する。`ambiguous` / `no_answer` / `conflicting` / `stale` / `unavailable`は本人へ一度だけ確認する。
 - `required_input_unavailable`または`owner_value_choice`で本人へ確認する前に、状態確定時点でPersonal KG検索の実行証拠を必須にする。
-- `required_input_unavailable`についてPersonal KGに回答があれば、確認文を一度も表示せず作業を続ける。該当なし・取得失敗なら一度だけ本人へ確認できる。
+- `required_input_unavailable`について質問へ直接答える`resolved`判定があれば、確認文を一度も表示せず作業を続ける。無関係な結果、曖昧、矛盾、古い記録、該当なし、取得失敗なら一度だけ本人へ確認できる。
 - 権限不足、秘密不足、不可逆な外部影響、重要な金銭・契約、新しい価値判断だけは本人へ確認する。
 - HostやPersonal KGの障害は監査未完了として区別し、通常のCodex権限による診断を止めない。
 - 継続後の実作業とreadbackがなければ完了にしない。

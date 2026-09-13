@@ -3,8 +3,8 @@
   "story_id": "story-ore-nara-reply",
   "role": "reviewer",
   "status": "pass",
-  "summary": "質問固定とdigest検証、定型確認のKG不要化、意味選択の同文KG実取得必須化、既存の人間判断境界とHost障害時縮退を確認。関連unit 229件と入口integrationの対象ケースに合格。",
-  "recorded_at": "2026-09-12T06:22:27.743Z",
+  "summary": "アーキテクチャ境界、質問digest、実検索証拠ID、semantic status、実行順序、失敗閉鎖を差分と反例テストで確認。検索件数だけで自動回答する旧欠陥は解消され、権限境界は拡張していない。",
+  "recorded_at": "2026-09-13T13:10:09.902Z",
   "findings": [],
   "content_binding": {
     "schema_version": "0.1.0",
@@ -16,27 +16,27 @@
     "surface_files": [
       {
         "path": "docs/architecture/story-ore-nara-reply.md",
-        "sha256": "2ea65e4187dad51f66c352d347a777e94658fff8170c786f65764ababc6212a1",
-        "size": 2049
+        "sha256": "0f4025d53b8ddccda41c8ccc999363fc13243fd35d588fe25a87fdf848757781",
+        "size": 3875
+      },
+      {
+        "path": "mcp/brainbase/src/tools/knowledge-evidence-tools.ts",
+        "sha256": "83a7606f6e15f3e12fe991790ca9fb6d8cf4c636fa97ecabf2eda0a80de68eaf",
+        "size": 4369
       },
       {
         "path": "scripts/codex-hooks/judgment-resolver-host.mjs",
-        "sha256": "17a88cf168e6bfe36cc3ce3228f1a0867bf5de01d7aeb7eb53c6bd5f9a452e17",
-        "size": 278443
-      },
-      {
-        "path": "tests/integration/judgment-resolver-host-entrypoint.test.js",
-        "sha256": "17b528e2f1e75f91fcc0c3514982332b8bc27a87ec4848691197d2b4960003b6",
-        "size": 131321
+        "sha256": "b1ad8cc43621fb28abb2f6af7976f96e9708a2dde0d90b0ab24883480cf56579",
+        "size": 288113
       },
       {
         "path": "tests/unit/judgment-resolver-host.test.js",
-        "sha256": "87aa714cf0616b0ab54f39e48c2472c9cbc63009e4324e2bcb514f766a00b1d6",
-        "size": 388207
+        "sha256": "516c7e97e811877e196ada00196e367dc849a731cab50ee73398d585fdffcd29",
+        "size": 402641
       }
     ],
     "missing_files": [],
-    "surface_hash": "89914d9f16a7157268a675d7880278f715abf7e8f35d039f05e4fa513cadddb5"
+    "surface_hash": "e9ca4188ff746002777cada7d2dc7023307376d6facf89ad631dac6cbff5ece2"
   },
   "reviewer": {
     "system": null,

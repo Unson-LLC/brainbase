@@ -1,24 +1,370 @@
 {
   "schema_version": "0.1.0",
   "story_id": "story-ore-nara-reply",
-  "story_doc_path": null,
-  "source": "story_add",
-  "lifecycle": "declared_not_started",
-  "evidence": [],
-  "acceptance_criteria": [],
+  "story_doc_path": "docs/management/stories/active/story-ore-nara-reply.md",
+  "source": "pr_prepare",
+  "lifecycle": "in_progress",
+  "evidence": [
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-ore-nara-reply/pr-body.md"
+    },
+    {
+      "type": "pr_artifact",
+      "ref": ".vibepro/pr/story-ore-nara-reply/verification-evidence.json"
+    }
+  ],
+  "acceptance_criteria": [
+    {
+      "id": "AC-1",
+      "type": "acceptance_criterion",
+      "source_text": "不要な質問は本人へ再送せず、同じturnで処理を続ける。",
+      "text": "不要な質問は本人へ再送せず、同じturnで処理を続ける。",
+      "source_line": 9,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-2",
+      "type": "acceptance_criterion",
+      "source_text": "意味判断が必要なら、質問文そのものをPersonal KG検索へ渡して根拠を適用する。",
+      "text": "意味判断が必要なら、質問文そのものをPersonal KG検索へ渡して根拠を適用する。",
+      "source_line": 10,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-3",
+      "type": "acceptance_criterion",
+      "source_text": "意味判断では、Personal KGの実結果を得てから作業を変更する。該当なしや取得失敗を本人の回答として扱わない。",
+      "text": "意味判断では、Personal KGの実結果を得てから作業を変更する。該当なしや取得失敗を本人の回答として扱わない。",
+      "source_line": 11,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-4",
+      "type": "acceptance_criterion",
+      "source_text": "`required_input_unavailable`または`owner_value_choice`で本人へ確認する前に、状態確定時点でPersonal KG検索の実行証拠を必須にする。",
+      "text": "`required_input_unavailable`または`owner_value_choice`で本人へ確認する前に、状態確定時点でPersonal KG検索の実行証拠を必須にする。",
+      "source_line": 12,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-5",
+      "type": "acceptance_criterion",
+      "source_text": "`required_input_unavailable`についてPersonal KGに回答があれば、確認文を一度も表示せず作業を続ける。該当なし・取得失敗なら一度だけ本人へ確認できる。",
+      "text": "`required_input_unavailable`についてPersonal KGに回答があれば、確認文を一度も表示せず作業を続ける。該当なし・取得失敗なら一度だけ本人へ確認できる。",
+      "source_line": 13,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-6",
+      "type": "acceptance_criterion",
+      "source_text": "権限不足、秘密不足、不可逆な外部影響、重要な金銭・契約、新しい価値判断だけは本人へ確認する。",
+      "text": "権限不足、秘密不足、不可逆な外部影響、重要な金銭・契約、新しい価値判断だけは本人へ確認する。",
+      "source_line": 14,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-7",
+      "type": "acceptance_criterion",
+      "source_text": "HostやPersonal KGの障害は監査未完了として区別し、通常のCodex権限による診断を止めない。",
+      "text": "HostやPersonal KGの障害は監査未完了として区別し、通常のCodex権限による診断を止めない。",
+      "source_line": 15,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-8",
+      "type": "acceptance_criterion",
+      "source_text": "継続後の実作業とreadbackがなければ完了にしない。",
+      "text": "継続後の実作業とreadbackがなければ完了にしない。",
+      "source_line": 16,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-9",
+      "type": "acceptance_criterion",
+      "source_text": "Personal KG検索より後に、その根拠を反映した実作業または検証がなければ完了にしない。",
+      "text": "Personal KG検索より後に、その根拠を反映した実作業または検証がなければ完了にしない。",
+      "source_line": 17,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    },
+    {
+      "id": "AC-10",
+      "type": "acceptance_criterion",
+      "source_text": "説明用の引用、コードブロック、テスト入力例を本人への確認質問と誤認しない。",
+      "text": "説明用の引用、コードブロック、テスト入力例を本人への確認質問と誤認しない。",
+      "source_line": 18,
+      "status": "unmapped",
+      "story_scenario_ids": [],
+      "scenario_lineage_status": "valid",
+      "unknown_story_scenario_ids": [],
+      "mapped_files": [],
+      "mapped_tests": [],
+      "mapped_test_provenance": [],
+      "mapped_evidence": [],
+      "mapped_review_findings": [],
+      "spec_clause_ids": [],
+      "mapping_source": "accepted_spec",
+      "lineage_status": "invalid",
+      "verification_status": "untrusted",
+      "reason_codes": [
+        "accepted_spec_diverged_from_head",
+        "accepted_spec_clause_missing",
+        "verification_evidence_untrusted"
+      ],
+      "weak_mapping_reason": null
+    }
+  ],
   "scenario_clauses": [],
   "scenario_lineage": null,
-  "accepted_spec_lineage": null,
+  "accepted_spec_lineage": {
+    "status": "invalid",
+    "head_sha": "530de7c19ea9a1939cef506e53ecc20453df928f",
+    "spec_path": ".vibepro/spec/story-ore-nara-reply/spec.json",
+    "spec_blob_oid": "ab8bd5ba69e565a4b1243a1b261583b6dddd8f09",
+    "story_path": "docs/management/stories/active/story-ore-nara-reply.md",
+    "story_blob_oid": "660a2d40f2d446c5cf1841a3a0e8fedcc92ed924",
+    "mapping_source": "accepted_spec",
+    "clause_count": 5,
+    "resolved_clause_count": 0,
+    "reason_codes": [
+      "accepted_spec_diverged_from_head",
+      "story_ref_missing",
+      "test_case_missing",
+      "unknown_story_ac",
+      "test_pattern_failed"
+    ],
+    "failures": [
+      {
+        "clause_id": "AC-001",
+        "reason_codes": [
+          "story_ref_missing",
+          "test_case_missing"
+        ]
+      },
+      {
+        "clause_id": "AC-002",
+        "reason_codes": [
+          "unknown_story_ac",
+          "test_case_missing",
+          "test_pattern_failed"
+        ]
+      },
+      {
+        "clause_id": "INV-001",
+        "reason_codes": [
+          "unknown_story_ac",
+          "test_case_missing"
+        ]
+      },
+      {
+        "clause_id": "AC-003",
+        "reason_codes": [
+          "unknown_story_ac",
+          "test_pattern_failed"
+        ]
+      },
+      {
+        "clause_id": "INV-002",
+        "reason_codes": [
+          "unknown_story_ac"
+        ]
+      }
+    ]
+  },
   "coverage_summary": {
-    "clause_count": 0,
-    "acceptance_criteria_count": 0,
+    "clause_count": 10,
+    "acceptance_criteria_count": 10,
     "scenario_clause_count": 0,
     "mapped_count": 0,
     "weakly_mapped_count": 0,
-    "unmapped_count": 0,
+    "unmapped_count": 10,
     "scenario_lineage": null,
-    "examples": []
+    "examples": [
+      {
+        "id": "AC-1",
+        "type": "acceptance_criterion",
+        "status": "unmapped",
+        "source_text": "不要な質問は本人へ再送せず、同じturnで処理を続ける。",
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-2",
+        "type": "acceptance_criterion",
+        "status": "unmapped",
+        "source_text": "意味判断が必要なら、質問文そのものをPersonal KG検索へ渡して根拠を適用する。",
+        "weak_mapping_reason": null
+      },
+      {
+        "id": "AC-3",
+        "type": "acceptance_criterion",
+        "status": "unmapped",
+        "source_text": "意味判断では、Personal KGの実結果を得てから作業を変更する。該当なしや取得失敗を本人の回答として扱わない。",
+        "weak_mapping_reason": null
+      }
+    ]
   },
   "created_at": "2026-09-12T06:13:52.969Z",
-  "updated_at": "2026-09-12T06:13:52.969Z"
+  "updated_at": "2026-09-13T13:11:54.025Z"
 }
