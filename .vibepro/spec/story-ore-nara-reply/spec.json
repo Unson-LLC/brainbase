@@ -22,6 +22,20 @@
       }
     },
     {
+      "id": "AC-002",
+      "type": "acceptance_criterion",
+      "statement": "A semantic Ore Nara Reply completes only after a successful Personal KG result and a later execution or verification event that applies it; an empty or failed retrieval is never treated as the owner's answer.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
+        "architecture_refs": [{ "file": "docs/architecture/story-ore-nara-reply.md", "section": "Success conditions" }],
+        "code_refs": [{ "file": "scripts/codex-hooks/judgment-resolver-host.mjs", "anchor": "oreNaraReplyEvidence" }],
+        "test_refs": [{ "file": "tests/unit/judgment-resolver-host.test.js", "case": "continueなのに不要な確認質問" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/unit/judgment-resolver-host.test.js", "must_cover": "empty and not_applied" }]
+      }
+    },
+    {
       "id": "INV-001",
       "type": "invariant",
       "statement": "Personal KG evidence cannot expand authority; irreversible actions, missing authority or secrets, material commitments, and new owner value choices still require the owner.",
