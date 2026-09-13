@@ -103,7 +103,7 @@ launchctl kickstart -k "gui/$(id -u)/${MCP_LABEL}" || fail "MCP launchd restart 
 
 running=0
 for ((attempt = 1; attempt <= LAUNCHD_WAIT_ATTEMPTS; attempt += 1)); do
-  if launchctl print "gui/$(id -u)/${MCP_LABEL}" 2>/dev/null | grep -q 'state = running'; then
+  if launchctl print "gui/$(id -u)/${MCP_LABEL}" 2>/dev/null | grep 'state = running' >/dev/null; then
     running=1
     break
   fi
@@ -125,7 +125,7 @@ if launchctl print "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}" >/dev/null 2>&1; then
   if launchctl kickstart -k "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}"; then
     CHATGPT_TUNNEL_STATUS="unhealthy"
     for ((attempt = 1; attempt <= 10; attempt += 1)); do
-      if launchctl print "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}" 2>/dev/null | grep -q 'state = running'; then
+      if launchctl print "gui/$(id -u)/${CHATGPT_TUNNEL_LABEL}" 2>/dev/null | grep 'state = running' >/dev/null; then
         CHATGPT_TUNNEL_STATUS="running"
         break
       fi
