@@ -141,7 +141,7 @@ const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'brainbase_projects', 'brainbase_bootstrap_config', 'brainbase_admin_read',
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
-    'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_knowledge_evidence_record', 'brainbase_judgment_audit_read',
+    'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_knowledge_evidence_record', 'brainbase_personal_kg_answer_record', 'brainbase_judgment_audit_read',
     'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
     'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
 ]);
@@ -161,6 +161,7 @@ export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
     ['brainbase_resolve_turn', 'turn_resolution'],
     ['brainbase_knowledge_resolve', 'route'],
     ['brainbase_knowledge_evidence_record', 'evidence'],
+    ['brainbase_personal_kg_answer_record', 'personal_answer'],
     ['brainbase_judgment_audit_read', 'ignored'],
     ['brainbase_judgment_state_record', 'state'],
     ['brainbase_judgment_value_proof_record', 'value_proof']
@@ -173,7 +174,7 @@ export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
     brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
     brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', authorize_tenant_resource: 'tenant_authorization',
-    brainbase_judgment_audit_read: 'ignored', brainbase_knowledge_evidence_record: 'evidence',
+    brainbase_judgment_audit_read: 'ignored', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer',
     mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
     brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
     brainbase_automation_human_step_resolve: 'published_contract', brainbase_onboarding_start: 'published_contract', brainbase_onboarding_ingest: 'published_contract',
@@ -2052,6 +2053,17 @@ function judgmentStopStateData(response) {
     return null;
 }
 
+function personalKgAnswerData(response) {
+    return nestedRecords(response).find((value) => value.schema_version === 'brainbase-personal-kg-answer-v1'
+        && /^sha256:[a-f0-9]{64}$/u.test(String(value.question_digest))
+        && ['resolved', 'ambiguous', 'no_answer', 'conflicting', 'stale', 'unavailable'].includes(value.status)
+        && Array.isArray(value.reference_ids)
+        && typeof value.reason === 'string'
+        && (value.status === 'resolved'
+            ? typeof value.answer === 'string' && value.answer.trim() && value.reference_ids.length > 0
+            : value.answer === null)) ?? null;
+}
+
 const PERSONAL_KG_PREFLIGHT_REASON_CODES = new Set([
     'required_input_unavailable',
     'owner_value_choice'
@@ -2074,12 +2086,25 @@ function personalKgEscalationPreflight(state, events = []) {
         };
     }
     const latest = searches.at(-1);
+    const resolution = events.findLast((event) => event.tool_name === 'mcp__brainbase__brainbase_personal_kg_answer_record'
+        && event.success
+        && event.event_sequence > latest.event_sequence);
+    const answer = resolution?.safe_metadata?.personal_answer;
+    const retrieval = normalizeRetrievalEvidence(latest.safe_metadata?.retrieval_evidence);
+    const retrievedIds = new Set(retrieval?.status === 'retrieved'
+        ? retrieval.references.filter((ref) => ref.evidence_status === 'present').map((ref) => ref.id)
+        : []);
+    const answerUsesRetrievedReferences = Array.isArray(answer?.reference_ids)
+        && answer.reference_ids.length > 0
+        && answer.reference_ids.every((id) => retrievedIds.has(id));
     if (state.runtime_reason_code === 'required_input_unavailable'
         && latest.success === true
-        && latest.safe_metadata?.retrieval_outcome === 'result') {
+        && latest.safe_metadata?.retrieval_outcome === 'result'
+        && answer?.status === 'resolved'
+        && answerUsesRetrievedReferences) {
         return {
             valid: false,
-            systemMessage: '「俺なら返答」で本人の判断根拠を取得できています。本人へ同じ質問を表示せず、その結果を既存の権限内で適用して作業とreadbackを続け、完了後に状態toolを最後にもう一度実行してください。'
+            systemMessage: '「俺なら返答」で質問へ直接答える本人の判断根拠を確定できています。本人へ同じ質問を表示せず、その回答を既存の権限内で適用して作業とreadbackを続け、完了後に状態toolを最後にもう一度実行してください。'
         };
     }
     return { valid: true };
@@ -2404,6 +2429,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
         ? controlPlaneReadData(toolName, responseValue)
         : null;
     const stopState = kind === 'state' ? judgmentStopStateData(responseValue) : null;
+    const personalAnswer = kind === 'personal_answer' ? personalKgAnswerData(responseValue) : null;
     const valueProofInput = kind === 'value_proof' ? extractJudgmentValueProofInput(responseValue) : null;
     const requestedStopState = kind === 'state' ? {
         schema_version: 'brainbase-stop-state-v1',
@@ -2438,6 +2464,10 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
                 ? Boolean(valueProofInput)
                 : kind === 'evidence'
                     ? Boolean(assessmentMatchesInput)
+                : kind === 'personal_answer'
+                    ? Boolean(personalAnswer && canonicalJson(personalAnswer) === canonicalJson({
+                        schema_version: 'brainbase-personal-kg-answer-v1', ...inputValue
+                    }))
                 : kind === 'route'
                     ? resolution?.status === 'resolved'
                 : kind === 'state'
@@ -2461,7 +2491,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
             .map((match) => match[1].trim())
             .filter((value) => value && !value.includes('\0')))]
         : [];
-    const safeMetadata = evidenceAssessment ? { evidence_assessment: evidenceAssessment } : turnResolution ? { turn_contract: turnResolution } : turnResolutionUnavailable ? {
+    const safeMetadata = evidenceAssessment ? { evidence_assessment: evidenceAssessment } : personalAnswer ? { personal_answer: personalAnswer } : turnResolution ? { turn_contract: turnResolution } : turnResolutionUnavailable ? {
         turn_resolution_failure: {
             status: 'unavailable',
             code: TURN_RESOLUTION_UNAVAILABLE_CODE
@@ -2494,7 +2524,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
         ? '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）'
         : postToolUseFailure && kind === 'turn_resolution' && !turnResolution
         ? '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（tool_execution_failed）'
-        : !brainbaseTool || judgmentStateTool || judgmentValueProofTool || judgmentAuditReadTool || kind === 'turn_resolution'
+        : !brainbaseTool || judgmentStateTool || judgmentValueProofTool || judgmentAuditReadTool || kind === 'turn_resolution' || kind === 'personal_answer'
         ? null
         : kind === 'evidence'
         ? auditResponseSuccess
@@ -4019,8 +4049,23 @@ function oreNaraReplySearchEvents(events, marker) {
 }
 
 function oreNaraReplyEvidence(events, marker) {
-    return oreNaraReplySearchEvents(events, marker)
+    const request = verifyOreNaraReplyRequest(marker?.ore_nara_reply);
+    const searches = oreNaraReplySearchEvents(events, marker)
         .filter((event) => event.safe_metadata?.retrieval_outcome === 'result');
+    if (!request || searches.length === 0) return [];
+    return events.filter((event) => {
+        const answer = event.safe_metadata?.personal_answer;
+        if (!event.success || event.event_kind !== 'personal_answer'
+            || answer?.status !== 'resolved' || answer.question_digest !== request.question_digest) return false;
+        return searches.some((search) => {
+            if (search.event_sequence >= event.event_sequence) return false;
+            const retrieval = normalizeRetrievalEvidence(search.safe_metadata?.retrieval_evidence);
+            const retrievedIds = new Set(retrieval?.status === 'retrieved'
+                ? retrieval.references.filter((ref) => ref.evidence_status === 'present').map((ref) => ref.id)
+                : []);
+            return answer.reference_ids.length > 0 && answer.reference_ids.every((id) => retrievedIds.has(id));
+        });
+    });
 }
 
 function deriveStopDecision({
@@ -4404,7 +4449,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 'まず承認済み範囲の安全な次の作業・検証を実際に実行する。状態登録、監査行の追加、将来の作業予定だけで終了しない。権限・外部影響の境界は広げず、許可された確認理由が生じた場合だけwaiting_humanで止める'
             ] : []),
             ...(oreNaraReply?.personal_kg_mode === 'required' ? [
-                `「俺なら返答」として、作業を変更する前にmcp__brainbase__search_personal_kgをquery=${JSON.stringify(oreNaraReply.personal_kg_query)}で実行する。結果を取得できた場合だけ、本人の過去判断・好み・委任境界をこの質問への回答へ適用し、その後に同じ質問を本人へ再送せず作業を続ける。該当なしや取得失敗を本人の回答として扱わない。元の依頼だけでは決められない新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する`
+                `「俺なら返答」として、作業を変更する前にmcp__brainbase__search_personal_kgをquery=${JSON.stringify(oreNaraReply.personal_kg_query)}で実行する。その後mcp__brainbase__brainbase_personal_kg_answer_recordへquestion_digest=${JSON.stringify(oreNaraReply.question_digest)}、意味判定status、実取得したreference_ids、resolved時だけanswer、reasonを渡す。検索結果が存在するだけではresolvedにしない。その記録が質問へ直接答え、矛盾せず、古くなく、今回へ適用可能な場合だけresolvedとして同じ質問を本人へ再送せず作業を続ける。ambiguous/no_answer/conflicting/stale/unavailable、権限不足、不可逆な外部影響は一度だけ本人へ確認する`
             ] : oreNaraReply ? [
                 '「俺なら返答」として、元の依頼とTurnContractですでに許可された定型・可逆作業を本人へ聞き返さず続ける。新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する'
             ] : []),
