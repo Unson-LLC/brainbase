@@ -1,0 +1,435 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ore-nara-reply",
+  "updated_at": "2026-09-12T06:20:07.612Z",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-09-12T06:20:07.319Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.22",
+      "exact_version": "0.2.0-beta.22",
+      "root": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.22/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.22/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/Users/ksato/.local/share/vibepro-runtime/current/node_modules/vibepro/bin/vibepro.js",
+      "runtime_module": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.22/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.22",
+          "package_json_sha256": "7d756059a51ef8b0fc4df295b76602a32678474a7ed5b780f4be677d95083770",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "5706e65aac55dfa572e741158afc665cebc4b2eb69834a5f89f9319110705574",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "warnings": [
+    {
+      "id": "managed_worktree_locality",
+      "status": "needs_review",
+      "mode": "preferred",
+      "required": false,
+      "command_name": "verify run",
+      "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+      "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+      "repo_root": "/Users/ksato/workspace/repos/.runtime/brainbase-31013",
+      "actual_root": "/Users/ksato/workspace/repos/.runtime/brainbase-31013",
+      "expected_root": null,
+      "expected_head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+      "current_head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+      "managed_worktree": null
+    },
+    {
+      "id": "verification_run_counts_not_parsed",
+      "command_name": "verify run",
+      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    }
+  ],
+  "commands": [
+    {
+      "kind": "unit",
+      "status": "pass",
+      "command": "npm run test:run -- tests/unit/judgment-autonomy.test.js tests/unit/judgment-resolver-host.test.js",
+      "summary": "vibepro verify run executed the unit command: exit_code=0, duration_ms=1479, status=pass computed from the exit code | agent summary: Node 22で俺なら返答の定型続行、意味選択KG必須、KG未取得時の差し戻しを確認",
+      "artifact": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+      },
+      "artifact_observed_values": {
+        "status": "pass",
+        "exit_code": "0",
+        "evidence_source": "runner_direct",
+        "run_artifact": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.json",
+        "run_log": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.log",
+        "duration_ms": "1479",
+        "started_at": "2026-09-12T06:20:05.620Z",
+        "finished_at": "2026-09-12T06:20:07.099Z",
+        "head_sha_before": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+        "head_sha_after": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+        "head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+        "worktree_sampled": "true",
+        "worktree_sampling_complete": "true",
+        "worktree_sha256_before": "325db89688ce3f1f04490af1edd8d1fa0de72133bae53b2185148d766171d00c",
+        "worktree_sha256_after": "325db89688ce3f1f04490af1edd8d1fa0de72133bae53b2185148d766171d00c",
+        "stdout_sha256": "32e2e689606cab5f1586d05befe8d32bba57df422340409b1b6f7dc335e84fa3",
+        "output_sha256": "17b2be809ffd30cc1aec227aa175dc8828e1d50367dd2cc00fe44e08c98d9e91",
+        "output_bytes": "7475",
+        "log_truncated": "false",
+        "output_metrics": "none",
+        "timed_out": "false",
+        "output_limit_exceeded": "false",
+        "external_kill_signal": "none",
+        "timeout_ms": "7200000",
+        "max_output_bytes": "67108864",
+        "harness_env_removed": "none",
+        "runner_node_version": "v22.23.2",
+        "tree_mutated_during_run": "false",
+        "head_moved_during_run": "false",
+        "worktree_changed_during_run": "false",
+        "worktree_status_sha256_before": "c0996af62c5ded5b3b768f9a6061ab44caee48e9455a791e6809853d05834280",
+        "worktree_status_sha256_after": "c0996af62c5ded5b3b768f9a6061ab44caee48e9455a791e6809853d05834280",
+        "worktree_diff_sha256_before": "190ef540adc9c6282ae72885e7fab76b1947fc994be2af79008caf0c1b2665ec",
+        "worktree_diff_sha256_after": "190ef540adc9c6282ae72885e7fab76b1947fc994be2af79008caf0c1b2665ec"
+      },
+      "observation": {
+        "targets": [
+          "scripts/codex-hooks/judgment-resolver-host.mjs",
+          "tests/unit/judgment-resolver-host.test.js"
+        ],
+        "scenarios": [
+          "定型質問はKG不要で同一turn継続",
+          "意味選択は同文Personal KG取得必須"
+        ],
+        "values": {
+          "status": "pass",
+          "exit_code": "0",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.json",
+          "run_log": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.log",
+          "duration_ms": "1479",
+          "started_at": "2026-09-12T06:20:05.620Z",
+          "finished_at": "2026-09-12T06:20:07.099Z",
+          "head_sha_before": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+          "head_sha_after": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+          "head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "325db89688ce3f1f04490af1edd8d1fa0de72133bae53b2185148d766171d00c",
+          "worktree_sha256_after": "325db89688ce3f1f04490af1edd8d1fa0de72133bae53b2185148d766171d00c",
+          "stdout_sha256": "32e2e689606cab5f1586d05befe8d32bba57df422340409b1b6f7dc335e84fa3",
+          "output_sha256": "17b2be809ffd30cc1aec227aa175dc8828e1d50367dd2cc00fe44e08c98d9e91",
+          "output_bytes": "7475",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "7200000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.2",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "c0996af62c5ded5b3b768f9a6061ab44caee48e9455a791e6809853d05834280",
+          "worktree_status_sha256_after": "c0996af62c5ded5b3b768f9a6061ab44caee48e9455a791e6809853d05834280",
+          "worktree_diff_sha256_before": "190ef540adc9c6282ae72885e7fab76b1947fc994be2af79008caf0c1b2665ec",
+          "worktree_diff_sha256_after": "190ef540adc9c6282ae72885e7fab76b1947fc994be2af79008caf0c1b2665ec"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "runner_direct",
+      "computed_observation": {
+        "producer": "vibepro verify run",
+        "computed_keys": [
+          "status",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "exit_code",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "values": {
+          "status": "pass",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.json",
+          "run_log": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.log",
+          "exit_code": "0",
+          "duration_ms": "1479",
+          "started_at": "2026-09-12T06:20:05.620Z",
+          "finished_at": "2026-09-12T06:20:07.099Z",
+          "head_sha_before": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+          "head_sha_after": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+          "head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "325db89688ce3f1f04490af1edd8d1fa0de72133bae53b2185148d766171d00c",
+          "worktree_sha256_after": "325db89688ce3f1f04490af1edd8d1fa0de72133bae53b2185148d766171d00c",
+          "stdout_sha256": "32e2e689606cab5f1586d05befe8d32bba57df422340409b1b6f7dc335e84fa3",
+          "output_sha256": "17b2be809ffd30cc1aec227aa175dc8828e1d50367dd2cc00fe44e08c98d9e91",
+          "output_bytes": "7475",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "7200000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.2",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "c0996af62c5ded5b3b768f9a6061ab44caee48e9455a791e6809853d05834280",
+          "worktree_status_sha256_after": "c0996af62c5ded5b3b768f9a6061ab44caee48e9455a791e6809853d05834280",
+          "worktree_diff_sha256_before": "190ef540adc9c6282ae72885e7fab76b1947fc994be2af79008caf0c1b2665ec",
+          "worktree_diff_sha256_after": "190ef540adc9c6282ae72885e7fab76b1947fc994be2af79008caf0c1b2665ec"
+        },
+        "artifact_derived_keys": [
+          "status",
+          "exit_code",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "run_artifact": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.json",
+        "run_log": ".vibepro/pr/story-ore-nara-reply/verification-runs/unit.log",
+        "tree_mutated_during_run": false,
+        "head_moved_during_run": false,
+        "worktree_changed_during_run": false,
+        "worktree_sampled": true,
+        "worktree_sampling_complete": true,
+        "output_metrics": "none"
+      },
+      "executed_at": "2026-09-12T06:20:07.099Z",
+      "git_context": {
+        "head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+        "current_branch": "codex/ore-nara-reply",
+        "dirty": true,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "a8014122887eb5b4067eb722e7fb25cf6e3e88835b9067a69c9036b88ce0f716",
+        "user_status_fingerprint_hash": "a56b31935f8d1f9f93b922a753dd7466c16a08e07fc44837fc4c2d233a24bc69",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-09-12T06:20:07.604Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "content_surface",
+        "status": "recorded",
+        "reason": "content surface recorded for 2 file(s)",
+        "recorded_head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+        "surface_files": [
+          {
+            "path": "scripts/codex-hooks/judgment-resolver-host.mjs",
+            "sha256": "17a88cf168e6bfe36cc3ce3228f1a0867bf5de01d7aeb7eb53c6bd5f9a452e17",
+            "size": 278443
+          },
+          {
+            "path": "tests/unit/judgment-resolver-host.test.js",
+            "sha256": "87aa714cf0616b0ab54f39e48c2472c9cbc63009e4324e2bcb514f766a00b1d6",
+            "size": 388207
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "3e6042a2ce2cbbd1a355bc062a02c7814dc0986f1b4ca0daa5b7686d74ba3e3c"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-09-12T06:20:07.319Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.22",
+          "exact_version": "0.2.0-beta.22",
+          "root": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.22/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.22/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/Users/ksato/.local/share/vibepro-runtime/current/node_modules/vibepro/bin/vibepro.js",
+          "runtime_module": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.22/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.22",
+              "package_json_sha256": "7d756059a51ef8b0fc4df295b76602a32678474a7ed5b780f4be677d95083770",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "b5b6e6742652caba9cb5e6402e848e57321576d8",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "5706e65aac55dfa572e741158afc665cebc4b2eb69834a5f89f9319110705574",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": {
+        "status": "needs_review",
+        "mode": "preferred",
+        "required": false,
+        "command_name": "verify run",
+        "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+        "repo_root": "/Users/ksato/workspace/repos/.runtime/brainbase-31013",
+        "actual_root": "/Users/ksato/workspace/repos/.runtime/brainbase-31013",
+        "expected_root": null,
+        "expected_head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+        "current_head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+        "managed_worktree": null
+      },
+      "warnings": [
+        {
+          "id": "managed_worktree_locality",
+          "status": "needs_review",
+          "mode": "preferred",
+          "required": false,
+          "command_name": "verify run",
+          "reason": "no managed worktree execution state is recorded for this checkout; no current VibePro command creates one, so set execution.managed_worktree to \"disabled\" in .vibepro/config.json unless this checkout was set up as a managed worktree by other tooling",
+          "action": "Run the command from the recorded VibePro managed worktree, update the managed worktree to the current HEAD, or explicitly disable managed_worktree for this repository.",
+          "repo_root": "/Users/ksato/workspace/repos/.runtime/brainbase-31013",
+          "actual_root": "/Users/ksato/workspace/repos/.runtime/brainbase-31013",
+          "expected_root": null,
+          "expected_head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+          "current_head_sha": "044e6e0aaa5213f1a076f33426864f0cc661b9bc",
+          "managed_worktree": null
+        },
+        {
+          "id": "verification_run_counts_not_parsed",
+          "command_name": "verify run",
+          "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+        }
+      ]
+    }
+  ]
+}

@@ -740,7 +740,7 @@ describe('Codex Judgment Resolver Host', () => {
 
         expect(fetchImpl).toHaveBeenCalledTimes(1);
         expect(result).toMatchObject({ decision: 'block' });
-        expect(result.systemMessage).toBe('🔁 確認不要と判定しました。回答を差し戻して処理を続けています');
+        expect(result.systemMessage).toBe('🔁 俺なら返答: AIの確認を引き取り、処理を続けています');
         expect(result.reason).toContain('状態登録、監査行の追加、将来の作業予定だけで終了しない');
         const episodeFiles = readdirSync(join(root, 'journal', hash(sessionId)))
             .filter((name) => name.endsWith('.episode.json'));
@@ -2463,6 +2463,142 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toMatchObject({ success: false, event_kind: 'state' });
     });
 
+    it('MobbinのOAuthアカウントを本人へ聞く前に俺なら返答を要求し、既知の回答があれば質問を拒否する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-ore-nara-mobbin', turn_id: 'turn-ore-nara-mobbin',
+            prompt: 'Mobbin MCPを登録して使えるようにして', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                    classification: { intent: 'operate', domains: ['operations'], action_kind: 'external', risk: 'medium' },
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    allowed_runtime_escalation_reasons: [
+                        'irreversible_action', 'missing_authority', 'owner_value_choice',
+                        'required_input_unavailable', 'evidenced_terminal_blocker'
+                    ]
+                } })
+            })
+        });
+        const waitingState = {
+            status: 'waiting_human', pending_safe_work: false,
+            runtime_reason_code: 'required_input_unavailable'
+        };
+        const recordState = (id) => recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: id,
+            tool_input: waitingState,
+            tool_response: { status: 'ok', data: {
+                schema_version: 'brainbase-stop-state-v1', ...waitingState
+            } }
+        }, { env });
+
+        const beforeSearch = recordState('mobbin-state-before-personal-kg');
+        expect(beforeSearch).toMatchObject({ success: false, event_kind: 'state' });
+        expect(beforeSearch.system_message).toContain('mcp__brainbase__search_personal_kg');
+        expect(beforeSearch.system_message).toContain('本人へ確認する前');
+
+        const search = recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: 'mobbin-personal-kg-result',
+            tool_input: { query: 'Mobbin Googleログイン アカウント' },
+            tool_response: withRetrievalAudit('search_personal_kg', {
+                results: [{ preference: '業務サービスはinfo@unson.jpを使う' }]
+            })
+        }, { env });
+        expect(search).toMatchObject({
+            success: true, safe_metadata: { retrieval_outcome: 'result' }
+        });
+
+        const afterResult = recordState('mobbin-state-after-personal-kg-result');
+        expect(afterResult).toMatchObject({ success: false, event_kind: 'state' });
+        expect(afterResult.system_message).toContain('同じ質問を表示せず');
+        expect(afterResult.system_message).toContain('readback');
+    });
+
+    it.each([
+        ['no_result', withRetrievalAudit('search_personal_kg', { results: [] }, 'no_result')],
+        ['failed', { isError: true, content: [{ type: 'text', text: 'Personal KG unavailable' }] }]
+    ])('俺なら返答が%sならrequired_input_unavailableで一度だけ本人へ確認できる', async (_scenario, response) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: `session-ore-nara-${_scenario}`, turn_id: `turn-ore-nara-${_scenario}`,
+            prompt: '外部サービスへログインして', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                    classification: { intent: 'operate', domains: ['operations'], action_kind: 'external', risk: 'medium' },
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    allowed_runtime_escalation_reasons: [
+                        'irreversible_action', 'missing_authority', 'owner_value_choice',
+                        'required_input_unavailable', 'evidenced_terminal_blocker'
+                    ]
+                } })
+            })
+        });
+        const statePayload = {
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+            tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'required_input_unavailable' },
+            tool_response: { status: 'ok', data: {
+                schema_version: 'brainbase-stop-state-v1', status: 'waiting_human',
+                pending_safe_work: false, runtime_reason_code: 'required_input_unavailable'
+            } }
+        };
+        expect(recordBrainbaseToolUse({
+            ...statePayload, tool_use_id: `state-before-${_scenario}`
+        }, { env })).toMatchObject({ success: false });
+        recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: `personal-kg-${_scenario}`,
+            tool_input: { query: '外部サービス ログイン アカウント' }, tool_response: response
+        }, { env });
+        const waiting = recordBrainbaseToolUse({
+            ...statePayload, tool_use_id: `state-${_scenario}`
+        }, { env });
+        expect(waiting).toMatchObject({ success: true, event_kind: 'state', system_message: null });
+    });
+
+    it('権限不足は個人KGで越権せず、そのまま本人へ確認できる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-missing-authority', turn_id: 'turn-missing-authority', prompt: '契約して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: {
+                ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                allowed_runtime_escalation_reasons: [
+                    'irreversible_action', 'missing_authority', 'owner_value_choice',
+                    'required_input_unavailable', 'evidenced_terminal_blocker'
+                ]
+            } }) })
+        });
+        const waiting = recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'state-missing-authority',
+            tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'missing_authority' },
+            tool_response: { status: 'ok', data: {
+                schema_version: 'brainbase-stop-state-v1', status: 'waiting_human',
+                pending_safe_work: false, runtime_reason_code: 'missing_authority'
+            } }
+        }, { env });
+        expect(waiting).toMatchObject({ success: true, system_message: null });
+    });
+
     it('Claudeのcontent block配列を全Brainbase event kindで意味検証しfail-closedにする', async () => {
         const root = temporaryDirectory();
         const env = {
@@ -3595,9 +3731,9 @@ describe('Codex Judgment Resolver Host', () => {
             {
                 threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
                 value: {
-                    type: 'commandExecution', id: 'desktop-readback', status: 'completed', exitCode: 0, cwd: root,
-                    command: `sed -n '1p' ${artifact}`,
-                    commandActions: [{ type: 'read', path: artifact }]
+                    type: 'commandExecution', id: 'desktop-readback', status: 'completed', exit_code: 0,
+                    cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' ${artifact}`],
+                    stdout: 'new\n', parsed_cmd: [{ type: 'read', cmd: `sed -n '1p' ${artifact}`, path: artifact }]
                 }
             }
         ]);
@@ -3711,6 +3847,21 @@ describe('Codex Judgment Resolver Host', () => {
                     type: 'commandExecution', id: 'outside-read', status: 'completed', exitCode: 0, cwd: root,
                     commandActions: [{ type: 'read', path: join(root, '..', 'outside.md') }]
                 }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'compound-read', status: 'completed', exit_code: 0,
+                    cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' ${artifact} && wc -l ${artifact}`],
+                    stdout: 'new\n1\n'
+                }
+            },
+            {
+                threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
+                value: {
+                    type: 'commandExecution', id: 'failed-snake-read', status: 'completed', exit_code: 1,
+                    cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' ${artifact}`], stdout: 'new\n'
+                }
             }
         ]);
         const env = {
@@ -3728,7 +3879,8 @@ describe('Codex Judgment Resolver Host', () => {
         for (const toolUseId of [
             'wrong-session', 'wrong-turn', 'mismatched-tool', 'incomplete-item',
             'multiple-read', 'read-with-write', 'failed-read', 'outside-file-change',
-            'mixed-malformed-file-change', 'mismatched-item-type', 'outside-read'
+            'mixed-malformed-file-change', 'mismatched-item-type', 'outside-read',
+            'compound-read', 'failed-snake-read'
         ]) {
             const recorded = recordBrainbaseToolUse({
                 ...payload, hook_event_name: 'PostToolUse', tool_name: 'exec_command',
@@ -4082,11 +4234,14 @@ describe('Codex Judgment Resolver Host', () => {
     });
 
     it.each([
-        'どちらの実装にしますか？',
-        'package.jsonを確認すれば分かります。確認しますか？',
-        'こちらで調査しますか？',
-        'このまま作業を続けますか？'
-    ])('continueなのに不要な確認質問「%s」で終了した場合はStopが継続させる', async (question) => {
+        ['どちらの実装にしますか？', true, 'complete'],
+        ['どちらの方針にしますか？', true, 'empty'],
+        ['どちらの案にしますか？', true, 'failed'],
+        ['どちらを優先しますか？', true, 'not_applied'],
+        ['package.jsonを確認すれば分かります。確認しますか？', false, 'complete'],
+        ['こちらで調査しますか？', false, 'complete'],
+        ['このまま作業を続けますか？', false, 'complete']
+    ])('continueなのに不要な確認質問「%s」で終了した場合はStopが継続させる', async (question, personalKgRequired, scenario) => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-autonomy-continue', turn_id: 'turn-autonomy-continue', prompt: '修正して', cwd: process.cwd() };
@@ -4122,7 +4277,7 @@ describe('Codex Judgment Resolver Host', () => {
 
         expect(result.output).toMatchObject({ decision: 'block' });
         expect(result.output.systemMessage).toBe(
-            '🔁 確認不要と判定しました。回答を差し戻して処理を続けています'
+            '🔁 俺なら返答: AIの確認を引き取り、処理を続けています'
         );
         expect(result.output.reason).toContain('安全な範囲で作業を継続');
         expect(result.continuation).toMatchObject({
@@ -4132,9 +4287,60 @@ describe('Codex Judgment Resolver Host', () => {
                 trigger_code: 'unnecessary_user_question',
                 reason_code: 'routine_in_scope',
                 status: 'requested'
+            },
+            ore_nara_reply: {
+                schema_version: 'brainbase-ore-nara-reply-v1',
+                status: 'requested',
+                question_display_text: question,
+                question_digest: expect.stringMatching(/^sha256:/),
+                personal_kg_mode: personalKgRequired ? 'required' : 'not_required',
+                ...(personalKgRequired ? { personal_kg_query: question } : {}),
+                fallback: 'continue_only_when_existing_authority_is_sufficient'
             }
         });
+        expect(result.output.reason).toContain('俺なら返答');
+        if (personalKgRequired) {
+            expect(result.output.reason).toContain('mcp__brainbase__search_personal_kg');
+            expect(result.output.reason).toContain(question);
+        } else {
+            expect(result.output.reason).not.toContain('mcp__brainbase__search_personal_kg');
+        }
 
+        if (personalKgRequired) {
+            recordBrainbaseToolUse({
+                ...payload, hook_event_name: 'PostToolUse',
+                tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: `ore-nara-${scenario}-${question}`,
+                tool_input: { query: question },
+                tool_response: scenario === 'failed'
+                    ? { isError: true, content: [{ type: 'text', text: 'Personal KG unavailable' }] }
+                    : { content: [{ type: 'text', text: retrievalAuditEnvelope(
+                        '検索',
+                        scenario === 'empty' ? '該当なし（不在確定ではない）' : '結果を取得'
+                    ) }] }
+            }, { env });
+            if (scenario !== 'complete') {
+                const incomplete = finalizeEpisode({
+                    session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+                    last_assistant_message: [
+                        episode.owner_audit.display_line,
+                        scenario === 'empty'
+                            ? `📚 Brainbase検索: search_personal_kg「${question}」→ 該当なし（不在確定ではない）`
+                            : `📚 Brainbase検索: search_personal_kg「${question}」→ 結果を取得 ✓`,
+                        '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
+                        '安全な範囲の実装と検証を完了しました。'
+                    ].join('\n')
+                }, { env });
+                expect(incomplete.output).toMatchObject({ decision: 'block' });
+                expect(incomplete.output.reason).toContain(
+                    scenario === 'empty'
+                        ? '本人の判断根拠を取得'
+                        : scenario === 'failed'
+                            ? 'Personal KGを実取得'
+                            : '取得後に適用'
+                );
+                return;
+            }
+        }
         recordBrainbaseToolUse({
             ...payload, tool_name: 'apply_patch', tool_use_id: 'continued-implementation',
             tool_input: {}, tool_response: { success: true }
@@ -4144,15 +4350,17 @@ describe('Codex Judgment Resolver Host', () => {
             last_assistant_message: [
                 episode.owner_audit.display_line,
                 '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
+                '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
                 '安全な範囲の実装と検証を完了しました。'
             ].join('\n')
         }, { env });
 
         expect(completed.output.systemMessage).toBe([
             episode.owner_audit.display_line,
-            '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-            '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録'
+            personalKgRequired
+                ? `📚 Brainbase検索: search_personal_kg「${question}」→ 結果を取得 ✓`
+                : '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
+            '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓'
         ].join('\n'));
         expect(completed.final).toMatchObject({
             completion_status: 'complete',
@@ -4458,10 +4666,10 @@ describe('Codex Judgment Resolver Host', () => {
             schema_version: 'brainbase-owner-audit-contract-v1',
             zero_call_display_line: '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
             zero_call_display_line_digest: hash('📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓'),
-            autonomy_continuation_progress_line: '🔁 確認不要と判定しました。回答を差し戻して処理を続けています',
-            autonomy_continuation_progress_line_digest: hash('🔁 確認不要と判定しました。回答を差し戻して処理を続けています'),
-            autonomy_continuation_complete_line: '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
-            autonomy_continuation_complete_line_digest: hash('🔁 自律継続: 不要な確認を差し戻し、再開要求を記録'),
+            autonomy_continuation_progress_line: '🔁 俺なら返答: AIの確認を引き取り、処理を続けています',
+            autonomy_continuation_progress_line_digest: hash('🔁 俺なら返答: AIの確認を引き取り、処理を続けています'),
+            autonomy_continuation_complete_line: '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
+            autonomy_continuation_complete_line_digest: hash('🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓'),
             outcome_continuation_progress_line: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています',
             outcome_continuation_progress_line_digest: hash('🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'),
             outcome_continuation_complete_line: '🔁 実行継続: 安全な残作業の再開要求を記録',

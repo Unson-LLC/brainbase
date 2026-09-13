@@ -54,6 +54,33 @@ function retrievalResultResponse(subject) {
   };
 }
 
+function recordOwnerValueChoiceAfterPersonalKgPreflight(payload, env, toolUseId) {
+  const stateEvent = {
+    hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+    tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+    tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' },
+    tool_response: { status: 'ok', data: {
+      schema_version: 'brainbase-stop-state-v1', status: 'waiting_human',
+      pending_safe_work: false, runtime_reason_code: 'owner_value_choice',
+    } },
+  };
+  const beforeSearch = recordBrainbaseToolUse({
+    ...stateEvent, tool_use_id: `${toolUseId}-before-personal-kg`,
+  }, { env });
+  expect(beforeSearch).toMatchObject({ success: false, event_kind: 'state' });
+  expect(beforeSearch.system_message).toContain('mcp__brainbase__search_personal_kg');
+
+  const search = recordBrainbaseToolUse({
+    hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+    tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: `${toolUseId}-personal-kg`,
+    tool_input: { query: '契約上限をいくらにするか？' },
+    tool_response: retrievalResultResponse('契約上限'),
+  }, { env });
+  expect(search).toMatchObject({ success: true, event_kind: 'retrieve' });
+
+  return recordBrainbaseToolUse({ ...stateEvent, tool_use_id: toolUseId }, { env });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   for (const path of temporaryPaths.splice(0)) rmSync(path, { recursive: true, force: true });
@@ -86,7 +113,7 @@ function valueProofInput(overrides = {}) {
     schema_version: 'brainbase-judgment-value-proof-input-v1',
     interruption: {
       resolution: 'continued_without_human',
-      question_display_text: '既存文書を更新するか、新規文書を作るか？',
+      question_display_text: 'READMEを修正してよいですか？',
       reason_code: 'routine_reversible_work',
     },
     decision: {
@@ -139,7 +166,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }),
     }) });
 
-    const question = '既存文書を更新するか、新規文書を作るか？';
+    const question = 'READMEを修正してよいですか？';
     expect(finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false, last_assistant_message: question,
@@ -188,9 +215,9 @@ describe('Judgment Resolver Host value proof integration', () => {
       {
         threadId: payload.session_id, turnId: payload.turn_id, type: 'commandExecution',
         value: {
-          type: 'commandExecution', id: 'desktop-readback', status: 'completed', exitCode: 0, cwd: root,
-          command: `sed -n '1p' ${artifact}`,
-          commandActions: [{ type: 'read', path: artifact }],
+          type: 'commandExecution', id: 'desktop-readback', status: 'completed', exit_code: 0,
+          cwd: `file://${root}`, command: ['/bin/zsh', '-lc', `sed -n '1p' ${artifact}`],
+          stdout: 'new\n', parsed_cmd: [{ type: 'read', cmd: `sed -n '1p' ${artifact}`, path: artifact }],
         },
       },
     ]);
@@ -205,7 +232,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }),
     }) });
 
-    const question = '既存文書を更新するか、新規文書を作るか？';
+    const question = 'READMEを修正してよいですか？';
     const interrupted = finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false, last_assistant_message: question,
@@ -224,13 +251,13 @@ describe('Judgment Resolver Host value proof integration', () => {
       interruption: { question_display_text: question },
       execution: {
         summary: '既存文書を更新した',
-        artifact_refs: [{ kind: 'file', ref: 'docs/existing.md', label: '既存文書' }],
+        artifact_refs: [{ kind: 'file', ref: artifact, label: '既存文書' }],
       },
       outcome: {
         status: 'outcome_verified', summary: '変更後の正本を読み戻した',
         evidence_refs: [
-          { kind: 'tool_event', tool_use_id: 'desktop-execution', subject_ref: 'docs/existing.md', label: '正本更新' },
-          { kind: 'canonical_readback', tool_use_id: 'desktop-readback', subject_ref: 'docs/existing.md', label: '正本読み戻し' },
+          { kind: 'tool_event', tool_use_id: 'desktop-execution', subject_ref: artifact, label: '正本更新' },
+          { kind: 'canonical_readback', tool_use_id: 'desktop-readback', subject_ref: artifact, label: '正本読み戻し' },
         ],
       },
     });
@@ -309,7 +336,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     const interruption = finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false,
-      last_assistant_message: `${ownerLine}\n${zeroCallLine}\n\n既存文書を更新するか、新規文書を作るか？`,
+      last_assistant_message: `${ownerLine}\n${zeroCallLine}\n\nREADMEを修正してよいですか？`,
     }, { env });
     expect(interruption.output.decision).toBe('block');
 
@@ -359,7 +386,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     const proofMissing = finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false,
-      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n\n既存の正本更新とテストを完了しました。`,
+      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
     expect(proofMissing.output.decision).toBe('block');
     expect(proofMissing.output.reason).toContain('brainbase_judgment_value_proof_record');
@@ -402,12 +429,12 @@ describe('Judgment Resolver Host value proof integration', () => {
       session_id: payload.session_id,
       turn_id: payload.turn_id,
       stop_hook_active: true,
-      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n\n既存の正本更新とテストを完了しました。`,
+      last_assistant_message: `${ownerLine}\n${execution.display_line}\n🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓\n\n既存の正本更新とテストを完了しました。`,
     }, { env });
 
     expect(result.output.systemMessage).toContain(`${ownerLine}\n${execution.display_line}`);
     expect(result.output.systemMessage).not.toContain('🛠️ Stop修復:');
-    expect(result.output.systemMessage).toContain('🔁 自律継続: 不要な確認を差し戻し、再開要求を記録\n\nBrainbase判断レシート');
+    expect(result.output.systemMessage).toContain('🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓\n\nBrainbase判断レシート');
     expect(result.output.systemMessage).toContain('結果: 変更後の正本を読み戻し、テスト成功を確認した');
     expect(result.output.systemMessage).toContain('判断: 既存SSOTを最小更新する');
     expect(result.output.systemMessage).toContain('状態: 成果確認済み');
@@ -448,7 +475,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     expect(finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false,
-      last_assistant_message: `${ownerLine}\n${zeroCallLine}\n\n既存文書を更新するか、新規文書を作るか？`,
+      last_assistant_message: `${ownerLine}\n${zeroCallLine}\n\nREADMEを修正してよいですか？`,
     }, { env }).output.decision).toBe('block');
 
     recordBrainbaseToolUse({
@@ -477,7 +504,7 @@ describe('Judgment Resolver Host value proof integration', () => {
       stop_hook_active: true,
       last_assistant_message: [
         ownerLine, zeroCallLine,
-        '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録',
+        '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
         '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓',
         '既存文書を更新しました。',
       ].join('\n'),
@@ -485,7 +512,7 @@ describe('Judgment Resolver Host value proof integration', () => {
     expect(result.output.systemMessage).toContain('Brainbase判断結果（確認待ち）');
     expect(result.output.systemMessage).not.toContain('Brainbase判断レシート');
     expect(result.output.systemMessage).toContain('状態: 結果未確認');
-    expect(result.output.systemMessage).toContain('聞かずに進めた確認: 既存文書を更新するか、新規文書を作るか？');
+    expect(result.output.systemMessage).toContain('聞かずに進めた確認: READMEを修正してよいですか？');
     expect(result.output.systemMessage).toContain('実行範囲: 既存文書を更新し、テストを実行した');
     expect(result.output.systemMessage).toContain('要確認: 実行結果を確認できていません');
     expect(result.output.systemMessage).toContain('次の対応: 正本を読み戻す / 結果未確認のまま保持');
@@ -495,6 +522,14 @@ describe('Judgment Resolver Host value proof integration', () => {
       .toMatchObject({ state: 'unconfirmed', outcome: { status: 'unconfirmed' } });
     expect(JSON.parse(readFileSync(join(directory, `${turnRef}.value-proof-attention.json`), 'utf8')))
       .toMatchObject({ kind: 'outcome_unconfirmed' });
+    expect(JSON.parse(readFileSync(join(directory, `${turnRef}.final.json`), 'utf8')))
+      .toMatchObject({
+        completion_status: 'audit_degraded',
+        protocol_status: 'audit_protocol_incomplete',
+        degradation_reason: 'value_proof_unconfirmed',
+        missing_capabilities: ['judgment.value_proof.outcome_verified'],
+        value_proof_state: 'unconfirmed',
+      });
     expect(() => finalizeEpisode({
       hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: true, last_assistant_message: result.output.systemMessage,
@@ -522,6 +557,9 @@ describe('Judgment Resolver Host value proof integration', () => {
     const stateIndex = context.indexOf('brainbase_judgment_state_record');
     expect(proofIndex).toBeGreaterThan(-1);
     expect(stateIndex).toBeGreaterThan(proofIndex);
+    expect(context).toContain('kind=tool_eventで1件');
+    expect(context).toContain('kind=canonical_readbackで1件');
+    expect(context).toContain('2件のtool_use_idを同じにしない');
     expect(context).toContain('先行する中断候補がない単なる代理判断ではvalue proofを記録しない');
   });
 
@@ -632,10 +670,8 @@ describe('Judgment Resolver Host value proof integration', () => {
     recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
       tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'human-proof',
       tool_input: input, tool_response: { status: 'ok', data: input } }, { env });
-    recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
-      tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'human-state',
-      tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' },
-      tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' } } }, { env });
+    expect(recordOwnerValueChoiceAfterPersonalKgPreflight(payload, env, 'human-state'))
+      .toMatchObject({ success: true, event_kind: 'state' });
     const ownerLine = buildOwnerReferenceLine(args, receipt);
     const result = finalizeEpisode({ hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false,
@@ -677,10 +713,8 @@ describe('Judgment Resolver Host value proof integration', () => {
     recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
       tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'human-proof-tampered',
       tool_input: input, tool_response: { status: 'ok', data: input } }, { env });
-    recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
-      tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'human-state-tampered',
-      tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' },
-      tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' } } }, { env });
+    expect(recordOwnerValueChoiceAfterPersonalKgPreflight(payload, env, 'human-state-tampered'))
+      .toMatchObject({ success: true, event_kind: 'state' });
     const ownerLine = buildOwnerReferenceLine(args, receipt);
     const result = finalizeEpisode({ hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false, last_assistant_message: `${ownerLine}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n\n⚠️ 確認が必要[owner_value_choice]: 契約上限をいくらにするか？` }, { env });

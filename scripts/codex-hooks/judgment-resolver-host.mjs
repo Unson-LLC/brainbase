@@ -78,8 +78,8 @@ const TRANSIENT_REASONS = new Set([
 const DEFAULT_LOCK_WAIT_ATTEMPTS = 5000;
 const DEFAULT_LOCK_WAIT_MS = 10;
 const NO_BRAINBASE_REFERENCE_LINE = '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓';
-const AUTONOMY_CONTINUATION_PROGRESS_LINE = '🔁 確認不要と判定しました。回答を差し戻して処理を続けています';
-const AUTONOMY_CONTINUATION_COMPLETE_LINE = '🔁 自律継続: 不要な確認を差し戻し、再開要求を記録';
+const AUTONOMY_CONTINUATION_PROGRESS_LINE = '🔁 俺なら返答: AIの確認を引き取り、処理を続けています';
+const AUTONOMY_CONTINUATION_COMPLETE_LINE = '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓';
 const OUTCOME_CONTINUATION_PROGRESS_LINE = '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています';
 const OUTCOME_CONTINUATION_COMPLETE_LINE = '🔁 実行継続: 安全な残作業の再開要求を記録';
 const MAX_CONTINUATION_ATTEMPTS = 3;
@@ -2052,7 +2052,40 @@ function judgmentStopStateData(response) {
     return null;
 }
 
-function judgmentStopStateContract(state, receipt, episode = null) {
+const PERSONAL_KG_PREFLIGHT_REASON_CODES = new Set([
+    'required_input_unavailable',
+    'owner_value_choice'
+]);
+
+function personalKgEscalationPreflight(state, events = []) {
+    if (state?.status !== 'waiting_human'
+        || !PERSONAL_KG_PREFLIGHT_REASON_CODES.has(state.runtime_reason_code)) return { valid: true };
+    const request = events.findLast((event) => event.tool_name === JUDGMENT_STATE_TOOL_NAME
+        && event.success === false
+        && PERSONAL_KG_PREFLIGHT_REASON_CODES.has(event.safe_metadata?.stop_state?.runtime_reason_code)
+        && typeof event.system_message === 'string'
+        && event.system_message.includes('「俺なら返答」を実行'));
+    const searches = request ? events.filter((event) => event.tool_name === 'mcp__brainbase__search_personal_kg'
+        && event.event_sequence > request.event_sequence) : [];
+    if (!request || searches.length === 0) {
+        return {
+            valid: false,
+            systemMessage: '本人へ確認する前に「俺なら返答」を実行してください。今回不足している選択肢をqueryにしてmcp__brainbase__search_personal_kgを呼び、結果があれば既存の権限内で適用して作業を続け、該当なし・取得失敗・新しい価値判断の場合だけ一度確認してください。'
+        };
+    }
+    const latest = searches.at(-1);
+    if (state.runtime_reason_code === 'required_input_unavailable'
+        && latest.success === true
+        && latest.safe_metadata?.retrieval_outcome === 'result') {
+        return {
+            valid: false,
+            systemMessage: '「俺なら返答」で本人の判断根拠を取得できています。本人へ同じ質問を表示せず、その結果を既存の権限内で適用して作業とreadbackを続け、完了後に状態toolを最後にもう一度実行してください。'
+        };
+    }
+    return { valid: true };
+}
+
+function judgmentStopStateContract(state, receipt, episode = null, events = []) {
     const contract = episode ? episodeAutonomyContract(episode, receipt) : verifyAutonomyContract(receipt);
     if (!state || !contract) return { valid: Boolean(state), expectedReason: null };
     if (contract.decision === 'escalate' && state.status === 'completed') {
@@ -2068,7 +2101,10 @@ function judgmentStopStateContract(state, receipt, episode = null) {
     const reasonAllowed = expectedReason !== null
         ? state.runtime_reason_code === expectedReason
         : contract.allowedRuntimeReasons.includes(state.runtime_reason_code);
-    return { valid: state.pending_safe_work === false && reasonAllowed, expectedReason };
+    const baseValid = state.pending_safe_work === false && reasonAllowed;
+    if (!baseValid) return { valid: false, expectedReason };
+    const preflight = personalKgEscalationPreflight(state, events);
+    return { ...preflight, expectedReason };
 }
 
 function waitingHumanReasonAllowed(contract, reasonCode) {
@@ -2188,13 +2224,31 @@ function routeDisplayLine(input, data, success) {
 }
 
 function codexDesktopSafePathRef(value, workingDirectory) {
-    const base = resolve(workingDirectory);
+    let directory = workingDirectory;
+    if (typeof directory === 'string' && directory.startsWith('file://')) {
+        try {
+            directory = fileURLToPath(directory);
+        } catch {
+            return null;
+        }
+    }
+    const base = resolve(directory);
     const target = isAbsolute(value) ? resolve(value) : resolve(base, value);
     const reference = relative(base, target);
     if (!reference || reference === '..' || reference.startsWith(`..${sep}`) || isAbsolute(reference)) {
         return null;
     }
     return reference.split(sep).join('/');
+}
+
+function codexDesktopReadCommandPath(item) {
+    const command = Array.isArray(item.command)
+        ? item.command.at(-1)
+        : item.command;
+    if (typeof command !== 'string') return null;
+    const match = command.match(/^(?:cat --|sed -n '1p') ([A-Za-z0-9_./-]+)$/u);
+    if (!match) return null;
+    return match[1];
 }
 
 function codexDesktopToolEvidence(payload, env) {
@@ -2238,11 +2292,19 @@ function codexDesktopToolEvidence(payload, env) {
                 }
             };
         }
-        if (rows[0].item_type === 'commandExecution' && item.exitCode === 0 && Array.isArray(item.commandActions)) {
-            if (item.commandActions.length !== 1) return null;
-            const [action] = item.commandActions;
-            if (action?.type !== 'read' || typeof action.path !== 'string') return null;
-            const subjectPath = action.path.trim();
+        const exitCode = item.exitCode ?? item.exit_code;
+        const commandActions = item.commandActions ?? item.command_actions;
+        if (rows[0].item_type === 'commandExecution' && exitCode === 0) {
+            let subjectPath;
+            if (Array.isArray(commandActions)) {
+                if (commandActions.length !== 1) return null;
+                const [action] = commandActions;
+                if (action?.type !== 'read' || typeof action.path !== 'string') return null;
+                subjectPath = action.path.trim();
+            } else {
+                if (typeof item.stdout !== 'string' || item.stdout.length === 0) return null;
+                subjectPath = codexDesktopReadCommandPath(item);
+            }
             if (!subjectPath || subjectPath.includes('\0')) return null;
             const subjectRef = safePathRef(subjectPath);
             if (!subjectRef) return null;
@@ -2582,14 +2644,15 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
             })
             .filter(Number.isSafeInteger)
             .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
+        const priorEvents = judgmentStateTool ? episodeEvents(paths) : [];
         const stateContract = judgmentStateTool
-            ? judgmentStopStateContract(stopState, effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt, episode)
+            ? judgmentStopStateContract(stopState, effectiveEpisode(episode, priorEvents).initial_route_receipt, episode, priorEvents)
             : { valid: true, expectedReason: null };
         const success = !postToolUseFailure && responseSuccess && stateContract.valid;
         const systemMessage = judgmentStateTool && auditResponseSuccess && !stateContract.valid
-            ? stateContract.expectedReason
+            ? stateContract.systemMessage ?? (stateContract.expectedReason
                 ? `Brainbase状態を修正してください。status=waiting_humanではruntime_reason_code=${stateContract.expectedReason}をHost確定理由と一字一句一致させ、状態toolを最後にもう一度実行してください。`
-                : 'Brainbase状態を修正してください。completedはpending_safe_work=false・runtime_reason_code=null、pendingはpending_safe_work=true・runtime_reason_code=null、waiting_humanは許可された理由コードを使ってください。'
+                : 'Brainbase状態を修正してください。completedはpending_safe_work=false・runtime_reason_code=null、pendingはpending_safe_work=true・runtime_reason_code=null、waiting_humanは許可された理由コードを使ってください。')
             : null;
         const entry = {
             schema_version: 'brainbase-judgment-tool-event-v1',
@@ -2758,6 +2821,7 @@ function episodeAuditContract(episode) {
 function verifiedAutonomyContinuation(marker, auditContract) {
     const continuation = record(marker?.autonomy_continuation);
     if (!continuation) return null;
+    verifyOreNaraReplyRequest(marker?.ore_nara_reply);
     const expectedCompleteLine = continuation.trigger_code === 'unfinished_safe_work'
         ? auditContract?.outcome_continuation_complete_line
         : auditContract?.autonomy_continuation_complete_line;
@@ -2993,6 +3057,40 @@ function displayedQuestion(answerBody) {
         .find((line) => /[?？]$/u.test(line)) ?? null;
 }
 
+function oreNaraReplyRequest(question) {
+    if (typeof question !== 'string' || !question.trim()) return null;
+    const normalizedQuestion = question.trim();
+    const asksSemanticChoice = /(?:どちら|どれ|どの|何を|何の|どう|優先|選)/u.test(normalizedQuestion);
+    const asksRoutineContinuation = /(?:確認|調査|テスト|検証|修正|作業|処理|続行|続け|進め|完了として確定).{0,48}(?:しますか|しましょうか|してもよいですか|してもいいですか|ますか|よいですか)[?？]?$/u.test(normalizedQuestion);
+    const personalKgRequired = asksSemanticChoice || !asksRoutineContinuation;
+    return {
+        schema_version: 'brainbase-ore-nara-reply-v1',
+        status: 'requested',
+        question_display_text: normalizedQuestion,
+        question_digest: `sha256:${sha256(normalizedQuestion)}`,
+        personal_kg_mode: personalKgRequired ? 'required' : 'not_required',
+        ...(personalKgRequired ? { personal_kg_query: normalizedQuestion } : {}),
+        fallback: 'continue_only_when_existing_authority_is_sufficient'
+    };
+}
+
+function verifyOreNaraReplyRequest(value) {
+    const request = record(value);
+    if (!request) return null;
+    if (request.schema_version !== 'brainbase-ore-nara-reply-v1'
+        || request.status !== 'requested'
+        || typeof request.question_display_text !== 'string'
+        || request.question_display_text.trim() !== request.question_display_text
+        || request.question_digest !== `sha256:${sha256(request.question_display_text)}`
+        || !['required', 'not_required'].includes(request.personal_kg_mode)
+        || (request.personal_kg_mode === 'required' && request.personal_kg_query !== request.question_display_text)
+        || (request.personal_kg_mode === 'not_required' && request.personal_kg_query !== undefined)
+        || request.fallback !== 'continue_only_when_existing_authority_is_sufficient') {
+        throw new Error('judgment_ore_nara_reply_invalid');
+    }
+    return request;
+}
+
 function runtimeAtLeast(receipt, major, minor) {
     const match = String(receipt?.runtime_version ?? '').match(/^judgment-runtime-(\d+)\.(\d+)\.(\d+)$/u);
     if (!match) return false;
@@ -3037,9 +3135,22 @@ function parseStructuredStopState(answer) {
 
 function requestsUserInput(body) {
     if (typeof body !== 'string' || !body.trim()) return false;
-    const relevant = body.split('\n').map((line) => line.trim()).filter(Boolean)
+    let fenced = false;
+    const visibleLines = [];
+    for (const rawLine of body.split('\n')) {
+        const line = rawLine.trim();
+        if (/^```/u.test(line)) {
+            fenced = !fenced;
+            continue;
+        }
+        if (fenced || /^>/u.test(line)) continue;
+        visibleLines.push(line);
+    }
+    const relevant = visibleLines.filter(Boolean)
         .filter((line) => !/^(?:必要なら|必要であれば|ご希望なら|希望があれば|必要に応じて)/u.test(line));
-    return relevant.some((line) => (
+    const explicitRuntimeQuestion = relevant.find((line) => AUTONOMY_MARKER_PATTERN.test(line));
+    const candidates = explicitRuntimeQuestion ? [explicitRuntimeQuestion] : relevant.slice(-1);
+    return candidates.some((line) => (
         /(?:どちら|どれ|どうしますか|何を選びますか|よろしいですか|進めてもいいですか|進めてもよいですか)[^。]*[?？]?$/u.test(line)
         || /(?:か、|か，)[^?？]*か[?？]$/u.test(line)
         || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え|確定)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)
@@ -3895,6 +4006,23 @@ function continuationExecutionEvents(events, marker) {
             : Date.parse(event.recorded_at) > Date.parse(marker.requested_at)));
 }
 
+function oreNaraReplySearchEvents(events, marker) {
+    const request = verifyOreNaraReplyRequest(marker?.ore_nara_reply);
+    if (!request || request.personal_kg_mode !== 'required') return [];
+    const expectedInputDigest = sha256(canonicalJson({ query: request.personal_kg_query }));
+    return events.filter((event) => event.success
+        && event.tool_name === 'mcp__brainbase__search_personal_kg'
+        && event.input_digest === expectedInputDigest
+        && (Number.isSafeInteger(marker.event_sequence_boundary)
+            ? Number.isSafeInteger(event.event_sequence) && event.event_sequence > marker.event_sequence_boundary
+            : Date.parse(event.recorded_at) > Date.parse(marker.requested_at)));
+}
+
+function oreNaraReplyEvidence(events, marker) {
+    return oreNaraReplySearchEvents(events, marker)
+        .filter((event) => event.safe_metadata?.retrieval_outcome === 'result');
+}
+
 function deriveStopDecision({
     receipt,
     episodeOrigin,
@@ -4067,8 +4195,37 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             episode
         );
     const continuationExecution = continuationExecutionEvents(events, existingContinuation);
+    const oreNaraSearches = oreNaraReplySearchEvents(events, existingContinuation);
+    const oreNaraEvidence = oreNaraReplyEvidence(events, existingContinuation);
     const executionRequired = existingContinuation?.autonomy_continuation
         && ['implement', 'operate'].includes(episode.initial_route_receipt.classification?.intent);
+    if (existingContinuation?.ore_nara_reply?.personal_kg_mode === 'required'
+        && autonomyCompliance.status === 'continued'
+        && oreNaraEvidence.length === 0) {
+        autonomyCompliance = {
+            ...autonomyCompliance,
+            status: null,
+            triggerCode: 'unnecessary_user_question',
+            violation: oreNaraSearches.length > 0
+                ? '俺なら返答に必要な本人の判断根拠を取得できていません。該当なしを本人の回答として扱わず、元の依頼だけでは決められない新しい価値判断ならwaiting_humanへ切り替える'
+                : '俺なら返答の質問文と完全一致するqueryでPersonal KGを実取得し、本人の根拠を適用してから作業を続ける。取得失敗を根拠なしや許可として扱わない'
+        };
+    }
+    if (existingContinuation?.ore_nara_reply?.personal_kg_mode === 'required'
+        && autonomyCompliance.status === 'continued'
+        && oreNaraEvidence.length > 0
+        && !oreNaraEvidence.some((evidence) => continuationExecution.some((execution) => (
+            Number.isSafeInteger(evidence.event_sequence)
+            && Number.isSafeInteger(execution.event_sequence)
+            && execution.event_sequence > evidence.event_sequence
+        )))) {
+        autonomyCompliance = {
+            ...autonomyCompliance,
+            status: null,
+            triggerCode: 'unnecessary_user_question',
+            violation: 'Personal KGの本人根拠を取得後に適用し、その判断に基づく作業・検証を実行する。検索より前の実行や検索そのものを代理回答の適用証拠にしない'
+        };
+    }
     if (executionRequired && autonomyCompliance.status === 'continued' && continuationExecution.length === 0) {
         autonomyCompliance = {
             ...autonomyCompliance,
@@ -4214,7 +4371,11 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                                 source: 'autonomy_continuation'
                             }
                         } : {})
-                    }
+                    },
+                    ...(continuationTriggerCode === 'unnecessary_user_question'
+                        && autonomyCompliance.question ? {
+                        ore_nara_reply: oreNaraReplyRequest(autonomyCompliance.question)
+                    } : {})
                 } : {})
             };
             if (missingAutonomyCompliance) delete markerEntry.answer_body_binding;
@@ -4237,9 +4398,15 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             );
         }
         const repairExpectedAuditLines = requiredAuditLines(episode, events, marker);
+        const oreNaraReply = verifyOreNaraReplyRequest(marker?.ore_nara_reply);
         const reasons = [
             ...(stopDecision.business_decision === 'CONTINUE' ? [
                 'まず承認済み範囲の安全な次の作業・検証を実際に実行する。状態登録、監査行の追加、将来の作業予定だけで終了しない。権限・外部影響の境界は広げず、許可された確認理由が生じた場合だけwaiting_humanで止める'
+            ] : []),
+            ...(oreNaraReply?.personal_kg_mode === 'required' ? [
+                `「俺なら返答」として、作業を変更する前にmcp__brainbase__search_personal_kgをquery=${JSON.stringify(oreNaraReply.personal_kg_query)}で実行する。結果を取得できた場合だけ、本人の過去判断・好み・委任境界をこの質問への回答へ適用し、その後に同じ質問を本人へ再送せず作業を続ける。該当なしや取得失敗を本人の回答として扱わない。元の依頼だけでは決められない新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する`
+            ] : oreNaraReply ? [
+                '「俺なら返答」として、元の依頼とTurnContractですでに許可された定型・可逆作業を本人へ聞き返さず続ける。新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する'
             ] : []),
             ...(missingTurnResolution ? [
                 `mcp__brainbase__brainbase_resolve_turnをturn_ref="${basename(paths.directory)}/${paths.turnRef}"で実行し、Hookが保存したturn_inputとモデルの意味解釈からTurnContractを確定する（turn_inputはHostのjournalに保存済みでturn_refからserverが読み込む。turn_inputやpathを渡さない。確定後はPostToolUseが判断契約を確定した旨をsystemMessageで通知する）`
@@ -4249,7 +4416,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 { repair: true }
             )] : []),
             ...(missingValueProof ? [
-                `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使い、実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
+                `mcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。interruption.resolutionはcontinued_without_human、question_display_textは「${existingContinuation.autonomy_continuation.interruption_candidate.question_display_text}」を一字一句そのまま使う。outcome.evidence_refsには、変更を行った成功イベントをkind=tool_eventで1件、その後に同じsubject_refを読み戻した別の成功イベントをkind=canonical_readbackで1件指定し、2件のtool_use_idを同じにしない。Codex Desktopでファイルを読み戻す場合は、別のBash呼び出しでsed -n '1p' <成果物path>だけを実行し、--、連結コマンド、pipeを含めない。実際の判断・成果物・canonical readback証拠だけを記録する。その後にbrainbase_judgment_state_recordを最後のtool callとして実行する`
             ] : []),
             ...((stopDecision.protocol_status === 'repair' || stopDecision.business_decision === 'CONTINUE') ? [
                 missingKnowledgeEvidence
@@ -4340,8 +4507,13 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 ? 'autonomy.continuation'
                 : decisionMissingCapabilities[0],
             missing_capabilities: decisionMissingCapabilities
+        } : valueProofRequired && valueProof?.state !== 'outcome_verified' ? {
+            completion_status: 'audit_degraded',
+            degradation_reason: 'value_proof_unconfirmed',
+            missing_capabilities: ['judgment.value_proof.outcome_verified']
         } : { completion_status: 'complete' }),
         protocol_status: stopAlreadyBlockedOnce || preEpisodeAuditGap
+            || (valueProofRequired && valueProof?.state !== 'outcome_verified')
             ? 'audit_protocol_incomplete'
             : 'audit_protocol_complete',
         stop_decision: stopDecision,
@@ -4412,6 +4584,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ? stopDecision.business_decision === 'CONTINUE'
                 ? 'autonomy.continuation'
                 : decisionMissingCapabilities[0]
+            : valueProofRequired && valueProof?.state !== 'outcome_verified'
+                ? 'value_proof_unconfirmed'
             : null;
     const output = immediateDegradationReason
         ? { ...baseOutput, systemMessage: `${baseOutput.systemMessage}\n⚠️ 監査縮退: ${immediateDegradationReason}${continuationFailureLine(final)}` }
@@ -4648,7 +4822,7 @@ function turnContractExecutionInstructions(receipt, env, { surfaceDegraded = fal
         ...mandatoryVibeProImplementationInstructions(receipt),
         ...requiredCapabilityActionContracts(receipt).map((contract) => capabilityActionInstruction(contract)),
         ...(journalStopStateRequired(receipt) && valueProofRolloutEnabled({ initial_route_receipt: receipt }, env) ? [
-            'Brainbaseが本当に人間判断を必要とした場合、またはHostが直前のStopで不要な確認質問を差し戻した場合だけ、全作業と検証の後にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。continued_without_humanでは、差し戻された質問文を一字一句同じquestion_display_textとして使う。canonical_readbackのsubject_refは実行成果物のrefと実際の取得入力に完全一致させ、結果ありの取得だけを指定する。先行する中断候補がない単なる代理判断ではvalue proofを記録しない。raw tool response、秘密情報、内部監査ログは入れない。',
+            'Brainbaseが本当に人間判断を必要とした場合、またはHostが直前のStopで不要な確認質問を差し戻した場合だけ、全作業と検証の後にmcp__brainbase__brainbase_judgment_value_proof_recordを1回実行する。continued_without_humanでは、差し戻された質問文を一字一句同じquestion_display_textとして使う。outcome.evidence_refsには変更を行った成功イベントをkind=tool_eventで1件、その後に同じsubject_refを読み戻した別の成功イベントをkind=canonical_readbackで1件指定し、2件のtool_use_idを同じにしない。Codex Desktopでファイルを読み戻す場合は、別のBash呼び出しでsed -n \'1p\' <成果物path>だけを実行し、--、連結コマンド、pipeを含めない。canonical_readbackのsubject_refは実行成果物のrefと実際の取得入力に完全一致させ、結果ありの取得だけを指定する。先行する中断候補がない単なる代理判断ではvalue proofを記録しない。raw tool response、秘密情報、内部監査ログは入れない。',
             'value proofを記録した場合も、その後にmcp__brainbase__brainbase_judgment_state_recordを実行し、状態toolを必ず最後のtool callにする。'
         ] : []),
         ...(journalStopStateRequired(receipt) ? [
