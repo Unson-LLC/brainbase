@@ -24,7 +24,7 @@
     {
       "id": "AC-002",
       "type": "acceptance_criterion",
-      "statement": "A semantic Ore Nara Reply completes only after a successful Personal KG result and a later execution or verification event that applies it; an empty or failed retrieval is never treated as the owner's answer.",
+      "statement": "A semantic Ore Nara Reply completes only after a Personal KG search, a question-bound model assessment with status resolved, and a later execution or verification event. A result count alone, or ambiguous, no_answer, conflicting, stale, and unavailable assessments, are never treated as the owner's answer.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-002" }],
         "architecture_refs": [{ "file": "docs/architecture/story-ore-nara-reply.md", "section": "Success conditions" }],
@@ -52,7 +52,7 @@
     {
       "id": "AC-003",
       "type": "acceptance_criterion",
-      "statement": "Before required_input_unavailable or owner_value_choice is accepted as waiting_human, the Host requires a Personal KG search event. A successful result rejects required_input_unavailable and resumes execution before any question is rendered; no_result or failure may ask the owner once.",
+      "statement": "Before required_input_unavailable or owner_value_choice is accepted as waiting_human, the Host requires a Personal KG search event. A resolved semantic assessment bound to an actually returned evidence ID rejects that state and resumes execution; Stop additionally requires the exact question digest. Unrelated results and all non-resolved statuses may ask the owner once.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-003" }],
         "architecture_refs": [{ "file": "docs/architecture/story-ore-nara-reply.md", "section": "Boundary" }],

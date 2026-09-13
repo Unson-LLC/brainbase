@@ -235,7 +235,7 @@ export function buildKnowledgeOwnerAudit(
     : `${target.source}から「${query}」を取得`;
 
   return {
-    ...(toolName === 'search' || (toolName === 'get_entity' && entity !== undefined)
+    ...(toolName === 'search' || toolName === 'search_personal_kg' || (toolName === 'get_entity' && entity !== undefined)
       ? { retrieval: buildRetrievalEvidence(toolName, result, entity) } : {}),
     schema_version: 'brainbase-knowledge-owner-audit-v1',
     source: target.source,
@@ -268,14 +268,23 @@ export function buildKnowledgeToolContent(
 function buildRetrievalEvidence(tool: string, result: string, entity?: unknown) {
   let data: Record<string, unknown> = {};
   try { data = JSON.parse(result)?.data ?? {}; } catch { /* get_entity is rendered text */ }
-  const known = tool === 'get_entity' || (data && Array.isArray(data.candidates));
+  const personalKgCandidates = tool === 'search_personal_kg'
+    ? Array.from(result.matchAll(/^- \*\*\[[^\]]+\]\*\*\s+(.+)\r?\n\s+_\(([^\r\n]+?)\s+·\s+([^\r\n]+?)\s+·\s+([^\r\n)]+)\)_$/gmu), (match) => ({
+      id: match[4].trim(), entity_type: 'personal_kg', evidence: { body: match[1].trim() },
+    }))
+    : [];
+  const personalKgNoResult = tool === 'search_personal_kg' && isNoResult(tool, result);
+  const known = tool === 'get_entity'
+    || (tool === 'search_personal_kg' && (personalKgNoResult || personalKgCandidates.length > 0))
+    || (data && Array.isArray(data.candidates));
   const candidates = tool === 'search' ? (Array.isArray(data.candidates) ? data.candidates : [])
+    : tool === 'search_personal_kg' ? personalKgCandidates
     : entity && typeof entity === 'object' ? [entity] : [];
   const references = candidates.flatMap((candidate: Record<string, unknown>) => {
     if (!candidate || typeof candidate !== 'object') return [];
     const id = candidate.id;
     if (typeof id !== 'string' || !id.trim()) return [];
-    const raw = (tool === 'search' ? candidate.evidence : candidate.retrieval_evidence)
+    const raw = (tool === 'search' || tool === 'search_personal_kg' ? candidate.evidence : candidate.retrieval_evidence)
       ?? (tool === 'get_entity' ? candidate : {});
     const evidence = extractEvidence(raw && typeof raw === 'object' ? raw as Record<string, unknown> : {});
     const fields = bodyEvidenceFields(evidence);
@@ -284,7 +293,9 @@ function buildRetrievalEvidence(tool: string, result: string, entity?: unknown) 
   });
   const coverage = tool === 'get_entity' ? 'complete'
     : ['complete', 'partial', 'unknown'].includes(String(data.coverage)) ? data.coverage : 'unknown';
-  return { status: !known ? 'unknown' : references.length ? 'retrieved' : 'empty', coverage,
-    sufficiency: references.some((ref) => ref.evidence_status === 'present') ? 'needs_model_verification' : 'insufficient',
+  const status = !known ? 'unknown' : references.length ? 'retrieved' : 'empty';
+  return { status, coverage,
+    sufficiency: status === 'unknown' && tool === 'search_personal_kg' ? 'unknown'
+      : references.some((ref) => ref.evidence_status === 'present') ? 'needs_model_verification' : 'insufficient',
     references, absence_confirmed: false };
 }

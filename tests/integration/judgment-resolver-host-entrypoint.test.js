@@ -28,11 +28,12 @@ function jwt(payload) {
     return `${encode({ alg: 'none' })}.${encode(payload)}.`;
 }
 
-function retrievalAuditEnvelope(operation, outcome = '結果を取得') {
+function retrievalAuditEnvelope(operation, outcome = '結果を取得', retrieval) {
     return `<!-- brainbase-knowledge-owner-audit:${JSON.stringify({
         schema_version: 'brainbase-knowledge-owner-audit-v1',
         operation,
-        outcome
+        outcome,
+        ...(retrieval ? { retrieval } : {})
     })} -->`;
 }
 
@@ -2105,8 +2106,18 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(proofToolResponse).toEqual({ status: 'ok', data: proofInput });
         const brainbaseAuditLines = [];
         let completedStateOutput = null;
+        const personalRetrieval = {
+            status: 'retrieved', coverage: 'unknown', sufficiency: 'needs_model_verification',
+            references: [{ id: 'owner-basis', entity_type: 'personal_kg', evidence_status: 'present', evidence_fields: ['body'] }],
+            absence_confirmed: false
+        };
+        const personalAnswer = {
+            question_digest: `sha256:${hash(question)}`, status: 'resolved', reference_ids: ['owner-basis'],
+            answer: '既存方針を適用', reason: 'この質問へ直接答える本人の既存方針'
+        };
         for (const event of [
-            { tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: 'entrypoint-personal-kg', tool_input: { query: question }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('検索') }], structuredContent: { items: [{ id: 'owner-basis' }] } } },
+            { tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: 'entrypoint-personal-kg', tool_input: { query: question }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('検索', '結果を取得', personalRetrieval) }], structuredContent: { items: [{ id: 'owner-basis' }] } } },
+            { tool_name: 'mcp__brainbase__brainbase_personal_kg_answer_record', tool_use_id: 'entrypoint-personal-answer', tool_input: personalAnswer, tool_response: { status: 'ok', data: { schema_version: 'brainbase-personal-kg-answer-v1', ...personalAnswer } } },
             { tool_name: 'apply_patch', tool_use_id: 'entrypoint-execution', tool_input: { patch: '*** Begin Patch\n*** Update File: docs/example.md\n@@\n-old\n+new\n*** End Patch' }, tool_response: { success: true } },
             { tool_name: 'mcp__brainbase__get_context', tool_use_id: 'entrypoint-evidence', tool_input: { topic: 'docs/example.md' }, tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('取得') }], structuredContent: { items: [{ id: 'updated-ssot' }] } } }
         ]) {

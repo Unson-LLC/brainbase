@@ -30,4 +30,18 @@ describe('retrieved evidence contract', () => {
       assert.equal((await handleKnowledgeEvidenceToolCall('brainbase_knowledge_evidence_record', invalid))?.status, 'error');
     }
   });
+  it('accepts only a question-bound, cited semantic Personal KG answer', async () => {
+    const digest = `sha256:${'a'.repeat(64)}`;
+    const resolved = { question_digest: digest, status: 'resolved', reference_ids: ['pkg-1'], answer: 'info@unson.jp', reason: '質問へ直接答える既存方針' };
+    assert.equal((await handleKnowledgeEvidenceToolCall('brainbase_personal_kg_answer_record', resolved))?.status, 'ok');
+    for (const invalid of [
+      { ...resolved, reference_ids: [] },
+      { ...resolved, question_digest: 'sha256:broken' },
+      { ...resolved, status: 'ambiguous' },
+      { ...resolved, extra: true },
+    ]) assert.equal((await handleKnowledgeEvidenceToolCall('brainbase_personal_kg_answer_record', invalid))?.status, 'error');
+    assert.equal((await handleKnowledgeEvidenceToolCall('brainbase_personal_kg_answer_record', {
+      ...resolved, status: 'no_answer', reference_ids: [], answer: null,
+    }))?.status, 'ok');
+  });
 });

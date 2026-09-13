@@ -27,19 +27,28 @@ function withRetrievalAudit(name, response, outcome = 'result') {
     const auditOutcome = outcome === 'no_result'
         ? '該当なし（不在確定ではない）'
         : '結果を取得';
+    const personalReferences = name === 'search_personal_kg' && outcome === 'result'
+        ? (response?.results ?? []).filter((item) => typeof item?.id === 'string').map((item) => ({
+            id: item.id, entity_type: 'personal_kg', evidence_status: 'present', evidence_fields: ['body']
+        }))
+        : [];
     return {
         content: [
             { type: 'text', text: typeof response === 'string' ? response : JSON.stringify(response) },
-            { type: 'text', text: retrievalAuditEnvelope(operation, auditOutcome) }
+            { type: 'text', text: retrievalAuditEnvelope(operation, auditOutcome, personalReferences.length ? {
+                status: 'retrieved', coverage: 'unknown', sufficiency: 'needs_model_verification',
+                references: personalReferences, absence_confirmed: false
+            } : undefined) }
         ]
     };
 }
 
-function retrievalAuditEnvelope(operation, outcome = '結果を取得') {
+function retrievalAuditEnvelope(operation, outcome = '結果を取得', retrieval) {
     return `<!-- brainbase-knowledge-owner-audit:${JSON.stringify({
         schema_version: 'brainbase-knowledge-owner-audit-v1',
         operation,
-        outcome
+        outcome,
+        ...(retrieval ? { retrieval } : {})
     })} -->`;
 }
 
@@ -2245,7 +2254,7 @@ describe('Codex Judgment Resolver Host', () => {
             brainbase_projects: 'retrieve', brainbase_bootstrap_config: 'retrieve', brainbase_admin_read: 'retrieve',
             brainbase_run_receipt_inbox: 'retrieve', brainbase_run_receipt_history: 'retrieve', brainbase_run_receipt_diagnosis: 'retrieve',
             brainbase_automation_run_detail: 'retrieve', brainbase_meeting_automation_diagnosis: 'retrieve', brainbase_onboarding_get: 'retrieve',
-            brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_knowledge_evidence_record: 'evidence', brainbase_judgment_audit_read: 'ignored', brainbase_get_meeting_minutes_context: 'retrieve', authorize_tenant_resource: 'retrieve',
+            brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer', brainbase_judgment_audit_read: 'ignored', brainbase_get_meeting_minutes_context: 'retrieve', authorize_tenant_resource: 'retrieve',
             mesh_peers: 'retrieve', graph_get_plan_receipt: 'retrieve', graph_validate: 'retrieve',
             brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
             brainbase_automation_human_step_resolve: 'write', brainbase_onboarding_start: 'write', brainbase_onboarding_ingest: 'write',
@@ -2509,12 +2518,50 @@ describe('Codex Judgment Resolver Host', () => {
             tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: 'mobbin-personal-kg-result',
             tool_input: { query: 'Mobbin Googleログイン アカウント' },
             tool_response: withRetrievalAudit('search_personal_kg', {
-                results: [{ preference: '業務サービスはinfo@unson.jpを使う' }]
+                results: [{ id: 'personal-kg-account-policy', preference: '業務サービスはinfo@unson.jpを使う' }]
             })
         }, { env });
         expect(search).toMatchObject({
             success: true, safe_metadata: { retrieval_outcome: 'result' }
         });
+
+        const afterUnrelatedResult = recordState('mobbin-state-after-unrelated-result');
+        expect(afterUnrelatedResult).toMatchObject({ success: true, event_kind: 'state', system_message: null });
+
+        recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_personal_kg_answer_record', tool_use_id: 'mobbin-personal-answer-fake-ref',
+            tool_input: {
+                question_digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                status: 'resolved', reference_ids: ['invented-reference'],
+                answer: 'info@unson.jp', reason: '検索結果には存在しない参照ID'
+            },
+            tool_response: { status: 'ok', data: {
+                schema_version: 'brainbase-personal-kg-answer-v1',
+                question_digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                status: 'resolved', reference_ids: ['invented-reference'],
+                answer: 'info@unson.jp', reason: '検索結果には存在しない参照ID'
+            } }
+        }, { env });
+        const afterFakeReference = recordState('mobbin-state-after-fake-reference');
+        expect(afterFakeReference).toMatchObject({ success: true, event_kind: 'state', system_message: null });
+
+        const semanticAnswer = recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_personal_kg_answer_record', tool_use_id: 'mobbin-personal-answer',
+            tool_input: {
+                question_digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                status: 'resolved', reference_ids: ['personal-kg-account-policy'],
+                answer: 'info@unson.jp', reason: '業務サービスのログイン先を直接指定している'
+            },
+            tool_response: { status: 'ok', data: {
+                schema_version: 'brainbase-personal-kg-answer-v1',
+                question_digest: 'sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                status: 'resolved', reference_ids: ['personal-kg-account-policy'],
+                answer: 'info@unson.jp', reason: '業務サービスのログイン先を直接指定している'
+            } }
+        }, { env });
+        expect(semanticAnswer).toMatchObject({ success: true, event_kind: 'personal_answer' });
 
         const afterResult = recordState('mobbin-state-after-personal-kg-result');
         expect(afterResult).toMatchObject({ success: false, event_kind: 'state' });
@@ -4315,9 +4362,24 @@ describe('Codex Judgment Resolver Host', () => {
                     ? { isError: true, content: [{ type: 'text', text: 'Personal KG unavailable' }] }
                     : { content: [{ type: 'text', text: retrievalAuditEnvelope(
                         '検索',
-                        scenario === 'empty' ? '該当なし（不在確定ではない）' : '結果を取得'
+                        scenario === 'empty' ? '該当なし（不在確定ではない）' : '結果を取得',
+                        scenario === 'complete' ? {
+                            status: 'retrieved', coverage: 'unknown', sufficiency: 'needs_model_verification',
+                            references: [{ id: 'kg-direct-answer', entity_type: 'personal_kg', evidence_status: 'present', evidence_fields: ['body'] }],
+                            absence_confirmed: false
+                        } : undefined
                     ) }] }
             }, { env });
+            if (scenario === 'complete') {
+                const questionDigest = result.continuation.ore_nara_reply.question_digest;
+                recordBrainbaseToolUse({
+                    ...payload, hook_event_name: 'PostToolUse',
+                    tool_name: 'mcp__brainbase__brainbase_personal_kg_answer_record',
+                    tool_use_id: `ore-nara-answer-${question}`,
+                    tool_input: { question_digest: questionDigest, status: 'resolved', reference_ids: ['kg-direct-answer'], answer: '既存方針を適用', reason: '質問へ直接答える既存方針' },
+                    tool_response: { status: 'ok', data: { schema_version: 'brainbase-personal-kg-answer-v1', question_digest: questionDigest, status: 'resolved', reference_ids: ['kg-direct-answer'], answer: '既存方針を適用', reason: '質問へ直接答える既存方針' } }
+                }, { env });
+            }
             if (scenario !== 'complete') {
                 const incomplete = finalizeEpisode({
                     session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
@@ -4336,7 +4398,7 @@ describe('Codex Judgment Resolver Host', () => {
                         ? '本人の判断根拠を取得'
                         : scenario === 'failed'
                             ? 'Personal KGを実取得'
-                            : '取得後に適用'
+                            : 'brainbase_personal_kg_answer_record'
                 );
                 return;
             }
