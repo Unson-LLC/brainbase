@@ -4098,11 +4098,14 @@ describe('Codex Judgment Resolver Host', () => {
     });
 
     it.each([
-        ['どちらの実装にしますか？', true],
-        ['package.jsonを確認すれば分かります。確認しますか？', false],
-        ['こちらで調査しますか？', false],
-        ['このまま作業を続けますか？', false]
-    ])('continueなのに不要な確認質問「%s」で終了した場合はStopが継続させる', async (question, personalKgRequired) => {
+        ['どちらの実装にしますか？', true, 'complete'],
+        ['どちらの方針にしますか？', true, 'empty'],
+        ['どちらの案にしますか？', true, 'failed'],
+        ['どちらを優先しますか？', true, 'not_applied'],
+        ['package.jsonを確認すれば分かります。確認しますか？', false, 'complete'],
+        ['こちらで調査しますか？', false, 'complete'],
+        ['このまま作業を続けますか？', false, 'complete']
+    ])('continueなのに不要な確認質問「%s」で終了した場合はStopが継続させる', async (question, personalKgRequired, scenario) => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
         const payload = { session_id: 'session-autonomy-continue', turn_id: 'turn-autonomy-continue', prompt: '修正して', cwd: process.cwd() };
@@ -4167,30 +4170,45 @@ describe('Codex Judgment Resolver Host', () => {
             expect(result.output.reason).not.toContain('mcp__brainbase__search_personal_kg');
         }
 
+        if (personalKgRequired) {
+            recordBrainbaseToolUse({
+                ...payload, hook_event_name: 'PostToolUse',
+                tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: `ore-nara-${scenario}-${question}`,
+                tool_input: { query: question },
+                tool_response: scenario === 'failed'
+                    ? { isError: true, content: [{ type: 'text', text: 'Personal KG unavailable' }] }
+                    : { content: [{ type: 'text', text: retrievalAuditEnvelope(
+                        '検索',
+                        scenario === 'empty' ? '該当なし（不在確定ではない）' : '結果を取得'
+                    ) }] }
+            }, { env });
+            if (scenario !== 'complete') {
+                const incomplete = finalizeEpisode({
+                    session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
+                    last_assistant_message: [
+                        episode.owner_audit.display_line,
+                        scenario === 'empty'
+                            ? `📚 Brainbase検索: search_personal_kg「${question}」→ 該当なし（不在確定ではない）`
+                            : `📚 Brainbase検索: search_personal_kg「${question}」→ 結果を取得 ✓`,
+                        '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
+                        '安全な範囲の実装と検証を完了しました。'
+                    ].join('\n')
+                }, { env });
+                expect(incomplete.output).toMatchObject({ decision: 'block' });
+                expect(incomplete.output.reason).toContain(
+                    scenario === 'empty'
+                        ? '本人の判断根拠を取得'
+                        : scenario === 'failed'
+                            ? 'Personal KGを実取得'
+                            : '取得後に適用'
+                );
+                return;
+            }
+        }
         recordBrainbaseToolUse({
             ...payload, tool_name: 'apply_patch', tool_use_id: 'continued-implementation',
             tool_input: {}, tool_response: { success: true }
         }, { env });
-        if (personalKgRequired) {
-            const missingPersonalKg = finalizeEpisode({
-                session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
-                last_assistant_message: [
-                    episode.owner_audit.display_line,
-                    '📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓',
-                    '🔁 俺なら返答: 不要な確認に自動回答し、作業を継続 ✓',
-                    '安全な範囲の実装と検証を完了しました。'
-                ].join('\n')
-            }, { env });
-            expect(missingPersonalKg.output).toMatchObject({ decision: 'block' });
-            expect(missingPersonalKg.output.reason).toContain('Personal KGを実取得');
-
-            recordBrainbaseToolUse({
-                ...payload, hook_event_name: 'PostToolUse',
-                tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: `ore-nara-${question}`,
-                tool_input: { query: question },
-                tool_response: { content: [{ type: 'text', text: retrievalAuditEnvelope('検索') }] }
-            }, { env });
-        }
         const completed = finalizeEpisode({
             session_id: payload.session_id, turn_id: payload.turn_id, stop_hook_active: true,
             last_assistant_message: [

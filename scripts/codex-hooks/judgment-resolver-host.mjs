@@ -3969,7 +3969,7 @@ function continuationExecutionEvents(events, marker) {
             : Date.parse(event.recorded_at) > Date.parse(marker.requested_at)));
 }
 
-function oreNaraReplyEvidence(events, marker) {
+function oreNaraReplySearchEvents(events, marker) {
     const request = verifyOreNaraReplyRequest(marker?.ore_nara_reply);
     if (!request || request.personal_kg_mode !== 'required') return [];
     const expectedInputDigest = sha256(canonicalJson({ query: request.personal_kg_query }));
@@ -3979,6 +3979,11 @@ function oreNaraReplyEvidence(events, marker) {
         && (Number.isSafeInteger(marker.event_sequence_boundary)
             ? Number.isSafeInteger(event.event_sequence) && event.event_sequence > marker.event_sequence_boundary
             : Date.parse(event.recorded_at) > Date.parse(marker.requested_at)));
+}
+
+function oreNaraReplyEvidence(events, marker) {
+    return oreNaraReplySearchEvents(events, marker)
+        .filter((event) => event.safe_metadata?.retrieval_outcome === 'result');
 }
 
 function deriveStopDecision({
@@ -4153,6 +4158,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             episode
         );
     const continuationExecution = continuationExecutionEvents(events, existingContinuation);
+    const oreNaraSearches = oreNaraReplySearchEvents(events, existingContinuation);
     const oreNaraEvidence = oreNaraReplyEvidence(events, existingContinuation);
     const executionRequired = existingContinuation?.autonomy_continuation
         && ['implement', 'operate'].includes(episode.initial_route_receipt.classification?.intent);
@@ -4163,7 +4169,24 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ...autonomyCompliance,
             status: null,
             triggerCode: 'unnecessary_user_question',
-            violation: '俺なら返答の質問文と完全一致するqueryでPersonal KGを実取得し、本人の根拠を適用してから作業を続ける。取得失敗を根拠なしや許可として扱わない'
+            violation: oreNaraSearches.length > 0
+                ? '俺なら返答に必要な本人の判断根拠を取得できていません。該当なしを本人の回答として扱わず、元の依頼だけでは決められない新しい価値判断ならwaiting_humanへ切り替える'
+                : '俺なら返答の質問文と完全一致するqueryでPersonal KGを実取得し、本人の根拠を適用してから作業を続ける。取得失敗を根拠なしや許可として扱わない'
+        };
+    }
+    if (existingContinuation?.ore_nara_reply?.personal_kg_mode === 'required'
+        && autonomyCompliance.status === 'continued'
+        && oreNaraEvidence.length > 0
+        && !oreNaraEvidence.some((evidence) => continuationExecution.some((execution) => (
+            Number.isSafeInteger(evidence.event_sequence)
+            && Number.isSafeInteger(execution.event_sequence)
+            && execution.event_sequence > evidence.event_sequence
+        )))) {
+        autonomyCompliance = {
+            ...autonomyCompliance,
+            status: null,
+            triggerCode: 'unnecessary_user_question',
+            violation: 'Personal KGの本人根拠を取得後に適用し、その判断に基づく作業・検証を実行する。検索より前の実行や検索そのものを代理回答の適用証拠にしない'
         };
     }
     if (executionRequired && autonomyCompliance.status === 'continued' && continuationExecution.length === 0) {
@@ -4344,7 +4367,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
                 'まず承認済み範囲の安全な次の作業・検証を実際に実行する。状態登録、監査行の追加、将来の作業予定だけで終了しない。権限・外部影響の境界は広げず、許可された確認理由が生じた場合だけwaiting_humanで止める'
             ] : []),
             ...(oreNaraReply?.personal_kg_mode === 'required' ? [
-                `「俺なら返答」として、mcp__brainbase__search_personal_kgをquery=${JSON.stringify(oreNaraReply.personal_kg_query)}で実行する。取得した本人の過去判断・好み・委任境界をこの質問への回答へ適用し、同じ質問を本人へ再送せず作業を続ける。根拠がない場合も既存の依頼と権限だけで安全に決められる範囲は続け、新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する`
+                `「俺なら返答」として、作業を変更する前にmcp__brainbase__search_personal_kgをquery=${JSON.stringify(oreNaraReply.personal_kg_query)}で実行する。結果を取得できた場合だけ、本人の過去判断・好み・委任境界をこの質問への回答へ適用し、その後に同じ質問を本人へ再送せず作業を続ける。該当なしや取得失敗を本人の回答として扱わない。元の依頼だけでは決められない新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する`
             ] : oreNaraReply ? [
                 '「俺なら返答」として、元の依頼とTurnContractですでに許可された定型・可逆作業を本人へ聞き返さず続ける。新しい価値判断、権限不足、不可逆な外部影響だけを本人へ確認する'
             ] : []),
