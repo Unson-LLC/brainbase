@@ -4,9 +4,10 @@ import { spawnSync } from "node:child_process";
 import { homedir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { buildRepositoryTargetHandoff } from "../../../../scripts/repository-target-handoff.mjs";
 
-export const EXPECTED_VIBEPRO_VERSION = "0.2.0-beta.22";
-export const EXPECTED_VIBEPRO_SOURCE_COMMIT = "b5b6e6742652caba9cb5e6402e848e57321576d8";
+export const EXPECTED_VIBEPRO_VERSION = "0.2.0-beta.23";
+export const EXPECTED_VIBEPRO_SOURCE_COMMIT = "80e0b5cf1ae133be802c88344cf7cf35abd1b597";
 export const CANONICAL_VIBEPRO_LAUNCHER = path.join(homedir(), ".local", "bin", "vibepro");
 
 export function sanitizeHookEnvironment(env = process.env) {
@@ -48,10 +49,10 @@ export function parseJsonOutput(stdout, label) {
   }
 }
 
-function invokeVibePro(args, cwd, runner = spawnSync) {
+function invokeVibePro(args, cwd, runner = spawnSync, envPatch = {}) {
   const result = runner(CANONICAL_VIBEPRO_LAUNCHER, args, {
     cwd,
-    env: sanitizeHookEnvironment(),
+    env: { ...sanitizeHookEnvironment(), ...envPatch },
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
     timeout: 120000,
@@ -66,6 +67,40 @@ function invokeVibePro(args, cwd, runner = spawnSync) {
 
 export function queryCanonicalIdentity(cwd, runner = spawnSync) {
   return validateRuntimeIdentity(invokeVibePro(["runtime", "identity", "--json"], cwd, runner));
+}
+
+export function checkPushTarget(cwd, repository, pushUrl, runner = spawnSync) {
+  const handoff = buildRepositoryTargetHandoff({ repository, cwd });
+  if (typeof pushUrl !== "string" || !pushUrl || pushUrl.startsWith("-") || pushUrl.includes("\0")) {
+    throw new Error("Gitが渡す送信先URLが必要です。");
+  }
+  const failure = "送信先を照合できません。対応するVibeProと変更先の指定を確認してください。";
+  let result;
+  try {
+    result = runner(CANONICAL_VIBEPRO_LAUNCHER,
+      ["guard", "target", ".", "--push-url", pushUrl, "--json"], {
+        cwd: handoff.cwd,
+        env: { ...sanitizeHookEnvironment(), ...handoff.env },
+        encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 10000,
+      });
+  } catch { throw new Error(failure); }
+  if (result.error || result.status !== 0) throw new Error(failure);
+  let receipt;
+  try { receipt = JSON.parse(result.stdout); } catch { throw new Error(failure); }
+  if (receipt?.schema_version !== "repository-target-v1" || receipt.repository !== repository || receipt.status !== "matched") {
+    throw new Error(failure);
+  }
+  return receipt;
+}
+
+// External write entrypoint. Caller must already have permission to create/push the PR.
+export function createWithCanonicalRuntime(cwd, repository, runner = spawnSync) {
+  const handoff = buildRepositoryTargetHandoff({ repository, cwd });
+  queryCanonicalIdentity(cwd, runner);
+  // Capability probe only: this URL is not evidence of the actual Git destination.
+  // VibePro pr create and pre-push independently check the actual remote URL.
+  checkPushTarget(cwd, repository, `https://github.com/${repository}.git`, runner);
+  return invokeVibePro([...handoff.args, "--json"], handoff.cwd, runner, handoff.env);
 }
 
 export function prepareWithCanonicalRuntime(cwd, base = "origin/develop", runner = spawnSync) {
@@ -87,6 +122,17 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   const cwd = path.resolve(readOption(args, "--cwd", process.cwd()));
   const base = readOption(args, "--base", "origin/develop");
+  if (command === "pr-create") {
+    const repositoryOptions = args.filter(arg => arg === "--repo");
+    if (repositoryOptions.length !== 1) throw new Error("変更先の --repo を一つ指定してください。");
+    process.stdout.write(`${JSON.stringify(createWithCanonicalRuntime(cwd, readOption(args, "--repo")))}\n`);
+    return;
+  }
+  if (command === "push-target") {
+    const result = checkPushTarget(cwd, process.env.VIBEPRO_EXPECTED_REPOSITORY, readOption(args, "--push-url"));
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
   if (command === "identity") {
     const runtimeIdentity = queryCanonicalIdentity(cwd);
     process.stdout.write(`${JSON.stringify({
@@ -108,7 +154,7 @@ async function main() {
     })}\n`);
     return;
   }
-  throw new Error("usage: vibepro-runtime-contract.mjs <identity|pr-prepare> [--cwd <repo>] [--base <ref>]");
+  throw new Error("usage: vibepro-runtime-contract.mjs <identity|pr-prepare|pr-create|push-target> [--cwd <repo>] [--base <ref>] [--repo <owner/name>] [--push-url <url>]");
 }
 
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {

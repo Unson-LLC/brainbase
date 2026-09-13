@@ -5,6 +5,11 @@ set -eu
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 CONTRACT="$ROOT/.claude/scripts/hooks/lib/vibepro-runtime-contract.mjs"
+# 全ref・全branchで、bypassや旧runtime検証より先に実際の送信先を照合する。
+if ! node "$CONTRACT" push-target --cwd "$ROOT" --push-url "${2:-}"; then
+  echo "❌ [husky/pre-push] 変更先と送信先の照合に失敗しました。pushを停止します。" >&2
+  exit 1
+fi
 if ! IDENTITY=$(node "$CONTRACT" identity --cwd "$ROOT"); then
   echo "❌ [husky/pre-push] canonical VibePro runtime identityを検証できません" >&2
   exit 1
