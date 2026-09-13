@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 # Canonical VibePro runtimeを検証し、そのruntimeのPR preparationだけをpush判断に使う。
 
 set -eu
@@ -15,11 +15,11 @@ if ! IDENTITY=$(node "$CONTRACT" identity --cwd "$ROOT"); then
   exit 1
 fi
 
-SUMMARY=$(node -e '
+SUMMARY=$(printf '%s' "$IDENTITY" | node -e '
 let buf=""; process.stdin.on("data", d => buf += d); process.stdin.on("end", () => {
   const x=JSON.parse(buf).runtime_identity;
   process.stdout.write(`${x.package.exact_version} source=${x.source_git.commit} identity=${x.identity_digest}`);
-});' <<< "$IDENTITY")
+});')
 echo "[husky/pre-push] VibePro $SUMMARY"
 
 if [ "${BRAINBASE_ALLOW_PUSH_WITHOUT_GATE:-0}" = "1" ]; then
@@ -37,10 +37,10 @@ case "$BRANCH" in
 esac
 
 if OUTPUT=$(node "$CONTRACT" pr-prepare --cwd "$ROOT" --base origin/develop); then
-  PREPARED_DIGEST=$(node -e '
+  PREPARED_DIGEST=$(printf '%s' "$OUTPUT" | node -e '
 let buf=""; process.stdin.on("data", d => buf += d); process.stdin.on("end", () => {
   process.stdout.write(JSON.parse(buf).runtime_identity.identity_digest);
-});' <<< "$OUTPUT")
+});')
   echo "[husky/pre-push] pr prepare runtime identity=$PREPARED_DIGEST ✓"
   exit 0
 fi

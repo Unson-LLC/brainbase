@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 import {
   EXPECTED_VIBEPRO_SOURCE_COMMIT,
@@ -102,5 +103,12 @@ describe("VibePro canonical runtime hook contract", () => {
       expect(hook).not.toContain("/Users/ksato/workspace/code/vibepro/bin/vibepro.js");
       expect(hook).not.toContain("gate_dag");
     }
+  });
+
+  it("keeps the Husky pre-push hook compatible with its POSIX sh launcher", () => {
+    const hook = path.join(process.cwd(), ".husky/pre-push");
+    const result = spawnSync("sh", ["-n", hook], { encoding: "utf8" });
+
+    expect(result.status, result.stderr).toBe(0);
   });
 });
