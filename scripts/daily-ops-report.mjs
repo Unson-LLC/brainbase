@@ -151,6 +151,16 @@ function dedupeItems(items) {
 }
 
 export function buildDailyOpsReportHtml(report) {
+    const visibleSections = orderSectionsForDisplay(
+        report.sections.filter((section) => section.items?.length),
+        report.mode
+    );
+    const usableEvidence = filterUsableEvidence(report.evidence);
+    const itemCount = visibleSections.reduce((count, section) => count + section.items.length, 0) + usableEvidence.length;
+    const sectionCount = visibleSections.length + (usableEvidence.length ? 1 : 0);
+    const focusIds = getFocusSectionIds(report.mode);
+    const focusSections = visibleSections.filter((section) => focusIds.has(section.id));
+    const supportSections = visibleSections.filter((section) => !focusIds.has(section.id));
     return `<!doctype html>
 <html lang="ja">
 <head>
@@ -210,8 +220,8 @@ export function buildDailyOpsReportHtml(report) {
       margin: 0;
       max-width: 760px;
       color: var(--heading);
-      font-size: clamp(30px, 4vw, 48px);
-      font-weight: 760;
+      font-size: clamp(30px, 4vw, 42px);
+      font-weight: 700;
       letter-spacing: 0;
       line-height: 1.08;
     }
@@ -219,7 +229,7 @@ export function buildDailyOpsReportHtml(report) {
       margin: 0;
       color: var(--heading);
       font-size: 17px;
-      font-weight: 740;
+      font-weight: 680;
       letter-spacing: 0;
       line-height: 1.35;
     }
@@ -247,6 +257,49 @@ export function buildDailyOpsReportHtml(report) {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       text-align: right;
     }
+    .report-overview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 18px 28px;
+      align-items: center;
+      margin: -4px 0 30px;
+      padding: 14px 0 16px;
+      border-bottom: 1px solid var(--line);
+    }
+    .overview-stat {
+      display: inline-flex;
+      gap: 7px;
+      align-items: baseline;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .overview-stat strong {
+      color: var(--heading);
+      font-size: 21px;
+      font-weight: 650;
+      line-height: 1;
+    }
+    .report-index {
+      display: flex;
+      flex: 1 1 420px;
+      flex-wrap: wrap;
+      gap: 6px;
+      justify-content: flex-end;
+    }
+    .report-index a {
+      padding: 4px 9px;
+      border: 1px solid var(--line-soft);
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .5);
+      color: #4c5562;
+      font-size: 12px;
+      text-decoration: none;
+    }
+    .report-index a:hover, .report-index a:focus-visible {
+      border-color: var(--accent);
+      color: var(--accent);
+      outline: none;
+    }
     .layout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 24px; align-items: start; }
     .layout-single { grid-template-columns: minmax(0, 1fr); }
     .sections { display: grid; gap: 28px; }
@@ -257,8 +310,11 @@ export function buildDailyOpsReportHtml(report) {
       border-radius: 0;
       box-shadow: none;
     }
-    section { display: grid; grid-template-columns: 180px minmax(0, 1fr); padding: 20px 0 0; }
+    section { display: grid; grid-template-columns: 180px minmax(0, 1fr); padding: 20px 0 0; scroll-margin-top: 18px; }
     .section-heading {
+      position: sticky;
+      top: 18px;
+      align-self: start;
       padding: 0 24px 0 0;
     }
     .section-count {
@@ -272,7 +328,7 @@ export function buildDailyOpsReportHtml(report) {
     .item {
       display: grid;
       gap: 7px;
-      padding: 18px 0;
+      padding: 14px 0;
       border-top: 1px solid var(--line-soft);
     }
     .item:first-of-type { border-top: 0; }
@@ -285,7 +341,7 @@ export function buildDailyOpsReportHtml(report) {
     .item-title {
       min-width: 0;
       color: var(--heading);
-      font-weight: 720;
+      font-weight: 500;
       line-height: 1.45;
     }
     .item-summary {
@@ -293,7 +349,7 @@ export function buildDailyOpsReportHtml(report) {
       color: #3e4652;
       font-size: 15px;
       font-weight: 400;
-      line-height: 1.9;
+      line-height: 1.75;
       white-space: pre-wrap;
     }
     .item-details {
@@ -334,6 +390,19 @@ export function buildDailyOpsReportHtml(report) {
       font-weight: 700;
     }
     .item-more[open] summary { margin-bottom: 10px; }
+    .section-more {
+      border-top: 1px solid var(--line-soft);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .section-more > summary {
+      width: fit-content;
+      margin: 12px 0 0;
+      cursor: pointer;
+      color: var(--accent);
+      font-weight: 600;
+    }
+    .section-more[open] > summary { margin-bottom: 4px; }
     .badge {
       flex: 0 0 auto;
       max-width: 46%;
@@ -389,7 +458,9 @@ export function buildDailyOpsReportHtml(report) {
       .generated { justify-self: stretch; text-align: left; }
       .layout { grid-template-columns: 1fr; }
       section { grid-template-columns: 1fr; }
-      .section-heading { padding: 0 0 12px; }
+      .report-overview { align-items: flex-start; }
+      .report-index { flex-basis: 100%; justify-content: flex-start; }
+      .section-heading { position: static; padding: 0 0 12px; }
       .item-head { display: grid; }
       .item-detail { grid-template-columns: 1fr; gap: 2px; }
       .badge { max-width: 100%; justify-self: start; }
@@ -400,9 +471,162 @@ export function buildDailyOpsReportHtml(report) {
       aside { display: none; }
       section { break-inside: avoid; box-shadow: none; }
     }
+    /* Mobbin-derived report shell: stable navigation, prioritized work, progressive detail. */
+    body {
+      --bg: #f3f5f8;
+      --paper: #fff;
+      --text: #26313f;
+      --heading: #101828;
+      --muted: #667085;
+      --faint: #98a2b3;
+      --line: #dfe4ea;
+      --line-soft: #edf0f3;
+      --accent: #2563eb;
+      --accent-dark: #1d4ed8;
+      --accent-soft: #eff6ff;
+      --shadow: 0 12px 30px rgba(16, 24, 40, .06);
+      background: var(--bg);
+      line-height: 1.7;
+    }
+    body[data-mode="oyasumi"] { --accent: #0f766e; --accent-dark: #115e59; --accent-soft: #ecfdf8; }
+    body[data-mode="retro"] { --accent: #b45309; --accent-dark: #92400e; --accent-soft: #fff7ed; }
+    .app-shell { display: grid; grid-template-columns: 248px minmax(0, 1fr); min-height: 100vh; }
+    .report-sidebar {
+      position: sticky;
+      top: 0;
+      align-self: start;
+      height: 100vh;
+      padding: 30px 22px;
+      border: 0;
+      border-right: 1px solid var(--line);
+      border-radius: 0;
+      background: #f8fafc;
+      box-shadow: none;
+      overflow-y: auto;
+    }
+    .brand { color: var(--heading); font-size: 14px; font-weight: 750; letter-spacing: -.01em; }
+    .brand span { color: var(--faint); font-weight: 500; }
+    .sidebar-context { margin: 34px 0 26px; }
+    .sidebar-mode { color: var(--accent); font-size: 12px; font-weight: 750; letter-spacing: .08em; }
+    .sidebar-date { margin-top: 5px; color: var(--heading); font-size: 18px; font-weight: 650; }
+    .report-index { display: grid; gap: 3px; }
+    .report-index a {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 9px;
+      align-items: center;
+      padding: 9px 10px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: #475467;
+      font-size: 12px;
+      line-height: 1.35;
+      text-decoration: none;
+    }
+    .report-index a:hover, .report-index a:focus-visible { border: 0; background: var(--accent-soft); color: var(--accent-dark); outline: none; }
+    .report-index a[data-focus="true"] { color: var(--heading); font-weight: 650; }
+    .nav-count { color: var(--faint); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 10px; }
+    .sidebar-generated { margin-top: 28px; color: var(--faint); font-size: 10px; line-height: 1.6; }
+    .report-main { min-width: 0; }
+    main { max-width: 1120px; margin: 0 auto; padding: 48px 46px 80px; }
+    header {
+      grid-template-columns: minmax(0, 1fr) 260px;
+      gap: 24px 52px;
+      align-items: start;
+      margin-bottom: 24px;
+      padding: 0;
+      border: 0;
+    }
+    h1 { font-size: clamp(34px, 4vw, 48px); font-weight: 720; letter-spacing: -.035em; line-height: 1.05; }
+    .summary { max-width: 62ch; font-size: 15px; line-height: 1.8; }
+    .report-overview {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      align-items: stretch;
+      margin: 0;
+      padding: 0;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--paper);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .overview-stat { display: grid; gap: 5px; padding: 19px 20px; color: var(--muted); font-size: 11px; }
+    .overview-stat + .overview-stat { border-left: 1px solid var(--line-soft); }
+    .overview-stat strong { color: var(--heading); font-size: 28px; font-weight: 600; line-height: 1; }
+    .content-label { margin: 36px 0 12px; color: var(--muted); font-size: 11px; font-weight: 750; letter-spacing: .09em; text-transform: uppercase; }
+    .sections { display: grid; gap: 14px; }
+    .focus-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    section {
+      display: grid;
+      grid-template-columns: 170px minmax(0, 1fr);
+      padding: 22px 24px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: var(--panel);
+      box-shadow: 0 1px 2px rgba(16, 24, 40, .025);
+    }
+    section.focus-section {
+      grid-template-columns: 1fr;
+      min-height: 220px;
+      border-color: color-mix(in srgb, var(--accent) 28%, var(--line));
+      background: linear-gradient(145deg, var(--accent-soft), #fff 58%);
+      box-shadow: var(--shadow);
+    }
+    .focus-sections section:first-child:nth-last-child(odd) { grid-column: 1 / -1; }
+    .section-heading { padding-right: 22px; }
+    .focus-label { display: block; margin-bottom: 9px; color: var(--accent); font-size: 10px; font-weight: 750; letter-spacing: .08em; }
+    .focus-section .section-heading { position: static; padding: 0 0 12px; border-bottom: 1px solid color-mix(in srgb, var(--accent) 18%, var(--line-soft)); }
+    .focus-section .section-body { padding-top: 2px; }
+    .item-summary { max-width: 66ch; }
+    .badge { border-radius: 6px; background: #f8fafc; }
+    @media (max-width: 1020px) {
+      .app-shell { grid-template-columns: 210px minmax(0, 1fr); }
+      main { padding: 38px 28px 60px; }
+      header { grid-template-columns: 1fr; }
+      .report-overview { max-width: 320px; }
+    }
+    @media (max-width: 760px) {
+      .app-shell { display: block; }
+      .report-sidebar { position: static; height: auto; padding: 20px 16px 14px; border-right: 0; border-bottom: 1px solid var(--line); }
+      .sidebar-context { display: flex; gap: 10px; align-items: baseline; margin: 18px 0 12px; }
+      .sidebar-date { margin: 0; font-size: 14px; }
+      .report-index { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .report-index a { padding: 7px 8px; border: 1px solid var(--line-soft); background: #fff; }
+      .report-index a:hover, .report-index a:focus-visible { border: 1px solid var(--accent); }
+      .sidebar-generated { display: none; }
+      main { padding: 28px 14px 48px; }
+      h1 { font-size: 34px; }
+      .report-overview { max-width: none; }
+      .focus-sections { grid-template-columns: 1fr; }
+      .focus-sections section:first-child:nth-last-child(odd) { grid-column: auto; }
+      section { grid-template-columns: 1fr; }
+    }
+    @media print {
+      .app-shell { display: block; }
+      .report-sidebar { position: static; display: block; height: auto; border: 0; padding: 0 0 20px; }
+      .report-index, .sidebar-generated { display: none; }
+      main { max-width: none; padding: 0; }
+    }
   </style>
 </head>
-<body>
+<body data-mode="${escapeHtml(report.mode)}">
+  <div class="app-shell">
+  <aside class="report-sidebar">
+    <p class="brand">Brainbase <span>/ Routine</span></p>
+    <div class="sidebar-context">
+      <p class="sidebar-mode">${escapeHtml(report.modeLabel)}</p>
+      <p class="sidebar-date">${escapeHtml(report.date)}</p>
+    </div>
+    <nav class="report-index" aria-label="レポート内の目次">
+      ${visibleSections.map((section, index) => `<a href="#${sectionAnchorId(section, index)}" data-focus="${focusIds.has(section.id)}"><span>${escapeHtml(section.title)}</span><span class="nav-count" aria-label="${section.items.length}件">${section.items.length}</span></a>`).join('\n      ')}
+      ${usableEvidence.length ? `<a href="#section-evidence" data-focus="false"><span>証跡</span><span class="nav-count" aria-label="${usableEvidence.length}件">${usableEvidence.length}</span></a>` : ''}
+    </nav>
+    <p class="sidebar-generated">生成日時<br>${escapeHtml(formatGeneratedAt(report.generatedAt))}</p>
+  </aside>
+  <div class="report-main">
   <main>
     <header>
       <div>
@@ -410,33 +634,76 @@ export function buildDailyOpsReportHtml(report) {
         <h1>${escapeHtml(report.title)}</h1>
         <p class="summary">${escapeHtml(report.summary)}</p>
       </div>
-      <p class="meta generated">生成日時<br>${escapeHtml(formatGeneratedAt(report.generatedAt))}</p>
-    </header>
-    <div class="layout layout-single">
-      <div class="sections">
-        ${report.sections.filter((section) => section.items?.length).map(renderSection).join('\n')}
-        ${renderEvidenceSection(report.evidence)}
+      <div class="report-overview" aria-label="レポート概要">
+        <span class="overview-stat"><strong>${itemCount}</strong><span>表示中の項目</span></span>
+        <span class="overview-stat"><strong>${sectionCount}</strong><span>セクション</span></span>
       </div>
-    </div>
+    </header>
+    ${focusSections.length ? `<p class="content-label">まず確認</p><div class="sections focus-sections">${focusSections.map((section) => renderSection(section, getVisibleLimit(report.mode, section.id), visibleSections.indexOf(section), true)).join('\n')}</div>` : ''}
+    ${supportSections.length || usableEvidence.length ? `<p class="content-label">情報源と補足</p><div class="sections support-sections">${supportSections.map((section) => renderSection(section, getVisibleLimit(report.mode, section.id), visibleSections.indexOf(section))).join('\n')}${renderEvidenceSection(usableEvidence)}</div>` : ''}
   </main>
+  </div>
+  </div>
 </body>
 </html>
 `;
 }
 
-function renderSection(section) {
+function renderSection(section, visibleLimit = Infinity, index = 0, isFocus = false) {
     const items = section.items || [];
+    const visibleItems = items.slice(0, visibleLimit);
+    const remainingItems = items.slice(visibleLimit);
     const statuses = [...new Set(items.map((item) => String(item.meta?.status || '')).filter(Boolean))];
     const sharedStatus = statuses.length === 1 && items.every((item) => item.meta?.status) ? statuses[0] : '';
-    return `<section>
+    return `<section id="${sectionAnchorId(section, index)}"${isFocus ? ' class="focus-section"' : ''}>
   <div class="section-heading">
+    ${isFocus ? '<span class="focus-label">重点</span>' : ''}
     <h2>${escapeHtml(section.title)}</h2>
     <span class="section-count">${items.length}件${sharedStatus ? `・${escapeHtml(sharedStatus)}` : ''}</span>
   </div>
   <div class="section-body">
-    ${items.map((item) => renderItem(item, sharedStatus)).join('\n')}
+    ${visibleItems.map((item) => renderItem(item, sharedStatus)).join('\n')}
+    ${remainingItems.length ? `<details class="section-more"><summary>残り${remainingItems.length}件を表示</summary>${remainingItems.map((item) => renderItem(item, sharedStatus)).join('\n')}</details>` : ''}
   </div>
 </section>`;
+}
+
+function getFocusSectionIds(mode) {
+    return new Set({
+        ohayo: ['todayDecisions', 'todayOutcomes', 'carryovers'],
+        oyasumi: ['failures', 'carryovers', 'decisions'],
+        retro: ['outcomes', 'systemChanges', 'sourceCoverage']
+    }[mode] || []);
+}
+
+function getDisplayOrder(mode) {
+    return {
+        ohayo: ['todayDecisions', 'todayOutcomes', 'carryovers', 'calendar', 'aiWork', 'mail', 'slack'],
+        oyasumi: ['failures', 'carryovers', 'decisions', 'meetings', 'wikiNocodb', 'personalKg'],
+        retro: ['outcomes', 'systemChanges', 'sourceCoverage', 'repeatedPatterns', 'mistakenAssumptions', 'decisionReplays', 'changedJudgments', 'personalKgReviews', 'graphPromotionReviews']
+    }[mode] || [];
+}
+
+function orderSectionsForDisplay(sections, mode) {
+    const rank = new Map(getDisplayOrder(mode).map((id, index) => [id, index]));
+    return sections
+        .map((section, index) => ({ section, index }))
+        .sort((left, right) => (rank.get(left.section.id) ?? 1000 + left.index) - (rank.get(right.section.id) ?? 1000 + right.index))
+        .map(({ section }) => section);
+}
+
+function getVisibleLimit(mode, sectionId) {
+    if (getFocusSectionIds(mode).has(sectionId) || mode === 'retro') return 3;
+    if (mode === 'ohayo' && ['calendar', 'mail', 'slack'].includes(sectionId)) return 4;
+    return Infinity;
+}
+
+function sectionAnchorId(section, index) {
+    const safeId = String(section.id || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    return `section-${safeId || index + 1}`;
 }
 
 function renderItem(item, sharedStatus = '') {
@@ -477,15 +744,22 @@ function renderDetails(details) {
 
 function renderEvidenceSection(evidence) {
     if (!evidence.length) return '';
-    return `<section>
+    return `<section id="section-evidence">
   <div class="section-heading">
     <h2>証跡</h2>
     <span class="section-count">${evidence.length}件</span>
   </div>
   <div class="section-body">
-    ${evidence.map((entry) => `<article class="item"><p class="item-title">${escapeHtml(entry.label || entry.type || 'Evidence')}</p><p class="item-summary">${escapeHtml(entry.ref || '')}</p>${renderLinks(entry.url ? [{ label: 'Open', url: entry.url }] : [])}</article>`).join('\n')}
+    ${evidence.map((entry) => `<article class="item"><p class="item-title">${escapeHtml(entry.label || entry.type || '証跡')}</p>${entry.ref ? `<p class="item-summary">${escapeHtml(entry.ref)}</p>` : ''}${renderLinks(entry.url ? [{ label: '開く', url: entry.url }] : [])}</article>`).join('\n')}
   </div>
 </section>`;
+}
+
+function filterUsableEvidence(evidence = []) {
+    return evidence.filter((entry) => {
+        const label = String(entry.label || '').trim();
+        return Boolean(entry.ref || entry.url || (label && label.toLowerCase() !== 'ref'));
+    });
 }
 
 function renderLinks(links) {
