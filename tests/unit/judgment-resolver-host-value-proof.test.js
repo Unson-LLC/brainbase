@@ -54,6 +54,33 @@ function retrievalResultResponse(subject) {
   };
 }
 
+function recordOwnerValueChoiceAfterPersonalKgPreflight(payload, env, toolUseId) {
+  const stateEvent = {
+    hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+    tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+    tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' },
+    tool_response: { status: 'ok', data: {
+      schema_version: 'brainbase-stop-state-v1', status: 'waiting_human',
+      pending_safe_work: false, runtime_reason_code: 'owner_value_choice',
+    } },
+  };
+  const beforeSearch = recordBrainbaseToolUse({
+    ...stateEvent, tool_use_id: `${toolUseId}-before-personal-kg`,
+  }, { env });
+  expect(beforeSearch).toMatchObject({ success: false, event_kind: 'state' });
+  expect(beforeSearch.system_message).toContain('mcp__brainbase__search_personal_kg');
+
+  const search = recordBrainbaseToolUse({
+    hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+    tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: `${toolUseId}-personal-kg`,
+    tool_input: { query: '契約上限をいくらにするか？' },
+    tool_response: retrievalResultResponse('契約上限'),
+  }, { env });
+  expect(search).toMatchObject({ success: true, event_kind: 'retrieve' });
+
+  return recordBrainbaseToolUse({ ...stateEvent, tool_use_id: toolUseId }, { env });
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
   for (const path of temporaryPaths.splice(0)) rmSync(path, { recursive: true, force: true });
@@ -643,10 +670,8 @@ describe('Judgment Resolver Host value proof integration', () => {
     recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
       tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'human-proof',
       tool_input: input, tool_response: { status: 'ok', data: input } }, { env });
-    recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
-      tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'human-state',
-      tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' },
-      tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' } } }, { env });
+    expect(recordOwnerValueChoiceAfterPersonalKgPreflight(payload, env, 'human-state'))
+      .toMatchObject({ success: true, event_kind: 'state' });
     const ownerLine = buildOwnerReferenceLine(args, receipt);
     const result = finalizeEpisode({ hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false,
@@ -688,10 +713,8 @@ describe('Judgment Resolver Host value proof integration', () => {
     recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
       tool_name: 'mcp__brainbase__brainbase_judgment_value_proof_record', tool_use_id: 'human-proof-tampered',
       tool_input: input, tool_response: { status: 'ok', data: input } }, { env });
-    recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
-      tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'human-state-tampered',
-      tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' },
-      tool_response: { status: 'ok', data: { schema_version: 'brainbase-stop-state-v1', status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'owner_value_choice' } } }, { env });
+    expect(recordOwnerValueChoiceAfterPersonalKgPreflight(payload, env, 'human-state-tampered'))
+      .toMatchObject({ success: true, event_kind: 'state' });
     const ownerLine = buildOwnerReferenceLine(args, receipt);
     const result = finalizeEpisode({ hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
       stop_hook_active: false, last_assistant_message: `${ownerLine}\n📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓\n\n⚠️ 確認が必要[owner_value_choice]: 契約上限をいくらにするか？` }, { env });
