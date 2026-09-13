@@ -2463,6 +2463,142 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toMatchObject({ success: false, event_kind: 'state' });
     });
 
+    it('MobbinのOAuthアカウントを本人へ聞く前に俺なら返答を要求し、既知の回答があれば質問を拒否する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: 'session-ore-nara-mobbin', turn_id: 'turn-ore-nara-mobbin',
+            prompt: 'Mobbin MCPを登録して使えるようにして', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                    classification: { intent: 'operate', domains: ['operations'], action_kind: 'external', risk: 'medium' },
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    allowed_runtime_escalation_reasons: [
+                        'irreversible_action', 'missing_authority', 'owner_value_choice',
+                        'required_input_unavailable', 'evidenced_terminal_blocker'
+                    ]
+                } })
+            })
+        });
+        const waitingState = {
+            status: 'waiting_human', pending_safe_work: false,
+            runtime_reason_code: 'required_input_unavailable'
+        };
+        const recordState = (id) => recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: id,
+            tool_input: waitingState,
+            tool_response: { status: 'ok', data: {
+                schema_version: 'brainbase-stop-state-v1', ...waitingState
+            } }
+        }, { env });
+
+        const beforeSearch = recordState('mobbin-state-before-personal-kg');
+        expect(beforeSearch).toMatchObject({ success: false, event_kind: 'state' });
+        expect(beforeSearch.system_message).toContain('mcp__brainbase__search_personal_kg');
+        expect(beforeSearch.system_message).toContain('本人へ確認する前');
+
+        const search = recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: 'mobbin-personal-kg-result',
+            tool_input: { query: 'Mobbin Googleログイン アカウント' },
+            tool_response: withRetrievalAudit('search_personal_kg', {
+                results: [{ preference: '業務サービスはinfo@unson.jpを使う' }]
+            })
+        }, { env });
+        expect(search).toMatchObject({
+            success: true, safe_metadata: { retrieval_outcome: 'result' }
+        });
+
+        const afterResult = recordState('mobbin-state-after-personal-kg-result');
+        expect(afterResult).toMatchObject({ success: false, event_kind: 'state' });
+        expect(afterResult.system_message).toContain('同じ質問を表示せず');
+        expect(afterResult.system_message).toContain('readback');
+    });
+
+    it.each([
+        ['no_result', withRetrievalAudit('search_personal_kg', { results: [] }, 'no_result')],
+        ['failed', { isError: true, content: [{ type: 'text', text: 'Personal KG unavailable' }] }]
+    ])('俺なら返答が%sならrequired_input_unavailableで一度だけ本人へ確認できる', async (_scenario, response) => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = {
+            session_id: `session-ore-nara-${_scenario}`, turn_id: `turn-ore-nara-${_scenario}`,
+            prompt: '外部サービスへログインして', cwd: process.cwd()
+        };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({
+                ok: true, status: 200,
+                json: async () => ({ management_status: 'managed', receipt: {
+                    ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                    classification: { intent: 'operate', domains: ['operations'], action_kind: 'external', risk: 'medium' },
+                    autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                    allowed_runtime_escalation_reasons: [
+                        'irreversible_action', 'missing_authority', 'owner_value_choice',
+                        'required_input_unavailable', 'evidenced_terminal_blocker'
+                    ]
+                } })
+            })
+        });
+        const statePayload = {
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record',
+            tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'required_input_unavailable' },
+            tool_response: { status: 'ok', data: {
+                schema_version: 'brainbase-stop-state-v1', status: 'waiting_human',
+                pending_safe_work: false, runtime_reason_code: 'required_input_unavailable'
+            } }
+        };
+        expect(recordBrainbaseToolUse({
+            ...statePayload, tool_use_id: `state-before-${_scenario}`
+        }, { env })).toMatchObject({ success: false });
+        recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__search_personal_kg', tool_use_id: `personal-kg-${_scenario}`,
+            tool_input: { query: '外部サービス ログイン アカウント' }, tool_response: response
+        }, { env });
+        const waiting = recordBrainbaseToolUse({
+            ...statePayload, tool_use_id: `state-${_scenario}`
+        }, { env });
+        expect(waiting).toMatchObject({ success: true, event_kind: 'state', system_message: null });
+    });
+
+    it('権限不足は個人KGで越権せず、そのまま本人へ確認できる', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-missing-authority', turn_id: 'turn-missing-authority', prompt: '契約して', cwd: process.cwd() };
+        const args = buildJudgmentRequest(payload, { env });
+        await startEpisode(payload, {
+            env,
+            fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: {
+                ...validReceipt(args), runtime_version: 'judgment-runtime-2.4.0',
+                autonomy_decision: 'continue', autonomy_reason_code: 'routine_in_scope',
+                allowed_runtime_escalation_reasons: [
+                    'irreversible_action', 'missing_authority', 'owner_value_choice',
+                    'required_input_unavailable', 'evidenced_terminal_blocker'
+                ]
+            } }) })
+        });
+        const waiting = recordBrainbaseToolUse({
+            ...payload, hook_event_name: 'PostToolUse',
+            tool_name: 'mcp__brainbase__brainbase_judgment_state_record', tool_use_id: 'state-missing-authority',
+            tool_input: { status: 'waiting_human', pending_safe_work: false, runtime_reason_code: 'missing_authority' },
+            tool_response: { status: 'ok', data: {
+                schema_version: 'brainbase-stop-state-v1', status: 'waiting_human',
+                pending_safe_work: false, runtime_reason_code: 'missing_authority'
+            } }
+        }, { env });
+        expect(waiting).toMatchObject({ success: true, system_message: null });
+    });
+
     it('Claudeのcontent block配列を全Brainbase event kindで意味検証しfail-closedにする', async () => {
         const root = temporaryDirectory();
         const env = {

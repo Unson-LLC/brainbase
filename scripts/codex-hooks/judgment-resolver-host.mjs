@@ -2052,7 +2052,40 @@ function judgmentStopStateData(response) {
     return null;
 }
 
-function judgmentStopStateContract(state, receipt, episode = null) {
+const PERSONAL_KG_PREFLIGHT_REASON_CODES = new Set([
+    'required_input_unavailable',
+    'owner_value_choice'
+]);
+
+function personalKgEscalationPreflight(state, events = []) {
+    if (state?.status !== 'waiting_human'
+        || !PERSONAL_KG_PREFLIGHT_REASON_CODES.has(state.runtime_reason_code)) return { valid: true };
+    const request = events.findLast((event) => event.tool_name === JUDGMENT_STATE_TOOL_NAME
+        && event.success === false
+        && PERSONAL_KG_PREFLIGHT_REASON_CODES.has(event.safe_metadata?.stop_state?.runtime_reason_code)
+        && typeof event.system_message === 'string'
+        && event.system_message.includes('「俺なら返答」を実行'));
+    const searches = request ? events.filter((event) => event.tool_name === 'mcp__brainbase__search_personal_kg'
+        && event.event_sequence > request.event_sequence) : [];
+    if (!request || searches.length === 0) {
+        return {
+            valid: false,
+            systemMessage: '本人へ確認する前に「俺なら返答」を実行してください。今回不足している選択肢をqueryにしてmcp__brainbase__search_personal_kgを呼び、結果があれば既存の権限内で適用して作業を続け、該当なし・取得失敗・新しい価値判断の場合だけ一度確認してください。'
+        };
+    }
+    const latest = searches.at(-1);
+    if (state.runtime_reason_code === 'required_input_unavailable'
+        && latest.success === true
+        && latest.safe_metadata?.retrieval_outcome === 'result') {
+        return {
+            valid: false,
+            systemMessage: '「俺なら返答」で本人の判断根拠を取得できています。本人へ同じ質問を表示せず、その結果を既存の権限内で適用して作業とreadbackを続け、完了後に状態toolを最後にもう一度実行してください。'
+        };
+    }
+    return { valid: true };
+}
+
+function judgmentStopStateContract(state, receipt, episode = null, events = []) {
     const contract = episode ? episodeAutonomyContract(episode, receipt) : verifyAutonomyContract(receipt);
     if (!state || !contract) return { valid: Boolean(state), expectedReason: null };
     if (contract.decision === 'escalate' && state.status === 'completed') {
@@ -2068,7 +2101,10 @@ function judgmentStopStateContract(state, receipt, episode = null) {
     const reasonAllowed = expectedReason !== null
         ? state.runtime_reason_code === expectedReason
         : contract.allowedRuntimeReasons.includes(state.runtime_reason_code);
-    return { valid: state.pending_safe_work === false && reasonAllowed, expectedReason };
+    const baseValid = state.pending_safe_work === false && reasonAllowed;
+    if (!baseValid) return { valid: false, expectedReason };
+    const preflight = personalKgEscalationPreflight(state, events);
+    return { ...preflight, expectedReason };
 }
 
 function waitingHumanReasonAllowed(contract, reasonCode) {
@@ -2608,14 +2644,15 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
             })
             .filter(Number.isSafeInteger)
             .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
+        const priorEvents = judgmentStateTool ? episodeEvents(paths) : [];
         const stateContract = judgmentStateTool
-            ? judgmentStopStateContract(stopState, effectiveEpisode(episode, episodeEvents(paths)).initial_route_receipt, episode)
+            ? judgmentStopStateContract(stopState, effectiveEpisode(episode, priorEvents).initial_route_receipt, episode, priorEvents)
             : { valid: true, expectedReason: null };
         const success = !postToolUseFailure && responseSuccess && stateContract.valid;
         const systemMessage = judgmentStateTool && auditResponseSuccess && !stateContract.valid
-            ? stateContract.expectedReason
+            ? stateContract.systemMessage ?? (stateContract.expectedReason
                 ? `Brainbase状態を修正してください。status=waiting_humanではruntime_reason_code=${stateContract.expectedReason}をHost確定理由と一字一句一致させ、状態toolを最後にもう一度実行してください。`
-                : 'Brainbase状態を修正してください。completedはpending_safe_work=false・runtime_reason_code=null、pendingはpending_safe_work=true・runtime_reason_code=null、waiting_humanは許可された理由コードを使ってください。'
+                : 'Brainbase状態を修正してください。completedはpending_safe_work=false・runtime_reason_code=null、pendingはpending_safe_work=true・runtime_reason_code=null、waiting_humanは許可された理由コードを使ってください。')
             : null;
         const entry = {
             schema_version: 'brainbase-judgment-tool-event-v1',
