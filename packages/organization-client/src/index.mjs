@@ -1,4 +1,4 @@
-import { spawn as nodeSpawn } from 'node:child_process';
+import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from 'node:child_process';
 import { constants as osConstants, homedir, tmpdir } from 'node:os';
 import { randomBytes as nodeRandomBytes, randomUUID as nodeRandomUUID } from 'node:crypto';
 import {
@@ -13,7 +13,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, win32 as win32Path } from 'node:path';
 
 const ALLOWED_CONFIG_KEYS = new Set([
   'organization_id',
@@ -45,6 +45,16 @@ const DEFAULT_MCP_SERVER_NAME = 'brainbase';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_POLL_LIMIT = 120;
 const SIGNALS_TO_FORWARD = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+const WINDOWS_ACL_QUERY = [
+  '$ErrorActionPreference = "Stop";',
+  '$acl = Get-Acl -LiteralPath $env:ORGANIZATION_CLIENT_ACL_PATH;',
+  '$records = @($acl.Access | ForEach-Object {',
+  '  $sid = $_.IdentityReference;',
+  '  try { $sid = $sid.Translate([System.Security.Principal.SecurityIdentifier]).Value } catch { $sid = $sid.Value }',
+  '  [PSCustomObject]@{ sid = [string]$sid; type = [string]$_.AccessControlType; inherited = [bool]$_.IsInherited }',
+  '});',
+  '$records | ConvertTo-Json -Compress -Depth 3',
+].join(' ');
 
 function fail(message) {
   throw new Error(message);
@@ -202,8 +212,224 @@ function parseTokenFile(contents) {
   return token;
 }
 
+function windowsSystemTool(name, env = process.env) {
+  const root = env.SystemRoot || env.WINDIR;
+  if (!root) return `${name}.exe`;
+  if (name.toLowerCase() === 'powershell') {
+    return win32Path.join(root, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  }
+  return win32Path.join(root, 'System32', `${name}.exe`);
+}
+
+function windowsPowerShellEnvironment(env = process.env) {
+  // Node launched by PowerShell 7 inherits its PSModulePath. A legacy
+  // Windows PowerShell child can then resolve a PowerShell 7 module before
+  // its built-in module, which makes Get-Acl fail to autoload. Remove every
+  // case variant and give the child only the Windows PowerShell module root.
+  const sanitized = Object.fromEntries(
+    Object.entries(env).filter(([key]) => key.toLowerCase() !== 'psmodulepath'),
+  );
+  const root = sanitized.SystemRoot || sanitized.WINDIR;
+  if (root) {
+    sanitized.PSModulePath = win32Path.join(
+      root,
+      'System32',
+      'WindowsPowerShell',
+      'v1.0',
+      'Modules',
+    );
+  }
+  return sanitized;
+}
+
+function windowsCommandOutput(command, args, {
+  windowsSecurity,
+  spawnSyncImpl = nodeSpawnSync,
+  env,
+  envOverrides,
+} = {}) {
+  if (typeof windowsSecurity?.runCommand === 'function') {
+    const result = windowsSecurity.runCommand(command, args);
+    if (result && typeof result === 'object') {
+      if (result.error || (result.status !== undefined && result.status !== 0)) {
+        fail('Windows security command failed');
+      }
+      return String(result.stdout || '');
+    }
+    return String(result || '');
+  }
+
+  let result;
+  try {
+    result = spawnSyncImpl(command, args, {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(envOverrides ? { env: { ...(env || process.env), ...envOverrides } } : {}),
+    });
+  } catch {
+    fail('Windows security command failed');
+  }
+  if (result?.error || result?.status !== 0) fail('Windows security command failed');
+  return String(result?.stdout || '');
+}
+
+function windowsIdentity({ windowsSecurity, spawnSyncImpl, env } = {}) {
+  if (windowsSecurity?.identity) {
+    return {
+      name: assertString(windowsSecurity.identity, 'Windows identity'),
+      sid: windowsSecurity.identitySid ? assertString(windowsSecurity.identitySid, 'Windows identity SID') : null,
+    };
+  }
+  const output = windowsCommandOutput(windowsSystemTool('whoami', env), ['/user', '/fo', 'csv', '/nh'], {
+    windowsSecurity,
+    spawnSyncImpl,
+  });
+  const line = output.split(/\r?\n/).map((entry) => entry.trim()).find(Boolean);
+  const sid = line?.match(/S-\d+(?:-\d+)+/i)?.[0] || null;
+  const name = line?.split(',')[0]?.replace(/^"|"$/g, '').trim();
+  if (!name || !sid || name.includes('\0') || /[\r\n]/.test(name)) {
+    fail('Windows identity could not be determined');
+  }
+  return { name, sid };
+}
+
+function validateWindowsAclRecords(records, identity) {
+  if (!Array.isArray(records) || records.length === 0) {
+    fail('Windows token ACL could not be inspected');
+  }
+  if (!identity.sid) fail('Windows identity SID could not be determined');
+  const allowed = new Set(['S-1-5-18', 'S-1-5-32-544']);
+  allowed.add(identity.sid.toUpperCase());
+  let currentIdentitySeen = false;
+  let systemSeen = false;
+  let administratorsSeen = false;
+  for (const record of records) {
+    const sid = String(record?.sid || '').toUpperCase();
+    if (!allowed.has(sid)) fail('Windows token ACL contains an unapproved principal');
+    if (record?.inherited === true) fail('Windows token ACL is inherited');
+    if (String(record?.type || '').toLowerCase() !== 'allow') {
+      fail('Windows token ACL contains a deny entry');
+    }
+    if (sid === identity.sid.toUpperCase()) currentIdentitySeen = true;
+    if (sid === 'S-1-5-18') systemSeen = true;
+    if (sid === 'S-1-5-32-544') administratorsSeen = true;
+  }
+  if (!currentIdentitySeen) fail('Windows token ACL does not grant the current identity');
+  if (!systemSeen || !administratorsSeen) fail('Windows token ACL is missing required system principals');
+}
+
+function queryWindowsAcl(pathValue, {
+  windowsSecurity,
+  spawnSyncImpl,
+  env,
+} = {}) {
+  if (typeof windowsSecurity?.getAcl === 'function') {
+    return windowsSecurity.getAcl(pathValue);
+  }
+  const output = windowsCommandOutput(windowsSystemTool('powershell', env), [
+    '-NoLogo',
+    '-NoProfile',
+    '-NonInteractive',
+    '-Command',
+    WINDOWS_ACL_QUERY,
+  ], {
+    windowsSecurity,
+    spawnSyncImpl,
+    env: windowsPowerShellEnvironment(env),
+    envOverrides: { ORGANIZATION_CLIENT_ACL_PATH: pathValue },
+  }).trim();
+  let parsed;
+  try {
+    parsed = output ? JSON.parse(output) : null;
+  } catch {
+    fail('Windows token ACL could not be inspected');
+  }
+  return parsed === null ? [] : (Array.isArray(parsed) ? parsed : [parsed]);
+}
+
+function verifyWindowsAcl(pathValue, {
+  windowsSecurity,
+  spawnSyncImpl,
+  env,
+} = {}) {
+  const identity = windowsIdentity({ windowsSecurity, spawnSyncImpl, env });
+  validateWindowsAclRecords(queryWindowsAcl(pathValue, { windowsSecurity, spawnSyncImpl, env }), identity);
+}
+
+function secureWindowsPath(pathValue, {
+  directory = false,
+  windowsSecurity,
+  spawnSyncImpl,
+  env,
+} = {}) {
+  const identity = windowsIdentity({ windowsSecurity, spawnSyncImpl, env });
+  const icacls = windowsSystemTool('icacls', env);
+  windowsCommandOutput(icacls, [pathValue, '/reset'], { windowsSecurity, spawnSyncImpl });
+  windowsCommandOutput(icacls, [pathValue, '/inheritance:r'], { windowsSecurity, spawnSyncImpl });
+  const rights = directory ? '(OI)(CI)F' : 'F';
+  windowsCommandOutput(icacls, [
+    pathValue,
+    '/grant:r',
+    `${identity.name}:${rights}`,
+    `*S-1-5-18:${rights}`,
+    `*S-1-5-32-544:${rights}`,
+  ], { windowsSecurity, spawnSyncImpl });
+  verifyWindowsAcl(pathValue, { windowsSecurity, spawnSyncImpl, env });
+}
+
+function validateNativeClaudeExecutable(value) {
+  const executable = assertString(value, 'Claude executable');
+  if (executable.includes('\0') || !win32Path.isAbsolute(executable)) {
+    fail('Windows Claude executable must be an absolute native path');
+  }
+  if (!/\.exe$/i.test(executable)) {
+    fail('Windows requires a native Claude executable (.exe); claude.cmd is not supported without a shell');
+  }
+  return executable;
+}
+
+export function resolveClaudeExecutable({
+  platform = process.platform,
+  env = process.env,
+  spawnSyncImpl = nodeSpawnSync,
+} = {}) {
+  if (platform !== 'win32') return { command: 'claude', argsPrefix: [] };
+  const configured = env?.CLAUDE_CODE_EXECUTABLE;
+  if (configured !== undefined) {
+    return { command: validateNativeClaudeExecutable(configured), argsPrefix: [] };
+  }
+
+  let result;
+  try {
+    result = spawnSyncImpl(windowsSystemTool('where', env), ['claude.exe'], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  } catch {
+    fail('native Claude executable (.exe) was not found; claude.cmd is not supported without a shell');
+  }
+  const candidates = String(result?.stdout || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const executable = candidates.find((candidate) => win32Path.isAbsolute(candidate) && /\.exe$/i.test(candidate));
+  if (executable && !result?.error && result?.status === 0) {
+    return { command: validateNativeClaudeExecutable(executable), argsPrefix: [] };
+  }
+  fail('native Claude executable (.exe) was not found; claude.cmd is not supported without a shell');
+}
+
 /** Return null for a missing token, while never exposing token contents in errors. */
-export function readToken(input) {
+export function readToken(input, {
+  platform = process.platform,
+  windowsSecurity,
+  spawnSyncImpl = nodeSpawnSync,
+  env = process.env,
+} = {}) {
   const config = normalizeConfig(input);
   let metadata;
   try {
@@ -213,7 +439,12 @@ export function readToken(input) {
     fail('unable to read token file');
   }
   if (metadata.isSymbolicLink()) fail('token file must not be a symbolic link');
-  if ((metadata.mode & 0o077) !== 0) fail('token file permissions are too open');
+  if (!metadata.isFile()) fail('token file must be a regular file');
+  if (platform === 'win32') {
+    verifyWindowsAcl(config.token_file, { windowsSecurity, spawnSyncImpl, env });
+  } else if ((metadata.mode & 0o077) !== 0) {
+    fail('token file permissions are too open');
+  }
   try {
     return parseTokenFile(readFileSync(config.token_file, 'utf8'));
   } catch (error) {
@@ -222,31 +453,59 @@ export function readToken(input) {
   }
 }
 
-function readBoundToken(config) {
-  const token = readToken(config);
+function readBoundToken(config, options = {}) {
+  const token = readToken(config, options);
   if (!token) fail('authentication required; run auth first');
   assertTokenBinding(token, config);
   return token;
 }
 
-function secureParentDirectory(tokenFile) {
+function secureParentDirectory(tokenFile, {
+  platform = process.platform,
+  windowsSecurity,
+  spawnSyncImpl = nodeSpawnSync,
+  env = process.env,
+} = {}) {
   const parent = dirname(tokenFile);
   const wasPresent = existsSync(parent);
   mkdirSync(parent, { recursive: true, mode: 0o700 });
   if (!wasPresent) {
-    try {
-      chmodSync(parent, 0o700);
-    } catch {
-      fail('unable to secure token directory');
+    if (platform === 'win32') {
+      try {
+        secureWindowsPath(parent, {
+          directory: true,
+          windowsSecurity,
+          spawnSyncImpl,
+          env,
+        });
+      } catch {
+        fail('unable to secure token directory');
+      }
+    } else {
+      try {
+        chmodSync(parent, 0o700);
+      } catch {
+        fail('unable to secure token directory');
+      }
     }
   }
   return parent;
 }
 
-function writeToken(configInput, token) {
+function writeToken(configInput, token, {
+  platform = process.platform,
+  windowsSecurity,
+  spawnSyncImpl = nodeSpawnSync,
+  env = process.env,
+} = {}) {
   const config = normalizeConfig(configInput);
   const tokenFile = config.token_file;
-  const parent = secureParentDirectory(tokenFile);
+  const parent = secureParentDirectory(tokenFile, {
+    platform,
+    windowsSecurity,
+    spawnSyncImpl,
+    env,
+  });
   try {
     if (lstatSync(tokenFile).isSymbolicLink()) fail('token file must not be a symbolic link');
   } catch (error) {
@@ -256,10 +515,29 @@ function writeToken(configInput, token) {
 
   const temporaryFile = join(parent, `.${basename(tokenFile)}.${nodeRandomUUID()}.tmp`);
   try {
-    writeFileSync(temporaryFile, JSON.stringify(token, null, 2), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-    chmodSync(temporaryFile, 0o600);
+    if (platform === 'win32') {
+      // Create an empty file first, restrict its ACL, and only then write the
+      // token. This keeps the secret out of an inherited/default ACL window.
+      writeFileSync(temporaryFile, '', { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+      secureWindowsPath(temporaryFile, {
+        windowsSecurity,
+        spawnSyncImpl,
+        env,
+      });
+      writeFileSync(temporaryFile, JSON.stringify(token, null, 2), { encoding: 'utf8', flag: 'w' });
+    } else {
+      writeFileSync(temporaryFile, JSON.stringify(token, null, 2), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+      chmodSync(temporaryFile, 0o600);
+    }
     renameSync(temporaryFile, tokenFile);
-    chmodSync(tokenFile, 0o600);
+    if (platform === 'win32') {
+      // The temporary file already has the restricted ACL. Reapplying
+      // /reset after rename would briefly restore inherited permissions to a
+      // file that now contains the secret; verify the resulting ACL only.
+      verifyWindowsAcl(tokenFile, { windowsSecurity, spawnSyncImpl, env });
+    } else {
+      chmodSync(tokenFile, 0o600);
+    }
   } catch (error) {
     try {
       unlinkSync(temporaryFile);
@@ -343,6 +621,10 @@ export async function authenticate(input, {
   randomBytes = randomBytesDefault,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxPolls = DEFAULT_POLL_LIMIT,
+  platform = process.platform,
+  windowsSecurity,
+  spawnSyncImpl = nodeSpawnSync,
+  env = process.env,
 } = {}) {
   const config = normalizeConfig(input);
   const codeVerifier = randomBytes(32).toString('base64url');
@@ -400,7 +682,7 @@ export async function authenticate(input, {
         expires_in: Number(tokenResponse.expires_in || 3600),
         issued_at: Math.floor(now() / 1000),
       };
-      writeToken(config, token);
+      writeToken(config, token, { platform, windowsSecurity, spawnSyncImpl, env });
       console.log(`Authentication completed: ${config.token_file}`);
       return { ...token, token_file: config.token_file };
     }
@@ -418,9 +700,13 @@ export async function refresh(input, {
   now = () => Date.now(),
   randomUUID = nodeRandomUUID,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  platform = process.platform,
+  windowsSecurity,
+  spawnSyncImpl = nodeSpawnSync,
+  env = process.env,
 } = {}) {
   const config = normalizeConfig(input);
-  const current = readBoundToken(config);
+  const current = readBoundToken(config, { platform, windowsSecurity, spawnSyncImpl, env });
   if (typeof current.refresh_token !== 'string' || current.refresh_token === '') {
     fail('refresh token is not available; run auth first');
   }
@@ -475,17 +761,23 @@ export async function refresh(input, {
     expires_in: Number(refreshed.expires_in || 3600),
     issued_at: Math.floor(now() / 1000),
   };
-  writeToken(config, next);
+  writeToken(config, next, { platform, windowsSecurity, spawnSyncImpl, env });
   console.log('Organization client authentication refreshed.');
   return { ...next, token_file: config.token_file };
 }
 
-export function inspectClient(input, { now = () => Date.now() } = {}) {
+export function inspectClient(input, {
+  now = () => Date.now(),
+  platform = process.platform,
+  windowsSecurity,
+  spawnSyncImpl = nodeSpawnSync,
+  env = process.env,
+} = {}) {
   const config = normalizeConfig(input);
   let token = null;
   let tokenStatus = 'missing';
   try {
-    token = readToken(config);
+    token = readToken(config, { platform, windowsSecurity, spawnSyncImpl, env });
     if (token) tokenStatus = tokenMatchesConfig(token, config) ? 'bound' : 'binding_mismatch';
   } catch {
     tokenStatus = 'invalid';
@@ -566,13 +858,19 @@ export async function runClaude(input, claudeArgs = [], {
   platform = process.platform,
   env,
   now = () => Date.now(),
+  resolveClaudeImpl = resolveClaudeExecutable,
+  spawnSyncImpl = nodeSpawnSync,
+  windowsSecurity,
 } = {}) {
   assertNoMcpOverrides(claudeArgs);
-  if (platform === 'win32') {
-    fail('Windows is not supported by this launcher');
-  }
   const config = normalizeConfig(input);
-  const token = readBoundToken(config);
+  const childEnv = safeChildEnvironment(env);
+  const token = readBoundToken(config, {
+    platform,
+    windowsSecurity,
+    spawnSyncImpl,
+    env: childEnv,
+  });
   if (!tokenIsCurrent(token, now)) {
     fail('authentication is missing or expired; run refresh or auth first');
   }
@@ -580,6 +878,14 @@ export async function runClaude(input, claudeArgs = [], {
   const temporaryDir = mkdtempSync(join(tmpdir(), 'organization-client-mcp-'));
   const mcpConfigPath = join(temporaryDir, 'mcp.json');
   try {
+    if (platform === 'win32') {
+      secureWindowsPath(temporaryDir, {
+        directory: true,
+        windowsSecurity,
+        spawnSyncImpl,
+        env: childEnv,
+      });
+    }
     const mcpConfig = {
       mcpServers: {
         [config.mcp_server_name]: {
@@ -589,16 +895,36 @@ export async function runClaude(input, claudeArgs = [], {
         },
       },
     };
-    writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig), { encoding: 'utf8', mode: 0o600 });
-    chmodSync(mcpConfigPath, 0o600);
+    if (platform === 'win32') {
+      // The file is ACL-protected before the bearer token is written.
+      writeFileSync(mcpConfigPath, '', { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+      secureWindowsPath(mcpConfigPath, {
+        windowsSecurity,
+        spawnSyncImpl,
+        env: childEnv,
+      });
+      writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig), { encoding: 'utf8', flag: 'w' });
+    } else {
+      writeFileSync(mcpConfigPath, JSON.stringify(mcpConfig), { encoding: 'utf8', mode: 0o600 });
+      chmodSync(mcpConfigPath, 0o600);
+    }
+    const resolvedClaude = resolveClaudeImpl({ platform, env: childEnv, spawnSyncImpl });
+    if (!resolvedClaude || typeof resolvedClaude.command !== 'string' || !Array.isArray(resolvedClaude.argsPrefix)) {
+      fail('Claude executable could not be resolved');
+    }
     return await spawnClaude(
-      'claude',
-      ['--strict-mcp-config', '--mcp-config', mcpConfigPath, ...claudeArgs],
-      { stdio: 'inherit', shell: false, env: safeChildEnvironment(env) },
+      resolvedClaude.command,
+      [...resolvedClaude.argsPrefix, '--strict-mcp-config', '--mcp-config', mcpConfigPath, ...claudeArgs],
+      { stdio: 'inherit', shell: false, env: childEnv },
       spawnImpl,
     );
   } finally {
-    rmSync(temporaryDir, { recursive: true, force: true });
+    try {
+      rmSync(temporaryDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+    } catch {
+      fail('unable to clean temporary MCP configuration');
+    }
+    if (existsSync(temporaryDir)) fail('unable to clean temporary MCP configuration');
   }
 }
 

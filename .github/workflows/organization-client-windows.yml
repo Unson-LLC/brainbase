@@ -1,0 +1,47 @@
+name: Organization client Windows
+on:
+  pull_request:
+    paths:
+      - 'packages/organization-client/**'
+      - 'tests/integration/organization-client-windows.test.mjs'
+      - '.github/workflows/organization-client-windows.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: organization-client-windows-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  evo2-linux-preflight:
+    name: evo2のLinux検証前提
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+    timeout-minutes: 2
+    steps:
+      - name: Check Docker and browser prerequisites without changing the host
+        shell: bash
+        run: |
+          set +e
+          timeout 20s docker info --format '{{.ServerVersion}}'
+          echo "docker_status=$?"
+          timeout 10s google-chrome --version
+          echo "chrome_status=$?"
+          timeout 10s python3 --version
+          echo "python_status=$?"
+          exit 0
+  windows:
+    name: Windowsの認証情報保護と起動
+    runs-on: [self-hosted, Windows, X64, nucbox-evo-x2]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /packages/organization-client/
+            /tests/integration/organization-client-windows.test.mjs
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - run: node --test tests/integration/organization-client-windows.test.mjs

@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   contract:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 10
     services:
       postgres:
@@ -36,6 +36,8 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Configure PostgreSQL connection
         run: >-
           echo "PERSONAL_KNOWLEDGE_MIGRATION_DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/postgres"

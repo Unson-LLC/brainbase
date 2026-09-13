@@ -232,7 +232,7 @@ describe('ontology writer inventory vocabulary contract', () => {
         const workflow = fs.readFileSync(path.resolve('.github/workflows/graph-writer-contract.yml'), 'utf8');
         expect(workflow).toContain('pull_request:');
         expect(workflow).toContain('- develop');
-        expect(workflow).toContain('runs-on: ubuntu-latest');
+        expect(workflow).toContain('runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]');
         expect(workflow).toContain('- 5432');
         expect(workflow).toContain("${{ job.services.postgres.ports['5432'] }}");
         expect(workflow).toContain('npm run ontology:inventory');

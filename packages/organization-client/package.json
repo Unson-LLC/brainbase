@@ -1,6 +1,6 @@
 {
   "name": "@brainbase/organization-client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Private Brainbase organization connection client",
   "private": true,
   "type": "module",
