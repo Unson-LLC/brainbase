@@ -484,7 +484,7 @@ describe('managed launchd runtime contract', () => {
     expect(start).toContain('>> "$RECONCILE_LOG" 2>&1');
     expect(start).not.toMatch(/reconcile-brainbase-mcp-runtime\.sh[^\n]*\&\)[^\n]*\/dev\/null/);
     expect(read('scripts/reconcile-brainbase-mcp-runtime.sh')).toContain('MCP_RUNTIME="${BRAINBASE_MCP_RUNTIME_ROOT:-$UI_RUNTIME}"');
-    expect(read('scripts/reconcile-brainbase-mcp-runtime.sh')).toContain('BRAINBASE_MCP_RECONCILE_LAUNCHD_WAIT_ATTEMPTS:-45');
+    expect(read('scripts/reconcile-brainbase-mcp-runtime.sh')).toContain('BRAINBASE_MCP_RECONCILE_LAUNCHD_WAIT_ATTEMPTS:-60');
     expect(read('scripts/reconcile-brainbase-mcp-runtime.sh')).toContain('attempt <= LAUNCHD_WAIT_ATTEMPTS');
     expect(read('config/com.brainbase.mcp-brainbase.plist')).toContain('/Users/ksato/workspace/repos/.runtime/brainbase-31013');
     const install = read('scripts/install-brainbase-runtime-launchd.sh');
