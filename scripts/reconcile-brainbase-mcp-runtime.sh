@@ -16,6 +16,7 @@ RECEIPT="${BRAINBASE_MCP_RECONCILE_RECEIPT:-/Users/ksato/workspace/var/brainbase
 LOCK_DIR="${BRAINBASE_MCP_RECONCILE_LOCK:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.lock}"
 INFISICAL_BIN="${INFISICAL_BIN:-/Users/ksato/.local/bin/infisical}"
 WAIT_ATTEMPTS="${BRAINBASE_MCP_RECONCILE_WAIT_ATTEMPTS:-30}"
+LAUNCHD_WAIT_ATTEMPTS="${BRAINBASE_MCP_RECONCILE_LAUNCHD_WAIT_ATTEMPTS:-45}"
 CONNECT_TIMEOUT_SECONDS="${BRAINBASE_MCP_RECONCILE_CONNECT_TIMEOUT_SECONDS:-2}"
 MAX_TIMEOUT_SECONDS="${BRAINBASE_MCP_RECONCILE_MAX_TIMEOUT_SECONDS:-5}"
 
@@ -40,6 +41,7 @@ fi
 trap 'rmdir "$LOCK_DIR" 2>/dev/null || true' EXIT
 rm -f -- "$RECEIPT"
 [[ "$WAIT_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || fail "wait attempts must be a positive integer"
+[[ "$LAUNCHD_WAIT_ATTEMPTS" =~ ^[1-9][0-9]*$ ]] || fail "launchd wait attempts must be a positive integer"
 is_finite_positive_timeout "$CONNECT_TIMEOUT_SECONDS" || \
   fail "connect timeout must be finite positive seconds"
 is_finite_positive_timeout "$MAX_TIMEOUT_SECONDS" || \
@@ -100,7 +102,7 @@ BRAINBASE_REPO_ROOT="$MCP_RUNTIME" INFISICAL_BIN="$INFISICAL_BIN" scripts/run-br
 launchctl kickstart -k "gui/$(id -u)/${MCP_LABEL}" || fail "MCP launchd restart failed"
 
 running=0
-for ((attempt = 1; attempt <= 10; attempt += 1)); do
+for ((attempt = 1; attempt <= LAUNCHD_WAIT_ATTEMPTS; attempt += 1)); do
   if launchctl print "gui/$(id -u)/${MCP_LABEL}" 2>/dev/null | grep -q 'state = running'; then
     running=1
     break
