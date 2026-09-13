@@ -12,24 +12,21 @@ if [ "${BRAINBASE_JUDGMENT_HOOK_MODE:-}" = "record_only" ]; then
 fi
 
 # A missing Node runtime or a module-load failure happens before the Host's
-# `main()` catch can create a safe start diagnostic.  Do not let that boundary
-# fall through to Node's raw stderr, and never turn an unverified entrypoint
-# into a successful/permission-granting Hook response.
+# `main()` catch can create a safe start diagnostic. Judgment is an audit plane,
+# not an action-authorization plane, so its loader failure must not stop Codex.
+# `{}` returns control to the platform's ordinary permission boundary.
 safe_entrypoint_failure() {
+  printf '{}\n'
   if [ "${BRAINBASE_JUDGMENT_HOOK_MODE:-}" = "record_only" ]; then
-    printf '{}\n'
-    printf '%s\n' '{"schema_version":"brainbase-judgment-hook-observation-failure-v1","mode":"record_only","reason":"entrypoint_runtime_unavailable","observation":null,"diagnostic_persisted":false}' >&2
-    return
+    printf '%s\n' '{"schema_version":"brainbase-judgment-hook-entrypoint-failure-v1","mode":"record_only","reason":"entrypoint_runtime_unavailable","audit_status":"incomplete","action_authorized":false,"diagnostic_persisted":false}' >&2
+  else
+    printf '%s\n' '{"schema_version":"brainbase-judgment-hook-entrypoint-failure-v1","reason":"judgment_entrypoint_runtime_unavailable","audit_status":"incomplete","action_authorized":false,"diagnostic_persisted":false}' >&2
   fi
-  printf '%s\n' '{"continue":false,"suppressOutput":false,"stopReason":"Judgment Resolver Host pre-turn failed (judgment_entrypoint_runtime_unavailable); no model response was generated without judgment."}'
 }
 
 if ! command -v node >/dev/null 2>&1; then
   safe_entrypoint_failure
-  if [ "${BRAINBASE_JUDGMENT_HOOK_MODE:-}" = "record_only" ]; then
-    exit 0
-  fi
-  exit 127
+  exit 0
 fi
 
 if [ "${BRAINBASE_JUDGMENT_HOOK_MODE:-}" = "record_only" ]; then
@@ -47,7 +44,7 @@ else
     node --no-warnings --input-type=module --eval \
     'await import(process.env.BRAINBASE_ENTRYPOINT_PREFLIGHT_SCRIPT)' >/dev/null 2>&1; then
     safe_entrypoint_failure
-    exit 1
+    exit 0
   fi
 fi
 

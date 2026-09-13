@@ -309,8 +309,20 @@
           "決定本文・理由・出典をget_entityまで保持し、空構造を本文扱いしない。",
           "全体hooksを変更せずBrainbase限定で正常・不足・実エラーを検証する。"
         ]
+      },
+      {
+        "story_id": "story-ore-nara-reply",
+        "title": "俺なら返答",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-hook-grounded-completion"
+    "current_story_id": "story-ore-nara-reply"
   }
 }

@@ -1,0 +1,46 @@
+
+> brainbase-ui@0.4.29 test:run
+> node scripts/run-vitest.mjs run tests/unit/judgment-autonomy.test.js tests/unit/judgment-resolver-host.test.js
+
+
+ RUN  v4.0.16 /Users/ksato/workspace/repos/.runtime/brainbase-31013
+
+ ✓ tests/unit/judgment-autonomy.test.js (20 tests) 5ms
+ ✓ tests/unit/judgment-resolver-host.test.js (209 tests) 783ms
+
+ Test Files  2 passed (2)
+      Tests  229 passed (229)
+   Start at  15:20:05
+   Duration  1.20s (transform 188ms, setup 25ms, import 216ms, tests 788ms, environment 383ms)
+
+(node:31630) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > 同一turnの'structured tool_unavailable'を失敗として保存し、生のエラーを残さない
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"null","receipt_present":false,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"b7081454565b92ae30d3d1709def2eadf6a59f40647514b9108e5af201cb08fb","response_summary":{"text_blocks":0,"json_parseable":0,"json_invalid":0,"non_json":0,"explicit_failure":false,"truncated":false,"value_types":["null"],"known_keys":[],"statuses":[],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > 同一turnの'Mana transcript replay'を失敗として保存し、生のエラーを残さない
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"content_array","receipt_present":false,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"b7081454565b92ae30d3d1709def2eadf6a59f40647514b9108e5af201cb08fb","response_summary":{"text_blocks":1,"json_parseable":0,"json_invalid":0,"non_json":1,"explicit_failure":false,"truncated":false,"value_types":["array","record","string"],"known_keys":["content","text"],"statuses":[],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > 同一turnの'other execution failure'を失敗として保存し、生のエラーを残さない
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"null","receipt_present":false,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"b7081454565b92ae30d3d1709def2eadf6a59f40647514b9108e5af201cb08fb","response_summary":{"text_blocks":0,"json_parseable":0,"json_invalid":0,"non_json":0,"explicit_failure":false,"truncated":false,"value_types":["null"],"known_keys":[],"statuses":[],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > 束縛拒否のmissing_contractを値を含まないcauseで区別する
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"null","receipt_present":false,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"80f287e39fde52f0e9b26284fab3661f1d83b67607cd665c650d3f283268a19c","response_summary":{"text_blocks":0,"json_parseable":0,"json_invalid":0,"non_json":0,"explicit_failure":false,"truncated":false,"value_types":["null"],"known_keys":[],"statuses":[],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > needs_classificationのautonomy continue改ざんを契約検証で拒否する
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"data_record","receipt_present":true,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"56f6f66ec36573c44518c26533e41c4ace37e017c1a562d38ffa8eafbcccdcac","response_summary":{"text_blocks":0,"json_parseable":0,"json_invalid":0,"non_json":0,"explicit_failure":false,"truncated":false,"value_types":["record"],"known_keys":["classification","data","required_capabilities","resolution_id","status"],"statuses":["needs_classification","ok"],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > malformed pending receiptはneeds_classificationの回復・縮退を迂回しない
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"data_record","receipt_present":true,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"87a644c5644980b88e2d96a186d0e830e79217a44d32d2d01e8215684660d440","response_summary":{"text_blocks":0,"json_parseable":0,"json_invalid":0,"non_json":0,"explicit_failure":false,"truncated":false,"value_types":["record"],"known_keys":["classification","data","required_capabilities","resolution_id","status"],"statuses":["needs_classification","ok"],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > missing autonomy contractはneeds_classificationの回復・縮退を迂回しない
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"data_record","receipt_present":true,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"6304dc3dd44a7ae88e65b19b194bdd6b200ce82d48b624295392a914ce893559","response_summary":{"text_blocks":0,"json_parseable":0,"json_invalid":0,"non_json":0,"explicit_failure":false,"truncated":false,"value_types":["record"],"known_keys":["classification","data","required_capabilities","resolution_id","status"],"statuses":["needs_classification","ok"],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > conflicting managed statusesはneeds_classificationの回復・縮退を迂回しない
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"data_record","receipt_present":true,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"b8b4be31f20db4d3eed29b88b9da9921ab21e4f753d03055f5d610d4115e48ea","response_summary":{"text_blocks":0,"json_parseable":0,"json_invalid":0,"non_json":0,"explicit_failure":false,"truncated":false,"value_types":["record"],"known_keys":["classification","data","required_capabilities","resolution_id","result","status"],"statuses":["needs_classification","ok","resolved"],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > plain error text cannot bypass the binding or degraded audit path
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"string","receipt_present":false,"inner_error_code":null,"hook_event_name":"PostToolUse","tool_use_ref":"d2ba13a25fd8012d47867cf510951d27248da13c0dcf2b43b96bf43b5f3410d3","response_summary":{"text_blocks":1,"json_parseable":0,"json_invalid":0,"non_json":1,"explicit_failure":false,"truncated":false,"value_types":["string"],"known_keys":[],"statuses":[],"error_code_kinds":[]}}
+
+stderr | tests/unit/judgment-resolver-host.test.js > structured Resolver unavailable failures > contradictory result cannot bypass the binding or degraded audit path
+{"event":"brainbase_judgment_binding_diagnostic","wrapper_shape":"result_record","receipt_present":false,"inner_error_code":"brainbase_api_unavailable","hook_event_name":"PostToolUse","tool_use_ref":"4923d66f27c358154108d20ff5781f6c5a87f7a5e55da662a64c3a65e8e8dde8","response_summary":{"text_blocks":0,"json_parseable":0,"json_invalid":0,"non_json":0,"explicit_failure":false,"truncated":false,"value_types":["record"],"known_keys":["error","result","status"],"statuses":["resolved","unavailable"],"error_code_kinds":["known"]}}

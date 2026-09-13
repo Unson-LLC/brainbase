@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.1.0",
+  "record_id": "applicability-2026-09-12T06-19-09-771Z-88f624e1",
+  "story_id": "story-ore-nara-reply",
+  "applicable": false,
+  "reason": "採択済みStoryとArchitectureが、定型確認は既存権限で続行し、意味選択だけPersonal KG必須という単一方針を固定している",
+  "recorded_by": "codex",
+  "recorded_at": "2026-09-12T06:19:09.771Z",
+  "artifact": ".vibepro/reviews/story-ore-nara-reply/development-judgment/applicability/history/applicability-2026-09-12T06-19-09-771Z-88f624e1.json",
+  "advisory": true,
+  "blocking": false
+}

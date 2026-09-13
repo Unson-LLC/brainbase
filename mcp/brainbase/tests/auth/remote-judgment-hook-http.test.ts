@@ -139,7 +139,7 @@ describe('remote judgment Hook HTTP boundary', () => {
     assert.equal(calls, 0);
   });
 
-  it('story-remote-judgment-hook-contract-sync:ac:1 returns the canonical one-shot repair block for an orphan Stop', async () => {
+  it('story-remote-judgment-hook-contract-sync:ac:1 preserves the answer and returns an owner warning for an orphan Stop', async () => {
     const journalRoot = await mkdtemp(join(tmpdir(), 'remote-judgment-hook-'));
     try {
       const { processHookPayload } = await import('../../../../scripts/codex-hooks/judgment-resolver-host.mjs');
@@ -157,8 +157,9 @@ describe('remote judgment Hook HTTP boundary', () => {
       assert.equal(result?.status, 200);
       assert.equal(result?.body.accepted, true);
       assert.equal(result?.body.hook_event_name, 'Stop');
-      assert.equal(result?.body.output?.decision, 'block');
-      assert.match(result?.body.output?.reason ?? '', /judgment_episode_not_found/);
+      assert.deepEqual(result?.body.output, {
+        systemMessage: '⚠️ Brainbase監査未完了: この応答は完全監査できませんでした。',
+      });
     } finally {
       await rm(journalRoot, { recursive: true, force: true });
     }
