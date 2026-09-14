@@ -367,6 +367,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         const journalDirectory = join(journal, hash('session-symlink-entrypoint'));
         const journalFiles = readdirSync(journalDirectory);
         expect(journalFiles.sort()).toEqual([
+            `${hash('turn-symlink-entrypoint')}.continuation-retry-2.json`,
             `${hash('turn-symlink-entrypoint')}.continuation.json`,
             `${hash('turn-symlink-entrypoint')}.episode.json`,
             `${hash('turn-symlink-entrypoint')}.events`,

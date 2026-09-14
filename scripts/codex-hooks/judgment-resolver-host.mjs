@@ -4167,7 +4167,8 @@ function deriveStopDecision({
     if (preEpisodeAuditGap) protocolReasons.push('pre_episode_tool_events');
 
     const degraded = Boolean((surfaceUnavailable && !missingOwnerAudit) || preEpisodeAuditGap
-        || (stopAlreadyBlockedOnce && !retryContinuation));
+        || (stopAlreadyBlockedOnce && !retryContinuation
+            && (protocolReasons.length > 0 || businessDecision === 'CONTINUE')));
     const continuationTriggerCode = autonomyCompliance.triggerCode ?? 'unfinished_safe_work';
     const nextObjective = continuationTriggerCode === 'unnecessary_user_question'
         ? 'resume_approved_work'
@@ -4358,16 +4359,29 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         && !autonomyCompliance.stopState
         && stateRequired;
     const businessExecutionEvidence = events.some(isSuccessfulBusinessExecutionEvent);
-    // Audit-only repair remains one-shot. Real continuation gets a persisted,
-    // bounded retry budget; an active re-Stop is not itself evidence of success.
-    const stopAlreadyBlockedOnce = missingCapabilities.length > 0 && existingContinuation !== null && payload.stop_hook_active === true;
+    // The journal marker is the convergence authority. Codex Desktop does not
+    // guarantee that stop_hook_active is preserved on the repeated Stop call,
+    // and audit-only repair can have no model-owned missing capability. Relying
+    // on either signal makes the same turn block forever. Real continuation may
+    // still use the persisted, bounded retry budget below.
+    const repairStillRequired = missingCapabilities.length > 0
+        || surfaceUnavailable
+        || preEpisodeAuditGap !== null
+        || missingOwnerAudit
+        || missingAnswerBody;
+    const stopAlreadyBlockedOnce = existingContinuation !== null && repairStillRequired;
     const attempt = existingContinuation?.stop_attempt ?? (existingContinuation ? 1 : 0);
     const routeTransitionRetry = stopAlreadyBlockedOnce
         && missingOwnerAudit
         && typeof existingContinuation?.initial_route_receipt_digest === 'string'
         && existingContinuation.initial_route_receipt_digest !== episode.initial_route_receipt_digest
         && attempt < MAX_CONTINUATION_ATTEMPTS;
-    const retryContinuation = routeTransitionRetry || (stopAlreadyBlockedOnce && missingAutonomyCompliance
+    // One identical inactive delivery may be an entrypoint retry. Persist its
+    // attempt so even a Host that never sets stop_hook_active must converge.
+    const inactiveDeliveryRetry = stopAlreadyBlockedOnce
+        && payload.stop_hook_active !== true
+        && attempt < 2;
+    const retryContinuation = inactiveDeliveryRetry || routeTransitionRetry || (stopAlreadyBlockedOnce && missingAutonomyCompliance
         && (autonomyContinuationRequested || existingContinuation?.autonomy_continuation)
         && attempt < MAX_CONTINUATION_ATTEMPTS);
     const stopDecision = deriveStopDecision({
@@ -4591,7 +4605,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             completion_status: 'audit_degraded',
             degradation_reason: 'pre_episode_tool_events',
             pre_episode_audit_gap: preEpisodeAuditGap
-        } : stopAlreadyBlockedOnce ? {
+        } : stopDecision.protocol_status === 'degraded' ? {
             completion_status: 'audit_degraded',
             degradation_reason: stopDecision.business_decision === 'CONTINUE'
                 ? 'autonomy.continuation'
@@ -4602,7 +4616,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             degradation_reason: 'value_proof_unconfirmed',
             missing_capabilities: ['judgment.value_proof.outcome_verified']
         } : { completion_status: 'complete' }),
-        protocol_status: stopAlreadyBlockedOnce || preEpisodeAuditGap
+        protocol_status: stopDecision.protocol_status === 'degraded' || preEpisodeAuditGap
             || (valueProofRequired && valueProof?.state !== 'outcome_verified')
             ? 'audit_protocol_incomplete'
             : 'audit_protocol_complete',

@@ -2791,9 +2791,9 @@ describe('Codex Judgment Resolver Host', () => {
         expect(first.output).toMatchObject({ decision: 'block' });
         expect(replay.output).toEqual(first.output);
 
-        // A continuation marker already exists (from `first`/`replay`
-        // above), so this active re-Stop (stop_hook_active: true) never
-        // blocks again: it finalizes as audit_degraded instead.
+        // The persisted continuation marker is authoritative even when the
+        // Host repeats Stop with stop_hook_active:false. Later Stop calls return
+        // the same immutable final.
         const active = finalizeEpisode({
             hook_event_name: 'Stop', session_id: payload.session_id, turn_id: payload.turn_id,
             stop_hook_active: true, last_assistant_message: '証拠未取得を明示した回答'
@@ -5790,6 +5790,33 @@ describe('structured Resolver unavailable failures', () => {
             qualifying_event_count: 0
         });
         expect(episode.owner_audit.display_line).toContain('Resolver判断契約未確定');
+    });
+
+    it('再Stopでstop_hook_activeがfalseのままでもjournal attemptを正本に有限収束する', async () => {
+        const sessionId = 'session-structured-unavailable-stop-inactive-repeat';
+        const turnId = 'turn-structured-unavailable-stop-inactive-repeat';
+        const { env, invoke } = await startUnavailableEpisode({ sessionId, turnId });
+        await invoke(unavailableResponse);
+        const payload = {
+            hook_event_name: 'Stop',
+            session_id: sessionId,
+            turn_id: turnId,
+            stop_hook_active: false,
+            last_assistant_message: '診断結果を1回だけ返します。'
+        };
+
+        const firstStop = finalizeEpisode(payload, { env });
+        expect(firstStop.output).toMatchObject({ decision: 'block' });
+
+        const deliveryReplay = finalizeEpisode(payload, { env });
+        expect(deliveryReplay.output).toEqual(firstStop.output);
+
+        const repeatedStop = finalizeEpisode(payload, { env });
+        expect(repeatedStop.output.decision).toBeUndefined();
+        expect(repeatedStop.final).toMatchObject({
+            completion_status: 'audit_degraded',
+            degradation_reason: 'turn_resolution_unavailable'
+        });
     });
 
     it.each([
