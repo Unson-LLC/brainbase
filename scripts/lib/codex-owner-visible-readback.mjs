@@ -1,8 +1,9 @@
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+
+const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
 
 export const OWNER_VISIBLE_SCHEMA = 'brainbase-owner-visible-readback-v1';
 export const OWNER_VISIBLE_SOURCE = 'codex_event_stream';
@@ -28,14 +29,14 @@ function sqlLiteral(value, label) {
 
 function queryRows(databasePath, sql) {
     if (!existsSync(databasePath)) throw new Error('codex_event_stream_database_missing');
-    const result = spawnSync('sqlite3', ['-readonly', '-json', realpathSync(databasePath), sql], {
-        encoding: 'utf8',
-        maxBuffer: 4 * 1024 * 1024
-    });
-    if (result.status !== 0) {
-        throw new Error(`codex_event_stream_query_failed:${(result.stderr || '').trim()}`);
+    const database = new DatabaseSync(realpathSync(databasePath), { readOnly: true });
+    try {
+        return database.prepare(sql).all();
+    } catch (error) {
+        throw new Error(`codex_event_stream_query_failed:${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+        database.close();
     }
-    return result.stdout.trim() ? JSON.parse(result.stdout) : [];
 }
 
 export function systemMessageFromItemJson(itemJson) {
