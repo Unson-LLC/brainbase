@@ -64,6 +64,40 @@ describe('CanonicalTaskNocoDBRepository', () => {
         expect(await repository.get(page.items[0].id)).toMatchObject({ title: '返事待ち' });
     });
 
+    it('normalizes project codes and keeps the legacy single-project field readable', () => {
+        const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl: vi.fn(), apiToken: 'token', idSecret: 'secret' });
+
+        expect(repository.normalize({
+            Id: 13, 'タイトル': '複数プロジェクト', 'ステータス': '未着手', '優先度': '中',
+            project_codes: '[" mana ","brainbase","mana"]'
+        })).toMatchObject({ project_codes: ['mana', 'brainbase'] });
+        expect(repository.normalize({
+            Id: 14, 'タイトル': '旧プロジェクト', 'ステータス': '未着手', '優先度': '中',
+            'プロジェクト': 'brainbase'
+        })).toMatchObject({ project_codes: ['brainbase'] });
+        expect(repository.normalize({
+            Id: 15, 'タイトル': '未分類', 'ステータス': '未着手', '優先度': '中'
+        })).toMatchObject({ project_codes: [] });
+        expect(repository.normalize({
+            Id: 16, 'タイトル': '明示的に未分類', 'ステータス': '未着手', '優先度': '中',
+            project_codes: '[]', 'プロジェクト': 'legacy-project'
+        })).toMatchObject({ project_codes: [] });
+    });
+
+    it('filters NocoDB tasks by overlap with any requested project code', async () => {
+        const fetchImpl = vi.fn(async () => response({ list: [
+            { Id: 21, 'タイトル': 'Brainbase', 'ステータス': '未着手', '優先度': '中', project_codes: '["brainbase"]' },
+            { Id: 22, 'タイトル': 'Mana', 'ステータス': '未着手', '優先度': '中', project_codes: ['mana', 'other'] },
+            { Id: 23, 'タイトル': 'TechKnight legacy', 'ステータス': '未着手', '優先度': '中', 'プロジェクト': 'techknight' }
+        ] }));
+        const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl, apiToken: 'token', idSecret: 'secret' });
+
+        const page = await repository.list({ projectCodes: ['mana', 'techknight'], limit: 50 });
+
+        expect(page.items.map((task) => task.title)).toEqual(['Mana', 'TechKnight legacy']);
+        expect(page.items.map((task) => task.project_codes)).toEqual([['mana', 'other'], ['techknight']]);
+    });
+
     it('keeps the former waiting projection readable during migration', () => {
         const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl: vi.fn(), apiToken: 'token', idSecret: 'secret' });
         expect(repository.normalize({ Id: 70, 'タイトル': '旧待ち', 'ステータス': '待ち', '優先度': '中' }))
@@ -194,6 +228,34 @@ describe('CanonicalTaskNocoDBRepository', () => {
             assignee_person_id: 'owner'
         });
         expect(fetchImpl).toHaveBeenCalledTimes(2);
+    });
+
+    it('serializes project codes on create and update requests', async () => {
+        const persisted = {
+            Id: 16,
+            'タイトル': 'プロジェクト付きTask',
+            'ステータス': '進行中',
+            '優先度': '中',
+            project_codes: '["mana","brainbase"]',
+            'ソース参照': '[]'
+        };
+        const fetchImpl = vi.fn(async (_url, options) => {
+            if (options.method === 'POST') return response({ Id: 16 });
+            if (options.method === 'PATCH') return response({ Id: 16 });
+            return response({ list: [persisted], pageInfo: { totalRows: 1, isLastPage: true } });
+        });
+        const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl, apiToken: 'token', idSecret: 'secret' });
+
+        await repository.create({
+            title: persisted['タイトル'], status: 'in_progress', priority: 'medium',
+            project_codes: ['mana', 'brainbase'], source_refs: [], idempotency_key: 'project-create'
+        });
+        await repository.update(repository.encodeId('16'), { project_codes: ['brainbase'] });
+
+        const postBody = JSON.parse(fetchImpl.mock.calls.find(([, options]) => options.method === 'POST')[1].body);
+        const patchBody = JSON.parse(fetchImpl.mock.calls.find(([, options]) => options.method === 'PATCH')[1].body);
+        expect(postBody).toMatchObject({ project_codes: '["mana","brainbase"]' });
+        expect(patchBody).toMatchObject({ project_codes: '["brainbase"]' });
     });
 
     it('reads the authoritative row after NocoDB returns only the updated record id', async () => {
