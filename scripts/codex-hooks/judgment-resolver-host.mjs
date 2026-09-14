@@ -3185,8 +3185,36 @@ function requestsUserInput(body) {
         || /(?:か、|か，)[^?？]*か[?？]$/u.test(line)
         || /(?:(?:確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え|確定)(?:しますか|しましょうか)|(?:進め|続け)ますか)[?？]?$/u.test(line)
         || /(?:登録|作成|確認|調査|実行|修正|変更|更新|実装|対応|検証|取得|検索|付け替え|確定)して(?:も)?(?:よい|いい)ですか[?？]?$/u.test(line)
+        || /読んで(?:も)?(?:よい|いい)ですか[?？]?$/u.test(line)
         || /(?:教えて|選んで|決めて|判断して|承認して|確認して|入力して|提示して|付与して)(?:ください|もらえますか|いただけますか)[。！!？?]?$/u.test(line)
     ));
+}
+
+function inferredRuntimeEscalationReason(body) {
+    if (typeof body !== 'string' || !body.trim()) return null;
+    let fenced = false;
+    const visibleBody = body.split('\n').flatMap((rawLine) => {
+        const line = rawLine.trim();
+        if (/^```/u.test(line)) {
+            fenced = !fenced;
+            return [];
+        }
+        return fenced || /^>/u.test(line) ? [] : [line];
+    }).filter(Boolean).join('\n');
+    if (!visibleBody) return null;
+
+    const requestsAction = /(?:してください|お願いします|必要です|入力|認証|承認|購入を確定|決済を確定)/u.test(visibleBody);
+    if (requestsAction
+        && /(?:購入|決済|支払|課金|カード情報|クレジットカード)/u.test(visibleBody)) {
+        return 'irreversible_action';
+    }
+    if (requestsAction && (
+        /(?:認証コード|ワンタイム(?:パスワード|コード)|二要素認証|ログイン|パスワード)/u.test(visibleBody)
+        || /(?:iPhone|Android|スマートフォン|実機|本人端末)[^。\n]{0,80}(?:開き直|表示|動作|確認|スクリーンショット)/u.test(visibleBody)
+    )) {
+        return 'required_input_unavailable';
+    }
+    return null;
 }
 
 function completedContinueInterruption(contract, markerReason, asks, question) {
@@ -3234,7 +3262,8 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
     const bodyLines = body.split('\n').map((line) => line.trim()).filter(Boolean);
     const markerMatch = bodyLines[0]?.match(AUTONOMY_MARKER_PATTERN) ?? null;
     const markerReason = markerMatch?.[1] ?? null;
-    const asks = requestsUserInput(body);
+    const inferredEscalationReason = inferredRuntimeEscalationReason(body);
+    const asks = requestsUserInput(body) || inferredEscalationReason !== null;
     const proposedHumanQuestion = asks ? displayedQuestion(body) : null;
     if (journalStopStateRequired(receipt)) {
         if (answer?.replaceAll('\r\n', '\n').split('\n').some((line) => STRUCTURED_STOP_STATE_PATTERN.test(line.trim()))) {
@@ -3297,6 +3326,22 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
                 status: null,
                 violation: `${exactTool}のcompletedは同一episodeに成功したPostToolUse実行証跡があり、安全な作業が残っていない場合だけ使用する`,
                 triggerCode: 'unfinished_safe_work', stopState: state
+            };
+        }
+        if (markerReason && contract.allowedRuntimeReasons.includes(markerReason)) {
+            return {
+                status: null,
+                violation: `必要確認の表示とcompleted状態は両立しません。${exactTool}をwaiting_human、runtime_reason_code=${markerReason}で最後に記録する`,
+                question: proposedHumanQuestion,
+                stopState: state
+            };
+        }
+        if (!markerReason && inferredEscalationReason) {
+            return {
+                status: null,
+                violation: `本人の入力・権限・外部作用が必要です。${exactTool}をwaiting_human、runtime_reason_code=${inferredEscalationReason}で最後に記録し、回答本文の先頭を⚠️ 確認が必要[${inferredEscalationReason}]:にする`,
+                question: proposedHumanQuestion,
+                stopState: state
             };
         }
         const interruption = completedContinueInterruption(contract, markerReason, asks, proposedHumanQuestion);
