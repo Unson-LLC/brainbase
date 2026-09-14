@@ -32,7 +32,7 @@ permissions:
 
 jobs:
   judgment-resolution:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
