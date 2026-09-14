@@ -3,7 +3,21 @@ import { existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+let Database;
+const builtInSqlite = process.getBuiltinModule?.('node:sqlite');
+if (builtInSqlite) {
+    const { DatabaseSync } = builtInSqlite;
+    Database = class NodeSqliteDatabase {
+        constructor(path, { readonly = false } = {}) {
+            this.database = new DatabaseSync(path, { readOnly: readonly });
+        }
+
+        prepare(statement) { return this.database.prepare(statement); }
+        close() { return this.database.close(); }
+    };
+} else {
+    Database = (await import('better-sqlite3')).default;
+}
 
 export const OWNER_VISIBLE_SCHEMA = 'brainbase-owner-visible-readback-v1';
 export const OWNER_VISIBLE_SOURCE = 'codex_event_stream';
@@ -29,7 +43,7 @@ function sqlLiteral(value, label) {
 
 function queryRows(databasePath, sql) {
     if (!existsSync(databasePath)) throw new Error('codex_event_stream_database_missing');
-    const database = new DatabaseSync(realpathSync(databasePath), { readOnly: true });
+    const database = new Database(realpathSync(databasePath), { readonly: true });
     try {
         return database.prepare(sql).all();
     } catch (error) {

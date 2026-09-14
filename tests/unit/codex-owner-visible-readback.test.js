@@ -9,7 +9,8 @@ import {
     verifyOwnerVisibleSource
 } from '../../scripts/lib/codex-owner-visible-readback.mjs';
 
-const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
+const builtInSqlite = process.getBuiltinModule?.('node:sqlite');
+const Database = builtInSqlite?.DatabaseSync ?? (await import('better-sqlite3')).default;
 
 const roots = [];
 
@@ -30,7 +31,7 @@ function fixture() {
         id: eventId,
         fragments: [{ text: systemMessage, hookRunId: 'stop:test' }]
     });
-    const database = new DatabaseSync(databasePath);
+    const database = new Database(databasePath);
     database.exec(`CREATE TABLE thread_items (
   thread_id TEXT NOT NULL,
   turn_id TEXT NOT NULL,
