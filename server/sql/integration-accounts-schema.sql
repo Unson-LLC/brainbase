@@ -43,6 +43,11 @@ CREATE TABLE IF NOT EXISTS integration_account_defaults (
   PRIMARY KEY (subject_type, subject_id, service, purpose, account_id)
 );
 
+-- Do not add a one-default unique index here until production data has been
+-- preflighted for legacy duplicates. Runtime resolution enumerates all defaults
+-- and fails closed when distinct accounts are ambiguous, so safety does not
+-- depend on a schema migration that could roll back unrelated M5A changes.
+
 CREATE TABLE IF NOT EXISTS account_audit_events (
   id BIGSERIAL PRIMARY KEY,
   account_id TEXT REFERENCES integration_accounts(id) ON DELETE SET NULL,

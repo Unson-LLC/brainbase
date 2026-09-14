@@ -1,0 +1,44 @@
+name: Account foundation contract
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'server/services/account/**'
+      - 'server/sql/integration-accounts-schema.sql'
+      - 'tests/account/**'
+      - 'tests/server/services/account/**'
+      - '.github/workflows/account-foundation-contract.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: account-foundation-contract-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  account-foundation:
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run account foundation tests
+        run: >-
+          npm run test:run --
+          tests/account
+          tests/server/services/account/runtime-integration-credential-resolver.test.js

@@ -97,4 +97,16 @@ describe('PgAccountRepository contract', () => {
         ]));
         expect(pg.calls.some((c) => c.sql.startsWith('DELETE FROM integration_account_defaults'))).toBe(true);
     });
+
+    it('enumerates defaults with deterministic priority and C-collated account-id ordering', async () => {
+        const rows = [
+            { subject_type: 'org', subject_id: 'org_a', service: 'freee', purpose: 'runtime_read', account_id: 'acc_A', priority: 100 },
+            { subject_type: 'org', subject_id: 'org_a', service: 'freee', purpose: 'runtime_read', account_id: 'acc_a', priority: 100 }
+        ];
+        const pg = new ScriptedPg([{ rows }]);
+        const repo = new PgAccountRepository({ pool: pg });
+
+        await expect(repo.listDefaults('org', 'org_a', 'freee', 'runtime_read')).resolves.toEqual(rows);
+        expect(pg.calls[0].sql).toContain('ORDER BY priority ASC, account_id COLLATE "C" ASC');
+    });
 });

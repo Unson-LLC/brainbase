@@ -84,6 +84,20 @@ function normalizeAudit(row) {
     };
 }
 
+// Match PostgreSQL COLLATE "C" semantics for the ASCII account ids used here.
+// Avoid localeCompare(), whose ICU/default-locale ordering can diverge from DB collation.
+function compareOpaqueIds(left, right) {
+    const a = String(left);
+    const b = String(right);
+    return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function compareDefaults(a, b) {
+    const priority = Number(a.priority ?? 100) - Number(b.priority ?? 100);
+    if (priority !== 0) return priority;
+    return compareOpaqueIds(a.account_id, b.account_id);
+}
+
 let counter = 0;
 function nextId() {
     counter += 1;
@@ -172,14 +186,16 @@ export class InMemoryAccountRepository {
         return { ...record };
     }
 
+    listDefaults(subject_type, subject_id, service, purpose) {
+        return Array.from(this.defaults.values())
+            .filter((r) => r.subject_type === subject_type && r.subject_id === subject_id
+                && r.service === service && r.purpose === purpose)
+            .sort(compareDefaults)
+            .map((r) => ({ ...r }));
+    }
+
     getDefault(subject_type, subject_id, service, purpose) {
-        for (const r of this.defaults.values()) {
-            if (r.subject_type === subject_type && r.subject_id === subject_id &&
-                r.service === service && r.purpose === purpose) {
-                return { ...r };
-            }
-        }
-        return null;
+        return this.listDefaults(subject_type, subject_id, service, purpose)[0] ?? null;
     }
 
     recordAudit({ account_id, actor_person_id, action, context }) {
@@ -319,15 +335,19 @@ export class PgAccountRepository {
         }
     }
 
-    async getDefault(subject_type, subject_id, service, purpose) {
+    async listDefaults(subject_type, subject_id, service, purpose) {
         const { rows } = await this.pool.query(
             `SELECT * FROM integration_account_defaults
              WHERE subject_type = $1 AND subject_id = $2 AND service = $3 AND purpose = $4
-             ORDER BY priority ASC
-             LIMIT 1`,
+             ORDER BY priority ASC, account_id COLLATE "C" ASC`,
             [subject_type, subject_id, service, purpose]
         );
-        return rows[0] ? { ...rows[0] } : null;
+        return rows.map((row) => ({ ...row }));
+    }
+
+    async getDefault(subject_type, subject_id, service, purpose) {
+        const rows = await this.listDefaults(subject_type, subject_id, service, purpose);
+        return rows[0] ?? null;
     }
 
     async recordAudit({ account_id, actor_person_id, action, context }) {
