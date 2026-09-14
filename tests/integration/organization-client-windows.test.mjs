@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { win32 as winPath } from 'node:path';
 import test from 'node:test';
+import { runCodex } from '../../packages/organization-client/src/codex.mjs';
 
 import {
   authenticate,
@@ -117,6 +118,18 @@ test('Windows stores token and temporary MCP config with a restricted ACL, then 
   assert.equal(result.exitCode, 0);
   assert.equal(readFileSync(outputFile, 'utf8'), 'ok');
   assert.equal(existsSync(temporaryConfigPath), false);
+  const codexResult = await runCodex(config, [], {
+    now: () => 1_700_000_000_000,
+    resolveCodexImpl: () => process.execPath,
+    spawnImpl: (command, args, options) => {
+      assert.equal(options.shell, false);
+      assert.doesNotMatch(args.join(' '), /windows-access-secret/);
+      assert.match(args.join(' '), /mcp_servers=/);
+      return spawn(command, ['-e', 'process.exit(process.env.ORGANIZATION_CLIENT_ACCESS_TOKEN === "windows-access-secret" ? 0 : 1)'], options);
+    },
+  });
+  assert.equal(codexResult.exitCode, 0);
+  assert.equal(readToken(config).access_token, 'windows-access-secret');
   const broadened = spawnSync(
     winPath.join(process.env.SystemRoot, 'System32', 'icacls.exe'),
     [tokenFile, '/grant', '*S-1-1-0:R'],

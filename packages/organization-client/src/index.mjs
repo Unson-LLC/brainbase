@@ -40,7 +40,7 @@ const SECRET_CLI_NAMES = new Set([
   '--password',
   '--secret',
 ]);
-const SUPPORTED_COMMANDS = new Set(['auth', 'refresh', 'run', 'inspect']);
+const SUPPORTED_COMMANDS = new Set(['auth', 'refresh', 'run', 'run-codex', 'inspect']);
 const DEFAULT_MCP_SERVER_NAME = 'brainbase';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_POLL_LIMIT = 120;
@@ -187,11 +187,11 @@ function tokenMatchesConfig(token, config) {
 
 function assertTokenBinding(token, config) {
   if (!tokenMatchesConfig(token, config)) {
-    fail('token binding mismatch');
+    fail('token binding mismatch; preserve the old token and run auth with the company config and its default token path; do not add binding fields manually');
   }
 }
 
-function tokenIsCurrent(token, now = () => Date.now()) {
+export function tokenIsCurrent(token, now = () => Date.now()) {
   return Boolean(
     token?.access_token
       && typeof token.access_token === 'string'
@@ -453,7 +453,7 @@ export function readToken(input, {
   }
 }
 
-function readBoundToken(config, options = {}) {
+export function readBoundToken(config, options = {}) {
   const token = readToken(config, options);
   if (!token) fail('authentication required; run auth first');
   assertTokenBinding(token, config);
@@ -938,7 +938,7 @@ export function parseCliArgs(argv) {
   const args = [...argv];
   const command = args.shift();
   if (!SUPPORTED_COMMANDS.has(command)) {
-    fail('command must be one of auth, refresh, run, inspect');
+    fail('command must be one of auth, refresh, run, run-codex, inspect');
   }
 
   let configPath;
@@ -973,7 +973,7 @@ export function parseCliArgs(argv) {
       if (!tokenFile) fail('--token-file requires a path');
       continue;
     }
-    if (command === 'run') {
+    if (command === 'run' || command === 'run-codex') {
       claudeArgs.push(arg);
     } else {
       fail(`unsupported option: ${arg}`);
@@ -996,6 +996,10 @@ export async function main(argv = process.argv.slice(2), { stdout = process.stdo
     const result = inspectClient(config);
     stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return result;
+  }
+  if (parsed.command === 'run-codex') {
+    const { runCodex } = await import('./codex.mjs');
+    return runCodex(config, parsed.claudeArgs);
   }
   return runClaude(config, parsed.claudeArgs);
 }

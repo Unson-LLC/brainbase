@@ -4,6 +4,19 @@
 
 組織の利用者として、雲孫内部の設定・コード全量を受け取らず、自社設定を使って組織MCPへ接続したい。
 
+### 既存Codex環境の互換性修正
+
+既存OSSのデータを削除せず、Claudeの追加インストールなしでCodexから組織接続を利用したい。
+
+- `run-codex` を独立した入口にする。既存の `run` (Claude) は互換性を保つ。
+- Codexの接続先は起動時設定、認証情報は子プロセス専用環境変数とし、引数・永続設定・ログへ秘密を出さない。
+- 組織の結び付きがない旧トークンは変更せず、会社設定による `auth` を案内する。組織所属・アクセス権はサーバーで検証されるもので、クライアントで付与しない。
+- CLI起動の確認と既存Codex Desktopへの常設接続は別の受入条件とする。CLI対応だけでDesktop移行完了と報告しない。
+
+検証は `node node_modules/vitest/vitest.mjs run --config vitest.organization-client.config.mjs` で実行する。既存の通常設定は `.mjs` テストを含まないため、この専用設定を使う。単体配布クライアントのNode 24対応はリポジトリ本体の対応バージョンを変更しない。
+
+Windows CIは既存の `Organization client Windows` を利用し、evo2のWindows runnerでNode 22/24を検証する。所有は本体開発担当、PRの対象パス変更または手動実行で起動する。秘密情報なし、contents readのみ、各ジョブ5分以内、同一refは前回を取消し、失敗はActionsの通常通知で確認する。自動デプロイや顧客設定変更はない。切戻しは本変更をrevertする。
+
 ## 最小Spec
 
 - 非公開共通本体内の packages/organization-client に依存なしNodeクライアントを置く。会社別本体フォークは作らない。

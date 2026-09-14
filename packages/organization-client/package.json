@@ -1,6 +1,6 @@
 {
   "name": "@brainbase/organization-client",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Private Brainbase organization connection client",
   "private": true,
   "type": "module",
@@ -13,6 +13,6 @@
     "package.json"
   ],
   "engines": {
-    "node": ">=20.0.0 <23.0.0"
+    "node": ">=20.0.0 <23.0.0 || >=24.0.0 <25.0.0"
   }
 }

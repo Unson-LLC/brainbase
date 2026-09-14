@@ -65,6 +65,11 @@ function writeToken(overrides = {}) {
 }
 
 describe('organization-client configuration and package boundary', () => {
+  it('accepts an explicit Codex entry point without requiring Claude', () => {
+    expect(parseCliArgs(['run-codex', '--config', 'company.json'])).toEqual({
+      command: 'run-codex', configPath: 'company.json', claudeArgs: [],
+    });
+  });
   it('requires explicit organization and HTTPS API/MCP endpoints', () => {
     expect(() => validateConfig({ organization_id: 'org_fixture' })).toThrow(/api_url is required/);
     expect(() => validateConfig({
@@ -148,6 +153,15 @@ describe('organization-client device auth and refresh', () => {
     const fetchImpl = vi.fn();
 
     await expect(refresh(config(), { fetchImpl })).rejects.toThrow(/token binding mismatch/);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('preserves an unbound legacy token and directs the user to reauthenticate', async () => {
+    writeToken({ organization_id: undefined, api_url: undefined, mcp_url: undefined });
+    const before = readFileSync(config().token_file, 'utf8');
+    const fetchImpl = vi.fn();
+    await expect(refresh(config(), { fetchImpl })).rejects.toThrow(/preserve the old token and run auth/);
+    expect(readFileSync(config().token_file, 'utf8')).toBe(before);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
