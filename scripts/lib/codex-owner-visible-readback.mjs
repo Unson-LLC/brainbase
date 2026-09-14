@@ -1,8 +1,23 @@
-import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+
+let Database;
+const builtInSqlite = process.getBuiltinModule?.('node:sqlite');
+if (builtInSqlite) {
+    const { DatabaseSync } = builtInSqlite;
+    Database = class NodeSqliteDatabase {
+        constructor(path, { readonly = false } = {}) {
+            this.database = new DatabaseSync(path, { readOnly: readonly });
+        }
+
+        prepare(statement) { return this.database.prepare(statement); }
+        close() { return this.database.close(); }
+    };
+} else {
+    Database = (await import('better-sqlite3')).default;
+}
 
 export const OWNER_VISIBLE_SCHEMA = 'brainbase-owner-visible-readback-v1';
 export const OWNER_VISIBLE_SOURCE = 'codex_event_stream';
@@ -28,14 +43,14 @@ function sqlLiteral(value, label) {
 
 function queryRows(databasePath, sql) {
     if (!existsSync(databasePath)) throw new Error('codex_event_stream_database_missing');
-    const result = spawnSync('sqlite3', ['-readonly', '-json', realpathSync(databasePath), sql], {
-        encoding: 'utf8',
-        maxBuffer: 4 * 1024 * 1024
-    });
-    if (result.status !== 0) {
-        throw new Error(`codex_event_stream_query_failed:${(result.stderr || '').trim()}`);
+    const database = new Database(realpathSync(databasePath), { readonly: true });
+    try {
+        return database.prepare(sql).all();
+    } catch (error) {
+        throw new Error(`codex_event_stream_query_failed:${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+        database.close();
     }
-    return result.stdout.trim() ? JSON.parse(result.stdout) : [];
 }
 
 export function systemMessageFromItemJson(itemJson) {

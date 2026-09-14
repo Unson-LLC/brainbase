@@ -9,15 +9,14 @@ import {
     verifyOwnerVisibleSource
 } from '../../scripts/lib/codex-owner-visible-readback.mjs';
 
+const builtInSqlite = process.getBuiltinModule?.('node:sqlite');
+const Database = builtInSqlite?.DatabaseSync ?? (await import('better-sqlite3')).default;
+
 const roots = [];
 
 afterEach(() => {
     for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
-
-function sqlString(value) {
-    return `'${value.replaceAll("'", "''")}'`;
-}
 
 function fixture() {
     const codexHome = mkdtempSync(join(tmpdir(), 'codex-owner-visible-'));
@@ -32,8 +31,8 @@ function fixture() {
         id: eventId,
         fragments: [{ text: systemMessage, hookRunId: 'stop:test' }]
     });
-    const sql = `
-CREATE TABLE thread_items (
+    const database = new Database(databasePath);
+    database.exec(`CREATE TABLE thread_items (
   thread_id TEXT NOT NULL,
   turn_id TEXT NOT NULL,
   item_id TEXT NOT NULL,
@@ -43,13 +42,10 @@ CREATE TABLE thread_items (
   item_type TEXT NOT NULL,
   updated_at_ordinal INTEGER NOT NULL,
   PRIMARY KEY(thread_id, turn_id, item_id)
-);
-INSERT INTO thread_items VALUES (
-  ${sqlString(taskId)}, ${sqlString(turnId)}, ${sqlString(eventId)}, 42, 1700000000000,
-  ${sqlString(itemJson)}, 'hookPrompt', 42
-);`;
-    const created = spawnSync('sqlite3', [databasePath], { input: sql, encoding: 'utf8' });
-    expect(created.status, created.stderr).toBe(0);
+);`);
+    database.prepare('INSERT INTO thread_items VALUES (?, ?, ?, 42, 1700000000000, ?, ?, 42)')
+        .run(taskId, turnId, eventId, itemJson, 'hookPrompt');
+    database.close();
     return { codexHome, databasePath, taskId, turnId, eventId, itemJson, systemMessage };
 }
 

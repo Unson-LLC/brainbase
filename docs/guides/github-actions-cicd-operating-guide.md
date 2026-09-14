@@ -68,7 +68,7 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 | ジョブ名 | トリガー | 目的 | ワークフロー | ランナー |
 |---|---|---|---|---|
 | 組織接続クライアントWindows | 対象ファイルのPull Request・手動 | 合成トークンでWindows ACLと子プロセス起動を確認。本番認証や顧客データは使わない | `.github/workflows/organization-client-windows.yml` | `[self-hosted, Windows, X64, nucbox-evo-x2]`（evo2のWindows。WSLでは代替しない） |
-| 判断監査と開始失敗の回帰検証 | 対象ファイルのPull Requestと`develop`へのpush | Hookの契約・開始失敗・記録専用モード・設定確認を検証する。実環境への配備は行わない | `.github/workflows/judgment-value-proof-consumer.yml` | `ubuntu-latest` |
+| 判断監査と開始失敗の回帰検証 | 対象ファイルのPull Requestと`develop`へのpush | Hookの契約・開始失敗・記録専用モード・設定確認を検証する。実環境への配備は行わない | `.github/workflows/judgment-value-proof-consumer.yml` | `self-hosted`（Linux / X64 / wsl-linux） |
 | Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
 | Project Provisioning契約 | `develop`・`main`へのPull Requestとpush | 型検査、使い捨てPostgreSQLでのRLS・migration、API・CLI・MCP統合、Workspace Setup互換ブラウザ契約を検証する | `.github/workflows/project-provisioning-contract.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
 | VibePro Graphify影響ゲート | `develop`・`main`へのPull Request | Graph影響を伴う変更にGraphify証跡を要求する | `.github/workflows/vibepro-graphify-impact.yml` | `self-hosted`（Linux / WSL） |

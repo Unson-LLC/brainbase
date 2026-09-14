@@ -149,6 +149,77 @@ describe('Stop business decision and protocol repair separation', () => {
         expect(result.final.autonomy_continuation).toBeUndefined();
     });
 
+    it('READMEを読んでよいかという不要確認をCONTINUEへ差し戻す', async () => {
+        const f = await fixture();
+        f.execution();
+        f.state('completed');
+
+        const result = f.stop('READMEを読んでよいですか？');
+
+        expect(result.output.decision).toBe('block');
+        expect(result.continuation).toMatchObject({
+            stop_decision: {
+                business_decision: 'CONTINUE',
+                protocol_status: 'ready',
+                continuation_plan: { trigger_code: 'unnecessary_user_question' }
+            },
+            autonomy_continuation: {
+                trigger_code: 'unnecessary_user_question',
+                status: 'requested'
+            }
+        });
+    });
+
+    it.each([
+        {
+            label: '本人端末でしか取得できない実機確認',
+            body: 'CIとデプロイは完了しました。iPhone実機でPWAを開き直して表示を確認してください。',
+            reason: 'required_input_unavailable'
+        },
+        {
+            label: '認証と購入確定を伴う決済操作',
+            body: 'Stripeの認証コードとカード情報を入力して購入を確定してください。',
+            reason: 'irreversible_action'
+        }
+    ])('$labelを不要質問として自律継続しない', async ({ body, reason }) => {
+        const f = await fixture();
+        f.execution();
+        f.state('completed');
+
+        const result = f.stop(body, { active: true });
+
+        expect(result.output.decision).toBe('block');
+        expect(result.continuation.stop_decision).toMatchObject({
+            business_decision: 'RELEASE',
+            protocol_status: 'repair'
+        });
+        expect(result.continuation.stop_decision.business_reasons).toEqual([]);
+        expect(result.continuation.stop_decision.protocol_reasons).toContain('autonomy.compliance');
+        expect(result.continuation.autonomy_continuation).toBeUndefined();
+        expect(result.continuation.missing_capabilities).not.toContain('autonomy.continuation');
+        expect(result.output.reason ?? '').toContain(reason);
+        expect(result.output.reason ?? '').toContain('waiting_human');
+    });
+
+    it('必要確認markerとcompleted状態の不一致をwaiting_humanへ修復する', async () => {
+        const f = await fixture();
+        f.execution();
+        f.state('completed');
+
+        const result = f.stop(
+            '⚠️ 確認が必要[required_input_unavailable]: iPhone実機で表示を確認してください。'
+        );
+
+        expect(result.output.decision).toBe('block');
+        expect(result.continuation.stop_decision).toMatchObject({
+            business_decision: 'RELEASE',
+            protocol_status: 'repair'
+        });
+        expect(result.continuation.autonomy_continuation).toBeUndefined();
+        expect(result.output.reason ?? '').toContain('waiting_human');
+        expect(result.output.reason ?? '').toContain('required_input_unavailable');
+    });
+
     it('安全な残作業があるStopだけをCONTINUE/readyとして有限継続する', async () => {
         const f = await fixture();
         f.state('pending');
