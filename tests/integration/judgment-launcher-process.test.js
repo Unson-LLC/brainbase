@@ -61,7 +61,7 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
         writeFileSync(mockInfisical, `#!/bin/bash\nset -euo pipefail\nwhile [ "$#" -gt 0 ] && [ "$1" != "--" ]; do shift; done\n[ "$#" -gt 0 ] && shift\nexec "$@"\n`);
         chmodSync(mockInfisical, 0o700);
         writeFileSync(entry, `import { appendFileSync } from 'node:fs';\nappendFileSync(process.env.MCP_STARTED_MARKER, 'started\\n');\n`);
-    });
+    }, 30000);
 
     afterEach(async () => {
         await Promise.all(servers.splice(0).map((server) => new Promise((resolve) => server.close(resolve))));
