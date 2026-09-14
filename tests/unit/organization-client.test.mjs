@@ -14,6 +14,7 @@ import {
   parseCliArgs,
   readToken,
   refresh,
+  resolveClaudeExecutable,
   runClaude,
   validateConfig,
 } from '../../packages/organization-client/src/index.mjs';
@@ -226,10 +227,122 @@ describe('organization-client inspect and strict MCP run', () => {
     expect(existsSync(observed.args[2])).toBe(false);
   });
 
-  it('rejects Windows explicitly instead of enabling shell interpolation', async () => {
+  it('resolves a native Windows Claude executable without enabling shell interpolation', async () => {
     writeToken();
-    await expect(runClaude(config(), [], { platform: 'win32', spawnImpl: vi.fn() }))
-      .rejects.toThrow(/Windows is not supported/);
+    let observed;
+    const spawnImpl = vi.fn((command, args, options) => {
+      observed = { command, args, options };
+      expect(options.shell).toBe(false);
+      const child = new EventEmitter();
+      queueMicrotask(() => child.emit('close', 0, null));
+      return child;
+    });
+    const windowsSecurity = {
+      identity: 'fixture\\user',
+      identitySid: 'S-1-5-21-100-200-300-1000',
+      runCommand: () => 'fixture\\user:(F)\n*S-1-5-18:(F)\n*S-1-5-32-544:(F)',
+      getAcl: () => [
+        { sid: 'S-1-5-21-100-200-300-1000', type: 'Allow', inherited: false },
+        { sid: 'S-1-5-18', type: 'Allow', inherited: false },
+        { sid: 'S-1-5-32-544', type: 'Allow', inherited: false },
+      ],
+    };
+
+    await runClaude(config(), ['--print', 'hello & whoami'], {
+      platform: 'win32',
+      windowsSecurity,
+      resolveClaudeImpl: () => ({ command: 'C:\\Program Files\\Claude Code\\claude.exe', argsPrefix: [] }),
+      spawnImpl,
+    });
+
+    expect(observed.command).toBe('C:\\Program Files\\Claude Code\\claude.exe');
+    expect(observed.args.slice(0, 3)).toEqual(['--strict-mcp-config', '--mcp-config', expect.any(String)]);
+    expect(observed.args.slice(3)).toEqual(['--print', 'hello & whoami']);
+    expect(observed.command.toLowerCase()).not.toContain('cmd.exe');
+  });
+
+  it('requires a native Windows executable and rejects claude.cmd fallback', () => {
+    expect(() => resolveClaudeExecutable({
+      platform: 'win32',
+      env: { CLAUDE_CODE_EXECUTABLE: 'C:\\Users\\fixture\\AppData\\Roaming\\npm\\claude.cmd' },
+    })).toThrow(/native Claude executable/);
+  });
+
+  it('fails closed when the Windows token ACL is broad or inherited', async () => {
+    writeToken();
+    const spawnImpl = vi.fn();
+    await expect(runClaude(config(), [], {
+      platform: 'win32',
+      windowsSecurity: {
+        identity: 'fixture\\user',
+        identitySid: 'S-1-5-21-100-200-300-1000',
+        runCommand: () => 'fixture\\user:(F)',
+        getAcl: () => [
+          { sid: 'S-1-5-21-100-200-300-1000', type: 'Allow', inherited: false },
+          { sid: 'S-1-5-18', type: 'Allow', inherited: false },
+          { sid: 'S-1-5-32-544', type: 'Allow', inherited: false },
+          { sid: 'S-1-1-0', type: 'Allow', inherited: false },
+        ],
+      },
+      resolveClaudeImpl: () => ({ command: 'C:\\Claude\\claude.exe', argsPrefix: [] }),
+      spawnImpl,
+    })).rejects.toThrow(/ACL/);
+    expect(spawnImpl).not.toHaveBeenCalled();
+  });
+
+  it('uses shell-free where.exe resolution for Windows native Claude', () => {
+    const spawnSyncImpl = vi.fn(() => ({
+      status: 0,
+      stdout: 'C:\\Program Files\\Claude Code\\claude.exe\r\n',
+      stderr: '',
+    }));
+    const result = resolveClaudeExecutable({ platform: 'win32', env: {}, spawnSyncImpl });
+
+    expect(result).toEqual({ command: 'C:\\Program Files\\Claude Code\\claude.exe', argsPrefix: [] });
+    expect(spawnSyncImpl).toHaveBeenCalledWith(
+      expect.stringMatching(/where\.exe$/i),
+      ['claude.exe'],
+      expect.objectContaining({ shell: false }),
+    );
+  });
+
+  it('isolates legacy Windows PowerShell ACL inspection from PowerShell 7 modules', () => {
+    writeToken();
+    let observed;
+    const spawnSyncImpl = vi.fn((command, args, options) => {
+      observed = { command, args, options };
+      return {
+        status: 0,
+        stdout: JSON.stringify([
+          { sid: 'S-1-5-21-100-200-300-1000', type: 'Allow', inherited: false },
+          { sid: 'S-1-5-18', type: 'Allow', inherited: false },
+          { sid: 'S-1-5-32-544', type: 'Allow', inherited: false },
+        ]),
+        stderr: '',
+      };
+    });
+
+    expect(readToken(config(), {
+      platform: 'win32',
+      env: {
+        SystemRoot: 'C:\\Windows',
+        PSModulePath: 'C:\\Program Files\\PowerShell\\Modules',
+        pSmOdUlEpAtH: 'C:\\Users\\fixture\\Documents\\PowerShell\\Modules',
+      },
+      windowsSecurity: {
+        identity: 'fixture\\user',
+        identitySid: 'S-1-5-21-100-200-300-1000',
+      },
+      spawnSyncImpl,
+    })).toMatchObject({ access_token: 'access-secret-fixture' });
+
+    expect(observed.command).toBe('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+    expect(observed.args).toContain('-NoProfile');
+    expect(observed.args).not.toContain('-ExecutionPolicy');
+    expect(observed.options.env.PSModulePath)
+      .toBe('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules');
+    expect(Object.keys(observed.options.env)
+      .filter((key) => key.toLowerCase() === 'psmodulepath')).toEqual(['PSModulePath']);
   });
 });
 

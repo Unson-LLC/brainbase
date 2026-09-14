@@ -15,6 +15,14 @@
 - 新規ディレクトリへ展開して起動検査し、既存OSSや保存データを書き換えない。削除せず旧起動へ戻せる。
 - ローカルfixtureでの接続・認証・起動確認と、Growin実利用者の受入は区別する。
 
+### Windowsクライアント
+
+- Windowsではシェル経由で起動せず、`CLAUDE_CODE_EXECUTABLE` の絶対パス、または shell-free の `where.exe claude.exe` 解決結果にあるネイティブ `claude.exe`だけを起動する。npmの `claude.cmd` は `cmd.exe` 経由の解釈を避けるため対象外とする。
+- Windowsのトークンと一時MCP設定は、秘密を書き込む前に `icacls.exe` で継承を外し、現在の利用者・SYSTEM・Administratorsに限定したACLを設定する。読み取り時もACLを検査し、継承・拒否エントリ・Everyone等の広い主体があれば停止する。主体の判定はロケールに依存しないSIDを優先する。
+- ACLの読み取りに使うlegacy Windows PowerShellは、PowerShell 7から継承した `PSModulePath` を使わず、Windows標準モジュールのパスだけを子プロセスへ渡す。これにより `Microsoft.PowerShell.Security` の解決を固定する。実行ポリシーは変更しない。
+- POSIXのモードビットだけではWindowsの保護を表せないため、WindowsではACL、macOS/Linuxでは従来の0600/0700を使う。既存のトークン親ディレクトリは、認証保存のためだけに不用意にACLを書き換えず、作成した親とファイルを個別に保護する。
+- Windows実機でのACL・子プロセス・一時秘密の削除は `tests/integration/organization-client-windows.test.mjs` で検証する。macOS/Linuxでの実行はskipとなり、実Windows確認の代替にはしない。
+
 ## 配布境界
 
 今回の成果物は組織向け接続クライアントであり、組織版サーバーや全Skillsの配布・受入完了とは呼ばない。

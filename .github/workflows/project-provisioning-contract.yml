@@ -20,7 +20,7 @@ concurrency:
 jobs:
   contract:
     name: プロジェクト登録契約
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
@@ -37,7 +37,9 @@ jobs:
         run: npm run test:integration:project-provisioning
       - name: Run onboarding PostgreSQL RLS integration
         run: npm run test:integration:onboarding-rls
-      - name: Install Chrome for Playwright
-        run: npx playwright install --with-deps chrome
+      - name: Verify preinstalled Chrome for Playwright
+        run: |
+          command -v google-chrome
+          google-chrome --version
       - name: Run Project Provisioning browser contract
         run: npx playwright test --config tests/e2e/project-provisioning.playwright.config.js

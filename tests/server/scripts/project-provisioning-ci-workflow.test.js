@@ -10,6 +10,9 @@ describe('Project Provisioning PR workflow', () => {
         expect(workflow).toMatch(/npm run typecheck/u);
         expect(workflow).toMatch(/npm run test:integration:project-provisioning/u);
         expect(workflow).toMatch(/npm run test:integration:onboarding-rls/u);
+        expect(workflow).toMatch(/command -v google-chrome/u);
+        expect(workflow).toMatch(/google-chrome --version/u);
+        expect(workflow).not.toMatch(/playwright install --with-deps/u);
         expect(workflow).toMatch(/npx playwright test --config tests\/e2e\/project-provisioning\.playwright\.config\.js/u);
         expect(workflow).toMatch(/permissions:\s*\n\s+contents: read/u);
         expect(postgresIntegration).toContain('judgment-receipt-schema.sql');

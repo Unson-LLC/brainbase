@@ -63,11 +63,14 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 
 ### イベントトリガー実行
 
+組織接続クライアントWindowsワークフローの `evo2-linux-preflight` は、残る契約CIの実行先を判断するための読み取り専用診断です。evo2のWSLでDocker応答、Chrome、Pythonの有無を各20秒以内、ジョブ全体2分以内で調べます。秘密情報・checkout・本番接続・ホスト設定変更は不要です。各 `*_status` が0かを個別に読み、ジョブの成功だけを前提充足とは扱いません。Windowsジョブとは独立しており、同じPRまたは手動起動で再検証できます。不要になったらこの診断ジョブだけを削除できます。
+
 | ジョブ名 | トリガー | 目的 | ワークフロー | ランナー |
 |---|---|---|---|---|
+| 組織接続クライアントWindows | 対象ファイルのPull Request・手動 | 合成トークンでWindows ACLと子プロセス起動を確認。本番認証や顧客データは使わない | `.github/workflows/organization-client-windows.yml` | `[self-hosted, Windows, X64, nucbox-evo-x2]`（evo2のWindows。WSLでは代替しない） |
 | 判断監査と開始失敗の回帰検証 | 対象ファイルのPull Requestと`develop`へのpush | Hookの契約・開始失敗・記録専用モード・設定確認を検証する。実環境への配備は行わない | `.github/workflows/judgment-value-proof-consumer.yml` | `self-hosted`（Linux / X64 / wsl-linux） |
-| Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `ubuntu-latest` |
-| Project Provisioning契約 | `develop`・`main`へのPull Requestとpush | 型検査、使い捨てPostgreSQLでのRLS・migration、API・CLI・MCP統合、Workspace Setup互換ブラウザ契約を検証する | `.github/workflows/project-provisioning-contract.yml` | `ubuntu-latest` |
+| Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
+| Project Provisioning契約 | `develop`・`main`へのPull Requestとpush | 型検査、使い捨てPostgreSQLでのRLS・migration、API・CLI・MCP統合、Workspace Setup互換ブラウザ契約を検証する | `.github/workflows/project-provisioning-contract.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
 | VibePro Graphify影響ゲート | `develop`・`main`へのPull Request | Graph影響を伴う変更にGraphify証跡を要求する | `.github/workflows/vibepro-graphify-impact.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Graph SSOT（マージ前） | `develop`・`main`へのPull Request | チェッカーの単体テスト、Ontology履歴、外部Graph SSOTを検証する | `.github/workflows/vibepro-graph-ssot.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Ontology（push後） | `develop`・`main`・`session/**`へのpush | マージ後を含む実際のpush履歴でOntology公開契約を再検証する | `.github/workflows/vibepro-graph-ssot.yml` | `self-hosted`（Linux / WSL） |
@@ -76,7 +79,7 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 | VibePro Score Evidence（push後） | `develop`・`main`・`session/**`へのpush | `before..sha`の全変更を使い、直接pushとマージ後のscore証跡を再検証する | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Score Evidence（手動） | 手動実行 | 単体テストとワークフロー疎通を確認する。変更ファイル集合は空として扱うため、score成果物・DAG・文書追跡の検証証跡には使わない | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
 
-Graph書き込み契約はBrainbase保守担当が管理し、GitHub管理の実行機で動かす。WSL実行機のDocker応答停止による検査停止を避け、同じテストと実PostgreSQLの検証を維持する。権限は`contents: read`、上限10分、同じrefの古い実行は中止する。失敗時はログで段階を確認してから再実行し、実行先の切り戻しはDocker疎通を確認したうえで該当runner行を戻す。利用枠・費用はGitHub Actionsの組織設定に従う。
+Graph書き込み契約とProject Provisioning契約はBrainbase保守担当が管理する。2026-09-14、利用者指定によりevo2のWSLへ切り替えた。実行 `34765443275` でDocker 28.5.1の応答とPython 3.12.3を確認済み。以前のDocker応答停止は現在の診断では再現していない。ChromeとPlaywrightのOS依存ライブラリはevo2へ事前導入し、Project ProvisioningはChromeの存在と版を確認してからブラウザ契約を実行する。CI内では管理者権限を要求しない。テストと使い捨てPostgreSQLの検証は省略しない。権限は`contents: read`、上限はGraph 10分・Project 15分、同じref/PRの古い実行は中止する。失敗時はログで段階を確認してから再実行する。切戻しはrunnerを`ubuntu-latest`へ戻すが、GitHub Actionsの予算上限が解消していることを確認する。課金設定の変更や本番環境の再起動はこの作業に含めない。
 
 Graph書き込み契約ジョブに秘密情報は不要。テスト用のローカルHTTPサーバーとCI内の使い捨てPostgreSQLだけを使い、本番Graphへの書き込みは行わない。Personal Knowledge本番スモークは、別途署名済みsynthetic fixtureと明示的な実行環境を必要とし、CIの契約ジョブからはfixture検証だけを実行する。
 
