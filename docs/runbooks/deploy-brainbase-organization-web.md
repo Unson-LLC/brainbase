@@ -15,6 +15,7 @@
 - 正本API: `https://bb.unson.jp`
 - リバースプロキシ: 既存の `nginx-proxy` / Let's Encrypt
 - 外部Dockerネットワーク: `ubuntu_nocodb-network`
+- 公開アクセス: `nginx-proxy` のvhost設定で、運用者の送信元IPだけを許可する
 - リリース: `/home/ubuntu/brainbase-organization/releases/<brainbase-organization SHA>`
 - 現行リンク: `/home/ubuntu/brainbase-organization/current`
 
@@ -22,21 +23,22 @@
 
 ## 秘密の受け渡し
 
-1. Brainbase正本APIで組織版Web専用のサービス認証トークンを発行する。
-2. Infisicalのprod環境へ `BRAINBASE_ORGANIZATION_SERVICE_TOKEN` として保存し、値を再取得して一致を確認する。
-3. サーバーの `/etc/brainbase-organization/brainbase-service-token` へ、コンテナの実行UIDだけが読める権限で配置する。
+1. Infisicalのprod環境にある既存の正本 `BRAINBASE_TASK_API_TOKEN` を取得する。専用トークンへ切り替える場合も、Infisicalへの保存とreadbackが成功するまで配備に使わない。
+2. トークンでBrainbase正本APIの組織、権限、期限と `/api/companion/tasks` の取得を確認する。
+3. 値を表示せず、サーバーの `/etc/brainbase-organization/brainbase-service-token` へ、コンテナの実行UIDだけが読める権限で配置し、転送元との一致を確認する。
 4. `/etc/brainbase-organization/runtime.env` はexampleの4項目と固定した `RELEASE_SHA` だけを持つ。トークン値は入れない。
 
 ## リリースと確認
 
 1. Route 53の `bb-app.unson.jp` Aレコードを `176.34.20.239` へ向け、変更が `INSYNC` になるまで待つ。
-2. `brainbase-organization` の対象PRでEVO2 CIが成功したことを確認し、マージSHAを固定する。
-3. archiveをreleaseディレクトリへ転送し、`current` を対象SHAへ切り替える。
-4. `docker compose --env-file /etc/brainbase-organization/runtime.env -f current/deploy/production/docker-compose.yml up -d --build` で起動する。
-5. コンテナのhealthyとイメージSHAを確認する。
-6. 公開 `/api/health` の `release_sha` を照合する。
-7. 公開 `/api/tasks` で正本データをreadbackする。
-8. ブラウザでタスク表示とフィルター、ソート、グループ操作を確認する。
+2. `/var/lib/docker/volumes/ubuntu_nginx-vhost/_data/bb-app.unson.jp` に運用者の送信元IPをCIDRで `allow` し、最後に `deny all` を置く。`nginx -t` 後、許可IPの200と非許可IPの403を別々に確認する。
+3. `brainbase-organization` の対象PRでEVO2 CIが成功したことを確認し、マージSHAを固定する。
+4. archiveをreleaseディレクトリへ転送し、`current` を対象SHAへ切り替える。
+5. `docker compose --env-file /etc/brainbase-organization/runtime.env -f current/deploy/production/docker-compose.yml up -d --build` で起動する。
+6. コンテナのhealthyとイメージSHAを確認する。
+7. 公開 `/api/health` の `release_sha` を照合する。
+8. 公開 `/api/tasks` で正本データをreadbackする。
+9. 許可IPのブラウザでタスク表示とフィルター、ソート、グループ操作を確認する。
 
 health、CI、公開URLの生成だけでは完了にしない。正本APIのreadbackとブラウザ操作までを別ゲートとして記録する。
 
