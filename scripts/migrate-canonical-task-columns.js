@@ -15,7 +15,6 @@ export const REQUIRED_CANONICAL_TASK_COLUMNS = Object.freeze([
     { title: 'レビュー日時', uidt: 'DateTime' },
     { title: '完了日時', uidt: 'DateTime' },
     { title: 'ソース参照', uidt: 'LongText' },
-    { title: 'project_codes', uidt: 'LongText' },
     { title: 'バージョン', uidt: 'Number' },
     { title: '冪等キー', uidt: 'SingleLineText', unique: true },
     { title: 'Payload Fingerprint', uidt: 'LongText' },

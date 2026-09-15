@@ -67,22 +67,6 @@ function normalizeSourceReferences(value) {
     return { references: parsed.map(normalizeSourceReference), warnings: [] };
 }
 
-function normalizeProjectCodes(value) {
-    if (value == null || value === '') return [];
-    let values = value;
-    if (typeof value === 'string') {
-        try {
-            const parsed = JSON.parse(value);
-            values = Array.isArray(parsed) ? parsed : [value];
-        } catch {
-            values = value.split(',');
-        }
-    }
-    if (!Array.isArray(values)) values = [values];
-    return [...new Set(values.flatMap((item) => typeof item === 'string' ? item.split(',') : [item])
-        .map((item) => String(item).trim()).filter(Boolean))];
-}
-
 function encodeCursor(offset) {
     return Buffer.from(JSON.stringify({ v: 1, offset }), 'utf8').toString('base64url');
 }
@@ -198,10 +182,6 @@ export class CanonicalTaskNocoDBRepository {
         }
         const sourceReferences = normalizeSourceReferences(fields['ソース参照'] ?? fields.source_refs);
         warnings.push(...sourceReferences.warnings);
-        const hasCanonicalProjectCodes = Object.hasOwn(fields, 'project_codes')
-            || Object.hasOwn(fields, 'プロジェクトコード');
-        const projectCodes = normalizeProjectCodes(fields.project_codes ?? fields['プロジェクトコード']);
-        const legacyProjectCodes = normalizeProjectCodes(fields['プロジェクト'] ?? fields.project_code);
         const task = {
             id: this.encodeId(id),
             version: Number(fields['バージョン'] ?? fields.version ?? 1),
@@ -209,7 +189,6 @@ export class CanonicalTaskNocoDBRepository {
             description: fields['説明'] ?? fields.description ?? null,
             status,
             priority,
-            project_codes: hasCanonicalProjectCodes ? projectCodes : legacyProjectCodes,
             assignee_person_id: assigneePersonId,
             assignee_display_name: fields['担当者'] || fields.assignee_display_name || null,
             due_at: isoOrNull(fields['期限'] ?? fields.due_at),
@@ -279,12 +258,11 @@ export class CanonicalTaskNocoDBRepository {
         }
     }
 
-    async list({ statuses = [], priorities = [], projectCodes = [], assigneePersonId, dueAfter, dueBefore, cursor, limit = 50 } = {}) {
+    async list({ statuses = [], priorities = [], assigneePersonId, dueAfter, dueBefore, cursor, limit = 50 } = {}) {
         const offset = decodeCanonicalTaskCursor(cursor);
         const items = (await this.allRecords()).map((record) => this.normalize(record)).filter(Boolean).filter((task) => {
             if (statuses.length && !statuses.includes(task.status)) return false;
             if (priorities.length && !priorities.includes(task.priority)) return false;
-            if (projectCodes.length && !projectCodes.some((projectCode) => task.project_codes.includes(projectCode))) return false;
             if (assigneePersonId !== undefined && task.assignee_person_id !== assigneePersonId) return false;
             if (dueAfter && (!task.due_at || task.due_at < dueAfter)) return false;
             if (dueBefore && (!task.due_at || task.due_at > dueBefore)) return false;
@@ -343,7 +321,6 @@ export class CanonicalTaskNocoDBRepository {
         assign('レビュー日時', input.review_at);
         assign('完了日時', input.completed_at);
         assign('ソース参照', input.source_refs === undefined ? undefined : JSON.stringify(input.source_refs));
-        assign('project_codes', input.project_codes === undefined ? undefined : JSON.stringify(normalizeProjectCodes(input.project_codes)));
         assign('バージョン', input.version);
         assign('冪等キー', input.idempotency_key);
         assign('Payload Fingerprint', input.payload_fingerprint);
