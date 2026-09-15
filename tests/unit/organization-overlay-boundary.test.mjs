@@ -33,3 +33,16 @@ test('handoff contract retains NocoDB but forbids direct organization UI access'
   assert.match(contract, /共通組織UIは.+正規APIだけを利用/);
   assert.match(contract, /NocoDBのURL、token、base\/table IDを受け取らず、直接read\/writeしない/);
 });
+
+test('Unson production overlay owns its domain and deployment coordinates without secrets', () => {
+  const env = readFileSync('infra/brainbase-organization/production.env.example', 'utf8');
+  const runbook = readFileSync('docs/runbooks/deploy-brainbase-organization-web.md', 'utf8');
+
+  assert.match(env, /^ORGANIZATION_WEB_HOST=bb-app\.unson\.jp$/m);
+  assert.match(env, /^BRAINBASE_API_URL=https:\/\/bb\.unson\.jp$/m);
+  assert.match(env, /^PROXY_NETWORK=ubuntu_nocodb-network$/m);
+  assert.match(env, /^BRAINBASE_SERVICE_TOKEN_FILE_HOST=\/etc\/brainbase-organization\/brainbase-service-token$/m);
+  assert.doesNotMatch(env, /BRAINBASE_ORGANIZATION_SERVICE_TOKEN=/);
+  assert.match(runbook, /176\.34\.20\.239/);
+  assert.match(runbook, /正本APIだけへ接続し、NocoDBへ直接接続しない/);
+});
