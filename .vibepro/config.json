@@ -321,8 +321,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-canonical-task-nocodb-project-binding",
+        "title": "NocoDB正本Taskのプロジェクト紐づけを欠落なく返す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-ore-nara-reply"
+    "current_story_id": "story-canonical-task-nocodb-project-binding"
   }
 }

@@ -31,6 +31,13 @@ describe('Canonical Task NocoDB column migration', () => {
         expect(() => checkCanonicalTaskColumns({ columns })).toThrow(/期限.*DateTime/);
     });
 
+    it('requires the canonical project_codes JSON column as LongText', () => {
+        const columns = REQUIRED_CANONICAL_TASK_COLUMNS.map(column => ({ ...column }))
+            .filter(column => column.title !== 'project_codes');
+
+        expect(() => checkCanonicalTaskColumns({ columns })).toThrow(/project_codes/);
+    });
+
     it('migrates the legacy Date deadline to DateTime without widening other type changes', async () => {
         let columns = REQUIRED_CANONICAL_TASK_COLUMNS.map((column, index) => ({ id: `c-${index}`, ...column }));
         columns.find(column => column.title === '期限').uidt = 'Date';
