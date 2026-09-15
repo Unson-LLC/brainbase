@@ -1,12 +1,12 @@
 {
-  "name": "brainbase-ui",
+  "name": "brainbase-unson",
   "version": "0.4.29",
-  "private": false,
+  "private": true,
   "type": "module",
-  "description": "AI-first project management console for developers",
+  "description": "Private Unson configuration and provider-operations overlay for Brainbase",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Unson-LLC/brainbase.git"
+    "url": "https://github.com/Unson-LLC/brainbase-unson.git"
   },
   "license": "MIT",
   "author": "Unson LLC",
@@ -20,9 +20,9 @@
     "claude-code"
   ],
   "bugs": {
-    "url": "https://github.com/Unson-LLC/brainbase/issues"
+    "url": "https://github.com/Unson-LLC/brainbase-unson/issues"
   },
-  "homepage": "https://github.com/Unson-LLC/brainbase#readme",
+  "homepage": "https://github.com/Unson-LLC/brainbase-unson#readme",
   "bin": {
     "brainbase": "./cli/index.js"
   },
