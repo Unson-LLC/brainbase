@@ -5,27 +5,27 @@
     {
       "id": "AC-001",
       "type": "contract",
-      "statement": "legacy Slack OAuthによる管理画面ログインはuser_scope=identity.basicだけを要求し、bot scopeを要求しない。",
+      "statement": "Slack OpenID Connectによる管理画面ログインはscope=openid profile emailだけを要求し、legacy user_scopeを要求しない。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-001" }],
         "code_refs": [{ "file": "server/services/auth/providers/slack-auth-provider.js", "anchor": "createSlackAuthProvider" }],
-        "test_refs": [{ "file": "tests/unit/slack-auth-provider.test.js", "case": "allows only the minimum legacy identity scope for login" }]
+        "test_refs": [{ "file": "tests/unit/slack-auth-provider.test.js", "case": "builds an OIDC authorization URL without putting the client secret in it" }]
       }
     },
     {
       "id": "INV-001",
       "type": "invariant",
-      "statement": "投稿・ファイル操作権限または空の本人確認scopeをログイン設定として受け付けない。",
+      "statement": "OIDCログインでは本人確認scopeの欠落・追加、投稿・ファイル操作権限、legacy user_scopeを受け付けない。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-002" }],
         "code_refs": [{ "file": "server/services/auth/providers/slack-auth-provider.js", "anchor": "assertReady" }],
-        "test_refs": [{ "file": "tests/unit/slack-auth-provider.test.js", "case": "fails closed when legacy login requests non-identity scopes" }]
+        "test_refs": [{ "file": "tests/unit/slack-auth-provider.test.js", "case": "fails closed when OIDC login has extra bot scope" }]
       }
     },
     {
       "id": "INV-002",
       "type": "invariant",
-      "statement": "token exchange後の実効権限もidentity.basicだけとし、bot権限・欠落・追加権限を受け付けない。",
+      "statement": "legacy OAuth fallbackはtoken exchange後の実効権限もidentity.basicだけとし、bot権限・欠落・追加権限を受け付けない。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 2, "ac_id": "AC-003" }],
         "code_refs": [{ "file": "server/services/auth/providers/slack-auth-provider.js", "anchor": "requireGrantedLoginScopes" }],
@@ -35,14 +35,14 @@
     {
       "id": "AC-004",
       "type": "contract",
-      "statement": "セットアップと環境変数例はbot scopeを空にし、user_scopeをidentity.basicへ固定する。",
+      "statement": "セットアップと環境変数例はSlackログインをOIDCにし、scopeをopenid profile emailへ固定し、legacy user_scopeを空にする。",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004" }],
         "code_refs": [
-          { "file": "scripts/setup.sh", "anchor": "SLACK_AUTH_USER_SCOPES" },
-          { "file": ".env.example", "anchor": "SLACK_AUTH_USER_SCOPES" }
+          { "file": "scripts/setup.sh", "anchor": "SLACK_AUTH_SCOPES" },
+          { "file": ".env.example", "anchor": "SLACK_AUTH_SCOPES" }
         ],
-        "test_refs": [{ "file": "tests/unit/slack-login-configuration.test.js", "case": "keeps setup defaults on identity-only Slack login scopes" }]
+        "test_refs": [{ "file": "tests/unit/slack-login-configuration.test.js", "case": "keeps setup defaults on modern identity-only Slack login scopes" }]
       }
     },
     {

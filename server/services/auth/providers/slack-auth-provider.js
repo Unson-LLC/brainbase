@@ -15,6 +15,7 @@ const DEFAULT_TOKEN_URLS = Object.freeze({
 });
 const DEFAULT_USERINFO_URL = 'https://slack.com/api/openid.connect.userInfo';
 const DEFAULT_CALLBACK_PATH = '/api/auth/slack/callback';
+const OIDC_LOGIN_SCOPES = Object.freeze(['openid', 'profile', 'email']);
 const LEGACY_LOGIN_SCOPE = 'identity.basic';
 
 function normalizeScopes(value) {
@@ -139,17 +140,34 @@ export function createSlackAuthProvider(options = {}) {
     }
 
     function requireLoginScopeConfiguration() {
-        if (mode !== 'oauth') return;
-
         const configuredScopes = normalizeScopes(scopes);
+        const configuredUserScopes = normalizeScopes(userScopes);
+
+        if (mode === 'oidc') {
+            const configuredScopeSet = new Set(configuredScopes);
+            const identityOnly = configuredScopeSet.size === OIDC_LOGIN_SCOPES.length
+                && OIDC_LOGIN_SCOPES.every((scope) => configuredScopeSet.has(scope));
+            if (!identityOnly) {
+                throw new SlackAuthProviderError(
+                    'Slack OIDC login must use only openid, profile, and email',
+                    { code: 'login_scope_not_oidc_only' }
+                );
+            }
+            if (configuredUserScopes.length > 0) {
+                throw new SlackAuthProviderError(
+                    'Slack OIDC login must not request legacy user scopes',
+                    { code: 'login_user_scope_forbidden' }
+                );
+            }
+            return;
+        }
+
         if (configuredScopes.length > 0) {
             throw new SlackAuthProviderError(
                 'Slack login OAuth must not request bot scopes',
                 { code: 'login_bot_scope_forbidden' }
             );
         }
-
-        const configuredUserScopes = normalizeScopes(userScopes);
         if (configuredUserScopes.length === 0) {
             throw new SlackAuthProviderError(
                 'Slack login OAuth identity scope is not configured',

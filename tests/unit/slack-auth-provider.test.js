@@ -37,6 +37,37 @@ describe('createSlackAuthProvider', () => {
         expect(url.toString()).not.toContain('secret-must-not-leak');
     });
 
+    it.each([
+        ['', 'missing scopes'],
+        ['openid profile', 'missing email'],
+        ['openid profile email chat:write', 'extra bot scope'],
+        ['chat:write', 'non-identity scope']
+    ])('fails closed when OIDC login has %s', (scopes) => {
+        const provider = createSlackAuthProvider({
+            mode: 'oidc',
+            clientId: 'client-123',
+            clientSecret: 'secret',
+            redirectUri: 'https://brainbase.example.invalid/callback',
+            scopes
+        });
+
+        expect(() => provider.assertReady()).toThrow(SlackAuthProviderError);
+        expect(() => provider.buildAuthorizationUrl('state-123')).toThrow(SlackAuthProviderError);
+    });
+
+    it('fails closed when OIDC login mixes in a legacy user scope', () => {
+        const provider = createSlackAuthProvider({
+            mode: 'oidc',
+            clientId: 'client-123',
+            clientSecret: 'secret',
+            redirectUri: 'https://brainbase.example.invalid/callback',
+            scopes: 'openid profile email',
+            userScopes: 'identity.basic'
+        });
+
+        expect(() => provider.assertReady()).toThrow(SlackAuthProviderError);
+    });
+
     it('supports legacy Slack OAuth mode and its user scopes', () => {
         const provider = createSlackAuthProvider({
             mode: 'oauth',
