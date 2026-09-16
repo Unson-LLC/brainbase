@@ -13,7 +13,7 @@
       ],
       "resolution_point": "organization switch before issuing the target session",
       "missing_behavior": "deny",
-      "ambiguity_behavior": "deny"
+      "ambiguity_behavior": "equivalent grants are deduplicated; conflicting effective access is denied"
     },
     "propagation": {
       "required_surfaces": ["admin_api", "audit_log"],
@@ -84,7 +84,7 @@
     {
       "id": "S-001",
       "type": "scenario",
-      "statement": "Switching organizations resolves exactly one target grant for the same person and issues a session bound to the target grant identity and organization.",
+      "statement": "Switching organizations resolves one effective target access for the same person, permits equivalent grants from multiple Slack identities, and issues a session bound to one deterministic target grant identity and organization.",
       "origin": {
         "story_refs": [
           { "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-2" },
@@ -97,7 +97,7 @@
     {
       "id": "INV-002",
       "type": "invariant",
-      "statement": "Missing or ambiguous target grants are denied, and initial Slack login keeps its exact workspace matching behavior.",
+      "statement": "Missing grants or grants with conflicting role, project scope, or clearance are denied, while equivalent grants across Slack identities are deduplicated and initial Slack login keeps its exact workspace matching behavior.",
       "origin": {
         "story_refs": [
           { "kind": "acceptance_criteria", "index": 2, "ac_id": "AC-3" },
@@ -108,12 +108,13 @@
           { "file": "server/controllers/auth-controller.js", "anchor": "switchOrganization" }
         ],
         "test_refs": [
-          { "file": "tests/unit/auth-service-grants.test.js", "case": "rejects ambiguous organization grants for the same person" },
+          { "file": "tests/unit/auth-service-grants.test.js", "case": "accepts equivalent organization grants for the same person and selects one identity deterministically" },
+          { "file": "tests/unit/auth-service-grants.test.js", "case": "rejects conflicting organization grants for the same person" },
           { "file": "tests/server/routes/auth-slack-route.test.js", "case": "organization routes require a signed person identity" }
         ]
       },
       "verifiable_by": {
-        "test_pattern": [{ "file_glob": "tests/unit/auth-service-grants.test.js", "must_cover": "rejects ambiguous organization grants for the same person" }]
+        "test_pattern": [{ "file_glob": "tests/unit/auth-service-grants.test.js", "must_cover": "rejects conflicting organization grants for the same person" }]
       }
     }
   ]

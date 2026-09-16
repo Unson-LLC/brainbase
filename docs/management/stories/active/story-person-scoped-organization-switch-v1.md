@@ -8,7 +8,7 @@ Brainbaseを複数事業体で利用する本人として、最初にログイ�
 
 - `PSOS-AC-001`: 組織一覧は署名済みアクセストークンの`personId`に紐づくactiveな`auth_grants`だけを返す。
 - `PSOS-AC-002`: 組織切替は同じ`personId`の対象組織grantを検証し、対象grantのSlack identity・workspace・role・project scopeで新しいaccess/refresh tokenを発行する。
-- `PSOS-AC-003`: 対象組織のactive grantがない場合、または同じ人物・組織に複数のactive grantがあり一意に決められない場合は切替を拒否する。
+- `PSOS-AC-003`: 対象組織のactive grantがない場合、または同じ人物・組織のactive grant間でrole・project scope・clearanceが競合する場合は切替を拒否する。同じ実効権限を複数のSlack identityへ付与したgrantは1組織として扱う。
 - `PSOS-AC-004`: access/refresh token、URL、Cookieに他組織への権限をまとめて持たせず、切替後のセッションは選択した1組織だけに束縛する。
 - `PSOS-AC-005`: Slack OAuthによる最初の本人確認と、組織ごとの`auth_grants`による認可を分離し、ログイン時の正確なworkspace照合は変更しない。
 
