@@ -92,11 +92,16 @@ ALTER TABLE auth_grants ADD COLUMN IF NOT EXISTS organization_id text;
 -- The original organization overlay stored the logical organization ID in
 -- slack_workspace_id (for example, "unson"), not Slack's provider team ID.
 -- Resolve that representation before trying provider IDs or project catalogs.
-UPDATE auth_grants ag
-SET organization_id = o.id
-FROM organizations o
-WHERE ag.organization_id IS NULL
-  AND ag.slack_workspace_id = o.id;
+DO $$
+BEGIN
+  IF to_regclass('organizations') IS NOT NULL THEN
+    UPDATE auth_grants ag
+    SET organization_id = o.id
+    FROM organizations o
+    WHERE ag.organization_id IS NULL
+      AND ag.slack_workspace_id = o.id;
+  END IF;
+END $$;
 
 -- Legacy grants inferred their organization from the Slack workspace. Persist
 -- that resolved organization before allowing one Slack identity to hold more
