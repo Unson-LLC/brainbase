@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Bounded, read-only context from an existing Graphify artifact.
+// Bounded context from a worktree-local Graphify artifact.
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync, lstatSync, readlinkSync, realpathSync } from 'node:fs';
@@ -14,6 +14,21 @@ function installed(env) {
     return (env.PATH || '').split(delimiter).some((dir) => {
         try { accessSync(join(dir, 'graphify'), constants.X_OK); return true; } catch { return false; }
     });
+}
+
+export function ensureGraphifyArtifact({ repo, env = process.env, refresh = false, run = execFileSync }) {
+    repo = realpathSync(resolve(repo));
+    const graph = resolve(repo, '.vibepro/graphify/graph.json');
+    if (!refresh && existsSync(graph)) return { graph, generated: false };
+    if (!installed(env)) throw new Error('graphify command is not available on PATH');
+    run('vibepro', ['graph', repo, '--run-graphify'], {
+        cwd: repo,
+        env,
+        maxBuffer: 32 * 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe']
+    });
+    if (!existsSync(graph)) throw new Error(`VibePro did not create the Graphify artifact: ${graph}`);
+    return { graph, generated: true };
 }
 function sourceState(repo, graphPath) {
     try {
@@ -108,12 +123,24 @@ export function impactContext({ repo, files, graph, cacheDir = join(tmpdir(), 'b
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
     try {
         const args = process.argv.slice(2), options = { files: [] };
-        for (let i = 0; i < args.length; i += 2) {
+        let ensureGraph = false, refreshGraph = false;
+        for (let i = 0; i < args.length;) {
+            if (args[i] === '--ensure-graph' || args[i] === '--refresh-graph') {
+                ensureGraph = true;
+                refreshGraph ||= args[i] === '--refresh-graph';
+                i += 1;
+                continue;
+            }
             const key = { '--repo': 'repo', '--file': 'files', '--graph': 'graph', '--cache-dir': 'cacheDir' }[args[i]];
             if (!key || !args[i + 1]) throw new Error('Usage: --repo <repo> --file <relative-path> [--file ...] [--graph <path>] [--cache-dir <outside-repo>]');
             if (key === 'files') options.files.push(args[i + 1]); else options[key] = args[i + 1];
+            i += 2;
         }
         if (!options.repo) throw new Error('--repo is required');
+        if (ensureGraph) {
+            if (options.graph) throw new Error('--graph cannot be combined with --ensure-graph or --refresh-graph');
+            options.graph = ensureGraphifyArtifact({ repo: options.repo, refresh: refreshGraph }).graph;
+        }
         process.stdout.write(`${JSON.stringify(impactContext(options), null, 2)}\n`);
     } catch (error) {
         process.stdout.write(`${JSON.stringify({ schema_version: 'graphify-impact-v1', status: 'failed', impact: 'unknown', error: error.message })}\n`);

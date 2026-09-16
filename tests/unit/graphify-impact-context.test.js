@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { impactContext } from '../../scripts/graphify-impact-context.mjs';
+import { ensureGraphifyArtifact, impactContext } from '../../scripts/graphify-impact-context.mjs';
 const roots = [];
 afterEach(() => roots.splice(0).forEach((root) => rmSync(root, { recursive: true, force: true })));
 function fixture() {
@@ -21,6 +21,25 @@ function fixture() {
     return { repo, data, save, options };
 }
 describe('Graphify lightweight impact context', () => {
+    it('generates a missing worktree graph once and refreshes it only when requested', () => {
+        const { repo, options } = fixture();
+        const graph = join(repo, '.vibepro', 'graphify', 'graph.json');
+        const calls = [];
+        const run = (command, args) => {
+            calls.push([command, args]);
+            mkdirSync(join(repo, '.vibepro', 'graphify'), { recursive: true });
+            writeFileSync(graph, JSON.stringify({ nodes: [], links: [] }));
+        };
+
+        expect(ensureGraphifyArtifact({ repo, env: options.env, run })).toEqual({ graph, generated: true });
+        expect(ensureGraphifyArtifact({ repo, env: options.env, run })).toEqual({ graph, generated: false });
+        expect(ensureGraphifyArtifact({ repo, env: options.env, run, refresh: true })).toEqual({ graph, generated: true });
+        expect(calls).toEqual([
+            ['vibepro', ['graph', repo, '--run-graphify']],
+            ['vibepro', ['graph', repo, '--run-graphify']]
+        ]);
+    });
+
     it('reads direct neighbors and reuses unchanged context without claiming freshness', () => {
         const { options } = fixture();
         const first = impactContext(options);

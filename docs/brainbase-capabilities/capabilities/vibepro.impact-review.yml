@@ -5,7 +5,7 @@ surfaces:
   ui:
     - Agent implementation and review responses
   api:
-    - node scripts/graphify-impact-context.mjs --repo <repo> --file <relative-path>
+    - node scripts/graphify-impact-context.mjs --repo <repo> --ensure-graph --file <relative-path>
   code:
     - scripts/graphify-impact-context.mjs
     - config/judgment-runtime-manifest.json
@@ -23,11 +23,12 @@ visibility_rules:
   - Missing, unmatched, stale, incomplete, or failed graph evidence is unknown, never no impact.
   - Graph freshness is unknown unless supported by verifiable evidence; timestamps alone are insufficient.
   - Update or deepen only when needed; do not install automatically or rebuild on every edit.
+  - Generate a missing graph in the target worktree before implementation and refresh it once after implementation.
   - Graph context guides code and test selection; it is not correctness proof or merge authority.
   - Do not require a PR-body section, generated artifact, score, Gate, or command transcript.
 verification:
   commands:
-    - node scripts/graphify-impact-context.mjs --repo <repo> --file <relative-path>
+    - node scripts/graphify-impact-context.mjs --repo <repo> --ensure-graph --file <relative-path>
     - npm run test:run -- tests/unit/graphify-impact-context.test.js tests/unit/judgment-resolution-service.test.js
   expected:
     - Engineering implementation selects observe -> graphify-impact -> hypothesis.
