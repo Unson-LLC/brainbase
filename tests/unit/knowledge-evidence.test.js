@@ -23,6 +23,17 @@ describe('Graph evidence completion contract', () => {
   it('permits an honest insufficient result after a failed attempt without asserting absence', () => {
     expect(evaluateKnowledgeEvidence([route, retrieval(false, false), assessment('insufficient', [])], true)).toMatchObject({ ready: true, status: 'insufficient', absence_confirmed: false });
   });
+  it('binds shared profile evidence to the route, actual person and later assessment', () => {
+    const profile = { ...retrieval(), tool_name: 'mcp__brainbase__brainbase_get_shareable_person_profile',
+      safe_metadata: { retrieval_evidence: { ...retrieval().safe_metadata.retrieval_evidence, coverage: 'partial',
+        references: [{ id: 'person-1', entity_type: 'person', evidence_status: 'present', evidence_fields: ['name'] }] } } };
+    const assessed = assessment('sufficient', ['person-1']);
+    expect(evaluateKnowledgeEvidence([route, profile, assessed], true).ready).toBe(true);
+    for (const events of [[profile, route, assessed], [route, profile], [route, profile, assessment()],
+      [route, { ...profile, success: false }, assessed], [route, profile, assessed, profile]]) {
+      expect(evaluateKnowledgeEvidence(events, true).ready).toBe(false);
+    }
+  });
   it('does not impose Graph rules on unrelated work', () => {
     expect(evaluateKnowledgeEvidence([], false).required).toBe(false);
   });

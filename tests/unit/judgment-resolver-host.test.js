@@ -2460,7 +2460,9 @@ describe('Codex Judgment Resolver Host', () => {
             event_kind: 'retrieve',
             safe_metadata: {
                 subject_ref: 'target_slack_user_id=UTARGET',
-                retrieval_outcome: 'result'
+                retrieval_outcome: 'result',
+                retrieval_evidence: { status: 'retrieved', coverage: 'partial', sufficiency: 'needs_model_verification', absence_confirmed: false,
+                    references: [{ id: 'target', entity_type: 'person', evidence_status: 'present', evidence_fields: ['name'] }] }
             },
             display_line: '📚 Brainbase取得: brainbase_get_shareable_person_profile「target_slack_user_id=UTARGET」→ 結果を取得 ✓'
         });

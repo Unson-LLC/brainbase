@@ -15,7 +15,8 @@ const AUTHORITY_PROJECT_INDEPENDENT_MCP_TOOLS = new Set([
     'register_personal_kg',
     'brainbase_judgment_audit_read',
     'brainbase_judgment_state_record',
-    'brainbase_get_shareable_person_profile'
+    'brainbase_get_shareable_person_profile',
+    'brainbase_knowledge_evidence_record'
 ]);
 const AUTHORITY_MCP_LIFECYCLE_METHODS = new Set([
     'initialize',

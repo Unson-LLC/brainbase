@@ -2516,6 +2516,12 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
         });
     const satisfiesKnowledgeExecution = kind === 'route';
     const auditResponseSuccess = !postToolUseFailure && responseSuccess;
+    const profileEvidence = auditResponseSuccess
+        && toolName === 'mcp__brainbase__brainbase_get_shareable_person_profile' && publishedToolResult
+        ? { status: 'retrieved', coverage: 'partial', sufficiency: 'needs_model_verification', absence_confirmed: false,
+            references: [{ id: publishedToolResult.disclosure.target_person_id, entity_type: 'person',
+                evidence_status: 'present', evidence_fields: Object.keys(publishedToolResult.fields) }] }
+        : null;
     const retrievalResult = auditResponseSuccess && ['search', 'retrieve'].includes(kind)
         ? desktopEvidence?.safeMetadata?.retrieval_outcome ?? retrieval?.outcome ?? null
         : null;
@@ -2548,7 +2554,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
     } : desktopEvidence ? desktopEvidence.safeMetadata : ['search', 'retrieve'].includes(kind) ? {
         subject_ref: callScope,
         retrieval_outcome: retrievalResult,
-        ...(retrieval?.evidence ? { retrieval_evidence: retrieval.evidence } : {})
+        ...((profileEvidence ?? retrieval?.evidence) ? { retrieval_evidence: profileEvidence ?? retrieval.evidence } : {})
     } : kind === 'execution' && executionArtifactRefs.length > 0 ? {
         artifact_refs: executionArtifactRefs
     } : {};
@@ -2743,7 +2749,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
             safe_metadata: auditMetadata,
             display_line: displayLine,
             system_message: systemMessage ?? turnResolutionMessage ?? (kind === 'route' && success && resolution?.source_class === 'graph'
-                ? 'Graphの正本の所在を解決しました。search/get_entityで本文と出典を取得し、回答前にbrainbase_knowledge_evidence_recordへ質問に対するstatus、実取得reference_ids、reasonを記録してください。本文不足や取得失敗はinsufficientとして明示します。' : null)
+                ? 'Graphの正本の所在を解決しました。この参照先解決の後にsearch/get_entity、または共有人物情報ならbrainbase_get_shareable_person_profileで許可された項目を取得し（人物のreference_idsはdisclosure.target_person_id）、回答前にbrainbase_knowledge_evidence_recordへ質問に対するstatus、実取得reference_ids、reasonを記録してください。本文不足や取得失敗はinsufficientとして明示します。' : null)
         };
         return createImmutableJson(target, entry, 'judgment_tool_event_conflict');
     }, env);
@@ -4575,7 +4581,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ] : []),
             ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
-        if (missingKnowledgeEvidence) reasons.unshift('Graphの参照先の解決だけでは完了できません。searchまたはget_entityで実際に根拠を取得し、brainbase_knowledge_evidence_recordでstatus=sufficient/insufficient、reference_ids、質問に対する判定理由reasonを記録してください。取得本文がない場合はinsufficientとし、不足を回答に明示してください。必要な状態toolを最後に実行してください');
+        if (missingKnowledgeEvidence) reasons.unshift('Graphの参照先の解決だけでは完了できません。最新の参照先解決の後にsearch/get_entity、または共有人物情報ならbrainbase_get_shareable_person_profileで実際に根拠を取得し（人物のreference_idsはdisclosure.target_person_id）、brainbase_knowledge_evidence_recordでstatus=sufficient/insufficient、reference_ids、質問に対する判定理由reasonを記録してください。取得本文がない場合はinsufficientとし、不足を回答に明示してください。必要な状態toolを最後に実行してください');
         const reasonSequence = reasons.join('\nその後、');
         const completionInstruction = stopDecision.business_decision === 'CONTINUE'
             ? '作業・検証を先に行い、その結果に基づく状態を最後のtool callで記録してください。安全な残作業があればpendingのまま実行を続け、完了した範囲と未完了を区別して報告してください。'

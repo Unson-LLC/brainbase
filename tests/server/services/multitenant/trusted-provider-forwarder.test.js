@@ -1030,6 +1030,7 @@ describe('trusted provider HTTP forwarder', () => {
     );
 
     it.each([
+        ['brainbase_knowledge_evidence_record', { status: 'sufficient', reference_ids: ['person-1'], reason: 'Shared name retrieved', project_code: 'spoofed' }, { status: 'sufficient', reference_ids: ['person-1'], reason: 'Shared name retrieved' }],
         ['brainbase_judgment_audit_read', { turn_ref: 'turn-1', project_code: 'spoofed' }, { turn_ref: 'turn-1' }],
         ['brainbase_judgment_state_record', {
             status: 'completed', pending_safe_work: false, runtime_reason_code: null,
