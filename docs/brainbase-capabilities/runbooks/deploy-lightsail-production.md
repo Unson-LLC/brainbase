@@ -216,6 +216,42 @@ console.log(JSON.stringify(git));
 journalctl -u brainbase-ssot.service --since "-5 min" --no-pager | tail -20
 ```
 
+The deployment is not complete until Canonical Task mutation readiness also
+passes. Run the gate with the same environment files as the service. The probe
+uses an intentionally invalid request and does not create a task.
+
+```bash
+(
+set -euo pipefail
+set -a
+. /home/ubuntu/brainbase/.env
+. /home/ubuntu/brainbase/.env.infisical
+set +a
+npm run verify:canonical-task-deploy-readiness
+)
+```
+
+If it reports `canonical_task_mutation_not_ready`, generate and review current
+before-enable evidence using the Canonical Task cutover runbook. Then run the
+same gate with the verified artifact; it enables readiness and immediately
+probes the live API again.
+
+```bash
+(
+set -euo pipefail
+set -a
+. /home/ubuntu/brainbase/.env
+. /home/ubuntu/brainbase/.env.infisical
+set +a
+npm run verify:canonical-task-deploy-readiness -- \
+  --evidence .vibepro/verification/canonical-task-cutover/before-enable.json
+)
+```
+
+Do not reuse evidence from another source HEAD and do not update readiness
+directly. Missing or invalid evidence, a failed enable, or a failed second probe
+must leave the deployment failed rather than reported as complete.
+
 From your Mac, bind the same merged develop SHA explicitly and verify the public proxy path independently:
 
 ```bash
@@ -234,6 +270,8 @@ Expected:
 - `runtime.git.dirty` is `false`
 - `https://bb.unson.jp/api/health` returns `200`
 - Graph API returns entities with a valid token
+- `verify:canonical-task-deploy-readiness` returns `ready=true`; when it had to
+  enable the gate, it also returns `reenabled=true`
 
 ## 5. Roll back the service to the recorded SHA
 
