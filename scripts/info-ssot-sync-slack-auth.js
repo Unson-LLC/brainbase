@@ -13,10 +13,6 @@ const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
 
 const dbUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
-if (!dbUrl) {
-  console.error('INFO_SSOT_DATABASE_URL is not set');
-  process.exit(1);
-}
 
 const detectBrainbaseRoot = () => {
   if (process.env.BRAINBASE_ROOT) return process.env.BRAINBASE_ROOT;
@@ -62,9 +58,32 @@ const projectExists = async (projectCode) => {
   }
 };
 
-const pool = new Pool({ connectionString: dbUrl });
+export const assertOrganizationProjectScope = async (client, organizationId, projectCodes) => {
+  if (!Array.isArray(projectCodes) || projectCodes.length === 0) return [];
+  const normalized = [...new Set(projectCodes
+    .filter((code) => typeof code === 'string')
+    .map((code) => code.trim())
+    .filter(Boolean))];
+  const { rows } = await client.query(
+    `SELECT code
+       FROM projects
+      WHERE code = ANY($1::text[])
+        AND organization_id = $2`,
+    [normalized, organizationId]
+  );
+  const owned = new Set(rows.map((row) => row.code));
+  const invalid = normalized.filter((code) => !owned.has(code));
+  if (invalid.length > 0) {
+    throw new Error(`project scope violation for ${organizationId}: ${invalid.join(',')}`);
+  }
+  return normalized;
+};
 
-const main = async () => {
+export const main = async () => {
+  if (!dbUrl) {
+    throw new Error('INFO_SSOT_DATABASE_URL is not set');
+  }
+  const pool = new Pool({ connectionString: dbUrl });
   const membersPath = path.join(CODEX_ROOT, 'common', 'meta', 'slack', 'members.yml');
   const workspacesPath = path.join(CODEX_ROOT, 'common', 'meta', 'slack', 'workspaces.yml');
   const membersData = await loadYaml(membersPath);
@@ -115,6 +134,7 @@ const main = async () => {
       } else if (member.workspace && await projectExists(member.workspace)) {
         projectCodes = [member.workspace];
       }
+      projectCodes = await assertOrganizationProjectScope(client, organizationId, projectCodes);
 
       const personName = member.brainbase_name || member.person_id || member.slack_name || slackUserId;
 
@@ -216,16 +236,17 @@ const main = async () => {
     throw error;
   } finally {
     client.release();
+    await pool.end();
   }
 };
 
-main()
-  .then(() => {
-    console.log('slack auth sync complete');
-    pool.end();
-  })
-  .catch((error) => {
-    console.error(error);
-    pool.end();
-    process.exit(1);
-  });
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+  main()
+    .then(() => {
+      console.log('slack auth sync complete');
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+}

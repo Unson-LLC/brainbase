@@ -402,7 +402,15 @@ export class AuthService {
         try {
             const { rows } = await client.query(
                 `SELECT ag.person_id, ag.person_name AS name, ag.role,
-                        ag.project_codes, ag.clearance, ag.active AS status,
+                        ARRAY(
+                            SELECT requested.project_code
+                            FROM unnest(ag.project_codes) WITH ORDINALITY requested(project_code, ord)
+                            JOIN projects p
+                              ON p.code = requested.project_code
+                             AND p.organization_id = ag.organization_id
+                            ORDER BY requested.ord
+                        ) AS project_codes,
+                        ag.clearance, ag.active AS status,
                         ag.organization_id AS workspace_id,
                         ai.provider, ai.provider_subject, ai.provider_tenant
                  FROM auth_identities ai
@@ -430,7 +438,17 @@ export class AuthService {
         const client = await this.pool.connect();
         try {
             const { rows } = await client.query(
-                `SELECT ag.*
+                `SELECT ag.id, ag.person_id, ag.person_name, ag.slack_user_id,
+                        ag.slack_workspace_id, ag.organization_id, ag.role,
+                        ARRAY(
+                            SELECT requested.project_code
+                            FROM unnest(ag.project_codes) WITH ORDINALITY requested(project_code, ord)
+                            JOIN projects p
+                              ON p.code = requested.project_code
+                             AND p.organization_id = ag.organization_id
+                            ORDER BY requested.ord
+                        ) AS project_codes,
+                        ag.clearance, ag.active, ag.created_at, ag.updated_at
                  FROM auth_grants ag
                  LEFT JOIN organizations o
                    ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
@@ -469,7 +487,15 @@ export class AuthService {
         try {
             const { rows } = await client.query(
                 `SELECT COALESCE(ag.organization_id, o.id) AS organization_id, o.name AS organization_name,
-                        ag.role, ag.project_codes
+                        ag.role,
+                        ARRAY(
+                            SELECT requested.project_code
+                            FROM unnest(ag.project_codes) WITH ORDINALITY requested(project_code, ord)
+                            JOIN projects p
+                              ON p.code = requested.project_code
+                             AND p.organization_id = COALESCE(ag.organization_id, o.id)
+                            ORDER BY requested.ord
+                        ) AS project_codes
                  FROM auth_grants ag
                  JOIN organizations o
                    ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
@@ -524,7 +550,16 @@ export class AuthService {
             const { rows: grantRows } = await client.query(
                 `SELECT ag.person_id, ag.person_name as name, ag.slack_user_id,
                         ag.slack_workspace_id, COALESCE(ag.organization_id, o.id) as organization_id,
-                        ag.role, ag.project_codes, ag.clearance, ag.active as status
+                        ag.role,
+                        ARRAY(
+                            SELECT requested.project_code
+                            FROM unnest(ag.project_codes) WITH ORDINALITY requested(project_code, ord)
+                            JOIN projects p
+                              ON p.code = requested.project_code
+                             AND p.organization_id = COALESCE(ag.organization_id, o.id)
+                            ORDER BY requested.ord
+                        ) AS project_codes,
+                        ag.clearance, ag.active as status
                  FROM auth_grants ag
                  LEFT JOIN organizations o
                    ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
@@ -824,6 +859,9 @@ export class AuthService {
             ({ rows } = await this.pool.query(
                 `SELECT DISTINCT ag.person_id, ag.organization_id
                    FROM auth_grants ag
+                   JOIN projects p
+                     ON p.code = $2
+                    AND p.organization_id = ag.organization_id
                   WHERE ag.slack_user_id = ANY($1::text[])
                     AND ag.organization_id IS NOT NULL
                     AND ag.active = true

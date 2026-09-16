@@ -34,15 +34,21 @@ describe('AuthService auth grant precedence', () => {
 
         expect(grant.organization_id).toBe('sato-personal');
         expect(observed[0].sql).toContain('organization_id = $3');
+        expect(observed[0].sql).toContain('JOIN projects p');
+        expect(observed[0].sql).toContain('p.organization_id = ag.organization_id');
         expect(observed[0].params).toEqual(['U_SATO', 'T_UNSON', 'sato-personal']);
     });
 
     it('lists only active organization grants for the exact Slack identity', async () => {
+        const observed = [];
         const client = {
-            query: async () => ({ rows: [
+            query: async (sql, params) => {
+                observed.push({ sql, params });
+                return { rows: [
                 { organization_id: 'sato-personal', organization_name: '佐藤個人', role: 'ceo', project_codes: ['fx', 'keiba'] },
                 { organization_id: 'unson', organization_name: 'UNSON', role: 'ceo', project_codes: ['brainbase'] }
-            ] }),
+                ] };
+            },
             release: () => {}
         };
         const authService = new AuthService();
@@ -57,6 +63,8 @@ describe('AuthService auth grant precedence', () => {
             { organizationId: 'sato-personal', name: '佐藤個人', role: 'ceo', projectCodes: ['fx', 'keiba'] },
             { organizationId: 'unson', name: 'UNSON', role: 'ceo', projectCodes: ['brainbase'] }
         ]);
+        expect(observed[0].sql).toContain('JOIN projects p');
+        expect(observed[0].sql).toContain('p.organization_id = COALESCE(ag.organization_id, o.id)');
     });
 
     it('keeps refresh bound to the organization embedded in the refresh token', async () => {

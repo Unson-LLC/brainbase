@@ -244,7 +244,7 @@ async function setupDatabase() {
             active=true;
 
         INSERT INTO organizations (id, name, workspace_id, projects)
-        VALUES ('org_other', 'Other Integration', 'WS_ORG_OTHER', ARRAY['brainbase'])
+        VALUES ('org_other', 'Other Integration', 'WS_ORG_OTHER', ARRAY['other-project'])
         ON CONFLICT (id) DO NOTHING;
         INSERT INTO projects (id, code, name, organization_id)
         VALUES ('project_other', 'other-project', 'Other Project', 'org_other')
@@ -266,7 +266,7 @@ async function setupDatabase() {
              project_codes, clearance, active)
         VALUES
             ('grant_wrong_workspace', 'person_wrong_workspace', 'Owner With Wrong Workspace',
-             'U_WRONG_WORKSPACE', 'WS_ORG_OTHER', 'org_other', 'gm', ARRAY['brainbase'], ARRAY['internal'], true)
+             'U_WRONG_WORKSPACE', 'WS_ORG_OTHER', 'org_other', 'gm', ARRAY['other-project'], ARRAY['internal'], true)
         ON CONFLICT (id) DO UPDATE SET
             person_id=EXCLUDED.person_id,
             slack_workspace_id=EXCLUDED.slack_workspace_id,
