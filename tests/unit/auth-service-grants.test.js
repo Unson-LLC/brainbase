@@ -302,4 +302,167 @@ describe('AuthService auth grant precedence', () => {
         expect(observedQueries[1].sql).toContain('SELECT preferred.workspace_id');
         expect(observedQueries[1].sql).toContain('ag.organization_id IS NULL');
     });
+
+    it('maps a logical grant workspace to the provider Slack team before authorizing', async () => {
+        const observedQueries = [];
+        const client = {
+            query: async (sql, params) => {
+                observedQueries.push({ sql, params });
+                const isCanonicalMapping = sql.includes('o.workspace_id = $2');
+                const isUnsonTeam = params[1] === 'T089CNQ4D1A';
+                return {
+                    rows: isCanonicalMapping && isUnsonTeam
+                        ? [{
+                            id: 'grant_unson',
+                            person_id: 'per_sato',
+                            person_name: '佐藤 圭吾',
+                            slack_user_id: 'U_SATO',
+                            slack_workspace_id: 'unson',
+                            organization_id: 'unson',
+                            role: 'ceo',
+                            project_codes: ['brainbase'],
+                            clearance: ['internal'],
+                            active: true
+                        }]
+                        : []
+                };
+            },
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const grant = await authService.findGrant({
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T089CNQ4D1A'
+        });
+        const wrongTeamGrant = await authService.findGrant({
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_WRONG'
+        });
+
+        expect(grant?.organization_id).toBe('unson');
+        expect(wrongTeamGrant).toBeNull();
+        expect(observedQueries[0].sql).toContain('JOIN organizations');
+        expect(observedQueries[0].sql).toContain('o.workspace_id = $2');
+    });
+
+    it('keeps direct provider IDs working for legacy grants without an organization mapping', async () => {
+        const client = {
+            query: async (sql, params) => ({
+                rows: sql.includes('ag.slack_workspace_id = $2') && params[1] === 'T_LEGACY'
+                    ? [{ slack_user_id: 'U_LEGACY', slack_workspace_id: 'T_LEGACY', active: true }]
+                    : []
+            }),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const grant = await authService.findGrant({
+            slackUserId: 'U_LEGACY',
+            slackWorkspaceId: 'T_LEGACY'
+        });
+
+        expect(grant?.slack_workspace_id).toBe('T_LEGACY');
+    });
+
+    it('authorizes a Slack team through organizations.workspace_id and rejects another team', async () => {
+        const observedQueries = [];
+        const userRow = {
+            slack_user_id: 'U_SATO',
+            person_id: 'per_sato',
+            workspace_id: 'unson',
+            name: '佐藤 圭吾',
+            role: 'member',
+            project_codes: [],
+            clearance: [],
+            status: 'active'
+        };
+        const grantRow = {
+            person_id: 'per_sato',
+            name: '佐藤 圭吾',
+            slack_user_id: 'U_SATO',
+            slack_workspace_id: 'unson',
+            organization_id: 'unson',
+            role: 'ceo',
+            project_codes: ['brainbase'],
+            clearance: ['internal'],
+            status: true
+        };
+        const client = {
+            query: async (sql, params) => {
+                observedQueries.push({ sql, params });
+                const isUsersQuery = sql.includes('FROM users') && !sql.includes('FROM auth_grants ag');
+                const isGrantQuery = sql.includes('FROM auth_grants ag');
+                const isCanonicalMapping = sql.includes('o.workspace_id = $2');
+                const isUnsonTeam = params[1] === 'T089CNQ4D1A';
+                if (isUsersQuery && isCanonicalMapping && isUnsonTeam) return { rows: [userRow] };
+                if (isGrantQuery && isCanonicalMapping && isUnsonTeam) return { rows: [grantRow] };
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const user = await authService.findUserBySlackId('U_SATO', 'T089CNQ4D1A');
+        const wrongTeamUser = await authService.findUserBySlackId('U_SATO', 'T_WRONG');
+
+        expect(user?.workspace_id).toBe('unson');
+        expect(wrongTeamUser).toBeNull();
+        expect(observedQueries[0].sql).toContain('JOIN organizations');
+        expect(observedQueries[0].sql).toContain('o.workspace_id = $2');
+        expect(observedQueries[1].sql).toContain('o.id = COALESCE');
+        expect(observedQueries[1].sql).toContain('o.workspace_id = $2');
+    });
+
+    it('uses the same canonical Slack workspace mapping for the configured Slack provider path', async () => {
+        const queries = [];
+        const userRow = {
+            slack_user_id: 'U_SATO',
+            person_id: 'per_sato',
+            workspace_id: 'unson',
+            name: '佐藤 圭吾',
+            role: 'ceo',
+            project_codes: ['brainbase'],
+            clearance: ['internal'],
+            status: 'active'
+        };
+        const grantRow = {
+            person_id: 'per_sato',
+            name: '佐藤 圭吾',
+            slack_user_id: 'U_SATO',
+            slack_workspace_id: 'unson',
+            organization_id: 'unson',
+            role: 'ceo',
+            project_codes: ['brainbase'],
+            clearance: ['internal'],
+            status: true
+        };
+        const client = {
+            query: async (sql, params) => {
+                queries.push({ sql, params });
+                const isUsersQuery = sql.includes('FROM users') && !sql.includes('FROM auth_grants ag');
+                const isGrantQuery = sql.includes('FROM auth_grants ag');
+                const isCanonicalMapping = sql.includes('o.workspace_id = $2');
+                if (isCanonicalMapping && params[1] === 'T089CNQ4D1A') {
+                    return { rows: isUsersQuery ? [userRow] : isGrantQuery ? [grantRow] : [] };
+                }
+                return { rows: [] };
+            },
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const user = await authService.findUserByExternalIdentity({
+            provider: 'slack',
+            subject: 'U_SATO',
+            tenantId: 'T089CNQ4D1A'
+        });
+
+        expect(user?.workspace_id).toBe('unson');
+        expect(queries.some(({ sql }) => sql.includes('o.workspace_id = $2'))).toBe(true);
+    });
 });

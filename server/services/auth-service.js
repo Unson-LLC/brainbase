@@ -390,6 +390,13 @@ export class AuthService {
     }
 
     async findUserByExternalIdentity(identity) {
+        // Slack's provider tenant is the Slack team ID, while older grants and
+        // users store the logical organization ID. Reuse the canonical Slack
+        // lookup so both callback and token-exchange paths enforce the same
+        // organization.workspace_id boundary.
+        if (identity?.provider === 'slack') {
+            return this.findUserBySlackId(identity.subject, identity.tenantId);
+        }
         if (!this.pool) throw new Error('Database pool is not configured');
         const client = await this.pool.connect();
         try {
@@ -423,23 +430,28 @@ export class AuthService {
         const client = await this.pool.connect();
         try {
             const { rows } = await client.query(
-                `SELECT *
-                 FROM auth_grants
-                 WHERE slack_user_id = $1
-                   AND slack_workspace_id = $2
-                   ${organizationId ? 'AND organization_id = $3' : ''}
-                   AND active = true
+                `SELECT ag.*
+                 FROM auth_grants ag
+                 LEFT JOIN organizations o
+                   ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
+                 WHERE ag.slack_user_id = $1
+                   AND (
+                     o.workspace_id = $2
+                     OR (o.id IS NULL AND ag.slack_workspace_id = $2)
+                   )
+                   ${organizationId ? 'AND ag.organization_id = $3' : ''}
+                   AND ag.active = true
                  ORDER BY CASE
-                            WHEN organization_id = (
+                            WHEN ag.organization_id = (
                               SELECT u.workspace_id
                               FROM users u
                               WHERE u.slack_user_id = $1 AND u.status = 'active'
                               LIMIT 1
                             ) THEN 0
-                            WHEN organization_id IS NULL THEN 1
+                            WHEN ag.organization_id IS NULL THEN 1
                             ELSE 2
                           END,
-                          organization_id ASC NULLS LAST
+                          ag.organization_id ASC NULLS LAST
                  LIMIT 1`,
                 organizationId
                     ? [slackUserId, slackWorkspaceId, organizationId]
@@ -456,12 +468,13 @@ export class AuthService {
         const client = await this.pool.connect();
         try {
             const { rows } = await client.query(
-                `SELECT ag.organization_id, o.name AS organization_name,
+                `SELECT COALESCE(ag.organization_id, o.id) AS organization_id, o.name AS organization_name,
                         ag.role, ag.project_codes
                  FROM auth_grants ag
-                 JOIN organizations o ON o.id = ag.organization_id
+                 JOIN organizations o
+                   ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
                  WHERE ag.slack_user_id = $1
-                   AND ag.slack_workspace_id = $2
+                   AND o.workspace_id = $2
                    AND ag.active = true
                  ORDER BY o.name ASC, o.id ASC`,
                 [slackUserId, slackWorkspaceId]
@@ -492,30 +505,32 @@ export class AuthService {
 
         const client = await this.pool.connect();
         try {
+            const requireExactWorkspace = typeof slackWorkspaceId === 'string' && slackWorkspaceId.length > 0;
+
             // Try users table first
             const { rows } = await client.query(
-                `SELECT *
-                 FROM users
-                 WHERE slack_user_id = $1
-                   AND status = 'active'
+                `SELECT u.*
+                 FROM users u
+                 LEFT JOIN organizations o ON o.id = u.workspace_id
+                 WHERE u.slack_user_id = $1
+                   AND u.status = 'active'
+                   ${requireExactWorkspace ? 'AND (o.workspace_id = $2 OR (o.id IS NULL AND u.workspace_id = $2))' : ''}
                  LIMIT 1`,
-                [slackUserId]
+                requireExactWorkspace ? [slackUserId, slackWorkspaceId] : [slackUserId]
             );
             logger.info(`[AUTH] findUserBySlackId: users table rows=${rows.length}`);
 
             // Always check auth_grants for role, project_codes, clearance
-            const requireExactWorkspace = typeof slackWorkspaceId === 'string' && slackWorkspaceId.length > 0;
             const { rows: grantRows } = await client.query(
                 `SELECT ag.person_id, ag.person_name as name, ag.slack_user_id,
                         ag.slack_workspace_id, COALESCE(ag.organization_id, o.id) as organization_id,
                         ag.role, ag.project_codes, ag.clearance, ag.active as status
                  FROM auth_grants ag
                  LEFT JOIN organizations o
-                   ON (ag.organization_id IS NOT NULL AND o.id = ag.organization_id)
-                   OR (ag.organization_id IS NULL AND o.workspace_id = ag.slack_workspace_id)
+                   ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
                  WHERE ag.slack_user_id = $1
-                   ${requireExactWorkspace ? 'AND ag.slack_workspace_id = $2' : ''}
-                   ${organizationId ? `AND COALESCE(ag.organization_id, o.id) = $${requireExactWorkspace ? 3 : 2}` : ''}
+                   ${requireExactWorkspace ? 'AND (o.workspace_id = $2 OR (o.id IS NULL AND ag.slack_workspace_id = $2))' : ''}
+                   ${organizationId ? `AND (ag.organization_id = $${requireExactWorkspace ? 3 : 2} OR (ag.organization_id IS NULL AND o.id = $${requireExactWorkspace ? 3 : 2}))` : ''}
                    AND ag.active = true
                  ORDER BY CASE
                             WHEN COALESCE(ag.organization_id, o.id) = (

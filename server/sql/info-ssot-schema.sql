@@ -89,6 +89,15 @@ ALTER TABLE auth_grants ALTER COLUMN slack_user_id DROP NOT NULL;
 ALTER TABLE auth_grants ALTER COLUMN slack_workspace_id DROP NOT NULL;
 ALTER TABLE auth_grants ADD COLUMN IF NOT EXISTS organization_id text;
 
+-- The original organization overlay stored the logical organization ID in
+-- slack_workspace_id (for example, "unson"), not Slack's provider team ID.
+-- Resolve that representation before trying provider IDs or project catalogs.
+UPDATE auth_grants ag
+SET organization_id = o.id
+FROM organizations o
+WHERE ag.organization_id IS NULL
+  AND ag.slack_workspace_id = o.id;
+
 -- Legacy grants inferred their organization from the Slack workspace. Persist
 -- that resolved organization before allowing one Slack identity to hold more
 -- than one organization-scoped grant.
