@@ -109,3 +109,44 @@ it('extension dispatcherは最初のhandler結果で停止し、全てnullなら
   const fallback = await serverTesting.dispatchExtensionToolCall('missing', {}, [async () => null]);
   assert.equal(fallback, null);
 });
+
+
+it('signed runtime authority bypasses static scope only through the verifying backend', async () => {
+  const args = { project_code: 'unson', intent: 'lookup', audience: 'team', content_type: 'canonical_fact' };
+  const proof = { signed: 'test-envelope' };
+  const receipt = {
+    resolution_id: 'kr_1', resolved_at: '2026-09-16T00:00:00Z', status: 'resolved', project_code: 'unson',
+    source_class: 'graph', canonical_location: { scope: 'unson' }, retrieval_capability: 'graph.search',
+    searched_scope: [], absence_confirmed: false, excluded_sources: [], not_searched: [],
+    next_route: 'graph', confidence: 1, rationale: 'test',
+  };
+  let calls = 0;
+  const dependencies = {
+    apiUrl: 'http://static.test', configuredProjectCodes: ['mana'],
+    tokenManager: { getToken: async () => { throw new Error('must not use static authority'); } },
+    runtimeApiUrl: 'http://runtime.test', runtimeServiceToken: 'service-test',
+    companyAuthorityResponse: Buffer.from(JSON.stringify(proof)).toString('base64url'),
+    fetch: async (url: string | URL | Request, init?: RequestInit) => {
+      calls++;
+      assert.equal(String(url), 'http://runtime.test/api/v1/runtime/knowledge:resolve');
+      assert.equal((init?.headers as Record<string, string>).Authorization, 'Bearer service-test');
+      assert.deepEqual(JSON.parse(String(init?.body)), { ...args, company_authority_response: proof });
+      return new Response(JSON.stringify(receipt));
+    },
+  };
+  const result = await handleKnowledgeResolutionToolCall('brainbase_knowledge_resolve', args, dependencies);
+  assert.equal(result?.status, 'ok');
+  assert.deepEqual(result?.scope, { project_codes: ['unson'] });
+  const bad = await handleKnowledgeResolutionToolCall('brainbase_knowledge_resolve', args,
+    { ...dependencies, companyAuthorityResponse: 'invalid!' });
+  assert.equal(bad?.status, 'error');
+  assert.equal(calls, 1);
+  for (const status of [401, 403, 503]) {
+    const denied = await handleKnowledgeResolutionToolCall('brainbase_knowledge_resolve', args,
+      { ...dependencies, fetch: async () => new Response('{}', { status }) });
+    assert.notEqual(denied?.status, 'ok');
+  }
+  const wrong = await handleKnowledgeResolutionToolCall('brainbase_knowledge_resolve', args,
+    { ...dependencies, fetch: async () => new Response(JSON.stringify({ ...receipt, project_code: 'other' })) });
+  assert.equal(wrong?.status, 'error');
+});

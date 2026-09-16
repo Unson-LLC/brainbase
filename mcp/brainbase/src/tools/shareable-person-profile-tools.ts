@@ -97,7 +97,7 @@ function unavailable(targetSlackUserId: string): ShareablePersonProfile {
   };
 }
 
-function decodeCompanyAuthorityResponse(encoded: unknown): unknown | null {
+export function decodeCompanyAuthorityResponse(encoded: unknown): unknown | null {
   if (typeof encoded !== 'string' || encoded.length === 0) return null;
   if (Buffer.byteLength(encoded, 'utf8') > MAX_COMPANY_AUTHORITY_RESPONSE_BYTES
     || !BASE64URL_PATTERN.test(encoded)) return null;

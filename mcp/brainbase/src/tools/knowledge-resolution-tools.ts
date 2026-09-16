@@ -1,15 +1,22 @@
+import { decodeCompanyAuthorityResponse } from './shareable-person-profile-tools.js';
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 import {
   authenticateProject,
   fetchAuthenticatedJson,
   toolError,
-  type AuthenticatedApiDependencies as Dependencies,
+  type AuthenticatedApiDependencies,
   type ToolResult,
 } from './authenticated-api-tool.js';
 import {
   handleKnowledgeEventToolCall,
   knowledgeEventTools,
 } from './knowledge-event-tools.js';
+
+type Dependencies = AuthenticatedApiDependencies & {
+  companyAuthorityResponse?: string;
+  runtimeApiUrl?: string;
+  runtimeServiceToken?: string;
+};
 
 const knowledgeResolveTool: Tool = {
   name: 'brainbase_knowledge_resolve',
@@ -65,6 +72,35 @@ export async function handleKnowledgeResolutionToolCall(
     return handleKnowledgeEventToolCall(name, args, dependencies);
   }
   if (name !== 'brainbase_knowledge_resolve') return null;
+
+  // The trusted transport envelope is never taken from model tool arguments.
+  // Any supplied invalid authority fails closed; do not fall back to the static token.
+  if (dependencies.companyAuthorityResponse !== undefined) {
+    const authority = decodeCompanyAuthorityResponse(dependencies.companyAuthorityResponse);
+    if (!authority || !dependencies.runtimeServiceToken || !dependencies.runtimeApiUrl) {
+      return toolError('error', 'brainbase_authority_invalid', 'Signed authority transport is unavailable', []);
+    }
+    try {
+      const response = await (dependencies.fetch ?? globalThis.fetch)(
+        new URL('/api/v1/runtime/knowledge:resolve', dependencies.runtimeApiUrl), {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${dependencies.runtimeServiceToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...args, company_authority_response: authority }),
+          signal: AbortSignal.timeout(10_000),
+        },
+      );
+      const payload: unknown = await response.json();
+      if (!response.ok) return toolError(response.status >= 500 ? 'unavailable' : 'error',
+        'brainbase_authority_rejected', 'Signed knowledge authority was rejected', [], response.status);
+      if (!isKnowledgeResolutionReceipt(payload) || typeof payload.project_code !== 'string'
+        || !payload.project_code || (args.project_code !== undefined && args.project_code !== payload.project_code)) {
+        return toolError('error', 'brainbase_api_response_invalid', 'Invalid authority-bound routing receipt', []);
+      }
+      return { status: 'ok', scope: { project_codes: [payload.project_code] }, data: payload };
+    } catch {
+      return toolError('unavailable', 'brainbase_api_unavailable', 'Knowledge authority service unavailable', []);
+    }
+  }
 
   const context = await authenticateProject(args, dependencies);
   if ('status' in context) return context;

@@ -297,6 +297,7 @@ export function createTenantRuntimeRouter({
     tenantAuthority,
     companyAuthority,
     shareablePersonProfileService,
+    authorityKnowledgeResolutionService,
     connectionRegistry,
     credentialBroker,
     usageLedger,
@@ -329,6 +330,13 @@ export function createTenantRuntimeRouter({
             });
         }
         res.json(await companyAuthority.resolve(req.body));
+    }));
+    router.post(/^\/knowledge:resolve$/,  asyncHandler(async (req, res) => {
+        if (!authorityKnowledgeResolutionService) {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503, retryable: true });
+        }
+        res.set('Cache-Control', 'no-store');
+        res.json(await authorityKnowledgeResolutionService.resolve(req.body));
     }));
     router.post('/person-profile:read', asyncHandler(async (req, res) => {
         if (!shareablePersonProfileService) {

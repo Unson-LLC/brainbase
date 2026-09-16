@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import Database from 'better-sqlite3';
+import { __testing as mcpServerTesting } from '../../mcp/brainbase/src/server.ts';
 
 import {
     BRAINBASE_TOOL_KIND_BY_NAME,
@@ -2435,16 +2436,34 @@ describe('Codex Judgment Resolver Host', () => {
             digest: 'd'.repeat(64), workspace_id: 'TWORKSPACE', channel_id: 'CCHANNEL', thread_ts: null,
             requester_person_id: 'requester', target_person_id: 'target', policy_revision: '7'
         };
-        const recordProfile = (response, id = 'profile') => recordBrainbaseToolUse({
+        const recordProfile = (response, id = 'profile', toolInput = input, { producer = true } = {}) => recordBrainbaseToolUse({
             hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
             tool_name: 'mcp__brainbase__brainbase_get_shareable_person_profile', tool_use_id: id,
-            tool_input: input, tool_response: withRetrievalAudit('brainbase_get_shareable_person_profile', response)
+            tool_input: toolInput,
+            // Exercise the same MCP content producer used by the live server:
+            // the profile JSON is followed by its owner-audit marker.
+            tool_response: {
+                jsonrpc: '2.0', id,
+                result: producer
+                    ? { content: mcpServerTesting.buildToolResponseContent(
+                        'brainbase_get_shareable_person_profile', toolInput ?? {}, JSON.stringify(response)
+                    ) }
+                    : { content: [{ type: 'text', text: JSON.stringify(response) }] }
+            }
         }, { env });
 
         expect(recordProfile({
             status: 'ok', target_slack_user_id: input.target_slack_user_id,
             fields: { name: '大田原雅之' }, disclosure
-        })).toMatchObject({ success: true, event_kind: 'retrieve' });
+        })).toMatchObject({
+            success: true,
+            event_kind: 'retrieve',
+            safe_metadata: {
+                subject_ref: 'target_slack_user_id=UTARGET',
+                retrieval_outcome: 'result'
+            },
+            display_line: '📚 Brainbase取得: brainbase_get_shareable_person_profile「target_slack_user_id=UTARGET」→ 結果を取得 ✓'
+        });
         expect(recordProfile({
             status: 'ok', target_slack_user_id: input.target_slack_user_id,
             fields: { name: '大田原雅之', email: 'private@example.com' }, disclosure
@@ -2461,6 +2480,31 @@ describe('Codex Judgment Resolver Host', () => {
             status: 'ok', target_slack_user_id: input.target_slack_user_id,
             fields: { name: '大田原雅之' }, disclosure: { ...disclosure, digest: 'invalid' }
         }, 'profile-invalid-digest')).toMatchObject({ success: false, event_kind: 'retrieve' });
+        expect(recordProfile({
+            status: 'unavailable', target_slack_user_id: input.target_slack_user_id, fields: {}
+        }, 'profile-unavailable')).toMatchObject({
+            success: false,
+            event_kind: 'retrieve',
+            safe_metadata: { subject_ref: 'target_slack_user_id=UTARGET', retrieval_outcome: null },
+            display_line: '⚠️ Brainbase取得: brainbase_get_shareable_person_profile「target_slack_user_id=UTARGET」→ 失敗または結果不明'
+        });
+        expect(recordProfile({
+            status: 'ok', target_slack_user_id: input.target_slack_user_id,
+            fields: { name: '大田原雅之' }, disclosure
+        }, 'profile-missing-owner-audit', input, { producer: false })).toMatchObject({
+            success: false,
+            event_kind: 'retrieve',
+            safe_metadata: { subject_ref: 'target_slack_user_id=UTARGET', retrieval_outcome: null },
+            display_line: '⚠️ Brainbase取得: brainbase_get_shareable_person_profile「target_slack_user_id=UTARGET」→ 失敗または結果不明'
+        });
+        expect(recordProfile({
+            status: 'ok', target_slack_user_id: input.target_slack_user_id,
+            fields: { name: '大田原雅之' }, disclosure
+        }, 'profile-missing-input', null, { producer: false })).toMatchObject({
+            success: false,
+            event_kind: 'retrieve',
+            display_line: '⚠️ Brainbase取得: brainbase_get_shareable_person_profile「入力なし」→ 失敗または結果不明'
+        });
     });
 
     it('ClaudeのMCP response形状で公開ツール群の意味的成功を検証する', async () => {

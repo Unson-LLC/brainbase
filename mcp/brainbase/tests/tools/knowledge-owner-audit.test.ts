@@ -103,6 +103,55 @@ describe('knowledge owner audit', () => {
     );
   });
 
+  it('audits a shareable person profile with the exact Slack user ID query', () => {
+    const result = JSON.stringify({
+      status: 'ok',
+      target_slack_user_id: 'U08SKE17CGJ',
+      fields: { name: '大田原雅之' },
+      disclosure: {
+        digest: 'd'.repeat(64), workspace_id: 'TWORKSPACE', channel_id: 'CCHANNEL',
+        thread_ts: null, requester_person_id: 'per_requester', target_person_id: 'per_target',
+        policy_revision: '1',
+      },
+    });
+    assert.deepStrictEqual(
+      buildKnowledgeOwnerAudit(
+        'brainbase_get_shareable_person_profile',
+        { target_slack_user_id: 'U08SKE17CGJ' },
+        result,
+      ),
+      {
+        schema_version: 'brainbase-knowledge-owner-audit-v1',
+        source: 'Brainbase',
+        operation: '取得',
+        query: 'U08SKE17CGJ',
+        outcome: '結果を取得',
+        display_line: '📚 Brainbase取得: Brainbaseから「U08SKE17CGJ」を取得 → 結果を取得 ✓',
+      },
+    );
+    const content = serverTesting.buildToolResponseContent(
+      'brainbase_get_shareable_person_profile',
+      { target_slack_user_id: 'U08SKE17CGJ' },
+      result,
+    );
+    assert.equal(content.length, 2);
+    assert.equal(
+      content[1]?.text,
+      '<!-- brainbase-knowledge-owner-audit:{"schema_version":"brainbase-knowledge-owner-audit-v1","operation":"取得","outcome":"結果を取得"} -->',
+    );
+    const unavailable = JSON.stringify({
+      status: 'unavailable', target_slack_user_id: 'U08SKE17CGJ', fields: {},
+    });
+    assert.deepStrictEqual(
+      serverTesting.buildToolResponseContent(
+        'brainbase_get_shareable_person_profile',
+        { target_slack_user_id: 'U08SKE17CGJ' },
+        unavailable,
+      ),
+      [{ type: 'text', text: unavailable }],
+    );
+  });
+
   it('audits public structured retrievals and distinguishes confirmed empty results', () => {
     assert.equal(
       buildKnowledgeOwnerAudit(
