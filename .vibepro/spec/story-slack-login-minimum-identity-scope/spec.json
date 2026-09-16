@@ -1,0 +1,59 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-slack-login-minimum-identity-scope",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "contract",
+      "statement": "legacy Slack OAuthによる管理画面ログインはuser_scope=identity.basicだけを要求し、bot scopeを要求しない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-001" }],
+        "code_refs": [{ "file": "server/services/auth/providers/slack-auth-provider.js", "anchor": "createSlackAuthProvider" }],
+        "test_refs": [{ "file": "tests/unit/slack-auth-provider.test.js", "case": "allows only the minimum legacy identity scope for login" }]
+      }
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "投稿・ファイル操作権限または空の本人確認scopeをログイン設定として受け付けない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-002" }],
+        "code_refs": [{ "file": "server/services/auth/providers/slack-auth-provider.js", "anchor": "assertReady" }],
+        "test_refs": [{ "file": "tests/unit/slack-auth-provider.test.js", "case": "fails closed when legacy login requests non-identity scopes" }]
+      }
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "token exchange後の実効権限もidentity.basicだけとし、bot権限・欠落・追加権限を受け付けない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 2, "ac_id": "AC-003" }],
+        "code_refs": [{ "file": "server/services/auth/providers/slack-auth-provider.js", "anchor": "requireGrantedLoginScopes" }],
+        "test_refs": [{ "file": "tests/unit/slack-auth-provider.test.js", "case": "validates effective Slack token scopes before issuing an application token" }]
+      }
+    },
+    {
+      "id": "AC-004",
+      "type": "contract",
+      "statement": "セットアップと環境変数例はbot scopeを空にし、user_scopeをidentity.basicへ固定する。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-004" }],
+        "code_refs": [
+          { "file": "scripts/setup.sh", "anchor": "SLACK_AUTH_USER_SCOPES" },
+          { "file": ".env.example", "anchor": "SLACK_AUTH_USER_SCOPES" }
+        ],
+        "test_refs": [{ "file": "tests/unit/slack-login-configuration.test.js", "case": "keeps setup defaults on identity-only Slack login scopes" }]
+      }
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "Slack user IDとworkspace IDによる既存のauth_grants照合は変更しない。",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-005" }],
+        "code_refs": [{ "file": "server/services/auth-service.js", "anchor": "findUserBySlackId" }],
+        "test_refs": [{ "file": "tests/unit/auth-service-grants.test.js", "case": "requires an active grant for the exact Slack workspace when authenticating" }]
+      }
+    }
+  ]
+}

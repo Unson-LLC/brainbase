@@ -43,6 +43,7 @@ describe('createSlackAuthProvider', () => {
             clientId: 'client-123',
             clientSecret: 'secret',
             redirectUri: 'https://brainbase.example.invalid/callback',
+            scopes: '',
             userScopes: 'identity.basic'
         });
 
@@ -51,6 +52,53 @@ describe('createSlackAuthProvider', () => {
         expect(provider.authMethods).toEqual(['oauth2_confidential']);
         expect(url.pathname).toBe('/oauth/v2/authorize');
         expect(url.searchParams.get('user_scope')).toBe('identity.basic');
+    });
+
+    it('allows only the minimum legacy identity scope for login', () => {
+        const provider = createSlackAuthProvider({
+            mode: 'oauth',
+            clientId: 'client-123',
+            clientSecret: 'secret',
+            redirectUri: 'https://brainbase.example.invalid/callback',
+            scopes: '',
+            userScopes: 'identity.basic'
+        });
+
+        expect(() => provider.assertReady()).not.toThrow();
+        const url = new URL(provider.buildAuthorizationUrl('state-123'));
+        expect(url.searchParams.get('scope')).toBe('');
+        expect(url.searchParams.get('user_scope')).toBe('identity.basic');
+    });
+
+    it.each([
+        ['', 'missing'],
+        ['chat:write,files:write', 'non-identity'],
+        ['identity.basic,chat:write', 'non-identity']
+    ])('fails closed when legacy login requests %s scopes', (userScopes) => {
+        const provider = createSlackAuthProvider({
+            mode: 'oauth',
+            clientId: 'client-123',
+            clientSecret: 'secret',
+            redirectUri: 'https://brainbase.example.invalid/callback',
+            scopes: '',
+            userScopes
+        });
+
+        expect(() => provider.assertReady()).toThrow(SlackAuthProviderError);
+        expect(() => provider.buildAuthorizationUrl('state-123')).toThrow(SlackAuthProviderError);
+    });
+
+    it('fails closed when legacy login mixes bot scopes into the authorization URL', () => {
+        const provider = createSlackAuthProvider({
+            mode: 'oauth',
+            clientId: 'client-123',
+            clientSecret: 'secret',
+            redirectUri: 'https://brainbase.example.invalid/callback',
+            scopes: 'chat:write',
+            userScopes: 'identity.basic'
+        });
+
+        expect(() => provider.assertReady()).toThrow(SlackAuthProviderError);
     });
 
     it('resolves an OIDC identity into the provider-neutral shape', () => {
@@ -152,6 +200,59 @@ describe('createSlackAuthProvider', () => {
             access_token: 'xoxb-token'
         });
         expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it('accepts a legacy login token response with only identity.basic user scope', async () => {
+        const tokenPayload = {
+            ok: true,
+            scope: '',
+            authed_user: {
+                id: 'U123',
+                scope: 'identity.basic',
+                access_token: 'xoxp-user-token'
+            },
+            team: { id: 'T123' }
+        };
+        const provider = createSlackAuthProvider({
+            mode: 'oauth',
+            clientId: 'client-123',
+            clientSecret: 'secret',
+            redirectUri: 'https://brainbase.example.invalid/callback',
+            scopes: '',
+            userScopes: 'identity.basic',
+            fetchImpl: vi.fn(async () => response(tokenPayload))
+        });
+
+        await expect(provider.exchangeCode('code-123')).resolves.toEqual(tokenPayload);
+    });
+
+    it.each([
+        { label: 'bot scope', grantedScopes: { scope: 'chat:write', authed_user: { scope: 'identity.basic' } } },
+        { label: 'missing user scope', grantedScopes: { scope: '', authed_user: { scope: '' } } },
+        { label: 'extra user scope', grantedScopes: { scope: '', authed_user: { scope: 'identity.basic,files:write' } } }
+    ])('rejects a legacy login token response with $label', async ({ grantedScopes }) => {
+        const provider = createSlackAuthProvider({
+            mode: 'oauth',
+            clientId: 'client-123',
+            clientSecret: 'secret',
+            redirectUri: 'https://brainbase.example.invalid/callback',
+            scopes: '',
+            userScopes: 'identity.basic',
+            fetchImpl: vi.fn(async () => response({
+                ok: true,
+                ...grantedScopes,
+                authed_user: {
+                    id: 'U123',
+                    ...grantedScopes.authed_user
+                },
+                team: { id: 'T123' }
+            }))
+        });
+
+        await expect(provider.exchangeCode('code-123')).rejects.toMatchObject({
+            name: 'SlackAuthProviderError',
+            code: 'login_granted_scope_not_identity_only'
+        });
     });
 
     it('turns Slack HTTP and API errors into a provider error without returning credentials', async () => {
