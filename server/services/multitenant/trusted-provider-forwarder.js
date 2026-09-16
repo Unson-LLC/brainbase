@@ -28,6 +28,7 @@ const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/u;
 const COMPANY_AUTHORITY_RESPONSE_HEADER_FIELD = 'company_authority_response_header';
 const COMPANY_AUTHORITY_RESPONSE_HEADER = 'x-brainbase-company-authority-response';
 const PROFILE_TOOL_NAME = 'brainbase_get_shareable_person_profile';
+const KNOWLEDGE_TOOL_NAME = 'brainbase_knowledge_resolve';
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/u;
 const MAX_COMPANY_AUTHORITY_RESPONSE_BYTES = 12 * 1024;
 const PROHIBITED_FIXED_HEADERS = new Set([
@@ -483,10 +484,15 @@ export function createTrustedHttpProviderForwarder({
                 && request.body?.jsonrpc === '2.0'
                 && request.body?.method === 'tools/call'
                 && request.body?.params?.name === PROFILE_TOOL_NAME;
+            const isKnowledgeAuthorityCall = operation === AUTHORITY_MCP_OPERATION
+                && request.body?.jsonrpc === '2.0'
+                && request.body?.method === 'tools/call'
+                && request.body?.params?.name === KNOWLEDGE_TOOL_NAME;
+            const acceptsCompanyAuthority = isProfileAuthorityCall || isKnowledgeAuthorityCall;
             if (isProfileAuthorityCall && !hasCompanyAuthorityResponseHeader) {
                 failSchema();
             }
-            if (hasCompanyAuthorityResponseHeader && !isProfileAuthorityCall) {
+            if (hasCompanyAuthorityResponseHeader && !acceptsCompanyAuthority) {
                 failSchema();
             }
             if (operation === AUTHORITY_JUDGMENT_HOOK_OPERATION) {
@@ -520,7 +526,7 @@ export function createTrustedHttpProviderForwarder({
                 ...(operation === AUTHORITY_MCP_OPERATION ? { accept: MCP_ACCEPT } : {}),
                 'brainbase-provider-operation': operation
             };
-            if (isProfileAuthorityCall && hasCompanyAuthorityResponseHeader) {
+            if (acceptsCompanyAuthority && hasCompanyAuthorityResponseHeader) {
                 headers[COMPANY_AUTHORITY_RESPONSE_HEADER] = request[COMPANY_AUTHORITY_RESPONSE_HEADER_FIELD];
             }
             if (forwardedRequest.idempotency_key !== undefined) {

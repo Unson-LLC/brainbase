@@ -51,3 +51,9 @@ Brainbase側はサービス22件、HTTP境界3件、Repository/環境配線6件�
 Graphifyは対象worktreeのグラフがなく影響範囲は未確認。ファイル・呼び出し元・既存テストを直接確認して補完する。配備対象はBrainbaseのAPI/MCP/Host。既存のManaコンテナはリモートHostを呼ぶため、契約が変わらなければ再配備を要しない。
 
 検証結果: 関連80件（MCP19、プロフィール25、Host1、既存参照先20、署名・権限境界とroute15）成功。MCP typecheck成功。新しい参照先選択は内部runtime APIで毎回署名と最新権限を確認し、canonical projectのtenant所有関係・有効状態まで照合する。
+
+### 参照先照会の中継認証
+
+- trusted provider forwarder は `brainbase_knowledge_resolve` にも署名付き Company Authority を保持し、専用ヘッダーとして MCP に転送する。
+- profile の署名必須、他ツールの署名ヘッダー拒否、canonical project のサーバー注入を維持する。
+- 下流の fresh authority 検証を通過した参照先照会のみ成功にする。
