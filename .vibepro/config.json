@@ -321,8 +321,28 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-meeting-judgment-learning",
+        "title": "議事録の判断と訂正を夜の記憶循環へつなぐ",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null,
+        "acceptance_criteria": [
+          "実行時にDAGの版・ノード・根拠・結果・未解決を保存し、未実行を完了にしない。",
+          "案件と発言の文脈に基づいて固有名詞の候補を取得し、無関係なdecisionによる用語の欠落を防ぐ。",
+          "生成・配信の成功と品質の確認状態を分け、根拠のない固有名詞補正を確定しない。",
+          "実行と訂正を既存Brainbaseの記録に結び、おやすみで照合・圧縮・検索確認する。",
+          "レトロの改善案を原因ノード・根拠へ結び、再検証の証拠なしに問題を閉じない。",
+          "tenant/project境界を保持し、夜間ルーティンは外部再収集や本番ポリシーの自動変更を行わない。"
+        ]
       }
     ],
-    "current_story_id": "story-ore-nara-reply"
+    "current_story_id": "story-meeting-judgment-learning"
   }
 }

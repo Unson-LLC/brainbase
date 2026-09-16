@@ -3,6 +3,32 @@ import { describe, expect, it, vi } from 'vitest';
 import { RoutineCycleExecutor } from '../../../server/services/routine-runtime/cycle-executor.js';
 
 describe('RoutineCycleExecutor', () => {
+    it.each(['oyasumi', 'retro'])('%sは議事録取得障害を正常終了として閉じない', async (routine) => {
+        const anomaly = { code: 'routine_source_unavailable', source: 'meeting_judgment_learning' };
+        const executor = new RoutineCycleExecutor({
+            oyasumiReconciler: {
+                reconcile: vi.fn(async () => ({ unprocessed_count: 0, contradiction_count: 0,
+                    expired_count: 0, outbox_count: 0, anomalies: [anomaly] })),
+                buildNightOutput: vi.fn(async () => ({ closed: [{ summary: '他の処理は確認済み' }] }))
+            },
+            episodeCompressor: { compress: vi.fn(async () => ({ episode_ids: [], confirmed: true })) },
+            retrievabilityVerifier: { verify: vi.fn(async () => ({ retrievable: true })) },
+            retroService: {
+                evaluateMetrics: vi.fn(async () => ({ misregistration_rate: 0, correction_rate: 0,
+                    open_contradictions: 0, processing_time_ms: 0, stoppage_count: 0, anomalies: [anomaly] })),
+                createImprovementCandidates: vi.fn(async () => [])
+            }
+        });
+        const result = await executor.execute({ routine, input: { week_view: {
+            outcomes: [{ summary: '他の指標は確認済み' }],
+            source_coverage: [{ source: 'judgments', status: 'confirmed', summary: '7日分' }]
+        } } });
+        expect(result.status).toBe('partial');
+        expect(result.coverage).not.toBe('confirmed');
+        expect(result.anomalies).toContainEqual(expect.objectContaining(anomaly));
+        expect(result.artifacts.anomalies).toContainEqual(expect.objectContaining(anomaly));
+    });
+
     it('completedでも主要欄が空ならpartialとして空の成功を防ぐ', async () => {
         const executor = new RoutineCycleExecutor({
             livenessService: { listExceptions: vi.fn(async () => []) },

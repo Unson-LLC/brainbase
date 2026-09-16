@@ -47,13 +47,15 @@ export class RunReceiptIngestService {
         lockAcquireTimeoutMs = 5000,
         lockRetryMs = 20,
         lockTtlMs = 30000,
-        outcomeCaseService = null
+        outcomeCaseService = null,
+        meetingJudgmentEventAdapter = null
     }) {
         this.workflowRepository = workflowRepository;
         this.lockAcquireTimeoutMs = lockAcquireTimeoutMs;
         this.lockRetryMs = lockRetryMs;
         this.lockTtlMs = lockTtlMs;
         this.outcomeCaseService = outcomeCaseService;
+        this.meetingJudgmentEventAdapter = meetingJudgmentEventAdapter;
     }
 
     normalize(payload) {
@@ -83,7 +85,27 @@ export class RunReceiptIngestService {
                 });
             }
         }
-        return this._linkOutcomeCases(normalized, result, actor);
+        const linkedOutcomeCases = await this._linkOutcomeCases(normalized, result, actor);
+        return this._linkMeetingJudgment(normalized, linkedOutcomeCases, actor);
+    }
+
+    async _linkMeetingJudgment(normalized, result, actor = {}) {
+        if (typeof this.meetingJudgmentEventAdapter?.ingest !== 'function') return result;
+        const learning = await this.meetingJudgmentEventAdapter.ingest({ normalized, result, actor });
+        if (normalized.run?.judgment_trace
+            && ['unresolved', 'partial'].includes(learning?.status)) {
+            fail(
+                'run_receipt_knowledge_event_link_failed',
+                'RunReceipt was persisted, but meeting judgment evidence could not be linked; retry the exact receipt to retry linking',
+                {
+                    run_id: result.run.id,
+                    observation_event_id: learning.observation_event_id || null,
+                    meeting_judgment_learning: learning,
+                    retryable: true
+                }
+            );
+        }
+        return { ...result, meeting_judgment_learning: learning };
     }
 
     async _linkOutcomeCases(normalized, result, actor = {}) {
@@ -257,6 +279,9 @@ export class RunReceiptIngestService {
                     evidence_state: normalized.run.evidence_state,
                     evidence_refs: normalized.run.evidence_refs,
                     metrics: normalized.run.metrics || {},
+                    ...(normalized.run.judgment_trace
+                        ? { judgment_trace: normalized.run.judgment_trace }
+                        : {}),
                     summary: normalized.run.summary || null,
                     blocker_reason: normalized.run.blocker_reason || null,
                     source_action_required: sourceActionRequired,

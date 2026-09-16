@@ -85,6 +85,42 @@ describe('normalizeRunReceipt', () => {
         expect(normalized.payload_digest).toMatch(/^[a-f0-9]{64}$/);
     });
 
+    it('replayのoriginal failureとseparate caseに同じ証拠だけを指定した場合は閉鎖しない', () => {
+        const sharedFailureEvidence = { kind: 'artifact_ref', ref: 's3:meeting/replay-failure.json' };
+        const receipt = makeReceipt({
+            run: {
+                judgment_trace: {
+                    schema_version: 'meeting_judgment_trace.v1',
+                    dag: { id: 'meeting-minutes', version: '2026-09-16' },
+                    nodes: [{
+                        id: 'glossary_lookup',
+                        status: 'completed',
+                        evidence_refs: [{ kind: 'log_ref', ref: 'cloudwatch:meeting/judgment' }]
+                    }],
+                    glossary: { coverage: 'confirmed', term_refs: [], unresolved_count: 0 },
+                    quality: {
+                        status: 'confirmed',
+                        evidence_refs: [{ kind: 'log_ref', ref: 'cloudwatch:meeting/judgment' }],
+                        issue_codes: []
+                    },
+                    corrections: [],
+                    replay: {
+                        status: 'confirmed',
+                        evidence_refs: [{ kind: 'log_ref', ref: 'cloudwatch:meeting/replay' }],
+                        verified_run_ids: ['meeting-replay-1'],
+                        changed_version_refs: [{ kind: 'artifact_ref', ref: 's3:meeting/judgment-v2.json' }],
+                        original_failure_refs: [sharedFailureEvidence],
+                        separate_case_refs: [sharedFailureEvidence]
+                    }
+                }
+            }
+        });
+
+        expect(() => normalizeRunReceipt(receipt)).toThrowError(expect.objectContaining({
+            code: 'missing_replay_evidence'
+        }));
+    });
+
     it.each(['mana', 'codex_automations', 'github_actions', 'salestailor', 'openryoko'])(
         'source.type=%s_共通契約で正規化する',
         (sourceType) => {

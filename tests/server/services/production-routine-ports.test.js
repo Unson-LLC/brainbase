@@ -184,6 +184,134 @@ describe('ProductionRoutinePorts', () => {
         });
     });
 
+    it('議事録の対象project範囲を取得できない場合はBrainbase fallbackをunknownとして残す', async () => {
+        const summarizeMeetingJudgmentLearning = vi.fn(async () => ({
+            coverage: 'confirmed',
+            execution_count: 1,
+            traced_run_count: 1,
+            unknown_run_count: 0,
+            correction_count: 0,
+            dag_versions: ['mana_meeting_minutes_runtime@v1'],
+            executions: [],
+            cause_links: [],
+            replay: {
+                status: 'unknown',
+                verified: false,
+                required: false,
+                checked_run_count: 1,
+                required_run_count: 0,
+                verified_run_ids: [],
+                evidence_refs: [],
+                changed_version_refs: [],
+                original_failure_refs: [],
+                separate_case_refs: []
+            }
+        }));
+        const { ports } = createPorts({
+            personalVaultReadEnabled: false,
+            runReceiptQueryService: {
+                summarizeRoutineState: vi.fn(async () => ({ outbox_count: 0, stoppage_count: 0 })),
+                summarizeMeetingJudgmentLearning
+            },
+            listJudgmentOutboxExceptions: vi.fn(async () => [])
+        });
+        const contextWithoutProjectScope = {
+            access: { personId: 'routine-worker', organizationId: 'org:unson' },
+            actor: { person_id: 'routine-worker', role: 'member' }
+        };
+
+        const result = await ports.reconcile(
+            { input: { project_id: 'brainbase' } },
+            contextWithoutProjectScope
+        );
+
+        expect(summarizeMeetingJudgmentLearning).toHaveBeenCalledWith(
+            { project_id: 'brainbase' },
+            contextWithoutProjectScope
+        );
+        expect(result.meeting_judgment_learning).toMatchObject({
+            execution_count: 1,
+            coverage: 'partial',
+            project_scope: { status: 'unknown', project_ids: ['brainbase'] }
+        });
+        expect(result.anomalies).toEqual([
+            expect.objectContaining({
+                code: 'meeting_judgment_project_scope_unconfirmed',
+                source: 'meeting_judgment_learning',
+                status: 'unknown'
+            })
+        ]);
+    });
+
+    it('認可済みprojectの議事録取得が一部失敗した場合はaggregateをpartialへ下げる', async () => {
+        const summarizeMeetingJudgmentLearning = vi.fn(async ({ project_id: projectId }) => {
+            if (projectId === 'techknight') {
+                const error = new Error('Tech Knight receipt query unavailable');
+                error.code = 'receipt_query_unavailable';
+                throw error;
+            }
+            return {
+                coverage: 'confirmed',
+                execution_count: 1,
+                traced_run_count: 1,
+                unknown_run_count: 0,
+                correction_count: 0,
+                dag_versions: ['mana_meeting_minutes_runtime@v1'],
+                executions: [],
+                cause_links: [],
+                replay: {
+                    status: 'unknown',
+                    verified: false,
+                    required: false,
+                    checked_run_count: 1,
+                    required_run_count: 0,
+                    verified_run_ids: [],
+                    evidence_refs: [],
+                    changed_version_refs: [],
+                    original_failure_refs: [],
+                    separate_case_refs: []
+                }
+            };
+        });
+        const { ports } = createPorts({
+            personalVaultReadEnabled: false,
+            runReceiptQueryService: {
+                summarizeRoutineState: vi.fn(async () => ({ outbox_count: 0, stoppage_count: 0 })),
+                summarizeMeetingJudgmentLearning
+            },
+            listJudgmentOutboxExceptions: vi.fn(async () => [])
+        });
+        const crossProjectContext = {
+            access: {
+                personId: 'routine-worker',
+                organizationId: 'org:unson',
+                projectCodes: ['brainbase', 'techknight']
+            },
+            actor: { person_id: 'routine-worker', role: 'member' }
+        };
+
+        const result = await ports.reconcile(
+            { input: { project_id: 'brainbase' } },
+            crossProjectContext
+        );
+
+        expect(summarizeMeetingJudgmentLearning).toHaveBeenCalledTimes(2);
+        expect(result.meeting_judgment_learning).toMatchObject({
+            execution_count: 1,
+            coverage: 'partial',
+            project_scope: { status: 'partial', project_ids: ['brainbase', 'techknight'] }
+        });
+        expect(result.meeting_judgment_learning.replay.verified).toBe(false);
+        expect(result.anomalies).toEqual([
+            expect.objectContaining({
+                code: 'routine_source_unavailable',
+                source: 'meeting_judgment_learning',
+                project_id: 'techknight',
+                reason: 'receipt_query_unavailable'
+            })
+        ]);
+    });
+
     it('oyasumiは浅い眠りの原因・記憶の再編・翌朝の訂正対象をレポートにする', async () => {
         const { dependencies, ports } = createPorts();
 

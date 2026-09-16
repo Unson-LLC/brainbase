@@ -66,8 +66,8 @@ function safeErrorSummary(error) {
 
 const MEANINGFUL_OUTPUT_FIELDS = Object.freeze({
     ohayo: ['today_focus', 'ai_actions', 'immediate_decisions', 'warnings', 'carryovers'],
-    oyasumi: ['closed', 'consolidated_memories', 'associations', 'feedback_targets', 'unresolved_items', 'carryovers'],
-    retro: ['outcomes', 'decision_replays', 'changed_judgments', 'mistaken_assumptions', 'system_changes', 'repeated_patterns']
+    oyasumi: ['closed', 'consolidated_memories', 'associations', 'feedback_targets', 'unresolved_items', 'carryovers', 'meeting_judgment_learning'],
+    retro: ['outcomes', 'decision_replays', 'changed_judgments', 'mistaken_assumptions', 'system_changes', 'repeated_patterns', 'judgment_learning', 'cause_links']
 });
 
 function hasMeaningfulRoutineContent(routine, output) {
@@ -99,6 +99,173 @@ function safeOutputItems(items, {
     }).filter(Boolean);
 }
 
+function safeEvidenceRefs(refs, limit = 32) {
+    return (Array.isArray(refs) ? refs : []).slice(0, limit).map((item) => {
+        const kind = ['url', 'artifact_ref', 'log_ref'].includes(item?.kind) ? item.kind : null;
+        const ref = safeText(item?.ref);
+        if (!kind || !ref) return null;
+        return {
+            kind,
+            ref: ref.slice(0, 2048),
+            ...(safeText(item?.label) ? { label: safeText(item.label).slice(0, 120) } : {})
+        };
+    }).filter(Boolean);
+}
+
+function safeStringRefs(refs, limit = 32) {
+    return [...new Set((Array.isArray(refs) ? refs : [])
+        .filter((ref) => typeof ref === 'string' && ref.trim())
+        .map((ref) => ref.trim().slice(0, 320)))]
+        .slice(0, limit);
+}
+
+function safeJudgmentReplay(replay) {
+    if (!replay || typeof replay !== 'object') return null;
+    const status = ['confirmed', 'partial', 'unknown'].includes(replay.status)
+        ? replay.status : 'unknown';
+    return {
+        status,
+        ...(typeof replay.required === 'boolean' ? { required: replay.required } : {}),
+        ...(typeof replay.verified === 'boolean' ? { verified: replay.verified } : {}),
+        ...(Number.isSafeInteger(replay.checked_run_count) ? { checked_run_count: replay.checked_run_count } : {}),
+        verified_run_ids: (Array.isArray(replay.verified_run_ids) ? replay.verified_run_ids : [])
+            .filter((id) => typeof id === 'string').slice(0, 32),
+        evidence_refs: safeEvidenceRefs(replay.evidence_refs, 32),
+        changed_version_refs: safeEvidenceRefs(replay.changed_version_refs, 16),
+        original_failure_refs: safeEvidenceRefs(replay.original_failure_refs, 16),
+        separate_case_refs: safeEvidenceRefs(replay.separate_case_refs, 16),
+        missing_run_ids: (Array.isArray(replay.missing_run_ids) ? replay.missing_run_ids : [])
+            .filter((id) => typeof id === 'string').slice(0, 32)
+    };
+}
+
+function safeJudgmentCauseLinks(items) {
+    return (Array.isArray(items) ? items : []).slice(0, 20).map((item) => {
+        const causeCode = safeText(item?.cause_code);
+        const summary = safeText(item?.summary);
+        const nodeId = safeText(item?.cause_node?.node_id);
+        if (!causeCode || !summary || !nodeId) return null;
+        return {
+            cause_code: causeCode.slice(0, 120),
+            cause_node: {
+                node_id: nodeId.slice(0, 200),
+                ...(safeText(item?.cause_node?.dag_id)
+                    ? { dag_id: safeText(item.cause_node.dag_id).slice(0, 200) } : {}),
+                ...(safeText(item?.cause_node?.dag_version)
+                    ? { dag_version: safeText(item.cause_node.dag_version).slice(0, 120) } : {}),
+                ...(safeText(item?.cause_node?.node_version)
+                    ? { node_version: safeText(item.cause_node.node_version).slice(0, 120) } : {})
+            },
+            ...(safeText(item?.source_run_id) ? { source_run_id: safeText(item.source_run_id).slice(0, 300) } : {}),
+            ...(safeText(item?.external_run_id)
+                ? { external_run_id: safeText(item.external_run_id).slice(0, 300) } : {}),
+            source_event_ids: (Array.isArray(item?.source_event_ids) ? item.source_event_ids : [])
+                .filter((id) => typeof id === 'string').slice(0, 32),
+            evidence_refs: safeEvidenceRefs(item?.evidence_refs, 32),
+            summary: summary.slice(0, 2000),
+            ...(item?.observed_value !== undefined ? { observed_value: item.observed_value } : {})
+        };
+    }).filter(Boolean);
+}
+
+function safeJudgmentExecution(execution) {
+    if (!execution || typeof execution !== 'object') return null;
+    const runId = safeText(execution.run_id);
+    if (!runId) return null;
+    const dag = execution.dag && typeof execution.dag === 'object'
+        ? {
+            ...(safeText(execution.dag.id) ? { id: safeText(execution.dag.id).slice(0, 200) } : {}),
+            ...(safeText(execution.dag.version) ? { version: safeText(execution.dag.version).slice(0, 120) } : {})
+        } : null;
+    return {
+        run_id: runId.slice(0, 300),
+        ...(safeText(execution.external_run_id)
+            ? { external_run_id: safeText(execution.external_run_id).slice(0, 300) } : {}),
+        ...(safeText(execution.workflow_id)
+            ? { workflow_id: safeText(execution.workflow_id).slice(0, 200) } : {}),
+        ...(dag && Object.keys(dag).length > 0 ? { dag } : {}),
+        coverage: ['confirmed', 'partial', 'unknown'].includes(execution.coverage)
+            ? execution.coverage : 'unknown',
+        ...(safeText(execution.graph_playbook_status)
+            ? { graph_playbook_status: safeText(execution.graph_playbook_status).slice(0, 120) } : {}),
+        nodes: (Array.isArray(execution.nodes) ? execution.nodes : []).slice(0, 256).map((node) => ({
+            ...(safeText(node?.id) ? { id: safeText(node.id).slice(0, 200) } : {}),
+            ...(safeText(node?.node_id) ? { node_id: safeText(node.node_id).slice(0, 200) } : {}),
+            status: ['completed', 'skipped', 'blocked', 'unknown'].includes(node?.status)
+                ? node.status : 'unknown',
+            ...(safeText(node?.outcome) ? { outcome: safeText(node.outcome).slice(0, 120) } : {}),
+            ...(safeText(node?.event_id) ? { event_id: safeText(node.event_id).slice(0, 300) } : {}),
+            ...(Number.isSafeInteger(node?.sequence) ? { sequence: node.sequence } : {}),
+            ...(safeText(node?.node_version)
+                ? { node_version: safeText(node.node_version).slice(0, 120) } : {}),
+            ...(safeText(node?.next_branch)
+                ? { next_branch: safeText(node.next_branch).slice(0, 200) } : {}),
+            ...(safeText(node?.started_at) ? { started_at: safeText(node.started_at).slice(0, 64) } : {}),
+            ...(safeText(node?.finished_at) ? { finished_at: safeText(node.finished_at).slice(0, 64) } : {}),
+            ...(Array.isArray(node?.input_refs) ? { input_refs: safeStringRefs(node.input_refs, 32) } : {}),
+            ...(node?.is_current === true ? { is_current: true } : {}),
+            evidence_refs: safeEvidenceRefs(node?.evidence_refs, 32)
+        })).filter((node) => node.id),
+        glossary: execution.glossary && typeof execution.glossary === 'object' ? {
+            coverage: ['confirmed', 'partial', 'unknown'].includes(execution.glossary.coverage)
+                ? execution.glossary.coverage : 'unknown',
+            unresolved_count: Number.isSafeInteger(execution.glossary.unresolved_count)
+                ? execution.glossary.unresolved_count : null,
+            term_refs: (Array.isArray(execution.glossary.term_refs) ? execution.glossary.term_refs : [])
+                .slice(0, 256).map((term) => ({
+                    ...(safeText(term?.term_id) ? { term_id: safeText(term.term_id).slice(0, 300) } : {}),
+                    ...(safeText(term?.surface_form)
+                        ? { surface_form: safeText(term.surface_form).slice(0, 160) } : {}),
+                    ...(safeText(term?.entity_ref) ? { entity_ref: safeText(term.entity_ref).slice(0, 300) } : {}),
+                    evidence_refs: safeEvidenceRefs(term?.evidence_refs, 16)
+                })).filter((term) => term.term_id)
+        } : { coverage: 'unknown', unresolved_count: null, term_refs: [] },
+        quality: execution.quality && typeof execution.quality === 'object' ? {
+            status: ['confirmed', 'partial', 'unknown'].includes(execution.quality.status)
+                ? execution.quality.status : 'unknown',
+            evidence_refs: safeEvidenceRefs(execution.quality.evidence_refs, 32),
+            issue_codes: (Array.isArray(execution.quality.issue_codes) ? execution.quality.issue_codes : [])
+                .filter((code) => typeof code === 'string').slice(0, 32)
+        } : { status: 'unknown', evidence_refs: [], issue_codes: [] },
+        corrections: (Array.isArray(execution.corrections) ? execution.corrections : [])
+            .slice(0, 32).map((correction) => ({
+                ...(safeText(correction?.feedback_id)
+                    ? { feedback_id: safeText(correction.feedback_id).slice(0, 300) } : {}),
+                ...(safeText(correction?.corrects_event_id)
+                    ? { corrects_event_id: safeText(correction.corrects_event_id).slice(0, 300) } : {}),
+                ...(safeText(correction?.action) ? { action: safeText(correction.action).slice(0, 100) } : {}),
+                ...(safeText(correction?.reason) ? { reason: safeText(correction.reason).slice(0, 500) } : {}),
+                evidence_refs: safeEvidenceRefs(correction?.evidence_refs, 32)
+            })).filter((correction) => correction.corrects_event_id),
+        replay: safeJudgmentReplay(execution.replay),
+        evidence_refs: safeEvidenceRefs(execution.evidence_refs, 32)
+    };
+}
+
+function safeJudgmentLearning(value) {
+    if (!value || typeof value !== 'object') return null;
+    return {
+        coverage: ['confirmed', 'partial', 'unknown'].includes(value.coverage)
+            ? value.coverage : 'unknown',
+        ...(Number.isSafeInteger(value.execution_count) ? { execution_count: value.execution_count } : {}),
+        ...(Number.isSafeInteger(value.traced_run_count) ? { traced_run_count: value.traced_run_count } : {}),
+        ...(Number.isSafeInteger(value.unknown_run_count) ? { unknown_run_count: value.unknown_run_count } : {}),
+        ...(Number.isSafeInteger(value.correction_count) ? { correction_count: value.correction_count } : {}),
+        dag_versions: (Array.isArray(value.dag_versions) ? value.dag_versions : [])
+            .filter((version) => typeof version === 'string').slice(0, 32),
+        executions: (Array.isArray(value.executions) ? value.executions : [])
+            .slice(0, 50).map(safeJudgmentExecution).filter(Boolean),
+        cause_links: safeJudgmentCauseLinks(value.cause_links),
+        ...(safeJudgmentReplay(value.replay) ? { replay: safeJudgmentReplay(value.replay) } : {}),
+        ...(value.window && typeof value.window === 'object' ? {
+            window: {
+                ...(safeText(value.window.since) ? { since: safeText(value.window.since).slice(0, 64) } : {}),
+                ...(safeText(value.window.until) ? { until: safeText(value.window.until).slice(0, 64) } : {})
+            }
+        } : {})
+    };
+}
+
 function safeRoutineOutput(routine, output = {}) {
     output = output || {};
     const headline = safeText(output?.headline) || ({
@@ -119,6 +286,7 @@ function safeRoutineOutput(routine, output = {}) {
         };
     }
     if (routine === 'oyasumi') {
+        const meetingJudgmentLearning = safeJudgmentLearning(output.meeting_judgment_learning);
         return {
             headline,
             sleep_state: ['deep', 'shallow', 'unconfirmed'].includes(output.sleep_state)
@@ -134,9 +302,11 @@ function safeRoutineOutput(routine, output = {}) {
             personal_kg_memories: safeOutputItems(output.personal_kg_memories, { review: true, approval: true }),
             personal_kg_review_exceptions: safeOutputItems(output.personal_kg_review_exceptions, { review: true, approval: true }),
             personal_kg_registration_candidates: safeOutputItems(output.personal_kg_registration_candidates, { review: true, approval: true }),
-            graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true })
+            graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true }),
+            ...(meetingJudgmentLearning ? { meeting_judgment_learning: meetingJudgmentLearning } : {})
         };
     }
+    const judgmentLearning = safeJudgmentLearning(output.judgment_learning || output.meeting_judgment_learning);
     return {
         headline,
         system_changes: safeOutputItems(output.system_changes),
@@ -148,7 +318,9 @@ function safeRoutineOutput(routine, output = {}) {
         source_coverage: safeOutputItems(output.source_coverage, { review: true, reference: true }),
         references: safeOutputItems(output.references, { reference: true }),
         personal_kg_registration_reviews: safeOutputItems(output.personal_kg_registration_reviews, { review: true }),
-        graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true })
+        graph_promotion_reviews: safeOutputItems(output.graph_promotion_reviews, { review: true }),
+        ...(judgmentLearning ? { judgment_learning: judgmentLearning } : {}),
+        ...(judgmentLearning ? { cause_links: judgmentLearning.cause_links } : {})
     };
 }
 
@@ -256,6 +428,8 @@ export class RoutineCycleExecutor {
         const reconciliation = context === undefined
             ? await reconcile({ input: input.input || {} })
             : await reconcile({ input: input.input || {} }, context);
+        const reconciliationAnomalies = Array.isArray(reconciliation?.anomalies)
+            ? reconciliation.anomalies : [];
         const reconciliationKeys = Object.keys(reconciliation || {});
         const hasMetricContract = OYASUMI_METRICS.some((field) => Object.hasOwn(reconciliation || {}, field));
         const unconfirmed = OYASUMI_METRICS.filter((field) => reconciliation?.[field] == null);
@@ -263,7 +437,10 @@ export class RoutineCycleExecutor {
             return {
                 status: 'partial',
                 reconciliation,
-                anomalies: unconfirmed.map((field) => ({ code: 'routine_metric_unconfirmed', field }))
+                anomalies: [
+                    ...reconciliationAnomalies,
+                    ...unconfirmed.map((field) => ({ code: 'routine_metric_unconfirmed', field }))
+                ]
             };
         }
         const compression = context === undefined
@@ -274,7 +451,10 @@ export class RoutineCycleExecutor {
                 status: 'partial',
                 reconciliation,
                 compression,
-                anomalies: [{ code: 'episode_compression_unconfirmed' }]
+                anomalies: [
+                    ...reconciliationAnomalies,
+                    { code: 'episode_compression_unconfirmed' }
+                ]
             };
         }
         const verification = context === undefined
@@ -289,7 +469,7 @@ export class RoutineCycleExecutor {
                 anomalies: [{
                     code: 'knowledge_not_retrievable',
                     knowledge_ids: Array.isArray(verification.missing_ids) ? verification.missing_ids : []
-                }]
+                }, ...reconciliationAnomalies]
             };
         }
         if (verification?.retrievable !== true) {
@@ -298,7 +478,10 @@ export class RoutineCycleExecutor {
                 reconciliation,
                 compression,
                 verification,
-                anomalies: [{ code: 'knowledge_retrievability_unconfirmed' }]
+                anomalies: [
+                    ...reconciliationAnomalies,
+                    { code: 'knowledge_retrievability_unconfirmed' }
+                ]
             };
         }
         const buildNightOutput = typeof this.oyasumiReconciler?.buildNightOutput === 'function'
@@ -310,9 +493,36 @@ export class RoutineCycleExecutor {
                 : await buildNightOutput({ input: input.input || {}, reconciliation, compression, verification }, context)
             : null;
         const outboxCarryoverCount = Number(reconciliation?.outbox_count) || 0;
-        const anomalies = outboxCarryoverCount > 0
-            ? [{ code: 'routine_outbox_carryover', count: outboxCarryoverCount }]
-            : [];
+        const meetingJudgmentLearning = reconciliation?.meeting_judgment_learning;
+        const meetingReplay = verification?.meeting_judgment_replay;
+        const meetingReplayRequired = meetingReplay?.required
+            ?? meetingJudgmentLearning?.replay?.required
+            ?? false;
+        const meetingReplayVerified = meetingReplay?.verified
+            ?? meetingJudgmentLearning?.replay?.verified;
+        const meetingCauseCount = Array.isArray(meetingJudgmentLearning?.cause_links)
+            ? meetingJudgmentLearning.cause_links.length : 0;
+        const meetingExecutionCount = Number(meetingJudgmentLearning?.execution_count);
+        const meetingTracedRunCount = Number(meetingJudgmentLearning?.traced_run_count);
+        const meetingTraceMissing = meetingExecutionCount > 0
+            && (!Number.isFinite(meetingTracedRunCount) || meetingTracedRunCount < meetingExecutionCount);
+        const meetingJudgmentUnconfirmed = meetingJudgmentLearning
+            && Number(meetingJudgmentLearning.execution_count) > 0
+            && (meetingTraceMissing
+                || (meetingReplayRequired && meetingReplayVerified !== true)
+                || meetingCauseCount > 0);
+        const anomalies = [
+            ...reconciliationAnomalies,
+            ...(outboxCarryoverCount > 0
+                ? [{ code: 'routine_outbox_carryover', count: outboxCarryoverCount }] : []),
+            ...(meetingJudgmentUnconfirmed
+                ? [{
+                    code: 'meeting_judgment_learning_unconfirmed',
+                    count: Math.max(1, (Number(meetingJudgmentLearning.unknown_run_count) || 0) + meetingCauseCount),
+                    summary: '議事録の判断履歴・訂正・再検証に未確認の範囲があります'
+                }] : []),
+            ...(Array.isArray(verification?.anomalies) ? verification.anomalies : [])
+        ];
         return {
             status: anomalies.length > 0 ? 'partial' : 'completed',
             coverage: buildNightOutput && anomalies.length === 0 ? 'confirmed' : 'partial',
@@ -458,13 +668,21 @@ export class RoutineCycleExecutor {
         const metrics = context === undefined
             ? await evaluateMetrics(evaluation)
             : await evaluateMetrics(evaluation, context);
+        const metricAnomalies = Array.isArray(metrics?.anomalies) ? metrics.anomalies : [];
+        const judgmentLearning = metrics?.judgment_learning;
+        const causeLinks = Array.isArray(metrics?.cause_links) ? metrics.cause_links : [];
         const unconfirmed = RETRO_METRICS.filter((field) => metrics?.[field] == null);
         if (unconfirmed.length > 0) {
             return {
                 status: 'partial',
                 metrics,
+                ...(judgmentLearning ? { judgment_learning: judgmentLearning } : {}),
+                ...(causeLinks.length > 0 ? { cause_links: causeLinks } : {}),
                 improvement_candidates: [],
-                anomalies: unconfirmed.map((field) => ({ code: 'routine_metric_unconfirmed', field }))
+                anomalies: [
+                    ...metricAnomalies,
+                    ...unconfirmed.map((field) => ({ code: 'routine_metric_unconfirmed', field }))
+                ]
             };
         }
         const candidateInput = { metrics, limit: 3, output: 'story_pr' };
@@ -501,10 +719,13 @@ export class RoutineCycleExecutor {
                 status: 'unavailable',
                 summary: '一週間の判断・実行・Outcomeの確認結果が入力されていません'
             }];
+        const anomalies = [...metricAnomalies, ...sourceAnomalies];
         return {
-            status: sourceAnomalies.length > 0 ? 'partial' : 'completed',
-            coverage: listKnowledgeReviews && sourceAnomalies.length === 0 ? 'confirmed' : 'partial',
+            status: anomalies.length > 0 ? 'partial' : 'completed',
+            coverage: listKnowledgeReviews && anomalies.length === 0 ? 'confirmed' : 'partial',
             metrics,
+            ...(judgmentLearning ? { judgment_learning: judgmentLearning } : {}),
+            ...(causeLinks.length > 0 ? { cause_links: causeLinks } : {}),
             improvement_candidates: improvementCandidates,
             routine_output: {
                 headline: safeText(weekView?.headline) || (improvementCandidates.length > 0
@@ -522,12 +743,14 @@ export class RoutineCycleExecutor {
                 repeated_patterns: weekView?.repeated_patterns || [],
                 source_coverage: sourceCoverage,
                 references: weekView?.references || [],
+                ...(judgmentLearning ? { judgment_learning: judgmentLearning } : {}),
+                ...(causeLinks.length > 0 ? { cause_links: causeLinks } : {}),
                 personal_kg_registration_reviews: reviews?.personal_kg_registration_reviews
                     || weekView?.personal_kg_registration_reviews || [],
                 graph_promotion_reviews: reviews?.graph_promotion_reviews
                     || weekView?.graph_promotion_reviews || []
             },
-            anomalies: sourceAnomalies
+            anomalies
         };
     }
 }

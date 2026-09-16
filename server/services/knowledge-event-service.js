@@ -69,6 +69,36 @@ export class InMemoryKnowledgeEventRepository {
         event.candidate_id = result.candidate_id || null;
     }
 
+    async listFeedback({ projectCode = null, since = null, until = null, eventIds = null } = {}) {
+        const eventIdSet = Array.isArray(eventIds) ? new Set(eventIds) : null;
+        const sinceEpoch = since ? Date.parse(String(since)) : null;
+        const untilEpoch = until ? Date.parse(String(until)) : null;
+        return this.feedback.flatMap((feedback) => {
+            const event = this.events.get(feedback.event_id);
+            if (!event) return [];
+            if (projectCode && event.project_code !== projectCode
+                && event.applicability_scope?.project_code !== projectCode) return [];
+            if (eventIdSet && !eventIdSet.has(feedback.event_id)) return [];
+            const createdEpoch = Date.parse(String(feedback.created_at || ''));
+            if (sinceEpoch !== null && (!Number.isFinite(createdEpoch) || createdEpoch < sinceEpoch)) return [];
+            if (untilEpoch !== null && (!Number.isFinite(createdEpoch) || createdEpoch >= untilEpoch)) return [];
+            return [{
+                ...structuredClone(feedback),
+                created_at: Number.isFinite(createdEpoch)
+                    ? new Date(createdEpoch).toISOString()
+                    : null,
+                event: {
+                    event_id: event.event_id,
+                    project_code: event.project_code || event.applicability_scope?.project_code || null,
+                    source: structuredClone(event.source || {}),
+                    source_pointer: structuredClone(event.source_pointer || {}),
+                    parent_episode_id: event.parent_episode_id || null,
+                    applicability_scope: structuredClone(event.applicability_scope || {})
+                }
+            }];
+        });
+    }
+
     async transaction(work) {
         const snapshot = {
             events: structuredClone(this.events),
@@ -97,7 +127,10 @@ export class InMemoryKnowledgeEventRepository {
                 this.searchDocuments.set(newId, { current: true });
             },
             removeSearchDocument: async (id) => this.searchDocuments.delete(id),
-            appendFeedback: async (feedback) => this.feedback.push(structuredClone(feedback))
+            appendFeedback: async (feedback) => this.feedback.push({
+                ...structuredClone(feedback),
+                created_at: feedback.created_at || new Date().toISOString()
+            })
         };
         try {
             return await work(tx);

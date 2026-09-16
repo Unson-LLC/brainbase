@@ -12,6 +12,8 @@ import {
 } from '../../../server/routes/workflows.js';
 import { errorHandler } from '../../../server/middleware/error-handler.js';
 import { RunReceiptIngestService } from '../../../server/services/run-receipt/ingest-service.js';
+import { RoutineLivenessService } from '../../../server/services/routine-runtime/liveness-service.js';
+import { RunReceiptQueryService } from '../../../server/services/run-receipt/query-service.js';
 import { TestAutomationRuntime } from '../../helpers/test-automation-runtime.js';
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 
@@ -477,11 +479,32 @@ describe('run receipt routes', () => {
             .expect(200);
 
         expect(routineLivenessService.listExceptions).toHaveBeenCalledOnce();
-        expect(routineLivenessService.listExceptions).toHaveBeenCalledWith({ limit: 3 });
+        expect(routineLivenessService.listExceptions).toHaveBeenCalledWith({ limit: 3 }, expect.objectContaining({
+            person_id: 'route-test', projectCodes: ['brainbase'], organizationId: 'brainbase'
+        }));
         expect(response.body).toEqual({
             count: 1,
             items: [{ code: 'missing_receipt', automation_id: 'brainbase-ohayo' }]
         });
+    });
+
+    it('routine-exceptions carries the authenticated member through the actual liveness query', async () => {
+        const repository = new InMemoryWorkflowRepository();
+        const query = new RunReceiptQueryService({ repository,
+            assertProjectAccess(project, actor) {
+                if (!actor?.projectCodes?.includes(project)) throw Object.assign(new Error('forbidden'), { status: 403 });
+            }
+        });
+        const liveness = new RoutineLivenessService({
+            expectations: [{ routine: 'ohayo', automation_id: 'brainbase-ohayo',
+                source_type: 'codex_automations', project_id: 'brainbase', timezone: 'Asia/Tokyo',
+                schedule: { kind: 'daily', hour: 6, minute: 0 }, grace_minutes: 20,
+                required_artifacts: ['routine_summary'] }],
+            runReceiptQueryService: query, now: () => new Date('2026-09-16T00:00:00Z')
+        });
+        const { app } = createApp({ authSource: 'session', routineLivenessService: liveness });
+        const response = await request(app).get('/api/run-receipts/routine-exceptions').expect(200);
+        expect(response.body.items).toEqual([expect.objectContaining({ code: 'missing_receipt' })]);
     });
 
     it('run receiptは廃止済みWorkflow製品APIと互換実行APIへ露出しない', async () => {

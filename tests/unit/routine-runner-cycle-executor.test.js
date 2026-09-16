@@ -421,7 +421,15 @@ describe('Routine Runner cycle execution', () => {
                     unresolved_items: [],
                     closed: [{ summary: '未処理が0件であることを確認しました' }],
                     carryovers: [],
-                    personal_kg_registration_candidates: [{ summary: '受信側readbackを完了条件にする' }]
+                    personal_kg_registration_candidates: [{ summary: '受信側readbackを完了条件にする' }],
+                    meeting_judgment_learning: {
+                        cause_links: [{
+                            summary: 'アイテルの照合根拠を確認する',
+                            external_run_id: 'meeting-run-original',
+                            cause_node: { node_id: 'proper_name_validation', dag_version: 'minutes.v2' },
+                            evidence_refs: [{ kind: 'artifact_ref', ref: 'assessment:original' }]
+                        }]
+                    }
                 },
                 evidence_refs: []
             })),
@@ -437,6 +445,11 @@ describe('Routine Runner cycle execution', () => {
         expect(html).toContain('空の成功を完了扱いしない');
         expect(html).toContain('未処理が0件であることを確認しました');
         expect(html).toContain('受信側readbackを完了条件にする');
+        expect(html).toContain('アイテルの照合根拠を確認する');
+        expect(html).toContain('meeting-run-original');
+        expect(html).toContain('proper_name_validation');
+        expect(html).toContain('minutes.v2');
+        expect(html).toContain('assessment:original');
     });
 
     it('retroは一週間の判断とOutcomeを辿れるHTMLを成果物として保存する', async () => {

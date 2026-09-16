@@ -43,6 +43,7 @@ import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
+import { MeetingJudgmentEventAdapter } from '../services/run-receipt/meeting-judgment-event-adapter.js';
 import { OutcomeCasePostgresRepository } from '../services/outcome-case/outcome-case-postgres-repository.js';
 import { OutcomeCaseService } from '../services/outcome-case/outcome-case-service.js';
 import { createOutcomeCaseClosureAuthorityResolver, createOutcomeCaseReferenceResolver } from '../services/outcome-case/outcome-case-reference-resolver.js';
@@ -301,7 +302,8 @@ export function createCoreServices({
         meetingTaskOwnerResolver,
         projectAccessPolicy,
         canonicalTaskService,
-        companyAuthorityHumanApprovalService
+        companyAuthorityHumanApprovalService,
+        knowledgeEventRepository
     });
     const outcomeCaseService = createOutcomeCaseService({
         infoSSOTService,
@@ -342,7 +344,14 @@ export function createCoreServices({
         candidateRepository,
         companyAuthorityHumanApprovalService
     });
-    const runReceiptIngestService = new RunReceiptIngestService({ workflowRepository, outcomeCaseService });
+    const meetingJudgmentEventAdapter = knowledgeEventService
+        ? new MeetingJudgmentEventAdapter({ knowledgeEventService, knowledgeFeedbackService })
+        : null;
+    const runReceiptIngestService = new RunReceiptIngestService({
+        workflowRepository,
+        outcomeCaseService,
+        meetingJudgmentEventAdapter
+    });
     const routineReceiptPaths = resolveRoutineReceiptPaths({ repoDir: serverDir });
     const judgmentKnowledgeEventOutboxDir = resolveJudgmentKnowledgeEventOutboxPath({
         env: process.env,

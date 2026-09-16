@@ -111,6 +111,29 @@ function wireInput(req, fields, bindings) {
     return result;
 }
 
+function validateMeetingRetrievalContext(context) {
+    if (context === undefined) return;
+    const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+    const allowedFields = new Set(['surface_form', 'entity_types', 'source_ref', 'context']);
+    const allowedEntityTypes = new Set(['person', 'org', 'brand', 'glossary_term']);
+    if (!isObject(context) || Object.keys(context).some((field) => field !== 'mention_candidates')
+        || !Array.isArray(context.mention_candidates)
+        || context.mention_candidates.length > 12
+        || context.mention_candidates.some((candidate) => {
+            if (typeof candidate === 'string') return !candidate.trim() || candidate.length > 160;
+            return !isObject(candidate) || Object.keys(candidate).some((field) => !allowedFields.has(field))
+                || typeof candidate.surface_form !== 'string' || !candidate.surface_form.trim()
+                || candidate.surface_form.length > 160
+                || (candidate.entity_types !== undefined && (!Array.isArray(candidate.entity_types)
+                    || candidate.entity_types.length === 0
+                    || candidate.entity_types.some((type) => !allowedEntityTypes.has(type))))
+                || (candidate.source_ref !== undefined && (typeof candidate.source_ref !== 'string' || candidate.source_ref.length > 200))
+                || (candidate.context !== undefined && (typeof candidate.context !== 'string' || candidate.context.length > 240));
+        })) {
+        throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
+    }
+}
+
 function quotaInput(req) {
     const context = req.tenantContext;
     const suppliedFields = Object.keys(req.body ?? {});
@@ -375,14 +398,18 @@ export function createTenantRuntimeRouter({
             throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503, retryable: true });
         }
         await revalidateAuthoritativeBinding(req);
-        const { identity } = wireInput(req, ['identity'], {});
+        const { identity, retrieval_context } = wireInput(req, ['identity', 'retrieval_context'], {});
         if (!identity || typeof identity !== 'object' || Array.isArray(identity)
             || Object.keys(identity).some((field) => !['run_id', 'project_code', 'transcript_sha256'].includes(field))) {
             throw new ContractError('SCHEMA_INVALID', { status: 400, fault_domain: 'protocol' });
         }
+        validateMeetingRetrievalContext(retrieval_context);
         const project = await resolveAuthorizedProject(req, identity.project_code);
         try {
-            res.status(201).json(await meetingMinutesContextReceiptService.create(identity, {
+            res.status(201).json(await meetingMinutesContextReceiptService.create({
+                ...identity,
+                ...(retrieval_context === undefined ? {} : { retrieval_context })
+            }, {
                 authType: 'tenant_runtime',
                 sub: req.serviceIdentity?.subject,
                 person_id: req.tenantContext.actor?.principal_id,

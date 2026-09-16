@@ -17,6 +17,11 @@ const ACTIONS = new Set([
     'contact_owner'
 ]);
 const EVIDENCE_KINDS = new Set(['url', 'artifact_ref', 'log_ref']);
+const JUDGMENT_TRACE_SCHEMA_VERSION = 'meeting_judgment_trace.v1';
+const TRACE_COVERAGE_STATES = new Set(['confirmed', 'partial', 'unknown']);
+const TRACE_GRAPH_PLAYBOOK_STATUSES = new Set(['executed', 'partial', 'not_executed', 'unknown']);
+const TRACE_NODE_STATUSES = new Set(['completed', 'skipped', 'blocked', 'unknown']);
+const TRACE_FEEDBACK_ACTIONS = new Set(['adopt', 'correct', 'reject', 'not_useful']);
 const FORBIDDEN_KEYS = new Set([
     'content',
     'body',
@@ -44,10 +49,56 @@ const RUN_KEYS = new Set([
     'action_required',
     'observation_kind',
     'metrics',
-    'evidence_refs'
+    'evidence_refs',
+    'judgment_trace'
 ]);
 const DELIVERY_KEYS = new Set(['idempotency_key', 'attempt', 'sent_at']);
 const EVIDENCE_KEYS = new Set(['kind', 'ref', 'label']);
+const TRACE_KEYS = new Set([
+    'schema_version',
+    'dag',
+    'graph_playbook_status',
+    'nodes',
+    'glossary',
+    'quality',
+    'corrections',
+    'replay'
+]);
+const TRACE_DAG_KEYS = new Set(['id', 'version']);
+const TRACE_NODE_KEYS = new Set([
+    'id',
+    'node_id',
+    'status',
+    'outcome',
+    'event_id',
+    'sequence',
+    'node_version',
+    'next_branch',
+    'started_at',
+    'finished_at',
+    'input_refs',
+    'evidence_refs'
+]);
+const TRACE_GLOSSARY_KEYS = new Set(['coverage', 'term_refs', 'unresolved_count']);
+const TRACE_TERM_KEYS = new Set(['term_id', 'surface_form', 'entity_ref', 'evidence_refs']);
+const TRACE_STATE_KEYS = new Set(['status', 'evidence_refs', 'issue_codes']);
+const TRACE_CORRECTION_KEYS = new Set([
+    'feedback_id',
+    'corrects_event_id',
+    'action',
+    'reason',
+    'evidence_refs',
+    'replacement'
+]);
+const TRACE_REPLACEMENT_KEYS = new Set(['event_id', 'subject_type', 'subject_id', 'summary', 'evidence_refs']);
+const TRACE_REPLAY_KEYS = new Set([
+    'status',
+    'evidence_refs',
+    'verified_run_ids',
+    'changed_version_refs',
+    'original_failure_refs',
+    'separate_case_refs'
+]);
 const OPAQUE_REF_PATTERN = /^[a-z][a-z0-9_+.-]{1,31}:[^\s]{1,2000}$/;
 const ROUTINE_ARTIFACT_REF_PATTERN = /^routine-artifacts\/[a-z0-9_-]+\/[a-f0-9]{64}\.json$/;
 const EMBEDDED_CREDENTIAL_PATTERN = /^[a-z][a-z0-9+.-]{1,31}:(?:\/\/)?[^/?#\s@]+(?::[^/?#\s@]*)?@/i;
@@ -161,6 +212,11 @@ function sortEvidenceRefs(refs) {
     ));
 }
 
+function hasIndependentEvidence(leftRefs, rightRefs) {
+    const left = new Set(leftRefs.map((ref) => `${ref.kind}:${ref.ref}`));
+    return rightRefs.some((ref) => !left.has(`${ref.kind}:${ref.ref}`));
+}
+
 function validateMetrics(value) {
     if (value === undefined || value === null) return undefined;
     const metrics = requireObject(value, 'run.metrics');
@@ -181,35 +237,282 @@ function validateMetrics(value) {
     return normalized;
 }
 
-function validateEvidenceRefs(value) {
+function validateEvidenceRefs(value, path = 'run.evidence_refs', maxLength = null) {
     if (value === undefined || value === null) return [];
-    if (!Array.isArray(value)) fail('invalid_array', 'run.evidence_refs must be an array', { path: 'run.evidence_refs' });
+    if (!Array.isArray(value)) fail('invalid_array', `${path} must be an array`, { path });
+    if (maxLength !== null && value.length > maxLength) {
+        fail('array_too_long', `${path} exceeds ${maxLength} entries`, { path, max_length: maxLength });
+    }
     const refs = value.map((entry, index) => {
-        const path = `run.evidence_refs[${index}]`;
-        const ref = requireObject(entry, path);
-        rejectUnknownKeys(ref, EVIDENCE_KEYS, path);
-        const kind = requireEnum(ref.kind, `${path}.kind`, EVIDENCE_KINDS, 'unsupported_evidence_kind');
-        const reference = requireString(ref.ref, `${path}.ref`, 2048);
-        const label = optionalString(ref.label, `${path}.label`, 120);
+        const entryPath = `${path}[${index}]`;
+        const ref = requireObject(entry, entryPath);
+        rejectUnknownKeys(ref, EVIDENCE_KEYS, entryPath);
+        const kind = requireEnum(ref.kind, `${entryPath}.kind`, EVIDENCE_KINDS, 'unsupported_evidence_kind');
+        const reference = requireString(ref.ref, `${entryPath}.ref`, 2048);
+        const label = optionalString(ref.label, `${entryPath}.label`, 120);
         if (EMBEDDED_CREDENTIAL_PATTERN.test(reference)) {
-            fail('invalid_evidence_ref', `${path}.ref must not contain embedded credentials`, { path: `${path}.ref` });
+            fail('invalid_evidence_ref', `${entryPath}.ref must not contain embedded credentials`, { path: `${entryPath}.ref` });
         }
         if (kind === 'url') {
             let parsed;
             try {
                 parsed = new URL(reference);
             } catch {
-                fail('invalid_evidence_ref', `${path}.ref must be an absolute HTTPS URL`, { path: `${path}.ref` });
+                fail('invalid_evidence_ref', `${entryPath}.ref must be an absolute HTTPS URL`, { path: `${entryPath}.ref` });
             }
             if (parsed.protocol !== 'https:' || parsed.username || parsed.password) {
-                fail('invalid_evidence_ref', `${path}.ref must be an absolute HTTPS URL without credentials`, { path: `${path}.ref` });
+                fail('invalid_evidence_ref', `${entryPath}.ref must be an absolute HTTPS URL without credentials`, { path: `${entryPath}.ref` });
             }
         } else if (!OPAQUE_REF_PATTERN.test(reference) && !ROUTINE_ARTIFACT_REF_PATTERN.test(reference)) {
-            fail('invalid_evidence_ref', `${path}.ref must be a source-owned opaque reference`, { path: `${path}.ref` });
+            fail('invalid_evidence_ref', `${entryPath}.ref must be a source-owned opaque reference`, { path: `${entryPath}.ref` });
         }
         return { kind, ref: reference, ...(label ? { label } : {}) };
     });
     return sortEvidenceRefs(refs);
+}
+
+function validateCount(value, path) {
+    if (value === undefined || value === null) return null;
+    if (!Number.isSafeInteger(value) || value < 0) {
+        fail('invalid_count', `${path} must be a non-negative safe integer`, { path });
+    }
+    return value;
+}
+
+function validateCodeList(value, path, maxLength = 32) {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value)) fail('invalid_array', `${path} must be an array`, { path });
+    if (value.length > maxLength) fail('array_too_long', `${path} exceeds ${maxLength} entries`, { path, max_length: maxLength });
+    return value.map((entry, index) => requireString(entry, `${path}[${index}]`, 120));
+}
+
+function validateStringList(value, path, maxLength = 32, itemMaxLength = 320) {
+    if (value === undefined || value === null) return [];
+    if (!Array.isArray(value)) fail('invalid_array', `${path} must be an array`, { path });
+    if (value.length > maxLength) fail('array_too_long', `${path} exceeds ${maxLength} entries`, {
+        path,
+        max_length: maxLength
+    });
+    return value.map((entry, index) => requireString(entry, `${path}[${index}]`, itemMaxLength));
+}
+
+function validateTraceState(value, path) {
+    const state = value === undefined || value === null ? {} : requireObject(value, path);
+    rejectUnknownKeys(state, TRACE_STATE_KEYS, path);
+    const status = optionalEnum(state.status, `${path}.status`, TRACE_COVERAGE_STATES, 'unsupported_trace_status') || 'unknown';
+    const evidenceRefs = validateEvidenceRefs(state.evidence_refs, `${path}.evidence_refs`, 32);
+    if (status === 'confirmed' && evidenceRefs.length === 0) {
+        fail('missing_trace_evidence', `${path}.status=confirmed requires evidence_refs`, { path });
+    }
+    return {
+        status,
+        evidence_refs: evidenceRefs,
+        issue_codes: validateCodeList(state.issue_codes, `${path}.issue_codes`)
+    };
+}
+
+function validateReplacement(value, path) {
+    if (value === undefined || value === null) return undefined;
+    const replacement = requireObject(value, path);
+    rejectUnknownKeys(replacement, TRACE_REPLACEMENT_KEYS, path);
+    const subjectType = optionalString(replacement.subject_type, `${path}.subject_type`, 120);
+    const subjectId = optionalString(replacement.subject_id, `${path}.subject_id`, 300);
+    const summary = optionalString(replacement.summary, `${path}.summary`, 500);
+    const eventId = optionalString(replacement.event_id, `${path}.event_id`, 300);
+    const evidenceRefs = validateEvidenceRefs(replacement.evidence_refs, `${path}.evidence_refs`, 32);
+    return {
+        ...(eventId ? { event_id: eventId } : {}),
+        ...(subjectType ? { subject_type: subjectType } : {}),
+        ...(subjectId ? { subject_id: subjectId } : {}),
+        ...(summary ? { summary } : {}),
+        evidence_refs: evidenceRefs
+    };
+}
+
+function validateJudgmentTrace(value) {
+    if (value === undefined || value === null) return undefined;
+    const trace = requireObject(value, 'run.judgment_trace');
+    rejectUnknownKeys(trace, TRACE_KEYS, 'run.judgment_trace');
+    const schemaVersion = requireString(trace.schema_version, 'run.judgment_trace.schema_version', 80);
+    if (schemaVersion !== JUDGMENT_TRACE_SCHEMA_VERSION) {
+        fail('unsupported_judgment_trace_version', `run.judgment_trace.schema_version must be ${JUDGMENT_TRACE_SCHEMA_VERSION}`);
+    }
+
+    const dag = requireObject(trace.dag, 'run.judgment_trace.dag');
+    rejectUnknownKeys(dag, TRACE_DAG_KEYS, 'run.judgment_trace.dag');
+    const dagId = requireString(dag.id, 'run.judgment_trace.dag.id', 200);
+    const dagVersion = requireString(dag.version, 'run.judgment_trace.dag.version', 120);
+    const graphPlaybookStatus = optionalEnum(
+        trace.graph_playbook_status,
+        'run.judgment_trace.graph_playbook_status',
+        TRACE_GRAPH_PLAYBOOK_STATUSES,
+        'unsupported_graph_playbook_status'
+    ) || 'unknown';
+
+    if (!Array.isArray(trace.nodes)) fail('invalid_array', 'run.judgment_trace.nodes must be an array', { path: 'run.judgment_trace.nodes' });
+    if (trace.nodes.length > 256) fail('array_too_long', 'run.judgment_trace.nodes exceeds 256 entries', {
+        path: 'run.judgment_trace.nodes',
+        max_length: 256
+    });
+    const nodes = trace.nodes.map((nodeValue, index) => {
+        const path = `run.judgment_trace.nodes[${index}]`;
+        const node = requireObject(nodeValue, path);
+        rejectUnknownKeys(node, TRACE_NODE_KEYS, path);
+        const id = requireString(node.id, `${path}.id`, 200);
+        const nodeId = optionalString(node.node_id, `${path}.node_id`, 200);
+        const status = requireEnum(node.status, `${path}.status`, TRACE_NODE_STATUSES, 'unsupported_trace_node_status');
+        const outcome = optionalString(node.outcome, `${path}.outcome`, 120);
+        const eventId = optionalString(node.event_id, `${path}.event_id`, 300);
+        const sequence = node.sequence === undefined || node.sequence === null
+            ? undefined
+            : validateCount(node.sequence, `${path}.sequence`);
+        const nodeVersion = optionalString(node.node_version, `${path}.node_version`, 120);
+        const nextBranch = optionalString(node.next_branch, `${path}.next_branch`, 160);
+        const startedAt = validateTimestamp(node.started_at, `${path}.started_at`);
+        const finishedAt = validateTimestamp(node.finished_at, `${path}.finished_at`);
+        const inputRefs = validateStringList(node.input_refs, `${path}.input_refs`, 32, 320);
+        return {
+            id,
+            ...(nodeId ? { node_id: nodeId } : {}),
+            status,
+            ...(outcome ? { outcome } : {}),
+            ...(eventId ? { event_id: eventId } : {}),
+            ...(sequence !== undefined && sequence !== null ? { sequence } : {}),
+            ...(nodeVersion ? { node_version: nodeVersion } : {}),
+            ...(nextBranch ? { next_branch: nextBranch } : {}),
+            ...(startedAt ? { started_at: startedAt.timestamp } : {}),
+            ...(finishedAt ? { finished_at: finishedAt.timestamp } : {}),
+            ...(inputRefs.length > 0 ? { input_refs: inputRefs } : {}),
+            evidence_refs: validateEvidenceRefs(node.evidence_refs, `${path}.evidence_refs`, 32)
+        };
+    });
+
+    const glossaryValue = trace.glossary === undefined || trace.glossary === null ? {} : requireObject(trace.glossary, 'run.judgment_trace.glossary');
+    rejectUnknownKeys(glossaryValue, TRACE_GLOSSARY_KEYS, 'run.judgment_trace.glossary');
+    const glossaryCoverage = optionalEnum(
+        glossaryValue.coverage,
+        'run.judgment_trace.glossary.coverage',
+        TRACE_COVERAGE_STATES,
+        'unsupported_glossary_coverage'
+    ) || 'unknown';
+    const termValues = glossaryValue.term_refs === undefined || glossaryValue.term_refs === null
+        ? []
+        : glossaryValue.term_refs;
+    if (!Array.isArray(termValues)) fail('invalid_array', 'run.judgment_trace.glossary.term_refs must be an array', {
+        path: 'run.judgment_trace.glossary.term_refs'
+    });
+    if (termValues.length > 256) fail('array_too_long', 'run.judgment_trace.glossary.term_refs exceeds 256 entries', {
+        path: 'run.judgment_trace.glossary.term_refs',
+        max_length: 256
+    });
+    const termRefs = termValues.map((termValue, index) => {
+        const path = `run.judgment_trace.glossary.term_refs[${index}]`;
+        const term = requireObject(termValue, path);
+        rejectUnknownKeys(term, TRACE_TERM_KEYS, path);
+        const termId = requireString(term.term_id, `${path}.term_id`, 300);
+        const surfaceForm = optionalString(term.surface_form, `${path}.surface_form`, 160);
+        const entityRef = optionalString(term.entity_ref, `${path}.entity_ref`, 300);
+        return {
+            term_id: termId,
+            ...(surfaceForm ? { surface_form: surfaceForm } : {}),
+            ...(entityRef ? { entity_ref: entityRef } : {}),
+            evidence_refs: validateEvidenceRefs(term.evidence_refs, `${path}.evidence_refs`, 16)
+        };
+    });
+
+    const correctionValues = trace.corrections === undefined || trace.corrections === null ? [] : trace.corrections;
+    if (!Array.isArray(correctionValues)) fail('invalid_array', 'run.judgment_trace.corrections must be an array', {
+        path: 'run.judgment_trace.corrections'
+    });
+    if (correctionValues.length > 128) fail('array_too_long', 'run.judgment_trace.corrections exceeds 128 entries', {
+        path: 'run.judgment_trace.corrections',
+        max_length: 128
+    });
+    const corrections = correctionValues.map((correctionValue, index) => {
+        const path = `run.judgment_trace.corrections[${index}]`;
+        const correction = requireObject(correctionValue, path);
+        rejectUnknownKeys(correction, TRACE_CORRECTION_KEYS, path);
+        const feedbackId = optionalString(correction.feedback_id, `${path}.feedback_id`, 300);
+        const correctsEventId = requireString(correction.corrects_event_id, `${path}.corrects_event_id`, 300);
+        const action = requireEnum(correction.action, `${path}.action`, TRACE_FEEDBACK_ACTIONS, 'unsupported_trace_feedback_action');
+        const reason = optionalString(correction.reason, `${path}.reason`, 500);
+        const replacement = validateReplacement(correction.replacement, `${path}.replacement`);
+        return {
+            ...(feedbackId ? { feedback_id: feedbackId } : {}),
+            corrects_event_id: correctsEventId,
+            action,
+            ...(reason ? { reason } : {}),
+            evidence_refs: validateEvidenceRefs(correction.evidence_refs, `${path}.evidence_refs`, 32),
+            ...(replacement ? { replacement } : {})
+        };
+    });
+
+    const replayValue = trace.replay === undefined || trace.replay === null ? {} : requireObject(trace.replay, 'run.judgment_trace.replay');
+    rejectUnknownKeys(replayValue, TRACE_REPLAY_KEYS, 'run.judgment_trace.replay');
+    const replayStatus = optionalEnum(
+        replayValue.status,
+        'run.judgment_trace.replay.status',
+        TRACE_COVERAGE_STATES,
+        'unsupported_replay_status'
+    ) || 'unknown';
+    const replayEvidenceRefs = validateEvidenceRefs(replayValue.evidence_refs, 'run.judgment_trace.replay.evidence_refs', 64);
+    const changedVersionRefs = validateEvidenceRefs(
+        replayValue.changed_version_refs,
+        'run.judgment_trace.replay.changed_version_refs',
+        16
+    );
+    const originalFailureRefs = validateEvidenceRefs(
+        replayValue.original_failure_refs,
+        'run.judgment_trace.replay.original_failure_refs',
+        16
+    );
+    const separateCaseRefs = validateEvidenceRefs(
+        replayValue.separate_case_refs,
+        'run.judgment_trace.replay.separate_case_refs',
+        16
+    );
+    if (replayStatus === 'confirmed'
+        && (replayEvidenceRefs.length === 0
+            || changedVersionRefs.length === 0
+            || originalFailureRefs.length === 0
+            || separateCaseRefs.length === 0
+            || !hasIndependentEvidence(originalFailureRefs, separateCaseRefs))) {
+        fail('missing_replay_evidence', 'run.judgment_trace.replay.status=confirmed requires changed version, original failure, and separate case evidence', {
+            path: 'run.judgment_trace.replay'
+        });
+    }
+    const verifiedRunIds = replayValue.verified_run_ids === undefined || replayValue.verified_run_ids === null
+        ? []
+        : replayValue.verified_run_ids;
+    if (!Array.isArray(verifiedRunIds)) fail('invalid_array', 'run.judgment_trace.replay.verified_run_ids must be an array', {
+        path: 'run.judgment_trace.replay.verified_run_ids'
+    });
+    if (verifiedRunIds.length > 32) fail('array_too_long', 'run.judgment_trace.replay.verified_run_ids exceeds 32 entries', {
+        path: 'run.judgment_trace.replay.verified_run_ids',
+        max_length: 32
+    });
+
+    return {
+        schema_version: schemaVersion,
+        dag: { id: dagId, version: dagVersion },
+        graph_playbook_status: graphPlaybookStatus,
+        nodes,
+        glossary: {
+            coverage: glossaryCoverage,
+            term_refs: termRefs,
+            unresolved_count: validateCount(glossaryValue.unresolved_count, 'run.judgment_trace.glossary.unresolved_count')
+        },
+        quality: validateTraceState(trace.quality, 'run.judgment_trace.quality'),
+        corrections,
+        replay: {
+            status: replayStatus,
+            evidence_refs: replayEvidenceRefs,
+            verified_run_ids: verifiedRunIds.map((value, index) => requireString(value, `run.judgment_trace.replay.verified_run_ids[${index}]`, 300)),
+            changed_version_refs: changedVersionRefs,
+            original_failure_refs: originalFailureRefs,
+            separate_case_refs: separateCaseRefs
+        }
+    };
 }
 
 export function createRunReceiptIdentity({ projectId, sourceType, externalRunId, sourceWorkflowId }) {
@@ -271,6 +574,7 @@ export function normalizeRunReceipt(payload) {
     }
     const evidenceRefs = validateEvidenceRefs(runValue.evidence_refs);
     const metrics = validateMetrics(runValue.metrics);
+    const judgmentTrace = validateJudgmentTrace(runValue.judgment_trace);
     const actionRequired = optionalEnum(
         runValue.action_required,
         'run.action_required',
@@ -308,6 +612,7 @@ export function normalizeRunReceipt(payload) {
             : {}),
         ...(actionRequired ? { action_required: actionRequired } : {}),
         ...(metrics !== undefined ? { metrics } : {}),
+        ...(judgmentTrace !== undefined ? { judgment_trace: judgmentTrace } : {}),
         evidence_refs: evidenceRefs
     };
 

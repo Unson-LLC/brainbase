@@ -27,13 +27,24 @@ function canAccessProject(req, projectId) {
 }
 
 function actorFromRequest(req) {
+    const organizationId = req.access?.organizationId
+        || req.access?.organization_id
+        || req.auth?.organizationId
+        || req.auth?.organization_id
+        || null;
+    const tenantId = req.access?.tenantId
+        || req.access?.tenant_id
+        || req.auth?.tenantId
+        || req.auth?.tenant_id
+        || null;
     return {
         ...(req.auth || {}),
         person_id: req.access?.personId || req.auth?.person_id || req.auth?.sub || null,
         projectCodes: Array.isArray(req.access?.projectCodes) ? req.access.projectCodes : [],
         role: req.access?.role || req.auth?.role || null,
         authSource: req.authSource || null,
-        organizationId: req.access?.organizationId || req.access?.tenantId || null
+        ...(organizationId ? { organizationId } : {}),
+        ...(tenantId ? { tenantId } : {})
     };
 }
 
@@ -62,7 +73,8 @@ export function createRunReceiptRouter({ ingestService, queryService, routineLiv
         } catch (error) {
             if (error instanceof RunReceiptContractError) {
                 const retryable = error.code === 'run_receipt_lock_timeout'
-                    || error.code === 'outcome_case_receipt_link_failed';
+                    || error.code === 'outcome_case_receipt_link_failed'
+                    || error.code === 'run_receipt_knowledge_event_link_failed';
                 if (retryable) res.set('Retry-After', '1');
                 res.status(retryable ? 503 : 400).json({
                     error: error.message,
@@ -110,7 +122,7 @@ export function createRunReceiptRouter({ ingestService, queryService, routineLiv
             });
             return;
         }
-        const items = await routineLivenessService.listExceptions({ limit: 3 });
+        const items = await routineLivenessService.listExceptions({ limit: 3 }, actorFromRequest(req));
         res.json({ count: items.length, items });
     }));
 

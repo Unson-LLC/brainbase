@@ -220,6 +220,26 @@ function persistOhayoDayView({ input, routineOutput, varDir }) {
     return { kind: 'artifact_ref', ref: `ohayo-day-view:${relativePath}`, label: 'ohayo_day_view' };
 }
 
+function meetingJudgmentReportItems(output) {
+    const learning = output?.meeting_judgment_learning || output?.judgment_learning;
+    const causes = output?.cause_links || learning?.cause_links;
+    return (Array.isArray(causes) ? causes : []).map((cause) => ({
+        title: '議事録の判断を見直す',
+        summary: cause.summary || cause.cause_code || '原因を確認する',
+        details: [
+            { label: '判断', text: cause.summary || cause.cause_code || '原因を確認する' },
+            { label: '対象実行', text: cause.external_run_id || cause.source_run_id || '未確認' },
+            { label: '判断ノード', text: cause.cause_node?.node_id || '未確認' },
+            { label: '判断の版', text: cause.cause_node?.node_version || cause.cause_node?.dag_version || '未確認' },
+            { label: '再検証', text: learning?.replay?.verified === true
+                ? '変更版・元の失敗事例・別事例の検証済み'
+                : '変更版・元の失敗事例・別事例の検証を確認する' }
+        ],
+        evidence: Array.isArray(cause.evidence_refs) ? cause.evidence_refs : [],
+        meta: { status: '判断履歴から確認' }
+    }));
+}
+
 function persistOyasumiReport({ input, routineOutput, varDir, now }) {
     if (!routineOutput || typeof routineOutput !== 'object' || !varDir) return null;
     const requestedDate = input?.date || input?.finished_at;
@@ -246,7 +266,10 @@ function persistOyasumiReport({ input, routineOutput, varDir, now }) {
             routineOutput.personal_kg_registration_candidates || routineOutput.personal_kg_memories,
             '登録候補'
         ),
-        failures: item(routineOutput.unresolved_items, '未解決'),
+        failures: [
+            ...item(routineOutput.unresolved_items, '未解決'),
+            ...meetingJudgmentReportItems(routineOutput)
+        ],
         carryovers: [
             ...item(routineOutput.carryovers, '持ち越し'),
             ...item(routineOutput.tomorrow_focus, '明日の焦点')
@@ -276,7 +299,10 @@ function persistRetroWeekView({ input, routineOutput, varDir }) {
         outcomes: item(routineOutput?.outcomes, '確認済みOutcome'),
         decisionReplays: item(routineOutput?.decision_replays, 'Replay'),
         changedJudgments: item(routineOutput?.changed_judgments, '判断差分'),
-        mistakenAssumptions: item(routineOutput?.mistaken_assumptions, '要修正'),
+        mistakenAssumptions: [
+            ...item(routineOutput?.mistaken_assumptions, '要修正'),
+            ...meetingJudgmentReportItems(routineOutput)
+        ],
         repeatedPatterns: item(routineOutput?.repeated_patterns, '反復'),
         systemChanges: item(routineOutput?.system_changes, '候補・未適用'),
         personalKgReviews: item(routineOutput?.personal_kg_registration_reviews, '要レビュー'),

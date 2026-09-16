@@ -1,0 +1,203 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-meeting-judgment-learning",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "spec"
+  },
+  "lifecycle": "draft",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "実行時にDAGの版・ノード・根拠・結果・未解決を保存し、未実行を完了にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "ac_id": "AC-001"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/run-receipt/contract.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/meeting-judgment-learning-flow.test.js"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/meeting-judgment-learning-flow.test.js",
+            "must_cover": "retains recovered failed node evidence without treating that previous attempt as the current defect"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "案件と発言の文脈に基づいて固有名詞の候補を取得し、無関係なdecisionによる用語の欠落を防ぐ。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "ac_id": "AC-002"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/meeting-minutes/context-receipt-service.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/meeting-minutes-context-receipt-service.test.js"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/meeting-minutes-context-receipt-service.test.js",
+            "must_cover": "keeps mention-scoped glossary candidates available when decisions would otherwise fill the entity cap"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-003",
+      "type": "contract",
+      "statement": "生成・配信の成功と品質の確認状態を分け、根拠のない固有名詞補正を確定しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "ac_id": "AC-003"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/run-receipt/query-service.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/meeting-judgment-learning-flow.test.js"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/meeting-judgment-learning-flow.test.js",
+            "must_cover": "ingests evidence into knowledge and night reconciliation without declaring delivery to be quality confirmation"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-004",
+      "type": "contract",
+      "statement": "実行と訂正を既存Brainbaseの記録に結び、おやすみで照合・圧縮・検索確認する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "ac_id": "AC-004"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/routine-runtime/production-routine-ports.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/meeting-judgment-learning-flow.test.js"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/meeting-judgment-learning-flow.test.js",
+            "must_cover": "carries an unresolved meeting defect into the following night without external recollection"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-005",
+      "type": "contract",
+      "statement": "レトロの改善案を原因ノード・根拠へ結び、再検証の証拠なしに問題を閉じない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "ac_id": "AC-005"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/run-receipt/contract.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/run-receipt-contract.test.js"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/run-receipt-contract.test.js",
+            "must_cover": "replayのoriginal failureとseparate caseに同じ証拠だけを指定した場合は閉鎖しない"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-006",
+      "type": "contract",
+      "statement": "tenant/project境界を保持し、夜間ルーティンは外部再収集や本番ポリシーの自動変更を行わない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "ac_id": "AC-006"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/routes/tenant-runtime.js"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/routes/tenant-runtime-contract.test.js"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/routes/tenant-runtime-contract.test.js",
+            "must_cover": "権限注入を拒否する"
+          }
+        ]
+      }
+    }
+  ]
+}

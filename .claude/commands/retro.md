@@ -38,3 +38,5 @@
 - 認証失敗、未接続、部分取得、timeoutは`partial`または`unavailable`として対象と影響を残す。
 - `week_view`がない、または`source_coverage`に`confirmed`以外がある場合は成功扱いしない。
 - Routineの起動、レポート生成、Receipt配達、受信側readbackを別々に報告する。
+
+議事録の改善候補には、元のrun・判断ノード・DAG版・訂正と根拠を付ける。検索不足、判断定義の不足、未実行、生成誤りを区別し、断定できない原因は未確認とする。問題を閉じるには変更版と元の失敗例・別事例の再検証を必要とする。 手順と責任は [議事録の判断・訂正と記憶循環](../../docs/architecture/meeting-judgment-learning.md) を参照する。

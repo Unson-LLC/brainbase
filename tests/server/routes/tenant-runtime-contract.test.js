@@ -6,7 +6,7 @@ import { createTenantRuntimeRouter } from '../../../server/routes/tenant-runtime
 import { registerTenantRuntimeApiRoute } from '../../../server/bootstrap/register-api-routes.js';
 import { CredentialBroker } from '../../../server/services/multitenant/credential-broker.js';
 import { createTenantRuntimeServicesFromEnv } from '../../../server/services/multitenant/tenant-runtime-services.js';
-import { MeetingMinutesContextReceiptError } from '../../../server/services/meeting-minutes/context-receipt-service.js';
+import { MeetingMinutesContextReceiptError, MeetingMinutesContextReceiptService } from '../../../server/services/meeting-minutes/context-receipt-service.js';
 import { REQUIRED_CAPABILITIES } from '../../../server/services/multitenant/protocol-contract.js';
 
 const tenantContext = {
@@ -403,6 +403,85 @@ describe('tenant runtime API', () => {
         }));
         expect(credentialBroker.issueLease).not.toHaveBeenCalled();
         expect(credentialBroker.forwardProviderRequest).not.toHaveBeenCalled();
+    });
+
+    it('meeting contextの候補をidentity外で渡し、検索入力からの権限注入を拒否する', async () => {
+        const identity = { run_id: 'run-unson-mentions', project_code: 'unson', transcript_sha256: 'c'.repeat(64) };
+        const retrieval_context = {
+            mention_candidates: [{ surface_form: 'アイテル', entity_types: ['glossary_term'], source_ref: 'transcript:20', context: '会議の進捗共有' }]
+        };
+        const service = { create: vi.fn(async () => ({ receipt_id: 'receipt-mentions' })) };
+        const app = createApp({ meetingMinutesContextReceiptService: service });
+        const headers = {
+            authorization: 'Bearer service-test',
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+        };
+        const created = await request(app).post('/api/v1/runtime/meeting-minutes/context-receipts:create')
+            .set(headers).send({ tenant_context: tenantContext, identity, retrieval_context });
+        expect(created.status).toBe(201);
+        expect(service.create).toHaveBeenCalledWith({ ...identity, retrieval_context }, expect.objectContaining({
+            tenant_id: tenantContext.tenant.tenant_id, project_id: 'project-unson', role: 'member'
+        }));
+
+        for (const invalid of [
+            { ...retrieval_context, project_code: 'other-project' },
+            { mention_candidates: [{ surface_form: 'アイテル', role: 'ceo' }] },
+            { mention_candidates: 'アイテル' },
+            { mention_candidates: Array.from({ length: 13 }, () => 'アイテル') },
+            { mention_candidates: [{ surface_form: 'あ'.repeat(161) }] },
+            { mention_candidates: [{ surface_form: 'アイテル', entity_types: ['unknown'] }] },
+            { mention_candidates: [{ surface_form: 'アイテル', entity_types: [] }] },
+            null
+        ]) {
+            const rejected = await request(app).post('/api/v1/runtime/meeting-minutes/context-receipts:create')
+                .set(headers).send({ tenant_context: tenantContext, identity, retrieval_context: invalid });
+            expect(rejected.status).toBe(400);
+            expect(rejected.body.code).toBe('SCHEMA_INVALID');
+        }
+        expect(service.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('meeting contextの候補が実serviceのGraph検索とreceipt readbackまで届く', async () => {
+        const identity = { run_id: 'run-context-readback', project_code: 'unson', transcript_sha256: 'd'.repeat(64) };
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async (_access, options) => {
+                if (options.entityType === 'project') return [{ id: 'project-unson', name: 'Unson', entity_type: 'project' }];
+                if (options.entityType === 'glossary_term' && options.query === 'アイテル') {
+                    return [{ id: 'term-aitel', name: 'アイテル', entity_type: 'glossary_term', project_code: 'unson' }];
+                }
+                return [];
+            })
+        };
+        const receipts = new Map();
+        const service = new MeetingMinutesContextReceiptService({
+            infoSSOTService,
+            canonicalTaskService: { listTasks: async () => ({ items: [] }) },
+            repository: {
+                put: async (receipt) => { receipts.set(receipt.receipt_id, receipt); return receipt; },
+                get: async (id) => receipts.get(id)
+            }
+        });
+        const app = createApp({ meetingMinutesContextReceiptService: service });
+        const headers = {
+            authorization: 'Bearer service-test',
+            'Brainbase-Protocol-Version': '1.0',
+            'Brainbase-Deployment-Id': tenantContext.placement.deployment_id
+        };
+        const created = await request(app).post('/api/v1/runtime/meeting-minutes/context-receipts:create')
+            .set(headers).send({ tenant_context: tenantContext, identity,
+                retrieval_context: { mention_candidates: [{ surface_form: 'アイテル', entity_types: ['glossary_term'] }] } });
+        expect(created.status).toBe(201);
+        expect(created.body.identity).toEqual(identity);
+        expect(created.body.context.glossary).toContainEqual(expect.objectContaining({ id: 'term-aitel', name: 'アイテル' }));
+        expect(infoSSOTService.listGraphEntities).toHaveBeenCalledWith(expect.objectContaining({
+            projectCodes: ['unson'], organizationId: tenantContext.tenant.tenant_id, tenantId: tenantContext.tenant.tenant_id
+        }),
+            expect.objectContaining({ projectCode: 'unson', entityType: 'glossary_term', query: 'アイテル' }));
+        const fetched = await request(app).post('/api/v1/runtime/meeting-minutes/context-receipts:get')
+            .set(headers).send({ tenant_context: tenantContext, identity, receipt_id: created.body.receipt_id });
+        expect(fetched.status).toBe(200);
+        expect(fetched.body).toEqual(created.body);
     });
 
     it('meeting contextのproject越境とstale bindingをservice呼出前に拒否する', async () => {

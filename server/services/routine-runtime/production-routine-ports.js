@@ -16,6 +16,183 @@ function projectInput(input = {}) {
     return { project_id: projectId };
 }
 
+function meetingProjectScope(context = {}) {
+    // The routine itself always runs in Brainbase, while meeting receipts may
+    // belong to any project the authenticated actor can read. Prefer the
+    // access snapshot; actor/context are compatibility fallbacks for callers
+    // that have not migrated to the access shape yet.
+    const access = [context?.access, context?.actor, context]
+        .find((candidate) => Array.isArray(candidate?.projectCodes));
+    const projectCodes = Array.isArray(access?.projectCodes)
+        ? access.projectCodes
+        : [];
+    const authorized = [...new Set(projectCodes
+        .filter((projectCode) => typeof projectCode === 'string')
+        .map((projectCode) => projectCode.trim())
+        .filter(Boolean))];
+    return {
+        projectIds: authorized.length > 0 ? authorized : [ROUTINE_PROJECT_ID],
+        status: authorized.length > 0 ? 'confirmed' : 'unknown'
+    };
+}
+
+function meetingProjectIds(context = {}) {
+    return meetingProjectScope(context).projectIds;
+}
+
+function uniqueMeetingRefs(...collections) {
+    return [...new Map(collections.flatMap((collection) => Array.isArray(collection) ? collection : [])
+        .filter((ref) => ref && typeof ref.ref === 'string')
+        .map((ref) => [`${ref.kind || 'unknown'}:${ref.ref}`, ref])).values()];
+}
+
+function aggregateMeetingReplay(values) {
+    const replayValues = values.map((value) => value?.replay).filter((replay) => replay && typeof replay === 'object');
+    const missingRunIds = replayValues.flatMap((replay) => (
+        Array.isArray(replay.missing_run_ids) ? replay.missing_run_ids : []
+    ));
+    const requiredRunCount = replayValues.reduce((sum, replay) => (
+        sum + (Number.isSafeInteger(replay.required_run_count) ? replay.required_run_count : 0)
+    ), 0);
+    const checkedRunCount = replayValues.reduce((sum, replay) => (
+        sum + (Number.isSafeInteger(replay.checked_run_count) ? replay.checked_run_count : 0)
+    ), 0);
+    const evidenceRefs = uniqueMeetingRefs(...replayValues.map((replay) => replay.evidence_refs));
+    const changedVersionRefs = uniqueMeetingRefs(...replayValues.map((replay) => replay.changed_version_refs));
+    const originalFailureRefs = uniqueMeetingRefs(...replayValues.map((replay) => replay.original_failure_refs));
+    const separateCaseRefs = uniqueMeetingRefs(...replayValues.map((replay) => replay.separate_case_refs));
+    const verifiedRunIds = [...new Set(replayValues.flatMap((replay) => (
+        Array.isArray(replay.verified_run_ids) ? replay.verified_run_ids : []
+    )).filter((id) => typeof id === 'string' && id.trim()))];
+    const uniqueMissingRunIds = [...new Set(missingRunIds.filter((id) => typeof id === 'string' && id.trim()))];
+    const hasReplayEvidence = evidenceRefs.length > 0
+        || changedVersionRefs.length > 0
+        || originalFailureRefs.length > 0
+        || separateCaseRefs.length > 0;
+    const status = requiredRunCount === 0
+        ? 'unknown'
+        : uniqueMissingRunIds.length === 0
+            ? 'confirmed'
+            : hasReplayEvidence ? 'partial' : 'unknown';
+    return {
+        status,
+        verified: status === 'confirmed',
+        required: requiredRunCount > 0,
+        checked_run_count: checkedRunCount,
+        required_run_count: requiredRunCount,
+        verified_run_ids: verifiedRunIds,
+        evidence_refs: evidenceRefs,
+        changed_version_refs: changedVersionRefs,
+        original_failure_refs: originalFailureRefs,
+        separate_case_refs: separateCaseRefs,
+        ...(uniqueMissingRunIds.length > 0 ? { missing_run_ids: uniqueMissingRunIds } : {})
+    };
+}
+
+function aggregateMeetingJudgment(values, scope = {}) {
+    const executionCount = values.reduce((sum, value) => (
+        sum + (Number.isSafeInteger(value?.execution_count) ? value.execution_count : 0)
+    ), 0);
+    const tracedRunCount = values.reduce((sum, value) => (
+        sum + (Number.isSafeInteger(value?.traced_run_count) ? value.traced_run_count : 0)
+    ), 0);
+    const unknownRunCount = values.reduce((sum, value) => (
+        sum + (Number.isSafeInteger(value?.unknown_run_count) ? value.unknown_run_count : 0)
+    ), 0);
+    const correctionCount = values.reduce((sum, value) => (
+        sum + (Number.isSafeInteger(value?.correction_count) ? value.correction_count : 0)
+    ), 0);
+    const populatedValues = values.filter((value) => (Number(value?.execution_count) || 0) > 0);
+    const coverage = executionCount === 0
+        ? 'unknown'
+        : populatedValues.length > 0
+            && tracedRunCount === executionCount
+            && populatedValues.every((value) => value.coverage === 'confirmed')
+            ? 'confirmed'
+            : populatedValues.some((value) => value.coverage === 'partial' || value.coverage === 'confirmed')
+                || tracedRunCount > 0 ? 'partial' : 'unknown';
+    const executions = values.flatMap((value) => Array.isArray(value?.executions) ? value.executions : []);
+    const causeLinks = values.flatMap((value) => Array.isArray(value?.cause_links) ? value.cause_links : []);
+    const dedupedCauseLinks = [...new Map(causeLinks.map((link) => [
+        JSON.stringify([link?.cause_code, link?.cause_node, link?.source_run_id, link?.source_event_ids]),
+        link
+    ])).values()];
+    return {
+        coverage,
+        execution_count: executionCount,
+        traced_run_count: tracedRunCount,
+        unknown_run_count: unknownRunCount,
+        correction_count: correctionCount,
+        dag_versions: [...new Set(values.flatMap((value) => (
+            Array.isArray(value?.dag_versions) ? value.dag_versions : []
+        )).filter((version) => typeof version === 'string' && version.trim()))],
+        executions: executions.slice(0, 100),
+        cause_links: dedupedCauseLinks.slice(0, 100),
+        replay: aggregateMeetingReplay(values),
+        window: {
+            ...(scope.since ? { since: scope.since } : {}),
+            ...(scope.until ? { until: scope.until } : {})
+        }
+    };
+}
+
+async function readMeetingJudgmentAcrossProjects(service, method, scope, context, aggregate) {
+    const projectScope = meetingProjectScope(context);
+    const results = await Promise.all(projectScope.projectIds.map(async (projectId) => {
+        const result = await readSource('meeting_judgment_learning', () => service[method](
+            { ...scope, project_id: projectId },
+            context
+        ));
+        return { projectId, ...result };
+    }));
+    const values = results.map((result) => result.value).filter((value) => value && typeof value === 'object');
+    const readAnomalies = results.map((result) => result.anomaly ? {
+        ...result.anomaly,
+        project_id: result.projectId
+    } : null).filter(Boolean);
+    const anomalies = [
+        ...(projectScope.status !== 'confirmed' ? [{
+            code: 'meeting_judgment_project_scope_unconfirmed',
+            source: 'meeting_judgment_learning',
+            status: 'unknown',
+            project_ids: projectScope.projectIds,
+            reason: 'authenticated projectCodes are unavailable'
+        }] : []),
+        ...readAnomalies
+    ];
+    const aggregateValue = values.length > 0 ? aggregate(values, scope) : null;
+    const value = aggregateValue
+        ? applyMeetingReadState(aggregateValue, projectScope, readAnomalies)
+        : null;
+    return {
+        value,
+        anomalies
+    };
+}
+
+function applyMeetingReadState(value, projectScope, readAnomalies = []) {
+    if (!value || typeof value !== 'object') return value;
+    const incomplete = projectScope.status !== 'confirmed' || readAnomalies.length > 0;
+    const scopeStatus = readAnomalies.length > 0 ? 'partial' : projectScope.status;
+    const result = {
+        ...value,
+        project_scope: {
+            status: scopeStatus,
+            project_ids: projectScope.projectIds
+        }
+    };
+    if (!incomplete) return result;
+    if (result.coverage === 'confirmed') result.coverage = 'partial';
+    if (result.replay && typeof result.replay === 'object') {
+        result.replay = {
+            ...result.replay,
+            ...(result.replay.status === 'confirmed' ? { status: 'partial' } : {}),
+            verified: false
+        };
+    }
+    return result;
+}
+
 function unavailable(source, error) {
     return {
         code: error?.code === 'routine_dependency_unavailable'
@@ -167,7 +344,27 @@ export class ProductionRoutinePorts {
                 ? readSource('run_receipt_outbox', () => this.countRunReceiptOutbox(context))
                 : Promise.resolve({ value: null, anomaly: null })
         ]);
-        const anomalies = [knowledge.anomaly, personal.anomaly, receipts.anomaly, judgmentOutbox.anomaly, receiptOutbox.anomaly]
+        const meetingJudgment = typeof this.runReceiptQueryService?.summarizeMeetingJudgmentLearning === 'function'
+            ? await readMeetingJudgmentAcrossProjects(
+                this.runReceiptQueryService,
+                'summarizeMeetingJudgmentLearning',
+                {
+                    ...project,
+                    ...(input?.input?.since ? { since: input.input.since } : {}),
+                    ...(input?.input?.until ? { until: input.input.until } : {})
+                },
+                context,
+                aggregateMeetingJudgment
+            )
+            : { value: null, anomalies: [] };
+        const anomalies = [
+            knowledge.anomaly,
+            personal.anomaly,
+            receipts.anomaly,
+            ...(Array.isArray(meetingJudgment.anomalies) ? meetingJudgment.anomalies : []),
+            judgmentOutbox.anomaly,
+            receiptOutbox.anomaly
+        ]
             .filter(Boolean);
         const runReceiptOutboxCount = receiptOutbox.value ?? receipts.value?.outbox_count;
         const sum = (field) => knowledge.value?.[field] == null || personal.value?.[field] == null
@@ -182,6 +379,7 @@ export class ProductionRoutinePorts {
                 : runReceiptOutboxCount + judgmentOutbox.value.length,
             organization_episode_ids: Array.isArray(knowledge.value?.episode_ids) ? knowledge.value.episode_ids : [],
             personal_episode_ids: Array.isArray(personal.value?.episode_ids) ? personal.value.episode_ids : [],
+            ...(meetingJudgment.value ? { meeting_judgment_learning: meetingJudgment.value } : {}),
             ...(anomalies.length > 0 ? { anomalies } : {})
         };
     }
@@ -238,6 +436,26 @@ export class ProductionRoutinePorts {
                 count: Number(count),
                 summary: `${label}が${Number(count)}件あり、${impact}`
             }));
+        const meetingJudgmentLearning = reconciliation.meeting_judgment_learning;
+        const meetingReplayRequired = meetingJudgmentLearning?.replay?.required === true;
+        const meetingExecutionCount = Number(meetingJudgmentLearning?.execution_count);
+        const meetingTracedRunCount = Number(meetingJudgmentLearning?.traced_run_count);
+        const meetingTraceMissing = meetingExecutionCount > 0
+            && (!Number.isFinite(meetingTracedRunCount) || meetingTracedRunCount < meetingExecutionCount);
+        if (meetingJudgmentLearning
+            && meetingExecutionCount > 0
+            && (meetingTraceMissing
+                || (meetingReplayRequired && meetingJudgmentLearning.replay?.verified !== true)
+                || (Array.isArray(meetingJudgmentLearning.cause_links)
+                    && meetingJudgmentLearning.cause_links.length > 0))) {
+            sleepCauses.push({
+                code: 'meeting_judgment_learning_unconfirmed',
+                count: Math.max(1, (Number(meetingJudgmentLearning.unknown_run_count) || 0)
+                    + (Array.isArray(meetingJudgmentLearning.cause_links)
+                        ? meetingJudgmentLearning.cause_links.length : 0)),
+                summary: '議事録の判断履歴・訂正・再検証に未確認の範囲があります'
+            });
+        }
         if (compression.confirmed === false) {
             sleepCauses.push({
                 code: 'compression_unconfirmed',
@@ -297,6 +515,7 @@ export class ProductionRoutinePorts {
                 ? compression.consolidated_memories : [],
             associations: Array.isArray(compression.associations) ? compression.associations : [],
             feedback_targets: Array.isArray(compression.feedback_targets) ? compression.feedback_targets : [],
+            ...(meetingJudgmentLearning ? { meeting_judgment_learning: meetingJudgmentLearning } : {}),
             unresolved_items: unresolvedItems,
             tomorrow_focus: Array.isArray(input.tomorrow_focus) ? input.tomorrow_focus : [],
             closed: [
@@ -332,11 +551,27 @@ export class ProductionRoutinePorts {
                 episode_ids: reconciliation?.personal_episode_ids || []
             }, { access: context?.access })
             : { retrievable: undefined, reason: 'personal_retrievability_verifier_unavailable' };
+        const meetingReplay = typeof this.runReceiptQueryService?.verifyMeetingJudgmentReplay === 'function'
+            ? await readMeetingJudgmentAcrossProjects(
+                this.runReceiptQueryService,
+                'verifyMeetingJudgmentReplay',
+                {
+                    ...(reconciliation?.meeting_judgment_learning?.window || {})
+                },
+                context,
+                (values) => aggregateMeetingReplay(values)
+            )
+            : { value: null, anomalies: [] };
+        const meetingReplayValue = meetingReplay.value;
+        const retrievable = organization.retrievable === true && personal.retrievable === true;
         return {
             organization,
             personal,
-            retrievable: organization.retrievable === true && personal.retrievable === true,
-            missing_ids: [...(organization.missing_ids || []), ...(personal.missing_ids || [])]
+            retrievable,
+            missing_ids: [...(organization.missing_ids || []), ...(personal.missing_ids || [])],
+            ...(meetingReplayValue ? { meeting_judgment_replay: meetingReplayValue } : {}),
+            ...(Array.isArray(meetingReplay.anomalies) && meetingReplay.anomalies.length > 0
+                ? { anomalies: meetingReplay.anomalies } : {})
         };
     }
 
@@ -501,24 +736,49 @@ export class ProductionRoutinePorts {
                 'summarizeRoutineState'
             ).summarizeRoutineState(scope, context))
         ]);
-        const anomalies = [knowledge.anomaly, receipts.anomaly].filter(Boolean);
+        const meetingJudgment = typeof this.runReceiptQueryService?.summarizeMeetingJudgmentLearning === 'function'
+            ? await readMeetingJudgmentAcrossProjects(
+                this.runReceiptQueryService,
+                'summarizeMeetingJudgmentLearning',
+                scope,
+                context,
+                aggregateMeetingJudgment
+            )
+            : { value: null, anomalies: [] };
+        const anomalies = [
+            knowledge.anomaly,
+            receipts.anomaly,
+            ...(Array.isArray(meetingJudgment.anomalies) ? meetingJudgment.anomalies : [])
+        ].filter(Boolean);
         return {
             misregistration_rate: knowledge.value?.misregistration_rate ?? null,
             correction_rate: knowledge.value?.correction_rate ?? null,
             open_contradictions: knowledge.value?.open_contradictions ?? null,
             processing_time_ms: knowledge.value?.processing_time_ms ?? null,
             stoppage_count: receipts.value?.stoppage_count ?? null,
+            ...(meetingJudgment.value ? { judgment_learning: meetingJudgment.value } : {}),
+            ...(meetingJudgment.value && Array.isArray(meetingJudgment.value.cause_links)
+                ? { cause_links: meetingJudgment.value.cause_links } : {}),
             ...(anomalies.length > 0 ? { anomalies } : {})
         };
     }
 
     async createImprovementCandidates({ metrics, limit = 3 } = {}) {
-        const candidates = Object.entries(metrics || {})
-            .filter(([, value]) => typeof value === 'number' && value > 0)
-            .map(([metric, value]) => ({
+        const causeLinks = Array.isArray(metrics?.cause_links) ? metrics.cause_links : [];
+        const candidates = causeLinks
+            .filter((link) => link?.cause_node?.node_id
+                && Array.isArray(link.evidence_refs)
+                && link.evidence_refs.length > 0)
+            .map((link) => ({
                 kind: 'story_pr_candidate',
-                metric,
-                observed_value: value,
+                cause_code: link.cause_code,
+                cause_node: link.cause_node,
+                source_run_id: link.source_run_id,
+                ...(link.external_run_id ? { external_run_id: link.external_run_id } : {}),
+                source_event_ids: Array.isArray(link.source_event_ids) ? link.source_event_ids : [],
+                evidence_refs: link.evidence_refs,
+                summary: link.summary,
+                ...(link.observed_value !== undefined ? { observed_value: link.observed_value } : {}),
                 applies_changes: false
             }));
         return candidates.slice(0, limit);

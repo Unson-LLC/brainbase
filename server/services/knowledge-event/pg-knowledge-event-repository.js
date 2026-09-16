@@ -202,6 +202,58 @@ export class PgKnowledgeEventRepository {
         return rows[0]?.payload || null;
     }
 
+    async listFeedback({ projectCode = null, since = null, until = null, eventIds = null } = {}, options = {}) {
+        if (Array.isArray(eventIds) && eventIds.length === 0) return [];
+        if (!options.client && options.access && typeof this.pool.connect === 'function') {
+            return this.transaction(
+                ({ client }) => this.listFeedback(
+                    { projectCode, since, until, eventIds },
+                    { client }
+                ),
+                { access: options.access }
+            );
+        }
+
+        const params = [];
+        const clauses = [];
+        if (projectCode) clauses.push(`e.project_code = $${params.push(projectCode)}`);
+        if (since) clauses.push(`f.created_at >= $${params.push(since)}::timestamptz`);
+        if (until) clauses.push(`f.created_at < $${params.push(until)}::timestamptz`);
+        if (Array.isArray(eventIds)) clauses.push(`f.event_id = ANY($${params.push(eventIds)}::text[])`);
+        const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
+        const { rows } = await queryable(this, options).query(
+            `SELECT f.feedback_id, f.event_id, f.action, f.payload, f.created_at,
+                    e.source, e.source_pointer, e.parent_episode_id,
+                    e.applicability_scope, e.project_code
+             FROM knowledge_feedback f
+             JOIN knowledge_event_current e ON e.event_id = f.event_id
+             ${where}
+             ORDER BY f.created_at, f.feedback_id`,
+            params
+        );
+        return rows.map((row) => {
+            const payload = row.payload && typeof row.payload === 'object' ? row.payload : {};
+            const createdAt = row.created_at instanceof Date
+                ? row.created_at.toISOString()
+                : row.created_at || null;
+            return {
+                ...payload,
+                feedback_id: row.feedback_id || payload.feedback_id,
+                event_id: row.event_id || payload.event_id,
+                action: row.action || payload.action,
+                created_at: createdAt,
+                event: {
+                    event_id: row.event_id,
+                    project_code: row.project_code || row.applicability_scope?.project_code || null,
+                    source: row.source || {},
+                    source_pointer: row.source_pointer || {},
+                    parent_episode_id: row.parent_episode_id || null,
+                    applicability_scope: row.applicability_scope || {}
+                }
+            };
+        });
+    }
+
     async lockDecisionSubject(subjectId, options = {}) {
         await queryable(this, options).query(
             'SELECT pg_advisory_xact_lock(hashtext($1))',

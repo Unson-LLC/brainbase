@@ -34,7 +34,8 @@ export function createAutomationRuntimeServices({
     meetingKnowledgeEventBridge = null,
     meetingTaskOwnerResolver = null,
     projectAccessPolicy = null,
-    companyAuthorityHumanApprovalService = null
+    companyAuthorityHumanApprovalService = null,
+    knowledgeEventRepository = null
 }) {
     const accessPolicy = projectAccessPolicy || new ProjectAccessPolicy({ configParser });
     const controlRuntime = new AutomationControlRuntime({
@@ -48,7 +49,8 @@ export function createAutomationRuntimeServices({
         repository,
         prepareProjectAccess: (actor) => accessPolicy.prepare(actor),
         assertProjectAccess: (projectId, actor) => accessPolicy.assertProjectAccess(projectId, actor),
-        canAccessProject: (projectId, actor) => accessPolicy.canAccessProject(projectId, actor)
+        canAccessProject: (projectId, actor) => accessPolicy.canAccessProject(projectId, actor),
+        knowledgeEventRepository
     });
     const meetingAutomationService = new MeetingAutomationService({
         repository,
