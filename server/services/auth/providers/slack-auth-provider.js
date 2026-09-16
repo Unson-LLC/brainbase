@@ -15,6 +15,14 @@ const DEFAULT_TOKEN_URLS = Object.freeze({
 });
 const DEFAULT_USERINFO_URL = 'https://slack.com/api/openid.connect.userInfo';
 const DEFAULT_CALLBACK_PATH = '/api/auth/slack/callback';
+const LEGACY_LOGIN_SCOPE = 'identity.basic';
+
+function normalizeScopes(value) {
+    return [...new Set(String(value || '')
+        .split(/[\s,]+/)
+        .map((scope) => scope.trim())
+        .filter(Boolean))];
+}
 
 function normalizeMode(value) {
     const mode = String(value || 'oidc').trim().toLowerCase();
@@ -130,7 +138,49 @@ export function createSlackAuthProvider(options = {}) {
         return fetchImpl;
     }
 
+    function requireLoginScopeConfiguration() {
+        if (mode !== 'oauth') return;
+
+        const configuredScopes = normalizeScopes(scopes);
+        if (configuredScopes.length > 0) {
+            throw new SlackAuthProviderError(
+                'Slack login OAuth must not request bot scopes',
+                { code: 'login_bot_scope_forbidden' }
+            );
+        }
+
+        const configuredUserScopes = normalizeScopes(userScopes);
+        if (configuredUserScopes.length === 0) {
+            throw new SlackAuthProviderError(
+                'Slack login OAuth identity scope is not configured',
+                { code: 'login_scope_missing' }
+            );
+        }
+        if (configuredUserScopes.length !== 1 || configuredUserScopes[0] !== LEGACY_LOGIN_SCOPE) {
+            throw new SlackAuthProviderError(
+                `Slack login OAuth must use only ${LEGACY_LOGIN_SCOPE}`,
+                { code: 'login_scope_not_identity_only' }
+            );
+        }
+    }
+
+    function requireGrantedLoginScopes(tokenPayload) {
+        if (mode !== 'oauth') return;
+
+        const grantedBotScopes = normalizeScopes(tokenPayload?.scope);
+        const grantedUserScopes = normalizeScopes(tokenPayload?.authed_user?.scope);
+        const identityOnly = grantedUserScopes.length === 1
+            && grantedUserScopes[0] === LEGACY_LOGIN_SCOPE;
+        if (grantedBotScopes.length > 0 || !identityOnly) {
+            throw new SlackAuthProviderError(
+                `Slack login grant must use only ${LEGACY_LOGIN_SCOPE}`,
+                { code: 'login_granted_scope_not_identity_only' }
+            );
+        }
+    }
+
     function requireClientConfiguration({ requireSecret = false, requestOrContext } = {}) {
+        requireLoginScopeConfiguration();
         if (!clientId) {
             throw new SlackAuthProviderError('Slack client id is not configured', {
                 code: 'client_id_missing'
@@ -210,6 +260,20 @@ export function createSlackAuthProvider(options = {}) {
         scopes,
         userScopes,
 
+        assertReady() {
+            requireLoginScopeConfiguration();
+            if (!clientId) {
+                throw new SlackAuthProviderError('Slack client id is not configured', {
+                    code: 'client_id_missing'
+                });
+            }
+            if (!clientSecret) {
+                throw new SlackAuthProviderError('Slack client secret is not configured', {
+                    code: 'client_secret_missing'
+                });
+            }
+        },
+
         buildAuthorizationUrl(state, requestOrContext) {
             if (typeof state !== 'string' || !state.trim()) {
                 throw new SlackAuthProviderError('Slack OAuth state is required', {
@@ -268,6 +332,7 @@ export function createSlackAuthProvider(options = {}) {
                         { code: 'provider_exchange_failed', status: response.status }
                     );
                 }
+                requireGrantedLoginScopes(data);
                 return data;
             } catch (error) {
                 if (error instanceof SlackAuthProviderError) throw error;
