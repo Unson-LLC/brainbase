@@ -1,6 +1,13 @@
 // @ts-check
 import { logger } from '../utils/logger.js';
-import { clearAuthCookies, getAuthTokensFromRequest, setAuthCookies } from '../lib/auth-cookies.js';
+import {
+    clearAuthCookies,
+    clearOAuthStateCookie,
+    getAuthTokensFromRequest,
+    setAuthCookies,
+    setOAuthStateCookie,
+    verifyOAuthStateCookie
+} from '../lib/auth-cookies.js';
 
 /** @typedef {any} Request */
 /** @typedef {any} Response */
@@ -19,6 +26,7 @@ const ROLE_RANK = { member: 1, gm: 2, ceo: 3 };
 const DEFAULT_ALLOWED_ORIGINS = new Set([
     'https://bb.unson.jp'
 ]);
+const RELATIVE_URL_VALIDATION_ORIGIN = 'https://brainbase.invalid';
 
 /** @param {string | null | undefined} value */
 function normalizeOrigin(value) {
@@ -36,7 +44,7 @@ function isLocalOrigin(origin) {
     if (!origin) return false;
     try {
         const url = new URL(origin);
-        return ['localhost', '127.0.0.1'].includes(url.hostname);
+        return ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
     } catch {
         return false;
     }
@@ -92,22 +100,57 @@ function wantsHtmlResponse(req) {
 }
 
 /** @param {string | null | undefined} value */
-function resolveRedirectPath(value) {
-    if (typeof value !== 'string') return '/';
-    // 相対パスを許可
-    if (value.startsWith('/') && !value.startsWith('//')) return value;
+function isSameOriginRelativePath(value) {
+    if (typeof value !== 'string' || value.length === 0) return false;
+    if (!value.startsWith('/')) return false;
+    try {
+        const url = new URL(value, RELATIVE_URL_VALIDATION_ORIGIN);
+        return url.origin === RELATIVE_URL_VALIDATION_ORIGIN;
+    } catch (e) {
+        return false;
+    }
+}
+
+/** @param {string | null | undefined} value */
+function isAllowedRedirect(value) {
+    if (typeof value !== 'string' || value.length === 0) return false;
+    // ブラウザでsame-originに解決される相対パスだけを許可する。
+    // `/\\evil.example` は見た目が相対でも外部originへ解決されるため拒否する。
+    if (isSameOriginRelativePath(value)) return true;
     // 許可済みoriginへの絶対URLを許可（管理画面のsame-window OAuth復帰用）
     try {
         const url = new URL(value);
         const origin = normalizeOrigin(url.origin);
         const allowed = getAllowedOrigins();
         if (origin && (isLocalOrigin(origin) || allowed.has(origin))) {
-            return value;
+            return true;
         }
     } catch (e) {
         // Invalid URL
     }
-    return '/';
+    return false;
+}
+
+/** @param {string | null | undefined} value */
+function isAllowedAuthOrigin(value) {
+    return Boolean(resolvePostMessageOrigin(value) || isSameOriginRelativePath(value));
+}
+
+/**
+ * @param {string | null | undefined} redirect
+ * @param {string | null | undefined} origin
+ */
+function isAllowedOAuthRedirect(redirect, origin) {
+    if (!isAllowedRedirect(redirect)) return false;
+    if (isSameOriginRelativePath(redirect)) return true;
+    const redirectOrigin = resolvePostMessageOrigin(redirect);
+    const requestedOrigin = resolvePostMessageOrigin(origin);
+    return Boolean(redirectOrigin && requestedOrigin && redirectOrigin === requestedOrigin);
+}
+
+/** @param {string | null | undefined} value */
+function resolveRedirectPath(value) {
+    return isAllowedRedirect(value) ? /** @type {string} */ (value) : '/';
 }
 
 /** @param {string} value */
@@ -209,8 +252,16 @@ export class AuthController {
             const origin = typeof req.query.origin === 'string' ? req.query.origin : '';
             const codeChallenge = typeof req.query.code_challenge === 'string' ? req.query.code_challenge : '';
             const redirect = typeof req.query.redirect === 'string' ? req.query.redirect : '';
+            // Device OAuthは同一originの相対復帰先をoriginとして渡す既存契約がある。
+            if (origin && !isAllowedAuthOrigin(origin)) {
+                return res.status(400).json({ error: 'origin is not allowed' });
+            }
+            if (redirect && !isAllowedOAuthRedirect(redirect, origin)) {
+                return res.status(400).json({ error: 'redirect is not allowed' });
+            }
             const state = this.authService.createState({ origin, codeChallenge, redirect });
             const url = this.authService.buildAuthorizeUrl(state, req);
+            setOAuthStateCookie(res, req, state);
             if (String(req.query.json || '').toLowerCase() === 'true') {
                 return res.json({ url, state });
             }
@@ -230,9 +281,19 @@ export class AuthController {
             if (!code || !state) {
                 return res.status(400).json({ error: 'code and state are required' });
             }
-            const stateResult = this.authService.consumeState(String(state));
+            const stateString = String(state);
+            const browserStateIsValid = verifyOAuthStateCookie(req, stateString);
+            clearOAuthStateCookie(res);
+            if (!browserStateIsValid) {
+                return res.status(400).json({ error: 'Invalid state' });
+            }
+            const stateResult = this.authService.consumeState(stateString);
             if (!stateResult?.ok) {
                 return res.status(400).json({ error: 'Invalid state' });
+            }
+            if ((stateResult.origin && !isAllowedAuthOrigin(stateResult.origin))
+                || (stateResult.redirect && !isAllowedOAuthRedirect(stateResult.redirect, stateResult.origin))) {
+                return res.status(400).json({ error: 'Invalid OAuth return target' });
             }
 
             // Store code_challenge for PKCE verification (if provided)
@@ -331,7 +392,7 @@ export class AuthController {
             });
 
             if (wantsHtmlResponse(req)) {
-                const redirectTo = resolveRedirectPath(stateResult.redirect || req.query.redirect || stateResult.origin);
+                const redirectTo = resolveRedirectPath(stateResult.redirect || stateResult.origin);
                 const postMessageOrigin = resolvePostMessageOrigin(stateResult.origin);
                 return res.status(200).type('html').send(renderAuthCallbackHtml(
                     responsePayload,
