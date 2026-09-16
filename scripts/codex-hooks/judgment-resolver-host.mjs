@@ -1890,6 +1890,39 @@ function nonEmptyString(value) {
     return typeof value === 'string' && value.trim().length > 0;
 }
 
+const SHAREABLE_PERSON_PROFILE_FIELDS = Object.freeze(['name', 'affiliation', 'role']);
+const SHAREABLE_PERSON_PROFILE_DISCLOSURE_FIELDS = Object.freeze([
+    'digest', 'workspace_id', 'channel_id', 'thread_ts', 'requester_person_id', 'target_person_id', 'policy_revision'
+]);
+
+function exactObjectKeys(value, expectedKeys) {
+    return record(value)
+        && Object.keys(value).length === expectedKeys.length
+        && expectedKeys.every((key) => Object.hasOwn(value, key));
+}
+
+function shareablePersonProfileContract(item, input) {
+    const expected = record(input);
+    const fields = record(item.fields);
+    const disclosure = record(item.disclosure);
+    if (item.status !== 'ok'
+        || !/^U[A-Z0-9]+$/u.test(String(expected?.target_slack_user_id ?? ''))
+        || item.target_slack_user_id !== expected.target_slack_user_id
+        || !exactObjectKeys(item, ['status', 'target_slack_user_id', 'fields', 'disclosure'])
+        || !fields
+        || Object.keys(fields).length === 0
+        || Object.keys(fields).some((key) => !SHAREABLE_PERSON_PROFILE_FIELDS.includes(key) || !nonEmptyString(fields[key]))
+        || !exactObjectKeys(disclosure, SHAREABLE_PERSON_PROFILE_DISCLOSURE_FIELDS)
+        || !/^[a-f0-9]{64}$/u.test(String(disclosure?.digest ?? ''))
+        || !nonEmptyString(disclosure?.workspace_id)
+        || !nonEmptyString(disclosure?.channel_id)
+        || !(disclosure?.thread_ts === null || nonEmptyString(disclosure?.thread_ts))
+        || !nonEmptyString(disclosure?.requester_person_id)
+        || !nonEmptyString(disclosure?.target_person_id)
+        || !nonEmptyString(disclosure?.policy_revision)) return false;
+    return item;
+}
+
 function objectArray(value) {
     return Array.isArray(value) && value.every((item) => Boolean(record(item)));
 }
@@ -1953,6 +1986,9 @@ function publishedToolSemanticData(toolName, response, input) {
         return typeof text === 'string' && (text === '接続中のピアはありません。' || /^# メッシュピア一覧 \(\d+\)\n/u.test(text)) ? { text } : null;
     }
     return nestedRecords(response).find((item) => {
+        if (name === 'brainbase_get_shareable_person_profile') {
+            return shareablePersonProfileContract(item, input);
+        }
         if (name === 'brainbase_get_meeting_minutes_context') {
             const expected = record(input);
             const receipt = record(item.receipt);

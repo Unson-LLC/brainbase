@@ -2425,6 +2425,44 @@ describe('Codex Judgment Resolver Host', () => {
         expect(recordTool('unknown_future_tool', { id: 'x', status: 'ok' }, 'unknown')).toMatchObject({ success: false, event_kind: 'call' });
     });
 
+    it('shareable person profile strategyは直接返る固定response契約を意味的成功として採用する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'session-shareable-profile-contract', turn_id: 'turn-shareable-profile-contract', prompt: '人物プロフィールを照会して', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
+        const input = { target_slack_user_id: 'UTARGET' };
+        const disclosure = {
+            digest: 'd'.repeat(64), workspace_id: 'TWORKSPACE', channel_id: 'CCHANNEL', thread_ts: null,
+            requester_person_id: 'requester', target_person_id: 'target', policy_revision: '7'
+        };
+        const recordProfile = (response, id = 'profile') => recordBrainbaseToolUse({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_get_shareable_person_profile', tool_use_id: id,
+            tool_input: input, tool_response: withRetrievalAudit('brainbase_get_shareable_person_profile', response)
+        }, { env });
+
+        expect(recordProfile({
+            status: 'ok', target_slack_user_id: input.target_slack_user_id,
+            fields: { name: '大田原雅之' }, disclosure
+        })).toMatchObject({ success: true, event_kind: 'retrieve' });
+        expect(recordProfile({
+            status: 'ok', target_slack_user_id: input.target_slack_user_id,
+            fields: { name: '大田原雅之', email: 'private@example.com' }, disclosure
+        }, 'profile-extra-field')).toMatchObject({ success: false, event_kind: 'retrieve' });
+        expect(recordProfile({
+            status: 'ok', target_slack_user_id: input.target_slack_user_id,
+            fields: {}, disclosure
+        }, 'profile-empty-fields')).toMatchObject({ success: false, event_kind: 'retrieve' });
+        expect(recordProfile({
+            status: 'ok', target_slack_user_id: 'UOTHER',
+            fields: { name: '大田原雅之' }, disclosure
+        }, 'profile-wrong-target')).toMatchObject({ success: false, event_kind: 'retrieve' });
+        expect(recordProfile({
+            status: 'ok', target_slack_user_id: input.target_slack_user_id,
+            fields: { name: '大田原雅之' }, disclosure: { ...disclosure, digest: 'invalid' }
+        }, 'profile-invalid-digest')).toMatchObject({ success: false, event_kind: 'retrieve' });
+    });
+
     it('ClaudeのMCP response形状で公開ツール群の意味的成功を検証する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
