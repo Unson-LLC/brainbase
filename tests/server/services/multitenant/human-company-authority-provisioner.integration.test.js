@@ -123,6 +123,12 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
              VALUES ('bootstrap', 'Bootstrap', 'T_BOOTSTRAP', ARRAY['bootstrap'])`
         );
         await pool.query(await readFile(resolve(process.cwd(), 'server/sql/info-ssot-schema.sql'), 'utf8'));
+        await pool.query(
+            `INSERT INTO projects (id, code, name, organization_id) VALUES
+                ('project:techknight', 'techknight', 'TechKnight', 'techknight'),
+                ('project:techknight-secondary', 'techknight-secondary', 'TechKnight Secondary', 'techknight'),
+                ('project:bootstrap', 'bootstrap', 'Bootstrap', 'bootstrap')`
+        );
         await pool.query("ALTER TABLE people ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'");
         await pool.query(await readFile(resolve(process.cwd(), 'server/sql/multitenant-platform-schema.sql'), 'utf8'));
         await pool.query('ALTER TABLE brainbase_tenants ADD COLUMN tenant_key TEXT');
@@ -164,7 +170,7 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
         await pool.query("CREATE ROLE brainbase_human_provisioner_test_app LOGIN PASSWORD 'test-only-password'");
         await pool.query('GRANT USAGE ON SCHEMA public TO brainbase_human_provisioner_test_app');
         await pool.query(`GRANT SELECT, INSERT, UPDATE, DELETE ON
-            organizations, people, auth_grants, brainbase_tenants, tenant_projects,
+            organizations, projects, people, auth_grants, brainbase_tenants, tenant_projects,
             workspace_connections, tenant_organizations, tenant_memberships,
             company_external_identities, company_authority_bindings, slack_installation_intents
             TO brainbase_human_provisioner_test_app`);
@@ -447,7 +453,7 @@ describe.sequential('human company authority PostgreSQL boundary', () => {
                 id, person_id, person_name, slack_user_id, slack_workspace_id,
                 organization_id, role, project_codes, clearance, active
              ) VALUES ('grant_conflict', 'per_conflict', 'Conflict', 'U_UMEDA',
-                       'T_TECHKNIGHT', 'techknight', 'member', ARRAY['other'], ARRAY['public'], true)`
+                       'T_TECHKNIGHT', 'techknight', 'member', ARRAY['techknight-secondary'], ARRAY['public'], true)`
         );
         const client = await connectAsProvisioner();
         try {
