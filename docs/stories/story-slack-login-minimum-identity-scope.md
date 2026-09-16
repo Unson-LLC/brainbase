@@ -14,17 +14,18 @@ Brainbaseの管理画面へ入る利用者として、Slackログインでは本
 
 ## Scope
 
-- 現在のSlack Appが対応しているlegacy OAuthログインを維持する。
-- ログイン用`user_scope`を`identity.basic`だけに固定する。
-- `scope`にbot権限を設定しない。
+- 管理画面ログインの既定経路をSlack OpenID Connectへ切り替える。
+- ログイン用`scope`を`openid profile email`だけに固定し、legacy `user_scope`は使わない。
+- legacy OAuthの既存許可は加算式で縮小できないため、ログインを独立したOIDC経路へ分離する。
+- legacy OAuth fallbackは、`identity.basic`以外の実効権限を検出したら引き続きfail closedとする。
 - Slack通知、ファイル連携、workspace installation OAuthは別の資格情報・経路として変更しない。
 
 ## Acceptance Criteria
 
-- [x] OAuthログインURLの`user_scope`は`identity.basic`だけである。
-- [x] `chat:write`、`files:write`、空の`user_scope`をログイン設定として受け付けない。
-- [x] token exchangeの実効権限も`identity.basic`だけとし、bot権限・欠落・追加権限を受け付けない。
-- [x] セットアップと環境変数例が同じ最小権限を生成する。
+- [x] OIDCログインURLの`scope`は`openid profile email`だけで、`user_scope`を含まない。
+- [x] `chat:write`、`files:write`、欠落・追加scopeをOIDCログイン設定として受け付けない。
+- [x] legacy OAuth fallbackではtoken exchangeの実効権限も`identity.basic`だけとし、bot権限・欠落・追加権限を受け付けない。
+- [x] セットアップと環境変数例が同じOIDC最小権限を生成する。
 - [x] Slack user IDとworkspace IDによる既存の`auth_grants`照合は変わらない。
 
 ## Verification
