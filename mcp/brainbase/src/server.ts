@@ -60,6 +60,10 @@ import {
   meetingMinutesContextTools,
   handleMeetingMinutesContextToolCall,
 } from './tools/meeting-minutes-context-tools.js';
+import {
+  shareablePersonProfileTools,
+  handleShareablePersonProfileToolCall,
+} from './tools/shareable-person-profile-tools.js';
 import { onboardingTools, handleOnboardingToolCall } from './tools/onboarding-tools.js';
 import { graphMaintenanceTools, handleGraphMaintenanceToolCall } from './tools/graph-maintenance-tools.js';
 import { handleGraphRetrievalToolCall, retrieveGraphEntity, type GraphRetrievalDependencies } from './tools/graph-retrieval.js';
@@ -1274,6 +1278,7 @@ export const publishedTools = annotateToolCapabilities([
   ...knowledgeEvidenceTools,
   ...knowledgeResolutionTools,
   ...meetingMinutesContextTools,
+  ...shareablePersonProfileTools,
   ...taskTools,
   ...tenantBoundaryTools,
   ...meshTools,
@@ -1495,6 +1500,11 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
           getToken: () => globalTokenManager.getToken(),
+        }),
+        (toolName, extensionArgs) => handleShareablePersonProfileToolCall(toolName, extensionArgs, {
+          apiUrl: process.env.BRAINBASE_TENANT_RUNTIME_API_URL?.trim() || resolveBrainbaseApiUrl(),
+          serviceToken: process.env.BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN,
+          companyAuthorityResponse: requestContext.companyAuthorityResponse,
         }),
         (toolName, extensionArgs) => handleTaskToolCall(toolName, extensionArgs, {
           apiUrl: taskApiUrl,
