@@ -34,7 +34,8 @@ DECLARE
     'app_graph_edge_source_project_matches(text,text,text,jsonb)',
     'prevent_events_mutation()',
     'prevent_graph_maintenance_human_gate_receipt_mutation()',
-    'prevent_graph_maintenance_receipt_mutation()'
+    'prevent_graph_maintenance_receipt_mutation()',
+    'enforce_auth_grant_project_scope()'
   ];
   relation_oid oid;
   function_oid oid;
@@ -99,6 +100,36 @@ BEGIN
   END LOOP;
 END
 $info_ssot_readback$;
+
+DO $auth_grant_project_scope_readback$
+BEGIN
+  IF to_regclass(format('%I.auth_grants', current_schema())) IS NULL THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: missing auth_grants table';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger
+    WHERE tgrelid = to_regclass(format('%I.auth_grants', current_schema()))
+      AND tgname = 'auth_grants_project_scope_guard'
+      AND NOT tgisinternal
+      AND tgenabled = 'O'
+      AND tgfoid = to_regprocedure(format('%I.enforce_auth_grant_project_scope()', current_schema()))
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: auth grant project scope guard binding mismatch';
+  END IF;
+  IF EXISTS (
+    SELECT 1
+      FROM auth_grants ag
+      CROSS JOIN LATERAL unnest(ag.project_codes) requested(project_code)
+      LEFT JOIN projects p
+        ON p.code = requested.project_code
+       AND p.organization_id = ag.organization_id
+     WHERE ag.active = true
+       AND p.code IS NULL
+  ) THEN
+    RAISE EXCEPTION 'INFO_SSOT_READBACK_FAILED: active auth grant contains an unknown or cross-organization project code';
+  END IF;
+END
+$auth_grant_project_scope_readback$;
 
 DO $project_provisioning_readback$
 DECLARE

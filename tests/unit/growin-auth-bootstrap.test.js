@@ -19,6 +19,13 @@ describe('Growin auth bootstrap', () => {
         expect(authGrantBackfill).toContain("WHERE attrelid = to_regclass('organizations')");
         expect(authGrantBackfill).toContain('ag.slack_workspace_id = o.id');
         expect(authGrantBackfill).toContain("IF to_regclass('organizations') IS NOT NULL AND NOT EXISTS");
+        expect(authGrantBackfill).toContain('CREATE OR REPLACE FUNCTION enforce_auth_grant_project_scope()');
+        expect(authGrantBackfill).toContain('p.organization_id = NEW.organization_id');
+        expect(authGrantBackfill).toContain('CREATE TRIGGER auth_grants_project_scope_guard');
+        const readback = fs.readFileSync(path.resolve('server/sql/info-ssot-readback.sql'), 'utf8');
+        expect(readback).toContain("'enforce_auth_grant_project_scope()'");
+        expect(readback).toContain("tgname = 'auth_grants_project_scope_guard'");
+        expect(readback).toContain('active auth grant contains an unknown or cross-organization project code');
     });
 
     it('requires the Graph-bound project catalog with the two Growin runtime scopes', () => {

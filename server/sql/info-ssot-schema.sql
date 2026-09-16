@@ -182,6 +182,33 @@ END $$;
 
 ALTER TABLE auth_grants ALTER COLUMN organization_id SET NOT NULL;
 
+CREATE OR REPLACE FUNCTION enforce_auth_grant_project_scope()
+RETURNS trigger AS $$
+DECLARE
+  invalid_codes text[];
+BEGIN
+  SELECT array_agg(requested.project_code ORDER BY requested.ord)
+    INTO invalid_codes
+    FROM unnest(NEW.project_codes) WITH ORDINALITY requested(project_code, ord)
+    LEFT JOIN projects p
+      ON p.code = requested.project_code
+     AND p.organization_id = NEW.organization_id
+   WHERE p.code IS NULL;
+
+  IF COALESCE(array_length(invalid_codes, 1), 0) > 0 THEN
+    RAISE EXCEPTION 'auth grant project scope violation for organization %: %',
+      NEW.organization_id,
+      array_to_string(invalid_codes, ',');
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS auth_grants_project_scope_guard ON auth_grants;
+CREATE TRIGGER auth_grants_project_scope_guard
+BEFORE INSERT OR UPDATE OF organization_id, project_codes ON auth_grants
+FOR EACH ROW EXECUTE FUNCTION enforce_auth_grant_project_scope();
+
 DO $$
 BEGIN
   IF to_regclass('organizations') IS NOT NULL AND NOT EXISTS (
