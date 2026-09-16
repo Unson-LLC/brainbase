@@ -57,3 +57,7 @@ Graphifyは対象worktreeのグラフがなく影響範囲は未確認。ファ�
 - trusted provider forwarder は `brainbase_knowledge_resolve` にも署名付き Company Authority を保持し、専用ヘッダーとして MCP に転送する。
 - profile の署名必須、他ツールの署名ヘッダー拒否、canonical project のサーバー注入を維持する。
 - 下流の fresh authority 検証を通過した参照先照会のみ成功にする。
+
+### 共有プロフィールの回答根拠
+
+最新のGraph参照先解決後に取得した共有プロフィールは、開示された項目だけを部分的な人物根拠としてHostに記録する。reference_idsはdisclosure.target_person_idを使い、モデルはbrainbase_knowledge_evidence_recordで質問への十分性を別途判定する。未共有の所属・役割を推測せず、不足を明示する。失敗・未検証の応答は根拠にしない。

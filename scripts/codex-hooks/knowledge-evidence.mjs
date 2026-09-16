@@ -38,7 +38,7 @@ export function evaluateKnowledgeEvidence(events, requiredKnowledge) {
         return { required: false, ready: true, status: 'not_evaluated' };
     }
     const later = events.slice(routeIndex + 1);
-    const attempts = later.filter((event) => ['mcp__brainbase__search', 'mcp__brainbase__get_entity'].includes(event.tool_name));
+    const attempts = later.filter((event) => ['mcp__brainbase__search', 'mcp__brainbase__get_entity', 'mcp__brainbase__brainbase_get_shareable_person_profile'].includes(event.tool_name));
     const assessmentIndex = later.findLastIndex((event) => event.event_kind === 'evidence' && event.success);
     const assessment = normalizeEvidenceAssessment(later[assessmentIndex]?.safe_metadata?.evidence_assessment);
     const incomplete = { required: true, ready: false, status: 'unverified' };

@@ -2,7 +2,7 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
 export const knowledgeEvidenceTools: Tool[] = [{
   name: 'brainbase_knowledge_evidence_record',
-  description: 'After Graph search/get_entity, assess whether the retrieved evidence supports this question. Record sufficient or insufficient, actual retrieved reference_ids, and a question-specific reason. The Host binds this assessment to this turn\'s real retrievals; this tool alone proves neither retrieval nor truth. Missing evidence or a failed retrieval must be insufficient, never confirmed absence. Call before the final audit read and state record.',
+  description: 'After the latest knowledge route and Graph search/get_entity or brainbase_get_shareable_person_profile (use disclosure.target_person_id and only the disclosed fields), assess whether the retrieved evidence supports this question. Record sufficient or insufficient, actual retrieved reference_ids, and a question-specific reason. The Host binds this assessment to this turn\'s real retrievals; this tool alone proves neither retrieval nor truth. Missing evidence or a failed retrieval must be insufficient, never confirmed absence. Call before the final audit read and state record.',
   inputSchema: { type: 'object', additionalProperties: false,
     properties: { status: { type: 'string', enum: ['sufficient', 'insufficient'] },
       reference_ids: { type: 'array', maxItems: 100, uniqueItems: true, items: { type: 'string', minLength: 1 } },
