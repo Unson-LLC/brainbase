@@ -27,11 +27,12 @@
 1. Infisicalのprod環境にある既存の正本 `BRAINBASE_TASK_API_TOKEN` を取得する。専用トークンへ切り替える場合も、Infisicalへの保存とreadbackが成功するまで配備に使わない。
 2. トークンでBrainbase正本APIの組織、権限、期限と `/api/companion/tasks` の取得を確認する。
 3. 値を表示せず、サーバーの `/etc/brainbase-organization/brainbase-service-token` へ、コンテナの実行UIDだけが読める権限で配置し、転送元との一致を確認する。
-4. `/etc/brainbase-organization/runtime.env` はexampleの5項目と固定した `RELEASE_SHA` だけを持つ。トークン値は入れない。
+4. `/etc/brainbase-organization/runtime.env` はexampleの7項目と固定した `RELEASE_SHA` だけを持つ。トークン値は入れない。
 
 ## 認証の境界
 
 - 顧客固有ドメインは、その顧客のログイン入口とOAuth結果の返却先として使う。メールドメイン制限には使わない。
+- `ORGANIZATION_DIRECTORY_JSON` には、DNS、HTTPS、Slack OAuthの返却先、正本APIの許可origin、組織版Webの配備がすべて確認済みの顧客固有ドメインだけを載せる。SlackワークスペースのURLや未確定の候補ドメインは載せない。
 - `BRAINBASE_AUTH_ALLOWED_ORIGINS` に `https://bb-app.unson.jp` を明示し、正本APIがOAuth結果を返せるoriginを限定する。
 - 管理画面の利用者認証はSlack OAuth、組織版Webから正本APIへの接続はサービス認証とし、同じtokenを使い回さない。
 - SlackのClient Secret、利用者token、サービスtokenはブラウザへ渡さない。組織版Webは検証済みセッションをHttpOnly cookieで保持する。

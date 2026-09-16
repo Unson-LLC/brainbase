@@ -40,6 +40,11 @@ test('Unson production overlay owns its domain and deployment coordinates withou
 
   assert.match(env, /^ORGANIZATION_WEB_HOST=bb-app\.unson\.jp$/m);
   assert.match(env, /^ORGANIZATION_ID=unson$/m);
+  assert.match(env, /^ORGANIZATION_DISPLAY_NAME=雲孫$/m);
+  assert.match(
+    env,
+    /^ORGANIZATION_DIRECTORY_JSON=\[{"organization_id":"unson","display_name":"雲孫","app_origin":"https:\/\/bb-app\.unson\.jp"}\]$/m,
+  );
   assert.match(env, /^BRAINBASE_API_URL=https:\/\/bb\.unson\.jp$/m);
   assert.match(env, /^PROXY_NETWORK=ubuntu_nocodb-network$/m);
   assert.match(env, /^BRAINBASE_SERVICE_TOKEN_FILE_HOST=\/etc\/brainbase-organization\/brainbase-service-token$/m);
@@ -47,5 +52,6 @@ test('Unson production overlay owns its domain and deployment coordinates withou
   assert.match(runbook, /176\.34\.20\.239/);
   assert.match(runbook, /正本APIだけへ接続し、NocoDBへ直接接続しない/);
   assert.match(runbook, /メールアドレスのドメインや送信元IPでは制限しない/);
+  assert.match(runbook, /SlackワークスペースのURLや未確定の候補ドメインは載せない/);
   assert.match(runbook, /BRAINBASE_AUTH_ALLOWED_ORIGINS=https:\/\/bb-app\.unson\.jp/);
 });
