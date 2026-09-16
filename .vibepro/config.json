@@ -6,7 +6,7 @@
     "language": "ja"
   },
   "execution": {
-    "managed_worktree": "preferred"
+    "managed_worktree": "disabled"
   },
   "budgets": {
     "pr_artifact_bytes": 16384
