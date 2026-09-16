@@ -17,6 +17,7 @@ describe('Growin auth bootstrap', () => {
         );
 
         expect(authGrantBackfill).toContain("WHERE attrelid = to_regclass('organizations')");
+        expect(authGrantBackfill).toContain('ag.slack_workspace_id = o.id');
         expect(authGrantBackfill).toContain("IF to_regclass('organizations') IS NOT NULL AND NOT EXISTS");
     });
 
