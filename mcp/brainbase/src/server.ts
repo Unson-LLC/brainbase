@@ -151,8 +151,12 @@ async function dispatchKnowledgeResolutionToolCall(
   name: string,
   args: Record<string, unknown>,
   dependencies?: KnowledgeResolutionDispatchDependencies,
+  companyAuthorityResponse?: string,
 ) {
   return handleKnowledgeResolutionToolCall(name, args, dependencies ?? {
+    companyAuthorityResponse,
+    runtimeApiUrl: process.env.BRAINBASE_TENANT_RUNTIME_API_URL?.trim() || resolveBrainbaseApiUrl(),
+    runtimeServiceToken: process.env.BRAINBASE_TENANT_RUNTIME_SERVICE_TOKEN,
     apiUrl: resolveBrainbaseApiUrl(),
     configuredProjectCodes,
     tokenManager: globalTokenManager,
@@ -1486,7 +1490,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           configuredProjectCodes,
           tokenManager: globalTokenManager,
         }),
-        (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => dispatchKnowledgeResolutionToolCall(toolName, extensionArgs, undefined, requestContext.companyAuthorityResponse),
         (toolName, extensionArgs) => handleJudgmentResolutionToolCall(
           toolName, extensionArgs, {
             ...createDefaultJudgmentResolutionDependencies(),

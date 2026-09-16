@@ -132,6 +132,11 @@ const TARGETS: Record<string, AuditTarget> = {
     operation: '取得',
     query: (args) => String(args.run_id ?? args.receipt_id ?? '議事録コンテキスト'),
   },
+  brainbase_get_shareable_person_profile: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => String(args.target_slack_user_id ?? '人物プロフィール'),
+  },
   authorize_tenant_resource: {
     source: 'Brainbase',
     operation: '取得',

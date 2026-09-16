@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createHash, createPrivateKey, createPublicKey, timingSafeEqual } from 'node:crypto';
+import { AuthorityKnowledgeResolutionService } from './authority-knowledge-resolution-service.js';
 import { CompanyAuthorityResolver } from './company-authority-resolver.js';
 import { CompanyAuthorityContextProducer } from './company-authority-context-producer.js';
 import { ShareablePersonProfileRepository } from './shareable-person-profile-repository.js';
@@ -136,6 +137,9 @@ export function createTenantRuntimeServices({
         tenantAuthority: tenantContextProducer,
         companyAuthority,
         shareablePersonProfileService,
+        authorityKnowledgeResolutionService: companyAuthority ? new AuthorityKnowledgeResolutionService({
+            companyAuthority, connectionRegistry, publicJwk: publicJwkFor(publicKey), audience, deploymentId, now
+        }) : null,
         connectionRegistry,
         credentialBroker,
         usageLedger,

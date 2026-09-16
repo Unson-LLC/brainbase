@@ -1595,6 +1595,10 @@ function toolCallScope(toolName, input) {
             labeled('expected_version'), labeled('project_code')
         ]);
     }
+    if (name === 'brainbase_get_shareable_person_profile') {
+        const targetSlackUserId = toolInputText(args, 'target_slack_user_id');
+        return targetSlackUserId ? `target_slack_user_id=${targetSlackUserId}` : '入力なし';
+    }
 
     const query = toolQuery(input);
     return query === '対象未指定' ? '入力なし' : query;
