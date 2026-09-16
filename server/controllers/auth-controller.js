@@ -437,18 +437,23 @@ export class AuthController {
 
     /** @param {Request & { access?: any }} req @param {Response} res */
     organizations = async (req, res) => {
-        const access = req.access || {};
-        if (!access.slackUserId || !access.slackWorkspaceId) {
-            return res.status(403).json({ error: 'Slack user session is required' });
+        try {
+            const access = req.access || {};
+            if (!access.personId) {
+                return res.status(403).json({ error: 'Authenticated person is required' });
+            }
+            const organizations = await this.authService.listOrganizationAccess({
+                personId: access.personId
+            });
+            return res.json({
+                currentOrganizationId: access.organizationId || null,
+                organizations
+            });
+        } catch (error) {
+            const message = getErrorMessage(error) || 'Organization access lookup failed';
+            const status = message === 'Organization access is ambiguous' ? 409 : 400;
+            return res.status(status).json({ error: message });
         }
-        const organizations = await this.authService.listOrganizationAccess({
-            slackUserId: access.slackUserId,
-            slackWorkspaceId: access.slackWorkspaceId
-        });
-        return res.json({
-            currentOrganizationId: access.organizationId || null,
-            organizations
-        });
     };
 
     /** @param {Request & { access?: any }} req @param {Response} res */
@@ -458,15 +463,14 @@ export class AuthController {
             const organizationId = typeof req.body?.organizationId === 'string'
                 ? req.body.organizationId.trim()
                 : '';
-            if (!access.slackUserId || !access.slackWorkspaceId) {
-                return res.status(403).json({ error: 'Slack user session is required' });
+            if (!access.personId) {
+                return res.status(403).json({ error: 'Authenticated person is required' });
             }
             if (!organizationId) {
                 return res.status(400).json({ error: 'organizationId is required' });
             }
             const payload = await this.authService.switchOrganization({
-                slackUserId: access.slackUserId,
-                slackWorkspaceId: access.slackWorkspaceId,
+                personId: access.personId,
                 organizationId
             });
             setAuthCookies(res, req, this.authService, {
@@ -477,7 +481,9 @@ export class AuthController {
             return res.json(payload);
         } catch (error) {
             const message = getErrorMessage(error) || 'Organization switch failed';
-            const status = message === 'Organization access is not granted' ? 403 : 400;
+            const status = message === 'Organization access is not granted'
+                ? 403
+                : message === 'Organization access is ambiguous' ? 409 : 400;
             return res.status(status).json({ error: message });
         }
     };

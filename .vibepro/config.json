@@ -14,6 +14,18 @@
   "brainbase": {
     "stories": [
       {
+        "story_id": "story-person-scoped-organization-switch-v1",
+        "title": "本人権限でSlackワークスペースを越えて組織を切り替える",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": "2026-09-17",
+        "due_at": null,
+        "contract_type": null
+      },
+      {
         "story_id": "story-vibepro-diagnosis-commercialization-roadmap",
         "title": "M1: VibePro 診断→商用化ロードマップ",
         "ssot": "NocoDB",

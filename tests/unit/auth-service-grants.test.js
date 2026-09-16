@@ -39,7 +39,7 @@ describe('AuthService auth grant precedence', () => {
         expect(observed[0].params).toEqual(['U_SATO', 'T_UNSON', 'sato-personal']);
     });
 
-    it('lists only active organization grants for the exact Slack identity', async () => {
+    it('lists active organization grants across Slack workspaces for the authenticated person', async () => {
         const observed = [];
         const client = {
             query: async (sql, params) => {
@@ -55,8 +55,7 @@ describe('AuthService auth grant precedence', () => {
         authService.pool = { connect: async () => client };
 
         const organizations = await authService.listOrganizationAccess({
-            slackUserId: 'U_SATO',
-            slackWorkspaceId: 'T_UNSON'
+            personId: 'per_sato'
         });
 
         expect(organizations).toEqual([
@@ -65,6 +64,81 @@ describe('AuthService auth grant precedence', () => {
         ]);
         expect(observed[0].sql).toContain('JOIN projects p');
         expect(observed[0].sql).toContain('p.organization_id = COALESCE(ag.organization_id, o.id)');
+        expect(observed[0].sql).toContain('ag.person_id = $1');
+        expect(observed[0].sql).not.toContain('o.workspace_id = $2');
+        expect(observed[0].params).toEqual(['per_sato']);
+    });
+
+    it('rejects duplicate active grants when listing organizations for one person', async () => {
+        const client = {
+            query: async () => ({ rows: [
+                { organization_id: 'techknight', organization_name: 'TechKnight', role: 'ceo', project_codes: ['techknight'] },
+                { organization_id: 'techknight', organization_name: 'TechKnight', role: 'member', project_codes: [] }
+            ] }),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        await expect(authService.listOrganizationAccess({ personId: 'per_sato' }))
+            .rejects.toThrow('Organization access is ambiguous');
+    });
+
+    it('switches to a grant in another Slack workspace through the same person', async () => {
+        const authService = new AuthService();
+        authService.findGrantForPerson = vi.fn().mockResolvedValue({
+            person_id: 'per_sato',
+            person_name: '佐藤 圭吾',
+            slack_user_id: 'U_TECHKNIGHT',
+            slack_workspace_id: 'T_TECHKNIGHT',
+            organization_id: 'techknight',
+            role: 'ceo',
+            project_codes: ['techknight'],
+            clearance: ['internal']
+        });
+        authService.ensurePerson = vi.fn(async ({ personId }) => personId);
+        authService.issueToken = vi.fn().mockReturnValue('techknight-access-token');
+        authService.issueRefreshToken = vi.fn().mockReturnValue('techknight-refresh-token');
+        authService.createAuditLog = vi.fn();
+
+        const result = await authService.switchOrganization({
+            personId: 'per_sato',
+            organizationId: 'techknight'
+        });
+
+        expect(authService.findGrantForPerson).toHaveBeenCalledWith({
+            personId: 'per_sato',
+            organizationId: 'techknight'
+        });
+        expect(authService.issueToken).toHaveBeenCalledWith(expect.objectContaining({
+            personId: 'per_sato',
+            slackUserId: 'U_TECHKNIGHT',
+            slackWorkspaceId: 'T_TECHKNIGHT',
+            organizationId: 'techknight'
+        }));
+        expect(authService.issueRefreshToken).toHaveBeenCalledWith({
+            slackUserId: 'U_TECHKNIGHT',
+            slackWorkspaceId: 'T_TECHKNIGHT',
+            organizationId: 'techknight'
+        });
+        expect(result.access.organizationId).toBe('techknight');
+    });
+
+    it('rejects ambiguous organization grants for the same person', async () => {
+        const client = {
+            query: async () => ({ rows: [
+                { id: 'grant-1', person_id: 'per_sato', organization_id: 'techknight' },
+                { id: 'grant-2', person_id: 'per_sato', organization_id: 'techknight' }
+            ] }),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        await expect(authService.findGrantForPerson({
+            personId: 'per_sato',
+            organizationId: 'techknight'
+        })).rejects.toThrow('Organization access is ambiguous');
     });
 
     it('keeps refresh bound to the organization embedded in the refresh token', async () => {

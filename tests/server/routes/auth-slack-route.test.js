@@ -18,7 +18,7 @@ function oauthStateCookie(state = 'state-123') {
 }
 
 describe('Slack auth routes', () => {
-    it('GET /api/auth/organizations returns only organizations granted to the authenticated Slack identity', async () => {
+    it('GET /api/auth/organizations returns only organizations granted to the authenticated person', async () => {
         const authService = {
             verifyToken: vi.fn(() => ({
                 sub: 'per_sato',
@@ -39,8 +39,7 @@ describe('Slack auth routes', () => {
             .expect(200);
 
         expect(authService.listOrganizationAccess).toHaveBeenCalledWith({
-            slackUserId: 'U_SATO',
-            slackWorkspaceId: 'T_UNSON'
+            personId: 'per_sato'
         });
         expect(res.body.currentOrganizationId).toBe('unson');
         expect(res.body.organizations).toHaveLength(2);
@@ -71,11 +70,44 @@ describe('Slack auth routes', () => {
             .expect(200);
 
         expect(authService.switchOrganization).toHaveBeenCalledWith({
-            slackUserId: 'U_SATO',
-            slackWorkspaceId: 'T_UNSON',
+            personId: 'per_sato',
             organizationId: 'sato-personal'
         });
         expect(res.body.access.organizationId).toBe('sato-personal');
+    });
+
+    it('organization routes require a signed person identity', async () => {
+        const authService = {
+            verifyToken: vi.fn(() => ({
+                slackUserId: 'U_SATO',
+                slackWorkspaceId: 'T_UNSON',
+                organizationId: 'unson'
+            })),
+            listOrganizationAccess: vi.fn()
+        };
+        const app = createApp(authService);
+
+        await request(app)
+            .get('/api/auth/organizations')
+            .set('Authorization', 'Bearer access-token')
+            .expect(403, { error: 'Authenticated person is required' });
+        expect(authService.listOrganizationAccess).not.toHaveBeenCalled();
+    });
+
+    it('GET /api/auth/organizations denies ambiguous active grants', async () => {
+        const authService = {
+            verifyToken: vi.fn(() => ({
+                personId: 'per_sato',
+                organizationId: 'unson'
+            })),
+            listOrganizationAccess: vi.fn().mockRejectedValue(new Error('Organization access is ambiguous'))
+        };
+        const app = createApp(authService);
+
+        await request(app)
+            .get('/api/auth/organizations')
+            .set('Authorization', 'Bearer access-token')
+            .expect(409, { error: 'Organization access is ambiguous' });
     });
 
     it('organization routes reject insecure header authentication', async () => {

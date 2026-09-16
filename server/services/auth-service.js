@@ -481,8 +481,43 @@ export class AuthService {
         }
     }
 
-    async listOrganizationAccess({ slackUserId, slackWorkspaceId }) {
-        if (!this.pool || !slackUserId || !slackWorkspaceId) return [];
+    async findGrantForPerson({ personId, organizationId }) {
+        const requestedPersonId = typeof personId === 'string' ? personId.trim() : '';
+        const requestedOrganizationId = typeof organizationId === 'string' ? organizationId.trim() : '';
+        if (!this.pool || !requestedPersonId || !requestedOrganizationId) return null;
+        const client = await this.pool.connect();
+        try {
+            const { rows } = await client.query(
+                `SELECT ag.id, ag.person_id, ag.person_name, ag.slack_user_id,
+                        ag.slack_workspace_id, ag.organization_id, ag.role,
+                        ARRAY(
+                            SELECT requested.project_code
+                            FROM unnest(ag.project_codes) WITH ORDINALITY requested(project_code, ord)
+                            JOIN projects p
+                              ON p.code = requested.project_code
+                             AND p.organization_id = ag.organization_id
+                            ORDER BY requested.ord
+                        ) AS project_codes,
+                        ag.clearance, ag.active, ag.created_at, ag.updated_at
+                 FROM auth_grants ag
+                 JOIN organizations o ON o.id = ag.organization_id
+                 WHERE ag.person_id = $1
+                   AND ag.organization_id = $2
+                   AND ag.active = true
+                 ORDER BY ag.updated_at DESC, ag.id ASC
+                 LIMIT 2`,
+                [requestedPersonId, requestedOrganizationId]
+            );
+            if (rows.length > 1) throw new Error('Organization access is ambiguous');
+            return rows[0] || null;
+        } finally {
+            client.release();
+        }
+    }
+
+    async listOrganizationAccess({ personId }) {
+        const requestedPersonId = typeof personId === 'string' ? personId.trim() : '';
+        if (!this.pool || !requestedPersonId) return [];
         const client = await this.pool.connect();
         try {
             const { rows } = await client.query(
@@ -499,18 +534,24 @@ export class AuthService {
                  FROM auth_grants ag
                  JOIN organizations o
                    ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
-                 WHERE ag.slack_user_id = $1
-                   AND o.workspace_id = $2
+                 WHERE ag.person_id = $1
                    AND ag.active = true
                  ORDER BY o.name ASC, o.id ASC`,
-                [slackUserId, slackWorkspaceId]
+                [requestedPersonId]
             );
-            return rows.map((row) => ({
-                organizationId: row.organization_id,
-                name: row.organization_name,
-                role: this.normalizeRole(row.role),
-                projectCodes: Array.isArray(row.project_codes) ? row.project_codes : []
-            }));
+            const seenOrganizations = new Set();
+            return rows.map((row) => {
+                if (seenOrganizations.has(row.organization_id)) {
+                    throw new Error('Organization access is ambiguous');
+                }
+                seenOrganizations.add(row.organization_id);
+                return {
+                    organizationId: row.organization_id,
+                    name: row.organization_name,
+                    role: this.normalizeRole(row.role),
+                    projectCodes: Array.isArray(row.project_codes) ? row.project_codes : []
+                };
+            });
         } finally {
             client.release();
         }
@@ -1010,48 +1051,52 @@ export class AuthService {
         };
     }
 
-    async switchOrganization({ slackUserId, slackWorkspaceId, organizationId }) {
+    async switchOrganization({ personId, organizationId }) {
+        const authenticatedPersonId = typeof personId === 'string' ? personId.trim() : '';
         const requestedOrganizationId = typeof organizationId === 'string' ? organizationId.trim() : '';
-        if (!slackUserId || !slackWorkspaceId || !requestedOrganizationId) {
-            throw new Error('Slack identity and organizationId are required');
+        if (!authenticatedPersonId || !requestedOrganizationId) {
+            throw new Error('Authenticated person and organizationId are required');
         }
-        const grant = await this.findGrant({
-            slackUserId,
-            slackWorkspaceId,
+        const grant = await this.findGrantForPerson({
+            personId: authenticatedPersonId,
             organizationId: requestedOrganizationId
         });
         if (!grant) {
             await this.createAuditLog({
-                slackUserId,
-                slackWorkspaceId,
+                personId: authenticatedPersonId,
+                slackUserId: null,
+                slackWorkspaceId: null,
                 eventType: 'AUTH_DENY',
                 metadata: { reason: 'organization_grant_not_found', organization_id: requestedOrganizationId }
             });
             throw new Error('Organization access is not granted');
         }
-        const personId = await this.ensurePerson({
+        const resolvedPersonId = await this.ensurePerson({
             personId: grant.person_id,
             personName: grant.person_name
         });
-        const access = this.buildAccessFromGrant({ ...grant, person_id: personId });
+        if (resolvedPersonId !== authenticatedPersonId) {
+            throw new Error('Organization access is not granted');
+        }
+        const access = this.buildAccessFromGrant({ ...grant, person_id: resolvedPersonId });
         const token = this.issueToken({
             role: access.role,
             projectCodes: access.projectCodes,
             clearance: access.clearance,
-            personId,
-            slackUserId,
-            slackWorkspaceId,
+            personId: resolvedPersonId,
+            slackUserId: grant.slack_user_id,
+            slackWorkspaceId: grant.slack_workspace_id,
             organizationId: requestedOrganizationId
         });
         const refreshToken = this.issueRefreshToken({
-            slackUserId,
-            slackWorkspaceId,
+            slackUserId: grant.slack_user_id,
+            slackWorkspaceId: grant.slack_workspace_id,
             organizationId: requestedOrganizationId
         });
         await this.createAuditLog({
-            personId,
-            slackUserId,
-            slackWorkspaceId,
+            personId: resolvedPersonId,
+            slackUserId: grant.slack_user_id,
+            slackWorkspaceId: grant.slack_workspace_id,
             eventType: 'AUTH_ORGANIZATION_SWITCH',
             metadata: { organization_id: requestedOrganizationId }
         });
@@ -1062,7 +1107,7 @@ export class AuthService {
                 role: access.role,
                 projectCodes: access.projectCodes,
                 clearance: access.clearance,
-                personId,
+                personId: resolvedPersonId,
                 organizationId: requestedOrganizationId
             }
         };

@@ -1,0 +1,120 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-person-scoped-organization-switch-v1",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "signed access token personId",
+        "active auth_grants organization_id"
+      ],
+      "resolution_point": "organization switch before issuing the target session",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["admin_api", "audit_log"],
+      "verified_surfaces": ["admin_api", "audit_log"]
+    },
+    "resources": [
+      {
+        "name": "organization session grant",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "person_id/organization_id",
+        "trust_zone": "Brainbase canonical authentication API",
+        "residue_policy": "session expires or is replaced on the next organization switch",
+        "data_owner": "Brainbase canonical auth_grants",
+        "credential_scope": "one selected organization per access and refresh token"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "one selected organization per access and refresh token",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["Brainbase canonical auth_grants"],
+      "residency": "canonical Brainbase PostgreSQL",
+      "migration": "not applicable to this session-switch change",
+      "rollback": "restore the previous API release and keep existing tenant-bound sessions"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["managed_shared"],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate"
+    ],
+    "graph_metadata": {
+      "tenant_entities": ["Person", "Organization", "AuthGrant", "OrganizationSession"],
+      "boundary_edges": ["Person->AuthGrant", "AuthGrant->Organization", "AuthGrant->OrganizationSession"]
+    }
+  },
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Organization discovery is authorized by the signed person identity and returns only active organization grants for that person.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-1" }],
+        "code_refs": [{ "file": "server/services/auth-service.js", "anchor": "listOrganizationAccess" }],
+        "test_refs": [{ "file": "tests/unit/auth-service-grants.test.js", "case": "lists active organization grants across Slack workspaces for the authenticated person" }]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/unit/auth-service-grants.test.js", "must_cover": "lists active organization grants across Slack workspaces for the authenticated person" }]
+      }
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "Switching organizations resolves exactly one target grant for the same person and issues a session bound to the target grant identity and organization.",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-2" },
+          { "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-4" }
+        ],
+        "code_refs": [{ "file": "server/services/auth-service.js", "anchor": "switchOrganization" }],
+        "test_refs": [{ "file": "tests/unit/auth-service-grants.test.js", "case": "switches to a grant in another Slack workspace through the same person" }]
+      }
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Missing or ambiguous target grants are denied, and initial Slack login keeps its exact workspace matching behavior.",
+      "origin": {
+        "story_refs": [
+          { "kind": "acceptance_criteria", "index": 2, "ac_id": "AC-3" },
+          { "kind": "acceptance_criteria", "index": 4, "ac_id": "AC-5" }
+        ],
+        "code_refs": [
+          { "file": "server/services/auth-service.js", "anchor": "findGrantForPerson" },
+          { "file": "server/controllers/auth-controller.js", "anchor": "switchOrganization" }
+        ],
+        "test_refs": [
+          { "file": "tests/unit/auth-service-grants.test.js", "case": "rejects ambiguous organization grants for the same person" },
+          { "file": "tests/server/routes/auth-slack-route.test.js", "case": "organization routes require a signed person identity" }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [{ "file_glob": "tests/unit/auth-service-grants.test.js", "must_cover": "rejects ambiguous organization grants for the same person" }]
+      }
+    }
+  ]
+}
