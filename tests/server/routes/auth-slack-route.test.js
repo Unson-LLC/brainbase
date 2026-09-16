@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import crypto from 'node:crypto';
 import express from 'express';
 import request from 'supertest';
 
@@ -9,6 +10,11 @@ function createApp(authService) {
     app.use(express.json());
     app.use('/api/auth', createAuthRouter(authService));
     return app;
+}
+
+function oauthStateCookie(state = 'state-123') {
+    const digest = crypto.createHash('sha256').update(state, 'utf8').digest('base64url');
+    return `brainbase_oauth_state=${digest}`;
 }
 
 describe('Slack auth routes', () => {
@@ -135,6 +141,154 @@ describe('Slack auth routes', () => {
         });
     });
 
+    it('GET /api/auth/slack/start rejects an unlisted origin before creating OAuth state', async () => {
+        const authService = {
+            assertReady: vi.fn(),
+            createState: vi.fn(() => 'state-123'),
+            buildAuthorizeUrl: vi.fn(() => 'https://slack.example/start?state=state-123')
+        };
+        const app = createApp(authService);
+
+        const res = await request(app)
+            .get('/api/auth/slack/start')
+            .query({
+                origin: 'https://evil.example',
+                redirect: 'https://evil.example/admin.html',
+                json: 'true'
+            })
+            .expect(400);
+
+        expect(res.body).toEqual({ error: 'origin is not allowed' });
+        expect(authService.createState).not.toHaveBeenCalled();
+        expect(authService.buildAuthorizeUrl).not.toHaveBeenCalled();
+    });
+
+    it('GET /api/auth/slack/start rejects an unlisted absolute redirect before creating OAuth state', async () => {
+        const authService = {
+            assertReady: vi.fn(),
+            createState: vi.fn(() => 'state-123'),
+            buildAuthorizeUrl: vi.fn(() => 'https://slack.example/start?state=state-123')
+        };
+        const app = createApp(authService);
+
+        const res = await request(app)
+            .get('/api/auth/slack/start')
+            .query({
+                origin: 'https://bb.unson.jp',
+                redirect: 'https://evil.example/admin.html',
+                json: 'true'
+            })
+            .expect(400);
+
+        expect(res.body).toEqual({ error: 'redirect is not allowed' });
+        expect(authService.createState).not.toHaveBeenCalled();
+        expect(authService.buildAuthorizeUrl).not.toHaveBeenCalled();
+    });
+
+    it('GET /api/auth/slack/start accepts an origin configured for a customer UI', async () => {
+        const previous = process.env.BRAINBASE_AUTH_ALLOWED_ORIGINS;
+        process.env.BRAINBASE_AUTH_ALLOWED_ORIGINS = 'https://bb-app.unson.jp';
+        try {
+            const authService = {
+                assertReady: vi.fn(),
+                createState: vi.fn(() => 'state-123'),
+                buildAuthorizeUrl: vi.fn(() => 'https://slack.example/start?state=state-123')
+            };
+            const app = createApp(authService);
+
+            await request(app)
+                .get('/api/auth/slack/start')
+                .query({
+                    origin: 'https://bb-app.unson.jp',
+                    redirect: 'https://bb-app.unson.jp/',
+                    json: 'true'
+                })
+                .expect(200);
+
+            expect(authService.createState).toHaveBeenCalledWith({
+                origin: 'https://bb-app.unson.jp',
+                codeChallenge: '',
+                redirect: 'https://bb-app.unson.jp/'
+            });
+        } finally {
+            if (previous === undefined) delete process.env.BRAINBASE_AUTH_ALLOWED_ORIGINS;
+            else process.env.BRAINBASE_AUTH_ALLOWED_ORIGINS = previous;
+        }
+    });
+
+    it('GET /api/auth/slack/start rejects an absolute redirect to a different allowed origin', async () => {
+        const previous = process.env.BRAINBASE_AUTH_ALLOWED_ORIGINS;
+        process.env.BRAINBASE_AUTH_ALLOWED_ORIGINS = 'https://one.example,https://two.example';
+        try {
+            const authService = {
+                assertReady: vi.fn(),
+                createState: vi.fn(() => 'state-123'),
+                buildAuthorizeUrl: vi.fn(() => 'https://slack.example/start?state=state-123')
+            };
+            const app = createApp(authService);
+
+            const res = await request(app)
+                .get('/api/auth/slack/start')
+                .query({
+                    origin: 'https://one.example',
+                    redirect: 'https://two.example/',
+                    json: 'true'
+                })
+                .expect(400);
+
+            expect(res.body).toEqual({ error: 'redirect is not allowed' });
+            expect(authService.createState).not.toHaveBeenCalled();
+        } finally {
+            if (previous === undefined) delete process.env.BRAINBASE_AUTH_ALLOWED_ORIGINS;
+            else process.env.BRAINBASE_AUTH_ALLOWED_ORIGINS = previous;
+        }
+    });
+
+    it('GET /api/auth/login/start preserves the existing same-origin Device OAuth return path', async () => {
+        const authService = {
+            assertReady: vi.fn(),
+            createState: vi.fn(() => 'state-123'),
+            buildAuthorizeUrl: vi.fn(() => 'https://slack.example/start?state=state-123')
+        };
+        const app = createApp(authService);
+
+        await request(app)
+            .get('/api/auth/login/start')
+            .query({
+                origin: '/device?auth_callback=true',
+                redirect: '/device?auth_callback=true',
+                json: 'true'
+            })
+            .expect(200);
+
+        expect(authService.createState).toHaveBeenCalledWith({
+            origin: '/device?auth_callback=true',
+            codeChallenge: '',
+            redirect: '/device?auth_callback=true'
+        });
+    });
+
+    it('GET /api/auth/slack/start rejects a path that browsers resolve to an external origin', async () => {
+        const authService = {
+            assertReady: vi.fn(),
+            createState: vi.fn(() => 'state-123'),
+            buildAuthorizeUrl: vi.fn(() => 'https://slack.example/start?state=state-123')
+        };
+        const app = createApp(authService);
+
+        const res = await request(app)
+            .get('/api/auth/slack/start')
+            .query({
+                origin: 'https://bb.unson.jp',
+                redirect: '/\\evil.example/admin.html',
+                json: 'true'
+            })
+            .expect(400);
+
+        expect(res.body).toEqual({ error: 'redirect is not allowed' });
+        expect(authService.createState).not.toHaveBeenCalled();
+    });
+
     it('GET /api/auth/slack/callback exposes the verified Slack workspace, not a legacy workspace slug', async () => {
         const authService = {
             slackMode: 'oauth',
@@ -165,6 +319,7 @@ describe('Slack auth routes', () => {
         const res = await request(app)
             .get('/api/auth/slack/callback')
             .query({ code: 'code-123', state: 'state-123' })
+            .set('Cookie', oauthStateCookie())
             .set('Accept', 'application/json')
             .expect(200);
 
@@ -210,6 +365,7 @@ describe('Slack auth routes', () => {
         const res = await request(app)
             .get('/api/auth/slack/callback')
             .query({ code: 'code-123', state: 'state-123', redirect: '/' })
+            .set('Cookie', oauthStateCookie())
             .set('Accept', 'text/html')
             .expect(200);
 
@@ -253,6 +409,7 @@ describe('Slack auth routes', () => {
         const res = await request(app)
             .get('/api/auth/slack/callback')
             .query({ code: 'code-123', state: 'state-123' })
+            .set('Cookie', oauthStateCookie())
             .set('Accept', 'text/html')
             .expect(200);
 
@@ -261,7 +418,10 @@ describe('Slack auth routes', () => {
         expect(res.text).not.toContain('const redirectTo = "/";');
     });
 
-    it('GET /api/auth/slack/callback rejects untrusted absolute redirects', async () => {
+    it.each([
+        ['an untrusted absolute redirect', 'https://evil.example/admin.html'],
+        ['a browser path-confusion redirect', '/\\evil.example/admin.html']
+    ])('GET /api/auth/slack/callback fails before token exchange for %s', async (_label, redirect) => {
         const authService = {
             slackMode: 'oauth',
             accessTtlSeconds: 3600,
@@ -270,7 +430,7 @@ describe('Slack auth routes', () => {
             consumeState: vi.fn(() => ({
                 ok: true,
                 origin: 'https://bb.unson.jp',
-                redirect: 'https://evil.example/admin.html'
+                redirect
             })),
             exchangeCode: vi.fn(async () => ({ ok: true, authed_user: { id: 'U123' }, team: { id: 'T123' } })),
             resolveSlackIdentity: vi.fn(() => ({ slackUserId: 'U123', slackWorkspaceId: 'T123' })),
@@ -295,11 +455,13 @@ describe('Slack auth routes', () => {
         const res = await request(app)
             .get('/api/auth/slack/callback')
             .query({ code: 'code-123', state: 'state-123' })
+            .set('Cookie', oauthStateCookie())
             .set('Accept', 'text/html')
-            .expect(200);
+            .expect(400);
 
-        expect(res.text).toContain('const redirectTo = "/";');
-        expect(res.text).not.toContain('https://evil.example/admin.html');
+        expect(res.body).toEqual({ error: 'Invalid OAuth return target' });
+        expect(authService.exchangeCode).not.toHaveBeenCalled();
+        expect(authService.issueToken).not.toHaveBeenCalled();
     });
 
     it('GET /api/auth/slack/callback escapes hostile redirect values in callback HTML attributes', async () => {
@@ -337,6 +499,7 @@ describe('Slack auth routes', () => {
         const res = await request(app)
             .get('/api/auth/slack/callback')
             .query({ code: 'code-123', state: 'state-123' })
+            .set('Cookie', oauthStateCookie())
             .set('Accept', 'text/html')
             .expect(200);
 
@@ -355,12 +518,33 @@ describe('Slack auth routes', () => {
         const res = await request(app)
             .get('/api/auth/slack/callback')
             .query({ code: 'code-123', state: 'bad-state' })
+            .set('Cookie', oauthStateCookie('bad-state'))
             .set('Accept', 'text/html')
             .expect(400);
 
         expect(res.body).toEqual({ error: 'Invalid state' });
         expect(res.text).not.toContain('window.location.replace');
         expect(res.text).not.toContain('href="/"');
+    });
+
+    it('GET /api/auth/slack/callback rejects a valid signed state that was started in another browser', async () => {
+        const authService = {
+            slackMode: 'oauth',
+            assertReady: vi.fn(),
+            consumeState: vi.fn(() => ({ ok: true, origin: 'https://bb.unson.jp' })),
+            exchangeCode: vi.fn()
+        };
+        const app = createApp(authService);
+
+        const res = await request(app)
+            .get('/api/auth/slack/callback')
+            .query({ code: 'code-123', state: 'state-123' })
+            .set('Accept', 'text/html')
+            .expect(400);
+
+        expect(res.body).toEqual({ error: 'Invalid state' });
+        expect(authService.consumeState).not.toHaveBeenCalled();
+        expect(authService.exchangeCode).not.toHaveBeenCalled();
     });
 
     it('GET /api/auth/slack/callback fails closed when non-oauth mode has no Slack access token', async () => {
@@ -376,6 +560,7 @@ describe('Slack auth routes', () => {
         const res = await request(app)
             .get('/api/auth/slack/callback')
             .query({ code: 'code-123', state: 'state-123' })
+            .set('Cookie', oauthStateCookie())
             .expect(401);
 
         expect(res.body).toEqual({ error: 'Slack access token missing' });
@@ -396,6 +581,7 @@ describe('Slack auth routes', () => {
         const res = await request(app)
             .get('/api/auth/slack/callback')
             .query({ code: 'code-123', state: 'state-123' })
+            .set('Cookie', oauthStateCookie())
             .expect(401);
 
         expect(res.body).toEqual({ error: 'Slack identity could not be resolved' });

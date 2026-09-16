@@ -1,6 +1,10 @@
 // @ts-check
+import crypto from 'node:crypto';
+
 const ACCESS_COOKIE_NAME = 'brainbase_session';
 const REFRESH_COOKIE_NAME = 'brainbase_refresh';
+const OAUTH_STATE_COOKIE_NAME = 'brainbase_oauth_state';
+const OAUTH_STATE_COOKIE_MAX_AGE_MS = 10 * 60 * 1000;
 
 /**
  * @typedef {Object} RequestLike
@@ -35,9 +39,14 @@ export function getHeader(req, name) {
 }
 
 function isLocalHost(host = '') {
-    return host.startsWith('localhost')
-        || host.startsWith('127.0.0.1')
-        || host.startsWith('[::1]');
+    const normalized = String(host).trim().toLowerCase();
+    return normalized === 'localhost'
+        || normalized.startsWith('localhost:')
+        || normalized === '127.0.0.1'
+        || normalized.startsWith('127.0.0.1:')
+        || normalized === '::1'
+        || normalized === '[::1]'
+        || normalized.startsWith('[::1]:');
 }
 
 /**
@@ -136,6 +145,56 @@ export function setAuthCookies(res, req, authService, { accessToken, refreshToke
     }
 }
 
+/** @param {string} state */
+function hashOAuthState(state) {
+    return crypto.createHash('sha256').update(state, 'utf8').digest('base64url');
+}
+
+/**
+ * Bind the OAuth state to the browser that started the flow without exposing
+ * the state itself to JavaScript.
+ * @param {ResponseLike} res
+ * @param {RequestLike | null | undefined} req
+ * @param {string} state
+ */
+export function setOAuthStateCookie(res, req, state) {
+    res.cookie(
+        OAUTH_STATE_COOKIE_NAME,
+        hashOAuthState(state),
+        buildCookieOptions(req, OAUTH_STATE_COOKIE_MAX_AGE_MS)
+    );
+}
+
+/**
+ * @param {RequestLike | null | undefined} req
+ * @param {string} state
+ */
+export function verifyOAuthStateCookie(req, state) {
+    const cookieHeader = getHeader(req, 'cookie');
+    const cookies = req?.cookies || parseCookieHeader(cookieHeader);
+    const actual = cookies[OAUTH_STATE_COOKIE_NAME];
+    if (!actual) return false;
+    const expected = hashOAuthState(state);
+    const actualBuffer = Buffer.from(actual, 'utf8');
+    const expectedBuffer = Buffer.from(expected, 'utf8');
+    return actualBuffer.length === expectedBuffer.length
+        && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+}
+
+/**
+ * @param {ResponseLike} res
+ */
+export function clearOAuthStateCookie(res) {
+    for (const secure of [true, false]) {
+        res.clearCookie(OAUTH_STATE_COOKIE_NAME, {
+            httpOnly: true,
+            sameSite: 'lax',
+            secure,
+            path: '/'
+        });
+    }
+}
+
 /**
  * @param {ResponseLike} res
  * @param {RequestLike & { cookies?: Record<string, string> }} [req]
@@ -158,5 +217,6 @@ export function clearAuthCookies(res, req) {
 
 export {
     ACCESS_COOKIE_NAME,
-    REFRESH_COOKIE_NAME
+    REFRESH_COOKIE_NAME,
+    OAUTH_STATE_COOKIE_NAME
 };
