@@ -20,8 +20,16 @@ const OPERATION_FIELDS = new Set([
     'credential_url_path_pattern', 'target_url_hosts', 'target_url_path_pattern',
     'max_request_bytes', 'max_response_bytes'
 ]);
-const REQUEST_FIELDS = new Set(['path_params', 'query', 'body', 'target_url', 'idempotency_key']);
+const REQUEST_FIELDS = new Set([
+    'path_params', 'query', 'body', 'target_url', 'idempotency_key',
+    'company_authority_response_header'
+]);
 const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/u;
+const COMPANY_AUTHORITY_RESPONSE_HEADER_FIELD = 'company_authority_response_header';
+const COMPANY_AUTHORITY_RESPONSE_HEADER = 'x-brainbase-company-authority-response';
+const PROFILE_TOOL_NAME = 'brainbase_get_shareable_person_profile';
+const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/u;
+const MAX_COMPANY_AUTHORITY_RESPONSE_BYTES = 12 * 1024;
 const PROHIBITED_FIXED_HEADERS = new Set([
     'authorization', 'x-api-key', 'xc-token', 'cookie', 'host', 'content-length',
     'transfer-encoding', 'connection', 'proxy-authorization', 'idempotency-key'
@@ -48,12 +56,32 @@ function isObject(value) {
     return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isValidCompanyAuthorityResponseHeader(value) {
+    if (typeof value !== 'string'
+        || value.length === 0
+        || Buffer.byteLength(value, 'utf8') > MAX_COMPANY_AUTHORITY_RESPONSE_BYTES
+        || !BASE64URL_PATTERN.test(value)) {
+        return false;
+    }
+    let decoded;
+    try {
+        decoded = Buffer.from(value, 'base64url');
+    } catch {
+        return false;
+    }
+    return decoded.length > 0
+        && decoded.length <= MAX_COMPANY_AUTHORITY_RESPONSE_BYTES
+        && decoded.toString('base64url') === value;
+}
+
 export function assertTrustedProviderForwardRequest(request) {
     if (!isObject(request)
         || Object.keys(request).some((field) => !REQUEST_FIELDS.has(field))
         || (Object.hasOwn(request, 'idempotency_key')
             && (typeof request.idempotency_key !== 'string'
-                || !IDEMPOTENCY_KEY.test(request.idempotency_key)))) {
+                || !IDEMPOTENCY_KEY.test(request.idempotency_key)))
+        || (Object.hasOwn(request, COMPANY_AUTHORITY_RESPONSE_HEADER_FIELD)
+            && !isValidCompanyAuthorityResponseHeader(request[COMPANY_AUTHORITY_RESPONSE_HEADER_FIELD]))) {
         failSchema();
     }
     return request;
@@ -447,6 +475,20 @@ export function createTrustedHttpProviderForwarder({
                 provider_operation: operation
             });
             assertTrustedProviderForwardRequest(request);
+            const hasCompanyAuthorityResponseHeader = Object.hasOwn(
+                request,
+                COMPANY_AUTHORITY_RESPONSE_HEADER_FIELD
+            );
+            const isProfileAuthorityCall = operation === AUTHORITY_MCP_OPERATION
+                && request.body?.jsonrpc === '2.0'
+                && request.body?.method === 'tools/call'
+                && request.body?.params?.name === PROFILE_TOOL_NAME;
+            if (isProfileAuthorityCall && !hasCompanyAuthorityResponseHeader) {
+                failSchema();
+            }
+            if (hasCompanyAuthorityResponseHeader && !isProfileAuthorityCall) {
+                failSchema();
+            }
             if (operation === AUTHORITY_JUDGMENT_HOOK_OPERATION) {
                 throw new ContractError('COMPANY_AUTHORITY_HOOK_SCOPE_UNAVAILABLE', {
                     status: 503,
@@ -478,6 +520,9 @@ export function createTrustedHttpProviderForwarder({
                 ...(operation === AUTHORITY_MCP_OPERATION ? { accept: MCP_ACCEPT } : {}),
                 'brainbase-provider-operation': operation
             };
+            if (isProfileAuthorityCall && hasCompanyAuthorityResponseHeader) {
+                headers[COMPANY_AUTHORITY_RESPONSE_HEADER] = request[COMPANY_AUTHORITY_RESPONSE_HEADER_FIELD];
+            }
             if (forwardedRequest.idempotency_key !== undefined) {
                 headers['Idempotency-Key'] = forwardedRequest.idempotency_key;
             }

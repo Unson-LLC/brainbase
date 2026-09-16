@@ -142,7 +142,7 @@ const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
     'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_knowledge_evidence_record', 'brainbase_personal_kg_answer_record', 'brainbase_judgment_audit_read',
-    'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
+    'brainbase_get_meeting_minutes_context', 'brainbase_get_shareable_person_profile', 'authorize_tenant_resource',
     'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
 ]);
 const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
@@ -173,7 +173,7 @@ export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     brainbase_projects: 'control_plane', brainbase_bootstrap_config: 'published_contract', brainbase_admin_read: 'control_plane',
     brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
     brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
-    brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', authorize_tenant_resource: 'tenant_authorization',
+    brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', brainbase_get_shareable_person_profile: 'shareable_person_profile', authorize_tenant_resource: 'tenant_authorization',
     brainbase_judgment_audit_read: 'ignored', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer',
     mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
     brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
