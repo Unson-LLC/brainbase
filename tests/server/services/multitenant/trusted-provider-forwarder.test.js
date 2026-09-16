@@ -728,7 +728,7 @@ describe('trusted provider HTTP forwarder', () => {
         expect(request.body.project_code).toBe('caller-code');
     });
 
-    it('authority profile MCPは専用company authority headerを固定headerとして転送しbodyへ混ぜない', async () => {
+    it.each(['brainbase_get_shareable_person_profile', 'brainbase_knowledge_resolve'])('%sは署名付きauthorityをheaderへ転送しbodyへ混ぜない', async (toolName) => {
         const fetchImpl = vi.fn(async () => ({
             status: 200,
             headers: { get: () => 'application/json' },
@@ -757,8 +757,10 @@ describe('trusted provider HTTP forwarder', () => {
                 body: {
                     jsonrpc: '2.0', method: 'tools/call', id: 1,
                     params: {
-                        name: 'brainbase_get_shareable_person_profile',
-                        arguments: { target_slack_user_id: 'UTARGET' }
+                        name: toolName,
+                        arguments: toolName === 'brainbase_knowledge_resolve'
+                ? { intent: 'find person', project_code: 'unson' }
+                : { target_slack_user_id: 'UTARGET' }
                     }
                 }
             },
@@ -774,8 +776,10 @@ describe('trusted provider HTTP forwarder', () => {
         expect(headers.get('accept')).toBe('application/json, text/event-stream');
         const forwardedBody = JSON.parse(init.body);
         expect(forwardedBody.params).toEqual({
-            name: 'brainbase_get_shareable_person_profile',
-            arguments: { target_slack_user_id: 'UTARGET' }
+            name: toolName,
+            arguments: toolName === 'brainbase_knowledge_resolve'
+                ? { intent: 'find person', project_code: 'unson' }
+                : { target_slack_user_id: 'UTARGET' }
         });
         expect(JSON.stringify(forwardedBody)).not.toContain(authorityHeader);
     });
@@ -822,7 +826,7 @@ describe('trusted provider HTTP forwarder', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
-    it('company authority headerはprofile以外のauthority callへ転送しない', async () => {
+    it('company authority headerは許可した照会以外のauthority callへ転送しない', async () => {
         const fetchImpl = vi.fn();
         const forwarder = createTrustedHttpProviderForwarder({
             provider: 'brainbase',
@@ -846,7 +850,7 @@ describe('trusted provider HTTP forwarder', () => {
                     body: {
                         jsonrpc: '2.0', method: 'tools/call', id: 1,
                         params: {
-                            name: 'brainbase_knowledge_resolve',
+                            name: 'brainbase_resolve_turn',
                             arguments: { intent: 'find person' }
                         }
                     }
