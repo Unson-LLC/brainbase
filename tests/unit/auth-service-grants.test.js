@@ -84,6 +84,33 @@ describe('AuthService auth grant precedence', () => {
             .rejects.toThrow('Organization access is ambiguous');
     });
 
+    it('deduplicates equivalent organization access granted through multiple Slack identities', async () => {
+        const client = {
+            query: async () => ({ rows: [
+                {
+                    organization_id: 'techknight', organization_name: 'Tech Knight', role: 'ceo',
+                    project_codes: ['aitle', 'techknight'], clearance: ['internal']
+                },
+                {
+                    organization_id: 'techknight', organization_name: 'Tech Knight', role: 'ceo',
+                    project_codes: ['techknight', 'aitle'], clearance: ['internal']
+                },
+                {
+                    organization_id: 'unson', organization_name: 'UNSON', role: 'ceo',
+                    project_codes: ['brainbase'], clearance: ['internal']
+                }
+            ] }),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        await expect(authService.listOrganizationAccess({ personId: 'per_sato' })).resolves.toEqual([
+            { organizationId: 'techknight', name: 'Tech Knight', role: 'ceo', projectCodes: ['aitle', 'techknight'] },
+            { organizationId: 'unson', name: 'UNSON', role: 'ceo', projectCodes: ['brainbase'] }
+        ]);
+    });
+
     it('switches to a grant in another Slack workspace through the same person', async () => {
         const authService = new AuthService();
         authService.findGrantForPerson = vi.fn().mockResolvedValue({
@@ -124,11 +151,45 @@ describe('AuthService auth grant precedence', () => {
         expect(result.access.organizationId).toBe('techknight');
     });
 
-    it('rejects ambiguous organization grants for the same person', async () => {
+    it('accepts equivalent organization grants for the same person and selects one identity deterministically', async () => {
         const client = {
             query: async () => ({ rows: [
-                { id: 'grant-1', person_id: 'per_sato', organization_id: 'techknight' },
-                { id: 'grant-2', person_id: 'per_sato', organization_id: 'techknight' }
+                {
+                    id: 'grant-new', person_id: 'per_sato', organization_id: 'techknight',
+                    slack_user_id: 'U_TECHKNIGHT', slack_workspace_id: 'T_TECHKNIGHT', role: 'ceo',
+                    project_codes: ['aitle', 'techknight'], clearance: ['internal']
+                },
+                {
+                    id: 'grant-old', person_id: 'per_sato', organization_id: 'techknight',
+                    slack_user_id: 'U_UNSON', slack_workspace_id: 'T_UNSON', role: 'ceo',
+                    project_codes: ['techknight', 'aitle'], clearance: ['internal']
+                }
+            ] }),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        await expect(authService.findGrantForPerson({
+            personId: 'per_sato',
+            organizationId: 'techknight'
+        })).resolves.toMatchObject({
+            id: 'grant-new',
+            slack_user_id: 'U_TECHKNIGHT'
+        });
+    });
+
+    it('rejects conflicting organization grants for the same person', async () => {
+        const client = {
+            query: async () => ({ rows: [
+                {
+                    id: 'grant-1', person_id: 'per_sato', organization_id: 'techknight', role: 'ceo',
+                    project_codes: ['techknight'], clearance: ['internal']
+                },
+                {
+                    id: 'grant-2', person_id: 'per_sato', organization_id: 'techknight', role: 'member',
+                    project_codes: [], clearance: ['internal']
+                }
             ] }),
             release: () => {}
         };

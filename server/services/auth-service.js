@@ -31,6 +31,19 @@ function normalizeList(value) {
         .filter(Boolean))];
 }
 
+function sameStringSet(left, right) {
+    const normalizedLeft = normalizeList(left).sort();
+    const normalizedRight = normalizeList(right).sort();
+    return normalizedLeft.length === normalizedRight.length
+        && normalizedLeft.every((item, index) => item === normalizedRight[index]);
+}
+
+function hasEquivalentAccess(left, right) {
+    return left.role === right.role
+        && sameStringSet(left.projectCodes, right.projectCodes)
+        && sameStringSet(left.clearance, right.clearance);
+}
+
 function normalizeConfiguredList(value) {
     if (Array.isArray(value)) return normalizeList(value);
     if (typeof value !== 'string') return [];
@@ -504,11 +517,15 @@ export class AuthService {
                  WHERE ag.person_id = $1
                    AND ag.organization_id = $2
                    AND ag.active = true
-                 ORDER BY ag.updated_at DESC, ag.id ASC
-                 LIMIT 2`,
+                 ORDER BY ag.updated_at DESC, ag.id ASC`,
                 [requestedPersonId, requestedOrganizationId]
             );
-            if (rows.length > 1) throw new Error('Organization access is ambiguous');
+            if (rows.length > 1) {
+                const expectedAccess = this.buildAccessFromGrant(rows[0]);
+                if (rows.slice(1).some((row) => !hasEquivalentAccess(expectedAccess, this.buildAccessFromGrant(row)))) {
+                    throw new Error('Organization access is ambiguous');
+                }
+            }
             return rows[0] || null;
         } finally {
             client.release();
@@ -522,7 +539,7 @@ export class AuthService {
         try {
             const { rows } = await client.query(
                 `SELECT COALESCE(ag.organization_id, o.id) AS organization_id, o.name AS organization_name,
-                        ag.role,
+                        ag.role, ag.clearance,
                         ARRAY(
                             SELECT requested.project_code
                             FROM unnest(ag.project_codes) WITH ORDINALITY requested(project_code, ord)
@@ -539,19 +556,27 @@ export class AuthService {
                  ORDER BY o.name ASC, o.id ASC`,
                 [requestedPersonId]
             );
-            const seenOrganizations = new Set();
-            return rows.map((row) => {
-                if (seenOrganizations.has(row.organization_id)) {
-                    throw new Error('Organization access is ambiguous');
+            const organizations = new Map();
+            for (const row of rows) {
+                const access = this.buildAccessFromGrant(row);
+                const existing = organizations.get(row.organization_id);
+                if (existing) {
+                    if (!hasEquivalentAccess(existing.access, access)) {
+                        throw new Error('Organization access is ambiguous');
+                    }
+                    continue;
                 }
-                seenOrganizations.add(row.organization_id);
-                return {
-                    organizationId: row.organization_id,
-                    name: row.organization_name,
-                    role: this.normalizeRole(row.role),
-                    projectCodes: Array.isArray(row.project_codes) ? row.project_codes : []
-                };
-            });
+                organizations.set(row.organization_id, {
+                    access,
+                    organization: {
+                        organizationId: row.organization_id,
+                        name: row.organization_name,
+                        role: access.role,
+                        projectCodes: access.projectCodes
+                    }
+                });
+            }
+            return [...organizations.values()].map(({ organization }) => organization);
         } finally {
             client.release();
         }
