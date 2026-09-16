@@ -142,7 +142,7 @@ const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
     'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_knowledge_evidence_record', 'brainbase_personal_kg_answer_record', 'brainbase_judgment_audit_read',
-    'brainbase_get_meeting_minutes_context', 'authorize_tenant_resource',
+    'brainbase_get_meeting_minutes_context', 'brainbase_get_shareable_person_profile', 'authorize_tenant_resource',
     'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
 ]);
 const BRAINBASE_WRITE_TOOL_NAMES = Object.freeze([
@@ -173,7 +173,7 @@ export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     brainbase_projects: 'control_plane', brainbase_bootstrap_config: 'published_contract', brainbase_admin_read: 'control_plane',
     brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
     brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
-    brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', authorize_tenant_resource: 'tenant_authorization',
+    brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', brainbase_get_shareable_person_profile: 'shareable_person_profile', authorize_tenant_resource: 'tenant_authorization',
     brainbase_judgment_audit_read: 'ignored', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer',
     mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
     brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
@@ -1890,6 +1890,39 @@ function nonEmptyString(value) {
     return typeof value === 'string' && value.trim().length > 0;
 }
 
+const SHAREABLE_PERSON_PROFILE_FIELDS = Object.freeze(['name', 'affiliation', 'role']);
+const SHAREABLE_PERSON_PROFILE_DISCLOSURE_FIELDS = Object.freeze([
+    'digest', 'workspace_id', 'channel_id', 'thread_ts', 'requester_person_id', 'target_person_id', 'policy_revision'
+]);
+
+function exactObjectKeys(value, expectedKeys) {
+    return record(value)
+        && Object.keys(value).length === expectedKeys.length
+        && expectedKeys.every((key) => Object.hasOwn(value, key));
+}
+
+function shareablePersonProfileContract(item, input) {
+    const expected = record(input);
+    const fields = record(item.fields);
+    const disclosure = record(item.disclosure);
+    if (item.status !== 'ok'
+        || !/^U[A-Z0-9]+$/u.test(String(expected?.target_slack_user_id ?? ''))
+        || item.target_slack_user_id !== expected.target_slack_user_id
+        || !exactObjectKeys(item, ['status', 'target_slack_user_id', 'fields', 'disclosure'])
+        || !fields
+        || Object.keys(fields).length === 0
+        || Object.keys(fields).some((key) => !SHAREABLE_PERSON_PROFILE_FIELDS.includes(key) || !nonEmptyString(fields[key]))
+        || !exactObjectKeys(disclosure, SHAREABLE_PERSON_PROFILE_DISCLOSURE_FIELDS)
+        || !/^[a-f0-9]{64}$/u.test(String(disclosure?.digest ?? ''))
+        || !nonEmptyString(disclosure?.workspace_id)
+        || !nonEmptyString(disclosure?.channel_id)
+        || !(disclosure?.thread_ts === null || nonEmptyString(disclosure?.thread_ts))
+        || !nonEmptyString(disclosure?.requester_person_id)
+        || !nonEmptyString(disclosure?.target_person_id)
+        || !nonEmptyString(disclosure?.policy_revision)) return false;
+    return item;
+}
+
 function objectArray(value) {
     return Array.isArray(value) && value.every((item) => Boolean(record(item)));
 }
@@ -1953,6 +1986,9 @@ function publishedToolSemanticData(toolName, response, input) {
         return typeof text === 'string' && (text === '接続中のピアはありません。' || /^# メッシュピア一覧 \(\d+\)\n/u.test(text)) ? { text } : null;
     }
     return nestedRecords(response).find((item) => {
+        if (name === 'brainbase_get_shareable_person_profile') {
+            return shareablePersonProfileContract(item, input);
+        }
         if (name === 'brainbase_get_meeting_minutes_context') {
             const expected = record(input);
             const receipt = record(item.receipt);

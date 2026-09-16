@@ -296,6 +296,7 @@ export function createTenantRuntimeRouter({
     verificationKeys = () => [],
     tenantAuthority,
     companyAuthority,
+    shareablePersonProfileService,
     connectionRegistry,
     credentialBroker,
     usageLedger,
@@ -328,6 +329,13 @@ export function createTenantRuntimeRouter({
             });
         }
         res.json(await companyAuthority.resolve(req.body));
+    }));
+    router.post('/person-profile:read', asyncHandler(async (req, res) => {
+        if (!shareablePersonProfileService) {
+            throw new ContractError('PERSON_PROFILE_UNAVAILABLE', { status: 503, retryable: true });
+        }
+        res.set('Cache-Control', 'no-store');
+        res.json(await shareablePersonProfileService.read(req.body));
     }));
     router.use(asyncHandler(async (req, _res, next) => {
         if (req.get('Brainbase-Protocol-Version') !== '1.0') {

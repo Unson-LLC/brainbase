@@ -4,6 +4,8 @@ import { dirname, resolve } from 'node:path';
 import { createHash, createPrivateKey, createPublicKey, timingSafeEqual } from 'node:crypto';
 import { CompanyAuthorityResolver } from './company-authority-resolver.js';
 import { CompanyAuthorityContextProducer } from './company-authority-context-producer.js';
+import { ShareablePersonProfileRepository } from './shareable-person-profile-repository.js';
+import { ShareablePersonProfileService } from './shareable-person-profile-service.js';
 import { CredentialBroker } from './credential-broker.js';
 import { ContractUsageLedger } from './contract-usage-ledger.js';
 import { SlackChannelAuthorityRepository } from './slack-channel-authority-repository.js';
@@ -56,6 +58,12 @@ function publicKeyFor(signingKey) {
     return createPublicKey(signingKey.private_key);
 }
 
+function publicJwkFor(publicKey) {
+    return typeof publicKey?.export === 'function'
+        ? publicKey.export({ format: 'jwk' })
+        : publicKey;
+}
+
 export function createTenantRuntimeServices({
     serviceToken,
     serviceAuth,
@@ -68,6 +76,7 @@ export function createTenantRuntimeServices({
     resolveContractRevision,
     resolveCanonicalContext,
     companyAuthorityResolver,
+    profileRepository,
     allowTestAuthorityFallback = process.env.NODE_ENV === 'test',
     signingKey,
     audience = 'mana-runtime',
@@ -111,11 +120,22 @@ export function createTenantRuntimeServices({
             now
         })
         : null;
+    const shareablePersonProfileService = profileRepository && companyAuthority
+        ? new ShareablePersonProfileService({
+            profileRepository,
+            companyAuthority,
+            publicJwk: publicJwkFor(publicKey),
+            audience,
+            deploymentId,
+            now
+        })
+        : null;
     return {
         serviceAuth: serviceAuth ?? createServiceAuth(serviceToken),
         verificationKeys,
         tenantAuthority: tenantContextProducer,
         companyAuthority,
+        shareablePersonProfileService,
         connectionRegistry,
         credentialBroker,
         usageLedger,
@@ -168,6 +188,7 @@ export function createTenantRuntimeServicesFromEnv({
         expires_at: env.BRAINBASE_TENANT_CONTEXT_KEY_EXPIRES_AT ?? null
     };
     const repository = new MultitenantPostgresRepository({ pool, now });
+    const profileRepository = new ShareablePersonProfileRepository({ pool, now });
     const companyAuthorityResolver = new CompanyAuthorityResolver({
         repository: new SlackChannelAuthorityRepository({
             pool,
@@ -225,6 +246,7 @@ export function createTenantRuntimeServicesFromEnv({
         migrationAdapter: new PostgresTenantMigrationAdapter({ pool, now, attestor: migrationAttestor }),
         resolveCanonicalContext: (input) => repository.resolveRuntimeContext(input),
         companyAuthorityResolver,
+        profileRepository,
         allowTestAuthorityFallback: false,
         signingKey,
         audience: runtimeAudience,

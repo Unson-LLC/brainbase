@@ -728,6 +728,174 @@ describe('trusted provider HTTP forwarder', () => {
         expect(request.body.project_code).toBe('caller-code');
     });
 
+    it('authority profile MCPは専用company authority headerを固定headerとして転送しbodyへ混ぜない', async () => {
+        const fetchImpl = vi.fn(async () => ({
+            status: 200,
+            headers: { get: () => 'application/json' },
+            json: async () => ({ jsonrpc: '2.0', result: { status: 'ok' }, id: 1 })
+        }));
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://bb.unson.jp/runtime-mcp',
+            operations: {
+                'brainbase.authority_mcp.post': {
+                    method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                    credential_placement: 'none', allow_binding_provider_mismatch: true,
+                    fixed_headers: { 'content-type': 'application/json' }
+                }
+            },
+            fetchImpl
+        });
+        const authorityHeader = Buffer.from(JSON.stringify({ signed: 'company-authority' }), 'utf8')
+            .toString('base64url');
+
+        await forwarder.forward({
+            credential: Buffer.alloc(0),
+            operation: 'brainbase.authority_mcp.post',
+            request: {
+                company_authority_response_header: authorityHeader,
+                body: {
+                    jsonrpc: '2.0', method: 'tools/call', id: 1,
+                    params: {
+                        name: 'brainbase_get_shareable_person_profile',
+                        arguments: { target_slack_user_id: 'UTARGET' }
+                    }
+                }
+            },
+            binding: {
+                authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+            }
+        });
+
+        const [targetUrl, init] = fetchImpl.mock.calls[0];
+        const headers = new Headers(init.headers);
+        expect(targetUrl).toBe('https://bb.unson.jp/runtime-mcp/mcp');
+        expect(headers.get('x-brainbase-company-authority-response')).toBe(authorityHeader);
+        expect(headers.get('accept')).toBe('application/json, text/event-stream');
+        const forwardedBody = JSON.parse(init.body);
+        expect(forwardedBody.params).toEqual({
+            name: 'brainbase_get_shareable_person_profile',
+            arguments: { target_slack_user_id: 'UTARGET' }
+        });
+        expect(JSON.stringify(forwardedBody)).not.toContain(authorityHeader);
+    });
+
+    it.each([
+        '',
+        'not base64url!',
+        'abc=',
+        Buffer.from('x'.repeat(12 * 1024 + 1), 'utf8').toString('base64url')
+    ])('authority profile MCPは不正なcompany authority header %jをprovider未到達で拒否する', async (authorityHeader) => {
+        const fetchImpl = vi.fn();
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://bb.unson.jp/runtime-mcp',
+            operations: {
+                'brainbase.authority_mcp.post': {
+                    method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                    credential_placement: 'none', allow_binding_provider_mismatch: true
+                }
+            },
+            fetchImpl
+        });
+
+        await expectContractErrorAsync(
+            () => forwarder.forward({
+                credential: Buffer.alloc(0),
+                operation: 'brainbase.authority_mcp.post',
+                request: {
+                    company_authority_response_header: authorityHeader,
+                    body: {
+                        jsonrpc: '2.0', method: 'tools/call', id: 1,
+                        params: {
+                            name: 'brainbase_get_shareable_person_profile',
+                            arguments: { target_slack_user_id: 'UTARGET' }
+                        }
+                    }
+                },
+                binding: {
+                    authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+                }
+            }),
+            { code: 'SCHEMA_INVALID', status: 400 }
+        );
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('company authority headerはprofile以外のauthority callへ転送しない', async () => {
+        const fetchImpl = vi.fn();
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://bb.unson.jp/runtime-mcp',
+            operations: {
+                'brainbase.authority_mcp.post': {
+                    method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                    credential_placement: 'none', allow_binding_provider_mismatch: true
+                }
+            },
+            fetchImpl
+        });
+        const authorityHeader = Buffer.from('{}', 'utf8').toString('base64url');
+
+        await expectContractErrorAsync(
+            () => forwarder.forward({
+                credential: Buffer.alloc(0),
+                operation: 'brainbase.authority_mcp.post',
+                request: {
+                    company_authority_response_header: authorityHeader,
+                    body: {
+                        jsonrpc: '2.0', method: 'tools/call', id: 1,
+                        params: {
+                            name: 'brainbase_knowledge_resolve',
+                            arguments: { intent: 'find person' }
+                        }
+                    }
+                },
+                binding: {
+                    authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+                }
+            }),
+            { code: 'SCHEMA_INVALID', status: 400 }
+        );
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('profile authority callはcompany authority header欠落時にprovider未到達で拒否する', async () => {
+        const fetchImpl = vi.fn();
+        const forwarder = createTrustedHttpProviderForwarder({
+            provider: 'brainbase',
+            baseUrl: 'https://bb.unson.jp/runtime-mcp',
+            operations: {
+                'brainbase.authority_mcp.post': {
+                    method: 'POST', path: '/mcp', body_encoding: 'json', response_encoding: 'json',
+                    credential_placement: 'none', allow_binding_provider_mismatch: true
+                }
+            },
+            fetchImpl
+        });
+
+        await expectContractErrorAsync(
+            () => forwarder.forward({
+                credential: Buffer.alloc(0),
+                operation: 'brainbase.authority_mcp.post',
+                request: {
+                    body: {
+                        jsonrpc: '2.0', method: 'tools/call', id: 1,
+                        params: {
+                            name: 'brainbase_get_shareable_person_profile',
+                            arguments: { target_slack_user_id: 'UTARGET' }
+                        }
+                    }
+                },
+                binding: {
+                    authority_project_binding: { project_id: 'project-unson', project_code: 'unson' }
+                }
+            }),
+            { code: 'SCHEMA_INVALID', status: 400 }
+        );
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
     it('authority MCPは正規resolve_turnのturn_refとdigest対象入力を維持する', async () => {
         const fetchImpl = vi.fn(async () => ({
             status: 200,
