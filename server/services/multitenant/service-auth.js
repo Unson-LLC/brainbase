@@ -81,6 +81,13 @@ export function createServiceAuthMiddleware({
                 expires_at: claims.expires_at,
                 capabilities: [...capabilities]
             });
+            // Keep the complete, signature-verified claim set available to a
+            // capability boundary that needs to bind the transport identity
+            // to a persisted operation.  serviceIdentity intentionally stays
+            // transport-only; consumers must opt into the verified claims
+            // explicitly and must never read identity from request headers or
+            // body fields.
+            req.serviceTokenClaims = deepFreeze(structuredClone(claims));
             return next();
         } catch {
             return reject(res);

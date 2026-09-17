@@ -1,15 +1,20 @@
 import { KNOWLEDGE_RETRIEVE_CAPABILITY } from '../middleware/knowledge-retrieve-service-auth.js';
 
 /**
- * The named Mana service exposes the outcome-authority Durable Object's
- * persisted binding through this contract. Brainbase deliberately talks to
- * this readback surface instead of accepting a caller-supplied x-mana header
- * or treating a request body as an authorization record.
+ * Mana exposes the outcome-authority Durable Object through a named
+ * WorkerEntrypoint. This is intentionally a service-binding contract: the
+ * Brainbase process must receive the binding/bridge as a dependency. A public
+ * URL (or the process-global fetch) is never a substitute for that
+ * authenticated transport.
  */
 export const MANA_OUTCOME_AUTHORITY_READBACK_PATH = '/v1/outcome-authority:readback';
-export const MANA_OUTCOME_AUTHORITY_READBACK_URL_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_READBACK_URL';
 export const MANA_OUTCOME_AUTHORITY_READBACK_RESOURCE_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_READBACK_RESOURCE';
 
+// Kept as a source-compatible marker for deployments removing the old URL
+// setting. It is deliberately not read by the provider.
+export const MANA_OUTCOME_AUTHORITY_READBACK_URL_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_READBACK_URL';
+
+const SERVICE_BINDING_ORIGIN = 'https://mana-outcome-authority.internal';
 const DEFAULT_TIMEOUT_MS = 5_000;
 
 function nonEmptyString(value) {
@@ -77,25 +82,14 @@ function aliasedList(object, names, label, { required = true } = {}) {
     return first;
 }
 
-function resolveEndpoint(endpoint) {
-    const value = nonEmptyString(endpoint);
-    if (!value) return null;
-    let url;
-    try {
-        url = new URL(value);
-    } catch {
-        return null;
+function resolveServiceBinding({ serviceBinding, transport } = {}) {
+    const candidate = serviceBinding ?? transport;
+    if (typeof candidate === 'function') return { fetch: candidate };
+    if (candidate && typeof candidate.fetch === 'function') return candidate;
+    if (candidate && typeof candidate.request === 'function') {
+        return { fetch: candidate.request.bind(candidate) };
     }
-    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash) {
-        return null;
-    }
-    if (url.search) return null;
-    if (url.pathname === '' || url.pathname === '/') {
-        url.pathname = MANA_OUTCOME_AUTHORITY_READBACK_PATH;
-    } else if (url.pathname !== MANA_OUTCOME_AUTHORITY_READBACK_PATH) {
-        return null;
-    }
-    return url.toString();
+    return null;
 }
 
 function resolveActorId(claims) {
@@ -118,7 +112,8 @@ function resolveActorId(claims) {
 }
 
 function resolveTokenIdentity(expected, context = {}) {
-    const claims = context.verifiedToken || context.tokenClaims || {};
+    const request = expectedInput(expected);
+    const claims = context.serviceTokenClaims || context.verifiedToken || context.tokenClaims || {};
     const serviceIdentity = context.serviceIdentity || {};
     const subject = nonEmptyString(serviceIdentity.subject)
         || aliasedString(claims, ['subject', 'sub'], 'service subject');
@@ -134,8 +129,8 @@ function resolveTokenIdentity(expected, context = {}) {
     const projectCodes = aliasedList(claims, [
         'authorized_project_codes', 'authorizedProjectCodes', 'project_codes', 'projectCodes'
     ], 'authorized project');
-    if (!projectCodes.includes(expected.project_code)) {
-        throw new Error(`project '${expected.project_code}' is not authorized by the verified service token`);
+    if (!projectCodes.includes(request.projectCode)) {
+        throw new Error(`project '${request.projectCode}' is not authorized by the verified service token`);
     }
 
     const capabilities = list(firstDefined(claims, ['capabilities', 'capability']));
@@ -145,14 +140,14 @@ function resolveTokenIdentity(expected, context = {}) {
 
     const tokenContractId = aliasedString(claims, [
         'outcome_contract_id', 'outcomeContractId', 'contract_id', 'contractId'
-    ], 'outcome contract', { required: false });
-    const tokenRunId = aliasedString(claims, ['run_id', 'runId', 'outcome_run_id', 'outcomeRunId'], 'outcome run', {
-        required: false
-    });
-    if (tokenContractId && tokenContractId !== expected.outcome_contract_id) {
+    ], 'outcome contract');
+    const tokenRunId = aliasedString(claims, [
+        'run_id', 'runId', 'outcome_run_id', 'outcomeRunId'
+    ], 'outcome run');
+    if (tokenContractId !== request.outcomeContractId) {
         throw new Error('outcome contract does not match the verified service token');
     }
-    if (tokenRunId && tokenRunId !== expected.run_id) {
+    if (tokenRunId !== request.runId) {
         throw new Error('outcome run does not match the verified service token');
     }
 
@@ -180,6 +175,8 @@ function resolveTokenIdentity(expected, context = {}) {
         organizationId,
         delegatedActorPersonId,
         projectCodes,
+        outcomeContractId: tokenContractId,
+        runId: tokenRunId,
         contractVersion
     };
 }
@@ -259,24 +256,20 @@ async function readResponseJson(response) {
 }
 
 /**
- * Creates the production binding verifier used by the Brainbase retrieve
- * boundary. A null result means the deployment has no configured authority
- * endpoint and must remain unavailable; callers must not substitute headers,
- * request-body identities, or token self-claims for this provider.
+ * Creates the Brainbase-side verifier for Mana's named outcome-authority
+ * service. `null` means the binding or its resource configuration is absent;
+ * callers must leave the retrieve route unavailable in that case.
  */
 export function createManaOutcomeAuthorityReadbackProvider({
-    endpoint,
+    serviceBinding = null,
+    transport = null,
     resource,
-    fetchImpl = globalThis.fetch,
     timeoutMs = DEFAULT_TIMEOUT_MS
 } = {}) {
-    const readbackEndpoint = resolveEndpoint(endpoint);
+    const binding = resolveServiceBinding({ serviceBinding, transport });
     const resourceRef = nonEmptyString(resource);
     const timeout = Number(timeoutMs);
-    if (!readbackEndpoint || !resourceRef || typeof fetchImpl !== 'function'
-        || !Number.isSafeInteger(timeout) || timeout < 1) {
-        return null;
-    }
+    if (!binding || !resourceRef || !Number.isSafeInteger(timeout) || timeout < 1) return null;
 
     return {
         async verifyBinding(expected, context = {}) {
@@ -295,7 +288,10 @@ export function createManaOutcomeAuthorityReadbackProvider({
             const timeoutId = setTimeout(() => controller.abort(), timeout);
             let response;
             try {
-                response = await fetchImpl(readbackEndpoint, {
+                // This hostname is only an input to the named binding. No
+                // process-global/public fetch is used and no caller header is
+                // trusted for authentication; the binding is the trust edge.
+                response = await binding.fetch(`${SERVICE_BINDING_ORIGIN}${MANA_OUTCOME_AUTHORITY_READBACK_PATH}`, {
                     method: 'POST',
                     headers: {
                         accept: 'application/json',
@@ -326,14 +322,15 @@ export function createManaOutcomeAuthorityReadbackProvider({
 
 export function createManaOutcomeAuthorityReadbackProviderFromEnv({
     env = process.env,
-    fetchImpl = globalThis.fetch,
+    serviceBinding = null,
+    transport = null,
+    resource = env?.[MANA_OUTCOME_AUTHORITY_READBACK_RESOURCE_ENV],
     timeoutMs = DEFAULT_TIMEOUT_MS
 } = {}) {
     return createManaOutcomeAuthorityReadbackProvider({
-        endpoint: env?.[MANA_OUTCOME_AUTHORITY_READBACK_URL_ENV],
-        resource: env?.[MANA_OUTCOME_AUTHORITY_READBACK_RESOURCE_ENV],
-        fetchImpl,
+        serviceBinding,
+        transport,
+        resource,
         timeoutMs
     });
 }
-

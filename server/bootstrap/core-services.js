@@ -82,6 +82,7 @@ import { PgKnowledgeDocumentReceiptRepository } from '../services/knowledge-docu
 import { KnowledgeDocumentGraphRepository } from '../services/knowledge-document-graph-repository.js';
 import { KnowledgeDocumentGraphPointerResolver } from '../services/knowledge-document-graph-pointer-resolver.js';
 import { createConfiguredKnowledgeBedrockAdapter } from './knowledge-bedrock.js';
+import { createManaOutcomeAuthorityReadbackProviderFromEnv } from '../services/knowledge-retrieve-binding-provider.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -150,7 +151,11 @@ export function createCoreServices({
     sourceHead = null,
     documentWriter = undefined,
     documentGraphPointerResolver = null,
-    knowledgeBedrockAdapter = undefined
+    knowledgeBedrockAdapter = undefined,
+    knowledgeRetrieveBindingVerifier = undefined,
+    knowledgeRetrieveBindingRepository = undefined,
+    knowledgeRetrieveBindingTransport = undefined,
+    knowledgeRetrieveBindingResource = undefined
 }) {
     const googleCalendarService = new GoogleCalendarService();
     const scheduleParser = new ScheduleParser({ googleCalendarService });
@@ -177,6 +182,13 @@ export function createCoreServices({
     const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter === undefined
         ? createConfiguredKnowledgeBedrockAdapter()
         : knowledgeBedrockAdapter;
+    const resolvedKnowledgeRetrieveBindingVerifier = knowledgeRetrieveBindingVerifier === undefined
+        ? createManaOutcomeAuthorityReadbackProviderFromEnv({
+            env: process.env,
+            serviceBinding: knowledgeRetrieveBindingTransport,
+            resource: knowledgeRetrieveBindingResource
+        })
+        : knowledgeRetrieveBindingVerifier;
     const projectProvisioningService = infoSSOTService.pool
         ? createProjectProvisioningService({ infoSSOTService, configParser })
         : null;
@@ -482,6 +494,8 @@ export function createCoreServices({
         documentGraphRepository,
         documentGraphPointerResolver: resolvedDocumentGraphPointerResolver,
         knowledgeBedrockAdapter: resolvedKnowledgeBedrockAdapter,
+        knowledgeRetrieveBindingVerifier: resolvedKnowledgeRetrieveBindingVerifier,
+        knowledgeRetrieveBindingRepository: knowledgeRetrieveBindingRepository ?? null,
         canonicalTaskStoreConfig,
         canonicalTaskReadiness,
         canonicalTaskOperationRepository,

@@ -6,6 +6,9 @@ import {
     createKnowledgeRetrieveServiceAuthMiddleware
 } from '../../server/middleware/knowledge-retrieve-service-auth.js';
 import {
+    createManaOutcomeAuthorityReadbackProvider
+} from '../../server/services/knowledge-retrieve-binding-provider.js';
+import {
     createKnowledgeRetrieveRouter,
     KNOWLEDGE_RETRIEVE_REQUEST_CONTRACT,
     KNOWLEDGE_RETRIEVE_RESPONSE_CONTRACT
@@ -31,6 +34,15 @@ function createAuthService(claims = {}) {
             deployment_id: 'dep_1',
             expires_at: '2030-01-01T00:00:00.000Z',
             capabilities: ['knowledge.retrieve'],
+            organizationId: 'org_1',
+            tenantId: 'org_1',
+            delegatedActorId: 'person_1',
+            personId: 'person_1',
+            projectCodes: ['alpha'],
+            authorizedProjectCodes: ['alpha'],
+            outcomeContractId: 'oc_1',
+            runId: 'run_1',
+            contractVersion: 3,
             ...claims
         }))
     };
@@ -50,6 +62,7 @@ function createApp({ authService = createAuthService(), binding = {}, bindingVer
         capability: 'knowledge.retrieve',
         outcome_contract_id: 'oc_1',
         run_id: 'run_1',
+        contract_version: 3,
         service_subject: 'svc_mana',
         ...binding
     })) : bindingVerifier;
@@ -97,6 +110,45 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
             projectCodes: ['alpha'],
             capability: 'knowledge.retrieve'
         }), REQUEST);
+        expect(response.body).toMatchObject({ project_code: 'alpha', results: [{ id: 'item-1' }] });
+    });
+
+    it('accepts a configured named Mana binding fixture through the real readback provider', async () => {
+        const serviceBinding = {
+            fetch: vi.fn(async () => ({
+                ok: true,
+                json: async () => ({
+                    principal: {
+                        tenant_id: 'org_1',
+                        project_id: 'alpha',
+                        actor_principal_id: 'person_1'
+                    },
+                    persisted: {
+                        contract_id: 'oc_1',
+                        contract_version: '3',
+                        run_id: 'run_1',
+                        resource_ref: 'meeting-minutes:github'
+                    },
+                    authority_revision: 'rev_1',
+                    profile_id: 'meeting_minutes_github_v1',
+                    run_mode: 'normal',
+                    contract_status: 'active'
+                })
+            }))
+        };
+        const provider = createManaOutcomeAuthorityReadbackProvider({
+            serviceBinding,
+            resource: 'meeting-minutes:github'
+        });
+        const { app, service } = createApp({ bindingVerifier: provider });
+        const response = await request(app)
+            .post('/api/knowledge/retrieve')
+            .set('authorization', `Bearer ${TOKEN}`)
+            .send(REQUEST)
+            .expect(200);
+
+        expect(serviceBinding.fetch).toHaveBeenCalledTimes(1);
+        expect(service.retrieve).toHaveBeenCalledTimes(1);
         expect(response.body).toMatchObject({ project_code: 'alpha', results: [{ id: 'item-1' }] });
     });
 
@@ -148,6 +200,21 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
 
     it('rejects a project outside the persisted authorized project codes', async () => {
         const { app, service } = createApp({ binding: { authorized_project_codes: ['beta'] } });
+        const response = await request(app).post('/api/knowledge/retrieve')
+            .set('authorization', `Bearer ${TOKEN}`).send(REQUEST);
+        expect(response.status).toBe(403);
+        expect(response.body.code).toBe('KNOWLEDGE_RETRIEVE_BINDING_INVALID');
+        expect(service.retrieve).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['tenant', { organizationId: 'org_other', tenantId: 'org_other' }],
+        ['actor', { delegatedActorId: 'person_other', personId: 'person_other' }],
+        ['project', { projectCodes: ['beta'], authorizedProjectCodes: ['beta'] }],
+        ['outcome contract', { outcomeContractId: 'oc_other' }],
+        ['run', { runId: 'run_other' }]
+    ])('rejects a verified service token with a mismatched %s binding', async (_name, claims) => {
+        const { app, service, verifier } = createApp({ authService: createAuthService(claims) });
         const response = await request(app).post('/api/knowledge/retrieve')
             .set('authorization', `Bearer ${TOKEN}`).send(REQUEST);
         expect(response.status).toBe(403);

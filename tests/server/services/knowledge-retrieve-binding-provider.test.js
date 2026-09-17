@@ -59,12 +59,11 @@ function response(body, status = 200) {
 }
 
 describe('Mana outcome authority readback binding provider', () => {
-    it('posts the canonical readback identity and returns only persisted binding fields', async () => {
-        const fetchImpl = vi.fn(async () => response(readback()));
+    it('uses the injected named service binding and returns only persisted binding fields', async () => {
+        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
         const provider = createManaOutcomeAuthorityReadbackProvider({
-            endpoint: 'https://mana.internal',
+            serviceBinding,
             resource: 'meeting-minutes:github',
-            fetchImpl
         });
 
         await expect(provider.verifyBinding(EXPECTED, TOKEN_CONTEXT)).resolves.toMatchObject({
@@ -77,11 +76,12 @@ describe('Mana outcome authority readback binding provider', () => {
             service_subject: 'svc_mana',
             contract_version: 3
         });
-        expect(fetchImpl).toHaveBeenCalledTimes(1);
-        const [url, init] = fetchImpl.mock.calls[0];
-        expect(url).toBe(`https://mana.internal${MANA_OUTCOME_AUTHORITY_READBACK_PATH}`);
+        expect(serviceBinding.fetch).toHaveBeenCalledTimes(1);
+        const [url, init] = serviceBinding.fetch.mock.calls[0];
+        expect(url).toBe(`https://mana-outcome-authority.internal${MANA_OUTCOME_AUTHORITY_READBACK_PATH}`);
         expect(init.method).toBe('POST');
         expect(init.headers).toEqual({ accept: 'application/json', 'content-type': 'application/json' });
+        expect(init.headers.authorization).toBeUndefined();
         expect(JSON.parse(init.body)).toEqual({
             tenant: 'org_1',
             project: 'alpha',
@@ -100,11 +100,10 @@ describe('Mana outcome authority readback binding provider', () => {
         ['contract', { persisted: { ...readback().persisted, contract_id: 'oc_other' } }],
         ['run', { persisted: { ...readback().persisted, run_id: 'run_other' } }]
     ])('fails closed on persisted %s mismatch', async (_name, override) => {
-        const fetchImpl = vi.fn(async () => response(readback(override)));
+        const serviceBinding = { fetch: vi.fn(async () => response(readback(override))) };
         const provider = createManaOutcomeAuthorityReadbackProvider({
-            endpoint: 'https://mana.internal/v1/outcome-authority:readback',
+            serviceBinding,
             resource: 'meeting-minutes:github',
-            fetchImpl
         });
 
         await expect(provider.verifyBinding(EXPECTED, TOKEN_CONTEXT)).rejects.toThrow();
@@ -117,11 +116,10 @@ describe('Mana outcome authority readback binding provider', () => {
         ['contract', { outcomeContractId: 'oc_other' }],
         ['run', { runId: 'run_other' }]
     ])('does not read Mana when verified token %s is mismatched', async (_name, claim) => {
-        const fetchImpl = vi.fn(async () => response(readback()));
+        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
         const provider = createManaOutcomeAuthorityReadbackProvider({
-            endpoint: 'https://mana.internal',
+            serviceBinding,
             resource: 'meeting-minutes:github',
-            fetchImpl
         });
         const expected = (_name === 'organization' || _name === 'delegated actor')
             ? { ...EXPECTED, organization_id: 'org_1', delegated_actor_person_id: 'person_1' }
@@ -131,30 +129,27 @@ describe('Mana outcome authority readback binding provider', () => {
             ...TOKEN_CONTEXT,
             verifiedToken: { ...TOKEN_CONTEXT.verifiedToken, ...claim }
         })).rejects.toThrow();
-        expect(fetchImpl).not.toHaveBeenCalled();
+        expect(serviceBinding.fetch).not.toHaveBeenCalled();
     });
 
-    it('fails closed when endpoint, resource or fetch implementation is absent', () => {
+    it('fails closed when the named binding or resource is absent', () => {
         expect(createManaOutcomeAuthorityReadbackProvider({
             resource: 'meeting-minutes:github',
-            fetchImpl: vi.fn()
         })).toBeNull();
         expect(createManaOutcomeAuthorityReadbackProvider({
-            endpoint: 'https://mana.internal',
-            fetchImpl: vi.fn()
+            serviceBinding: { fetch: vi.fn() },
         })).toBeNull();
         expect(createManaOutcomeAuthorityReadbackProvider({
-            endpoint: 'file:///tmp/mana',
+            serviceBinding: { fetch: vi.fn() },
             resource: 'meeting-minutes:github',
-            fetchImpl: vi.fn()
-        })).toBeNull();
+        })).not.toBeNull();
         expect(createManaOutcomeAuthorityReadbackProviderFromEnv({
             env: {},
-            fetchImpl: vi.fn()
+            serviceBinding: { fetch: vi.fn() }
         })).toBeNull();
     });
 
-    it('loads endpoint and resource only from the explicit deployment configuration', () => {
+    it('does not turn a public URL setting into an unauthenticated transport', () => {
         const env = {
             [MANA_OUTCOME_AUTHORITY_READBACK_URL_ENV]: 'https://mana.internal',
             [MANA_OUTCOME_AUTHORITY_READBACK_RESOURCE_ENV]: 'meeting-minutes:github'
@@ -162,6 +157,6 @@ describe('Mana outcome authority readback binding provider', () => {
         expect(createManaOutcomeAuthorityReadbackProviderFromEnv({
             env,
             fetchImpl: vi.fn()
-        })).not.toBeNull();
+        })).toBeNull();
     });
 });

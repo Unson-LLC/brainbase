@@ -230,6 +230,10 @@ function normalizeBinding(value) {
     const serviceSubject = nonEmptyString(firstOwnField(binding, [
         'service_subject', 'serviceSubject', 'service_id', 'serviceId'
     ]));
+    const contractVersionValue = firstOwnField(binding, [
+        'contract_version', 'contractVersion', 'outcome_contract_version', 'outcomeContractVersion'
+    ]);
+    const contractVersion = Number(contractVersionValue);
     return {
         organizationId,
         delegatedActorPersonId,
@@ -238,7 +242,89 @@ function normalizeBinding(value) {
         capabilities,
         outcomeContractId,
         runId,
-        serviceSubject
+        serviceSubject,
+        contractVersion: Number.isSafeInteger(contractVersion) && contractVersion > 0
+            ? contractVersion
+            : null
+    };
+}
+
+function aliasedTokenString(claims, names, label) {
+    const values = names
+        .map((name) => nonEmptyString(firstOwnField(claims, [name])))
+        .filter(Boolean);
+    const unique = [...new Set(values)];
+    if (unique.length !== 1) throw new Error(`${label} claim is required and unambiguous`);
+    return unique[0];
+}
+
+function aliasedTokenList(claims, names, label) {
+    const values = names
+        .map((name) => firstOwnField(claims, [name]))
+        .filter((value) => value !== undefined && value !== null)
+        .map(list);
+    if (values.length === 0 || values.some((value) => value.length === 0)) {
+        throw new Error(`${label} claim is required`);
+    }
+    const first = values[0];
+    if (values.slice(1).some((candidate) => candidate.length !== first.length
+        || candidate.some((item, index) => item !== first[index]))) {
+        throw new Error(`${label} claims are ambiguous`);
+    }
+    return first;
+}
+
+function normalizeVerifiedOutcomeClaims(claims) {
+    const organizationId = aliasedTokenString(
+        claims,
+        ['organization_id', 'organizationId', 'tenant_id', 'tenantId'],
+        'organization'
+    );
+    const delegatedActorPersonId = aliasedTokenString(
+        claims,
+        [
+            'delegated_actor_person_id',
+            'delegatedActorPersonId',
+            'delegated_actor_id',
+            'delegatedActorId',
+            'person_id',
+            'personId'
+        ],
+        'delegated actor'
+    );
+    const projectCodes = aliasedTokenList(
+        claims,
+        ['authorized_project_codes', 'authorizedProjectCodes', 'project_codes', 'projectCodes'],
+        'authorized project'
+    );
+    const capabilities = aliasedTokenList(claims, ['capabilities', 'capability'], 'capability');
+    if (!capabilities.includes(KNOWLEDGE_RETRIEVE_CAPABILITY)) {
+        throw new Error('knowledge.retrieve capability is required');
+    }
+    const outcomeContractId = aliasedTokenString(
+        claims,
+        ['outcome_contract_id', 'outcomeContractId', 'contract_id', 'contractId'],
+        'outcome contract'
+    );
+    const runId = aliasedTokenString(
+        claims,
+        ['run_id', 'runId', 'outcome_run_id', 'outcomeRunId'],
+        'outcome run'
+    );
+    const contractVersion = Number(firstOwnField(claims, [
+        'outcome_contract_version', 'outcomeContractVersion', 'contract_version', 'contractVersion'
+    ]));
+    if (!Number.isSafeInteger(contractVersion) || contractVersion < 1) {
+        throw new Error('outcome contract version claim is required');
+    }
+    return {
+        organizationId,
+        delegatedActorPersonId,
+        projectCodes,
+        capabilities,
+        outcomeContractId,
+        runId,
+        contractVersion
     };
 }
 
@@ -367,12 +453,26 @@ export function createKnowledgeRetrieveServiceAuthMiddleware({
             const inputError = validRequestBindingInput(req);
             if (inputError) return inputInvalid(res, inputError);
 
+            let tokenBinding;
+            try {
+                tokenBinding = normalizeVerifiedOutcomeClaims(req.serviceTokenClaims);
+            } catch (error) {
+                return bindingInvalid(res, error.message);
+            }
+
             const expected = requestBindingInput(req, req.serviceIdentity);
+            if (!tokenBinding.projectCodes.includes(expected.project_code)
+                || tokenBinding.outcomeContractId !== expected.outcome_contract_id
+                || tokenBinding.runId !== expected.run_id) {
+                return bindingInvalid(res, 'verified service token is not bound to the requested project, outcome contract or run');
+            }
             let persisted;
             try {
                 persisted = await provider.method.call(provider.owner, expected, {
                     request: req,
-                    serviceIdentity: req.serviceIdentity
+                    serviceIdentity: req.serviceIdentity,
+                    serviceTokenClaims: req.serviceTokenClaims,
+                    verifiedToken: req.serviceTokenClaims
                 });
             } catch {
                 return bindingUnavailable(res, 'persisted outcome binding read failed');
@@ -386,7 +486,11 @@ export function createKnowledgeRetrieveServiceAuthMiddleware({
                 || binding.capability !== KNOWLEDGE_RETRIEVE_CAPABILITY
                 || binding.outcomeContractId !== expected.outcome_contract_id
                 || binding.runId !== expected.run_id
-                || (binding.serviceSubject && binding.serviceSubject !== req.serviceIdentity.subject)) {
+                || binding.contractVersion !== tokenBinding.contractVersion
+                || binding.organizationId !== tokenBinding.organizationId
+                || binding.delegatedActorPersonId !== tokenBinding.delegatedActorPersonId
+                || binding.serviceSubject !== req.serviceIdentity.subject
+                || !binding.projectCodes.every((projectCode) => tokenBinding.projectCodes.includes(projectCode))) {
                 return bindingInvalid(res, 'persisted organization, actor, project, capability, outcome or run binding does not match');
             }
 
@@ -404,6 +508,7 @@ export function createKnowledgeRetrieveServiceAuthMiddleware({
                 capability: KNOWLEDGE_RETRIEVE_CAPABILITY,
                 outcome_contract_id: binding.outcomeContractId,
                 run_id: binding.runId,
+                contract_version: binding.contractVersion,
                 service_subject: req.serviceIdentity.subject
             });
             return next();
