@@ -791,19 +791,36 @@ export class KnowledgeAuthoringService {
             throw error;
         }
         if (!reused) throw new KnowledgeAuthoringError('knowledge_canonical_not_found', 'canonical was not found', 404);
-        const canonical = reused.canonical || reused.record
-            || await this.catalogService.get(access, { project_code: projectCode, id: canonicalId });
-        if (canonical?.version && String(canonical.version) !== expectedVersion) {
+        const canonical = await this.catalogService.get(access, { project_code: projectCode, id: canonicalId });
+        if (!canonical || canonical.id !== canonicalId || typeof canonical.canonical_content !== 'string') {
+            throw new KnowledgeAuthoringError(
+                'knowledge_reuse_readback_mismatch',
+                'canonical catalog readback did not contain the requested content',
+                409
+            );
+        }
+        if (String(canonical.version || '') !== expectedVersion) {
             throw new KnowledgeAuthoringError('knowledge_canonical_version_conflict', 'canonical version changed', 409, {
                 expected_version: expectedVersion, current_version: canonical.version
             });
         }
+        const canonicalContentHash = `sha256:${sha256(canonical.canonical_content)}`;
+        if (canonical.canonical_content_hash && canonical.canonical_content_hash !== canonicalContentHash) {
+            throw new KnowledgeAuthoringError(
+                'knowledge_reuse_readback_mismatch',
+                'canonical catalog readback hash did not match its content',
+                409,
+                { expected_hash: canonicalContentHash, observed_hash: canonical.canonical_content_hash }
+            );
+        }
+        const verifiedCanonical = { ...canonical, canonical_content_hash: canonicalContentHash };
         const result = {
             status: 'reused',
             idempotent: Boolean(reused.idempotent),
             draft: { ...current, canonical_id: canonicalId },
-            canonical,
+            canonical: verifiedCanonical,
             expected_version: expectedVersion,
+            canonical_content_hash: canonicalContentHash,
             persistence: {
                 graph_saved: true,
                 relations_saved: true,

@@ -53,7 +53,11 @@ function harness() {
         event_id: event.event_id, graph_entity_id: event.subject.id, semantic_state: 'active', processing_stage: 'retrievable'
     })) };
     const catalogService = { get: vi.fn(async (_access, input) => ({
-        id: input.id, type: 'decision', version: '1', canonical_content: 'Use canonical truth.',
+        id: input.id,
+        type: 'decision',
+        version: input.id === 'decision_existing' ? '7' : '1',
+        canonical_content: input.id === 'decision_existing' ? 'Existing truth.' : 'Use canonical truth.',
+        source: { kind: 'graph', id: input.id },
         lifecycle: { status: 'active', applicable: true }
     })) };
     const graphRepository = {
@@ -227,7 +231,7 @@ describe('KnowledgeAuthoringService', () => {
     });
 
     it('canonical reuseは既存IDとexpected_versionを要求し、新規ingestを呼ばない', async () => {
-        const { service, knowledgeEventService, graphRepository, repository } = harness();
+        const { service, knowledgeEventService, graphRepository, repository, catalogService } = harness();
         const draft = await service.createDraft(access, {
             project_code: 'alpha', title: 'Reuse', content: 'Draft context'
         });
@@ -242,6 +246,7 @@ describe('KnowledgeAuthoringService', () => {
         });
         expect(result).toMatchObject({
             status: 'reused', canonical: { id: 'decision_existing', version: '7' },
+            canonical_content_hash: expect.stringMatching(/^sha256:/),
             persistence: {
                 graph_saved: true,
                 relations_saved: true,
@@ -250,6 +255,11 @@ describe('KnowledgeAuthoringService', () => {
                     { relation: 'belongs_to', to_id: 'alpha' }
                 ]
             }
+        });
+        expect(result.canonical.canonical_content_hash).toBe(result.canonical_content_hash);
+        expect(result.canonical.source).toEqual({ kind: 'graph', id: 'decision_existing' });
+        expect(catalogService.get).toHaveBeenCalledWith(access, {
+            project_code: 'alpha', id: 'decision_existing'
         });
         await expect(service.reuseCanonical(access, {
             project_code: 'alpha', draft_id: draft.draft_id, decision_domain: 'engineering',
@@ -261,6 +271,23 @@ describe('KnowledgeAuthoringService', () => {
         }), { access });
         expect(repository.completeReuse).toHaveBeenCalledOnce();
         expect(graphRepository.reuseCanonical).toHaveBeenCalledOnce();
+    });
+
+    it('canonical reuseはCatalog本文hash不一致を成功にしない', async () => {
+        const { service, catalogService, repository } = harness();
+        const draft = await service.createDraft(access, {
+            project_code: 'alpha', title: 'Reuse', content: 'Draft context'
+        });
+        catalogService.get.mockResolvedValue({
+            id: 'decision_existing', type: 'decision', version: '7',
+            canonical_content: 'Existing truth.', canonical_content_hash: 'sha256:wrong'
+        });
+
+        await expect(service.reuseCanonical(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, decision_domain: 'engineering',
+            canonical_id: 'decision_existing', expected_version: '7'
+        })).rejects.toMatchObject({ code: 'knowledge_reuse_readback_mismatch', status: 409 });
+        expect(repository.completeReuse).not.toHaveBeenCalled();
     });
 
     it('save claim後は編集を排他し、同じkeyの失敗再試行だけを許す', async () => {
