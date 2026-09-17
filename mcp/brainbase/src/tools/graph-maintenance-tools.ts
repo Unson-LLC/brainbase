@@ -6,7 +6,7 @@ import {
 
 const project = { project_code: { type: 'string', minLength: 1 } } as const;
 const operationNames = [
-  'patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity', 'upsert_edge',
+  'patch_entity', 'merge_entities', 'retire_entity', 'reactivate_project', 'move_scope', 'rehome_entity', 'upsert_edge',
   'link_decision_subject', 'materialize_project_subject', 'link_decision_project_subject',
   'retire_edge', 'normalize_alias', 'normalize_merged_lifecycle',
 ] as const;

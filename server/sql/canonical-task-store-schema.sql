@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS canonical_tasks (
     legacy_nocodb_id TEXT UNIQUE,
     title TEXT NOT NULL,
     description TEXT,
-    status TEXT NOT NULL CHECK (status IN ('pending', 'in_progress', 'waiting', 'completed')),
+    status TEXT NOT NULL CHECK (status IN ('pending', 'in_progress', 'waiting', 'completed', 'cancelled')),
     priority TEXT NOT NULL CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
     assignee_person_id TEXT,
     assignee_display_name TEXT,
@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS canonical_tasks (
 
 ALTER TABLE canonical_tasks
     ADD COLUMN IF NOT EXISTS project_codes TEXT[] NOT NULL DEFAULT '{}'::text[];
+
+ALTER TABLE canonical_tasks
+    DROP CONSTRAINT IF EXISTS canonical_tasks_status_check;
+ALTER TABLE canonical_tasks
+    ADD CONSTRAINT canonical_tasks_status_check
+    CHECK (status IN ('pending', 'in_progress', 'waiting', 'completed', 'cancelled'));
 
 CREATE INDEX IF NOT EXISTS canonical_tasks_status_priority_idx
     ON canonical_tasks (status, priority);

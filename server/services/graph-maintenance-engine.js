@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 
 export const GRAPH_MAINTENANCE_OPERATIONS = Object.freeze([
-    'patch_entity', 'merge_entities', 'retire_entity', 'move_scope', 'rehome_entity',
+    'patch_entity', 'merge_entities', 'retire_entity', 'reactivate_project', 'move_scope', 'rehome_entity',
     'upsert_edge', 'link_decision_subject', 'materialize_project_subject',
     'link_decision_project_subject', 'retire_edge', 'normalize_alias',
     'normalize_merged_lifecycle'
@@ -156,6 +156,13 @@ export function applyGraphOperations(snapshot, operations, { projectCode, humanG
                 && !['retired', 'superseded'].includes(String(entity.payload?.status || '').toLowerCase());
             if (activeDecision && !(operation.human_gate_receipt || humanGateReceipt)) throw new Error('human_gate_receipt is required for Active Decision');
             entity.lifecycle_status = 'retired';
+            entity.version += 1;
+        } else if (operation.operation === 'reactivate_project') {
+            const entity = findEntity(state, operation.entity_id);
+            requireVersion(entity, operation);
+            if (entity.entity_type !== 'project') throw new Error('reactivate_project requires a Project entity');
+            if (entity.lifecycle_status !== 'retired') throw new Error('reactivate_project requires a retired Project');
+            entity.lifecycle_status = 'active';
             entity.version += 1;
         } else if (operation.operation === 'move_scope') {
             const entity = findEntity(state, operation.entity_id);

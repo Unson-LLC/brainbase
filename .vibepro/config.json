@@ -353,8 +353,20 @@
           "レトロの改善案を原因ノード・根拠へ結び、再検証の証拠なしに問題を閉じない。",
           "tenant/project境界を保持し、夜間ルーティンは外部再収集や本番ポリシーの自動変更を行わない。"
         ]
+      },
+      {
+        "story_id": "story-organization-crud-lifecycle-v1",
+        "title": "正本プロジェクト・タスクの復元可能CRUD",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-person-scoped-organization-switch-v1"
+    "current_story_id": "story-organization-crud-lifecycle-v1"
   }
 }

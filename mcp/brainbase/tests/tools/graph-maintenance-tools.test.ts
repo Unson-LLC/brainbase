@@ -394,6 +394,7 @@ describe('Graph maintenance MCP tools', () => {
     const operationSchema = planTool?.inputSchema.properties?.operations?.items;
     assert.ok(operationSchema && 'properties' in operationSchema);
     assert.ok(operationSchema.properties.operation.enum.includes('link_decision_subject'));
+    assert.ok(operationSchema.properties.operation.enum.includes('reactivate_project'));
 
     let fetched = false;
     const denied = await handleGraphMaintenanceToolCall('graph_plan_mutations', {

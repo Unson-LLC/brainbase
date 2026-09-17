@@ -75,6 +75,35 @@ describe('Graph maintenance Phase 0 contract', () => {
         }], { projectCode: 'brainbase' })).toThrow('human_gate_receipt is required');
     });
 
+    it('retired Projectだけを復元し、正本メタデータを保持する', () => {
+        const project = {
+            id: 'brainbase', entity_type: 'project', project_code: 'brainbase',
+            payload: {
+                name: 'Brainbase', catalog_project_id: 'brainbase', catalog_version: 1,
+                source_ref: 'project-catalog:brainbase@1'
+            },
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'retired', version: 3
+        };
+        const retired = { project_code: 'brainbase', entities: [project], edges: [] };
+        const originalPayload = structuredClone(project.payload);
+
+        const after = applyGraphOperations(retired, [{
+            operation: 'reactivate_project', entity_id: project.id, expected_version: 3
+        }], { projectCode: 'brainbase' });
+
+        expect(after.entities[0]).toMatchObject({ lifecycle_status: 'active', version: 4 });
+        expect(after.entities[0].payload).toEqual(originalPayload);
+        expect(() => applyGraphOperations(after, [{
+            operation: 'reactivate_project', entity_id: project.id, expected_version: 4
+        }], { projectCode: 'brainbase' })).toThrow('requires a retired Project');
+
+        const retiredPerson = structuredClone(retired);
+        retiredPerson.entities[0].entity_type = 'person';
+        expect(() => applyGraphOperations(retiredPerson, [{
+            operation: 'reactivate_project', entity_id: project.id, expected_version: 3
+        }], { projectCode: 'brainbase' })).toThrow('requires a Project entity');
+    });
+
     it('edge version、edge ID重複、endpoint key重複を検証し、top-level validを常に返す', () => {
         const entities = [
             { id: 'entity_a', entity_type: 'person', project_code: 'brainbase', payload: {}, role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1 },

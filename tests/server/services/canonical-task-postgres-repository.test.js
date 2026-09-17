@@ -44,6 +44,12 @@ function repository(pool) {
 }
 
 describe('CanonicalTaskPostgresRepository', () => {
+    it('normalizes cancelled tasks without treating them as unknown', () => {
+        const normalized = repository({ query: vi.fn() }).normalize({ ...persisted, status: 'cancelled' });
+        expect(normalized).toMatchObject({ status: 'cancelled' });
+        expect(normalized.normalization_warnings).not.toContainEqual(expect.objectContaining({ code: 'unknown_status' }));
+    });
+
     it('keeps migrated NocoDB opaque IDs stable and rejects another store', () => {
         const repo = repository({ query: vi.fn() });
         const legacyId = repo.encodeLegacyId('42');

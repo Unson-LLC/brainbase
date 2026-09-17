@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import { principalNamespace } from './canonical-task-principal.js';
 
-const STATUSES = new Set(['pending', 'in_progress', 'waiting', 'completed']);
+const STATUSES = new Set(['pending', 'in_progress', 'waiting', 'completed', 'cancelled']);
 const PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
 
 function normalizeProjectCodes(value) {
@@ -17,10 +17,11 @@ function hasInvalidProjectCode(value) {
         || item.split(',').some((code) => !code.trim() || code.trim().length > 100));
 }
 const TRANSITIONS = Object.freeze({
-    pending: new Set(['in_progress', 'waiting', 'completed']),
-    in_progress: new Set(['waiting', 'completed']),
-    waiting: new Set(['in_progress', 'completed']),
-    completed: new Set()
+    pending: new Set(['in_progress', 'waiting', 'completed', 'cancelled']),
+    in_progress: new Set(['waiting', 'completed', 'cancelled']),
+    waiting: new Set(['in_progress', 'completed', 'cancelled']),
+    completed: new Set(),
+    cancelled: new Set(['pending'])
 });
 
 function splitCsv(value) {
