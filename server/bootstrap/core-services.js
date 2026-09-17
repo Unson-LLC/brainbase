@@ -78,6 +78,7 @@ import { createSlackInstallationControlPlaneFromEnv } from './slack-installation
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
 import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
 import { createConfiguredKnowledgeDocumentWriter } from './knowledge-document-writer.js';
+import { createConfiguredKnowledgeBedrockAdapter } from './knowledge-bedrock.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -144,7 +145,8 @@ export function createCoreServices({
     serverDir,
     port,
     sourceHead = null,
-    documentWriter = undefined
+    documentWriter = undefined,
+    knowledgeBedrockAdapter = undefined
 }) {
     const googleCalendarService = new GoogleCalendarService();
     const scheduleParser = new ScheduleParser({ googleCalendarService });
@@ -164,6 +166,9 @@ export function createCoreServices({
     const resolvedDocumentWriter = documentWriter === undefined
         ? createConfiguredKnowledgeDocumentWriter({ configParser })
         : documentWriter;
+    const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter === undefined
+        ? createConfiguredKnowledgeBedrockAdapter()
+        : knowledgeBedrockAdapter;
     const infoSSOTService = new InfoSSOTService();
     const projectProvisioningService = infoSSOTService.pool
         ? createProjectProvisioningService({ infoSSOTService, configParser })
@@ -457,6 +462,7 @@ export function createCoreServices({
         infoSSOTService,
         projectProvisioningService,
         tenantRuntimeServices,
+        knowledgeBedrockAdapter: resolvedKnowledgeBedrockAdapter,
         documentWriter: resolvedDocumentWriter,
         canonicalTaskStoreConfig,
         canonicalTaskReadiness,

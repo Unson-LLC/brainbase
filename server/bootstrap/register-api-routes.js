@@ -114,21 +114,22 @@ export function registerKnowledgeCatalogApiRoute(app, {
     captureProposalAdapter = null,
     previewAnswerer = null,
     knowledgeAIAdapter = null,
+    knowledgeBedrockAdapter = null,
     knowledgeBedrockClient = null,
     knowledgeBedrockModelId = null,
     knowledgeBedrockMaxTokens = 1024,
     documentWriter = null,
     knowledgeResolutionService = null
 }) {
-    const knowledgeBedrockAdapter = knowledgeBedrockClient && knowledgeBedrockModelId
+    const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter || (knowledgeBedrockClient && knowledgeBedrockModelId
         ? createKnowledgeBedrockAdapter({
             bedrockClient: knowledgeBedrockClient,
             modelId: knowledgeBedrockModelId,
             maxTokens: knowledgeBedrockMaxTokens
         })
-        : null;
-    const resolvedCaptureProposalAdapter = captureProposalAdapter || knowledgeAIAdapter || knowledgeBedrockAdapter;
-    const resolvedPreviewAnswerer = previewAnswerer || knowledgeAIAdapter || knowledgeBedrockAdapter;
+        : null);
+    const resolvedCaptureProposalAdapter = captureProposalAdapter || knowledgeAIAdapter || resolvedKnowledgeBedrockAdapter;
+    const resolvedPreviewAnswerer = previewAnswerer || knowledgeAIAdapter || resolvedKnowledgeBedrockAdapter;
     const catalogService = service || new KnowledgeCatalogService({
         infoSSOTService,
         captureProposalAdapter: resolvedCaptureProposalAdapter,
@@ -252,6 +253,7 @@ export function registerApiRoutes(app, {
     captureProposalAdapter,
     previewAnswerer,
     knowledgeAIAdapter,
+    knowledgeBedrockAdapter,
     knowledgeBedrockClient,
     knowledgeBedrockModelId,
     knowledgeBedrockMaxTokens,
@@ -440,6 +442,7 @@ export function registerApiRoutes(app, {
         captureProposalAdapter,
         previewAnswerer,
         knowledgeAIAdapter,
+        knowledgeBedrockAdapter,
         knowledgeBedrockClient,
         knowledgeBedrockModelId,
         knowledgeBedrockMaxTokens,

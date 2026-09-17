@@ -21,6 +21,44 @@ function createAuthService() {
 }
 
 describe('knowledge catalog Bedrock composition root', () => {
+    it('uses the concrete adapter published by production bootstrap', async () => {
+        const adapter = {
+            proposeCapture: vi.fn(async () => ({
+                proposal: {
+                    kind: 'decision',
+                    summary: 'A bootstrap-wired decision',
+                    scope: 'project',
+                    owner_candidate: 'per_owner',
+                    relations: []
+                },
+                evidence: [],
+                unknown: [],
+                version: 'bedrock-v1',
+                readback: { state: 'provider_received', verified: false }
+            })),
+            preview: vi.fn()
+        };
+        const app = express();
+        app.use(express.json());
+        registerKnowledgeCatalogApiRoute(app, {
+            authService: createAuthService(),
+            infoSSOTService: createInfoSSOTService(),
+            knowledgeBedrockAdapter: adapter
+        });
+
+        const response = await request(app)
+            .post('/api/knowledge/capture/proposal')
+            .set('authorization', 'Bearer test-token')
+            .send({ project_code: 'alpha', content: 'new note' })
+            .expect(200);
+
+        expect(response.body.proposal).toMatchObject({ summary: 'A bootstrap-wired decision' });
+        expect(adapter.proposeCapture).toHaveBeenCalledWith(expect.objectContaining({
+            project_code: 'alpha',
+            content: 'new note'
+        }));
+    });
+
     it('injects the explicit Bedrock provider double while preserving the proposal HTTP contract', async () => {
         const bedrockClient = {
             send: vi.fn(async (command) => {
