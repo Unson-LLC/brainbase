@@ -78,6 +78,7 @@ import { createSlackInstallationControlPlaneFromEnv } from './slack-installation
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
 import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
 import { createConfiguredKnowledgeDocumentWriter } from './knowledge-document-writer.js';
+import { PgKnowledgeDocumentReceiptRepository } from '../services/knowledge-document-receipt-repository.js';
 import { createConfiguredKnowledgeBedrockAdapter } from './knowledge-bedrock.js';
 
 export function createCanonicalTaskRepository({
@@ -146,6 +147,7 @@ export function createCoreServices({
     port,
     sourceHead = null,
     documentWriter = undefined,
+    documentGraphPointerResolver = null,
     knowledgeBedrockAdapter = undefined
 }) {
     const googleCalendarService = new GoogleCalendarService();
@@ -163,13 +165,16 @@ export function createCoreServices({
         { catalogMode }
     );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
+    const infoSSOTService = new InfoSSOTService();
+    const documentReceiptRepository = infoSSOTService.pool
+        ? new PgKnowledgeDocumentReceiptRepository({ pool: infoSSOTService.pool })
+        : null;
     const resolvedDocumentWriter = documentWriter === undefined
-        ? createConfiguredKnowledgeDocumentWriter({ configParser })
+        ? createConfiguredKnowledgeDocumentWriter({ configParser, receiptStore: documentReceiptRepository })
         : documentWriter;
     const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter === undefined
         ? createConfiguredKnowledgeBedrockAdapter()
         : knowledgeBedrockAdapter;
-    const infoSSOTService = new InfoSSOTService();
     const projectProvisioningService = infoSSOTService.pool
         ? createProjectProvisioningService({ infoSSOTService, configParser })
         : null;
@@ -462,8 +467,10 @@ export function createCoreServices({
         infoSSOTService,
         projectProvisioningService,
         tenantRuntimeServices,
-        knowledgeBedrockAdapter: resolvedKnowledgeBedrockAdapter,
+        documentReceiptRepository,
         documentWriter: resolvedDocumentWriter,
+        documentGraphPointerResolver,
+        knowledgeBedrockAdapter: resolvedKnowledgeBedrockAdapter,
         canonicalTaskStoreConfig,
         canonicalTaskReadiness,
         canonicalTaskOperationRepository,

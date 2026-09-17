@@ -13,6 +13,7 @@ function resolution() {
             owner: 'Acme',
             repo: 'alpha-docs',
             branch: 'main',
+            tenant_id: 'org_1',
             path: 'docs/'
         }
     };
@@ -92,7 +93,11 @@ describe('configured knowledge document writer', () => {
                     branch: 'config-default-ignored'
                 }])
             },
-            fetchImpl: fake.fetchImpl
+            fetchImpl: fake.fetchImpl,
+            receiptStore: {
+                find: vi.fn(async () => null),
+                put: vi.fn(async () => null)
+            }
         });
 
         const result = await writer.save({
@@ -103,7 +108,7 @@ describe('configured knowledge document writer', () => {
             base_revision: 'commit-v1',
             idempotency_key: 'factory-save-1',
             resolution: resolution(),
-            access: { projectCodes: ['alpha'] }
+            access: { projectCodes: ['alpha'], organizationId: 'org_1', personId: 'per_1' }
         });
 
         expect(result).toMatchObject({ status: 'saved', revision: 'commit-v2' });

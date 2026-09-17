@@ -122,6 +122,28 @@ describe('CanonicalDocumentWriterAdapter', () => {
         });
     });
 
+    it('replays a durable receipt after adapter restart without calling the provider', async () => {
+        let receipt = null;
+        const receiptStore = {
+            find: vi.fn(async () => receipt),
+            put: vi.fn(async ({ request_fingerprint, result }) => {
+                receipt = { request_fingerprint, result };
+            })
+        };
+        const firstProvider = providerFor();
+        const first = new CanonicalDocumentWriterAdapter({ provider: firstProvider, receiptStore });
+        await first.save(input());
+
+        const restartedProvider = providerFor();
+        const restarted = new CanonicalDocumentWriterAdapter({ provider: restartedProvider, receiptStore });
+        const replay = await restarted.save(input());
+
+        expect(replay).toMatchObject({ status: 'saved', idempotency_replayed: true, revision: '2' });
+        expect(restartedProvider.write).not.toHaveBeenCalled();
+        expect(restartedProvider.read).not.toHaveBeenCalled();
+        expect(receiptStore.find).toHaveBeenCalledTimes(2);
+    });
+
     it('fails when provider readback differs from the requested body', async () => {
         const provider = providerFor('# Different\n');
         const adapter = new CanonicalDocumentWriterAdapter({ provider });

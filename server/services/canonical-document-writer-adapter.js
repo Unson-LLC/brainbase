@@ -58,14 +58,41 @@ export class CanonicalDocumentWriterError extends Error {
  * provider's post-write readback before reporting success.
  */
 export class CanonicalDocumentWriterAdapter {
-    constructor({ provider = null } = {}) {
+    constructor({ provider = null, receiptStore = null } = {}) {
         this.provider = provider;
+        this.receiptStore = receiptStore;
         this.completed = new Map();
     }
 
     async save(input = {}) {
         const request = this.normalizeRequest(input);
         this.assertProvider();
+
+        let durable = null;
+        if (typeof this.receiptStore?.find === 'function') {
+            try {
+                durable = await this.receiptStore.find(request);
+            } catch (error) {
+                if (error?.name === 'CanonicalDocumentWriterError') throw error;
+                throw new CanonicalDocumentWriterError(
+                    'canonical_document_receipt_unavailable',
+                    'canonical document write receipt could not be read',
+                    503,
+                    { cause: error?.code || error?.message || 'unknown' }
+                );
+            }
+        }
+        if (durable) {
+            if (durable.request_fingerprint !== request.request_fingerprint) {
+                throw new CanonicalDocumentWriterError(
+                    'canonical_document_idempotency_conflict',
+                    'idempotency_key was already used with different document content',
+                    409,
+                    { idempotency_key: request.idempotency_key }
+                );
+            }
+            return { ...durable.result, idempotency_replayed: true };
+        }
 
         const previous = this.completed.get(request.idempotency_key);
         if (previous) {
@@ -83,17 +110,39 @@ export class CanonicalDocumentWriterAdapter {
         let result;
         try {
             const writeResult = await this.provider.write(request);
+            if (!writeResult || typeof writeResult !== 'object' || !writeResult.revision) {
+                throw new CanonicalDocumentWriterError(
+                    'canonical_document_write_invalid',
+                    'canonical document provider did not return the write revision',
+                    503
+                );
+            }
             const readback = await this.readback(request, writeResult);
             result = {
                 ...readback,
                 idempotency_key: request.idempotency_key,
-                idempotency_replayed: false,
+                idempotency_replayed: Boolean(writeResult.idempotency_replayed),
                 request_fingerprint: request.request_fingerprint
             };
         } catch (error) {
             throw this.normalizeProviderError(error);
         }
 
+        if (typeof this.receiptStore?.put === 'function') {
+            try {
+                await this.receiptStore.put({
+                    ...request,
+                    result
+                });
+            } catch (error) {
+                throw this.normalizeProviderError(new CanonicalDocumentWriterError(
+                    'canonical_document_receipt_unavailable',
+                    'canonical document write receipt could not be stored',
+                    503,
+                    { cause: error?.code || error?.message || 'unknown' }
+                ));
+            }
+        }
         this.completed.set(request.idempotency_key, {
             request_fingerprint: request.request_fingerprint,
             result
@@ -117,7 +166,10 @@ export class CanonicalDocumentWriterAdapter {
         }
 
         const repositoryPath = normalizeRepositoryRelativePath(input.path ?? input.repository_path);
-        const baseHash = requiredString(input.base_hash ?? input.expected_hash, 'base_hash');
+        const rawBaseHash = input.base_hash ?? input.expected_hash;
+        const baseHash = rawBaseHash === undefined || rawBaseHash === null || rawBaseHash === ''
+            ? null
+            : requiredString(rawBaseHash, 'base_hash');
         const baseRevision = normalizeRevision(input.base_revision ?? input.expected_revision, 'base_revision');
         const idempotencyKey = requiredString(input.idempotency_key, 'idempotency_key');
         const contentHash = digest(content);
@@ -127,8 +179,10 @@ export class CanonicalDocumentWriterAdapter {
             content_hash: contentHash,
             base_hash: baseHash,
             base_revision: baseRevision,
+            idempotency_key: idempotencyKey,
             source_class: SOURCE_CLASS,
-            content_type: CONTENT_TYPE
+            content_type: CONTENT_TYPE,
+            canonical_location: resolution.canonical_location || null
         })));
 
         return {
@@ -226,7 +280,16 @@ export class CanonicalDocumentWriterAdapter {
             );
         }
 
+        const writeRevision = normalizeRevision(writeResult.revision, 'writeResult.revision');
         const revision = normalizeRevision(readback.revision, 'readback.revision');
+        if (revision !== writeRevision) {
+            throw new CanonicalDocumentWriterError(
+                'canonical_document_readback_revision_mismatch',
+                'canonical document readback revision does not match the write commit',
+                502,
+                { expected_revision: writeRevision, actual_revision: revision }
+            );
+        }
         return {
             status: 'saved',
             project_code: request.project_code,

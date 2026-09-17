@@ -6,6 +6,7 @@ import { GitHubOwningRepositoryDocumentProvider } from '../../../server/services
 const API_BASE_URL = 'https://api.github.test';
 const DOCUMENT_URL = `${API_BASE_URL}/repos/Acme/alpha-docs/contents/docs/guide.md`;
 const REF_URL = `${API_BASE_URL}/repos/Acme/alpha-docs/git/ref/heads/main`;
+const COMMITS_URL = `${API_BASE_URL}/repos/Acme/alpha-docs/commits?path=docs%2Fguide.md&sha=main&per_page=1`;
 
 function resolution(overrides = {}) {
     return {
@@ -18,6 +19,7 @@ function resolution(overrides = {}) {
             repository: 'project:alpha',
             owner: 'Acme',
             repo: 'alpha-docs',
+            tenant_id: 'org_1',
             branch: 'main',
             path: 'docs/'
         },
@@ -34,7 +36,7 @@ function request(overrides = {}) {
         base_revision: 'commit-v1',
         idempotency_key: 'save-1',
         resolution: resolution(),
-        access: { projectCodes: ['alpha'] },
+        access: { projectCodes: ['alpha'], organizationId: 'org_1' },
         ...overrides
     };
 }
@@ -51,19 +53,23 @@ function fakeGitHubFetch({
     currentHash = 'blob-v1',
     currentRevision = 'commit-v1',
     currentContent = '# Guide\n',
-    readbackContent = null
+    readbackContent = null,
+    responseLossAfterWrite = false
 } = {}) {
     const state = {
         currentHash,
         currentRevision,
         currentContent,
         readbackContent,
-        writes: 0
+        responseLossAfterWrite,
+        writes: 0,
+        lastMessage: ''
     };
     const calls = [];
     const fetchImpl = vi.fn(async (url, options = {}) => {
         calls.push({ url, options });
         if (options.method === 'GET' && url === `${DOCUMENT_URL}?ref=main`) {
+            if (state.currentHash === null && state.writes === 0) return response(404, { message: 'Not Found' });
             const content = state.writes > 0 && state.readbackContent !== null
                 ? state.readbackContent
                 : state.currentContent;
@@ -80,15 +86,27 @@ function fakeGitHubFetch({
                 object: { sha: state.writes > 0 ? 'commit-v2' : state.currentRevision }
             });
         }
+        if (options.method === 'GET' && url === COMMITS_URL) {
+            return response(200, [{
+                sha: state.writes > 0 ? 'commit-v2' : 'commit-other',
+                commit: { message: state.writes > 0 ? state.lastMessage : 'unrelated commit' }
+            }]);
+        }
         if (options.method === 'PUT' && url === DOCUMENT_URL) {
             const body = JSON.parse(options.body);
             expect(body).toMatchObject({
-                branch: 'main',
-                sha: 'blob-v1',
-                message: 'knowledge: update docs/guide.md'
+                branch: 'main'
             });
+            expect(body.message).toContain(`${state.currentHash === null ? 'knowledge: create' : 'knowledge: update'} docs/guide.md`);
+            expect(body.message).toContain('Brainbase-Document-Request:');
+            if (state.currentHash === null) expect(body).not.toHaveProperty('sha');
+            else expect(body.sha).toBe('blob-v1');
             state.writes += 1;
             state.currentContent = Buffer.from(body.content, 'base64').toString('utf8');
+            state.currentHash = 'blob-v2';
+            state.currentRevision = 'commit-v2';
+            state.lastMessage = body.message;
+            if (state.responseLossAfterWrite) throw new Error('response lost after GitHub accepted the write');
             return response(200, {
                 content: {
                     path: 'docs/guide.md',
@@ -150,6 +168,17 @@ describe('GitHubOwningRepositoryDocumentProvider', () => {
         expect(fake.calls.at(2).options.body).toContain('"branch":"main"');
     });
 
+    it('creates a new canonical file when base_hash is absent and the source is missing', async () => {
+        const fake = fakeGitHubFetch({ currentHash: null });
+        const writer = new CanonicalDocumentWriterAdapter({ provider: createProvider(fake.fetchImpl) });
+
+        const result = await writer.save(request({ base_hash: null }));
+
+        expect(result).toMatchObject({ revision: 'commit-v2', readback: { revision: 'commit-v2' } });
+        expect(fake.state.writes).toBe(1);
+        expect(JSON.parse(fake.calls.find(({ options }) => options.method === 'PUT').options.body)).not.toHaveProperty('sha');
+    });
+
     it('replays an identical idempotency key without another HTTP write', async () => {
         const fake = fakeGitHubFetch();
         const writer = new CanonicalDocumentWriterAdapter({ provider: createProvider(fake.fetchImpl) });
@@ -162,6 +191,27 @@ describe('GitHubOwningRepositoryDocumentProvider', () => {
         expect(fake.fetchImpl).toHaveBeenCalledTimes(5);
     });
 
+    it('recovers a successful write after response loss across a provider restart', async () => {
+        const fake = fakeGitHubFetch({ responseLossAfterWrite: true });
+        const first = new CanonicalDocumentWriterAdapter({ provider: createProvider(fake.fetchImpl) });
+
+        await expect(first.save(request())).rejects.toMatchObject({
+            code: 'canonical_document_writer_unavailable',
+            status: 503
+        });
+
+        const restarted = new CanonicalDocumentWriterAdapter({ provider: createProvider(fake.fetchImpl) });
+        const recovered = await restarted.save(request());
+
+        expect(recovered).toMatchObject({
+            idempotency_replayed: true,
+            revision: 'commit-v2',
+            readback: { revision: 'commit-v2' }
+        });
+        expect(fake.state.writes).toBe(1);
+        expect(fake.fetchImpl.mock.calls.filter(([, options]) => options.method === 'PUT')).toHaveLength(1);
+    });
+
     it('fails closed on a stale file CAS hash before issuing a PUT', async () => {
         const fake = fakeGitHubFetch({ currentHash: 'blob-other' });
         const writer = new CanonicalDocumentWriterAdapter({ provider: createProvider(fake.fetchImpl) });
@@ -171,7 +221,7 @@ describe('GitHubOwningRepositoryDocumentProvider', () => {
             status: 409
         });
         expect(fake.state.writes).toBe(0);
-        expect(fake.fetchImpl).toHaveBeenCalledTimes(1);
+        expect(fake.fetchImpl).toHaveBeenCalledTimes(2);
     });
 
     it('fails closed on a stale repository revision before issuing a PUT', async () => {
@@ -183,7 +233,7 @@ describe('GitHubOwningRepositoryDocumentProvider', () => {
             status: 409
         });
         expect(fake.state.writes).toBe(0);
-        expect(fake.fetchImpl).toHaveBeenCalledTimes(2);
+        expect(fake.fetchImpl).toHaveBeenCalledTimes(3);
     });
 
     it('rejects a readback body mismatch after the remote write', async () => {
@@ -206,13 +256,14 @@ describe('GitHubOwningRepositoryDocumentProvider', () => {
                 repository: 'project:alpha',
                 owner: 'Acme',
                 repo: 'alpha-docs',
+                tenant_id: 'org_1',
                 path: 'docs/'
             }
         });
 
         await expect(provider.write(request({ resolution: missingBranch }))).rejects.toMatchObject({
-            code: 'canonical_document_input_invalid',
-            status: 400
+            code: 'canonical_document_graph_pointer_required',
+            status: 503
         });
         expect(fake.fetchImpl).not.toHaveBeenCalled();
     });

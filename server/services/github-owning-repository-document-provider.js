@@ -70,7 +70,7 @@ function encodePath(path) {
 }
 
 function normalizePathPrefix(value) {
-    const raw = requiredString(value, 'canonical_location.path');
+    const raw = graphPointerString(value, 'canonical_location.path');
     const withoutTrailingSlash = raw.replace(/\/+$/u, '');
     if (!withoutTrailingSlash) {
         throw new CanonicalDocumentWriterError(
@@ -85,6 +85,18 @@ function normalizePathPrefix(value) {
 
 function pathInScope(repositoryPath, pathPrefix) {
     return repositoryPath === pathPrefix || repositoryPath.startsWith(`${pathPrefix}/`);
+}
+
+function graphPointerString(value, name) {
+    if (typeof value !== 'string' || !value.trim()) {
+        throw new CanonicalDocumentWriterError(
+            'canonical_document_graph_pointer_required',
+            `${name} must be supplied by the resolved owning repository Graph pointer`,
+            503,
+            { field: name }
+        );
+    }
+    return value.trim();
 }
 
 function accessAllowsProject(access, projectCode) {
@@ -115,7 +127,7 @@ function owningRepoPointer(resolution, projectCode, repositoryPath, branch) {
         );
     }
 
-    const pointerBranch = requiredString(location.branch, 'canonical_location.branch');
+    const pointerBranch = graphPointerString(location.branch, 'canonical_location.branch');
     if (branch && branch !== pointerBranch) {
         throw new CanonicalDocumentWriterError(
             'canonical_document_pointer_mismatch',
@@ -138,9 +150,18 @@ function owningRepoPointer(resolution, projectCode, repositoryPath, branch) {
     return {
         branch: pointerBranch,
         path_prefix: pathPrefix,
-        owner: location.owner || location.github_owner || location.github?.owner || null,
-        repo: location.repo || location.github_repo || location.github?.repo || null,
-        tenant_id: location.tenant_id || location.organization_id || null
+        owner: graphPointerString(
+            location.owner || location.github_owner || location.github?.owner,
+            'canonical_location.owner'
+        ),
+        repo: graphPointerString(
+            location.repo || location.github_repo || location.github?.repo,
+            'canonical_location.repo'
+        ),
+        tenant_id: graphPointerString(
+            location.tenant_id || location.organization_id,
+            'canonical_location.tenant_id'
+        )
     };
 }
 
@@ -207,6 +228,22 @@ export class GitHubOwningRepositoryDocumentProvider {
         }
 
         const pointer = owningRepoPointer(input.resolution, projectCode, repositoryPath, input.branch);
+        const accessTenant = input.access?.tenantId || input.access?.organizationId;
+        if (typeof accessTenant !== 'string' || !accessTenant.trim()) {
+            throw new CanonicalDocumentWriterError(
+                'canonical_document_tenant_required',
+                'authenticated organization is required for canonical document storage',
+                403
+            );
+        }
+        if (pointer.tenant_id !== accessTenant.trim()) {
+            throw new CanonicalDocumentWriterError(
+                'canonical_document_tenant_mismatch',
+                'resolved owning repository tenant is not authorized',
+                403,
+                { expected_tenant_id: accessTenant.trim(), pointer_tenant_id: pointer.tenant_id }
+            );
+        }
         let mapping;
         try {
             mapping = this.repositoryResolver
@@ -230,7 +267,7 @@ export class GitHubOwningRepositoryDocumentProvider {
 
         const owner = repositorySegment(mapping.owner, 'owner');
         const repo = repositorySegment(mapping.repo, 'repo');
-        if ((pointer.owner && pointer.owner !== owner) || (pointer.repo && pointer.repo !== repo)) {
+        if (pointer.owner !== owner || pointer.repo !== repo) {
             throw new CanonicalDocumentWriterError(
                 'canonical_document_pointer_mismatch',
                 'configured repository does not match the resolved owning repository pointer',
@@ -238,20 +275,13 @@ export class GitHubOwningRepositoryDocumentProvider {
                 { project_code: projectCode }
             );
         }
-        if (pointer.tenant_id && pointer.tenant_id !== (input.access?.tenantId || input.access?.organizationId)) {
-            throw new CanonicalDocumentWriterError(
-                'canonical_document_tenant_mismatch',
-                'resolved owning repository tenant is not authorized',
-                403
-            );
-        }
-
         return {
             project_code: projectCode,
             owner,
             repo,
             branch: pointer.branch,
-            path_prefix: pointer.path_prefix
+            path_prefix: pointer.path_prefix,
+            tenant_id: pointer.tenant_id
         };
     }
 
@@ -261,6 +291,10 @@ export class GitHubOwningRepositoryDocumentProvider {
 
     refUrl(target) {
         return `${this.apiBaseUrl}/repos/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.repo)}/git/ref/heads/${encodeURIComponent(target.branch)}`;
+    }
+
+    commitsUrl(target, repositoryPath) {
+        return `${this.apiBaseUrl}/repos/${encodeURIComponent(target.owner)}/${encodeURIComponent(target.repo)}/commits?path=${encodeURIComponent(repositoryPath)}&sha=${encodeURIComponent(target.branch)}&per_page=1`;
     }
 
     async request(url, { method = 'GET', token, body = undefined, operation } = {}) {
@@ -331,10 +365,16 @@ export class GitHubOwningRepositoryDocumentProvider {
     }
 
     async getFile(target, repositoryPath, token) {
-        const payload = await this.request(`${this.contentUrl(target, repositoryPath)}?ref=${encodeURIComponent(target.branch)}`, {
-            token,
-            operation: 'read_file'
-        });
+        let payload;
+        try {
+            payload = await this.request(`${this.contentUrl(target, repositoryPath)}?ref=${encodeURIComponent(target.branch)}`, {
+                token,
+                operation: 'read_file'
+            });
+        } catch (error) {
+            if (error?.code === 'canonical_document_source_not_found') return null;
+            throw error;
+        }
         if (payload?.type && payload.type !== 'file') {
             throw new CanonicalDocumentWriterError(
                 'canonical_document_source_not_found',
@@ -343,6 +383,20 @@ export class GitHubOwningRepositoryDocumentProvider {
             );
         }
         return payload;
+    }
+
+    async latestPathCommit(target, repositoryPath, token) {
+        const payload = await this.request(this.commitsUrl(target, repositoryPath), {
+            token,
+            operation: 'read_path_commit'
+        });
+        const commit = Array.isArray(payload) ? payload[0] : null;
+        const message = commit?.commit?.message || commit?.message || '';
+        const revision = commit?.sha || commit?.commit?.tree?.sha || null;
+        return {
+            revision: typeof revision === 'string' && revision.trim() ? revision.trim() : null,
+            message: typeof message === 'string' ? message : ''
+        };
     }
 
     async getRevision(target, token) {
@@ -365,10 +419,14 @@ export class GitHubOwningRepositoryDocumentProvider {
         const target = await this.resolveTarget(input);
         const token = await this.saveToken();
         const repositoryPath = normalizeRepositoryRelativePath(input.path);
-        const baseHash = requiredString(input.base_hash, 'base_hash');
+        const rawBaseHash = input.base_hash;
+        const baseHash = rawBaseHash === undefined || rawBaseHash === null || rawBaseHash === ''
+            ? null
+            : requiredString(rawBaseHash, 'base_hash');
         const baseRevision = requiredString(input.base_revision, 'base_revision');
         const idempotencyKey = requiredString(input.idempotency_key, 'idempotency_key');
         const fingerprint = requiredString(input.request_fingerprint, 'request_fingerprint');
+        const content = documentContent(input.content);
         const replay = this.completed.get(idempotencyKey);
         if (replay) {
             if (replay.fingerprint !== fingerprint) {
@@ -382,7 +440,50 @@ export class GitHubOwningRepositoryDocumentProvider {
         }
 
         const current = await this.getFile(target, repositoryPath, token);
-        if (current?.sha !== baseHash) {
+        const currentContent = current ? parseJsonContent(current.content) : null;
+        const currentRevision = await this.getRevision(target, token);
+
+        // A remote PUT may succeed while its response is lost. Recover the
+        // matching commit from GitHub, including after process restart.
+        if (current
+            && currentContent === content
+            && currentRevision !== baseRevision) {
+            const latest = await this.latestPathCommit(target, repositoryPath, token);
+            if (latest.message.includes(`Brainbase-Document-Request: ${fingerprint}`)) {
+                const result = {
+                    path: current.path || repositoryPath,
+                    canonical_url: current.html_url || null,
+                    revision: latest.revision || currentRevision
+                };
+                if (!result.revision) {
+                    throw new CanonicalDocumentWriterError(
+                        'canonical_document_readback_unavailable',
+                        'GitHub did not return the recovered commit revision',
+                        503
+                    );
+                }
+                this.completed.set(idempotencyKey, { fingerprint, result });
+                return { ...result, idempotency_replayed: true };
+            }
+        }
+
+        if (current && baseHash === null) {
+            throw new CanonicalDocumentWriterError(
+                'canonical_document_cas_conflict',
+                'base_hash is required when the canonical document already exists',
+                409,
+                { actual_hash: current.sha || null }
+            );
+        }
+        if (!current && baseHash !== null) {
+            throw new CanonicalDocumentWriterError(
+                'canonical_document_cas_conflict',
+                'canonical document was deleted before the update',
+                409,
+                { expected_hash: baseHash, actual_hash: null }
+            );
+        }
+        if (current && current.sha !== baseHash) {
             throw new CanonicalDocumentWriterError(
                 'canonical_document_cas_conflict',
                 'canonical document write conflicts with the current file version',
@@ -390,7 +491,6 @@ export class GitHubOwningRepositoryDocumentProvider {
                 { expected_hash: baseHash, actual_hash: current?.sha || null }
             );
         }
-        const currentRevision = await this.getRevision(target, token);
         if (currentRevision !== baseRevision) {
             throw new CanonicalDocumentWriterError(
                 'canonical_document_cas_conflict',
@@ -405,16 +505,24 @@ export class GitHubOwningRepositoryDocumentProvider {
             token,
             operation: 'write_file',
             body: {
-                message: `knowledge: update ${repositoryPath}`,
-                content: Buffer.from(documentContent(input.content), 'utf8').toString('base64'),
-                sha: baseHash,
+                message: `${current ? 'knowledge: update' : 'knowledge: create'} ${repositoryPath}\n\nBrainbase-Document-Request: ${fingerprint}`,
+                content: Buffer.from(content, 'utf8').toString('base64'),
+                ...(baseHash ? { sha: baseHash } : {}),
                 branch: target.branch
             }
         });
+        const revision = payload?.commit?.sha;
+        if (typeof revision !== 'string' || !revision.trim()) {
+            throw new CanonicalDocumentWriterError(
+                'canonical_document_write_invalid',
+                'GitHub did not return the write commit revision',
+                503
+            );
+        }
         const result = {
             path: payload?.content?.path || repositoryPath,
             canonical_url: payload?.content?.html_url || payload?.commit?.html_url || null,
-            revision: payload?.commit?.sha || baseRevision
+            revision: revision.trim()
         };
         this.completed.set(idempotencyKey, { fingerprint, result });
         return { ...result, idempotency_replayed: false };
