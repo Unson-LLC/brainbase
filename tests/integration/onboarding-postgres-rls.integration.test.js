@@ -41,23 +41,25 @@ describe.sequential('onboarding HTTP flow with PostgreSQL candidate RLS', () => 
     let runCounter = 0;
 
     beforeAll(async () => {
-        let adminUrl;
-        try {
-            const testcontainersModule = '@testcontainers/postgresql';
-            const { PostgreSqlContainer } = await import(testcontainersModule);
-            container = await new PostgreSqlContainer('postgres:16-alpine').start();
-            adminUrl = container.getConnectionUri();
-        } catch {
-            postgresBin = ['/usr/local/opt/postgresql@16/bin', '/opt/homebrew/opt/postgresql@16/bin']
-                .find((candidate) => fs.existsSync(resolve(candidate, 'initdb')));
-            if (!postgresBin) throw new Error('Docker or PostgreSQL 16 binaries are required for this integration test');
-            dataDirectory = fs.mkdtempSync(resolve(os.tmpdir(), 'brainbase-onboarding-rls-'));
-            const port = await availablePort();
-            execFileSync(resolve(postgresBin, 'initdb'), ['-D', dataDirectory, '--auth=trust', '--no-locale'], { stdio: 'ignore' });
-            execFileSync(resolve(postgresBin, 'pg_ctl'), [
-                '-D', dataDirectory, '-o', `-p ${port} -h 127.0.0.1`, '-w', 'start'
-            ], { stdio: 'ignore' });
-            adminUrl = `postgresql://127.0.0.1:${port}/postgres`;
+        let adminUrl = process.env.ONBOARDING_RLS_TEST_DATABASE_URL;
+        if (!adminUrl) {
+            try {
+                const testcontainersModule = '@testcontainers/postgresql';
+                const { PostgreSqlContainer } = await import(testcontainersModule);
+                container = await new PostgreSqlContainer('postgres:16-alpine').start();
+                adminUrl = container.getConnectionUri();
+            } catch {
+                postgresBin = ['/usr/local/opt/postgresql@16/bin', '/opt/homebrew/opt/postgresql@16/bin']
+                    .find((candidate) => fs.existsSync(resolve(candidate, 'initdb')));
+                if (!postgresBin) throw new Error('Docker or PostgreSQL 16 binaries are required for this integration test');
+                dataDirectory = fs.mkdtempSync(resolve(os.tmpdir(), 'brainbase-onboarding-rls-'));
+                const port = await availablePort();
+                execFileSync(resolve(postgresBin, 'initdb'), ['-D', dataDirectory, '--auth=trust', '--no-locale'], { stdio: 'ignore' });
+                execFileSync(resolve(postgresBin, 'pg_ctl'), [
+                    '-D', dataDirectory, '-o', `-p ${port} -h 127.0.0.1`, '-w', 'start'
+                ], { stdio: 'ignore' });
+                adminUrl = `postgresql://127.0.0.1:${port}/postgres`;
+            }
         }
         adminPool = new Pool({ connectionString: adminUrl });
         await adminPool.query(await readFile(resolve(process.cwd(), 'server/sql/candidate-store-schema.sql'), 'utf8'));

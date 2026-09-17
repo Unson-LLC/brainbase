@@ -36,7 +36,27 @@ jobs:
       - name: Run PostgreSQL, API, CLI, and MCP integration
         run: npm run test:integration:project-provisioning
       - name: Run onboarding PostgreSQL RLS integration
-        run: npm run test:integration:onboarding-rls
+        run: |
+          container_name="brainbase-onboarding-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker run --detach --rm \
+            --name "$container_name" \
+            --publish 127.0.0.1::5432 \
+            --env POSTGRES_HOST_AUTH_METHOD=trust \
+            postgres:16-alpine
+          trap 'docker rm --force "$container_name" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 30); do
+            if docker exec "$container_name" pg_isready --username postgres --dbname postgres; then
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs "$container_name"
+              exit 1
+            fi
+            sleep 1
+          done
+          port="$(docker inspect --format '{{(index (index .NetworkSettings.Ports "5432/tcp") 0).HostPort}}' "$container_name")"
+          ONBOARDING_RLS_TEST_DATABASE_URL="postgresql://postgres@127.0.0.1:${port}/postgres" \
+            npm run test:integration:onboarding-rls
       - name: Verify preinstalled Chrome for Playwright
         run: |
           command -v google-chrome

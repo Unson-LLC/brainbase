@@ -191,8 +191,11 @@ describe('AuthService auth grant precedence', () => {
     });
 
     it('selects the grant from the organization canonical workspace over a conflicting cross-workspace grant', async () => {
+        const observed = [];
         const client = {
-            query: async () => ({ rows: [
+            query: async (sql) => {
+                observed.push(sql);
+                return { rows: [
                 {
                     id: 'grant-canonical', person_id: 'per_sato', organization_id: 'unson',
                     slack_user_id: 'U_UNSON', slack_workspace_id: 'T_UNSON', organization_workspace_id: 'T_UNSON',
@@ -203,7 +206,8 @@ describe('AuthService auth grant precedence', () => {
                     slack_user_id: 'U_CUSTOMER', slack_workspace_id: 'T_CUSTOMER', organization_workspace_id: 'T_UNSON',
                     role: 'member', project_codes: ['brainbase'], clearance: ['internal']
                 }
-            ] }),
+                ] };
+            },
             release: () => {}
         };
         const authService = new AuthService();
@@ -216,6 +220,7 @@ describe('AuthService auth grant precedence', () => {
             id: 'grant-canonical',
             role: 'ceo'
         });
+        expect(observed[0]).toContain('o.workspace_id AS organization_workspace_id');
     });
 
     it('rejects conflicting organization grants for the same person', async () => {
