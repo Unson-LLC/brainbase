@@ -13,7 +13,7 @@ describe('MCP tool capability annotations', () => {
       brainbase_bootstrap_config: true, brainbase_admin_read: true, brainbase_run_receipt_inbox: true,
       brainbase_run_receipt_history: true, brainbase_run_receipt_diagnosis: true,
       brainbase_automation_run_detail: true, brainbase_meeting_automation_diagnosis: true,
-      brainbase_onboarding_get: true, brainbase_knowledge_resolve: true, brainbase_resolve_turn: true,
+      brainbase_onboarding_get: true, brainbase_knowledge_resolve: true, brainbase_knowledge_retrieve: true, brainbase_resolve_turn: true,
       brainbase_judgment_audit_read: true, brainbase_knowledge_evidence_record: true,
       brainbase_personal_kg_answer_record: true,
       brainbase_get_meeting_minutes_context: true, brainbase_get_shareable_person_profile: true,

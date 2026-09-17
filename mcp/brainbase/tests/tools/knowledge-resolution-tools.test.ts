@@ -13,7 +13,7 @@ it('knowledge.resolveをtool listへ登録しAPI receiptを返す', async () => 
   assert.ok(serverTesting.tools.some((tool) => tool.name === 'brainbase_knowledge_resolve'));
   assert.deepEqual(
     knowledgeResolutionTools.map((tool) => tool.name),
-    ['brainbase_knowledge_resolve', 'brainbase_knowledge_event_record'],
+    ['brainbase_knowledge_resolve', 'brainbase_knowledge_retrieve', 'brainbase_knowledge_event_record'],
   );
   const resolutionTool = knowledgeResolutionTools[0];
   assert.equal('recent_receipts' in (resolutionTool.inputSchema.properties || {}), false);
@@ -37,6 +37,71 @@ it('knowledge.resolveをtool listへ登録しAPI receiptを返す', async () => 
   });
   assert.equal(calls[0].url, 'http://brainbase.test/api/knowledge/resolve');
   assert.equal(result?.status, 'ok');
+});
+
+it('knowledge.retrieveをtool listへ登録し、厳密版の取得結果だけを返す', async () => {
+  assert.ok(serverTesting.tools.some((tool) => tool.name === 'brainbase_knowledge_retrieve'));
+  const calls: Array<{ url: string; init?: RequestInit }> = [];
+  const result = await handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', {
+    project_code: 'brainbase', refs: [{ id: 'decision-1', version: '3' }],
+  }, {
+    apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'],
+    tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+    fetch: async (url, init) => {
+      calls.push({ url: String(url), init });
+      return new Response(JSON.stringify({
+        project_code: 'brainbase',
+        results: [{
+          id: 'decision-1', status: 'resolved', requested_version: '3', resolved_version: '3',
+          content: 'Canonical decision', retrieval_receipt_id: 'graph:decision-1:3',
+        }],
+      }), { status: 200 });
+    },
+  });
+  assert.equal(calls[0].url, 'http://brainbase.test/api/knowledge/retrieve');
+  assert.equal(calls[0].init?.method, 'POST');
+  assert.equal(result?.status, 'ok');
+});
+
+it('knowledge.retrieveは未解決状態を保持し、不正なresolvedを拒否する', async () => {
+  const args = { project_code: 'brainbase', refs: [{ id: 'decision-1', version: '3' }] };
+  const dependencies = (payload: unknown) => ({
+    apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'],
+    tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+    fetch: async () => new Response(JSON.stringify(payload), { status: 200 }),
+  });
+  const unresolved = await handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', args, dependencies({
+    project_code: 'brainbase',
+    results: [{ id: 'decision-1', status: 'version_conflict', requested_version: '3', resolved_version: '4' }],
+  }));
+  assert.equal(unresolved?.status, 'ok');
+  const mismatched = await handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', args, dependencies({
+    project_code: 'brainbase',
+    results: [{
+      id: 'decision-1', status: 'resolved', requested_version: '3', resolved_version: '4',
+      content: 'wrong version', retrieval_receipt_id: 'graph:decision-1:4',
+    }],
+  }));
+  assert.equal(mismatched?.status, 'error');
+  assert.equal(mismatched?.error?.code, 'brainbase_api_response_invalid');
+});
+
+it('knowledge.retrieveはproject_codeなし・scope外をfetch前に拒否する', async () => {
+  let fetched = false;
+  const dependencies = {
+    apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'],
+    tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+    fetch: async () => { fetched = true; return new Response('{}'); },
+  };
+  const missing = await handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', {
+    refs: [{ id: 'decision-1', version: '3' }],
+  }, dependencies);
+  assert.equal(missing?.error?.code, 'brainbase_project_not_accessible');
+  const denied = await handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', {
+    project_code: 'salestailor', refs: [{ id: 'decision-1', version: '3' }],
+  }, dependencies);
+  assert.equal(denied?.error?.code, 'brainbase_project_not_accessible');
+  assert.equal(fetched, false);
 });
 
 it('scope外projectはfetch前に拒否する', async () => {
