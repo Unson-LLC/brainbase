@@ -184,6 +184,7 @@ describe('Outcome service context issuer', () => {
             version: '4',
             run: runId,
             resource: resourceRef,
+            mode: 'normal',
             profile
         });
 

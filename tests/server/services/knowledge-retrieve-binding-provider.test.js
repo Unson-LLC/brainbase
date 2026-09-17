@@ -142,6 +142,46 @@ describe('Mana outcome authority readback binding provider', () => {
         });
     });
 
+    it('performs authority readback from explicit issuer constraints before a retrieval token exists', async () => {
+        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
+        const provider = createManaOutcomeAuthorityReadbackProvider({
+            serviceBinding,
+            resource: 'meeting-minutes:github'
+        });
+
+        await expect(provider.verifyAuthority({
+            organization_id: 'org_1',
+            delegated_actor_person_id: 'person_1',
+            project_code: 'alpha',
+            outcome_contract_id: 'oc_1',
+            outcome_contract_version: 3,
+            run_id: 'run_1',
+            run_mode: 'normal'
+        })).resolves.toMatchObject({
+            organization_id: 'org_1',
+            delegated_actor_person_id: 'person_1',
+            outcome_contract_id: 'oc_1',
+            contract_version: 3,
+            run_mode: 'normal'
+        });
+        expect(serviceBinding.fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects incomplete explicit authority constraints before reading Mana', async () => {
+        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
+        const provider = createManaOutcomeAuthorityReadbackProvider({
+            serviceBinding,
+            resource: 'meeting-minutes:github'
+        });
+
+        await expect(provider.verifyAuthority({
+            organization_id: 'org_1',
+            delegated_actor_person_id: 'person_1',
+            ...EXPECTED
+        })).rejects.toThrow('outcome contract version is required');
+        expect(serviceBinding.fetch).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['tenant', { principal: { ...readback().principal, tenant_id: 'org_other' } }],
         ['actor', { principal: { ...readback().principal, actor_principal_id: 'person_other' } }],

@@ -314,6 +314,31 @@ function expectedInput(expected) {
     return { outcomeContractId, runId, projectCode, contractVersion, runMode, knowledgeRefs };
 }
 
+function resolveAuthorityIdentity(expected) {
+    const request = expectedInput(expected);
+    if (request.contractVersion === null) {
+        throw new Error('outcome contract version is required for authority readback');
+    }
+    const organizationId = aliasedString(expected, [
+        'organization_id', 'organizationId', 'tenant_id', 'tenantId'
+    ], 'organization');
+    const delegatedActorPersonId = resolveActorId(expected);
+    return {
+        request,
+        identity: {
+            serviceSubject: null,
+            organizationId,
+            delegatedActorPersonId,
+            projectCode: request.projectCode,
+            outcomeContractId: request.outcomeContractId,
+            runId: request.runId,
+            contractVersion: request.contractVersion,
+            runMode: request.runMode,
+            knowledgeRefs: request.knowledgeRefs
+        }
+    };
+}
+
 function assertReadbackShape(value, identity, resource) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
         throw new Error('Mana outcome authority readback is not an object');
@@ -444,51 +469,59 @@ export function createManaOutcomeAuthorityReadbackProvider({
     const timeout = Number(timeoutMs);
     if (!binding || !resourceRef || !Number.isSafeInteger(timeout) || timeout < 1) return null;
 
+    async function performReadback(request, identity) {
+        const readbackRequest = {
+            tenant: identity.organizationId,
+            project: request.projectCode,
+            actor: identity.delegatedActorPersonId,
+            contract: request.outcomeContractId,
+            version: identity.contractVersion,
+            run: request.runId,
+            resource: resourceRef
+        };
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        let response;
+        try {
+            // This hostname is only an input to the named binding. No
+            // process-global/public fetch is used and no caller header is
+            // trusted for authentication; the binding is the trust edge.
+            response = await binding.fetch(`${SERVICE_BINDING_ORIGIN}${MANA_OUTCOME_AUTHORITY_READBACK_PATH}`, {
+                method: 'POST',
+                headers: {
+                    accept: 'application/json',
+                    'content-type': 'application/json'
+                },
+                body: JSON.stringify(readbackRequest),
+                signal: controller.signal
+            });
+        } finally {
+            clearTimeout(timeoutId);
+        }
+        if (!response?.ok) throw new Error('Mana outcome authority readback was denied');
+        let payload;
+        try {
+            payload = await readResponseJson(response);
+        } catch {
+            throw new Error('Mana outcome authority readback JSON is invalid');
+        }
+        return assertReadbackShape(payload, identity, resourceRef);
+    }
+
     return {
+        async verifyAuthority(expected) {
+            const { request, identity } = resolveAuthorityIdentity(expected);
+            return performReadback(request, identity);
+        },
         async verifyBinding(expected, context = {}) {
             const request = expectedInput(expected);
             const identity = resolveTokenIdentity(expected, context);
-            const readbackRequest = {
-                tenant: identity.organizationId,
-                project: request.projectCode,
-                actor: identity.delegatedActorPersonId,
-                contract: request.outcomeContractId,
-                version: identity.contractVersion,
-                run: request.runId,
-                resource: resourceRef
-            };
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), timeout);
-            let response;
-            try {
-                // This hostname is only an input to the named binding. No
-                // process-global/public fetch is used and no caller header is
-                // trusted for authentication; the binding is the trust edge.
-                response = await binding.fetch(`${SERVICE_BINDING_ORIGIN}${MANA_OUTCOME_AUTHORITY_READBACK_PATH}`, {
-                    method: 'POST',
-                    headers: {
-                        accept: 'application/json',
-                        'content-type': 'application/json'
-                    },
-                    body: JSON.stringify(readbackRequest),
-                    signal: controller.signal
-                });
-            } finally {
-                clearTimeout(timeoutId);
-            }
-            if (!response?.ok) throw new Error('Mana outcome authority readback was denied');
-            let payload;
-            try {
-                payload = await readResponseJson(response);
-            } catch {
-                throw new Error('Mana outcome authority readback JSON is invalid');
-            }
-            return assertReadbackShape(payload, {
+            return performReadback(request, {
                 ...identity,
                 projectCode: request.projectCode,
                 outcomeContractId: request.outcomeContractId,
                 runId: request.runId
-            }, resourceRef);
+            });
         }
     };
 }

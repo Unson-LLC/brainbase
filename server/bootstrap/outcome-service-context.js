@@ -96,7 +96,7 @@ function normalizeAuthority(value) {
     if (!value || typeof value !== 'object') return null;
     return {
         principal: {
-            tenant_id: value.tenant_id,
+            tenant_id: value.organization_id,
             project_id: value.authorized_project_codes?.[0],
             actor_principal_id: value.delegated_actor_person_id
         },
@@ -114,22 +114,21 @@ function normalizeAuthority(value) {
 }
 
 function createProviderReadback({ provider }) {
-    if (typeof provider?.verifyBinding !== 'function') return null;
-    return async (input, serviceIdentity) => {
+    if (typeof provider?.verifyAuthority !== 'function') return null;
+    return async (input) => {
         const organizations = input.profile?.organization_ids;
         if (!Array.isArray(organizations) || organizations.length !== 1 || !nonEmpty(organizations[0])) {
             throw new Error('Outcome service profile must name exactly one organization for Mana readback');
         }
-        const authority = await provider.verifyBinding({
+        const authority = await provider.verifyAuthority({
             tenant_id: input.tenant,
             organization_id: organizations[0],
             delegated_actor_person_id: input.actor,
             project_code: input.project,
             outcome_contract_id: input.contract,
-            run_id: input.run
-        }, {
-            serviceIdentity,
-            serviceTokenClaims: serviceIdentity?.serviceTokenClaims
+            outcome_contract_version: input.version,
+            run_id: input.run,
+            run_mode: input.mode
         });
         return normalizeAuthority(authority);
     };

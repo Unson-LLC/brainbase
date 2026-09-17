@@ -43,7 +43,7 @@ export function createOutcomeServiceContextIssuer({ signingKey, resolveProfile, 
             const authority = await readback({ tenant: principal.tenant_id, project: principal.project_id,
                 actor: principal.actor_principal_id, contract: persisted.contract_id,
                 version: persisted.contract_version, run: persisted.run_id, resource: profile.resource_ref,
-                profile }, serviceIdentity);
+                mode: required.run_mode, profile }, serviceIdentity);
             if (!authority || !Object.keys(principal).every(key => same(authority.principal?.[key], principal[key]))
                 || !Object.keys(persisted).every(key => same(authority.persisted?.[key], persisted[key]))
                 || !same(authority.profile_id, profileId) || !nonempty(authority.authority_revision)
