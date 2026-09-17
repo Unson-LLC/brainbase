@@ -1,6 +1,6 @@
 # Brainbase：知識を判断に使い、Manaへの委任を成果につなげる
 
-2026-09-17。VibeProに登録した13ストーリー。全件未着手。UI画像は方向性の合意であり、既存の実装能力を証明するものではない。
+2026-09-17。VibeProに登録した13ストーリー。宣言時の状態と、実装・検証で確認した現在地を分けて示す。UI画像は方向性の合意であり、既存の実装能力を証明するものではない。
 
 ## 目標
 
@@ -23,6 +23,26 @@
 | mana-deliver-outcome | [委任した成果物を作り完了条件を検証できる](stories/active/story-brainbase-outcome-mana-deliver-outcome.md) | mana-triggers, knowledge-codex-use |
 | mana-safe-test | [有効化前に外部へ送らず委任を試せる](stories/active/story-brainbase-outcome-mana-safe-test.md) | mana-deliver-outcome |
 | mana-run-control | [実行結果を確認し承認と再開を行える](stories/active/story-brainbase-outcome-mana-run-control.md) | mana-deliver-outcome, mana-safe-test |
+
+## 受け入れ条件の現在地
+
+`一部完了` は記載した範囲だけがテスト済みで、Story全体の完了を意味しない。Graph・認証をテストダブルにした経路は本番readbackと区別する。
+
+| Story | 現在地 | 確認済み | 未完了・未確認 |
+|---|---|---|---|
+| foundation-context | 宣言時の未着手 | なし | Story全AC |
+| knowledge-discovery | 一部完了 | AC-1/2/3のバックエンド一覧・詳細、組織scope継承、権限内project限定、空/失敗/参照先のみの状態 | UI通し、本番Graph・認証readback |
+| knowledge-capture | 一部完了 | AC-3の下書き保存・再開・破棄、revision競合、保存失敗後の入力保持契約 | AC-1のAI提案、AC-2の原文比較・既存候補選択、資料入力の実アダプター |
+| knowledge-canonical-save | 一部完了 | 判断のGraph保存、RACI domain認可、部分失敗後の同一key再開、ID・版・本文hashのreadback | 文書本文の正本writer、本番Graph・認証readback、UI全差分確認 |
+| knowledge-lifecycle | 一部完了 | AC-1の本文・scope・責任者・有効期間改訂、CAS競合、変更理由・前後snapshot履歴、廃止/関連解除 | AC-2の正式なsupersedes操作と発効時失効、AC-3の共有利用先影響表示、本番DB E2E |
+| knowledge-codex-use | 一部完了 | 版固定のread-only MCP取得契約、ID・版・取得receipt、権限外project除外 | AC-4の実MCP→本番Graph通し、文書retriever、本番provider E2E |
+| knowledge-preview | 一部完了 | 隔離previewのAPI境界と下書き版識別 | 実検索・回答provider、採用/除外根拠の実readback、UI通し |
+| mana-contract | 宣言時の未着手 | なし | Story全AC |
+| mana-authority | 宣言時の未着手 | なし | Story全AC |
+| mana-triggers | 宣言時の未着手 | なし | Story全AC |
+| mana-deliver-outcome | 宣言時の未着手 | なし | Story全AC |
+| mana-safe-test | 宣言時の未着手 | なし | Story全AC |
+| mana-run-control | 宣言時の未着手 | なし | Story全AC |
 
 ## 境界と既存機能
 

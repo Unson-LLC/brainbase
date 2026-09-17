@@ -224,6 +224,94 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         expect(JSON.parse(history[1][9])).toMatchObject({ statement: 'new', content_hash: 'sha256:new' });
     });
 
+    it('改訂metadataはactiveな責任者を検証し、scopeと有効期間をsnapshotへ保存する', async () => {
+        const oldPayload = {
+            statement: 'old', version: 'v1', owner_id: 'person_old',
+            applicability_scope: { scope: 'project', project_code: 'brainbase', organization_id: 'org_a' },
+            decision_authority: { domain: 'engineering' }
+        };
+        const client = { query: vi.fn(async (sql) => {
+            const text = String(sql);
+            if (text.includes('SELECT from_version, to_snapshot')) return { rows: [] };
+            if (text.includes("payload->'decision_authority'")) {
+                return { rows: [{ project_id: 'project_uuid', payload: oldPayload, decision_domain: 'engineering' }] };
+            }
+            if (text.includes("SELECT id FROM people")) return { rows: [{ id: 'person_new' }] };
+            if (text.includes('pg_try_advisory_xact_lock')) return { rows: [{ acquired: true }] };
+            if (text.includes("to_regclass('public.project_registry')")) return { rows: [{ project_registry: null }] };
+            if (text.includes('UPDATE graph_entities')) {
+                return { rows: [{ id: 'decision_1', entity_type: 'decision', payload: { version: 'rev_next' } }] };
+            }
+            return { rows: [] };
+        }) };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => undefined)
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        await repository.reviseDecision({
+            id: 'decision_1', project_code: 'brainbase', expected_version: 'v1',
+            idempotency_key: 'rev-metadata', reason: 'transfer ownership', content: 'new',
+            content_hash: 'sha256:new', actor_person_id: access.personId,
+            organization_id: 'org_a', scope: 'organization', owner_person_id: 'person_new',
+            effective_at: '2026-10-01T00:00:00.000Z', expires_at: '2027-10-01T00:00:00.000Z'
+        }, { access });
+
+        const history = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO knowledge_revision_history'));
+        expect(JSON.parse(history[1][9])).toMatchObject({
+            owner_id: 'person_new', effective_at: '2026-10-01T00:00:00.000Z',
+            expires_at: '2027-10-01T00:00:00.000Z',
+            applicability_scope: { scope: 'organization', project_code: 'brainbase', organization_id: 'org_a' }
+        });
+    });
+
+    it('存在しない責任者への改訂はGraphを更新しない', async () => {
+        const client = { query: vi.fn(async (sql) => {
+            const text = String(sql);
+            if (text.includes('SELECT from_version, to_snapshot')) return { rows: [] };
+            if (text.includes("payload->'decision_authority'")) {
+                return { rows: [{ project_id: 'project_uuid', payload: { version: 'v1' }, decision_domain: 'engineering' }] };
+            }
+            return { rows: [] };
+        }) };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => undefined)
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+        await expect(repository.reviseDecision({
+            id: 'decision_1', project_code: 'brainbase', expected_version: 'v1', idempotency_key: 'rev-owner',
+            reason: 'transfer', content: 'new', content_hash: 'sha256:new', actor_person_id: access.personId,
+            owner_person_id: 'person_missing'
+        }, { access })).rejects.toMatchObject({ code: 'knowledge_revision_owner_not_found', status: 400 });
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
+    });
+
+    it('既存effective_atより前のexpires_atだけを指定した改訂を拒否する', async () => {
+        const client = { query: vi.fn(async (sql) => {
+            const text = String(sql);
+            if (text.includes('SELECT from_version, to_snapshot')) return { rows: [] };
+            if (text.includes("payload->'decision_authority'")) {
+                return { rows: [{ project_id: 'project_uuid', payload: {
+                    version: 'v1', effective_at: '2027-01-01T00:00:00.000Z'
+                }, decision_domain: 'engineering' }] };
+            }
+            return { rows: [] };
+        }) };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => undefined)
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+        await expect(repository.reviseDecision({
+            id: 'decision_1', project_code: 'brainbase', expected_version: 'v1', idempotency_key: 'rev-period',
+            reason: 'expire', content: 'new', content_hash: 'sha256:new', actor_person_id: access.personId,
+            expires_at: '2026-12-01T00:00:00.000Z'
+        }, { access })).rejects.toMatchObject({ code: 'knowledge_revision_effective_period_invalid', status: 400 });
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
+    });
+
     it('同じ改訂keyは同一入力だけ再利用し、内容変更は409にする', async () => {
         const prior = { statement: 'new', title: 'Decision', version: 'rev_2' };
         const client = { query: vi.fn(async (sql) => String(sql).includes('SELECT from_version, to_snapshot')

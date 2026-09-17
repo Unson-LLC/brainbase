@@ -295,7 +295,11 @@ export class InfoSSOTKnowledgeGraphRepository {
                 const prior = priorReceipt.rows[0];
                 const sameRequest = prior.from_version === input.expected_version
                     && prior.to_snapshot?.statement === input.content
-                    && (input.title === undefined || prior.to_snapshot?.title === input.title);
+                    && (input.title === undefined || prior.to_snapshot?.title === input.title)
+                    && (input.scope === undefined || prior.to_snapshot?.applicability_scope?.scope === input.scope)
+                    && (input.owner_person_id === undefined || prior.to_snapshot?.owner_id === input.owner_person_id)
+                    && (input.effective_at === undefined || (prior.to_snapshot?.effective_at ?? null) === input.effective_at)
+                    && (input.expires_at === undefined || (prior.to_snapshot?.expires_at ?? null) === input.expires_at);
                 if (!sameRequest) {
                     const error = new Error('knowledge revision idempotency conflict');
                     error.code = 'knowledge_revision_idempotency_conflict'; error.status = 409;
@@ -314,12 +318,43 @@ export class InfoSSOTKnowledgeGraphRepository {
                 projectId: authority.rows[0].project_id, projectCode: input.project_code,
                 personId: access.personId, decisionDomain: authority.rows[0].decision_domain
             });
+            const nextEffectiveAt = input.effective_at === undefined
+                ? authority.rows[0].payload.effective_at ?? null : input.effective_at;
+            const nextExpiresAt = input.expires_at === undefined
+                ? authority.rows[0].payload.expires_at ?? null : input.expires_at;
+            if (nextEffectiveAt && nextExpiresAt && Date.parse(nextExpiresAt) <= Date.parse(nextEffectiveAt)) {
+                const error = new Error('knowledge revision effective period is invalid');
+                error.code = 'knowledge_revision_effective_period_invalid'; error.status = 400;
+                throw error;
+            }
+            if (input.owner_person_id !== undefined) {
+                const owner = await contextClient.query(
+                    "SELECT id FROM people WHERE id=$1 AND status='active' LIMIT 1",
+                    [input.owner_person_id]
+                );
+                if (!owner.rows[0]) {
+                    const error = new Error('knowledge revision owner was not found');
+                    error.code = 'knowledge_revision_owner_not_found'; error.status = 400;
+                    throw error;
+                }
+            }
             await assertCatalogProjectSubjectMutation(contextClient, { id: input.id, entityType: 'decision', allowCompatible: false });
             const nextVersion = `rev_${randomUUID()}`;
             const nextPayload = {
                 ...authority.rows[0].payload,
                 statement: input.content,
                 ...(input.title === undefined ? {} : { title: input.title }),
+                ...(input.scope === undefined ? {} : {
+                    applicability_scope: {
+                        ...(authority.rows[0].payload.applicability_scope || {}),
+                        scope: input.scope,
+                        project_code: input.project_code,
+                        organization_id: input.organization_id
+                    }
+                }),
+                ...(input.owner_person_id === undefined ? {} : { owner_id: input.owner_person_id }),
+                ...(input.effective_at === undefined ? {} : { effective_at: input.effective_at }),
+                ...(input.expires_at === undefined ? {} : { expires_at: input.expires_at }),
                 version: nextVersion,
                 content_hash: input.content_hash,
                 semantic_state: 'active', status: 'active', searchable: true

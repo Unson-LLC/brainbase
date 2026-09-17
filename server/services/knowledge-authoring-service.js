@@ -46,6 +46,15 @@ function sha256(value) {
     return createHash('sha256').update(value).digest('hex');
 }
 
+function optionalTimestamp(value, field) {
+    if (value === undefined) return undefined;
+    if (value === null || value === '') return null;
+    if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
+        throw new KnowledgeAuthoringError('knowledge_authoring_input_invalid', `${field} must be an ISO timestamp or null`, 400, { field });
+    }
+    return new Date(value).toISOString();
+}
+
 function draftProjection(record) {
     return {
         draft_id: record.draft_id,
@@ -280,6 +289,21 @@ export class KnowledgeAuthoringService {
         const projectCode = requiredText(input.project_code, 'project_code');
         requireProjectAccess(access, projectCode);
         const content = requiredText(input.content, 'content');
+        const scope = input.scope === undefined ? undefined : requiredText(input.scope, 'scope');
+        if (scope !== undefined && !['project', 'organization'].includes(scope)) {
+            throw new KnowledgeAuthoringError('knowledge_revision_scope_invalid', 'scope must be project or organization', 400);
+        }
+        const ownerPersonId = input.owner_person_id === undefined
+            ? undefined : requiredText(input.owner_person_id, 'owner_person_id');
+        const effectiveAt = optionalTimestamp(input.effective_at, 'effective_at');
+        const expiresAt = optionalTimestamp(input.expires_at, 'expires_at');
+        if (effectiveAt && expiresAt && Date.parse(expiresAt) <= Date.parse(effectiveAt)) {
+            throw new KnowledgeAuthoringError(
+                'knowledge_revision_effective_period_invalid',
+                'expires_at must be later than effective_at',
+                400
+            );
+        }
         const changed = await this.graphRepository.reviseDecision({
             id: requiredText(input.id, 'id'), project_code: projectCode,
             expected_version: requiredText(String(input.expected_version || ''), 'expected_version'),
@@ -287,12 +311,21 @@ export class KnowledgeAuthoringService {
             reason: requiredText(input.reason, 'reason'), content,
             content_hash: `sha256:${sha256(content)}`,
             ...(input.title === undefined ? {} : { title: draftText(input.title, 'title') }),
+            ...(scope === undefined ? {} : { scope }),
+            ...(ownerPersonId === undefined ? {} : { owner_person_id: ownerPersonId }),
+            ...(effectiveAt === undefined ? {} : { effective_at: effectiveAt }),
+            ...(expiresAt === undefined ? {} : { expires_at: expiresAt }),
+            organization_id: access.organizationId || access.tenantId,
             actor_person_id: access.personId
         }, { access });
         if (!changed) throw new KnowledgeAuthoringError('knowledge_not_found', 'knowledge was not found', 404);
         const record = await this.catalogService.get(access, { project_code: projectCode, id: input.id });
+        const metadataMatches = (scope === undefined || record.scope === scope)
+            && (ownerPersonId === undefined || record.owner === ownerPersonId)
+            && (effectiveAt === undefined || record.lifecycle.effective_at === effectiveAt)
+            && (expiresAt === undefined || record.lifecycle.expires_at === expiresAt);
         if (record.version !== changed.payload.version || record.canonical_content !== content
-            || record.canonical_content_hash !== `sha256:${sha256(content)}`) {
+            || record.canonical_content_hash !== `sha256:${sha256(content)}` || !metadataMatches) {
             throw new KnowledgeAuthoringError('knowledge_revision_readback_mismatch', 'canonical revision readback did not match', 409);
         }
         return { status: 'revised', idempotent: Boolean(changed.idempotent), record };

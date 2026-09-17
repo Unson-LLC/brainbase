@@ -204,6 +204,43 @@ describe('KnowledgeAuthoringService', () => {
         }), { access });
     });
 
+    it('本文と同じ改訂で範囲・責任者・有効期間を渡し、全項目をreadbackする', async () => {
+        const { service, graphRepository, catalogService } = harness();
+        catalogService.get.mockResolvedValue({
+            id: 'decision_123', version: 'rev_2', canonical_content: 'Revised truth.',
+            canonical_content_hash: 'sha256:977c856d0632366e5169fbafacd25de4060155e2ff267928002c09243e74b29b',
+            scope: 'organization', owner: 'per_2',
+            lifecycle: {
+                status: 'active', applicable: true,
+                effective_at: '2026-10-01T00:00:00.000Z', expires_at: '2027-10-01T00:00:00.000Z'
+            }
+        });
+        await service.revise(access, {
+            project_code: 'alpha', id: 'decision_123', expected_version: '1',
+            idempotency_key: 'rev-key-2', reason: 'widen scope', content: 'Revised truth.',
+            scope: 'organization', owner_person_id: 'per_2',
+            effective_at: '2026-10-01T09:00:00+09:00', expires_at: '2027-10-01T09:00:00+09:00'
+        });
+        expect(graphRepository.reviseDecision).toHaveBeenCalledWith(expect.objectContaining({
+            scope: 'organization', owner_person_id: 'per_2', organization_id: 'org_1',
+            effective_at: '2026-10-01T00:00:00.000Z', expires_at: '2027-10-01T00:00:00.000Z'
+        }), { access });
+    });
+
+    it('改訂の不正scopeと逆転した有効期間を拒否する', async () => {
+        const { service, graphRepository } = harness();
+        const base = {
+            project_code: 'alpha', id: 'decision_123', expected_version: '1',
+            idempotency_key: 'rev-key-invalid', reason: 'invalid metadata', content: 'Revised truth.'
+        };
+        await expect(service.revise(access, { ...base, scope: 'personal' }))
+            .rejects.toMatchObject({ code: 'knowledge_revision_scope_invalid', status: 400 });
+        await expect(service.revise(access, {
+            ...base, effective_at: '2027-01-01T00:00:00Z', expires_at: '2026-01-01T00:00:00Z'
+        })).rejects.toMatchObject({ code: 'knowledge_revision_effective_period_invalid', status: 400 });
+        expect(graphRepository.reviseDecision).not.toHaveBeenCalled();
+    });
+
     it('判断domainはGraph RACIから列挙し、scopeから推測しない', async () => {
         const { service, graphRepository } = harness();
         await expect(service.authorityDomains(access, { project_code: 'alpha' }))
