@@ -365,8 +365,26 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-organization-project-create-scope-v1",
+        "title": "新規プロジェクト作成をテナント規模に依存させない",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null,
+        "acceptance_criteria": [
+          "新しいproject subjectを作成するとき、Graph snapshotは対象projectだけを含み、利用者が参照可能な全projectをロックしない。",
+          "既存project subjectを再利用するとき、事前検証で承認したsource projectだけを対象projectとともにsnapshotへ含める。",
+          "既存の冪等実行、rollback、receipt、validate契約を維持する。",
+          "テナント内のproject数に依存せず、管理画面からのproject作成が60秒以内に完了する。"
+        ]
       }
     ],
-    "current_story_id": "story-organization-crud-lifecycle-v1"
+    "current_story_id": "story-organization-project-create-scope-v1"
   }
 }
