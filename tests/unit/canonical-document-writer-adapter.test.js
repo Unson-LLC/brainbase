@@ -127,6 +127,31 @@ describe('CanonicalDocumentWriterAdapter', () => {
         });
     });
 
+    it('rejects a provider-declared hash that hides different readback content', async () => {
+        const provider = providerFor('# Different\n');
+        provider.read.mockResolvedValue({
+            path: 'docs/guide.md', content: '# Different\n',
+            content_hash: 'c479607e244640c366bd6805166276d0c83c442e9ef4eed94005cf5e5eca8c70',
+            revision: '2'
+        });
+        const adapter = new CanonicalDocumentWriterAdapter({ provider });
+
+        await expect(adapter.save(input())).rejects.toMatchObject({
+            code: 'canonical_document_readback_mismatch', status: 502
+        });
+    });
+
+    it('requires the revision from provider readback instead of trusting only the write response', async () => {
+        const provider = providerFor();
+        provider.read.mockResolvedValue({ path: 'docs/guide.md', content: '# Guide\n' });
+        const adapter = new CanonicalDocumentWriterAdapter({ provider });
+
+        await expect(adapter.save(input())).rejects.toMatchObject({
+            code: 'canonical_document_input_invalid', status: 400,
+            details: { field: 'readback.revision' }
+        });
+    });
+
     it('preserves provider CAS conflicts as a retryable conflict', async () => {
         const provider = providerFor();
         provider.write.mockRejectedValue(Object.assign(new Error('stale'), {

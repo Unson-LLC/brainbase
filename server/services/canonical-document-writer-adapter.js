@@ -205,8 +205,12 @@ export class CanonicalDocumentWriterAdapter {
         }
 
         const readbackPath = normalizeRepositoryRelativePath(readback.path ?? pathFromWrite);
-        const readbackHash = readback.content_hash || digest(readback.content);
-        if (readbackPath !== request.path || readbackHash !== request.content_hash || readback.content !== request.content) {
+        const readbackHash = digest(readback.content);
+        const declaredReadbackHash = typeof readback.content_hash === 'string' ? readback.content_hash.trim() : null;
+        if (readbackPath !== request.path
+            || (declaredReadbackHash && declaredReadbackHash !== readbackHash)
+            || readbackHash !== request.content_hash
+            || readback.content !== request.content) {
             throw new CanonicalDocumentWriterError(
                 'canonical_document_readback_mismatch',
                 'canonical document readback does not match the requested content',
@@ -215,12 +219,13 @@ export class CanonicalDocumentWriterAdapter {
                     path: request.path,
                     expected_content_hash: request.content_hash,
                     actual_content_hash: readbackHash,
+                    ...(declaredReadbackHash ? { declared_content_hash: declaredReadbackHash } : {}),
                     actual_path: readbackPath
                 }
             );
         }
 
-        const revision = normalizeRevision(readback.revision ?? writeResult.revision, 'revision');
+        const revision = normalizeRevision(readback.revision, 'readback.revision');
         return {
             status: 'saved',
             project_code: request.project_code,
