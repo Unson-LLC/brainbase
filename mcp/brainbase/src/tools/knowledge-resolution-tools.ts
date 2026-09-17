@@ -95,14 +95,25 @@ const RETRIEVAL_STATUSES = new Set([
   'source_version_unknown', 'source_version_conflict', 'source_hash_conflict',
 ]);
 
-function isKnowledgeRetrievalResponse(value: unknown): value is Record<string, unknown> {
-  if (!isRecord(value) || typeof value.project_code !== 'string' || !Array.isArray(value.results)) return false;
-  return value.results.every((result) => {
-    if (!isRecord(result) || typeof result.status !== 'string' || !RETRIEVAL_STATUSES.has(result.status)) return false;
+function isKnowledgeRetrievalResponse(value: unknown, requestedRefs: unknown): value is Record<string, unknown> {
+  if (!isRecord(value) || typeof value.project_code !== 'string'
+    || !Array.isArray(value.results) || !Array.isArray(requestedRefs)
+    || value.results.length !== requestedRefs.length) return false;
+
+  const results = value.results as unknown[];
+  const refs = requestedRefs as unknown[];
+  return refs.every((requestedRef, index) => {
+    if (!isRecord(requestedRef)
+      || typeof requestedRef.id !== 'string' || requestedRef.id.length === 0
+      || typeof requestedRef.version !== 'string' || requestedRef.version.length === 0) return false;
+    const result = results[index];
+    if (!isRecord(result)
+      || result.id !== requestedRef.id
+      || result.requested_version !== requestedRef.version
+      || typeof result.status !== 'string'
+      || !RETRIEVAL_STATUSES.has(result.status)) return false;
     if (result.status !== 'resolved') return true;
-    return typeof result.id === 'string'
-      && typeof result.requested_version === 'string'
-      && result.resolved_version === result.requested_version
+    return result.resolved_version === result.requested_version
       && typeof result.content === 'string'
       && result.content.length > 0
       && isRecord(result.source)
@@ -124,11 +135,21 @@ export async function handleKnowledgeResolutionToolCall(
   const retrieving = name === 'brainbase_knowledge_retrieve';
 
   // The trusted transport envelope is never taken from model tool arguments.
-  // Any supplied invalid authority fails closed; do not fall back to the static token.
-  if (!retrieving && dependencies.companyAuthorityResponse !== undefined) {
+  // Any supplied invalid or unsupported authority fails closed; do not fall back
+  // to the static token. Direct retrieval has no authority-bound runtime route:
+  // the resolve receipt is routing-only, and retrieval retains project auth.
+  if (dependencies.companyAuthorityResponse !== undefined) {
     const authority = decodeCompanyAuthorityResponse(dependencies.companyAuthorityResponse);
     if (!authority || !dependencies.runtimeServiceToken || !dependencies.runtimeApiUrl) {
       return toolError('error', 'brainbase_authority_invalid', 'Signed authority transport is unavailable', []);
+    }
+    if (retrieving) {
+      return toolError(
+        'error',
+        'brainbase_authority_invalid',
+        'Signed knowledge authority cannot authorize direct knowledge retrieval',
+        [],
+      );
     }
     try {
       const response = await (dependencies.fetch ?? globalThis.fetch)(
@@ -175,7 +196,7 @@ export async function handleKnowledgeResolutionToolCall(
     );
   }
   const valid = retrieving
-    ? isKnowledgeRetrievalResponse(payload) && payload.project_code === args.project_code
+    ? isKnowledgeRetrievalResponse(payload, args.refs) && payload.project_code === args.project_code
     : isKnowledgeResolutionReceipt(payload);
   if (!valid) {
     return toolError(

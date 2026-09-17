@@ -87,6 +87,42 @@ it('knowledge.retrieveは未解決状態を保持し、不正なresolvedを拒�
   assert.equal(mismatched?.error?.code, 'brainbase_api_response_invalid');
 });
 
+it('knowledge.retrieveは要求refsの件数・順序・ID・版が一致しない応答を拒否する', async () => {
+  const args = {
+    project_code: 'brainbase',
+    refs: [
+      { id: 'decision-1', version: '3' },
+      { id: 'document-1', version: '2' },
+    ],
+  };
+  const validResults = [
+    {
+      id: 'decision-1', status: 'resolved', requested_version: '3', resolved_version: '3',
+      content: 'Canonical decision', source: { kind: 'graph_entity', pointer: 'brainbase://graph/decision-1' },
+      retrieval_receipt_id: 'graph:decision-1:3',
+    },
+    { id: 'document-1', status: 'not_found', requested_version: '2' },
+  ];
+  const run = (results: unknown[]) => handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', args, {
+    apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'],
+    tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+    fetch: async () => new Response(JSON.stringify({ project_code: 'brainbase', results }), { status: 200 }),
+  });
+
+  const cases: Array<[string, unknown[]]> = [
+    ['different_id', [{ ...validResults[0], id: 'other-decision' }, validResults[1]]],
+    ['different_requested_version', [validResults[0], { ...validResults[1], requested_version: '1' }]],
+    ['missing_result', validResults.slice(0, 1)],
+    ['extra_result', [...validResults, { id: 'extra', status: 'not_found', requested_version: '1' }]],
+    ['different_order', [validResults[1], validResults[0]]],
+  ];
+  for (const [label, results] of cases) {
+    const result = await run(results);
+    assert.equal(result?.status, 'error', label);
+    assert.equal(result?.error?.code, 'brainbase_api_response_invalid', label);
+  }
+});
+
 it('knowledge.retrieveは外部正本の版・hash競合を明示状態のまま返す', async () => {
   const args = { project_code: 'brainbase', refs: [{ id: 'document-1', version: '3' }] };
   for (const status of ['source_version_unknown', 'source_version_conflict', 'source_hash_conflict']) {
@@ -251,4 +287,33 @@ it('signed runtime authority bypasses static scope only through the verifying ba
   const wrong = await handleKnowledgeResolutionToolCall('brainbase_knowledge_resolve', args,
     { ...dependencies, fetch: async () => new Response(JSON.stringify({ ...receipt, project_code: 'other' })) });
   assert.equal(wrong?.status, 'error');
+});
+
+it('signed runtime authority付きretrieveはstaticへfallbackせずfail closedする', async () => {
+  const args = { project_code: 'unson', refs: [{ id: 'decision-1', version: '3' }] };
+  let staticTokenCalls = 0;
+  let fetchCalls = 0;
+  const result = await handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', args, {
+    apiUrl: 'http://static.test', configuredProjectCodes: ['unson'],
+    tokenManager: { getToken: async () => {
+      staticTokenCalls += 1;
+      return jwt({ projectCodes: ['unson'] });
+    } },
+    runtimeApiUrl: 'http://runtime.test', runtimeServiceToken: 'service-test',
+    companyAuthorityResponse: Buffer.from(JSON.stringify({ signed: 'test-envelope' })).toString('base64url'),
+    fetch: async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({
+        project_code: 'unson',
+        results: [{
+          id: 'decision-1', status: 'resolved', requested_version: '3', resolved_version: '3',
+          content: 'should not be used', source: { kind: 'graph_entity' }, retrieval_receipt_id: 'receipt',
+        }],
+      }));
+    },
+  });
+  assert.equal(result?.status, 'error');
+  assert.equal(result?.error?.code, 'brainbase_authority_invalid');
+  assert.equal(staticTokenCalls, 0);
+  assert.equal(fetchCalls, 0);
 });
