@@ -5426,11 +5426,9 @@ export async function processHookPayload(payload, dependencies = {}) {
                 };
             }
         }
-        return typeof event?.system_message === 'string'
-            ? { systemMessage: event.system_message }
-            : typeof event?.display_line === 'string'
-                ? { systemMessage: event.display_line }
-                : {};
+        const messages = [...new Set([event?.display_line, event?.system_message]
+            .filter((message) => typeof message === 'string' && message.length > 0))];
+        return messages.length > 0 ? { systemMessage: messages.join('\n') } : {};
     }
     if (eventName === 'Stop') {
         await bootstrapDelegatedEpisode(payload, dependencies);

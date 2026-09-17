@@ -1684,6 +1684,30 @@ describe('Codex Judgment Resolver Host', () => {
         }, { env })).toThrow('judgment_tool_event_conflict');
     });
 
+    it('Graph参照先の成功監査と後続取得の案内を両方返す', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'graph-output-session', turn_id: 'graph-output-turn',
+            prompt: '共有プロフィールを確認', cwd: process.cwd() };
+        const receipt = validReceipt(buildJudgmentRequest(payload, { env }));
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({
+            ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt })
+        }) });
+        const output = await processHookPayload({
+            hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id,
+            tool_name: 'mcp__brainbase__brainbase_knowledge_resolve', tool_use_id: 'graph-route-output',
+            tool_input: { intent: 'lookup', audience: 'team', content_type: 'canonical_fact' },
+            tool_response: { status: 'ok', data: {
+                resolution_id: 'kr_graph_output', status: 'resolved', source_class: 'graph',
+                canonical_location: { entity_type: 'person' }, retrieval_capability: 'graph.query',
+                searched_scope: [], absence_confirmed: false, excluded_sources: []
+            } }
+        }, { env });
+        expect(output.systemMessage).toContain('📚 Brainbase参照先:');
+        expect(output.systemMessage).toContain('採用: graph');
+        expect(output.systemMessage).toContain('brainbase_knowledge_evidence_record');
+    });
+
     it('knowledge routeは採用・除外した参照先と理由を表示する', async () => {
         const root = temporaryDirectory();
         const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
