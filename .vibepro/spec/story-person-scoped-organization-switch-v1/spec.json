@@ -13,7 +13,7 @@
       ],
       "resolution_point": "organization switch before issuing the target session",
       "missing_behavior": "deny",
-      "ambiguity_behavior": "equivalent grants are deduplicated; conflicting effective access is denied"
+      "ambiguity_behavior": "the organization workspace grant is canonical; without one, equivalent grants are deduplicated and conflicting effective access is denied"
     },
     "propagation": {
       "required_surfaces": ["admin_api", "audit_log"],
@@ -84,7 +84,7 @@
     {
       "id": "S-001",
       "type": "scenario",
-      "statement": "Switching organizations resolves one effective target access for the same person, permits equivalent grants from multiple Slack identities, and issues a session bound to one deterministic target grant identity and organization.",
+      "statement": "Switching organizations resolves one effective target access for the same person, prefers the grant from the organization's canonical Slack workspace, permits equivalent grants from multiple Slack identities when no canonical grant exists, and issues a session bound to one target grant identity and organization.",
       "origin": {
         "story_refs": [
           { "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-2" },
@@ -97,7 +97,7 @@
     {
       "id": "INV-002",
       "type": "invariant",
-      "statement": "Missing grants or grants with conflicting role, project scope, or clearance are denied, while equivalent grants across Slack identities are deduplicated and initial Slack login keeps its exact workspace matching behavior.",
+      "statement": "Missing grants are denied. The organization workspace grant is the canonical effective access and cross-workspace identity grants are not merged into it; when no canonical grant exists, conflicting role, project scope, or clearance is denied. Initial Slack login keeps its exact workspace matching behavior.",
       "origin": {
         "story_refs": [
           { "kind": "acceptance_criteria", "index": 2, "ac_id": "AC-3" },
@@ -109,6 +109,7 @@
         ],
         "test_refs": [
           { "file": "tests/unit/auth-service-grants.test.js", "case": "accepts equivalent organization grants for the same person and selects one identity deterministically" },
+          { "file": "tests/unit/auth-service-grants.test.js", "case": "selects the grant from the organization canonical workspace over a conflicting cross-workspace grant" },
           { "file": "tests/unit/auth-service-grants.test.js", "case": "rejects conflicting organization grants for the same person" },
           { "file": "tests/server/routes/auth-slack-route.test.js", "case": "organization routes require a signed person identity" }
         ]

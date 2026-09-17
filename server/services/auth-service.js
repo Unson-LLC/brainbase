@@ -44,6 +44,18 @@ function hasEquivalentAccess(left, right) {
         && sameStringSet(left.clearance, right.clearance);
 }
 
+function selectEffectiveOrganizationGrant(rows, buildAccess) {
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const canonicalRows = rows.filter((row) => row.organization_workspace_id
+        && row.slack_workspace_id === row.organization_workspace_id);
+    const candidates = canonicalRows.length > 0 ? canonicalRows : rows;
+    const expectedAccess = buildAccess(candidates[0]);
+    if (candidates.slice(1).some((row) => !hasEquivalentAccess(expectedAccess, buildAccess(row)))) {
+        throw new Error('Organization access is ambiguous');
+    }
+    return candidates[0];
+}
+
 function normalizeConfiguredList(value) {
     if (Array.isArray(value)) return normalizeList(value);
     if (typeof value !== 'string') return [];
@@ -452,7 +464,8 @@ export class AuthService {
         try {
             const { rows } = await client.query(
                 `SELECT ag.id, ag.person_id, ag.person_name, ag.slack_user_id,
-                        ag.slack_workspace_id, ag.organization_id, ag.role,
+                        ag.slack_workspace_id, ag.organization_id, o.workspace_id AS organization_workspace_id,
+                        ag.role,
                         ARRAY(
                             SELECT requested.project_code
                             FROM unnest(ag.project_codes) WITH ORDINALITY requested(project_code, ord)
@@ -517,16 +530,11 @@ export class AuthService {
                  WHERE ag.person_id = $1
                    AND ag.organization_id = $2
                    AND ag.active = true
-                 ORDER BY ag.updated_at DESC, ag.id ASC`,
+                 ORDER BY CASE WHEN ag.slack_workspace_id = o.workspace_id THEN 0 ELSE 1 END,
+                          ag.updated_at DESC, ag.id ASC`,
                 [requestedPersonId, requestedOrganizationId]
             );
-            if (rows.length > 1) {
-                const expectedAccess = this.buildAccessFromGrant(rows[0]);
-                if (rows.slice(1).some((row) => !hasEquivalentAccess(expectedAccess, this.buildAccessFromGrant(row)))) {
-                    throw new Error('Organization access is ambiguous');
-                }
-            }
-            return rows[0] || null;
+            return selectEffectiveOrganizationGrant(rows, (row) => this.buildAccessFromGrant(row));
         } finally {
             client.release();
         }
@@ -539,6 +547,7 @@ export class AuthService {
         try {
             const { rows } = await client.query(
                 `SELECT COALESCE(ag.organization_id, o.id) AS organization_id, o.name AS organization_name,
+                        ag.slack_workspace_id, o.workspace_id AS organization_workspace_id,
                         ag.role, ag.clearance,
                         ARRAY(
                             SELECT requested.project_code
@@ -556,17 +565,20 @@ export class AuthService {
                  ORDER BY o.name ASC, o.id ASC`,
                 [requestedPersonId]
             );
-            const organizations = new Map();
+            const organizationRows = new Map();
             for (const row of rows) {
+                const grouped = organizationRows.get(row.organization_id) || [];
+                grouped.push(row);
+                organizationRows.set(row.organization_id, grouped);
+            }
+            const organizations = [];
+            for (const groupedRows of organizationRows.values()) {
+                const row = selectEffectiveOrganizationGrant(
+                    groupedRows,
+                    (candidate) => this.buildAccessFromGrant(candidate)
+                );
                 const access = this.buildAccessFromGrant(row);
-                const existing = organizations.get(row.organization_id);
-                if (existing) {
-                    if (!hasEquivalentAccess(existing.access, access)) {
-                        throw new Error('Organization access is ambiguous');
-                    }
-                    continue;
-                }
-                organizations.set(row.organization_id, {
+                organizations.push({
                     access,
                     organization: {
                         organizationId: row.organization_id,
@@ -576,7 +588,7 @@ export class AuthService {
                     }
                 });
             }
-            return [...organizations.values()].map(({ organization }) => organization);
+            return organizations.map(({ organization }) => organization);
         } finally {
             client.release();
         }

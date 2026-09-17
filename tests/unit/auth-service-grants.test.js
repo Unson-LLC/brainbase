@@ -69,19 +69,30 @@ describe('AuthService auth grant precedence', () => {
         expect(observed[0].params).toEqual(['per_sato']);
     });
 
-    it('rejects duplicate active grants when listing organizations for one person', async () => {
+    it('uses the organization workspace grant as canonical access when another Slack identity has narrower access', async () => {
         const client = {
             query: async () => ({ rows: [
-                { organization_id: 'techknight', organization_name: 'TechKnight', role: 'ceo', project_codes: ['techknight'] },
-                { organization_id: 'techknight', organization_name: 'TechKnight', role: 'member', project_codes: [] }
+                {
+                    organization_id: 'unson', organization_name: 'UNSON', organization_workspace_id: 'T_UNSON',
+                    slack_workspace_id: 'T_CUSTOMER', role: 'member', project_codes: ['brainbase'], clearance: ['internal']
+                },
+                {
+                    organization_id: 'unson', organization_name: 'UNSON', organization_workspace_id: 'T_UNSON',
+                    slack_workspace_id: 'T_UNSON', role: 'ceo', project_codes: ['brainbase', 'mana'],
+                    clearance: ['internal', 'restricted']
+                }
             ] }),
             release: () => {}
         };
         const authService = new AuthService();
         authService.pool = { connect: async () => client };
 
-        await expect(authService.listOrganizationAccess({ personId: 'per_sato' }))
-            .rejects.toThrow('Organization access is ambiguous');
+        await expect(authService.listOrganizationAccess({ personId: 'per_sato' })).resolves.toEqual([
+            {
+                organizationId: 'unson', name: 'UNSON', role: 'ceo',
+                projectCodes: ['brainbase', 'mana']
+            }
+        ]);
     });
 
     it('deduplicates equivalent organization access granted through multiple Slack identities', async () => {
@@ -176,6 +187,34 @@ describe('AuthService auth grant precedence', () => {
         })).resolves.toMatchObject({
             id: 'grant-new',
             slack_user_id: 'U_TECHKNIGHT'
+        });
+    });
+
+    it('selects the grant from the organization canonical workspace over a conflicting cross-workspace grant', async () => {
+        const client = {
+            query: async () => ({ rows: [
+                {
+                    id: 'grant-canonical', person_id: 'per_sato', organization_id: 'unson',
+                    slack_user_id: 'U_UNSON', slack_workspace_id: 'T_UNSON', organization_workspace_id: 'T_UNSON',
+                    role: 'ceo', project_codes: ['brainbase', 'mana'], clearance: ['internal', 'restricted']
+                },
+                {
+                    id: 'grant-cross-workspace', person_id: 'per_sato', organization_id: 'unson',
+                    slack_user_id: 'U_CUSTOMER', slack_workspace_id: 'T_CUSTOMER', organization_workspace_id: 'T_UNSON',
+                    role: 'member', project_codes: ['brainbase'], clearance: ['internal']
+                }
+            ] }),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        await expect(authService.findGrantForPerson({
+            personId: 'per_sato',
+            organizationId: 'unson'
+        })).resolves.toMatchObject({
+            id: 'grant-canonical',
+            role: 'ceo'
         });
     });
 
