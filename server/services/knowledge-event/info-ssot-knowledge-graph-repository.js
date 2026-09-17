@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { isDeepStrictEqual } from 'node:util';
 
 import { assertCatalogProjectSubjectMutation } from '../project-graph-identity-lock.js';
 
@@ -304,6 +305,26 @@ export class InfoSSOTKnowledgeGraphRepository {
                 aggregatePrevalidated: true
             });
         }
+        const persisted = await contextClient.query(
+            `SELECT from_id, to_id, rel_type, payload
+             FROM graph_edges
+             WHERE project_id = $1 AND from_id = $2`,
+            [validation.project.id, source.id]
+        );
+        const persistedByKey = new Map((persisted.rows || []).map((edge) => [edgeKey(edge), edge]));
+        const verifiedRelations = uniqueEdges.map((expected) => {
+            const actual = persistedByKey.get(edgeKey(expected));
+            if (!actual || !isDeepStrictEqual(actual.payload || {}, expected.payload || {})) {
+                throw authoringGraphError('knowledge_relations_readback_mismatch',
+                    'persisted Graph relations do not match the requested relations', 409, {
+                        from_id: expected.from_id, to_id: expected.to_id, relation: expected.relation
+                    });
+            }
+            return {
+                from_id: actual.from_id, to_id: actual.to_id,
+                relation: actual.rel_type, payload: actual.payload || {}
+            };
+        });
         return {
             id: source.id,
             entity_id: source.id,
@@ -314,8 +335,8 @@ export class InfoSSOTKnowledgeGraphRepository {
                 version: String(source.payload?.version || source.version || ''),
                 canonical_content: source.payload?.statement || null
             },
-            relation_count: uniqueEdges.length,
-            relations: uniqueEdges.map(({ from_id, to_id, relation }) => ({ from_id, to_id, relation })),
+            relation_count: verifiedRelations.length,
+            relations: verifiedRelations,
             graph_saved: true,
             readback_verified: true
         };

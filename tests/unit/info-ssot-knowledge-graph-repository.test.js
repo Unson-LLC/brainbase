@@ -21,10 +21,14 @@ function serviceFixture() {
     return { client, infoSSOTService };
 }
 
-function authoringFixture({ includeTarget = true, relationValid = true } = {}) {
+function authoringFixture({ includeTarget = true, relationValid = true, readback = (edges) => edges } = {}) {
+    const storedEdges = [];
     const client = {
         query: vi.fn(async (sql, params) => {
             const text = String(sql);
+            if (text.includes('SELECT from_id, to_id, rel_type, payload')) {
+                return { rows: readback(storedEdges) };
+            }
             if (text.includes('FROM projects')) {
                 return { rows: [{ id: 'project_uuid', code: 'brainbase', organization_id: 'org_a' }] };
             }
@@ -50,7 +54,9 @@ function authoringFixture({ includeTarget = true, relationValid = true } = {}) {
         validateOntology: vi.fn(() => (relationValid ? { valid: true } : { valid: false, violations: [{ code: 'relation_not_registered' }] })),
         validateGraphMutation: vi.fn(async () => undefined),
         assertWriteAccess: vi.fn(),
-        upsertGraphEdge: vi.fn(async () => undefined)
+        upsertGraphEdge: vi.fn(async (_client, edge) => {
+            storedEdges.push({ from_id: edge.fromId, to_id: edge.toId, rel_type: edge.relType, payload: edge.payload });
+        })
     };
     return { client, infoSSOTService };
 }
@@ -108,7 +114,7 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
     });
 
     it('authoring saveはowner・project・要求relationの実Graph edgeをupsertする', async () => {
-        const { infoSSOTService } = authoringFixture();
+        const { client, infoSSOTService } = authoringFixture();
         const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
 
         const result = await repository.persistAuthoringRelations({
@@ -118,11 +124,32 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         }, { access });
 
         expect(result).toMatchObject({ entity_id: 'decision_existing', graph_saved: true, readback_verified: true });
+        expect(client.query).toHaveBeenCalledWith(
+            expect.stringContaining('WHERE project_id = $1 AND from_id = $2'),
+            ['project_uuid', 'decision_existing']
+        );
+        expect(result.relations).toContainEqual({
+            from_id: 'decision_existing', to_id: 'decision_target', relation: 'references', payload: {}
+        });
         expect(infoSSOTService.validateGraphMutation).toHaveBeenCalledOnce();
         expect(infoSSOTService.upsertGraphEdge).toHaveBeenCalledTimes(3);
         expect(infoSSOTService.upsertGraphEdge.mock.calls.map(([_, input]) => input.relType)).toEqual(expect.arrayContaining([
             'owned_by', 'belongs_to_project', 'references'
         ]));
+    });
+
+    it.each([
+        ['missing', (edges) => edges.filter((edge) => edge.rel_type !== 'references')],
+        ['wrong target', (edges) => edges.map((edge) => edge.rel_type === 'references' ? { ...edge, to_id: 'other' } : edge)],
+        ['wrong payload', (edges) => edges.map((edge) => edge.rel_type === 'references' ? { ...edge, payload: { reason: 'other' } } : edge)]
+    ])('authoring rejects %s persisted relation readback', async (_label, readback) => {
+        const { infoSSOTService } = authoringFixture({ readback });
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+        await expect(repository.persistAuthoringRelations({
+            project_code: 'brainbase', entity_type: 'decision', entity_id: 'decision_existing',
+            owner_person_id: 'person_owner', expected_version: '7',
+            relations: [{ relation: 'references', to_id: 'decision_target', payload: { reason: 'evidence' } }]
+        }, { access })).rejects.toMatchObject({ code: 'knowledge_relations_readback_mismatch', status: 409 });
     });
 
     it('validates decision authority before committing a normalized decision', async () => {
