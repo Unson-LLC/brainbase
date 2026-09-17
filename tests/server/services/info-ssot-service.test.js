@@ -46,6 +46,7 @@ const buildService = () => {
 };
 
 const accessContext = {
+    personId: 'person_a',
     role: 'gm',
     projectCodes: ['brainbase'],
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
@@ -103,6 +104,36 @@ describe('InfoSSOTService (Graph SSOT)', () => {
             code: 'canonical_tenant_identity_invalid', status: 403
         });
         expect(handler).not.toHaveBeenCalled();
+    });
+
+    it('sets and clears the transaction-local person context from authenticated access', async () => {
+        const { service, client } = buildService();
+        let currentPersonId = 'stale_person';
+        client.query.mockImplementation(async (sql, params = []) => {
+            if (sql === 'SELECT set_config($1, $2, true)' && params[0] === 'app.person_id') {
+                currentPersonId = params[1];
+            }
+            if (sql === "SELECT current_setting('app.person_id', true) AS person_id") {
+                return { rows: [{ person_id: currentPersonId }] };
+            }
+            return { rows: [] };
+        });
+
+        const observedPersonIds = [];
+        await service.withAccessContext({ ...accessContext, personId: 'person_a' }, async (client) => {
+            const { rows } = await client.query("SELECT current_setting('app.person_id', true) AS person_id");
+            observedPersonIds.push(rows[0].person_id);
+        });
+        await service.withAccessContext({ ...accessContext, personId: undefined }, async (client) => {
+            const { rows } = await client.query("SELECT current_setting('app.person_id', true) AS person_id");
+            observedPersonIds.push(rows[0].person_id);
+        });
+
+        expect(observedPersonIds).toEqual(['person_a', '']);
+        expect(client.query.mock.calls.filter(([, params]) => params?.[0] === 'app.person_id')).toEqual([
+            ['SELECT set_config($1, $2, true)', ['app.person_id', 'person_a']],
+            ['SELECT set_config($1, $2, true)', ['app.person_id', '']]
+        ]);
     });
 
     it.each(['fetchGraphEntities', 'fetchGraphEntitiesByIds'])('%sはactiveかつ閲覧可能なmember_ofだけでprojectless Personを公開する', async (method) => {

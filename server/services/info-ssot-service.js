@@ -1084,6 +1084,7 @@ export class InfoSSOTService {
             await client.query('SELECT set_config($1, $2, true)', ['app.project_codes', access.projectCodes.join(',')]);
             await client.query('SELECT set_config($1, $2, true)', ['app.clearance', access.clearance.join(',')]);
             await client.query('SELECT set_config($1, $2, true)', ['app.organization_id', organizationId]);
+            await client.query('SELECT set_config($1, $2, true)', ['app.person_id', access.personId || '']);
             await client.query('SELECT set_config($1, $2, true)', ['app.graph_maintenance_mode', access.graphMaintenanceMode === true ? 'true' : 'false']);
             const result = await handler(client);
             if (ownsTransaction) await client.query('COMMIT');
