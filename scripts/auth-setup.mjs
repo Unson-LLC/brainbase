@@ -71,7 +71,10 @@ async function requestDeviceCode(codeVerifier) {
             'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-            code_verifier: codeVerifier
+            code_verifier: codeVerifier,
+            ...(process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID
+                ? { organization_id: process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID }
+                : {})
         })
     });
 

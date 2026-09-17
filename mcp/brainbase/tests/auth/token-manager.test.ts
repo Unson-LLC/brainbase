@@ -15,9 +15,9 @@ describe('TokenManager', () => {
   let originalEnv: NodeJS.ProcessEnv;
   let originalFetch: typeof global.fetch;
 
-  function createJwt(issuedAt: number, expiresAt: number): string {
+  function createJwt(issuedAt: number, expiresAt: number, organizationId?: string): string {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({ iat: issuedAt, exp: expiresAt })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ iat: issuedAt, exp: expiresAt, organizationId })).toString('base64url');
     return `${header}.${payload}.signature`;
   }
 
@@ -64,6 +64,21 @@ describe('TokenManager', () => {
       const token = await tokenManager.getToken();
 
       assert.strictEqual(token, 'mock-access-token');
+    });
+
+    it('should load a tenant-specific token file and reject the wrong tenant', async () => {
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      await fs.writeFile(testTokensPath, JSON.stringify({
+        access_token: createJwt(nowSeconds, nowSeconds + 3600, 'unson'),
+        expires_in: 3600,
+        issued_at: nowSeconds,
+      }, null, 2));
+      process.env.BRAINBASE_TOKEN_FILE = testTokensPath;
+      process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID = 'techknight';
+
+      const tokenManager = new TokenManager('http://localhost:31013');
+
+      await assert.rejects(() => tokenManager.getToken(), /Tenant mismatch: expected techknight, received unson/);
     });
 
     it('should use environment variable if available', async () => {
