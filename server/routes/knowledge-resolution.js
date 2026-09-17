@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { KnowledgeCatalogError } from '../services/knowledge-catalog-service.js';
 
 function route(handler) {
     return async (req, res) => {
@@ -32,5 +33,33 @@ export function createKnowledgeResolutionRouter({ service }) {
         }
         res.json(service.resolve(req.body));
     }));
+    return router;
+}
+
+function catalogRoute(handler) {
+    return async (req, res) => {
+        try {
+            res.json(await handler(req, res));
+        } catch (error) {
+            const known = error instanceof KnowledgeCatalogError;
+            res.status(known ? error.status : 500).json({
+                error: {
+                    code: known ? error.code : 'knowledge_catalog_failed',
+                    message: known ? error.message : 'Knowledge catalog request failed',
+                }
+            });
+        }
+    };
+}
+
+export function createKnowledgeCatalogRouter({ service }) {
+    const router = Router();
+    router.get('/items', catalogRoute((req) => service.list(req.access, req.query)));
+    router.get('/items/:id', catalogRoute((req) => service.get(req.access, {
+        ...req.query,
+        id: req.params.id
+    })));
+    router.post('/retrieve', catalogRoute((req) => service.retrieve(req.access, req.body || {})));
+    router.post('/preview', catalogRoute((req) => service.preview(req.access, req.body || {})));
     return router;
 }

@@ -268,6 +268,17 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Knowledge retrieval is a read-only, version-pinned content request from
+        // an MCP/runtime client. Preview and every mutation remain CSRF protected.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/knowledge/retrieve'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
         // Knowledge event ingest is called by the MCP host with a non-cookie
         // Bearer credential. Keep the exemption exact; the mounted route still
         // enforces authentication, organization scope, and project access.

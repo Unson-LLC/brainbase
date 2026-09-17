@@ -11,7 +11,7 @@ import { createLearningRouter } from '../routes/learning.js';
 import { createPersonalKnowledgeRouter } from '../routes/personal-knowledge.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createOnboardingRouter } from '../routes/onboarding.js';
-import { createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
+import { createKnowledgeCatalogRouter, createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
 import { createKnowledgeEventRouter } from '../routes/knowledge-events.js';
 import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js';
 import { createJudgmentReceiptAccessResolver } from '../services/judgment-receipt/judgment-receipt-access.js';
@@ -54,6 +54,7 @@ import { AdminVisualizationService } from '../services/admin-visualization-servi
 import { ReplyDraftService } from '../services/companion/reply-draft-service.js';
 import { DecisionEventService } from '../services/companion/decision-event-service.js';
 import { KnowledgeResolutionService } from '../services/knowledge-resolution-service.js';
+import { KnowledgeCatalogService } from '../services/knowledge-catalog-service.js';
 import { JudgmentResolutionService } from '../services/judgment-resolution-service.js';
 import {
     JsonFileMeetingMinutesContextReceiptRepository,
@@ -97,6 +98,16 @@ export function registerKnowledgeResolutionApiRoute(app, { authService, service 
         '/api/knowledge',
         requireAuth(authService, { allowInsecureHeaders: false }),
         createKnowledgeResolutionRouter({ service })
+    );
+}
+
+export function registerKnowledgeCatalogApiRoute(app, { authService, infoSSOTService, service = null }) {
+    app.use(
+        '/api/knowledge',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createKnowledgeCatalogRouter({
+            service: service || new KnowledgeCatalogService({ infoSSOTService })
+        })
     );
 }
 
@@ -371,6 +382,7 @@ export function registerApiRoutes(app, {
     })));
     registerOnboardingApiRoute(app, { authService, onboardingRuntimeService });
     registerKnowledgeResolutionApiRoute(app, { authService });
+    registerKnowledgeCatalogApiRoute(app, { authService, infoSSOTService });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
         registerKnowledgeEventApiRoutes(app, {
             authService,
