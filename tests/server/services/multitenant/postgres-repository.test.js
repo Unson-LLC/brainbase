@@ -152,6 +152,130 @@ function quotaPool({ now = '2026-08-22T01:00:00.000Z', allowance = 100, legacyCo
 }
 
 describe('MultitenantPostgresRepository', () => {
+    it('resolves an active tenant authority record for Outcome context issuance', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const tenant = { tenant_id: tenantId, tenant_revision: '7', status: 'active' };
+        const { pool, client } = poolWithRows({ 'FROM brainbase_tenants': [tenant] });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveOutcomeServiceTenant(tenantId)).resolves.toEqual(tenant);
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('WHERE tenant.tenant_id = $1') && values[0] === tenantId
+        ))).toBe(true);
+    });
+
+    it('resolves an Outcome profile with explicit organization and billing boundaries', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const profile = {
+            profile_id: 'mana-outcome',
+            audience: 'mana-runtime',
+            capability_id: 'signed_tenant_context',
+            deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789',
+            authenticated_subject_id: 'svc_mana_runtime',
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            resource_ref: 'outcome://mana',
+            organization_ids: ['org_unson'],
+            data_scopes: ['graph:read'],
+            billing_principal_id: 'billing_unson'
+        };
+        const { pool, client } = poolWithRows({ 'FROM tenant_outcome_service_profiles': [profile] });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveOutcomeServiceProfile({
+            tenant_id: tenantId, project_id: 'project_mana', profile_id: profile.profile_id
+        })).resolves.toEqual(profile);
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('FROM tenant_outcome_service_profiles')
+            && sql.includes('organization_ids')
+            && values[0] === tenantId
+        ))).toBe(true);
+    });
+
+    it('resolves only the active connection revision and its tenant-scoped credential/profile', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const connectionId = 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV';
+        const row = {
+            tenant_id: tenantId,
+            project_id: 'project_mana',
+            connection_id: connectionId,
+            connection_revision: '3',
+            status: 'active',
+            provider: 'slack',
+            installation_id: 'install_01',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789',
+            granted_scopes: ['signed_tenant_context'],
+            connection_snapshot: {
+                provider: 'slack', installation_id: 'install_01', workspace_id: 'T0123456789',
+                app_id: 'A0123456789', granted_scopes: ['signed_tenant_context'], status: 'active'
+            },
+            credential_ref: 'credref://tenant/a',
+            credential_mode: 'customer_oauth',
+            billing_principal_id: 'billing_unson',
+            profile_id: 'mana-outcome',
+            deployment_id: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+            deployment_profile: 'shared_cloud',
+            contract_revision: '11'
+        };
+        const { pool, client } = poolWithRows({ 'FROM workspace_connections': [row] });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveOutcomeServiceConnection({
+            tenant_id: tenantId,
+            project_id: 'project_mana',
+            connection_id: connectionId,
+            profile_id: row.profile_id
+        })).resolves.toEqual({
+            snapshot: expect.objectContaining({
+                tenant_id: tenantId,
+                connection_id: connectionId,
+                connection_revision: '3',
+                deployment_id: row.deployment_id,
+                profile: 'shared_cloud',
+                contract_revision: '11'
+            }),
+            credential: {
+                mode: 'customer_oauth',
+                credential_ref: 'credref://tenant/a',
+                billing_principal_id: 'billing_unson'
+            }
+        });
+        expect(client.query.mock.calls.some(([sql, values]) => (
+            sql.includes('credential.billing_principal_id IS NOT NULL')
+            && sql.includes('profile.tenant_id <> ALL(profile.organization_ids)')
+            && values[0] === tenantId
+        ))).toBe(true);
+    });
+
+    it('fails closed when an invalid registry resolves the same profile more than once', async () => {
+        const row = {
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            connection_revision: '3',
+            status: 'active',
+            provider: 'slack',
+            installation_id: 'install_01',
+            workspace_id: 'T0123456789',
+            app_id: 'A0123456789',
+            granted_scopes: ['signed_tenant_context'],
+            connection_snapshot: { status: 'active' },
+            credential_ref: 'credref://tenant/a',
+            credential_mode: 'customer_oauth',
+            billing_principal_id: 'billing_unson'
+        };
+        const { pool } = poolWithRows({ 'FROM workspace_connections': [row, row] });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveOutcomeServiceConnection({
+            tenant_id: row.tenant_id,
+            project_id: 'project_mana',
+            connection_id: row.connection_id,
+            profile_id: 'mana-outcome'
+        })).resolves.toBeNull();
+    });
+
     it('tenant organizationをGraph正本organizationへ解決する', async () => {
         const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
         const organization = {

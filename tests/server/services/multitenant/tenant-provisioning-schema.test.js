@@ -13,7 +13,8 @@ describe('tenant production provisioning schema', () => {
             'brainbase_service_actors',
             'brainbase_capabilities',
             'brainbase_service_actor_capabilities',
-            'tenant_contract_revision_runtime_bindings'
+            'tenant_contract_revision_runtime_bindings',
+            'tenant_outcome_service_profiles'
         ]) {
             expect(sql).toMatch(new RegExp(`CREATE TABLE IF NOT EXISTS\\s+${table}\\b`, 'i'));
         }
@@ -51,6 +52,12 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('profile');
         expect(sql).toContain('capabilities TEXT[]');
         expect(sql).toContain('audience TEXT[]');
+        expect(sql).toContain("schema_version TEXT NOT NULL CHECK (schema_version = 'outcome_service_profile.v1')");
+        expect(sql).toContain('organization_ids TEXT[]');
+        expect(sql).toContain('data_scopes TEXT[]');
+        expect(sql).toContain('billing_principal_id TEXT NOT NULL');
+        expect(sql).toContain('tenant_outcome_service_profiles_connection_idx');
+        expect(sql).toContain('ALTER TABLE credential_broker_refs');
         expect(sql).toContain('slack_installation_intents_tenant_idx');
         expect(sql).toContain('slack_installation_exchange_ledger_tenant_idx');
         expect(sql).toContain('failure_stage TEXT');

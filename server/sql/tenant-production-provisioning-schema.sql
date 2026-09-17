@@ -377,6 +377,55 @@ BEGIN
 END
 $workspace_connection_profile_migration$;
 
+-- Outcome service profiles are tenant-bound registry records.  They contain
+-- only opaque references and public authorization metadata; broker material
+-- remains outside this table.
+ALTER TABLE credential_broker_refs
+    ADD COLUMN IF NOT EXISTS billing_principal_id TEXT;
+
+CREATE TABLE IF NOT EXISTS tenant_outcome_service_profiles (
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    project_id TEXT NOT NULL REFERENCES tenant_projects(project_id),
+    profile_id TEXT NOT NULL CHECK (profile_id ~ '^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$'),
+    schema_version TEXT NOT NULL CHECK (schema_version = 'outcome_service_profile.v1'),
+    status TEXT NOT NULL CHECK (status IN ('active', 'disabled')),
+    audience TEXT NOT NULL CHECK (length(audience) BETWEEN 1 AND 128),
+    capability_id TEXT NOT NULL CHECK (capability_id ~ '^[a-z][a-z0-9_:-]{1,63}$'),
+    deployment_id TEXT NOT NULL CHECK (deployment_id ~ '^dep_[0-9A-HJKMNP-TV-Z]{26}$'),
+    workspace_id TEXT NOT NULL,
+    app_id TEXT NOT NULL,
+    authenticated_subject_id TEXT NOT NULL,
+    connection_id TEXT NOT NULL,
+    connection_revision BIGINT NOT NULL CHECK (connection_revision > 0),
+    resource_ref TEXT NOT NULL CHECK (length(resource_ref) BETWEEN 1 AND 256),
+    organization_ids TEXT[] NOT NULL CHECK (cardinality(organization_ids) > 0 AND NOT (tenant_id = ANY(organization_ids))),
+    data_scopes TEXT[] NOT NULL CHECK (cardinality(data_scopes) > 0),
+    billing_principal_id TEXT NOT NULL CHECK (length(billing_principal_id) BETWEEN 1 AND 128),
+    contract_id TEXT NOT NULL,
+    contract_revision BIGINT NOT NULL CHECK (contract_revision > 0),
+    profile TEXT NOT NULL CHECK (profile IN ('shared_cloud', 'dedicated_cloud', 'customer_managed_oss')),
+    profile_revision BIGINT NOT NULL DEFAULT 1 CHECK (profile_revision > 0),
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (tenant_id, project_id, profile_id),
+    FOREIGN KEY (tenant_id, connection_id, connection_revision)
+        REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision),
+    FOREIGN KEY (tenant_id, contract_id, contract_revision)
+        REFERENCES tenant_contract_revisions(tenant_id, contract_id, contract_revision)
+);
+
+ALTER TABLE tenant_outcome_service_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tenant_outcome_service_profiles FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON tenant_outcome_service_profiles;
+CREATE POLICY tenant_isolation ON tenant_outcome_service_profiles
+    USING (tenant_id = current_setting('brainbase.tenant_id', true))
+    WITH CHECK (tenant_id = current_setting('brainbase.tenant_id', true));
+
+CREATE INDEX IF NOT EXISTS tenant_outcome_service_profiles_connection_idx
+    ON tenant_outcome_service_profiles (tenant_id, connection_id, connection_revision, status);
+CREATE INDEX IF NOT EXISTS tenant_outcome_service_profiles_lookup_idx
+    ON tenant_outcome_service_profiles (tenant_id, project_id, profile_id, status);
+
 CREATE TABLE IF NOT EXISTS slack_installation_intents (
     installation_intent_id TEXT PRIMARY KEY CHECK (installation_intent_id ~ '^insi_[0-9A-HJKMNP-TV-Z]{26}$'),
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),

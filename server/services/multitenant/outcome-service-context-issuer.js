@@ -51,7 +51,12 @@ export function createOutcomeServiceContextIssuer({ signingKey, resolveProfile, 
                 || !(required.run_mode === 'normal' ? authority.contract_status === 'active'
                     : ['draft', 'active'].includes(authority.contract_status))) deny('outcome_issuer_authority_mismatch');
             const tenant = await resolveTenant(principal.tenant_id);
-            const connection = await resolveConnection(profile.connection_id);
+            const connection = await resolveConnection({
+                tenant_id: principal.tenant_id,
+                project_id: principal.project_id,
+                connection_id: profile.connection_id,
+                profile_id: profile.profile_id
+            });
             const snapshot = connection?.snapshot;
             if (!tenant || tenant.tenant_id !== principal.tenant_id || !nonempty(tenant.tenant_revision)
                 || !snapshot || snapshot.status !== 'active' || snapshot.tenant_id !== principal.tenant_id

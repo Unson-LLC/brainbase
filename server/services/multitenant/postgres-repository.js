@@ -698,6 +698,186 @@ export class MultitenantPostgresRepository {
         });
     }
 
+    async resolveOutcomeServiceTenant(tenantId) {
+        if (typeof tenantId !== 'string' || tenantId.length === 0) {
+            throw new ContractError('TENANT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT tenant.tenant_id, tenant.tenant_revision::text AS tenant_revision, tenant.status
+                   FROM brainbase_tenants AS tenant
+                  WHERE tenant.tenant_id = $1
+                    AND tenant.status = 'active'
+                  LIMIT 1
+                  FOR SHARE`,
+                [tenantId]
+            );
+            const row = result.rows[0];
+            return row ? { tenant_id: row.tenant_id, tenant_revision: String(row.tenant_revision), status: row.status } : null;
+        });
+    }
+
+    async resolveOutcomeServiceProfile({ tenant_id: tenantId, project_id: projectId, profile_id: profileId } = {}) {
+        if (![tenantId, projectId, profileId].every((value) => typeof value === 'string' && value.length > 0)) {
+            throw new ContractError('OUTCOME_PROFILE_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT profile.profile_id, profile.audience, profile.capability_id,
+                        profile.deployment_id, profile.workspace_id, profile.app_id,
+                        profile.authenticated_subject_id, profile.connection_id,
+                        profile.resource_ref, profile.organization_ids, profile.data_scopes,
+                        profile.billing_principal_id
+                   FROM tenant_outcome_service_profiles AS profile
+                   JOIN brainbase_tenants AS tenant
+                     ON tenant.tenant_id = profile.tenant_id
+                    AND tenant.status = 'active'
+                   JOIN tenant_projects AS project
+                     ON project.tenant_id = profile.tenant_id
+                    AND project.project_id = profile.project_id
+                   JOIN workspace_connections AS connection
+                     ON connection.tenant_id = profile.tenant_id
+                    AND connection.connection_id = profile.connection_id
+                    AND connection.connection_revision = profile.connection_revision
+                    AND connection.status = 'active'
+                   JOIN workspace_connection_revisions AS connection_revision
+                     ON connection_revision.tenant_id = connection.tenant_id
+                    AND connection_revision.connection_id = connection.connection_id
+                    AND connection_revision.connection_revision = connection.connection_revision
+                   JOIN credential_broker_refs AS credential
+                     ON credential.tenant_id = connection.tenant_id
+                    AND credential.connection_id = connection.connection_id
+                    AND credential.connection_revision = connection.connection_revision
+                    AND credential.billing_principal_id = profile.billing_principal_id
+                   JOIN tenant_contract_revisions AS contract
+                     ON contract.tenant_id = profile.tenant_id
+                    AND contract.contract_id = profile.contract_id
+                    AND contract.contract_revision = profile.contract_revision
+                    AND contract.status = 'active'
+                   JOIN tenant_contract_revision_runtime_bindings AS binding
+                     ON binding.tenant_id = contract.tenant_id
+                    AND binding.contract_id = contract.contract_id
+                    AND binding.contract_revision = contract.contract_revision
+                    AND binding.deployment_id = profile.deployment_id
+                  WHERE profile.tenant_id = $1
+                    AND profile.project_id = $2
+                    AND profile.profile_id = $3
+                    AND profile.status = 'active'
+                    AND profile.tenant_id <> ALL(profile.organization_ids)
+                    AND NOT EXISTS (
+                        SELECT 1
+                          FROM unnest(profile.organization_ids) AS organization_id
+                         WHERE NOT EXISTS (
+                             SELECT 1 FROM tenant_organizations AS organization
+                              WHERE organization.tenant_id = profile.tenant_id
+                                AND organization.organization_id = organization_id
+                         )
+                    )
+                    AND profile.capability_id = ANY(connection.granted_scopes)
+                  LIMIT 1
+                  FOR SHARE OF profile, tenant, project, connection, connection_revision, credential, contract, binding`,
+                [tenantId, projectId, profileId]
+            );
+            const row = result.rows[0];
+            if (!row) return null;
+            return {
+                profile_id: row.profile_id,
+                audience: row.audience,
+                capability_id: row.capability_id,
+                deployment_id: row.deployment_id,
+                workspace_id: row.workspace_id,
+                app_id: row.app_id,
+                authenticated_subject_id: row.authenticated_subject_id,
+                connection_id: row.connection_id,
+                resource_ref: row.resource_ref,
+                organization_ids: Array.isArray(row.organization_ids) ? [...row.organization_ids] : [],
+                data_scopes: Array.isArray(row.data_scopes) ? [...row.data_scopes] : [],
+                billing_principal_id: row.billing_principal_id
+            };
+        });
+    }
+
+    async resolveOutcomeServiceConnection({ tenant_id: tenantId, project_id: projectId, connection_id: connectionId, profile_id: profileId } = {}) {
+        if (![tenantId, projectId, connectionId, profileId].every((value) => typeof value === 'string' && value.length > 0)) {
+            throw new ContractError('OUTCOME_CONNECTION_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        return this.withTenant(tenantId, async (client) => {
+            const result = await client.query(
+                `SELECT connection.tenant_id, connection.connection_id, connection.connection_revision,
+                        connection.status, connection.provider, connection.installation_id,
+                        connection.workspace_id, connection.app_id, connection.granted_scopes,
+                        revision.connection_snapshot,
+                        credential.credential_ref, credential.credential_mode,
+                        credential.billing_principal_id,
+                        profile.profile_id, profile.deployment_id,
+                        profile.profile AS deployment_profile,
+                        profile.contract_revision
+                   FROM workspace_connections AS connection
+                   JOIN workspace_connection_revisions AS revision
+                     ON revision.tenant_id = connection.tenant_id
+                    AND revision.connection_id = connection.connection_id
+                    AND revision.connection_revision = connection.connection_revision
+                   JOIN credential_broker_refs AS credential
+                     ON credential.tenant_id = connection.tenant_id
+                    AND credential.connection_id = connection.connection_id
+                    AND credential.connection_revision = connection.connection_revision
+                   JOIN tenant_outcome_service_profiles AS profile
+                     ON profile.tenant_id = connection.tenant_id
+                    AND profile.connection_id = connection.connection_id
+                    AND profile.connection_revision = connection.connection_revision
+                    AND profile.status = 'active'
+                   JOIN tenant_contract_revisions AS contract
+                     ON contract.tenant_id = profile.tenant_id
+                    AND contract.contract_id = profile.contract_id
+                    AND contract.contract_revision = profile.contract_revision
+                    AND contract.status = 'active'
+                   JOIN tenant_contract_revision_runtime_bindings AS binding
+                     ON binding.tenant_id = contract.tenant_id
+                    AND binding.contract_id = contract.contract_id
+                    AND binding.contract_revision = contract.contract_revision
+                    AND binding.deployment_id = profile.deployment_id
+                  WHERE connection.tenant_id = $1
+                    AND connection.connection_id = $2
+                    AND profile.profile_id = $3
+                    AND profile.project_id = $4
+                    AND connection.status = 'active'
+                    AND credential.billing_principal_id IS NOT NULL
+                    AND profile.tenant_id <> ALL(profile.organization_ids)
+                  FOR SHARE OF connection, revision, credential, profile, contract, binding`,
+                [tenantId, connectionId, profileId, projectId]
+            );
+            const row = result.rows[0];
+            if (!row || result.rows.length !== 1) return null;
+            const snapshot = parseJsonValue(row.connection_snapshot);
+            if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) return null;
+            const connectionRevision = String(row.connection_revision);
+            const contractRevision = String(row.contract_revision);
+            return {
+                snapshot: {
+                    ...snapshot,
+                    tenant_id: row.tenant_id,
+                    connection_id: row.connection_id,
+                    connection_revision: connectionRevision,
+                    status: row.status,
+                    provider: row.provider,
+                    installation_id: row.installation_id,
+                    workspace_id: row.workspace_id,
+                    app_id: row.app_id,
+                    granted_scopes: Array.isArray(row.granted_scopes) ? [...row.granted_scopes] : [],
+                    deployment_id: row.deployment_id,
+                    profile: row.deployment_profile,
+                    credential_mode: row.credential_mode,
+                    contract_revision: contractRevision
+                },
+                credential: {
+                    mode: row.credential_mode,
+                    credential_ref: row.credential_ref,
+                    billing_principal_id: row.billing_principal_id
+                }
+            };
+        });
+    }
+
     async resolveProjectBinding({ tenant_id: tenantId, project_ids: projectIds, project_code: projectCode }) {
         if (![tenantId, projectCode].every((value) => typeof value === 'string' && value.length > 0)
             || !Array.isArray(projectIds) || projectIds.length === 0
