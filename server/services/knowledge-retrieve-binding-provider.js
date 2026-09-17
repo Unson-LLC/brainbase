@@ -278,6 +278,11 @@ function resolveTokenIdentity(expected, context = {}) {
     return {
         serviceSubject: subject,
         organizationId,
+        // Signed-token retrieve is the legacy organization-scoped contract.
+        // Keep its readback tenant explicit without treating the organization
+        // as the tenant for the authority-readback contract.
+        tenantId: null,
+        readbackTenantId: organizationId,
         delegatedActorPersonId,
         projectCodes,
         outcomeContractId: tokenContractId,
@@ -319,14 +324,22 @@ function resolveAuthorityIdentity(expected) {
     if (request.contractVersion === null) {
         throw new Error('outcome contract version is required for authority readback');
     }
+    const tenantId = aliasedString(expected, [
+        'tenant_id', 'tenantId'
+    ], 'tenant');
     const organizationId = aliasedString(expected, [
-        'organization_id', 'organizationId', 'tenant_id', 'tenantId'
+        'organization_id', 'organizationId'
     ], 'organization');
+    if (tenantId === organizationId) {
+        throw new Error('tenant and organization must be distinct');
+    }
     const delegatedActorPersonId = resolveActorId(expected);
     return {
         request,
         identity: {
             serviceSubject: null,
+            tenantId,
+            readbackTenantId: tenantId,
             organizationId,
             delegatedActorPersonId,
             projectCode: request.projectCode,
@@ -358,7 +371,7 @@ function assertReadbackShape(value, identity, resource) {
     if (!tenantId || !projectCode || !actorId || !contractId || !contractVersion || !runId || !resourceRef) {
         throw new Error('Mana outcome authority readback contains empty binding fields');
     }
-    if (tenantId !== identity.organizationId
+    if (tenantId !== identity.readbackTenantId
         || projectCode !== identity.projectCode
         || actorId !== identity.delegatedActorPersonId
         || contractId !== identity.outcomeContractId
@@ -393,7 +406,8 @@ function assertReadbackShape(value, identity, resource) {
     }
 
     return {
-        organization_id: tenantId,
+        ...(identity.tenantId ? { tenant_id: tenantId } : {}),
+        organization_id: identity.organizationId,
         delegated_actor_person_id: actorId,
         authorized_project_codes: [projectCode],
         capability: KNOWLEDGE_RETRIEVE_CAPABILITY,
@@ -471,7 +485,10 @@ export function createManaOutcomeAuthorityReadbackProvider({
 
     async function performReadback(request, identity) {
         const readbackRequest = {
-            tenant: identity.organizationId,
+            // The legacy service-token route is organization-scoped and has
+            // no independent tenant claim. Its explicit readback tenant is
+            // kept separate from authority readback's tenant identity.
+            tenant: identity.readbackTenantId,
             project: request.projectCode,
             actor: identity.delegatedActorPersonId,
             contract: request.outcomeContractId,

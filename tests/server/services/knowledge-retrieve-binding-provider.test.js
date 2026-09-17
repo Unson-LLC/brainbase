@@ -115,7 +115,8 @@ describe('Mana outcome authority readback binding provider', () => {
             resource: 'meeting-minutes:github',
         });
 
-        await expect(provider.verifyBinding(EXPECTED, TOKEN_CONTEXT)).resolves.toMatchObject({
+        const result = await provider.verifyBinding(EXPECTED, TOKEN_CONTEXT);
+        expect(result).toMatchObject({
             organization_id: 'org_1',
             delegated_actor_person_id: 'person_1',
             authorized_project_codes: ['alpha'],
@@ -125,6 +126,21 @@ describe('Mana outcome authority readback binding provider', () => {
             service_subject: 'svc_mana',
             contract_version: 3
         });
+        expect(Object.keys(result).sort()).toEqual([
+            'authority_revision',
+            'authorized_project_codes',
+            'capability',
+            'contract_status',
+            'contract_version',
+            'delegated_actor_person_id',
+            'organization_id',
+            'outcome_contract_id',
+            'profile_id',
+            'resource_ref',
+            'run_id',
+            'run_mode',
+            'service_subject'
+        ].sort());
         expect(serviceBinding.fetch).toHaveBeenCalledTimes(1);
         const [url, init] = serviceBinding.fetch.mock.calls[0];
         expect(url).toBe(`https://mana-outcome-authority.internal${MANA_OUTCOME_AUTHORITY_READBACK_PATH}`);
@@ -143,13 +159,18 @@ describe('Mana outcome authority readback binding provider', () => {
     });
 
     it('performs authority readback from explicit issuer constraints before a retrieval token exists', async () => {
-        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
+        const serviceBinding = {
+            fetch: vi.fn(async () => response(readback({
+                principal: { ...readback().principal, tenant_id: 'tenant_1' }
+            })))
+        };
         const provider = createManaOutcomeAuthorityReadbackProvider({
             serviceBinding,
             resource: 'meeting-minutes:github'
         });
 
         await expect(provider.verifyAuthority({
+            tenant_id: 'tenant_1',
             organization_id: 'org_1',
             delegated_actor_person_id: 'person_1',
             project_code: 'alpha',
@@ -158,6 +179,7 @@ describe('Mana outcome authority readback binding provider', () => {
             run_id: 'run_1',
             run_mode: 'normal'
         })).resolves.toMatchObject({
+            tenant_id: 'tenant_1',
             organization_id: 'org_1',
             delegated_actor_person_id: 'person_1',
             outcome_contract_id: 'oc_1',
@@ -165,6 +187,34 @@ describe('Mana outcome authority readback binding provider', () => {
             run_mode: 'normal'
         });
         expect(serviceBinding.fetch).toHaveBeenCalledTimes(1);
+        expect(JSON.parse(serviceBinding.fetch.mock.calls[0][1].body)).toMatchObject({
+            tenant: 'tenant_1'
+        });
+    });
+
+    it.each([
+        ['missing', {
+            organization_id: 'org_1',
+            delegated_actor_person_id: 'person_1',
+            ...EXPECTED,
+            outcome_contract_version: 3
+        }, 'tenant claim is required'],
+        ['equal', {
+            tenant_id: 'org_1',
+            organization_id: 'org_1',
+            delegated_actor_person_id: 'person_1',
+            ...EXPECTED,
+            outcome_contract_version: 3
+        }, 'tenant and organization must be distinct']
+    ])('rejects an authority request with %s tenant/org scope', async (_name, request, message) => {
+        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
+        const provider = createManaOutcomeAuthorityReadbackProvider({
+            serviceBinding,
+            resource: 'meeting-minutes:github'
+        });
+
+        await expect(provider.verifyAuthority(request)).rejects.toThrow(message);
+        expect(serviceBinding.fetch).not.toHaveBeenCalled();
     });
 
     it('rejects incomplete explicit authority constraints before reading Mana', async () => {

@@ -5,6 +5,7 @@ import { createOutcomeServiceContextIssuerFromEnv } from '../../../server/bootst
 import { outcomeOperationId } from '../../../server/services/multitenant/outcome-service-context-issuer.js';
 
 const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAV';
+const organizationId = 'org_01ARZ3NDEKTSV4RRFFQ69G5FAU';
 const connectionId = 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAW';
 const deploymentId = 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX';
 
@@ -43,7 +44,7 @@ describe('outcome service context production bootstrap', () => {
             authenticated_subject_id: 'service-binding:outcome-generator',
             connection_id: connectionId,
             resource_ref: 'meeting-minutes:github',
-            organization_ids: [tenantId],
+            organization_ids: [organizationId],
             data_scopes: ['meeting_minutes:read']
         };
         const issuer = createOutcomeServiceContextIssuerFromEnv({
@@ -127,5 +128,32 @@ describe('outcome service context production bootstrap', () => {
             run: 'run-a',
             resource: 'meeting-minutes:github'
         });
+
+        profile.organization_ids = [tenantId];
+        await expect(issuer.issue({
+            profile: profile.profile_id,
+            principal: {
+                tenant_id: tenantId,
+                project_id: 'project-a',
+                actor_principal_id: 'svc-outcome-generator'
+            },
+            persisted: {
+                contract_id: 'contract-a',
+                contract_version: '4',
+                run_id: 'run-a',
+                resource_ref: profile.resource_ref
+            },
+            required: {
+                audience: profile.audience,
+                capability_id: profile.capability_id,
+                deployment_id: profile.deployment_id,
+                workspace_id: profile.workspace_id,
+                app_id: profile.app_id,
+                operation_id: outcomeOperationId('run-a'),
+                authenticated_subject_id: profile.authenticated_subject_id,
+                run_mode: 'normal'
+            }
+        }, serviceIdentity)).rejects.toThrow('Outcome service tenant and organization must be distinct');
+        expect(transport.fetch).toHaveBeenCalledTimes(1);
     });
 });

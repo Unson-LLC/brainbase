@@ -94,9 +94,10 @@ function createServiceAuthorization({ env, tenantRuntimeServices }) {
 
 function normalizeAuthority(value) {
     if (!value || typeof value !== 'object') return null;
+    if (!nonEmpty(value.tenant_id)) return null;
     return {
         principal: {
-            tenant_id: value.organization_id,
+            tenant_id: value.tenant_id,
             project_id: value.authorized_project_codes?.[0],
             actor_principal_id: value.delegated_actor_person_id
         },
@@ -120,9 +121,13 @@ function createProviderReadback({ provider }) {
         if (!Array.isArray(organizations) || organizations.length !== 1 || !nonEmpty(organizations[0])) {
             throw new Error('Outcome service profile must name exactly one organization for Mana readback');
         }
+        const organizationId = organizations[0].trim();
+        if (organizationId === input.tenant) {
+            throw new Error('Outcome service tenant and organization must be distinct');
+        }
         const authority = await provider.verifyAuthority({
             tenant_id: input.tenant,
-            organization_id: organizations[0],
+            organization_id: organizationId,
             delegated_actor_person_id: input.actor,
             project_code: input.project,
             outcome_contract_id: input.contract,
