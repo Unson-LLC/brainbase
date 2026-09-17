@@ -100,7 +100,7 @@ function observationEvent({ normalized, persistedRunId, trace, now }) {
         },
         applicability_scope: applicabilityScope,
         permission_snapshot: {
-            visibility: 'internal',
+            visibility: 'org',
             sensitivity: 'internal'
         },
         source_pointer: sourcePointer({ runId: persistedRunId, evidenceRefs }),
@@ -157,7 +157,7 @@ function replacementEvent({ normalized, correction, currentEvent, persistedRunId
         },
         applicability_scope: applicabilityScope,
         permission_snapshot: {
-            visibility: 'internal',
+            visibility: 'org',
             sensitivity: 'internal'
         },
         source_pointer: sourcePointer({ runId: persistedRunId, evidenceRefs }),
