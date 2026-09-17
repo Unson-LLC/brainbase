@@ -65,6 +65,7 @@ export function createKnowledgeCatalogRouter({ service, authoringService = null 
         id: req.params.id
     })));
     router.post('/retrieve', catalogRoute((req) => service.retrieve(req.access, req.body || {})));
+    router.post('/capture/proposal', catalogRoute((req) => service.captureProposal(req.access, req.body || {})));
     router.post('/preview', catalogRoute((req) => service.preview(req.access, req.body || {})));
     if (authoringService) {
         router.get('/authority-domains', catalogRoute((req) => authoringService.authorityDomains(req.access, req.query)));

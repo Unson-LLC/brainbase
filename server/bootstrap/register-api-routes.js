@@ -109,9 +109,17 @@ export function registerKnowledgeCatalogApiRoute(app, {
     infoSSOTService,
     knowledgeEventService = null,
     service = null,
-    authoringService = null
+    authoringService = null,
+    captureProposalAdapter = null,
+    previewAnswerer = null,
+    knowledgeAIAdapter = null
 }) {
-    const catalogService = service || new KnowledgeCatalogService({ infoSSOTService });
+    const catalogService = service || new KnowledgeCatalogService({
+        infoSSOTService,
+        captureProposalAdapter,
+        previewAnswerer,
+        knowledgeAIAdapter
+    });
     const resolvedAuthoringService = authoringService || (infoSSOTService?.pool && knowledgeEventService
         ? new KnowledgeAuthoringService({
             repository: new PgKnowledgeAuthoringRepository({ pool: infoSSOTService.pool }),
@@ -223,6 +231,9 @@ export function registerApiRoutes(app, {
     knowledgeEventService,
     knowledgeFeedbackService,
     knowledgeCycleQueryService,
+    captureProposalAdapter,
+    previewAnswerer,
+    knowledgeAIAdapter,
     personalKnowledgeService,
     personalKnowledgePromotionService,
     onboardingRuntimeService,
@@ -401,7 +412,14 @@ export function registerApiRoutes(app, {
     })));
     registerOnboardingApiRoute(app, { authService, onboardingRuntimeService });
     registerKnowledgeResolutionApiRoute(app, { authService });
-    registerKnowledgeCatalogApiRoute(app, { authService, infoSSOTService, knowledgeEventService });
+    registerKnowledgeCatalogApiRoute(app, {
+        authService,
+        infoSSOTService,
+        knowledgeEventService,
+        captureProposalAdapter,
+        previewAnswerer,
+        knowledgeAIAdapter
+    });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
         registerKnowledgeEventApiRoutes(app, {
             authService,

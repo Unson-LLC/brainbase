@@ -304,14 +304,24 @@ describe('KnowledgeCatalogService', () => {
 
     it('previewは下書きを保存せず隔離し、固定例と実行結果を分ける', async () => {
         const { infoSSOTService } = createService([entity()]);
-        const previewAnswerer = vi.fn(async () => ({ answer: 'draft-aware answer', selected_ids: ['draft_1'] }));
+        const previewAnswerer = vi.fn(async ({ candidates }) => {
+            expect(candidates).toHaveLength(1);
+            return {
+                answer: 'draft-aware answer',
+                citations: [{ id: 'draft_1', version: 'draft-v2' }],
+                evidence: [{ id: 'draft_1', version: 'draft-v2', source_ref: 'draft:draft_1' }],
+                unknown: [],
+                version: 'adapter-v1',
+                readback: { state: 'isolated_draft', verified: false }
+            };
+        });
         const service = new KnowledgeCatalogService({ infoSSOTService, previewAnswerer });
 
         const result = await service.preview({ projectCodes: ['alpha'] }, {
             project_code: 'alpha',
             question: 'what applies?',
             draft_version: 'draft-v2',
-            draft: { id: 'draft_1', title: 'Draft', summary: 'not published' },
+            draft: { id: 'draft_1', title: 'Draft', summary: 'not published', content: 'draft body' },
             sample_answer: 'fixed example'
         });
 
@@ -322,6 +332,132 @@ describe('KnowledgeCatalogService', () => {
             executed_result: { state: 'completed', answer: 'draft-aware answer' },
             applicability_guaranteed: false
         });
-        expect(infoSSOTService.listGraphEntities).toHaveBeenCalledTimes(2);
+        expect(result.readback).toMatchObject({ state: 'isolated_draft', verified: false });
+        expect(infoSSOTService.listGraphEntities).toHaveBeenCalledTimes(3);
+    });
+
+    it('未設定preview adapterは本文や空結果へ縮退せず503にする', async () => {
+        const { service } = createService([entity()]);
+
+        await expect(service.preview({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha',
+            question: 'what applies?',
+            draft: { id: 'draft_1', version: 'draft-v2', content: 'draft body' }
+        })).rejects.toMatchObject({
+            code: 'knowledge_preview_answerer_unavailable',
+            status: 503
+        });
+    });
+
+    it('previewはexact-version retrieveの成功本文だけをadapterへ渡し、候補外引用を拒否する', async () => {
+        const row = entity({ payload: {
+            title: 'Graph decision', statement: 'Use the canonical Graph.', status: 'active', version: '3'
+        } });
+        const { infoSSOTService } = createService([row]);
+        const previewAnswerer = vi.fn(async ({ candidates }) => {
+            expect(candidates.map((candidate) => candidate.id)).toEqual(['draft_1', 'dec_1']);
+            expect(candidates[1]).toMatchObject({ id: 'dec_1', version: '3', content: 'Use the canonical Graph.' });
+            return {
+                answer: 'canonical answer',
+                citations: [
+                    { id: 'draft_1', version: 'draft-v2' },
+                    { id: 'dec_1', version: '3' }
+                ],
+                evidence: [
+                    { id: 'draft_1', version: 'draft-v2', source_ref: 'draft:draft_1' },
+                    { id: 'dec_1', version: '3', source_ref: 'graph:dec_1:3' }
+                ],
+                unknown: [],
+                version: 'adapter-v1',
+                readback: { state: 'provider_verified', verified: true }
+            };
+        });
+        const service = new KnowledgeCatalogService({ infoSSOTService, previewAnswerer });
+
+        const result = await service.preview({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha',
+            question: 'what applies?',
+            draft_version: 'draft-v2',
+            draft: { id: 'draft_1', content: 'draft body' }
+        });
+
+        expect(result).toMatchObject({
+            answer: 'canonical answer',
+            readback: { state: 'verified', verified: true },
+            executed_result: { citations: [{ id: 'draft_1' }, { id: 'dec_1' }] }
+        });
+        expect(result.readback.refs).toEqual([
+            expect.objectContaining({ id: 'dec_1', version: '3', status: 'resolved', retrieval_receipt_id: 'graph:dec_1:3' })
+        ]);
+
+        const invalidAnswerer = vi.fn(async () => ({
+            answer: 'invalid',
+            citations: [{ id: 'outside', version: '1' }],
+            evidence: [{ id: 'outside', version: '1', source_ref: 'outside:1' }],
+            unknown: [],
+            version: 'adapter-v1',
+            readback: { state: 'provider_verified', verified: true }
+        }));
+        const invalidService = new KnowledgeCatalogService({ infoSSOTService, previewAnswerer: invalidAnswerer });
+        await expect(invalidService.preview({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha',
+            question: 'what applies?',
+            draft_version: 'draft-v2',
+            draft: { id: 'draft_1', content: 'draft body' }
+        })).rejects.toMatchObject({ code: 'knowledge_preview_adapter_invalid', status: 502 });
+    });
+
+    it('capture proposalはauthorized catalog本文を材料に未保存proposalを返す', async () => {
+        const row = entity({ payload: {
+            title: 'Graph decision', statement: 'Use the canonical Graph.', status: 'active', version: '3'
+        } });
+        const { infoSSOTService } = createService([row]);
+        const captureProposalAdapter = vi.fn(async ({ materials }) => {
+            expect(materials).toEqual([
+                expect.objectContaining({ id: 'dec_1', version: '3', content: 'Use the canonical Graph.' })
+            ]);
+            return {
+                proposal: {
+                    kind: 'decision',
+                    summary: 'A proposed decision',
+                    scope: 'project',
+                    owner_candidate: 'per_owner',
+                    relations: [{ relation: 'supports', target_id: 'dec_1', target_version: '3' }]
+                },
+                evidence: [{ id: 'dec_1', version: '3', source_ref: 'graph:dec_1:3' }],
+                unknown: [],
+                version: 'adapter-v1',
+                readback: { state: 'provider_verified', verified: true }
+            };
+        });
+        const service = new KnowledgeCatalogService({ infoSSOTService, captureProposalAdapter });
+
+        const result = await service.captureProposal({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha',
+            content: 'new source note',
+            source_refs: [{ id: 'dec_1', version: '3' }]
+        });
+
+        expect(result).toMatchObject({
+            state: 'proposed',
+            canonical: false,
+            persisted: false,
+            proposal: { kind: 'decision', summary: 'A proposed decision' },
+            readback: { state: 'proposal_only', verified: false },
+            version: { adapter: 'adapter-v1' }
+        });
+        expect(result.unknown).toEqual(expect.arrayContaining([
+            expect.objectContaining({ kind: 'canonical_persistence', state: 'unknown' })
+        ]));
+    });
+
+    it('未設定capture adapterは503にし、proposalを推測生成しない', async () => {
+        const { service } = createService([entity()]);
+        await expect(service.captureProposal({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha', content: 'new source note'
+        })).rejects.toMatchObject({
+            code: 'knowledge_capture_proposal_unavailable',
+            status: 503
+        });
     });
 });

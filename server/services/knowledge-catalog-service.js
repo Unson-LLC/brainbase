@@ -1,5 +1,13 @@
 import { createHash } from 'node:crypto';
 
+import {
+    KnowledgeAIAdapterContractError,
+    referenceKey,
+    resolveKnowledgeAdapter,
+    validateCaptureProposal,
+    validatePreviewAnswer
+} from './knowledge-capture-preview-adapter.js';
+
 const ACTIVE_STATUSES = new Set(['active', 'decided', 'current', 'published']);
 const INACTIVE_STATUSES = new Set(['draft', 'superseded', 'expired', 'retired', 'deprecated', 'inactive']);
 
@@ -114,16 +122,77 @@ function requireProjectAccess(access, projectCode) {
     }
 }
 
+function referenceVersion(value) {
+    return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function candidateReference(candidate) {
+    const id = text(candidate?.id);
+    const version = referenceVersion(candidate?.version);
+    return id && version ? { id, version, key: referenceKey(id, version) } : null;
+}
+
+function adapterError(error, { invalidCode, unavailableCode, invalidMessage, unavailableMessage }) {
+    if (error instanceof KnowledgeAIAdapterContractError) {
+        return new KnowledgeCatalogError(
+            invalidCode,
+            invalidMessage,
+            502,
+            error.details || {}
+        );
+    }
+    return new KnowledgeCatalogError(unavailableCode, unavailableMessage, 503);
+}
+
+function relationReferences(value, path = 'relations', references = []) {
+    if (Array.isArray(value)) {
+        value.forEach((entry, index) => relationReferences(entry, `${path}[${index}]`, references));
+        return references;
+    }
+    if (!value || typeof value !== 'object') return references;
+    const id = text(value.id)
+        || text(value.candidate_id)
+        || text(value.target_id)
+        || text(value.from_id)
+        || text(value.to_id);
+    if (id) {
+        const version = referenceVersion(value.version)
+            || referenceVersion(value.target_version)
+            || referenceVersion(value.from_version)
+            || referenceVersion(value.to_version);
+        references.push({ id, version, path });
+    }
+    Object.entries(value).forEach(([key, child]) => {
+        if (!['id', 'candidate_id', 'target_id', 'from_id', 'to_id', 'version',
+            'target_version', 'from_version', 'to_version'].includes(key)) {
+            relationReferences(child, `${path}.${key}`, references);
+        }
+    });
+    return references;
+}
+
+function publicCandidate(candidate) {
+    const { content: _content, ...metadata } = candidate;
+    return metadata;
+}
+
 export class KnowledgeCatalogService {
     constructor({
         infoSSOTService,
         contentRetriever = null,
-        previewAnswerer = null
+        captureProposalAdapter = null,
+        previewAnswerer = null,
+        knowledgeAIAdapter = null
     }) {
         if (!infoSSOTService) throw new TypeError('infoSSOTService is required');
         this.infoSSOTService = infoSSOTService;
         this.contentRetriever = contentRetriever;
-        this.previewAnswerer = previewAnswerer;
+        const captureAdapter = captureProposalAdapter || knowledgeAIAdapter;
+        const previewAdapter = previewAnswerer || knowledgeAIAdapter;
+        this.captureProposalAdapter = resolveKnowledgeAdapter(captureAdapter, 'proposeCapture')
+            || resolveKnowledgeAdapter(captureAdapter, 'capture');
+        this.previewAnswerer = resolveKnowledgeAdapter(previewAdapter, 'preview')
+            || resolveKnowledgeAdapter(previewAdapter, 'answerPreview');
     }
 
     async list(access, input = {}) {
@@ -302,6 +371,164 @@ export class KnowledgeCatalogService {
         return { project_code: projectCode, results };
     }
 
+    async captureProposal(access, input = {}) {
+        const projectCode = text(input.project_code);
+        requireProjectAccess(access, projectCode);
+        const content = text(input.content) || text(input.source_text) || text(input.text);
+        if (!content) {
+            throw new KnowledgeCatalogError(
+                'knowledge_capture_content_required',
+                'capture content is required',
+                400
+            );
+        }
+        if (!this.captureProposalAdapter) {
+            throw new KnowledgeCatalogError(
+                'knowledge_capture_proposal_unavailable',
+                'knowledge capture proposal adapter is not configured',
+                503
+            );
+        }
+
+        const rawRefs = input.source_refs ?? input.refs ?? [];
+        if (!Array.isArray(rawRefs)) {
+            throw new KnowledgeCatalogError(
+                'knowledge_capture_refs_invalid',
+                'source_refs must be an array',
+                400
+            );
+        }
+        const retrieval = rawRefs.length
+            ? await this.retrieve(access, { project_code: projectCode, refs: rawRefs })
+            : { project_code: projectCode, results: [] };
+        const resolved = retrieval.results.filter((result) => result.status === 'resolved'
+            && text(result.content)
+            && referenceVersion(result.resolved_version || result.version));
+        const exclusions = retrieval.results
+            .filter((result) => result.status !== 'resolved')
+            .map((result) => ({
+                id: result.id || null,
+                version: result.requested_version || null,
+                reason: result.status || 'unknown'
+            }));
+        const authorizedReferences = new Set(resolved.map((result) => referenceKey(
+            result.id,
+            referenceVersion(result.resolved_version || result.version)
+        )));
+        const materials = resolved.map((result) => ({
+            id: result.id,
+            version: referenceVersion(result.resolved_version || result.version),
+            title: result.title || null,
+            summary: result.summary || null,
+            content: result.content,
+            source: result.source || null,
+            retrieval_receipt_id: result.retrieval_receipt_id || null
+        }));
+
+        let rawProposal;
+        try {
+            rawProposal = await this.captureProposalAdapter({
+                project_code: projectCode,
+                content,
+                source_text: content,
+                source_refs: materials.map((material) => ({
+                    id: material.id,
+                    version: material.version
+                })),
+                materials,
+                exclusions,
+                access
+            });
+        } catch (error) {
+            throw adapterError(error, {
+                invalidCode: 'knowledge_capture_adapter_invalid',
+                unavailableCode: 'knowledge_capture_provider_failed',
+                invalidMessage: 'Knowledge capture adapter contract is invalid',
+                unavailableMessage: 'Knowledge capture provider is unavailable'
+            });
+        }
+
+        let proposal;
+        try {
+            proposal = validateCaptureProposal(rawProposal, {
+                allowedReferences: authorizedReferences
+            });
+        } catch (error) {
+            throw adapterError(error, {
+                invalidCode: 'knowledge_capture_adapter_invalid',
+                unavailableCode: 'knowledge_capture_provider_failed',
+                invalidMessage: 'Knowledge capture adapter contract is invalid',
+                unavailableMessage: 'Knowledge capture provider is unavailable'
+            });
+        }
+        const relationRefs = relationReferences(proposal.proposal.relations, 'proposal.relations');
+        const unauthorizedRelation = relationRefs.find((reference) => (
+            !reference.version
+            || !authorizedReferences.has(referenceKey(reference.id, reference.version))
+        ));
+        if (unauthorizedRelation) {
+            throw new KnowledgeCatalogError(
+                'knowledge_capture_adapter_invalid',
+                'capture proposal relation references an unavailable catalog item',
+                502,
+                unauthorizedRelation
+            );
+        }
+
+        const unknown = [
+            ...proposal.unknown,
+            {
+                kind: 'canonical_persistence',
+                state: 'unknown',
+                reason: 'capture_proposal_not_persisted'
+            },
+            ...exclusions.map((exclusion) => ({
+                kind: 'catalog_reference',
+                state: 'unknown',
+                ...exclusion
+            }))
+        ];
+        const readback = {
+            state: 'proposal_only',
+            verified: false,
+            source: 'knowledge.capture.proposal',
+            authorized_references: materials.map((material) => ({
+                id: material.id,
+                version: material.version,
+                retrieval_receipt_id: material.retrieval_receipt_id
+            })),
+            provider: proposal.readback
+        };
+        const version = {
+            adapter: proposal.version,
+            authorized_references: materials.map((material) => ({
+                id: material.id,
+                version: material.version
+            }))
+        };
+        return {
+            state: 'proposed',
+            canonical: false,
+            persisted: false,
+            project_code: projectCode,
+            source: {
+                kind: 'capture_input',
+                content_state: 'provided',
+                content_hash: contentHash(content)
+            },
+            proposal: proposal.proposal,
+            evidence: proposal.evidence,
+            unknown,
+            version,
+            readback,
+            exclusions
+        };
+    }
+
+    async capture(access, input = {}) {
+        return this.captureProposal(access, input);
+    }
+
     async preview(access, input = {}) {
         const projectCode = text(input.project_code);
         const question = text(input.question);
@@ -314,33 +541,193 @@ export class KnowledgeCatalogService {
         if (!draftVersion) {
             throw new KnowledgeCatalogError('knowledge_preview_version_required', 'draft_version is required', 400);
         }
+        const draftContent = text(draft.content) || text(draft.body) || text(draft.text);
+        if (!draftContent) {
+            throw new KnowledgeCatalogError(
+                'knowledge_preview_draft_content_required',
+                'draft content is required for preview',
+                400
+            );
+        }
+        if (!this.previewAnswerer) {
+            throw new KnowledgeCatalogError(
+                'knowledge_preview_answerer_unavailable',
+                'knowledge preview answerer is not configured',
+                503
+            );
+        }
+
         const catalog = await this.list(access, {
             project_code: projectCode,
             q: question,
             status: 'active',
-            limit: input.limit
+            limit: Math.min(safeLimit(input.limit), 50)
         });
         const draftCandidate = {
             id: text(draft.id) || 'isolated-draft',
             version: draftVersion,
             title: text(draft.title),
             summary: text(draft.summary),
+            content: draftContent,
             source: { kind: 'isolated_draft', content_state: 'fetched', pointer: null },
             applicability: { state: 'unconfirmed', conditions: draft.applicability_conditions ?? null }
         };
-        const candidates = [draftCandidate, ...catalog.records];
-        const answer = typeof this.previewAnswerer === 'function'
-            ? await this.previewAnswerer({ question, scenario: input.scenario || null, candidates, access })
-            : null;
+        if (catalog.records.some((record) => record.id === draftCandidate.id)) {
+            throw new KnowledgeCatalogError(
+                'knowledge_preview_draft_reference_conflict',
+                'draft id conflicts with a catalog candidate',
+                400,
+                { id: draftCandidate.id }
+            );
+        }
+
+        const catalogRefs = catalog.records
+            .map(candidateReference)
+            .filter(Boolean);
+        const retrieval = catalogRefs.length
+            ? await this.retrieve(access, { project_code: projectCode, refs: catalogRefs })
+            : { project_code: projectCode, results: [] };
+        const retrievalByReference = new Map(retrieval.results.map((result) => [
+            referenceKey(result.id, referenceVersion(result.requested_version || result.resolved_version)),
+            result
+        ]));
+        const resolvedCandidates = [];
+        const exclusions = [];
+        const unknownCandidates = [];
+        for (const record of catalog.records) {
+            const reference = candidateReference(record);
+            const result = reference ? retrievalByReference.get(reference.key) : null;
+            if (result?.status === 'resolved' && text(result.content)) {
+                resolvedCandidates.push({
+                    ...record,
+                    content: result.content,
+                    content_hash: result.content_hash || result.canonical_content_hash || null,
+                    source: result.source,
+                    retrieval_receipt_id: result.retrieval_receipt_id || null
+                });
+                continue;
+            }
+            const reason = result?.status || 'candidate_version_unknown';
+            const exclusion = {
+                id: record.id,
+                version: record.version || null,
+                reason
+            };
+            exclusions.push(exclusion);
+            unknownCandidates.push({ kind: 'catalog_candidate', state: 'unknown', ...exclusion });
+        }
+
+        const answerCandidates = [draftCandidate, ...resolvedCandidates];
+        const allowedReferences = new Set(answerCandidates
+            .map(candidateReference)
+            .filter(Boolean)
+            .map((reference) => reference.key));
+        let rawAnswer;
+        try {
+            rawAnswer = await this.previewAnswerer({
+                project_code: projectCode,
+                question,
+                scenario: input.scenario || null,
+                draft: draftCandidate,
+                candidates: answerCandidates,
+                exclusions,
+                access
+            });
+        } catch (error) {
+            throw adapterError(error, {
+                invalidCode: 'knowledge_preview_adapter_invalid',
+                unavailableCode: 'knowledge_preview_provider_failed',
+                invalidMessage: 'Knowledge preview adapter contract is invalid',
+                unavailableMessage: 'Knowledge preview provider is unavailable'
+            });
+        }
+        let answer;
+        try {
+            answer = validatePreviewAnswer(rawAnswer, { allowedReferences });
+        } catch (error) {
+            throw adapterError(error, {
+                invalidCode: 'knowledge_preview_adapter_invalid',
+                unavailableCode: 'knowledge_preview_provider_failed',
+                invalidMessage: 'Knowledge preview adapter contract is invalid',
+                unavailableMessage: 'Knowledge preview provider is unavailable'
+            });
+        }
+
+        const draftReferenceKey = referenceKey(draftCandidate.id, draftCandidate.version);
+        const citedCatalogReferences = answer.citations
+            .filter((citation) => referenceKey(citation.id, citation.version) !== draftReferenceKey);
+        const canonicalReadback = citedCatalogReferences.map((citation) => {
+            const result = retrievalByReference.get(referenceKey(citation.id, citation.version));
+            return {
+                id: citation.id,
+                version: citation.version,
+                status: result?.status || 'unknown',
+                retrieval_receipt_id: result?.retrieval_receipt_id || null
+            };
+        });
+        const canonicalVerified = canonicalReadback.length > 0
+            && canonicalReadback.every((reference) => reference.status === 'resolved'
+                && reference.retrieval_receipt_id);
+        const readback = {
+            state: canonicalVerified ? 'verified' : 'isolated_draft',
+            verified: canonicalVerified,
+            source: 'knowledge.catalog.retrieve',
+            refs: canonicalReadback,
+            provider: answer.readback
+        };
+        const evidence = [
+            ...answer.evidence,
+            ...canonicalReadback
+                .filter((reference) => reference.retrieval_receipt_id)
+                .map((reference) => ({
+                    id: reference.id,
+                    version: reference.version,
+                    source_ref: reference.retrieval_receipt_id,
+                    state: 'retrieved'
+                }))
+        ];
+        const unknown = [
+            ...answer.unknown,
+            ...unknownCandidates,
+            ...(canonicalVerified ? [] : [{
+                kind: 'canonical_readback',
+                state: 'unknown',
+                reason: 'preview_is_not_canonical'
+            }])
+        ];
+        const version = {
+            adapter: answer.version,
+            draft: { id: draftCandidate.id, version: draftCandidate.version },
+            candidates: resolvedCandidates.map((candidate) => ({
+                id: candidate.id,
+                version: candidate.version
+            }))
+        };
+        const mergedExclusions = [...exclusions, ...answer.exclusions];
+        const executedResult = {
+            state: 'completed',
+            answer: answer.answer,
+            citations: answer.citations,
+            evidence,
+            unknown,
+            version,
+            readback,
+            exclusions: mergedExclusions
+        };
         return {
             isolation: 'draft_only',
             project_code: projectCode,
             draft_version: draftVersion,
             sample_answer: text(input.sample_answer),
-            executed_result: answer ? { state: 'completed', ...answer } : { state: 'unavailable', reason: 'preview_answerer_not_configured' },
-            candidates,
-            exclusions: [],
-            evidence: candidates.map((candidate) => ({ id: candidate.id, version: candidate.version || null, source: candidate.source })),
+            answer: answer.answer,
+            citations: answer.citations,
+            executed_result: executedResult,
+            candidates: answerCandidates.map(publicCandidate),
+            exclusions: mergedExclusions,
+            evidence,
+            unknown,
+            version,
+            readback,
             applicability_guaranteed: false
         };
     }

@@ -77,13 +77,16 @@ describe('knowledge catalog API', () => {
         );
     });
 
-    it('retrieveとpreviewを別のservice境界へ渡す', async () => {
+    it('retrieveとcapture proposalとpreviewを別のservice境界へ渡す', async () => {
         const retrieve = vi.fn(async () => ({ results: [] }));
+        const captureProposal = vi.fn(async () => ({ state: 'proposed' }));
         const preview = vi.fn(async () => ({ isolation: 'draft_only' }));
-        const app = createApp({ list: vi.fn(), get: vi.fn(), retrieve, preview });
+        const app = createApp({ list: vi.fn(), get: vi.fn(), retrieve, captureProposal, preview });
         await request(app).post('/api/knowledge/retrieve').send({ project_code: 'alpha', refs: [{ id: 'x', version: '1' }] }).expect(200);
+        await request(app).post('/api/knowledge/capture/proposal').send({ project_code: 'alpha', content: 'source' }).expect(200);
         await request(app).post('/api/knowledge/preview').send({ project_code: 'alpha', question: 'q', draft: {} }).expect(200);
         expect(retrieve).toHaveBeenCalledOnce();
+        expect(captureProposal).toHaveBeenCalledOnce();
         expect(preview).toHaveBeenCalledOnce();
     });
 
