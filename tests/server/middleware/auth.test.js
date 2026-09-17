@@ -83,6 +83,61 @@ describe('auth middleware', () => {
         expect(res.body.access.personId).toBe('per_verified');
     });
 
+    it('Slack provider JWTは検証済みsubjectとtenantを正確なSlack identityとして扱う', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({
+                role: 'ceo',
+                projectCodes: ['brainbase'],
+                clearance: ['internal'],
+                personId: 'per_sato',
+                authProvider: 'slack',
+                providerSubject: 'U_SATO',
+                providerTenant: 'T_UNSON',
+                organizationId: 'unson'
+            })
+        };
+        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer slack-provider-token')
+            .expect(200);
+
+        expect(res.body.access).toMatchObject({
+            personId: 'per_sato',
+            authProvider: 'slack',
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_UNSON',
+            organizationId: 'unson'
+        });
+    });
+
+    it('Slack以外のprovider identityをSlack identityへ流用しない', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({
+                role: 'member',
+                projectCodes: ['brainbase'],
+                personId: 'per_google',
+                authProvider: 'google',
+                providerSubject: 'google-user',
+                providerTenant: 'google-domain'
+            })
+        };
+        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer google-provider-token')
+            .expect(200);
+
+        expect(res.body.access.slackUserId).toBeNull();
+        expect(res.body.access.slackWorkspaceId).toBeNull();
+    });
+
     it('session cookieがある時_cookie認証で通す', async () => {
         const app = express();
         const authService = {

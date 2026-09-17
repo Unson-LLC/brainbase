@@ -110,6 +110,7 @@ export function resolveAuthContext(req, authService, options = {}) {
         }
 
         const decoded = authService.verifyToken(token);
+        const isSlackProvider = decoded.authProvider === 'slack';
         const access = {
             role: decoded.role || 'member',
             projectCodes: decoded.projectCodes || [],
@@ -121,8 +122,8 @@ export function resolveAuthContext(req, authService, options = {}) {
             providerSubject: decoded.providerSubject || null,
             providerTenant: decoded.providerTenant || null,
             email: decoded.email || null,
-            slackUserId: decoded.slackUserId || null,
-            slackWorkspaceId: decoded.slackWorkspaceId || null,
+            slackUserId: decoded.slackUserId || (isSlackProvider ? decoded.providerSubject : null),
+            slackWorkspaceId: decoded.slackWorkspaceId || (isSlackProvider ? decoded.providerTenant : null),
             tenantId: decoded.tenantId || decoded.organizationId || null,
             organizationId: decoded.organizationId || decoded.tenantId || null
         };
