@@ -37,4 +37,38 @@ describe('MeetingTaskOwnerResolver', () => {
             }
         });
     });
+
+    it('会議タスクも組織共通の人物ディレクトリから別projectの担当者を解決する', async () => {
+        const kawaiId = 'per_01KGYC7NQNW6Y68C0BWY54GNJG';
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async () => []),
+            listGraphPeopleDirectory: vi.fn(async (_access, options) => (
+                options.id === kawaiId
+                    ? [{
+                        id: kawaiId,
+                        project_code: 'zeims',
+                        payload: { display_name: '川合 秀明', status: 'active' }
+                    }]
+                    : []
+            ))
+        };
+        const resolver = new MeetingTaskOwnerResolver({ infoSSOTService });
+
+        const resolved = await resolver.resolveReviewTaskOwners({
+            task_candidates: [{ title: 'Graph不整合を確認する', selected_owner_id: kawaiId }]
+        }, {
+            actor: { role: 'member', projectCodes: ['brainbase'], person_id: 'person_sato_keigo' },
+            projectId: 'brainbase'
+        });
+
+        expect(resolved.task_candidates[0]).toMatchObject({
+            selected_owner_id: kawaiId,
+            selected_owner: '川合 秀明',
+            owner_resolution: { status: 'already_selected' }
+        });
+        expect(infoSSOTService.listGraphPeopleDirectory).toHaveBeenCalledWith(
+            expect.objectContaining({ projectCodes: ['brainbase'] }),
+            { id: kawaiId, limit: 1 }
+        );
+    });
 });

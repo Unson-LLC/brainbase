@@ -81,6 +81,7 @@ describe('personal and organization knowledge schema', () => {
         expect(sql).toMatch(/episode_compaction_artifacts[\s\S]*role_min TEXT NOT NULL/);
         expect(sql).toMatch(/episode_compaction_scope[\s\S]*app_role_rank[\s\S]*app_sensitivity_rank/);
         expect(infoSsotRls).toMatch(/CREATE OR REPLACE FUNCTION app_role_rank\(role text\)/i);
+        expect(infoSsotRls).toMatch(/info_graph_entities_select[\s\S]*graph_entities\.entity_type = 'person'[\s\S]*p\.organization_id = current_setting\('app\.organization_id', true\)/);
         expect(sql).toMatch(/CREATE OR REPLACE FUNCTION app_role_rank\(role TEXT\)/);
         expect(sql).not.toMatch(/CREATE OR REPLACE FUNCTION app_role_rank\(value TEXT\)/);
     });

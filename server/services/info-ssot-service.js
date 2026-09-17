@@ -1373,6 +1373,75 @@ export class InfoSSOTService {
         return rows;
     }
 
+    async fetchGraphPeopleDirectory(client, access, { id, query, limit }) {
+        const roleRank = this.getRoleRank(access.role);
+        const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 100);
+        const trimmedQuery = typeof query === 'string' ? query.trim() : '';
+        const compactQuery = trimmedQuery.replace(/\s+/g, '');
+        const { rows } = await client.query(
+            `WITH requested_alias AS (
+               SELECT payload->>'canonical_entity_id' AS canonical_entity_id
+               FROM graph_entities
+               WHERE $1::text IS NOT NULL
+                 AND id = $1
+                 AND entity_type = 'person_alias'
+                 AND sensitivity = ANY($4)
+                 AND (CASE role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
+             )
+             SELECT ge.*,
+                    p.code AS project_code,
+                    ARRAY(
+                      SELECT DISTINCT px.code
+                      FROM graph_edges gx
+                      JOIN projects px ON px.id = gx.project_id
+                      WHERE gx.from_id = ge.id
+                        AND gx.rel_type = 'member_of'
+                      ORDER BY px.code
+                    ) AS member_of_project_codes,
+                    ARRAY(
+                      SELECT DISTINCT gx.project_id::text
+                      FROM graph_edges gx
+                      WHERE gx.from_id = ge.id
+                        AND gx.rel_type = 'member_of'
+                      ORDER BY gx.project_id::text
+                    ) AS member_of_project_ids
+             FROM graph_entities ge
+             LEFT JOIN projects p ON p.id = ge.project_id
+             WHERE ge.entity_type = 'person'
+               AND COALESCE(ge.payload->>'searchable', 'true') <> 'false'
+               AND (
+                 $1::text IS NULL
+                 OR ge.id = $1
+                 OR ge.payload->>'person_id' = $1
+                 OR ge.id IN (SELECT canonical_entity_id FROM requested_alias)
+               )
+               AND ge.sensitivity = ANY($4)
+               AND (CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END) <= $5
+               AND (
+                 $2::text IS NULL
+                 OR ge.payload::text ILIKE '%' || $2 || '%'
+                 OR REPLACE(COALESCE(ge.payload->>'name', ''), ' ', '') ILIKE '%' || $3 || '%'
+                 OR EXISTS (
+                   SELECT 1
+                   FROM jsonb_array_elements_text(COALESCE(ge.payload->'aliases', '[]'::jsonb)) alias
+                   WHERE alias ILIKE '%' || $2 || '%'
+                      OR REPLACE(alias, ' ', '') ILIKE '%' || $3 || '%'
+                 )
+               )
+             ORDER BY ge.updated_at DESC
+             LIMIT $6`,
+            [
+                id || null,
+                trimmedQuery || null,
+                compactQuery || null,
+                access.clearance,
+                roleRank,
+                safeLimit
+            ]
+        );
+        return rows;
+    }
+
     async ensureProject(client, { projectCode, projectName }) {
         const { rows } = await client.query(
             `SELECT id FROM projects
@@ -2140,6 +2209,13 @@ export class InfoSSOTService {
             if (includeMergedEntities) graphOptions.includeMerged = true;
             return this.fetchGraphEntities(client, access, graphOptions);
         });
+    }
+
+    async listGraphPeopleDirectory(access, { id, query, limit } = {}) {
+        this.assertReady();
+        return this.withAccessContext(access, async (client) => (
+            this.fetchGraphPeopleDirectory(client, access, { id, query, limit })
+        ));
     }
 
     async listGraphEdges(access, { projectCode, relType, fromId, toId }) {

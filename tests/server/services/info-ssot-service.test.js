@@ -613,6 +613,37 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         });
     });
 
+    it('人物ディレクトリはproject境界を外すがclearanceとrole境界を維持する', async () => {
+        const { service, client } = buildService();
+        const access = {
+            role: 'gm',
+            projectCodes: ['brainbase'],
+            clearance: ['internal']
+        };
+
+        await service.listGraphPeopleDirectory(access, {
+            id: 'per_kawai',
+            limit: 1
+        });
+
+        const directoryQuery = client.query.mock.calls.find(([text]) => (
+            typeof text === 'string' && text.includes('WITH requested_alias AS')
+        ));
+        expect(directoryQuery).toBeDefined();
+        expect(directoryQuery[0]).toContain("ge.entity_type = 'person'");
+        expect(directoryQuery[0]).toContain('ge.sensitivity = ANY($4)');
+        expect(directoryQuery[0]).toContain("CASE ge.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
+        expect(directoryQuery[0]).not.toContain('ANY($3)');
+        expect(directoryQuery[1]).toEqual([
+            'per_kawai',
+            null,
+            null,
+            ['internal'],
+            2,
+            1
+        ]);
+    });
+
     it('finance entityは呼出元のclearanceとroleをDB検索条件で同時に制約する', async () => {
         const { service, client } = buildService();
         const memberAccess = {

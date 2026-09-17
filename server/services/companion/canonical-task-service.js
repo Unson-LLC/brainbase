@@ -362,7 +362,7 @@ export class CanonicalTaskService {
 
     async verifyAssigneePerson(personId, context) {
         if (!personId) return null;
-        if (!this.infoSSOTService?.listGraphEntities) {
+        if (!this.infoSSOTService?.listGraphPeopleDirectory && !this.infoSSOTService?.listGraphEntities) {
             throw new CanonicalTaskError('assignee_directory_unavailable', 'Graph People directory is unavailable', 503);
         }
         // Canonical Task mutations run with a least-privilege service token whose
@@ -384,11 +384,13 @@ export class CanonicalTaskService {
             // Person identity is global in Graph SSOT. Project scoping can hide a
             // canonical person whose primary row belongs to another project even
             // when that person is a Brainbase project member.
-            rows = await this.infoSSOTService.listGraphEntities(directoryAccess, { id: personId, entityType: 'person', limit: 1 });
+            const listPeople = this.infoSSOTService.listGraphPeopleDirectory
+                ? (options) => this.infoSSOTService.listGraphPeopleDirectory(directoryAccess, options)
+                : (options) => this.infoSSOTService.listGraphEntities(directoryAccess, { ...options, entityType: 'person' });
+            rows = await listPeople({ id: personId, limit: 1 });
             if (!rows.some(matchesPersonId)) {
-                rows = await this.infoSSOTService.listGraphEntities(directoryAccess, {
+                rows = await listPeople({
                     query: personId,
-                    entityType: 'person',
                     limit: 10
                 });
             }

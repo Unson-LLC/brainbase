@@ -243,7 +243,8 @@ export class MeetingTaskOwnerResolver {
     }
 
     async resolveReviewTaskOwners(reviewPackage, { actor = {}, projectId = null, graphContext = null } = {}) {
-        if (!this.infoSSOTService?.listGraphEntities || !Array.isArray(reviewPackage?.task_candidates)) {
+        if ((!this.infoSSOTService?.listGraphPeopleDirectory && !this.infoSSOTService?.listGraphEntities)
+            || !Array.isArray(reviewPackage?.task_candidates)) {
             return reviewPackage;
         }
 
@@ -386,6 +387,9 @@ export class MeetingTaskOwnerResolver {
                     if (!recordsByKey.has(key)) recordsByKey.set(key, record);
                 }
             };
+            const listGlobalPeople = this.infoSSOTService.listGraphPeopleDirectory
+                ? (options) => this.infoSSOTService.listGraphPeopleDirectory(access, options)
+                : (options) => this.infoSSOTService.listGraphEntities(access, { ...options, entityType: 'person' });
             for (const id of searchIds) {
                 let scopedRecords = [];
                 for (const projectCode of projectCodeVariants) {
@@ -399,8 +403,7 @@ export class MeetingTaskOwnerResolver {
                     scopedRecords = scopedRecords.concat(Array.isArray(records) ? records : []);
                 }
                 if (!scopedRecords.length || !projectCodeVariants.length) {
-                    addRecords(await this.infoSSOTService.listGraphEntities(access, {
-                        entityType: 'person',
+                    addRecords(await listGlobalPeople({
                         id,
                         limit: 1
                     }));
@@ -415,8 +418,7 @@ export class MeetingTaskOwnerResolver {
                         limit: 20
                     }));
                 }
-                addRecords(await this.infoSSOTService.listGraphEntities(access, {
-                    entityType: 'person',
+                addRecords(await listGlobalPeople({
                     query: searchQuery,
                     limit: 20
                 }));

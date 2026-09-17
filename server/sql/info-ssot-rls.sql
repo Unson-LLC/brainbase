@@ -277,13 +277,14 @@ CREATE POLICY info_graph_entities_select ON graph_entities
   USING (
     app_current_role_rank() >= app_role_rank(role_min)
     AND sensitivity = ANY(app_clearance())
-    AND CASE
-      WHEN graph_entities.project_id IS NOT NULL THEN EXISTS (
-        SELECT 1 FROM projects p
-        WHERE p.id = graph_entities.project_id
-          AND p.code = ANY(app_project_codes())
-      )
-      WHEN graph_entities.entity_type = 'person' THEN EXISTS (
+    AND (
+      CASE
+        WHEN graph_entities.project_id IS NOT NULL THEN EXISTS (
+          SELECT 1 FROM projects p
+          WHERE p.id = graph_entities.project_id
+            AND p.code = ANY(app_project_codes())
+        )
+        WHEN graph_entities.entity_type = 'person' THEN EXISTS (
           SELECT 1
           FROM graph_edges ge
           JOIN projects p ON p.id = ge.project_id
@@ -293,9 +294,32 @@ CREATE POLICY info_graph_entities_select ON graph_entities
             AND app_current_role_rank() >= app_role_rank(ge.role_min)
             AND ge.sensitivity = ANY(app_clearance())
             AND p.code = ANY(app_project_codes())
+        )
+        ELSE FALSE
+      END
+      OR (
+        graph_entities.entity_type = 'person'
+        AND NULLIF(current_setting('app.organization_id', true), '') IS NOT NULL
+        AND (
+          EXISTS (
+            SELECT 1 FROM projects p
+            WHERE p.id = graph_entities.project_id
+              AND p.organization_id = current_setting('app.organization_id', true)
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM graph_edges ge
+            JOIN projects p ON p.id = ge.project_id
+            WHERE ge.from_id = graph_entities.id
+              AND ge.rel_type = 'member_of'
+              AND ge.lifecycle_status = 'active'
+              AND app_current_role_rank() >= app_role_rank(ge.role_min)
+              AND ge.sensitivity = ANY(app_clearance())
+              AND p.organization_id = current_setting('app.organization_id', true)
+          )
+        )
       )
-      ELSE FALSE
-    END
+    )
   );
 
 DROP POLICY IF EXISTS info_graph_entities_insert ON graph_entities;

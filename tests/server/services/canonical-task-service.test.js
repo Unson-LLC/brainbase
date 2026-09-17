@@ -37,6 +37,9 @@ function setup({ ownerAliasIds = [] } = {}) {
         delete: vi.fn(async () => undefined)
     };
     const people = {
+        listGraphPeopleDirectory: vi.fn(async (_access, { id }) => id === OWNER
+            ? [{ entity_id: OWNER, entity_type: 'person', payload: { display_name: '佐藤圭吾', person_id: OWNER } }]
+            : []),
         listGraphEntities: vi.fn(async (_access, { id }) => id === OWNER
             ? [{ entity_id: OWNER, entity_type: 'person', payload: { display_name: '佐藤圭吾', person_id: OWNER } }]
             : [])
@@ -490,7 +493,7 @@ describe('CanonicalTaskService', () => {
     });
 
     it('accepts the canonical Graph entity id returned by InfoSSOTService', async () => {
-        fixture.people.listGraphEntities.mockResolvedValue([{
+        fixture.people.listGraphPeopleDirectory.mockResolvedValue([{
             id: OWNER,
             entity_type: 'person',
             payload: { name: '佐藤 圭吾' }
@@ -525,19 +528,51 @@ describe('CanonicalTaskService', () => {
             { ...serviceContext, idempotencyKey: 'gm-directory-assignee' }
         );
 
-        expect(fixture.people.listGraphEntities).toHaveBeenCalledWith(
+        expect(fixture.people.listGraphPeopleDirectory).toHaveBeenCalledWith(
             expect.objectContaining({
                 role: 'gm',
                 level: 2,
                 projectCodes: ['brainbase', 'zeims'],
                 clearance: ['internal']
             }),
-            { id: OWNER, entityType: 'person', limit: 1 }
+            { id: OWNER, limit: 1 }
+        );
+    });
+
+    it('resolves a person from the global directory without widening clearance', async () => {
+        const kawaiId = 'per_01KGYC7NQNW6Y68C0BWY54GNJG';
+        const serviceContext = {
+            ...ownerContext(),
+            authSource: 'service-token',
+            access: {
+                role: 'member',
+                level: 1,
+                projectCodes: ['brainbase'],
+                clearance: ['internal'],
+                personId: OWNER
+            }
+        };
+        fixture.people.listGraphPeopleDirectory.mockResolvedValueOnce([{
+            id: kawaiId,
+            entity_type: 'person',
+            project_code: 'zeims',
+            payload: { name: '川合 秀明' }
+        }]);
+
+        await expect(fixture.service.verifyAssigneePerson(kawaiId, serviceContext))
+            .resolves.toBe('川合 秀明');
+        expect(fixture.people.listGraphPeopleDirectory).toHaveBeenCalledWith(
+            expect.objectContaining({
+                role: 'gm',
+                projectCodes: ['brainbase'],
+                clearance: ['internal']
+            }),
+            { id: kawaiId, limit: 1 }
         );
     });
 
     it('resolves an exact Graph payload person_id when the entity id differs', async () => {
-        fixture.people.listGraphEntities.mockImplementation(async (_access, query) => {
+        fixture.people.listGraphPeopleDirectory.mockImplementation(async (_access, query) => {
             if (query.id) return [];
             return [{
                 entity_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5',
@@ -551,11 +586,11 @@ describe('CanonicalTaskService', () => {
             { ...ownerContext(), idempotencyKey: 'payload-person-id' }
         );
 
-        expect(fixture.people.listGraphEntities).toHaveBeenNthCalledWith(1, ownerContext().access, {
-            id: OWNER, entityType: 'person', limit: 1
+        expect(fixture.people.listGraphPeopleDirectory).toHaveBeenNthCalledWith(1, ownerContext().access, {
+            id: OWNER, limit: 1
         });
-        expect(fixture.people.listGraphEntities).toHaveBeenNthCalledWith(2, ownerContext().access, {
-            query: OWNER, entityType: 'person', limit: 10
+        expect(fixture.people.listGraphPeopleDirectory).toHaveBeenNthCalledWith(2, ownerContext().access, {
+            query: OWNER, limit: 10
         });
         expect(fixture.repository.create).toHaveBeenCalledWith(expect.objectContaining({
             assignee_person_id: OWNER,
