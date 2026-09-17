@@ -178,6 +178,10 @@ describe('auth middleware', () => {
                 expect(access.personId).toBe('per_sato');
                 expect(access.slackUserId).toBe('U_SATO');
                 return 'unson';
+            },
+            resolveTenantForOrganization: async (organizationId) => {
+                expect(organizationId).toBe('unson');
+                return { organization_id: 'unson', tenant_id: 'ten_unson' };
             }
         };
         app.use(requireAuth(authService, { allowInsecureHeaders: false }));
@@ -189,7 +193,7 @@ describe('auth middleware', () => {
             .expect(200);
 
         expect(res.body.access.organizationId).toBe('unson');
-        expect(res.body.access.tenantId).toBe('unson');
+        expect(res.body.access.tenantId).toBe('ten_unson');
     });
 
     it('tenant-only旧JWTは検証済みtenantを保ったまま組織を補完する', async () => {
@@ -222,7 +226,7 @@ describe('auth middleware', () => {
         });
     });
 
-    it('organization-only旧JWTは検証済み組織をtenantとしても扱う', async () => {
+    it('organization-only旧JWTは組織をtenantとして代用しない', async () => {
         const app = express();
         const authService = {
             verifyToken: () => ({
@@ -242,9 +246,9 @@ describe('auth middleware', () => {
             .expect(200);
 
         expect(res.body.access).toMatchObject({
-            tenantId: 'ten_unson',
             organizationId: 'ten_unson'
         });
+        expect(res.body.access.tenantId).toBeNull();
     });
 
     it('bbsvc tokenがある時_service-token認証で通す', async () => {

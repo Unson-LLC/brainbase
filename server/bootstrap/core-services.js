@@ -269,6 +269,8 @@ export function createCoreServices({
         };
     }
     const authService = new AuthService();
+    authService.resolveTenantForOrganization =
+        tenantRuntimeServices?.outcomeServiceContextAdapters?.resolveTenantForOrganization ?? null;
     const knowledgeDelegationTokenIssuer = resolvedKnowledgeRetrieveBindingVerifier
         ? new KnowledgeDelegationTokenIssuer({
             authService,
