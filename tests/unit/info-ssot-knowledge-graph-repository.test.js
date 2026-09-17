@@ -93,6 +93,9 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
     const expectDirectDecisionUpdateToUseGuard = async (method) => {
         const client = {
             query: vi.fn(async (sql) => {
+                if (String(sql).includes("payload->'decision_authority'")) {
+                    return { rows: [{ project_id: 'project_uuid', decision_domain: 'engineering' }] };
+                }
                 if (String(sql).includes("to_regclass('public.project_registry')")) {
                     return { rows: [{ project_registry: null }] };
                 }
@@ -103,7 +106,8 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
             })
         };
         const infoSSOTService = {
-            withAccessContext: vi.fn(async (_access, work) => work(client))
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => undefined)
         };
         const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
 
@@ -127,5 +131,55 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
 
     it('retractDecisionは直接UPDATE前に共通Graph ID guardを通る', async () => {
         await expectDirectDecisionUpdateToUseGuard('retractDecision');
+    });
+
+    it('lifecycle変更は認証personのdecision authority不足時にGraph更新しない', async () => {
+        const client = { query: vi.fn(async (sql) => {
+            if (String(sql).includes("payload->'decision_authority'")) {
+                return { rows: [{ project_id: 'project_uuid', decision_domain: 'engineering' }] };
+            }
+            return { rows: [] };
+        }) };
+        const denied = Object.assign(new Error('Decision authority missing'), { code: 'decision_authority_missing' });
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => { throw denied; })
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        await expect(repository.changeLifecycle({
+            id: 'decision_1', project_code: 'brainbase', expected_version: 'v1',
+            state: 'retired', reason: 'obsolete', actor_person_id: access.personId
+        }, { access })).rejects.toBe(denied);
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO knowledge_lifecycle_history'))).toBe(false);
+    });
+
+    it('lifecycle変更はpayloadとGraph正規列のversion/statusを同時に進める', async () => {
+        const client = { query: vi.fn(async (sql) => {
+            if (String(sql).includes("payload->'decision_authority'")) {
+                return { rows: [{ project_id: 'project_uuid', decision_domain: 'engineering' }] };
+            }
+            if (String(sql).includes("to_regclass('public.project_registry')")) return { rows: [{ project_registry: null }] };
+            if (String(sql).includes('UPDATE graph_entities')) {
+                return { rows: [{ id: 'decision_1', entity_type: 'decision', payload: { version: 'lc_next' } }] };
+            }
+            return { rows: [] };
+        }) };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => undefined)
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        await repository.changeLifecycle({
+            id: 'decision_1', project_code: 'brainbase', expected_version: 'v1',
+            state: 'retired', reason: 'obsolete', actor_person_id: access.personId
+        }, { access });
+
+        const update = client.query.mock.calls.find(([sql]) => String(sql).includes('UPDATE graph_entities'));
+        expect(update[0]).toContain('lifecycle_status=$8::text');
+        expect(update[0]).toContain('version=entity.version+1');
+        expect(update[1].at(-1)).toBe('inactive');
     });
 });

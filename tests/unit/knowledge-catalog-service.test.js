@@ -146,7 +146,7 @@ describe('KnowledgeCatalogService', () => {
         const { service: base, infoSSOTService } = createService([entity()]);
         const contentRetriever = {
             authorize: vi.fn(async () => true),
-            retrieve: vi.fn(async () => ({ content: '# body', receipt_id: 'receipt_1' }))
+            retrieve: vi.fn(async () => ({ content: '# body', version: '3', receipt_id: 'receipt_1' }))
         };
         const service = new KnowledgeCatalogService({ infoSSOTService, contentRetriever });
 
@@ -162,6 +162,37 @@ describe('KnowledgeCatalogService', () => {
         expect(contentRetriever.authorize).toHaveBeenCalledOnce();
         expect(contentRetriever.retrieve).toHaveBeenCalledOnce();
         expect(base).toBeDefined();
+    });
+
+    it('外部正本の版不明・版不一致・hash不一致をresolvedにしない', async () => {
+        const row = entity({ payload: {
+            title: 'External', status: 'active', version: '3', repository_path: 'docs/x.md', content_hash: 'sha256:expected'
+        } });
+        const { infoSSOTService } = createService([row]);
+        const retriever = { authorize: vi.fn(async () => true), retrieve: vi.fn() };
+        const service = new KnowledgeCatalogService({ infoSSOTService, contentRetriever: retriever });
+
+        retriever.retrieve.mockResolvedValueOnce({ content: 'body', receipt_id: 'r1' });
+        await expect(service.retrieve({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha', refs: [{ id: 'dec_1', version: '3' }]
+        })).resolves.toMatchObject({ results: [{ status: 'source_version_unknown' }] });
+
+        retriever.retrieve.mockResolvedValueOnce({ content: 'body', version: '4', receipt_id: 'r2' });
+        await expect(service.retrieve({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha', refs: [{ id: 'dec_1', version: '3' }]
+        })).resolves.toMatchObject({ results: [{ status: 'source_version_conflict', resolved_version: '4' }] });
+
+        retriever.retrieve.mockResolvedValueOnce({ content: 'body', version: '3', content_hash: 'sha256:other', receipt_id: 'r3' });
+        await expect(service.retrieve({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha', refs: [{ id: 'dec_1', version: '3' }]
+        })).resolves.toMatchObject({ results: [{ status: 'source_hash_conflict' }] });
+    });
+
+    it('51件以上のrefsを黙って切り捨てず拒否する', async () => {
+        const { service } = createService([entity()]);
+        await expect(service.retrieve({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha', refs: Array.from({ length: 51 }, (_, index) => ({ id: `x${index}`, version: '1' }))
+        })).rejects.toMatchObject({ code: 'knowledge_refs_limit_exceeded', status: 400 });
     });
 
     it('source adapterが主体とpointerを明示承認しない限り外部本文を取得しない', async () => {
@@ -188,6 +219,7 @@ describe('KnowledgeCatalogService', () => {
         expect(result.results[0]).toMatchObject({
             status: 'resolved',
             content: 'Use the canonical Graph.',
+            canonical_content_hash: expect.stringMatching(/^sha256:/),
             source: { kind: 'graph_entity', content_state: 'fetched' },
             retrieval_receipt_id: 'graph:dec_1:7'
         });

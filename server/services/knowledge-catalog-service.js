@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const ACTIVE_STATUSES = new Set(['active', 'decided', 'current', 'published']);
 const INACTIVE_STATUSES = new Set(['draft', 'superseded', 'expired', 'retired', 'deprecated', 'inactive']);
 
@@ -28,7 +30,10 @@ function safeLimit(value) {
 
 function lifecycle(entity) {
     const payload = entity.payload || {};
-    const rawStatus = text(payload.status)?.toLowerCase() || 'unknown';
+    const rawStatus = text(payload.status)?.toLowerCase()
+        || (text(payload.semantic_state)?.toLowerCase() === 'retracted' ? 'retired' : null)
+        || text(payload.semantic_state)?.toLowerCase()
+        || 'unknown';
     const effectiveAt = text(payload.effective_at) || text(payload.decided_at);
     const expiresAt = text(payload.expires_at) || text(payload.valid_until);
     const now = Date.now();
@@ -54,8 +59,13 @@ function source(entity) {
     return {
         pointer,
         kind: pointer?.startsWith('http') ? 'url' : pointer ? 'repository_path' : 'unknown',
-        content_state: pointer ? 'pointer_only' : 'unknown'
+        content_state: pointer ? 'pointer_only' : 'unknown',
+        content_hash: text(payload.content_hash) || text(payload.source_hash) || null
     };
+}
+
+function contentHash(content) {
+    return `sha256:${createHash('sha256').update(content).digest('hex')}`;
 }
 
 function projectScope(entity, projectCode) {
@@ -173,6 +183,7 @@ export class KnowledgeCatalogService {
                 content_state: 'fetched'
             } : mapped.source,
             canonical_content: graphContent,
+            canonical_content_hash: graphContent ? contentHash(graphContent) : null,
             relations: edges.filter((edge) => visibleIds.has(edge.from_id) && visibleIds.has(edge.to_id)).map((edge) => ({
                 relation: edge.rel_type,
                 from_id: edge.from_id,
@@ -188,8 +199,14 @@ export class KnowledgeCatalogService {
         if (!Array.isArray(input.refs) || input.refs.length === 0) {
             throw new KnowledgeCatalogError('knowledge_refs_required', 'refs are required', 400);
         }
+        if (input.refs.length > 50) {
+            throw new KnowledgeCatalogError('knowledge_refs_limit_exceeded', 'refs must contain at most 50 items', 400, {
+                maximum: 50,
+                received: input.refs.length
+            });
+        }
         const results = [];
-        for (const ref of input.refs.slice(0, 50)) {
+        for (const ref of input.refs) {
             const id = text(ref?.id);
             const requestedVersion = text(ref?.version);
             if (!id || !requestedVersion) {
@@ -226,13 +243,38 @@ export class KnowledgeCatalogService {
                     continue;
                 }
                 const retrieved = await retriever.retrieve(record.source, { access, record });
+                if (!retrieved?.content || !retrieved?.receipt_id) {
+                    results.push({ ...record, requested_version: requestedVersion, resolved_version: null, status: 'source_unavailable' });
+                    continue;
+                }
+                if (!text(retrieved.version)) {
+                    results.push({ ...record, requested_version: requestedVersion, resolved_version: null, status: 'source_version_unknown' });
+                    continue;
+                }
+                if (text(retrieved.version) !== requestedVersion) {
+                    results.push({ ...record, requested_version: requestedVersion, resolved_version: text(retrieved.version), status: 'source_version_conflict' });
+                    continue;
+                }
+                const observedHash = text(retrieved.content_hash) || contentHash(retrieved.content);
+                if (record.source.content_hash && observedHash !== record.source.content_hash) {
+                    results.push({
+                        ...record,
+                        requested_version: requestedVersion,
+                        resolved_version: text(retrieved.version),
+                        status: 'source_hash_conflict',
+                        expected_content_hash: record.source.content_hash,
+                        observed_content_hash: observedHash
+                    });
+                    continue;
+                }
                 results.push({
                     ...record,
                     requested_version: requestedVersion,
                     resolved_version: record.version,
-                    status: retrieved?.content ? 'resolved' : 'source_unavailable',
-                    content: retrieved?.content || null,
-                    retrieval_receipt_id: retrieved?.receipt_id || null
+                    status: 'resolved',
+                    content: retrieved.content,
+                    content_hash: observedHash,
+                    retrieval_receipt_id: retrieved.receipt_id
                 });
             } catch (error) {
                 if (error instanceof KnowledgeCatalogError && error.status === 404) {

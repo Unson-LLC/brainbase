@@ -5,13 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { createKnowledgeCatalogRouter } from '../../server/routes/knowledge-resolution.js';
 import { KnowledgeCatalogError } from '../../server/services/knowledge-catalog-service.js';
 
-function createApp(service) {
+function createApp(service, authoringService = null) {
     const app = express();
     app.use((req, _res, next) => {
-        req.access = { projectCodes: ['alpha', 'brainbase'] };
+        req.access = { projectCodes: ['alpha', 'brainbase'], personId: 'per_1', organizationId: 'org_1' };
         next();
     });
-    app.use('/api/knowledge', createKnowledgeCatalogRouter({ service }));
+    app.use('/api/knowledge', createKnowledgeCatalogRouter({ service, authoringService }));
     return app;
 }
 
@@ -24,7 +24,7 @@ describe('knowledge catalog API', () => {
 
         expect(response.body.state).toBe('empty');
         expect(list).toHaveBeenCalledWith(
-            { projectCodes: ['alpha', 'brainbase'] },
+            { projectCodes: ['alpha', 'brainbase'], personId: 'per_1', organizationId: 'org_1' },
             expect.objectContaining({ project_code: 'alpha', scope: 'project' })
         );
     });
@@ -53,7 +53,7 @@ describe('knowledge catalog API', () => {
             .get('/api/knowledge/items/dec_1?project_code=alpha')
             .expect(200, { id: 'dec_1' });
         expect(get).toHaveBeenCalledWith(
-            { projectCodes: ['alpha', 'brainbase'] },
+            { projectCodes: ['alpha', 'brainbase'], personId: 'per_1', organizationId: 'org_1' },
             { project_code: 'alpha', id: 'dec_1' }
         );
     });
@@ -66,5 +66,22 @@ describe('knowledge catalog API', () => {
         await request(app).post('/api/knowledge/preview').send({ project_code: 'alpha', question: 'q', draft: {} }).expect(200);
         expect(retrieve).toHaveBeenCalledOnce();
         expect(preview).toHaveBeenCalledOnce();
+    });
+
+    it('draft saveとlifecycle/historyをauthoring境界へ渡す', async () => {
+        const authoringService = {
+            createDraft: vi.fn(async () => ({ draft_id: 'kd_1' })),
+            getDraft: vi.fn(), updateDraft: vi.fn(), discardDraft: vi.fn(),
+            saveDraft: vi.fn(async () => ({ status: 'saved' })),
+            changeLifecycle: vi.fn(async () => ({ status: 'changed' })),
+            history: vi.fn(async () => ({ entries: [] }))
+        };
+        const app = createApp({ list: vi.fn(), get: vi.fn(), retrieve: vi.fn(), preview: vi.fn() }, authoringService);
+        await request(app).post('/api/knowledge/drafts').send({ project_code: 'alpha' }).expect(200);
+        await request(app).post('/api/knowledge/drafts/kd_1/save').send({ project_code: 'alpha', revision: 1 }).expect(200);
+        await request(app).post('/api/knowledge/items/dec_1/lifecycle').send({ project_code: 'alpha', state: 'retired' }).expect(200);
+        await request(app).get('/api/knowledge/items/dec_1/history?project_code=alpha').expect(200);
+        expect(authoringService.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ personId: 'per_1' }), expect.objectContaining({ draft_id: 'kd_1' }));
+        expect(authoringService.changeLifecycle).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: 'dec_1' }));
     });
 });

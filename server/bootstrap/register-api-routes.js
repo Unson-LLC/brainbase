@@ -55,6 +55,9 @@ import { ReplyDraftService } from '../services/companion/reply-draft-service.js'
 import { DecisionEventService } from '../services/companion/decision-event-service.js';
 import { KnowledgeResolutionService } from '../services/knowledge-resolution-service.js';
 import { KnowledgeCatalogService } from '../services/knowledge-catalog-service.js';
+import { KnowledgeAuthoringService } from '../services/knowledge-authoring-service.js';
+import { PgKnowledgeAuthoringRepository } from '../services/knowledge-authoring-repository.js';
+import { InfoSSOTKnowledgeGraphRepository } from '../services/knowledge-event/info-ssot-knowledge-graph-repository.js';
 import { JudgmentResolutionService } from '../services/judgment-resolution-service.js';
 import {
     JsonFileMeetingMinutesContextReceiptRepository,
@@ -101,12 +104,28 @@ export function registerKnowledgeResolutionApiRoute(app, { authService, service 
     );
 }
 
-export function registerKnowledgeCatalogApiRoute(app, { authService, infoSSOTService, service = null }) {
+export function registerKnowledgeCatalogApiRoute(app, {
+    authService,
+    infoSSOTService,
+    knowledgeEventService = null,
+    service = null,
+    authoringService = null
+}) {
+    const catalogService = service || new KnowledgeCatalogService({ infoSSOTService });
+    const resolvedAuthoringService = authoringService || (infoSSOTService?.pool && knowledgeEventService
+        ? new KnowledgeAuthoringService({
+            repository: new PgKnowledgeAuthoringRepository({ pool: infoSSOTService.pool }),
+            knowledgeEventService,
+            catalogService,
+            graphRepository: new InfoSSOTKnowledgeGraphRepository({ infoSSOTService })
+        })
+        : null);
     app.use(
         '/api/knowledge',
         requireAuth(authService, { allowInsecureHeaders: false }),
         createKnowledgeCatalogRouter({
-            service: service || new KnowledgeCatalogService({ infoSSOTService })
+            service: catalogService,
+            authoringService: resolvedAuthoringService
         })
     );
 }
@@ -382,7 +401,7 @@ export function registerApiRoutes(app, {
     })));
     registerOnboardingApiRoute(app, { authService, onboardingRuntimeService });
     registerKnowledgeResolutionApiRoute(app, { authService });
-    registerKnowledgeCatalogApiRoute(app, { authService, infoSSOTService });
+    registerKnowledgeCatalogApiRoute(app, { authService, infoSSOTService, knowledgeEventService });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
         registerKnowledgeEventApiRoutes(app, {
             authService,

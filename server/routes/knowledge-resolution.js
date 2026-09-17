@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { KnowledgeCatalogError } from '../services/knowledge-catalog-service.js';
+import { KnowledgeAuthoringError } from '../services/knowledge-authoring-service.js';
 
 function route(handler) {
     return async (req, res) => {
@@ -41,18 +42,20 @@ function catalogRoute(handler) {
         try {
             res.json(await handler(req, res));
         } catch (error) {
-            const known = error instanceof KnowledgeCatalogError;
-            res.status(known ? error.status : 500).json({
+            const known = error instanceof KnowledgeCatalogError || error instanceof KnowledgeAuthoringError;
+            const lifecycleConflict = error?.code === 'knowledge_lifecycle_version_conflict';
+            res.status(known ? error.status : lifecycleConflict ? 409 : 500).json({
                 error: {
-                    code: known ? error.code : 'knowledge_catalog_failed',
-                    message: known ? error.message : 'Knowledge catalog request failed',
+                    code: known || lifecycleConflict ? error.code : 'knowledge_catalog_failed',
+                    message: known || lifecycleConflict ? error.message : 'Knowledge catalog request failed',
+                    ...(error?.details && Object.keys(error.details).length ? { details: error.details } : {})
                 }
             });
         }
     };
 }
 
-export function createKnowledgeCatalogRouter({ service }) {
+export function createKnowledgeCatalogRouter({ service, authoringService = null }) {
     const router = Router();
     router.get('/items', catalogRoute((req) => service.list(req.access, req.query)));
     router.get('/items/:id', catalogRoute((req) => service.get(req.access, {
@@ -61,5 +64,26 @@ export function createKnowledgeCatalogRouter({ service }) {
     })));
     router.post('/retrieve', catalogRoute((req) => service.retrieve(req.access, req.body || {})));
     router.post('/preview', catalogRoute((req) => service.preview(req.access, req.body || {})));
+    if (authoringService) {
+        router.post('/drafts', catalogRoute((req) => authoringService.createDraft(req.access, req.body || {})));
+        router.get('/drafts/:draftId', catalogRoute((req) => authoringService.getDraft(req.access, {
+            ...req.query, draft_id: req.params.draftId
+        })));
+        router.patch('/drafts/:draftId', catalogRoute((req) => authoringService.updateDraft(req.access, {
+            ...(req.body || {}), draft_id: req.params.draftId
+        })));
+        router.post('/drafts/:draftId/discard', catalogRoute((req) => authoringService.discardDraft(req.access, {
+            ...(req.body || {}), draft_id: req.params.draftId
+        })));
+        router.post('/drafts/:draftId/save', catalogRoute((req) => authoringService.saveDraft(req.access, {
+            ...(req.body || {}), draft_id: req.params.draftId
+        })));
+        router.post('/items/:id/lifecycle', catalogRoute((req) => authoringService.changeLifecycle(req.access, {
+            ...(req.body || {}), id: req.params.id
+        })));
+        router.get('/items/:id/history', catalogRoute((req) => authoringService.history(req.access, {
+            ...req.query, id: req.params.id
+        })));
+    }
     return router;
 }

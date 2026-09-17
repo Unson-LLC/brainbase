@@ -246,6 +246,7 @@ function candidateInput(event, quarantineReason, authenticatedOwnerPersonId = nu
 function graphPayload(event, candidateId) {
     return {
         statement: event.decision.statement,
+        version: event.version || '1',
         applicability_scope: event.applicability_scope,
         decision_authority: event.decision_authority,
         occurred_at: event.occurred_at,
