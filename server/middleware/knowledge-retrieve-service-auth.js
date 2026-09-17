@@ -108,6 +108,57 @@ function firstOwnField(object, names) {
     return undefined;
 }
 
+function normalizeKnowledgeRefs(value, { required = true, label = 'knowledge refs' } = {}) {
+    if (value === undefined || value === null) {
+        if (required) throw new Error(`${label} claim is required`);
+        return null;
+    }
+    if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
+        throw new Error(`${label} must be a non-empty array`);
+    }
+    const refs = value.map((ref) => {
+        if (!ref || typeof ref !== 'object' || Array.isArray(ref)) {
+            throw new Error(`${label} entries must be objects`);
+        }
+        if (Object.keys(ref).some((key) => !['id', 'version'].includes(key))) {
+            throw new Error(`${label} entries contain unsupported fields`);
+        }
+        const id = nonEmptyString(ref.id);
+        const version = nonEmptyString(ref.version);
+        if (!id || !version || id.length > 512 || version.length > 128) {
+            throw new Error(`${label} entries require bounded id and version`);
+        }
+        return { id, version };
+    });
+    const seen = new Set();
+    for (const ref of refs) {
+        const key = `${ref.id}\u0000${ref.version}`;
+        if (seen.has(key)) throw new Error(`${label} entries must be unique`);
+        seen.add(key);
+    }
+    return refs.sort((left, right) => `${left.id}\u0000${left.version}`.localeCompare(`${right.id}\u0000${right.version}`));
+}
+
+function aliasedKnowledgeRefs(object, names, label, { required = true } = {}) {
+    const values = names
+        .map((name) => firstOwnField(object, [name]))
+        .filter((value) => value !== undefined && value !== null);
+    if (values.length === 0) {
+        if (required) throw new Error(`${label} claim is required`);
+        return null;
+    }
+    const normalized = values.map((value) => normalizeKnowledgeRefs(value, { required: true, label }));
+    const first = normalized[0];
+    if (normalized.slice(1).some((candidate) => JSON.stringify(candidate) !== JSON.stringify(first))) {
+        throw new Error(`${label} claims are ambiguous`);
+    }
+    return first;
+}
+
+function sameKnowledgeRefs(left, right) {
+    return JSON.stringify(left || []) === JSON.stringify(right || []);
+}
+
 function bodyIdentityField(body) {
     if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
     for (const key of Object.keys(body)) {
@@ -200,6 +251,17 @@ function unwrapBinding(value) {
 function normalizeBinding(value) {
     const binding = unwrapBinding(value);
     if (!binding) return null;
+    let knowledgeRefs;
+    try {
+        knowledgeRefs = aliasedKnowledgeRefs(
+            binding,
+            ['knowledge_refs', 'knowledgeRefs', 'refs'],
+            'persisted knowledge refs',
+            { required: false }
+        );
+    } catch {
+        return null;
+    }
     const organization = firstOwnField(binding, ['organization', 'tenant', 'organization_context']);
     const actor = firstOwnField(binding, ['delegated_actor', 'delegatedActor', 'actor', 'person']);
     const organizationId = nonEmptyString(firstOwnField(binding, [
@@ -243,6 +305,7 @@ function normalizeBinding(value) {
         outcomeContractId,
         runId,
         serviceSubject,
+        knowledgeRefs,
         contractVersion: Number.isSafeInteger(contractVersion) && contractVersion > 0
             ? contractVersion
             : null
@@ -314,6 +377,11 @@ function normalizeVerifiedOutcomeClaims(claims) {
     if (!Number.isSafeInteger(contractVersion) || contractVersion < 1) {
         throw new Error('outcome contract version claim is required');
     }
+    const knowledgeRefs = aliasedKnowledgeRefs(
+        claims,
+        ['knowledge_refs', 'knowledgeRefs'],
+        'knowledge refs'
+    );
     return {
         organizationId,
         delegatedActorPersonId,
@@ -321,7 +389,8 @@ function normalizeVerifiedOutcomeClaims(claims) {
         capabilities,
         outcomeContractId,
         runId,
-        contractVersion
+        contractVersion,
+        knowledgeRefs
     };
 }
 
@@ -330,6 +399,9 @@ function requestBindingInput(req, serviceIdentity) {
     const projectCode = nonEmptyString(firstOwnField(body, ['project_code', 'projectCode']));
     const outcomeContractId = nonEmptyString(firstOwnField(body, ['outcome_contract_id', 'outcomeContractId']));
     const runId = nonEmptyString(firstOwnField(body, ['run_id', 'runId']));
+    const knowledgeRefs = normalizeKnowledgeRefs(body?.refs, {
+        label: 'request knowledge refs'
+    });
     return {
         outcome_contract_id: outcomeContractId,
         run_id: runId,
@@ -339,6 +411,9 @@ function requestBindingInput(req, serviceIdentity) {
         projectCode,
         capability: KNOWLEDGE_RETRIEVE_CAPABILITY,
         capabilities: [KNOWLEDGE_RETRIEVE_CAPABILITY],
+        knowledge_refs: knowledgeRefs,
+        knowledgeRefs,
+        refs: knowledgeRefs,
         service_subject: serviceIdentity?.subject || null,
         serviceSubject: serviceIdentity?.subject || null,
         request: body
@@ -353,6 +428,11 @@ function validRequestBindingInput(req) {
     const projectCode = nonEmptyString(firstOwnField(body, ['project_code', 'projectCode']));
     if (!projectCode) return 'project_code is required';
     if (!Array.isArray(body.refs)) return 'refs must be an array';
+    try {
+        normalizeKnowledgeRefs(body.refs, { label: 'request knowledge refs' });
+    } catch (error) {
+        return error.message;
+    }
     if (!nonEmptyString(firstOwnField(body, ['outcome_contract_id', 'outcomeContractId']))) {
         return 'outcome_contract_id is required';
     }
@@ -460,8 +540,9 @@ export function createKnowledgeRetrieveServiceAuthMiddleware({
             const expected = requestBindingInput(req, req.serviceIdentity);
             if (!tokenBinding.projectCodes.includes(expected.project_code)
                 || tokenBinding.outcomeContractId !== expected.outcome_contract_id
-                || tokenBinding.runId !== expected.run_id) {
-                return bindingInvalid(res, 'verified service token is not bound to the requested project, outcome contract or run');
+                || tokenBinding.runId !== expected.run_id
+                || !sameKnowledgeRefs(tokenBinding.knowledgeRefs, expected.knowledge_refs)) {
+                return bindingInvalid(res, 'verified service token is not bound to the requested project, outcome contract, run or knowledge refs');
             }
             let persisted;
             try {
@@ -487,8 +568,10 @@ export function createKnowledgeRetrieveServiceAuthMiddleware({
                 || binding.organizationId !== tokenBinding.organizationId
                 || binding.delegatedActorPersonId !== tokenBinding.delegatedActorPersonId
                 || binding.serviceSubject !== req.serviceIdentity.subject
+                || !binding.knowledgeRefs
+                || !sameKnowledgeRefs(binding.knowledgeRefs, expected.knowledge_refs)
                 || !binding.projectCodes.every((projectCode) => tokenBinding.projectCodes.includes(projectCode))) {
-                return bindingInvalid(res, 'persisted organization, actor, project, capability, outcome or run binding does not match');
+                return bindingInvalid(res, 'persisted organization, actor, project, capability, outcome, run or knowledge refs binding does not match');
             }
 
             if (!binding.projectCodes.includes(expected.project_code)) {
@@ -506,6 +589,8 @@ export function createKnowledgeRetrieveServiceAuthMiddleware({
                 outcome_contract_id: binding.outcomeContractId,
                 run_id: binding.runId,
                 contract_version: binding.contractVersion,
+                knowledge_refs: [...binding.knowledgeRefs],
+                knowledgeRefs: [...binding.knowledgeRefs],
                 service_subject: req.serviceIdentity.subject
             });
             return next();

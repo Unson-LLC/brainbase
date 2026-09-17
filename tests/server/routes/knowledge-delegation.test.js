@@ -1,4 +1,5 @@
 import express from 'express';
+import jwt from 'jsonwebtoken';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -34,6 +35,31 @@ function authority(overrides = {}) {
         profile_id: 'knowledge_retrieve_v1',
         ...overrides
     };
+}
+
+function signedServiceTokenWithoutKnowledgeRefs(authService) {
+    const now = Math.floor(Date.now() / 1000);
+    const payload = {
+        typ: 'service',
+        sub: 'svc_mana_runtime',
+        issuer: 'brainbase',
+        subject: 'svc_mana_runtime',
+        audience: ['brainbase-api'],
+        deployment_id: 'dep_test',
+        expires_at: new Date((now + 60) * 1000).toISOString(),
+        capabilities: ['knowledge.retrieve'],
+        personId: 'svc_mana_runtime',
+        projectCodes: ['alpha'],
+        organizationId: 'org_1',
+        delegated_actor_person_id: 'person_1',
+        outcome_contract_id: 'contract_1',
+        outcome_contract_version: 3,
+        run_id: 'run_1',
+        run_mode: 'normal',
+        iat: now,
+        exp: now + 60
+    };
+    return `bbsvc_${jwt.sign(payload, authService.serviceTokenSecret)}`;
 }
 
 describe('knowledge delegation production route', () => {
@@ -104,6 +130,98 @@ describe('knowledge delegation production route', () => {
             delegatedActorPersonId: 'person_1',
             organizationId: 'org_1'
         });
+        expect(authorityProvider.verifyBinding).toHaveBeenCalledWith(
+            expect.objectContaining({
+                knowledge_refs: delegation.knowledge_refs,
+                knowledgeRefs: delegation.knowledge_refs,
+                refs: delegation.knowledge_refs
+            }),
+            expect.objectContaining({ serviceTokenClaims: expect.objectContaining({ knowledge_refs: delegation.knowledge_refs }) })
+        );
+    });
+
+    it.each([
+        ['ID差替え', [{ id: 'decision_2', version: 'v2' }]],
+        ['version差替え', [{ id: 'decision_1', version: 'v3' }]],
+        ['refs追加', [
+            { id: 'decision_1', version: 'v2' },
+            { id: 'decision_2', version: 'v1' }
+        ]]
+    ])('署名済みdelegated JWTとretrieve refsの%sを拒否する', async (_label, refs) => {
+        const authService = new AuthService();
+        const authorityProvider = {
+            verifyAuthority: vi.fn(async () => authority()),
+            verifyBinding: vi.fn(async (_expected, context) => authority({
+                service_subject: context.serviceIdentity.subject
+            }))
+        };
+        const issuer = new KnowledgeDelegationTokenIssuer({ authService, authorityProvider, ttlSeconds: 60 });
+        const serviceAuth = (req, _res, next) => {
+            req.serviceIdentity = Object.freeze({ subject: 'svc_mana_runtime' });
+            next();
+        };
+        const catalog = { retrieve: vi.fn(async () => ({ project_code: 'alpha', results: [] })) };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/v1/runtime', createKnowledgeDelegationRouter({ serviceAuth, issuer }));
+        app.use('/api/knowledge', createKnowledgeRetrieveRouter({
+            service: catalog,
+            serviceAuthMiddleware: createKnowledgeRetrieveServiceAuthMiddleware({
+                authService,
+                bindingVerifier: authorityProvider
+            })
+        }));
+
+        const delegated = await request(app).post('/api/v1/runtime/knowledge:delegate').send(delegation);
+        expect(delegated.status).toBe(200);
+        const retrieved = await request(app)
+            .post('/api/knowledge/retrieve')
+            .set('authorization', `Bearer ${delegated.body.token}`)
+            .send({
+                project_code: 'alpha',
+                refs,
+                outcome_contract_id: 'contract_1',
+                run_id: 'run_1'
+            });
+        expect(retrieved.status).toBe(403);
+        expect(retrieved.body.code).toBe('KNOWLEDGE_RETRIEVE_BINDING_INVALID');
+        expect(authorityProvider.verifyBinding).not.toHaveBeenCalled();
+        expect(catalog.retrieve).not.toHaveBeenCalled();
+    });
+
+    it('署名済みdelegated JWTのknowledge refs欠落を拒否する', async () => {
+        const authService = new AuthService();
+        const authorityProvider = {
+            verifyBinding: vi.fn(async () => authority())
+        };
+        const serviceAuth = (req, _res, next) => {
+            req.serviceIdentity = Object.freeze({ subject: 'svc_mana_runtime' });
+            next();
+        };
+        const catalog = { retrieve: vi.fn(async () => ({ project_code: 'alpha', results: [] })) };
+        const app = express();
+        app.use(express.json());
+        app.use('/api/knowledge', createKnowledgeRetrieveRouter({
+            service: catalog,
+            serviceAuthMiddleware: createKnowledgeRetrieveServiceAuthMiddleware({
+                authService,
+                bindingVerifier: authorityProvider
+            })
+        }));
+
+        const retrieved = await request(app)
+            .post('/api/knowledge/retrieve')
+            .set('authorization', `Bearer ${signedServiceTokenWithoutKnowledgeRefs(authService)}`)
+            .send({
+                project_code: 'alpha',
+                refs: delegation.knowledge_refs,
+                outcome_contract_id: 'contract_1',
+                run_id: 'run_1'
+            });
+        expect(retrieved.status).toBe(403);
+        expect(retrieved.body.code).toBe('KNOWLEDGE_RETRIEVE_BINDING_INVALID');
+        expect(authorityProvider.verifyBinding).not.toHaveBeenCalled();
+        expect(catalog.retrieve).not.toHaveBeenCalled();
     });
 
     it.each([

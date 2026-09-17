@@ -43,6 +43,7 @@ function createAuthService(claims = {}) {
             outcomeContractId: 'oc_1',
             runId: 'run_1',
             contractVersion: 3,
+            knowledge_refs: REQUEST.refs,
             ...claims
         }))
     };
@@ -64,6 +65,7 @@ function createApp({ authService = createAuthService(), binding = {}, bindingVer
         run_id: 'run_1',
         contract_version: 3,
         service_subject: 'svc_mana',
+        knowledge_refs: REQUEST.refs,
         ...binding
     })) : bindingVerifier;
     const app = express();
@@ -127,7 +129,8 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
                         contract_id: 'oc_1',
                         contract_version: '3',
                         run_id: 'run_1',
-                        resource_ref: 'meeting-minutes:github'
+                        resource_ref: 'meeting-minutes:github',
+                        knowledge_refs: REQUEST.refs
                     },
                     authority_revision: 'rev_1',
                     profile_id: 'meeting_minutes_github_v1',
@@ -188,7 +191,8 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
         ['project', { authorized_project_codes: ['secret'] }],
         ['outcome contract', { outcome_contract_id: 'oc_other' }],
         ['run', { run_id: 'run_other' }],
-        ['capability', { capability: 'knowledge.write' }]
+        ['capability', { capability: 'knowledge.write' }],
+        ['knowledge refs', { knowledge_refs: [{ id: 'item-2', version: '1' }] }]
     ])('rejects persisted %s binding mismatch', async (_name, binding) => {
         const { app, service } = createApp({ binding });
         const response = await request(app).post('/api/knowledge/retrieve')
@@ -212,7 +216,8 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
         ['actor', { delegatedActorId: 'person_other', personId: 'person_other' }],
         ['project', { projectCodes: ['beta'], authorizedProjectCodes: ['beta'] }],
         ['outcome contract', { outcomeContractId: 'oc_other' }],
-        ['run', { runId: 'run_other' }]
+        ['run', { runId: 'run_other' }],
+        ['knowledge refs', { knowledge_refs: [{ id: 'item-2', version: '1' }] }]
     ])('rejects a verified service token with a mismatched %s binding', async (_name, claims) => {
         const { app, service, verifier } = createApp({ authService: createAuthService(claims) });
         const response = await request(app).post('/api/knowledge/retrieve')
