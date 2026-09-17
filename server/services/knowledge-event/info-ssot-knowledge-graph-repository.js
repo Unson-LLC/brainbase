@@ -287,13 +287,14 @@ export class InfoSSOTKnowledgeGraphRepository {
         this._requireAccess(access);
         return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
             const priorReceipt = await contextClient.query(
-                `SELECT from_version, to_snapshot FROM knowledge_revision_history
+                `SELECT from_version, reason, to_snapshot FROM knowledge_revision_history
                  WHERE organization_id=$1 AND project_code=$2 AND knowledge_id=$3 AND idempotency_key=$4`,
                 [access.organizationId || access.tenantId, input.project_code, input.id, input.idempotency_key]
             );
             if (priorReceipt.rows[0]) {
                 const prior = priorReceipt.rows[0];
                 const sameRequest = prior.from_version === input.expected_version
+                    && prior.reason === input.reason
                     && prior.to_snapshot?.statement === input.content
                     && (input.title === undefined || prior.to_snapshot?.title === input.title)
                     && (input.scope === undefined || prior.to_snapshot?.applicability_scope?.scope === input.scope)
@@ -319,9 +320,9 @@ export class InfoSSOTKnowledgeGraphRepository {
                 personId: access.personId, decisionDomain: authority.rows[0].decision_domain
             });
             const nextEffectiveAt = input.effective_at === undefined
-                ? authority.rows[0].payload.effective_at ?? null : input.effective_at;
+                ? authority.rows[0].payload.effective_at ?? authority.rows[0].payload.decided_at ?? null : input.effective_at;
             const nextExpiresAt = input.expires_at === undefined
-                ? authority.rows[0].payload.expires_at ?? null : input.expires_at;
+                ? authority.rows[0].payload.expires_at ?? authority.rows[0].payload.valid_until ?? null : input.expires_at;
             if (nextEffectiveAt && nextExpiresAt && Date.parse(nextExpiresAt) <= Date.parse(nextEffectiveAt)) {
                 const error = new Error('knowledge revision effective period is invalid');
                 error.code = 'knowledge_revision_effective_period_invalid'; error.status = 400;
@@ -356,11 +357,10 @@ export class InfoSSOTKnowledgeGraphRepository {
                 ...(input.effective_at === undefined ? {} : { effective_at: input.effective_at }),
                 ...(input.expires_at === undefined ? {} : { expires_at: input.expires_at }),
                 version: nextVersion,
-                content_hash: input.content_hash,
-                semantic_state: 'active', status: 'active', searchable: true
+                content_hash: input.content_hash
             };
             const { rows } = await contextClient.query(
-                `UPDATE graph_entities entity SET payload=$4::jsonb, lifecycle_status='active',
+                `UPDATE graph_entities entity SET payload=$4::jsonb,
                     version=entity.version+1, updated_at=NOW()
                  FROM projects project
                  WHERE entity.id=$1 AND entity.entity_type='decision' AND entity.project_id=project.id

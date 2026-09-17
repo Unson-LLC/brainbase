@@ -185,11 +185,12 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
 
     it('本文改訂はauthority確認後にCAS更新し、前後snapshotを履歴へ保存する', async () => {
         const oldPayload = {
-            statement: 'old', version: 'v1', decision_authority: { domain: 'engineering' }
+            statement: 'old', version: 'v1', status: 'retired', semantic_state: 'retracted', searchable: false,
+            decision_authority: { domain: 'engineering' }
         };
         const client = { query: vi.fn(async (sql) => {
             const text = String(sql);
-            if (text.includes('SELECT from_version, to_snapshot')) return { rows: [] };
+            if (text.includes('SELECT from_version, reason, to_snapshot')) return { rows: [] };
             if (text.includes("payload->'decision_authority'")) {
                 return { rows: [{ project_id: 'project_uuid', payload: oldPayload, decision_domain: 'engineering' }] };
             }
@@ -215,13 +216,17 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         const update = client.query.mock.calls.find(([sql]) => String(sql).includes('UPDATE graph_entities'));
         expect(update[0]).toContain("entity.payload->>'version'=$3");
         expect(update[0]).toContain('version=entity.version+1');
+        expect(update[0]).not.toContain("lifecycle_status='active'");
         expect(infoSSOTService.assertDecisionAuthority).toHaveBeenCalledWith(client, {
             projectId: 'project_uuid', projectCode: 'brainbase', personId: access.personId,
             decisionDomain: 'engineering'
         });
         const history = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO knowledge_revision_history'));
         expect(JSON.parse(history[1][8])).toEqual(oldPayload);
-        expect(JSON.parse(history[1][9])).toMatchObject({ statement: 'new', content_hash: 'sha256:new' });
+        expect(JSON.parse(history[1][9])).toMatchObject({
+            statement: 'new', content_hash: 'sha256:new',
+            status: 'retired', semantic_state: 'retracted', searchable: false
+        });
     });
 
     it('改訂metadataはactiveな責任者を検証し、scopeと有効期間をsnapshotへ保存する', async () => {
@@ -232,7 +237,7 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         };
         const client = { query: vi.fn(async (sql) => {
             const text = String(sql);
-            if (text.includes('SELECT from_version, to_snapshot')) return { rows: [] };
+            if (text.includes('SELECT from_version, reason, to_snapshot')) return { rows: [] };
             if (text.includes("payload->'decision_authority'")) {
                 return { rows: [{ project_id: 'project_uuid', payload: oldPayload, decision_domain: 'engineering' }] };
             }
@@ -269,7 +274,7 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
     it('存在しない責任者への改訂はGraphを更新しない', async () => {
         const client = { query: vi.fn(async (sql) => {
             const text = String(sql);
-            if (text.includes('SELECT from_version, to_snapshot')) return { rows: [] };
+            if (text.includes('SELECT from_version, reason, to_snapshot')) return { rows: [] };
             if (text.includes("payload->'decision_authority'")) {
                 return { rows: [{ project_id: 'project_uuid', payload: { version: 'v1' }, decision_domain: 'engineering' }] };
             }
@@ -288,13 +293,13 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
     });
 
-    it('既存effective_atより前のexpires_atだけを指定した改訂を拒否する', async () => {
+    it('旧形式decided_atより前のexpires_atだけを指定した改訂を拒否する', async () => {
         const client = { query: vi.fn(async (sql) => {
             const text = String(sql);
-            if (text.includes('SELECT from_version, to_snapshot')) return { rows: [] };
+            if (text.includes('SELECT from_version, reason, to_snapshot')) return { rows: [] };
             if (text.includes("payload->'decision_authority'")) {
                 return { rows: [{ project_id: 'project_uuid', payload: {
-                    version: 'v1', effective_at: '2027-01-01T00:00:00.000Z'
+                    version: 'v1', decided_at: '2027-01-01T00:00:00.000Z'
                 }, decision_domain: 'engineering' }] };
             }
             return { rows: [] };
@@ -314,8 +319,8 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
 
     it('同じ改訂keyは同一入力だけ再利用し、内容変更は409にする', async () => {
         const prior = { statement: 'new', title: 'Decision', version: 'rev_2' };
-        const client = { query: vi.fn(async (sql) => String(sql).includes('SELECT from_version, to_snapshot')
-            ? { rows: [{ from_version: 'v1', to_snapshot: prior }] }
+        const client = { query: vi.fn(async (sql) => String(sql).includes('SELECT from_version, reason, to_snapshot')
+            ? { rows: [{ from_version: 'v1', reason: 'clarify', to_snapshot: prior }] }
             : { rows: [] }) };
         const infoSSOTService = {
             withAccessContext: vi.fn(async (_access, work) => work(client)),
@@ -332,6 +337,8 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
             idempotent: true, payload: prior
         });
         await expect(repository.reviseDecision({ ...base, content: 'changed' }, { access }))
+            .rejects.toMatchObject({ code: 'knowledge_revision_idempotency_conflict', status: 409 });
+        await expect(repository.reviseDecision({ ...base, reason: 'different audit reason' }, { access }))
             .rejects.toMatchObject({ code: 'knowledge_revision_idempotency_conflict', status: 409 });
         expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
     });
