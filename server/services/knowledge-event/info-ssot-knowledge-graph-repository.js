@@ -442,10 +442,20 @@ export class InfoSSOTKnowledgeGraphRepository {
                 throw error;
             }
             const conflictingEdges = await contextClient.query(
-                `SELECT from_id, to_id FROM graph_edges
+                `WITH RECURSIVE superseded_descendants(id) AS (
+                    SELECT $2::text
+                    UNION
+                    SELECT edge.to_id FROM graph_edges edge
+                    JOIN superseded_descendants path ON edge.from_id=path.id
+                    WHERE edge.rel_type='supersedes'
+                      AND COALESCE(to_jsonb(edge)->>'lifecycle_status', 'active')='active'
+                 )
+                 SELECT 'cycle' AS conflict FROM superseded_descendants WHERE id=$1 AND id<>$2
+                 UNION ALL
+                 SELECT 'existing' AS conflict FROM graph_edges
                  WHERE rel_type='supersedes' AND COALESCE(to_jsonb(graph_edges)->>'lifecycle_status', 'active')='active'
-                   AND ((from_id=$1 AND to_id=$2) OR (from_id=$2 AND to_id=$1)
-                        OR (to_id=$2 AND from_id<>$1))`,
+                   AND ((from_id=$1 AND to_id=$2) OR (to_id=$2 AND from_id<>$1))
+                 LIMIT 1`,
                 [input.replacement_id, input.superseded_id]
             );
             if (conflictingEdges.rows.length) {

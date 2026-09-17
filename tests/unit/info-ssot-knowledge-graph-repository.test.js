@@ -293,6 +293,30 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
     });
 
+    it('多段のsupersedes到達経路を再帰検査しcycleを拒否する', async () => {
+        const client = { query: vi.fn(async (sql) => {
+            const text = String(sql);
+            if (text.includes('FROM knowledge_supersession_history')) return { rows: [] };
+            if (text.includes('entity.id = ANY')) return { rows: [
+                { id: 'decision_a', project_id: 'project_uuid', decision_domain: 'engineering', payload: { version: 'v1' } },
+                { id: 'decision_c', project_id: 'project_uuid', decision_domain: 'policy', payload: { version: 'v3' } }
+            ] };
+            if (text.includes('WITH RECURSIVE superseded_descendants')) return { rows: [{ conflict: 'cycle' }] };
+            return { rows: [] };
+        }) };
+        const infoSSOTService = { withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(), upsertGraphEdge: vi.fn() };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+        await expect(repository.establishSupersession({
+            replacement_id: 'decision_a', superseded_id: 'decision_c', project_code: 'brainbase',
+            replacement_expected_version: 'v1', superseded_expected_version: 'v3',
+            effective_at: '2027-01-01T00:00:00.000Z', reason: 'would close A-B-C-A', idempotency_key: 'sup-cycle',
+            organization_id: 'org_a', actor_person_id: access.personId
+        }, { access })).rejects.toMatchObject({ code: 'knowledge_supersession_relation_conflict', status: 409 });
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('WITH RECURSIVE superseded_descendants'))).toBe(true);
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
+    });
+
     it('旧形式decided_atより前のexpires_atだけを指定した改訂を拒否する', async () => {
         const client = { query: vi.fn(async (sql) => {
             const text = String(sql);
