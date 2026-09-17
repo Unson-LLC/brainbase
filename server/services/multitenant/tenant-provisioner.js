@@ -145,7 +145,7 @@ async function ensureContractRevision(client, tenant, contract, now) {
     assertContractEffective(contract, now);
     const revision = Number(contract.revision);
     const existingResult = await client.query(
-        `SELECT tenant_id, contract_id, contract_revision, tenant_revision_at_write,
+        `SELECT tenant_id, contract_id, contract_revision AS revision, tenant_revision_at_write,
                 status, effective_from, effective_until, plan_code, allowances,
                 thresholds_basis_points, overage_policy, hard_stop_basis_points,
                 rate_card_revision, fx_table_revision, sales_price_revision,
