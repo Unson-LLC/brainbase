@@ -20,7 +20,14 @@ function appFor({ source = 'bearer', personId = 'sato_keigo', service } = {}) {
     const authGuard = (req, _res, next) => {
         req.authSource = source;
         req.auth = { person_id: personId, sub: personId, service_id: 'service_test' };
-        req.access = { personId, role: 'ceo', projectCodes: ['brainbase'], clearance: ['internal'] };
+        req.access = {
+            personId,
+            role: 'ceo',
+            projectCodes: ['brainbase'],
+            clearance: ['internal'],
+            organizationId: 'org_unson',
+            tenantId: 'org_unson'
+        };
         next();
     };
     const app = express();
@@ -150,7 +157,12 @@ describe('Companion canonical Task routes', () => {
         const response = await request(app).post('/api/companion/tasks').set('Idempotency-Key', 'req-1').send({ title: '作成' });
         expect(response.status).toBe(201);
         expect(taskService.createTask).toHaveBeenCalledWith({ title: '作成' }, expect.objectContaining({
-            idempotencyKey: 'req-1', principal: { type: 'person', id: 'sato_keigo' }
+            idempotencyKey: 'req-1',
+            principal: { type: 'person', id: 'sato_keigo' },
+            access: expect.objectContaining({
+                organizationId: 'org_unson',
+                tenantId: 'org_unson'
+            })
         }));
     });
 

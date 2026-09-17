@@ -38,7 +38,9 @@ function actorAccess(req) {
         clearance: Array.isArray(access.clearance) && access.clearance.length
             ? access.clearance
             : ['internal'],
-        personId: access.personId || auth.person_id || auth.personId || auth.sub || null
+        personId: access.personId || auth.person_id || auth.personId || auth.sub || null,
+        organizationId: access.organizationId || access.tenantId || auth.organizationId || auth.tenantId || null,
+        tenantId: access.tenantId || access.organizationId || auth.tenantId || auth.organizationId || null
     };
 }
 
