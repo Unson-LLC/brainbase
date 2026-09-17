@@ -43,11 +43,13 @@ function catalogRoute(handler) {
             res.json(await handler(req, res));
         } catch (error) {
             const known = error instanceof KnowledgeCatalogError || error instanceof KnowledgeAuthoringError;
-            const lifecycleConflict = error?.code === 'knowledge_lifecycle_version_conflict';
-            res.status(known ? error.status : lifecycleConflict ? 409 : 500).json({
+            const repositoryError = typeof error?.code === 'string'
+                && error.code.startsWith('knowledge_')
+                && Number.isInteger(error?.status);
+            res.status(known || repositoryError ? error.status : 500).json({
                 error: {
-                    code: known || lifecycleConflict ? error.code : 'knowledge_catalog_failed',
-                    message: known || lifecycleConflict ? error.message : 'Knowledge catalog request failed',
+                    code: known || repositoryError ? error.code : 'knowledge_catalog_failed',
+                    message: known || repositoryError ? error.message : 'Knowledge catalog request failed',
                     ...(error?.details && Object.keys(error.details).length ? { details: error.details } : {})
                 }
             });

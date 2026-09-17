@@ -29,6 +29,24 @@ describe('knowledge catalog API', () => {
         );
     });
 
+    it('repositoryの改訂競合を500へ潰さず409で返す', async () => {
+        const conflict = Object.assign(new Error('revision conflict'), {
+            code: 'knowledge_revision_version_conflict', status: 409
+        });
+        const authoringService = { revise: vi.fn(async () => { throw conflict; }) };
+        const app = express();
+        app.use(express.json());
+        app.use((req, _res, next) => {
+            req.access = { personId: 'per_1', organizationId: 'org_1', projectCodes: ['alpha'] };
+            next();
+        });
+        app.use('/api/knowledge', createKnowledgeCatalogRouter({ service: {}, authoringService }));
+
+        await request(app).post('/api/knowledge/items/dec_1/revisions')
+            .send({ project_code: 'alpha' })
+            .expect(409, { error: { code: 'knowledge_revision_version_conflict', message: 'revision conflict' } });
+    });
+
     it('既知の認可errorだけを明示し、未知の取得失敗は内部情報を隠す', async () => {
         const forbidden = createApp({
             list: vi.fn(async () => { throw new KnowledgeCatalogError('knowledge_project_not_accessible', 'denied', 403); }),
