@@ -80,6 +80,31 @@ describe('KnowledgeAuthoringService', () => {
             .rejects.toMatchObject({ code: 'knowledge_draft_kind_unsupported', status: 400 });
     });
 
+    it('未対応の責任者・関係・既存正本再利用を黙って破棄しない', async () => {
+        const { service, repository } = harness();
+        for (const field of [
+            { owner_person_id: 'per_2' },
+            { relations: [{ relation: 'supersedes', to_id: 'decision_old' }] },
+            { canonical_id: 'decision_existing' }
+        ]) {
+            await expect(service.createDraft(access, {
+                project_code: 'alpha', title: 'Decision', content: 'body', ...field
+            })).rejects.toMatchObject({ code: 'knowledge_draft_fields_unsupported', status: 400 });
+        }
+        expect(repository.createDraft).not.toHaveBeenCalled();
+
+        const draft = await service.createDraft(access, {
+            project_code: 'alpha', title: 'Decision', content: 'body'
+        });
+        await expect(service.updateDraft(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, revision: 1,
+            owner_candidate: 'per_2'
+        })).rejects.toMatchObject({
+            code: 'knowledge_draft_fields_unsupported',
+            details: { fields: ['owner_person_id'] }
+        });
+    });
+
     it('draftを作成・再開・revision一致で編集し、競合を409にする', async () => {
         const { service } = harness();
         const draft = await service.createDraft(access, {

@@ -55,6 +55,21 @@ function optionalTimestamp(value, field) {
     return new Date(value).toISOString();
 }
 
+function rejectUnsupportedDraftFields(input = {}) {
+    const unsupported = [];
+    if (input.owner_person_id !== undefined || input.owner_candidate !== undefined) unsupported.push('owner_person_id');
+    if (input.relations !== undefined) unsupported.push('relations');
+    if (input.canonical_id !== undefined || input.reuse_canonical_id !== undefined) unsupported.push('canonical_id');
+    if (unsupported.length) {
+        throw new KnowledgeAuthoringError(
+            'knowledge_draft_fields_unsupported',
+            'draft owner, relations, and canonical reuse are not supported by this authoring contract',
+            400,
+            { fields: unsupported }
+        );
+    }
+}
+
 function draftProjection(record) {
     return {
         draft_id: record.draft_id,
@@ -88,6 +103,7 @@ export class KnowledgeAuthoringService {
     async createDraft(access, input = {}) {
         const projectCode = requiredText(input.project_code, 'project_code');
         requireProjectAccess(access, projectCode);
+        rejectUnsupportedDraftFields(input);
         const kind = input.kind === undefined ? 'decision' : input.kind;
         if (!['decision', 'document'].includes(kind)) {
             throw new KnowledgeAuthoringError('knowledge_draft_kind_unsupported', 'kind must be decision or document', 400);
@@ -117,6 +133,7 @@ export class KnowledgeAuthoringService {
     }
 
     async updateDraft(access, input = {}) {
+        rejectUnsupportedDraftFields(input);
         const current = await this.getDraft(access, input);
         if (current.status !== 'draft') {
             throw new KnowledgeAuthoringError('knowledge_draft_not_editable', 'only active drafts can be edited', 409);
