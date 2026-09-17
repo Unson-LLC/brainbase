@@ -515,7 +515,8 @@ export class AuthService {
         try {
             const { rows } = await client.query(
                 `SELECT ag.id, ag.person_id, ag.person_name, ag.slack_user_id,
-                        ag.slack_workspace_id, ag.organization_id, ag.role,
+                        ag.slack_workspace_id, ag.organization_id,
+                        o.workspace_id AS organization_workspace_id, ag.role,
                         ARRAY(
                             SELECT requested.project_code
                             FROM unnest(ag.project_codes) WITH ORDINALITY requested(project_code, ord)
