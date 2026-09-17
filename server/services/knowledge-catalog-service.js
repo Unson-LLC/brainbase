@@ -123,6 +123,24 @@ function requireProjectAccess(access, projectCode) {
     }
 }
 
+function organizationId(access) {
+    return text(access?.organizationId) || text(access?.tenantId);
+}
+
+function entityOrganizationId(entity) {
+    return text(entity?.organization_id)
+        || text(entity?.payload?.applicability_scope?.organization_id);
+}
+
+function isVisibleInProject(entity, projectCode, access) {
+    if (entity.project_code === projectCode) return true;
+    if (text(entity.payload?.applicability_scope?.scope) !== 'organization') return false;
+    const accessOrganizationId = organizationId(access);
+    const entityOrganization = entityOrganizationId(entity);
+    return Boolean(accessOrganizationId && entityOrganization
+        && accessOrganizationId === entityOrganization);
+}
+
 function referenceVersion(value) {
     return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
@@ -216,8 +234,7 @@ export class KnowledgeCatalogService {
         )));
         const groups = await Promise.all(queries);
         const records = groups.flat()
-            .filter((entity) => entity.project_code === projectCode
-                || text(entity.payload?.applicability_scope?.scope) === 'organization')
+            .filter((entity) => isVisibleInProject(entity, projectCode, access))
             .map((entity) => mapRecord(entity, projectCode))
             .filter((record) => scope === 'all' || record.scope === scope)
             .filter((record) => includeStatus(record, status));
@@ -243,8 +260,7 @@ export class KnowledgeCatalogService {
         )));
         const entity = groups.flat().find((row) => row.id === id
             && ['decision', 'document'].includes(row.entity_type)
-            && (row.project_code === projectCode
-                || text(row.payload?.applicability_scope?.scope) === 'organization'));
+            && isVisibleInProject(row, projectCode, access));
         if (!entity) {
             throw new KnowledgeCatalogError('knowledge_not_found', 'knowledge was not found', 404);
         }

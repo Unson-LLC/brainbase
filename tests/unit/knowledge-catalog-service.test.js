@@ -145,11 +145,13 @@ describe('KnowledgeCatalogService', () => {
         const { service, infoSSOTService } = createService([
             entity(),
             entity({ id: 'other', project_code: 'other' }),
-            entity({ id: 'org_shared', project_code: 'other', payload: {
-                title: 'Shared rule', status: 'active', version: '1', applicability_scope: { scope: 'organization' }
+            entity({ id: 'org_shared', project_code: 'other', organization_id: 'org_a', payload: {
+                title: 'Shared rule', status: 'active', version: '1', applicability_scope: {
+                    scope: 'organization', organization_id: 'org_a'
+                }
             } })
         ]);
-        const access = { projectCodes: ['alpha', 'other'] };
+        const access = { organizationId: 'org_a', projectCodes: ['alpha', 'other'] };
 
         const result = await service.list(access, { project_code: 'alpha', status: 'all' });
 
@@ -162,16 +164,45 @@ describe('KnowledgeCatalogService', () => {
 
     it('organization scopeの継承detailを取得し、別project固有項目は404にする', async () => {
         const { service } = createService([
-            entity({ id: 'org_shared', project_code: 'other', payload: {
-                title: 'Shared rule', status: 'active', version: '1', applicability_scope: { scope: 'organization' }
+            entity({ id: 'org_shared', project_code: 'other', organization_id: 'org_a', payload: {
+                title: 'Shared rule', status: 'active', version: '1', applicability_scope: {
+                    scope: 'organization', organization_id: 'org_a'
+                }
             } }),
             entity({ id: 'other_private', project_code: 'other' })
         ]);
-        const access = { projectCodes: ['alpha', 'other'] };
+        const access = { organizationId: 'org_a', projectCodes: ['alpha', 'other'] };
 
         await expect(service.get(access, { project_code: 'alpha', id: 'org_shared' }))
             .resolves.toMatchObject({ id: 'org_shared', scope: 'organization' });
         await expect(service.get(access, { project_code: 'alpha', id: 'other_private' }))
+            .rejects.toMatchObject({ code: 'knowledge_not_found', status: 404 });
+    });
+
+    it('別organizationのprojectがaccess.projectCodesに混入してもorganization scopeを継承しない', async () => {
+        const { service } = createService([
+            entity({ id: 'same_org_shared', project_code: 'other_same_org', organization_id: 'org_a', payload: {
+                title: 'Same organization rule', status: 'active', version: '1', applicability_scope: {
+                    scope: 'organization', organization_id: 'org_a'
+                }
+            } }),
+            entity({ id: 'other_org_shared', project_code: 'other_org', organization_id: 'org_b', payload: {
+                title: 'Other organization rule', status: 'active', version: '1', applicability_scope: {
+                    scope: 'organization', organization_id: 'org_b'
+                }
+            } })
+        ]);
+
+        const result = await service.list({
+            organizationId: 'org_a',
+            projectCodes: ['alpha', 'other_same_org', 'other_org']
+        }, { project_code: 'alpha', status: 'all' });
+
+        expect(result.records.map((row) => row.id)).toEqual(['same_org_shared']);
+        await expect(service.get({
+            organizationId: 'org_a',
+            projectCodes: ['alpha', 'other_same_org', 'other_org']
+        }, { project_code: 'alpha', id: 'other_org_shared' }))
             .rejects.toMatchObject({ code: 'knowledge_not_found', status: 404 });
     });
 

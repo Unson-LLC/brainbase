@@ -115,6 +115,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         }
         const sql = client.query.mock.calls[0][0];
         expect(sql).toContain("COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'");
+        expect(sql).toContain('app_graph_entity_organization_id(ge.id) AS organization_id');
         expect(sql).toContain('gx.sensitivity = ANY($4)');
         expect(sql).toContain("CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
         expect(sql).toContain("COALESCE(to_jsonb(gy)->>'lifecycle_status', 'active') = 'active'");

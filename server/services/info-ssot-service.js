@@ -1105,6 +1105,7 @@ export class InfoSSOTService {
         const { rows } = await client.query(
             `SELECT ge.*,
                     p.code AS project_code,
+                    app_graph_entity_organization_id(ge.id) AS organization_id,
                     ARRAY(
                       SELECT DISTINCT px.code
                       FROM graph_edges gx
@@ -1286,6 +1287,7 @@ export class InfoSSOTService {
         const { rows } = await client.query(
             `SELECT ge.*,
                     p.code AS project_code,
+                    app_graph_entity_organization_id(ge.id) AS organization_id,
                     ARRAY(
                       SELECT DISTINCT px.code
                       FROM graph_edges gx
