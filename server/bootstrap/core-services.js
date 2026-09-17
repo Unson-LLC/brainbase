@@ -77,7 +77,10 @@ import { CompanyAuthorityHumanApprovalService } from '../services/multitenant/co
 import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
 import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
-import { createConfiguredKnowledgeDocumentWriter } from './knowledge-document-writer.js';
+import {
+    createConfiguredKnowledgeDocumentContentRetriever,
+    createConfiguredKnowledgeDocumentWriter
+} from './knowledge-document-writer.js';
 import { PgKnowledgeDocumentReceiptRepository } from '../services/knowledge-document-receipt-repository.js';
 import { KnowledgeDocumentGraphRepository } from '../services/knowledge-document-graph-repository.js';
 import { KnowledgeDocumentGraphPointerResolver } from '../services/knowledge-document-graph-pointer-resolver.js';
@@ -152,6 +155,7 @@ export function createCoreServices({
     port,
     sourceHead = null,
     documentWriter = undefined,
+    documentContentRetriever = undefined,
     documentGraphPointerResolver = null,
     knowledgeBedrockAdapter = undefined,
     knowledgeRetrieveBindingVerifier = undefined,
@@ -300,6 +304,12 @@ export function createCoreServices({
             ? new KnowledgeDocumentGraphPointerResolver({ graphRepository: documentGraphRepository })
             : null)
         : documentGraphPointerResolver;
+    const resolvedDocumentContentRetriever = documentContentRetriever === undefined
+        ? createConfiguredKnowledgeDocumentContentRetriever({
+            configParser,
+            graphPointerResolver: resolvedDocumentGraphPointerResolver
+        })
+        : documentContentRetriever;
     const knowledgeEventService = knowledgeEventRepository && candidateRepository
         ? new KnowledgeEventService({
             eventRepository: knowledgeEventRepository,
@@ -517,6 +527,7 @@ export function createCoreServices({
         knowledgeDelegationTokenIssuer,
         documentReceiptRepository,
         documentWriter: resolvedDocumentWriter,
+        contentRetriever: resolvedDocumentContentRetriever,
         documentGraphRepository,
         documentGraphPointerResolver: resolvedDocumentGraphPointerResolver,
         knowledgeBedrockAdapter: resolvedKnowledgeBedrockAdapter,

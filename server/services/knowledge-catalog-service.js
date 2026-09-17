@@ -344,12 +344,12 @@ export class KnowledgeCatalogService {
                 const retriever = this.contentRetriever;
                 const authorized = record.source.pointer
                     && typeof retriever?.authorize === 'function'
-                    && await retriever.authorize(record.source, { access, record }) === true;
+                    && await retriever.authorize(record.source, { access, record, projectCode }) === true;
                 if (!authorized || typeof retriever?.retrieve !== 'function') {
                     results.push({ ...record, requested_version: requestedVersion, resolved_version: record.version, status: 'source_unavailable' });
                     continue;
                 }
-                const retrieved = await retriever.retrieve(record.source, { access, record });
+                const retrieved = await retriever.retrieve(record.source, { access, record, projectCode });
                 if (!retrieved?.content || !retrieved?.receipt_id) {
                     results.push({ ...record, requested_version: requestedVersion, resolved_version: null, status: 'source_unavailable' });
                     continue;

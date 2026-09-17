@@ -124,6 +124,7 @@ export function registerKnowledgeCatalogApiRoute(app, {
     knowledgeBedrockModelId = null,
     knowledgeBedrockMaxTokens = 1024,
     documentWriter = null,
+    contentRetriever = null,
     documentReceiptRepository = null,
     documentGraphPointerResolver = null,
     documentGraphRepository = null,
@@ -151,6 +152,7 @@ export function registerKnowledgeCatalogApiRoute(app, {
         captureProposalAdapter: resolvedCaptureProposalAdapter,
         previewAnswerer: resolvedPreviewAnswerer,
         knowledgeAIAdapter,
+        contentRetriever,
         documentWriter,
         knowledgeResolutionService
     });
@@ -291,6 +293,7 @@ export function registerApiRoutes(app, {
     infoSSOTService,
     projectProvisioningService,
     documentWriter,
+    contentRetriever,
     documentReceiptRepository,
     documentGraphPointerResolver = null,
     canonicalTaskStoreConfig,
@@ -510,6 +513,7 @@ export function registerApiRoutes(app, {
         knowledgeRetrieveAudience,
         knowledgeRetrieveDeploymentId,
         documentWriter,
+        contentRetriever,
         documentReceiptRepository,
         documentGraphPointerResolver,
         tenantRuntimeServices
