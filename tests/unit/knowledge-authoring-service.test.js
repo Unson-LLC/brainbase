@@ -65,7 +65,17 @@ function harness() {
         persistAuthoringRelations: vi.fn(async (input) => ({
             graph_saved: true,
             readback_verified: true,
-            relation_count: 2 + (input.relations || []).length
+            relation_count: 2 + (input.relations || []).length,
+            relations: [
+                { from_id: input.entity_id, to_id: input.owner_person_id, relation: 'owned_by', payload: {} },
+                { from_id: input.entity_id, to_id: input.project_code, relation: 'belongs_to', payload: {} },
+                ...(input.relations || []).map((relation) => ({
+                    from_id: input.entity_id,
+                    to_id: relation.to_id,
+                    relation: relation.relation,
+                    payload: relation.payload || {}
+                }))
+            ]
         })),
         reuseCanonical: vi.fn(async (input) => ({
             canonical: {
@@ -75,6 +85,16 @@ function harness() {
                 canonical_content: 'Existing truth.'
             },
             relation_count: 2 + (input.relations || []).length,
+            relations: [
+                { from_id: input.entity_id, to_id: input.owner_person_id, relation: 'owned_by', payload: {} },
+                { from_id: input.entity_id, to_id: input.project_code, relation: 'belongs_to', payload: {} },
+                ...(input.relations || []).map((relation) => ({
+                    from_id: input.entity_id,
+                    to_id: relation.to_id,
+                    relation: relation.relation,
+                    payload: relation.payload || {}
+                }))
+            ],
             graph_saved: true,
             readback_verified: true
         })),
@@ -180,10 +200,21 @@ describe('KnowledgeAuthoringService', () => {
             project_code: 'alpha', title: 'Decision', content: 'Use canonical truth.', owner_person_id: 'per_2',
             relations: [{ relation: 'references', to_id: 'decision_old' }]
         });
-        await service.saveDraft(access, {
+        const result = await service.saveDraft(access, {
             project_code: 'alpha', draft_id: draft.draft_id, revision: 1,
             idempotency_key: 'save-owner-relations', decision_domain: 'engineering'
         });
+
+        expect(result.persistence.relations).toEqual([
+            expect.objectContaining({ relation: 'owned_by', to_id: 'per_2' }),
+            expect.objectContaining({ relation: 'belongs_to', to_id: 'alpha' }),
+            expect.objectContaining({ relation: 'references', to_id: 'decision_old' })
+        ]);
+        await expect(service.saveDraft(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, revision: 1,
+            idempotency_key: 'save-owner-relations', decision_domain: 'engineering'
+        })).resolves.toEqual(result);
+        expect(graphRepository.persistAuthoringRelations).toHaveBeenCalledOnce();
 
         expect(knowledgeEventService.ingest).toHaveBeenCalledWith(expect.objectContaining({
             decision_authority: expect.objectContaining({ decider_id: 'per_2' })
@@ -211,13 +242,25 @@ describe('KnowledgeAuthoringService', () => {
         });
         expect(result).toMatchObject({
             status: 'reused', canonical: { id: 'decision_existing', version: '7' },
-            persistence: { graph_saved: true, relations_saved: true }
+            persistence: {
+                graph_saved: true,
+                relations_saved: true,
+                relations: [
+                    { relation: 'owned_by', to_id: 'per_1' },
+                    { relation: 'belongs_to', to_id: 'alpha' }
+                ]
+            }
         });
+        await expect(service.reuseCanonical(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, decision_domain: 'engineering',
+            canonical_id: 'decision_existing', expected_version: '7'
+        })).resolves.toEqual(result);
         expect(knowledgeEventService.ingest).not.toHaveBeenCalled();
         expect(graphRepository.reuseCanonical).toHaveBeenCalledWith(expect.objectContaining({
             entity_id: 'decision_existing', expected_version: '7'
         }), { access });
         expect(repository.completeReuse).toHaveBeenCalledOnce();
+        expect(graphRepository.reuseCanonical).toHaveBeenCalledOnce();
     });
 
     it('save claim後は編集を排他し、同じkeyの失敗再試行だけを許す', async () => {

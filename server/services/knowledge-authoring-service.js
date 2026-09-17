@@ -716,6 +716,7 @@ export class KnowledgeAuthoringService {
                 readback_verified: true,
                 index_state: ingest.processing_stage,
                 relation_count: graphPersistence?.relation_count || 0,
+                relations: graphPersistence?.relations || [],
                 relations_saved: true
             }
         };
@@ -807,6 +808,7 @@ export class KnowledgeAuthoringService {
                 graph_saved: true,
                 relations_saved: true,
                 relation_count: reused.relation_count || 0,
+                relations: reused.relations || [],
                 readback_verified: true
             }
         };
