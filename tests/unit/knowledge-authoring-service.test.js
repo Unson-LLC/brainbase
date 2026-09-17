@@ -32,7 +32,8 @@ function harness() {
             if (!row || row.revision !== claim.expected_revision
                 || !['draft', 'saving'].includes(row.status)
                 || (row.status === 'saving' && row.save_idempotency_key !== claim.idempotency_key)) return null;
-            const claimed = { ...row, status: 'saving', save_idempotency_key: claim.idempotency_key };
+            const claimed = { ...row, status: 'saving', save_idempotency_key: claim.idempotency_key,
+                save_decision_domain: claim.decision_domain };
             drafts.set(id, claimed);
             return claimed;
         }),
@@ -51,7 +52,9 @@ function harness() {
     })) };
     const graphRepository = {
         changeLifecycle: vi.fn(async () => ({ id: 'decision_123' })),
-        listLifecycleHistory: vi.fn(async () => [{ from_version: '1', to_version: '2', state: 'retired' }])
+        reviseDecision: vi.fn(async (input) => ({ id: input.id, payload: { version: 'rev_2' } })),
+        listLifecycleHistory: vi.fn(async () => [{ from_version: '1', to_version: '2', state: 'retired' }]),
+        listRevisionHistory: vi.fn(async () => [])
     };
     const service = new KnowledgeAuthoringService({
         repository, knowledgeEventService, catalogService, graphRepository,
@@ -128,6 +131,37 @@ describe('KnowledgeAuthoringService', () => {
         })).resolves.toMatchObject({ status: 'saved' });
     });
 
+    it('decision domain未指定はclaim前に拒否し、draftを編集可能なまま残す', async () => {
+        const { service, repository, drafts } = harness();
+        const draft = await service.createDraft(access, {
+            project_code: 'alpha', title: 'Decision', content: 'Use canonical truth.'
+        });
+        await expect(service.saveDraft(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, revision: 1, idempotency_key: 'save-1'
+        })).rejects.toMatchObject({ code: 'knowledge_authoring_input_invalid', status: 400 });
+        expect(repository.claimSave).not.toHaveBeenCalled();
+        expect(drafts.get(draft.draft_id)).toMatchObject({ status: 'draft' });
+        await expect(service.updateDraft(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, revision: 1, content: 'still editable'
+        })).resolves.toMatchObject({ content: 'still editable' });
+    });
+
+    it('失敗再試行でdecision domainを変更できない', async () => {
+        const { service, knowledgeEventService } = harness();
+        const draft = await service.createDraft(access, {
+            project_code: 'alpha', title: 'Decision', content: 'Use canonical truth.'
+        });
+        knowledgeEventService.ingest.mockRejectedValueOnce(new Error('temporary'));
+        await expect(service.saveDraft(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, revision: 1,
+            idempotency_key: 'save-1', decision_domain: 'engineering'
+        })).rejects.toThrow('temporary');
+        await expect(service.saveDraft(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, revision: 1,
+            idempotency_key: 'save-1', decision_domain: 'finance'
+        })).rejects.toMatchObject({ code: 'knowledge_save_idempotency_conflict', status: 409 });
+    });
+
     it('IDだけ合うreadbackを成功にしない', async () => {
         const { service, catalogService, repository } = harness();
         const draft = await service.createDraft(access, {
@@ -151,6 +185,22 @@ describe('KnowledgeAuthoringService', () => {
         }), { access });
         await expect(service.history(access, { project_code: 'alpha', id: 'decision_123' }))
             .resolves.toMatchObject({ entries: [{ state: 'retired' }] });
+    });
+
+    it('本文改訂はexpected version・冪等key・理由を要求し、厳密readbackする', async () => {
+        const { service, graphRepository, catalogService } = harness();
+        catalogService.get.mockResolvedValue({
+            id: 'decision_123', version: 'rev_2', canonical_content: 'Revised truth.',
+            canonical_content_hash: 'sha256:977c856d0632366e5169fbafacd25de4060155e2ff267928002c09243e74b29b'
+        });
+        const result = await service.revise(access, {
+            project_code: 'alpha', id: 'decision_123', expected_version: '1',
+            idempotency_key: 'rev-key-1', reason: 'clarify', content: 'Revised truth.'
+        });
+        expect(result).toMatchObject({ status: 'revised', record: { version: 'rev_2' } });
+        expect(graphRepository.reviseDecision).toHaveBeenCalledWith(expect.objectContaining({
+            expected_version: '1', idempotency_key: 'rev-key-1', reason: 'clarify'
+        }), { access });
     });
 
     it('client指定canonical IDを拒否し、authority未検証時はsave receiptを確定しない', async () => {

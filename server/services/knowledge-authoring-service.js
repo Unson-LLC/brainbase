@@ -58,6 +58,7 @@ function draftProjection(record) {
         revision: Number(record.revision),
         status: record.status,
         save_idempotency_key: record.save_idempotency_key || null,
+        save_decision_domain: record.save_decision_domain || null,
         canonical_id: record.canonical_id || null,
         saved_event_id: record.saved_event_id || null,
         created_at: record.created_at || null,
@@ -136,6 +137,7 @@ export class KnowledgeAuthoringService {
         const current = await this.getDraft(access, input);
         const expectedRevision = revision(input.revision);
         const idempotencyKey = requiredText(input.idempotency_key, 'idempotency_key');
+        const decisionDomain = requiredText(input.decision_domain, 'decision_domain');
         const existing = await this.repository.findSave(idempotencyKey, { access, projectCode: current.project_code });
         if (existing) {
             if (existing.draft_id !== current.draft_id || Number(existing.draft_revision) !== expectedRevision) {
@@ -156,6 +158,9 @@ export class KnowledgeAuthoringService {
         if (current.status === 'saving' && current.save_idempotency_key !== idempotencyKey) {
             throw new KnowledgeAuthoringError('knowledge_save_in_progress', 'draft is being saved with another idempotency key', 409);
         }
+        if (current.status === 'saving' && current.save_decision_domain !== decisionDomain) {
+            throw new KnowledgeAuthoringError('knowledge_save_idempotency_conflict', 'save retry changed the decision domain', 409);
+        }
         requiredText(current.title, 'title');
         requiredText(current.content, 'content');
         if (current.kind !== 'decision') {
@@ -170,7 +175,8 @@ export class KnowledgeAuthoringService {
         }
         const claimed = await this.repository.claimSave(current.draft_id, {
             expected_revision: expectedRevision,
-            idempotency_key: idempotencyKey
+            idempotency_key: idempotencyKey,
+            decision_domain: decisionDomain
         }, { access, projectCode: current.project_code });
         if (!claimed) {
             throw new KnowledgeAuthoringError('knowledge_draft_revision_conflict', 'draft revision or save claim changed', 409);
@@ -189,7 +195,7 @@ export class KnowledgeAuthoringService {
             decision_authority: {
                 authorized: true,
                 decider_id: access.personId,
-                domain: requiredText(input.decision_domain, 'decision_domain')
+                domain: decisionDomain
             },
             applicability_scope: {
                 ...current.applicability,
@@ -270,13 +276,40 @@ export class KnowledgeAuthoringService {
         return { status: 'changed', record: await this.catalogService.get(access, { project_code: projectCode, id: input.id }) };
     }
 
+    async revise(access, input = {}) {
+        const projectCode = requiredText(input.project_code, 'project_code');
+        requireProjectAccess(access, projectCode);
+        const content = requiredText(input.content, 'content');
+        const changed = await this.graphRepository.reviseDecision({
+            id: requiredText(input.id, 'id'), project_code: projectCode,
+            expected_version: requiredText(String(input.expected_version || ''), 'expected_version'),
+            idempotency_key: requiredText(input.idempotency_key, 'idempotency_key'),
+            reason: requiredText(input.reason, 'reason'), content,
+            content_hash: `sha256:${sha256(content)}`,
+            ...(input.title === undefined ? {} : { title: draftText(input.title, 'title') }),
+            actor_person_id: access.personId
+        }, { access });
+        if (!changed) throw new KnowledgeAuthoringError('knowledge_not_found', 'knowledge was not found', 404);
+        const record = await this.catalogService.get(access, { project_code: projectCode, id: input.id });
+        if (record.version !== changed.payload.version || record.canonical_content !== content
+            || record.canonical_content_hash !== `sha256:${sha256(content)}`) {
+            throw new KnowledgeAuthoringError('knowledge_revision_readback_mismatch', 'canonical revision readback did not match', 409);
+        }
+        return { status: 'revised', idempotent: Boolean(changed.idempotent), record };
+    }
+
     async history(access, input = {}) {
         const projectCode = requiredText(input.project_code, 'project_code');
         requireProjectAccess(access, projectCode);
+        const [lifecycleEntries, revisionEntries] = await Promise.all([
+            this.graphRepository.listLifecycleHistory({ id: input.id, project_code: projectCode }, { access }),
+            this.graphRepository.listRevisionHistory({ id: input.id, project_code: projectCode }, { access })
+        ]);
         return {
             id: requiredText(input.id, 'id'),
             project_code: projectCode,
-            entries: await this.graphRepository.listLifecycleHistory({ id: input.id, project_code: projectCode }, { access })
+            entries: [...lifecycleEntries.map((entry) => ({ ...entry, kind: 'lifecycle' })), ...revisionEntries]
+                .sort((left, right) => String(right.occurred_at || '').localeCompare(String(left.occurred_at || '')))
         };
     }
 }

@@ -67,12 +67,12 @@ export class PgKnowledgeAuthoringRepository {
     async claimSave(draftId, claim, { access, projectCode }) {
         return this._run(access, async (client) => (await client.query(
             `UPDATE knowledge_authoring_drafts
-             SET status='saving', save_idempotency_key=$5, updated_at=NOW()
+             SET status='saving', save_idempotency_key=$5, save_decision_domain=$6, updated_at=NOW()
              WHERE draft_id=$1 AND project_code=$2 AND revision=$3
-               AND (status='draft' OR (status='saving' AND save_idempotency_key=$5))
+               AND (status='draft' OR (status='saving' AND save_idempotency_key=$5 AND save_decision_domain=$6))
                AND owner_person_id=$4
              RETURNING *`,
-            [draftId, projectCode, claim.expected_revision, access.personId, claim.idempotency_key]
+            [draftId, projectCode, claim.expected_revision, access.personId, claim.idempotency_key, claim.decision_domain]
         )).rows[0] || null);
     }
 

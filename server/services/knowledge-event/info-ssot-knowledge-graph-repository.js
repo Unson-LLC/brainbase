@@ -282,4 +282,86 @@ export class InfoSSOTKnowledgeGraphRepository {
             }));
         }, client ? { client } : undefined);
     }
+
+    async reviseDecision(input, { client, access } = {}) {
+        this._requireAccess(access);
+        return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
+            const priorReceipt = await contextClient.query(
+                `SELECT from_version, to_snapshot FROM knowledge_revision_history
+                 WHERE organization_id=$1 AND project_code=$2 AND knowledge_id=$3 AND idempotency_key=$4`,
+                [access.organizationId || access.tenantId, input.project_code, input.id, input.idempotency_key]
+            );
+            if (priorReceipt.rows[0]) {
+                const prior = priorReceipt.rows[0];
+                const sameRequest = prior.from_version === input.expected_version
+                    && prior.to_snapshot?.statement === input.content
+                    && (input.title === undefined || prior.to_snapshot?.title === input.title);
+                if (!sameRequest) {
+                    const error = new Error('knowledge revision idempotency conflict');
+                    error.code = 'knowledge_revision_idempotency_conflict'; error.status = 409;
+                    throw error;
+                }
+                return { id: input.id, entity_type: 'decision', payload: prior.to_snapshot, idempotent: true };
+            }
+            const authority = await contextClient.query(
+                `SELECT project.id AS project_id, entity.payload, entity.payload->'decision_authority'->>'domain' AS decision_domain
+                 FROM graph_entities entity JOIN projects project ON project.id=entity.project_id
+                 WHERE entity.id=$1 AND entity.entity_type='decision' AND project.code=$2 LIMIT 1`,
+                [input.id, input.project_code]
+            );
+            if (!authority.rows[0]) return null;
+            await this.infoSSOTService.assertDecisionAuthority(contextClient, {
+                projectId: authority.rows[0].project_id, projectCode: input.project_code,
+                personId: access.personId, decisionDomain: authority.rows[0].decision_domain
+            });
+            await assertCatalogProjectSubjectMutation(contextClient, { id: input.id, entityType: 'decision', allowCompatible: false });
+            const nextVersion = `rev_${randomUUID()}`;
+            const nextPayload = {
+                ...authority.rows[0].payload,
+                statement: input.content,
+                ...(input.title === undefined ? {} : { title: input.title }),
+                version: nextVersion,
+                content_hash: input.content_hash,
+                semantic_state: 'active', status: 'active', searchable: true
+            };
+            const { rows } = await contextClient.query(
+                `UPDATE graph_entities entity SET payload=$4::jsonb, lifecycle_status='active',
+                    version=entity.version+1, updated_at=NOW()
+                 FROM projects project
+                 WHERE entity.id=$1 AND entity.entity_type='decision' AND entity.project_id=project.id
+                   AND project.code=$2 AND entity.payload->>'version'=$3
+                 RETURNING entity.id, entity.entity_type, entity.payload`,
+                [input.id, input.project_code, input.expected_version, JSON.stringify(nextPayload)]
+            );
+            if (!rows[0]) {
+                const error = new Error('knowledge revision version conflict');
+                error.code = 'knowledge_revision_version_conflict'; error.status = 409;
+                throw error;
+            }
+            await contextClient.query("SELECT set_config('app.person_id', $1, true)", [input.actor_person_id]);
+            await contextClient.query(
+                `INSERT INTO knowledge_revision_history
+                 (knowledge_id, organization_id, project_code, idempotency_key, from_version, to_version,
+                  reason, actor_person_id, from_snapshot, to_snapshot)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb)`,
+                [input.id, access.organizationId || access.tenantId, input.project_code, input.idempotency_key,
+                    input.expected_version, nextVersion, input.reason, input.actor_person_id,
+                    JSON.stringify(authority.rows[0].payload), JSON.stringify(nextPayload)]
+            );
+            return rows[0];
+        }, client ? { client } : undefined);
+    }
+
+    async listRevisionHistory(input, { client, access } = {}) {
+        this._requireAccess(access);
+        return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
+            const { rows } = await contextClient.query(
+                `SELECT from_version, to_version, reason, actor_person_id, from_snapshot, to_snapshot, occurred_at
+                 FROM knowledge_revision_history WHERE knowledge_id=$1 AND project_code=$2
+                 ORDER BY occurred_at DESC, id DESC`, [input.id, input.project_code]
+            );
+            return rows.map((row) => ({ ...row, kind: 'revision',
+                occurred_at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at }));
+        }, client ? { client } : undefined);
+    }
 }

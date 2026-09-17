@@ -182,4 +182,69 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
         expect(update[0]).toContain('version=entity.version+1');
         expect(update[1].at(-1)).toBe('inactive');
     });
+
+    it('本文改訂はauthority確認後にCAS更新し、前後snapshotを履歴へ保存する', async () => {
+        const oldPayload = {
+            statement: 'old', version: 'v1', decision_authority: { domain: 'engineering' }
+        };
+        const client = { query: vi.fn(async (sql) => {
+            const text = String(sql);
+            if (text.includes('SELECT from_version, to_snapshot')) return { rows: [] };
+            if (text.includes("payload->'decision_authority'")) {
+                return { rows: [{ project_id: 'project_uuid', payload: oldPayload, decision_domain: 'engineering' }] };
+            }
+            if (text.includes('pg_try_advisory_xact_lock')) return { rows: [{ acquired: true }] };
+            if (text.includes("to_regclass('public.project_registry')")) return { rows: [{ project_registry: null }] };
+            if (text.includes('UPDATE graph_entities')) {
+                return { rows: [{ id: 'decision_1', entity_type: 'decision', payload: { ...oldPayload, statement: 'new', version: 'rev_next' } }] };
+            }
+            return { rows: [] };
+        }) };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => undefined)
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        await repository.reviseDecision({
+            id: 'decision_1', project_code: 'brainbase', expected_version: 'v1',
+            idempotency_key: 'rev-1', reason: 'clarify', content: 'new',
+            content_hash: 'sha256:new', actor_person_id: access.personId
+        }, { access });
+
+        const update = client.query.mock.calls.find(([sql]) => String(sql).includes('UPDATE graph_entities'));
+        expect(update[0]).toContain("entity.payload->>'version'=$3");
+        expect(update[0]).toContain('version=entity.version+1');
+        expect(infoSSOTService.assertDecisionAuthority).toHaveBeenCalledWith(client, {
+            projectId: 'project_uuid', projectCode: 'brainbase', personId: access.personId,
+            decisionDomain: 'engineering'
+        });
+        const history = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO knowledge_revision_history'));
+        expect(JSON.parse(history[1][8])).toEqual(oldPayload);
+        expect(JSON.parse(history[1][9])).toMatchObject({ statement: 'new', content_hash: 'sha256:new' });
+    });
+
+    it('同じ改訂keyは同一入力だけ再利用し、内容変更は409にする', async () => {
+        const prior = { statement: 'new', title: 'Decision', version: 'rev_2' };
+        const client = { query: vi.fn(async (sql) => String(sql).includes('SELECT from_version, to_snapshot')
+            ? { rows: [{ from_version: 'v1', to_snapshot: prior }] }
+            : { rows: [] }) };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => undefined)
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+        const base = {
+            id: 'decision_1', project_code: 'brainbase', expected_version: 'v1',
+            idempotency_key: 'rev-1', reason: 'clarify', content: 'new', title: 'Decision',
+            content_hash: 'sha256:new', actor_person_id: access.personId
+        };
+
+        await expect(repository.reviseDecision(base, { access })).resolves.toMatchObject({
+            idempotent: true, payload: prior
+        });
+        await expect(repository.reviseDecision({ ...base, content: 'changed' }, { access }))
+            .rejects.toMatchObject({ code: 'knowledge_revision_idempotency_conflict', status: 409 });
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
+    });
 });

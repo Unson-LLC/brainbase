@@ -63,6 +63,7 @@ CREATE TABLE IF NOT EXISTS knowledge_authoring_drafts (
     revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'saving', 'saved', 'discarded')),
     save_idempotency_key TEXT,
+    save_decision_domain TEXT,
     canonical_id TEXT,
     saved_event_id TEXT REFERENCES knowledge_events(event_id) ON DELETE RESTRICT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -97,6 +98,25 @@ CREATE TABLE IF NOT EXISTS knowledge_lifecycle_history (
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_revision_history (
+    id BIGSERIAL PRIMARY KEY,
+    knowledge_id TEXT NOT NULL,
+    organization_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    from_version TEXT NOT NULL,
+    to_version TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    actor_person_id TEXT NOT NULL,
+    from_snapshot JSONB NOT NULL,
+    to_snapshot JSONB NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organization_id, project_code, knowledge_id, idempotency_key)
+);
+
+ALTER TABLE knowledge_authoring_drafts
+    ADD COLUMN IF NOT EXISTS save_decision_domain TEXT;
+
 ALTER TABLE knowledge_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_events FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_event_stage_history ENABLE ROW LEVEL SECURITY;
@@ -109,6 +129,8 @@ ALTER TABLE knowledge_authoring_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_authoring_saves FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_lifecycle_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_lifecycle_history FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_revision_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_revision_history FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS knowledge_events_project_access ON knowledge_events;
 CREATE POLICY knowledge_events_project_access ON knowledge_events
@@ -161,6 +183,13 @@ CREATE POLICY knowledge_authoring_saves_access ON knowledge_authoring_saves
 
 DROP POLICY IF EXISTS knowledge_lifecycle_history_access ON knowledge_lifecycle_history;
 CREATE POLICY knowledge_lifecycle_history_access ON knowledge_lifecycle_history
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '') AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND actor_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_revision_history_access ON knowledge_revision_history;
+CREATE POLICY knowledge_revision_history_access ON knowledge_revision_history
     USING (organization_id = NULLIF(current_setting('app.organization_id', true), '') AND project_code = ANY(app_project_codes()))
     WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
         AND actor_person_id = NULLIF(current_setting('app.person_id', true), '')

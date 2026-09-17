@@ -22,12 +22,12 @@ describe('PgKnowledgeAuthoringRepository', () => {
         }));
 
         await expect(repository.claimSave('kd_1', {
-            expected_revision: 3, idempotency_key: 'save-1'
+            expected_revision: 3, idempotency_key: 'save-1', decision_domain: 'engineering'
         }, { access, projectCode: 'alpha' })).resolves.toMatchObject({ status: 'saving' });
 
         const claim = client.query.mock.calls.find(([sql]) => String(sql).includes("SET status='saving'"));
-        expect(claim[0]).toContain("status='draft' OR (status='saving' AND save_idempotency_key=$5)");
-        expect(claim[1]).toEqual(['kd_1', 'alpha', 3, 'per_1', 'save-1']);
+        expect(claim[0]).toContain("status='draft' OR (status='saving' AND save_idempotency_key=$5 AND save_decision_domain=$6)");
+        expect(claim[1]).toEqual(['kd_1', 'alpha', 3, 'per_1', 'save-1', 'engineering']);
     });
 
     it('receiptはowner/projectスコープ付きkeyで確定し、claim済みdraftだけsavedにする', async () => {

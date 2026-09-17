@@ -10,7 +10,7 @@
 - Canonical IDs are assigned deterministically by Brainbase. Caller-provided `canonical_id` is rejected so a new save cannot overwrite an existing decision or reset its version.
 - `decision_authority.authorized` is not sufficient authority. The existing Knowledge Event ingestion path verifies the authenticated person against Graph decision authority/RACI before Graph mutation; an unverified decision is quarantined and save remains incomplete.
 - Retry with the same idempotency key and draft revision returns the stored receipt. Reuse for another draft/revision returns `409`. A saved draft without the matching receipt is a conflict, not guessed success.
-- Before canonical mutation, the repository atomically claims the draft revision and idempotency key. While `saving`, edits, discard, and a different save key conflict; the same key can resume after an interruption.
+- Before canonical mutation, the repository atomically claims the draft revision, idempotency key, and decision domain. While `saving`, edits, discard, a different save key, or a changed decision domain conflict; the same request can resume after an interruption.
 - Success requires all of: event saved, Graph entity saved, canonical ID/version/content exact readback, and `processing_stage=retrievable`.
 - Response includes `expected_version`, `canonical_content_hash`, and independent `persistence.event_saved`, `graph_saved`, `readback_verified`, and `index_state`. ID-only readback never proves success.
 - v1 canonical save supports decisions. Documents return `503 knowledge_document_save_unavailable` until a canonical document writer is configured.
