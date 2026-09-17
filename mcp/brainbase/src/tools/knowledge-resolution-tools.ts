@@ -70,6 +70,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
 function isKnowledgeResolutionReceipt(value: unknown): value is Record<string, unknown> {
   if (!isRecord(value) || typeof value.resolution_id !== 'string' || typeof value.resolved_at !== 'string') return false;
   if (!Array.isArray(value.searched_scope) || typeof value.absence_confirmed !== 'boolean') return false;
@@ -96,7 +100,7 @@ const RETRIEVAL_STATUSES = new Set([
 ]);
 
 function isKnowledgeRetrievalResponse(value: unknown, requestedRefs: unknown): value is Record<string, unknown> {
-  if (!isRecord(value) || typeof value.project_code !== 'string'
+  if (!isRecord(value) || !isNonEmptyString(value.project_code)
     || !Array.isArray(value.results) || !Array.isArray(requestedRefs)
     || value.results.length !== requestedRefs.length) return false;
 
@@ -104,22 +108,22 @@ function isKnowledgeRetrievalResponse(value: unknown, requestedRefs: unknown): v
   const refs = requestedRefs as unknown[];
   return refs.every((requestedRef, index) => {
     if (!isRecord(requestedRef)
-      || typeof requestedRef.id !== 'string' || requestedRef.id.length === 0
-      || typeof requestedRef.version !== 'string' || requestedRef.version.length === 0) return false;
+      || !isNonEmptyString(requestedRef.id)
+      || !isNonEmptyString(requestedRef.version)) return false;
     const result = results[index];
     if (!isRecord(result)
+      || !isNonEmptyString(result.id)
       || result.id !== requestedRef.id
+      || !isNonEmptyString(result.requested_version)
       || result.requested_version !== requestedRef.version
-      || typeof result.status !== 'string'
+      || !isNonEmptyString(result.status)
       || !RETRIEVAL_STATUSES.has(result.status)) return false;
     if (result.status !== 'resolved') return true;
     return result.resolved_version === result.requested_version
-      && typeof result.content === 'string'
-      && result.content.length > 0
+      && isNonEmptyString(result.content)
       && isRecord(result.source)
-      && typeof result.source.kind === 'string'
-      && typeof result.retrieval_receipt_id === 'string'
-      && result.retrieval_receipt_id.length > 0;
+      && isNonEmptyString(result.source.kind)
+      && isNonEmptyString(result.retrieval_receipt_id);
   });
 }
 

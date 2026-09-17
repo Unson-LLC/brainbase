@@ -159,6 +159,29 @@ it('knowledge.retrieveはproject不一致とsourceのないresolvedを拒否す�
   assert.equal(missingSource?.error?.code, 'brainbase_api_response_invalid');
 });
 
+it('knowledge.retrieveはresolved本文・source.kind・receiptの空白値を成功にしない', async () => {
+  const args = { project_code: 'brainbase', refs: [{ id: 'decision-1', version: '3' }] };
+  const baseResult = {
+    id: 'decision-1', status: 'resolved', requested_version: '3', resolved_version: '3',
+    content: 'Canonical decision', source: { kind: 'graph_entity' }, retrieval_receipt_id: 'receipt-1',
+  };
+  const run = (result: Record<string, unknown>) => handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', args, {
+    apiUrl: 'http://brainbase.test', configuredProjectCodes: ['brainbase'],
+    tokenManager: { getToken: async () => jwt({ projectCodes: ['brainbase'] }) },
+    fetch: async () => new Response(JSON.stringify({ project_code: 'brainbase', results: [result] }), { status: 200 }),
+  });
+
+  for (const [field, value] of [
+    ['content', ' '],
+    ['source', { kind: '  '}],
+    ['retrieval_receipt_id', '\t'],
+  ] as const) {
+    const result = await run({ ...baseResult, [field]: value });
+    assert.equal(result?.status, 'error', field);
+    assert.equal(result?.error?.code, 'brainbase_api_response_invalid', field);
+  }
+});
+
 it('knowledge.retrieveはproject_codeなし・scope外をfetch前に拒否する', async () => {
   let fetched = false;
   const dependencies = {
