@@ -41,6 +41,19 @@ function normalizeContentHash(value) {
     return hash.startsWith('sha256:') ? hash : `sha256:${hash}`;
 }
 
+function immutableVersion(value) {
+    const version = requiredText(value, 'version');
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu.test(version)) {
+        throw retrievalError(
+            'knowledge_document_version_invalid',
+            'version must be an immutable Git commit SHA',
+            422,
+            { field: 'version' }
+        );
+    }
+    return version;
+}
+
 /**
  * Read only tenant/project-scoped team documents from the configured owning
  * GitHub repository. The Graph registration remains the authority for repo,
@@ -48,8 +61,8 @@ function normalizeContentHash(value) {
  */
 export class CanonicalDocumentContentRetriever {
     constructor({ provider, graphPointerResolver }) {
-        if (!provider || typeof provider.read !== 'function') {
-            throw new TypeError('provider.read is required');
+        if (!provider || typeof provider.readVersion !== 'function') {
+            throw new TypeError('provider.readVersion is required');
         }
         if (!graphPointerResolver || typeof graphPointerResolver.resolve !== 'function') {
             throw new TypeError('graphPointerResolver.resolve is required');
@@ -72,8 +85,9 @@ export class CanonicalDocumentContentRetriever {
         }
         accessPrincipal(access);
         const path = normalizeRepositoryRelativePath(source.pointer);
+        const version = immutableVersion(record?.version);
         const resolution = await this.graphPointerResolver.resolve({ access, project_code });
-        return { access, project_code, path, resolution };
+        return { access, project_code, path, version, resolution };
     }
 
     async authorize(source, context) {
@@ -84,7 +98,7 @@ export class CanonicalDocumentContentRetriever {
 
     async retrieve(source, context) {
         const input = await this.context(source, context);
-        const readback = await this.provider.read(input);
+        const readback = await this.provider.readVersion(input);
         const content = requiredContent(readback?.content);
         const version = requiredText(readback?.revision, 'revision', 503);
         const path = normalizeRepositoryRelativePath(readback?.path || input.path);
@@ -125,6 +139,7 @@ function accessPrincipal(access) {
 }
 
 export const canonicalDocumentContentRetrieverInternals = {
+    immutableVersion,
     normalizeContentHash,
     sha256
 };

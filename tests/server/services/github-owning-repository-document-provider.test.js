@@ -7,6 +7,7 @@ const API_BASE_URL = 'https://api.github.test';
 const DOCUMENT_URL = `${API_BASE_URL}/repos/Acme/alpha-docs/contents/docs/guide.md`;
 const REF_URL = `${API_BASE_URL}/repos/Acme/alpha-docs/git/ref/heads/main`;
 const COMMITS_URL = `${API_BASE_URL}/repos/Acme/alpha-docs/commits?path=docs%2Fguide.md&sha=main&per_page=1`;
+const COMMIT_V2 = '2222222222222222222222222222222222222222';
 
 function resolution(overrides = {}) {
     return {
@@ -142,6 +143,40 @@ function createProvider(fetchImpl, mapping = {}) {
 }
 
 describe('GitHubOwningRepositoryDocumentProvider', () => {
+    it('reads a canonical document at the requested immutable commit without reading branch HEAD', async () => {
+        const content = '# Fixed guide\n';
+        const fetchImpl = vi.fn(async (url) => {
+            expect(url).toBe(`${DOCUMENT_URL}?ref=${COMMIT_V2}`);
+            return response(200, {
+                type: 'file',
+                path: 'docs/guide.md',
+                sha: 'blob-v2',
+                content: Buffer.from(content, 'utf8').toString('base64')
+            });
+        });
+
+        const result = await createProvider(fetchImpl).readVersion(request({ version: COMMIT_V2 }));
+
+        expect(result).toMatchObject({
+            path: 'docs/guide.md',
+            content,
+            revision: COMMIT_V2,
+            canonical_url: `https://github.com/Acme/alpha-docs/blob/${COMMIT_V2}/docs/guide.md`
+        });
+        expect(fetchImpl).toHaveBeenCalledOnce();
+    });
+
+    it.each([undefined, '', 'main', 'commit-v2'])('rejects missing or mutable version %s before HTTP', async (version) => {
+        const fake = fakeGitHubFetch();
+        const provider = createProvider(fake.fetchImpl);
+
+        await expect(provider.readVersion(request({ version }))).rejects.toMatchObject({
+            code: version ? 'canonical_document_version_invalid' : 'canonical_document_input_invalid',
+            status: version ? 422 : 400
+        });
+        expect(fake.fetchImpl).not.toHaveBeenCalled();
+    });
+
     it('uses the resolved owning_repo branch and path scope for CAS write and readback', async () => {
         const fake = fakeGitHubFetch();
         const writer = new CanonicalDocumentWriterAdapter({

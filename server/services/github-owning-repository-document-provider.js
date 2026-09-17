@@ -38,6 +38,19 @@ function digest(value) {
     return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
+function immutableRevision(value) {
+    const revision = requiredString(value, 'version');
+    if (!/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/iu.test(revision)) {
+        throw new CanonicalDocumentWriterError(
+            'canonical_document_version_invalid',
+            'version must be an immutable Git commit SHA',
+            422,
+            { field: 'version' }
+        );
+    }
+    return revision;
+}
+
 function normalizeApiBaseUrl(value) {
     const raw = requiredString(value || DEFAULT_API_BASE_URL, 'apiBaseUrl');
     let url;
@@ -364,10 +377,10 @@ export class GitHubOwningRepositoryDocumentProvider {
         );
     }
 
-    async getFile(target, repositoryPath, token) {
+    async getFile(target, repositoryPath, token, reference = target.branch) {
         let payload;
         try {
-            payload = await this.request(`${this.contentUrl(target, repositoryPath)}?ref=${encodeURIComponent(target.branch)}`, {
+            payload = await this.request(`${this.contentUrl(target, repositoryPath)}?ref=${encodeURIComponent(reference)}`, {
                 token,
                 operation: 'read_file'
             });
@@ -550,10 +563,34 @@ export class GitHubOwningRepositoryDocumentProvider {
             canonical_url: payload?.html_url || `https://github.com/${target.owner}/${target.repo}/blob/${encodePath(target.branch)}/${encodePath(repositoryPath)}`
         };
     }
+
+    async readVersion(input = {}) {
+        const revision = immutableRevision(input.version);
+        const target = await this.resolveTarget(input);
+        const token = await this.saveToken();
+        const repositoryPath = normalizeRepositoryRelativePath(input.path);
+        const payload = await this.getFile(target, repositoryPath, token, revision);
+        const content = parseJsonContent(payload?.content);
+        if (content === null || typeof content !== 'string') {
+            throw new CanonicalDocumentWriterError(
+                'canonical_document_readback_unavailable',
+                'GitHub did not return decodable canonical document content',
+                503
+            );
+        }
+        return {
+            path: payload?.path || repositoryPath,
+            content,
+            content_hash: digest(content),
+            revision,
+            canonical_url: payload?.html_url || `https://github.com/${target.owner}/${target.repo}/blob/${encodePath(revision)}/${encodePath(repositoryPath)}`
+        };
+    }
 }
 
 export const githubOwningRepositoryInternals = {
     digest,
+    immutableRevision,
     normalizeApiBaseUrl,
     normalizePathPrefix,
     pathInScope
