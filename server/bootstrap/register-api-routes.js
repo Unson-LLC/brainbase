@@ -112,13 +112,17 @@ export function registerKnowledgeCatalogApiRoute(app, {
     authoringService = null,
     captureProposalAdapter = null,
     previewAnswerer = null,
-    knowledgeAIAdapter = null
+    knowledgeAIAdapter = null,
+    documentWriter = null,
+    knowledgeResolutionService = null
 }) {
     const catalogService = service || new KnowledgeCatalogService({
         infoSSOTService,
         captureProposalAdapter,
         previewAnswerer,
-        knowledgeAIAdapter
+        knowledgeAIAdapter,
+        documentWriter,
+        knowledgeResolutionService
     });
     const resolvedAuthoringService = authoringService || (infoSSOTService?.pool && knowledgeEventService
         ? new KnowledgeAuthoringService({
@@ -223,6 +227,7 @@ export function registerApiRoutes(app, {
     authService,
     infoSSOTService,
     projectProvisioningService,
+    documentWriter,
     canonicalTaskStoreConfig,
     canonicalTaskService,
     learningService,
@@ -418,7 +423,8 @@ export function registerApiRoutes(app, {
         knowledgeEventService,
         captureProposalAdapter,
         previewAnswerer,
-        knowledgeAIAdapter
+        knowledgeAIAdapter,
+        documentWriter
     });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
         registerKnowledgeEventApiRoutes(app, {

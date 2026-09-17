@@ -7,6 +7,7 @@ import {
     validateCaptureProposal,
     validatePreviewAnswer
 } from './knowledge-capture-preview-adapter.js';
+import { KnowledgeResolutionService } from './knowledge-resolution-service.js';
 
 const ACTIVE_STATUSES = new Set(['active', 'decided', 'current', 'published']);
 const INACTIVE_STATUSES = new Set(['draft', 'superseded', 'expired', 'retired', 'deprecated', 'inactive']);
@@ -182,7 +183,9 @@ export class KnowledgeCatalogService {
         contentRetriever = null,
         captureProposalAdapter = null,
         previewAnswerer = null,
-        knowledgeAIAdapter = null
+        knowledgeAIAdapter = null,
+        documentWriter = null,
+        knowledgeResolutionService = null
     }) {
         if (!infoSSOTService) throw new TypeError('infoSSOTService is required');
         this.infoSSOTService = infoSSOTService;
@@ -193,6 +196,8 @@ export class KnowledgeCatalogService {
             || resolveKnowledgeAdapter(captureAdapter, 'capture');
         this.previewAnswerer = resolveKnowledgeAdapter(previewAdapter, 'preview')
             || resolveKnowledgeAdapter(previewAdapter, 'answerPreview');
+        this.documentWriter = documentWriter;
+        this.knowledgeResolutionService = knowledgeResolutionService || new KnowledgeResolutionService();
     }
 
     async list(access, input = {}) {
@@ -730,6 +735,55 @@ export class KnowledgeCatalogService {
             readback,
             applicability_guaranteed: false
         };
+    }
+
+    async save(access, input = {}) {
+        const projectCode = text(input.project_code);
+        requireProjectAccess(access, projectCode);
+
+        let resolution;
+        try {
+            resolution = this.knowledgeResolutionService.resolve({
+                intent: input.intent,
+                audience: input.audience,
+                project_code: projectCode,
+                content_type: input.content_type
+            });
+        } catch (error) {
+            if (error instanceof TypeError) {
+                throw new KnowledgeCatalogError('knowledge_document_resolution_invalid', error.message, 400);
+            }
+            throw error;
+        }
+
+        if (resolution.source_class !== 'owning_repo' || resolution.content_type !== 'team_document') {
+            throw new KnowledgeCatalogError(
+                'knowledge_document_route_invalid',
+                'team_document must resolve to the owning repository before it can be saved',
+                422
+            );
+        }
+        if (!this.documentWriter || typeof this.documentWriter.save !== 'function') {
+            throw new KnowledgeCatalogError(
+                'knowledge_document_writer_not_configured',
+                'canonical document writer is not configured',
+                503
+            );
+        }
+
+        try {
+            return await this.documentWriter.save({
+                ...input,
+                project_code: projectCode,
+                access,
+                resolution
+            });
+        } catch (error) {
+            if (error?.name === 'CanonicalDocumentWriterError' && error.code) {
+                throw new KnowledgeCatalogError(error.code, error.message, error.status || 503, error.details || {});
+            }
+            throw error;
+        }
     }
 }
 
