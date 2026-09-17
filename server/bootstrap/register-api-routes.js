@@ -12,6 +12,7 @@ import { createPersonalKnowledgeRouter } from '../routes/personal-knowledge.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createOnboardingRouter } from '../routes/onboarding.js';
 import { createKnowledgeCatalogRouter, createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
+import { createKnowledgeRetrieveRouter } from '../routes/knowledge-retrieve.js';
 import { createKnowledgeEventRouter } from '../routes/knowledge-events.js';
 import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js';
 import { createJudgmentReceiptAccessResolver } from '../services/judgment-receipt/judgment-receipt-access.js';
@@ -42,6 +43,7 @@ import {
     createWorkflowRunRouter
 } from '../routes/workflows.js';
 import { requireAuth } from '../middleware/auth.js';
+import { createKnowledgeRetrieveServiceAuthMiddleware } from '../middleware/knowledge-retrieve-service-auth.js';
 import { requirePersonalKnowledgeAccess } from '../middleware/personal-knowledge-access.js';
 import { requirePersonalKnowledgeCompanyAuthority } from '../middleware/personal-knowledge-company-authority.js';
 import { requireRoutineCompanyAuthority } from '../middleware/routine-company-authority.js';
@@ -119,7 +121,12 @@ export function registerKnowledgeCatalogApiRoute(app, {
     knowledgeBedrockModelId = null,
     knowledgeBedrockMaxTokens = 1024,
     documentWriter = null,
-    knowledgeResolutionService = null
+    knowledgeResolutionService = null,
+    knowledgeRetrieveBindingVerifier = null,
+    knowledgeRetrieveBindingRepository = null,
+    knowledgeRetrieveIssuer = undefined,
+    knowledgeRetrieveAudience = undefined,
+    knowledgeRetrieveDeploymentId = undefined
 }) {
     const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter || (knowledgeBedrockClient && knowledgeBedrockModelId
         ? createKnowledgeBedrockAdapter({
@@ -146,6 +153,20 @@ export function registerKnowledgeCatalogApiRoute(app, {
             graphRepository: new InfoSSOTKnowledgeGraphRepository({ infoSSOTService })
         })
         : null);
+    app.use(
+        '/api/knowledge',
+        createKnowledgeRetrieveRouter({
+            service: catalogService,
+            serviceAuthMiddleware: createKnowledgeRetrieveServiceAuthMiddleware({
+                authService,
+                bindingVerifier: knowledgeRetrieveBindingVerifier,
+                bindingRepository: knowledgeRetrieveBindingRepository,
+                issuer: knowledgeRetrieveIssuer,
+                audience: knowledgeRetrieveAudience,
+                deploymentId: knowledgeRetrieveDeploymentId
+            })
+        })
+    );
     app.use(
         '/api/knowledge',
         requireAuth(authService, { allowInsecureHeaders: false }),
@@ -257,6 +278,11 @@ export function registerApiRoutes(app, {
     knowledgeBedrockClient,
     knowledgeBedrockModelId,
     knowledgeBedrockMaxTokens,
+    knowledgeRetrieveBindingVerifier,
+    knowledgeRetrieveBindingRepository,
+    knowledgeRetrieveIssuer,
+    knowledgeRetrieveAudience,
+    knowledgeRetrieveDeploymentId,
     personalKnowledgeService,
     personalKnowledgePromotionService,
     onboardingRuntimeService,
@@ -446,6 +472,11 @@ export function registerApiRoutes(app, {
         knowledgeBedrockClient,
         knowledgeBedrockModelId,
         knowledgeBedrockMaxTokens,
+        knowledgeRetrieveBindingVerifier,
+        knowledgeRetrieveBindingRepository,
+        knowledgeRetrieveIssuer,
+        knowledgeRetrieveAudience,
+        knowledgeRetrieveDeploymentId,
         documentWriter
     });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
