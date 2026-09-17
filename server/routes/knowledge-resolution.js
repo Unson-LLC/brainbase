@@ -83,6 +83,9 @@ export function createKnowledgeCatalogRouter({ service, authoringService = null 
         router.post('/drafts/:draftId/save', catalogRoute((req) => authoringService.saveDraft(req.access, {
             ...(req.body || {}), draft_id: req.params.draftId
         })));
+        router.post('/drafts/:draftId/reuse', catalogRoute((req) => authoringService.reuseCanonical(req.access, {
+            ...(req.body || {}), draft_id: req.params.draftId
+        })));
         router.post('/items/:id/lifecycle', catalogRoute((req) => authoringService.changeLifecycle(req.access, {
             ...(req.body || {}), id: req.params.id
         })));

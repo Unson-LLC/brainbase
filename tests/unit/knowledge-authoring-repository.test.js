@@ -14,6 +14,45 @@ function fixture(respond) {
 }
 
 describe('PgKnowledgeAuthoringRepository', () => {
+    it('draftのcanonical ownerとrelationsを同じrecordへ保存する', async () => {
+        const { client, repository } = fixture(async (sql) => {
+            if (sql.includes('INSERT INTO knowledge_authoring_drafts')) {
+                return { rows: [{ draft_id: 'kd_1', canonical_owner_person_id: 'per_2', relations: [] }] };
+            }
+            return { rows: [] };
+        });
+
+        await repository.createDraft({
+            draft_id: 'kd_1', organization_id: 'org_1', owner_person_id: 'per_1',
+            canonical_owner_person_id: 'per_2', project_code: 'alpha', kind: 'decision',
+            title: 'Decision', content: 'body', applicability: {}, source_pointer: null,
+            revision: 1, status: 'draft', relations: [{ relation: 'references', to_id: 'dec_old' }]
+        }, { access });
+
+        const insert = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO knowledge_authoring_drafts'));
+        expect(insert[0]).toContain('canonical_owner_person_id, relations');
+        expect(insert[1].slice(-2)).toEqual(['per_2', JSON.stringify([{ relation: 'references', to_id: 'dec_old' }])]);
+    });
+
+    it('canonical reuse receiptは既存正本IDと版を別テーブルへ保存する', async () => {
+        const { client, repository } = fixture(async (sql) => {
+            if (sql.includes('INSERT INTO knowledge_authoring_reuses')) return { rows: [{ reuse_id: 'reuse_1' }] };
+            return { rows: [] };
+        });
+
+        await repository.completeReuse({
+            reuse_id: 'reuse_1', idempotency_key: 'reuse-key', draft_id: 'kd_1', draft_revision: 2,
+            canonical_id: 'decision_existing', expected_version: '7', result: { status: 'reused' }
+        }, { access, projectCode: 'alpha' });
+
+        const insert = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO knowledge_authoring_reuses'));
+        expect(insert[0]).toContain('canonical_id, expected_version, result');
+        expect(insert[1]).toEqual([
+            'reuse_1', 'reuse-key', 'kd_1', 2, 'org_1', 'per_1', 'alpha',
+            'decision_existing', '7', JSON.stringify({ status: 'reused' })
+        ]);
+    });
+
     it('revisionとkeyを同じUPDATEでclaimし、編集との競合窓を作らない', async () => {
         const { client, repository } = fixture(async (sql) => ({
             rows: sql.includes("SET status='saving'")

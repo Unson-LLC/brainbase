@@ -56,18 +56,48 @@ function optionalTimestamp(value, field) {
 }
 
 function rejectUnsupportedDraftFields(input = {}) {
-    const unsupported = [];
-    if (input.owner_person_id !== undefined || input.owner_candidate !== undefined) unsupported.push('owner_person_id');
-    if (input.relations !== undefined) unsupported.push('relations');
-    if (input.canonical_id !== undefined || input.reuse_canonical_id !== undefined) unsupported.push('canonical_id');
-    if (unsupported.length) {
+    if (input.owner_candidate !== undefined) {
         throw new KnowledgeAuthoringError(
-            'knowledge_draft_fields_unsupported',
-            'draft owner, relations, and canonical reuse are not supported by this authoring contract',
+            'knowledge_owner_confirmation_required',
+            'owner_candidate is a proposal and cannot be persisted as the canonical owner',
             400,
-            { fields: unsupported }
+            { fields: ['owner_candidate'] }
         );
     }
+    if (input.canonical_id !== undefined || input.reuse_canonical_id !== undefined) {
+        throw new KnowledgeAuthoringError(
+            'knowledge_canonical_reuse_explicit_required',
+            'existing canonical ids must use the explicit reuse flow',
+            400,
+            { fields: ['canonical_id'] }
+        );
+    }
+}
+
+function normalizeOwner(value, field = 'owner_person_id') {
+    if (value === undefined || value === null || value === '') return undefined;
+    return requiredText(value, field);
+}
+
+function normalizeRelations(value) {
+    if (value === undefined) return undefined;
+    if (!Array.isArray(value)) {
+        throw new KnowledgeAuthoringError('knowledge_relations_invalid', 'relations must be an array', 400);
+    }
+    return value.map((entry, index) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+            throw new KnowledgeAuthoringError('knowledge_relations_invalid', `relations[${index}] must be an object`, 400, { index });
+        }
+        const relation = requiredText(entry.relation || entry.rel_type, `relations[${index}].relation`);
+        const toId = requiredText(entry.to_id || entry.target_id, `relations[${index}].to_id`);
+        const fromId = normalizeOwner(entry.from_id || entry.source_id, `relations[${index}].from_id`);
+        return {
+            ...entry,
+            relation,
+            to_id: toId,
+            ...(fromId ? { from_id: fromId } : {})
+        };
+    });
 }
 
 function draftProjection(record) {
@@ -79,6 +109,8 @@ function draftProjection(record) {
         content: record.content,
         applicability: record.applicability || {},
         source_pointer: record.source_pointer || null,
+        owner_person_id: record.canonical_owner_person_id || record.owner_person_id || null,
+        relations: Array.isArray(record.relations) ? record.relations : [],
         revision: Number(record.revision),
         status: record.status,
         save_idempotency_key: record.save_idempotency_key || null,
@@ -100,6 +132,73 @@ export class KnowledgeAuthoringService {
         this.id = id;
     }
 
+    async _validateAuthoringContext(access, {
+        projectCode, kind, ownerPersonId, relations = [], decisionDomain, entityId = null
+    }) {
+        const validator = this.graphRepository?.validateAuthoringContext
+            || this.graphRepository?.validateAuthoring;
+        if (typeof validator !== 'function') {
+            if (ownerPersonId !== access.personId || relations.length) {
+                throw new KnowledgeAuthoringError(
+                    'knowledge_authoring_graph_unavailable',
+                    'Graph validation is required before registering an owner or relation',
+                    503
+                );
+            }
+            return { owner_person_id: ownerPersonId, relations };
+        }
+        try {
+            return await validator.call(this.graphRepository, {
+                project_code: projectCode,
+                entity_type: kind === 'decision' ? 'decision' : kind,
+                entity_id: entityId,
+                owner_person_id: ownerPersonId,
+                relations,
+                decision_domain: decisionDomain
+            }, { access });
+        } catch (error) {
+            if (error instanceof KnowledgeAuthoringError) throw error;
+            if (typeof error?.code === 'string' && error.code.startsWith('knowledge_')) {
+                throw new KnowledgeAuthoringError(error.code, error.message, error.status || 400, error.details || {});
+            }
+            throw error;
+        }
+    }
+
+    async _persistAuthoringGraph(access, {
+        projectCode, kind, entityId, ownerPersonId, relations = [], decisionDomain, expectedVersion = null
+    }) {
+        const writer = this.graphRepository?.persistAuthoringRelations
+            || this.graphRepository?.persistAuthoringGraph;
+        if (typeof writer !== 'function') {
+            if (ownerPersonId !== access.personId || relations.length) {
+                throw new KnowledgeAuthoringError(
+                    'knowledge_authoring_graph_unavailable',
+                    'Graph relation persistence is required for this authoring request',
+                    503
+                );
+            }
+            return { relation_count: 0, graph_saved: true };
+        }
+        try {
+            return await writer.call(this.graphRepository, {
+                project_code: projectCode,
+                entity_type: kind === 'decision' ? 'decision' : kind,
+                entity_id: entityId,
+                owner_person_id: ownerPersonId,
+                relations,
+                decision_domain: decisionDomain,
+                ...(expectedVersion === null ? {} : { expected_version: expectedVersion })
+            }, { access });
+        } catch (error) {
+            if (error instanceof KnowledgeAuthoringError) throw error;
+            if (typeof error?.code === 'string' && error.code.startsWith('knowledge_')) {
+                throw new KnowledgeAuthoringError(error.code, error.message, error.status || 400, error.details || {});
+            }
+            throw error;
+        }
+    }
+
     async createDraft(access, input = {}) {
         const projectCode = requiredText(input.project_code, 'project_code');
         requireProjectAccess(access, projectCode);
@@ -108,16 +207,23 @@ export class KnowledgeAuthoringService {
         if (!['decision', 'document'].includes(kind)) {
             throw new KnowledgeAuthoringError('knowledge_draft_kind_unsupported', 'kind must be decision or document', 400);
         }
+        const ownerPersonId = normalizeOwner(input.owner_person_id || input.owner_id) || access.personId;
+        const relations = normalizeRelations(input.relations) || [];
+        await this._validateAuthoringContext(access, {
+            projectCode, kind, ownerPersonId, relations, decisionDomain: input.decision_domain
+        });
         const record = await this.repository.createDraft({
             draft_id: `kd_${this.id()}`,
             organization_id: access.organizationId || access.tenantId,
             owner_person_id: access.personId,
+            canonical_owner_person_id: ownerPersonId,
             project_code: projectCode,
             kind,
             title: draftText(input.title, 'title'),
             content: draftText(input.content, 'content'),
             applicability: input.applicability && typeof input.applicability === 'object' ? input.applicability : {},
             source_pointer: input.source_pointer && typeof input.source_pointer === 'object' ? input.source_pointer : null,
+            relations,
             revision: 1,
             status: 'draft'
         }, { access });
@@ -139,12 +245,24 @@ export class KnowledgeAuthoringService {
             throw new KnowledgeAuthoringError('knowledge_draft_not_editable', 'only active drafts can be edited', 409);
         }
         const expectedRevision = revision(input.revision);
+        const ownerPersonId = normalizeOwner(input.owner_person_id || input.owner_id) || current.owner_person_id;
+        const relations = input.relations === undefined ? current.relations : normalizeRelations(input.relations);
+        await this._validateAuthoringContext(access, {
+            projectCode: current.project_code,
+            kind: current.kind,
+            ownerPersonId,
+            relations,
+            decisionDomain: input.decision_domain,
+            entityId: current.canonical_id
+        });
         const updated = await this.repository.updateDraft(current.draft_id, {
             expected_revision: expectedRevision,
             title: input.title === undefined ? current.title : draftText(input.title, 'title'),
             content: input.content === undefined ? current.content : draftText(input.content, 'content'),
             applicability: input.applicability === undefined ? current.applicability : input.applicability,
-            source_pointer: input.source_pointer === undefined ? current.source_pointer : input.source_pointer
+            source_pointer: input.source_pointer === undefined ? current.source_pointer : input.source_pointer,
+            canonical_owner_person_id: ownerPersonId,
+            relations
         }, { access, projectCode: current.project_code });
         if (!updated) throw new KnowledgeAuthoringError('knowledge_draft_revision_conflict', 'draft revision changed', 409);
         return draftProjection(updated);
@@ -192,6 +310,14 @@ export class KnowledgeAuthoringService {
         if (current.kind !== 'decision') {
             throw new KnowledgeAuthoringError('knowledge_document_save_unavailable', 'canonical document storage is not configured', 503);
         }
+        if (input.reuse_canonical_id !== undefined || input.existing_id !== undefined) {
+            throw new KnowledgeAuthoringError(
+                'knowledge_canonical_reuse_explicit_required',
+                'existing canonical ids must use the explicit reuse flow',
+                400,
+                { fields: ['canonical_id'] }
+            );
+        }
         if (input.canonical_id !== undefined) {
             throw new KnowledgeAuthoringError(
                 'knowledge_canonical_id_not_accepted',
@@ -199,6 +325,15 @@ export class KnowledgeAuthoringService {
                 400
             );
         }
+        const ownerPersonId = current.owner_person_id || access.personId;
+        await this._validateAuthoringContext(access, {
+            projectCode: current.project_code,
+            kind: current.kind,
+            ownerPersonId,
+            relations: current.relations,
+            decisionDomain,
+            entityId: current.canonical_id
+        });
         const claimed = await this.repository.claimSave(current.draft_id, {
             expected_revision: expectedRevision,
             idempotency_key: idempotencyKey,
@@ -220,7 +355,7 @@ export class KnowledgeAuthoringService {
             decision: { statement: current.content },
             decision_authority: {
                 authorized: true,
-                decider_id: access.personId,
+                decider_id: ownerPersonId,
                 domain: decisionDomain
             },
             applicability_scope: {
@@ -243,6 +378,15 @@ export class KnowledgeAuthoringService {
         if (ingest.semantic_state !== 'active' || ingest.processing_stage !== 'retrievable' || !ingest.graph_entity_id) {
             throw new KnowledgeAuthoringError('knowledge_save_not_retrievable', 'canonical save did not become retrievable', 409, { ingest });
         }
+        const graphPersistence = await this._persistAuthoringGraph(access, {
+            projectCode: current.project_code,
+            kind: current.kind,
+            entityId: ingest.graph_entity_id,
+            ownerPersonId,
+            relations: current.relations,
+            decisionDomain,
+            expectedVersion: String(expectedRevision)
+        });
         const readback = await this.catalogService.get(access, { project_code: current.project_code, id: ingest.graph_entity_id });
         const contentHash = `sha256:${sha256(current.content)}`;
         const readbackVerified = readback.id === ingest.graph_entity_id
@@ -269,7 +413,9 @@ export class KnowledgeAuthoringService {
                 event_saved: true,
                 graph_saved: true,
                 readback_verified: true,
-                index_state: ingest.processing_stage
+                index_state: ingest.processing_stage,
+                relation_count: graphPersistence?.relation_count || 0,
+                relations_saved: true
             }
         };
         await this.repository.completeSave({
@@ -280,6 +426,101 @@ export class KnowledgeAuthoringService {
             event_id: eventId,
             result
         }, { access, projectCode: current.project_code });
+        return result;
+    }
+
+    async reuseCanonical(access, input = {}) {
+        const projectCode = requiredText(input.project_code, 'project_code');
+        requireProjectAccess(access, projectCode);
+        const current = await this.getDraft(access, input);
+        if (current.status !== 'draft') {
+            throw new KnowledgeAuthoringError('knowledge_draft_not_editable', 'only active drafts can reuse a canonical', 409);
+        }
+        const canonicalId = requiredText(input.canonical_id || input.existing_id || input.reuse_canonical_id, 'canonical_id');
+        if (input.owner_candidate !== undefined) {
+            throw new KnowledgeAuthoringError(
+                'knowledge_owner_confirmation_required',
+                'owner_candidate cannot be used for canonical reuse; select an existing owner_person_id',
+                400
+            );
+        }
+        const expectedVersion = requiredText(String(input.expected_version || ''), 'expected_version');
+        const draftRevision = input.revision === undefined ? current.revision : revision(input.revision);
+        if (draftRevision !== current.revision) {
+            throw new KnowledgeAuthoringError('knowledge_draft_revision_conflict', 'draft revision changed', 409);
+        }
+        const idempotencyKey = input.idempotency_key === undefined
+            ? `reuse:${current.draft_id}:${canonicalId}:${expectedVersion}`
+            : requiredText(input.idempotency_key, 'idempotency_key');
+        const existing = typeof this.repository.findReuse === 'function'
+            ? await this.repository.findReuse(idempotencyKey, { access, projectCode: current.project_code })
+            : null;
+        if (existing) return existing.result;
+        const ownerPersonId = current.owner_person_id || access.personId;
+        const decisionDomain = requiredText(input.decision_domain, 'decision_domain');
+        await this._validateAuthoringContext(access, {
+            projectCode: current.project_code,
+            kind: current.kind,
+            ownerPersonId,
+            relations: current.relations,
+            decisionDomain,
+            entityId: canonicalId
+        });
+        const reuser = this.graphRepository?.reuseCanonical;
+        if (typeof reuser !== 'function') {
+            throw new KnowledgeAuthoringError('knowledge_authoring_graph_unavailable', 'explicit canonical reuse is not configured', 503);
+        }
+        let reused;
+        try {
+            reused = await reuser.call(this.graphRepository, {
+                project_code: current.project_code,
+                entity_type: current.kind === 'decision' ? 'decision' : current.kind,
+                entity_id: canonicalId,
+                owner_person_id: ownerPersonId,
+                relations: current.relations,
+                decision_domain: decisionDomain,
+                expected_version: expectedVersion
+            }, { access });
+        } catch (error) {
+            if (error instanceof KnowledgeAuthoringError) throw error;
+            if (typeof error?.code === 'string' && error.code.startsWith('knowledge_')) {
+                throw new KnowledgeAuthoringError(error.code, error.message, error.status || 400, error.details || {});
+            }
+            throw error;
+        }
+        if (!reused) throw new KnowledgeAuthoringError('knowledge_canonical_not_found', 'canonical was not found', 404);
+        const canonical = reused.canonical || reused.record
+            || await this.catalogService.get(access, { project_code: projectCode, id: canonicalId });
+        if (canonical?.version && String(canonical.version) !== expectedVersion) {
+            throw new KnowledgeAuthoringError('knowledge_canonical_version_conflict', 'canonical version changed', 409, {
+                expected_version: expectedVersion, current_version: canonical.version
+            });
+        }
+        const result = {
+            status: 'reused',
+            idempotent: Boolean(reused.idempotent),
+            draft: { ...current, canonical_id: canonicalId },
+            canonical,
+            expected_version: expectedVersion,
+            persistence: {
+                graph_saved: true,
+                relations_saved: true,
+                relation_count: reused.relation_count || 0,
+                readback_verified: true
+            }
+        };
+        if (typeof this.repository.completeReuse === 'function') {
+            await this.repository.completeReuse({
+                reuse_id: `knowledge_reuse_${sha256(`${current.draft_id}:${canonicalId}:${expectedVersion}`)}`,
+                idempotency_key: idempotencyKey,
+                draft_id: current.draft_id,
+                draft_revision: draftRevision,
+                canonical_id: canonicalId,
+                expected_version: expectedVersion,
+                owner_person_id: ownerPersonId,
+                result
+            }, { access, projectCode: current.project_code });
+        }
         return result;
     }
 

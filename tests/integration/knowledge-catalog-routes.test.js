@@ -95,6 +95,7 @@ describe('knowledge catalog API', () => {
             createDraft: vi.fn(async () => ({ draft_id: 'kd_1' })),
             getDraft: vi.fn(), updateDraft: vi.fn(), discardDraft: vi.fn(),
             saveDraft: vi.fn(async () => ({ status: 'saved' })),
+            reuseCanonical: vi.fn(async () => ({ status: 'reused' })),
             authorityDomains: vi.fn(async () => ({ domains: ['engineering'] })),
             revise: vi.fn(async () => ({ status: 'revised' })),
             supersede: vi.fn(async () => ({ status: 'superseded' })),
@@ -105,12 +106,17 @@ describe('knowledge catalog API', () => {
         await request(app).post('/api/knowledge/drafts').send({ project_code: 'alpha' }).expect(200);
         await request(app).get('/api/knowledge/authority-domains?project_code=alpha').expect(200);
         await request(app).post('/api/knowledge/drafts/kd_1/save').send({ project_code: 'alpha', revision: 1 }).expect(200);
+        await request(app).post('/api/knowledge/drafts/kd_1/reuse')
+            .send({ project_code: 'alpha', canonical_id: 'dec_existing', expected_version: '7' }).expect(200);
         await request(app).post('/api/knowledge/items/dec_1/lifecycle').send({ project_code: 'alpha', state: 'retired' }).expect(200);
         await request(app).post('/api/knowledge/items/dec_1/revisions').send({ project_code: 'alpha' }).expect(200);
         await request(app).post('/api/knowledge/items/dec_1/supersessions')
             .send({ project_code: 'alpha', superseded_id: 'dec_0' }).expect(200);
         await request(app).get('/api/knowledge/items/dec_1/history?project_code=alpha').expect(200);
         expect(authoringService.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ personId: 'per_1' }), expect.objectContaining({ draft_id: 'kd_1' }));
+        expect(authoringService.reuseCanonical).toHaveBeenCalledWith(expect.objectContaining({ personId: 'per_1' }), expect.objectContaining({
+            draft_id: 'kd_1', canonical_id: 'dec_existing', expected_version: '7'
+        }));
         expect(authoringService.changeLifecycle).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: 'dec_1' }));
         expect(authoringService.revise).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: 'dec_1' }));
         expect(authoringService.supersede).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({

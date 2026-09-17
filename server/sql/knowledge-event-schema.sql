@@ -60,6 +60,8 @@ CREATE TABLE IF NOT EXISTS knowledge_authoring_drafts (
     content TEXT NOT NULL,
     applicability JSONB NOT NULL DEFAULT '{}'::jsonb,
     source_pointer JSONB,
+    canonical_owner_person_id TEXT,
+    relations JSONB NOT NULL DEFAULT '[]'::jsonb,
     revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'saving', 'saved', 'discarded')),
     save_idempotency_key TEXT,
@@ -83,6 +85,24 @@ CREATE TABLE IF NOT EXISTS knowledge_authoring_saves (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (organization_id, owner_person_id, project_code, idempotency_key),
     UNIQUE (draft_id, draft_revision)
+);
+
+-- Canonical reuse is an explicit registration flow.  It has its own receipt
+-- table so a caller cannot accidentally turn an existing id into a new save.
+CREATE TABLE IF NOT EXISTS knowledge_authoring_reuses (
+    reuse_id TEXT PRIMARY KEY,
+    idempotency_key TEXT NOT NULL,
+    draft_id TEXT NOT NULL REFERENCES knowledge_authoring_drafts(draft_id) ON DELETE RESTRICT,
+    draft_revision INTEGER NOT NULL,
+    organization_id TEXT NOT NULL,
+    owner_person_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    canonical_id TEXT NOT NULL,
+    expected_version TEXT NOT NULL,
+    result JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organization_id, owner_person_id, project_code, idempotency_key),
+    UNIQUE (draft_id, draft_revision, canonical_id, expected_version)
 );
 
 CREATE TABLE IF NOT EXISTS knowledge_lifecycle_history (
@@ -135,6 +155,10 @@ CREATE TABLE IF NOT EXISTS knowledge_supersession_history (
 
 ALTER TABLE knowledge_authoring_drafts
     ADD COLUMN IF NOT EXISTS save_decision_domain TEXT;
+ALTER TABLE knowledge_authoring_drafts
+    ADD COLUMN IF NOT EXISTS canonical_owner_person_id TEXT;
+ALTER TABLE knowledge_authoring_drafts
+    ADD COLUMN IF NOT EXISTS relations JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 ALTER TABLE knowledge_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_events FORCE ROW LEVEL SECURITY;
@@ -146,6 +170,8 @@ ALTER TABLE knowledge_authoring_drafts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_authoring_drafts FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_authoring_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_authoring_saves FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_authoring_reuses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_authoring_reuses FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_lifecycle_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_lifecycle_history FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_revision_history ENABLE ROW LEVEL SECURITY;
@@ -195,6 +221,15 @@ CREATE POLICY knowledge_authoring_drafts_access ON knowledge_authoring_drafts
 
 DROP POLICY IF EXISTS knowledge_authoring_saves_access ON knowledge_authoring_saves;
 CREATE POLICY knowledge_authoring_saves_access ON knowledge_authoring_saves
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_authoring_reuses_access ON knowledge_authoring_reuses;
+CREATE POLICY knowledge_authoring_reuses_access ON knowledge_authoring_reuses
     USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')
         AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
         AND project_code = ANY(app_project_codes()))

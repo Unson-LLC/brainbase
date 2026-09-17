@@ -5,6 +5,7 @@ import { KnowledgeAuthoringService } from '../../server/services/knowledge-autho
 function harness() {
     const drafts = new Map();
     const saves = new Map();
+    const reuses = new Map();
     const repository = {
         createDraft: vi.fn(async (draft) => {
             const row = { ...draft, created_at: '2026-09-17T00:00:00.000Z', updated_at: '2026-09-17T00:00:00.000Z' };
@@ -27,6 +28,7 @@ function harness() {
             return updated;
         }),
         findSave: vi.fn(async (key) => saves.get(key) || null),
+        findReuse: vi.fn(async (key) => reuses.get(key) || null),
         claimSave: vi.fn(async (id, claim) => {
             const row = drafts.get(id);
             if (!row || row.revision !== claim.expected_revision
@@ -41,6 +43,10 @@ function harness() {
             const row = drafts.get(save.draft_id);
             drafts.set(save.draft_id, { ...row, status: 'saved', canonical_id: save.canonical_id, saved_event_id: save.event_id });
             saves.set(save.idempotency_key, { ...save });
+        }),
+        completeReuse: vi.fn(async (reuse) => {
+            reuses.set(reuse.idempotency_key, { result: reuse.result });
+            return reuse;
         })
     };
     const knowledgeEventService = { ingest: vi.fn(async (event) => ({
@@ -51,6 +57,27 @@ function harness() {
         lifecycle: { status: 'active', applicable: true }
     })) };
     const graphRepository = {
+        validateAuthoringContext: vi.fn(async (input) => ({
+            owner_person_id: input.owner_person_id,
+            relations: input.relations || [],
+            authority_verified: Boolean(input.decision_domain)
+        })),
+        persistAuthoringRelations: vi.fn(async (input) => ({
+            graph_saved: true,
+            readback_verified: true,
+            relation_count: 2 + (input.relations || []).length
+        })),
+        reuseCanonical: vi.fn(async (input) => ({
+            canonical: {
+                id: input.entity_id,
+                type: input.entity_type,
+                version: input.expected_version,
+                canonical_content: 'Existing truth.'
+            },
+            relation_count: 2 + (input.relations || []).length,
+            graph_saved: true,
+            readback_verified: true
+        })),
         changeLifecycle: vi.fn(async () => ({ id: 'decision_123' })),
         reviseDecision: vi.fn(async (input) => ({ id: input.id, payload: { version: 'rev_2' } })),
         establishSupersession: vi.fn(async () => ({
@@ -80,29 +107,36 @@ describe('KnowledgeAuthoringService', () => {
             .rejects.toMatchObject({ code: 'knowledge_draft_kind_unsupported', status: 400 });
     });
 
-    it('未対応の責任者・関係・既存正本再利用を黙って破棄しない', async () => {
-        const { service, repository } = harness();
-        for (const field of [
-            { owner_person_id: 'per_2' },
-            { relations: [{ relation: 'supersedes', to_id: 'decision_old' }] },
-            { canonical_id: 'decision_existing' }
-        ]) {
-            await expect(service.createDraft(access, {
-                project_code: 'alpha', title: 'Decision', content: 'body', ...field
-            })).rejects.toMatchObject({ code: 'knowledge_draft_fields_unsupported', status: 400 });
-        }
-        expect(repository.createDraft).not.toHaveBeenCalled();
-
+    it('責任者と関係をdraftへ保持し、候補責任者とcanonical再利用を別フローへ分離する', async () => {
+        const { service, repository, graphRepository } = harness();
         const draft = await service.createDraft(access, {
-            project_code: 'alpha', title: 'Decision', content: 'body'
+            project_code: 'alpha', title: 'Decision', content: 'body', owner_person_id: 'per_2',
+            relations: [{ relation: 'references', to_id: 'decision_old' }]
         });
-        await expect(service.updateDraft(access, {
+        expect(draft).toMatchObject({
+            owner_person_id: 'per_2',
+            relations: [{ relation: 'references', to_id: 'decision_old' }]
+        });
+        expect(repository.createDraft).toHaveBeenCalledWith(expect.objectContaining({
+            canonical_owner_person_id: 'per_2',
+            relations: [{ relation: 'references', to_id: 'decision_old' }]
+        }), { access });
+        expect(graphRepository.validateAuthoringContext).toHaveBeenCalledWith(expect.objectContaining({
+            owner_person_id: 'per_2', relations: [{ relation: 'references', to_id: 'decision_old' }]
+        }), { access });
+
+        await expect(service.createDraft(access, {
+            project_code: 'alpha', title: 'Decision', content: 'body', owner_candidate: 'per_2'
+        })).rejects.toMatchObject({ code: 'knowledge_owner_confirmation_required', status: 400 });
+        await expect(service.createDraft(access, {
+            project_code: 'alpha', title: 'Decision', content: 'body', canonical_id: 'decision_existing'
+        })).rejects.toMatchObject({ code: 'knowledge_canonical_reuse_explicit_required', status: 400 });
+        expect(repository.createDraft).toHaveBeenCalledOnce();
+
+        await expect(service.saveDraft(access, {
             project_code: 'alpha', draft_id: draft.draft_id, revision: 1,
-            owner_candidate: 'per_2'
-        })).rejects.toMatchObject({
-            code: 'knowledge_draft_fields_unsupported',
-            details: { fields: ['owner_person_id'] }
-        });
+            idempotency_key: 'save-existing', decision_domain: 'engineering', reuse_canonical_id: 'decision_existing'
+        })).rejects.toMatchObject({ code: 'knowledge_canonical_reuse_explicit_required', status: 400 });
     });
 
     it('draftを作成・再開・revision一致で編集し、競合を409にする', async () => {
@@ -136,6 +170,52 @@ describe('KnowledgeAuthoringService', () => {
         expect(knowledgeEventService.ingest).toHaveBeenCalledOnce();
         expect(repository.claimSave).toHaveBeenCalledOnce();
         expect(repository.completeSave).toHaveBeenCalledOnce();
+    });
+
+    it('canonical saveは選択した責任者をauthorityへ渡し、Graphへ実関係を保存する', async () => {
+        const { service, knowledgeEventService, graphRepository } = harness();
+        const draft = await service.createDraft(access, {
+            project_code: 'alpha', title: 'Decision', content: 'Use canonical truth.', owner_person_id: 'per_2',
+            relations: [{ relation: 'references', to_id: 'decision_old' }]
+        });
+        await service.saveDraft(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, revision: 1,
+            idempotency_key: 'save-owner-relations', decision_domain: 'engineering'
+        });
+
+        expect(knowledgeEventService.ingest).toHaveBeenCalledWith(expect.objectContaining({
+            decision_authority: expect.objectContaining({ decider_id: 'per_2' })
+        }), { access });
+        expect(graphRepository.persistAuthoringRelations).toHaveBeenCalledWith(expect.objectContaining({
+            owner_person_id: 'per_2',
+            relations: [{ relation: 'references', to_id: 'decision_old' }],
+            expected_version: '1'
+        }), { access });
+    });
+
+    it('canonical reuseは既存IDとexpected_versionを要求し、新規ingestを呼ばない', async () => {
+        const { service, knowledgeEventService, graphRepository, repository } = harness();
+        const draft = await service.createDraft(access, {
+            project_code: 'alpha', title: 'Reuse', content: 'Draft context'
+        });
+        await expect(service.reuseCanonical(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, decision_domain: 'engineering',
+            canonical_id: 'decision_existing'
+        })).rejects.toMatchObject({ code: 'knowledge_authoring_input_invalid', status: 400 });
+
+        const result = await service.reuseCanonical(access, {
+            project_code: 'alpha', draft_id: draft.draft_id, decision_domain: 'engineering',
+            canonical_id: 'decision_existing', expected_version: '7'
+        });
+        expect(result).toMatchObject({
+            status: 'reused', canonical: { id: 'decision_existing', version: '7' },
+            persistence: { graph_saved: true, relations_saved: true }
+        });
+        expect(knowledgeEventService.ingest).not.toHaveBeenCalled();
+        expect(graphRepository.reuseCanonical).toHaveBeenCalledWith(expect.objectContaining({
+            entity_id: 'decision_existing', expected_version: '7'
+        }), { access });
+        expect(repository.completeReuse).toHaveBeenCalledOnce();
     });
 
     it('save claim後は編集を排他し、同じkeyの失敗再試行だけを許す', async () => {

@@ -21,7 +21,110 @@ function serviceFixture() {
     return { client, infoSSOTService };
 }
 
+function authoringFixture({ includeTarget = true, relationValid = true } = {}) {
+    const client = {
+        query: vi.fn(async (sql, params) => {
+            const text = String(sql);
+            if (text.includes('FROM projects')) {
+                return { rows: [{ id: 'project_uuid', code: 'brainbase', organization_id: 'org_a' }] };
+            }
+            if (text.includes('SELECT ge.id, ge.entity_type')) {
+                const ids = params?.[0] || [];
+                return {
+                    rows: [
+                        ...(ids.includes('person_owner') ? [{ id: 'person_owner', entity_type: 'person', project_id: null, payload: {}, organization_id: 'org_a' }] : []),
+                        ...(includeTarget && ids.includes('decision_target') ? [{ id: 'decision_target', entity_type: 'decision', project_id: 'project_uuid', payload: {}, organization_id: 'org_a' }] : []),
+                        ...(ids.includes('decision_existing') ? [{ id: 'decision_existing', entity_type: 'decision', project_id: 'project_uuid', payload: { version: '7', statement: 'Existing' }, organization_id: 'org_a' }] : [])
+                    ]
+                };
+            }
+            if (text.includes("entity_type = 'project' AND project_id")) {
+                return { rows: [{ id: 'project_entity', entity_type: 'project', project_id: 'project_uuid', payload: {} }] };
+            }
+            return { rows: [] };
+        })
+    };
+    const infoSSOTService = {
+        withAccessContext: vi.fn(async (_access, work) => work(client)),
+        assertDecisionAuthority: vi.fn(async () => undefined),
+        validateOntology: vi.fn(() => (relationValid ? { valid: true } : { valid: false, violations: [{ code: 'relation_not_registered' }] })),
+        validateGraphMutation: vi.fn(async () => undefined),
+        assertWriteAccess: vi.fn(),
+        upsertGraphEdge: vi.fn(async () => undefined)
+    };
+    return { client, infoSSOTService };
+}
+
 describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
+    it('authoringはownerの存在・組織・authorityとontology relationを検証する', async () => {
+        const { client, infoSSOTService } = authoringFixture();
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        const result = await repository.validateAuthoringContext({
+            project_code: 'brainbase', entity_type: 'decision', owner_person_id: 'person_owner',
+            relations: [{ relation: 'references', to_id: 'decision_target' }], decision_domain: 'engineering'
+        }, { access });
+
+        expect(result).toMatchObject({ owner_person_id: 'person_owner', authority_verified: true });
+        expect(result.relations).toEqual([expect.objectContaining({
+            relation: 'references', to_id: 'decision_target', to_type: 'decision'
+        })]);
+        expect(infoSSOTService.assertDecisionAuthority).toHaveBeenCalledWith(client, expect.objectContaining({
+            projectId: 'project_uuid', personId: 'person_owner', decisionDomain: 'engineering'
+        }));
+        expect(infoSSOTService.validateOntology).toHaveBeenCalledWith(expect.objectContaining({
+            edge: expect.objectContaining({ relation: 'references', from_type: 'decision', to_type: 'decision' })
+        }));
+    });
+
+    it('authoringは未検証のdecision authorityをGraphへ書き込む前に拒否する', async () => {
+        const { infoSSOTService } = authoringFixture();
+        infoSSOTService.assertDecisionAuthority.mockRejectedValueOnce(new Error('Decision authority missing'));
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        await expect(repository.validateAuthoringContext({
+            project_code: 'brainbase', entity_type: 'decision', owner_person_id: 'person_owner',
+            decision_domain: 'engineering'
+        }, { access })).rejects.toMatchObject({
+            code: 'knowledge_decision_authority_missing', status: 403
+        });
+    });
+
+    it('authoringは未認可endpointと未登録relationをGraphへ書き込む前に拒否する', async () => {
+        const missingTarget = new InfoSSOTKnowledgeGraphRepository({
+            infoSSOTService: authoringFixture({ includeTarget: false }).infoSSOTService
+        });
+        await expect(missingTarget.validateAuthoringContext({
+            project_code: 'brainbase', entity_type: 'decision', owner_person_id: 'person_owner',
+            relations: [{ relation: 'references', to_id: 'decision_target' }]
+        }, { access })).rejects.toMatchObject({ code: 'knowledge_relation_endpoint_not_authorized', status: 403 });
+
+        const invalidRelation = authoringFixture({ relationValid: false });
+        const invalidRepository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService: invalidRelation.infoSSOTService });
+        await expect(invalidRepository.validateAuthoringContext({
+            project_code: 'brainbase', entity_type: 'decision', owner_person_id: 'person_owner',
+            relations: [{ relation: 'made_up_relation', to_id: 'decision_target' }]
+        }, { access })).rejects.toMatchObject({ code: 'knowledge_authoring_relation_invalid', status: 422 });
+    });
+
+    it('authoring saveはowner・project・要求relationの実Graph edgeをupsertする', async () => {
+        const { infoSSOTService } = authoringFixture();
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        const result = await repository.persistAuthoringRelations({
+            project_code: 'brainbase', entity_type: 'decision', entity_id: 'decision_existing',
+            owner_person_id: 'person_owner', expected_version: '7',
+            relations: [{ relation: 'references', to_id: 'decision_target' }], decision_domain: 'engineering'
+        }, { access });
+
+        expect(result).toMatchObject({ entity_id: 'decision_existing', graph_saved: true, readback_verified: true });
+        expect(infoSSOTService.validateGraphMutation).toHaveBeenCalledOnce();
+        expect(infoSSOTService.upsertGraphEdge).toHaveBeenCalledTimes(3);
+        expect(infoSSOTService.upsertGraphEdge.mock.calls.map(([_, input]) => input.relType)).toEqual(expect.arrayContaining([
+            'owned_by', 'belongs_to_project', 'references'
+        ]));
+    });
+
     it('validates decision authority before committing a normalized decision', async () => {
         const { client, infoSSOTService } = serviceFixture();
         const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });

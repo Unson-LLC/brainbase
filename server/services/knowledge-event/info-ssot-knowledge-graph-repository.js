@@ -2,6 +2,18 @@ import { randomUUID } from 'node:crypto';
 
 import { assertCatalogProjectSubjectMutation } from '../project-graph-identity-lock.js';
 
+function authoringGraphError(code, message, status = 400, details = {}) {
+    const error = new Error(message);
+    error.code = code;
+    error.status = status;
+    error.details = details;
+    return error;
+}
+
+function edgeKey(edge) {
+    return `${edge.from_id}:${edge.to_id}:${edge.relation || edge.rel_type}`;
+}
+
 export class InfoSSOTKnowledgeGraphRepository {
     constructor({ infoSSOTService }) {
         this.infoSSOTService = infoSSOTService;
@@ -41,6 +53,291 @@ export class InfoSSOTKnowledgeGraphRepository {
         }, client ? { client } : undefined);
     }
 
+    async _authoringProject(contextClient, projectCode) {
+        const result = await contextClient.query(
+            `SELECT id, code, organization_id
+             FROM projects WHERE code = $1 LIMIT 1`,
+            [projectCode]
+        );
+        const project = result?.rows?.[0];
+        if (!project) throw authoringGraphError('knowledge_project_not_found', `knowledge Graph project not found: ${projectCode}`, 404);
+        return project;
+    }
+
+    async _authoringVisibleEntities(contextClient, { projectId, ids }) {
+        const uniqueIds = [...new Set((ids || []).filter(Boolean))];
+        if (!uniqueIds.length) return [];
+        const result = await contextClient.query(
+            `SELECT ge.id, ge.entity_type, ge.project_id, ge.payload,
+                    app_graph_entity_organization_id(ge.id) AS organization_id
+             FROM graph_entities ge
+             WHERE ge.id = ANY($1::text[])
+               AND (
+                   ge.project_id = $2
+                   OR (
+                       ge.project_id IS NULL
+                       AND ge.entity_type = 'person'
+                       AND EXISTS (
+                           SELECT 1 FROM graph_edges membership
+                           WHERE membership.from_id = ge.id
+                             AND membership.rel_type = 'member_of'
+                             AND membership.project_id = $2
+                       )
+                   )
+               )`,
+            [uniqueIds, projectId]
+        );
+        return result?.rows || [];
+    }
+
+    _validateAuthoringEdge(relation, fromType, toType) {
+        let validation;
+        try {
+            validation = this.infoSSOTService.validateOntology({
+                edge: { relation, from_type: fromType, to_type: toType }
+            });
+        } catch (error) {
+            throw authoringGraphError(
+                'knowledge_authoring_relation_invalid',
+                `relation '${relation}' is not registered for ${fromType} -> ${toType}`,
+                422,
+                { relation, from_type: fromType, to_type: toType, ontology_error: error.code || error.message }
+            );
+        }
+        if (!validation?.valid) {
+            throw authoringGraphError(
+                'knowledge_authoring_relation_invalid',
+                `relation '${relation}' is not registered for ${fromType} -> ${toType}`,
+                422,
+                { relation, from_type: fromType, to_type: toType, violations: validation?.violations || [] }
+            );
+        }
+        return validation;
+    }
+
+    async _validateAuthoringOnClient(contextClient, input) {
+        const project = await this._authoringProject(contextClient, input.project_code);
+        const organizationId = input.access.organizationId || input.access.tenantId;
+        if (project.organization_id !== organizationId) {
+            throw authoringGraphError('knowledge_project_organization_mismatch', 'project belongs to another organization', 403, {
+                project_code: input.project_code
+            });
+        }
+        const entityType = input.entity_type || 'decision';
+        const ownerId = input.owner_person_id;
+        if (!ownerId) throw authoringGraphError('knowledge_owner_required', 'canonical owner is required', 400);
+        const sourceId = input.entity_id || null;
+        const relationInputs = Array.isArray(input.relations) ? input.relations : [];
+        const endpointIds = [ownerId, ...relationInputs.map((entry) => entry.to_id || entry.target_id)];
+        const visible = await this._authoringVisibleEntities(contextClient, {
+            projectId: project.id,
+            ids: endpointIds
+        });
+        const byId = new Map(visible.map((row) => [row.id, row]));
+        const owner = byId.get(ownerId);
+        if (!owner || owner.entity_type !== 'person') {
+            throw authoringGraphError('knowledge_owner_not_found', 'canonical owner is not a visible person in this project', 404, {
+                owner_person_id: ownerId
+            });
+        }
+        if (owner.organization_id && owner.organization_id !== organizationId) {
+            throw authoringGraphError('knowledge_owner_organization_mismatch', 'canonical owner belongs to another organization', 403, {
+                owner_person_id: ownerId
+            });
+        }
+        let source = null;
+        if (sourceId) {
+            source = (await this._authoringVisibleEntities(contextClient, { projectId: project.id, ids: [sourceId] }))[0];
+            if (!source) throw authoringGraphError('knowledge_canonical_not_found', 'canonical source is not visible in this project', 404, {
+                canonical_id: sourceId
+            });
+            if (source.entity_type !== entityType) {
+                throw authoringGraphError('knowledge_canonical_type_mismatch', 'canonical source type does not match the authoring kind', 409, {
+                    canonical_id: sourceId, expected_type: entityType, observed_type: source.entity_type
+                });
+            }
+        }
+        // Documents do not currently have a canonical save path. Keep their
+        // drafts editable while still validating any explicitly requested edge.
+        if (entityType !== 'document') this._validateAuthoringEdge('owned_by', entityType, owner.entity_type);
+        if (input.decision_domain) {
+            const projectId = project.id;
+            try {
+                await this.infoSSOTService.assertDecisionAuthority(contextClient, {
+                    projectId,
+                    projectCode: input.project_code,
+                    personId: ownerId,
+                    decisionDomain: input.decision_domain
+                });
+            } catch (error) {
+                if (typeof error?.code === 'string' && error.code.startsWith('knowledge_')) throw error;
+                throw authoringGraphError(
+                    'knowledge_decision_authority_missing',
+                    error?.message || 'decision authority is not verified for the selected owner',
+                    403,
+                    {
+                        project_code: input.project_code,
+                        owner_person_id: ownerId,
+                        decision_domain: input.decision_domain
+                    }
+                );
+            }
+        }
+        const relations = [];
+        const seen = new Set();
+        for (const entry of relationInputs) {
+            const relation = entry.relation || entry.rel_type;
+            const targetId = entry.to_id || entry.target_id;
+            const fromId = entry.from_id || entry.source_id;
+            if (!relation || !targetId) throw authoringGraphError('knowledge_relations_invalid', 'relation and target are required', 400);
+            if (fromId && (!sourceId || fromId !== sourceId)) {
+                throw authoringGraphError('knowledge_relation_source_mismatch', 'relation source must be the canonical being authored', 400, {
+                    from_id: fromId, canonical_id: sourceId
+                });
+            }
+            if (relation === 'owned_by' && targetId !== ownerId) {
+                throw authoringGraphError('knowledge_owner_relation_mismatch', 'owned_by must point to the selected canonical owner', 409, {
+                    owner_person_id: ownerId, target_id: targetId
+                });
+            }
+            const target = byId.get(targetId);
+            if (!target) {
+                throw authoringGraphError('knowledge_relation_endpoint_not_authorized', 'relation target is not visible in this project', 403, {
+                    target_id: targetId, relation
+                });
+            }
+            this._validateAuthoringEdge(relation, entityType, target.entity_type);
+            const normalized = {
+                ...entry,
+                relation,
+                from_id: fromId || sourceId || null,
+                to_id: targetId,
+                to_type: target.entity_type
+            };
+            if (!normalized.from_id) {
+                // A draft has no Graph id yet; persist it after the canonical
+                // id is allocated by the event writer.
+                delete normalized.from_id;
+            }
+            const key = edgeKey({ ...normalized, from_id: normalized.from_id || '$new' });
+            if (!seen.has(key)) {
+                seen.add(key);
+                relations.push(normalized);
+            }
+        }
+        return {
+            project,
+            source,
+            owner,
+            owner_person_id: ownerId,
+            relations,
+            authority_verified: Boolean(input.decision_domain)
+        };
+    }
+
+    async validateAuthoringContext(input, { client, access } = {}) {
+        this._requireAccess(access);
+        const run = (contextClient) => this._validateAuthoringOnClient(contextClient, { ...input, access });
+        return this.infoSSOTService.withAccessContext(access, run, client ? { client } : undefined);
+    }
+
+    async validateAuthoring(input, options = {}) {
+        return this.validateAuthoringContext(input, options);
+    }
+
+    async _persistAuthoringEdgesOnClient(contextClient, input) {
+        const validation = await this._validateAuthoringOnClient(contextClient, input);
+        const source = validation.source;
+        if (!source) throw authoringGraphError('knowledge_canonical_not_found', 'canonical source is not visible in this project', 404);
+        if (input.expected_version !== undefined && input.expected_version !== null) {
+            const currentVersion = String(source.payload?.version || source.version || '');
+            if (currentVersion !== String(input.expected_version)) {
+                throw authoringGraphError('knowledge_canonical_version_conflict', 'canonical version changed', 409, {
+                    expected_version: String(input.expected_version), current_version: currentVersion
+                });
+            }
+        }
+        const projectEntityResult = await contextClient.query(
+            `SELECT id, entity_type, project_id, payload
+             FROM graph_entities
+             WHERE entity_type = 'project' AND project_id = $1
+             ORDER BY id LIMIT 1`,
+            [validation.project.id]
+        );
+        const projectEntity = projectEntityResult?.rows?.[0];
+        if (!projectEntity) {
+            throw authoringGraphError('knowledge_project_graph_endpoint_not_found', 'project Graph endpoint is required for an effective decision', 409, {
+                project_code: input.project_code
+            });
+        }
+        const edges = [
+            { from_id: source.id, to_id: validation.owner.id, relation: 'owned_by', payload: {} },
+            { from_id: source.id, to_id: projectEntity.id, relation: 'belongs_to_project', payload: {} },
+            ...validation.relations.map((entry) => ({
+                from_id: source.id,
+                to_id: entry.to_id,
+                relation: entry.relation,
+                payload: entry.payload || {}
+            }))
+        ];
+        const uniqueEdges = [...new Map(edges.map((edge) => [edgeKey(edge), edge])).values()];
+        if (typeof this.infoSSOTService.assertWriteAccess === 'function') {
+            this.infoSSOTService.assertWriteAccess(input.access, {
+                projectCode: input.project_code, roleMin: 'member', sensitivity: 'internal'
+            });
+        }
+        await this.infoSSOTService.validateGraphMutation(contextClient, {
+            edgeOverrides: uniqueEdges.map((edge) => ({
+                from_id: edge.from_id, to_id: edge.to_id, rel_type: edge.relation
+            })),
+            validationEntityIds: [source.id]
+        });
+        for (const edge of uniqueEdges) {
+            await this.infoSSOTService.upsertGraphEdge(contextClient, {
+                fromId: edge.from_id,
+                toId: edge.to_id,
+                relType: edge.relation,
+                projectId: validation.project.id,
+                payload: edge.payload,
+                roleMin: 'member',
+                sensitivity: 'internal',
+                aggregatePrevalidated: true
+            });
+        }
+        return {
+            id: source.id,
+            entity_id: source.id,
+            entity_type: source.entity_type,
+            canonical: {
+                id: source.id,
+                type: source.entity_type,
+                version: String(source.payload?.version || source.version || ''),
+                canonical_content: source.payload?.statement || null
+            },
+            relation_count: uniqueEdges.length,
+            relations: uniqueEdges.map(({ from_id, to_id, relation }) => ({ from_id, to_id, relation })),
+            graph_saved: true,
+            readback_verified: true
+        };
+    }
+
+    async persistAuthoringRelations(input, { client, access } = {}) {
+        this._requireAccess(access);
+        const run = (contextClient) => this._persistAuthoringEdgesOnClient(contextClient, { ...input, access });
+        return this.infoSSOTService.withAccessContext(access, run, client ? { client } : undefined);
+    }
+
+    async persistAuthoringGraph(input, options = {}) {
+        return this.persistAuthoringRelations(input, options);
+    }
+
+    async reuseCanonical(input, { client, access } = {}) {
+        this._requireAccess(access);
+        if (!input.expected_version) throw authoringGraphError('knowledge_canonical_version_required', 'expected_version is required', 400);
+        const run = async (contextClient) => this._persistAuthoringEdgesOnClient(contextClient, { ...input, access });
+        return this.infoSSOTService.withAccessContext(access, run, client ? { client } : undefined);
+    }
+
     async findDecisionById(id, { client, access } = {}) {
         this._requireAccess(access);
         return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
@@ -72,9 +369,33 @@ export class InfoSSOTKnowledgeGraphRepository {
                 personId: payload.decision_authority.decider_id,
                 decisionDomain: payload.decision_authority.domain
             });
+            const projectEntityResult = await contextClient.query(
+                `SELECT id, entity_type
+                 FROM graph_entities
+                 WHERE entity_type = 'project' AND project_id = $1
+                 ORDER BY id LIMIT 1`,
+                [projectId]
+            );
+            const projectEntity = projectEntityResult?.rows?.[0];
+            if (!projectEntity) {
+                throw authoringGraphError(
+                    'knowledge_project_graph_endpoint_not_found',
+                    'project Graph endpoint is required for an effective decision',
+                    409,
+                    { project_code: projectCode }
+                );
+            }
             const result = await this.infoSSOTService.commitOntologyGraph(access, {
                 projectCode,
                 entity: { id, type: 'decision', payload },
+                edges: [
+                    { from_id: id, to_id: projectEntity.id, relation: 'belongs_to_project', payload: {} },
+                    { from_id: id, to_id: payload.decision_authority.decider_id, relation: 'owned_by', payload: {} }
+                ],
+                contextEntities: [
+                    { id: projectEntity.id, type: 'project' },
+                    { id: payload.decision_authority.decider_id, type: 'person' }
+                ],
                 roleMin: 'member',
                 sensitivity: 'internal'
             }, { client: contextClient, access_context_applied: true });
