@@ -31,6 +31,7 @@ import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
 import { createOutcomeServiceContextRouter } from '../routes/outcome-service-context.js';
+import { createKnowledgeDelegationRouter } from '../routes/knowledge-delegation.js';
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
 import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
@@ -248,6 +249,13 @@ export function registerOutcomeServiceContextApiRoute(app, { services = null } =
     }));
 }
 
+export function registerKnowledgeDelegationApiRoute(app, { services = null } = {}) {
+    app.use('/api/v1/runtime', createKnowledgeDelegationRouter({
+        serviceAuth: services?.serviceAuth,
+        issuer: services?.knowledgeDelegationTokenIssuer
+    }));
+}
+
 export function registerSlackInstallationControlPlaneApiRoute(app, {
     controlPlane,
     authService,
@@ -333,6 +341,7 @@ export function registerApiRoutes(app, {
     brainbaseRoot,
     tenantRuntimeServices,
     outcomeServiceContextIssuer = null,
+    knowledgeDelegationTokenIssuer = null,
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
@@ -509,6 +518,12 @@ export function registerApiRoutes(app, {
         services: {
             ...(tenantRuntimeServices || {}),
             outcomeServiceContextIssuer
+        }
+    });
+    registerKnowledgeDelegationApiRoute(app, {
+        services: {
+            ...(tenantRuntimeServices || {}),
+            knowledgeDelegationTokenIssuer
         }
     });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {

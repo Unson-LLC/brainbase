@@ -84,6 +84,7 @@ import { KnowledgeDocumentGraphPointerResolver } from '../services/knowledge-doc
 import { createConfiguredKnowledgeBedrockAdapter } from './knowledge-bedrock.js';
 import { createManaOutcomeAuthorityReadbackProviderFromEnv } from '../services/knowledge-retrieve-binding-provider.js';
 import { createOutcomeServiceContextIssuerFromEnv } from './outcome-service-context.js';
+import { KnowledgeDelegationTokenIssuer } from '../services/knowledge-delegation-token-issuer.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -266,6 +267,12 @@ export function createCoreServices({
         };
     }
     const authService = new AuthService();
+    const knowledgeDelegationTokenIssuer = resolvedKnowledgeRetrieveBindingVerifier
+        ? new KnowledgeDelegationTokenIssuer({
+            authService,
+            authorityProvider: resolvedKnowledgeRetrieveBindingVerifier
+        })
+        : null;
     const slackInstallationControlPlaneRuntime = createSlackInstallationControlPlaneFromEnv({
         pool: infoSSOTService.pool,
         authService,
@@ -503,6 +510,7 @@ export function createCoreServices({
         projectProvisioningService,
         tenantRuntimeServices,
         outcomeServiceContextIssuer,
+        knowledgeDelegationTokenIssuer,
         documentReceiptRepository,
         documentWriter: resolvedDocumentWriter,
         documentGraphRepository,

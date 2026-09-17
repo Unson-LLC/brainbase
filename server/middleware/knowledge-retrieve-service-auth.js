@@ -280,18 +280,15 @@ function normalizeVerifiedOutcomeClaims(claims) {
         ['organization_id', 'organizationId', 'tenant_id', 'tenantId'],
         'organization'
     );
-    const delegatedActorPersonId = aliasedTokenString(
-        claims,
-        [
-            'delegated_actor_person_id',
-            'delegatedActorPersonId',
-            'delegated_actor_id',
-            'delegatedActorId',
-            'person_id',
-            'personId'
-        ],
-        'delegated actor'
-    );
+    const explicitDelegatedActorNames = [
+        'delegated_actor_person_id',
+        'delegatedActorPersonId',
+        'delegated_actor_id',
+        'delegatedActorId'
+    ];
+    const delegatedActorPersonId = explicitDelegatedActorNames.some((name) => firstOwnField(claims, [name]) != null)
+        ? aliasedTokenString(claims, explicitDelegatedActorNames, 'delegated actor')
+        : aliasedTokenString(claims, ['person_id', 'personId'], 'delegated actor');
     const projectCodes = aliasedTokenList(
         claims,
         ['authorized_project_codes', 'authorizedProjectCodes', 'project_codes', 'projectCodes'],

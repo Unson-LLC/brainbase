@@ -66,6 +66,7 @@ describe('AuthService service tokens', () => {
             ttlSeconds: 300,
             knowledgeDelegation: {
                 project_code: 'alpha',
+                delegated_actor_person_id: 'person_1',
                 outcome_contract_id: 'contract_1',
                 contract_version: 3,
                 run_id: 'run_1',
@@ -81,6 +82,7 @@ describe('AuthService service tokens', () => {
             organizationId: 'org_1',
             knowledge_delegation_version: 1,
             knowledge_project_code: 'alpha',
+            delegated_actor_person_id: 'person_1',
             outcome_contract_id: 'contract_1',
             outcome_contract_version: 3,
             run_id: 'run_1',
@@ -93,7 +95,7 @@ describe('AuthService service tokens', () => {
             capabilities: ['knowledge.retrieve'],
             organizationId: 'org_1',
             knowledgeDelegation: {
-                project_code: 'alpha', outcome_contract_id: 'contract_1', contract_version: 3,
+                project_code: 'alpha', delegated_actor_person_id: 'person_1', outcome_contract_id: 'contract_1', contract_version: 3,
                 run_id: 'run_1', run_mode: 'normal', refs: [{ id: 'decision_1', version: 'v2' }]
             }
         })).toThrow('knowledge delegation service token scope is invalid');

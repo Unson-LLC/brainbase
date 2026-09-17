@@ -22,6 +22,8 @@ const SERVICE_TOKEN_PREFIX = 'bbsvc_';
 const DEFAULT_SERVICE_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 365;
 const KNOWLEDGE_RETRIEVE_CAPABILITY = 'knowledge.retrieve';
 const KNOWLEDGE_DELEGATION_ALLOWED_FIELDS = new Set([
+    'delegated_actor_person_id',
+    'delegatedActorPersonId',
     'project_code',
     'projectCode',
     'outcome_contract_id',
@@ -138,6 +140,11 @@ function normalizeKnowledgeDelegation(input) {
         throw new Error('knowledge delegation contains unsupported fields');
     }
     const projectCode = String(aliasedKnowledgeDelegationField(input, ['project_code', 'projectCode'], 'project_code') || '').trim();
+    const delegatedActorPersonId = String(aliasedKnowledgeDelegationField(
+        input,
+        ['delegated_actor_person_id', 'delegatedActorPersonId'],
+        'delegated_actor_person_id'
+    ) || '').trim();
     const outcomeContractId = String(aliasedKnowledgeDelegationField(input, ['outcome_contract_id', 'outcomeContractId'], 'outcome_contract_id') || '').trim();
     const runId = String(aliasedKnowledgeDelegationField(input, ['run_id', 'runId'], 'run_id') || '').trim();
     const contractVersion = Number(aliasedKnowledgeDelegationField(
@@ -151,7 +158,8 @@ function normalizeKnowledgeDelegation(input) {
         ['knowledge_refs', 'knowledgeRefs', 'refs'],
         'refs'
     ));
-    if (!projectCode || projectCode.length > 128 || !outcomeContractId || outcomeContractId.length > 256
+    if (!projectCode || projectCode.length > 128 || !delegatedActorPersonId || delegatedActorPersonId.length > 256
+        || !outcomeContractId || outcomeContractId.length > 256
         || !runId || runId.length > 256) {
         throw new Error('knowledge delegation identifiers are invalid');
     }
@@ -163,6 +171,7 @@ function normalizeKnowledgeDelegation(input) {
     }
     return Object.freeze({
         project_code: projectCode,
+        delegated_actor_person_id: delegatedActorPersonId,
         outcome_contract_id: outcomeContractId,
         run_id: runId,
         outcome_contract_version: contractVersion,
@@ -974,6 +983,7 @@ export class AuthService {
             ...(knowledgeDelegation ? {
                 knowledge_delegation_version: 1,
                 knowledge_project_code: knowledgeDelegation.project_code,
+                delegated_actor_person_id: knowledgeDelegation.delegated_actor_person_id,
                 outcome_contract_id: knowledgeDelegation.outcome_contract_id,
                 run_id: knowledgeDelegation.run_id,
                 outcome_contract_version: knowledgeDelegation.outcome_contract_version,
