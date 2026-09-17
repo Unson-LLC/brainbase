@@ -262,10 +262,11 @@ function normalizeBinding(value) {
     } catch {
         return null;
     }
-    const organization = firstOwnField(binding, ['organization', 'tenant', 'organization_context']);
+    const organization = firstOwnField(binding, ['organization', 'organization_context']);
     const actor = firstOwnField(binding, ['delegated_actor', 'delegatedActor', 'actor', 'person']);
+    const tenantId = nonEmptyString(firstOwnField(binding, ['tenant_id', 'tenantId']));
     const organizationId = nonEmptyString(firstOwnField(binding, [
-        'organization_id', 'organizationId', 'tenant_id', 'tenantId'
+        'organization_id', 'organizationId'
     ]) || firstOwnField(organization, ['id', 'organization_id', 'organizationId']));
     const delegatedActorPersonId = nonEmptyString(firstOwnField(binding, [
         'delegated_actor_person_id',
@@ -297,6 +298,7 @@ function normalizeBinding(value) {
     ]);
     const contractVersion = Number(contractVersionValue);
     return {
+        tenantId,
         organizationId,
         delegatedActorPersonId,
         projectCodes,
@@ -462,7 +464,7 @@ function accessFromBinding(binding) {
         delegatedActorPersonId: binding.delegatedActorPersonId,
         slackUserId: null,
         slackWorkspaceId: null,
-        tenantId: binding.organizationId,
+        tenantId: binding.tenantId,
         organizationId: binding.organizationId,
         capability: KNOWLEDGE_RETRIEVE_CAPABILITY
     };
@@ -558,6 +560,7 @@ export function createKnowledgeRetrieveServiceAuthMiddleware({
 
             const binding = normalizeBinding(persisted);
             if (!binding
+                || !binding.tenantId
                 || !binding.organizationId
                 || !binding.delegatedActorPersonId
                 || binding.projectCodes.length === 0
@@ -582,6 +585,7 @@ export function createKnowledgeRetrieveServiceAuthMiddleware({
             req.access = access;
             req.authSource = 'service-token';
             req.knowledgeRetrieveBinding = Object.freeze({
+                tenantId: binding.tenantId,
                 organizationId: binding.organizationId,
                 delegatedActorPersonId: binding.delegatedActorPersonId,
                 projectCodes: [...binding.projectCodes],

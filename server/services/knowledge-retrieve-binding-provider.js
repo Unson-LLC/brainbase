@@ -278,11 +278,8 @@ function resolveTokenIdentity(expected, context = {}) {
     return {
         serviceSubject: subject,
         organizationId,
-        // Signed-token retrieve is the legacy organization-scoped contract.
-        // Keep its readback tenant explicit without treating the organization
-        // as the tenant for the authority-readback contract.
         tenantId: null,
-        readbackTenantId: organizationId,
+        readbackTenantId: null,
         delegatedActorPersonId,
         projectCodes,
         outcomeContractId: tokenContractId,
@@ -546,8 +543,18 @@ export function createManaOutcomeAuthorityReadbackProvider({
         async verifyBinding(expected, context = {}) {
             const request = expectedInput(expected);
             const identity = resolveTokenIdentity(expected, context);
+            if (typeof resolveTenantForOrganization !== 'function') {
+                throw new Error('trusted tenant resolver is required');
+            }
+            const mapping = await resolveTenantForOrganization(identity.organizationId);
+            if (!mapping || mapping.organization_id !== identity.organizationId
+                || !nonEmptyString(mapping.tenant_id)) {
+                throw new Error('organization is not mapped to an active tenant');
+            }
             return performReadback(request, {
                 ...identity,
+                tenantId: mapping.tenant_id,
+                readbackTenantId: mapping.tenant_id,
                 projectCode: request.projectCode,
                 outcomeContractId: request.outcomeContractId,
                 runId: request.runId

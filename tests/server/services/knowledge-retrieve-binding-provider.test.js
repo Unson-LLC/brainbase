@@ -109,14 +109,20 @@ describe('Mana outcome authority readback binding provider', () => {
     });
 
     it('uses the injected named service binding and returns only persisted binding fields', async () => {
-        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
+        const serviceBinding = { fetch: vi.fn(async () => response(readback({
+            principal: { ...readback().principal, tenant_id: 'tenant_1' }
+        }))) };
         const provider = createManaOutcomeAuthorityReadbackProvider({
             serviceBinding,
             resource: 'meeting-minutes:github',
+            resolveTenantForOrganization: vi.fn(async () => ({
+                tenant_id: 'tenant_1', organization_id: 'org_1'
+            }))
         });
 
         const result = await provider.verifyBinding(EXPECTED, TOKEN_CONTEXT);
         expect(result).toMatchObject({
+            tenant_id: 'tenant_1',
             organization_id: 'org_1',
             delegated_actor_person_id: 'person_1',
             authorized_project_codes: ['alpha'],
@@ -139,7 +145,8 @@ describe('Mana outcome authority readback binding provider', () => {
             'resource_ref',
             'run_id',
             'run_mode',
-            'service_subject'
+            'service_subject',
+            'tenant_id'
         ].sort());
         expect(serviceBinding.fetch).toHaveBeenCalledTimes(1);
         const [url, init] = serviceBinding.fetch.mock.calls[0];
@@ -148,7 +155,7 @@ describe('Mana outcome authority readback binding provider', () => {
         expect(init.headers).toEqual({ accept: 'application/json', 'content-type': 'application/json' });
         expect(init.headers.authorization).toBeUndefined();
         expect(JSON.parse(init.body)).toEqual({
-            tenant: 'org_1',
+            tenant: 'tenant_1',
             project: 'alpha',
             actor: 'person_1',
             contract: 'oc_1',
@@ -231,6 +238,18 @@ describe('Mana outcome authority readback binding provider', () => {
             organization_id: 'org_unknown', delegated_actor_person_id: 'person_1',
             ...EXPECTED, outcome_contract_version: 3, run_mode: 'normal'
         })).rejects.toThrow('organization is not mapped to an active tenant');
+        expect(serviceBinding.fetch).not.toHaveBeenCalled();
+    });
+
+    it('rejects an unknown token organization before retrieve readback', async () => {
+        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
+        const provider = createManaOutcomeAuthorityReadbackProvider({
+            serviceBinding,
+            resource: 'meeting-minutes:github',
+            resolveTenantForOrganization: vi.fn(async () => null)
+        });
+        await expect(provider.verifyBinding(EXPECTED, TOKEN_CONTEXT))
+            .rejects.toThrow('organization is not mapped to an active tenant');
         expect(serviceBinding.fetch).not.toHaveBeenCalled();
     });
 

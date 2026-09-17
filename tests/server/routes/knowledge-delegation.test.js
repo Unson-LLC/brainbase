@@ -8,6 +8,7 @@ import { createKnowledgeRetrieveRouter } from '../../../server/routes/knowledge-
 import { createKnowledgeRetrieveServiceAuthMiddleware } from '../../../server/middleware/knowledge-retrieve-service-auth.js';
 import { AuthService } from '../../../server/services/auth-service.js';
 import { KnowledgeDelegationTokenIssuer } from '../../../server/services/knowledge-delegation-token-issuer.js';
+import { createManaOutcomeAuthorityReadbackProvider } from '../../../server/services/knowledge-retrieve-binding-provider.js';
 
 const delegation = Object.freeze({
     organization_id: 'org_1',
@@ -22,6 +23,7 @@ const delegation = Object.freeze({
 
 function authority(overrides = {}) {
     return {
+        tenant_id: 'tenant_1',
         organization_id: delegation.organization_id,
         delegated_actor_person_id: delegation.delegated_actor_person_id,
         authorized_project_codes: [delegation.project_code],
@@ -72,12 +74,26 @@ describe('knowledge delegation production route', () => {
 
     it('generic runtime identityから短命tokenを発行しactorとservice subjectを分離してretrieveできる', async () => {
         const authService = new AuthService();
-        const authorityProvider = {
-            verifyAuthority: vi.fn(async () => authority()),
-            verifyBinding: vi.fn(async (_expected, context) => authority({
-                service_subject: context.serviceIdentity.subject
+        const serviceBinding = { fetch: vi.fn(async () => ({
+            ok: true,
+            json: async () => ({
+                principal: { tenant_id: 'tenant_1', project_id: 'alpha', actor_principal_id: 'person_1' },
+                persisted: {
+                    contract_id: 'contract_1', contract_version: '3', run_id: 'run_1',
+                    resource_ref: 'meeting-minutes:github', knowledge_refs: delegation.knowledge_refs
+                },
+                authority_revision: '9', profile_id: 'knowledge_retrieve_v1',
+                run_mode: 'normal', contract_status: 'active'
+            })
+        })) };
+        const authorityProvider = createManaOutcomeAuthorityReadbackProvider({
+            serviceBinding,
+            resource: 'meeting-minutes:github',
+            resolveTenantForOrganization: vi.fn(async (organizationId) => ({
+                tenant_id: 'tenant_1', organization_id: organizationId
             }))
-        };
+        });
+        const verifyBinding = vi.spyOn(authorityProvider, 'verifyBinding');
         const issuer = new KnowledgeDelegationTokenIssuer({ authService, authorityProvider, ttlSeconds: 60 });
         const serviceAuth = (req, _res, next) => {
             req.serviceIdentity = Object.freeze({ subject: 'svc_mana_runtime' });
@@ -113,6 +129,8 @@ describe('knowledge delegation production route', () => {
             run_mode: 'normal',
             knowledge_refs: delegation.knowledge_refs
         });
+        expect(claims.tenant_id).toBeUndefined();
+        expect(claims.tenantId).toBeUndefined();
         expect(claims.exp - claims.iat).toBe(60);
 
         const retrieved = await request(app)
@@ -126,11 +144,12 @@ describe('knowledge delegation production route', () => {
             });
         expect(retrieved.status).toBe(200);
         expect(retrieved.body.access).toMatchObject({
+            tenantId: 'tenant_1',
             personId: 'person_1',
             delegatedActorPersonId: 'person_1',
             organizationId: 'org_1'
         });
-        expect(authorityProvider.verifyBinding).toHaveBeenCalledWith(
+        expect(verifyBinding).toHaveBeenCalledWith(
             expect.objectContaining({
                 knowledge_refs: delegation.knowledge_refs,
                 knowledgeRefs: delegation.knowledge_refs,
@@ -138,6 +157,9 @@ describe('knowledge delegation production route', () => {
             }),
             expect.objectContaining({ serviceTokenClaims: expect.objectContaining({ knowledge_refs: delegation.knowledge_refs }) })
         );
+        expect(serviceBinding.fetch).toHaveBeenCalledTimes(2);
+        expect(serviceBinding.fetch.mock.calls.map(([, init]) => JSON.parse(init.body).tenant))
+            .toEqual(['tenant_1', 'tenant_1']);
     });
 
     it.each([

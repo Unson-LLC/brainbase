@@ -35,7 +35,6 @@ function createAuthService(claims = {}) {
             expires_at: '2030-01-01T00:00:00.000Z',
             capabilities: ['knowledge.retrieve'],
             organizationId: 'org_1',
-            tenantId: 'org_1',
             delegatedActorId: 'person_1',
             personId: 'person_1',
             projectCodes: ['alpha'],
@@ -57,6 +56,7 @@ function createApp({ authService = createAuthService(), binding = {}, bindingVer
         }))
     };
     const verifier = bindingVerifier === undefined ? vi.fn(async () => ({
+        tenant_id: 'tenant_1',
         organization_id: 'org_1',
         delegated_actor_person_id: 'person_1',
         authorized_project_codes: ['alpha'],
@@ -106,6 +106,7 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
             service_subject: 'svc_mana'
         }), expect.objectContaining({ serviceIdentity: expect.objectContaining({ subject: 'svc_mana' }) }));
         expect(service.retrieve).toHaveBeenCalledWith(expect.objectContaining({
+            tenantId: 'tenant_1',
             organizationId: 'org_1',
             personId: 'person_1',
             delegatedActorPersonId: 'person_1',
@@ -121,7 +122,7 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
                 ok: true,
                 json: async () => ({
                     principal: {
-                        tenant_id: 'org_1',
+                        tenant_id: 'tenant_1',
                         project_id: 'alpha',
                         actor_principal_id: 'person_1'
                     },
@@ -141,7 +142,10 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
         };
         const provider = createManaOutcomeAuthorityReadbackProvider({
             serviceBinding,
-            resource: 'meeting-minutes:github'
+            resource: 'meeting-minutes:github',
+            resolveTenantForOrganization: vi.fn(async () => ({
+                tenant_id: 'tenant_1', organization_id: 'org_1'
+            }))
         });
         const { app, service } = createApp({ bindingVerifier: provider });
         const response = await request(app)
@@ -186,7 +190,7 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
     });
 
     it.each([
-        ['tenant', { organization_id: null }],
+        ['tenant', { tenant_id: null }],
         ['actor', { delegated_actor_person_id: null }],
         ['project', { authorized_project_codes: ['secret'] }],
         ['outcome contract', { outcome_contract_id: 'oc_other' }],
@@ -212,7 +216,7 @@ describe('Mana Knowledge retrieve service-auth boundary', () => {
     });
 
     it.each([
-        ['tenant', { organizationId: 'org_other', tenantId: 'org_other' }],
+        ['tenant', { organizationId: 'org_other' }],
         ['actor', { delegatedActorId: 'person_other', personId: 'person_other' }],
         ['project', { projectCodes: ['beta'], authorizedProjectCodes: ['beta'] }],
         ['outcome contract', { outcomeContractId: 'oc_other' }],
