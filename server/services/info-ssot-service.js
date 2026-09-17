@@ -1096,12 +1096,106 @@ export class InfoSSOTService {
         }
     }
 
-    async fetchGraphEntities(client, access, { projectCode, entityType, query, limit, includeMerged } = {}) {
+    async fetchGraphEntities(client, access, {
+        projectCode,
+        entityType,
+        query,
+        limit,
+        includeMerged,
+        catalogProjectCode,
+        catalogScope,
+        catalogStatus,
+        catalogOrganizationId
+    } = {}) {
         const roleRank = this.getRoleRank(access.role);
         const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
         const trimmedQuery = typeof query === 'string' ? query.trim() : '';
         const compactQuery = trimmedQuery.replace(/\s+/g, '');
         const includeMergedEntities = isTrue(includeMerged);
+        const catalogFilterRequested = [
+            catalogProjectCode,
+            catalogScope,
+            catalogStatus,
+            catalogOrganizationId
+        ].some((value) => value !== undefined);
+        const catalogTargetProject = typeof catalogProjectCode === 'string' && catalogProjectCode.trim()
+            ? catalogProjectCode.trim()
+            : null;
+        const catalogScopeFilter = ['project', 'organization', 'all'].includes(catalogScope)
+            ? catalogScope
+            : null;
+        const catalogStatusFilter = ['active', 'inactive', 'all'].includes(catalogStatus)
+            ? catalogStatus
+            : null;
+        const catalogOrganization = typeof catalogOrganizationId === 'string' && catalogOrganizationId.trim()
+            ? catalogOrganizationId.trim()
+            : null;
+        const catalogDeclaredScope = `COALESCE(
+                 NULLIF(BTRIM(ge.payload->'applicability_scope'->>'scope'), ''),
+                 NULLIF(BTRIM(ge.payload->>'scope'), ''),
+                 ''
+               )`;
+        const catalogEffectiveAt = `COALESCE(
+                 NULLIF(BTRIM(ge.payload->>'effective_at'), ''),
+                 NULLIF(BTRIM(ge.payload->>'decided_at'), '')
+               )`;
+        const catalogExpiresAt = `COALESCE(
+                 NULLIF(BTRIM(ge.payload->>'expires_at'), ''),
+                 NULLIF(BTRIM(ge.payload->>'valid_until'), '')
+               )`;
+        // Authoring normalizes timestamps to ISO UTC. Non-ISO values are left
+        // for the service lifecycle check, matching its invalid-date behavior.
+        const catalogIsoTimestamp = "'^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?Z$'";
+        const catalogNowIso = `TO_CHAR(CURRENT_TIMESTAMP AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
+        const catalogActiveLifecycle = `(
+                 LOWER(COALESCE(NULLIF(BTRIM(ge.payload->>'semantic_state'), ''), ''))
+                     NOT IN ('retracted', 'quarantined', 'contradicted')
+                 AND LOWER(COALESCE(
+                     NULLIF(BTRIM(ge.payload->>'status'), ''),
+                     NULLIF(BTRIM(ge.payload->>'semantic_state'), ''),
+                     'unknown'
+                 )) IN ('active', 'decided', 'current', 'published')
+                 AND (
+                     ${catalogEffectiveAt} IS NULL
+                     OR ${catalogEffectiveAt} !~ ${catalogIsoTimestamp}
+                     OR ${catalogEffectiveAt} <= ${catalogNowIso}
+                 )
+                 AND (
+                     ${catalogExpiresAt} IS NULL
+                     OR ${catalogExpiresAt} !~ ${catalogIsoTimestamp}
+                     OR ${catalogExpiresAt} > ${catalogNowIso}
+                 )
+               )`;
+        const catalogFilterSql = catalogFilterRequested ? `
+               AND (
+                 $10::text IS NULL
+                 OR (
+                   p.code = $10
+                   AND (
+                     $11::text IS NULL
+                     OR $11::text = 'all'
+                     OR ($11::text = 'project' AND ${catalogDeclaredScope} <> 'organization')
+                     OR ($11::text = 'organization' AND ${catalogDeclaredScope} = 'organization')
+                   )
+                   AND (
+                     $13::text IS NULL
+                     OR COALESCE(p.organization_id, app_graph_entity_organization_id(ge.id)) = $13
+                   )
+                 )
+                 OR (
+                   $11::text IN ('all', 'organization')
+                   AND p.code <> $10
+                   AND ${catalogDeclaredScope} = 'organization'
+                   AND $13::text IS NOT NULL
+                   AND app_graph_entity_organization_id(ge.id) = $13
+                 )
+               )
+               AND (
+                 $12::text IS NULL
+                 OR $12::text = 'all'
+                 OR ($12::text = 'active' AND ${catalogActiveLifecycle})
+                 OR ($12::text = 'inactive' AND NOT (${catalogActiveLifecycle}))
+               )` : '';
         const { rows } = await client.query(
             `SELECT ge.*,
                     p.code AS project_code,
@@ -1181,6 +1275,7 @@ export class InfoSSOTService {
                       OR REPLACE(alias, ' ', '') ILIKE '%' || $7 || '%'
                  )
                )
+             ${catalogFilterSql}
              ORDER BY ge.updated_at DESC
              LIMIT $9`,
             [
@@ -1192,7 +1287,13 @@ export class InfoSSOTService {
                 trimmedQuery || null,
                 compactQuery || null,
                 includeMergedEntities,
-                safeLimit
+                safeLimit,
+                ...(catalogFilterRequested ? [
+                    catalogTargetProject,
+                    catalogScopeFilter,
+                    catalogStatusFilter,
+                    catalogOrganization
+                ] : [])
             ]
         );
         return rows;
@@ -2158,7 +2259,11 @@ export class InfoSSOTService {
         entityType,
         query,
         limit,
-        includeMerged
+        includeMerged,
+        catalogProjectCode,
+        catalogScope,
+        catalogStatus,
+        catalogOrganizationId
     } = {}) {
         this.assertReady();
         const includeMergedEntities = isTrue(includeMerged);
@@ -2209,6 +2314,10 @@ export class InfoSSOTService {
             }
             const graphOptions = { projectCode, entityType, query, limit };
             if (includeMergedEntities) graphOptions.includeMerged = true;
+            if (catalogProjectCode !== undefined) graphOptions.catalogProjectCode = catalogProjectCode;
+            if (catalogScope !== undefined) graphOptions.catalogScope = catalogScope;
+            if (catalogStatus !== undefined) graphOptions.catalogStatus = catalogStatus;
+            if (catalogOrganizationId !== undefined) graphOptions.catalogOrganizationId = catalogOrganizationId;
             return this.fetchGraphEntities(client, access, graphOptions);
         });
     }

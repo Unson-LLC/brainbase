@@ -566,6 +566,36 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(params[8]).toBe(200);
     });
 
+    it('catalogのproject/scope/status/organization条件をGraph SQLのLIMIT前へ渡す', async () => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValue({ rows: [] });
+
+        await service.listGraphEntities(accessContext, {
+            projectCode: 'other',
+            entityType: 'document',
+            limit: 1,
+            catalogProjectCode: 'brainbase',
+            catalogScope: 'organization',
+            catalogStatus: 'active',
+            catalogOrganizationId: 'org_unson'
+        });
+
+        const graphQuery = client.query.mock.calls.find(([text]) => (
+            typeof text === 'string'
+            && text.includes('FROM graph_entities ge')
+            && text.includes('app_graph_entity_organization_id(ge.id)')
+        ));
+        expect(graphQuery).toBeDefined();
+        const [sql, params] = graphQuery;
+        expect(sql).toContain("$11::text = 'organization'");
+        expect(sql).toContain("$12::text = 'active'");
+        expect(sql).toContain("NULLIF(BTRIM(ge.payload->>'status'), '')");
+        expect(sql).toContain('p.code <> $10');
+        expect(sql).toContain('app_graph_entity_organization_id(ge.id) = $13');
+        expect(sql).toContain('LIMIT $9');
+        expect(params.slice(9)).toEqual(['brainbase', 'organization', 'active', 'org_unson']);
+    });
+
     it('id指定の通常一覧はmerged personを除外する', async () => {
         const { service } = buildService();
         vi.spyOn(service, 'fetchGraphEntitiesByIds').mockResolvedValue([

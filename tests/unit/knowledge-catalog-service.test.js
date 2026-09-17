@@ -206,6 +206,58 @@ describe('KnowledgeCatalogService', () => {
             .rejects.toMatchObject({ code: 'knowledge_not_found', status: 404 });
     });
 
+    it('Graph側でcatalogのscope/statusをLIMIT前に絞り、limit 1でもeligibleなorganization knowledgeを返す', async () => {
+        const rows = [
+            entity({ id: 'inactive_newest', project_code: 'other_same_org', organization_id: 'org_a', updated_at: '2026-09-17T03:00:00.000Z', payload: {
+                title: 'Inactive newest', status: 'inactive', applicability_scope: {
+                    scope: 'organization', organization_id: 'org_a'
+                }
+            } }),
+            entity({ id: 'other_org_active', project_code: 'other_org', organization_id: 'org_b', updated_at: '2026-09-17T02:00:00.000Z', payload: {
+                title: 'Other organization active', status: 'active', applicability_scope: {
+                    scope: 'organization', organization_id: 'org_b'
+                }
+            } }),
+            entity({ id: 'eligible_older', project_code: 'other_same_org', organization_id: 'org_a', updated_at: '2026-09-17T01:00:00.000Z', payload: {
+                title: 'Eligible older', status: 'active', applicability_scope: {
+                    scope: 'organization', organization_id: 'org_a'
+                }
+            } })
+        ];
+        const infoSSOTService = {
+            listGraphEntities: vi.fn(async (_access, input) => rows
+                .filter((row) => row.entity_type === input.entityType && row.project_code === input.projectCode)
+                .filter((row) => row.project_code === input.catalogProjectCode
+                    || (input.catalogScope !== 'project'
+                        && row.payload.applicability_scope?.scope === 'organization'
+                        && row.organization_id === input.catalogOrganizationId))
+                .filter((row) => input.catalogStatus !== 'active' || row.payload.status === 'active')
+                .sort((left, right) => right.updated_at.localeCompare(left.updated_at))
+                .slice(0, Number(input.limit) || 50)),
+            listGraphEdges: vi.fn(async () => [])
+        };
+        const service = new KnowledgeCatalogService({ infoSSOTService });
+
+        const result = await service.list({
+            organizationId: 'org_a',
+            projectCodes: ['alpha', 'other_same_org', 'other_org']
+        }, {
+            project_code: 'alpha', scope: 'organization', status: 'active', limit: 1
+        });
+
+        expect(result.records.map((record) => record.id)).toEqual(['eligible_older']);
+        expect(infoSSOTService.listGraphEntities).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            catalogProjectCode: 'alpha',
+            catalogScope: 'organization',
+            catalogStatus: 'active',
+            catalogOrganizationId: 'org_a',
+            limit: 1
+        }));
+        expect(result.records).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'other_org_active' })
+        ]));
+    });
+
     it('今回本文を取得していないcatalogでは過去flagがあってもpointer_onlyを返す', async () => {
         const { service } = createService([entity({ payload: {
             title: 'flagged', status: 'active', version: 4, repository_path: 'docs/x.md', content_fetched: true

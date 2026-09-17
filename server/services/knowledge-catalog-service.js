@@ -223,13 +223,18 @@ export class KnowledgeCatalogService {
         requireProjectAccess(access, projectCode);
         const scope = ['project', 'organization', 'all'].includes(input.scope) ? input.scope : 'all';
         const status = ['active', 'inactive', 'all'].includes(input.status) ? input.status : 'active';
+        const accessOrganizationId = organizationId(access);
         const allowedProjects = new Set(access.projectCodes);
         const queries = [...allowedProjects].flatMap((visibleProject) => ['decision', 'document'].map((entityType) => (
             this.infoSSOTService.listGraphEntities(access, {
                 projectCode: visibleProject,
                 entityType,
                 query: text(input.q),
-                limit: safeLimit(input.limit)
+                limit: safeLimit(input.limit),
+                catalogProjectCode: projectCode,
+                catalogScope: scope,
+                catalogStatus: status,
+                catalogOrganizationId: accessOrganizationId
             })
         )));
         const groups = await Promise.all(queries);
