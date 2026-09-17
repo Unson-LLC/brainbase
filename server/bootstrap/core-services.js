@@ -77,6 +77,7 @@ import { CompanyAuthorityHumanApprovalService } from '../services/multitenant/co
 import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
 import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
+import { createConfiguredKnowledgeDocumentWriter } from './knowledge-document-writer.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -142,7 +143,8 @@ export function createCoreServices({
     uploadsDir,
     serverDir,
     port,
-    sourceHead = null
+    sourceHead = null,
+    documentWriter = undefined
 }) {
     const googleCalendarService = new GoogleCalendarService();
     const scheduleParser = new ScheduleParser({ googleCalendarService });
@@ -159,6 +161,9 @@ export function createCoreServices({
         { catalogMode }
     );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
+    const resolvedDocumentWriter = documentWriter === undefined
+        ? createConfiguredKnowledgeDocumentWriter({ configParser })
+        : documentWriter;
     const infoSSOTService = new InfoSSOTService();
     const projectProvisioningService = infoSSOTService.pool
         ? createProjectProvisioningService({ infoSSOTService, configParser })
@@ -452,6 +457,7 @@ export function createCoreServices({
         infoSSOTService,
         projectProvisioningService,
         tenantRuntimeServices,
+        documentWriter: resolvedDocumentWriter,
         canonicalTaskStoreConfig,
         canonicalTaskReadiness,
         canonicalTaskOperationRepository,

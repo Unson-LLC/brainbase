@@ -70,7 +70,12 @@ describe('CanonicalDocumentWriterAdapter', () => {
             request_fingerprint: expect.stringMatching(/^[0-9a-f]{64}$/)
         }));
         expect(provider.read).toHaveBeenCalledWith(expect.objectContaining({
-            project_code: 'alpha', path: 'docs/guide.md'
+            project_code: 'alpha',
+            path: 'docs/guide.md',
+            resolution: expect.objectContaining({
+                source_class: 'owning_repo',
+                content_type: 'team_document'
+            })
         }));
     });
 

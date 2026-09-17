@@ -50,7 +50,7 @@ export class CanonicalDocumentWriterError extends Error {
  *   write({ project_code, path, content, base_hash, base_revision,
  *           idempotency_key, request_fingerprint, resolution, access })
  *     -> { path?, canonical_url?, revision? }
- *   read({ project_code, path, canonical_url?, access })
+ *   read({ project_code, path, canonical_url?, resolution, access })
  *     -> { path?, content, content_hash?, revision, canonical_url? }
  *
  * The provider owns the atomic CAS and durable idempotency boundary. This
@@ -194,6 +194,7 @@ export class CanonicalDocumentWriterAdapter {
             project_code: request.project_code,
             path: pathFromWrite,
             canonical_url: writeResult.canonical_url || null,
+            resolution: request.resolution,
             access: request.access
         });
         if (!readback || typeof readback !== 'object' || typeof readback.content !== 'string') {
