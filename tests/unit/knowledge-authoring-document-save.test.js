@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CanonicalDocumentWriterError } from '../../server/services/canonical-document-writer-adapter.js';
 import { KnowledgeAuthoringService } from '../../server/services/knowledge-authoring-service.js';
+import { KnowledgeDocumentGraphPointerResolver } from '../../server/services/knowledge-document-graph-pointer-resolver.js';
 
 const access = {
     projectCodes: ['alpha'],
@@ -27,7 +28,7 @@ function graphPointer(overrides = {}) {
     };
 }
 
-function harness({ writer, resolver } = {}) {
+function harness({ writer, resolver, graphRepository: graphRepositoryOverride } = {}) {
     const drafts = new Map();
     const receipts = new Map();
     const repository = {
@@ -69,7 +70,7 @@ function harness({ writer, resolver } = {}) {
             return drafts.get(save.draft_id);
         })
     };
-    const graphRepository = {
+    const graphRepository = graphRepositoryOverride || {
         validateAuthoringContext: vi.fn(async (input) => ({
             owner_person_id: input.owner_person_id,
             relations: input.relations || [],
@@ -87,6 +88,27 @@ function harness({ writer, resolver } = {}) {
         id: () => 'doc'
     });
     return { service, repository, documentReceiptRepository, graphRepository, drafts, receipts };
+}
+
+function graphRegistration(overrides = {}) {
+    return {
+        organization_id: 'org_1',
+        tenant_id: 'org_1',
+        project_code: 'alpha',
+        source_class: 'owning_repo',
+        content_type: 'team_document',
+        repository_owner: 'unson',
+        repository_name: 'alpha-docs',
+        branch: 'main',
+        path_scope: 'docs',
+        graph_project_id: 'graph-project-1',
+        graph_entity_id: 'graph-project-subject-1',
+        graph_entity_type: 'project',
+        graph_entity_lifecycle_status: 'active',
+        registration_status: 'active',
+        registry_repository: { mode: 'link_existing', owner: 'unson', repo: 'alpha-docs' },
+        ...overrides
+    };
 }
 
 function saveInput(draftId, overrides = {}) {
@@ -158,6 +180,35 @@ describe('KnowledgeAuthoringService document save', () => {
         }));
         expect(repository.claimSave).toHaveBeenCalledOnce();
         expect(documentReceiptRepository.completeAuthoringSave).toHaveBeenCalledOnce();
+    });
+
+    it('uses the persisted Graph registration in the authoring-to-writer flow', async () => {
+        const writer = { save: vi.fn(async () => writerResult()) };
+        const graphRepository = {
+            validateAuthoringContext: vi.fn(async (input) => ({
+                owner_person_id: input.owner_person_id,
+                relations: input.relations || [],
+                authority_verified: true
+            })),
+            readDocumentSourceRegistration: vi.fn(async () => graphRegistration())
+        };
+        const resolver = new KnowledgeDocumentGraphPointerResolver({ graphRepository });
+        const { service } = harness({ writer, resolver, graphRepository });
+        const draft = await createDocument(service);
+
+        await expect(service.saveDraft(access, saveInput(draft.draft_id)))
+            .resolves.toMatchObject({ status: 'saved', persistence: { readback_verified: true } });
+        expect(writer.save).toHaveBeenCalledWith(expect.objectContaining({
+            resolution: expect.objectContaining({
+                canonical_location: expect.objectContaining({
+                    owner: 'unson', repo: 'alpha-docs', branch: 'main', path: 'docs/'
+                })
+            })
+        }));
+        expect(graphRepository.readDocumentSourceRegistration).toHaveBeenCalledWith(
+            { project_code: 'alpha' },
+            { access }
+        );
     });
 
     it('keeps the same claim/idempotency key across a writer response-loss retry and replays the durable receipt', async () => {

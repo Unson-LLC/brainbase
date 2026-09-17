@@ -79,6 +79,8 @@ import { createProjectProvisioningService } from '../services/project-provisioni
 import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
 import { createConfiguredKnowledgeDocumentWriter } from './knowledge-document-writer.js';
 import { PgKnowledgeDocumentReceiptRepository } from '../services/knowledge-document-receipt-repository.js';
+import { KnowledgeDocumentGraphRepository } from '../services/knowledge-document-graph-repository.js';
+import { KnowledgeDocumentGraphPointerResolver } from '../services/knowledge-document-graph-pointer-resolver.js';
 import { createConfiguredKnowledgeBedrockAdapter } from './knowledge-bedrock.js';
 
 export function createCanonicalTaskRepository({
@@ -254,6 +256,14 @@ export function createCoreServices({
         ? new PgKnowledgeEventRepository({ pool: infoSSOTService.pool })
         : null;
     const knowledgeGraphRepository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+    const documentGraphRepository = infoSSOTService.pool
+        ? new KnowledgeDocumentGraphRepository({ infoSSOTService })
+        : null;
+    const resolvedDocumentGraphPointerResolver = documentGraphPointerResolver === null
+        ? (documentGraphRepository
+            ? new KnowledgeDocumentGraphPointerResolver({ graphRepository: documentGraphRepository })
+            : null)
+        : documentGraphPointerResolver;
     const knowledgeEventService = knowledgeEventRepository && candidateRepository
         ? new KnowledgeEventService({
             eventRepository: knowledgeEventRepository,
@@ -469,7 +479,8 @@ export function createCoreServices({
         tenantRuntimeServices,
         documentReceiptRepository,
         documentWriter: resolvedDocumentWriter,
-        documentGraphPointerResolver,
+        documentGraphRepository,
+        documentGraphPointerResolver: resolvedDocumentGraphPointerResolver,
         knowledgeBedrockAdapter: resolvedKnowledgeBedrockAdapter,
         canonicalTaskStoreConfig,
         canonicalTaskReadiness,
