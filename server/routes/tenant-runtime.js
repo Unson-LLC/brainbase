@@ -338,6 +338,13 @@ export function createTenantRuntimeRouter({
         res.set('Cache-Control', 'no-store');
         res.json(await authorityKnowledgeResolutionService.resolve(req.body));
     }));
+    router.post(/^\/knowledge:retrieve$/, asyncHandler(async (req, res) => {
+        if (!authorityKnowledgeResolutionService) {
+            throw new ContractError('UPSTREAM_UNAVAILABLE', { status: 503, retryable: true });
+        }
+        res.set('Cache-Control', 'no-store');
+        res.json(await authorityKnowledgeResolutionService.retrieve(req.body));
+    }));
     router.post('/person-profile:read', asyncHandler(async (req, res) => {
         if (!shareablePersonProfileService) {
             throw new ContractError('PERSON_PROFILE_UNAVAILABLE', { status: 503, retryable: true });

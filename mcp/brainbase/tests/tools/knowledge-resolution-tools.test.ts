@@ -59,7 +59,7 @@ it('knowledge.retrieveをtool listへ登録し、厳密版の取得結果だけ�
       }), { status: 200 });
     },
   });
-  assert.equal(calls[0].url, 'http://brainbase.test/api/knowledge/retrieve');
+  assert.equal(calls[0].url, 'http://brainbase.test/api/knowledge/retrieve-principal');
   assert.equal(calls[0].init?.method, 'POST');
   assert.equal(result?.status, 'ok');
 });
@@ -289,31 +289,54 @@ it('signed runtime authority bypasses static scope only through the verifying ba
   assert.equal(wrong?.status, 'error');
 });
 
-it('signed runtime authority付きretrieveはstaticへfallbackせずfail closedする', async () => {
+it('signed runtime authority付きretrieveはruntime検証経路を通りstaticへfallbackしない', async () => {
   const args = { project_code: 'unson', refs: [{ id: 'decision-1', version: '3' }] };
+  const proof = { signed: 'test-envelope' };
   let staticTokenCalls = 0;
   let fetchCalls = 0;
   const result = await handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', args, {
-    apiUrl: 'http://static.test', configuredProjectCodes: ['unson'],
+    apiUrl: 'http://static.test', configuredProjectCodes: [],
     tokenManager: { getToken: async () => {
       staticTokenCalls += 1;
-      return jwt({ projectCodes: ['unson'] });
+      throw new Error('static token fallback must not run');
     } },
     runtimeApiUrl: 'http://runtime.test', runtimeServiceToken: 'service-test',
-    companyAuthorityResponse: Buffer.from(JSON.stringify({ signed: 'test-envelope' })).toString('base64url'),
-    fetch: async () => {
+    companyAuthorityResponse: Buffer.from(JSON.stringify(proof)).toString('base64url'),
+    fetch: async (url, init) => {
       fetchCalls += 1;
+      assert.equal(String(url), 'http://runtime.test/api/v1/runtime/knowledge:retrieve');
+      assert.equal((init?.headers as Record<string, string>).Authorization, 'Bearer service-test');
+      assert.deepEqual(JSON.parse(String(init?.body)), { ...args, company_authority_response: proof });
       return new Response(JSON.stringify({
         project_code: 'unson',
         results: [{
           id: 'decision-1', status: 'resolved', requested_version: '3', resolved_version: '3',
-          content: 'should not be used', source: { kind: 'graph_entity' }, retrieval_receipt_id: 'receipt',
+          content: 'authorized content', source: { kind: 'graph_entity' }, retrieval_receipt_id: 'receipt',
         }],
-      }));
+      }), { status: 200 });
     },
   });
-  assert.equal(result?.status, 'error');
-  assert.equal(result?.error?.code, 'brainbase_authority_invalid');
+  assert.equal(result?.status, 'ok');
+  assert.deepEqual(result?.scope, { project_codes: ['unson'] });
   assert.equal(staticTokenCalls, 0);
-  assert.equal(fetchCalls, 0);
+  assert.equal(fetchCalls, 1);
+
+  const denied = await handleKnowledgeResolutionToolCall('brainbase_knowledge_retrieve', args, {
+    apiUrl: 'http://static.test', configuredProjectCodes: [],
+    tokenManager: { getToken: async () => {
+      staticTokenCalls += 1;
+      throw new Error('static token fallback must not run');
+    } },
+    runtimeApiUrl: 'http://runtime.test', runtimeServiceToken: 'service-test',
+    companyAuthorityResponse: Buffer.from(JSON.stringify(proof)).toString('base64url'),
+    fetch: async () => {
+      fetchCalls += 1;
+      return new Response(JSON.stringify({ error: 'denied' }), { status: 403 });
+    },
+  });
+  assert.equal(denied?.status, 'error');
+  assert.equal(denied?.error?.code, 'brainbase_authority_rejected');
+  assert.equal(denied?.error?.http_status, 403);
+  assert.equal(staticTokenCalls, 0);
+  assert.equal(fetchCalls, 2);
 });

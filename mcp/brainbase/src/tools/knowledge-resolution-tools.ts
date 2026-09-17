@@ -136,24 +136,17 @@ export async function handleKnowledgeResolutionToolCall(
 
   // The trusted transport envelope is never taken from model tool arguments.
   // Any supplied invalid or unsupported authority fails closed; do not fall back
-  // to the static token. Direct retrieval has no authority-bound runtime route:
-  // the resolve receipt is routing-only, and retrieval retains project auth.
+  // to the static token. Both routing and retrieval are performed by the
+  // authority-verifying runtime route so the signed company boundary remains
+  // intact through content retrieval.
   if (dependencies.companyAuthorityResponse !== undefined) {
     const authority = decodeCompanyAuthorityResponse(dependencies.companyAuthorityResponse);
     if (!authority || !dependencies.runtimeServiceToken || !dependencies.runtimeApiUrl) {
       return toolError('error', 'brainbase_authority_invalid', 'Signed authority transport is unavailable', []);
     }
-    if (retrieving) {
-      return toolError(
-        'error',
-        'brainbase_authority_invalid',
-        'Signed knowledge authority cannot authorize direct knowledge retrieval',
-        [],
-      );
-    }
     try {
       const response = await (dependencies.fetch ?? globalThis.fetch)(
-        new URL('/api/v1/runtime/knowledge:resolve', dependencies.runtimeApiUrl), {
+        new URL(retrieving ? '/api/v1/runtime/knowledge:retrieve' : '/api/v1/runtime/knowledge:resolve', dependencies.runtimeApiUrl), {
           method: 'POST',
           headers: { Authorization: `Bearer ${dependencies.runtimeServiceToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...args, company_authority_response: authority }),
@@ -163,9 +156,14 @@ export async function handleKnowledgeResolutionToolCall(
       const payload: unknown = await response.json();
       if (!response.ok) return toolError(response.status >= 500 ? 'unavailable' : 'error',
         'brainbase_authority_rejected', 'Signed knowledge authority was rejected', [], response.status);
-      if (!isKnowledgeResolutionReceipt(payload) || typeof payload.project_code !== 'string'
-        || !payload.project_code || (args.project_code !== undefined && args.project_code !== payload.project_code)) {
-        return toolError('error', 'brainbase_api_response_invalid', 'Invalid authority-bound routing receipt', []);
+      const valid = retrieving
+        ? isKnowledgeRetrievalResponse(payload, args.refs) && payload.project_code === args.project_code
+        : isKnowledgeResolutionReceipt(payload) && typeof payload.project_code === 'string'
+          && Boolean(payload.project_code)
+          && (args.project_code === undefined || payload.project_code === args.project_code);
+      if (!valid) {
+        return toolError('error', 'brainbase_api_response_invalid',
+          retrieving ? 'Invalid authority-bound knowledge retrieval response' : 'Invalid authority-bound routing receipt', []);
       }
       return { status: 'ok', scope: { project_codes: [payload.project_code] }, data: payload };
     } catch {
@@ -176,7 +174,7 @@ export async function handleKnowledgeResolutionToolCall(
   const context = await authenticateProject(args, dependencies, { requireProject: retrieving });
   if ('status' in context) return context;
   const fetched = await fetchAuthenticatedJson(dependencies, context, {
-    path: retrieving ? '/api/knowledge/retrieve' : '/api/knowledge/resolve',
+    path: retrieving ? '/api/knowledge/retrieve-principal' : '/api/knowledge/resolve',
     method: 'POST',
     body: args,
   });
@@ -196,7 +194,8 @@ export async function handleKnowledgeResolutionToolCall(
     );
   }
   const valid = retrieving
-    ? isKnowledgeRetrievalResponse(payload, args.refs) && payload.project_code === args.project_code
+    ? isKnowledgeRetrievalResponse(payload, args.refs)
+      && (payload as Record<string, unknown>).project_code === args.project_code
     : isKnowledgeResolutionReceipt(payload);
   if (!valid) {
     return toolError(

@@ -96,6 +96,10 @@ export function createPersonalKnowledgeAuthority({
     tenant.authorization.organization_ids = [organization];
     tenant.authorization.project_ids = [project];
     tenant.authorization.data_scopes = [...dataScopes];
+    tenant.authorization.capability_ids = [
+        ...tenant.authorization.capability_ids.filter((value) => value !== capability),
+        capability
+    ];
     tenant.placement.deployment_id = deployment;
     tenant.slack.channel_id = channel;
     tenant.slack.event_id = resolvedEventId;

@@ -272,7 +272,10 @@ export function csrfMiddleware() {
         // an MCP/runtime client. Preview and every mutation remain CSRF protected.
         if (
             req.method === 'POST'
-            && req.path === '/api/knowledge/retrieve'
+            && (
+                req.path === '/api/knowledge/retrieve'
+                || req.path === '/api/knowledge/retrieve-principal'
+            )
             && typeof req.headers?.authorization === 'string'
             && req.headers.authorization.startsWith('Bearer ')
         ) {

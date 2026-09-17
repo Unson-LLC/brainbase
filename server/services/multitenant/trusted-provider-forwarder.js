@@ -28,7 +28,7 @@ const IDEMPOTENCY_KEY = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$/u;
 const COMPANY_AUTHORITY_RESPONSE_HEADER_FIELD = 'company_authority_response_header';
 const COMPANY_AUTHORITY_RESPONSE_HEADER = 'x-brainbase-company-authority-response';
 const PROFILE_TOOL_NAME = 'brainbase_get_shareable_person_profile';
-const KNOWLEDGE_TOOL_NAME = 'brainbase_knowledge_resolve';
+const KNOWLEDGE_TOOL_NAMES = new Set(['brainbase_knowledge_resolve', 'brainbase_knowledge_retrieve']);
 const BASE64URL_PATTERN = /^[A-Za-z0-9_-]+$/u;
 const MAX_COMPANY_AUTHORITY_RESPONSE_BYTES = 12 * 1024;
 const PROHIBITED_FIXED_HEADERS = new Set([
@@ -487,7 +487,7 @@ export function createTrustedHttpProviderForwarder({
             const isKnowledgeAuthorityCall = operation === AUTHORITY_MCP_OPERATION
                 && request.body?.jsonrpc === '2.0'
                 && request.body?.method === 'tools/call'
-                && request.body?.params?.name === KNOWLEDGE_TOOL_NAME;
+                && KNOWLEDGE_TOOL_NAMES.has(request.body?.params?.name);
             const acceptsCompanyAuthority = isProfileAuthorityCall || isKnowledgeAuthorityCall;
             if (isProfileAuthorityCall && !hasCompanyAuthorityResponseHeader) {
                 failSchema();

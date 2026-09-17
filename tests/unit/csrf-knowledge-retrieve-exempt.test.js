@@ -23,8 +23,10 @@ describe('knowledge retrieve CSRF exemption', () => {
     it('exact Bearer POSTだけを通しpreviewや近接pathは保護する', () => {
         process.env.NODE_ENV = 'production';
         expect(invoke({ method: 'POST', path: '/api/knowledge/retrieve', authorization: 'Bearer token' }).nextCalled).toBe(true);
+        expect(invoke({ method: 'POST', path: '/api/knowledge/retrieve-principal', authorization: 'Bearer token' }).nextCalled).toBe(true);
         expect(invoke({ method: 'POST', path: '/api/knowledge/preview', authorization: 'Bearer token' }).response?.status).toBe(403);
         expect(invoke({ method: 'POST', path: '/api/knowledge/retrieve/other', authorization: 'Bearer token' }).response?.status).toBe(403);
+        expect(invoke({ method: 'POST', path: '/api/knowledge/retrieve-principal/other', authorization: 'Bearer token' }).response?.status).toBe(403);
         expect(invoke({ method: 'POST', path: '/api/knowledge/retrieve' }).response?.status).toBe(403);
     });
 });

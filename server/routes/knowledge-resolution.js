@@ -65,6 +65,11 @@ export function createKnowledgeCatalogRouter({ service, authoringService = null 
         id: req.params.id
     })));
     router.post('/documents', catalogRoute((req) => service.save(req.access, req.body || {})));
+    // The service-token-only retrieve contract is mounted separately at
+    // /api/knowledge/retrieve. Keep this principal-scoped entry point distinct
+    // so a normal Codex JWT can reach the catalog without weakening that
+    // machine-to-machine boundary.
+    router.post('/retrieve-principal', catalogRoute((req) => service.retrieve(req.access, req.body || {})));
     router.post('/retrieve', catalogRoute((req) => service.retrieve(req.access, req.body || {})));
     router.post('/capture/proposal', catalogRoute((req) => service.captureProposal(req.access, req.body || {})));
     router.post('/preview', catalogRoute((req) => service.preview(req.access, req.body || {})));

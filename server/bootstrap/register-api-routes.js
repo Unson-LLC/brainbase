@@ -129,7 +129,8 @@ export function registerKnowledgeCatalogApiRoute(app, {
     knowledgeRetrieveBindingRepository = null,
     knowledgeRetrieveIssuer = undefined,
     knowledgeRetrieveAudience = undefined,
-    knowledgeRetrieveDeploymentId = undefined
+    knowledgeRetrieveDeploymentId = undefined,
+    tenantRuntimeServices = null
 }) {
     const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter || (knowledgeBedrockClient && knowledgeBedrockModelId
         ? createKnowledgeBedrockAdapter({
@@ -148,6 +149,7 @@ export function registerKnowledgeCatalogApiRoute(app, {
         documentWriter,
         knowledgeResolutionService
     });
+    tenantRuntimeServices?.authorityKnowledgeResolutionService?.setKnowledgeCatalogService?.(catalogService);
     const resolvedAuthoringService = authoringService || (infoSSOTService?.pool && knowledgeEventService
         ? new KnowledgeAuthoringService({
             repository: new PgKnowledgeAuthoringRepository({ pool: infoSSOTService.pool }),
@@ -494,7 +496,8 @@ export function registerApiRoutes(app, {
         knowledgeRetrieveDeploymentId,
         documentWriter,
         documentReceiptRepository,
-        documentGraphPointerResolver
+        documentGraphPointerResolver,
+        tenantRuntimeServices
     });
     registerOutcomeServiceContextApiRoute(app, { services: tenantRuntimeServices });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
