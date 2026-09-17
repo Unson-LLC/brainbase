@@ -405,6 +405,21 @@ describe('KnowledgeCatalogService', () => {
             draft_version: 'draft-v2',
             draft: { id: 'draft_1', content: 'draft body' }
         })).rejects.toMatchObject({ code: 'knowledge_preview_adapter_invalid', status: 502 });
+
+        const fabricatedSourceAnswerer = vi.fn(async () => ({
+            answer: 'invalid evidence',
+            citations: [{ id: 'draft_1', version: 'draft-v2' }],
+            evidence: [{ source_ref: 'https://attacker.invalid/fabricated', version: 'draft-v2' }],
+            unknown: [], version: 'adapter-v1',
+            readback: { state: 'provider_verified', verified: true }
+        }));
+        const fabricatedService = new KnowledgeCatalogService({
+            infoSSOTService, previewAnswerer: fabricatedSourceAnswerer
+        });
+        await expect(fabricatedService.preview({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha', question: 'what applies?', draft_version: 'draft-v2',
+            draft: { id: 'draft_1', content: 'draft body' }
+        })).rejects.toMatchObject({ code: 'knowledge_preview_adapter_invalid', status: 502 });
     });
 
     it('capture proposalはauthorized catalog本文を材料に未保存proposalを返す', async () => {

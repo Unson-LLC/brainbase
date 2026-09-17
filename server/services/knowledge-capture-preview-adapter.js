@@ -89,7 +89,8 @@ export function resolveKnowledgeAdapter(adapter, method) {
 
 export function normalizeEvidence(value, {
     field = 'evidence',
-    allowedReferences = null
+    allowedReferences = null,
+    requireExactReference = false
 } = {}) {
     if (!Array.isArray(value)) fail(`${field} must be an array`, { field });
     return value.map((entry, index) => {
@@ -98,6 +99,9 @@ export function normalizeEvidence(value, {
         }
         const id = text(entry.id) || text(entry.candidate_id) || null;
         const sourceRef = text(entry.source_ref) || text(entry.pointer) || text(entry.source) || null;
+        if (requireExactReference && !id) {
+            fail(`${field}[${index}].id is required`, { field, index });
+        }
         if (!id && !sourceRef) {
             fail(`${field}[${index}] needs an id or source_ref`, { field, index });
         }
@@ -208,7 +212,8 @@ export function validatePreviewAnswer(value, { allowedReferences }) {
     const unknown = normalizeUnknown(value.unknown, 'preview unknown');
     const evidence = normalizeEvidence(value.evidence, {
         field: 'preview evidence',
-        allowedReferences
+        allowedReferences,
+        requireExactReference: true
     });
     const readback = normalizeReadback(value.readback, 'preview readback');
     const version = normalizeVersion(value.version, 'preview version');

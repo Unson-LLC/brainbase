@@ -502,7 +502,7 @@ export class KnowledgeCatalogService {
                 version: material.version,
                 retrieval_receipt_id: material.retrieval_receipt_id
             })),
-            provider: proposal.readback
+            provider_claim: { ...proposal.readback, verified: false }
         };
         const version = {
             adapter: proposal.version,
@@ -522,7 +522,23 @@ export class KnowledgeCatalogService {
                 content_hash: contentHash(content)
             },
             proposal: proposal.proposal,
-            evidence: proposal.evidence,
+            evidence: [
+                {
+                    id: 'capture-input',
+                    version: contentHash(content),
+                    source_ref: `capture-input:${contentHash(content)}`,
+                    state: 'provided'
+                },
+                ...proposal.evidence.map((entry) => {
+                    const material = materials.find((candidate) => candidate.id === entry.id
+                        && candidate.version === entry.version);
+                    return {
+                        ...entry,
+                        source_ref: material?.retrieval_receipt_id || null,
+                        state: material?.retrieval_receipt_id ? 'retrieved' : 'unknown'
+                    };
+                })
+            ],
             unknown,
             version,
             readback,
@@ -678,18 +694,20 @@ export class KnowledgeCatalogService {
             verified: canonicalVerified,
             source: 'knowledge.catalog.retrieve',
             refs: canonicalReadback,
-            provider: answer.readback
+            provider_claim: { ...answer.readback, verified: false }
         };
         const evidence = [
-            ...answer.evidence,
-            ...canonicalReadback
-                .filter((reference) => reference.retrieval_receipt_id)
-                .map((reference) => ({
-                    id: reference.id,
-                    version: reference.version,
-                    source_ref: reference.retrieval_receipt_id,
-                    state: 'retrieved'
-                }))
+            ...answer.evidence.map((entry) => {
+                const isDraft = referenceKey(entry.id, entry.version) === draftReferenceKey;
+                const canonical = retrievalByReference.get(referenceKey(entry.id, entry.version));
+                return {
+                    ...entry,
+                    source_ref: isDraft
+                        ? `isolated-draft:${draftCandidate.id}:${draftCandidate.version}`
+                        : canonical?.retrieval_receipt_id || null,
+                    state: isDraft ? 'isolated' : canonical?.retrieval_receipt_id ? 'retrieved' : 'unknown'
+                };
+            })
         ];
         const unknown = [
             ...answer.unknown,
