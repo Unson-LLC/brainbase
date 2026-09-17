@@ -293,15 +293,24 @@ describe('AuthService - Device Code Flow', () => {
             const response = authService.createDeviceCodeRequest('test-code-verifier', 'techknight');
             authService.approveDeviceCode(response.device_code, 'U12345', 'T12345');
             authService.findUserBySlackId = async (...args) => {
-                expect(args).toEqual(['U12345', 'T12345', 'techknight']);
+                expect(args).toEqual(['U12345', 'T12345']);
                 return {
                     person_id: 'per_1',
                     access_level: 3,
                     employment_type: 'employee',
+                    workspace_id: 'unson'
+                };
+            };
+            authService.findGrantForPerson = async (input) => {
+                expect(input).toEqual({ personId: 'per_1', organizationId: 'techknight' });
+                return {
+                    person_id: 'per_1',
+                    slack_user_id: 'U12345',
+                    slack_workspace_id: 'T12345',
+                    organization_id: 'techknight',
                     role: 'ceo',
                     project_codes: ['techknight'],
-                    clearance: ['internal'],
-                    workspace_id: 'techknight'
+                    clearance: ['internal']
                 };
             };
             authService.createAuditLog = async () => {};
@@ -310,6 +319,21 @@ describe('AuthService - Device Code Flow', () => {
 
             expect(authService.verifyToken(result.access_token).organizationId).toBe('techknight');
             expect(authService.verifyRefreshToken(result.refresh_token).organizationId).toBe('techknight');
+        });
+
+        it('should deny a requested organization when the authenticated person has no active grant', async () => {
+            const response = authService.createDeviceCodeRequest('test-code-verifier', 'techknight');
+            authService.approveDeviceCode(response.device_code, 'U12345', 'T12345');
+            authService.findUserBySlackId = async () => ({ person_id: 'per_1', workspace_id: 'unson' });
+            authService.findGrantForPerson = async () => null;
+            authService.createAuditLog = async () => {};
+
+            const result = await authService.pollDeviceToken(response.device_code);
+
+            expect(result).toMatchObject({
+                error: 'access_denied',
+                error_description: 'Access is not granted'
+            });
         });
     });
 
