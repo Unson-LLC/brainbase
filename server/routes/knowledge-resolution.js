@@ -57,7 +57,13 @@ function catalogRoute(handler) {
     };
 }
 
-export function createKnowledgeCatalogRouter({ service, authoringService = null }) {
+function routeError(code, message, status, details = {}) {
+    const error = new Error(message);
+    Object.assign(error, { code, status, details });
+    return error;
+}
+
+export function createKnowledgeCatalogRouter({ service, authoringService = null, documentGraphRepository = null }) {
     const router = Router();
     router.get('/items', catalogRoute((req) => service.list(req.access, req.query)));
     router.get('/items/:id', catalogRoute((req) => service.get(req.access, {
@@ -73,6 +79,39 @@ export function createKnowledgeCatalogRouter({ service, authoringService = null 
     router.post('/retrieve', catalogRoute((req) => service.retrieve(req.access, req.body || {})));
     router.post('/capture/proposal', catalogRoute((req) => service.captureProposal(req.access, req.body || {})));
     router.post('/preview', catalogRoute((req) => service.preview(req.access, req.body || {})));
+    if (documentGraphRepository) {
+        router.get('/document-source-registration', catalogRoute(async (req) => {
+            const registration = await documentGraphRepository.readDocumentSourceRegistration({
+                project_code: req.query?.project_code
+            }, { access: req.access });
+            if (!registration) {
+                throw routeError(
+                    'knowledge_document_source_registration_not_found',
+                    'document source registration was not found',
+                    404,
+                    { project_code: req.query?.project_code || null }
+                );
+            }
+            return { status: 'registered', registration };
+        }));
+        router.put('/document-source-registration', catalogRoute(async (req) => {
+            if (req.body?.project_code !== undefined || req.body?.tenant_id !== undefined) {
+                throw routeError(
+                    'knowledge_document_graph_registration_identity_forbidden',
+                    'project_code and tenant_id are derived from authenticated request context',
+                    400
+                );
+            }
+            const projectCode = req.query?.project_code;
+            const tenantId = req.access?.organizationId || req.access?.tenantId;
+            const result = await documentGraphRepository.registerDocumentSourceRegistration({
+                ...(req.body || {}),
+                project_code: projectCode,
+                tenant_id: tenantId
+            }, { access: req.access });
+            return { status: 'registered', ...result };
+        }));
+    }
     if (authoringService) {
         router.get('/authority-domains', catalogRoute((req) => authoringService.authorityDomains(req.access, req.query)));
         router.post('/drafts', catalogRoute((req) => authoringService.createDraft(req.access, req.body || {})));

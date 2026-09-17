@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS knowledge_document_source_registrations (
         CHECK (registration_status IN ('active', 'inactive', 'revoked')),
     registered_by TEXT NOT NULL,
     registry_repository JSONB NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     PRIMARY KEY (organization_id, project_code),
@@ -67,6 +68,17 @@ CREATE TABLE IF NOT EXISTS knowledge_document_source_registrations (
     CHECK (JSONB_TYPEOF(registry_repository) = 'object')
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_document_source_registration_receipts (
+    organization_id TEXT NOT NULL,
+    owner_person_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_fingerprint TEXT NOT NULL,
+    result JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (organization_id, owner_person_id, project_code, idempotency_key)
+);
+
 CREATE INDEX IF NOT EXISTS idx_knowledge_document_source_registrations_project
     ON knowledge_document_source_registrations (organization_id, project_code, registration_status);
 
@@ -79,6 +91,8 @@ ALTER TABLE knowledge_document_authoring_saves ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_document_authoring_saves FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_document_source_registrations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_document_source_registrations FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_document_source_registration_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_document_source_registration_receipts FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS knowledge_document_write_receipts_access ON knowledge_document_write_receipts;
 CREATE POLICY knowledge_document_write_receipts_access ON knowledge_document_write_receipts
@@ -103,4 +117,13 @@ CREATE POLICY knowledge_document_source_registrations_access ON knowledge_docume
     USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')
         AND project_code = ANY(app_project_codes()))
     WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_document_source_registration_receipts_access ON knowledge_document_source_registration_receipts;
+CREATE POLICY knowledge_document_source_registration_receipts_access ON knowledge_document_source_registration_receipts
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
         AND project_code = ANY(app_project_codes()));

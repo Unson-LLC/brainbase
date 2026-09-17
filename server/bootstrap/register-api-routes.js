@@ -61,6 +61,7 @@ import { KnowledgeCatalogService } from '../services/knowledge-catalog-service.j
 import { createKnowledgeBedrockAdapter } from '../services/knowledge-bedrock-adapter.js';
 import { KnowledgeAuthoringService } from '../services/knowledge-authoring-service.js';
 import { PgKnowledgeAuthoringRepository } from '../services/knowledge-authoring-repository.js';
+import { KnowledgeDocumentGraphRepository } from '../services/knowledge-document-graph-repository.js';
 import { InfoSSOTKnowledgeGraphRepository } from '../services/knowledge-event/info-ssot-knowledge-graph-repository.js';
 import { JudgmentResolutionService } from '../services/judgment-resolution-service.js';
 import {
@@ -124,6 +125,7 @@ export function registerKnowledgeCatalogApiRoute(app, {
     documentWriter = null,
     documentReceiptRepository = null,
     documentGraphPointerResolver = null,
+    documentGraphRepository = null,
     knowledgeResolutionService = null,
     knowledgeRetrieveBindingVerifier = null,
     knowledgeRetrieveBindingRepository = null,
@@ -132,6 +134,8 @@ export function registerKnowledgeCatalogApiRoute(app, {
     knowledgeRetrieveDeploymentId = undefined,
     tenantRuntimeServices = null
 }) {
+    const resolvedDocumentGraphRepository = documentGraphRepository
+        || (infoSSOTService ? new KnowledgeDocumentGraphRepository({ infoSSOTService }) : null);
     const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter || (knowledgeBedrockClient && knowledgeBedrockModelId
         ? createKnowledgeBedrockAdapter({
             bedrockClient: knowledgeBedrockClient,
@@ -180,7 +184,8 @@ export function registerKnowledgeCatalogApiRoute(app, {
         requireAuth(authService, { allowInsecureHeaders: false }),
         createKnowledgeCatalogRouter({
             service: catalogService,
-            authoringService: resolvedAuthoringService
+            authoringService: resolvedAuthoringService,
+            documentGraphRepository: resolvedDocumentGraphRepository
         })
     );
 }

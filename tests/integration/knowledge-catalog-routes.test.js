@@ -5,18 +5,47 @@ import { describe, expect, it, vi } from 'vitest';
 import { createKnowledgeCatalogRouter } from '../../server/routes/knowledge-resolution.js';
 import { KnowledgeCatalogError } from '../../server/services/knowledge-catalog-service.js';
 
-function createApp(service, authoringService = null) {
+function createApp(service, authoringService = null, documentGraphRepository = null) {
     const app = express();
     app.use(express.json());
     app.use((req, _res, next) => {
         req.access = { projectCodes: ['alpha', 'brainbase'], personId: 'per_1', organizationId: 'org_1' };
         next();
     });
-    app.use('/api/knowledge', createKnowledgeCatalogRouter({ service, authoringService }));
+    app.use('/api/knowledge', createKnowledgeCatalogRouter({ service, authoringService, documentGraphRepository }));
     return app;
 }
 
 describe('knowledge catalog API', () => {
+    it('保存先登録のidentityを認証contextから固定し、GETでreadbackする', async () => {
+        const registration = {
+            project_code: 'alpha', tenant_id: 'org_1', repository_owner: 'unson',
+            repository_name: 'alpha-docs', branch: 'main', path_scope: 'docs', revision: 1
+        };
+        const documentGraphRepository = {
+            readDocumentSourceRegistration: vi.fn(async () => registration),
+            registerDocumentSourceRegistration: vi.fn(async () => ({ registration, idempotent: false }))
+        };
+        const app = createApp({ list: vi.fn(), get: vi.fn() }, null, documentGraphRepository);
+
+        await request(app).put('/api/knowledge/document-source-registration?project_code=alpha')
+            .send({
+                repository_owner: 'unson', repository_name: 'alpha-docs', branch: 'main',
+                path_scope: 'docs', expected_revision: null, idempotency_key: 'register-alpha-1'
+            })
+            .expect(200, { status: 'registered', registration, idempotent: false });
+        expect(documentGraphRepository.registerDocumentSourceRegistration).toHaveBeenCalledWith(
+            expect.objectContaining({ project_code: 'alpha', tenant_id: 'org_1' }),
+            { access: expect.objectContaining({ personId: 'per_1', organizationId: 'org_1' }) }
+        );
+
+        await request(app).get('/api/knowledge/document-source-registration?project_code=alpha')
+            .expect(200, { status: 'registered', registration });
+        await request(app).put('/api/knowledge/document-source-registration?project_code=alpha')
+            .send({ project_code: 'other', tenant_id: 'other' })
+            .expect(400);
+    });
+
     it('GET /itemsへ認可contextとfilterを渡す', async () => {
         const list = vi.fn(async () => ({ state: 'empty', records: [] }));
         const response = await request(createApp({ list, get: vi.fn() }))

@@ -30,6 +30,7 @@ function registration(overrides = {}) {
         graph_entity_type: 'project',
         graph_entity_lifecycle_status: 'active',
         registration_status: 'active',
+        revision: 1,
         registered_by: 'person_1',
         registry_repository: { mode: 'link_existing', owner: 'unson', repo: 'alpha-docs' },
         ...overrides
@@ -98,6 +99,29 @@ describe('KnowledgeDocumentGraphPointerResolver', () => {
 });
 
 describe('KnowledgeDocumentGraphRepository', () => {
+    it('同一idempotency keyは保存済みreadbackだけを返し、payload変更は409にする', async () => {
+        const saved = registration();
+        const fingerprintInput = {
+            project_code: 'alpha', tenant_id: 'org_1', repository_owner: 'unson',
+            repository_name: 'alpha-docs', branch: 'main', path_scope: 'docs',
+            expected_revision: 1, idempotency_key: 'same-key'
+        };
+        const crypto = await import('node:crypto');
+        const requestFingerprint = crypto.createHash('sha256').update(JSON.stringify({
+            project_code: 'alpha', repository_owner: 'unson', repository_name: 'alpha-docs',
+            branch: 'main', path_scope: 'docs', expected_revision: 1
+        })).digest('hex');
+        const client = { query: vi.fn(async () => ({ rows: [{ request_fingerprint: requestFingerprint, result: saved }] })) };
+        const repository = new KnowledgeDocumentGraphRepository({
+            infoSSOTService: { withAccessContext: vi.fn(async (_access, handler) => handler(client)), assertWriteAccess: vi.fn() }
+        });
+
+        await expect(repository.registerDocumentSourceRegistration(fingerprintInput, { access }))
+            .resolves.toEqual({ registration: saved, idempotent: true });
+        await expect(repository.registerDocumentSourceRegistration({ ...fingerprintInput, branch: 'next' }, { access }))
+            .rejects.toMatchObject({ code: 'knowledge_document_graph_idempotency_conflict', status: 409 });
+    });
+
     it('registers only the linked active Project Graph target and verifies readback', async () => {
         const row = registration();
         const client = {
@@ -117,6 +141,7 @@ describe('KnowledgeDocumentGraphRepository', () => {
                         }]
                     };
                 }
+                if (text.includes('knowledge_document_source_registration_receipts')) return { rows: [] };
                 if (text.includes('FROM knowledge_document_source_registrations')) return { rows: [row] };
                 return { rows: [] };
             })
@@ -133,13 +158,18 @@ describe('KnowledgeDocumentGraphRepository', () => {
             repository_owner: 'unson',
             repository_name: 'alpha-docs',
             branch: 'main',
-            path_scope: 'docs/'
+            path_scope: 'docs/',
+            expected_revision: 1,
+            idempotency_key: 'register-alpha-1'
         }, { access });
 
         expect(result).toMatchObject({
-            project_code: 'alpha',
-            graph_entity_id: 'graph-project-subject-1',
-            registration_status: 'active'
+            idempotent: false,
+            registration: {
+                project_code: 'alpha',
+                graph_entity_id: 'graph-project-subject-1',
+                registration_status: 'active'
+            }
         });
         expect(infoSSOTService.assertWriteAccess).toHaveBeenCalledWith(access, {
             projectCode: 'alpha', roleMin: 'member', sensitivity: 'internal'
@@ -177,7 +207,9 @@ describe('KnowledgeDocumentGraphRepository', () => {
             repository_owner: 'other',
             repository_name: 'alpha-docs',
             branch: 'main',
-            path_scope: 'docs'
+            path_scope: 'docs',
+            expected_revision: null,
+            idempotency_key: 'register-alpha-drift'
         }, { access })).rejects.toMatchObject({
             code: 'knowledge_document_graph_repository_mismatch',
             status: 409
@@ -199,7 +231,9 @@ describe('KnowledgeDocumentGraphRepository', () => {
             repository_owner: 'unson',
             repository_name: 'alpha-docs',
             branch: 'main',
-            path_scope: 'docs'
+            path_scope: 'docs',
+            expected_revision: null,
+            idempotency_key: 'register-alpha-missing-tenant'
         }, { access })).rejects.toMatchObject({
             code: 'knowledge_document_graph_registration_required',
             status: 403,
