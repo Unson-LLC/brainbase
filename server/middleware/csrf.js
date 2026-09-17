@@ -183,6 +183,22 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Organization switching is proxied by the same-origin organization UI
+        // after it has already validated the browser Origin and double-submit
+        // CSRF cookie. The proxy calls this exact upstream route with the
+        // authenticated user's Bearer JWT and no browser cookies. Keep the
+        // exemption exact so cookie-only requests and neighbouring auth writes
+        // remain protected by CSRF, while requireAuth and switchOrganization
+        // continue to enforce the principal and requested organization grant.
+        if (
+            req.method === 'POST'
+            && req.path === '/api/auth/organizations/switch'
+            && typeof req.headers?.authorization === 'string'
+            && /^Bearer \S+$/.test(req.headers.authorization)
+        ) {
+            return next();
+        }
+
         // Skip Device Code Flow endpoints (CLI-based, no CSRF token available)
         if (req.path?.startsWith('/api/auth/device/')) {
             return next();
