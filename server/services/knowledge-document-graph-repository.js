@@ -244,6 +244,10 @@ export class KnowledgeDocumentGraphRepository {
                 path_scope: fields.pathScope,
                 expected_revision: expectedRevision
             });
+            await contextClient.query(
+                `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+                [`knowledge-document-source-registration:${fields.organizationId}:${fields.projectCode}`]
+            );
             const receiptResult = await contextClient.query(
                 `SELECT request_fingerprint, result
                  FROM knowledge_document_source_registration_receipts
@@ -367,7 +371,7 @@ export class KnowledgeDocumentGraphRepository {
                 );
             }
 
-            await contextClient.query(
+            const writeResult = await contextClient.query(
                 `INSERT INTO knowledge_document_source_registrations (
                      organization_id, tenant_id, project_code,
                      source_class, content_type,
@@ -389,7 +393,10 @@ export class KnowledgeDocumentGraphRepository {
                      registered_by = EXCLUDED.registered_by,
                      registry_repository = EXCLUDED.registry_repository,
                      revision = knowledge_document_source_registrations.revision + 1,
-                     updated_at = NOW()`,
+                     updated_at = NOW()
+                 WHERE $14::integer IS NOT NULL
+                   AND knowledge_document_source_registrations.revision = $14::integer
+                 RETURNING revision`,
                 [
                     fields.organizationId,
                     fields.tenantId,
@@ -403,9 +410,28 @@ export class KnowledgeDocumentGraphRepository {
                     target.graph_project_id,
                     target.graph_entity_id,
                     fields.registeredBy,
-                    JSON.stringify(registryRepository)
+                    JSON.stringify(registryRepository),
+                    expectedRevision
                 ]
             );
+            if (!writeResult?.rows?.length) {
+                const latest = await contextClient.query(
+                    `SELECT revision
+                     FROM knowledge_document_source_registrations
+                     WHERE organization_id = $1 AND project_code = $2`,
+                    [fields.organizationId, fields.projectCode]
+                );
+                throw documentGraphError(
+                    'knowledge_document_graph_revision_conflict',
+                    'document source registration changed during the update',
+                    409,
+                    {
+                        project_code: fields.projectCode,
+                        expected_revision: expectedRevision,
+                        current_revision: latest?.rows?.[0]?.revision ?? null
+                    }
+                );
+            }
             const readback = await this._readOnClient(contextClient, fields.projectCode, fields.organizationId);
             if (!readback || readback.registration_status !== 'active'
                 || readback.repository_owner !== fields.repositoryOwner

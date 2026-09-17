@@ -143,6 +143,7 @@ describe('KnowledgeDocumentGraphRepository', () => {
                 }
                 if (text.includes('knowledge_document_source_registration_receipts')) return { rows: [] };
                 if (text.includes('FROM knowledge_document_source_registrations')) return { rows: [row] };
+                if (text.includes('INSERT INTO knowledge_document_source_registrations')) return { rows: [{ revision: 2 }] };
                 return { rows: [] };
             })
         };
@@ -174,6 +175,8 @@ describe('KnowledgeDocumentGraphRepository', () => {
         expect(infoSSOTService.assertWriteAccess).toHaveBeenCalledWith(access, {
             projectCode: 'alpha', roleMin: 'member', sensitivity: 'internal'
         });
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('pg_advisory_xact_lock')))
+            .toBe(true);
         expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO knowledge_document_source_registrations')))
             .toBe(true);
         expect(client.query.mock.calls.some(([sql]) => String(sql).includes('FROM knowledge_document_source_registrations')))
