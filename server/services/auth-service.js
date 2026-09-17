@@ -1422,11 +1422,30 @@ export class AuthService {
             const { identity, organizationId } = record;
 
             // Fetch user from database
-            const user = identity?.provider === 'slack'
-                ? (organizationId
-                    ? await this.findUserBySlackId(identity.subject, identity.tenantId, organizationId)
-                    : await this.findUserBySlackId(identity.subject, identity.tenantId))
-                : await this.findUserByExternalIdentity(identity, organizationId);
+            let user;
+            if (identity?.provider === 'slack' && organizationId) {
+                // The Slack team identifies the human login, not the logical
+                // Brainbase organization. One Slack workspace can grant the
+                // same person access to several organizations.
+                const identityUser = await this.findUserBySlackId(identity.subject, identity.tenantId);
+                const grant = identityUser?.person_id
+                    ? await this.findGrantForPerson({ personId: identityUser.person_id, organizationId })
+                    : null;
+                const access = grant ? this.buildAccessFromGrant(grant) : null;
+                user = identityUser && access
+                    ? {
+                        ...identityUser,
+                        role: access.role,
+                        project_codes: access.projectCodes,
+                        clearance: access.clearance,
+                        workspace_id: access.organizationId
+                    }
+                    : null;
+            } else {
+                user = identity?.provider === 'slack'
+                    ? await this.findUserBySlackId(identity.subject, identity.tenantId)
+                    : await this.findUserByExternalIdentity(identity, organizationId);
+            }
             if (!user) {
                 await this.createAuditLog({
                     eventType: 'AUTH_DENY',
