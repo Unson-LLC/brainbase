@@ -111,18 +111,38 @@ describe('KnowledgeCatalogService', () => {
         expect(KnowledgeCatalogError).toBeDefined();
     });
 
-    it('query時に対象projectを絞り、別projectを検索しない', async () => {
+    it('アクセス可能な別projectからorganization scopeだけを継承する', async () => {
         const { service, infoSSOTService } = createService([
             entity(),
-            entity({ id: 'other', project_code: 'other' })
+            entity({ id: 'other', project_code: 'other' }),
+            entity({ id: 'org_shared', project_code: 'other', payload: {
+                title: 'Shared rule', status: 'active', version: '1', applicability_scope: { scope: 'organization' }
+            } })
         ]);
         const access = { projectCodes: ['alpha', 'other'] };
 
         const result = await service.list(access, { project_code: 'alpha', status: 'all' });
 
-        expect(result.records.map((row) => row.id)).toEqual(['dec_1']);
+        expect(result.records.map((row) => row.id)).toEqual(['dec_1', 'org_shared']);
+        expect(result.records.find((row) => row.id === 'org_shared')).toMatchObject({ scope: 'organization' });
         expect(infoSSOTService.listGraphEntities.mock.calls.map(([, input]) => input.projectCode))
-            .toEqual(['alpha', 'alpha']);
+            .toEqual(['alpha', 'alpha', 'other', 'other']);
+        expect(result.searched_scope).toEqual(['alpha', 'other']);
+    });
+
+    it('organization scopeの継承detailを取得し、別project固有項目は404にする', async () => {
+        const { service } = createService([
+            entity({ id: 'org_shared', project_code: 'other', payload: {
+                title: 'Shared rule', status: 'active', version: '1', applicability_scope: { scope: 'organization' }
+            } }),
+            entity({ id: 'other_private', project_code: 'other' })
+        ]);
+        const access = { projectCodes: ['alpha', 'other'] };
+
+        await expect(service.get(access, { project_code: 'alpha', id: 'org_shared' }))
+            .resolves.toMatchObject({ id: 'org_shared', scope: 'organization' });
+        await expect(service.get(access, { project_code: 'alpha', id: 'other_private' }))
+            .rejects.toMatchObject({ code: 'knowledge_not_found', status: 404 });
     });
 
     it('今回本文を取得していないcatalogでは過去flagがあってもpointer_onlyを返す', async () => {

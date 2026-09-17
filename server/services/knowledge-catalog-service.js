@@ -126,7 +126,7 @@ export class KnowledgeCatalogService {
         requireProjectAccess(access, projectCode);
         const scope = ['project', 'organization', 'all'].includes(input.scope) ? input.scope : 'all';
         const status = ['active', 'inactive', 'all'].includes(input.status) ? input.status : 'active';
-        const allowedProjects = new Set([projectCode]);
+        const allowedProjects = new Set(access.projectCodes);
         const queries = [...allowedProjects].flatMap((visibleProject) => ['decision', 'document'].map((entityType) => (
             this.infoSSOTService.listGraphEntities(access, {
                 projectCode: visibleProject,
@@ -137,7 +137,8 @@ export class KnowledgeCatalogService {
         )));
         const groups = await Promise.all(queries);
         const records = groups.flat()
-            .filter((entity) => allowedProjects.has(entity.project_code))
+            .filter((entity) => entity.project_code === projectCode
+                || text(entity.payload?.applicability_scope?.scope) === 'organization')
             .map((entity) => mapRecord(entity, projectCode))
             .filter((record) => scope === 'all' || record.scope === scope)
             .filter((record) => includeStatus(record, status));
@@ -158,9 +159,14 @@ export class KnowledgeCatalogService {
         const id = text(input.id);
         requireProjectAccess(access, projectCode);
         if (!id) throw new KnowledgeCatalogError('knowledge_id_required', 'knowledge id is required', 400);
-        const rows = await this.infoSSOTService.listGraphEntities(access, { id, projectCode, limit: 1 });
-        const entity = rows.find((row) => row.id === id && ['decision', 'document'].includes(row.entity_type));
-        if (!entity || entity.project_code !== projectCode) {
+        const groups = await Promise.all(access.projectCodes.map((visibleProject) => (
+            this.infoSSOTService.listGraphEntities(access, { id, projectCode: visibleProject, limit: 1 })
+        )));
+        const entity = groups.flat().find((row) => row.id === id
+            && ['decision', 'document'].includes(row.entity_type)
+            && (row.project_code === projectCode
+                || text(row.payload?.applicability_scope?.scope) === 'organization'));
+        if (!entity) {
             throw new KnowledgeCatalogError('knowledge_not_found', 'knowledge was not found', 404);
         }
         const edges = await this.infoSSOTService.listGraphEdges(access, {

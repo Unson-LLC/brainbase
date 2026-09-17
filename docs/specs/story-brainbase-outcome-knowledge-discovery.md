@@ -21,7 +21,7 @@
 ## Invariants
 
 - Canonical Graph IDs are returned once; project and organization associations do not create duplicate knowledge rows.
-- Organization scope is read from the canonical entity applicability scope inside the requested project. The catalog does not infer inheritance from a hard-coded project name; cross-project inheritance requires a separate canonical relation or configuration.
+- Organization scope is read from the canonical entity applicability scope. The catalog searches only projects present in the authenticated access grant and inherits only records explicitly marked `scope=organization`; organization RLS remains authoritative. It never infers inheritance from a hard-coded project name or exposes another project's project-scoped records.
 - Normal discovery excludes draft, superseded, expired, and retired decisions by default. A caller may request inactive records, but they are never marked applicable.
 - Graph authorization remains the source of truth. The catalog layer does not count, name, or hint at inaccessible entities.
 - Unknown owner, source-fetch state, applicability, or version remains `null`/`unknown`; it is not normalized to success, zero, or empty.
