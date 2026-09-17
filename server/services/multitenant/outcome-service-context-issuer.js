@@ -42,7 +42,8 @@ export function createOutcomeServiceContextIssuer({ signingKey, resolveProfile, 
                 || required.operation_id !== outcomeOperationId(persisted.run_id)) deny('outcome_issuer_scope_mismatch');
             const authority = await readback({ tenant: principal.tenant_id, project: principal.project_id,
                 actor: principal.actor_principal_id, contract: persisted.contract_id,
-                version: persisted.contract_version, run: persisted.run_id, resource: profile.resource_ref });
+                version: persisted.contract_version, run: persisted.run_id, resource: profile.resource_ref,
+                profile }, serviceIdentity);
             if (!authority || !Object.keys(principal).every(key => same(authority.principal?.[key], principal[key]))
                 || !Object.keys(persisted).every(key => same(authority.persisted?.[key], persisted[key]))
                 || !same(authority.profile_id, profileId) || !nonempty(authority.authority_revision)

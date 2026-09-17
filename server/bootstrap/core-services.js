@@ -83,6 +83,7 @@ import { KnowledgeDocumentGraphRepository } from '../services/knowledge-document
 import { KnowledgeDocumentGraphPointerResolver } from '../services/knowledge-document-graph-pointer-resolver.js';
 import { createConfiguredKnowledgeBedrockAdapter } from './knowledge-bedrock.js';
 import { createManaOutcomeAuthorityReadbackProviderFromEnv } from '../services/knowledge-retrieve-binding-provider.js';
+import { createOutcomeServiceContextIssuerFromEnv } from './outcome-service-context.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -155,7 +156,11 @@ export function createCoreServices({
     knowledgeRetrieveBindingVerifier = undefined,
     knowledgeRetrieveBindingRepository = undefined,
     knowledgeRetrieveBindingTransport = undefined,
-    knowledgeRetrieveBindingResource = undefined
+    knowledgeRetrieveBindingResource = undefined,
+    outcomeServiceContextAdapters = null,
+    outcomeServiceContextReadbackBinding = null,
+    outcomeServiceContextReadbackTransport = null,
+    outcomeServiceContextReadbackResource = undefined
 }) {
     const googleCalendarService = new GoogleCalendarService();
     const scheduleParser = new ScheduleParser({ googleCalendarService });
@@ -195,6 +200,14 @@ export function createCoreServices({
     let tenantRuntimeServices = createTenantRuntimeServicesFromEnv({
         env: process.env,
         pool: infoSSOTService.pool
+    });
+    const outcomeServiceContextIssuer = createOutcomeServiceContextIssuerFromEnv({
+        env: process.env,
+        tenantRuntimeServices,
+        adapters: outcomeServiceContextAdapters,
+        serviceBinding: outcomeServiceContextReadbackBinding,
+        transport: outcomeServiceContextReadbackTransport,
+        resource: outcomeServiceContextReadbackResource
     });
     const canonicalTaskStoreConfig = createCanonicalTaskStoreConfig();
     const canonicalTaskBackend = resolveCanonicalTaskBackend();
@@ -489,6 +502,7 @@ export function createCoreServices({
         infoSSOTService,
         projectProvisioningService,
         tenantRuntimeServices,
+        outcomeServiceContextIssuer,
         documentReceiptRepository,
         documentWriter: resolvedDocumentWriter,
         documentGraphRepository,

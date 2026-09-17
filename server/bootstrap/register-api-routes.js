@@ -332,6 +332,7 @@ export function registerApiRoutes(app, {
     runtimeInfo,
     brainbaseRoot,
     tenantRuntimeServices,
+    outcomeServiceContextIssuer = null,
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
@@ -504,7 +505,12 @@ export function registerApiRoutes(app, {
         documentGraphPointerResolver,
         tenantRuntimeServices
     });
-    registerOutcomeServiceContextApiRoute(app, { services: tenantRuntimeServices });
+    registerOutcomeServiceContextApiRoute(app, {
+        services: {
+            ...(tenantRuntimeServices || {}),
+            outcomeServiceContextIssuer
+        }
+    });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
         registerKnowledgeEventApiRoutes(app, {
             authService,

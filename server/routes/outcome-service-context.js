@@ -34,7 +34,14 @@ export function createOutcomeServiceContextRouter({
                 fault_domain: 'brainbase_cloud'
             });
         }
-        const response = await outcomeServiceContextIssuer.issue(req.body, req.serviceIdentity);
+        // The middleware has already verified the complete service token. Keep
+        // the transport identity as the public shape while carrying the
+        // verified claims to Mana readback adapters; request/body claims are
+        // never used for this purpose.
+        const serviceIdentity = req.serviceTokenClaims
+            ? Object.freeze({ ...req.serviceIdentity, serviceTokenClaims: req.serviceTokenClaims })
+            : req.serviceIdentity;
+        const response = await outcomeServiceContextIssuer.issue(req.body, serviceIdentity);
         res.set('Cache-Control', 'no-store');
         return res.status(200).json(response);
     }));

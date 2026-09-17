@@ -183,7 +183,8 @@ describe('Outcome service context issuer', () => {
             contract: 'contract-a',
             version: '4',
             run: runId,
-            resource: resourceRef
+            resource: resourceRef,
+            profile
         });
 
     });

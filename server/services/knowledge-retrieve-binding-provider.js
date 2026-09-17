@@ -9,6 +9,14 @@ import { KNOWLEDGE_RETRIEVE_CAPABILITY } from '../middleware/knowledge-retrieve-
  */
 export const MANA_OUTCOME_AUTHORITY_READBACK_PATH = '/v1/outcome-authority:readback';
 export const MANA_OUTCOME_AUTHORITY_READBACK_RESOURCE_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_READBACK_RESOURCE';
+export const MANA_OUTCOME_AUTHORITY_BRIDGE_URL_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_BRIDGE_URL';
+export const MANA_OUTCOME_AUTHORITY_BRIDGE_HOSTNAME_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_BRIDGE_HOSTNAME';
+export const MANA_OUTCOME_AUTHORITY_BRIDGE_SERVICE_TOKEN_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_BRIDGE_SERVICE_TOKEN';
+export const MANA_OUTCOME_AUTHORITY_BRIDGE_ACCESS_CLIENT_ID_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_BRIDGE_ACCESS_CLIENT_ID';
+export const MANA_OUTCOME_AUTHORITY_BRIDGE_ACCESS_CLIENT_SECRET_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_BRIDGE_ACCESS_CLIENT_SECRET';
+export const MANA_OUTCOME_AUTHORITY_BRIDGE_ISSUER_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_BRIDGE_ISSUER';
+export const MANA_OUTCOME_AUTHORITY_BRIDGE_AUDIENCE_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_BRIDGE_AUDIENCE';
+export const MANA_OUTCOME_AUTHORITY_BRIDGE_DEPLOYMENT_ID_ENV = 'BRAINBASE_MANA_OUTCOME_AUTHORITY_BRIDGE_DEPLOYMENT_ID';
 
 // Kept as a source-compatible marker for deployments removing the old URL
 // setting. It is deliberately not read by the provider.
@@ -80,6 +88,90 @@ function aliasedList(object, names, label, { required = true } = {}) {
     }
     if (first.length === 0 && required) throw new Error(`${label} claim is required`);
     return first;
+}
+
+function resolveBridgeEndpoint(endpoint, expectedHostname = undefined) {
+    const value = nonEmptyString(endpoint);
+    if (!value) return null;
+    let url;
+    try {
+        url = new URL(value);
+    } catch {
+        return null;
+    }
+    const hostname = nonEmptyString(expectedHostname)?.toLowerCase() || null;
+    if (url.protocol !== 'https:' || url.username || url.password || url.port
+        || !['', '/'].includes(url.pathname) || url.search || url.hash
+        || (hostname && url.hostname.toLowerCase() !== hostname)) return null;
+    url.pathname = MANA_OUTCOME_AUTHORITY_READBACK_PATH;
+    return url.toString();
+}
+
+function serviceAuthMetadata(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const issuer = nonEmptyString(value.issuer);
+    const audience = list(value.audience);
+    const deploymentId = nonEmptyString(value.deploymentId ?? value.deployment_id);
+    if (!issuer || audience.length === 0 || !deploymentId) return null;
+    return Object.freeze({ issuer, audience, deploymentId });
+}
+
+function sameServiceAuth(left, right) {
+    return Boolean(left && right && left.issuer === right.issuer
+        && left.deploymentId === right.deploymentId
+        && left.audience.length === right.audience.length
+        && left.audience.every((item, index) => item === right.audience[index]));
+}
+
+function normalizeKnowledgeRefs(value, { required = true, label = 'knowledge refs' } = {}) {
+    if (value === undefined || value === null) {
+        if (required) throw new Error(`${label} claim is required`);
+        return null;
+    }
+    if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
+        throw new Error(`${label} must be a non-empty array`);
+    }
+    const refs = value.map((ref) => {
+        if (!ref || typeof ref !== 'object' || Array.isArray(ref)) {
+            throw new Error(`${label} entries must be objects`);
+        }
+        if (Object.keys(ref).some((key) => !['id', 'version'].includes(key))) {
+            throw new Error(`${label} entries contain unsupported fields`);
+        }
+        const id = nonEmptyString(ref.id);
+        const version = nonEmptyString(ref.version);
+        if (!id || !version || id.length > 512 || version.length > 128) {
+            throw new Error(`${label} entries require bounded id and version`);
+        }
+        return { id, version };
+    });
+    const seen = new Set();
+    for (const ref of refs) {
+        const key = `${ref.id}\u0000${ref.version}`;
+        if (seen.has(key)) throw new Error(`${label} entries must be unique`);
+        seen.add(key);
+    }
+    return refs.sort((left, right) => `${left.id}\u0000${left.version}`.localeCompare(`${right.id}\u0000${right.version}`));
+}
+
+function aliasedKnowledgeRefs(object, names, label, { required = true } = {}) {
+    const values = names
+        .map((name) => firstDefined(object, [name]))
+        .filter((value) => value !== undefined && value !== null);
+    if (values.length === 0) {
+        if (required) throw new Error(`${label} claim is required`);
+        return null;
+    }
+    const normalized = values.map((value) => normalizeKnowledgeRefs(value, { required: true, label }));
+    const first = normalized[0];
+    if (normalized.slice(1).some((candidate) => JSON.stringify(candidate) !== JSON.stringify(first))) {
+        throw new Error(`${label} claims are ambiguous`);
+    }
+    return first;
+}
+
+function sameKnowledgeRefs(left, right) {
+    return JSON.stringify(left || []) === JSON.stringify(right || []);
 }
 
 function resolveServiceBinding({ serviceBinding, transport } = {}) {
@@ -158,6 +250,19 @@ function resolveTokenIdentity(expected, context = {}) {
     if (!Number.isSafeInteger(contractVersion) || contractVersion < 1) {
         throw new Error('outcome contract version claim is required');
     }
+    if (request.contractVersion !== null && contractVersion !== request.contractVersion) {
+        throw new Error('outcome contract version does not match the verified service token');
+    }
+    const runMode = aliasedString(claims, ['run_mode', 'runMode'], 'run mode', { required: false });
+    if (request.runMode && runMode !== request.runMode) {
+        throw new Error('run mode does not match the verified service token');
+    }
+    const knowledgeRefs = aliasedKnowledgeRefs(claims, ['knowledge_refs', 'knowledgeRefs'], 'knowledge refs', {
+        required: false
+    });
+    if (request.knowledgeRefs && (!knowledgeRefs || !sameKnowledgeRefs(knowledgeRefs, request.knowledgeRefs))) {
+        throw new Error('knowledge refs do not match the verified service token');
+    }
 
     const expectedOrganizationId = nonEmptyString(expected.organization_id || expected.organizationId);
     if (expectedOrganizationId && expectedOrganizationId !== organizationId) {
@@ -177,7 +282,9 @@ function resolveTokenIdentity(expected, context = {}) {
         projectCodes,
         outcomeContractId: tokenContractId,
         runId: tokenRunId,
-        contractVersion
+        contractVersion,
+        runMode,
+        knowledgeRefs
     };
 }
 
@@ -188,7 +295,23 @@ function expectedInput(expected) {
     if (!outcomeContractId || !runId || !projectCode) {
         throw new Error('project, outcome contract and run are required');
     }
-    return { outcomeContractId, runId, projectCode };
+    const contractVersionValue = firstDefined(expected, [
+        'outcome_contract_version', 'outcomeContractVersion', 'contract_version', 'contractVersion'
+    ]);
+    const contractVersion = contractVersionValue === undefined
+        ? null
+        : Number(contractVersionValue);
+    if (contractVersion !== null && (!Number.isSafeInteger(contractVersion) || contractVersion < 1)) {
+        throw new Error('outcome contract version is invalid');
+    }
+    const runMode = aliasedString(expected, ['run_mode', 'runMode'], 'run mode', { required: false });
+    if (runMode && !['normal', 'safe_test'].includes(runMode)) {
+        throw new Error('run mode is invalid');
+    }
+    const knowledgeRefs = aliasedKnowledgeRefs(expected, ['knowledge_refs', 'knowledgeRefs', 'refs'], 'knowledge refs', {
+        required: false
+    });
+    return { outcomeContractId, runId, projectCode, contractVersion, runMode, knowledgeRefs };
 }
 
 function assertReadbackShape(value, identity, resource) {
@@ -228,6 +351,18 @@ function assertReadbackShape(value, identity, resource) {
     if (runMode === 'normal' && contractStatus !== 'active') {
         throw new Error('normal outcome runs require an active contract');
     }
+    if (identity.runMode && identity.runMode !== runMode) {
+        throw new Error('Mana outcome authority readback run mode does not match the requested binding');
+    }
+    const readbackKnowledgeRefs = aliasedKnowledgeRefs(value, ['knowledge_refs', 'knowledgeRefs'], 'knowledge refs', {
+        required: false
+    }) || aliasedKnowledgeRefs(persisted, ['knowledge_refs', 'knowledgeRefs'], 'knowledge refs', {
+        required: false
+    });
+    if (identity.knowledgeRefs && (!readbackKnowledgeRefs
+        || !sameKnowledgeRefs(readbackKnowledgeRefs, identity.knowledgeRefs))) {
+        throw new Error('Mana outcome authority readback knowledge refs do not match the requested binding');
+    }
     if (!nonEmptyString(value.authority_revision) || !nonEmptyString(value.profile_id)) {
         throw new Error('Mana outcome authority readback provenance is required');
     }
@@ -245,7 +380,8 @@ function assertReadbackShape(value, identity, resource) {
         authority_revision: value.authority_revision,
         profile_id: value.profile_id,
         run_mode: runMode,
-        contract_status: contractStatus
+        contract_status: contractStatus,
+        ...(readbackKnowledgeRefs ? { knowledge_refs: readbackKnowledgeRefs } : {})
     };
 }
 
@@ -253,6 +389,43 @@ async function readResponseJson(response) {
     if (typeof response?.json === 'function') return response.json();
     if (typeof response?.text === 'function') return JSON.parse(await response.text());
     throw new Error('Mana outcome authority readback response is not readable');
+}
+
+export function createManaOutcomeAuthorityReadbackHttpTransport({
+    endpoint,
+    hostname,
+    serviceToken,
+    accessClientId,
+    accessClientSecret,
+    fetchImpl = globalThis.fetch,
+    serviceAuth = null,
+    expectedServiceAuth = null
+} = {}) {
+    const bridgeEndpoint = resolveBridgeEndpoint(endpoint, hostname);
+    const bridgeToken = nonEmptyString(serviceToken);
+    const accessId = nonEmptyString(accessClientId);
+    const accessSecret = nonEmptyString(accessClientSecret);
+    const configuredServiceAuth = serviceAuthMetadata(serviceAuth);
+    const expected = expectedServiceAuth == null ? null : serviceAuthMetadata(expectedServiceAuth);
+    if (!bridgeEndpoint || !bridgeToken || !accessId || !accessSecret || typeof fetchImpl !== 'function'
+        || (expectedServiceAuth != null && (!configuredServiceAuth || !expected
+            || !sameServiceAuth(configuredServiceAuth, expected)))) return null;
+
+    return {
+        serviceAuth: configuredServiceAuth,
+        async fetch(_input, init = {}) {
+            const headers = new Headers(init.headers || {});
+            headers.delete('authorization');
+            headers.delete('cf-access-client-id');
+            headers.delete('cf-access-client-secret');
+            headers.set('authorization', `Bearer ${bridgeToken}`);
+            headers.set('cf-access-client-id', accessId);
+            headers.set('cf-access-client-secret', accessSecret);
+            headers.set('accept', 'application/json');
+            headers.set('content-type', 'application/json');
+            return fetchImpl(bridgeEndpoint, { ...init, method: 'POST', headers, redirect: 'manual' });
+        }
+    };
 }
 
 /**

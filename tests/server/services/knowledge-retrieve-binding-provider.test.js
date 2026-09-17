@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+    createManaOutcomeAuthorityReadbackHttpTransport,
     createManaOutcomeAuthorityReadbackProvider,
     createManaOutcomeAuthorityReadbackProviderFromEnv,
     MANA_OUTCOME_AUTHORITY_READBACK_PATH,
@@ -59,6 +60,54 @@ function response(body, status = 200) {
 }
 
 describe('Mana outcome authority readback binding provider', () => {
+    it('uses only configured bridge credentials and a canonical HTTPS endpoint', async () => {
+        const fetchImpl = vi.fn(async () => response(readback()));
+        const transport = createManaOutcomeAuthorityReadbackHttpTransport({
+            endpoint: 'https://bridge.example.test/',
+            hostname: 'bridge.example.test',
+            serviceToken: 'configured-token',
+            accessClientId: 'access-id',
+            accessClientSecret: 'access-secret',
+            fetchImpl
+        });
+
+        await transport.fetch('https://attacker.invalid', {
+            headers: {
+                authorization: 'Bearer caller-token',
+                'cf-access-client-id': 'caller-id',
+                'cf-access-client-secret': 'caller-secret'
+            },
+            body: '{}'
+        });
+
+        const [url, init] = fetchImpl.mock.calls[0];
+        expect(url).toBe(`https://bridge.example.test${MANA_OUTCOME_AUTHORITY_READBACK_PATH}`);
+        expect(init.method).toBe('POST');
+        expect(init.redirect).toBe('manual');
+        expect(init.headers.get('authorization')).toBe('Bearer configured-token');
+        expect(init.headers.get('cf-access-client-id')).toBe('access-id');
+        expect(init.headers.get('cf-access-client-secret')).toBe('access-secret');
+    });
+
+    it.each([
+        [{ endpoint: 'http://bridge.example.test/' }],
+        [{ endpoint: 'https://other.example.test/', hostname: 'bridge.example.test' }],
+        [{ endpoint: 'https://bridge.example.test/path' }],
+        [{ serviceToken: '' }],
+        [{ accessClientId: '' }],
+        [{ accessClientSecret: '' }]
+    ])('does not create an incompletely authenticated bridge transport', (override) => {
+        expect(createManaOutcomeAuthorityReadbackHttpTransport({
+            endpoint: 'https://bridge.example.test/',
+            hostname: 'bridge.example.test',
+            serviceToken: 'configured-token',
+            accessClientId: 'access-id',
+            accessClientSecret: 'access-secret',
+            fetchImpl: vi.fn(),
+            ...override
+        })).toBeNull();
+    });
+
     it('uses the injected named service binding and returns only persisted binding fields', async () => {
         const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
         const provider = createManaOutcomeAuthorityReadbackProvider({
