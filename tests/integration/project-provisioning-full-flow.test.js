@@ -978,7 +978,9 @@ describe.skipIf(!runDockerIntegration).sequential('Project Provisioning acceptan
 
         expect(applied).toMatchObject({ state: 'active', receipt: { verified: true } });
         expect(observed.transactionClients).toHaveLength(1);
-        expect(observed.graphClients.length).toBeGreaterThanOrEqual(6);
+        expect(observed.graphClients.map(({ methodName }) => methodName)).toEqual([
+            'exportSnapshot', 'planMutations', 'applyPlan', 'getPlanReceipt', 'validate'
+        ]);
         expect(new Set(observed.graphClients.map(({ client }) => client))).toEqual(
             new Set([observed.transactionClients[0]])
         );
@@ -1068,7 +1070,9 @@ describe.skipIf(!runDockerIntegration).sequential('Project Provisioning acceptan
 
         expect(graphWriteObserved).toBe(true);
         expect(observed.transactionClients).toHaveLength(1);
-        expect(observed.graphClients.length).toBeGreaterThanOrEqual(4);
+        expect(observed.graphClients.map(({ methodName }) => methodName)).toEqual([
+            'exportSnapshot', 'planMutations', 'applyPlan'
+        ]);
         expect(new Set(observed.graphClients.map(({ client }) => client))).toEqual(
             new Set([observed.transactionClients[0]])
         );

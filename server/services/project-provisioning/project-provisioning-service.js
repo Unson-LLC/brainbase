@@ -834,14 +834,9 @@ export class ProjectProvisioningService {
                 role: actor.role
             };
             const approvedGraphSubject = run.plan.preflight.graph_project_subject;
-            const accessibleProjectCodes = this.graphService.listAccessibleProjectCodes
-                ? await this.graphService.listAccessibleProjectCodes(
-                    access, ...(client ? [{ client }] : [])
-                )
-                : [manifest.project_code];
             const includeProjectCodes = approvedGraphSubject.status === 'reusable'
                 ? [approvedGraphSubject.project_code].filter((code) => code !== manifest.project_code)
-                : accessibleProjectCodes.filter((code) => code !== manifest.project_code);
+                : [];
             const snapshot = await this.graphService.exportSnapshot(
                 access,
                 { projectCode: manifest.project_code, includeProjectCodes },

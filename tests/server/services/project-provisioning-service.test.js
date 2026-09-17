@@ -970,7 +970,7 @@ describe('ProjectProvisioningService', () => {
     });
 
     it('Graphの正式ライフサイクル順とReceiptをstepへ保存する', async () => {
-        const { service, repository, graphCalls } = createHarness();
+        const { service, repository, graphService, graphCalls } = createHarness();
         const plan = await service.plan(actor, manifest, { idempotencyKey: 'growin-graph-order' });
         await service.approve(actor, plan.run_id, {
             approvedGates: ['manifest_plan_approval'], reviewRef: 'review-graph'
@@ -978,6 +978,13 @@ describe('ProjectProvisioningService', () => {
 
         await service.apply(actor, plan.run_id);
 
+        expect(graphService.listAccessibleProjectCodes).not.toHaveBeenCalled();
+        expect(graphService.exportSnapshot).toHaveBeenCalledWith(expect.objectContaining({
+            projectCodes: [manifest.project_code]
+        }), {
+            projectCode: manifest.project_code,
+            includeProjectCodes: []
+        });
         expect(graphCalls.slice(0, 5)).toEqual([
             'exportSnapshot', 'planMutations', 'applyPlan', 'getPlanReceipt', 'validate'
         ]);

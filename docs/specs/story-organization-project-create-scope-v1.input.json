@@ -1,0 +1,144 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-organization-project-create-scope-v1",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "pooled",
+    "tenant_identity": {
+      "canonical_key": "tenant_id",
+      "resolved_from": ["authenticated actor context and project preflight"],
+      "resolution_point": "before project provisioning and Graph mutation planning",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["project preflight", "Graph snapshot", "mutation plan", "receipt"],
+      "verified_surfaces": ["project preflight", "Graph snapshot", "mutation plan", "receipt"]
+    },
+    "resources": [
+      {
+        "name": "tenant project Graph subject and edges",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "tenant_id",
+        "partition_key": "tenant_id/project_code",
+        "trust_zone": "Brainbase PostgreSQL and Graph mutation control plane",
+        "residue_policy": "retain audited project state until explicit archive lifecycle action",
+        "data_owner": "Brainbase Tenant Authority",
+        "credential_scope": "authenticated actor project authority; no secret material"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "tenant_id",
+      "scope": "authenticated actor project authority",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["Brainbase Tenant Authority"],
+      "residency": "Brainbase PostgreSQL and Graph store",
+      "migration": "none; constrain only the project codes exported for one provisioning operation",
+      "rollback": "retain the existing transactional rollback and compensation receipt"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "deployment_modes": ["managed_shared"],
+    "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+    "graph_metadata": {
+      "tenant_entities": ["tenant", "organization", "project"],
+      "boundary_edges": ["authenticated actor to project authority", "project to Graph subject"]
+    },
+    "verification": {
+      "scanner_coverage": "verified",
+      "scope": "focused unit tests plus PostgreSQL provisioning and control-plane integration tests",
+      "evidence": {
+        "propagation_surfaces": ["project preflight", "Graph snapshot", "mutation plan", "receipt"],
+        "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate"],
+        "scanner_results": {
+          "tenant_boundary": "pass",
+          "tenant_key_propagation": "pass",
+          "cross_tenant_authorization": "pass",
+          "state_partitioning": "pass",
+          "sandbox_isolation": "pass",
+          "connection_routing": "pass",
+          "secret_scope": "pass",
+          "canonical_data_owner": "pass",
+          "deployment_topology": "pass",
+          "cross_tenant_negative_evidence": "pass"
+        },
+        "graph": {
+          "tenant_key": "tenant_id",
+          "sharing_modes": ["tenant_partitioned"],
+          "deployment_modes": ["managed_shared"],
+          "tenant_entities": [{
+            "tenant_scope": "one authenticated tenant project provisioning operation",
+            "tenant_key_source": "authenticated actor context and preflight",
+            "trust_zone": "Brainbase project provisioning control plane",
+            "data_owner": "Brainbase Tenant Authority"
+          }],
+          "boundary_edges": [{
+            "tenant_scope": "one tenant and target project",
+            "tenant_key_source": "authenticated actor context",
+            "sharing_mode": "tenant_partitioned",
+            "credential_scope": "project authority only",
+            "connection_mode": "managed shared control plane",
+            "deployment_mode": "managed_shared"
+          }]
+        },
+        "spec": {"tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared"]},
+        "implementation": {"tenant_key": "tenant_id", "sharing_modes": ["tenant_partitioned"], "deployment_modes": ["managed_shared"]},
+        "evidence_refs": [
+          "tests/server/services/project-provisioning-service.test.js",
+          "tests/integration/project-provisioning-full-flow.test.js"
+        ]
+      }
+    }
+  },
+  "clauses": [
+    {
+      "id": "PRJSCOPE-C-001",
+      "type": "invariant",
+      "statement": "新しいproject subjectを作成するとき、Graph snapshotは対象projectだけを含み、利用者が参照可能な全projectをロックしない。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 0, "ac_id": "PRJSCOPE-AC-001"}],
+        "code_refs": [{"file": "server/services/project-provisioning/project-provisioning-service.js", "anchor": "applyGraph"}],
+        "test_refs": [{"file": "tests/server/services/project-provisioning-service.test.js", "case": "does not enumerate accessible projects for a new subject"}]
+      }
+    },
+    {
+      "id": "PRJSCOPE-C-002",
+      "type": "contract",
+      "statement": "既存project subjectを再利用するとき、事前検証で承認したsource projectだけを対象projectとともにsnapshotへ含める。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 1, "ac_id": "PRJSCOPE-AC-002"}],
+        "code_refs": [{"file": "server/services/project-provisioning/project-provisioning-service.js", "anchor": "applyGraph"}],
+        "test_refs": [{"file": "tests/integration/project-provisioning-full-flow.test.js", "case": "reuses an approved subject without widening the graph scope"}]
+      }
+    },
+    {
+      "id": "PRJSCOPE-C-003",
+      "type": "contract",
+      "statement": "既存の冪等実行、rollback、receipt、validate契約を維持する。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 2, "ac_id": "PRJSCOPE-AC-003"}],
+        "code_refs": [{"file": "server/services/project-provisioning/project-provisioning-service.js"}],
+        "test_refs": [{"file": "tests/integration/project-provisioning-full-flow.test.js"}]
+      }
+    },
+    {
+      "id": "PRJSCOPE-C-004",
+      "type": "contract",
+      "statement": "テナント内のproject数に依存せず、管理画面からのproject作成が60秒以内に完了する。",
+      "origin": {
+        "story_refs": [{"kind": "acceptance_criteria", "index": 3, "ac_id": "PRJSCOPE-AC-004"}],
+        "code_refs": [{"file": "server/services/project-provisioning/project-provisioning-service.js", "anchor": "applyGraph"}],
+        "test_refs": [{"file": "tests/server/services/project-provisioning-service.test.js"}]
+      }
+    }
+  ]
+}
