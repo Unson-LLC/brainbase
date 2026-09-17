@@ -30,6 +30,7 @@ import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
+import { createOutcomeServiceContextRouter } from '../routes/outcome-service-context.js';
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
 import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
@@ -231,6 +232,13 @@ export function registerTenantRuntimeApiRoute(app, services) {
         throw new Error('Tenant runtime context verifier is required');
     }
     app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
+}
+
+export function registerOutcomeServiceContextApiRoute(app, { services = null } = {}) {
+    app.use('/v1', createOutcomeServiceContextRouter({
+        serviceAuth: services?.serviceAuth,
+        outcomeServiceContextIssuer: services?.outcomeServiceContextIssuer
+    }));
 }
 
 export function registerSlackInstallationControlPlaneApiRoute(app, {
@@ -488,6 +496,7 @@ export function registerApiRoutes(app, {
         documentReceiptRepository,
         documentGraphPointerResolver
     });
+    registerOutcomeServiceContextApiRoute(app, { services: tenantRuntimeServices });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
         registerKnowledgeEventApiRoutes(app, {
             authService,
