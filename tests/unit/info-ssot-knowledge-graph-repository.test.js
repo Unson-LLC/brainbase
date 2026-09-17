@@ -247,4 +247,16 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
             .rejects.toMatchObject({ code: 'knowledge_revision_idempotency_conflict', status: 409 });
         expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
     });
+
+    it('判断domainは認証personのGraph RACIだけから列挙する', async () => {
+        const client = { query: vi.fn(async () => ({ rows: [{ domain: 'engineering' }, { domain: 'finance' }] })) };
+        const infoSSOTService = { withAccessContext: vi.fn(async (_access, work) => work(client)) };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+
+        await expect(repository.listDecisionAuthorityDomains({ project_code: 'brainbase' }, { access }))
+            .resolves.toEqual(['engineering', 'finance']);
+        expect(client.query).toHaveBeenCalledWith(expect.stringContaining("raci.role_code LIKE 'decision:%'"), [
+            'brainbase', access.personId
+        ]);
+    });
 });

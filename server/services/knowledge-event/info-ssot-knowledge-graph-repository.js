@@ -364,4 +364,21 @@ export class InfoSSOTKnowledgeGraphRepository {
                 occurred_at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at }));
         }, client ? { client } : undefined);
     }
+
+    async listDecisionAuthorityDomains(input, { client, access } = {}) {
+        this._requireAccess(access);
+        return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
+            const { rows } = await contextClient.query(
+                `SELECT DISTINCT substring(raci.role_code FROM 10) AS domain
+                 FROM raci_assignments raci
+                 JOIN projects project ON project.id=raci.project_id
+                 WHERE project.code=$1 AND raci.person_id=$2
+                   AND raci.role_code LIKE 'decision:%'
+                   AND raci.role_code <> 'decision:最終決裁'
+                 ORDER BY domain`,
+                [input.project_code, access.personId]
+            );
+            return rows.map((row) => row.domain).filter(Boolean);
+        }, client ? { client } : undefined);
+    }
 }

@@ -91,12 +91,14 @@ describe('knowledge catalog API', () => {
             createDraft: vi.fn(async () => ({ draft_id: 'kd_1' })),
             getDraft: vi.fn(), updateDraft: vi.fn(), discardDraft: vi.fn(),
             saveDraft: vi.fn(async () => ({ status: 'saved' })),
+            authorityDomains: vi.fn(async () => ({ domains: ['engineering'] })),
             revise: vi.fn(async () => ({ status: 'revised' })),
             changeLifecycle: vi.fn(async () => ({ status: 'changed' })),
             history: vi.fn(async () => ({ entries: [] }))
         };
         const app = createApp({ list: vi.fn(), get: vi.fn(), retrieve: vi.fn(), preview: vi.fn() }, authoringService);
         await request(app).post('/api/knowledge/drafts').send({ project_code: 'alpha' }).expect(200);
+        await request(app).get('/api/knowledge/authority-domains?project_code=alpha').expect(200);
         await request(app).post('/api/knowledge/drafts/kd_1/save').send({ project_code: 'alpha', revision: 1 }).expect(200);
         await request(app).post('/api/knowledge/items/dec_1/lifecycle').send({ project_code: 'alpha', state: 'retired' }).expect(200);
         await request(app).post('/api/knowledge/items/dec_1/revisions').send({ project_code: 'alpha' }).expect(200);

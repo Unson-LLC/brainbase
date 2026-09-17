@@ -54,7 +54,8 @@ function harness() {
         changeLifecycle: vi.fn(async () => ({ id: 'decision_123' })),
         reviseDecision: vi.fn(async (input) => ({ id: input.id, payload: { version: 'rev_2' } })),
         listLifecycleHistory: vi.fn(async () => [{ from_version: '1', to_version: '2', state: 'retired' }]),
-        listRevisionHistory: vi.fn(async () => [])
+        listRevisionHistory: vi.fn(async () => []),
+        listDecisionAuthorityDomains: vi.fn(async () => ['engineering'])
     };
     const service = new KnowledgeAuthoringService({
         repository, knowledgeEventService, catalogService, graphRepository,
@@ -201,6 +202,15 @@ describe('KnowledgeAuthoringService', () => {
         expect(graphRepository.reviseDecision).toHaveBeenCalledWith(expect.objectContaining({
             expected_version: '1', idempotency_key: 'rev-key-1', reason: 'clarify'
         }), { access });
+    });
+
+    it('判断domainはGraph RACIから列挙し、scopeから推測しない', async () => {
+        const { service, graphRepository } = harness();
+        await expect(service.authorityDomains(access, { project_code: 'alpha' }))
+            .resolves.toEqual({ project_code: 'alpha', domains: ['engineering'] });
+        expect(graphRepository.listDecisionAuthorityDomains).toHaveBeenCalledWith(
+            { project_code: 'alpha' }, { access }
+        );
     });
 
     it('client指定canonical IDを拒否し、authority未検証時はsave receiptを確定しない', async () => {

@@ -312,4 +312,13 @@ export class KnowledgeAuthoringService {
                 .sort((left, right) => String(right.occurred_at || '').localeCompare(String(left.occurred_at || '')))
         };
     }
+
+    async authorityDomains(access, input = {}) {
+        const projectCode = requiredText(input.project_code, 'project_code');
+        requireProjectAccess(access, projectCode);
+        return {
+            project_code: projectCode,
+            domains: await this.graphRepository.listDecisionAuthorityDomains({ project_code: projectCode }, { access })
+        };
+    }
 }

@@ -2,11 +2,12 @@
 
 - Story: `story-brainbase-outcome-knowledge-canonical-save`
 - Outcome: a complete decision draft becomes canonical only after authority verification, immutable event persistence, Graph persistence, exact content/version readback, and retrievable index state.
-- API: `POST /api/knowledge/drafts/:draftId/save`
+- API: `GET /api/knowledge/authority-domains`, `POST /api/knowledge/drafts/:draftId/save`
 
 ## Contract
 
 - Request requires `project_code`, current draft `revision`, caller-generated `idempotency_key`, and `decision_domain`.
+- `decision_domain` is a Graph RACI authority domain, not the draft applicability scope. Clients obtain the authenticated person's available values from `GET /api/knowledge/authority-domains?project_code=...`; an empty list remains an explicit lack of authority and is never replaced with `project` or `organization`.
 - Canonical IDs are assigned deterministically by Brainbase. Caller-provided `canonical_id` is rejected so a new save cannot overwrite an existing decision or reset its version.
 - `decision_authority.authorized` is not sufficient authority. The existing Knowledge Event ingestion path verifies the authenticated person against Graph decision authority/RACI before Graph mutation; an unverified decision is quarantined and save remains incomplete.
 - Retry with the same idempotency key and draft revision returns the stored receipt. Reuse for another draft/revision returns `409`. A saved draft without the matching receipt is a conflict, not guessed success.
