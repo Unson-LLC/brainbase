@@ -55,6 +55,7 @@ import { ReplyDraftService } from '../services/companion/reply-draft-service.js'
 import { DecisionEventService } from '../services/companion/decision-event-service.js';
 import { KnowledgeResolutionService } from '../services/knowledge-resolution-service.js';
 import { KnowledgeCatalogService } from '../services/knowledge-catalog-service.js';
+import { createKnowledgeBedrockAdapter } from '../services/knowledge-bedrock-adapter.js';
 import { KnowledgeAuthoringService } from '../services/knowledge-authoring-service.js';
 import { PgKnowledgeAuthoringRepository } from '../services/knowledge-authoring-repository.js';
 import { InfoSSOTKnowledgeGraphRepository } from '../services/knowledge-event/info-ssot-knowledge-graph-repository.js';
@@ -113,13 +114,25 @@ export function registerKnowledgeCatalogApiRoute(app, {
     captureProposalAdapter = null,
     previewAnswerer = null,
     knowledgeAIAdapter = null,
+    knowledgeBedrockClient = null,
+    knowledgeBedrockModelId = null,
+    knowledgeBedrockMaxTokens = 1024,
     documentWriter = null,
     knowledgeResolutionService = null
 }) {
+    const knowledgeBedrockAdapter = knowledgeBedrockClient && knowledgeBedrockModelId
+        ? createKnowledgeBedrockAdapter({
+            bedrockClient: knowledgeBedrockClient,
+            modelId: knowledgeBedrockModelId,
+            maxTokens: knowledgeBedrockMaxTokens
+        })
+        : null;
+    const resolvedCaptureProposalAdapter = captureProposalAdapter || knowledgeAIAdapter || knowledgeBedrockAdapter;
+    const resolvedPreviewAnswerer = previewAnswerer || knowledgeAIAdapter || knowledgeBedrockAdapter;
     const catalogService = service || new KnowledgeCatalogService({
         infoSSOTService,
-        captureProposalAdapter,
-        previewAnswerer,
+        captureProposalAdapter: resolvedCaptureProposalAdapter,
+        previewAnswerer: resolvedPreviewAnswerer,
         knowledgeAIAdapter,
         documentWriter,
         knowledgeResolutionService
@@ -239,6 +252,9 @@ export function registerApiRoutes(app, {
     captureProposalAdapter,
     previewAnswerer,
     knowledgeAIAdapter,
+    knowledgeBedrockClient,
+    knowledgeBedrockModelId,
+    knowledgeBedrockMaxTokens,
     personalKnowledgeService,
     personalKnowledgePromotionService,
     onboardingRuntimeService,
@@ -424,6 +440,9 @@ export function registerApiRoutes(app, {
         captureProposalAdapter,
         previewAnswerer,
         knowledgeAIAdapter,
+        knowledgeBedrockClient,
+        knowledgeBedrockModelId,
+        knowledgeBedrockMaxTokens,
         documentWriter
     });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
