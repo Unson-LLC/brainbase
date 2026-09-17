@@ -142,12 +142,14 @@ describe('KnowledgeAuthoringService', () => {
     it('draftを作成・再開・revision一致で編集し、競合を409にする', async () => {
         const { service } = harness();
         const draft = await service.createDraft(access, {
-            project_code: 'alpha', title: 'Decision', content: 'first'
+            project_code: 'alpha', title: 'Decision', summary: 'Short summary', content: 'first'
         });
-        expect(await service.getDraft(access, { project_code: 'alpha', draft_id: draft.draft_id })).toMatchObject({ revision: 1 });
+        expect(await service.getDraft(access, { project_code: 'alpha', draft_id: draft.draft_id })).toMatchObject({
+            revision: 1, summary: 'Short summary'
+        });
         await expect(service.updateDraft(access, {
-            project_code: 'alpha', draft_id: draft.draft_id, revision: 1, content: 'second'
-        })).resolves.toMatchObject({ revision: 2, content: 'second' });
+            project_code: 'alpha', draft_id: draft.draft_id, revision: 1, summary: 'Updated summary', content: 'second'
+        })).resolves.toMatchObject({ revision: 2, summary: 'Updated summary', content: 'second' });
         await expect(service.updateDraft(access, {
             project_code: 'alpha', draft_id: draft.draft_id, revision: 1, content: 'stale'
         })).rejects.toMatchObject({ code: 'knowledge_draft_revision_conflict', status: 409 });

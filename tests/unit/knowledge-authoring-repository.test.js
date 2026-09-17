@@ -25,12 +25,12 @@ describe('PgKnowledgeAuthoringRepository', () => {
         await repository.createDraft({
             draft_id: 'kd_1', organization_id: 'org_1', owner_person_id: 'per_1',
             canonical_owner_person_id: 'per_2', project_code: 'alpha', kind: 'decision',
-            title: 'Decision', content: 'body', applicability: {}, source_pointer: null,
+            title: 'Decision', summary: 'Short summary', content: 'body', applicability: {}, source_pointer: null,
             revision: 1, status: 'draft', relations: [{ relation: 'references', to_id: 'dec_old' }]
         }, { access });
 
         const insert = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO knowledge_authoring_drafts'));
-        expect(insert[0]).toContain('canonical_owner_person_id, relations');
+        expect(insert[0]).toContain('title, summary, content');
         expect(insert[1].slice(-2)).toEqual(['per_2', JSON.stringify([{ relation: 'references', to_id: 'dec_old' }])]);
     });
 

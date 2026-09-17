@@ -1,5 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
+import { normalizeRepositoryRelativePath } from './canonical-document-writer-adapter.js';
+
 export class KnowledgeAuthoringError extends Error {
     constructor(code, message, status = 400, details = {}) {
         super(message);
@@ -74,6 +76,79 @@ function rejectUnsupportedDraftFields(input = {}) {
     }
 }
 
+function graphPointerText(value, field) {
+    if (typeof value !== 'string' || !value.trim()) {
+        throw new KnowledgeAuthoringError(
+            'knowledge_document_graph_pointer_required',
+            `${field} must come from the resolved owning repository Graph pointer`,
+            503,
+            { field }
+        );
+    }
+    return value.trim();
+}
+
+function assertDocumentGraphPointer(resolution, projectCode, access, requestedPath) {
+    if (!resolution || resolution.status !== 'resolved'
+        || resolution.source_class !== 'owning_repo'
+        || resolution.content_type !== 'team_document'
+        || resolution.project_code !== projectCode) {
+        throw new KnowledgeAuthoringError(
+            'knowledge_document_graph_pointer_required',
+            'document save requires a resolved owning repository Graph pointer',
+            503
+        );
+    }
+    const location = resolution.canonical_location;
+    if (!location || location.repository !== `project:${projectCode}`) {
+        throw new KnowledgeAuthoringError(
+            'knowledge_document_graph_pointer_required',
+            'document Graph pointer must identify the current project repository',
+            503,
+            { field: 'canonical_location.repository' }
+        );
+    }
+    const branch = graphPointerText(location.branch, 'canonical_location.branch');
+    const owner = graphPointerText(location.owner || location.github_owner || location.github?.owner, 'canonical_location.owner');
+    const repo = graphPointerText(location.repo || location.github_repo || location.github?.repo, 'canonical_location.repo');
+    const tenantId = graphPointerText(location.tenant_id || location.organization_id, 'canonical_location.tenant_id');
+    const pointerPath = graphPointerText(location.path || location.path_prefix || location.path_scope, 'canonical_location.path');
+    const tenant = access?.organizationId || access?.tenantId;
+    if (!tenant || tenant !== tenantId) {
+        throw new KnowledgeAuthoringError(
+            'knowledge_document_tenant_mismatch',
+            'document Graph pointer tenant does not match the authenticated organization',
+            403
+        );
+    }
+    let documentPath;
+    try {
+        documentPath = normalizeRepositoryRelativePath(requestedPath);
+    } catch {
+        throw new KnowledgeAuthoringError('knowledge_document_input_invalid', 'path is required and must be repository-relative', 400, { field: 'path' });
+    }
+    let scope;
+    try {
+        scope = normalizeRepositoryRelativePath(pointerPath.replace(/\/+$/u, ''));
+    } catch {
+        throw new KnowledgeAuthoringError(
+            'knowledge_document_graph_pointer_required',
+            'canonical_location.path must be a repository-relative Graph pointer scope',
+            503,
+            { field: 'canonical_location.path' }
+        );
+    }
+    if (!scope || (documentPath !== scope && !documentPath.startsWith(`${scope}/`))) {
+        throw new KnowledgeAuthoringError(
+            'knowledge_document_graph_pointer_mismatch',
+            'document path is outside the resolved Graph repository scope',
+            422,
+            { path: documentPath, path_scope: `${scope}/` }
+        );
+    }
+    return { resolution, branch, owner, repo, tenant_id: tenantId, path_scope: scope, path: documentPath };
+}
+
 function normalizeOwner(value, field = 'owner_person_id') {
     if (value === undefined || value === null || value === '') return undefined;
     return requiredText(value, field);
@@ -106,6 +181,7 @@ function draftProjection(record) {
         project_code: record.project_code,
         kind: record.kind,
         title: record.title,
+        summary: record.summary || '',
         content: record.content,
         applicability: record.applicability || {},
         source_pointer: record.source_pointer || null,
@@ -123,11 +199,24 @@ function draftProjection(record) {
 }
 
 export class KnowledgeAuthoringService {
-    constructor({ repository, knowledgeEventService, catalogService, graphRepository, now = () => new Date().toISOString(), id = randomUUID }) {
+    constructor({
+        repository,
+        knowledgeEventService,
+        catalogService,
+        graphRepository,
+        documentWriter = null,
+        documentReceiptRepository = null,
+        documentGraphPointerResolver = null,
+        now = () => new Date().toISOString(),
+        id = randomUUID
+    }) {
         this.repository = repository;
         this.knowledgeEventService = knowledgeEventService;
         this.catalogService = catalogService;
         this.graphRepository = graphRepository;
+        this.documentWriter = documentWriter;
+        this.documentReceiptRepository = documentReceiptRepository;
+        this.documentGraphPointerResolver = documentGraphPointerResolver;
         this.now = now;
         this.id = id;
     }
@@ -220,6 +309,7 @@ export class KnowledgeAuthoringService {
             project_code: projectCode,
             kind,
             title: draftText(input.title, 'title'),
+            summary: draftText(input.summary, 'summary'),
             content: draftText(input.content, 'content'),
             applicability: input.applicability && typeof input.applicability === 'object' ? input.applicability : {},
             source_pointer: input.source_pointer && typeof input.source_pointer === 'object' ? input.source_pointer : null,
@@ -258,6 +348,7 @@ export class KnowledgeAuthoringService {
         const updated = await this.repository.updateDraft(current.draft_id, {
             expected_revision: expectedRevision,
             title: input.title === undefined ? current.title : draftText(input.title, 'title'),
+            summary: input.summary === undefined ? current.summary : draftText(input.summary, 'summary'),
             content: input.content === undefined ? current.content : draftText(input.content, 'content'),
             applicability: input.applicability === undefined ? current.applicability : input.applicability,
             source_pointer: input.source_pointer === undefined ? current.source_pointer : input.source_pointer,
@@ -277,11 +368,221 @@ export class KnowledgeAuthoringService {
         return draftProjection(discarded);
     }
 
+    async _resolveDocumentGraphPointer(access, current, input) {
+        const resolver = typeof this.documentGraphPointerResolver === 'function'
+            ? this.documentGraphPointerResolver
+            : this.documentGraphPointerResolver?.resolve;
+        if (typeof resolver !== 'function') {
+            throw new KnowledgeAuthoringError(
+                'knowledge_document_graph_pointer_required',
+                'document save requires an explicitly injected resolved owning repository Graph pointer',
+                503
+            );
+        }
+
+        let resolved;
+        try {
+            // Branch/repository/path values from the request are never used to
+            // resolve the target. The resolver must return the Graph pointer.
+            resolved = await resolver.call(this.documentGraphPointerResolver, {
+                access,
+                project_code: current.project_code,
+                draft: draftProjection(current),
+                intent: input.intent,
+                audience: input.audience,
+                content_type: input.content_type,
+                path: input.path
+            });
+        } catch (error) {
+            if (error instanceof KnowledgeAuthoringError) throw error;
+            if (typeof error?.code === 'string' && error.code.startsWith('knowledge_')) {
+                throw new KnowledgeAuthoringError(error.code, error.message, error.status || 503, error.details || {});
+            }
+            throw new KnowledgeAuthoringError(
+                'knowledge_document_graph_pointer_unavailable',
+                'resolved owning repository Graph pointer is unavailable',
+                503
+            );
+        }
+
+        const resolution = resolved?.resolution || resolved;
+        return assertDocumentGraphPointer(resolution, current.project_code, access, input.path);
+    }
+
+    _documentReceiptResult(receipt) {
+        if (!receipt) return null;
+        const result = receipt.result;
+        if (result && typeof result === 'object') return result;
+        if (typeof result === 'string') {
+            try {
+                return JSON.parse(result);
+            } catch {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    async _saveDocumentDraft(access, { current, expectedRevision, idempotencyKey, decisionDomain, input }) {
+        if (typeof this.documentReceiptRepository?.findAuthoringSave !== 'function'
+            || typeof this.documentReceiptRepository?.completeAuthoringSave !== 'function') {
+            throw new KnowledgeAuthoringError(
+                'knowledge_document_receipt_not_configured',
+                'durable document authoring receipt storage is not configured',
+                503
+            );
+        }
+        if (!this.documentWriter || typeof this.documentWriter.save !== 'function') {
+            throw new KnowledgeAuthoringError(
+                'knowledge_document_writer_not_configured',
+                'canonical document writer is not configured',
+                503
+            );
+        }
+
+        const receipt = await this.documentReceiptRepository.findAuthoringSave({
+            access,
+            projectCode: current.project_code,
+            idempotencyKey
+        });
+        if (receipt) {
+            if (receipt.draft_id !== current.draft_id || Number(receipt.draft_revision) !== expectedRevision) {
+                throw new KnowledgeAuthoringError(
+                    'knowledge_save_idempotency_conflict',
+                    'idempotency key belongs to another draft revision',
+                    409
+                );
+            }
+            const stored = this._documentReceiptResult(receipt);
+            if (!stored) {
+                throw new KnowledgeAuthoringError(
+                    'knowledge_document_receipt_invalid',
+                    'document authoring receipt has no valid result',
+                    503
+                );
+            }
+            return { ...stored, idempotent: true };
+        }
+
+        if (current.status === 'saved' && current.revision === expectedRevision) {
+            throw new KnowledgeAuthoringError(
+                'knowledge_save_receipt_not_found',
+                'draft is already saved but this idempotency key has no matching receipt',
+                409
+            );
+        }
+        if (!['draft', 'saving'].includes(current.status) || current.revision !== expectedRevision) {
+            throw new KnowledgeAuthoringError('knowledge_draft_revision_conflict', 'draft revision changed', 409);
+        }
+        if (current.status === 'saving' && current.save_idempotency_key !== idempotencyKey) {
+            throw new KnowledgeAuthoringError('knowledge_save_in_progress', 'draft is being saved with another idempotency key', 409);
+        }
+        if (current.status === 'saving' && current.save_decision_domain !== decisionDomain) {
+            throw new KnowledgeAuthoringError('knowledge_save_idempotency_conflict', 'save retry changed the decision domain', 409);
+        }
+        requiredText(current.title, 'title');
+        requiredText(current.content, 'content');
+        const intent = requiredText(input.intent, 'intent');
+        const audience = requiredText(input.audience, 'audience');
+        const contentType = requiredText(input.content_type, 'content_type');
+        if (audience !== 'team' && audience !== 'organization') {
+            throw new KnowledgeAuthoringError('knowledge_document_input_invalid', 'audience must be team or organization', 400, { field: 'audience' });
+        }
+        if (contentType !== 'team_document') {
+            throw new KnowledgeAuthoringError('knowledge_document_route_invalid', 'document save requires content_type=team_document', 422, { field: 'content_type' });
+        }
+        const baseRevision = requiredText(input.base_revision, 'base_revision');
+        const pointer = await this._resolveDocumentGraphPointer(access, current, {
+            ...input,
+            intent,
+            audience,
+            content_type: contentType
+        });
+        const ownerPersonId = current.owner_person_id || access.personId;
+        await this._validateAuthoringContext(access, {
+            projectCode: current.project_code,
+            kind: current.kind,
+            ownerPersonId,
+            relations: current.relations,
+            decisionDomain,
+            entityId: current.canonical_id
+        });
+        const claimed = await this.repository.claimSave(current.draft_id, {
+            expected_revision: expectedRevision,
+            idempotency_key: idempotencyKey,
+            decision_domain: decisionDomain
+        }, { access, projectCode: current.project_code });
+        if (!claimed) {
+            throw new KnowledgeAuthoringError('knowledge_draft_revision_conflict', 'draft revision or save claim changed', 409);
+        }
+
+        let document;
+        try {
+            document = await this.documentWriter.save({
+                project_code: current.project_code,
+                intent,
+                audience,
+                content_type: contentType,
+                path: pointer.path,
+                content: current.content,
+                base_hash: input.base_hash ?? null,
+                base_revision: baseRevision,
+                idempotency_key: idempotencyKey,
+                access,
+                resolution: pointer.resolution
+            });
+        } catch (error) {
+            if (error?.name === 'CanonicalDocumentWriterError' && error.code) {
+                throw new KnowledgeAuthoringError(error.code, error.message, error.status || 503, error.details || {});
+            }
+            throw error;
+        }
+        if (!document || typeof document !== 'object' || !document.revision) {
+            throw new KnowledgeAuthoringError(
+                'knowledge_document_write_invalid',
+                'canonical document writer returned no revision',
+                503
+            );
+        }
+        const result = {
+            status: 'saved',
+            idempotent: Boolean(document.idempotency_replayed),
+            draft: { ...current, status: 'saved', save_idempotency_key: idempotencyKey, save_decision_domain: decisionDomain },
+            document,
+            canonical: document,
+            expected_revision: baseRevision,
+            persistence: {
+                document_saved: true,
+                readback_verified: true,
+                index_state: 'unknown'
+            }
+        };
+        try {
+            await this.documentReceiptRepository.completeAuthoringSave({
+                idempotency_key: idempotencyKey,
+                draft_id: current.draft_id,
+                draft_revision: expectedRevision,
+                result
+            }, { access, projectCode: current.project_code });
+        } catch (error) {
+            if (typeof error?.code === 'string' && error.code.startsWith('knowledge_')) {
+                throw new KnowledgeAuthoringError(error.code, error.message, error.status || 409, error.details || {});
+            }
+            throw error;
+        }
+        return result;
+    }
+
     async saveDraft(access, input = {}) {
         const current = await this.getDraft(access, input);
         const expectedRevision = revision(input.revision);
         const idempotencyKey = requiredText(input.idempotency_key, 'idempotency_key');
         const decisionDomain = requiredText(input.decision_domain, 'decision_domain');
+        if (current.kind === 'document') {
+            return this._saveDocumentDraft(access, {
+                current, expectedRevision, idempotencyKey, decisionDomain, input
+            });
+        }
         const existing = await this.repository.findSave(idempotencyKey, { access, projectCode: current.project_code });
         if (existing) {
             if (existing.draft_id !== current.draft_id || Number(existing.draft_revision) !== expectedRevision) {

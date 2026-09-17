@@ -121,6 +121,8 @@ export function registerKnowledgeCatalogApiRoute(app, {
     knowledgeBedrockModelId = null,
     knowledgeBedrockMaxTokens = 1024,
     documentWriter = null,
+    documentReceiptRepository = null,
+    documentGraphPointerResolver = null,
     knowledgeResolutionService = null,
     knowledgeRetrieveBindingVerifier = null,
     knowledgeRetrieveBindingRepository = null,
@@ -150,7 +152,10 @@ export function registerKnowledgeCatalogApiRoute(app, {
             repository: new PgKnowledgeAuthoringRepository({ pool: infoSSOTService.pool }),
             knowledgeEventService,
             catalogService,
-            graphRepository: new InfoSSOTKnowledgeGraphRepository({ infoSSOTService })
+            graphRepository: new InfoSSOTKnowledgeGraphRepository({ infoSSOTService }),
+            documentWriter,
+            documentReceiptRepository,
+            documentGraphPointerResolver
         })
         : null);
     app.use(
@@ -263,6 +268,8 @@ export function registerApiRoutes(app, {
     infoSSOTService,
     projectProvisioningService,
     documentWriter,
+    documentReceiptRepository,
+    documentGraphPointerResolver = null,
     canonicalTaskStoreConfig,
     canonicalTaskService,
     learningService,
@@ -477,7 +484,9 @@ export function registerApiRoutes(app, {
         knowledgeRetrieveIssuer,
         knowledgeRetrieveAudience,
         knowledgeRetrieveDeploymentId,
-        documentWriter
+        documentWriter,
+        documentReceiptRepository,
+        documentGraphPointerResolver
     });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
         registerKnowledgeEventApiRoutes(app, {

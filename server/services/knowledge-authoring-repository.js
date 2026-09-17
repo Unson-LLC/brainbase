@@ -25,11 +25,11 @@ export class PgKnowledgeAuthoringRepository {
     async createDraft(draft, { access }) {
         return this._run(access, async (client) => (await client.query(
             `INSERT INTO knowledge_authoring_drafts
-             (draft_id, organization_id, owner_person_id, project_code, kind, title, content,
+             (draft_id, organization_id, owner_person_id, project_code, kind, title, summary, content,
               applicability, source_pointer, revision, status, canonical_owner_person_id, relations)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,$12,$13::jsonb) RETURNING *`,
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12,$13,$14::jsonb) RETURNING *`,
             [draft.draft_id, draft.organization_id, draft.owner_person_id, draft.project_code, draft.kind,
-                draft.title, draft.content, JSON.stringify(draft.applicability), JSON.stringify(draft.source_pointer),
+                draft.title, draft.summary || '', draft.content, JSON.stringify(draft.applicability), JSON.stringify(draft.source_pointer),
                 draft.revision, draft.status, draft.canonical_owner_person_id || draft.owner_person_id,
                 JSON.stringify(draft.relations || [])]
         )).rows[0]);
@@ -43,11 +43,11 @@ export class PgKnowledgeAuthoringRepository {
 
     async updateDraft(draftId, patch, { access, projectCode }) {
         return this._run(access, async (client) => (await client.query(
-            `UPDATE knowledge_authoring_drafts SET title=$3, content=$4, applicability=$5::jsonb,
-                source_pointer=$6::jsonb, canonical_owner_person_id=$7, relations=$8::jsonb,
+            `UPDATE knowledge_authoring_drafts SET title=$3, summary=$4, content=$5, applicability=$6::jsonb,
+                source_pointer=$7::jsonb, canonical_owner_person_id=$8, relations=$9::jsonb,
                 revision=revision+1, updated_at=NOW()
-             WHERE draft_id=$1 AND project_code=$2 AND revision=$9 AND status='draft' RETURNING *`,
-            [draftId, projectCode, patch.title, patch.content, JSON.stringify(patch.applicability || {}),
+             WHERE draft_id=$1 AND project_code=$2 AND revision=$10 AND status='draft' RETURNING *`,
+            [draftId, projectCode, patch.title, patch.summary || '', patch.content, JSON.stringify(patch.applicability || {}),
                 JSON.stringify(patch.source_pointer || null), patch.canonical_owner_person_id,
                 JSON.stringify(patch.relations || []), patch.expected_revision]
         )).rows[0] || null);

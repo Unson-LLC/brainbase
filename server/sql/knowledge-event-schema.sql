@@ -57,6 +57,7 @@ CREATE TABLE IF NOT EXISTS knowledge_authoring_drafts (
     project_code TEXT NOT NULL,
     kind TEXT NOT NULL CHECK (kind IN ('decision', 'document')),
     title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
     content TEXT NOT NULL,
     applicability JSONB NOT NULL DEFAULT '{}'::jsonb,
     source_pointer JSONB,
@@ -155,6 +156,8 @@ CREATE TABLE IF NOT EXISTS knowledge_supersession_history (
 
 ALTER TABLE knowledge_authoring_drafts
     ADD COLUMN IF NOT EXISTS save_decision_domain TEXT;
+ALTER TABLE knowledge_authoring_drafts
+    ADD COLUMN IF NOT EXISTS summary TEXT NOT NULL DEFAULT '';
 ALTER TABLE knowledge_authoring_drafts
     ADD COLUMN IF NOT EXISTS canonical_owner_person_id TEXT;
 ALTER TABLE knowledge_authoring_drafts
