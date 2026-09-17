@@ -72,6 +72,36 @@ describe('KnowledgeCatalogService', () => {
         expect(result).toMatchObject({ state: 'empty', records: [], absence_confirmed: false });
     });
 
+    it('canonical ownerを優先し、禁止状態とsearchable=falseをactiveより優先する', async () => {
+        const { service } = createService([
+            entity({ id: 'retracted', payload: {
+                title: 'Retracted', status: 'active', semantic_state: 'retracted', searchable: true,
+                owner_person_id: 'per_new', owner_id: 'per_old', version: '4'
+            } }),
+            entity({ id: 'quarantined', payload: {
+                title: 'Quarantined', status: 'active', semantic_state: 'quarantined', version: '2'
+            } }),
+            entity({ id: 'hidden', payload: {
+                title: 'Hidden', status: 'active', searchable: false, version: '1'
+            } })
+        ]);
+
+        const result = await service.list({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha', status: 'all'
+        });
+
+        expect(result.records.find((row) => row.id === 'retracted')).toMatchObject({
+            owner: 'per_new', lifecycle: { status: 'retracted', applicable: false },
+            applicability: { state: 'not_applicable' }
+        });
+        expect(result.records.find((row) => row.id === 'quarantined')).toMatchObject({
+            lifecycle: { status: 'quarantined', applicable: false }
+        });
+        expect(result.records.find((row) => row.id === 'hidden')).toMatchObject({
+            lifecycle: { status: 'inactive', applicable: false }
+        });
+    });
+
     it('scope外projectはGraph query前に拒否する', async () => {
         const { service, infoSSOTService } = createService();
 
@@ -206,6 +236,33 @@ describe('KnowledgeCatalogService', () => {
         await expect(service.retrieve({ projectCodes: ['alpha'] }, {
             project_code: 'alpha', refs: [{ id: 'dec_1', version: '3' }]
         })).resolves.toMatchObject({ results: [{ status: 'source_hash_conflict' }] });
+    });
+
+    it('providerが正本hashを申告しても本文の実hashが異なれば拒否する', async () => {
+        const canonicalHash = 'sha256:6b91f31f284917eb2324c10fb19e8a9d540d5c63c5575a5fc2756f02ef97257b';
+        const row = entity({ payload: {
+            title: 'External', status: 'active', version: '3', repository_path: 'docs/x.md', content_hash: canonicalHash
+        } });
+        const { infoSSOTService } = createService([row]);
+        const retriever = {
+            authorize: vi.fn(async () => true),
+            retrieve: vi.fn(async () => ({
+                content: 'tampered body', version: '3', content_hash: canonicalHash, receipt_id: 'r4'
+            }))
+        };
+        const service = new KnowledgeCatalogService({ infoSSOTService, contentRetriever: retriever });
+
+        const result = await service.retrieve({ projectCodes: ['alpha'] }, {
+            project_code: 'alpha', refs: [{ id: 'dec_1', version: '3' }]
+        });
+
+        expect(result.results[0]).toMatchObject({
+            status: 'source_hash_conflict',
+            expected_content_hash: canonicalHash,
+            declared_content_hash: canonicalHash,
+            observed_content_hash: expect.stringMatching(/^sha256:/)
+        });
+        expect(result.results[0].observed_content_hash).not.toBe(canonicalHash);
     });
 
     it('51件以上のrefsを黙って切り捨てず拒否する', async () => {

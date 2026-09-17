@@ -30,9 +30,14 @@ function safeLimit(value) {
 
 function lifecycle(entity) {
     const payload = entity.payload || {};
-    const rawStatus = text(payload.status)?.toLowerCase()
-        || (text(payload.semantic_state)?.toLowerCase() === 'retracted' ? 'retired' : null)
-        || text(payload.semantic_state)?.toLowerCase()
+    const semanticState = text(payload.semantic_state)?.toLowerCase();
+    const forbiddenSemanticState = ['retracted', 'quarantined', 'contradicted'].includes(semanticState)
+        ? semanticState
+        : null;
+    const rawStatus = forbiddenSemanticState
+        || (payload.searchable === false ? 'inactive' : null)
+        || text(payload.status)?.toLowerCase()
+        || semanticState
         || 'unknown';
     const effectiveAt = text(payload.effective_at) || text(payload.decided_at);
     const expiresAt = text(payload.expires_at) || text(payload.valid_until);
@@ -82,7 +87,7 @@ function mapRecord(entity, projectCode) {
         title: text(payload.title) || text(payload.name),
         summary: text(payload.summary) || text(payload.description),
         scope: projectScope(entity, projectCode),
-        owner: text(payload.owner_id) || text(payload.owner) || null,
+        owner: text(payload.owner_person_id) || text(payload.owner_id) || text(payload.owner) || null,
         applicability: {
             state: state.applicable ? 'applicable' : state.status === 'unknown' ? 'unknown' : 'not_applicable',
             conditions: payload.applicability_conditions ?? null
@@ -262,15 +267,18 @@ export class KnowledgeCatalogService {
                     results.push({ ...record, requested_version: requestedVersion, resolved_version: text(retrieved.version), status: 'source_version_conflict' });
                     continue;
                 }
-                const observedHash = text(retrieved.content_hash) || contentHash(retrieved.content);
-                if (record.source.content_hash && observedHash !== record.source.content_hash) {
+                const observedHash = contentHash(retrieved.content);
+                const declaredHash = text(retrieved.content_hash);
+                if ((declaredHash && declaredHash !== observedHash)
+                    || (record.source.content_hash && record.source.content_hash !== observedHash)) {
                     results.push({
                         ...record,
                         requested_version: requestedVersion,
                         resolved_version: text(retrieved.version),
                         status: 'source_hash_conflict',
-                        expected_content_hash: record.source.content_hash,
-                        observed_content_hash: observedHash
+                        expected_content_hash: record.source.content_hash || declaredHash,
+                        observed_content_hash: observedHash,
+                        ...(declaredHash ? { declared_content_hash: declaredHash } : {})
                     });
                     continue;
                 }
