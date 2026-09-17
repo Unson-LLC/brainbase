@@ -114,6 +114,25 @@ CREATE TABLE IF NOT EXISTS knowledge_revision_history (
     UNIQUE (organization_id, project_code, knowledge_id, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS knowledge_supersession_history (
+    id BIGSERIAL PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    replacement_id TEXT NOT NULL,
+    superseded_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    replacement_from_version TEXT NOT NULL,
+    replacement_to_version TEXT NOT NULL,
+    superseded_from_version TEXT NOT NULL,
+    superseded_to_version TEXT NOT NULL,
+    effective_at TIMESTAMPTZ NOT NULL,
+    reason TEXT NOT NULL,
+    actor_person_id TEXT NOT NULL,
+    receipt JSONB NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organization_id, project_code, replacement_id, idempotency_key)
+);
+
 ALTER TABLE knowledge_authoring_drafts
     ADD COLUMN IF NOT EXISTS save_decision_domain TEXT;
 
@@ -131,6 +150,8 @@ ALTER TABLE knowledge_lifecycle_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_lifecycle_history FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_revision_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_revision_history FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_supersession_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_supersession_history FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS knowledge_events_project_access ON knowledge_events;
 CREATE POLICY knowledge_events_project_access ON knowledge_events
@@ -190,6 +211,13 @@ CREATE POLICY knowledge_lifecycle_history_access ON knowledge_lifecycle_history
 
 DROP POLICY IF EXISTS knowledge_revision_history_access ON knowledge_revision_history;
 CREATE POLICY knowledge_revision_history_access ON knowledge_revision_history
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '') AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND actor_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_supersession_history_access ON knowledge_supersession_history;
+CREATE POLICY knowledge_supersession_history_access ON knowledge_supersession_history
     USING (organization_id = NULLIF(current_setting('app.organization_id', true), '') AND project_code = ANY(app_project_codes()))
     WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
         AND actor_person_id = NULLIF(current_setting('app.person_id', true), '')

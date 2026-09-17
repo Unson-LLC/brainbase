@@ -387,6 +387,126 @@ export class InfoSSOTKnowledgeGraphRepository {
         }, client ? { client } : undefined);
     }
 
+    async establishSupersession(input, { client, access } = {}) {
+        this._requireAccess(access);
+        return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
+            const priorReceipt = await contextClient.query(
+                `SELECT superseded_id, replacement_from_version, superseded_from_version,
+                        effective_at, reason, receipt
+                 FROM knowledge_supersession_history
+                 WHERE organization_id=$1 AND project_code=$2 AND replacement_id=$3 AND idempotency_key=$4`,
+                [input.organization_id, input.project_code, input.replacement_id, input.idempotency_key]
+            );
+            if (priorReceipt.rows[0]) {
+                const prior = priorReceipt.rows[0];
+                const priorEffectiveAt = prior.effective_at instanceof Date
+                    ? prior.effective_at.toISOString() : new Date(prior.effective_at).toISOString();
+                const sameRequest = prior.superseded_id === input.superseded_id
+                    && prior.replacement_from_version === input.replacement_expected_version
+                    && prior.superseded_from_version === input.superseded_expected_version
+                    && priorEffectiveAt === input.effective_at && prior.reason === input.reason;
+                if (!sameRequest) {
+                    const error = new Error('knowledge supersession idempotency conflict');
+                    error.code = 'knowledge_supersession_idempotency_conflict'; error.status = 409;
+                    throw error;
+                }
+                return { ...prior.receipt, idempotent: true };
+            }
+            const { rows } = await contextClient.query(
+                `SELECT entity.id, entity.payload, project.id AS project_id,
+                        entity.payload->'decision_authority'->>'domain' AS decision_domain
+                 FROM graph_entities entity JOIN projects project ON project.id=entity.project_id
+                 WHERE entity.id = ANY($1::text[]) AND entity.entity_type='decision' AND project.code=$2`,
+                [[input.replacement_id, input.superseded_id], input.project_code]
+            );
+            if (rows.length !== 2) return null;
+            const byId = new Map(rows.map((row) => [row.id, row]));
+            const replacement = byId.get(input.replacement_id);
+            const superseded = byId.get(input.superseded_id);
+            const replacementExpiresAt = replacement.payload.expires_at ?? replacement.payload.valid_until ?? null;
+            const supersededEffectiveAt = superseded.payload.effective_at ?? superseded.payload.decided_at ?? null;
+            if ((replacementExpiresAt && Date.parse(replacementExpiresAt) <= Date.parse(input.effective_at))
+                || (supersededEffectiveAt && Date.parse(input.effective_at) <= Date.parse(supersededEffectiveAt))
+                || ((superseded.payload.expires_at ?? superseded.payload.valid_until)
+                    && Date.parse(superseded.payload.expires_at ?? superseded.payload.valid_until) < Date.parse(input.effective_at))) {
+                const error = new Error('knowledge supersession effective period is invalid');
+                error.code = 'knowledge_supersession_effective_period_invalid'; error.status = 400;
+                throw error;
+            }
+            const replacementActive = !['retired', 'unlinked', 'inactive'].includes(replacement.payload.status)
+                && !['superseded', 'contradicted', 'quarantined', 'retracted', 'expired'].includes(replacement.payload.semantic_state)
+                && replacement.payload.searchable !== false;
+            if (!replacementActive) {
+                const error = new Error('knowledge supersession replacement is not active');
+                error.code = 'knowledge_supersession_replacement_inactive'; error.status = 409;
+                throw error;
+            }
+            const conflictingEdges = await contextClient.query(
+                `SELECT from_id, to_id FROM graph_edges
+                 WHERE rel_type='supersedes' AND COALESCE(to_jsonb(graph_edges)->>'lifecycle_status', 'active')='active'
+                   AND ((from_id=$1 AND to_id=$2) OR (from_id=$2 AND to_id=$1)
+                        OR (to_id=$2 AND from_id<>$1))`,
+                [input.replacement_id, input.superseded_id]
+            );
+            if (conflictingEdges.rows.length) {
+                const error = new Error('knowledge supersession relation conflicts with an existing replacement');
+                error.code = 'knowledge_supersession_relation_conflict'; error.status = 409;
+                throw error;
+            }
+            for (const decision of [replacement, superseded]) {
+                await this.infoSSOTService.assertDecisionAuthority(contextClient, {
+                    projectId: decision.project_id, projectCode: input.project_code,
+                    personId: access.personId, decisionDomain: decision.decision_domain
+                });
+                await assertCatalogProjectSubjectMutation(contextClient, {
+                    id: decision.id, entityType: 'decision', allowCompatible: false
+                });
+            }
+            const replacementVersion = `rev_${randomUUID()}`;
+            const supersededVersion = `rev_${randomUUID()}`;
+            const replacementPayload = { ...replacement.payload, effective_at: input.effective_at, version: replacementVersion };
+            const supersededPayload = { ...superseded.payload, expires_at: input.effective_at, version: supersededVersion };
+            const update = async (id, expectedVersion, payload) => {
+                const result = await contextClient.query(
+                    `UPDATE graph_entities entity SET payload=$4::jsonb, version=entity.version+1, updated_at=NOW()
+                     FROM projects project
+                     WHERE entity.id=$1 AND entity.entity_type='decision' AND entity.project_id=project.id
+                       AND project.code=$2 AND entity.payload->>'version'=$3
+                     RETURNING entity.id, entity.entity_type, entity.payload`,
+                    [id, input.project_code, expectedVersion, JSON.stringify(payload)]
+                );
+                if (!result.rows[0]) {
+                    const error = new Error('knowledge supersession version conflict');
+                    error.code = 'knowledge_supersession_version_conflict'; error.status = 409;
+                    throw error;
+                }
+                return result.rows[0];
+            };
+            const changedReplacement = await update(input.replacement_id, input.replacement_expected_version, replacementPayload);
+            const changedSuperseded = await update(input.superseded_id, input.superseded_expected_version, supersededPayload);
+            await this.infoSSOTService.upsertGraphEdge(contextClient, {
+                fromId: input.replacement_id, toId: input.superseded_id, relType: 'supersedes',
+                projectId: replacement.project_id,
+                payload: { effective_at: input.effective_at, reason: input.reason, actor_person_id: input.actor_person_id },
+                roleMin: 'member', sensitivity: 'internal'
+            });
+            await contextClient.query("SELECT set_config('app.person_id', $1, true)", [input.actor_person_id]);
+            const receipt = { replacement: changedReplacement, superseded: changedSuperseded };
+            await contextClient.query(
+                `INSERT INTO knowledge_supersession_history
+                 (organization_id, project_code, replacement_id, superseded_id, idempotency_key,
+                  replacement_from_version, replacement_to_version, superseded_from_version, superseded_to_version,
+                  effective_at, reason, actor_person_id, receipt)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb)`,
+                [input.organization_id, input.project_code, input.replacement_id, input.superseded_id,
+                    input.idempotency_key, input.replacement_expected_version, replacementVersion,
+                    input.superseded_expected_version, supersededVersion, input.effective_at,
+                    input.reason, input.actor_person_id, JSON.stringify(receipt)]
+            );
+            return receipt;
+        }, client ? { client } : undefined);
+    }
+
     async listRevisionHistory(input, { client, access } = {}) {
         this._requireAccess(access);
         return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
@@ -396,6 +516,22 @@ export class InfoSSOTKnowledgeGraphRepository {
                  ORDER BY occurred_at DESC, id DESC`, [input.id, input.project_code]
             );
             return rows.map((row) => ({ ...row, kind: 'revision',
+                occurred_at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at }));
+        }, client ? { client } : undefined);
+    }
+
+    async listSupersessionHistory(input, { client, access } = {}) {
+        this._requireAccess(access);
+        return this.infoSSOTService.withAccessContext(access, async (contextClient) => {
+            const { rows } = await contextClient.query(
+                `SELECT replacement_id, superseded_id, replacement_from_version, replacement_to_version,
+                        superseded_from_version, superseded_to_version, effective_at, reason, actor_person_id, occurred_at
+                 FROM knowledge_supersession_history
+                 WHERE project_code=$2 AND (replacement_id=$1 OR superseded_id=$1)
+                 ORDER BY occurred_at DESC, id DESC`, [input.id, input.project_code]
+            );
+            return rows.map((row) => ({ ...row, kind: 'supersession',
+                effective_at: row.effective_at instanceof Date ? row.effective_at.toISOString() : row.effective_at,
                 occurred_at: row.occurred_at instanceof Date ? row.occurred_at.toISOString() : row.occurred_at }));
         }, client ? { client } : undefined);
     }

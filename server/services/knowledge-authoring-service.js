@@ -331,17 +331,59 @@ export class KnowledgeAuthoringService {
         return { status: 'revised', idempotent: Boolean(changed.idempotent), record };
     }
 
+    async supersede(access, input = {}) {
+        const projectCode = requiredText(input.project_code, 'project_code');
+        requireProjectAccess(access, projectCode);
+        const replacementId = requiredText(input.id, 'id');
+        const supersededId = requiredText(input.superseded_id, 'superseded_id');
+        if (replacementId === supersededId) {
+            throw new KnowledgeAuthoringError('knowledge_supersession_self_reference', 'a decision cannot supersede itself', 400);
+        }
+        const effectiveAt = optionalTimestamp(input.effective_at, 'effective_at');
+        if (!effectiveAt) {
+            throw new KnowledgeAuthoringError('knowledge_supersession_effective_at_required', 'effective_at is required', 400);
+        }
+        const changed = await this.graphRepository.establishSupersession({
+            replacement_id: replacementId,
+            superseded_id: supersededId,
+            project_code: projectCode,
+            replacement_expected_version: requiredText(String(input.replacement_expected_version || ''), 'replacement_expected_version'),
+            superseded_expected_version: requiredText(String(input.superseded_expected_version || ''), 'superseded_expected_version'),
+            effective_at: effectiveAt,
+            reason: requiredText(input.reason, 'reason'),
+            idempotency_key: requiredText(input.idempotency_key, 'idempotency_key'),
+            organization_id: access.organizationId || access.tenantId,
+            actor_person_id: access.personId
+        }, { access });
+        if (!changed) throw new KnowledgeAuthoringError('knowledge_not_found', 'replacement or superseded decision was not found', 404);
+        const [replacement, superseded] = await Promise.all([
+            this.catalogService.get(access, { project_code: projectCode, id: replacementId }),
+            this.catalogService.get(access, { project_code: projectCode, id: supersededId })
+        ]);
+        const relationMatches = replacement.relations?.some((edge) => edge.relation === 'supersedes'
+            && edge.from_id === replacementId && edge.to_id === supersededId && edge.effective_at === effectiveAt);
+        if (replacement.version !== changed.replacement.payload.version
+            || superseded.version !== changed.superseded.payload.version
+            || replacement.lifecycle?.effective_at !== effectiveAt
+            || superseded.lifecycle?.expires_at !== effectiveAt || !relationMatches) {
+            throw new KnowledgeAuthoringError('knowledge_supersession_readback_mismatch', 'canonical supersession readback did not match', 409);
+        }
+        return { status: 'superseded', idempotent: Boolean(changed.idempotent), replacement, superseded };
+    }
+
     async history(access, input = {}) {
         const projectCode = requiredText(input.project_code, 'project_code');
         requireProjectAccess(access, projectCode);
-        const [lifecycleEntries, revisionEntries] = await Promise.all([
+        const [lifecycleEntries, revisionEntries, supersessionEntries] = await Promise.all([
             this.graphRepository.listLifecycleHistory({ id: input.id, project_code: projectCode }, { access }),
-            this.graphRepository.listRevisionHistory({ id: input.id, project_code: projectCode }, { access })
+            this.graphRepository.listRevisionHistory({ id: input.id, project_code: projectCode }, { access }),
+            this.graphRepository.listSupersessionHistory({ id: input.id, project_code: projectCode }, { access })
         ]);
         return {
             id: requiredText(input.id, 'id'),
             project_code: projectCode,
-            entries: [...lifecycleEntries.map((entry) => ({ ...entry, kind: 'lifecycle' })), ...revisionEntries]
+            entries: [...lifecycleEntries.map((entry) => ({ ...entry, kind: 'lifecycle' })),
+                ...revisionEntries, ...supersessionEntries]
                 .sort((left, right) => String(right.occurred_at || '').localeCompare(String(left.occurred_at || '')))
         };
     }

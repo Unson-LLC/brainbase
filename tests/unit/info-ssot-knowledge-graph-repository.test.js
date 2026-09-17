@@ -354,4 +354,92 @@ describe('InfoSSOTKnowledgeGraphRepository normalized promotion', () => {
             'brainbase', access.personId
         ]);
     });
+
+    it('正式な置換は両判断をCAS更新しsupersedes edgeと監査receiptを同一処理で保存する', async () => {
+        const decisions = [
+            { id: 'decision_new', project_id: 'project_uuid', decision_domain: 'engineering', payload: { version: 'v2' } },
+            { id: 'decision_old', project_id: 'project_uuid', decision_domain: 'policy', payload: { version: 'v4' } }
+        ];
+        const client = { query: vi.fn(async (sql, params) => {
+            const text = String(sql);
+            if (text.includes('FROM knowledge_supersession_history')) return { rows: [] };
+            if (text.includes('entity.id = ANY')) return { rows: decisions };
+            if (text.includes("FROM graph_edges")) return { rows: [] };
+            if (text.includes('pg_try_advisory_xact_lock')) return { rows: [{ acquired: true }] };
+            if (text.includes("to_regclass('public.project_registry')")) return { rows: [{ project_registry: null }] };
+            if (text.includes('UPDATE graph_entities')) return { rows: [{ id: params[0], entity_type: 'decision', payload: JSON.parse(params[3]) }] };
+            return { rows: [] };
+        }) };
+        const infoSSOTService = {
+            withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(async () => undefined),
+            upsertGraphEdge: vi.fn(async () => undefined)
+        };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+        const result = await repository.establishSupersession({
+            replacement_id: 'decision_new', superseded_id: 'decision_old', project_code: 'brainbase',
+            replacement_expected_version: 'v2', superseded_expected_version: 'v4',
+            effective_at: '2026-10-01T00:00:00.000Z', reason: 'new policy', idempotency_key: 'sup-1',
+            organization_id: 'org_a', actor_person_id: access.personId
+        }, { access });
+        expect(result.replacement.payload).toMatchObject({ effective_at: '2026-10-01T00:00:00.000Z' });
+        expect(result.superseded.payload).toMatchObject({ expires_at: '2026-10-01T00:00:00.000Z' });
+        expect(infoSSOTService.assertDecisionAuthority).toHaveBeenCalledTimes(2);
+        expect(infoSSOTService.upsertGraphEdge).toHaveBeenCalledWith(client, expect.objectContaining({
+            fromId: 'decision_new', toId: 'decision_old', relType: 'supersedes'
+        }));
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO knowledge_supersession_history'))).toBe(true);
+    });
+
+    it('旧判断の発効以前に失効させる置換はGraph更新前に拒否する', async () => {
+        const client = { query: vi.fn(async (sql) => {
+            const text = String(sql);
+            if (text.includes('FROM knowledge_supersession_history')) return { rows: [] };
+            if (text.includes('entity.id = ANY')) return { rows: [
+                { id: 'decision_new', project_id: 'project_uuid', decision_domain: 'engineering', payload: { version: 'v2' } },
+                { id: 'decision_old', project_id: 'project_uuid', decision_domain: 'policy',
+                    payload: { version: 'v4', decided_at: '2027-01-01T00:00:00.000Z' } }
+            ] };
+            return { rows: [] };
+        }) };
+        const infoSSOTService = { withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(), upsertGraphEdge: vi.fn() };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+        await expect(repository.establishSupersession({
+            replacement_id: 'decision_new', superseded_id: 'decision_old', project_code: 'brainbase',
+            replacement_expected_version: 'v2', superseded_expected_version: 'v4',
+            effective_at: '2026-10-01T00:00:00.000Z', reason: 'invalid', idempotency_key: 'sup-invalid',
+            organization_id: 'org_a', actor_person_id: access.personId
+        }, { access })).rejects.toMatchObject({ code: 'knowledge_supersession_effective_period_invalid', status: 400 });
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
+        expect(infoSSOTService.upsertGraphEdge).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['退役済みの代替判断', { status: 'retired' }, [], 'knowledge_supersession_replacement_inactive'],
+        ['循環する置換関係', {}, [{ from_id: 'decision_old', to_id: 'decision_new' }], 'knowledge_supersession_relation_conflict'],
+        ['別判断による競合置換', {}, [{ from_id: 'decision_other', to_id: 'decision_old' }], 'knowledge_supersession_relation_conflict']
+    ])('%sは両判断を更新する前に拒否する', async (_label, replacementState, edgeRows, expectedCode) => {
+        const client = { query: vi.fn(async (sql) => {
+            const text = String(sql);
+            if (text.includes('FROM knowledge_supersession_history')) return { rows: [] };
+            if (text.includes('entity.id = ANY')) return { rows: [
+                { id: 'decision_new', project_id: 'project_uuid', decision_domain: 'engineering',
+                    payload: { version: 'v2', ...replacementState } },
+                { id: 'decision_old', project_id: 'project_uuid', decision_domain: 'policy', payload: { version: 'v4' } }
+            ] };
+            if (text.includes('FROM graph_edges')) return { rows: edgeRows };
+            return { rows: [] };
+        }) };
+        const infoSSOTService = { withAccessContext: vi.fn(async (_access, work) => work(client)),
+            assertDecisionAuthority: vi.fn(), upsertGraphEdge: vi.fn() };
+        const repository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+        await expect(repository.establishSupersession({
+            replacement_id: 'decision_new', superseded_id: 'decision_old', project_code: 'brainbase',
+            replacement_expected_version: 'v2', superseded_expected_version: 'v4',
+            effective_at: '2026-10-01T00:00:00.000Z', reason: 'invalid', idempotency_key: 'sup-invalid',
+            organization_id: 'org_a', actor_person_id: access.personId
+        }, { access })).rejects.toMatchObject({ code: expectedCode });
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('UPDATE graph_entities'))).toBe(false);
+    });
 });

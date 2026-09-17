@@ -87,6 +87,9 @@ export function createKnowledgeCatalogRouter({ service, authoringService = null 
         router.post('/items/:id/revisions', catalogRoute((req) => authoringService.revise(req.access, {
             ...(req.body || {}), id: req.params.id
         })));
+        router.post('/items/:id/supersessions', catalogRoute((req) => authoringService.supersede(req.access, {
+            ...(req.body || {}), id: req.params.id
+        })));
         router.get('/items/:id/history', catalogRoute((req) => authoringService.history(req.access, {
             ...req.query, id: req.params.id
         })));

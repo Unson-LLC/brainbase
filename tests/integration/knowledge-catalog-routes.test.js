@@ -7,6 +7,7 @@ import { KnowledgeCatalogError } from '../../server/services/knowledge-catalog-s
 
 function createApp(service, authoringService = null) {
     const app = express();
+    app.use(express.json());
     app.use((req, _res, next) => {
         req.access = { projectCodes: ['alpha', 'brainbase'], personId: 'per_1', organizationId: 'org_1' };
         next();
@@ -93,6 +94,7 @@ describe('knowledge catalog API', () => {
             saveDraft: vi.fn(async () => ({ status: 'saved' })),
             authorityDomains: vi.fn(async () => ({ domains: ['engineering'] })),
             revise: vi.fn(async () => ({ status: 'revised' })),
+            supersede: vi.fn(async () => ({ status: 'superseded' })),
             changeLifecycle: vi.fn(async () => ({ status: 'changed' })),
             history: vi.fn(async () => ({ entries: [] }))
         };
@@ -102,9 +104,14 @@ describe('knowledge catalog API', () => {
         await request(app).post('/api/knowledge/drafts/kd_1/save').send({ project_code: 'alpha', revision: 1 }).expect(200);
         await request(app).post('/api/knowledge/items/dec_1/lifecycle').send({ project_code: 'alpha', state: 'retired' }).expect(200);
         await request(app).post('/api/knowledge/items/dec_1/revisions').send({ project_code: 'alpha' }).expect(200);
+        await request(app).post('/api/knowledge/items/dec_1/supersessions')
+            .send({ project_code: 'alpha', superseded_id: 'dec_0' }).expect(200);
         await request(app).get('/api/knowledge/items/dec_1/history?project_code=alpha').expect(200);
         expect(authoringService.saveDraft).toHaveBeenCalledWith(expect.objectContaining({ personId: 'per_1' }), expect.objectContaining({ draft_id: 'kd_1' }));
         expect(authoringService.changeLifecycle).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: 'dec_1' }));
         expect(authoringService.revise).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ id: 'dec_1' }));
+        expect(authoringService.supersede).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+            id: 'dec_1', superseded_id: 'dec_0'
+        }));
     });
 });

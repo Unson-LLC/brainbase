@@ -194,6 +194,7 @@ export class KnowledgeCatalogService {
                 relation: edge.rel_type,
                 from_id: edge.from_id,
                 to_id: edge.to_id,
+                effective_at: edge.payload?.effective_at || null,
                 provenance: edge.payload?.provenance || null
             }))
         };

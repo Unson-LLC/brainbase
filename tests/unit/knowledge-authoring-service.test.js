@@ -53,8 +53,13 @@ function harness() {
     const graphRepository = {
         changeLifecycle: vi.fn(async () => ({ id: 'decision_123' })),
         reviseDecision: vi.fn(async (input) => ({ id: input.id, payload: { version: 'rev_2' } })),
+        establishSupersession: vi.fn(async () => ({
+            replacement: { payload: { version: 'rev_new' } },
+            superseded: { payload: { version: 'rev_old' } }
+        })),
         listLifecycleHistory: vi.fn(async () => [{ from_version: '1', to_version: '2', state: 'retired' }]),
         listRevisionHistory: vi.fn(async () => []),
+        listSupersessionHistory: vi.fn(async () => []),
         listDecisionAuthorityDomains: vi.fn(async () => ['engineering'])
     };
     const service = new KnowledgeAuthoringService({
@@ -239,6 +244,39 @@ describe('KnowledgeAuthoringService', () => {
             ...base, effective_at: '2027-01-01T00:00:00Z', expires_at: '2026-01-01T00:00:00Z'
         })).rejects.toMatchObject({ code: 'knowledge_revision_effective_period_invalid', status: 400 });
         expect(graphRepository.reviseDecision).not.toHaveBeenCalled();
+    });
+
+    it('正式な置換は両判断の版と発効日時を固定し、関係と失効をreadbackする', async () => {
+        const { service, graphRepository, catalogService } = harness();
+        catalogService.get.mockImplementation(async (_access, input) => input.id === 'decision_new' ? {
+            id: 'decision_new', version: 'rev_new', lifecycle: { effective_at: '2026-10-01T00:00:00.000Z' },
+            relations: [{ relation: 'supersedes', from_id: 'decision_new', to_id: 'decision_old',
+                effective_at: '2026-10-01T00:00:00.000Z' }]
+        } : {
+            id: 'decision_old', version: 'rev_old', lifecycle: { expires_at: '2026-10-01T00:00:00.000Z' }, relations: []
+        });
+        await expect(service.supersede(access, {
+            project_code: 'alpha', id: 'decision_new', superseded_id: 'decision_old',
+            replacement_expected_version: 'v2', superseded_expected_version: 'v4',
+            effective_at: '2026-10-01T09:00:00+09:00', reason: 'new policy', idempotency_key: 'sup-1'
+        })).resolves.toMatchObject({ status: 'superseded', replacement: { version: 'rev_new' } });
+        expect(graphRepository.establishSupersession).toHaveBeenCalledWith(expect.objectContaining({
+            replacement_id: 'decision_new', superseded_id: 'decision_old',
+            replacement_expected_version: 'v2', superseded_expected_version: 'v4',
+            effective_at: '2026-10-01T00:00:00.000Z'
+        }), { access });
+    });
+
+    it('自己置換と発効日時なしはGraph更新前に拒否する', async () => {
+        const { service, graphRepository } = harness();
+        const base = { project_code: 'alpha', id: 'decision_1', superseded_id: 'decision_1',
+            replacement_expected_version: 'v1', superseded_expected_version: 'v1',
+            reason: 'invalid', idempotency_key: 'sup-invalid' };
+        await expect(service.supersede(access, { ...base, effective_at: '2026-10-01T00:00:00Z' }))
+            .rejects.toMatchObject({ code: 'knowledge_supersession_self_reference', status: 400 });
+        await expect(service.supersede(access, { ...base, superseded_id: 'decision_2' }))
+            .rejects.toMatchObject({ code: 'knowledge_supersession_effective_at_required', status: 400 });
+        expect(graphRepository.establishSupersession).not.toHaveBeenCalled();
     });
 
     it('判断domainはGraph RACIから列挙し、scopeから推測しない', async () => {
