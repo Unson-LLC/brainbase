@@ -416,6 +416,31 @@ CREATE TABLE IF NOT EXISTS tenant_outcome_service_profiles (
 
 ALTER TABLE tenant_outcome_service_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_outcome_service_profiles FORCE ROW LEVEL SECURITY;
+
+CREATE OR REPLACE FUNCTION public.resolve_active_tenant_for_organization(requested_organization_id TEXT)
+RETURNS TABLE (tenant_id TEXT, organization_id TEXT)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT organization.tenant_id, organization.organization_id
+      FROM public.tenant_organizations AS organization
+      JOIN public.brainbase_tenants AS tenant
+        ON tenant.tenant_id = organization.tenant_id
+     WHERE organization.organization_id = requested_organization_id
+       AND tenant.status = 'active'
+     LIMIT 1
+$$;
+
+REVOKE ALL ON FUNCTION public.resolve_active_tenant_for_organization(TEXT) FROM PUBLIC;
+DO $brainbase_outcome_tenant_resolver_grant$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_app') THEN
+        EXECUTE 'GRANT EXECUTE ON FUNCTION public.resolve_active_tenant_for_organization(TEXT) TO brainbase_app';
+    END IF;
+END
+$brainbase_outcome_tenant_resolver_grant$;
 DROP POLICY IF EXISTS tenant_isolation ON tenant_outcome_service_profiles;
 CREATE POLICY tenant_isolation ON tenant_outcome_service_profiles
     USING (tenant_id = current_setting('brainbase.tenant_id', true))

@@ -57,6 +57,9 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('data_scopes TEXT[]');
         expect(sql).toContain('billing_principal_id TEXT NOT NULL');
         expect(sql).toContain('tenant_outcome_service_profiles_connection_idx');
+        expect(sql).toContain('resolve_active_tenant_for_organization');
+        expect(sql).toContain('SECURITY DEFINER');
+        expect(sql).toContain('REVOKE ALL ON FUNCTION public.resolve_active_tenant_for_organization(TEXT) FROM PUBLIC');
         expect(sql).toContain('ALTER TABLE credential_broker_refs');
         expect(sql).toContain('slack_installation_intents_tenant_idx');
         expect(sql).toContain('slack_installation_exchange_ledger_tenant_idx');

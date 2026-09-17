@@ -188,13 +188,6 @@ export function createCoreServices({
     const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter === undefined
         ? createConfiguredKnowledgeBedrockAdapter()
         : knowledgeBedrockAdapter;
-    const resolvedKnowledgeRetrieveBindingVerifier = knowledgeRetrieveBindingVerifier === undefined
-        ? createManaOutcomeAuthorityReadbackProviderFromEnv({
-            env: process.env,
-            serviceBinding: knowledgeRetrieveBindingTransport,
-            resource: knowledgeRetrieveBindingResource
-        })
-        : knowledgeRetrieveBindingVerifier;
     const projectProvisioningService = infoSSOTService.pool
         ? createProjectProvisioningService({ infoSSOTService, configParser })
         : null;
@@ -202,6 +195,15 @@ export function createCoreServices({
         env: process.env,
         pool: infoSSOTService.pool
     });
+    const resolvedKnowledgeRetrieveBindingVerifier = knowledgeRetrieveBindingVerifier === undefined
+        ? createManaOutcomeAuthorityReadbackProviderFromEnv({
+            env: process.env,
+            serviceBinding: knowledgeRetrieveBindingTransport,
+            resource: knowledgeRetrieveBindingResource,
+            resolveTenantForOrganization:
+                tenantRuntimeServices?.outcomeServiceContextAdapters?.resolveTenantForOrganization
+        })
+        : knowledgeRetrieveBindingVerifier;
     const outcomeServiceContextIssuer = createOutcomeServiceContextIssuerFromEnv({
         env: process.env,
         tenantRuntimeServices,

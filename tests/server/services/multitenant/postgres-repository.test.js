@@ -298,6 +298,14 @@ describe('MultitenantPostgresRepository', () => {
         ))).toBe(true);
     });
 
+    it('organization_idをactive tenantへRLSを越える限定関数で解決する', async () => {
+        const mapping = { tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX', organization_id: 'org_business' };
+        const pool = { query: vi.fn(async () => ({ rows: [mapping] })) };
+        const repository = new MultitenantPostgresRepository({ pool });
+        await expect(repository.resolveTenantForOrganization('org_business')).resolves.toEqual(mapping);
+        expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('resolve_active_tenant_for_organization'), ['org_business']);
+    });
+
     it('authority project bindingをtenant RLS下でproject_idから正規project_codeへ解決する', async () => {
         const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
         const project = {

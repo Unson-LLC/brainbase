@@ -236,7 +236,8 @@ export function createTenantRuntimeServicesFromEnv({
     const outcomeServiceContextAdapters = {
         resolveProfile: (input) => repository.resolveOutcomeServiceProfile(input),
         resolveTenant: (input) => repository.resolveOutcomeServiceTenant(input),
-        resolveConnection: (input) => repository.resolveOutcomeServiceConnection(input)
+        resolveConnection: (input) => repository.resolveOutcomeServiceConnection(input),
+        resolveTenantForOrganization: (organizationId) => repository.resolveTenantForOrganization(organizationId)
     };
     return createTenantRuntimeServices({
         serviceAuth,

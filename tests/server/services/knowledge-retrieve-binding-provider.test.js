@@ -192,13 +192,55 @@ describe('Mana outcome authority readback binding provider', () => {
         });
     });
 
+    it('resolves an organization-only public delegation through the trusted tenant registry', async () => {
+        const serviceBinding = {
+            fetch: vi.fn(async () => response(readback({
+                principal: { ...readback().principal, tenant_id: 'tenant_1' }
+            })))
+        };
+        const resolveTenantForOrganization = vi.fn(async () => ({
+            tenant_id: 'tenant_1', organization_id: 'org_1'
+        }));
+        const provider = createManaOutcomeAuthorityReadbackProvider({
+            serviceBinding,
+            resource: 'meeting-minutes:github',
+            resolveTenantForOrganization
+        });
+
+        await expect(provider.verifyAuthority({
+            organization_id: 'org_1',
+            delegated_actor_person_id: 'person_1',
+            project_code: 'alpha',
+            outcome_contract_id: 'oc_1',
+            outcome_contract_version: 3,
+            run_id: 'run_1',
+            run_mode: 'normal'
+        })).resolves.toMatchObject({ tenant_id: 'tenant_1', organization_id: 'org_1' });
+        expect(resolveTenantForOrganization).toHaveBeenCalledWith('org_1');
+        expect(JSON.parse(serviceBinding.fetch.mock.calls[0][1].body)).toMatchObject({ tenant: 'tenant_1' });
+    });
+
+    it('rejects an unknown organization before Mana readback', async () => {
+        const serviceBinding = { fetch: vi.fn(async () => response(readback())) };
+        const provider = createManaOutcomeAuthorityReadbackProvider({
+            serviceBinding,
+            resource: 'meeting-minutes:github',
+            resolveTenantForOrganization: vi.fn(async () => null)
+        });
+        await expect(provider.verifyAuthority({
+            organization_id: 'org_unknown', delegated_actor_person_id: 'person_1',
+            ...EXPECTED, outcome_contract_version: 3, run_mode: 'normal'
+        })).rejects.toThrow('organization is not mapped to an active tenant');
+        expect(serviceBinding.fetch).not.toHaveBeenCalled();
+    });
+
     it.each([
         ['missing', {
             organization_id: 'org_1',
             delegated_actor_person_id: 'person_1',
             ...EXPECTED,
             outcome_contract_version: 3
-        }, 'tenant claim is required'],
+        }, 'trusted tenant resolver is required'],
         ['equal', {
             tenant_id: 'org_1',
             organization_id: 'org_1',
@@ -225,6 +267,7 @@ describe('Mana outcome authority readback binding provider', () => {
         });
 
         await expect(provider.verifyAuthority({
+            tenant_id: 'tenant_1',
             organization_id: 'org_1',
             delegated_actor_person_id: 'person_1',
             ...EXPECTED

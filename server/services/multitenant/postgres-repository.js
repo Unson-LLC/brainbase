@@ -698,6 +698,22 @@ export class MultitenantPostgresRepository {
         });
     }
 
+    async resolveTenantForOrganization(organizationId) {
+        if (typeof organizationId !== 'string' || organizationId.length === 0) {
+            throw new ContractError('ORGANIZATION_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });
+        }
+        try {
+            const result = await this.pool.query(
+                `SELECT tenant_id, organization_id
+                   FROM public.resolve_active_tenant_for_organization($1)`,
+                [organizationId]
+            );
+            return result.rows[0] ?? null;
+        } catch (error) {
+            throw unavailable(error);
+        }
+    }
+
     async resolveOutcomeServiceTenant(tenantId) {
         if (typeof tenantId !== 'string' || tenantId.length === 0) {
             throw new ContractError('TENANT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });

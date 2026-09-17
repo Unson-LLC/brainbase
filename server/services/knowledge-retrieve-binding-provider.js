@@ -476,7 +476,8 @@ export function createManaOutcomeAuthorityReadbackProvider({
     serviceBinding = null,
     transport = null,
     resource,
-    timeoutMs = DEFAULT_TIMEOUT_MS
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    resolveTenantForOrganization = null
 } = {}) {
     const binding = resolveServiceBinding({ serviceBinding, transport });
     const resourceRef = nonEmptyString(resource);
@@ -527,7 +528,19 @@ export function createManaOutcomeAuthorityReadbackProvider({
 
     return {
         async verifyAuthority(expected) {
-            const { request, identity } = resolveAuthorityIdentity(expected);
+            let authority = expected;
+            if (!authority?.tenant_id && !authority?.tenantId) {
+                if (typeof resolveTenantForOrganization !== 'function') {
+                    throw new Error('trusted tenant resolver is required');
+                }
+                const organizationId = aliasedString(authority, ['organization_id', 'organizationId'], 'organization');
+                const mapping = await resolveTenantForOrganization(organizationId);
+                if (!mapping || mapping.organization_id !== organizationId || !nonEmptyString(mapping.tenant_id)) {
+                    throw new Error('organization is not mapped to an active tenant');
+                }
+                authority = { ...authority, tenant_id: mapping.tenant_id };
+            }
+            const { request, identity } = resolveAuthorityIdentity(authority);
             return performReadback(request, identity);
         },
         async verifyBinding(expected, context = {}) {
@@ -548,12 +561,14 @@ export function createManaOutcomeAuthorityReadbackProviderFromEnv({
     serviceBinding = null,
     transport = null,
     resource = env?.[MANA_OUTCOME_AUTHORITY_READBACK_RESOURCE_ENV],
-    timeoutMs = DEFAULT_TIMEOUT_MS
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    resolveTenantForOrganization = null
 } = {}) {
     return createManaOutcomeAuthorityReadbackProvider({
         serviceBinding,
         transport,
         resource,
-        timeoutMs
+        timeoutMs,
+        resolveTenantForOrganization
     });
 }
