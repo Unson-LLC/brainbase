@@ -92,6 +92,7 @@ function isKnowledgeResolutionReceipt(value: unknown): value is Record<string, u
 
 const RETRIEVAL_STATUSES = new Set([
   'resolved', 'insufficient', 'not_applicable', 'version_conflict', 'source_unavailable', 'not_found',
+  'source_version_unknown', 'source_version_conflict', 'source_hash_conflict',
 ]);
 
 function isKnowledgeRetrievalResponse(value: unknown): value is Record<string, unknown> {
@@ -104,6 +105,8 @@ function isKnowledgeRetrievalResponse(value: unknown): value is Record<string, u
       && result.resolved_version === result.requested_version
       && typeof result.content === 'string'
       && result.content.length > 0
+      && isRecord(result.source)
+      && typeof result.source.kind === 'string'
       && typeof result.retrieval_receipt_id === 'string'
       && result.retrieval_receipt_id.length > 0;
   });
@@ -171,7 +174,9 @@ export async function handleKnowledgeResolutionToolCall(
       response.status,
     );
   }
-  const valid = retrieving ? isKnowledgeRetrievalResponse(payload) : isKnowledgeResolutionReceipt(payload);
+  const valid = retrieving
+    ? isKnowledgeRetrievalResponse(payload) && payload.project_code === args.project_code
+    : isKnowledgeResolutionReceipt(payload);
   if (!valid) {
     return toolError(
       'error',
