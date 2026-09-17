@@ -414,13 +414,13 @@ export class AuthService {
         return this.authProvider.resolveIdentity({ tokenPayload, userInfo });
     }
 
-    async findUserByExternalIdentity(identity) {
+    async findUserByExternalIdentity(identity, organizationId = null) {
         // Slack's provider tenant is the Slack team ID, while older grants and
         // users store the logical organization ID. Reuse the canonical Slack
         // lookup so both callback and token-exchange paths enforce the same
         // organization.workspace_id boundary.
         if (identity?.provider === 'slack') {
-            return this.findUserBySlackId(identity.subject, identity.tenantId);
+            return this.findUserBySlackId(identity.subject, identity.tenantId, organizationId);
         }
         if (!this.pool) throw new Error('Database pool is not configured');
         const client = await this.pool.connect();
@@ -443,9 +443,12 @@ export class AuthService {
                  WHERE ai.provider = $1
                    AND ai.provider_subject = $2
                    AND ai.provider_tenant = $3
+                   ${organizationId ? 'AND ag.organization_id = $4' : ''}
                    AND ai.active = true
                  LIMIT 1`,
-                [identity.provider, identity.subject, identity.tenantId || '']
+                organizationId
+                    ? [identity.provider, identity.subject, identity.tenantId || '', organizationId]
+                    : [identity.provider, identity.subject, identity.tenantId || '']
             );
             if (!rows[0]) return null;
             const role = rows[0].role || 'member';
@@ -1053,7 +1056,8 @@ export class AuthService {
                 access: { ...access, personId, organizationId }
             };
         }
-        const user = await this.findUserByExternalIdentity(identity);
+        const requestedOrganizationId = payload.organizationId || payload.organization_id || null;
+        const user = await this.findUserByExternalIdentity(identity, requestedOrganizationId);
         if (!user) {
             await this.createAuditLog({ eventType: 'AUTH_DENY', metadata: { reason: 'grant_not_found', provider: identity.provider } });
             throw new Error('Access is not granted');
@@ -1070,7 +1074,13 @@ export class AuthService {
             providerTenant: identity.tenantId,
             organizationId
         });
-        const nextRefreshToken = this.issueRefreshToken({ ...identity, authProvider: identity.provider, providerSubject: identity.subject, providerTenant: identity.tenantId });
+        const nextRefreshToken = this.issueRefreshToken({
+            ...identity,
+            authProvider: identity.provider,
+            providerSubject: identity.subject,
+            providerTenant: identity.tenantId,
+            organizationId
+        });
         await this.createAuditLog({
             personId,
             eventType: 'AUTH_REFRESH',
@@ -1266,7 +1276,7 @@ export class AuthService {
      * @param {string} codeVerifier - code_verifier from CLI client
      * @returns {Object} - { device_code, user_code, verification_uri, verification_uri_complete, expires_in, interval }
      */
-    createDeviceCodeRequest(codeVerifier) {
+    createDeviceCodeRequest(codeVerifier, organizationId = null) {
         const deviceCode = this.generateDeviceCode();
         const userCode = this.generateUserCode();
         const now = Date.now();
@@ -1285,7 +1295,8 @@ export class AuthService {
             userCode,
             createdAt: now,
             status: 'pending', // pending, approved, denied
-            identity: null
+            identity: null,
+            organizationId: organizationId || null
         });
 
         this.userCodeStore.set(userCode, deviceCode);
@@ -1408,12 +1419,14 @@ export class AuthService {
             this.deviceCodeStore.delete(deviceCode);
             this.userCodeStore.delete(record.userCode);
 
-            const { identity } = record;
+            const { identity, organizationId } = record;
 
             // Fetch user from database
             const user = identity?.provider === 'slack'
-                ? await this.findUserBySlackId(identity.subject, identity.tenantId)
-                : await this.findUserByExternalIdentity(identity);
+                ? (organizationId
+                    ? await this.findUserBySlackId(identity.subject, identity.tenantId, organizationId)
+                    : await this.findUserBySlackId(identity.subject, identity.tenantId))
+                : await this.findUserByExternalIdentity(identity, organizationId);
             if (!user) {
                 await this.createAuditLog({
                     eventType: 'AUTH_DENY',
@@ -1438,7 +1451,8 @@ export class AuthService {
             const refreshToken = this.issueRefreshToken({
                 authProvider: identity.provider,
                 providerSubject: identity.subject,
-                providerTenant: identity.tenantId
+                providerTenant: identity.tenantId,
+                organizationId: user.workspace_id
             });
 
             await this.createAuditLog({

@@ -288,6 +288,29 @@ describe('AuthService - Device Code Flow', () => {
             expect(decoded.organizationId).toBe('unson');
             expect(decoded.tenantId).toBeUndefined();
         });
+
+        it('should preserve the requested organization through device token issuance', async () => {
+            const response = authService.createDeviceCodeRequest('test-code-verifier', 'techknight');
+            authService.approveDeviceCode(response.device_code, 'U12345', 'T12345');
+            authService.findUserBySlackId = async (...args) => {
+                expect(args).toEqual(['U12345', 'T12345', 'techknight']);
+                return {
+                    person_id: 'per_1',
+                    access_level: 3,
+                    employment_type: 'employee',
+                    role: 'ceo',
+                    project_codes: ['techknight'],
+                    clearance: ['internal'],
+                    workspace_id: 'techknight'
+                };
+            };
+            authService.createAuditLog = async () => {};
+
+            const result = await authService.pollDeviceToken(response.device_code);
+
+            expect(authService.verifyToken(result.access_token).organizationId).toBe('techknight');
+            expect(authService.verifyRefreshToken(result.refresh_token).organizationId).toBe('techknight');
+        });
     });
 
     describe('cleanupExpiredDeviceCodes', () => {

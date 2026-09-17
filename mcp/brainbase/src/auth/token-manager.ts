@@ -123,10 +123,14 @@ export class TokenManager {
   private allowEnvironmentToken: boolean;
   private requireEnvironmentToken: boolean;
   private refreshTimeoutMs: number;
+  private expectedOrganizationId?: string;
 
   constructor(apiUrl?: string, tokenFilePath?: string, options: TokenManagerOptions = {}) {
-    this.tokenFilePath = tokenFilePath || join(homedir(), '.brainbase', 'tokens.json');
+    this.tokenFilePath = tokenFilePath
+      || process.env.BRAINBASE_TOKEN_FILE
+      || join(homedir(), '.brainbase', 'tokens.json');
     this.apiUrl = apiUrl || process.env.BRAINBASE_GRAPH_API_URL || 'http://localhost:31013';
+    this.expectedOrganizationId = process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID?.trim() || undefined;
     this.allowEnvironmentToken = options.allowEnvironmentToken ?? true;
     this.requireEnvironmentToken = options.requireEnvironmentToken ?? false;
     this.refreshTimeoutMs = configuredTimeout(
@@ -148,6 +152,7 @@ export class TokenManager {
       ? process.env.BRAINBASE_GRAPH_API_TOKEN?.trim()
       : undefined;
     if (envToken) {
+      this.assertExpectedOrganization(envToken);
       return envToken;
     }
     if (this.requireEnvironmentToken) {
@@ -176,6 +181,7 @@ export class TokenManager {
       await this.refresh(options);
     }
 
+    this.assertExpectedOrganization(this.tokenData!.access_token);
     return this.tokenData!.access_token;
   }
 
@@ -350,6 +356,7 @@ export class TokenManager {
       if (!accessToken) {
         throw new Error('Token refresh response did not include an access token');
       }
+      this.assertExpectedOrganization(accessToken);
 
       const jwtTiming = this.decodeJwtTiming(accessToken);
       const responseExpiresIn = typeof responseData.expires_in === 'number' && responseData.expires_in > 0
@@ -412,6 +419,24 @@ export class TokenManager {
       return { issuedAt, expiresIn: expiresAt - issuedAt };
     } catch {
       return null;
+    }
+  }
+
+  private assertExpectedOrganization(token: string): void {
+    if (!this.expectedOrganizationId) return;
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Tenant-bound MCP requires a JWT access token');
+    }
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8')) as Record<string, unknown>;
+    } catch {
+      throw new Error('Tenant-bound MCP could not decode the access token');
+    }
+    const actual = payload.organizationId ?? payload.organization_id ?? payload.tenantId;
+    if (actual !== this.expectedOrganizationId) {
+      throw new Error(`Tenant mismatch: expected ${this.expectedOrganizationId}, received ${String(actual || 'none')}`);
     }
   }
 

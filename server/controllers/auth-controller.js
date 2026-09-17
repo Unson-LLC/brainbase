@@ -740,12 +740,15 @@ export class AuthController {
     deviceCodeRequest = async (req, res) => {
         try {
             this.authService.assertReady();
-            const { code_verifier } = req.body;
+            const { code_verifier, organization_id } = req.body;
             if (!code_verifier) {
                 return res.status(400).json({ error: 'code_verifier is required' });
             }
 
-            const response = this.authService.createDeviceCodeRequest(String(code_verifier));
+            const response = this.authService.createDeviceCodeRequest(
+                String(code_verifier),
+                organization_id ? String(organization_id) : null
+            );
             return res.json(response);
         } catch (error) {
             logger.error('Device code request failed', { error });
