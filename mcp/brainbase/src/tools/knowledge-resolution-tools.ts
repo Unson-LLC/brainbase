@@ -169,7 +169,14 @@ export async function handleKnowledgeResolutionToolCall(
         return toolError('error', 'brainbase_api_response_invalid',
           retrieving ? 'Invalid authority-bound knowledge retrieval response' : 'Invalid authority-bound routing receipt', []);
       }
-      return { status: 'ok', scope: { project_codes: [payload.project_code] }, data: payload };
+      const projectCode = isRecord(payload) && typeof payload.project_code === 'string'
+        ? payload.project_code
+        : null;
+      if (!projectCode) {
+        return toolError('error', 'brainbase_api_response_invalid',
+          'Authority-bound knowledge response did not include a project code', []);
+      }
+      return { status: 'ok', scope: { project_codes: [projectCode] }, data: payload };
     } catch {
       return toolError('unavailable', 'brainbase_api_unavailable', 'Knowledge authority service unavailable', []);
     }
