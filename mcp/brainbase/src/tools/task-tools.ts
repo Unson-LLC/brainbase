@@ -30,7 +30,7 @@ export interface TaskToolResult {
 }
 
 const TASK_PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
-const TASK_TRANSITION_STATUSES = new Set(['pending', 'in_progress', 'waiting', 'completed']);
+const TASK_TRANSITION_STATUSES = new Set(['pending', 'in_progress', 'waiting', 'completed', 'cancelled']);
 const RESERVED_IDEMPOTENCY_PREFIXES = ['api:', 'workflow:'];
 
 export const taskTools: Tool[] = [
@@ -89,7 +89,7 @@ export const taskTools: Tool[] = [
   {
     name: 'transition_task',
     description:
-      'Transition a Canonical Task to pending, in_progress, waiting, or completed. '
+      'Transition a Canonical Task to pending, in_progress, waiting, completed, or cancelled. '
       + 'Requires expected_version for optimistic concurrency. waiting_on / review_at annotate waiting states. '
       + 'There is no delete transition and no delete tool.',
     inputSchema: {
@@ -97,7 +97,7 @@ export const taskTools: Tool[] = [
       properties: {
         task_id: { type: 'string', description: 'Canonical Task ID (ct1....).' },
         expected_version: { type: 'integer', minimum: 1 },
-        to_status: { type: 'string', enum: ['pending', 'in_progress', 'waiting', 'completed'] },
+        to_status: { type: 'string', enum: ['pending', 'in_progress', 'waiting', 'completed', 'cancelled'] },
         waiting_on: { type: 'string' },
         review_at: { type: 'string', description: 'Review date-time in ISO 8601 format.' },
         idempotency_key: { type: 'string', description: 'Optional idempotency key ("api:"/"workflow:" prefixes reserved).' },

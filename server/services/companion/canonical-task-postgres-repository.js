@@ -2,7 +2,7 @@ import crypto from 'crypto';
 
 import { decodeCanonicalTaskCursor } from './canonical-task-nocodb-repository.js';
 
-const STATUSES = new Set(['pending', 'in_progress', 'waiting', 'completed']);
+const STATUSES = new Set(['pending', 'in_progress', 'waiting', 'completed', 'cancelled']);
 const PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
 const MUTABLE_COLUMNS = Object.freeze({
     title: 'title',

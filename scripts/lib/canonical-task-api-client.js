@@ -5,10 +5,12 @@ const STATUS = Object.freeze({
     '進行中': 'in_progress',
     '待ち': 'waiting',
     '完了': 'completed',
+    '取消済み': 'cancelled',
     pending: 'pending',
     in_progress: 'in_progress',
     waiting: 'waiting',
-    completed: 'completed'
+    completed: 'completed',
+    cancelled: 'cancelled'
 });
 const PRIORITY = Object.freeze({
     '低': 'low',

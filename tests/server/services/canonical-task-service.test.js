@@ -655,6 +655,34 @@ describe('CanonicalTaskService', () => {
             .rejects.toMatchObject({ code: 'invalid_transition', status: 409 });
     });
 
+    it('cancels active tasks and restores cancelled tasks without deleting business fields', async () => {
+        let current = task({ status: 'in_progress', description: '保持する説明', project_codes: ['brainbase'] });
+        fixture.repository.get.mockImplementation(async () => current);
+        fixture.repository.update.mockImplementation(async (_id, fields) => {
+            current = task({ ...current, ...fields });
+            return current;
+        });
+
+        await expect(fixture.service.transitionTask(
+            'task_1',
+            { expected_version: 1, to_status: 'cancelled' },
+            ownerContext()
+        )).resolves.toMatchObject({ status: 'cancelled', description: '保持する説明', project_codes: ['brainbase'] });
+        expect(fixture.repository.update).toHaveBeenNthCalledWith(1, 'task_1', expect.objectContaining({
+            status: 'cancelled',
+            waiting_on: null,
+            review_at: null,
+            completed_at: null,
+            version: 2
+        }));
+
+        await expect(fixture.service.transitionTask(
+            'task_1',
+            { expected_version: 2, to_status: 'pending' },
+            ownerContext()
+        )).resolves.toMatchObject({ status: 'pending', version: 3 });
+    });
+
     it('keeps Task store failures explicit', async () => {
         fixture.repository.list.mockRejectedValue(new Error('network'));
         await expect(fixture.service.listTasks({}, ownerContext()))

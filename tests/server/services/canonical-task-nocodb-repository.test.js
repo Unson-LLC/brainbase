@@ -70,6 +70,13 @@ describe('CanonicalTaskNocoDBRepository', () => {
             .toMatchObject({ status: 'waiting' });
     });
 
+    it('normalizes cancelled tasks without treating them as unknown', () => {
+        const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl: vi.fn(), apiToken: 'token', idSecret: 'secret' });
+        const normalized = repository.normalize({ Id: 71, 'タイトル': '取消済み', 'ステータス': '取消済み', '優先度': '中' });
+        expect(normalized).toMatchObject({ status: 'cancelled' });
+        expect(normalized.normalization_warnings).not.toContainEqual(expect.objectContaining({ code: 'unknown_status' }));
+    });
+
     it('does not guess a legacy free-text assignee', () => {
         const repository = new CanonicalTaskNocoDBRepository({ storeConfig, fetchImpl: vi.fn(), apiToken: 'token', idSecret: 'secret' });
         const normalized = repository.normalize({ Id: 8, 'タイトル': '旧Task', 'ステータス': '未着手', '優先度': '中', '担当者': '佐藤さん' });

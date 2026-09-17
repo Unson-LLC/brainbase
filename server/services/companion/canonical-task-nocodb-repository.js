@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-const STATUS_TO_NOCO = Object.freeze({ pending: '未着手', in_progress: '進行中', waiting: '保留', completed: '完了' });
+const STATUS_TO_NOCO = Object.freeze({ pending: '未着手', in_progress: '進行中', waiting: '保留', completed: '完了', cancelled: '取消済み' });
 const NOCO_TO_STATUS = Object.freeze({
     ...Object.fromEntries(Object.entries(STATUS_TO_NOCO).map(([key, value]) => [value, key])),
     '待ち': 'waiting'
@@ -168,7 +168,7 @@ export class CanonicalTaskNocoDBRepository {
         const warnings = [];
         let status = NOCO_TO_STATUS[fields['ステータス']] || fields.status;
         let priority = NOCO_TO_PRIORITY[fields['優先度']] || fields.priority;
-        if (!['pending', 'in_progress', 'waiting', 'completed'].includes(status)) {
+        if (!['pending', 'in_progress', 'waiting', 'completed', 'cancelled'].includes(status)) {
             warnings.push({ code: 'unknown_status', message: `Unknown Task status: ${fields['ステータス'] || status || ''}` });
             status = String(fields['ステータス'] || status || 'unknown');
         }

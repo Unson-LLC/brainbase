@@ -216,10 +216,21 @@ describe('transition_task', () => {
     });
   });
 
+  it('exposes cancellation as a reversible lifecycle transition', async () => {
+    const captured: CapturedRequest[] = [];
+    const result = await handleTaskToolCall(
+      'transition_task',
+      { task_id: 'ct1.task', expected_version: 2, to_status: 'cancelled' },
+      dependencies({ fetch: capturingFetch(captured) }),
+    );
+    assert.equal(result?.status, 'ok');
+    assert.deepEqual(captured[0].body, { expected_version: 2, to_status: 'cancelled' });
+  });
+
   it('rejects an invalid to_status', async () => {
     const result = await handleTaskToolCall(
       'transition_task',
-      { task_id: 'ct1.task', expected_version: 1, to_status: 'cancelled' },
+      { task_id: 'ct1.task', expected_version: 1, to_status: 'deleted' },
       dependencies(),
     );
     assert.equal(result?.status, 'error');
