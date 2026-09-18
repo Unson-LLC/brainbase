@@ -268,7 +268,10 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             slackClientSecret: 'oauth-client-secret-local-only',
             tokenUrl: 'https://slack.example.test/api/oauth.v2.access',
             slackMode: 'oauth',
-            verifyToken: (token) => jwt.verify(token, humanSecret)
+            verifyToken: (token) => jwt.verify(token, humanSecret),
+            resolveTenantForOrganization: async (organizationId) => organizationId === tenantId
+                ? { organization_id: organizationId, tenant_id: tenantId }
+                : null
         };
         const fetchImpl = vi.fn(async (url, init) => {
             if (url === authService.tokenUrl) {
@@ -412,7 +415,10 @@ describe.sequential('Slack installation control-plane PostgreSQL integration', (
             slackClientSecret: 'login-client-secret-must-not-be-used',
             tokenUrl: 'https://slack.example.test/api/oauth.v2.access',
             slackMode: 'oauth',
-            verifyToken: (token) => jwt.verify(token, humanSecret)
+            verifyToken: (token) => jwt.verify(token, humanSecret),
+            resolveTenantForOrganization: async (organizationId) => organizationId === tenantId
+                ? { organization_id: organizationId, tenant_id: tenantId }
+                : null
         };
         const fetchImpl = vi.fn(async (url, init) => {
             if (url === env.BRAINBASE_SLACK_INSTALLATION_TOKEN_URL) {
