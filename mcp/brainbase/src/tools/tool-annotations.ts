@@ -21,6 +21,7 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'brainbase_meeting_automation_diagnosis',
   'brainbase_onboarding_get',
   'brainbase_knowledge_resolve',
+  'brainbase_knowledge_retrieve',
   'brainbase_knowledge_evidence_record',
   'brainbase_personal_kg_answer_record',
   'brainbase_resolve_turn',

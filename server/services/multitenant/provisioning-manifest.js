@@ -18,7 +18,7 @@ const RFC3339_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/u;
 
 const ALLOWED_ROOT_KEYS = new Set([
     'tenant_key', 'tenant_id', 'display_name', 'project_code',
-    'workspace_connection', 'service_actor', 'contract_revision'
+    'workspace_connection', 'service_actor', 'contract_revision', 'outcome_service_profile'
 ]);
 const ALLOWED_CONNECTION_KEYS = new Set([
     'provider', 'workspace_id', 'app_id', 'installation_id', 'connection_id',
@@ -41,6 +41,11 @@ const ALLOWED_CONTRACT_KEYS = new Set([
     'rate_card_revision', 'fx_table_revision', 'sales_price_revision',
     'quota_window_policy',
     'capabilities', 'audience', 'deployment_id', 'profile'
+]);
+const ALLOWED_OUTCOME_PROFILE_KEYS = new Set([
+    'schema_version', 'profile_id', 'audience', 'capability_id', 'deployment_id',
+    'workspace_id', 'app_id', 'authenticated_subject_id', 'connection_id',
+    'resource_ref', 'organization_ids', 'data_scopes', 'billing_principal_id', 'profile'
 ]);
 
 export class ProvisioningManifestError extends Error {
@@ -205,6 +210,65 @@ function normalizeConnection(value) {
     };
 }
 
+function normalizeOutcomeServiceProfile(value, { tenantId, connection, contract }) {
+    assertRecord(value, 'outcome_service_profile');
+    assertKnownKeys(value, ALLOWED_OUTCOME_PROFILE_KEYS, 'outcome_service_profile');
+    if (value.schema_version !== 'outcome_service_profile.v1') {
+        fail('MANIFEST_INVALID', 'outcome_service_profile.schema_version is invalid');
+    }
+    const profile = {
+        schema_version: value.schema_version,
+        profile_id: requiredString(value.profile_id, 'outcome_service_profile.profile_id'),
+        audience: requiredString(value.audience, 'outcome_service_profile.audience', AUDIENCE),
+        capability_id: requiredString(value.capability_id, 'outcome_service_profile.capability_id', CAPABILITY),
+        deployment_id: requiredString(value.deployment_id, 'outcome_service_profile.deployment_id', DEPLOYMENT_ID),
+        workspace_id: requiredString(value.workspace_id, 'outcome_service_profile.workspace_id'),
+        app_id: requiredString(value.app_id, 'outcome_service_profile.app_id'),
+        authenticated_subject_id: requiredString(
+            value.authenticated_subject_id, 'outcome_service_profile.authenticated_subject_id'
+        ),
+        connection_id: requiredString(value.connection_id, 'outcome_service_profile.connection_id', CONNECTION_ID),
+        resource_ref: requiredString(
+            value.resource_ref, 'outcome_service_profile.resource_ref', /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$/u
+        ),
+        organization_ids: sortedStrings(value.organization_ids, 'outcome_service_profile.organization_ids'),
+        data_scopes: sortedStrings(
+            value.data_scopes, 'outcome_service_profile.data_scopes', /^[a-z][a-z0-9:._/-]{1,127}$/u
+        ),
+        billing_principal_id: requiredString(value.billing_principal_id, 'outcome_service_profile.billing_principal_id'),
+        profile: value.profile ?? contract.profile
+    };
+    if (!DEPLOYMENT_PROFILES.has(profile.profile)) {
+        fail('MANIFEST_INVALID', 'outcome_service_profile.profile is invalid');
+    }
+    if (profile.organization_ids.includes(tenantId)) {
+        fail('OUTCOME_PROFILE_ORGANIZATION_MISMATCH', 'outcome_service_profile.organization_ids must not contain tenant_id');
+    }
+    if (profile.audience !== contract.audience[0] && !contract.audience.includes(profile.audience)) {
+        fail('OUTCOME_PROFILE_CONTRACT_MISMATCH', 'outcome_service_profile.audience is not granted by the contract');
+    }
+    if (profile.capability_id !== 'signed_tenant_context'
+        && !contract.capabilities.includes(profile.capability_id)) {
+        fail('OUTCOME_PROFILE_CONTRACT_MISMATCH', 'outcome_service_profile.capability_id is not granted by the contract');
+    }
+    if (!connection.scopes.includes(profile.capability_id)) {
+        fail('OUTCOME_PROFILE_CONNECTION_MISMATCH', 'outcome_service_profile.capability_id is not granted by the connection');
+    }
+    if (profile.deployment_id !== contract.deployment_id) {
+        fail('OUTCOME_PROFILE_CONTRACT_MISMATCH', 'outcome_service_profile.deployment_id does not match the contract');
+    }
+    for (const [field, expected] of [
+        ['workspace_id', connection.workspace_id],
+        ['app_id', connection.app_id],
+        ['connection_id', connection.connection_id]
+    ]) {
+        if (profile[field] !== expected) {
+            fail('OUTCOME_PROFILE_CONNECTION_MISMATCH', `outcome_service_profile.${field} does not match the connection`);
+        }
+    }
+    return profile;
+}
+
 function normalizeActor(value) {
     assertRecord(value, 'service_actor');
     assertKnownKeys(value, ALLOWED_ACTOR_KEYS, 'service_actor');
@@ -265,6 +329,16 @@ function normalizeManifest(input, { requireConnection }) {
     }
     if (input.contract_revision === undefined) fail('MANIFEST_INVALID', 'contract_revision is required');
     normalized.contract_revision = normalizeContract(input.contract_revision);
+    if (input.outcome_service_profile !== undefined) {
+        if (!requireConnection) {
+            fail('MANIFEST_FIELD_FORBIDDEN', 'outcome_service_profile is not allowed during tenant core bootstrap');
+        }
+        normalized.outcome_service_profile = normalizeOutcomeServiceProfile(input.outcome_service_profile, {
+            tenantId: normalized.tenant_id,
+            connection: normalized.workspace_connection,
+            contract: normalized.contract_revision
+        });
+    }
     return deepFreeze(normalized);
 }
 

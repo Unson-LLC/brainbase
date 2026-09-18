@@ -5,7 +5,7 @@ import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 /** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
 /** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
 /** @typedef {(error?: unknown) => unknown} NextLike */
-/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown>, resolveOrganizationIdForAccess?: (access: Record<string, unknown>) => Promise<string|null> }} AuthServiceLike */
+/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown>, resolveOrganizationIdForAccess?: (access: Record<string, unknown>) => Promise<string|null>, resolveTenantForOrganization?: (organizationId: string) => Promise<{tenant_id?: string, organization_id?: string}|null> }} AuthServiceLike */
 
 /**
  * @param {RequestLike} req
@@ -124,8 +124,8 @@ export function resolveAuthContext(req, authService, options = {}) {
             email: decoded.email || null,
             slackUserId: decoded.slackUserId || (isSlackProvider ? decoded.providerSubject : null),
             slackWorkspaceId: decoded.slackWorkspaceId || (isSlackProvider ? decoded.providerTenant : null),
-            tenantId: decoded.tenantId || decoded.organizationId || null,
-            organizationId: decoded.organizationId || decoded.tenantId || null
+            tenantId: decoded.tenantId || null,
+            organizationId: decoded.organizationId || null
         };
         return {
             ok: true,
@@ -168,11 +168,22 @@ export function requireAuth(authService, options = {}) {
                 const organizationId = await authService.resolveOrganizationIdForAccess(access);
                 if (organizationId) {
                     access.organizationId = organizationId;
-                    if (!access.tenantId) access.tenantId = organizationId;
                 }
             } catch {
                 // Generic authenticated routes remain available. Personal knowledge
                 // routes separately require an organization and therefore fail closed.
+            }
+        }
+
+        if (access?.organizationId && !access.tenantId && authService.resolveTenantForOrganization) {
+            try {
+                const mapping = await authService.resolveTenantForOrganization(access.organizationId);
+                if (mapping?.organization_id === access.organizationId && mapping?.tenant_id) {
+                    access.tenantId = mapping.tenant_id;
+                }
+            } catch {
+                // Generic routes retain authenticated organization access. Consumers
+                // that require a canonical tenant must fail closed on a missing tenantId.
             }
         }
 

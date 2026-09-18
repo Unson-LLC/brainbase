@@ -54,6 +54,53 @@ describe('AuthService service tokens', () => {
         expect(() => authService.verifyServiceToken(authService.issueToken({ sub: 'per_1' }))).toThrow('Invalid service token');
     });
 
+    it('Knowledge委任tokenを単一projectとexact refsへ固定する', () => {
+        const authService = new AuthService();
+        const result = authService.issueServiceToken({
+            name: 'Mana knowledge delegation',
+            serviceId: 'svc_mana_knowledge',
+            role: 'member',
+            projectCodes: ['alpha'],
+            capabilities: ['knowledge.retrieve'],
+            organizationId: 'org_1',
+            ttlSeconds: 300,
+            knowledgeDelegation: {
+                project_code: 'alpha',
+                delegated_actor_person_id: 'person_1',
+                outcome_contract_id: 'contract_1',
+                contract_version: 3,
+                run_id: 'run_1',
+                run_mode: 'normal',
+                refs: [{ id: 'decision_1', version: 'v2' }]
+            }
+        });
+
+        expect(authService.verifyServiceToken(result.token)).toMatchObject({
+            sub: 'svc_mana_knowledge',
+            projectCodes: ['alpha'],
+            capabilities: ['knowledge.retrieve'],
+            organizationId: 'org_1',
+            knowledge_delegation_version: 1,
+            knowledge_project_code: 'alpha',
+            delegated_actor_person_id: 'person_1',
+            outcome_contract_id: 'contract_1',
+            outcome_contract_version: 3,
+            run_id: 'run_1',
+            run_mode: 'normal',
+            knowledge_refs: [{ id: 'decision_1', version: 'v2' }]
+        });
+        expect(() => authService.issueServiceToken({
+            name: 'invalid delegation',
+            projectCodes: ['alpha', 'beta'],
+            capabilities: ['knowledge.retrieve'],
+            organizationId: 'org_1',
+            knowledgeDelegation: {
+                project_code: 'alpha', delegated_actor_person_id: 'person_1', outcome_contract_id: 'contract_1', contract_version: 3,
+                run_id: 'run_1', run_mode: 'normal', refs: [{ id: 'decision_1', version: 'v2' }]
+            }
+        })).toThrow('knowledge delegation service token scope is invalid');
+    });
+
     it('週次retro専用tokenを固定service actor・read-only Personal KG scopeで発行する', () => {
         const authService = new AuthService();
 

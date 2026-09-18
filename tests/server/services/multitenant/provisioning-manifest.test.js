@@ -56,6 +56,57 @@ const validManifest = {
 };
 
 describe('provisioning manifest', () => {
+    it('normalizes the versioned Outcome service profile with explicit tenant-scoped billing data', () => {
+        const manifest = structuredClone(validManifest);
+        manifest.workspace_connection.scopes.push('signed_tenant_context');
+        manifest.outcome_service_profile = {
+            schema_version: 'outcome_service_profile.v1',
+            profile_id: 'mana-outcome',
+            audience: 'mana-runtime',
+            capability_id: 'signed_tenant_context',
+            deployment_id: manifest.contract_revision.deployment_id,
+            workspace_id: manifest.workspace_connection.workspace_id,
+            app_id: manifest.workspace_connection.app_id,
+            authenticated_subject_id: 'svc_mana_runtime',
+            connection_id: manifest.workspace_connection.connection_id,
+            resource_ref: 'outcome://mana',
+            organization_ids: ['org_unson'],
+            data_scopes: ['graph:read'],
+            billing_principal_id: 'billing_unson'
+        };
+
+        expect(normalizeProvisioningManifest(manifest).outcome_service_profile).toMatchObject({
+            schema_version: 'outcome_service_profile.v1',
+            profile_id: 'mana-outcome',
+            capability_id: 'signed_tenant_context',
+            organization_ids: ['org_unson'],
+            data_scopes: ['graph:read'],
+            billing_principal_id: 'billing_unson'
+        });
+    });
+
+    it('rejects an Outcome profile that treats the tenant id as an organization id', () => {
+        const manifest = structuredClone(validManifest);
+        manifest.workspace_connection.scopes.push('signed_tenant_context');
+        manifest.outcome_service_profile = {
+            schema_version: 'outcome_service_profile.v1',
+            profile_id: 'mana-outcome',
+            audience: 'mana-runtime',
+            capability_id: 'signed_tenant_context',
+            deployment_id: manifest.contract_revision.deployment_id,
+            workspace_id: manifest.workspace_connection.workspace_id,
+            app_id: manifest.workspace_connection.app_id,
+            authenticated_subject_id: 'svc_mana_runtime',
+            connection_id: manifest.workspace_connection.connection_id,
+            resource_ref: 'outcome://mana',
+            organization_ids: [manifest.tenant_id],
+            data_scopes: ['graph:read'],
+            billing_principal_id: 'billing_unson'
+        };
+
+        expect(() => normalizeProvisioningManifest(manifest)).toThrow(/organization/u);
+    });
+
     it('accepts an opaque reference issued by the canonical Brainbase credential store', () => {
         const manifest = structuredClone(validManifest);
         manifest.workspace_connection.credential_ref = `credref://bbcs/${'a'.repeat(64)}`;

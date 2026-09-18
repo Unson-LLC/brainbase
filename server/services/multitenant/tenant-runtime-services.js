@@ -83,6 +83,7 @@ export function createTenantRuntimeServices({
     audience = 'mana-runtime',
     deploymentId,
     deploymentProfile,
+    outcomeServiceContextAdapters = null,
     now = () => new Date()
 }) {
     if (!signingKey?.key_id || !signingKey.private_key || !deploymentId || !deploymentProfile) {
@@ -145,6 +146,7 @@ export function createTenantRuntimeServices({
         usageLedger,
         tenantBoundaryGateway,
         migrationAdapter,
+        outcomeServiceContextAdapters,
         tenantContextVerifier: (envelope) => verifyTenantContext(envelope, {
             keys: verificationKeys(),
             audience,
@@ -231,6 +233,12 @@ export function createTenantRuntimeServicesFromEnv({
         resolveResource: (input) => repository.resolveOwnedResource(input)
     });
     const migrationAttestor = new MigrationPlanAttestor(signingKey);
+    const outcomeServiceContextAdapters = {
+        resolveProfile: (input) => repository.resolveOutcomeServiceProfile(input),
+        resolveTenant: (input) => repository.resolveOutcomeServiceTenant(input),
+        resolveConnection: (input) => repository.resolveOutcomeServiceConnection(input),
+        resolveTenantForOrganization: (organizationId) => repository.resolveTenantForOrganization(organizationId)
+    };
     return createTenantRuntimeServices({
         serviceAuth,
         connectionRegistry: {
@@ -248,6 +256,7 @@ export function createTenantRuntimeServicesFromEnv({
         usageLedger,
         tenantBoundaryGateway,
         migrationAdapter: new PostgresTenantMigrationAdapter({ pool, now, attestor: migrationAttestor }),
+        outcomeServiceContextAdapters,
         resolveCanonicalContext: (input) => repository.resolveRuntimeContext(input),
         companyAuthorityResolver,
         profileRepository,

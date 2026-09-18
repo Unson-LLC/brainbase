@@ -71,4 +71,29 @@ describe('service authentication boundary', () => {
         const { req } = await invoke(middleware);
         expect(req.serviceIdentity).not.toHaveProperty('tenant_id');
     });
+
+    it('keeps the verified claim set available for a capability binding without widening serviceIdentity', async () => {
+        const claims = validClaims({
+            tenant_id: 'tenant_1',
+            delegated_actor_id: 'person_1',
+            project_codes: ['alpha'],
+            outcome_contract_id: 'oc_1',
+            run_id: 'run_1',
+            contract_version: 3
+        });
+        const middleware = createServiceAuthMiddleware({
+            verifyToken: async () => claims,
+            issuer: 'brainbase',
+            audience: 'brainbase-api',
+            deploymentId: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            requiredCapabilities: ['tenant_context:resolve'],
+            now: () => new Date('2026-08-16T00:04:59.000Z')
+        });
+        const { req, next } = await invoke(middleware);
+        expect(next).toHaveBeenCalledOnce();
+        expect(req.serviceTokenClaims).toMatchObject(claims);
+        expect(Object.isFrozen(req.serviceTokenClaims)).toBe(true);
+        expect(req.serviceIdentity).not.toHaveProperty('tenant_id');
+        expect(req.serviceIdentity).not.toHaveProperty('outcome_contract_id');
+    });
 });

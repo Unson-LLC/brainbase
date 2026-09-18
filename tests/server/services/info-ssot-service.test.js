@@ -46,6 +46,7 @@ const buildService = () => {
 };
 
 const accessContext = {
+    personId: 'person_a',
     role: 'gm',
     projectCodes: ['brainbase'],
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
@@ -105,6 +106,36 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(handler).not.toHaveBeenCalled();
     });
 
+    it('sets and clears the transaction-local person context from authenticated access', async () => {
+        const { service, client } = buildService();
+        let currentPersonId = 'stale_person';
+        client.query.mockImplementation(async (sql, params = []) => {
+            if (sql === 'SELECT set_config($1, $2, true)' && params[0] === 'app.person_id') {
+                currentPersonId = params[1];
+            }
+            if (sql === "SELECT current_setting('app.person_id', true) AS person_id") {
+                return { rows: [{ person_id: currentPersonId }] };
+            }
+            return { rows: [] };
+        });
+
+        const observedPersonIds = [];
+        await service.withAccessContext({ ...accessContext, personId: 'person_a' }, async (client) => {
+            const { rows } = await client.query("SELECT current_setting('app.person_id', true) AS person_id");
+            observedPersonIds.push(rows[0].person_id);
+        });
+        await service.withAccessContext({ ...accessContext, personId: undefined }, async (client) => {
+            const { rows } = await client.query("SELECT current_setting('app.person_id', true) AS person_id");
+            observedPersonIds.push(rows[0].person_id);
+        });
+
+        expect(observedPersonIds).toEqual(['person_a', '']);
+        expect(client.query.mock.calls.filter(([, params]) => params?.[0] === 'app.person_id')).toEqual([
+            ['SELECT set_config($1, $2, true)', ['app.person_id', 'person_a']],
+            ['SELECT set_config($1, $2, true)', ['app.person_id', '']]
+        ]);
+    });
+
     it.each(['fetchGraphEntities', 'fetchGraphEntitiesByIds'])('%sはactiveかつ閲覧可能なmember_ofだけでprojectless Personを公開する', async (method) => {
         const { service, client } = buildService();
         client.query.mockResolvedValue({ rows: [] });
@@ -115,6 +146,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         }
         const sql = client.query.mock.calls[0][0];
         expect(sql).toContain("COALESCE(to_jsonb(gx)->>'lifecycle_status', 'active') = 'active'");
+        expect(sql).toContain('app_graph_entity_organization_id(ge.id) AS organization_id');
         expect(sql).toContain('gx.sensitivity = ANY($4)');
         expect(sql).toContain("CASE gx.role_min WHEN 'member' THEN 1 WHEN 'gm' THEN 2 WHEN 'ceo' THEN 3 END");
         expect(sql).toContain("COALESCE(to_jsonb(gy)->>'lifecycle_status', 'active') = 'active'");
@@ -563,6 +595,36 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         expect(sql).toContain("LOWER(COALESCE(ge.payload->>'status', '')) <> 'merged'");
         expect(params[7]).toBe(expected);
         expect(params[8]).toBe(200);
+    });
+
+    it('catalogのproject/scope/status/organization条件をGraph SQLのLIMIT前へ渡す', async () => {
+        const { service, client } = buildService();
+        client.query.mockResolvedValue({ rows: [] });
+
+        await service.listGraphEntities(accessContext, {
+            projectCode: 'other',
+            entityType: 'document',
+            limit: 1,
+            catalogProjectCode: 'brainbase',
+            catalogScope: 'organization',
+            catalogStatus: 'active',
+            catalogOrganizationId: 'org_unson'
+        });
+
+        const graphQuery = client.query.mock.calls.find(([text]) => (
+            typeof text === 'string'
+            && text.includes('FROM graph_entities ge')
+            && text.includes('app_graph_entity_organization_id(ge.id)')
+        ));
+        expect(graphQuery).toBeDefined();
+        const [sql, params] = graphQuery;
+        expect(sql).toContain("$11::text = 'organization'");
+        expect(sql).toContain("$12::text = 'active'");
+        expect(sql).toContain("NULLIF(BTRIM(ge.payload->>'status'), '')");
+        expect(sql).toContain('p.code <> $10');
+        expect(sql).toContain('app_graph_entity_organization_id(ge.id) = $13');
+        expect(sql).toContain('LIMIT $9');
+        expect(params.slice(9)).toEqual(['brainbase', 'organization', 'active', 'org_unson']);
     });
 
     it('id指定の通常一覧はmerged personを除外する', async () => {

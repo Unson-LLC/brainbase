@@ -7,6 +7,7 @@ const PROVIDERS = new Set(['slack', 'codex', 'claude_code', 'service']);
 const BARE_PROJECT_RESOURCE_REF_PATTERN = /^project:([^#\s]+)$/u;
 const PAYLOAD_RESOURCE_REF_PATTERN = /^project:([^#\s]+)#payload_sha256=sha256:([0-9a-f]{64})$/u;
 const ENCODED_FRAGMENT_SEPARATOR_PATTERN = /%23/iu;
+const MEMBERSHIP_ROLES = new Set(['member', 'gm', 'ceo']);
 
 function fail(code, { status = 403, retryable = false, fault_domain = 'protocol', details } = {}) {
     throw new ContractError(code, {
@@ -225,7 +226,16 @@ function compactAuthorityScopes(identity, authority, request) {
         ...(authority.approver_person_id
             ? [`company_authority:approver:${authority.approver_person_id}`] : []),
         ...(authority.delegated_by_person_id
-            ? [`company_authority:delegated_by:${authority.delegated_by_person_id}`] : [])
+            ? [`company_authority:delegated_by:${authority.delegated_by_person_id}`] : []),
+        ...(Array.isArray(identity.membership_access?.clearance)
+            ? identity.membership_access.clearance
+                .filter((value) => typeof value === 'string' && value.length > 0)
+                .map((value) => `clearance:${value}`)
+            : []),
+        ...(typeof identity.membership_access?.role === 'string'
+            && MEMBERSHIP_ROLES.has(identity.membership_access.role.toLowerCase())
+            ? [`role:${identity.membership_access.role.toLowerCase()}`]
+            : [])
     ];
 }
 
@@ -253,7 +263,8 @@ export class CompanyAuthorityResolver {
             authenticated_subject_id: request.provider_identity.authenticated_subject_id,
             workspace_id: request.workspace_id,
             app_id: request.app_id,
-            project_hint: request.requested_action.project_hint
+            project_hint: request.requested_action.project_hint,
+            include_membership_access: true
         });
         assertResolvedIdentity(identity, request, resourceRefBinding);
         const authorityResourceRef = resourceRefBinding.projectRef === null

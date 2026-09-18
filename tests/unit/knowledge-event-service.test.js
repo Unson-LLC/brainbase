@@ -540,7 +540,15 @@ describe('KnowledgeEventService knowledge_event.v1 contract', () => {
     });
 
     it('Graph adapterはexternal clientでもaccess context内でRACI確認してから書き込む', async () => {
-        const client = { query: vi.fn() };
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (String(sql).includes('FROM projects')) return { rows: [{ id: 'project_uuid' }] };
+                if (String(sql).includes("entity_type = 'project'")) {
+                    return { rows: [{ id: 'project_entity', entity_type: 'project' }] };
+                }
+                return { rows: [] };
+            })
+        };
         const access = {
             actor_person_id: 'person_operator',
             role: 'member',
@@ -578,7 +586,16 @@ describe('KnowledgeEventService knowledge_event.v1 contract', () => {
         }));
         expect(infoSSOTService.commitOntologyGraph).toHaveBeenCalledWith(
             access,
-            expect.any(Object),
+            expect.objectContaining({
+                edges: expect.arrayContaining([
+                    expect.objectContaining({ relation: 'belongs_to_project' }),
+                    expect.objectContaining({ relation: 'owned_by' })
+                ]),
+                contextEntities: expect.arrayContaining([
+                    { id: 'project_entity', type: 'project' },
+                    { id: 'person_ceo', type: 'person' }
+                ])
+            }),
             { client, access_context_applied: true }
         );
     });

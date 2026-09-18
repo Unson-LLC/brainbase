@@ -12,6 +12,40 @@ function createApp(authService) {
 }
 
 describe('auth service token route', () => {
+    it('GET /api/auth/verify はorganizationとtrusted tenantを別々に返す', async () => {
+        const authService = {
+            verifyToken: () => ({
+                role: 'member', projectCodes: ['brainbase'], personId: 'per_1', organizationId: 'org_1'
+            }),
+            resolveTenantForOrganization: vi.fn(async () => ({
+                organization_id: 'org_1', tenant_id: 'ten_1'
+            }))
+        };
+        const res = await request(createApp(authService))
+            .get('/api/auth/verify')
+            .set('Authorization', 'Bearer user-token')
+            .expect(200);
+
+        expect(res.body.access).toMatchObject({ organizationId: 'org_1', tenantId: 'ten_1' });
+        expect(authService.resolveTenantForOrganization).toHaveBeenCalledWith('org_1');
+    });
+
+    it('GET /api/auth/verify は未知organizationをtenantとして代用しない', async () => {
+        const authService = {
+            verifyToken: () => ({
+                role: 'member', projectCodes: ['brainbase'], personId: 'per_1', organizationId: 'org_unknown'
+            }),
+            resolveTenantForOrganization: vi.fn(async () => null)
+        };
+        const res = await request(createApp(authService))
+            .get('/api/auth/verify')
+            .set('Authorization', 'Bearer user-token')
+            .expect(200);
+
+        expect(res.body.access.organizationId).toBe('org_unknown');
+        expect(res.body.access.tenantId).toBeNull();
+    });
+
     it('POST /api/auth/service-tokens はGM以上ならservice tokenを発行する', async () => {
         const authService = {
             normalizeRole: (role) => (['member', 'gm', 'ceo'].includes(role) ? role : 'member'),

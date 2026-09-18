@@ -224,7 +224,7 @@ function buildMcpToolResult(
   entity?: unknown,
 ) {
   const response = { content: buildToolResponseContent(name, toolArgs, result, entity) };
-  const retrievalFailure = ['search', 'get_entity', 'brainbase_knowledge_evidence_record'].includes(name) && extensionResult !== null
+  const retrievalFailure = ['search', 'get_entity', 'brainbase_knowledge_retrieve', 'brainbase_knowledge_evidence_record'].includes(name) && extensionResult !== null
     && typeof extensionResult === 'object'
     && ['error', 'unavailable'].includes(String((extensionResult as Record<string, unknown>).status));
   return (retrievalFailure || isStructuredJudgmentToolFailure(name, extensionResult))

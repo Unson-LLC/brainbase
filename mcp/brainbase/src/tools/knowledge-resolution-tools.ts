@@ -34,13 +34,44 @@ const knowledgeResolveTool: Tool = {
   },
 };
 
+const knowledgeRetrieveTool: Tool = {
+  name: 'brainbase_knowledge_retrieve',
+  description: 'Retrieve authorized canonical knowledge by exact id and version. Unresolved, inaccessible, stale, or unavailable references remain explicit statuses and are never treated as content.',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      project_code: { type: 'string', minLength: 1 },
+      refs: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 50,
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', minLength: 1 },
+            version: { type: 'string', minLength: 1 },
+          },
+          required: ['id', 'version'],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ['project_code', 'refs'],
+    additionalProperties: false,
+  },
+};
+
 // Keep the existing export name because server.ts already treats this module as
 // the complete Knowledge tool family. Resolution and candidate recording remain
 // separate handlers and separate authority boundaries.
-export const knowledgeResolutionTools: Tool[] = [knowledgeResolveTool, ...knowledgeEventTools];
+export const knowledgeResolutionTools: Tool[] = [knowledgeResolveTool, knowledgeRetrieveTool, ...knowledgeEventTools];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
 }
 
 function isKnowledgeResolutionReceipt(value: unknown): value is Record<string, unknown> {
@@ -63,6 +94,39 @@ function isKnowledgeResolutionReceipt(value: unknown): value is Record<string, u
   return false;
 }
 
+const RETRIEVAL_STATUSES = new Set([
+  'resolved', 'insufficient', 'not_applicable', 'version_conflict', 'source_unavailable', 'not_found',
+  'source_version_unknown', 'source_version_conflict', 'source_hash_conflict',
+]);
+
+function isKnowledgeRetrievalResponse(value: unknown, requestedRefs: unknown): value is Record<string, unknown> {
+  if (!isRecord(value) || !isNonEmptyString(value.project_code)
+    || !Array.isArray(value.results) || !Array.isArray(requestedRefs)
+    || value.results.length !== requestedRefs.length) return false;
+
+  const results = value.results as unknown[];
+  const refs = requestedRefs as unknown[];
+  return refs.every((requestedRef, index) => {
+    if (!isRecord(requestedRef)
+      || !isNonEmptyString(requestedRef.id)
+      || !isNonEmptyString(requestedRef.version)) return false;
+    const result = results[index];
+    if (!isRecord(result)
+      || !isNonEmptyString(result.id)
+      || result.id !== requestedRef.id
+      || !isNonEmptyString(result.requested_version)
+      || result.requested_version !== requestedRef.version
+      || !isNonEmptyString(result.status)
+      || !RETRIEVAL_STATUSES.has(result.status)) return false;
+    if (result.status !== 'resolved') return true;
+    return result.resolved_version === result.requested_version
+      && isNonEmptyString(result.content)
+      && isRecord(result.source)
+      && isNonEmptyString(result.source.kind)
+      && isNonEmptyString(result.retrieval_receipt_id);
+  });
+}
+
 export async function handleKnowledgeResolutionToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -71,10 +135,14 @@ export async function handleKnowledgeResolutionToolCall(
   if (name === 'brainbase_knowledge_event_record') {
     return handleKnowledgeEventToolCall(name, args, dependencies);
   }
-  if (name !== 'brainbase_knowledge_resolve') return null;
+  if (!['brainbase_knowledge_resolve', 'brainbase_knowledge_retrieve'].includes(name)) return null;
+  const retrieving = name === 'brainbase_knowledge_retrieve';
 
   // The trusted transport envelope is never taken from model tool arguments.
-  // Any supplied invalid authority fails closed; do not fall back to the static token.
+  // Any supplied invalid or unsupported authority fails closed; do not fall back
+  // to the static token. Both routing and retrieval are performed by the
+  // authority-verifying runtime route so the signed company boundary remains
+  // intact through content retrieval.
   if (dependencies.companyAuthorityResponse !== undefined) {
     const authority = decodeCompanyAuthorityResponse(dependencies.companyAuthorityResponse);
     if (!authority || !dependencies.runtimeServiceToken || !dependencies.runtimeApiUrl) {
@@ -82,7 +150,7 @@ export async function handleKnowledgeResolutionToolCall(
     }
     try {
       const response = await (dependencies.fetch ?? globalThis.fetch)(
-        new URL('/api/v1/runtime/knowledge:resolve', dependencies.runtimeApiUrl), {
+        new URL(retrieving ? '/api/v1/runtime/knowledge:retrieve' : '/api/v1/runtime/knowledge:resolve', dependencies.runtimeApiUrl), {
           method: 'POST',
           headers: { Authorization: `Bearer ${dependencies.runtimeServiceToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ ...args, company_authority_response: authority }),
@@ -92,20 +160,32 @@ export async function handleKnowledgeResolutionToolCall(
       const payload: unknown = await response.json();
       if (!response.ok) return toolError(response.status >= 500 ? 'unavailable' : 'error',
         'brainbase_authority_rejected', 'Signed knowledge authority was rejected', [], response.status);
-      if (!isKnowledgeResolutionReceipt(payload) || typeof payload.project_code !== 'string'
-        || !payload.project_code || (args.project_code !== undefined && args.project_code !== payload.project_code)) {
-        return toolError('error', 'brainbase_api_response_invalid', 'Invalid authority-bound routing receipt', []);
+      const valid = retrieving
+        ? isKnowledgeRetrievalResponse(payload, args.refs) && payload.project_code === args.project_code
+        : isKnowledgeResolutionReceipt(payload) && typeof payload.project_code === 'string'
+          && Boolean(payload.project_code)
+          && (args.project_code === undefined || payload.project_code === args.project_code);
+      if (!valid) {
+        return toolError('error', 'brainbase_api_response_invalid',
+          retrieving ? 'Invalid authority-bound knowledge retrieval response' : 'Invalid authority-bound routing receipt', []);
       }
-      return { status: 'ok', scope: { project_codes: [payload.project_code] }, data: payload };
+      const projectCode = isRecord(payload) && typeof payload.project_code === 'string'
+        ? payload.project_code
+        : null;
+      if (!projectCode) {
+        return toolError('error', 'brainbase_api_response_invalid',
+          'Authority-bound knowledge response did not include a project code', []);
+      }
+      return { status: 'ok', scope: { project_codes: [projectCode] }, data: payload };
     } catch {
       return toolError('unavailable', 'brainbase_api_unavailable', 'Knowledge authority service unavailable', []);
     }
   }
 
-  const context = await authenticateProject(args, dependencies);
+  const context = await authenticateProject(args, dependencies, { requireProject: retrieving });
   if ('status' in context) return context;
   const fetched = await fetchAuthenticatedJson(dependencies, context, {
-    path: '/api/knowledge/resolve',
+    path: retrieving ? '/api/knowledge/retrieve-principal' : '/api/knowledge/resolve',
     method: 'POST',
     body: args,
   });
@@ -124,11 +204,17 @@ export async function handleKnowledgeResolutionToolCall(
       response.status,
     );
   }
-  if (!isKnowledgeResolutionReceipt(payload)) {
+  const valid = retrieving
+    ? isKnowledgeRetrievalResponse(payload, args.refs)
+      && (payload as Record<string, unknown>).project_code === args.project_code
+    : isKnowledgeResolutionReceipt(payload);
+  if (!valid) {
     return toolError(
       'error',
       'brainbase_api_response_invalid',
-      'Brainbase API returned an invalid knowledge resolution receipt',
+      retrieving
+        ? 'Brainbase API returned an invalid knowledge retrieval response'
+        : 'Brainbase API returned an invalid knowledge resolution receipt',
       context.scope,
       response.status,
     );

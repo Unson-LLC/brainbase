@@ -34,6 +34,22 @@ export const REQUIRED_INDEX_DEFINITIONS = Object.freeze({
         column_orders: Object.freeze(['asc', 'asc', 'asc', 'asc']),
         predicate: "status IN ('pending', 'active')"
     }),
+    tenant_outcome_service_profiles_connection_idx: Object.freeze({
+        table_name: 'tenant_outcome_service_profiles',
+        access_method: 'btree',
+        unique: false,
+        columns: Object.freeze(['tenant_id', 'connection_id', 'connection_revision', 'status']),
+        column_orders: Object.freeze(['asc', 'asc', 'asc', 'asc']),
+        predicate: null
+    }),
+    tenant_outcome_service_profiles_lookup_idx: Object.freeze({
+        table_name: 'tenant_outcome_service_profiles',
+        access_method: 'btree',
+        unique: false,
+        columns: Object.freeze(['tenant_id', 'project_id', 'profile_id', 'status']),
+        column_orders: Object.freeze(['asc', 'asc', 'asc', 'asc']),
+        predicate: null
+    }),
     slack_installation_intents_tenant_idx: Object.freeze({
         table_name: 'slack_installation_intents',
         access_method: 'btree',

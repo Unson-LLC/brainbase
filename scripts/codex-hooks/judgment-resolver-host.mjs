@@ -141,7 +141,7 @@ const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'brainbase_projects', 'brainbase_bootstrap_config', 'brainbase_admin_read',
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
-    'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_knowledge_evidence_record', 'brainbase_personal_kg_answer_record', 'brainbase_judgment_audit_read',
+    'brainbase_resolve_turn', 'brainbase_knowledge_retrieve', 'brainbase_knowledge_resolve', 'brainbase_knowledge_evidence_record', 'brainbase_personal_kg_answer_record', 'brainbase_judgment_audit_read',
     'brainbase_get_meeting_minutes_context', 'brainbase_get_shareable_person_profile', 'authorize_tenant_resource',
     'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
 ]);
@@ -173,7 +173,7 @@ export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     brainbase_projects: 'control_plane', brainbase_bootstrap_config: 'published_contract', brainbase_admin_read: 'control_plane',
     brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
     brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
-    brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', brainbase_get_shareable_person_profile: 'shareable_person_profile', authorize_tenant_resource: 'tenant_authorization',
+    brainbase_knowledge_retrieve: 'published_contract', brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', brainbase_get_shareable_person_profile: 'shareable_person_profile', authorize_tenant_resource: 'tenant_authorization',
     brainbase_judgment_audit_read: 'ignored', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer',
     mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
     brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
@@ -2024,6 +2024,24 @@ function publishedToolSemanticData(toolName, response, input) {
         if (name === 'brainbase_onboarding_get' && item.data === null) return true;
         const data = record(item.data);
         if (!data) return false;
+        if (name === 'brainbase_knowledge_retrieve') {
+            const expected = record(input);
+            const statuses = ['resolved', 'insufficient', 'not_applicable', 'version_conflict', 'source_unavailable', 'not_found', 'source_version_unknown', 'source_version_conflict', 'source_hash_conflict'];
+            return nonEmptyString(expected?.project_code) && data.project_code === expected.project_code
+                && Array.isArray(expected.refs) && expected.refs.length > 0 && expected.refs.length <= 50
+                && Array.isArray(data.results) && data.results.length === expected.refs.length
+                && data.results.every((value, index) => {
+                    const result = record(value);
+                    const ref = record(expected.refs[index]);
+                    return nonEmptyString(ref?.id) && nonEmptyString(ref?.version)
+                        && result?.id === ref.id && result.requested_version === ref.version
+                        && statuses.includes(result.status)
+                        && (result.status !== 'resolved' || (
+                            result.resolved_version === ref.version && nonEmptyString(result.content)
+                            && nonEmptyString(record(result.source)?.kind) && nonEmptyString(result.retrieval_receipt_id)
+                        ));
+                });
+        }
         if (name.startsWith('graph_')) return graphToolContract(name, data, input);
         if (name === 'brainbase_bootstrap_config') {
             const config = record(data.bootstrap_config);
