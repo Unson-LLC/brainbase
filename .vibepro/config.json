@@ -385,10 +385,154 @@
         ]
       },
       {
-        "story_id": "story-brainbase-mcp-tenant-auto-routing",
-        "title": "Brainbase MCPのテナント自動切替",
+        "story_id": "story-brainbase-outcome-foundation-context",
+        "title": "既存の仕事の基盤を確認し、接続先を管理できる",
         "ssot": "local",
-        "status": "active",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-knowledge-discovery",
+        "title": "使える知識と判断を探し、由来を確認できる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-knowledge-capture",
+        "title": "文章や資料から知識と判断の登録案を作れる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-knowledge-canonical-save",
+        "title": "確認した知識を正本と関係へ保存できる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-knowledge-lifecycle",
+        "title": "判断の改訂と失効を履歴付きで管理できる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-knowledge-codex-use",
+        "title": "登録した判断をCodexの回答で根拠付きで使える",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-knowledge-preview",
+        "title": "公開前に質問を試して判断の使われ方を確認できる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-mana-contract",
+        "title": "任せたい成果と完了条件を登録できる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-mana-authority",
+        "title": "自動実行と承認が必要な操作を制御できる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-mana-triggers",
+        "title": "条件を満たした委任だけを有効化し停止できる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-mana-deliver-outcome",
+        "title": "委任した成果物を作り完了条件を検証できる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-mana-safe-test",
+        "title": "有効化前に外部へ送らず委任を試せる",
+        "ssot": "local",
+        "status": "archived",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-brainbase-outcome-mana-run-control",
+        "title": "実行結果を確認し承認と再開を行える",
+        "ssot": "local",
+        "status": "archived",
         "horizon": null,
         "view": null,
         "period": null,
@@ -397,6 +541,6 @@
         "contract_type": null
       }
     ],
-    "current_story_id": "story-brainbase-mcp-tenant-auto-routing"
+    "current_story_id": "story-organization-project-create-scope-v1"
   }
 }
