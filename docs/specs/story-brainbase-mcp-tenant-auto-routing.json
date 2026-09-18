@@ -1,0 +1,103 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-brainbase-mcp-tenant-auto-routing",
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "hybrid",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": ["explicit tenant selector", "unique project membership in signed tenant tokens"],
+      "resolution_point": "trusted shared-bearer MCP edge before tool dispatch",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": ["mcp_http_edge", "tool_dispatch", "graph_api"],
+      "verified_surfaces": ["mcp_http_edge", "tool_dispatch", "graph_api"]
+    },
+    "resources": [
+      {
+        "name": "tenant token file",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/token_file_path",
+        "trust_zone": "trusted local MCP runtime",
+        "residue_policy": "credentials remain in their existing private token files",
+        "data_owner": "signed Brainbase tenant token claims",
+        "credential_scope": "one organization and its signed project claims"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "one token file per tenant",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit"
+    },
+    "data": {
+      "canonical_owners": ["signed Brainbase tenant token claims"],
+      "residency": "existing private local token files and canonical Brainbase API",
+      "migration": "add path-only routing configuration without copying credential contents",
+      "rollback": "remove routing configuration and restore the existing single-tenant default connection"
+    },
+    "deployment_modes": ["managed_shared"],
+    "negative_scenarios": ["unknown_tenant", "ambiguous_tenant", "unavailable_connection", "no_data", "cross_tenant_candidate", "conflicting tenant and project", "tenant token organization mismatch"],
+    "graph_metadata": {
+      "tenant_entities": ["Organization", "Project", "CredentialRoute"],
+      "boundary_edges": ["CredentialRoute->Organization", "Organization->Project"]
+    }
+  },
+  "generated_by": {
+    "caller": "codex",
+    "stage": "ai_synthesis"
+  },
+  "clauses": [
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "The trusted common Brainbase MCP endpoint selects exactly one configured tenant credential from an explicit tenant selector or a project/project_code that belongs to exactly one signed tenant token.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-1" }],
+        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-token-router.ts", "anchor": "TenantTokenRouter" }],
+        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-token-router.test.ts", "case": "routes explicit tenants and uniquely owned projects" }]
+      }
+    },
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "Unknown, ambiguous, conflicting, or organization-mismatched routes fail closed and never fall back to another tenant credential.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-2" }],
+        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-token-router.ts", "anchor": "TenantTokenRouter" }],
+        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-token-router.test.ts", "case": "fails closed at tenant boundaries" }]
+      }
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "Caller-supplied Brainbase JWT sessions and dedicated stdio tenant connections never invoke local multi-tenant credential routing.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 2, "ac_id": "AC-3" }],
+        "code_refs": [{ "file": "mcp/brainbase/src/server.ts", "anchor": "createServer" }],
+        "test_refs": [{ "file": "mcp/brainbase/tests/server-startup.test.ts", "case": "tenant routing is limited to shared-bearer requests" }]
+      }
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "Tenant configuration contains token-file paths and expected organization identifiers only; raw access or refresh tokens are never logged or stored in VibePro artifacts.",
+      "origin": {
+        "story_refs": [{ "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-4" }],
+        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-token-router.ts", "anchor": "createTenantTokenRouterFromEnvironment" }],
+        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-token-router.test.ts", "case": "rejects inline credential material" }]
+      }
+    }
+  ]
+}

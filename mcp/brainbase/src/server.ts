@@ -49,6 +49,7 @@ import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
 import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
 import { RequestTokenContext, type TokenProvider } from './auth/request-token-context.js';
+import { createTenantTokenRouterFromEnvironment } from './auth/tenant-token-router.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 import {
@@ -1368,6 +1369,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   const { mode: connectionAuthMode, tokenManager } = createConnectionTokenManager(config.graphApiUrl);
   console.error(`[brainbase] Authentication mode: ${connectionAuthMode}`);
   const requestTokenContext = new RequestTokenContext(tokenManager);
+  const tenantTokenRouter = createTenantTokenRouterFromEnvironment(config.graphApiUrl);
   globalTokenManager = requestTokenContext;
   // All routes share the connection actor. Personal APIs still enforce owner authorization.
   globalOwnerTokenManager = requestTokenContext;
@@ -1392,7 +1394,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
   // build one Server per request — the heavy shared state (entityIndex,
   // resolved Brainbase API URL) lives outside each request handler.
-  function createServer(requestContext: { companyAuthorityResponse?: string } = {}) {
+  function createServer(requestContext: { companyAuthorityResponse?: string; tenantRoutingError?: Error } = {}) {
   const server = new Server(
     {
       name: 'brainbase',
@@ -1456,6 +1458,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     const { name, arguments: args } = request.params;
 
     try {
+      if (requestContext.tenantRoutingError) throw requestContext.tenantRoutingError;
       const toolArgs = args as Record<string, unknown>;
       rejectLegacySearchSurface(name, toolArgs);
       if (name === 'get_entity') {
@@ -1694,11 +1697,31 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }
       }
 
+      let tenantRouteToken: string | undefined;
+      let tenantRoutingError: Error | undefined;
+      if (auth.kind === 'shared-bearer' && tenantTokenRouter && body && typeof body === 'object') {
+        const requestBody = body as { method?: unknown; params?: { arguments?: unknown } };
+        const routeArguments = requestBody.method === 'tools/call'
+          && requestBody.params?.arguments
+          && typeof requestBody.params.arguments === 'object'
+          && !Array.isArray(requestBody.params.arguments)
+          ? requestBody.params.arguments as Record<string, unknown>
+          : undefined;
+        if (routeArguments) {
+          try {
+            tenantRouteToken = (await tenantTokenRouter.resolve(routeArguments))?.token;
+          } catch (error) {
+            tenantRoutingError = error instanceof Error ? error : new Error(String(error));
+          }
+        }
+      }
+
       const rawCompanyAuthority = req.headers['x-brainbase-company-authority-response'];
       const server = createServer({
         companyAuthorityResponse: Array.isArray(rawCompanyAuthority)
           ? rawCompanyAuthority[0]
           : rawCompanyAuthority,
+        tenantRoutingError,
       });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => {
@@ -1715,6 +1738,10 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       await runAuthenticatedRequest(async () => {
         if (auth.kind === 'brainbase-jwt') {
           await requestTokenContext.run({ token: auth.token }, handleMcpRequest);
+          return;
+        }
+        if (tenantRouteToken) {
+          await requestTokenContext.run({ token: tenantRouteToken }, handleMcpRequest);
           return;
         }
         // A shared MCP bearer authenticates only the MCP edge. It must never be

@@ -383,8 +383,20 @@
           "既存の冪等実行、rollback、receipt、validate契約を維持する。",
           "テナント内のproject数に依存せず、管理画面からのproject作成が60秒以内に完了する。"
         ]
+      },
+      {
+        "story_id": "story-brainbase-mcp-tenant-auto-routing",
+        "title": "Brainbase MCPのテナント自動切替",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-organization-project-create-scope-v1"
+    "current_story_id": "story-brainbase-mcp-tenant-auto-routing"
   }
 }

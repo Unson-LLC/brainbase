@@ -18,6 +18,8 @@ export interface TokenData {
 export interface TokenManagerOptions {
   allowEnvironmentToken?: boolean;
   requireEnvironmentToken?: boolean;
+  /** Expected organization for this credential source. */
+  expectedOrganizationId?: string;
   /** Maximum time allowed for one CSRF + refresh handshake. */
   refreshTimeoutMs?: number;
 }
@@ -130,7 +132,9 @@ export class TokenManager {
       || process.env.BRAINBASE_TOKEN_FILE
       || join(homedir(), '.brainbase', 'tokens.json');
     this.apiUrl = apiUrl || process.env.BRAINBASE_GRAPH_API_URL || 'http://localhost:31013';
-    this.expectedOrganizationId = process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID?.trim() || undefined;
+    this.expectedOrganizationId = options.expectedOrganizationId?.trim()
+      || process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID?.trim()
+      || undefined;
     this.allowEnvironmentToken = options.allowEnvironmentToken ?? true;
     this.requireEnvironmentToken = options.requireEnvironmentToken ?? false;
     this.refreshTimeoutMs = configuredTimeout(
