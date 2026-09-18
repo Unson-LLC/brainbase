@@ -715,24 +715,40 @@ export class AuthService {
         const personId = access.personId || null;
         const slackUserId = access.slackUserId || null;
         const slackWorkspaceId = access.slackWorkspaceId || null;
-        if (!this.pool || !personId || !slackUserId || !slackWorkspaceId) {
+        const projectCodes = Array.isArray(access.projectCodes)
+            ? Array.from(new Set(access.projectCodes.map((code) => String(code || '').trim()).filter(Boolean)))
+            : [];
+        if (!this.pool) {
             return null;
         }
 
         const client = await this.pool.connect();
         try {
+            if (personId && slackUserId && slackWorkspaceId) {
+                const { rows } = await client.query(
+                    `SELECT u.workspace_id AS organization_id
+                     FROM users u
+                     JOIN organizations o ON o.id = u.workspace_id
+                     WHERE u.person_id = $1
+                       AND u.slack_user_id = $2
+                       AND o.workspace_id = $3
+                       AND u.status = 'active'
+                     LIMIT 1`,
+                    [personId, slackUserId, slackWorkspaceId]
+                );
+                if (rows[0]?.organization_id) return rows[0].organization_id;
+            }
+
+            if (!projectCodes.length) return null;
             const { rows } = await client.query(
-                `SELECT u.workspace_id AS organization_id
-                 FROM users u
-                 JOIN organizations o ON o.id = u.workspace_id
-                 WHERE u.person_id = $1
-                   AND u.slack_user_id = $2
-                   AND o.workspace_id = $3
-                   AND u.status = 'active'
-                 LIMIT 1`,
-                [personId, slackUserId, slackWorkspaceId]
+                `SELECT DISTINCT organization_id
+                 FROM projects
+                 WHERE code = ANY($1)
+                   AND organization_id IS NOT NULL
+                 LIMIT 2`,
+                [projectCodes]
             );
-            return rows[0]?.organization_id || null;
+            return rows.length === 1 ? rows[0].organization_id : null;
         } finally {
             client.release();
         }

@@ -353,6 +353,49 @@ describe('AuthService auth grant precedence', () => {
         expect(queries[0].params).toEqual(['per_sato', 'U_SATO', 'T_UNSON']);
     });
 
+    it('resolves a legacy service token organization only when its projects belong to one organization', async () => {
+        const queries = [];
+        const client = {
+            query: async (sql, params) => {
+                queries.push({ sql, params });
+                return { rows: [{ organization_id: 'unson' }] };
+            },
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const organizationId = await authService.resolveOrganizationIdForAccess({
+            personId: 'svc_canonical_task',
+            projectCodes: ['brainbase', 'zeims']
+        });
+
+        expect(organizationId).toBe('unson');
+        expect(queries).toHaveLength(1);
+        expect(queries[0].sql).toContain('SELECT DISTINCT organization_id');
+        expect(queries[0].sql).toContain('LIMIT 2');
+        expect(queries[0].params).toEqual([['brainbase', 'zeims']]);
+    });
+
+    it('does not infer an organization when a service token spans multiple organizations', async () => {
+        const client = {
+            query: async () => ({
+                rows: [
+                    { organization_id: 'unson' },
+                    { organization_id: 'another-org' }
+                ]
+            }),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        await expect(authService.resolveOrganizationIdForAccess({
+            personId: 'svc_cross_org',
+            projectCodes: ['brainbase', 'external-project']
+        })).resolves.toBeNull();
+    });
+
     it('uses auth_grants project_codes even when users.project_codes is an empty stale array', async () => {
         const queries = [
             {
