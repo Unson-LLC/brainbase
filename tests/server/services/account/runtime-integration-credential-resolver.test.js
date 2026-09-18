@@ -6,8 +6,8 @@ import {
     RuntimeIntegrationCredentialError
 } from '../../../../server/services/account/runtime-integration-credential-resolver.js';
 
-function createFreeeAccount(repo, input = {}) {
-    return repo.create({
+async function createFreeeAccount(repo, input = {}) {
+    const account = repo.create({
         id: input.id ?? 'acc_freee',
         service: 'freee',
         scope_type: input.scope_type ?? 'org',
@@ -15,6 +15,7 @@ function createFreeeAccount(repo, input = {}) {
         org_id: input.org_id ?? 'org_unson',
         project_id: input.project_id,
         display_name: input.display_name ?? '雲孫 freee',
+        external_account_id: input.external_account_id ?? '123456',
         credential_ref: input.credential_ref ?? {
             provider: 'brainbase-credential-store',
             path: 'credref://bbcs/freee-unson'
@@ -23,6 +24,14 @@ function createFreeeAccount(repo, input = {}) {
         status: input.status ?? 'connected',
         created_by_person_id: 'per_admin'
     });
+    if (input.bindTenant !== false) {
+        await repo.bindTenant({
+            tenant_id: input.tenant_id ?? 'tenant_unson',
+            account_id: account.id,
+            created_by_person_id: 'per_admin'
+        });
+    }
+    return account;
 }
 
 async function expectCode(promise, code) {
@@ -35,7 +44,7 @@ async function expectCode(promise, code) {
 describe('runtime integration credential resolver', () => {
     it('resolves an organization-scoped freee read credential without secret or unverified provider material', async () => {
         const repo = new InMemoryAccountRepository();
-        const account = createFreeeAccount(repo);
+        const account = await createFreeeAccount(repo);
         repo.setDefault({
             subject_type: 'org', subject_id: 'org_unson', service: 'freee', purpose: 'runtime_read',
             account_id: account.id, created_by_person_id: 'per_admin'
@@ -43,11 +52,11 @@ describe('runtime integration credential resolver', () => {
 
         const resolved = await resolveRuntimeIntegrationCredential({
             accountRepository: repo,
-            context: { actor_person_id: 'per_haru', organization_ids: ['org_unson'], project_ids: [] }
+            context: { tenant_id: 'tenant_unson', actor_person_id: 'per_haru', organization_ids: ['org_unson'], project_ids: [] }
         });
 
         expect(resolved).toEqual(expect.objectContaining({
-            service: 'freee', account_id: account.id,
+            service: 'freee', tenant_id: 'tenant_unson', account_id: account.id, company_id: 123456,
             default_subject_type: 'org', default_subject_id: 'org_unson',
             account_scope_type: 'org', account_scope_id: 'org_unson',
             credential_ref: 'credref://bbcs/freee-unson', credential_mode: 'customer_oauth',
@@ -61,14 +70,14 @@ describe('runtime integration credential resolver', () => {
 
     it('prefers a project default over organization and personal defaults', async () => {
         const repo = new InMemoryAccountRepository();
-        const personal = createFreeeAccount(repo, {
+        const personal = await createFreeeAccount(repo, {
             id: 'acc_personal', scope_type: 'personal', owner_person_id: 'per_haru', org_id: undefined,
             credential_ref: { provider: 'brainbase-credential-store', path: 'credref://bbcs/freee-personal' }
         });
-        const org = createFreeeAccount(repo, {
+        const org = await createFreeeAccount(repo, {
             id: 'acc_org', credential_ref: { provider: 'brainbase-credential-store', path: 'credref://bbcs/freee-org' }
         });
-        const project = createFreeeAccount(repo, {
+        const project = await createFreeeAccount(repo, {
             id: 'acc_project', scope_type: 'project', org_id: undefined, project_id: 'prj_backoffice',
             credential_ref: { provider: 'brainbase-credential-store', path: 'credref://bbcs/freee-project' }
         });
@@ -78,7 +87,7 @@ describe('runtime integration credential resolver', () => {
 
         const resolved = await resolveRuntimeIntegrationCredential({
             accountRepository: repo,
-            context: { actor_person_id: 'per_haru', organization_ids: ['org_unson'], project_ids: ['prj_backoffice'] }
+            context: { tenant_id: 'tenant_unson', actor_person_id: 'per_haru', organization_ids: ['org_unson'], project_ids: ['prj_backoffice'] }
         });
         expect(resolved).toEqual(expect.objectContaining({
             account_id: project.id,
@@ -91,11 +100,11 @@ describe('runtime integration credential resolver', () => {
 
     it('fails closed when two authorized projects resolve to different accounts', async () => {
         const repo = new InMemoryAccountRepository();
-        const a = createFreeeAccount(repo, {
+        const a = await createFreeeAccount(repo, {
             id: 'acc_project_a', scope_type: 'project', org_id: undefined, project_id: 'prj_a',
             credential_ref: { provider: 'brainbase-credential-store', path: 'credref://bbcs/project-a' }
         });
-        const b = createFreeeAccount(repo, {
+        const b = await createFreeeAccount(repo, {
             id: 'acc_project_b', scope_type: 'project', org_id: undefined, project_id: 'prj_b',
             credential_ref: { provider: 'brainbase-credential-store', path: 'credref://bbcs/project-b' }
         });
@@ -104,19 +113,20 @@ describe('runtime integration credential resolver', () => {
 
         await expectCode(resolveRuntimeIntegrationCredential({
             accountRepository: repo,
-            context: { actor_person_id: 'per_haru', project_ids: ['prj_a', 'prj_b'] }
+            context: { tenant_id: 'tenant_unson', actor_person_id: 'per_haru', project_ids: ['prj_a', 'prj_b'] }
         }), 'INTEGRATION_ACCOUNT_AMBIGUOUS');
     });
 
     it('dedupes the same organization account selected by multiple projects without misreporting credential scope', async () => {
         const repo = new InMemoryAccountRepository();
-        const shared = createFreeeAccount(repo, { id: 'acc_shared_org' });
+        const shared = await createFreeeAccount(repo, { id: 'acc_shared_org' });
         repo.setDefault({ subject_type: 'project', subject_id: 'prj_b', service: 'freee', purpose: 'runtime_read', account_id: shared.id, created_by_person_id: 'per_admin' });
         repo.setDefault({ subject_type: 'project', subject_id: 'prj_a', service: 'freee', purpose: 'runtime_read', account_id: shared.id, created_by_person_id: 'per_admin' });
 
         const resolved = await resolveRuntimeIntegrationCredential({
             accountRepository: repo,
             context: {
+                tenant_id: 'tenant_unson',
                 actor_person_id: 'per_haru',
                 organization_ids: ['org_unson'],
                 project_ids: ['prj_b', 'prj_a']
@@ -132,34 +142,96 @@ describe('runtime integration credential resolver', () => {
         }));
     });
 
+    it('filters other-tenant defaults before ambiguity resolution', async () => {
+        const repo = new InMemoryAccountRepository();
+        const own = await createFreeeAccount(repo, {
+            id: 'acc_own', scope_type: 'project', org_id: undefined, project_id: 'prj_own'
+        });
+        const other = await createFreeeAccount(repo, {
+            id: 'acc_other_tenant', tenant_id: 'tenant_other',
+            scope_type: 'project', org_id: undefined, project_id: 'prj_other'
+        });
+        repo.setDefault({
+            subject_type: 'project', subject_id: 'prj_own', service: 'freee', purpose: 'runtime_read',
+            account_id: own.id, created_by_person_id: 'per_admin'
+        });
+        repo.setDefault({
+            subject_type: 'project', subject_id: 'prj_other', service: 'freee', purpose: 'runtime_read',
+            account_id: other.id, created_by_person_id: 'per_admin'
+        });
+
+        const resolved = await resolveRuntimeIntegrationCredential({
+            accountRepository: repo,
+            context: {
+                tenant_id: 'tenant_unson',
+                actor_person_id: 'per_haru',
+                project_ids: ['prj_own', 'prj_other']
+            }
+        });
+        expect(resolved.account_id).toBe(own.id);
+    });
+
+    it('does not resolve a default that is bound only to another tenant', async () => {
+        const repo = new InMemoryAccountRepository();
+        const account = await createFreeeAccount(repo, { id: 'acc_other_tenant', tenant_id: 'tenant_other' });
+        repo.setDefault({
+            subject_type: 'org', subject_id: 'org_unson', service: 'freee', purpose: 'runtime_read',
+            account_id: account.id, created_by_person_id: 'per_admin'
+        });
+
+        await expectCode(resolveRuntimeIntegrationCredential({
+            accountRepository: repo,
+            context: {
+                tenant_id: 'tenant_unson',
+                actor_person_id: 'per_haru',
+                organization_ids: ['org_unson'],
+                project_ids: []
+            }
+        }), 'INTEGRATION_ACCOUNT_NOT_CONNECTED');
+    });
+
     it('rejects an account whose own scope is outside the authorized context', async () => {
         const repo = new InMemoryAccountRepository();
-        const account = createFreeeAccount(repo, { id: 'acc_other_org', org_id: 'org_other' });
+        const account = await createFreeeAccount(repo, { id: 'acc_other_org', org_id: 'org_other' });
         repo.setDefault({ subject_type: 'project', subject_id: 'prj_a', service: 'freee', purpose: 'runtime_read', account_id: account.id, created_by_person_id: 'per_admin' });
 
         await expectCode(resolveRuntimeIntegrationCredential({
             accountRepository: repo,
-            context: { actor_person_id: 'per_haru', organization_ids: ['org_unson'], project_ids: ['prj_a'] }
+            context: { tenant_id: 'tenant_unson', actor_person_id: 'per_haru', organization_ids: ['org_unson'], project_ids: ['prj_a'] }
         }), 'INTEGRATION_ACCOUNT_SCOPE_MISMATCH');
+    });
+
+    it('requires an authoritative numeric freee company id on the selected integration account', async () => {
+        const repo = new InMemoryAccountRepository();
+        const account = await createFreeeAccount(repo, { external_account_id: 'not-a-company' });
+        repo.setDefault({
+            subject_type: 'org', subject_id: 'org_unson', service: 'freee', purpose: 'runtime_read',
+            account_id: account.id, created_by_person_id: 'per_admin'
+        });
+
+        await expectCode(resolveRuntimeIntegrationCredential({
+            accountRepository: repo,
+            context: { tenant_id: 'tenant_unson', actor_person_id: 'per_haru', organization_ids: ['org_unson'] }
+        }), 'INTEGRATION_COMPANY_BINDING_INVALID');
     });
 
     it('fails closed when the selected account lacks read capability', async () => {
         const repo = new InMemoryAccountRepository();
-        const account = createFreeeAccount(repo, { capabilities: ['write'] });
+        const account = await createFreeeAccount(repo, { capabilities: ['write'] });
         repo.setDefault({ subject_type: 'org', subject_id: 'org_unson', service: 'freee', purpose: 'runtime_read', account_id: account.id, created_by_person_id: 'per_admin' });
         await expectCode(resolveRuntimeIntegrationCredential({
             accountRepository: repo,
-            context: { actor_person_id: 'per_haru', organization_ids: ['org_unson'] }
+            context: { tenant_id: 'tenant_unson', actor_person_id: 'per_haru', organization_ids: ['org_unson'] }
         }), 'INTEGRATION_CAPABILITY_SCOPE_MISMATCH');
     });
 
     it('surfaces reauthentication instead of falling back to another credential', async () => {
         const repo = new InMemoryAccountRepository();
-        const account = createFreeeAccount(repo, { status: 'reauth_required' });
+        const account = await createFreeeAccount(repo, { status: 'reauth_required' });
         repo.setDefault({ subject_type: 'org', subject_id: 'org_unson', service: 'freee', purpose: 'runtime_read', account_id: account.id, created_by_person_id: 'per_admin' });
         await expectCode(resolveRuntimeIntegrationCredential({
             accountRepository: repo,
-            context: { actor_person_id: 'per_haru', organization_ids: ['org_unson'] }
+            context: { tenant_id: 'tenant_unson', actor_person_id: 'per_haru', organization_ids: ['org_unson'] }
         }), 'INTEGRATION_REAUTH_REQUIRED');
     });
 
@@ -172,11 +244,11 @@ describe('runtime integration credential resolver', () => {
         ];
         for (const credential_ref of badRefs) {
             const repo = new InMemoryAccountRepository();
-            const account = createFreeeAccount(repo, { credential_ref });
+            const account = await createFreeeAccount(repo, { credential_ref });
             repo.setDefault({ subject_type: 'org', subject_id: 'org_unson', service: 'freee', purpose: 'runtime_read', account_id: account.id, created_by_person_id: 'per_admin' });
             await expectCode(resolveRuntimeIntegrationCredential({
                 accountRepository: repo,
-                context: { actor_person_id: 'per_haru', organization_ids: ['org_unson'] }
+                context: { tenant_id: 'tenant_unson', actor_person_id: 'per_haru', organization_ids: ['org_unson'] }
             }), 'INTEGRATION_CREDENTIAL_REF_INVALID');
         }
     });

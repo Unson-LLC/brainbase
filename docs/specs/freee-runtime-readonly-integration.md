@@ -299,3 +299,101 @@ At minimum:
 Companion mana-runtime branch: `feature/freee-mcp-readonly` / PR #1110.
 
 That PR removes the superseded direct `freee.mcp.post` generic-forwarder mapping, requires the mana-facing endpoint to stay stateless, normalizes response headers, rejects session-state leakage, gates direct internal-host reachability on the signed `freee:runtime_read` capability, and requires explicit code-level freee enablement. Both gates must remain closed until the Brainbase terminator and remaining production blockers are complete.
+
+
+## Phase 5a safety boundary (before OAuth or live freee traffic)
+
+The first implementation after the disabled foundation MUST remain offline from
+the official freee Remote MCP. Its purpose is to make the eventual live boundary
+fail closed before any real accounting data is read.
+
+### Explicit tenant binding
+
+Runtime freee credential resolution MUST require an
+`integration_account_tenants` binding for the selected integration account.
+An integration account may belong to exactly one tenant. Organization/project
+scope remains a separate authorization dimension and MUST NOT substitute for
+tenant ownership.
+
+A missing or mismatched tenant binding fails with
+`INTEGRATION_TENANT_MISMATCH`. Existing integration accounts are not
+implicitly assigned to a tenant by migration.
+
+Creating a tenant binding is an audited operation. Repository binding writes a
+`TENANT_BOUND` account audit event in the same transaction as the PostgreSQL
+binding write. Tenant ownership is applied before default-account ambiguity
+resolution so another tenant's defaults cannot block resolution for the current
+tenant.
+
+### Initial read allowlist
+
+The initial runtime surface permits only `freee_api_get` with
+`service=accounting` for these paths:
+
+- `/api/1/invoices`
+- `/api/1/invoices/{id}`
+- `/api/1/deals`
+- `/api/1/deals/{id}`
+- `/api/1/partners`
+- `/api/1/partners/{id}`
+
+No HR/payroll, invoice-service, PM, sales-management, IT-management, file,
+write, or arbitrary path access is included in this phase.
+
+The model-supplied path MUST NOT contain `?` or `#`. For a freee
+integration account, `integration_accounts.external_account_id` is the
+authoritative server-side freee Accounting `company_id`. Runtime credential
+resolution validates that value as a positive integer and places it on the
+frozen resolved credential object.
+
+The read policy MUST accept that resolved credential object rather than a
+standalone caller-supplied company id. It injects the resolved `company_id`;
+a conflicting model-supplied `company_id` MUST be rejected rather than
+overwritten silently.
+
+Tool-call and argument objects are deny-by-default. Unknown top-level fields are
+rejected. Query parameters are path-specific and deny-by-default: collection
+paths initially allow only `company_id` and `limit`; detail paths allow only
+`company_id`. No `offset` or arbitrary future query key is accepted in this
+phase.
+
+### Bounded reads
+
+The initial boundary uses a default page limit of 50 and rejects limits above
+100. A production terminator MUST have an injected rate limiter; absence of the
+limiter is a 503 fail-closed condition. The policy target is at most 30 freee
+read calls per tenant/account per minute.
+
+A single upstream response is capped at 1 MiB before it can be normalized into
+the mana-facing MCP response. Exceeding the limit is a visible 502, including
+when `Content-Length` is absent or understates the streamed body.
+
+The only public execution entrypoint for a freee read is
+`executeFreeeRead(...)`. It authorizes one tool call, consumes rate-limit
+budget for that call, invokes the supplied upstream adapter, and applies the
+response-size ceiling. A JSON-RPC batch MUST invoke this boundary once per
+`tools/call` item; rate limiting is never per HTTP batch.
+
+Brainbase is the authoritative deny-by-default freee gate. The broader
+mana-runtime read-only tool list is not authority. Until explicitly added to
+this Brainbase boundary, management tools such as `freee_list_companies`,
+`freee_current_user`, `freee_auth_status`, and
+`freee_get_current_company` MUST be rejected even if mana advertises them.
+Before activation, mana-runtime's visible tool allowlist should be narrowed to
+match this Brainbase policy.
+
+### Activation state
+
+This phase does not:
+
+- call `https://mcp.freee.co.jp/mcp`,
+- start OAuth,
+- store a freee/MCP token,
+- mint `freee:runtime_read`, or
+- enable the mana-runtime freee MCP registration.
+
+Live Remote MCP OAuth/session handling, an OAuth/connect flow that records the
+selected freee Accounting company id into
+`integration_accounts.external_account_id`, distributed rate-limit storage,
+audit/retention review, narrowing mana-runtime's visible freee tool allowlist,
+and a real initialize -> read handshake remain blockers before activation.

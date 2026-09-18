@@ -46,11 +46,16 @@ function normalizedContext(context) {
     if (!context || typeof context !== 'object' || Array.isArray(context)) {
         invalid('INTEGRATION_CONTEXT_INVALID', { status: 400 });
     }
+    const tenantId = context.tenant_id;
+    if (typeof tenantId !== 'string' || !tenantId) {
+        invalid('INTEGRATION_CONTEXT_INVALID', { status: 400, details: { field: 'tenant_id' } });
+    }
     const actorPersonId = context.actor_person_id;
     if (typeof actorPersonId !== 'string' || !actorPersonId) {
         invalid('INTEGRATION_CONTEXT_INVALID', { status: 400, details: { field: 'actor_person_id' } });
     }
     return {
+        tenant_id: tenantId,
         actor_person_id: actorPersonId,
         project_ids: strings(context.project_ids),
         organization_ids: strings(context.organization_ids)
@@ -87,6 +92,18 @@ function assertAccountScope(account, authorized) {
     return scope;
 }
 
+function freeeCompanyId(account) {
+    const raw = account?.external_account_id;
+    if (typeof raw !== 'string' || !/^[1-9][0-9]*$/u.test(raw)) {
+        invalid('INTEGRATION_COMPANY_BINDING_INVALID', { status: 503 });
+    }
+    const companyId = Number(raw);
+    if (!Number.isSafeInteger(companyId) || companyId <= 0) {
+        invalid('INTEGRATION_COMPANY_BINDING_INVALID', { status: 503 });
+    }
+    return companyId;
+}
+
 function opaqueCredentialRef(account) {
     const ref = account?.credential_ref;
     if (!ref || typeof ref !== 'object' || Array.isArray(ref)
@@ -97,7 +114,7 @@ function opaqueCredentialRef(account) {
     return ref.path;
 }
 
-async function selectDefaultAtSpecificity(accountRepository, subjects, service, purpose) {
+async function selectDefaultAtSpecificity(accountRepository, tenantId, subjects, service, purpose) {
     const matches = [];
     for (const subject of subjects) {
         const defaults = await accountRepository.listDefaults(
@@ -106,7 +123,15 @@ async function selectDefaultAtSpecificity(accountRepository, subjects, service, 
             service,
             purpose
         );
-        for (const selected of defaults) matches.push({ subject, selected });
+        for (const selected of defaults) {
+            const accountId = selected?.account_id;
+            if (typeof accountId !== 'string' || !accountId) {
+                invalid('INTEGRATION_ACCOUNT_INVALID', { status: 409 });
+            }
+            if (await accountRepository.isBoundToTenant(tenantId, accountId)) {
+                matches.push({ subject, selected });
+            }
+        }
     }
 
     // Match deterministic C/ASCII-style ordering used by the PostgreSQL repository.
@@ -117,10 +142,7 @@ async function selectDefaultAtSpecificity(accountRepository, subjects, service, 
 
     const byAccountId = new Map();
     for (const match of matches) {
-        const accountId = match.selected?.account_id;
-        if (typeof accountId !== 'string' || !accountId) {
-            invalid('INTEGRATION_ACCOUNT_INVALID', { status: 409 });
-        }
+        const accountId = match.selected.account_id;
         if (!byAccountId.has(accountId)) byAccountId.set(accountId, match);
     }
 
@@ -140,8 +162,8 @@ async function selectDefaultAtSpecificity(accountRepository, subjects, service, 
 
 /**
  * @param {{
- *   accountRepository: { listDefaults: Function, findById: Function },
- *   context: { actor_person_id: string, organization_ids?: string[], project_ids?: string[] },
+ *   accountRepository: { listDefaults: Function, findById: Function, isBoundToTenant: Function },
+ *   context: { tenant_id: string, actor_person_id: string, organization_ids?: string[], project_ids?: string[] },
  *   service?: string,
  *   purpose?: string,
  *   requiredCapability?: string
@@ -155,7 +177,8 @@ export async function resolveRuntimeIntegrationCredential({
     requiredCapability = READ_CAPABILITY
 }) {
     if (!accountRepository || typeof accountRepository.listDefaults !== 'function'
-        || typeof accountRepository.findById !== 'function') {
+        || typeof accountRepository.findById !== 'function'
+        || typeof accountRepository.isBoundToTenant !== 'function') {
         throw new Error('runtime integration account repository is required');
     }
     if (service !== FREEE_SERVICE) {
@@ -171,7 +194,13 @@ export async function resolveRuntimeIntegrationCredential({
 
     let match = null;
     for (const subjects of specificityGroups) {
-        match = await selectDefaultAtSpecificity(accountRepository, subjects, service, purpose);
+        match = await selectDefaultAtSpecificity(
+            accountRepository,
+            authorized.tenant_id,
+            subjects,
+            service,
+            purpose
+        );
         if (match) break;
     }
 
@@ -186,6 +215,12 @@ export async function resolveRuntimeIntegrationCredential({
     const account = await accountRepository.findById(selected.account_id);
     if (!account || account.service !== service) {
         invalid('INTEGRATION_ACCOUNT_INVALID', { status: 409 });
+    }
+    if (!(await accountRepository.isBoundToTenant(authorized.tenant_id, account.id))) {
+        invalid('INTEGRATION_TENANT_MISMATCH', {
+            status: 403,
+            details: { tenant_id: authorized.tenant_id, account_id: account.id }
+        });
     }
     const scope = assertAccountScope(account, authorized);
     if (account.status !== 'connected') {
@@ -204,7 +239,9 @@ export async function resolveRuntimeIntegrationCredential({
     return Object.freeze({
         service,
         purpose,
+        tenant_id: authorized.tenant_id,
         account_id: account.id,
+        company_id: freeeCompanyId(account),
         default_subject_type: subject.subject_type,
         default_subject_id: subject.subject_id,
         ...scope,

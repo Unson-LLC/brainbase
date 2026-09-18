@@ -6,7 +6,7 @@
 
 const SCOPE_TYPES = new Set(['personal', 'org', 'project']);
 const STATUSES = new Set(['connected', 'disabled', 'revoked', 'reauth_required']);
-const ACTIONS = new Set(['CONNECTED', 'REAUTHORIZED', 'REVOKED', 'DEFAULT_CHANGED', 'USED_FOR_POST']);
+const ACTIONS = new Set(['CONNECTED', 'REAUTHORIZED', 'REVOKED', 'DEFAULT_CHANGED', 'USED_FOR_POST', 'TENANT_BOUND', 'TENANT_UNBOUND']);
 const FORBIDDEN_CREDENTIAL_KEYS = new Set(['access_token', 'refresh_token', 'api_key', 'password', 'secret', 'token']);
 
 export class AccountValidationError extends Error {
@@ -110,6 +110,8 @@ export class InMemoryAccountRepository {
         this.accounts = new Map();
         /** @type {Map<string, any>} keyed by `${subject_type}:${subject_id}:${service}:${purpose}:${account_id}` */
         this.defaults = new Map();
+        /** @type {Map<string, any>} keyed by account_id; one integration account belongs to one tenant */
+        this.accountTenants = new Map();
         /** @type {Array<any>} */
         this.auditEvents = [];
     }
@@ -196,6 +198,35 @@ export class InMemoryAccountRepository {
 
     getDefault(subject_type, subject_id, service, purpose) {
         return this.listDefaults(subject_type, subject_id, service, purpose)[0] ?? null;
+    }
+
+    async bindTenant({ tenant_id, account_id, created_by_person_id }) {
+        if (typeof tenant_id !== 'string' || !tenant_id) throw new AccountValidationError('tenant_id required');
+        if (!this.accounts.has(account_id)) throw new AccountValidationError('account not found for tenant binding');
+        if (!created_by_person_id) throw new AccountValidationError('created_by_person_id required');
+        const existing = this.accountTenants.get(account_id);
+        if (existing && existing.tenant_id !== tenant_id) {
+            throw new AccountValidationError('account already bound to another tenant');
+        }
+        if (existing) return { ...existing };
+        const record = {
+            tenant_id,
+            account_id,
+            created_by_person_id,
+            created_at: new Date().toISOString()
+        };
+        this.accountTenants.set(account_id, record);
+        this.recordAudit({
+            account_id,
+            actor_person_id: created_by_person_id,
+            action: 'TENANT_BOUND',
+            context: { tenant_id }
+        });
+        return { ...record };
+    }
+
+    async isBoundToTenant(tenant_id, account_id) {
+        return this.accountTenants.get(account_id)?.tenant_id === tenant_id;
     }
 
     recordAudit({ account_id, actor_person_id, action, context }) {
@@ -348,6 +379,75 @@ export class PgAccountRepository {
     async getDefault(subject_type, subject_id, service, purpose) {
         const rows = await this.listDefaults(subject_type, subject_id, service, purpose);
         return rows[0] ?? null;
+    }
+
+    async bindTenant({ tenant_id, account_id, created_by_person_id }) {
+        if (typeof tenant_id !== 'string' || !tenant_id) throw new AccountValidationError('tenant_id required');
+        if (!created_by_person_id) throw new AccountValidationError('created_by_person_id required');
+        const client = typeof this.pool.connect === 'function' ? await this.pool.connect() : this.pool;
+        await client.query('BEGIN');
+        try {
+            const account = await client.query(
+                'SELECT id FROM integration_accounts WHERE id = $1',
+                [account_id]
+            );
+            if (!account.rows[0]) throw new AccountValidationError('account not found for tenant binding');
+
+            const existing = await client.query(
+                'SELECT * FROM integration_account_tenants WHERE account_id = $1',
+                [account_id]
+            );
+            if (existing.rows[0]) {
+                if (existing.rows[0].tenant_id !== tenant_id) {
+                    throw new AccountValidationError('account already bound to another tenant');
+                }
+                await client.query('COMMIT');
+                return { ...existing.rows[0] };
+            }
+
+            const { rows } = await client.query(
+                `INSERT INTO integration_account_tenants (tenant_id, account_id, created_by_person_id)
+                 VALUES ($1, $2, $3)
+                 ON CONFLICT (tenant_id, account_id) DO NOTHING
+                 RETURNING *`,
+                [tenant_id, account_id, created_by_person_id]
+            );
+            let binding = rows[0];
+            if (!binding) {
+                const current = await client.query(
+                    'SELECT * FROM integration_account_tenants WHERE tenant_id = $1 AND account_id = $2',
+                    [tenant_id, account_id]
+                );
+                binding = current.rows[0];
+            }
+            if (!binding) throw new AccountValidationError('tenant binding could not be established');
+
+            await client.query(
+                `INSERT INTO account_audit_events (account_id, actor_person_id, action, context)
+                 VALUES ($1, $2, 'TENANT_BOUND', $3::jsonb)`,
+                [account_id, created_by_person_id, JSON.stringify({ tenant_id })]
+            );
+            await client.query('COMMIT');
+            return { ...binding };
+        } catch (error) {
+            await client.query('ROLLBACK');
+            if (error?.code === '23505') {
+                throw new AccountValidationError('account already bound to another tenant');
+            }
+            if (error?.code === '23503') {
+                throw new AccountValidationError('account not found for tenant binding');
+            }
+            throw error;
+        } finally {
+            if (typeof client.release === 'function') client.release();
+        }
+    }
+    async isBoundToTenant(tenant_id, account_id) {
+        const { rows } = await this.pool.query(
+            'SELECT 1 FROM integration_account_tenants WHERE tenant_id = $1 AND account_id = $2',
+            [tenant_id, account_id]
+        );
+        return Boolean(rows[0]);
     }
 
     async recordAudit({ account_id, actor_person_id, action, context }) {

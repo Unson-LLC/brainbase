@@ -32,6 +32,20 @@ CREATE INDEX IF NOT EXISTS integration_accounts_service ON integration_accounts(
 CREATE INDEX IF NOT EXISTS integration_accounts_owner ON integration_accounts(owner_person_id) WHERE owner_person_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS integration_accounts_org ON integration_accounts(org_id) WHERE org_id IS NOT NULL;
 
+-- Runtime integrations must have an explicit tenant binding before credentials
+-- can be resolved. Keep this additive so existing account rows are unchanged.
+CREATE TABLE IF NOT EXISTS integration_account_tenants (
+  tenant_id TEXT NOT NULL,
+  account_id TEXT NOT NULL REFERENCES integration_accounts(id) ON DELETE CASCADE,
+  created_by_person_id TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (tenant_id, account_id),
+  UNIQUE (account_id)
+);
+
+CREATE INDEX IF NOT EXISTS integration_account_tenants_tenant
+  ON integration_account_tenants(tenant_id);
+
 CREATE TABLE IF NOT EXISTS integration_account_defaults (
   subject_type TEXT NOT NULL,
   subject_id TEXT NOT NULL,
@@ -52,13 +66,31 @@ CREATE TABLE IF NOT EXISTS account_audit_events (
   id BIGSERIAL PRIMARY KEY,
   account_id TEXT REFERENCES integration_accounts(id) ON DELETE SET NULL,
   actor_person_id TEXT NOT NULL,
-  action TEXT NOT NULL CHECK (action IN ('CONNECTED', 'REAUTHORIZED', 'REVOKED', 'DEFAULT_CHANGED', 'USED_FOR_POST')),
+  action TEXT NOT NULL CHECK (action IN ('CONNECTED', 'REAUTHORIZED', 'REVOKED', 'DEFAULT_CHANGED', 'USED_FOR_POST', 'TENANT_BOUND', 'TENANT_UNBOUND')),
   context JSONB,
   occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS account_audit_events_account ON account_audit_events(account_id);
 CREATE INDEX IF NOT EXISTS account_audit_events_actor ON account_audit_events(actor_person_id);
+
+-- Existing installations already have the original CHECK constraint. Upgrade it
+-- in-place so tenant binding can be audited without requiring a later migration.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'account_audit_events'::regclass
+      AND conname = 'account_audit_events_action_check'
+      AND (pg_get_constraintdef(oid) NOT LIKE '%TENANT_BOUND%' OR pg_get_constraintdef(oid) NOT LIKE '%TENANT_UNBOUND%')
+  ) THEN
+    ALTER TABLE account_audit_events
+      DROP CONSTRAINT account_audit_events_action_check;
+    ALTER TABLE account_audit_events
+      ADD CONSTRAINT account_audit_events_action_check
+      CHECK (action IN ('CONNECTED', 'REAUTHORIZED', 'REVOKED', 'DEFAULT_CHANGED', 'USED_FOR_POST', 'TENANT_BOUND', 'TENANT_UNBOUND'));
+  END IF;
+END $$;
 
 -- prevent credential_ref からの secret leak: 形式validation trigger（access_token等の禁止キーを拒否）
 CREATE OR REPLACE FUNCTION reject_credential_secret_keys()
