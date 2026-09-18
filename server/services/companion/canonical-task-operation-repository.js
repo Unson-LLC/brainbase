@@ -298,26 +298,34 @@ export class CanonicalTaskOperationRepository {
                     [scope, operationKey]
                 );
                 const row = existing.rows[0];
-                if (row?.fingerprint !== fingerprint) {
+                if (row?.state === 'failed'
+                    && (row.fingerprint === fingerprint || scope === 'task-version')) {
+                    const reclaimed = await client.query(
+                        `UPDATE canonical_task_operations
+                         SET fingerprint = $3, state = 'running', writer_token = $4,
+                             result_json = NULL, error_json = NULL, updated_at = NOW()
+                         WHERE scope = $1 AND operation_key = $2 AND state = 'failed'`,
+                        [scope, operationKey, fingerprint, this.writerToken]
+                    );
+                    if (reclaimed.rowCount !== 1) {
+                        throw canonicalTaskOperationError(
+                            'canonical_task_operation_in_progress',
+                            'Canonical Task operation changed while it was being retried',
+                            409
+                        );
+                    }
+                    shouldRecover = typeof recover === 'function';
+                    await client.query('COMMIT');
+                } else if (row?.fingerprint !== fingerprint) {
                     throw canonicalTaskOperationError(
                         'idempotency_conflict',
                         'Idempotency key was reused with different input',
                         409
                     );
-                }
-                if (row?.state === 'completed') {
+                } else if (row?.state === 'completed') {
                     await client.query('COMMIT');
                     if (typeof recover !== 'function') return row.result_json;
                     completedNeedsRehydrate = true;
-                } else if (row?.state === 'failed') {
-                    await client.query(
-                        `UPDATE canonical_task_operations
-                         SET state = 'running', writer_token = $3, error_json = NULL, updated_at = NOW()
-                         WHERE scope = $1 AND operation_key = $2 AND state = 'failed'`,
-                        [scope, operationKey, this.writerToken]
-                    );
-                    shouldRecover = typeof recover === 'function';
-                    await client.query('COMMIT');
                 } else if (
                     row?.state === 'running'
                     && row.writer_token
