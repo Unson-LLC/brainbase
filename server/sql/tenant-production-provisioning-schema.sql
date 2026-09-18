@@ -398,7 +398,7 @@ CREATE TABLE IF NOT EXISTS tenant_outcome_service_profiles (
     connection_id TEXT NOT NULL,
     connection_revision BIGINT NOT NULL CHECK (connection_revision > 0),
     resource_ref TEXT NOT NULL CHECK (length(resource_ref) BETWEEN 1 AND 256),
-    organization_ids TEXT[] NOT NULL CHECK (cardinality(organization_ids) > 0 AND NOT (tenant_id = ANY(organization_ids))),
+    organization_ids TEXT[] NOT NULL CHECK (cardinality(organization_ids) > 0 AND NOT (tenant_id = ANY (organization_ids))),
     data_scopes TEXT[] NOT NULL CHECK (cardinality(data_scopes) > 0),
     billing_principal_id TEXT NOT NULL CHECK (length(billing_principal_id) BETWEEN 1 AND 128),
     contract_id TEXT NOT NULL,
