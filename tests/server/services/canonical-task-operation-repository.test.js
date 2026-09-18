@@ -243,9 +243,57 @@ describe('CanonicalTaskOperationRepository', () => {
             run: async () => ({ id: 'task-1', version: 1, title: 'must not persist' })
         })).resolves.toEqual({ id: 'task-1', version: 1, title: 'must not persist' });
 
-        expect(queries.some(({ sql }) => sql.includes("SET state = 'running'"))).toBe(true);
+        expect(queries.some(({ sql }) => sql.includes("state = 'running'"))).toBe(true);
         const completion = queries.find(({ sql }) => sql.includes("SET state = 'completed'"));
         expect(completion?.params?.[2]).toBe(JSON.stringify({ task_id: 'task-1', task_version: 1 }));
+    });
+
+    it('replaces the fingerprint when retrying a failed version operation with corrected input', async () => {
+        const queries = [];
+        const client = {
+            query: vi.fn(async (sql, params) => {
+                queries.push({ sql, params });
+                if (sql.includes('SELECT 1 FROM canonical_task_writer')) return { rowCount: 1, rows: [{}] };
+                if (sql.includes('INSERT INTO canonical_task_operations')) return { rowCount: 0, rows: [] };
+                if (sql.includes('SELECT fingerprint, state')) {
+                    return {
+                        rowCount: 1,
+                        rows: [{
+                            fingerprint: 'failed-input',
+                            state: 'failed',
+                            result_json: null,
+                            writer_token: 'writer-before-retry'
+                        }]
+                    };
+                }
+                return { rowCount: 1, rows: [] };
+            }),
+            release: vi.fn()
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client, query: client.query },
+            writerToken: 'writer-1'
+        });
+        const recover = vi.fn(async () => ({ recovered: false }));
+        const run = vi.fn(async () => ({ id: 'task-1', version: 2 }));
+
+        await expect(repository.execute({
+            scope: 'task-version',
+            operationKey: 'task-version:task-1:1',
+            fingerprint: 'corrected-input',
+            recover,
+            run
+        })).resolves.toEqual({ id: 'task-1', version: 2 });
+
+        const retry = queries.find(({ sql }) => sql.includes('SET fingerprint = $3'));
+        expect(retry?.params).toEqual([
+            'task-version',
+            'task-version:task-1:1',
+            'corrected-input',
+            'writer-1'
+        ]);
+        expect(recover).toHaveBeenCalledOnce();
+        expect(run).toHaveBeenCalledOnce();
     });
 
     it('fails closed when a matching concurrent operation does not settle in time', async () => {
