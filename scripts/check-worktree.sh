@@ -24,15 +24,15 @@ if [ -f "$PROJECT_ROOT/.git" ]; then
     echo ""
     if [ "$IS_TEST_MODE" = "true" ]; then
         echo -e "${GREEN}テストモード起動を許可${NC}"
-        echo "  - BRAINBASE_TEST_MODE=true のため、worktreeでも安全に起動できます"
-        echo "  - セッション管理は無効化されます"
+        echo "  - テスト用設定で起動します"
+        echo "  - ポート・BRAINBASE_VAR_DIR（保存先）・外部接続先の分離は別途確認してください"
         echo ""
     elif [ "$EFFECTIVE_PORT" = "31013" ]; then
         echo -e "${RED}❌ Worktreeでポート31013は使用禁止${NC}"
         echo ""
         echo "理由:"
-        echo "  - 正本とworktreeが同じvar/state.jsonを共有しています"
-        echo "  - 正本サーバーと同じ31013を使うと、セッション管理とopen-fileの挙動が競合します"
+        echo "  - 正本とworktreeで同じPORTを使用できません"
+        echo "  - BRAINBASE_VAR_DIR（実行時の保存先）が正本とworktreeで分離されていることを確認してください"
         echo ""
         echo "使える起動方法:"
         echo -e "  - ${GREEN}BRAINBASE_TEST_MODE=true npm start${NC}"
@@ -42,8 +42,8 @@ if [ -f "$PROJECT_ROOT/.git" ]; then
         exit 1
     else
         echo -e "${YELLOW}注意事項:${NC}"
-        echo "  - 正本とworktreeが同じvar/state.jsonを共有しています"
-        echo "  - セッション管理機能を使うなら、正本と別ポートで起動してください"
+        echo "  - 現在のPORT=${EFFECTIVE_PORT}です。正本と別ポートで起動してください"
+        echo "  - BRAINBASE_VAR_DIR（実行時の保存先）が正本とworktreeで分離されていることを確認してください"
         echo ""
         echo -e "${GREEN}現在のポート: ${EFFECTIVE_PORT}${NC}"
         echo ""

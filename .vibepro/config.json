@@ -551,8 +551,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "session-state-canonical-recovery",
+        "title": "セッション状態の正本と取得失敗からの回復を保証する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-organization-project-create-scope-v1"
+    "current_story_id": "session-state-canonical-recovery"
   }
 }

@@ -21,7 +21,11 @@ describe('Brainbase development runtime boundary', () => {
             'TerminalRuntimeReconciler',
             'ConversationLinker',
             'initializeSessionRuntime',
-            'sessionServices.runtime'
+            'sessionServices.runtime',
+            'SqliteStore',
+            'StateStore',
+            'createStateRouter',
+            'stateStore'
         ]) {
             expect(composition).not.toContain(forbidden);
         }
@@ -40,6 +44,13 @@ describe('Brainbase development runtime boundary', () => {
 
     it('does not retain Brainbase-owned development runtime implementations', () => {
         for (const retiredPath of [
+            'lib/sqlite-store.js',
+            'lib/state-store.js',
+            'lib/state-file-repository.js',
+            'lib/session-state-utils.js',
+            'server/controllers/state-controller.js',
+            'server/routes/state.js',
+            'scripts/session-runtime/hibernation-api-smoke.sh',
             'server/controllers/session-controller.js',
             'server/controllers/session/runtime-handlers.js',
             'server/routes/sessions.js',
