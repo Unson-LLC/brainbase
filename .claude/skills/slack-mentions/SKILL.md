@@ -26,8 +26,10 @@ Slack検索APIは DM のスレッドやチャンネル内スレッドを取り�
 
 Slack MCP が起動できない状態を「Slack 0件」と誤報告しない。取得前に必ず3ワークスペースの前提を確認する。
 
+確認済みのBrainbase checkoutまたはworktreeのrepo rootで実行する。個人の固定パスへ移動せず、対象スクリプトの存在を確認する。別repoや配置不明の場合は先にBrainbaseの場所を解決する。
+
 ```bash
-cd /Users/ksato/workspace/code/brainbase
+test -f scripts/check-slack-mcp-health.sh || { echo 'Brainbase repo rootで実行してください' >&2; exit 1; }
 scripts/check-slack-mcp-health.sh
 ```
 
