@@ -642,6 +642,65 @@ describe('MultitenantPostgresRepository', () => {
         expect(client.query.mock.calls.filter(([sql]) => sql === 'BEGIN')).toHaveLength(1);
     });
 
+    it('runtime contextのtenant revisionを省略した場合は現在のrevisionを返す', async () => {
+        const { pool } = poolWithRows({
+            'FROM workspace_connections': [{
+                tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: 3,
+                status: 'active', provider: 'slack', installation_id: 'slack:app:w',
+                workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'],
+                credential_ref: 'credref:a', current_credential_ref: 'credref:a',
+                credential_mode: 'customer_oauth',
+                connection_snapshot: {
+                    provider: 'slack', installation_id: 'slack:app:w', workspace_id: 'w',
+                    app_id: 'a', granted_scopes: ['chat:write'], status: 'active',
+                    credential_ref: 'credref:a'
+                }
+            }],
+            'FROM brainbase_tenants': [{ tenant_id: 'ten_a', tenant_revision: 4, status: 'active' }],
+            'FROM tenant_contract_revisions': [{ contract_revision: 5 }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expect(repository.resolveRuntimeContext({
+            tenant_id: 'ten_a', connection_id: 'wsc_a',
+            expected_connection_revision: '3', workspace_id: 'w', app_id: 'a',
+            authorization: { capability_ids: ['runtime.execute'] },
+            required_connection_scopes: ['chat:write']
+        })).resolves.toMatchObject({
+            tenant: { tenant_id: 'ten_a', tenant_revision: '4' },
+            contract_revision: '5'
+        });
+    });
+
+    it('runtime contextのtenant revisionを指定した場合は不一致を拒否する', async () => {
+        const { pool } = poolWithRows({
+            'FROM workspace_connections': [{
+                tenant_id: 'ten_a', connection_id: 'wsc_a', connection_revision: 3,
+                status: 'active', provider: 'slack', installation_id: 'slack:app:w',
+                workspace_id: 'w', app_id: 'a', granted_scopes: ['chat:write'],
+                credential_ref: 'credref:a', current_credential_ref: 'credref:a',
+                credential_mode: 'customer_oauth',
+                connection_snapshot: {
+                    provider: 'slack', installation_id: 'slack:app:w', workspace_id: 'w',
+                    app_id: 'a', granted_scopes: ['chat:write'], status: 'active',
+                    credential_ref: 'credref:a'
+                }
+            }],
+            'FROM brainbase_tenants': [{ tenant_id: 'ten_a', tenant_revision: 4, status: 'active' }]
+        });
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expectContractErrorAsync(
+            () => repository.resolveRuntimeContext({
+                tenant_id: 'ten_a', expected_tenant_revision: '3', connection_id: 'wsc_a',
+                expected_connection_revision: '3', workspace_id: 'w', app_id: 'a',
+                authorization: { capability_ids: ['runtime.execute'] },
+                required_connection_scopes: ['chat:write']
+            }),
+            { code: 'TENANT_REVISION_MISMATCH', status: 409 }
+        );
+    });
+
     it('rejects a missing or mismatched immutable connection snapshot during runtime readback', async () => {
         const missing = poolWithRows({ 'FROM workspace_connections': [] });
         const missingRepository = new MultitenantPostgresRepository({ pool: missing.pool });
