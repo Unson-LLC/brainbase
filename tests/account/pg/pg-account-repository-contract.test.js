@@ -57,7 +57,11 @@ describe('PgAccountRepository contract', () => {
         expect(account.created_at).toBe('2026-05-11T00:00:00.000Z');
         expect(account.credential_ref.path).toBe('/integrations/x/sato-corp');
         expect(pg.calls[0].sql).toContain('INSERT INTO integration_accounts');
+        expect(pg.calls[0].params).toHaveLength(17);
         expect(pg.calls[0].params).toContain(JSON.stringify(account.credential_ref));
+        expect(pg.calls[0].params[14]).toBe('{}');
+        expect(pg.calls[0].params[15]).toBe('sato_keigo');
+        expect(pg.calls[0].params[16]).toBeNull();
         expect(pg.calls[0].params.join(' ')).not.toContain('access_token');
     });
 
