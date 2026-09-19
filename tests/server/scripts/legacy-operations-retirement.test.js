@@ -157,3 +157,35 @@ describe('PR command docs after lifecycle retirement', () => {
         });
     }
 });
+
+describe('verified legacy residue', () => {
+    it('removes unreachable MCP search cases while retaining the rejection guard and active helpers', () => {
+        const serverSource = readFileSync(
+            path.join(repositoryRoot, 'mcp/brainbase/src/server.ts'),
+            'utf8'
+        );
+
+        expect(serverSource).not.toMatch(/case 'get_context'\s*:/);
+        expect(serverSource).not.toMatch(/case 'search_wiki'\s*:/);
+        expect(serverSource).not.toContain('getContextForTopic');
+        expect(serverSource).not.toContain('filterWikiPages');
+        expect(serverSource).not.toMatch(/'list_extension_entities', 'get_context', 'get_entity'/);
+        expect(serverSource).toContain('export function rejectLegacySearchSurface');
+        expect(serverSource).toContain("if (name === 'get_context')");
+        expect(serverSource).toContain("if (name === 'search_wiki')");
+        expect(serverSource).toContain('async function fetchWikiPages');
+        expect(serverSource).toContain('case \'get_wiki_page\':');
+        expect(serverSource).toContain('searchEntities(entityIndex, query)');
+    });
+
+    it('removes the retired cleanup LaunchAgent template', () => {
+        expect(existsSync(path.join(repositoryRoot, 'config/com.brainbase.cleanup.plist'))).toBe(false);
+    });
+
+    it('removes only the obsolete cleanup-script scanner exclusion', () => {
+        const checker = readFileSync(path.join(repositoryRoot, 'scripts/check-secrets.sh'), 'utf8');
+
+        expect(checker).not.toContain('--exclude="auto-cleanup-cron.sh"');
+        expect(checker).toContain('--exclude="check-secrets.sh"');
+    });
+});

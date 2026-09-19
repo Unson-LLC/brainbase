@@ -68,7 +68,6 @@ check_pattern() {
             --exclude="*.backup.*" \
             --exclude=".git" \
             --exclude="check-secrets.sh" \
-            --exclude="auto-cleanup-cron.sh" \
             --exclude="SECURITY.md" \
             --exclude="LICENSE" \
             --exclude="dev.sh" \
