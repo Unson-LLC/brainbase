@@ -34,6 +34,18 @@ on:
       - 'setup.sh'
       - 'scripts/setup.sh'
       - 'scripts/check-worktree.sh'
+      - 'scripts/cleanup-old-sessions.sh'
+      - 'scripts/auto-cleanup-cron.sh'
+      - '.claude/scripts/dev-server-worktree.sh'
+      - '.claude/scripts/stop-dev-server.sh'
+      - '.claude/commands/merge.md'
+      - '.claude/commands/create-pr.md'
+      - '.claude/commands/deploy-merged-pr.md'
+      - '.claude/skills/git-workflow/SKILL.md'
+      - '.claude/skills/dev-server-worktree/SKILL.md'
+      - '.claude/skills/worktree-dev-server/SKILL.md'
+      - 'docs/internal/MEMORY_OPTIMIZATION.md'
+      - 'tests/server/scripts/legacy-operations-retirement.test.js'
       - 'scripts/session-runtime/**'
       - 'tests/server/bootstrap/development-runtime-boundary.test.js'
       - 'tests/server/routes/retired-capability.test.js'
@@ -64,6 +76,7 @@ jobs:
           package-manager-cache: false
       - run: npm ci
       - run: bash -n setup.sh scripts/check-worktree.sh
+      - run: bash -n scripts/cleanup-old-sessions.sh scripts/auto-cleanup-cron.sh .claude/scripts/dev-server-worktree.sh .claude/scripts/stop-dev-server.sh
       - name: Verify retirement and recovery contracts
         run: >-
           npm run test:run --
@@ -76,6 +89,7 @@ jobs:
           tests/server/routes/retired-capability.test.js
           tests/server/routes/brainbase.test.js
           tests/server/scripts/retired-setup.test.js
+          tests/server/scripts/legacy-operations-retirement.test.js
           tests/server/routes/portal-routes.test.js
           tests/server/routes/mesh-routes.test.js
           tests/mesh/unverified-query-boundary.test.js

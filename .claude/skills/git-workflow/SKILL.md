@@ -1,94 +1,18 @@
 ---
 name: git-workflow
-description: brainbaseのGitワークフロー（/commit、/merge）への準拠をチェック。Conventional Commits、Decision-making capture、Branch safetyを自動検証。
+description: Brainbaseの対象限定commit、通常のGitHub PR/CI/merge、反映確認の境界を守る。
 ---
 
 # Git Workflow
 
-**目的**: brainbaseのGit運用原則への準拠をチェックし、正しいコミット・マージを支援
+1. repo・branch・HEAD・upstream・worktree・dirty状態を確認する。既存の無関係な差分を保持する。
+2. worktree作成は `branch-worktree-rules`、commit形式と粒度は `git-commit-rules` に従う。今回のファイルだけを明示的にstageする。全量stage、baseへの直接commit、無条件switch/resetはしない。
+3. 対象テストと一度のレビュー後、`.claude/commands/create-pr.md` の通常のGitHub経路でPRを作成する。
+4. CI・対象SHA・権限を確認し、`.claude/commands/merge.md` に従う。保護ルールや承認を迂回しない。
+5. マージ結果をreadbackする。ソース統合と本番反映は分けて報告する。
 
-このSkillは、CLAUDE.mdで定義された `git` 運用ルールを自動的に実践します。
+## 稼働環境への反映
 
-## Workflow Overview
+マージを理由に個人checkoutを切り替えたり、サーバーを自動再起動したりしない。確認・反映が依頼された場合は `.claude/commands/deploy-merged-pr.md` と `brainbase-capability-map` を使い、現在の起動元・updater・pin・承認範囲を確認する。固定された個人パスを正本と推測しない。
 
-```
-Phase 1: Conventional Commitsチェック
-└── agents/phase1_commit_checker.md
-    └── type(scope): summary 形式か判断
-    └── type一覧（feat/fix/docs/refactor等）に準拠しているか確認
-
-Phase 2: Decision-making captureチェック
-└── agents/phase2_decision_checker.md
-    └── 悩み→判断→結果が記録されているか確認
-
-Phase 3: Branch safetyチェック
-└── agents/phase3_branch_checker.md
-    └── session branch / worktree か確認
-    └── develop/main への直接コミット防止
-```
-
-## コミット形式
-
-```
-type(scope): summary
-
-悩み: [判断前の課題]
-判断: [選択した方針]
-結果: [実装結果]
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
-```
-
-## コミット・マージ方針（重要）
-
-**原則**: コミット・マージ対象は「今回のタスクで自分が触ったファイルのみ」。
-
-- 作業開始前から存在する未関連差分は含めない
-- 変更ファイルは `git add <file...>` で明示的に指定してステージする
-- `git add -A` / `git commit -a` のような全量ステージは使わない
-- 未関連差分が残っていても、対象ファイルのみでコミットして先に進める
-
-この方針により、別タスク差分の巻き込みを防ぎ、レビュー対象を明確化する。
-
-## PRマージ後の正本checkout更新（必須フロー）
-
-**問題**: PRをマージしても、サーバーが読む正本checkout（`develop`）は自動更新されない
-
-**必須手順**:
-
-```bash
-# 1. 最新を取得
-cd /Users/ksato/workspace/code/brainbase
-git fetch origin
-
-# 2. 正本checkoutを更新
-git checkout develop
-git merge --ff-only origin/develop
-
-# 3. 変更内容を確認
-git diff --stat "$BEFORE"..HEAD
-
-# 4. 再起動判定
-# - server/ 配下の変更 → 再起動必要
-# - public/ のみの変更 → 再起動不要（ブラウザリロード）
-
-# 5. 再起動（必要な場合のみ）
-launchctl kickstart -k gui/$(id -u)/com.brainbase.ui
-```
-
-**コマンド**: `/deploy-merged-pr` を使用すると自動実行される
-
-**なぜ必要か**:
-- git worktree/checkoutは、fetchしただけでは他のブランチのworking treeへ反映されない
-- サーバーは`develop`ブランチの正本checkoutから起動しているため、手動更新が必須
-
-## 参照
-
-- **Source**: この `git-workflow` Skill
-- **Skills**: git-commit-rules
-- **Commands**: `/deploy-merged-pr`
-
----
-
-最終更新: 2026-07-11
+開発session・worktree・プロセス管理はCodex所有。正本は `docs/architecture/ADR-019-codex-owns-development-runtime.md`。旧Brainbase lifecycle APIや自動cleanupは使わない。

@@ -575,8 +575,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-retire-legacy-operations",
+        "title": "廃止済みの開発runtime操作を案内・実行しない",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "brainbase-boundary-cleanup"
+    "current_story_id": "story-retire-legacy-operations"
   }
 }
