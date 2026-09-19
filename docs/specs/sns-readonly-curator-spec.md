@@ -20,6 +20,10 @@ test_files:
 
 # SPEC: SNS Read-Only Curator
 
+> 履歴資料。現在の運用入口の契約は [SNS廃止仕様](retire-sns-spec.md)。
+> スコア計算モジュールと専用テスト3ファイルは [独立モジュール除去仕様](legacy-sns-leaf-removal.md) により除去した。
+> 以下のスコア契約・対象パス・旧テスト件数は当時の記録。残存curatorと個人知識readerは今回の削除対象ではない。
+
 ## 目的
 
 Graph SSOT 上の最近 promote された insight / decision / claim / philosophy を traversal で集め、SNS post draft の **推薦** を candidate-store 経由で個人 KG に書く。投稿実行はしない。
