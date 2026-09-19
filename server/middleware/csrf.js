@@ -208,6 +208,21 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Organization connection setup is proxied by the same-origin BFF only
+        // after it validates browser Origin and double-submit CSRF. The BFF
+        // forwards the user's Bearer JWT; the mounted route still verifies the
+        // principal and canonical administrator role. Keep this exemption exact
+        // so cookie-only calls and neighboring organization writes stay protected.
+        const organizationConnectionPath = String(req.originalUrl || req.path || '').split('?')[0];
+        if (
+            req.method === 'POST'
+            && /^\/api\/organization-connections\/(?:github|slack)\/start$/u.test(organizationConnectionPath)
+            && typeof req.headers?.authorization === 'string'
+            && /^Bearer\s+\S+$/iu.test(req.headers.authorization)
+        ) {
+            return next();
+        }
+
         // Skip Device Code Flow endpoints (CLI-based, no CSRF token available)
         if (req.path?.startsWith('/api/auth/device/')) {
             return next();

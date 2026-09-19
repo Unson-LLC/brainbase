@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { ContractError } from './errors.js';
 import { canonicalJson } from './canonical-json.js';
-import { isCanonicalId } from './ids.js';
+import { generateCanonicalId, isCanonicalId } from './ids.js';
 import {
     normalizeSlackInstallationFailureCode,
     normalizeSlackInstallationFailureStage
@@ -29,6 +29,7 @@ const OWNED_RESOURCE_TABLES = Object.freeze({
 
 const SLACK_INSTALLATION_CLAIM_STALE_SECONDS = 120;
 const SLACK_INSTALLATION_CLEANUP_STATUSES = new Set(['not_needed', 'revoked', 'failed']);
+const CREDENTIAL_MODES = new Set(['cloud_standard', 'customer_oauth', 'customer_api']);
 const SHA256_DIGEST = /^sha256:[a-f0-9]{64}$/u;
 const FIXED_MANA_SLACK_SCOPES = Object.freeze([
     'app_mentions:read', 'assistant:write', 'canvases:read', 'canvases:write',
@@ -394,6 +395,155 @@ export class MultitenantPostgresRepository {
         } finally {
             client.release();
         }
+    }
+
+    async listOrganizationConnections({ tenant_id, provider }) {
+        return this.withTenant(tenant_id, async (client) => {
+            const result = await client.query(
+                `SELECT connection_id, connection_revision, provider, status, installation_id, workspace_id,
+                        app_id, granted_scopes, credential_ref, installed_at
+                   FROM workspace_connections
+                  WHERE tenant_id = $1 AND provider = $2
+                  ORDER BY installed_at DESC
+                  LIMIT 20`,
+                [tenant_id, provider]
+            );
+            return result.rows ?? [];
+        });
+    }
+
+    async reserveGitHubInstallation({ tenant_id, initiated_by_person_id, installation, idempotency_key }) {
+        const installationId = String(installation?.installation_id ?? '');
+        const accountId = String(installation?.account?.id ?? '');
+        const accountLogin = String(installation?.account?.login ?? '');
+        const appId = String(installation?.app_id ?? '');
+        if (!isCanonicalId(tenant_id, 'ten') || !isCanonicalId(initiated_by_person_id, 'per')
+            || !installationId || !accountId || !accountLogin || !appId || typeof idempotency_key !== 'string') {
+            throw new ContractError('GITHUB_CONNECTION_STATE_UNAVAILABLE', { status: 503 });
+        }
+        return this.withTenant(tenant_id, async (client) => {
+            const replay = await client.query(
+                `SELECT connection_id, connection_revision, installation_id, app_id
+                   FROM github_installation_reservations
+                  WHERE tenant_id = $1 AND idempotency_key = $2
+                  FOR UPDATE`,
+                [tenant_id, idempotency_key]
+            );
+            if (replay.rows[0]) {
+                const row = replay.rows[0];
+                if (String(row.installation_id) !== installationId || String(row.app_id) !== appId) {
+                    throw new ContractError('GITHUB_CONNECTION_STATE_UNAVAILABLE', { status: 409 });
+                }
+                return { connection_id: row.connection_id, connection_revision: String(row.connection_revision) };
+            }
+            const conflict = await client.query(
+                `SELECT connection_id
+                   FROM workspace_connections
+                  WHERE tenant_id = $1 AND provider = 'github' AND installation_id = $2
+                    AND status IN ('pending', 'active')
+                  LIMIT 1 FOR UPDATE`,
+                [tenant_id, installationId]
+            );
+            if (conflict.rows[0]) throw new ContractError('GITHUB_INSTALLATION_ALREADY_CONNECTED', { status: 409 });
+            const connectionId = generateCanonicalId('wsc');
+            const connectionRevision = '1';
+            await client.query(
+                `INSERT INTO github_installation_reservations (
+                    tenant_id, idempotency_key, connection_id, connection_revision,
+                    installation_id, app_id, account_id, account_login,
+                    initiated_by_person_id, created_at
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+                [tenant_id, idempotency_key, connectionId, connectionRevision,
+                    installationId, appId, accountId, accountLogin, initiated_by_person_id, this.now()]
+            );
+            return { connection_id: connectionId, connection_revision: connectionRevision };
+        });
+    }
+
+    async saveGitHubInstallation({
+        tenant_id, initiated_by_person_id, connection_id, connection_revision, installation, credential
+    }) {
+        const revision = String(connection_revision ?? '');
+        const credentialRef = credential?.credential_ref;
+        if (!isCanonicalId(tenant_id, 'ten') || !isCanonicalId(initiated_by_person_id, 'per')
+            || !isCanonicalId(connection_id, 'wsc') || !/^[1-9][0-9]*$/u.test(revision)
+            || typeof credentialRef !== 'string' || credentialRef.length === 0 || credentialRef.length > 512
+            || !CREDENTIAL_MODES.has(credential?.credential_mode)
+            || !Number.isSafeInteger(credential?.refresh_revision) || credential.refresh_revision < 0
+            || !installation?.installation_id || !installation?.app_id || !installation?.account?.id) {
+            throw new ContractError('GITHUB_CONNECTION_STATE_UNAVAILABLE', { status: 409 });
+        }
+        return this.withTenant(tenant_id, async (client) => {
+            const reservationResult = await client.query(
+                `SELECT * FROM github_installation_reservations
+                  WHERE tenant_id = $1 AND connection_id = $2 AND connection_revision = $3
+                  FOR UPDATE`,
+                [tenant_id, connection_id, revision]
+            );
+            const reservation = reservationResult.rows[0];
+            if (!reservation || reservation.initiated_by_person_id !== initiated_by_person_id
+                || String(reservation.installation_id) !== String(installation?.installation_id)
+                || String(reservation.app_id) !== String(installation?.app_id)) {
+                throw new ContractError('GITHUB_CONNECTION_STATE_UNAVAILABLE', { status: 409 });
+            }
+            const tenantResult = await client.query(
+                `SELECT tenant_revision, status FROM brainbase_tenants WHERE tenant_id = $1 FOR SHARE`,
+                [tenant_id]
+            );
+            const tenant = tenantResult.rows[0];
+            if (!tenant || tenant.status !== 'active') throw new ContractError('TENANT_UNKNOWN', { status: 403 });
+            const recordedAt = this.now();
+            const permissions = installation?.permissions && typeof installation.permissions === 'object'
+                ? installation.permissions : {};
+            const snapshot = {
+                provider: 'github', installation_id: String(installation.installation_id),
+                app_id: String(installation.app_id), account: installation.account,
+                permissions, initiated_by_person_id, status: 'active', recorded_at: recordedAt.toISOString()
+            };
+            await client.query('SET CONSTRAINTS ALL DEFERRED');
+            await client.query(
+                `INSERT INTO workspace_connections (
+                    connection_id, connection_revision, tenant_id, tenant_revision_at_write,
+                    provider, installation_id, workspace_id, app_id, granted_scopes,
+                    status, credential_ref, installed_at
+                 ) VALUES ($1,$2,$3,$4,'github',$5,$6,$7,$8,'active',$9,$10)`,
+                [connection_id, revision, tenant_id, tenant.tenant_revision,
+                    String(installation.installation_id), String(installation.account.id),
+                    String(installation.app_id), Object.keys(permissions).sort(), credential.credential_ref, recordedAt]
+            );
+            await client.query(
+                `INSERT INTO workspace_connection_revisions (
+                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
+                [tenant_id, connection_id, revision, canonicalJson(snapshot), recordedAt]
+            );
+            await client.query(
+                `INSERT INTO credential_broker_refs (
+                    credential_ref, tenant_id, connection_id, connection_revision,
+                    credential_mode, refresh_revision, created_at, updated_at
+                 ) VALUES ($1,$2,$3,$4,$5,$6,$7,$7)`,
+                [credentialRef, tenant_id, connection_id, revision,
+                    credential.credential_mode, credential.refresh_revision, recordedAt]
+            );
+            await client.query(
+                `DELETE FROM github_installation_reservations
+                  WHERE tenant_id = $1 AND connection_id = $2 AND connection_revision = $3`,
+                [tenant_id, connection_id, revision]
+            );
+            return snapshot;
+        });
+    }
+
+    async cancelGitHubInstallationReservation({ tenant_id, connection_id, connection_revision, idempotency_key }) {
+        return this.withTenant(tenant_id, async (client) => {
+            const result = await client.query(
+                `DELETE FROM github_installation_reservations
+                  WHERE tenant_id = $1 AND connection_id = $2 AND connection_revision = $3
+                    AND idempotency_key = $4`,
+                [tenant_id, connection_id, connection_revision, idempotency_key]
+            );
+            return result.rowCount === 1;
+        });
     }
 
     async validateConnectionRevision({
