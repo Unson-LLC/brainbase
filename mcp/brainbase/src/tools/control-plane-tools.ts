@@ -122,7 +122,9 @@ export const controlPlaneTools: Tool[] = [
       'List the authenticated Brainbase project catalog. Returns a structured status that distinguishes confirmed empty results from unavailable or error states, with project-scope and audit evidence.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        tenant: { type: 'string', description: 'Optional configured tenant or organization identifier for the trusted shared MCP endpoint.' },
+      },
     },
   },
   {
@@ -131,7 +133,9 @@ export const controlPlaneTools: Tool[] = [
       'Generate the authenticated Brainbase bootstrap config for the current actor. Returns config.yml content without browser download or secret values, together with scope and audit evidence.',
     inputSchema: {
       type: 'object',
-      properties: {},
+      properties: {
+        tenant: { type: 'string', description: 'Optional configured tenant or organization identifier for the trusted shared MCP endpoint.' },
+      },
     },
   },
   {
@@ -146,6 +150,7 @@ export const controlPlaneTools: Tool[] = [
           enum: ['overview', 'graph_entities', 'candidates', 'personal_kg', 'context_preview', 'data_flow', 'health'],
         },
         project: { type: 'string', description: 'Optional project within the authenticated scope.' },
+        tenant: { type: 'string', description: 'Optional configured tenant or organization identifier for the trusted shared MCP endpoint.' },
         type: { type: 'string' },
         id: { type: 'string' },
         q: { type: 'string' },

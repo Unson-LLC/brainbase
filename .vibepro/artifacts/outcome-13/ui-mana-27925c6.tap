@@ -1,0 +1,215 @@
+TAP version 13
+# Subtest: normalizes the versioned contract and keeps unknown completion unverified
+ok 1 - normalizes the versioned contract and keeps unknown completion unverified
+  ---
+  duration_ms: 3.48525
+  type: 'test'
+  ...
+# Subtest: explains budget units as external provider calls rather than money
+ok 2 - explains budget units as external provider calls rather than money
+  ---
+  duration_ms: 5.03175
+  type: 'test'
+  ...
+# Subtest: builds the BFF-safe endpoint prefix with project query context
+ok 3 - builds the BFF-safe endpoint prefix with project query context
+  ---
+  duration_ms: 1.890583
+  type: 'test'
+  ...
+# Subtest: document trigger stays unavailable until the exact provider subscription is connected and enabled
+ok 4 - document trigger stays unavailable until the exact provider subscription is connected and enabled
+  ---
+  duration_ms: 5.39
+  type: 'test'
+  ...
+# Subtest: document trigger does not confuse a connected subscription with provider webhook readiness
+ok 5 - document trigger does not confuse a connected subscription with provider webhook readiness
+  ---
+  duration_ms: 4.994042
+  type: 'test'
+  ...
+# Subtest: document trigger becomes activatable only after runtime reports provider readiness
+ok 6 - document trigger becomes activatable only after runtime reports provider readiness
+  ---
+  duration_ms: 6.036792
+  type: 'test'
+  ...
+# Subtest: activation stays blocked when authority readback is unknown even after a verified safe test
+ok 7 - activation stays blocked when authority readback is unknown even after a verified safe test
+  ---
+  duration_ms: 1.146709
+  type: 'test'
+  ...
+# Subtest: verified activation readback replaces draft status in both detail and contract list
+ok 8 - verified activation readback replaces draft status in both detail and contract list
+  ---
+  duration_ms: 7.370208
+  type: 'test'
+  ...
+# Subtest: document trigger exposes runtime unavailability reason: document_subscription_connection_unavailable
+ok 9 - document trigger exposes runtime unavailability reason: document_subscription_connection_unavailable
+  ---
+  duration_ms: 0.940958
+  type: 'test'
+  ...
+# Subtest: document trigger exposes runtime unavailability reason: document_subscription_disabled
+ok 10 - document trigger exposes runtime unavailability reason: document_subscription_disabled
+  ---
+  duration_ms: 4.422083
+  type: 'test'
+  ...
+# Subtest: GitHub document trigger explains webhook credential setup without exposing runtime details
+ok 11 - GitHub document trigger explains webhook credential setup without exposing runtime details
+  ---
+  duration_ms: 3.79425
+  type: 'test'
+  ...
+# Subtest: GitHub document trigger explains repository and callback configuration without exposing runtime details
+ok 12 - GitHub document trigger explains repository and callback configuration without exposing runtime details
+  ---
+  duration_ms: 2.52125
+  type: 'test'
+  ...
+# Subtest: document trigger explains delegated scope mismatch without exposing runtime identifiers
+ok 13 - document trigger explains delegated scope mismatch without exposing runtime identifiers
+  ---
+  duration_ms: 0.92
+  type: 'test'
+  ...
+# Subtest: trigger save renders the read-back contract version and document availability
+ok 14 - trigger save renders the read-back contract version and document availability
+  ---
+  duration_ms: 3.915
+  type: 'test'
+  ...
+# Subtest: document trigger stays unavailable when the runtime catalog cannot be read
+ok 15 - document trigger stays unavailable when the runtime catalog cannot be read
+  ---
+  duration_ms: 1.317375
+  type: 'test'
+  ...
+# Subtest: reads authority and runs from the selected contract and verifies an exact authority save
+ok 16 - reads authority and runs from the selected contract and verifies an exact authority save
+  ---
+  duration_ms: 2.491167
+  type: 'test'
+  ...
+# Subtest: uses injected API callbacks and never treats an unexecuted safe test as success
+ok 17 - uses injected API callbacks and never treats an unexecuted safe test as success
+  ---
+  duration_ms: 22.09275
+  type: 'test'
+  ...
+# Subtest: binds the safe-test success label and activation gate to the server configuration hash
+ok 18 - binds the safe-test success label and activation gate to the server configuration hash
+  ---
+  duration_ms: 1.809041
+  type: 'test'
+  ...
+# Subtest: explains when a verified safe-test readback omits the server configuration hash
+ok 19 - explains when a verified safe-test readback omits the server configuration hash
+  ---
+  duration_ms: 0.430125
+  type: 'test'
+  ...
+# Subtest: explains a safe-test whose completion is still unverified
+ok 20 - explains a safe-test whose completion is still unverified
+  ---
+  duration_ms: 0.692375
+  type: 'test'
+  ...
+# Subtest: restores the latest server safe-test state when run history is loaded
+ok 21 - restores the latest server safe-test state when run history is loaded
+  ---
+  duration_ms: 0.346333
+  type: 'test'
+  ...
+# Subtest: normalizes the exact approval target without substituting missing values
+ok 22 - normalizes the exact approval target without substituting missing values
+  ---
+  duration_ms: 0.117417
+  type: 'test'
+  ...
+# Subtest: normalizes the actual runtime pendingApproval projection with nested effect payload
+ok 23 - normalizes the actual runtime pendingApproval projection with nested effect payload
+  ---
+  duration_ms: 0.847625
+  type: 'test'
+  ...
+# Subtest: approves an actual runtime run projection only after rendering its nested effect payload
+ok 24 - approves an actual runtime run projection only after rendering its nested effect payload
+  ---
+  duration_ms: 1.969416
+  type: 'test'
+  ...
+# Subtest: renders every stage from the actual runtime projection and does not offer retry for a stopped run
+ok 25 - renders every stage from the actual runtime projection and does not offer retry for a stopped run
+  ---
+  duration_ms: 1.713834
+  type: 'test'
+  ...
+# Subtest: maps run trigger reasons and lifecycle statuses to user-facing labels in list and detail
+ok 26 - maps run trigger reasons and lifecycle statuses to user-facing labels in list and detail
+  ---
+  duration_ms: 0.757708
+  type: 'test'
+  ...
+# Subtest: shows the approval diff and external target values in the run detail
+ok 27 - shows the approval diff and external target values in the run detail
+  ---
+  duration_ms: 0.432333
+  type: 'test'
+  ...
+# Subtest: marks a missing approval diff unknown and blocks approval mutation
+ok 28 - marks a missing approval diff unknown and blocks approval mutation
+  ---
+  duration_ms: 1.467292
+  type: 'test'
+  ...
+# Subtest: finishes contract loading with an explicit empty state
+ok 29 - finishes contract loading with an explicit empty state
+  ---
+  duration_ms: 0.288666
+  type: 'test'
+  ...
+# Subtest: keeps a saved contract unverified when exact readback identity, version, or content differs
+    # Subtest: different contract
+    ok 1 - different contract
+      ---
+      duration_ms: 2.788208
+      type: 'test'
+      ...
+    # Subtest: stale version
+    ok 2 - stale version
+      ---
+      duration_ms: 2.044875
+      type: 'test'
+      ...
+    # Subtest: different content
+    ok 3 - different content
+      ---
+      duration_ms: 0.374583
+      type: 'test'
+      ...
+    1..3
+ok 30 - keeps a saved contract unverified when exact readback identity, version, or content differs
+  ---
+  duration_ms: 6.382375
+  type: 'test'
+  ...
+# Subtest: reuses the same idempotency key after a contract create response is lost
+ok 31 - reuses the same idempotency key after a contract create response is lost
+  ---
+  duration_ms: 5.053292
+  type: 'test'
+  ...
+1..31
+# tests 34
+# suites 0
+# pass 34
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 357.35725

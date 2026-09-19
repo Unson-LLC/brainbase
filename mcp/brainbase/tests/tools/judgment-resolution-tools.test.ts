@@ -409,6 +409,29 @@ describe('judgment resolver Host bridge', () => {
     }
   });
 
+  it('execution_contract付きactive nodeを受理し、未知のcontractは拒否する', async () => {
+    const optedIn = receipt({
+      active_nodes: ['entry'],
+      active_node_definitions: [{
+        id: 'entry', kind: 'judgment', instruction: 'Execute entry.', required_capability_template: null,
+        execution_contract: 'judgment-node-evidence-v1',
+      }],
+      active_edges: [],
+    });
+    const accepted = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(optedIn), { status: 200 })));
+    assert.equal(accepted.status, 'ok');
+    const rejected = receipt({
+      active_nodes: ['entry'],
+      active_node_definitions: [{
+        id: 'entry', kind: 'judgment', instruction: 'Execute entry.', required_capability_template: null,
+        execution_contract: 'unknown-contract',
+      }],
+      active_edges: [],
+    });
+    const invalid = await resolveJudgmentBeforeModel(args, dependencies(async () => new Response(JSON.stringify(rejected), { status: 200 })));
+    assert.equal(invalid.error?.code, 'brainbase_api_response_invalid');
+  });
+
   it('model解釈なしのbootstrap receiptはserverのreconciliation reasonsをunresolvedとして受理する', async () => {
     const bootstrap = receipt({
       status: 'needs_classification',

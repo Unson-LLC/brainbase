@@ -38,7 +38,12 @@ describe('Brainbase MCP control-plane tools', () => {
     const tool = controlPlaneTools.find((candidate) => candidate.name === 'brainbase_projects');
 
     assert.ok(tool);
-    assert.deepEqual(tool.inputSchema.properties, {});
+    assert.deepEqual(tool.inputSchema.properties, {
+      tenant: {
+        type: 'string',
+        description: 'Optional configured tenant or organization identifier for the trusted shared MCP endpoint.',
+      },
+    });
     assert.ok(serverTesting.tools.some((candidate) => candidate.name === 'brainbase_projects'));
   });
 

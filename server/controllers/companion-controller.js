@@ -112,10 +112,15 @@ export class CompanionController {
 
     taskContext(req) {
         const personId = req.access?.personId || req.auth?.person_id || req.auth?.personId || (req.authSource === 'bearer' ? req.auth?.sub : null);
+        const serviceId = req.auth?.service_id
+            || req.auth?.client_id
+            || req.auth?.sub
+            || req.auth?.subject
+            || req.auth?.personId;
         const principal = createCanonicalTaskPrincipal({
             authSource: req.authSource,
             personId,
-            serviceId: req.auth?.service_id || req.auth?.client_id || req.auth?.sub,
+            serviceId,
             internalId: req.auth?.service_id || req.auth?.client_id || 'brainbase-internal'
         });
         return {

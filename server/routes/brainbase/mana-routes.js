@@ -105,20 +105,28 @@ export function createBrainbaseManaRouter(options = {}) {
                 execOptions.cwd = manaRepoPath;
             }
             const output = execSync(ghCommand, execOptions);
-            runs = JSON.parse(output);
+            const parsedRuns = JSON.parse(String(output));
+            const hasValidRunShape = (run) => (
+                run !== null
+                && typeof run === 'object'
+                && !Array.isArray(run)
+                && typeof run.status === 'string'
+                && (run.conclusion === null || typeof run.conclusion === 'string')
+            );
+            if (!Array.isArray(parsedRuns) || !parsedRuns.every(hasValidRunShape)) {
+                throw new Error('gh CLI returned an invalid workflow runs payload');
+            }
+            runs = parsedRuns;
         } catch (ghError) {
-            logger.warn('gh CLI failed, returning empty stats', { error: ghError.message, workflow_id });
-            // gh CLIが失敗した場合は空のデータを返す
-            return res.json({
+            logger.warn('gh CLI failed, workflow stats unavailable', { error: ghError.message, workflow_id });
+            // 取得失敗を正常な空結果へ変換しない。503はcacheMiddlewareの対象外。
+            return res.status(503).json({
+                error: 'mana_workflow_stats_unavailable',
+                code: 'mana_workflow_stats_unavailable',
+                message: 'Mana workflow statistics are temporarily unavailable',
+                retryable: true,
                 workflow_id: workflow_id,
-                workflow_name: mapping.name,
-                stats: {
-                    success_rate: 0,
-                    total_executions: 0,
-                    total_success: 0,
-                    total_failure: 0,
-                    avg_duration_ms: 0
-                }
+                workflow_name: mapping.name
             });
         }
 

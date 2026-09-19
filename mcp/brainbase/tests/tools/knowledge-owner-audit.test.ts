@@ -16,6 +16,7 @@ describe('knowledge owner audit', () => {
       JSON.stringify({ status: 'unavailable', error: { code: 'semantic_model_unavailable' } })), null);
     const failure = { status: 'error', error: { code: 'graph_response_invalid' } };
     assert.equal(serverTesting.buildMcpToolResult('search', { query: 'missing' }, JSON.stringify(failure), failure).isError, true);
+    assert.equal(serverTesting.buildMcpToolResult('brainbase_knowledge_retrieve', {}, JSON.stringify(failure), failure).isError, true);
     assert.equal(serverTesting.buildMcpToolResult('brainbase_knowledge_evidence_record', {}, JSON.stringify(failure), failure).isError, true);
   });
   it('records an actual Graph search with its real query', () => {
@@ -100,6 +101,105 @@ describe('knowledge owner audit', () => {
     assert.equal(
       buildKnowledgeOwnerAudit('list_extension_entities', { type: 'contact', query: '佐藤' }, '# contacts')?.operation,
       '検索',
+    );
+  });
+
+  it('audits knowledge.retrieve from the resolved body, identity, version, and receipt', () => {
+    const input = {
+      project_code: 'brainbase',
+      refs: [{ id: 'decision-1', version: '3' }],
+    };
+    const result = JSON.stringify({
+      status: 'ok',
+      scope: { project_codes: ['brainbase'] },
+      data: {
+        project_code: 'brainbase',
+        results: [{
+          id: 'decision-1',
+          type: 'decision',
+          version: '3',
+          requested_version: '3',
+          resolved_version: '3',
+          status: 'resolved',
+          content: 'Codex may use the alpha decision.',
+          source: { kind: 'graph_entity', pointer: 'brainbase://graph/decision-1' },
+          retrieval_receipt_id: 'graph:decision-1:3',
+        }],
+      },
+    });
+    const audit = buildKnowledgeOwnerAudit('brainbase_knowledge_retrieve', input, result);
+
+    assert.deepStrictEqual(audit, {
+      schema_version: 'brainbase-knowledge-owner-audit-v1',
+      source: 'Brainbase',
+      operation: '取得',
+      query: 'brainbase / decision-1@3',
+      retrieval: {
+        status: 'retrieved',
+        coverage: 'complete',
+        sufficiency: 'needs_model_verification',
+        references: [{
+          id: 'decision-1',
+          entity_type: 'decision',
+          evidence_status: 'present',
+          evidence_fields: ['content'],
+          version: '3',
+          requested_version: '3',
+          resolved_version: '3',
+          retrieval_receipt_id: 'graph:decision-1:3',
+        }],
+        absence_confirmed: false,
+      },
+      outcome: '結果を取得',
+      display_line: '📚 Brainbase取得: Brainbaseから「brainbase / decision-1@3」を取得 → 結果を取得 ✓',
+    });
+
+    const content = serverTesting.buildToolResponseContent('brainbase_knowledge_retrieve', input, result);
+    assert.equal(content.length, 2);
+    assert.equal(content[0]?.text, result);
+    const marker = content[1]?.text.match(/^<!-- brainbase-knowledge-owner-audit:(\{.+\}) -->$/u);
+    assert.ok(marker);
+    assert.deepStrictEqual(JSON.parse(marker[1]), {
+      schema_version: 'brainbase-knowledge-owner-audit-v1',
+      operation: '取得',
+      outcome: '結果を取得',
+      retrieval: audit?.retrieval,
+    });
+  });
+
+  it('keeps unresolved knowledge.retrieve references explicit and insufficient', () => {
+    const result = JSON.stringify({
+      status: 'ok',
+      data: {
+        project_code: 'brainbase',
+        results: [{
+          id: 'decision-1',
+          requested_version: '3',
+          resolved_version: '4',
+          status: 'version_conflict',
+        }],
+      },
+    });
+    assert.deepStrictEqual(
+      buildKnowledgeOwnerAudit(
+        'brainbase_knowledge_retrieve',
+        { project_code: 'brainbase', refs: [{ id: 'decision-1', version: '3' }] },
+        result,
+      )?.retrieval,
+      {
+        status: 'retrieved',
+        coverage: 'complete',
+        sufficiency: 'insufficient',
+        references: [{
+          id: 'decision-1',
+          entity_type: 'unknown',
+          evidence_status: 'missing',
+          evidence_fields: [],
+          requested_version: '3',
+          resolved_version: '4',
+        }],
+        absence_confirmed: false,
+      },
     );
   });
 

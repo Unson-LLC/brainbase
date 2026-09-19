@@ -296,6 +296,41 @@ describe('CanonicalTaskOperationRepository', () => {
         expect(run).toHaveBeenCalledOnce();
     });
 
+    it('rejects corrected input for a failed client-keyed create operation', async () => {
+        const client = {
+            query: vi.fn(async (sql) => {
+                if (sql.includes('SELECT 1 FROM canonical_task_writer')) return { rowCount: 1, rows: [{}] };
+                if (sql.includes('INSERT INTO canonical_task_operations')) return { rowCount: 0, rows: [] };
+                if (sql.includes('SELECT fingerprint, state')) {
+                    return {
+                        rowCount: 1,
+                        rows: [{
+                            fingerprint: 'original-input',
+                            state: 'failed',
+                            result_json: null,
+                            writer_token: 'writer-1'
+                        }]
+                    };
+                }
+                return { rowCount: 1, rows: [] };
+            }),
+            release: vi.fn()
+        };
+        const repository = new CanonicalTaskOperationRepository({
+            pool: { connect: async () => client, query: client.query },
+            writerToken: 'writer-1'
+        });
+        const run = vi.fn();
+
+        await expect(repository.execute({
+            scope: 'task-create',
+            operationKey: 'api:client-key',
+            fingerprint: 'corrected-input',
+            run
+        })).rejects.toMatchObject({ code: 'idempotency_conflict', status: 409 });
+
+        expect(run).not.toHaveBeenCalled();
+    });
     it('fails closed when a matching concurrent operation does not settle in time', async () => {
         const client = {
             query: async (sql) => {

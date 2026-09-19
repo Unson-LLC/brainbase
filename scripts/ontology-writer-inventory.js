@@ -34,8 +34,13 @@ function graphVocabulary(source, manifest) {
         if (!typeContext && !relationContext) continue;
         for (const match of line.matchAll(/['"]([a-z][a-z0-9_]*)['"]/g)) {
             const value = match[1];
-            if (typeContext && knownTypes.has(value)) detectedTypes.add(value);
-            else if (relationContext && knownRelations.has(value)) detectedRelations.add(value);
+            // The ontology manifest is authoritative for vocabulary kind. A
+            // writer can mention a relation while validating an entity type
+            // (for example, an owned_by edge), so do not let the incidental
+            // line context turn a registered vocabulary value into an
+            // unknown literal.
+            if (knownTypes.has(value)) detectedTypes.add(value);
+            else if (knownRelations.has(value)) detectedRelations.add(value);
             else if ((typeContext || relationContext) && !NON_VOCABULARY_LITERALS.has(value)) unknown.add(value);
         }
     }

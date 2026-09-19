@@ -7,7 +7,8 @@ export const AUTHORITY_PROVIDER_OPERATIONS = new Set([
     AUTHORITY_JUDGMENT_HOOK_OPERATION
 ]);
 export const AUTHORITY_PROJECT_BOUND_MCP_TOOLS = new Set([
-    'brainbase_knowledge_resolve'
+    'brainbase_knowledge_resolve',
+    'brainbase_knowledge_retrieve'
 ]);
 const AUTHORITY_PROJECT_INDEPENDENT_MCP_TOOLS = new Set([
     'brainbase_resolve_turn',

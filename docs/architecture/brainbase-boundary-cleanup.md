@@ -1,0 +1,19 @@
+# 正本・送信・退役の責任分離
+
+Story: `brainbase-boundary-cleanup`
+
+## 決定
+
+PortalのStory正本はGraph。Wikiは補足資料、NocoDBは別のマイルストーン投影であり、Graph障害時の代替正本ではない。取得不能を明示すれば復旧後の再取得で回復でき、データ移行や二重書込みを必要としない。
+
+MeshのHTTP入口は既存認証層に集約する。MCPに別の資格情報ストアを作らず、既存TokenProviderを使う。送信APIは非同期受付として維持し、回答を待ったという虚偽の契約を取り除く。新しいキュー・永続化・結果照会APIは作らない。
+
+現行ノードはHTTP利用者の代理IDを持たない。明示された`MESH_OWNER_PERSON_ID`と`MESH_OWNER_ORGANIZATION_ID`に一致する人間の認証だけに限定し、未設定なら利用を拒否する。既存のSlack IDや自己申告roleを正本の本人・組織IDの代わりにしない。
+
+受信queryがローカルノードのroleRankを送信者の権限として使っていた不具合も修正する。現行sealed-boxは送信者を認証せず、relayのpeer metadataも信頼できる権限証明ではない。権限0で既存Permission Checkerに拒否させる。自動文脈開示の再開には、鍵の本人への紐付け・送信者証明・認可を別途設計し検証する必要がある。
+
+Codexのthread/turn/UIはADR-019に従いCodex側が所有する。Brainbaseの能力定義に旧runtimeの運用手順を残さない。
+
+## 互換性と復旧
+
+Portalの正常なGraph一覧とMeshのqueryId/statusは維持する。WikiだけのStory表示と匿名Meshアクセスは意図的に廃止する。呼び出し側は取得不能と401/403をエラーとして扱う。認証修正を戻すことで復旧しない。データベース変更・本番再起動は今回の範囲外。

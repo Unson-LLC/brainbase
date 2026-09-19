@@ -78,15 +78,14 @@ MCPの `list_entities` / `get_entity` が通常扱う第一級typeは次の通�
 - [ ] Extension typeを `list_entities` の通常enumへ個別に全部追加しない。
 - [ ] 登録済みExtension type metadataをCore ontologyとは別経路で取得できる。
 - [ ] 既存callerが `type='raci'` を使っていても、Graphの `raci_assignment` を読んで動作し続ける。
-- [ ] legacy `FilesystemSource` の既存customer table parsingは維持し、`customer_id` が欠落した行はこれまで通りindexしない。
+- 旧filesystem parser互換要件は `story-remove-unused-mcp-sources` で退役。現行取得元はGraph APIのみとし、旧source設定は拒否する。
 - [ ] core type enum、`raci` mapping、brand search、extension opt-in、default entity listにextension noiseが混ざらないことをテストする。
 
 ## 検証
 
-- `npm test -- --runTestsByPath mcp/brainbase/tests/sources/graphapi-source.test.ts`
-- `npm test -- --runTestsByPath mcp/brainbase/tests/tools/core-ontology.test.ts`
-- `npm test -- --runTestsByPath mcp/brainbase/tests/sources/filesystem-source.test.ts`
-- `npm run typecheck`
+- `cd mcp/brainbase && node --import tsx --test tests/config/config.test.ts tests/sources/graphapi-source.test.ts tests/tools/core-ontology.test.ts tests/tools/server-core-ontology.test.ts`
+- `npm --prefix mcp/brainbase run typecheck`
+- `VIBEPRO_EVIDENCE_ID=story-brainbase-mcp-core-ontology npm run test:e2e -- tests/e2e/story-brainbase-mcp-core-ontology-contract.spec.ts --reporter=line`
 - MCP daemon再起動後のsmoke:
   - `mcp__brainbase__list_entities type=brand`
   - `mcp__brainbase__search query="BAAO Brand Guide"`

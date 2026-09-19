@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "verifiedAt": "2026-09-18T02:13:48Z",
+  "stories": [
+    {"id":"story-brainbase-outcome-foundation-context","area":"foundation","evidence":["foundation","knowledge-ui"]},
+    {"id":"story-brainbase-outcome-knowledge-discovery","area":"knowledge","evidence":["knowledge-ui","knowledge-backend"]},
+    {"id":"story-brainbase-outcome-knowledge-capture","area":"knowledge","evidence":["knowledge-ui","knowledge-backend"]},
+    {"id":"story-brainbase-outcome-knowledge-canonical-save","area":"knowledge","evidence":["knowledge-ui","knowledge-backend"]},
+    {"id":"story-brainbase-outcome-knowledge-lifecycle","area":"knowledge","evidence":["knowledge-ui","knowledge-backend"]},
+    {"id":"story-brainbase-outcome-knowledge-codex-use","area":"knowledge","evidence":["knowledge-ui","knowledge-backend"]},
+    {"id":"story-brainbase-outcome-knowledge-preview","area":"knowledge","evidence":["knowledge-ui","knowledge-backend"]},
+    {"id":"story-brainbase-outcome-mana-contract","area":"mana","evidence":["mana-ui","mana-runtime"]},
+    {"id":"story-brainbase-outcome-mana-authority","area":"mana","evidence":["mana-ui","mana-runtime","mana-e2e"]},
+    {"id":"story-brainbase-outcome-mana-triggers","area":"mana","evidence":["mana-ui","mana-runtime","mana-e2e"]},
+    {"id":"story-brainbase-outcome-mana-deliver-outcome","area":"mana","evidence":["mana-ui","mana-runtime","mana-e2e"]},
+    {"id":"story-brainbase-outcome-mana-safe-test","area":"mana","evidence":["mana-ui","mana-runtime","mana-e2e"]},
+    {"id":"story-brainbase-outcome-mana-run-control","area":"mana","evidence":["mana-ui","mana-runtime","mana-e2e"]}
+  ],
+  "evidence": {
+    "foundation":{"repository":"Unson-LLC/brainbase-organization","pr":25,"state":"MERGED","mergeCommit":"f15a29efc99d20f245c5d6db69177e83f8f46987","passed":47},
+    "knowledge-ui":{"artifact":".vibepro/artifacts/outcome-13/ui-knowledge-27925c6.json","passed":69},
+    "mana-ui":{"artifact":".vibepro/artifacts/outcome-13/ui-mana-27925c6.tap","passed":34},
+    "knowledge-backend":{"repository":"Unson-LLC/brainbase-unson","pr":1630,"state":"MERGED","mergeCommit":"1e7433dd3b01148ba7f8c6cb13892ea83a4fe9fb","integrationPassed":68,"mcpPassed":362},
+    "mana-runtime":{"repository":"Unson-LLC/mana-runtime","pr":1215,"state":"MERGED","mergeCommit":"e50f773e88fb6f8cc5c5407f1fb2832e14b8ea0d","fullSuitePassed":2405},
+    "mana-e2e":{"repository":"Unson-LLC/mana-runtime","pr":1232,"state":"MERGED","mergeCommit":"129490a077442a781675e3b27cd6b57c1cc51883","targetPassed":3}
+  },
+  "limits": ["no production deployment","no third-party send","no production Google Drive, GitHub, or Slack write"]
+}

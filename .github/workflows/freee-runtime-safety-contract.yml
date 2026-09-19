@@ -1,0 +1,71 @@
+name: freee runtime safety contract
+
+on:
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'server/services/freee/**'
+      - 'server/services/account/**'
+      - 'server/sql/**'
+      - 'tests/server/services/freee/**'
+      - 'tests/server/services/account/runtime-integration-credential-resolver.test.js'
+      - '.github/workflows/freee-runtime-safety-contract.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: freee-runtime-safety-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  freee-runtime-safety:
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure PostgreSQL migration connection
+        run: >-
+          echo "M5A_DATABASE_URL=postgresql://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/postgres"
+          >> "$GITHUB_ENV"
+
+      - name: Apply freee schema dependencies twice on PostgreSQL 16
+        run: |
+          node scripts/migrate-m5a-production-schema.js --only candidate-store
+          node scripts/migrate-m5a-production-schema.js --only integration-accounts
+          node scripts/migrate-m5a-production-schema.js --only candidate-store
+          node scripts/migrate-m5a-production-schema.js --only integration-accounts
+
+      - name: Run freee safety contract tests
+        run: >-
+          npm run test:run --
+          tests/server/services/freee/freee-read-policy.test.js
+          tests/server/services/account/runtime-integration-credential-resolver.test.js
+          tests/account/pg/pg-account-repository-contract.test.js

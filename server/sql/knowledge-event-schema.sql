@@ -50,12 +50,137 @@ CREATE INDEX IF NOT EXISTS idx_knowledge_event_stage_event_time
 CREATE INDEX IF NOT EXISTS idx_knowledge_feedback_event_time
     ON knowledge_feedback (event_id, created_at);
 
+CREATE TABLE IF NOT EXISTS knowledge_authoring_drafts (
+    draft_id TEXT PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    owner_person_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('decision', 'document')),
+    title TEXT NOT NULL,
+    summary TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL,
+    applicability JSONB NOT NULL DEFAULT '{}'::jsonb,
+    source_pointer JSONB,
+    canonical_owner_person_id TEXT,
+    relations JSONB NOT NULL DEFAULT '[]'::jsonb,
+    revision INTEGER NOT NULL DEFAULT 1 CHECK (revision > 0),
+    status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'saving', 'saved', 'discarded')),
+    save_idempotency_key TEXT,
+    save_decision_domain TEXT,
+    canonical_id TEXT,
+    saved_event_id TEXT REFERENCES knowledge_events(event_id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_authoring_saves (
+    idempotency_key TEXT NOT NULL,
+    draft_id TEXT NOT NULL REFERENCES knowledge_authoring_drafts(draft_id) ON DELETE RESTRICT,
+    draft_revision INTEGER NOT NULL,
+    organization_id TEXT NOT NULL,
+    owner_person_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    canonical_id TEXT NOT NULL,
+    event_id TEXT NOT NULL REFERENCES knowledge_events(event_id) ON DELETE RESTRICT,
+    result JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (organization_id, owner_person_id, project_code, idempotency_key),
+    UNIQUE (draft_id, draft_revision)
+);
+
+-- Canonical reuse is an explicit registration flow.  It has its own receipt
+-- table so a caller cannot accidentally turn an existing id into a new save.
+CREATE TABLE IF NOT EXISTS knowledge_authoring_reuses (
+    reuse_id TEXT PRIMARY KEY,
+    idempotency_key TEXT NOT NULL,
+    draft_id TEXT NOT NULL REFERENCES knowledge_authoring_drafts(draft_id) ON DELETE RESTRICT,
+    draft_revision INTEGER NOT NULL,
+    organization_id TEXT NOT NULL,
+    owner_person_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    canonical_id TEXT NOT NULL,
+    expected_version TEXT NOT NULL,
+    result JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organization_id, owner_person_id, project_code, idempotency_key),
+    UNIQUE (draft_id, draft_revision, canonical_id, expected_version)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_lifecycle_history (
+    id BIGSERIAL PRIMARY KEY,
+    knowledge_id TEXT NOT NULL,
+    organization_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    from_version TEXT NOT NULL,
+    to_version TEXT NOT NULL,
+    state TEXT NOT NULL CHECK (state IN ('active', 'retired', 'unlinked')),
+    reason TEXT NOT NULL,
+    actor_person_id TEXT NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_revision_history (
+    id BIGSERIAL PRIMARY KEY,
+    knowledge_id TEXT NOT NULL,
+    organization_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    from_version TEXT NOT NULL,
+    to_version TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    actor_person_id TEXT NOT NULL,
+    from_snapshot JSONB NOT NULL,
+    to_snapshot JSONB NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organization_id, project_code, knowledge_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS knowledge_supersession_history (
+    id BIGSERIAL PRIMARY KEY,
+    organization_id TEXT NOT NULL,
+    project_code TEXT NOT NULL,
+    replacement_id TEXT NOT NULL,
+    superseded_id TEXT NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    replacement_from_version TEXT NOT NULL,
+    replacement_to_version TEXT NOT NULL,
+    superseded_from_version TEXT NOT NULL,
+    superseded_to_version TEXT NOT NULL,
+    effective_at TIMESTAMPTZ NOT NULL,
+    reason TEXT NOT NULL,
+    actor_person_id TEXT NOT NULL,
+    receipt JSONB NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (organization_id, project_code, replacement_id, idempotency_key)
+);
+
+ALTER TABLE knowledge_authoring_drafts
+    ADD COLUMN IF NOT EXISTS save_decision_domain TEXT;
+ALTER TABLE knowledge_authoring_drafts
+    ADD COLUMN IF NOT EXISTS summary TEXT NOT NULL DEFAULT '';
+ALTER TABLE knowledge_authoring_drafts
+    ADD COLUMN IF NOT EXISTS canonical_owner_person_id TEXT;
+ALTER TABLE knowledge_authoring_drafts
+    ADD COLUMN IF NOT EXISTS relations JSONB NOT NULL DEFAULT '[]'::jsonb;
+
 ALTER TABLE knowledge_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_events FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_event_stage_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_event_stage_history FORCE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE knowledge_feedback FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_authoring_drafts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_authoring_drafts FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_authoring_saves ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_authoring_saves FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_authoring_reuses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_authoring_reuses FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_lifecycle_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_lifecycle_history FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_revision_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_revision_history FORCE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_supersession_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE knowledge_supersession_history FORCE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS knowledge_events_project_access ON knowledge_events;
 CREATE POLICY knowledge_events_project_access ON knowledge_events
@@ -87,3 +212,51 @@ CREATE POLICY knowledge_feedback_project_access ON knowledge_feedback
         WHERE event.event_id = knowledge_feedback.event_id
           AND event.project_code = ANY(app_project_codes())
     ));
+
+DROP POLICY IF EXISTS knowledge_authoring_drafts_access ON knowledge_authoring_drafts;
+CREATE POLICY knowledge_authoring_drafts_access ON knowledge_authoring_drafts
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_authoring_saves_access ON knowledge_authoring_saves;
+CREATE POLICY knowledge_authoring_saves_access ON knowledge_authoring_saves
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_authoring_reuses_access ON knowledge_authoring_reuses;
+CREATE POLICY knowledge_authoring_reuses_access ON knowledge_authoring_reuses
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND owner_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_lifecycle_history_access ON knowledge_lifecycle_history;
+CREATE POLICY knowledge_lifecycle_history_access ON knowledge_lifecycle_history
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '') AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND actor_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_revision_history_access ON knowledge_revision_history;
+CREATE POLICY knowledge_revision_history_access ON knowledge_revision_history
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '') AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND actor_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));
+
+DROP POLICY IF EXISTS knowledge_supersession_history_access ON knowledge_supersession_history;
+CREATE POLICY knowledge_supersession_history_access ON knowledge_supersession_history
+    USING (organization_id = NULLIF(current_setting('app.organization_id', true), '') AND project_code = ANY(app_project_codes()))
+    WITH CHECK (organization_id = NULLIF(current_setting('app.organization_id', true), '')
+        AND actor_person_id = NULLIF(current_setting('app.person_id', true), '')
+        AND project_code = ANY(app_project_codes()));

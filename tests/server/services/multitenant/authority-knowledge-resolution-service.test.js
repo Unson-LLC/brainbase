@@ -12,8 +12,8 @@ function authority(options = {}) {
         owner: 'person-requester',
         externalSubjectId: 'UREQUESTER',
         channel: 'CDEST',
-        capability: 'runtime.execute',
-        effect: 'external_side_effect',
+        capability: 'knowledge.retrieve',
+        effect: 'read',
         resourceRef: 'project:project-a',
         dataScopes: ['internal'],
         ...overrides,
@@ -78,10 +78,10 @@ describe('AuthorityKnowledgeResolutionService', () => {
                 workspace_id: test.proof.context.tenant_context.workspace_connection.workspace_id
             }),
             requested_action: {
-                capability_id: 'runtime.execute',
+                capability_id: 'knowledge.retrieve',
                 resource_ref: 'project:project-a',
                 project_hint: 'project-a',
-                desired_effect: 'external_side_effect'
+                desired_effect: 'read'
             },
             delivery: expect.objectContaining({ channel_id: 'CDEST' })
         }));
@@ -96,6 +96,17 @@ describe('AuthorityKnowledgeResolutionService', () => {
             ...test.input,
             company_authority_response: tampered
         })).rejects.toMatchObject({ code: 'COMPANY_AUTHORITY_REJECTED', status: 403 });
+        expect(test.companyAuthority.resolve).not.toHaveBeenCalled();
+        expect(test.connectionRegistry.resolveProjectBindingById).not.toHaveBeenCalled();
+    });
+
+    it('rejects an external-effect authority on the knowledge route', async () => {
+        const test = setup({ proof: authority({ capability: 'runtime.execute', effect: 'external_side_effect' }) });
+
+        await expect(test.service.resolve(test.input)).rejects.toMatchObject({
+            code: 'COMPANY_AUTHORITY_REJECTED',
+            status: 403
+        });
         expect(test.companyAuthority.resolve).not.toHaveBeenCalled();
         expect(test.connectionRegistry.resolveProjectBindingById).not.toHaveBeenCalled();
     });

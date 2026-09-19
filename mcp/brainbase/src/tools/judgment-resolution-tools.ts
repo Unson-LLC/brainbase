@@ -250,12 +250,14 @@ function isRequiredCapability(value: unknown, projectCode: unknown): boolean {
 
 function isActiveNodeDefinition(value: unknown): boolean {
   return isRecord(value)
-    && hasOnlyKeys(value, ['id', 'kind', 'instruction', 'required_capability_template'])
+    && (hasOnlyKeys(value, ['id', 'kind', 'instruction', 'required_capability_template'])
+      || hasOnlyKeys(value, ['id', 'kind', 'instruction', 'required_capability_template', 'execution_contract']))
     && isNonEmptyString(value.id)
     && ['common', 'judgment', 'capability', 'constraint', 'fail_closed'].includes(String(value.kind))
     && isNonEmptyString(value.instruction)
     && (value.required_capability_template === null || isNonEmptyString(value.required_capability_template))
-    && (value.kind !== 'capability' || isNonEmptyString(value.required_capability_template));
+    && (value.kind !== 'capability' || isNonEmptyString(value.required_capability_template))
+    && (value.execution_contract === undefined || value.execution_contract === 'judgment-node-evidence-v1');
 }
 
 function isAcyclic(nodes: string[], edges: string[][]): boolean {

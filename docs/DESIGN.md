@@ -1,5 +1,7 @@
 # brainbase UI 設計書（ブラウザ版 / 読み取り専用）
 
+> 履歴資料・退役済み。以下は旧ブラウザUIの設計であり、現役の正本や実装指示ではない。現在の責任境界は[ADR-019](architecture/ADR-019-codex-owns-development-runtime.md)を参照する。旧state/session/terminalを復元しない。
+
 作成日: 2025-12-04
 更新日: 2025-12-05
 範囲: ローカル専用の軽量UI。タスク追加や正本更新は行わず、表示と補助のみ。

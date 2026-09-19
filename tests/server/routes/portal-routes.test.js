@@ -60,6 +60,8 @@ describe('Brainbase Portal routes', () => {
           payload: {
             story_id: 'C1-001',
             title: 'セッション切替 [MUST]',
+            status: 'active',
+            criteria: [{ type: 'commit', description: 'Graph acceptance condition' }],
             source: 'common/00_stories.md',
           },
         },
@@ -76,9 +78,18 @@ describe('Brainbase Portal routes', () => {
               '```yaml',
               'story_id: C1-001',
               'horizon: quarter',
+              'frame_id: wiki-frame',
               'view: user',
               'name: Wiki side story detail',
               'status: draft',
+              'criteria:',
+              '  - type: commit',
+              '    description: Wiki acceptance condition',
+              '```',
+              '```yaml',
+              'story_id: WIKI-ONLY',
+              'name: Wiki-only story',
+              'horizon: quarter',
               '```',
             ].join('\n'),
           };
@@ -111,7 +122,7 @@ describe('Brainbase Portal routes', () => {
     expect(res.body.storyMap.meta).toMatchObject({
       storySource: 'graph',
       graphStoryCount: 1,
-      wikiStoryCount: 1,
+      wikiStoryCount: 2,
       projectionSource: 'nocodb',
     });
     expect(res.body.storyMap.stories).toHaveLength(1);
@@ -124,29 +135,166 @@ describe('Brainbase Portal routes', () => {
       graphSource: 'common/00_stories.md',
       horizon: 'quarter',
       view: 'user',
+      status: 'active',
+      criteria: [{ type: 'commit', description: 'Graph acceptance condition' }],
       progress: 42,
       nocodbStatus: '進行中',
       assignee: 'Operator K',
     });
   });
 
-  it('Graph storyが取得できない場合は従来どおりWiki storiesへfallbackする', async () => {
+  it('Graphの成功した空一覧を維持し、WikiだけのStoryを復活させない', async () => {
     infoSSOTService.listGraphEntities.mockResolvedValueOnce([]);
 
     const res = await request(app).get('/api/brainbase/portal/brainbase');
 
     expect(res.status).toBe(200);
     expect(res.body.storyMap.meta).toMatchObject({
-      storySource: 'wiki',
+      storySource: 'graph',
+      storyStatus: 'available',
       graphStoryCount: 0,
-      wikiStoryCount: 1,
     });
+    expect(res.body.storyMap.stories).toEqual([]);
+    expect(wikiService.getPage).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'brainbase/stories.md',
+    );
+  });
+
+  it('WikiはGraph storyの説明だけを補足し、識別子・状態・受入条件を補わない', async () => {
+    infoSSOTService.listGraphEntities.mockResolvedValueOnce([
+      {
+        id: 'story_c1001',
+        entity_type: 'story',
+        project_code: 'unson',
+        payload: {
+          story_id: 'C1-001',
+          title: 'Canonical Graph title',
+          source: 'common/00_stories.md',
+        },
+      },
+    ]);
+
+    const res = await request(app).get('/api/brainbase/portal/brainbase');
+
+    expect(res.status).toBe(200);
+    expect(res.body.storyMap.stories).toHaveLength(1);
     expect(res.body.storyMap.stories[0]).toMatchObject({
       story_id: 'C1-001',
-      name: 'Wiki side story detail',
+      frame_id: '',
+      name: 'Canonical Graph title',
       horizon: 'quarter',
-      view: 'user',
-      progress: 42,
+      status: '',
+    });
+    expect(res.body.storyMap.stories[0]).not.toHaveProperty('criteria');
+  });
+
+  it('Graph取得失敗を空一覧と区別し、Story件数をunknownにする', async () => {
+    infoSSOTService.listGraphEntities.mockRejectedValueOnce(new Error('Graph unavailable'));
+
+    const res = await request(app).get('/api/brainbase/portal/brainbase');
+
+    expect(res.status).toBe(200);
+    expect(res.body.storyMap.stories).toEqual([]);
+    expect(res.body.storyMap.meta).toMatchObject({
+      storySource: 'unavailable',
+      storyStatus: 'unavailable',
+      graphStoryCount: null,
+      wikiStoryCount: null,
+    });
+  });
+
+  it('Graph service未構成を取得不能として返す', async () => {
+    infoSSOTService.listGraphEntities = undefined;
+
+    const res = await request(app).get('/api/brainbase/portal/brainbase');
+
+    expect(res.status).toBe(200);
+    expect(res.body.storyMap.stories).toEqual([]);
+    expect(res.body.storyMap.meta).toMatchObject({
+      storySource: 'unavailable',
+      storyStatus: 'unavailable',
+      graphStoryCount: null,
+      wikiStoryCount: null,
+    });
+  });
+
+  it('Graphの不正な応答形式を取得不能として返す', async () => {
+    infoSSOTService.listGraphEntities.mockResolvedValueOnce({ records: [] });
+
+    const res = await request(app).get('/api/brainbase/portal/brainbase');
+
+    expect(res.status).toBe(200);
+    expect(res.body.storyMap.stories).toEqual([]);
+    expect(res.body.storyMap.meta).toMatchObject({
+      storySource: 'unavailable',
+      storyStatus: 'unavailable',
+      graphStoryCount: null,
+      wikiStoryCount: null,
+    });
+  });
+
+  it('Graphの不正レコードを成功した空一覧として扱わない', async () => {
+    infoSSOTService.listGraphEntities.mockResolvedValueOnce([{}]);
+
+    const res = await request(app).get('/api/brainbase/portal/brainbase');
+
+    expect(res.status).toBe(200);
+    expect(res.body.storyMap.stories).toEqual([]);
+    expect(res.body.storyMap.meta).toMatchObject({
+      storySource: 'unavailable',
+      storyStatus: 'unavailable',
+      graphStoryCount: null,
+      wikiStoryCount: null,
+    });
+  });
+
+  it('有効な別プロジェクトのGraph storyだけなら確認済みの空一覧を返す', async () => {
+    infoSSOTService.listGraphEntities.mockResolvedValueOnce([
+      {
+        id: 'story_other_project',
+        entity_type: 'story',
+        project_code: 'another-project',
+        payload: {
+          story_id: 'OTHER-001',
+          title: 'Other project story',
+          source: 'another-project/stories.md',
+        },
+      },
+    ]);
+
+    const res = await request(app).get('/api/brainbase/portal/brainbase');
+
+    expect(res.status).toBe(200);
+    expect(res.body.storyMap.stories).toEqual([]);
+    expect(res.body.storyMap.meta).toMatchObject({
+      storySource: 'graph',
+      storyStatus: 'available',
+      graphStoryCount: 0,
+    });
+    expect(wikiService.getPage).not.toHaveBeenCalledWith(
+      expect.anything(),
+      'brainbase/stories.md',
+    );
+  });
+
+  it('明示的に別プロジェクトの不正レコードは対象Story一覧を取得不能にしない', async () => {
+    infoSSOTService.listGraphEntities.mockResolvedValueOnce([
+      {
+        entity_type: 'story',
+        project_code: 'another-project',
+        payload: null,
+      },
+    ]);
+
+    const res = await request(app).get('/api/brainbase/portal/brainbase');
+
+    expect(res.status).toBe(200);
+    expect(res.body.storyMap.stories).toEqual([]);
+    expect(res.body.storyMap.meta).toMatchObject({
+      storySource: 'graph',
+      storyStatus: 'available',
+      graphStoryCount: 0,
     });
   });
 });

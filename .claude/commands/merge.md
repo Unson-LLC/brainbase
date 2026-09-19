@@ -1,81 +1,15 @@
-# セッションマージ（Brainbase API 経由）
+# PRのマージ
 
-セッションのbranchをbase branchへマージします。Brainbase セッションのマージは、原則として Brainbase API を正本の実行経路にします。
-
-## 最重要ルール
-
-`マージして` と依頼された対象が Brainbase のセッション / worktree の場合、AI は `gh pr merge` や `git push` を直接組み合わせず、まず Brainbase API を使う。
-
-```bash
-curl -s -X POST http://localhost:31013/api/sessions/<session-id>/merge
-```
-
-理由:
-
-- server側の `worktreeService.merge()` が PR作成、マージ、worktree cleanup を一括で実行する
-- Brainbase 正本 repo の場合は merge 後に canonical workspace deploy guard も通る
-- raw `gh` / `git` 経路を使うと、PR merge 済みなのに 31013 が読んでいる develop checkout に反映されない事故が再発する
-
----
-
-## 前提条件
-
-- git worktreeでセッション作業中であること
-- 全てのコミットに説明がついていること（`git log` で確認）
-- テスト通過済み
-- gh CLI インストール済み (`gh --version`)
-- GitHub認証完了 (`gh auth status`)
-
----
+開発session・worktree・プロセスの所有者はCodexです。正本は `docs/architecture/ADR-019-codex-owns-development-runtime.md`。旧Brainbase session/state APIは使いません。
 
 ## 手順
 
-### 1. session-id を特定
+1. `git status --short --branch`、`git remote -v`、`git worktree list`でrepo・branch・HEAD・dirty状態を確認する。無関係な変更を含めない。
+2. `gh pr view <PR番号> --json url,baseRefName,headRefName,headRefOid,state,reviewDecision,mergeStateStatus`で対象を確認する。baseはrepo規約に従い、branchの存在順から推測しない。
+3. 対象テスト・レビュー・`gh pr checks <PR番号>`とマージ権限を確認する。pending/failureを成功扱いしない。
+4. repoの方式に従い `gh pr merge <PR番号> --merge --match-head-commit <確認したhead-SHA>` でマージする。保護ルールや承認を迂回しない。
+5. `gh pr view <PR番号> --json state,mergedAt,mergeCommit,url`でMERGEDとmerge commitを確認し、`git fetch origin`で取得する。
 
-```bash
-curl -s http://localhost:31013/api/state | jq '.sessions[] | {id, name, path, worktree}'
-```
+## 境界
 
-現在の cwd が session worktree の場合は、path / worktree.path と照合して該当 session-id を決める（`git worktree list` でも物理パスを確認できる）。
-
-### 2. APIでマージ
-
-```bash
-curl -s -X POST http://localhost:31013/api/sessions/<session-id>/merge | jq
-```
-
-成功条件:
-
-- `success: true`
-- `prUrl` が返る
-- Brainbase 正本 repo の場合、`deployGuard.success` が true
-
-### 3. 完了確認
-
-```bash
-curl -s http://localhost:31013/api/sessions/<session-id>/archive-status | jq
-curl -s http://localhost:31013/api/health | jq
-```
-
-必要なら `git ls-remote origin refs/heads/develop` と `git log origin/develop` で origin/develop も確認する。
-
-## 直接 gh / git を使ってよい例外
-
-- Brainbase API が停止している
-- `/api/sessions/<id>/merge` が 5xx / 409 を返し、API経由では復旧できない
-- ユーザーが明示的に GitHub CLI 直操作を指定している
-
-例外経路を使った場合でも、最後に `/deploy-merged-pr` 相当の確認を行い、31013 の起動元と health を確認する。
-
-## 旧手順の扱い
-
-過去の `git push -> gh pr create -> gh pr merge -> worktree remove` は、Brainbase API の内部実装として扱う。AI が手作業で再現する標準手順にはしない。
-
----
-
-## 注意
-
-- `gh pr merge --merge` は CI完了後にマージ実行（GitHub側で制御）
-- コンフリクト時は GitHub UI または `git merge` / `git rebase` で手動解決が必要
-- ブランチは自動削除されます（--delete-branch）
-- worktree の物理ディレクトリは `git worktree remove` での手動削除が必要な場合あり
+ソース統合と本番反映は別です。マージだけでdeploy・再起動・worktree削除を自動実行しません。反映は起動元と承認範囲を確認します。元checkoutを無条件にswitch/resetしません。後片付けはowner、dirty状態、PID/cwdを確認した対象だけを扱います。

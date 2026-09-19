@@ -94,7 +94,7 @@ export interface BrainbaseConfig {
   graphApiUrl: string;
 
   /**
-   * Project codes to filter (comma-separated, for graphapi/hybrid modes)
+   * Project codes to filter (comma-separated)
    */
   projectCodes?: string[];
 

@@ -58,7 +58,10 @@ function createApp({ envOverrides = {}, accessTokenResult } = {}) {
             sub: personId,
             role: 'ceo',
             organizationId: tenantId
-        })
+        }),
+        resolveTenantForOrganization: vi.fn(async (organizationId) => organizationId === tenantId
+            ? { organization_id: organizationId, tenant_id: tenantId }
+            : null)
     };
     registerSlackInstallationControlPlaneApiRoute(app, {
         controlPlane,

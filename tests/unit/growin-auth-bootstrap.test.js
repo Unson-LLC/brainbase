@@ -64,6 +64,17 @@ describe('Growin auth bootstrap', () => {
         expect(source).toContain('else error("JSON-RPC result missing") end');
     });
 
+    it('fails the remote verifier when the current Graph tool contract is not deployed', () => {
+        const source = fs.readFileSync(
+            path.resolve('scripts/growin/verify-remote-e2e.sh'),
+            'utf8'
+        );
+
+        expect(source).toContain('/health/version');
+        expect(source).toContain('"search", "resolve_entity", "get_entity", "list_entities"');
+        expect(source).toContain('.name != "get_context" and .name != "search_wiki"');
+    });
+
     it('keeps the pilot device flow on one API instance and provides its public URL', () => {
         const terraform = fs.readFileSync(path.resolve('infra/gcp/growin/main.tf'), 'utf8');
         const apiService = terraform.slice(

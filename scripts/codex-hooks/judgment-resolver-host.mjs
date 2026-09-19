@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { evaluateJudgmentNodeEvidence, isSuccessfulJudgmentEvidenceEvent, normalizeJudgmentNodeResult } from './judgment-node-evidence.mjs';
 
 import { execFileSync } from 'node:child_process';
 import { evaluateKnowledgeEvidence, normalizeEvidenceAssessment, normalizeRetrievalEvidence } from './knowledge-evidence.mjs';
@@ -141,7 +142,7 @@ const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'brainbase_projects', 'brainbase_bootstrap_config', 'brainbase_admin_read',
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
-    'brainbase_resolve_turn', 'brainbase_knowledge_resolve', 'brainbase_knowledge_evidence_record', 'brainbase_personal_kg_answer_record', 'brainbase_judgment_audit_read',
+    'brainbase_resolve_turn', 'brainbase_knowledge_retrieve', 'brainbase_knowledge_resolve', 'brainbase_knowledge_evidence_record', 'brainbase_judgment_node_record', 'brainbase_personal_kg_answer_record', 'brainbase_judgment_audit_read',
     'brainbase_get_meeting_minutes_context', 'brainbase_get_shareable_person_profile', 'authorize_tenant_resource',
     'mesh_peers', 'graph_get_plan_receipt', 'graph_validate'
 ]);
@@ -161,6 +162,7 @@ export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
     ['brainbase_resolve_turn', 'turn_resolution'],
     ['brainbase_knowledge_resolve', 'route'],
     ['brainbase_knowledge_evidence_record', 'evidence'],
+    ['brainbase_judgment_node_record', 'node_evidence'],
     ['brainbase_personal_kg_answer_record', 'personal_answer'],
     ['brainbase_judgment_audit_read', 'ignored'],
     ['brainbase_judgment_state_record', 'state'],
@@ -173,8 +175,8 @@ export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     brainbase_projects: 'control_plane', brainbase_bootstrap_config: 'published_contract', brainbase_admin_read: 'control_plane',
     brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
     brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',
-    brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', brainbase_get_shareable_person_profile: 'shareable_person_profile', authorize_tenant_resource: 'tenant_authorization',
-    brainbase_judgment_audit_read: 'ignored', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer',
+    brainbase_knowledge_retrieve: 'published_contract', brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_get_meeting_minutes_context: 'meeting_context', brainbase_get_shareable_person_profile: 'shareable_person_profile', authorize_tenant_resource: 'tenant_authorization',
+    brainbase_judgment_audit_read: 'ignored', brainbase_knowledge_evidence_record: 'evidence', brainbase_judgment_node_record: 'node_evidence', brainbase_personal_kg_answer_record: 'personal_answer',
     mesh_peers: 'mesh_peers', graph_get_plan_receipt: 'graph_contract', graph_validate: 'graph_contract',
     brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
     brainbase_automation_human_step_resolve: 'published_contract', brainbase_onboarding_start: 'published_contract', brainbase_onboarding_ingest: 'published_contract',
@@ -2024,6 +2026,24 @@ function publishedToolSemanticData(toolName, response, input) {
         if (name === 'brainbase_onboarding_get' && item.data === null) return true;
         const data = record(item.data);
         if (!data) return false;
+        if (name === 'brainbase_knowledge_retrieve') {
+            const expected = record(input);
+            const statuses = ['resolved', 'insufficient', 'not_applicable', 'version_conflict', 'source_unavailable', 'not_found', 'source_version_unknown', 'source_version_conflict', 'source_hash_conflict'];
+            return nonEmptyString(expected?.project_code) && data.project_code === expected.project_code
+                && Array.isArray(expected.refs) && expected.refs.length > 0 && expected.refs.length <= 50
+                && Array.isArray(data.results) && data.results.length === expected.refs.length
+                && data.results.every((value, index) => {
+                    const result = record(value);
+                    const ref = record(expected.refs[index]);
+                    return nonEmptyString(ref?.id) && nonEmptyString(ref?.version)
+                        && result?.id === ref.id && result.requested_version === ref.version
+                        && statuses.includes(result.status)
+                        && (result.status !== 'resolved' || (
+                            result.resolved_version === ref.version && nonEmptyString(result.content)
+                            && nonEmptyString(record(result.source)?.kind) && nonEmptyString(result.retrieval_receipt_id)
+                        ));
+                });
+        }
         if (name.startsWith('graph_')) return graphToolContract(name, data, input);
         if (name === 'brainbase_bootstrap_config') {
             const config = record(data.bootstrap_config);
@@ -2459,6 +2479,11 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
     const assessmentMatchesInput = evidenceAssessment && canonicalJson(evidenceAssessment) === canonicalJson({
         schema_version: 'brainbase-knowledge-evidence-assessment-v1', ...inputValue
     });
+    const nodeResult = kind === 'node_evidence'
+        ? nestedRecords(responseValue).map(normalizeJudgmentNodeResult).find(Boolean) ?? null : null;
+    const nodeResultMatchesInput = nodeResult && canonicalJson(nodeResult) === canonicalJson(normalizeJudgmentNodeResult({
+        schema_version: 'brainbase-judgment-node-result-v1', ...inputValue
+    }));
     const turnResolution = kind === 'turn_resolution' ? judgmentTurnResolutionData(responseValue) : null;
     const turnResolutionUnavailable = kind === 'turn_resolution'
         ? judgmentTurnResolutionUnavailableData(responseValue)
@@ -2502,6 +2527,8 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
                     ? retrievalSemanticSuccess
                 : kind === 'value_proof'
                 ? Boolean(valueProofInput)
+                : kind === 'node_evidence'
+                    ? Boolean(nodeResultMatchesInput)
                 : kind === 'evidence'
                     ? Boolean(assessmentMatchesInput)
                 : kind === 'personal_answer'
@@ -2537,7 +2564,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
             .map((match) => match[1].trim())
             .filter((value) => value && !value.includes('\0')))]
         : [];
-    const safeMetadata = evidenceAssessment ? { evidence_assessment: evidenceAssessment } : personalAnswer ? { personal_answer: personalAnswer } : turnResolution ? { turn_contract: turnResolution } : turnResolutionUnavailable ? {
+    const safeMetadata = nodeResult ? { node_result: nodeResult } : evidenceAssessment ? { evidence_assessment: evidenceAssessment } : personalAnswer ? { personal_answer: personalAnswer } : turnResolution ? { turn_contract: turnResolution } : turnResolutionUnavailable ? {
         turn_resolution_failure: {
             status: 'unavailable',
             code: TURN_RESOLUTION_UNAVAILABLE_CODE
@@ -2720,7 +2747,7 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
             })
             .filter(Number.isSafeInteger)
             .reduce((maximum, sequence) => Math.max(maximum, sequence), -1) + 1;
-        const priorEvents = judgmentStateTool ? episodeEvents(paths) : [];
+        const priorEvents = episodeEvents(paths);
         const stateContract = judgmentStateTool
             ? judgmentStopStateContract(stopState, effectiveEpisode(episode, priorEvents).initial_route_receipt, episode, priorEvents)
             : { valid: true, expectedReason: null };
@@ -2751,6 +2778,15 @@ export function recordBrainbaseToolUse(payload, { env = process.env, nativeFailu
             system_message: systemMessage ?? turnResolutionMessage ?? (kind === 'route' && success && resolution?.source_class === 'graph'
                 ? 'Graphの正本の所在を解決しました。この参照先解決の後にsearch/get_entity、または共有人物情報ならbrainbase_get_shareable_person_profileで許可された項目を取得し（人物のreference_idsはdisclosure.target_person_id）、回答前にbrainbase_knowledge_evidence_recordへ質問に対するstatus、実取得reference_ids、reasonを記録してください。本文不足や取得失敗はinsufficientとして明示します。' : null)
         };
+        const nodeReceipt = effectiveEpisode(episode, [...priorEvents, entry]).initial_route_receipt;
+        if (nodeReceipt.active_node_definitions?.some((node) => node.execution_contract === 'judgment-node-evidence-v1')
+            && (isSuccessfulJudgmentEvidenceEvent(entry) || (kind === 'node_evidence' && success))) {
+            // Supply opaque references through the trusted Host channel; the model
+            // need not inspect private journals or invent IDs for evidence binding.
+            entry.system_message = [entry.system_message,
+                `判断の参照ID: ${toolUseId} (${kind})。内容の適合は別途評価してください。`
+            ].filter(Boolean).join('\n');
+        }
         return createImmutableJson(target, entry, 'judgment_tool_event_conflict');
     }, env);
 }
@@ -3366,7 +3402,7 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
             }
             return { status: 'runtime_escalated', violation: null, stopState: state, stateSource: 'journal' };
         }
-        const successfulEvidence = events.filter((event) => !['state', 'value_proof', 'ignored'].includes(event.event_kind) && event.success);
+        const successfulEvidence = events.filter((event) => !['state', 'value_proof', 'ignored', 'node_evidence'].includes(event.event_kind) && event.success);
         if (state.runtime_reason_code !== null || successfulEvidence.length === 0) {
             return {
                 status: null,
@@ -3431,7 +3467,7 @@ function autonomyAnswerCompliance(answer, expectedLines, receipt, events = [], e
             }
             return { status: 'runtime_escalated', violation: null, stopState: state };
         }
-        const successfulEvidence = events.filter((event) => !['state', 'value_proof', 'ignored'].includes(event.event_kind) && event.success);
+        const successfulEvidence = events.filter((event) => !['state', 'value_proof', 'ignored', 'node_evidence'].includes(event.event_kind) && event.success);
         if (state.runtime_reason_code !== null || successfulEvidence.length === 0) {
             return {
                 status: null,
@@ -4110,7 +4146,7 @@ function latestContinuation(paths) {
     return marker;
 }
 
-const NON_BUSINESS_EVENT_KINDS = new Set(['state', 'value_proof', 'turn_resolution', 'route', 'ignored']);
+const NON_BUSINESS_EVENT_KINDS = new Set(['state', 'value_proof', 'turn_resolution', 'route', 'ignored', 'node_evidence']);
 const NON_BUSINESS_TOOL_PATTERN = /(?:^|__)(?:get_goal|update_goal|create_goal|search_tools|list_tools|list_mcp_resources|list_mcp_resource_templates|curr_time|sleep)$/u;
 
 function isSuccessfulBusinessExecutionEvent(event) {
@@ -4170,6 +4206,7 @@ function deriveStopDecision({
     missingTurnResolution,
     missingKnowledge,
     missingKnowledgeEvidence,
+    missingNodeEvidence,
     missingValueProof,
     missingOwnerAudit,
     missingAnswerBody,
@@ -4204,6 +4241,7 @@ function deriveStopDecision({
     if (missingTurnResolution) protocolReasons.push('judgment.resolve_turn');
     if (missingKnowledge) protocolReasons.push('knowledge.resolve');
     if (missingKnowledgeEvidence) protocolReasons.push('knowledge.evidence');
+    if (missingNodeEvidence) protocolReasons.push('judgment.node_evidence');
     if (missingValueProof) protocolReasons.push('judgment.value_proof.record');
     // Owner audit is projected by Stop as a separate Host system message.
     // A presentation mismatch must never replay an already-visible answer body.
@@ -4313,6 +4351,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const missingKnowledge = requiredKnowledge && qualifyingEvents.length === 0;
     const knowledgeEvidence = evaluateKnowledgeEvidence(events, requiredKnowledge);
     const missingKnowledgeEvidence = !knowledgeEvidence.ready;
+    const nodeEvidence = evaluateJudgmentNodeEvidence(events, episode.initial_route_receipt);
     const answer = typeof payload.last_assistant_message === 'string' ? payload.last_assistant_message : null;
     const expectedAuditLines = requiredAuditLines(episode, events, existingContinuation);
     const unauthorizedContinuationAudit = containsUnauthorizedContinuationAudit(answer, expectedAuditLines);
@@ -4372,6 +4411,10 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         };
     }
     const missingAutonomyCompliance = autonomyCompliance.violation !== null;
+    // Evidence repair never crosses an existing human-authorization boundary.
+    const missingNodeEvidence = !nodeEvidence.ready
+        && !['runtime_escalated', 'escalated'].includes(autonomyCompliance.status)
+        && episode.initial_route_receipt.autonomy_decision !== 'escalate';
     const auditContract = episodeAuditContract(episode);
     const valueProofEvent = valueProofRolloutEnabled(episode, env)
         ? latestJudgmentValueProofEvent(events)
@@ -4392,6 +4435,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ...(missingTurnResolution ? ['judgment.resolve_turn'] : []),
         ...(missingKnowledge ? ['knowledge.resolve'] : []),
         ...(missingKnowledgeEvidence ? ['knowledge.evidence'] : []),
+        ...(missingNodeEvidence ? ['judgment.node_evidence'] : []),
         ...(missingValueProof ? ['judgment.value_proof.record'] : []),
         ...(missingAutonomyCompliance ? ['autonomy.continuation'] : []),
         // Audit presentation is Host-owned and is not a model repair capability.
@@ -4441,6 +4485,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         missingTurnResolution,
         missingKnowledge,
         missingKnowledgeEvidence,
+        missingNodeEvidence,
         missingValueProof,
         missingOwnerAudit,
         missingAnswerBody,
@@ -4465,6 +4510,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             const shouldBindAnswerBody = !missingTurnResolution
                 && !missingKnowledge
                 && !missingKnowledgeEvidence
+                && !missingNodeEvidence
                 && missingOwnerAudit
                 && !unauthorizedContinuationAudit
                 && !unauthorizedStopRepairAudit
@@ -4581,6 +4627,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ] : []),
             ...(missingAutonomyCompliance ? [autonomyCompliance.violation] : [])
         ];
+        if (missingNodeEvidence) reasons.unshift(`判断の根拠が未検証です。${nodeEvidence.next_node}へ戻り、${nodeEvidence.next_action}。実際の調査・検証の後にbrainbase_judgment_node_recordでfinding/evidence_fit/unknownsと実tool_use_idを記録し、更新した前段に後段を結び直してください。自己申告だけで完了にせず、取得失敗や不足はinsufficientのまま扱います。権限範囲は広げません。`);
         if (missingKnowledgeEvidence) reasons.unshift('Graphの参照先の解決だけでは完了できません。最新の参照先解決の後にsearch/get_entity、または共有人物情報ならbrainbase_get_shareable_person_profileで実際に根拠を取得し（人物のreference_idsはdisclosure.target_person_id）、brainbase_knowledge_evidence_recordでstatus=sufficient/insufficient、reference_ids、質問に対する判定理由reasonを記録してください。取得本文がない場合はinsufficientとし、不足を回答に明示してください。必要な状態toolを最後に実行してください');
         const reasonSequence = reasons.join('\nその後、');
         const completionInstruction = stopDecision.business_decision === 'CONTINUE'
@@ -4669,6 +4716,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         stop_decision: stopDecision,
         content_verification_status: knowledgeEvidence.status,
         knowledge_evidence: knowledgeEvidence,
+        judgment_node_evidence: nodeEvidence,
         ...(finalAutonomyContract?.approvalRef ? { approval_ref: finalAutonomyContract.approvalRef } : {}),
         ...(episode.episode_origin !== undefined ? {
             episode_origin: episode.episode_origin,
@@ -4983,7 +5031,10 @@ function turnContractExecutionInstructions(receipt, env, { surfaceDegraded = fal
         ] : []),
         'Use Brainbase knowledge and retrieval tools repeatedly when later evidence makes another lookup useful; there is no one-call-per-turn limit.',
         ...(surfaceDegraded ? [] : [
-            'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.'
+            'Use only active_node_definitions in active_edges order. A clarification receipt means ask the clarification selected by the receipt.',
+            ...(receipt.active_node_definitions?.some((node) => node.execution_contract === 'judgment-node-evidence-v1') ? [
+                'execution_contract=judgment-node-evidence-v1の段階では、実作業の後にbrainbase_judgment_node_recordへ短いfinding、根拠が問いに合う理由evidence_fit、unknowns、次の具体行動next_actionを記録する。順序は対象nodeの順。previous_result_tool_use_idで前段の記録を参照し、evidence_tool_use_idsはこのturnの成功した実調査・検証だけを参照する。問題設定では必要知識と代替説明を明確にする。必要知識が不足したらstatus=insufficientで調査に戻り、実際に追加取得した後に再評価する。前段を更新したら後段も更新する。記録は真実の証明ではない。内部思考全文や取得本文は保存しない。'
+            ] : [])
         ]),
         'Normal platform permissions and executor authorization remain in force; the Host does not add a second action-authorization layer.'
     ];

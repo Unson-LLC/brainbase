@@ -1,0 +1,34 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "session-state-canonical-recovery",
+  "clauses": [
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "Codexが所有するsession状態の未使用Brainbase実装を削除し、旧state APIの410と保存済み証跡の非変更を維持する。",
+      "rationale": "ADR-019で既に退役した二重所有を復活させない。",
+      "origin": {
+        "story_refs": [{"kind":"acceptance_criteria","index":0,"ac_id":"AC-1","text_snippet":"旧SQLite/JSONストアを削除"}],
+        "architecture_refs": [{"file":"docs/architecture/session-state-canonical-recovery.md","section":"Spec / 受入条件","text_snippet":"active compositionへ復活させない"}],
+        "code_refs": [{"file":"server/bootstrap/register-api-routes.js","anchor":"createRetiredCapabilityRouter"}],
+        "test_refs": [{"file":"tests/server/bootstrap/development-runtime-boundary.test.js","case":"does not retain Brainbase-owned development runtime implementations"}]
+      },
+      "verifiable_by": {"test_pattern":[{"file_glob":"tests/server/bootstrap/development-runtime-boundary.test.js","must_cover":"does not retain Brainbase-owned development runtime implementations"}]},
+      "confidence": 1
+    },
+    {
+      "id": "C-002",
+      "type": "contract",
+      "statement": "Mana統計の外部取得失敗は503で返しstatsを返さず、失敗をキャッシュしない。正常な空配列は200で0件を返す。",
+      "rationale": "未確認を0件とせず次回取得で回復する。",
+      "origin": {
+        "story_refs": [{"kind":"acceptance_criteria","index":1,"ac_id":"AC-2","text_snippet":"障害を正常な0件と誤認しない"}],
+        "architecture_refs": [{"file":"docs/architecture/session-state-canonical-recovery.md","section":"Spec / 受入条件","text_snippet":"正常な空結果を区別する"}],
+        "code_refs": [{"file":"server/routes/brainbase/mana-routes.js","anchor":"createBrainbaseManaRouter"}],
+        "test_refs": [{"file":"tests/server/routes/brainbase.test.js","case":"GET /api/brainbase/mana-workflow-stats"}]
+      },
+      "verifiable_by": {"test_pattern":[{"file_glob":"tests/server/routes/brainbase.test.js","must_cover":"GET /api/brainbase/mana-workflow-stats"}]},
+      "confidence": 1
+    }
+  ]
+}

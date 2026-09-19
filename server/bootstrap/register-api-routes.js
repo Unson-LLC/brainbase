@@ -11,7 +11,8 @@ import { createLearningRouter } from '../routes/learning.js';
 import { createPersonalKnowledgeRouter } from '../routes/personal-knowledge.js';
 import { createCandidateStoreRouter } from '../routes/candidate-store.js';
 import { createOnboardingRouter } from '../routes/onboarding.js';
-import { createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
+import { createKnowledgeCatalogRouter, createKnowledgeResolutionRouter } from '../routes/knowledge-resolution.js';
+import { createKnowledgeRetrieveRouter } from '../routes/knowledge-retrieve.js';
 import { createKnowledgeEventRouter } from '../routes/knowledge-events.js';
 import { createJudgmentResolutionRouter } from '../routes/judgment-resolution.js';
 import { createJudgmentReceiptAccessResolver } from '../services/judgment-receipt/judgment-receipt-access.js';
@@ -29,6 +30,8 @@ import { createWikiRouter } from '../routes/wiki.js';
 import { createMiscRouter } from '../routes/misc.js';
 import { createUsageRouter } from '../routes/usage.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
+import { createOutcomeServiceContextRouter } from '../routes/outcome-service-context.js';
+import { createKnowledgeDelegationRouter } from '../routes/knowledge-delegation.js';
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
 import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
@@ -45,6 +48,7 @@ import {
     createWorkflowRunRouter
 } from '../routes/workflows.js';
 import { requireAuth } from '../middleware/auth.js';
+import { createKnowledgeRetrieveServiceAuthMiddleware } from '../middleware/knowledge-retrieve-service-auth.js';
 import { requirePersonalKnowledgeAccess } from '../middleware/personal-knowledge-access.js';
 import { requirePersonalKnowledgeCompanyAuthority } from '../middleware/personal-knowledge-company-authority.js';
 import { requireRoutineCompanyAuthority } from '../middleware/routine-company-authority.js';
@@ -57,6 +61,12 @@ import { AdminVisualizationService } from '../services/admin-visualization-servi
 import { ReplyDraftService } from '../services/companion/reply-draft-service.js';
 import { DecisionEventService } from '../services/companion/decision-event-service.js';
 import { KnowledgeResolutionService } from '../services/knowledge-resolution-service.js';
+import { KnowledgeCatalogService } from '../services/knowledge-catalog-service.js';
+import { createKnowledgeBedrockAdapter } from '../services/knowledge-bedrock-adapter.js';
+import { KnowledgeAuthoringService } from '../services/knowledge-authoring-service.js';
+import { PgKnowledgeAuthoringRepository } from '../services/knowledge-authoring-repository.js';
+import { KnowledgeDocumentGraphRepository } from '../services/knowledge-document-graph-repository.js';
+import { InfoSSOTKnowledgeGraphRepository } from '../services/knowledge-event/info-ssot-knowledge-graph-repository.js';
 import { JudgmentResolutionService } from '../services/judgment-resolution-service.js';
 import {
     JsonFileMeetingMinutesContextReceiptRepository,
@@ -100,6 +110,89 @@ export function registerKnowledgeResolutionApiRoute(app, { authService, service 
         '/api/knowledge',
         requireAuth(authService, { allowInsecureHeaders: false }),
         createKnowledgeResolutionRouter({ service })
+    );
+}
+
+export function registerKnowledgeCatalogApiRoute(app, {
+    authService,
+    infoSSOTService,
+    knowledgeEventService = null,
+    service = null,
+    authoringService = null,
+    captureProposalAdapter = null,
+    previewAnswerer = null,
+    knowledgeAIAdapter = null,
+    knowledgeBedrockAdapter = null,
+    knowledgeBedrockClient = null,
+    knowledgeBedrockModelId = null,
+    knowledgeBedrockMaxTokens = 1024,
+    documentWriter = null,
+    contentRetriever = null,
+    documentReceiptRepository = null,
+    documentGraphPointerResolver = null,
+    documentGraphRepository = null,
+    knowledgeResolutionService = null,
+    knowledgeRetrieveBindingVerifier = null,
+    knowledgeRetrieveBindingRepository = null,
+    knowledgeRetrieveIssuer = undefined,
+    knowledgeRetrieveAudience = undefined,
+    knowledgeRetrieveDeploymentId = undefined,
+    tenantRuntimeServices = null
+}) {
+    const resolvedDocumentGraphRepository = documentGraphRepository
+        || (infoSSOTService ? new KnowledgeDocumentGraphRepository({ infoSSOTService }) : null);
+    const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter || (knowledgeBedrockClient && knowledgeBedrockModelId
+        ? createKnowledgeBedrockAdapter({
+            bedrockClient: knowledgeBedrockClient,
+            modelId: knowledgeBedrockModelId,
+            maxTokens: knowledgeBedrockMaxTokens
+        })
+        : null);
+    const resolvedCaptureProposalAdapter = captureProposalAdapter || knowledgeAIAdapter || resolvedKnowledgeBedrockAdapter;
+    const resolvedPreviewAnswerer = previewAnswerer || knowledgeAIAdapter || resolvedKnowledgeBedrockAdapter;
+    const catalogService = service || new KnowledgeCatalogService({
+        infoSSOTService,
+        captureProposalAdapter: resolvedCaptureProposalAdapter,
+        previewAnswerer: resolvedPreviewAnswerer,
+        knowledgeAIAdapter,
+        contentRetriever,
+        documentWriter,
+        knowledgeResolutionService
+    });
+    tenantRuntimeServices?.authorityKnowledgeResolutionService?.setKnowledgeCatalogService?.(catalogService);
+    const resolvedAuthoringService = authoringService || (infoSSOTService?.pool && knowledgeEventService
+        ? new KnowledgeAuthoringService({
+            repository: new PgKnowledgeAuthoringRepository({ pool: infoSSOTService.pool }),
+            knowledgeEventService,
+            catalogService,
+            graphRepository: new InfoSSOTKnowledgeGraphRepository({ infoSSOTService }),
+            documentWriter,
+            documentReceiptRepository,
+            documentGraphPointerResolver
+        })
+        : null);
+    app.use(
+        '/api/knowledge',
+        createKnowledgeRetrieveRouter({
+            service: catalogService,
+            serviceAuthMiddleware: createKnowledgeRetrieveServiceAuthMiddleware({
+                authService,
+                bindingVerifier: knowledgeRetrieveBindingVerifier,
+                bindingRepository: knowledgeRetrieveBindingRepository,
+                issuer: knowledgeRetrieveIssuer,
+                audience: knowledgeRetrieveAudience,
+                deploymentId: knowledgeRetrieveDeploymentId
+            })
+        })
+    );
+    app.use(
+        '/api/knowledge',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createKnowledgeCatalogRouter({
+            service: catalogService,
+            authoringService: resolvedAuthoringService,
+            documentGraphRepository: resolvedDocumentGraphRepository
+        })
     );
 }
 
@@ -154,6 +247,20 @@ export function registerTenantRuntimeApiRoute(app, services) {
     app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
 }
 
+export function registerOutcomeServiceContextApiRoute(app, { services = null } = {}) {
+    app.use('/v1', createOutcomeServiceContextRouter({
+        serviceAuth: services?.serviceAuth,
+        outcomeServiceContextIssuer: services?.outcomeServiceContextIssuer
+    }));
+}
+
+export function registerKnowledgeDelegationApiRoute(app, { services = null } = {}) {
+    app.use('/api/v1/runtime', createKnowledgeDelegationRouter({
+        serviceAuth: services?.serviceAuth,
+        issuer: services?.knowledgeDelegationTokenIssuer
+    }));
+}
+
 export function registerSlackInstallationControlPlaneApiRoute(app, {
     controlPlane,
     authService,
@@ -188,6 +295,10 @@ export function registerApiRoutes(app, {
     authService,
     infoSSOTService,
     projectProvisioningService,
+    documentWriter,
+    contentRetriever,
+    documentReceiptRepository,
+    documentGraphPointerResolver = null,
     canonicalTaskStoreConfig,
     canonicalTaskService,
     learningService,
@@ -196,6 +307,18 @@ export function registerApiRoutes(app, {
     knowledgeEventService,
     knowledgeFeedbackService,
     knowledgeCycleQueryService,
+    captureProposalAdapter,
+    previewAnswerer,
+    knowledgeAIAdapter,
+    knowledgeBedrockAdapter,
+    knowledgeBedrockClient,
+    knowledgeBedrockModelId,
+    knowledgeBedrockMaxTokens,
+    knowledgeRetrieveBindingVerifier,
+    knowledgeRetrieveBindingRepository,
+    knowledgeRetrieveIssuer,
+    knowledgeRetrieveAudience,
+    knowledgeRetrieveDeploymentId,
     personalKnowledgeService,
     personalKnowledgePromotionService,
     onboardingRuntimeService,
@@ -223,6 +346,8 @@ export function registerApiRoutes(app, {
     runtimeInfo,
     brainbaseRoot,
     tenantRuntimeServices,
+    outcomeServiceContextIssuer = null,
+    knowledgeDelegationTokenIssuer = null,
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
@@ -382,6 +507,40 @@ export function registerApiRoutes(app, {
     })));
     registerOnboardingApiRoute(app, { authService, onboardingRuntimeService });
     registerKnowledgeResolutionApiRoute(app, { authService });
+    registerKnowledgeCatalogApiRoute(app, {
+        authService,
+        infoSSOTService,
+        knowledgeEventService,
+        captureProposalAdapter,
+        previewAnswerer,
+        knowledgeAIAdapter,
+        knowledgeBedrockAdapter,
+        knowledgeBedrockClient,
+        knowledgeBedrockModelId,
+        knowledgeBedrockMaxTokens,
+        knowledgeRetrieveBindingVerifier,
+        knowledgeRetrieveBindingRepository,
+        knowledgeRetrieveIssuer,
+        knowledgeRetrieveAudience,
+        knowledgeRetrieveDeploymentId,
+        documentWriter,
+        contentRetriever,
+        documentReceiptRepository,
+        documentGraphPointerResolver,
+        tenantRuntimeServices
+    });
+    registerOutcomeServiceContextApiRoute(app, {
+        services: {
+            ...(tenantRuntimeServices || {}),
+            outcomeServiceContextIssuer
+        }
+    });
+    registerKnowledgeDelegationApiRoute(app, {
+        services: {
+            ...(tenantRuntimeServices || {}),
+            knowledgeDelegationTokenIssuer
+        }
+    });
     if (knowledgeEventService && knowledgeFeedbackService && knowledgeCycleQueryService) {
         registerKnowledgeEventApiRoutes(app, {
             authService,

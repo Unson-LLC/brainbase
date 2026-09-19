@@ -153,6 +153,17 @@ function createClient({
         if (sql.includes('FROM brainbase_service_actor_keys') && !sql.includes('FROM brainbase_tenants t')) return { rows: [] };
         if (sql.includes('FROM brainbase_tenants') && sql.includes('WHERE tenant_id = $1')) return { rows: [] };
         if (String(text).includes('FROM tenant_projects')) return { rows: existingProject ? [existingProject] : [] };
+        if (sql.includes('FROM tenant_organizations')) {
+            return { rows: (values[1] ?? []).map((organization_id) => ({ organization_id })) };
+        }
+        if (sql.includes('INSERT INTO tenant_outcome_service_profiles')) {
+            return { rows: [{
+                tenant_id: values[0], project_id: values[1], profile_id: values[2], schema_version: values[3],
+                profile_revision: '1', connection_id: values[10], connection_revision: values[11],
+                resource_ref: values[12], organization_ids: values[13], data_scopes: values[14],
+                billing_principal_id: values[15], contract_id: values[16], contract_revision: values[17]
+            }], rowCount: 1 };
+        }
         if (String(text).includes('INSERT INTO tenant_projects')) return {
             rows: [{ project_id: project?.project_id ?? 'project_mana', tenant_id: manifest.tenant_id, project_code: manifest.project_code }],
             rowCount: 1
@@ -516,6 +527,49 @@ describe('tenant provisioner', () => {
         expect(tenantContexts).toHaveLength(2);
         expect(tenantContexts.every(({ values }) => values[0] === manifest.tenant_id)).toBe(true);
         expect(JSON.stringify(result)).not.toContain('operator@example.test');
+    });
+
+    it('registers and reads back a tenant-bound versioned Outcome profile', async () => {
+        const profileManifest = structuredClone(manifest);
+        profileManifest.workspace_connection.scopes.push('signed_tenant_context');
+        profileManifest.outcome_service_profile = {
+            schema_version: 'outcome_service_profile.v1',
+            profile_id: 'mana-outcome',
+            audience: 'mana-runtime',
+            capability_id: 'signed_tenant_context',
+            deployment_id: profileManifest.contract_revision.deployment_id,
+            workspace_id: profileManifest.workspace_connection.workspace_id,
+            app_id: profileManifest.workspace_connection.app_id,
+            authenticated_subject_id: 'svc_mana_runtime',
+            connection_id: profileManifest.workspace_connection.connection_id,
+            resource_ref: 'outcome://mana',
+            organization_ids: ['org_unson'],
+            data_scopes: ['graph:read'],
+            billing_principal_id: 'billing_unson'
+        };
+        const client = createClient({
+            readbackConnectionSnapshot: {
+                ...expectedConnectionSnapshot,
+                granted_scopes: profileManifest.workspace_connection.scopes
+            }
+        });
+
+        const result = await provision({
+            client,
+            manifest: profileManifest,
+            idempotencyKey: 'ik_outcome_profile',
+            actorId: 'operator@example.test',
+            graphResolver,
+            credentialResolver,
+            fingerprint: 'outcome-profile'
+        });
+
+        expect(result.receipt.readback.outcome_service_profile).toEqual({
+            profile_id: 'mana-outcome',
+            profile_revision: '1'
+        });
+        expect(client.queries.some(({ text }) => text.includes('INSERT INTO tenant_outcome_service_profiles'))).toBe(true);
+        expect(client.queries.some(({ text }) => text.includes('SET billing_principal_id'))).toBe(true);
     });
 
     it('fails closed when the current connection revision has no immutable snapshot readback', async () => {

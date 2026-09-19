@@ -145,7 +145,7 @@ async function ensureContractRevision(client, tenant, contract, now) {
     assertContractEffective(contract, now);
     const revision = Number(contract.revision);
     const existingResult = await client.query(
-        `SELECT tenant_id, contract_id, contract_revision, tenant_revision_at_write,
+        `SELECT tenant_id, contract_id, contract_revision AS revision, tenant_revision_at_write,
                 status, effective_from, effective_until, plan_code, allowances,
                 thresholds_basis_points, overage_policy, hard_stop_basis_points,
                 rate_card_revision, fx_table_revision, sales_price_revision,
@@ -555,6 +555,115 @@ async function ensureWorkspaceConnection(client, manifest, tenant, now) {
         connection_revision: connectionRevision,
         connection_snapshot: connectionSnapshot
     };
+}
+
+async function ensureOutcomeServiceProfile(client, manifest, tenant, project, contract, connection, now) {
+    const profile = manifest.outcome_service_profile;
+    if (!profile) return null;
+    if (profile.connection_id !== connection.connection_id
+        || profile.deployment_id !== contract.deployment_id
+        || profile.profile !== contract.profile) {
+        throw new TenantProvisioningError(
+            'OUTCOME_PROFILE_CONNECTION_MISMATCH',
+            'Outcome service profile does not match the provisioned connection or contract'
+        );
+    }
+    const organizationResult = await client.query(
+        `SELECT organization_id
+           FROM tenant_organizations
+          WHERE tenant_id = $1
+            AND organization_id = ANY($2::text[])
+            AND organization_id <> $1
+          ORDER BY organization_id
+          FOR SHARE`,
+        [tenant.tenant_id, profile.organization_ids]
+    );
+    const organizationIds = organizationResult.rows.map(({ organization_id: organizationId }) => organizationId).sort();
+    if (canonicalJson(organizationIds) !== canonicalJson([...profile.organization_ids].sort())) {
+        throw new TenantProvisioningError(
+            'OUTCOME_PROFILE_ORGANIZATION_MISMATCH',
+            'Outcome service profile organizations are not owned by the tenant'
+        );
+    }
+    const billingResult = await client.query(
+        `UPDATE credential_broker_refs
+            SET billing_principal_id = $5, updated_at = $6
+          WHERE tenant_id = $1
+            AND connection_id = $2
+            AND connection_revision = $3
+            AND credential_ref = $4
+          RETURNING credential_ref`,
+        [tenant.tenant_id, connection.connection_id, connection.connection_revision,
+            manifest.workspace_connection.credential_ref, profile.billing_principal_id, now]
+    );
+    if (billingResult.rowCount !== 1) {
+        throw new TenantProvisioningError(
+            'CREDENTIAL_BROKER_REF_REQUIRED',
+            'Outcome service profile requires a tenant-scoped credential broker billing principal'
+        );
+    }
+    const result = await client.query(
+        `INSERT INTO tenant_outcome_service_profiles (
+            tenant_id, project_id, profile_id, schema_version, status,
+            audience, capability_id, deployment_id, workspace_id, app_id,
+            authenticated_subject_id, connection_id, connection_revision,
+            resource_ref, organization_ids, data_scopes, billing_principal_id,
+            contract_id, contract_revision, profile, profile_revision, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9, $10, $11, $12,
+                   $13, $14, $15, $16, $17, $18, $19, 1, $20, $20)
+         ON CONFLICT (tenant_id, project_id, profile_id) DO UPDATE SET
+            schema_version = EXCLUDED.schema_version,
+            status = EXCLUDED.status,
+            audience = EXCLUDED.audience,
+            capability_id = EXCLUDED.capability_id,
+            deployment_id = EXCLUDED.deployment_id,
+            workspace_id = EXCLUDED.workspace_id,
+            app_id = EXCLUDED.app_id,
+            authenticated_subject_id = EXCLUDED.authenticated_subject_id,
+            connection_id = EXCLUDED.connection_id,
+            connection_revision = EXCLUDED.connection_revision,
+            resource_ref = EXCLUDED.resource_ref,
+            organization_ids = EXCLUDED.organization_ids,
+            data_scopes = EXCLUDED.data_scopes,
+            billing_principal_id = EXCLUDED.billing_principal_id,
+            contract_id = EXCLUDED.contract_id,
+            contract_revision = EXCLUDED.contract_revision,
+            profile = EXCLUDED.profile,
+            profile_revision = tenant_outcome_service_profiles.profile_revision + 1,
+            updated_at = EXCLUDED.updated_at
+         WHERE tenant_outcome_service_profiles.tenant_id = EXCLUDED.tenant_id
+         RETURNING tenant_id, project_id, profile_id, schema_version, profile_revision,
+                   connection_id, connection_revision, contract_id, contract_revision,
+                   organization_ids, data_scopes, billing_principal_id`,
+        [tenant.tenant_id, project.project_id, profile.profile_id, profile.schema_version,
+            profile.audience, profile.capability_id, profile.deployment_id, profile.workspace_id,
+            profile.app_id, profile.authenticated_subject_id, connection.connection_id,
+            connection.connection_revision, profile.resource_ref, profile.organization_ids,
+            profile.data_scopes, profile.billing_principal_id, contract.contract_id,
+            Number(contract.revision), profile.profile, now]
+    );
+    const row = result.rows[0];
+    if (result.rowCount !== 1 || !row) {
+        throw new TenantProvisioningError(
+            'OUTCOME_PROFILE_TENANT_CONFLICT',
+            'Outcome service profile is already owned by another tenant'
+        );
+    }
+    if (row.tenant_id !== tenant.tenant_id || row.project_id !== project.project_id
+        || row.profile_id !== profile.profile_id || row.schema_version !== profile.schema_version
+        || row.connection_id !== connection.connection_id
+        || Number(row.connection_revision) !== Number(connection.connection_revision)
+        || row.contract_id !== contract.contract_id
+        || Number(row.contract_revision) !== Number(contract.revision)
+        || canonicalJson([...(row.organization_ids ?? [])].sort()) !== canonicalJson([...profile.organization_ids].sort())
+        || canonicalJson([...(row.data_scopes ?? [])].sort()) !== canonicalJson([...profile.data_scopes].sort())
+        || row.billing_principal_id !== profile.billing_principal_id) {
+        throw new TenantProvisioningError(
+            'OUTCOME_PROFILE_READBACK_FAILED',
+            'Outcome service profile readback did not match the manifest'
+        );
+    }
+    return { profile_id: row.profile_id, profile_revision: String(row.profile_revision) };
 }
 
 async function ensureServiceRegistry(client, actor, tenantKey, now) {
@@ -1040,10 +1149,16 @@ export async function provisionTenant({
             : await ensureServiceRegistry(client, normalizedManifest.service_actor, normalizedManifest.tenant_key, now);
         if (phase !== 'connection') await activateTenant(client, tenant, now);
         const connection = phase === 'core' ? null : await ensureWorkspaceConnection(client, normalizedManifest, tenant, now);
+        const outcomeProfile = connection
+            ? await ensureOutcomeServiceProfile(client, normalizedManifest, tenant, tenantProject, contract, connection, now)
+            : null;
         const readbackResult = phase === 'core'
             ? (await readbackCore(client, normalizedManifest, project, registry)).readback
-            : await readback(client, tenant, tenantProject, connection, normalizedManifest.service_actor,
-                normalizedManifest.contract_revision, registry);
+            : {
+                ...await readback(client, tenant, tenantProject, connection, normalizedManifest.service_actor,
+                    normalizedManifest.contract_revision, registry),
+                outcome_service_profile: outcomeProfile
+            };
         const receipt = redactedReceipt({
             operation_id: claimed.operation_id,
             tenant_key: tenant.tenant_key,

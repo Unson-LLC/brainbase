@@ -137,6 +137,22 @@ const TARGETS: Record<string, AuditTarget> = {
     operation: '取得',
     query: (args) => String(args.target_slack_user_id ?? '人物プロフィール'),
   },
+  brainbase_knowledge_retrieve: {
+    source: 'Brainbase',
+    operation: '取得',
+    query: (args) => {
+      const project = typeof args.project_code === 'string' ? args.project_code : '';
+      const refs = Array.isArray(args.refs)
+        ? args.refs.flatMap((ref) => {
+            if (!ref || typeof ref !== 'object' || Array.isArray(ref)) return [];
+            const value = ref as Record<string, unknown>;
+            if (typeof value.id !== 'string' || typeof value.version !== 'string') return [];
+            return [`${value.id}@${value.version}`];
+          })
+        : [];
+      return [project, refs.join(', ')].filter(Boolean).join(' / ') || '知識';
+    },
+  },
   authorize_tenant_resource: {
     source: 'Brainbase',
     operation: '取得',
@@ -192,6 +208,12 @@ function isNoResult(toolName: string, result: string): boolean {
     if (data && typeof data === 'object') {
       const record = data as Record<string, unknown>;
       if (toolName === 'search') return Array.isArray(record.candidates) && record.candidates.length === 0;
+      if (toolName === 'brainbase_knowledge_retrieve') {
+        return Array.isArray(record.results)
+          && record.results.length > 0
+          && record.results.every((item) => item && typeof item === 'object'
+            && !Array.isArray(item) && (item as Record<string, unknown>).status === 'not_found');
+      }
       if (toolName === 'brainbase_projects') return record.count === 0 && Array.isArray(record.projects) && record.projects.length === 0;
       if (['brainbase_run_receipt_inbox', 'brainbase_run_receipt_history'].includes(toolName)) {
         return Array.isArray(record.items) && record.items.length === 0;
@@ -240,7 +262,9 @@ export function buildKnowledgeOwnerAudit(
     : `${target.source}から「${query}」を取得`;
 
   return {
-    ...(toolName === 'search' || toolName === 'search_personal_kg' || (toolName === 'get_entity' && entity !== undefined)
+    ...(toolName === 'search' || toolName === 'search_personal_kg'
+      || toolName === 'brainbase_knowledge_retrieve'
+      || (toolName === 'get_entity' && entity !== undefined)
       ? { retrieval: buildRetrievalEvidence(toolName, result, entity) } : {}),
     schema_version: 'brainbase-knowledge-owner-audit-v1',
     source: target.source,
@@ -272,7 +296,15 @@ export function buildKnowledgeToolContent(
 
 function buildRetrievalEvidence(tool: string, result: string, entity?: unknown) {
   let data: Record<string, unknown> = {};
-  try { data = JSON.parse(result)?.data ?? {}; } catch { /* get_entity is rendered text */ }
+  try {
+    const parsed = JSON.parse(result) as unknown;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const parsedRecord = parsed as Record<string, unknown>;
+      data = parsedRecord.data && typeof parsedRecord.data === 'object' && !Array.isArray(parsedRecord.data)
+        ? parsedRecord.data as Record<string, unknown>
+        : parsedRecord;
+    }
+  } catch { /* get_entity is rendered text */ }
   const personalKgCandidates = tool === 'search_personal_kg'
     ? Array.from(result.matchAll(/^- \*\*\[[^\]]+\]\*\*\s+(.+)\r?\n\s+_\(([^\r\n]+?)\s+·\s+([^\r\n]+?)\s+·\s+([^\r\n)]+)\)_$/gmu), (match) => ({
       id: match[4].trim(), entity_type: 'personal_kg', evidence: { body: match[1].trim() },
@@ -281,14 +313,49 @@ function buildRetrievalEvidence(tool: string, result: string, entity?: unknown) 
   const personalKgNoResult = tool === 'search_personal_kg' && isNoResult(tool, result);
   const known = tool === 'get_entity'
     || (tool === 'search_personal_kg' && (personalKgNoResult || personalKgCandidates.length > 0))
-    || (data && Array.isArray(data.candidates));
+    || (data && Array.isArray(data.candidates))
+    || (tool === 'brainbase_knowledge_retrieve' && Array.isArray(data.results));
   const candidates = tool === 'search' ? (Array.isArray(data.candidates) ? data.candidates : [])
     : tool === 'search_personal_kg' ? personalKgCandidates
+    : tool === 'brainbase_knowledge_retrieve' ? (Array.isArray(data.results) ? data.results : [])
     : entity && typeof entity === 'object' ? [entity] : [];
   const references = candidates.flatMap((candidate: Record<string, unknown>) => {
     if (!candidate || typeof candidate !== 'object') return [];
     const id = candidate.id;
     if (typeof id !== 'string' || !id.trim()) return [];
+    if (tool === 'brainbase_knowledge_retrieve') {
+      const source = candidate.source && typeof candidate.source === 'object' && !Array.isArray(candidate.source)
+        ? candidate.source as Record<string, unknown>
+        : {};
+      const requestedVersion = candidate.requested_version;
+      const resolvedVersion = candidate.resolved_version;
+      const receipt = candidate.retrieval_receipt_id;
+      const resolved = candidate.status === 'resolved'
+        && typeof requestedVersion === 'string' && requestedVersion.trim().length > 0
+        && typeof resolvedVersion === 'string' && resolvedVersion.trim().length > 0
+        && resolvedVersion === requestedVersion
+        && typeof candidate.content === 'string' && candidate.content.trim().length > 0
+        && typeof source.kind === 'string' && source.kind.trim().length > 0
+        && typeof receipt === 'string' && receipt.trim().length > 0;
+      return [{
+        id: id.trim(),
+        entity_type: String(candidate.entity_type ?? candidate.type ?? 'unknown'),
+        evidence_status: resolved ? 'present' : 'missing',
+        evidence_fields: resolved ? ['content'] : [],
+        ...(typeof candidate.version === 'string' && candidate.version.trim()
+          ? { version: candidate.version }
+          : {}),
+        ...(typeof requestedVersion === 'string' && requestedVersion.trim()
+          ? { requested_version: requestedVersion }
+          : {}),
+        ...(typeof resolvedVersion === 'string' && resolvedVersion.trim()
+          ? { resolved_version: resolvedVersion }
+          : {}),
+        ...(typeof receipt === 'string' && receipt.trim()
+          ? { retrieval_receipt_id: receipt }
+          : {}),
+      }];
+    }
     const raw = (tool === 'search' || tool === 'search_personal_kg' ? candidate.evidence : candidate.retrieval_evidence)
       ?? (tool === 'get_entity' ? candidate : {});
     const evidence = extractEvidence(raw && typeof raw === 'object' ? raw as Record<string, unknown> : {});
@@ -296,7 +363,7 @@ function buildRetrievalEvidence(tool: string, result: string, entity?: unknown) 
     return [{ id, entity_type: String(candidate.entity_type ?? candidate.type ?? 'unknown'),
       evidence_status: fields.length ? 'present' : 'missing', evidence_fields: fields }];
   });
-  const coverage = tool === 'get_entity' ? 'complete'
+  const coverage = tool === 'get_entity' || tool === 'brainbase_knowledge_retrieve' ? 'complete'
     : ['complete', 'partial', 'unknown'].includes(String(data.coverage)) ? data.coverage : 'unknown';
   const status = !known ? 'unknown' : references.length ? 'retrieved' : 'empty';
   return { status, coverage,

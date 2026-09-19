@@ -7,6 +7,7 @@ import { knowledgeEvidenceTools, handleKnowledgeEvidenceToolCall } from './tools
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
@@ -29,7 +30,6 @@ import {
   containsFirstPersonReference,
   searchEntities,
   tokenizeEntityQuery,
-  getContextForTopic,
   type EntityIndex,
   type EntityType,
 } from './indexer/index.js';
@@ -49,7 +49,7 @@ import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
 import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
 import { RequestTokenContext, type TokenProvider } from './auth/request-token-context.js';
-import { filterWikiPages } from './tools/wiki-search.js';
+import { createTenantTokenRouterFromEnvironment } from './auth/tenant-auth-router.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 import {
   controlPlaneTools,
@@ -72,6 +72,7 @@ import { judgmentResolutionTools, handleJudgmentResolutionToolCall, resolveJudgm
 import { judgmentAuditTools, handleJudgmentAuditToolCall } from './tools/judgment-audit-tools.js';
 import { judgmentStateTools, handleJudgmentStateToolCall } from './tools/judgment-state-tools.js';
 import { judgmentValueProofTools, handleJudgmentValueProofToolCall } from './tools/judgment-value-proof-tools.js';
+import { judgmentNodeTools, handleJudgmentNodeToolCall } from './tools/judgment-node-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
 import {
   normalizeJudgmentHostResult,
@@ -91,10 +92,47 @@ import {
 } from './remote-judgment-hook-http.js';
 import { readRuntimeVersion } from './runtime-version.js';
 
-// Global index. Runtime lookups rebuild and atomically swap this snapshot.
-let entityIndex: EntityIndex;
+interface EntityIndexState {
+  index: EntityIndex;
+  refreshPromise: Promise<void> | null;
+  source: GraphAPISource | null;
+  lastAccessedAt: number;
+}
+
+// Each authenticated principal/tenant gets an independent projection. The
+// fallback state preserves stdio and test behavior where no HTTP scope exists.
+const entityIndexScope = new AsyncLocalStorage<string>();
+const entityIndexStates = new Map<string, EntityIndexState>();
+const defaultEntityIndexScope = 'default';
+const maxEntityIndexScopes = 64;
+let graphSourceFactory: (() => GraphAPISource) | null = null;
 let indexRefreshEnabled = false;
-let indexRefreshPromise: Promise<void> | null = null;
+
+function getEntityIndexState(): EntityIndexState {
+  const scope = entityIndexScope.getStore() ?? defaultEntityIndexScope;
+  let state = entityIndexStates.get(scope);
+  if (!state) {
+    if (entityIndexStates.size >= maxEntityIndexScopes) {
+      const evictable = [...entityIndexStates.entries()]
+        .filter(([key, candidate]) => key !== defaultEntityIndexScope && candidate.refreshPromise === null)
+        .sort((left, right) => left[1].lastAccessedAt - right[1].lastAccessedAt)[0];
+      if (evictable) entityIndexStates.delete(evictable[0]);
+    }
+    state = {
+      index: createEmptyIndex(),
+      refreshPromise: null,
+      source: graphSourceFactory?.() ?? null,
+      lastAccessedAt: Date.now(),
+    };
+    entityIndexStates.set(scope, state);
+  }
+  state.lastAccessedAt = Date.now();
+  return state;
+}
+
+function stableScopePart(values: string[]): string[] {
+  return [...new Set(values)].sort();
+}
 
 // Canonical Task store (companion task API on Lightsail). Mutations use a
 // dedicated bbsvc_ service token; without it the task tools report unavailable.
@@ -108,7 +146,6 @@ let globalOwnerTokenManager: TokenProvider;
 let personalKgStorageMode: PersonalKgStorageMode | undefined;
 let personalKgApiUrl: string | undefined;
 let personalKnowledgeClient: PersonalKnowledgeClient | null = null;
-let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
 
@@ -224,7 +261,7 @@ function buildMcpToolResult(
   entity?: unknown,
 ) {
   const response = { content: buildToolResponseContent(name, toolArgs, result, entity) };
-  const retrievalFailure = ['search', 'get_entity', 'brainbase_knowledge_evidence_record'].includes(name) && extensionResult !== null
+  const retrievalFailure = ['search', 'get_entity', 'brainbase_knowledge_retrieve', 'brainbase_knowledge_evidence_record'].includes(name) && extensionResult !== null
     && typeof extensionResult === 'object'
     && ['error', 'unavailable'].includes(String((extensionResult as Record<string, unknown>).status));
   return (retrievalFailure || isStructuredJudgmentToolFailure(name, extensionResult))
@@ -248,22 +285,25 @@ async function dispatchGetEntity(args: Record<string, unknown>, deps: GraphRetri
 
 async function refreshEntityIndex(): Promise<void> {
   if (!indexRefreshEnabled) return;
-  if (!globalGraphSource) {
+  const state = getEntityIndexState();
+  if (!state.source) {
     throw new Error('Graph source is unavailable; entity index cannot be refreshed');
   }
-  if (!indexRefreshPromise) {
-    indexRefreshPromise = (async () => {
-      const nextIndex = await buildIndex(globalGraphSource as EntitySource);
-      entityIndex = nextIndex;
+  if (!state.refreshPromise) {
+    state.refreshPromise = (async () => {
+      const nextIndex = await buildIndex(state.source as EntitySource);
+      state.index = nextIndex;
     })().finally(() => {
-      indexRefreshPromise = null;
+      state.refreshPromise = null;
     });
   }
-  await indexRefreshPromise;
+  await state.refreshPromise;
 }
 
 async function hydrateExtensionQuery(name: string, args: Record<string, unknown>): Promise<void> {
-  if (!globalGraphSource) return;
+  const state = getEntityIndexState();
+  if (!state.source) return;
+  const entityIndex = state.index;
   const query = typeof args.query === 'string' ? args.query.trim() : '';
   if (!query) return;
   const types = name === 'list_extension_entities'
@@ -275,7 +315,7 @@ async function hydrateExtensionQuery(name: string, args: Record<string, unknown>
     if (!entityIndex.extensions.has(type)) continue;
     const existing = entityIndex.extensions.get(type) || new Map();
     for (const term of tokenizeEntityQuery(query)) {
-      const matches = await globalGraphSource.searchExtensionEntities(type, term);
+      const matches = await state.source.searchExtensionEntities(type, term);
       for (const entity of matches) existing.set(entity.id, entity);
     }
     entityIndex.extensions.set(type, existing);
@@ -375,11 +415,12 @@ async function prependPhilosophyContext(
 ): Promise<string> {
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
   if (!includePhilosophy) return body;
-  if (!globalGraphSource) {
+  const source = getEntityIndexState().source;
+  if (!source) {
     throw new Error('Graph source is unavailable; Philosophy Context cannot be loaded');
   }
 
-  const context = await globalGraphSource.getPhilosophyContext({
+  const context = await source.getPhilosophyContext({
     projectCode: (args.project as string) || defaultProjectCode,
     scope: (args.scope as string) || defaults.scope,
     objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
@@ -396,11 +437,12 @@ async function philosophyContextPrompt(
 ): Promise<string | undefined> {
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
   if (!includePhilosophy) return undefined;
-  if (!globalGraphSource) {
+  const source = getEntityIndexState().source;
+  if (!source) {
     throw new Error('Graph source is unavailable; Philosophy Context cannot be loaded');
   }
 
-  const context = await globalGraphSource.getPhilosophyContext({
+  const context = await source.getPhilosophyContext({
     projectCode: (args.project as string) || defaultProjectCode,
     scope: (args.scope as string) || defaults.scope,
     objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
@@ -998,54 +1040,15 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   rejectLegacySearchSurface(name, args);
   // Every index consumer must await a fresh, complete snapshot. Metadata and
   // Resolver calls do not depend on the full Graph index.
-  if (['search', 'resolve_entity', 'list_entities', 'list_extension_entities', 'get_context', 'get_entity'].includes(name)
+  if (['search', 'resolve_entity', 'list_entities', 'list_extension_entities', 'get_entity'].includes(name)
     || (name === 'search_personal_kg' && typeof args.person_entity_id === 'string' && args.person_entity_id.trim())) {
     await refreshEntityIndex();
   }
   if (name === 'resolve_entity' || name === 'list_extension_entities') {
     await hydrateExtensionQuery(name, args);
   }
+  const entityIndex = getEntityIndexState().index;
   switch (name) {
-    case 'get_context': {
-      const topic = args.topic as string;
-      const { primary, related } = getContextForTopic(entityIndex, topic);
-
-      const lines: string[] = [];
-
-      if (primary) {
-        lines.push('# Primary Entity');
-        lines.push(formatEntity(primary));
-
-        if (related.length > 0) {
-          lines.push('');
-          lines.push('# Related Entities');
-          for (const entity of related) {
-            lines.push('');
-            lines.push(formatEntity(entity));
-          }
-        }
-      } else {
-        // Fall back to search
-        const results = searchEntities(entityIndex, topic);
-        if (results.length > 0) {
-          lines.push(`# Search Results for "${topic}"`);
-          lines.push('');
-          for (const entity of results.slice(0, 5)) {
-            lines.push(formatEntity(entity));
-            lines.push('');
-          }
-        } else {
-          lines.push(`No context found for "${topic}".`);
-        }
-      }
-
-      return prependPhilosophyContext(lines.join('\n'), args, {
-        scope: (args.scope as string) || 'graph',
-        objectType: 'context',
-        operation: 'read',
-      });
-    }
-
     case 'list_entities': {
       const type = args.type as EntityType;
       const entities = getEntitiesByType(entityIndex, type);
@@ -1191,27 +1194,6 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       return JSON.stringify({ philosophy_context: philosophy_context ?? null, ...result }, null, 2);
     }
 
-    case 'search_wiki': {
-      const query = args.query as string;
-      const projectId = args.project_id as string | undefined;
-      const pages = await fetchWikiPages();
-      const matches = filterWikiPages(pages, query, projectId);
-      if (matches.length === 0) {
-        return `No wiki pages found for "${query}"${projectId ? ` in project "${projectId}"` : ''}.`;
-      }
-      const header = projectId
-        ? `# Wiki Search: "${query}" in project "${projectId}" (${matches.length} results)\n`
-        : `# Wiki Search: "${query}" (${matches.length} results)\n`;
-      const lines = [header];
-      for (const p of matches.slice(0, 20)) {
-        lines.push(`- **${p.title}** — \`${p.path}\`${p.project_id ? ` [${p.project_id}]` : ''}`);
-      }
-      if (matches.length > 20) {
-        lines.push(`\n... and ${matches.length - 20} more.`);
-      }
-      return lines.join('\n');
-    }
-
     case 'get_wiki_page': {
       const pagePath = args.path as string;
       const data = await fetchWikiPage(pagePath);
@@ -1278,6 +1260,7 @@ export const publishedTools = annotateToolCapabilities([
   ...judgmentResolutionTools,
   ...judgmentAuditTools,
   ...judgmentValueProofTools,
+  ...judgmentNodeTools,
   ...judgmentStateTools,
   ...knowledgeEvidenceTools,
   ...knowledgeResolutionTools,
@@ -1310,13 +1293,24 @@ export const __testing = {
     personalKnowledgeClient = null;
   },
   setEntityIndex(index: EntityIndex): void {
-    entityIndex = index;
+    getEntityIndexState().index = index;
   },
   setGraphSource(source: GraphAPISource | null): void {
-    globalGraphSource = source;
+    graphSourceFactory = source ? () => source : null;
+    getEntityIndexState().source = source;
+  },
+  setGraphSourceFactory(factory: (() => GraphAPISource) | null): void {
+    graphSourceFactory = factory;
+    entityIndexStates.clear();
   },
   setIndexRefreshEnabled(enabled: boolean): void {
     indexRefreshEnabled = enabled;
+  },
+  runWithEntityIndexScope<T>(scope: string, callback: () => T): T {
+    return entityIndexScope.run(scope, callback);
+  },
+  resetEntityIndexStates(): void {
+    entityIndexStates.clear();
   },
   setTokenManager(manager: { getToken(): Promise<string> }): void {
     globalTokenManager = manager;
@@ -1368,6 +1362,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   const { mode: connectionAuthMode, tokenManager } = createConnectionTokenManager(config.graphApiUrl);
   console.error(`[brainbase] Authentication mode: ${connectionAuthMode}`);
   const requestTokenContext = new RequestTokenContext(tokenManager);
+  const tenantTokenRouter = createTenantTokenRouterFromEnvironment(config.graphApiUrl);
   globalTokenManager = requestTokenContext;
   // All routes share the connection actor. Personal APIs still enforce owner authorization.
   globalOwnerTokenManager = requestTokenContext;
@@ -1375,8 +1370,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   personalKgApiUrl = config.personalKgApiUrl;
   personalKnowledgeClient = null;
   wikiApiBaseUrl = resolveWikiApiBaseUrl(config.graphApiUrl);
-  const source = new GraphAPISource(config.graphApiUrl, requestTokenContext, config.projectCodes);
-  globalGraphSource = source;
+  graphSourceFactory = () => new GraphAPISource(config.graphApiUrl, requestTokenContext, config.projectCodes);
   indexRefreshEnabled = true;
   defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
   configuredProjectCodes = config.projectCodes;
@@ -1386,13 +1380,19 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   // hold the transport or Resolver hostage to it, or turn a failed load into
   // a successful empty result. refreshEntityIndex atomically publishes only
   // a complete snapshot and shares concurrent loads.
-  entityIndex = createEmptyIndex();
+  entityIndexStates.clear();
+  entityIndexStates.set(defaultEntityIndexScope, {
+    index: createEmptyIndex(),
+    refreshPromise: null,
+    source: graphSourceFactory(),
+    lastAccessedAt: Date.now(),
+  });
 
   // Create the MCP server.
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
   // build one Server per request — the heavy shared state (entityIndex,
   // resolved Brainbase API URL) lives outside each request handler.
-  function createServer(requestContext: { companyAuthorityResponse?: string } = {}) {
+  function createServer(requestContext: { companyAuthorityResponse?: string; tenantRoutingError?: Error } = {}) {
   const server = new Server(
     {
       name: 'brainbase',
@@ -1456,6 +1456,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     const { name, arguments: args } = request.params;
 
     try {
+      if (requestContext.tenantRoutingError) throw requestContext.tenantRoutingError;
       const toolArgs = args as Record<string, unknown>;
       rejectLegacySearchSurface(name, toolArgs);
       if (name === 'get_entity') {
@@ -1499,11 +1500,12 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         ),
         (toolName, extensionArgs) => handleJudgmentAuditToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentValueProofToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleJudgmentNodeToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleKnowledgeEvidenceToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentStateToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
-          getToken: () => globalTokenManager.getToken(),
+          serviceToken: taskApiToken,
         }),
         (toolName, extensionArgs) => handleShareablePersonProfileToolCall(toolName, extensionArgs, {
           apiUrl: process.env.BRAINBASE_TENANT_RUNTIME_API_URL?.trim() || resolveBrainbaseApiUrl(),
@@ -1514,7 +1516,9 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           apiUrl: taskApiUrl,
           token: taskApiToken,
         }),
-        (toolName, extensionArgs) => handleMeshToolCall(toolName, extensionArgs, resolveBrainbaseApiUrl()),
+        (toolName, extensionArgs) => handleMeshToolCall(toolName, extensionArgs, resolveBrainbaseApiUrl(), {
+          getToken: () => globalTokenManager.getToken(),
+        }),
       ]);
       const result = extensionResult === null
         ? await handleToolCall(name, toolArgs)
@@ -1694,11 +1698,31 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }
       }
 
+      let tenantRoute: Awaited<ReturnType<NonNullable<typeof tenantTokenRouter>['resolve']>>;
+      let tenantRoutingError: Error | undefined;
+      if (auth.kind === 'shared-bearer' && tenantTokenRouter && body && typeof body === 'object') {
+        const requestBody = body as { method?: unknown; params?: { arguments?: unknown } };
+        const routeArguments = requestBody.method === 'tools/call'
+          && requestBody.params?.arguments
+          && typeof requestBody.params.arguments === 'object'
+          && !Array.isArray(requestBody.params.arguments)
+          ? requestBody.params.arguments as Record<string, unknown>
+          : undefined;
+        if (routeArguments) {
+          try {
+            tenantRoute = await tenantTokenRouter.resolve(routeArguments);
+          } catch (error) {
+            tenantRoutingError = error instanceof Error ? error : new Error(String(error));
+          }
+        }
+      }
+
       const rawCompanyAuthority = req.headers['x-brainbase-company-authority-response'];
       const server = createServer({
         companyAuthorityResponse: Array.isArray(rawCompanyAuthority)
           ? rawCompanyAuthority[0]
           : rawCompanyAuthority,
+        tenantRoutingError,
       });
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on('close', () => {
@@ -1714,7 +1738,23 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       };
       await runAuthenticatedRequest(async () => {
         if (auth.kind === 'brainbase-jwt') {
-          await requestTokenContext.run({ token: auth.token }, handleMcpRequest);
+          const scope = `principal:${JSON.stringify({
+            organizationId: auth.principal.organizationId,
+            personId: auth.principal.personId,
+            projectCodes: stableScopePart(auth.principal.projectCodes),
+            clearance: stableScopePart(auth.principal.clearance),
+            role: auth.principal.role,
+          })}`;
+          await entityIndexScope.run(scope, () => requestTokenContext.run({ token: auth.token }, handleMcpRequest));
+          return;
+        }
+        if (tenantRoute) {
+          const scope = `tenant:${JSON.stringify({
+            tenant: tenantRoute.tenant,
+            organizationId: tenantRoute.organizationId,
+            projectCodes: stableScopePart(tenantRoute.projectCodes),
+          })}`;
+          await entityIndexScope.run(scope, () => requestTokenContext.run({ token: tenantRoute!.token }, handleMcpRequest));
           return;
         }
         // A shared MCP bearer authenticates only the MCP edge. It must never be

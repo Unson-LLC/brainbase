@@ -1,33 +1,13 @@
-# Troubleshooting: Project Exists But Selector Hides It
+# Troubleshooting: Retired Project Selector
 
 ## Symptom
 
-The project appears in `/api/config` or `/api/brainbase/projects`, but not in the Create Session project dropdown.
+An old Brainbase browser project dropdown or Create Session picker is missing.
 
-## Likely Causes
+## Resolution
 
-1. `archived:true`
-2. `session_select:false`
-3. `auth.access.projectCodes` does not include the project or an accepted alias
-4. Browser auth payload is stale
-5. Browser module cache has old `project-mapping.js`
+This is expected. The browser project selector is retired under `project.selector`; do not restore the old picker, `project-mapping.js`, or stale browser instructions. Codex app/CLI owns task and worktree creation.
 
-## Checks
+## If a project is missing from an authenticated catalog
 
-```bash
-curl -s http://127.0.0.1:31013/api/config | jq '.projects.projects[] | {id, archived, session_select}'
-```
-
-Then check the user access payload:
-
-```text
-localStorage["brainbase.auth.access"]
-```
-
-If access is stale, logout/login or refresh auth.
-
-## Known Alias Cases
-
-- `techknight` -> `tech-knight`
-- `ncom` -> `ncom-catalyst`
-- `salestailor` -> `salestailor-app`
+Use [Project Catalog Access and Readback](../runbooks/missing-project-in-session-selector.md) and check the API/MCP status, organization scope, and effective grant. `/api/config` local topology is not proof of organization membership or an authenticated catalog result. Do not use old selector flags, inferred aliases, or browser `localStorage` as a fallback.

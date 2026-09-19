@@ -89,6 +89,8 @@ describe('static routes', () => {
 
         try {
             await writeFile(path.join(publicDir, 'sns-growth.html'), 'retired surface', 'utf-8');
+            await writeFile(path.join(publicDir, 'legacy.js'), 'retired bundle', 'utf-8');
+            await writeFile(path.join(publicDir, 'jsconfig.json'), '{}', 'utf-8');
 
             const app = express();
             registerStaticRoutes(app, {
@@ -97,6 +99,8 @@ describe('static routes', () => {
             });
 
             await request(app).get('/sns-growth.html').expect(404);
+            await request(app).get('/legacy.js').expect(404);
+            await request(app).get('/jsconfig.json').expect(404);
         } finally {
             await rm(publicDir, { recursive: true, force: true });
         }

@@ -29,6 +29,8 @@ trap 'unset token' EXIT HUP INT TERM
 
 test "$(curl -sS -o /dev/null -w '%{http_code}' "$api_url/health/ready")" = 200
 test "$(curl -sS -o /dev/null -w '%{http_code}' "${mcp_url%/mcp}/health")" = 200
+curl -fsS "${mcp_url%/mcp}/health/version" \
+  | jq -e '.git_sha | strings | length > 0' >/dev/null
 test "$(curl -sS -o /dev/null -w '%{http_code}' "$mcp_url")" = 401
 
 rpc() {
@@ -37,9 +39,13 @@ rpc() {
 
 initialize='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"growin-e2e","version":"1.0"}}}'
 rpc "$initialize" | sed -n 's/^data: //p' | jq -e '.result' >/dev/null
-rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' \
-  | sed -n 's/^data: //p' \
-  | jq -e '. as $response | all("resolve_entity", "list_entities"; . as $required | any($response.result.tools[]?; .name == $required))' >/dev/null
+tools="$(rpc '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | sed -n 's/^data: //p')"
+jq -e '
+  . as $response
+  | all("search", "resolve_entity", "get_entity", "list_entities";
+      . as $required | any($response.result.tools[]?; .name == $required))
+  and (all($response.result.tools[]?; .name != "get_context" and .name != "search_wiki"))
+' <<<"$tools" >/dev/null
 
 growin="$(rpc '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"resolve_entity","arguments":{"query":"グローウィン・パートナーズ株式会社 Growin"}}}')"
 unson="$(rpc '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"resolve_entity","arguments":{"query":"合同会社雲孫 Unson"}}}')"

@@ -20,6 +20,26 @@ const ROLE_RANK = {
 
 const SERVICE_TOKEN_PREFIX = 'bbsvc_';
 const DEFAULT_SERVICE_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 365;
+const KNOWLEDGE_RETRIEVE_CAPABILITY = 'knowledge.retrieve';
+const KNOWLEDGE_DELEGATION_ALLOWED_FIELDS = new Set([
+    'delegated_actor_person_id',
+    'delegatedActorPersonId',
+    'project_code',
+    'projectCode',
+    'outcome_contract_id',
+    'outcomeContractId',
+    'run_id',
+    'runId',
+    'contract_version',
+    'contractVersion',
+    'outcome_contract_version',
+    'outcomeContractVersion',
+    'run_mode',
+    'runMode',
+    'refs',
+    'knowledge_refs',
+    'knowledgeRefs'
+]);
 
 function normalizeList(value) {
     if (!Array.isArray(value)) {
@@ -69,6 +89,95 @@ function slugifyServiceName(name) {
         .replace(/[^a-z0-9]+/g, '_')
         .replace(/^_+|_+$/g, '');
     return normalized || 'service';
+}
+
+function normalizeKnowledgeRefList(value) {
+    if (!Array.isArray(value) || value.length === 0 || value.length > 50) {
+        throw new Error('knowledge delegation refs are required');
+    }
+    const refs = value.map((ref) => {
+        if (!ref || typeof ref !== 'object' || Array.isArray(ref)) {
+            throw new Error('knowledge delegation refs must be objects');
+        }
+        const keys = Object.keys(ref);
+        if (keys.some((key) => !['id', 'version'].includes(key))) {
+            throw new Error('knowledge delegation refs contain unsupported fields');
+        }
+        const id = typeof ref.id === 'string' ? ref.id.trim() : '';
+        const version = typeof ref.version === 'string' ? ref.version.trim() : '';
+        if (!id || !version || id.length > 512 || version.length > 128) {
+            throw new Error('knowledge delegation refs require bounded id and version');
+        }
+        return { id, version };
+    });
+    const seen = new Set();
+    for (const ref of refs) {
+        const key = `${ref.id}\u0000${ref.version}`;
+        if (seen.has(key)) throw new Error('knowledge delegation refs must be unique');
+        seen.add(key);
+    }
+    return refs.sort((left, right) => `${left.id}\u0000${left.version}`.localeCompare(`${right.id}\u0000${right.version}`));
+}
+
+function aliasedKnowledgeDelegationField(input, names, label) {
+    const values = names
+        .filter((name) => Object.prototype.hasOwnProperty.call(input, name))
+        .map((name) => input[name]);
+    if (values.length === 0) throw new Error(`knowledge delegation ${label} is required`);
+    const first = values[0];
+    if (values.slice(1).some((value) => JSON.stringify(value) !== JSON.stringify(first))) {
+        throw new Error(`knowledge delegation ${label} claims are ambiguous`);
+    }
+    return first;
+}
+
+function normalizeKnowledgeDelegation(input) {
+    if (input === undefined || input === null) return null;
+    if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        throw new Error('knowledge delegation must be an object');
+    }
+    if (Object.keys(input).some((field) => !KNOWLEDGE_DELEGATION_ALLOWED_FIELDS.has(field))) {
+        throw new Error('knowledge delegation contains unsupported fields');
+    }
+    const projectCode = String(aliasedKnowledgeDelegationField(input, ['project_code', 'projectCode'], 'project_code') || '').trim();
+    const delegatedActorPersonId = String(aliasedKnowledgeDelegationField(
+        input,
+        ['delegated_actor_person_id', 'delegatedActorPersonId'],
+        'delegated_actor_person_id'
+    ) || '').trim();
+    const outcomeContractId = String(aliasedKnowledgeDelegationField(input, ['outcome_contract_id', 'outcomeContractId'], 'outcome_contract_id') || '').trim();
+    const runId = String(aliasedKnowledgeDelegationField(input, ['run_id', 'runId'], 'run_id') || '').trim();
+    const contractVersion = Number(aliasedKnowledgeDelegationField(
+        input,
+        ['contract_version', 'contractVersion', 'outcome_contract_version', 'outcomeContractVersion'],
+        'contract_version'
+    ));
+    const runMode = String(aliasedKnowledgeDelegationField(input, ['run_mode', 'runMode'], 'run_mode') || '').trim();
+    const refs = normalizeKnowledgeRefList(aliasedKnowledgeDelegationField(
+        input,
+        ['knowledge_refs', 'knowledgeRefs', 'refs'],
+        'refs'
+    ));
+    if (!projectCode || projectCode.length > 128 || !delegatedActorPersonId || delegatedActorPersonId.length > 256
+        || !outcomeContractId || outcomeContractId.length > 256
+        || !runId || runId.length > 256) {
+        throw new Error('knowledge delegation identifiers are invalid');
+    }
+    if (!Number.isSafeInteger(contractVersion) || contractVersion < 1) {
+        throw new Error('knowledge delegation contract_version is invalid');
+    }
+    if (!['normal', 'safe_test'].includes(runMode)) {
+        throw new Error('knowledge delegation run_mode is invalid');
+    }
+    return Object.freeze({
+        project_code: projectCode,
+        delegated_actor_person_id: delegatedActorPersonId,
+        outcome_contract_id: outcomeContractId,
+        run_id: runId,
+        outcome_contract_version: contractVersion,
+        run_mode: runMode,
+        knowledge_refs: refs
+    });
 }
 
 export class AuthService {
@@ -854,6 +963,13 @@ export class AuthService {
             ? Number(input.ttlSeconds)
             : this.serviceTokenTtlSeconds;
         const exp = now + ttlSeconds;
+        const knowledgeDelegation = normalizeKnowledgeDelegation(input.knowledgeDelegation);
+        if (knowledgeDelegation
+            && (!normalizeList(input.capabilities).includes(KNOWLEDGE_RETRIEVE_CAPABILITY)
+                || normalizeList(input.projectCodes).length !== 1
+                || normalizeList(input.projectCodes)[0] !== knowledgeDelegation.project_code)) {
+            throw new Error('knowledge delegation service token scope is invalid');
+        }
         const serviceId = input.serviceId && typeof input.serviceId === 'string'
             ? input.serviceId
             : `svc_${slugifyServiceName(name)}`;
@@ -883,6 +999,16 @@ export class AuthService {
             employmentType: 'internal_service',
             organizationId,
             ...(input.routineAuthority ? { routineAuthority: structuredClone(input.routineAuthority) } : {}),
+            ...(knowledgeDelegation ? {
+                knowledge_delegation_version: 1,
+                knowledge_project_code: knowledgeDelegation.project_code,
+                delegated_actor_person_id: knowledgeDelegation.delegated_actor_person_id,
+                outcome_contract_id: knowledgeDelegation.outcome_contract_id,
+                run_id: knowledgeDelegation.run_id,
+                outcome_contract_version: knowledgeDelegation.outcome_contract_version,
+                run_mode: knowledgeDelegation.run_mode,
+                knowledge_refs: structuredClone(knowledgeDelegation.knowledge_refs)
+            } : {}),
             createdBy: typeof input.createdBy === 'string' ? input.createdBy : null,
             jti: this.generateId('svc_tok'),
             iat: now,

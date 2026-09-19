@@ -295,6 +295,14 @@ const {
     infoSSOTService,
     projectProvisioningService,
     tenantRuntimeServices,
+    outcomeServiceContextIssuer,
+    documentReceiptRepository,
+    documentWriter,
+    contentRetriever,
+    documentGraphPointerResolver,
+    knowledgeBedrockAdapter,
+    knowledgeRetrieveBindingVerifier,
+    knowledgeRetrieveBindingRepository,
     canonicalTaskStoreConfig,
     canonicalTaskReadiness,
     canonicalTaskOperationRepository,
@@ -434,6 +442,13 @@ registerApiRoutes(app, {
     authService,
     infoSSOTService,
     projectProvisioningService,
+    documentReceiptRepository,
+    documentWriter,
+    contentRetriever,
+    documentGraphPointerResolver,
+    knowledgeBedrockAdapter,
+    knowledgeRetrieveBindingVerifier,
+    knowledgeRetrieveBindingRepository,
     canonicalTaskStoreConfig,
     canonicalTaskService,
     learningService,
@@ -469,6 +484,7 @@ registerApiRoutes(app, {
     runtimeInfo: RUNTIME_INFO,
     brainbaseRoot: BRAINBASE_ROOT,
     tenantRuntimeServices,
+    outcomeServiceContextIssuer,
     slackInstallationControlPlane,
     slackInstallationControlPlaneAuthMiddleware,
     slackInstallationControlPlaneAppId,
@@ -529,7 +545,10 @@ if (process.env.MESH_RELAY_URL) {
         meshService.messageRouter.registerHandler(ENVELOPE_TYPES.QUERY, async (message) => {
             const response = await queryHandler.handleQuery({
                 from: message.from,
-                fromRole: roleRank,
+                // Sealed-box encryption and relay peer metadata do not prove
+                // sender identity. Never lend the local node's role to a peer.
+                // Deny disclosure until a trusted sender binding is implemented.
+                fromRole: 0,
                 fromProjects: [],
                 question: message.payload?.question,
                 scope: message.payload?.scope || 'general',
@@ -567,7 +586,13 @@ if (process.env.MESH_RELAY_URL) {
     }
 }
 
-app.use('/api/mesh', createMeshRouter(meshService));
+app.use('/api/mesh', createMeshRouter(meshService, {
+    authService,
+    owner: {
+        personId: process.env.MESH_OWNER_PERSON_ID?.trim(),
+        organizationId: process.env.MESH_OWNER_ORGANIZATION_ID?.trim(),
+    },
+}));
 
 // ========================================
 // All API routes are now handled by routers:

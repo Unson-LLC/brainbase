@@ -1,5 +1,7 @@
 # Codex App Server REPL Activity Bridge Regression Matrix
 
+> 履歴資料・退役済み。以下の旧API操作や削除済みscriptの検証は実行しない。現在はADR-019と `tests/server/bootstrap/development-runtime-boundary.test.js` が退役境界を検証する。
+
 Story: `story-codex-appserver-repl-activity-bridge`
 
 ## Scope Disposition

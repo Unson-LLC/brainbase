@@ -6,8 +6,8 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { buildRepositoryTargetHandoff } from "../../../../scripts/repository-target-handoff.mjs";
 
-export const EXPECTED_VIBEPRO_VERSION = "0.2.0-beta.25";
-export const EXPECTED_VIBEPRO_SOURCE_COMMIT = "9ce9cf32604682e52ab66074bcf7b011bc4efe19";
+export const EXPECTED_VIBEPRO_VERSION = "0.2.0-beta.27";
+export const EXPECTED_VIBEPRO_SOURCE_COMMIT = "8462f7dd35cb3d46b6762e37727b299cdfd346b2";
 export const CANONICAL_VIBEPRO_LAUNCHER = path.join(homedir(), ".local", "bin", "vibepro");
 
 export function sanitizeHookEnvironment(env = process.env) {

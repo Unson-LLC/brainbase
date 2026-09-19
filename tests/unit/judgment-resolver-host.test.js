@@ -2279,9 +2279,9 @@ describe('Codex Judgment Resolver Host', () => {
             brainbase_projects: 'retrieve', brainbase_bootstrap_config: 'retrieve', brainbase_admin_read: 'retrieve',
             brainbase_run_receipt_inbox: 'retrieve', brainbase_run_receipt_history: 'retrieve', brainbase_run_receipt_diagnosis: 'retrieve',
             brainbase_automation_run_detail: 'retrieve', brainbase_meeting_automation_diagnosis: 'retrieve', brainbase_onboarding_get: 'retrieve',
-            brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer', brainbase_judgment_audit_read: 'ignored', brainbase_get_meeting_minutes_context: 'retrieve', brainbase_get_shareable_person_profile: 'retrieve', authorize_tenant_resource: 'retrieve',
+            brainbase_knowledge_retrieve: 'retrieve', brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer', brainbase_judgment_audit_read: 'ignored', brainbase_get_meeting_minutes_context: 'retrieve', brainbase_get_shareable_person_profile: 'retrieve', authorize_tenant_resource: 'retrieve',
             mesh_peers: 'retrieve', graph_get_plan_receipt: 'retrieve', graph_validate: 'retrieve',
-            brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
+            brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state', brainbase_judgment_node_record: 'node_evidence',
             brainbase_automation_human_step_resolve: 'write', brainbase_onboarding_start: 'write', brainbase_onboarding_ingest: 'write',
             brainbase_onboarding_review: 'write', brainbase_onboarding_first_value: 'write', brainbase_knowledge_event_record: 'write',
             register_personal_kg: 'write', create_task: 'write', update_task: 'write', transition_task: 'write', graph_record_human_gate_receipt: 'write',
@@ -2354,6 +2354,25 @@ describe('Codex Judgment Resolver Host', () => {
         for (const [name, input, response] of invalidCases) {
             expect(recordTool(name, input, response), name).toMatchObject({ success: false, event_kind: BRAINBASE_TOOL_KIND_BY_NAME[name] });
         }
+    });
+
+    it('knowledge retrieveは要求したprojectとversionの本文とreceiptを照合する', async () => {
+        const root = temporaryDirectory();
+        const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+        const payload = { session_id: 'knowledge-contract', turn_id: 'knowledge-contract', prompt: '知識を取得して', cwd: process.cwd() };
+        await startEpisode(payload, { env, fetchImpl: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt: validReceipt(buildJudgmentRequest(payload, { env })) }) }) });
+        const input = { project_code: 'brainbase', refs: [{ id: 'k1', version: 'v1' }] };
+        const response = { status: 'ok', data: { project_code: 'brainbase', results: [{ id: 'k1', requested_version: 'v1', resolved_version: 'v1', status: 'resolved', content: '本文', source: { kind: 'graph' }, retrieval_receipt_id: 'receipt1' }] } };
+        let serial = 0;
+        const check = (value) => recordBrainbaseToolUse({ hook_event_name: 'PostToolUse', session_id: payload.session_id, turn_id: payload.turn_id, tool_name: 'mcp__brainbase__brainbase_knowledge_retrieve', tool_use_id: `retrieve-${serial++}`, tool_input: input, tool_response: withRetrievalAudit('brainbase_knowledge_retrieve', value) }, { env });
+        expect(check(response)).toMatchObject({ success: true, event_kind: 'retrieve' });
+        for (const patch of [{ id: 'other' }, { requested_version: 'v2' }, { resolved_version: 'v2' }, { content: ' ' }, { source: {} }, { retrieval_receipt_id: '' }, { status: 'unknown' }]) {
+            expect(check({ ...response, data: { ...response.data, results: [{ ...response.data.results[0], ...patch }] } })).toMatchObject({ success: false });
+        }
+        for (const patch of [{ project_code: 'other' }, { results: [] }]) {
+            expect(check({ ...response, data: { ...response.data, ...patch } })).toMatchObject({ success: false });
+        }
+        expect(check({ status: 'ok' })).toMatchObject({ success: false });
     });
 
     it('meeting contextのrequestとresponseは全identity項目が揃わない限り意味的成功にしない', async () => {

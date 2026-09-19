@@ -235,6 +235,98 @@ describe('GET /api/brainbase/mana-workflow-stats', () => {
     expect(res.status).toBe(400);
     expect(res.body).toHaveProperty('error');
   });
+
+  it('503: gh CLI失敗時は空の成功統計へ変換せず、再試行できる', async () => {
+    mockExecSync.mockImplementationOnce(() => {
+      throw new Error('gh auth is unavailable');
+    });
+
+    const failed = await request(app).get('/api/brainbase/mana-workflow-stats?workflow_id=m1');
+
+    expect(failed.status).toBe(503);
+    expect(failed.body).toMatchObject({
+      code: 'mana_workflow_stats_unavailable',
+      retryable: true,
+      workflow_id: 'm1'
+    });
+    expect(failed.body).not.toHaveProperty('stats');
+
+    mockExecSync.mockReturnValueOnce(JSON.stringify([]));
+    const recovered = await request(app).get('/api/brainbase/mana-workflow-stats?workflow_id=m1');
+
+    expect(recovered.status).toBe(200);
+    expect(recovered.body.stats).toMatchObject({
+      total_executions: 0,
+      total_success: 0,
+      total_failure: 0,
+      success_rate: 0
+    });
+    expect(mockExecSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('503: gh CLIの不正なJSON応答は利用可能な統計として扱わない', async () => {
+    mockExecSync.mockReturnValueOnce('{not-json');
+
+    const res = await request(app).get('/api/brainbase/mana-workflow-stats?workflow_id=m1');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      code: 'mana_workflow_stats_unavailable',
+      retryable: true,
+      workflow_id: 'm1'
+    });
+    expect(res.body).not.toHaveProperty('stats');
+  });
+
+  it('503: gh CLIの配列ではないJSON応答は利用可能な統計として扱わない', async () => {
+    mockExecSync.mockReturnValueOnce(JSON.stringify({ runs: [] }));
+
+    const res = await request(app).get('/api/brainbase/mana-workflow-stats?workflow_id=m1');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      code: 'mana_workflow_stats_unavailable',
+      retryable: true,
+      workflow_id: 'm1'
+    });
+    expect(res.body).not.toHaveProperty('stats');
+  });
+
+  it.each([
+    ['nullのrun', [null]],
+    ['statusがないrun', [{ conclusion: 'success' }]],
+    ['statusが文字列ではないrun', [{ conclusion: 'success', status: 1 }]],
+    ['conclusionが許可された型ではないrun', [{ conclusion: 1, status: 'completed' }]]
+  ])('503: %sは利用可能な統計として扱わない', async (_label, runs) => {
+    mockExecSync.mockReturnValueOnce(JSON.stringify(runs));
+
+    const res = await request(app).get('/api/brainbase/mana-workflow-stats?workflow_id=m1');
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({
+      code: 'mana_workflow_stats_unavailable',
+      retryable: true,
+      workflow_id: 'm1'
+    });
+    expect(res.body).not.toHaveProperty('stats');
+  });
+
+  it('200: 未完了runのnullまたは空文字のconclusionを正常に集計する', async () => {
+    mockExecSync.mockReturnValueOnce(JSON.stringify([
+      { conclusion: null, status: 'in_progress' },
+      { conclusion: '', status: 'queued' }
+    ]));
+
+    const res = await request(app).get('/api/brainbase/mana-workflow-stats?workflow_id=m1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.stats).toMatchObject({
+      total_executions: 2,
+      total_success: 0,
+      total_failure: 0,
+      success_rate: 0
+    });
+  });
 });
 
 // ==================== 4. GET /api/brainbase/projects ====================

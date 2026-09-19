@@ -21,6 +21,16 @@ function createServices(override = {}) {
 }
 
 describe('trusted Slack channel authority runtime wiring', () => {
+    it('exposes Outcome profile, tenant, and connection adapters through normal startup', () => {
+        const services = createServices();
+
+        expect(services.outcomeServiceContextAdapters).toMatchObject({
+            resolveProfile: expect.any(Function),
+            resolveTenant: expect.any(Function),
+            resolveConnection: expect.any(Function)
+        });
+    });
+
     it('loads the repository-owned channel manifest on the actual production construction path', () => {
         const services = createServices();
         expect(services.companyAuthority.routeRepository.resolveSlackChannelAuthority).toBeTypeOf('function');

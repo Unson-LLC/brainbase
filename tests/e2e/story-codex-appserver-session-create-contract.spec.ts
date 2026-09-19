@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import yaml from 'js-yaml';
 
 const retiredDocumentPaths = {
   story: 'docs/stories/story-codex-appserver-session-create.md',
@@ -9,8 +10,8 @@ const retiredDocumentPaths = {
 const projectProvisioningPath = 'docs/brainbase-capabilities/capabilities/project.provisioning.yml';
 const projectSelectorPath = 'docs/brainbase-capabilities/capabilities/project.selector.yml';
 const projectArchitecturePath = 'docs/architecture/story-project-provisioning-v1.md';
+const codexAppServerCapabilityPath = 'docs/brainbase-capabilities/capabilities/codex.app-server.yml';
 const retirementRunbookPath = 'docs/brainbase-capabilities/runbooks/missing-project-in-session-selector.md';
-const workspaceSetupContractPath = 'tests/ui/project-mapping-runtime-catalog.test.js';
 
 async function read(path: string): Promise<string> {
   return readFile(path, 'utf8');
@@ -68,9 +69,24 @@ test.describe('story-codex-appserver-session-create retirement contract', () => 
     const architecture = await read(retiredDocumentPaths.architecture);
     const spec = await read(retiredDocumentPaths.spec);
     const projectProvisioning = await read(projectProvisioningPath);
+    const codexAppServerCapability = yaml.load(await read(codexAppServerCapabilityPath)) as {
+      lifecycle: string;
+      surfaces: Record<string, string[]>;
+      depends_on: string[];
+      history: { documents: string[] };
+      architecture_decision: string;
+      current_evidence_capability: string;
+    };
 
-    expect(projectProvisioning).toContain('The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable');
-    expect(projectProvisioning).toContain('Codex app/CLI owns task and worktree creation and ownership');
+    expect(projectProvisioning).toContain('The retired session.create capability is not a Project Provisioning entry point');
+    expect(projectProvisioning).toContain('Codex app/CLI owns task and worktree creation');
+
+    expect(codexAppServerCapability.lifecycle).toBe('retired');
+    expect(codexAppServerCapability.surfaces).toEqual({ ui: [], api: [], code: [], data: [] });
+    expect(codexAppServerCapability.depends_on).toEqual([]);
+    expect(codexAppServerCapability.history.documents).toEqual(expect.arrayContaining(Object.values(retiredDocumentPaths)));
+    expect(codexAppServerCapability.architecture_decision).toBe('docs/architecture/ADR-019-codex-owns-development-runtime.md');
+    expect(codexAppServerCapability.current_evidence_capability).toBe('docs/brainbase-capabilities/capabilities/run-receipt.inbox.yml');
 
     const currentSections = [
       section(story, /^## Current ownership boundary$/m),
@@ -87,18 +103,13 @@ test.describe('story-codex-appserver-session-create retirement contract', () => 
     }
   });
 
-  test('keeps Session Launch Picker, FocusEngineModal, and Workspace Setup names distinct', async () => {
+  test('does not retain a browser compatibility implementation as an operational requirement', async () => {
     const runbook = await read(retirementRunbookPath);
-    const workspaceSetupContract = await read(workspaceSetupContractPath);
-
-    expect(runbook).toContain('## 4. 旧セッション作成導線とFocusEngineModal互換導線を確認する');
-    expect(runbook).toContain('Session Launch Pickerはretiredかつ到達不能');
-    expect(runbook).toContain('FocusEngineModalが表示');
-    expect(runbook).toContain('Modal不在時は直ちに');
-    expect(runbook).toContain('Workspace Setup selector moduleは、個人のlocal pathを扱う別Capabilityの互換・契約surface');
-    expect(runbook).not.toContain('正式Project Catalog consumer');
-    expect(workspaceSetupContract).toContain('Workspace Setupはruntime catalogとWorkspace pathが揃ったprojectだけを選択可能にする');
-    expect(workspaceSetupContract).not.toContain('Session Launch Pickerはruntime catalog');
+    const selector = yaml.load(await read(projectSelectorPath)) as { lifecycle: string };
+    expect(selector.lifecycle).toBe('retired');
+    expect(runbook).not.toContain('FocusEngineModalが表示');
+    expect(runbook).not.toContain('Modal不在時は直ちに');
+    expect(runbook).toContain('/api/config/projects');
   });
 
   test('does not present the retained Workspace Setup module as a production browser UI', async () => {
@@ -108,8 +119,8 @@ test.describe('story-codex-appserver-session-create retirement contract', () => 
       read(projectArchitecturePath),
     ]);
 
-    expect(provisioning).toContain('Project Provisioning has no production browser UI');
-    expect(selector).toContain('not currently served by a production static route');
+    expect(yaml.load(provisioning)).toMatchObject({ surfaces: { ui: [] } });
+    expect(yaml.load(selector)).toMatchObject({ lifecycle: 'retired', surfaces: { ui: [], api: [], code: [], data: [] } });
     expect(architecture).toContain('synthetic hostへ載せるブラウザ試験は契約E2E');
     expect(architecture).toContain('production browser E2Eの証拠ではありません');
   });

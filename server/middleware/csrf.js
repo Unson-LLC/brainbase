@@ -199,6 +199,15 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Exact MCP endpoint only. The router still verifies the token and
+        // configured node owner; cookie-only requests remain CSRF protected.
+        if (req.method === 'POST'
+            && req.path === '/api/mesh/query'
+            && typeof req.headers?.authorization === 'string'
+            && /^Bearer \S+$/.test(req.headers.authorization)) {
+            return next();
+        }
+
         // Skip Device Code Flow endpoints (CLI-based, no CSRF token available)
         if (req.path?.startsWith('/api/auth/device/')) {
             return next();
@@ -262,6 +271,20 @@ export function csrfMiddleware() {
         if (
             req.method === 'POST'
             && req.path === '/api/knowledge/resolve'
+            && typeof req.headers?.authorization === 'string'
+            && req.headers.authorization.startsWith('Bearer ')
+        ) {
+            return next();
+        }
+
+        // Knowledge retrieval is a read-only, version-pinned content request from
+        // an MCP/runtime client. Preview and every mutation remain CSRF protected.
+        if (
+            req.method === 'POST'
+            && (
+                req.path === '/api/knowledge/retrieve'
+                || req.path === '/api/knowledge/retrieve-principal'
+            )
             && typeof req.headers?.authorization === 'string'
             && req.headers.authorization.startsWith('Bearer ')
         ) {

@@ -10,6 +10,7 @@ import {
     attachTenantWorkspaceConnection,
     provisionTenantCore
 } from '../../../../server/services/multitenant/tenant-provisioner.js';
+import { MultitenantPostgresRepository } from '../../../../server/services/multitenant/postgres-repository.js';
 
 const { Pool } = pg;
 const now = '2026-08-21T00:00:00Z';
@@ -42,7 +43,14 @@ const fullManifest = {
         provider: 'slack', workspace_id: 'T0123456789', app_id: 'A0123456789',
         installation_id: 'install_01', connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV',
         credential_ref: 'credref://unson-business/slack/primary', credential_mode: 'customer_oauth',
-        scopes: ['chat:write']
+        scopes: ['chat:write', 'signed_tenant_context']
+    },
+    outcome_service_profile: {
+        schema_version: 'outcome_service_profile.v1', profile_id: 'mana-outcome', audience: 'mana-runtime',
+        capability_id: 'signed_tenant_context', deployment_id: coreManifest.contract_revision.deployment_id,
+        workspace_id: 'T0123456789', app_id: 'A0123456789', authenticated_subject_id: 'svc_mana_runtime',
+        connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', resource_ref: 'outcome://mana',
+        organization_ids: ['org_unson'], data_scopes: ['graph:read'], billing_principal_id: 'billing_unson'
     }
 };
 
@@ -89,6 +97,12 @@ describe.sequential('tenant two-phase provisioning DB readback', () => {
             await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [coreManifest.tenant_id]);
             expect((await client.query('SELECT count(*)::int AS count FROM workspace_connections')).rows[0].count).toBe(0);
             expect((await client.query('SELECT count(*)::int AS count FROM credential_broker_refs')).rows[0].count).toBe(0);
+            await client.query(
+                `INSERT INTO tenant_organizations (
+                    organization_id, tenant_id, tenant_revision_at_write, organization_payload
+                 ) VALUES ('org_unson', $1, 1, '{"status":"active"}'::jsonb)`,
+                [coreManifest.tenant_id]
+            );
             await client.query('COMMIT');
 
             const connection = await attachTenantWorkspaceConnection({
@@ -102,6 +116,26 @@ describe.sequential('tenant two-phase provisioning DB readback', () => {
                 schemaSha256, now
             });
             expect(connection.receipt.readback.workspace_connection).toBe(true);
+            expect(connection.receipt.readback.outcome_service_profile).toEqual({
+                profile_id: 'mana-outcome', profile_revision: '1'
+            });
+
+            const repository = new MultitenantPostgresRepository({ pool });
+            await expect(repository.resolveOutcomeServiceTenant(coreManifest.tenant_id)).resolves.toMatchObject({
+                tenant_id: coreManifest.tenant_id, status: 'active'
+            });
+            await expect(repository.resolveOutcomeServiceProfile({
+                tenant_id: coreManifest.tenant_id, project_id: 'project_mana', profile_id: 'mana-outcome'
+            })).resolves.toMatchObject({
+                profile_id: 'mana-outcome', organization_ids: ['org_unson'], billing_principal_id: 'billing_unson'
+            });
+            await expect(repository.resolveOutcomeServiceConnection({
+                tenant_id: coreManifest.tenant_id, project_id: 'project_mana',
+                profile_id: 'mana-outcome', connection_id: fullManifest.workspace_connection.connection_id
+            })).resolves.toMatchObject({
+                snapshot: { tenant_id: coreManifest.tenant_id, deployment_id: coreManifest.contract_revision.deployment_id },
+                credential: { billing_principal_id: 'billing_unson' }
+            });
             await client.query('BEGIN');
             await client.query("SELECT set_config('brainbase.tenant_id', $1, true)", [coreManifest.tenant_id]);
             const readback = await client.query(

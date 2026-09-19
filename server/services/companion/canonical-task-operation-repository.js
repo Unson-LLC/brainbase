@@ -298,7 +298,8 @@ export class CanonicalTaskOperationRepository {
                     [scope, operationKey]
                 );
                 const row = existing.rows[0];
-                if (row?.state === 'failed') {
+                if (row?.state === 'failed'
+                    && (row.fingerprint === fingerprint || scope === 'task-version')) {
                     const reclaimed = await client.query(
                         `UPDATE canonical_task_operations
                          SET fingerprint = $3, state = 'running', writer_token = $4,

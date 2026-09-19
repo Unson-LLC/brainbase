@@ -102,6 +102,68 @@ describe('PgAccountRepository contract', () => {
         expect(pg.calls.some((c) => c.sql.startsWith('DELETE FROM integration_account_defaults'))).toBe(true);
     });
 
+    it('binds an account to one tenant transactionally and writes an audit event', async () => {
+        const binding = {
+            tenant_id: 'tenant_unson',
+            account_id: 'acc_pg_1',
+            created_by_person_id: 'sato_keigo',
+            created_at: new Date('2026-09-18T00:00:00.000Z')
+        };
+        const pg = new ScriptedPg([
+            {}, // BEGIN
+            { rows: [{ id: 'acc_pg_1' }] },
+            { rows: [] },
+            { rows: [binding] },
+            {}, // audit insert
+            {} // COMMIT
+        ]);
+        const repo = new PgAccountRepository({ pool: pg });
+
+        await expect(repo.bindTenant({
+            tenant_id: 'tenant_unson',
+            account_id: 'acc_pg_1',
+            created_by_person_id: 'sato_keigo'
+        })).resolves.toMatchObject({
+            tenant_id: 'tenant_unson',
+            account_id: 'acc_pg_1'
+        });
+
+        expect(pg.calls.map((call) => call.sql)).toEqual(expect.arrayContaining([
+            'BEGIN',
+            'COMMIT'
+        ]));
+        expect(pg.calls.some((call) => call.sql.includes('INSERT INTO integration_account_tenants'))).toBe(true);
+        expect(pg.calls.some((call) => call.sql.includes("'TENANT_BOUND'"))).toBe(true);
+    });
+
+    it('maps missing accounts to AccountValidationError instead of leaking a raw FK failure', async () => {
+        const pg = new ScriptedPg([
+            {},
+            { rows: [] },
+            {}
+        ]);
+        const repo = new PgAccountRepository({ pool: pg });
+
+        await expect(repo.bindTenant({
+            tenant_id: 'tenant_unson',
+            account_id: 'missing',
+            created_by_person_id: 'sato_keigo'
+        })).rejects.toMatchObject({
+            name: 'AccountValidationError',
+            message: 'account not found for tenant binding'
+        });
+        expect(pg.calls.at(-1)?.sql).toBe('ROLLBACK');
+    });
+
+    it('checks tenant ownership through the tenant-binding table', async () => {
+        const pg = new ScriptedPg([{ rows: [{ '?column?': 1 }] }]);
+        const repo = new PgAccountRepository({ pool: pg });
+
+        await expect(repo.isBoundToTenant('tenant_unson', 'acc_pg_1')).resolves.toBe(true);
+        expect(pg.calls[0].sql).toContain('SELECT 1 FROM integration_account_tenants');
+        expect(pg.calls[0].params).toEqual(['tenant_unson', 'acc_pg_1']);
+    });
+
     it('enumerates defaults with deterministic priority and C-collated account-id ordering', async () => {
         const rows = [
             { subject_type: 'org', subject_id: 'org_a', service: 'freee', purpose: 'runtime_read', account_id: 'acc_A', priority: 100 },

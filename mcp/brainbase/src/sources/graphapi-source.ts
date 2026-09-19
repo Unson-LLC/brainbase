@@ -453,11 +453,24 @@ export class GraphAPISource implements EntitySource {
   }
 
   private buildHeaders(token: string): Record<string, string> {
+    const tokenProjects = (() => {
+      try {
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8')) as Record<string, unknown>;
+        const raw = Array.isArray(payload.projectCodes)
+          ? payload.projectCodes
+          : Array.isArray(payload.project_codes)
+            ? payload.project_codes
+            : [];
+        return raw.filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+      } catch {
+        return [];
+      }
+    })();
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'x-brainbase-role': process.env.BRAINBASE_ROLE || 'gm',
-      'x-brainbase-projects': this.projectCodes?.join(',') || process.env.BRAINBASE_PROJECTS || 'brainbase',
+      'x-brainbase-projects': this.projectCodes?.join(',') || tokenProjects.join(',') || process.env.BRAINBASE_PROJECTS || 'brainbase',
       'x-brainbase-clearance': process.env.BRAINBASE_CLEARANCE || 'internal,restricted,finance,hr,contract',
     };
   }

@@ -1,6 +1,6 @@
 {
   "schema_version": "brainbase-judgment-runtime-v1",
-  "runtime_version": "judgment-runtime-2.4.5",
+  "runtime_version": "judgment-runtime-2.4.6",
   "host_bindings": [
     { "adapter_id": "brainbase-mcp", "adapter_version": "1" }
   ],
@@ -137,16 +137,16 @@
     { "id": "knowledge-handoff", "kind": "capability", "instruction": "Require a separate Knowledge Resolver receipt.", "required_capability_template": "knowledge.resolve" },
     { "id": "challenge-assumptions", "kind": "judgment", "instruction": "Challenge the owner's current assumptions independently.", "required_capability_template": null },
     { "id": "personal-decision", "kind": "judgment", "instruction": "Apply visible owner judgment policies.", "required_capability_template": null },
-    { "id": "problem-frame", "kind": "judgment", "instruction": "Test whether the stated problem is only a symptom.", "required_capability_template": null },
-    { "id": "observe", "kind": "judgment", "instruction": "Separate observations from explanations.", "required_capability_template": null },
+    {"id": "problem-frame", "kind": "judgment", "instruction": "State the user outcome and a plausible alternative framing. Identify the knowledge needed to choose between them, including prior causal models when predicting human or system behavior. Do not substitute evaluation datasets for a behavior-generation model.", "required_capability_template": null, "execution_contract": "judgment-node-evidence-v1"},
+    {"id": "observe", "kind": "judgment", "instruction": "Retrieve evidence for the stated question, from the current system or primary research as appropriate. Judge why it supports the framing and what remains unknown. A search count or benchmark alone does not establish the causal model. If missing knowledge affects the conclusion, record insufficient and perform the next authorized retrieval before reassessing.", "required_capability_template": null, "execution_contract": "judgment-node-evidence-v1"},
     { "id": "graphify-impact", "kind": "judgment", "instruction": "Before editing, identify the target repository and files. For every implementation, regardless of change size, run the Brainbase scripts/graphify-impact-context.mjs helper with --repo and repeated --file arguments. When Graphify is installed, consult its existing graph for bounded adjacent dependencies. Reuse only results bound to the same repository, source state, target set, and graph content. Missing, stale, unmatched, partial, or failed graph evidence is unknown, never no impact. Update or deepen only when needed to choose code and affected tests; do not rebuild on every edit, install automatically, or create a PR/merge gate. Follow docs/brainbase-capabilities/runbooks/vibepro-impact-review.md. Graph evidence does not prove runtime correctness.", "required_capability_template": null },
     { "id": "hypothesis", "kind": "judgment", "instruction": "Generate a causal hypothesis.", "required_capability_template": null },
     { "id": "prediction", "kind": "judgment", "instruction": "Derive observable consequences from the hypothesis.", "required_capability_template": null },
-    { "id": "falsify", "kind": "judgment", "instruction": "Try the strongest counterexample.", "required_capability_template": null },
+    {"id": "falsify", "kind": "judgment", "instruction": "Test an observable consequence against the strongest alternative or counterexample using actual evidence. State how the result changes the hypothesis; unsupported conclusions remain insufficient.", "required_capability_template": null, "execution_contract": "judgment-node-evidence-v1"},
     { "id": "constraints", "kind": "judgment", "instruction": "Fix hard constraints and priorities.", "required_capability_template": null },
     { "id": "generate", "kind": "judgment", "instruction": "Generate candidates in parallel inside the surviving space and, when a development-mode controller is active, only inside the selected development mode.", "required_capability_template": null },
     { "id": "reject", "kind": "judgment", "instruction": "Reject candidates that violate hard constraints.", "required_capability_template": null },
-    { "id": "decide", "kind": "judgment", "instruction": "Select and state remaining uncertainty.", "required_capability_template": null },
+    {"id": "decide", "kind": "judgment", "instruction": "Use the current observation and falsification results to select a conclusion. Carry forward unresolved limits. If evidence cannot support the conclusion, return to the relevant earlier step instead of declaring completion.", "required_capability_template": null, "execution_contract": "judgment-node-evidence-v1"},
     { "id": "organization-actor", "kind": "judgment", "instruction": "Identify actors and decision owners.", "required_capability_template": null },
     { "id": "organization-incentive", "kind": "judgment", "instruction": "Model incentives and fears.", "required_capability_template": null },
     { "id": "organization-authority", "kind": "judgment", "instruction": "Map authority and responsibility boundaries.", "required_capability_template": null },

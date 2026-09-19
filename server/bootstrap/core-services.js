@@ -77,6 +77,17 @@ import { CompanyAuthorityHumanApprovalService } from '../services/multitenant/co
 import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
 import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
+import {
+    createConfiguredKnowledgeDocumentContentRetriever,
+    createConfiguredKnowledgeDocumentWriter
+} from './knowledge-document-writer.js';
+import { PgKnowledgeDocumentReceiptRepository } from '../services/knowledge-document-receipt-repository.js';
+import { KnowledgeDocumentGraphRepository } from '../services/knowledge-document-graph-repository.js';
+import { KnowledgeDocumentGraphPointerResolver } from '../services/knowledge-document-graph-pointer-resolver.js';
+import { createConfiguredKnowledgeBedrockAdapter } from './knowledge-bedrock.js';
+import { createManaOutcomeAuthorityReadbackProviderFromEnv } from '../services/knowledge-retrieve-binding-provider.js';
+import { createOutcomeServiceContextIssuerFromEnv } from './outcome-service-context.js';
+import { KnowledgeDelegationTokenIssuer } from '../services/knowledge-delegation-token-issuer.js';
 
 export function createCanonicalTaskRepository({
     backend = resolveCanonicalTaskBackend(),
@@ -142,7 +153,19 @@ export function createCoreServices({
     uploadsDir,
     serverDir,
     port,
-    sourceHead = null
+    sourceHead = null,
+    documentWriter = undefined,
+    documentContentRetriever = undefined,
+    documentGraphPointerResolver = null,
+    knowledgeBedrockAdapter = undefined,
+    knowledgeRetrieveBindingVerifier = undefined,
+    knowledgeRetrieveBindingRepository = undefined,
+    knowledgeRetrieveBindingTransport = undefined,
+    knowledgeRetrieveBindingResource = undefined,
+    outcomeServiceContextAdapters = null,
+    outcomeServiceContextReadbackBinding = null,
+    outcomeServiceContextReadbackTransport = null,
+    outcomeServiceContextReadbackResource = undefined
 }) {
     const googleCalendarService = new GoogleCalendarService();
     const scheduleParser = new ScheduleParser({ googleCalendarService });
@@ -160,12 +183,38 @@ export function createCoreServices({
     );
     const configService = new ConfigService(configPath, projectsRoot, configParser);
     const infoSSOTService = new InfoSSOTService();
+    const documentReceiptRepository = infoSSOTService.pool
+        ? new PgKnowledgeDocumentReceiptRepository({ pool: infoSSOTService.pool })
+        : null;
+    const resolvedDocumentWriter = documentWriter === undefined
+        ? createConfiguredKnowledgeDocumentWriter({ configParser, receiptStore: documentReceiptRepository })
+        : documentWriter;
+    const resolvedKnowledgeBedrockAdapter = knowledgeBedrockAdapter === undefined
+        ? createConfiguredKnowledgeBedrockAdapter()
+        : knowledgeBedrockAdapter;
     const projectProvisioningService = infoSSOTService.pool
         ? createProjectProvisioningService({ infoSSOTService, configParser })
         : null;
     let tenantRuntimeServices = createTenantRuntimeServicesFromEnv({
         env: process.env,
         pool: infoSSOTService.pool
+    });
+    const resolvedKnowledgeRetrieveBindingVerifier = knowledgeRetrieveBindingVerifier === undefined
+        ? createManaOutcomeAuthorityReadbackProviderFromEnv({
+            env: process.env,
+            serviceBinding: knowledgeRetrieveBindingTransport,
+            resource: knowledgeRetrieveBindingResource,
+            resolveTenantForOrganization:
+                tenantRuntimeServices?.outcomeServiceContextAdapters?.resolveTenantForOrganization
+        })
+        : knowledgeRetrieveBindingVerifier;
+    const outcomeServiceContextIssuer = createOutcomeServiceContextIssuerFromEnv({
+        env: process.env,
+        tenantRuntimeServices,
+        adapters: outcomeServiceContextAdapters,
+        serviceBinding: outcomeServiceContextReadbackBinding,
+        transport: outcomeServiceContextReadbackTransport,
+        resource: outcomeServiceContextReadbackResource
     });
     const canonicalTaskStoreConfig = createCanonicalTaskStoreConfig();
     const canonicalTaskBackend = resolveCanonicalTaskBackend();
@@ -224,6 +273,14 @@ export function createCoreServices({
         };
     }
     const authService = new AuthService();
+    authService.resolveTenantForOrganization =
+        tenantRuntimeServices?.outcomeServiceContextAdapters?.resolveTenantForOrganization ?? null;
+    const knowledgeDelegationTokenIssuer = resolvedKnowledgeRetrieveBindingVerifier
+        ? new KnowledgeDelegationTokenIssuer({
+            authService,
+            authorityProvider: resolvedKnowledgeRetrieveBindingVerifier
+        })
+        : null;
     const slackInstallationControlPlaneRuntime = createSlackInstallationControlPlaneFromEnv({
         pool: infoSSOTService.pool,
         authService,
@@ -239,6 +296,20 @@ export function createCoreServices({
         ? new PgKnowledgeEventRepository({ pool: infoSSOTService.pool })
         : null;
     const knowledgeGraphRepository = new InfoSSOTKnowledgeGraphRepository({ infoSSOTService });
+    const documentGraphRepository = infoSSOTService.pool
+        ? new KnowledgeDocumentGraphRepository({ infoSSOTService })
+        : null;
+    const resolvedDocumentGraphPointerResolver = documentGraphPointerResolver === null
+        ? (documentGraphRepository
+            ? new KnowledgeDocumentGraphPointerResolver({ graphRepository: documentGraphRepository })
+            : null)
+        : documentGraphPointerResolver;
+    const resolvedDocumentContentRetriever = documentContentRetriever === undefined
+        ? createConfiguredKnowledgeDocumentContentRetriever({
+            configParser,
+            graphPointerResolver: resolvedDocumentGraphPointerResolver
+        })
+        : documentContentRetriever;
     const knowledgeEventService = knowledgeEventRepository && candidateRepository
         ? new KnowledgeEventService({
             eventRepository: knowledgeEventRepository,
@@ -452,6 +523,16 @@ export function createCoreServices({
         infoSSOTService,
         projectProvisioningService,
         tenantRuntimeServices,
+        outcomeServiceContextIssuer,
+        knowledgeDelegationTokenIssuer,
+        documentReceiptRepository,
+        documentWriter: resolvedDocumentWriter,
+        contentRetriever: resolvedDocumentContentRetriever,
+        documentGraphRepository,
+        documentGraphPointerResolver: resolvedDocumentGraphPointerResolver,
+        knowledgeBedrockAdapter: resolvedKnowledgeBedrockAdapter,
+        knowledgeRetrieveBindingVerifier: resolvedKnowledgeRetrieveBindingVerifier,
+        knowledgeRetrieveBindingRepository: knowledgeRetrieveBindingRepository ?? null,
         canonicalTaskStoreConfig,
         canonicalTaskReadiness,
         canonicalTaskOperationRepository,

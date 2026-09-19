@@ -1,6 +1,6 @@
 /**
  * brainbase Entity Indexer
- * Builds entity index from EntitySource (filesystem, API, or hybrid)
+ * Builds entity index from the Graph SSOT API EntitySource
  */
 
 import type { EntitySource } from '../sources/entity-source.js';

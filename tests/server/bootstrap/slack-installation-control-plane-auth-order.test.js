@@ -100,7 +100,10 @@ function createProductionAuthorizeApp() {
         controlPlane,
         appId: body.intent.app_id,
         authService: {
-            verifyToken: (token) => jwt.verify(token, userSecret)
+            verifyToken: (token) => jwt.verify(token, userSecret),
+            resolveTenantForOrganization: async (organizationId) => organizationId === tenantId
+                ? { organization_id: organizationId, tenant_id: tenantId }
+                : null
         },
         authEnv: env
     });

@@ -1,0 +1,109 @@
+name: Retired state boundary
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/retired-state-boundary.yml'
+      - 'lib/**'
+      - 'public/**'
+      - 'docs/brainbase-capabilities/**'
+      - '.claude/skills/session-restore/SKILL.md'
+      - '.claude/skills/brainbase-ops-guide/SKILL.md'
+      - '.claude/skills/ttyd-websocket-troubleshooting/SKILL.md'
+      - 'tests/server/bootstrap/*boundary.test.js'
+      - 'tests/server/bootstrap/device-surface-contract.test.js'
+      - 'tests/server/bootstrap/static-routes.test.js'
+      - 'tests/e2e/story-inline-session-creation-pr-gate.spec.ts'
+      - 'tests/e2e/story-nocodb-task-start-retirement.spec.js'
+      - 'tests/server/routes/auth-device-approval.test.js'
+      - 'tests/server/routes/run-receipt-routes.test.js'
+      - 'server/bootstrap/**'
+      - 'server/controllers/state-controller.js'
+      - 'server/routes/**'
+      - 'server.js'
+      - 'server/middleware/csrf.js'
+      - 'mcp/brainbase/src/tools/mesh-tools.ts'
+      - 'mcp/brainbase/src/server.ts'
+      - 'mcp/brainbase/tests/tools/mesh-tools.test.ts'
+      - 'docs/brainbase-capabilities/capabilities/codex.app-server.yml'
+      - 'tests/server/routes/portal-routes.test.js'
+      - 'tests/server/routes/mesh-routes.test.js'
+      - 'tests/mesh/**'
+      - 'tests/unit/codex-app-server-capability-retirement.test.js'
+      - 'tests/e2e/story-codex-appserver-*-contract.spec.ts'
+      - 'setup.sh'
+      - 'scripts/setup.sh'
+      - 'scripts/check-worktree.sh'
+      - 'scripts/cleanup-old-sessions.sh'
+      - 'scripts/auto-cleanup-cron.sh'
+      - '.claude/scripts/dev-server-worktree.sh'
+      - '.claude/scripts/stop-dev-server.sh'
+      - '.claude/commands/merge.md'
+      - '.claude/commands/create-pr.md'
+      - '.claude/commands/deploy-merged-pr.md'
+      - '.claude/skills/git-workflow/SKILL.md'
+      - '.claude/skills/dev-server-worktree/SKILL.md'
+      - '.claude/skills/worktree-dev-server/SKILL.md'
+      - 'docs/internal/MEMORY_OPTIMIZATION.md'
+      - 'tests/server/scripts/legacy-operations-retirement.test.js'
+      - 'scripts/session-runtime/**'
+      - 'tests/server/bootstrap/development-runtime-boundary.test.js'
+      - 'tests/server/routes/retired-capability.test.js'
+      - 'tests/server/routes/brainbase.test.js'
+      - 'tests/server/scripts/retired-setup.test.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vitest.config.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: retired-state-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.23.2'
+          package-manager-cache: false
+      - run: npm ci
+      - run: bash -n setup.sh scripts/check-worktree.sh
+      - run: bash -n scripts/cleanup-old-sessions.sh scripts/auto-cleanup-cron.sh .claude/scripts/dev-server-worktree.sh .claude/scripts/stop-dev-server.sh
+      - name: Verify retirement and recovery contracts
+        run: >-
+          npm run test:run --
+          tests/server/bootstrap/development-runtime-boundary.test.js
+          tests/server/bootstrap/retired-browser-boundary.test.js
+          tests/server/bootstrap/device-surface-contract.test.js
+          tests/server/bootstrap/static-routes.test.js
+          tests/server/routes/auth-device-approval.test.js
+          tests/server/routes/run-receipt-routes.test.js
+          tests/server/routes/retired-capability.test.js
+          tests/server/routes/brainbase.test.js
+          tests/server/scripts/retired-setup.test.js
+          tests/server/scripts/legacy-operations-retirement.test.js
+          tests/server/routes/portal-routes.test.js
+          tests/server/routes/mesh-routes.test.js
+          tests/mesh/unverified-query-boundary.test.js
+          tests/mesh/query/permission-checker.test.js
+          tests/unit/codex-app-server-capability-retirement.test.js
+      - name: Verify Mesh MCP receipt and authentication contracts
+        run: node --import tsx --test mcp/brainbase/tests/tools/mesh-tools.test.ts
+      - name: Verify retired Codex capability contracts
+        env:
+          VIBEPRO_EVIDENCE_ID: brainbase-boundary-cleanup
+        run: >-
+          npm run test:e2e --
+          tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
+          tests/e2e/story-codex-appserver-session-create-contract.spec.ts
+          tests/e2e/story-inline-session-creation-pr-gate.spec.ts
+          tests/e2e/story-nocodb-task-start-retirement.spec.js
+          --reporter=line

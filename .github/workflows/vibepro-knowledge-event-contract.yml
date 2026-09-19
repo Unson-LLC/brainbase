@@ -6,6 +6,11 @@ on:
       - develop
     paths:
       - 'mcp/brainbase/package.json'
+      - 'mcp/brainbase/package-lock.json'
+      - 'mcp/brainbase/src/sources/**'
+      - 'mcp/brainbase/src/indexer/**'
+      - 'mcp/brainbase/tests/sources/**'
+      - 'tests/e2e/story-brainbase-mcp-core-ontology-contract.spec.ts'
       - 'mcp/brainbase/scripts/run-tests.mjs'
       - 'mcp/brainbase/src/tools/knowledge-event-tools.ts'
       - 'mcp/brainbase/src/tools/knowledge-resolution-tools.ts'
@@ -25,6 +30,11 @@ on:
       - develop
     paths:
       - 'mcp/brainbase/package.json'
+      - 'mcp/brainbase/package-lock.json'
+      - 'mcp/brainbase/src/sources/**'
+      - 'mcp/brainbase/src/indexer/**'
+      - 'mcp/brainbase/tests/sources/**'
+      - 'tests/e2e/story-brainbase-mcp-core-ontology-contract.spec.ts'
       - 'mcp/brainbase/scripts/run-tests.mjs'
       - 'mcp/brainbase/src/tools/knowledge-event-tools.ts'
       - 'mcp/brainbase/src/tools/knowledge-resolution-tools.ts'
@@ -75,6 +85,11 @@ jobs:
 
       - name: Run complete private MCP regression suite
         run: npm --prefix mcp/brainbase test
+
+      - name: Verify MCP Core ontology tool contracts
+        env:
+          VIBEPRO_EVIDENCE_ID: story-brainbase-mcp-core-ontology
+        run: npm run test:e2e -- tests/e2e/story-brainbase-mcp-core-ontology-contract.spec.ts --reporter=line
 
       - name: Run Knowledge Event backend contract tests
         run: >-

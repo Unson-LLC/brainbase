@@ -7,7 +7,7 @@ import { createCompanionRouter } from '../../../server/routes/companion.js';
 
 // VibePro traceability: story-canonical-task-bounded-search:ac:1, story-canonical-task-bounded-search:ac:2, story-canonical-task-bounded-search:ac:6, story-canonical-task-bounded-search:ac:7, story-canonical-task-bounded-search:ac:8, story-canonical-task-bounded-search:ac:9.
 
-function appFor({ source = 'bearer', personId = 'sato_keigo', service } = {}) {
+function appFor({ source = 'bearer', personId = 'sato_keigo', authClaims, service } = {}) {
     const taskService = service || {
         listTasks: vi.fn(async () => ({ items: [], total_count: 0, count_status: 'exact', next_cursor: null, read_status: 'complete', warnings: [], as_of: '2026-07-14T00:00:00Z' })),
         searchTasks: vi.fn(async () => ({ items: [], total_count: null, count_status: 'not_requested', has_more: false, next_cursor: null, read_status: 'complete', warnings: [], as_of: '2026-07-14T00:00:00Z' })),
@@ -19,7 +19,7 @@ function appFor({ source = 'bearer', personId = 'sato_keigo', service } = {}) {
     };
     const authGuard = (req, _res, next) => {
         req.authSource = source;
-        req.auth = { person_id: personId, sub: personId, service_id: 'service_test' };
+        req.auth = authClaims || { person_id: personId, sub: personId, service_id: 'service_test' };
         req.access = {
             personId,
             role: 'ceo',
@@ -164,6 +164,27 @@ describe('Companion canonical Task routes', () => {
                 tenantId: 'org_unson'
             })
         }));
+    });
+
+    it.each([
+        ['subject', { subject: 'service_legacy' }],
+        ['personId', { personId: 'service_legacy' }]
+    ])('accepts a verified service token identity from %s', async (_claim, authClaims) => {
+        const { app, taskService } = appFor({ source: 'service-token', authClaims });
+        const response = await request(app).get('/api/companion/tasks');
+
+        expect(response.status).toBe(200);
+        expect(taskService.listTasks).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({
+            principal: { type: 'service', id: 'service_legacy' }
+        }));
+    });
+
+    it('fails closed when a verified service token has no identity claim', async () => {
+        const { app, taskService } = appFor({ source: 'service-token', authClaims: {} });
+        const response = await request(app).get('/api/companion/tasks');
+
+        expect(response.status).toBe(500);
+        expect(taskService.listTasks).not.toHaveBeenCalled();
     });
 
     it.each([

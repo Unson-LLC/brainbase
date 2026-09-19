@@ -59,6 +59,14 @@ describe('ontology writer inventory vocabulary contract', () => {
         expect(verifyWriterInventory({ rootDir })).toMatchObject({ writer_count: 1 });
     });
 
+    it('uses the manifest kind when a registered relation is mentioned with entity context', () => {
+        const rootDir = fixture({
+            source: "upsertGraphEntity({ entityType: 'app', ownerRelation: 'owned_by' });",
+            vocabulary: { types: ['app'], relations: ['owned_by'] }
+        });
+        expect(verifyWriterInventory({ rootDir })).toMatchObject({ writer_count: 1 });
+    });
+
     it('classifies indirect writers that call the guarded InfoSSOT methods', () => {
         const rootDir = fixture({
             source: "infoSSOTService.createOrUpdateGraphEntity(access, { entityType: 'org' });",
