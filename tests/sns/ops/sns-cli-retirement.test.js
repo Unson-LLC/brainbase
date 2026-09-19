@@ -1,7 +1,9 @@
 // @ts-check
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
@@ -21,8 +23,95 @@ const retiredLaunchdTemplates = [
     'config/com.brainbase.sns-scheduled-publisher.plist',
     'config/com.brainbase.sns-feedback-metrics-poller.plist'
 ];
+const generationContextCli = 'scripts/build-sns-generation-context.js';
+const generationContextCliFiles = [
+    generationContextCli,
+    'scripts/lib/retired-sns-cli.js'
+];
+const generationContextFixtureFiles = [
+    'package.json',
+    ...generationContextCliFiles
+].sort();
+
+function withGenerationContextFixture(assertions) {
+    const fixtureParent = process.env.CODEX_WORKTREE_ROOT || os.tmpdir();
+    const fixtureRoot = fs.mkdtempSync(path.join(fixtureParent, 'sns-context-cli-fixture-'));
+
+    try {
+        fs.writeFileSync(path.join(fixtureRoot, 'package.json'), JSON.stringify({ type: 'module' }));
+        for (const relativePath of generationContextCliFiles) {
+            const fixturePath = path.join(fixtureRoot, relativePath);
+            fs.mkdirSync(path.dirname(fixturePath), { recursive: true });
+            fs.copyFileSync(path.join(root, relativePath), fixturePath);
+        }
+
+        assertions(fixtureRoot);
+    } finally {
+        fs.rmSync(fixtureRoot, { recursive: true, force: true });
+    }
+}
+
+function listFixtureFiles(directory, parent = '') {
+    return fs.readdirSync(path.join(directory, parent), { withFileTypes: true })
+        .flatMap((entry) => {
+            const relativePath = path.join(parent, entry.name);
+            return entry.isDirectory() ? listFixtureFiles(directory, relativePath) : [relativePath];
+        })
+        .sort();
+}
+
+const isolatedCliEnv = {
+    NODE_ENV: 'test',
+    FORCE_COLOR: '0',
+    BRAINBASE_SNS_SERVICE_TOKEN: 'bbsvc_should_not_be_used',
+    DATABASE_URL: 'postgres://should-not-be-read'
+};
 
 describe('retired SNS CLI entry points', () => {
+    it('retires the generation-context command with only Node and its retired-CLI helper available', () => {
+        withGenerationContextFixture((fixtureRoot) => {
+            expect(listFixtureFiles(fixtureRoot)).toEqual(generationContextFixtureFiles);
+
+            for (const flags of [[], ['--dry-run', '--json'], ['--confirm-public-post']]) {
+                const result = spawnSync(process.execPath, [path.join(fixtureRoot, generationContextCli), ...flags], {
+                    cwd: fixtureRoot,
+                    encoding: 'utf8',
+                    timeout: 10000,
+                    env: isolatedCliEnv
+                });
+
+                expect(result.error).toBeUndefined();
+                expect(result.status).toBe(1);
+                expect(result.stdout).toBe('');
+                expect(result.stderr).toContain('SNS_CLI_RETIRED');
+                expect(result.stderr).toContain('SNS操作は実行していません');
+                expect(listFixtureFiles(fixtureRoot)).toEqual(generationContextFixtureFiles);
+            }
+        });
+    });
+
+    it('can be imported without output or process-exit side effects', () => {
+        withGenerationContextFixture((fixtureRoot) => {
+            const cliUrl = pathToFileURL(path.join(fixtureRoot, generationContextCli)).href;
+            const result = spawnSync(process.execPath, [
+                '--input-type=module',
+                '-e',
+                `await import(${JSON.stringify(cliUrl)})`
+            ], {
+                cwd: fixtureRoot,
+                encoding: 'utf8',
+                timeout: 10000,
+                env: isolatedCliEnv
+            });
+
+            expect(result.error).toBeUndefined();
+            expect(result.status).toBe(0);
+            expect(result.stdout).toBe('');
+            expect(result.stderr).toBe('');
+            expect(listFixtureFiles(fixtureRoot)).toEqual(generationContextFixtureFiles);
+        });
+    });
+
     it.each(retiredCliScripts)('%s fails before performing an SNS operation', (script) => {
         for (const flags of [[], ['--dry-run', '--json'], ['--confirm-public-post']]) {
             const result = spawnSync(process.execPath, [path.join(root, script), ...flags], {

@@ -47,6 +47,9 @@ on:
       - 'docs/internal/MEMORY_OPTIMIZATION.md'
       - 'tests/server/scripts/legacy-operations-retirement.test.js'
       - 'scripts/session-runtime/**'
+      - 'scripts/build-sns-generation-context.js'
+      - 'scripts/lib/retired-sns-cli.js'
+      - 'tests/sns/ops/sns-cli-retirement.test.js'
       - 'tests/server/bootstrap/development-runtime-boundary.test.js'
       - 'tests/server/routes/retired-capability.test.js'
       - 'tests/server/routes/brainbase.test.js'
@@ -81,6 +84,8 @@ jobs:
         run: >-
           npm run test:run --
           tests/server/bootstrap/development-runtime-boundary.test.js
+          tests/server/bootstrap/sns-growth-production-boundary.test.js
+          tests/sns/ops/sns-cli-retirement.test.js
           tests/server/bootstrap/retired-browser-boundary.test.js
           tests/server/bootstrap/device-surface-contract.test.js
           tests/server/bootstrap/static-routes.test.js
