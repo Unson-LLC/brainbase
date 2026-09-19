@@ -30,7 +30,6 @@ import {
   containsFirstPersonReference,
   searchEntities,
   tokenizeEntityQuery,
-  getContextForTopic,
   type EntityIndex,
   type EntityType,
 } from './indexer/index.js';
@@ -51,7 +50,6 @@ import { TokenManager, createConnectionTokenManager } from './auth/token-manager
 import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
 import { RequestTokenContext, type TokenProvider } from './auth/request-token-context.js';
 import { createTenantTokenRouterFromEnvironment } from './auth/tenant-auth-router.js';
-import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 import {
   controlPlaneTools,
@@ -1042,7 +1040,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   rejectLegacySearchSurface(name, args);
   // Every index consumer must await a fresh, complete snapshot. Metadata and
   // Resolver calls do not depend on the full Graph index.
-  if (['search', 'resolve_entity', 'list_entities', 'list_extension_entities', 'get_context', 'get_entity'].includes(name)
+  if (['search', 'resolve_entity', 'list_entities', 'list_extension_entities', 'get_entity'].includes(name)
     || (name === 'search_personal_kg' && typeof args.person_entity_id === 'string' && args.person_entity_id.trim())) {
     await refreshEntityIndex();
   }
@@ -1051,46 +1049,6 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   }
   const entityIndex = getEntityIndexState().index;
   switch (name) {
-    case 'get_context': {
-      const topic = args.topic as string;
-      const { primary, related } = getContextForTopic(entityIndex, topic);
-
-      const lines: string[] = [];
-
-      if (primary) {
-        lines.push('# Primary Entity');
-        lines.push(formatEntity(primary));
-
-        if (related.length > 0) {
-          lines.push('');
-          lines.push('# Related Entities');
-          for (const entity of related) {
-            lines.push('');
-            lines.push(formatEntity(entity));
-          }
-        }
-      } else {
-        // Fall back to search
-        const results = searchEntities(entityIndex, topic);
-        if (results.length > 0) {
-          lines.push(`# Search Results for "${topic}"`);
-          lines.push('');
-          for (const entity of results.slice(0, 5)) {
-            lines.push(formatEntity(entity));
-            lines.push('');
-          }
-        } else {
-          lines.push(`No context found for "${topic}".`);
-        }
-      }
-
-      return prependPhilosophyContext(lines.join('\n'), args, {
-        scope: (args.scope as string) || 'graph',
-        objectType: 'context',
-        operation: 'read',
-      });
-    }
-
     case 'list_entities': {
       const type = args.type as EntityType;
       const entities = getEntitiesByType(entityIndex, type);
@@ -1234,27 +1192,6 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       });
 
       return JSON.stringify({ philosophy_context: philosophy_context ?? null, ...result }, null, 2);
-    }
-
-    case 'search_wiki': {
-      const query = args.query as string;
-      const projectId = args.project_id as string | undefined;
-      const pages = await fetchWikiPages();
-      const matches = filterWikiPages(pages, query, projectId);
-      if (matches.length === 0) {
-        return `No wiki pages found for "${query}"${projectId ? ` in project "${projectId}"` : ''}.`;
-      }
-      const header = projectId
-        ? `# Wiki Search: "${query}" in project "${projectId}" (${matches.length} results)\n`
-        : `# Wiki Search: "${query}" (${matches.length} results)\n`;
-      const lines = [header];
-      for (const p of matches.slice(0, 20)) {
-        lines.push(`- **${p.title}** — \`${p.path}\`${p.project_id ? ` [${p.project_id}]` : ''}`);
-      }
-      if (matches.length > 20) {
-        lines.push(`\n... and ${matches.length - 20} more.`);
-      }
-      return lines.join('\n');
     }
 
     case 'get_wiki_page': {
