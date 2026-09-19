@@ -1,7 +1,7 @@
 # brainbase Agent Instructions
 
-**Version**: 2.1.0
-**Last Updated**: 2026-08-30
+**Version**: 2.2.0
+**Last Updated**: 2026-09-20
 **Maintainer**: Unson LLC
 
 This file is the thin, always-loaded entrypoint for brainbase agents. Keep it under 200 lines. Put task-specific detail in Skills, commands, hooks, or docs.
@@ -30,27 +30,19 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 ファイル共有（shared/・submodule方式）は廃止済みの敗れた仮説。復活させない。
 **移設キュー（残存違反）**: root `.claude/` の組織的Skills/Commands（unson側と二重）、`settings/nocodb`（mana/Actionsが依存）、`common/frameworks/` 等の横断ドキュメント（→wiki）。
 
-## 1. Behavioral Kernel
+## 1. 作業の目的と完了
 
-1. **Think Before Coding**: State assumptions and ambiguity. Ask only when a wrong guess is expensive.
-2. **Simplicity First**: Make the smallest change that satisfies the request. Do not add speculative features.
-3. **Surgical Changes**: Touch only files needed for the current intent. Do not clean up unrelated code.
-4. **Goal-Driven Execution**: Define success, implement, verify, and complete the routine follow-through.
-5. **Intent-to-Outcome North Star**: Turn the user's intent into a verified real-world outcome with the least necessary user cognitive load. Ask the user only for purpose, values, responsibility, authority, or information that cannot be safely derived; otherwise gather context, execute, verify, and retain reusable learning. Tools are replaceable means, not goals.
-6. **Deterministic Code Before Model Judgment**: Use LLMs for open-ended semantic judgment, drafting, summarization, and extraction. The model owns natural-language classification; use code/hooks/guards for manifest-bounded safety-floor reconciliation, routing, retries, status handling, schema transforms, and other deterministic decisions.
-7. **Token Drift Checkpoints**: In long work, restate what is done, verified, and left before continuing.
-8. **Surface Conflicts, Do Not Average**: If sources or patterns disagree, choose the newer, more tested, or more authoritative one and explain why.
-9. **Read Local Context Before Editing**: Read the target file, caller, shared utility, and relevant tests before adding code.
-10. **Tests Verify Intent**: Tests should fail when the business rule breaks, not only when surface output changes.
-11. **Checkpoint Significant Steps**: For multi-step work, keep progress recoverable and describable.
-12. **Convention Beats Novelty**: Match the repo's existing style unless explicitly changing the convention.
-13. **Fail Loud**: Do not report success when anything was skipped, unverified, inferred, or partially failed.
+- 依頼の成果と完了条件を押さえ、必要な実装・検証・通常のGit手続きまで進める。最初の実装や計画の提示だけで止めない。
+- 今回の変更に必要なファイルと関係だけを読む。サービス境界なら `architecture-patterns`、スキーマや認証なら該当実装と契約、配備なら現行の運用手順を参照する。
+- 変更した振る舞いを検証できる範囲を選ぶ。通過後は、新しい変更・失敗・未解決の懸念がなければ同じ検証を繰り返さない。
+- ソース間に矛盾があれば正本と現行の実装を確認する。推測、未確認、部分成功を確認済みの成果と混ぜない。
+- 意味の判断はモデル、再試行・状態遷移・スキーマ変換など決定的な処理はコードに置く。
 
 ## 2. Execution Policy
 
 - Execute routine work end-to-end without asking for confirmation: commit, push, restart, local verification, and established reflection/report flows.
 - Ask only for destructive/irreversible actions, external sends/deletes/purchases/publication, high-cost ambiguous product intent, or missing information that cannot be discovered locally.
-- Before implementation, use the relevant Skill or command; do not rely on memory when project guidance exists.
+- 該当するSkillまたはコマンドの入口を読み、必要な分岐だけを選ぶ。参照資料を一括で読む必要はない。
 - When the Judgment Resolver fixes `classification.intent=implement`, use `vibepro-workflow` before changing code even if the user did not mention VibePro. Create or select one focused Story and its smallest testable Spec first. Debugging, TDD, and Git Skills run inside this loop; they do not replace it.
 - One intent should become one focused commit. Stage only files touched for that intent.
 - Never revert or overwrite unrelated user changes.
@@ -59,11 +51,11 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 ## 3. Brainbase Non-Negotiables
 
 - **Graph SSOT first**: For people, orgs, customers, partners, projects, terms, decisions, and CRM facts, check brainbase Graph (`https://bb.unson.jp`) before writing or deciding. Use `brainbase-graph-philosophy-context`.
-- **Judgment Resolver**: 各Codex turnはglobal Hostが1つのjudgment episodeとして管理する。`UserPromptSubmit`はcanonical turn inputをHost journalへ保存して未解決episodeを開くだけで、意味分類やBrainbase利用可否を決めない。Codex modelは毎turn最初にmodel-callable `brainbase_resolve_turn`へ、Host-issued `turn_ref`と自分の意味解釈だけを渡す。serverは`turn_ref`から改変されていないcanonical inputを読む。cached tool schemaとの移行互換に限り旧入力形式も受理するが、新規model経路の正本ではない。Brainbaseはmanifest-backed policyと安全railを適用して改変不能なTurnContractを返す。`PostToolUse`は`resolve_turn`と後続toolをturnへ束縛して記録するだけでfinalを確定しない。最終assistant回答はHostが確定した`🧠`/`📚`/`⚠️`監査ブロックで始め、`Stop`が実回答の行・順序・重複とrequired capabilitiesを検証してから`owner_audit_source=assistant_answer`のfinal receiptを確定する。`systemMessage`やjournal保存だけをowner表示成功にしない。episode receiptはaction許可ではなく、通常の権限・承認を置き換えない。詳細は`brainbase-judgment-resolver`。
+- **Judgment Resolver**: Codex turnの冒頭はHostの指示に従い、`brainbase_resolve_turn`へ `turn_ref` と意味解釈を渡す。返されたTurnContractを保ち、詳細が必要な場合は `brainbase-judgment-resolver` を読む。監査表示と完了状態は現行Hostの契約に従う。receiptは操作の許可ではない。
 - keyword matcherは義務・action floor・riskを追加できるが、未一致を`general/answer`へ落としたり必要能力を減らしたりしない。
-- **Outcome continuation**: A `continue` receipt must not finalize an implement/operate request that only describes pending remediation. Stop records `unfinished_safe_work`, shows the distinct `🔁 未完了` progress line, and requires the journal-bound `🔁 実行継続` completion line after safe work continues.
+- **Outcome continuation**: `continue`の実装・操作依頼は、許可済みで実行可能な作業と検証を終えてから完了する。未処理を完了状態にしない。
 - **Capability map first**: For Brainbase capability, project/session creation, auth grant, port `31013`, launchd runtime, terminal/xterm transport, or "not visible/not working" issues, use `brainbase-capability-map`.
-- **Skills first**: Load only the smallest relevant Skill. Do not bulk-load Skill folders.
+- **Skills**: 起動条件が今回の作業に合うものだけを使う。明示指定されたSkillは読む。一般的な説明、固定フェーズ、モデル固有の思考手順を増やさず、入出力・権限・成功条件・固有の注意点を残す。
 - **Local vs Lightsail matters**: For `/oyasumi` Graph/candidate writes, use the canonical local control-plane path backed by the Lightsail tunnel, not an accidental local database. Wiki writes are retired.
 - **Multi-account ops**: `/ohayo` must check all configured Gmail/Calendar accounts and Slack workspaces per command/Skill guidance.
 - **VibePro / Brainbase boundary**: Brainbase is the authority for organization judgment, knowledge, development conventions, infrastructure/secret locations, and reusable learning. VibePro is a repository-local aid for one accepted change: Story -> Spec -> implement -> affected tests -> one review wave -> GitHub PR -> CI -> merge. Architecture is conditional; installed Graphify receives a lightweight lookup for every implementation, and normal repository PR/permission rules remain authoritative.
@@ -93,7 +85,7 @@ Use these entrypoints instead of keeping detailed rules in this file:
 
 ## 5. Development Commands
 
-Prefer targeted commands first:
+変更に関係するコマンドを選ぶ。これは全項目の必須実行リストではない。外部へ影響しないと確認できたローカル検証と、その変更が原因の修正・再検証は追加確認なしで進める。
 
 ```bash
 npm run test:run -- <test-file>
