@@ -66,6 +66,12 @@ afterEach(() => {
 });
 
 describe('retired SNS production bootstrap boundary', () => {
+    it('keeps the legacy sns-growth route implementation absent', () => {
+        const legacyRoutePath = path.resolve(import.meta.dirname, '../../../server/routes/sns-growth.js');
+
+        expect(fs.existsSync(legacyRoutePath)).toBe(false);
+    });
+
     it('returns 410 for read and write operations without authentication', async () => {
         vi.stubEnv('SNS_POSTING_LEDGER_DATABASE_URL', 'postgres://retired-sns-must-not-connect');
         pgPool.mockClear();
