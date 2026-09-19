@@ -73,6 +73,7 @@ import { judgmentResolutionTools, handleJudgmentResolutionToolCall, resolveJudgm
 import { judgmentAuditTools, handleJudgmentAuditToolCall } from './tools/judgment-audit-tools.js';
 import { judgmentStateTools, handleJudgmentStateToolCall } from './tools/judgment-state-tools.js';
 import { judgmentValueProofTools, handleJudgmentValueProofToolCall } from './tools/judgment-value-proof-tools.js';
+import { judgmentNodeTools, handleJudgmentNodeToolCall } from './tools/judgment-node-tools.js';
 import { tenantBoundaryTools, handleTenantBoundaryToolCall } from './tools/tenant-boundary-tools.js';
 import {
   normalizeJudgmentHostResult,
@@ -1279,6 +1280,7 @@ export const publishedTools = annotateToolCapabilities([
   ...judgmentResolutionTools,
   ...judgmentAuditTools,
   ...judgmentValueProofTools,
+  ...judgmentNodeTools,
   ...judgmentStateTools,
   ...knowledgeEvidenceTools,
   ...knowledgeResolutionTools,
@@ -1502,6 +1504,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         ),
         (toolName, extensionArgs) => handleJudgmentAuditToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentValueProofToolCall(toolName, extensionArgs),
+        (toolName, extensionArgs) => handleJudgmentNodeToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleKnowledgeEvidenceToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleJudgmentStateToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {

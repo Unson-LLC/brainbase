@@ -26,6 +26,7 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'brainbase_personal_kg_answer_record',
   'brainbase_resolve_turn',
   'brainbase_judgment_audit_read',
+  'brainbase_judgment_node_record',
   'brainbase_get_meeting_minutes_context',
   'brainbase_get_shareable_person_profile',
   'authorize_tenant_resource',

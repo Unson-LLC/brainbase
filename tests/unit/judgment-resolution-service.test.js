@@ -229,6 +229,18 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.classification).toEqual(proposal());
     });
 
+    it('engineeringの判断段階だけに証拠契約を配布する', () => {
+        const resolveFor = (domains) => service.resolve(input('結論を検証', proposal({
+            intent: 'investigate', domains, action_kind: 'read'
+        })), { access: ACCESS, hostBinding: binding() });
+        const engineering = resolveFor(['engineering']);
+        expect(engineering.active_node_definitions.filter((node) => node.execution_contract)
+            .map((node) => node.id)).toEqual(['problem-frame', 'observe', 'falsify', 'decide']);
+        for (const domains of [['general'], ['organization']]) {
+            expect(resolveFor(domains).active_node_definitions.some((node) => node.execution_contract)).toBe(false);
+        }
+    });
+
     it('小さな実装でも観測後・仮説前にGraphify参照を選ぶ', () => {
         const receipt = service.resolve(input('表示の一文字を直して', proposal({
             intent: 'implement', domains: ['engineering'], action_kind: 'write'

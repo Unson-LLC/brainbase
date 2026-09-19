@@ -2281,7 +2281,7 @@ describe('Codex Judgment Resolver Host', () => {
             brainbase_automation_run_detail: 'retrieve', brainbase_meeting_automation_diagnosis: 'retrieve', brainbase_onboarding_get: 'retrieve',
             brainbase_knowledge_retrieve: 'retrieve', brainbase_resolve_turn: 'turn_resolution', brainbase_knowledge_resolve: 'route', brainbase_knowledge_evidence_record: 'evidence', brainbase_personal_kg_answer_record: 'personal_answer', brainbase_judgment_audit_read: 'ignored', brainbase_get_meeting_minutes_context: 'retrieve', brainbase_get_shareable_person_profile: 'retrieve', authorize_tenant_resource: 'retrieve',
             mesh_peers: 'retrieve', graph_get_plan_receipt: 'retrieve', graph_validate: 'retrieve',
-            brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state',
+            brainbase_judgment_value_proof_record: 'value_proof', brainbase_judgment_state_record: 'state', brainbase_judgment_node_record: 'node_evidence',
             brainbase_automation_human_step_resolve: 'write', brainbase_onboarding_start: 'write', brainbase_onboarding_ingest: 'write',
             brainbase_onboarding_review: 'write', brainbase_onboarding_first_value: 'write', brainbase_knowledge_event_record: 'write',
             register_personal_kg: 'write', create_task: 'write', update_task: 'write', transition_task: 'write', graph_record_human_gate_receipt: 'write',

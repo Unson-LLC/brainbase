@@ -6,7 +6,7 @@ surfaces:
     - Codex in-progress systemMessage when Stop rejects an unnecessary user question
     - Final assistant answer begins with the journal-derived owner audit and optional judgment value-proof surfaces
     - Final autonomy-continuation and Stop-repair lines only when the immutable continuation journal proves completion
-  mcp: [brainbase_resolve_turn, brainbase_judgment_audit_read]
+  mcp: [brainbase_resolve_turn, brainbase_judgment_audit_read, brainbase_judgment_node_record]
   host:
     - UserPromptSubmit -> POST http://127.0.0.1:39002/host/judgment/resolve
     - PostToolUse -> append-only Brainbase tool event
@@ -16,6 +16,8 @@ surfaces:
   code:
     - scripts/codex-hooks/judgment-resolver-entry.sh
     - scripts/codex-hooks/judgment-resolver-host.mjs
+    - scripts/codex-hooks/judgment-node-evidence.mjs
+    - mcp/brainbase/src/tools/judgment-node-tools.ts
     - scripts/check-codex-judgment-hook-readiness.mjs
     - scripts/launchd/brainbase-runtime-target.sh
     - scripts/launchd/brainbase-ui-start.sh
@@ -34,6 +36,8 @@ depends_on:
   - graph.ssot
   - knowledge.resolve
 visibility_rules:
+  - Engineering node definitions with execution_contract=judgment-node-evidence-v1 bind compact problem-frame, observe, falsify, and decide assessments to prior successful business tool events and the preceding node result in the same episode. Missing or insufficient evidence requests bounded repair at the affected node; a revised upstream result invalidates downstream results. Exhausted repair is audit_degraded, never complete. Existing authorization takes precedence.
+  - Node evidence establishes provenance and ordering, not semantic truth. The model must judge whether the retrieved material supports the question, identify missing knowledge and alternative explanations, and execute further authorized research before reassessing insufficient evidence. Record tools and routing alone are not business evidence. Old receipts and direct or non-engineering DAGs retain their existing behavior.
   - In the scoped diagnostic_continue canary, a Codex App task that omitted UserPromptSubmit can recover at its first PreToolUse from the same complete, current-turn, trusted delegation transcript used by Stop recovery. The intercepted tool is denied with the canonical turn_ref and instructions to resolve first; subsequent calls use the normal verified-start contract. This records episode_origin=pre_tool_delegation_recovery and route_application=pre_tool_execution, never pre_generation. A failed start marker, corrupt journal, unavailable bootstrap, foreign scope or unverified delegation stays denied. Pre-tool recovery cannot absorb orphan tool events.
   - In the scoped diagnostic_continue canary, a valid persisted UserPromptSubmit start-failure diagnostic returns subsequent PreToolUse decisions to the ordinary platform permission and approval boundary so operators can diagnose and restore the unavailable Host. This grants no action authority. Missing, malformed, or foreign-scope diagnostics remain denied, and Stop remains audit-incomplete.
   - A Codex App automation that omitted UserPromptSubmit may recover at its first PreToolUse only from one same-session, same-turn `codex_app/automation_update` output in a transcript whose trusted session metadata declares `thread_source=automation`. The output must contain the canonical Automation header and non-empty prompt body. The first tool remains denied with turn_ref; the episode records `episode_origin=pre_tool_automation_recovery`. Missing, malformed, foreign, or ambiguous automation evidence fails closed.

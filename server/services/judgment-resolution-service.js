@@ -468,6 +468,7 @@ function validateManifest(manifest, lock) {
     for (const node of manifest.nodes) {
         if (!node || typeof node.id !== 'string' || !node.id || nodes.has(node.id)) throw new TypeError('judgment manifest has duplicate or invalid node id');
         nodes.add(node.id);
+        if (node.execution_contract !== undefined && node.execution_contract !== 'judgment-node-evidence-v1') throw new TypeError(`judgment node ${node.id} execution contract is invalid`);
         if (!NODE_KINDS.has(node.kind)) throw new TypeError(`judgment node ${node.id} kind is invalid`);
         if (typeof node.instruction !== 'string' || !node.instruction) throw new TypeError(`judgment node ${node.id} instruction is invalid`);
         if (node.required_capability_template !== null && (typeof node.required_capability_template !== 'string' || !node.required_capability_template)) throw new TypeError(`judgment node ${node.id} capability reference is invalid`);
@@ -1037,7 +1038,9 @@ function materializeActiveNodeDefinitions(activeNodes, manifest) {
             id: node.id,
             kind: node.kind,
             instruction: node.instruction,
-            required_capability_template: node.required_capability_template
+            required_capability_template: node.required_capability_template,
+            ...(['problem-frame', 'observe', 'falsify'].every((id) => activeNodes.includes(id))
+                && node.execution_contract ? { execution_contract: node.execution_contract } : {})
         };
     });
 }
