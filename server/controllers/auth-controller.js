@@ -240,10 +240,56 @@ function renderAuthCallbackHtml({ token, access, refresh_token: refreshToken }, 
 }
 
 export class AuthController {
-    /** @param {any} authService */
-    constructor(authService) {
+    /** @param {any} authService @param {{ googleMeetConnectionService?: any }} [options] */
+    constructor(authService, options = {}) {
         this.authService = authService;
+        this.googleMeetConnectionService = options.googleMeetConnectionService || null;
     }
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    googleMeetStart = async (req, res) => {
+        try {
+            if (!this.googleMeetConnectionService) {
+                return res.status(503).json({ error: 'Google Meet connection is not configured' });
+            }
+            const state = this.authService.createState({ redirect: '/settings' });
+            setOAuthStateCookie(res, req, state);
+            const url = this.googleMeetConnectionService.buildAuthorizationUrl({ state, req });
+            if (String(req.query.json || '').toLowerCase() === 'true') return res.json({ url });
+            return res.redirect(url);
+        } catch (error) {
+            logger.error('Failed to start Google Meet connection', { error });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Failed to start Google Meet connection' });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    googleMeetCallback = async (req, res) => {
+        try {
+            if (!this.googleMeetConnectionService) {
+                return res.status(503).json({ error: 'Google Meet connection is not configured' });
+            }
+            const code = typeof req.query.code === 'string' ? req.query.code : '';
+            const state = typeof req.query.state === 'string' ? req.query.state : '';
+            if (!code || !state) return res.status(400).json({ error: 'code and state are required' });
+            const browserStateIsValid = verifyOAuthStateCookie(req, state);
+            clearOAuthStateCookie(res);
+            const stateResult = browserStateIsValid ? this.authService.consumeState(state) : { ok: false };
+            if (!stateResult?.ok) return res.status(400).json({ error: 'Invalid state' });
+            const personId = req.access?.personId;
+            const organizationId = req.access?.organizationId;
+            if (!personId || !organizationId) {
+                return res.status(403).json({ error: 'Authenticated organization context is required' });
+            }
+            const account = await this.googleMeetConnectionService.connect({
+                code, req, personId, organizationId, idempotencyKey: state
+            });
+            return res.json({ ok: true, account });
+        } catch (error) {
+            logger.error('Google Meet connection callback failed', { error });
+            return res.status(500).json({ error: getErrorMessage(error) || 'Google Meet connection failed' });
+        }
+    };
 
     /** @param {Request} req @param {Response} res */
     slackStart = async (req, res) => {

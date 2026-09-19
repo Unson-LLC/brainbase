@@ -32,6 +32,9 @@ import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
 import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
+import { isRemoteCredentialStoreConfigured, createRemoteCredentialStore } from '../services/multitenant/remote-credential-store.js';
+import { PgAccountRepository } from '../services/account/account-repository.js';
+import { GoogleMeetConnectionService } from '../services/auth/google-meet-connection-service.js';
 import {
     createTenantEntrypointGuard,
     createUnavailableTenantEntrypointGuard
@@ -273,7 +276,15 @@ export function registerApiRoutes(app, {
         owner: 'Codex app and CLI',
         replacement: 'Use the terminal attached to the Codex task'
     }));
-    app.use('/api/auth', createAuthRouter(authService));
+    let googleMeetConnectionService = null;
+    if (authService?.pool && isRemoteCredentialStoreConfigured(env)) {
+        googleMeetConnectionService = new GoogleMeetConnectionService({
+            provider: authService.providerRegistry.require('google-workspace'),
+            credentialStore: createRemoteCredentialStore({ env }),
+            accountRepository: new PgAccountRepository({ pool: authService.pool })
+        });
+    }
+    app.use('/api/auth', createAuthRouter(authService, { googleMeetConnectionService }));
     app.use(
         '/api/project-provisioning',
         requireAuth(authService, { allowInsecureHeaders: false }),

@@ -2,15 +2,17 @@ import express from 'express';
 import { AuthController } from '../controllers/auth-controller.js';
 import { requireAuth } from '../middleware/auth.js';
 
-export function createAuthRouter(authService) {
+export function createAuthRouter(authService, { googleMeetConnectionService = null } = {}) {
     const router = express.Router();
-    const controller = new AuthController(authService);
+    const controller = new AuthController(authService, { googleMeetConnectionService });
 
     router.get('/slack/start', controller.slackStart);
     router.get('/login/start', controller.slackStart);
     router.get('/google/start', controller.slackStart);
     router.get('/slack/callback', controller.slackCallback);
     router.get('/google/callback', controller.slackCallback);
+    router.get('/google/meet/start', requireAuth(authService, { allowInsecureHeaders: false }), controller.googleMeetStart);
+    router.get('/google/meet/callback', requireAuth(authService, { allowInsecureHeaders: false }), controller.googleMeetCallback);
     router.post('/token/exchange', controller.tokenExchange);
     router.post('/refresh', controller.refresh);
     router.get('/organizations', requireAuth(authService, { allowInsecureHeaders: false }), controller.organizations);
