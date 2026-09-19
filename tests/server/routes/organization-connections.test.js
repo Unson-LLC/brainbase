@@ -9,6 +9,15 @@ const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
 const appId = 'A0123456789';
 
 function app({
+    authService = {
+        verifyToken: () => ({
+            sub: personId,
+            personId,
+            tenantId,
+            organizationId: tenantId,
+            role: 'tenant_admin'
+        })
+    },
     controlPlane = {
         authorizeBinding: vi.fn(async (value) => value),
         credentialStore: { verify: vi.fn(async () => ({ valid: true })) }
@@ -29,15 +38,7 @@ function app({
     const server = express();
     server.use(express.json());
     registerOrganizationConnectionsApiRoute(server, {
-        authService: {
-            verifyToken: () => ({
-                sub: personId,
-                personId,
-                tenantId,
-                organizationId: tenantId,
-                role: 'tenant_admin'
-            })
-        },
+        authService,
         controlPlane,
         appId,
         oauthFlow,
@@ -100,6 +101,62 @@ function githubPorts({ ledgerOverrides = {}, repositoryOverrides = {}, readbackI
 const auth = (call) => call.set('Authorization', 'Bearer test-token');
 
 describe('organization connections API', () => {
+    it('uses the tenant resolved by requireAuth without requiring a second Slack identity lookup', async () => {
+        const resolveTenantForOrganization = vi.fn(async (organizationId) => ({
+            organization_id: organizationId,
+            tenant_id: tenantId
+        }));
+        const resolveCanonicalSlackInstallationAccess = vi.fn(async () => null);
+        const connectionRepository = { listOrganizationConnections: vi.fn(async () => []) };
+        const response = await auth(request(app({
+            authService: {
+                pool: {},
+                verifyToken: () => ({
+                    sub: personId,
+                    personId,
+                    organizationId: 'unson',
+                    role: 'ceo',
+                    slackUserId: 'U0123456789',
+                    slackWorkspaceId: 'T0123456789'
+                }),
+                resolveTenantForOrganization,
+                resolveCanonicalSlackInstallationAccess
+            },
+            connectionRepository
+        })).get('/api/organization-connections/slack/status'));
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            provider: 'slack', status: 'unknown', connected: null, account: null
+        });
+        expect(resolveTenantForOrganization).toHaveBeenCalledWith('unson');
+        expect(resolveCanonicalSlackInstallationAccess).not.toHaveBeenCalled();
+        expect(connectionRepository.listOrganizationConnections).toHaveBeenCalledWith({
+            tenant_id: tenantId,
+            provider: 'slack'
+        });
+    });
+
+    it('fails closed when canonical tenant and organization claims disagree', async () => {
+        const connectionRepository = { listOrganizationConnections: vi.fn(async () => []) };
+        const response = await auth(request(app({
+            authService: {
+                verifyToken: () => ({
+                    sub: personId,
+                    personId,
+                    tenantId,
+                    organizationId: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAZ',
+                    role: 'tenant_admin'
+                })
+            },
+            connectionRepository
+        })).get('/api/organization-connections/slack/status'));
+
+        expect(response.status).toBe(403);
+        expect(response.body.code).toBe('ORGANIZATION_ADMIN_REQUIRED');
+        expect(connectionRepository.listOrganizationConnections).not.toHaveBeenCalled();
+    });
+
     it('returns unknown when no connection is recorded and never exposes credential fields', async () => {
         const connectionRepository = {
             listOrganizationConnections: vi.fn(async () => [{

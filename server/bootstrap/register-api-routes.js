@@ -329,7 +329,11 @@ export function registerOrganizationConnectionsApiRoute(app, {
             githubCredentialStore,
             githubAuthorizationLedger,
             now,
-            resolveAccess
+            // requireAuth has already verified the token and resolved a legacy
+            // organization claim to its canonical tenant. Re-resolving this
+            // route through a Slack identity would incorrectly make GitHub and
+            // Slack connection management depend on a pre-existing Slack row.
+            resolveAccess: resolveAccess ?? (({ access }) => access)
         })
     );
 }
