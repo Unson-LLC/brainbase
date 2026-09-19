@@ -38,7 +38,7 @@ MCPは任意のGraph `entity_type` をすべて通常の第一級typeにして�
 - **INV-10**: 既存の `project`、`person`、`org`、`app`、`customer`、`decision` の挙動は後方互換を保つ。
 - **INV-11**: 未知のGraph entity typeがあってもMCP初期化は落ちない。
 - **INV-12**: Core type registryはテストで固定し、将来の追加が意図的な変更になるようにする。
-- **INV-13**: legacy `FilesystemSource` のcustomer table parserは、`customer_id` が欠落した行をindexしない既存挙動を維持する。
+- **INV-13（退役）**: filesystem parser互換は `story-remove-unused-mcp-sources` で廃止。現行MCPはGraph APIのみを取得元とする。
 
 ## シナリオ
 
@@ -74,11 +74,9 @@ MCPは任意のGraph `entity_type` をすべて通常の第一級typeにして�
 - when: MCP default searchがdocument title/contentに一致する。
 - then: document結果がCore contextとして返る。
 
-### S-6: legacy filesystem customer rowの後方互換
+### S-6（退役）: filesystem parser互換
 
-- given: legacy `_codex` filesystem sourceの `common/meta/customers.md` に `customer_id` がある行と欠落した行が混在する。
-- when: `FilesystemSource.getCustomers()` を実行する。
-- then: `customer_id` がある行だけをcustomer entityとして返し、欠落行は従来通りskipする。
+旧取得実装と専用parserは削除済み。Graph取得失敗時にfilesystemへfallbackしない。旧source設定の拒否は `mcp/brainbase/tests/config/config.test.ts` で検証する。
 
 ## 検証
 
@@ -89,9 +87,9 @@ MCPは任意のGraph `entity_type` をすべて通常の第一級typeにして�
 | INV-5〜7, INV-9, S-3 | `mcp/brainbase/tests/tools/core-ontology.test.ts` |
 | INV-10, INV-11, S-4 | `mcp/brainbase/tests/sources/graphapi-source.test.ts` |
 | S-5 | `mcp/brainbase/tests/tools/core-ontology.test.ts` |
-| INV-13, S-6 | `mcp/brainbase/tests/sources/filesystem-source.test.ts` |
+| 旧source設定の拒否 | `mcp/brainbase/tests/config/config.test.ts` |
 | MCP tool schema / handler surface | `mcp/brainbase/tests/tools/server-core-ontology.test.ts` |
-| Story AC-1〜AC-11 | `tests/e2e/story-brainbase-mcp-core-ontology-contract.spec.ts` |
+| Story AC-1〜AC-10（旧parserのAC-11は退役） | `tests/e2e/story-brainbase-mcp-core-ontology-contract.spec.ts` |
 
 ## 実装メモ
 

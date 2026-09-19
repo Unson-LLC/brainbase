@@ -220,9 +220,3 @@ export interface EntityIndex {
   aliasToOrgId: Map<string, string>;
   aliasToBrandId: Map<string, string>;
 }
-
-// Frontmatter parsing result
-export interface ParsedFile<T> {
-  data: Partial<T>;
-  content: string;
-}
