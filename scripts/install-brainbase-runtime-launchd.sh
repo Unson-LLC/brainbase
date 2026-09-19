@@ -11,7 +11,20 @@ install -m 755 "$REPO_ROOT/scripts/launchd/brainbase-runtime-update.sh" "$LOCAL_
 install -m 755 "$REPO_ROOT/scripts/launchd/brainbase-runtime-target.sh" "$LOCAL_DIR/brainbase-runtime-target.sh"
 
 sed "s|__HOME__|$HOME|g" "$REPO_ROOT/config/com.brainbase.runtime-update.plist" > "$AGENTS_DIR/com.brainbase.runtime-update.plist"
+plutil -replace EnvironmentVariables.BRAINBASE_UI_RUNTIME_ROOT -string "$RUNTIME_ROOT" "$AGENTS_DIR/com.brainbase.runtime-update.plist"
 plutil -lint "$AGENTS_DIR/com.brainbase.runtime-update.plist"
+
+# Keep the installed UI job on the same checkout without replacing its
+# environment-specific settings or secrets.
+UI_PLIST="$AGENTS_DIR/com.brainbase.ui.plist"
+if [[ ! -f "$UI_PLIST" ]]; then
+  printf 'installed UI plist not found: %s\n' "$UI_PLIST" >&2
+  exit 1
+fi
+if ! plutil -replace EnvironmentVariables.BRAINBASE_UI_RUNTIME_ROOT -string "$RUNTIME_ROOT" "$UI_PLIST" 2>/dev/null; then
+  plutil -insert EnvironmentVariables.BRAINBASE_UI_RUNTIME_ROOT -string "$RUNTIME_ROOT" "$UI_PLIST"
+fi
+plutil -lint "$UI_PLIST"
 
 # Preserve locally provisioned MCP environment values while moving only its
 # executable checkout to the managed runtime. A fresh install may use the
@@ -43,9 +56,11 @@ wait_until_unloaded com.brainbase.runtime-update
 launchctl bootstrap "$DOMAIN" "$AGENTS_DIR/com.brainbase.runtime-update.plist"
 launchctl enable "$DOMAIN/com.brainbase.runtime-update"
 
-# Existing UI plist owns environment-specific settings and secrets. Its stable
-# ProgramArguments path is updated by replacing the installed launcher above.
-launchctl kickstart -k "$DOMAIN/com.brainbase.ui"
+# Reload the existing UI plist so launchd receives the selected runtime root.
+launchctl bootout "$DOMAIN/com.brainbase.ui" 2>/dev/null || true
+wait_until_unloaded com.brainbase.ui
+launchctl bootstrap "$DOMAIN" "$UI_PLIST"
+launchctl enable "$DOMAIN/com.brainbase.ui"
 launchctl bootout "$DOMAIN/com.brainbase.mcp-brainbase" 2>/dev/null || true
 wait_until_unloaded com.brainbase.mcp-brainbase
 launchctl bootstrap "$DOMAIN" "$MCP_PLIST"

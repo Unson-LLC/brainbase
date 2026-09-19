@@ -2,14 +2,28 @@
 
 The 60-second updater normally applies merged `develop` automatically. Use this only when an immediate restart is needed.
 
-The source checkout is `/Users/ksato/workspace/repos/brainbase`. The process runs from the disposable linked worktree `/Users/ksato/workspace/repos/.runtime/brainbase-31013`; do not edit that runtime directly.
+The source checkout is `/Users/ksato/workspace/repos/brainbase`. The process runs
+from the disposable linked worktree selected by both the UI and updater launchd
+jobs. Do not edit that runtime directly. The launcher default is
+`/Users/ksato/workspace/repos/.runtime/brainbase-31013`, but an approved external
+root may be configured through `BRAINBASE_UI_RUNTIME_ROOT`.
 
 ## Standard Restart
 
 ```bash
 set -euo pipefail
 SOURCE_REPO=/Users/ksato/workspace/repos/brainbase
-RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
+UI_PLIST="$HOME/Library/LaunchAgents/com.brainbase.ui.plist"
+UPDATER_PLIST="$HOME/Library/LaunchAgents/com.brainbase.runtime-update.plist"
+DEFAULT_RUNTIME_ROOT=/Users/ksato/workspace/repos/.runtime/brainbase-31013
+ui_root="$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:BRAINBASE_UI_RUNTIME_ROOT' "$UI_PLIST" 2>/dev/null || true)"
+updater_root="$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:BRAINBASE_UI_RUNTIME_ROOT' "$UPDATER_PLIST" 2>/dev/null || true)"
+if [[ -n "$ui_root" || -n "$updater_root" ]]; then
+  [[ -n "$ui_root" && "$ui_root" == "$updater_root" ]]
+  RUNTIME_ROOT="$ui_root"
+else
+  RUNTIME_ROOT="$DEFAULT_RUNTIME_ROOT"
+fi
 PIN_FILE=/Users/ksato/workspace/var/brainbase-runtime-pinned.sha
 source "$SOURCE_REPO/scripts/launchd/brainbase-runtime-target.sh"
 source "$SOURCE_REPO/scripts/launchd/brainbase-runtime-readiness.sh"
@@ -72,6 +86,6 @@ Expected after a clean canonical restart:
 ```text
 dirty = false
 sha = latest intended origin/develop commit
-cwd = /Users/ksato/workspace/repos/.runtime/brainbase-31013
+cwd = resolved RUNTIME_ROOT selected identically by UI and updater
 MCP receipt sha = the same sha
 ```

@@ -22,12 +22,14 @@ surfaces:
 depends_on:
   - origin/develop
   - /Users/ksato/workspace/repos/brainbase
-  - /Users/ksato/workspace/repos/.runtime/brainbase-31013
+  - BRAINBASE_UI_RUNTIME_ROOT selected by both com.brainbase.ui and com.brainbase.runtime-update
   - /Users/ksato/workspace/var/brainbase.pid
   - com.brainbase.mcp-brainbase
 visibility_rules:
   - Port 31013 must be treated as canonical runtime, not an arbitrary dev server.
   - The runtime is a disposable linked worktree, not a separately maintained clone or a developer checkout.
+  - The canonical runtime root is the identical BRAINBASE_UI_RUNTIME_ROOT configured in both launchd jobs; when omitted, the launcher default is /Users/ksato/workspace/repos/.runtime/brainbase-31013.
+  - A configured runtime root may be on approved external storage. Its path alone does not make it noncanonical; the launchd configuration, linked-worktree metadata, clean state, target SHA, and MCP receipt must agree.
   - The updater checks origin/develop every 60 seconds and restarts launchd only when the runtime SHA differs.
   - launchd-start fetches origin/develop, resets only the disposable runtime, installs dependencies when package-lock changes, and builds MCP before startup.
   - Local unmerged patches in synced paths cannot persist through launchd restart.
@@ -39,7 +41,7 @@ verification:
     - launchctl print gui/$(id -u)/com.brainbase.ui
     - cat /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
   expected:
-    - /api/version runtime.cwd is /Users/ksato/workspace/repos/.runtime/brainbase-31013
+    - /api/version runtime.cwd matches the identical BRAINBASE_UI_RUNTIME_ROOT selected by the UI and updater launchd jobs, or the launcher default when neither job overrides it
     - /api/version runtime.git.sha matches the intended origin/develop commit
     - /api/version runtime.git.dirty is false for canonical verification
     - brainbase-mcp-reconcile.last sha matches /api/version runtime.git.sha
