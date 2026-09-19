@@ -1,161 +1,58 @@
-# Revert and Re-merge Silent Drop
+# 意図しない削除からの復旧
 
-Use this runbook when a commit on `develop` / `main` is suspected to have silently dropped functionality (e.g., a route 404 appears that worked yesterday, or a UI feature disappears without explanation), AND the commit looks like a single normal feat/fix commit but actually contains unrelated deletions hidden inside an intended refactor.
+現在も必要な機能が無関係な変更で消えたと確認できた場合に使います。ADR・仕様・関連PRで意図的に廃止された機能は復活させません。
 
-Reference incident: commit `14e7c58d feat: add mana memory promotion pipeline` (2026-05-11) silently dropped `html-preview` + `terminal/geometry/repair` routes during rebase conflict resolution. Recovered via PRs #666 (revert) and #667 (clean re-merge).
+参考事例: 2026-05-11 の `14e7c58d` を PR #666 / #667 で復旧しました。当時の実装は、現在の復元対象を決める根拠とは別です。
 
-## When to use
+## 1. 対象と方法を決める
 
-- Endpoint suddenly returns 404 or "Cannot GET ..." for a path that worked before.
-- A UI feature loses behavior that was previously present, with no related fix/feat commit on develop touching that area.
-- `git log -p <path>` shows lines disappearing as part of an unrelated feat commit.
-- `git show <suspect-sha>` contains both `+` lines that match the commit's stated purpose AND `-` lines that look unrelated (different subsystem, different concern).
+- 現在の期待動作、失敗の再現、対象コミットとPRを確認します。実装欠落と配信・設定・認証の問題を分けます。
+- 正常だった固定SHAを特定し、その後の維持すべき変更を確認します。reflogの相対位置だけで復元元を決めません。
+- 小さな修正で回復できるなら最小修正を選びます。コミット全体の取り消しは正当な変更や後続コミットへの影響も確認できた場合に限ります。
+- 一つのStoryと最小Specに期待動作と対象外を記録し、[影響確認](vibepro-impact-review.md)を行います。グラフの未一致は影響なしではありません。
 
-Do NOT use this runbook for intentional removals reviewed via PR — those are normal commits and can be reverted by the original author.
+## 2. 隔離worktreeで修正する
 
-## Why "revert + re-merge" over "cherry-pick the lost lines"
-
-Cherry-picking lost lines requires identifying every silent deletion, which is easy to miss and produces a noisy PR mixing recovery with unrelated edits. Reverting first restores a clean baseline, then re-merging the intended feature on top makes the conflicts EXPLICIT (rebase surfaces them as merge conflicts the operator must consciously resolve), preventing the same silent-drop pattern from recurring.
-
-## Phase 1: Revert on develop
-
-Goal: roll develop back to the state immediately before the silent-drop commit landed.
+既存checkoutの変更を上書きしません。対象repo、基準ブランチ、HEADとdirty状態を確認します。以下は基準がdevelopの場合の例です。プレースホルダーを確認済みの値に置き換えます。
 
 ```sh
-git fetch origin develop --quiet
-git worktree add /Volumes/UNSON-DRIVE/brainbase-worktrees/revert-<sha-short> \
-    -b fix/revert-<sha-short> origin/develop
-cd /Volumes/UNSON-DRIVE/brainbase-worktrees/revert-<sha-short>
-git revert --no-edit <bad-sha>
+git status --short --branch
+git fetch origin develop
+codex-worktree-add recovery-<name> codex/recovery-<name> origin/develop <repo>
 ```
 
-If `revert` reports conflicts, STOP and investigate — there are likely intervening commits that depend on `<bad-sha>`'s changes. Resolving those requires per-commit analysis, not a blanket revert.
+外付けの `CODEX_WORKTREE_ROOT` を使用し、helperが返したパスへ移動します。外付けが使えなければ停止し、内部ディスクへ代替作成しません。依存関係は対象repoの手順に従い、別checkoutの依存物を無条件に共有しません。
 
-Verify the silent drops are restored:
+最小修正では確認済みSHAと現在のソースを比較し、必要な差分だけを実装します。古いファイル全体で上書きしません。
+
+取り消しを選んだ場合だけ、隔離worktreeで実行します。
 
 ```sh
-# Replace the grep patterns with the specific identifiers from your incident.
-grep -nE "<route-pattern-1>|<route-pattern-2>" server/routes/<file>.js
-grep -nE "<helper-function>|<constant>" server/controllers/<file>.js
+git revert --no-commit <confirmed-bad-sha>
 ```
 
-Run the full test suite and compare failure count to the baseline (current `origin/develop`):
+これは履歴の巻き戻しではなく、現在の先端への逆差分の適用です。merge commitではmainlineの確認が必要です。競合や依存変更、データ互換性の不明点があれば一括解決せず分析に戻ります。
 
-```sh
-ln -s /Users/ksato/workspace/code/brainbase/node_modules ./node_modules
-npm run test -- --run 2>&1 | tail -7
-```
+## 3. 検証と通常のPR
 
-If revert worktree fails MORE tests than baseline, investigate before pushing — the revert may have orphaned dependent code.
+- 期待動作と維持する後続変更に対する対象テストを実行します。例: `npm run test:run -- <affected-test-file>`。
+- 終了コードを保持します。出力の末尾や失敗件数の比較だけを合格根拠にせず、既存失敗はテスト名・原因を分けて記録します。
+- `git diff --check` とレビューで無関係な削除・復活がないことを確認します。
+- 変更後のGraphify更新を一度行い、通常のレビューを実施します。対象ファイルだけをstageし、一つの意図でcommitします。
+- 通常のGitHub PRを作成し、CI・レビュー・権限の条件を満たしてからマージします。管理者バイパスや保護の無効化は使いません。フルスイートはCIで確認します。
 
-```sh
-git push -u origin fix/revert-<sha-short>
-gh pr create --base develop --title "Revert: <bad-commit-title> (silent dropped <feature>)" \
-    --body "$(cat <<'EOF'
-<explain what was silently dropped and why revert is the right first step>
-EOF
-)"
-gh pr merge <pr-num> --merge --admin
-```
+マージと本番反映は別です。配信には通常の権限・手順を適用し、対象環境の期待動作をreadbackするまで本番復旧とは報告しません。
 
-`--admin` is appropriate here because:
-- the change is mechanical (`git revert`)
-- the alternative (leaving develop broken) is worse than skipping the Graphify gate
-- Phase 2 will re-introduce the legitimate parts under normal gates
+## 4. 正当な変更の再実装
 
-After merge, cleanup:
+取り消したコミットに必要な変更が含まれていた場合だけ、マージ後の最新基準から別のfocused Story / PRで再実装します。元コミットの無条件なcherry-pickは同じ削除も再導入します。元差分を資料として、現在必要な変更だけを適用・検証します。
 
-```sh
-cd /Users/ksato/workspace/code/brainbase
-git worktree remove /Volumes/UNSON-DRIVE/brainbase-worktrees/revert-<sha-short> --force
-git branch -d fix/revert-<sha-short>
-```
+## 5. 終了確認
 
-## Phase 2: Re-merge the intended feature
+branch・HEAD・upstream・dirty状態、検証結果、PR、配信の有無を報告します。worktreeの削除前にowner、未コミット変更、未push commit、利用中プロセスのPID/cwdを確認し、終了済み・保存済みの対象だけを個別に扱います。強制削除・一括停止はせず、不明なworktreeは残します。
 
-Goal: re-apply the intended additions from `<bad-sha>` on top of the now-restored develop, WITHOUT the silent drops.
+## 関連
 
-```sh
-git fetch origin develop --quiet
-git worktree add /Volumes/UNSON-DRIVE/brainbase-worktrees/redo-<feature> \
-    -b fix/redo-<feature> origin/develop
-cd /Volumes/UNSON-DRIVE/brainbase-worktrees/redo-<feature>
-git cherry-pick --no-commit <bad-sha>
-```
-
-Because develop now contains both:
-- the revert (= silent drops restored)
-- the bad commit's deletions if you cherry-pick blindly,
-
-cherry-pick will REINTRODUCE the silent drops. Verify and surgically repair:
-
-```sh
-git status --short
-# Confirm the silent-dropped files are back to "modified" but with the unwanted deletions.
-grep -nE "<silent-dropped-pattern>" <each-affected-file>
-# If grep finds nothing, manually patch the silent drops back from origin/develop:
-git show origin/develop:<file> > /tmp/develop-version.<basename>
-# Compare and edit the working tree until the file contains BOTH the cherry-picked
-# intended adds AND the previously silent-dropped lines.
-```
-
-Useful technique for files with many sections:
-
-```sh
-diff -u /tmp/develop-version.<basename> <file> | less
-```
-
-Run tests:
-
-```sh
-ln -s /Users/ksato/workspace/code/brainbase/node_modules ./node_modules
-npm run test -- --run 2>&1 | tail -7
-```
-
-Expected: failure count ≤ baseline (because intended adds restore some integration tests).
-
-Stage and commit:
-
-```sh
-git add <list-of-files>
-git commit -m "$(cat <<'EOF'
-feat: <intended-feature-title> (without silent drops)
-
-PR #<revert-pr> で develop を silent drop 前に戻したうえで、
-<intended-feature> を最新 develop に clean rebase した再 PR。
-
-silent drop されていた箇所を手動で復元:
-- <file-1>: <items>
-- <file-2>: <items>
-
-intended adds（<bad-sha> 由来）:
-- <list>
-EOF
-)"
-git push -u origin fix/redo-<feature>
-gh pr create --base develop --title "<intended-feature-title> (without silent drops)" \
-    --body "<explain the redo>"
-gh pr merge <pr-num> --merge --admin
-```
-
-Cleanup:
-
-```sh
-cd /Users/ksato/workspace/code/brainbase
-git worktree remove /Volumes/UNSON-DRIVE/brainbase-worktrees/redo-<feature> --force
-git branch -d fix/redo-<feature>
-```
-
-## Why this can't happen again the same way
-
-Since `feat(security): block direct push / force-update to protected branches` (PR #668), Claude Code and Codex PreToolUse hooks deny `git push origin develop` / `git branch -f develop` / `git push --force`. So the *direct push* vector is closed.
-
-Silent drops can still occur via PR merges (Squash / Rebase merge can drop lines if the PR base diverged from develop in subtle ways). For that residual risk, prefer:
-- create-merge (preserves history; conflicts surface)
-- pre-merge `git diff <base>...<head>` review with explicit eyes on `server/routes/`, `server/controllers/session/`, and other route-defining files
-
-## See also
-
-- `../capabilities/git.protected-push.yml` — the guard that blocks the most common vector.
-- `../troubleshooting/route-disappeared-after-rebase.md` — diagnosing the symptom.
-- `../capabilities/development.workflow.yml` — focused Git workflow rules.
+- [症状の診断](../troubleshooting/route-disappeared-after-rebase.md)
+- [Gitの保護](../capabilities/git.protected-push.yml) — 補助策であり削除事故が起きない証明ではありません。
+- [開発手順](../capabilities/development.workflow.yml)
