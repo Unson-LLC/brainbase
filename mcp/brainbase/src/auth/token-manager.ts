@@ -124,6 +124,7 @@ export class TokenManager {
   private requireEnvironmentToken: boolean;
   private refreshTimeoutMs: number;
   private expectedOrganizationId?: string;
+  private expectedProjectCodes: string[];
 
   constructor(apiUrl?: string, tokenFilePath?: string, options: TokenManagerOptions = {}) {
     this.tokenFilePath = tokenFilePath
@@ -131,6 +132,14 @@ export class TokenManager {
       || join(homedir(), '.brainbase', 'tokens.json');
     this.apiUrl = apiUrl || process.env.BRAINBASE_GRAPH_API_URL || 'http://localhost:31013';
     this.expectedOrganizationId = process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID?.trim() || undefined;
+    this.expectedProjectCodes = (
+      process.env.BRAINBASE_EXPECTED_PROJECT_CODES
+      || process.env.BRAINBASE_PROJECT_CODES
+      || ''
+    )
+      .split(',')
+      .map(value => value.trim())
+      .filter(Boolean);
     this.allowEnvironmentToken = options.allowEnvironmentToken ?? true;
     this.requireEnvironmentToken = options.requireEnvironmentToken ?? false;
     this.refreshTimeoutMs = configuredTimeout(
@@ -152,7 +161,7 @@ export class TokenManager {
       ? process.env.BRAINBASE_GRAPH_API_TOKEN?.trim()
       : undefined;
     if (envToken) {
-      this.assertExpectedOrganization(envToken);
+      this.assertTenantBinding(envToken);
       return envToken;
     }
     if (this.requireEnvironmentToken) {
@@ -181,7 +190,7 @@ export class TokenManager {
       await this.refresh(options);
     }
 
-    this.assertExpectedOrganization(this.tokenData!.access_token);
+    this.assertTenantBinding(this.tokenData!.access_token);
     return this.tokenData!.access_token;
   }
 
@@ -356,7 +365,7 @@ export class TokenManager {
       if (!accessToken) {
         throw new Error('Token refresh response did not include an access token');
       }
-      this.assertExpectedOrganization(accessToken);
+      this.assertTenantBinding(accessToken);
 
       const jwtTiming = this.decodeJwtTiming(accessToken);
       const responseExpiresIn = typeof responseData.expires_in === 'number' && responseData.expires_in > 0
@@ -437,6 +446,38 @@ export class TokenManager {
     const actual = payload.organizationId ?? payload.organization_id ?? payload.tenantId;
     if (actual !== this.expectedOrganizationId) {
       throw new Error(`Tenant mismatch: expected ${this.expectedOrganizationId}, received ${String(actual || 'none')}`);
+    }
+  }
+
+  private assertTenantBinding(token: string): void {
+    this.assertExpectedOrganization(token);
+    if (!this.expectedOrganizationId && this.expectedProjectCodes.length === 0) return;
+
+    const parts = token.split('.');
+    if (parts.length !== 3) {
+      throw new Error('Tenant-bound MCP requires a JWT access token');
+    }
+    let payload: Record<string, unknown>;
+    try {
+      payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf-8')) as Record<string, unknown>;
+    } catch {
+      throw new Error('Tenant-bound MCP could not decode the access token');
+    }
+
+    const expiresAt = payload.exp;
+    if (typeof expiresAt !== 'number' || !Number.isFinite(expiresAt)) {
+      throw new Error('Tenant-bound MCP requires a JWT exp claim');
+    }
+    if (expiresAt <= Math.floor(Date.now() / 1000)) {
+      throw new Error('Tenant-bound MCP access token is expired');
+    }
+
+    const actualProjectCodes = Array.isArray(payload.projectCodes)
+      ? payload.projectCodes.filter((value): value is string => typeof value === 'string')
+      : [];
+    const missing = this.expectedProjectCodes.filter(code => !actualProjectCodes.includes(code));
+    if (missing.length > 0) {
+      throw new Error(`Project scope mismatch: missing ${missing.join(', ')}`);
     }
   }
 

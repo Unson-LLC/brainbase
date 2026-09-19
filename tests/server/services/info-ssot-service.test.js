@@ -12,11 +12,17 @@ const buildService = () => {
             if (typeof text === 'string' && text.startsWith('SELECT id FROM people')) {
                 return { rows: [{ id: 'per_1' }] };
             }
+            if (typeof text === 'string' && text.includes('SELECT id, entity_type FROM graph_entities')) {
+                return { rows: [{ id: params[0], entity_type: 'person' }] };
+            }
             if (typeof text === 'string' && text.includes('FROM raci_assignments')) {
                 return { rows: [{ ok: 1 }] };
             }
             if (typeof text === 'string' && text.includes('INSERT INTO raci_assignments')) {
                 return { rows: [{ id: 'rac_1' }] };
+            }
+            if (typeof text === 'string' && text.includes('AS event_verified')) {
+                return { rows: [{ event_verified: true, entity_verified: true, edge_verified: true }] };
             }
             if (typeof text === 'string' && text.includes('WHERE id = ANY')) {
                 const entityTypeByPrefix = {
@@ -46,6 +52,7 @@ const buildService = () => {
 };
 
 const accessContext = {
+    personId: 'per_1',
     role: 'gm',
     projectCodes: ['brainbase'],
     clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
@@ -1251,6 +1258,7 @@ describe('InfoSSOTService (Graph SSOT)', () => {
 
         expect(result.glossary_term_id).toMatch(/^gls_/);
         expect(result.event_id).toMatch(/^evt_/);
+        expect(result.readback_verified).toBe(true);
         expectActiveOntologyGuard(result);
 
         const entityCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_entities'));
@@ -1273,6 +1281,17 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         const edgeCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_edges'));
         const relTypes = edgeCalls.map(([, params]) => params?.[3]).filter(Boolean);
         expect(relTypes).toEqual(expect.arrayContaining(['belongs_to_project']));
+
+        const eventCall = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO events'));
+        expect(eventCall?.[1]?.[2]).toBe('per_1');
+    });
+
+    it('createGlossaryTerm rejects a missing authenticated actor before writing', async () => {
+        const { service, client } = buildService();
+        await expect(service.createGlossaryTerm({ ...accessContext, personId: '' }, {
+            projectCode: 'brainbase', projectName: 'Brainbase', term: 'SSOT'
+        })).rejects.toThrow('Authenticated personId is required');
+        expect(client.query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO events'))).toBe(false);
     });
 
     it('createGlossaryTerm requires term', async () => {
@@ -1328,6 +1347,9 @@ describe('InfoSSOTService (Graph SSOT)', () => {
         const edgeCalls = client.query.mock.calls.filter(([sql]) => String(sql).includes('INSERT INTO graph_edges'));
         const relTypes = edgeCalls.map(([, params]) => params?.[3]).filter(Boolean);
         expect(relTypes).toEqual(expect.arrayContaining(['belongs_to_project']));
+
+        const eventCall = client.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO events'));
+        expect(eventCall?.[1]?.[2]).toBe('per_1');
     });
 
     it('createKpi requires metricName', async () => {
