@@ -50,6 +50,8 @@ on:
       - 'scripts/build-sns-generation-context.js'
       - 'scripts/lib/retired-sns-cli.js'
       - 'tests/sns/ops/sns-cli-retirement.test.js'
+      - 'tests/sns/personal-kg/personal-knowledge-graph-reader.test.js'
+      - 'tests/sns/curator/**'
       - 'tests/server/bootstrap/development-runtime-boundary.test.js'
       - 'tests/server/routes/retired-capability.test.js'
       - 'tests/server/routes/brainbase.test.js'
@@ -86,6 +88,8 @@ jobs:
           tests/server/bootstrap/development-runtime-boundary.test.js
           tests/server/bootstrap/sns-growth-production-boundary.test.js
           tests/sns/ops/sns-cli-retirement.test.js
+          tests/sns/personal-kg/personal-knowledge-graph-reader.test.js
+          tests/sns/curator
           tests/server/bootstrap/retired-browser-boundary.test.js
           tests/server/bootstrap/device-surface-contract.test.js
           tests/server/bootstrap/static-routes.test.js
