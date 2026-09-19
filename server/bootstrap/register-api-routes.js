@@ -33,7 +33,10 @@ import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
 import { createOutcomeServiceContextRouter } from '../routes/outcome-service-context.js';
 import { createKnowledgeDelegationRouter } from '../routes/knowledge-delegation.js';
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
-import { createOrganizationConnectionsRouter } from '../routes/organization-connections.js';
+import {
+    createGitHubInstallationCallbackHandler,
+    createOrganizationConnectionsRouter
+} from '../routes/organization-connections.js';
 import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
 import { isRemoteCredentialStoreConfigured, createRemoteCredentialStore } from '../services/multitenant/remote-credential-store.js';
@@ -294,8 +297,23 @@ export function registerOrganizationConnectionsApiRoute(app, {
     connectionRepository,
     githubAppSlug = process.env.GITHUB_APP_SLUG,
     githubStateSecret = process.env.BRAINBASE_GITHUB_APP_STATE_SECRET,
+    githubAppVerifier,
+    githubCredentialStore = controlPlane?.credentialStore,
+    githubInstallationStateStore,
+    githubCallbackReturnPath,
+    now,
     resolveAccess
 }) {
+    app.get('/api/organization-connections/github/callback', createGitHubInstallationCallbackHandler({
+        githubAppSlug,
+        githubStateSecret,
+        githubAppVerifier,
+        githubCredentialStore,
+        githubInstallationStateStore,
+        connectionRepository,
+        githubCallbackReturnPath,
+        now
+    }));
     app.use(
         '/api/organization-connections',
         requireAuth(authService, { allowInsecureHeaders: false }),
@@ -307,6 +325,10 @@ export function registerOrganizationConnectionsApiRoute(app, {
             connectionRepository,
             githubAppSlug,
             githubStateSecret,
+            githubAppVerifier,
+            githubCredentialStore,
+            githubInstallationStateStore,
+            now,
             resolveAccess
         })
     );
@@ -381,6 +403,10 @@ export function registerApiRoutes(app, {
     slackInstallationOAuthFlow,
     resolvePreProvisionedSlackConnection,
     organizationConnectionRepository,
+    githubAppVerifier,
+    githubCredentialStore,
+    githubInstallationStateStore,
+    githubCallbackReturnPath,
     env = process.env
 }) {
     const auditTenantGuard = tenantRuntimeServices
@@ -403,7 +429,11 @@ export function registerApiRoutes(app, {
         oauthFlow: slackInstallationOAuthFlow,
         connectionRepository: organizationConnectionRepository,
         githubAppSlug: env.GITHUB_APP_SLUG,
-        githubStateSecret: env.BRAINBASE_GITHUB_APP_STATE_SECRET
+        githubStateSecret: env.BRAINBASE_GITHUB_APP_STATE_SECRET,
+        githubAppVerifier,
+        githubCredentialStore,
+        githubInstallationStateStore,
+        githubCallbackReturnPath
     });
     app.use('/api/state', createRetiredCapabilityRouter({
         capability: 'brainbase.session-state',
