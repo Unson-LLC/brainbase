@@ -1176,4 +1176,79 @@ describe('MultitenantPostgresRepository', () => {
         expect(receiptInsert).toBeLessThan(pricingInsert);
         expect(pricingInsert).toBeLessThan(finalizeCommit);
     });
+
+    it('GitHub installationをtenant内で予約し、同じcallbackを同じ予約へ束縛する', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
+        const reservation = {
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', connection_revision: '1',
+            installation_id: '123', app_id: '456'
+        };
+        const query = vi.fn(async (sql) => {
+            if (String(sql).includes('FROM github_installation_reservations')) return { rows: [reservation] };
+            return { rows: [], rowCount: 0 };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool: { connect: vi.fn(async () => client) } });
+
+        await expect(repository.reserveGitHubInstallation({
+            tenant_id: tenantId, initiated_by_person_id: personId, idempotency_key: 'callback-jti',
+            installation: { installation_id: '123', app_id: '456', account: { id: '789', login: 'Unson-LLC' } }
+        })).resolves.toEqual({ connection_id: reservation.connection_id, connection_revision: '1' });
+        expect(query.mock.calls.some(([sql, values]) => (
+            String(sql).includes('WHERE tenant_id = $1 AND idempotency_key = $2')
+            && values[0] === tenantId && values[1] === 'callback-jti'
+        ))).toBe(true);
+    });
+
+    it('GitHub installationとopaque credential参照を一つのtenant transactionで確定する', async () => {
+        const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
+        const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
+        const connectionId = 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV';
+        const query = vi.fn(async (sql) => {
+            const text = String(sql);
+            if (text.includes('SELECT * FROM github_installation_reservations')) return { rows: [{
+                initiated_by_person_id: personId, installation_id: '123', app_id: '456'
+            }] };
+            if (text.includes('SELECT tenant_revision, status FROM brainbase_tenants')) {
+                return { rows: [{ tenant_revision: '7', status: 'active' }] };
+            }
+            return { rows: [], rowCount: text.includes('DELETE FROM github_installation_reservations') ? 1 : 0 };
+        });
+        const client = { query, release: vi.fn() };
+        const repository = new MultitenantPostgresRepository({
+            pool: { connect: vi.fn(async () => client) }, now: () => new Date('2026-09-20T00:00:00.000Z')
+        });
+
+        await expect(repository.saveGitHubInstallation({
+            tenant_id: tenantId, initiated_by_person_id: personId,
+            connection_id: connectionId, connection_revision: '1',
+            installation: {
+                installation_id: '123', app_id: '456',
+                account: { id: '789', login: 'Unson-LLC', type: 'Organization' },
+                permissions: { contents: 'read', metadata: 'read' }
+            },
+            credential: { credential_ref: 'credref://github/123', credential_mode: 'customer_oauth', refresh_revision: 0 }
+        })).resolves.toMatchObject({ provider: 'github', status: 'active', installation_id: '123' });
+        expect(query.mock.calls.some(([sql, values]) => (
+            String(sql).includes('INSERT INTO workspace_connections')
+            && values.includes('credref://github/123')
+        ))).toBe(true);
+        expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO credential_broker_refs'))).toBe(true);
+        expect(query.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM github_installation_reservations'))).toBe(true);
+    });
+
+    it('GitHub installation確定は不正なcredential metadataをDB接続前に拒否する', async () => {
+        const pool = { connect: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool });
+
+        await expectContractErrorAsync(() => repository.saveGitHubInstallation({
+            tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX',
+            initiated_by_person_id: 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY',
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAV', connection_revision: '1',
+            installation: { installation_id: '123', app_id: '456', account: { id: '789' } },
+            credential: { credential_ref: 'credref://github/123', credential_mode: 'raw_token', refresh_revision: 0 }
+        }), { code: 'GITHUB_CONNECTION_STATE_UNAVAILABLE', status: 409 });
+        expect(pool.connect).not.toHaveBeenCalled();
+    });
 });

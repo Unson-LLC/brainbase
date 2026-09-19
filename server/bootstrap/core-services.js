@@ -74,6 +74,10 @@ import {
 import { createAutomationRuntimeServices } from '../services/automation-runtime/automation-runtime-services.js';
 import { createTenantRuntimeServicesFromEnv } from '../services/multitenant/tenant-runtime-services.js';
 import { CompanyAuthorityHumanApprovalService } from '../services/multitenant/company-authority-human-approval-service.js';
+import { MultitenantPostgresRepository } from '../services/multitenant/postgres-repository.js';
+import { createGitHubAppVerifierFromEnv } from '../services/multitenant/github-app-verifier.js';
+import { createPostgresGitHubAuthorizationLedger } from '../services/multitenant/postgres-github-authorization-ledger.js';
+import { createRemoteCredentialStore, isRemoteCredentialStoreConfigured } from '../services/multitenant/remote-credential-store.js';
 import { createSlackInstallationControlPlaneFromEnv } from './slack-installation-control-plane.js';
 import { createProjectProvisioningService } from '../services/project-provisioning/project-provisioning-service.js';
 import { createVibeproHandoffBootstrap } from './vibepro-handoff-runtime.js';
@@ -286,6 +290,15 @@ export function createCoreServices({
         authService,
         env: process.env
     });
+    const organizationConnectionRepository = slackInstallationControlPlaneRuntime.repository
+        ?? (infoSSOTService.pool ? new MultitenantPostgresRepository({ pool: infoSSOTService.pool }) : null);
+    const githubAppVerifier = createGitHubAppVerifierFromEnv({ env: process.env });
+    const githubCredentialStore = isRemoteCredentialStoreConfigured(process.env)
+        ? createRemoteCredentialStore({ env: process.env })
+        : null;
+    const githubAuthorizationLedger = infoSSOTService.pool
+        ? createPostgresGitHubAuthorizationLedger({ pool: infoSSOTService.pool })
+        : null;
     const wikiService = new WikiService({ pool: infoSSOTService.pool });
     // Memory Promotion Kernel is the sole memory_candidates access boundary.
     // Construct it before LearningService so the compatibility API delegates to it.
@@ -540,7 +553,10 @@ export function createCoreServices({
         canonicalTaskService,
         authService,
         slackInstallationControlPlane: slackInstallationControlPlaneRuntime.controlPlane,
-        organizationConnectionRepository: slackInstallationControlPlaneRuntime.repository,
+        organizationConnectionRepository,
+        githubAppVerifier,
+        githubCredentialStore,
+        githubAuthorizationLedger,
         slackInstallationControlPlaneAuthMiddleware: slackInstallationControlPlaneRuntime.authMiddleware,
         slackInstallationControlPlaneAppId: slackInstallationControlPlaneRuntime.appId,
         slackInstallationOAuthFlow: slackInstallationControlPlaneRuntime.oauthFlow,

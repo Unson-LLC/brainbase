@@ -88,6 +88,13 @@ CREATE TABLE IF NOT EXISTS workspace_connections (
     UNIQUE (tenant_id, connection_id, connection_revision)
 );
 
+-- Provider verification may race across callback workers.  A GitHub App
+-- installation can have only one current connection even when callbacks arrive
+-- concurrently; revoked rows remain available for audit and reconnection.
+CREATE UNIQUE INDEX IF NOT EXISTS workspace_connections_active_github_installation_idx
+    ON workspace_connections (tenant_id, installation_id)
+    WHERE provider = 'github' AND status IN ('pending', 'active');
+
 CREATE TABLE IF NOT EXISTS workspace_connection_revisions (
     tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
     connection_id TEXT NOT NULL,
@@ -155,6 +162,42 @@ CREATE TABLE IF NOT EXISTS tenant_credential_leases (
     CHECK (expires_at > issued_at),
     CHECK (expires_at <= issued_at + INTERVAL '60 seconds'),
     CHECK (consumed_at IS NULL OR consumed_at >= issued_at)
+);
+
+-- The signed GitHub installation state is deliberately not stored.  Only its
+-- digest and the tenant/person binding are retained so callback state can be
+-- consumed exactly once without persisting a replayable authorization URL.
+CREATE TABLE IF NOT EXISTS github_authorization_states (
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    jti UUID NOT NULL,
+    person_id TEXT NOT NULL CHECK (person_id ~ '^per_[0-9A-HJKMNP-TV-Z]{26}$'),
+    state_digest TEXT NOT NULL CHECK (state_digest ~ '^[a-f0-9]{64}$'),
+    issued_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    PRIMARY KEY (tenant_id, jti),
+    UNIQUE (tenant_id, state_digest),
+    CHECK (expires_at > issued_at),
+    CHECK (expires_at <= issued_at + INTERVAL '10 minutes'),
+    CHECK (consumed_at IS NULL OR consumed_at >= issued_at)
+);
+
+CREATE INDEX IF NOT EXISTS github_authorization_states_expiry_idx
+    ON github_authorization_states (expires_at);
+
+CREATE TABLE IF NOT EXISTS github_installation_reservations (
+    tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id),
+    idempotency_key TEXT NOT NULL,
+    connection_id TEXT NOT NULL CHECK (connection_id ~ '^wsc_[0-9A-HJKMNP-TV-Z]{26}$'),
+    connection_revision BIGINT NOT NULL CHECK (connection_revision > 0),
+    installation_id TEXT NOT NULL,
+    app_id TEXT NOT NULL,
+    account_id TEXT NOT NULL,
+    account_login TEXT NOT NULL,
+    initiated_by_person_id TEXT NOT NULL CHECK (initiated_by_person_id ~ '^per_[0-9A-HJKMNP-TV-Z]{26}$'),
+    created_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (tenant_id, idempotency_key),
+    UNIQUE (tenant_id, connection_id, connection_revision)
 );
 
 CREATE TABLE IF NOT EXISTS tenant_contract_revisions (
@@ -463,6 +506,8 @@ ALTER TABLE workspace_connections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workspace_connection_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE credential_broker_refs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_credential_leases ENABLE ROW LEVEL SECURITY;
+ALTER TABLE github_authorization_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE github_installation_reservations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_contract_revisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_quota_decisions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tenant_usage_events ENABLE ROW LEVEL SECURITY;
@@ -482,6 +527,8 @@ ALTER TABLE workspace_connections FORCE ROW LEVEL SECURITY;
 ALTER TABLE workspace_connection_revisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE credential_broker_refs FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_credential_leases FORCE ROW LEVEL SECURITY;
+ALTER TABLE github_authorization_states FORCE ROW LEVEL SECURITY;
+ALTER TABLE github_installation_reservations FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_contract_revisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_quota_decisions FORCE ROW LEVEL SECURITY;
 ALTER TABLE tenant_usage_events FORCE ROW LEVEL SECURITY;
@@ -506,6 +553,7 @@ BEGIN
         'tenant_organizations', 'tenant_memberships', 'tenant_projects',
         'tenant_graph_entities', 'tenant_graph_relations', 'workspace_connections',
         'workspace_connection_revisions', 'credential_broker_refs', 'tenant_credential_leases',
+        'github_authorization_states', 'github_installation_reservations',
         'tenant_contract_revisions', 'tenant_quota_decisions',
         'tenant_usage_events', 'tenant_operation_receipts', 'tenant_receipt_pricing_snapshots', 'tenant_business_effect_claims',
         'tenant_migrations', 'tenant_migration_quarantine'

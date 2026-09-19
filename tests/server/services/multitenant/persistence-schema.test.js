@@ -10,7 +10,7 @@ describe('multitenant persistence schema', () => {
         for (const table of [
             'brainbase_tenants', 'tenant_organizations', 'tenant_memberships', 'tenant_projects',
             'tenant_graph_entities', 'tenant_graph_relations', 'workspace_connections',
-            'tenant_credential_leases',
+            'tenant_credential_leases', 'github_authorization_states', 'github_installation_reservations',
             'tenant_contract_revisions', 'tenant_quota_decisions', 'tenant_usage_events',
             'tenant_operation_receipts', 'tenant_receipt_pricing_snapshots',
             'tenant_migrations', 'tenant_migration_quarantine', 'tenant_migration_source_rows'
@@ -19,12 +19,17 @@ describe('multitenant persistence schema', () => {
         }
         expect(sql).toContain('tenant_revision_at_write');
         expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
-        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(18);
+        expect((sql.match(/FORCE ROW LEVEL SECURITY/g) ?? [])).toHaveLength(20);
         expect(sql).toContain("current_setting('brainbase.tenant_id', true)");
         expect(sql).toContain('FOREIGN KEY (tenant_id, organization_id) REFERENCES tenant_organizations(tenant_id, organization_id)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, source_entity_id) REFERENCES tenant_graph_entities(tenant_id, entity_id)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, connection_id, connection_revision) REFERENCES workspace_connection_revisions(tenant_id, connection_id, connection_revision)');
         expect(sql).toContain('FOREIGN KEY (tenant_id, migration_id) REFERENCES tenant_migrations(tenant_id, migration_id)');
+        expect(sql).toContain('github_authorization_states FORCE ROW LEVEL SECURITY');
+        expect(sql).toContain('github_installation_reservations FORCE ROW LEVEL SECURITY');
+        expect(sql).toContain("'github_authorization_states'");
+        expect(sql).toContain('workspace_connections_active_github_installation_idx');
+        expect(sql).toContain("WHERE provider = 'github' AND status IN ('pending', 'active')");
         expect(sql).toContain('plan_digest TEXT NOT NULL');
         expect(sql).toContain("CHECK (plan_digest ~ '^sha256:[a-f0-9]{64}$')");
         expect(sql).toContain('plan_payload JSONB NOT NULL');
@@ -71,5 +76,26 @@ describe('multitenant persistence schema', () => {
         expect(sql).toContain('claim_payload JSONB NOT NULL');
         expect(sql).toContain('UNIQUE (tenant_id, contract_revision)');
         expect(sql).not.toMatch(/tenant_usage_events[\s\S]*?UNIQUE \(tenant_id, idempotency_key\)[\s\S]*?CREATE TABLE IF NOT EXISTS tenant_operation_receipts/);
+    });
+
+    it('GitHub callback stateはdigestだけを保存し、tenant/person/RLS/一回消費を制約する', async () => {
+        const sql = await readFile(schemaPath, 'utf8');
+        const stateTable = sql.match(/CREATE TABLE IF NOT EXISTS github_authorization_states \(([\s\S]*?)\);/i)?.[1] ?? '';
+        expect(stateTable).toContain('tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id)');
+        expect(stateTable).toContain('jti UUID NOT NULL');
+        expect(stateTable).toContain("state_digest TEXT NOT NULL CHECK (state_digest ~ '^[a-f0-9]{64}$')");
+        expect(stateTable).toContain('consumed_at TIMESTAMPTZ');
+        expect(stateTable).toContain("expires_at <= issued_at + INTERVAL '10 minutes'");
+        expect(stateTable).not.toMatch(/signed_state|payload|signature/i);
+        expect(sql).toContain('CREATE POLICY tenant_isolation ON %I');
+    });
+
+    it('GitHub installation予約はtenantとcallback主体へ固定する', async () => {
+        const sql = await readFile(schemaPath, 'utf8');
+        const reservationTable = sql.match(/CREATE TABLE IF NOT EXISTS github_installation_reservations \(([\s\S]*?)\);/i)?.[1] ?? '';
+        expect(reservationTable).toContain('tenant_id TEXT NOT NULL REFERENCES brainbase_tenants(tenant_id)');
+        expect(reservationTable).toContain('PRIMARY KEY (tenant_id, idempotency_key)');
+        expect(reservationTable).toContain('UNIQUE (tenant_id, connection_id, connection_revision)');
+        expect(reservationTable).toContain('initiated_by_person_id TEXT NOT NULL');
     });
 });
