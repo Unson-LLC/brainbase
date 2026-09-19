@@ -1,59 +1,31 @@
-# Troubleshooting: Route Disappeared After Rebase
+# 以前使えたルートが見つからない場合
 
-## Symptom
+404だけではrebaseによる意図しない削除とは断定できません。現行仕様・稼働版・設定・認証・ルート登録を確認します。廃止済みルートを過去に存在したという理由だけで復元しません。
 
-An endpoint that worked yesterday now returns `Cannot GET /api/...` or `404`. `git log` shows develop has moved forward with normal feat/fix commits, none of which are titled like a removal.
+## 診断
 
-Common surfaces:
-- File viewer: `Cannot GET /api/sessions/<id>/html-preview/<file>.html`
-- Terminal: `geometry/repair` endpoint missing
-- UI: a feature toggle no longer triggers anything
+1. 対象環境と期待するAPI、実際のレスポンス、稼働版を記録し、現行仕様やADRで今も必要な機能か確認します。
+2. 対象ファイルの履歴と差分を確認します。
 
-## Diagnostic flow
-
-1. Find the commit that last touched the route file:
    ```sh
-   git log -p server/routes/<file>.js | head -100
+   git log -n 10 -p -- <route-file>
+   git show <suspect-sha> -- <route-file>
+   gh api repos/Unson-LLC/brainbase-unson/commits/<suspect-sha>/pulls
    ```
-   Look for a `-router.METHOD('/path', ...)` line in a commit whose title does NOT mention that route.
 
-2. If found, that commit is a silent-drop suspect. Verify it's not a deliberate removal by checking the commit body and any associated PR:
-   ```sh
-   git show <sha> --stat
-   gh api repos/Unson-LLC/brainbase-unson/commits/<sha>/pulls
-   ```
-   If `gh api` returns `[]`, the commit was pushed directly to develop (not via PR) — strong silent-drop signal.
+   PR一覧が空でも直接pushの証明にはなりません。取得失敗や関連付けの不足は未確認として残します。コミットの題名だけで削除意図を判断しません。
+3. 関連PR・仕様・呼び出し元・テストと対象コミット全体を確認します。正常だった固定SHAと、その後に維持すべき変更を特定します。
+4. 現行仕様に反する削除が確認できた場合に限り、[復旧手順](../runbooks/revert-and-remerge-silent-drop.md)で最小修正と取り消しを比較します。ソースに欠落がなければ配信・設定などを調べます。
 
-3. Confirm what was lost across the whole commit:
-   ```sh
-   git show <sha> | grep -E "^-[^-]" | grep -vE "^-\s*//|^-\s*\*|^-\s*$"
-   ```
-   Filter `-` lines to substantive deletions; cross-reference against the commit's stated purpose. Unrelated deletions = silent drops.
+2026-05-11の `14e7c58d` は競合解決で上流の変更が落ちた参考事例です。今回も同じ原因だとは推定しません。
 
-## Cause
+## 避けること
 
-The most common pattern (and the one behind the 14e7c58d incident on 2026-05-11): a feature branch was based on an older `develop`, develop moved forward in the meantime adding new routes, and `git rebase origin/develop` resolved a conflict by keeping the branch side — silently dropping the routes added upstream.
+- force-pushによる共有ブランチの巻き戻しやGit保護の無効化。
+- 古いファイルの丸ごと復元、未確認の復元元、意図的な廃止の取り消し。
+- マージだけで本番復旧と報告すること。
 
-Less common but possible:
-- a `git merge -s ours <branch>` with a stale tree
-- a manual `git checkout <old-sha> -- <file>` that overwrote upstream work
-- a Squash merge where the squash collapsed a branch that had reverted upstream additions
+## 関連
 
-## Fix
-
-Follow `../runbooks/revert-and-remerge-silent-drop.md`:
-
-1. Phase 1: `git revert <bad-sha>` on develop via PR (mechanical, no conflicts expected with subsequent commits unless they depend on the bad commit's content).
-2. Phase 2: cherry-pick the bad commit on top of restored develop, then surgically re-apply the silently dropped lines from `origin/develop@{1}` (the pre-revert state) via a new PR.
-
-## Do Not
-
-- Cherry-pick the lost lines alone — easy to miss items, produces a noisy PR.
-- Force-push develop to "rewind" — destroys subsequent legitimate commits and triggers `git.protected-push` guard (see `../capabilities/git.protected-push.yml`).
-- Disable the guard via `BRAINBASE_ALLOW_PROTECTED_PUSH=1` for this — the recovery flow uses normal PRs.
-
-## Related
-
-- `../capabilities/git.protected-push.yml` — guard that blocks the direct-push vector since PR #668.
-- `../runbooks/revert-and-remerge-silent-drop.md` — recovery procedure.
-- `../capabilities/development.workflow.yml` — the focused Git staging and review rules that reduce silent-drop risk.
+- [Gitの保護](../capabilities/git.protected-push.yml)
+- [開発手順](../capabilities/development.workflow.yml)
