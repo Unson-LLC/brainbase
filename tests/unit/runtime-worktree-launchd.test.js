@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer } from 'node:net';
@@ -32,12 +32,39 @@ function createRuntimeFixture() {
   return { sandbox, source, runtime, oldSha, expectedSha };
 }
 
-function createProbe(sandbox, responses) {
+function createReconcileRuntimeFixture() {
+  const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-mcp-reconcile-runtime-'));
+  const source = resolve(sandbox, 'source');
+  const runtime = resolve(sandbox, 'runtime');
+  mkdirSync(resolve(source, 'scripts'), { recursive: true });
+  mkdirSync(resolve(source, 'mcp/brainbase'), { recursive: true });
+  execFileSync('git', ['init', '-q', source]);
+  execFileSync('git', ['-C', source, 'config', 'user.email', 'test@example.com']);
+  execFileSync('git', ['-C', source, 'config', 'user.name', 'Test']);
+  const mcpLauncher = resolve(source, 'scripts/run-brainbase-mcp.sh');
+  writeFileSync(mcpLauncher, '#!/bin/bash\nexit 0\n');
+  chmodSync(mcpLauncher, 0o755);
+  writeFileSync(resolve(source, 'mcp/brainbase/package.json'), '{"name":"fixture-mcp"}\n');
+  writeFileSync(resolve(source, 'fixture.txt'), 'old target\n');
+  execFileSync('git', ['-C', source, 'add', 'scripts/run-brainbase-mcp.sh', 'mcp/brainbase/package.json', 'fixture.txt']);
+  execFileSync('git', ['-C', source, 'commit', '-qm', 'old reconcile target']);
+  const oldSha = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  writeFileSync(resolve(source, 'fixture.txt'), 'latest target\n');
+  execFileSync('git', ['-C', source, 'add', 'fixture.txt']);
+  execFileSync('git', ['-C', source, 'commit', '-qm', 'latest reconcile target']);
+  const expectedSha = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+  execFileSync('git', ['-C', source, 'worktree', 'add', '--detach', '--quiet', runtime, expectedSha]);
+  return { sandbox, runtime, oldSha, expectedSha };
+}
+
+function createProbe(sandbox, responses, { onSleepScript = '' } = {}) {
   const bin = resolve(sandbox, 'bin');
   const counter = resolve(sandbox, 'curl.count');
   const responseFile = resolve(sandbox, 'curl.responses');
+  const sleepCounter = resolve(sandbox, 'sleep.count');
   mkdirSync(bin);
   writeFileSync(counter, '0\n');
+  writeFileSync(sleepCounter, '0\n');
   writeFileSync(responseFile, `${responses.join('\n')}\n`);
   const quote = (value) => JSON.stringify(value);
   const curl = resolve(bin, 'curl');
@@ -55,11 +82,83 @@ printf '%s\\n' "$response"
   );
   chmodSync(curl, 0o755);
   const sleep = resolve(bin, 'sleep');
-  writeFileSync(sleep, '#!/bin/bash\nexit 0\n');
+  writeFileSync(
+    sleep,
+    `#!/bin/bash
+set -euo pipefail
+count="$(cat ${quote(sleepCounter)})"
+count=$((count + 1))
+printf '%s\\n' "$count" > ${quote(sleepCounter)}
+${onSleepScript}
+exit 0
+`,
+  );
   chmodSync(sleep, 0o755);
   return {
     counter,
+    sleepCounter,
+    responseFile,
+    bin,
     env: { ...process.env, PATH: `${bin}:${process.env.PATH || ''}` },
+  };
+}
+
+function configureSuccessfulReconcile({ sandbox, runtime, targetSha, previousSha, probe, runtimeLock = '' }) {
+  const receipt = resolve(sandbox, 'reconcile.receipt');
+  const mvMarker = resolve(sandbox, 'receipt-mv.called');
+  const runtimeLockProcessingMarker = resolve(sandbox, 'runtime-lock.processing');
+  const runtimeLockReceiptMarker = resolve(sandbox, 'runtime-lock.receipt');
+  const quote = (value) => JSON.stringify(value);
+  const npm = resolve(probe.bin, 'npm');
+  writeFileSync(npm, '#!/bin/bash\nexit 0\n');
+  chmodSync(npm, 0o755);
+  const launchctl = resolve(probe.bin, 'launchctl');
+  writeFileSync(
+    launchctl,
+    `#!/bin/bash
+set -euo pipefail
+if [[ "$1" == "print" ]]; then printf "state = running\\n"; exit 0; fi
+if [[ "$1" == "kickstart" ]]; then
+${runtimeLock ? `  [[ -d ${quote(runtimeLock)} ]] || exit 95
+  printf 'held\\n' > ${quote(runtimeLockProcessingMarker)}
+` : ''}  exit 0
+fi
+exit 2
+`,
+  );
+  chmodSync(launchctl, 0o755);
+  const mv = resolve(probe.bin, 'mv');
+  writeFileSync(
+    mv,
+    `#!/bin/bash
+set -euo pipefail
+[[ "$#" -eq 4 && "$1" == "-f" && "$2" == "--" && "$4" == ${quote(receipt)} ]] || exit 90
+tmp="$3"
+[[ "$(dirname "$tmp")" == "$(dirname ${quote(receipt)})" ]] || exit 91
+[[ -f ${quote(receipt)} ]] || exit 92
+grep -Fxq ${quote(`sha=${previousSha}`)} ${quote(receipt)} || exit 93
+grep -Fxq ${quote(`sha=${targetSha}`)} "$tmp" || exit 94
+${runtimeLock ? `[[ -d ${quote(runtimeLock)} ]] || exit 95
+printf 'held\\n' > ${quote(runtimeLockReceiptMarker)}
+` : ''}
+printf 'called\\n' > ${quote(mvMarker)}
+exec /bin/mv "$@"
+`,
+  );
+  chmodSync(mv, 0o755);
+  return {
+    ...probe,
+    receipt,
+    mvMarker,
+    runtimeLockProcessingMarker,
+    runtimeLockReceiptMarker,
+    env: {
+      ...probe.env,
+      BRAINBASE_UI_RUNTIME_ROOT: runtime,
+      BRAINBASE_MCP_RUNTIME_ROOT: runtime,
+      BRAINBASE_MCP_LAUNCHD_LABEL: 'test.mcp',
+      BRAINBASE_CHATGPT_TUNNEL_LAUNCHD_LABEL: 'test.chatgpt-tunnel',
+    },
   };
 }
 
@@ -127,7 +226,10 @@ function runReconcile({ sandbox, targetSha = 'a'.repeat(40), probe, extraEnv = {
       ...probe.env,
       BRAINBASE_MCP_RECONCILE_LOCK: resolve(sandbox, 'reconcile.lock'),
       BRAINBASE_MCP_RECONCILE_RECEIPT: resolve(sandbox, 'reconcile.receipt'),
+      BRAINBASE_RUNTIME_LOCK: resolve(sandbox, 'runtime-update.lock'),
       BRAINBASE_MCP_RECONCILE_WAIT_ATTEMPTS: '1',
+      BRAINBASE_MCP_RECONCILE_LOCK_WAIT_SECONDS: '1',
+      BRAINBASE_RUNTIME_LOCK_WAIT_SECONDS: '1',
       ...extraEnv,
     },
   });
@@ -438,11 +540,12 @@ describe('managed launchd runtime contract', () => {
     }
   });
 
-  it('fails closed before probing when MCP reconcile timeout configuration is non-finite', () => {
+  it('fails closed before probing and preserves the last successful receipt when MCP reconcile timeout is non-finite', () => {
     const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-mcp-reconcile-invalid-timeout-'));
     const probe = createProbe(sandbox, [versionResponse('a'.repeat(40), false)]);
     const receipt = resolve(sandbox, 'reconcile.receipt');
-    writeFileSync(receipt, 'sha=stale\n');
+    const previousReceipt = `sha=${'b'.repeat(40)}\ncompleted_at=2026-09-19T15:53:07Z\nchatgpt_tunnel=running\n`;
+    writeFileSync(receipt, previousReceipt);
     try {
       const result = runReconcile({
         sandbox,
@@ -452,28 +555,204 @@ describe('managed launchd runtime contract', () => {
       expect(result.status).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/timeout|finite positive/i);
       expect(probeCount(probe)).toBe(0);
-      expect(existsSync(receipt)).toBe(false);
+      expect(readFileSync(receipt, 'utf8')).toBe(previousReceipt);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }
   });
 
-  it('fails closed when another MCP reconciliation owns the lock', () => {
+  it('waits boundedly for a live MCP lock owner and preserves the last successful receipt', () => {
     const sandbox = mkdtempSync(resolve(tmpdir(), 'brainbase-mcp-reconcile-lock-'));
     const probe = createProbe(sandbox, [versionResponse('a'.repeat(40), false)]);
     const receipt = resolve(sandbox, 'reconcile.receipt');
-    writeFileSync(receipt, 'sha=stale\n');
-    mkdirSync(resolve(sandbox, 'reconcile.lock'));
+    const lockFile = resolve(sandbox, 'reconcile.lock');
+    const previousReceipt = `sha=${'b'.repeat(40)}\ncompleted_at=2026-09-19T15:53:07Z\nchatgpt_tunnel=running\n`;
+    writeFileSync(receipt, previousReceipt);
+    writeFileSync(lockFile, `${process.pid}\n`);
     try {
-      const result = runReconcile({ sandbox, probe });
+      const result = runReconcile({
+        sandbox,
+        probe,
+        extraEnv: { BRAINBASE_MCP_RECONCILE_LOCK_WAIT_SECONDS: '2' },
+      });
       expect(result.status).not.toBe(0);
       expect(`${result.stdout}\n${result.stderr}`).toMatch(/already running/i);
+      expect(Number(readFileSync(probe.sleepCounter, 'utf8').trim())).toBe(2);
       expect(probeCount(probe)).toBe(0);
-      expect(existsSync(receipt)).toBe(true);
+      expect(readFileSync(receipt, 'utf8')).toBe(previousReceipt);
+      expect(readFileSync(lockFile, 'utf8')).toBe(`${process.pid}\n`);
+      expect(existsSync(lockFile)).toBe(true);
     } finally {
       rmSync(sandbox, { recursive: true, force: true });
     }
   });
+
+  it('waits for the UI runtime lock, holds it through the receipt commit, then releases it', () => {
+    const fixture = createReconcileRuntimeFixture();
+    const previousSha = 'b'.repeat(40);
+    const runtimeLock = resolve(fixture.sandbox, 'runtime-update.lock');
+    const contendedMarker = resolve(fixture.sandbox, 'runtime-lock.contended');
+    mkdirSync(runtimeLock);
+    const quote = (value) => JSON.stringify(value);
+    const rawProbe = createProbe(fixture.sandbox, [versionResponse(fixture.expectedSha, false)], {
+      onSleepScript: `
+if [[ "$count" == "1" ]]; then
+  [[ -d ${quote(runtimeLock)} ]] && printf 'contended\\n' > ${quote(contendedMarker)}
+  rmdir ${quote(runtimeLock)}
+fi
+`,
+    });
+    const probe = configureSuccessfulReconcile({
+      sandbox: fixture.sandbox,
+      runtime: fixture.runtime,
+      targetSha: fixture.expectedSha,
+      previousSha,
+      probe: rawProbe,
+      runtimeLock,
+    });
+    writeFileSync(
+      probe.receipt,
+      `sha=${previousSha}\ncompleted_at=2026-09-19T15:53:07Z\nchatgpt_tunnel=running\n`,
+    );
+    try {
+      const result = runReconcile({ sandbox: fixture.sandbox, targetSha: fixture.expectedSha, probe });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(existsSync(contendedMarker)).toBe(true);
+      expect(existsSync(probe.runtimeLockProcessingMarker)).toBe(true);
+      expect(existsSync(probe.runtimeLockReceiptMarker)).toBe(true);
+      expect(existsSync(probe.mvMarker)).toBe(true);
+      expect(readFileSync(probe.receipt, 'utf8')).toMatch(new RegExp(`^sha=${fixture.expectedSha}$`, 'm'));
+      expect(existsSync(runtimeLock)).toBe(false);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('runs a single reconciliation and atomically replaces the prior receipt on success', () => {
+    const fixture = createReconcileRuntimeFixture();
+    const previousSha = 'b'.repeat(40);
+    const probe = configureSuccessfulReconcile({
+      sandbox: fixture.sandbox,
+      runtime: fixture.runtime,
+      targetSha: fixture.expectedSha,
+      previousSha,
+      probe: createProbe(fixture.sandbox, [versionResponse(fixture.expectedSha, false)]),
+    });
+    writeFileSync(
+      probe.receipt,
+      `sha=${previousSha}\ncompleted_at=2026-09-19T15:53:07Z\nchatgpt_tunnel=running\n`,
+    );
+    try {
+      const result = runReconcile({ sandbox: fixture.sandbox, targetSha: fixture.expectedSha, probe });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(existsSync(probe.mvMarker)).toBe(true);
+      const receipt = readFileSync(probe.receipt, 'utf8');
+      expect(receipt).toMatch(new RegExp(`^sha=${fixture.expectedSha}$`, 'm'));
+      expect(receipt).toMatch(/^completed_at=\S+$/m);
+      expect(receipt).toContain('chatgpt_tunnel=running\n');
+      expect(readdirSync(fixture.sandbox).filter((name) => name.startsWith('reconcile.receipt.tmp.'))).toEqual([]);
+      expect(existsSync(resolve(fixture.sandbox, 'reconcile.lock'))).toBe(false);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('waits for the lock, then converges on the current UI API and checkout SHA', () => {
+    const fixture = createReconcileRuntimeFixture();
+    const previousSha = 'b'.repeat(40);
+    const lockFile = resolve(fixture.sandbox, 'reconcile.lock');
+    const quote = (value) => JSON.stringify(value);
+    execFileSync('git', ['-C', fixture.runtime, 'checkout', '--detach', '--quiet', fixture.oldSha]);
+    const rawProbe = createProbe(fixture.sandbox, [
+      versionResponse(fixture.oldSha, false),
+      versionResponse(fixture.oldSha, false),
+    ], {
+      onSleepScript: `
+if [[ "$count" == "1" ]]; then
+  git -C ${quote(fixture.runtime)} checkout --detach --quiet ${quote(fixture.expectedSha)}
+  rm -f -- ${quote(lockFile)}
+elif [[ "$count" == "2" ]]; then
+  temp="$(mktemp ${quote(`${resolve(fixture.sandbox, 'curl.responses')}.test.XXXXXX`)})"
+  printf '%s\\n%s\\n' ${quote(versionResponse(fixture.oldSha, false))} ${quote(versionResponse(fixture.expectedSha, false))} > "$temp"
+  /bin/mv -f -- "$temp" ${quote(resolve(fixture.sandbox, 'curl.responses'))}
+fi
+`,
+    });
+    const probe = configureSuccessfulReconcile({
+      sandbox: fixture.sandbox,
+      runtime: fixture.runtime,
+      targetSha: fixture.expectedSha,
+      previousSha,
+      probe: rawProbe,
+    });
+    writeFileSync(
+      probe.receipt,
+      `sha=${previousSha}\ncompleted_at=2026-09-19T15:53:07Z\nchatgpt_tunnel=running\n`,
+    );
+    writeFileSync(lockFile, `${process.pid}\n`);
+    try {
+      const result = runReconcile({
+        sandbox: fixture.sandbox,
+        targetSha: fixture.oldSha,
+        probe,
+        extraEnv: {
+          BRAINBASE_MCP_RECONCILE_LOCK_WAIT_SECONDS: '3',
+          BRAINBASE_MCP_RECONCILE_WAIT_ATTEMPTS: '3',
+        },
+      });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(probeCount(probe)).toBe(2);
+      expect(Number(readFileSync(probe.sleepCounter, 'utf8').trim())).toBe(2);
+      expect(execFileSync('git', ['-C', fixture.runtime, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()).toBe(fixture.expectedSha);
+      expect(readFileSync(probe.responseFile, 'utf8')).toBe(`${versionResponse(fixture.oldSha, false)}\n${versionResponse(fixture.expectedSha, false)}\n`);
+      expect(result.stderr).toContain(`requested SHA ${fixture.oldSha.slice(0, 12)}`);
+      expect(result.stderr).toContain(`UI API and checkout agree on ${fixture.expectedSha.slice(0, 12)}`);
+      expect(existsSync(probe.mvMarker)).toBe(true);
+      expect(readFileSync(probe.receipt, 'utf8')).toMatch(new RegExp(`^sha=${fixture.expectedSha}$`, 'm'));
+      expect(existsSync(lockFile)).toBe(false);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  });
+
+  it('recovers a stale PID lock with shlock without disturbing its last successful receipt', () => {
+    const fixture = createReconcileRuntimeFixture();
+    const previousSha = 'b'.repeat(40);
+    const lockFile = resolve(fixture.sandbox, 'reconcile.lock');
+    const probe = configureSuccessfulReconcile({
+      sandbox: fixture.sandbox,
+      runtime: fixture.runtime,
+      targetSha: fixture.expectedSha,
+      previousSha,
+      probe: createProbe(fixture.sandbox, [versionResponse(fixture.expectedSha, false)]),
+    });
+    writeFileSync(
+      probe.receipt,
+      `sha=${previousSha}\ncompleted_at=2026-09-19T15:53:07Z\nchatgpt_tunnel=running\n`,
+    );
+    const staleOwnerPidFile = resolve(fixture.sandbox, 'stale-owner.pid');
+    execFileSync('bash', ['-c', 'printf "%s\\n" "$$" > "$1"', '--', staleOwnerPidFile]);
+    const staleOwnerPid = readFileSync(staleOwnerPidFile, 'utf8').trim();
+    expect(staleOwnerPid).toMatch(/^\d+$/);
+    writeFileSync(lockFile, `${staleOwnerPid}\n`);
+    const sleepStub = resolve(probe.bin, 'sleep');
+    writeFileSync(sleepStub, '#!/bin/bash\nexec /bin/sleep "$@"\n');
+    chmodSync(sleepStub, 0o755);
+    try {
+      const result = runReconcile({
+        sandbox: fixture.sandbox,
+        targetSha: fixture.expectedSha,
+        probe,
+        extraEnv: { BRAINBASE_MCP_RECONCILE_LOCK_WAIT_SECONDS: '3' },
+      });
+      expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+      expect(probeCount(probe)).toBe(1);
+      expect(readFileSync(probe.receipt, 'utf8')).toMatch(new RegExp(`^sha=${fixture.expectedSha}$`, 'm'));
+      expect(existsSync(lockFile)).toBe(false);
+    } finally {
+      rmSync(fixture.sandbox, { recursive: true, force: true });
+    }
+  }, 10_000);
 
   it('runs UI and MCP from the exact same runtime checkout', () => {
     const start = read('scripts/launchd/brainbase-ui-start.sh');
