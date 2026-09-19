@@ -438,6 +438,7 @@ export function createOrganizationConnectionsRouter({
             || req.authSource === 'insecure-header') return null;
         const access = await accessResolver({ req, auth: req.auth, access: req.access });
         if (!access || !isCanonicalId(access.tenantId, 'ten') || !isCanonicalId(access.personId, 'per')
+            || (isCanonicalId(access.organizationId, 'ten') && access.organizationId !== access.tenantId)
             || !ADMIN_ROLES.has(String(access.role ?? '').toLowerCase())) return null;
         return access;
     }
