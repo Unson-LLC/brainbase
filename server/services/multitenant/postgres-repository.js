@@ -1525,7 +1525,8 @@ export class MultitenantPostgresRepository {
             );
             const tenant = tenantResult.rows[0];
             if (!tenant) throw new ContractError('TENANT_UNKNOWN', { status: 403 });
-            if (String(tenant.tenant_revision) !== expected_tenant_revision) {
+            if (expected_tenant_revision !== undefined
+                && String(tenant.tenant_revision) !== expected_tenant_revision) {
                 throw new ContractError('TENANT_REVISION_MISMATCH', { status: 409 });
             }
             const contractResult = await client.query(
