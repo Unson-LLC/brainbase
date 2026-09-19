@@ -4,7 +4,7 @@ type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<
 
 export interface MeetingMinutesContextToolDependencies {
   apiUrl: string;
-  getToken: () => Promise<string>;
+  serviceToken?: string;
   fetch?: FetchLike;
 }
 
@@ -87,7 +87,7 @@ export async function handleMeetingMinutesContextToolCall(
     const projectCode = requiredString(args, 'project_code');
     const transcriptSha256 = requiredString(args, 'transcript_sha256');
     if (!/^[0-9a-f]{64}$/.test(transcriptSha256)) throw new Error('transcript_sha256 must be a lowercase SHA-256');
-    const token = await dependencies.getToken();
+    const token = dependencies.serviceToken?.trim();
     if (!token) return errorResult('meeting_minutes_context_auth_unavailable', 'Brainbase service token is unavailable');
     const url = new URL(`/api/meeting-minutes/context-receipts/${encodeURIComponent(receiptId)}`, dependencies.apiUrl);
     url.searchParams.set('run_id', runId);

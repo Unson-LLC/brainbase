@@ -31,7 +31,7 @@ test('dedicated tool retrieves the exact identity-bound receipt', async () => {
     args,
     {
       apiUrl: 'https://bb.example.test/',
-      getToken: async () => 'token',
+      serviceToken: 'bbsvc_test',
       fetch: async (input, init) => {
         calls.push({ url: String(input), init });
         return new Response(JSON.stringify(receipt), { status: 200 });
@@ -43,7 +43,7 @@ test('dedicated tool retrieves the exact identity-bound receipt', async () => {
   assert.deepEqual(result, { status: 'ok', receipt });
   assert.equal(calls.length, 1);
   assert.match(calls[0]!.url, /\/api\/meeting-minutes\/context-receipts\/mmctx_123\?/);
-  assert.equal(new Headers(calls[0]!.init?.headers).get('authorization'), 'Bearer token');
+  assert.equal(new Headers(calls[0]!.init?.headers).get('authorization'), 'Bearer bbsvc_test');
 });
 
 test('wrong receipt identity fails closed', async () => {
@@ -52,7 +52,7 @@ test('wrong receipt identity fails closed', async () => {
     args,
     {
       apiUrl: 'https://bb.example.test',
-      getToken: async () => 'token',
+      serviceToken: 'bbsvc_test',
       fetch: async () => new Response(JSON.stringify({
         receipt_id: args.receipt_id,
         identity: { ...args, receipt_id: undefined, run_id: 'different' },
@@ -80,10 +80,29 @@ test('partial and unavailable receipts are returned explicitly and never coerced
     args,
     {
       apiUrl: 'https://bb.example.test',
-      getToken: async () => 'token',
+      serviceToken: 'bbsvc_test',
       fetch: async () => new Response(JSON.stringify(partial), { status: 200 }),
     },
   );
 
   assert.deepEqual(result, { status: 'partial', receipt: partial });
+});
+
+test('missing service token fails before making a request', async () => {
+  let fetched = false;
+  const result = await handleMeetingMinutesContextToolCall(
+    'brainbase_get_meeting_minutes_context',
+    args,
+    {
+      apiUrl: 'https://bb.example.test',
+      fetch: async () => {
+        fetched = true;
+        return new Response('{}', { status: 200 });
+      },
+    },
+  );
+
+  assert.equal(fetched, false);
+  assert.equal(result?.status, 'error');
+  assert.equal(result?.error?.code, 'meeting_minutes_context_auth_unavailable');
 });

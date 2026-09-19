@@ -1568,7 +1568,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         (toolName, extensionArgs) => handleJudgmentStateToolCall(toolName, extensionArgs),
         (toolName, extensionArgs) => handleMeetingMinutesContextToolCall(toolName, extensionArgs, {
           apiUrl: resolveBrainbaseApiUrl(),
-          getToken: () => globalTokenManager.getToken(),
+          serviceToken: taskApiToken,
         }),
         (toolName, extensionArgs) => handleShareablePersonProfileToolCall(toolName, extensionArgs, {
           apiUrl: process.env.BRAINBASE_TENANT_RUNTIME_API_URL?.trim() || resolveBrainbaseApiUrl(),
