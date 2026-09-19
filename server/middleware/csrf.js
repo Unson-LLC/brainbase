@@ -199,6 +199,15 @@ export function csrfMiddleware() {
             return next();
         }
 
+        // Exact MCP endpoint only. The router still verifies the token and
+        // configured node owner; cookie-only requests remain CSRF protected.
+        if (req.method === 'POST'
+            && req.path === '/api/mesh/query'
+            && typeof req.headers?.authorization === 'string'
+            && /^Bearer \S+$/.test(req.headers.authorization)) {
+            return next();
+        }
+
         // Skip Device Code Flow endpoints (CLI-based, no CSRF token available)
         if (req.path?.startsWith('/api/auth/device/')) {
             return next();

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import yaml from 'js-yaml';
 
 const retiredDocumentPaths = {
   story: 'docs/stories/story-codex-appserver-session-create.md',
@@ -9,6 +10,7 @@ const retiredDocumentPaths = {
 const projectProvisioningPath = 'docs/brainbase-capabilities/capabilities/project.provisioning.yml';
 const projectSelectorPath = 'docs/brainbase-capabilities/capabilities/project.selector.yml';
 const projectArchitecturePath = 'docs/architecture/story-project-provisioning-v1.md';
+const codexAppServerCapabilityPath = 'docs/brainbase-capabilities/capabilities/codex.app-server.yml';
 const retirementRunbookPath = 'docs/brainbase-capabilities/runbooks/missing-project-in-session-selector.md';
 const workspaceSetupContractPath = 'tests/ui/project-mapping-runtime-catalog.test.js';
 
@@ -68,9 +70,24 @@ test.describe('story-codex-appserver-session-create retirement contract', () => 
     const architecture = await read(retiredDocumentPaths.architecture);
     const spec = await read(retiredDocumentPaths.spec);
     const projectProvisioning = await read(projectProvisioningPath);
+    const codexAppServerCapability = yaml.load(await read(codexAppServerCapabilityPath)) as {
+      lifecycle: string;
+      surfaces: Record<string, string[]>;
+      depends_on: string[];
+      history: { documents: string[] };
+      architecture_decision: string;
+      current_evidence_capability: string;
+    };
 
     expect(projectProvisioning).toContain('The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable');
     expect(projectProvisioning).toContain('Codex app/CLI owns task and worktree creation and ownership');
+
+    expect(codexAppServerCapability.lifecycle).toBe('retired');
+    expect(codexAppServerCapability.surfaces).toEqual({ ui: [], api: [], code: [], data: [] });
+    expect(codexAppServerCapability.depends_on).toEqual([]);
+    expect(codexAppServerCapability.history.documents).toEqual(expect.arrayContaining(Object.values(retiredDocumentPaths)));
+    expect(codexAppServerCapability.architecture_decision).toBe('docs/architecture/ADR-019-codex-owns-development-runtime.md');
+    expect(codexAppServerCapability.current_evidence_capability).toBe('docs/brainbase-capabilities/capabilities/run-receipt.inbox.yml');
 
     const currentSections = [
       section(story, /^## Current ownership boundary$/m),
