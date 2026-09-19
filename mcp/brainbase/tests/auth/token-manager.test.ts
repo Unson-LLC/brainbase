@@ -15,9 +15,9 @@ describe('TokenManager', () => {
   let originalEnv: NodeJS.ProcessEnv;
   let originalFetch: typeof global.fetch;
 
-  function createJwt(issuedAt: number, expiresAt: number, organizationId?: string): string {
+  function createJwt(issuedAt: number, expiresAt: number, organizationId?: string, projectCodes?: string[]): string {
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({ iat: issuedAt, exp: expiresAt, organizationId })).toString('base64url');
+    const payload = Buffer.from(JSON.stringify({ iat: issuedAt, exp: expiresAt, organizationId, projectCodes })).toString('base64url');
     return `${header}.${payload}.signature`;
   }
 
@@ -42,6 +42,9 @@ describe('TokenManager', () => {
     // Override env to use test tokens path
     process.env.HOME = path.dirname(testDir);
     delete process.env.BRAINBASE_GRAPH_API_TOKEN;
+    delete process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID;
+    delete process.env.BRAINBASE_EXPECTED_PROJECT_CODES;
+    delete process.env.BRAINBASE_PROJECT_CODES;
   });
 
   afterEach(async () => {
@@ -79,6 +82,35 @@ describe('TokenManager', () => {
       const tokenManager = new TokenManager('http://localhost:31013');
 
       await assert.rejects(() => tokenManager.getToken(), /Tenant mismatch: expected techknight, received unson/);
+    });
+
+    it('rejects a tenant token without every expected project code', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      await fs.writeFile(testTokensPath, JSON.stringify({ access_token: createJwt(now, now + 3600, 'techknight', ['aitle']) }));
+      process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID = 'techknight';
+      process.env.BRAINBASE_EXPECTED_PROJECT_CODES = 'aitle,ki';
+      const tokenManager = new TokenManager('http://localhost:31013', testTokensPath);
+      await assert.rejects(() => tokenManager.getToken(), /Project scope mismatch: missing ki/);
+    });
+
+    it('rejects a tenant token without valid expiry metadata', async () => {
+      const header = Buffer.from(JSON.stringify({ alg: 'HS256' })).toString('base64url');
+      const payload = Buffer.from(JSON.stringify({ organizationId: 'techknight', projectCodes: ['aitle'] })).toString('base64url');
+      await fs.writeFile(testTokensPath, JSON.stringify({ access_token: `${header}.${payload}.signature` }));
+      process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID = 'techknight';
+      process.env.BRAINBASE_EXPECTED_PROJECT_CODES = 'aitle';
+      const tokenManager = new TokenManager('http://localhost:31013', testTokensPath);
+      await assert.rejects(() => tokenManager.getToken(), /Tenant-bound MCP requires a JWT exp claim/);
+    });
+
+    it('accepts a tenant token matching organization, project scope, and expiry', async () => {
+      const now = Math.floor(Date.now() / 1000);
+      const token = createJwt(now, now + 3600, 'techknight', ['techknight', 'aitle']);
+      await fs.writeFile(testTokensPath, JSON.stringify({ access_token: token }));
+      process.env.BRAINBASE_EXPECTED_ORGANIZATION_ID = 'techknight';
+      process.env.BRAINBASE_PROJECT_CODES = 'techknight,aitle';
+      const tokenManager = new TokenManager('http://localhost:31013', testTokensPath);
+      await assert.doesNotReject(() => tokenManager.getToken());
     });
 
     it('should use environment variable if available', async () => {

@@ -331,7 +331,6 @@ describe('CanonicalTaskOperationRepository', () => {
 
         expect(run).not.toHaveBeenCalled();
     });
-
     it('fails closed when a matching concurrent operation does not settle in time', async () => {
         const client = {
             query: async (sql) => {

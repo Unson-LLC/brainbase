@@ -1675,6 +1675,21 @@ export class InfoSSOTService {
         return id;
     }
 
+    async ensureEventActor(client, personId) {
+        const canonicalPersonId = String(personId || '').trim();
+        if (!canonicalPersonId) {
+            throw new Error('Authenticated personId is required');
+        }
+        const { rows } = await client.query(
+            'SELECT id FROM people WHERE id = $1 LIMIT 1',
+            [canonicalPersonId]
+        );
+        if (!rows.length) {
+            throw new Error(`Unknown authenticated personId: ${canonicalPersonId}`);
+        }
+        return canonicalPersonId;
+    }
+
     async createOrUpdatePerson(access, input = {}) {
         const name = String(input.name || input.displayName || input.display_name || '').trim();
         if (!name) {
@@ -2716,6 +2731,7 @@ export class InfoSSOTService {
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, input);
+            const actorPersonId = await this.ensureEventActor(client, access.personId);
             const glossaryTermId = this.generateId('gls');
             const eventId = this.generateId('evt');
 
@@ -2736,7 +2752,7 @@ export class InfoSSOTService {
                 [
                     eventId,
                     projectId,
-                    null,
+                    actorPersonId,
                     'GLOSSARY_TERM_CREATED',
                     JSON.stringify({
                         term: input.term,
@@ -2780,7 +2796,35 @@ export class InfoSSOTService {
                 sensitivity
             });
 
-            return { glossary_term_id: glossaryTermId, event_id: eventId, ...guard };
+            const { rows: readbackRows } = await client.query(
+                `SELECT
+                    EXISTS (
+                        SELECT 1 FROM events
+                        WHERE id = $1 AND project_id = $2 AND actor_person_id = $3
+                          AND event_type = 'GLOSSARY_TERM_CREATED'
+                    ) AS event_verified,
+                    EXISTS (
+                        SELECT 1 FROM graph_entities
+                        WHERE id = $4 AND project_id = $2 AND entity_type = 'glossary_term'
+                    ) AS entity_verified,
+                    EXISTS (
+                        SELECT 1 FROM graph_edges
+                        WHERE from_id = $4 AND to_id = $2 AND project_id = $2
+                          AND rel_type = 'belongs_to_project'
+                    ) AS edge_verified`,
+                [eventId, projectId, actorPersonId, glossaryTermId]
+            );
+            const readback = readbackRows[0];
+            if (!readback?.event_verified || !readback?.entity_verified || !readback?.edge_verified) {
+                throw new Error('Glossary write readback verification failed');
+            }
+
+            return {
+                glossary_term_id: glossaryTermId,
+                event_id: eventId,
+                readback_verified: true,
+                ...guard
+            };
         });
     }
 
@@ -2799,6 +2843,7 @@ export class InfoSSOTService {
 
         return this.withAccessContext(access, async (client) => {
             const projectId = await this.ensureProject(client, input);
+            const actorPersonId = await this.ensureEventActor(client, access.personId);
             const kpiId = this.generateId('kpi');
             const eventId = this.generateId('evt');
 
@@ -2819,7 +2864,7 @@ export class InfoSSOTService {
                 [
                     eventId,
                     projectId,
-                    null,
+                    actorPersonId,
                     'KPI_CREATED',
                     JSON.stringify({
                         metric_name: input.metricName,
