@@ -33,6 +33,7 @@ import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
 import { createOutcomeServiceContextRouter } from '../routes/outcome-service-context.js';
 import { createKnowledgeDelegationRouter } from '../routes/knowledge-delegation.js';
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
+import { createOrganizationConnectionsRouter } from '../routes/organization-connections.js';
 import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
 import { isRemoteCredentialStoreConfigured, createRemoteCredentialStore } from '../services/multitenant/remote-credential-store.js';
@@ -285,6 +286,32 @@ export function registerSlackInstallationControlPlaneApiRoute(app, {
     );
 }
 
+export function registerOrganizationConnectionsApiRoute(app, {
+    authService,
+    controlPlane,
+    appId,
+    oauthFlow,
+    connectionRepository,
+    githubAppSlug = process.env.GITHUB_APP_SLUG,
+    githubStateSecret = process.env.BRAINBASE_GITHUB_APP_STATE_SECRET,
+    resolveAccess
+}) {
+    app.use(
+        '/api/organization-connections',
+        requireAuth(authService, { allowInsecureHeaders: false }),
+        createOrganizationConnectionsRouter({
+            authService,
+            controlPlane,
+            appId,
+            oauthFlow,
+            connectionRepository,
+            githubAppSlug,
+            githubStateSecret,
+            resolveAccess
+        })
+    );
+}
+
 export function registerApiRoutes(app, {
     configParser,
     configService,
@@ -353,6 +380,7 @@ export function registerApiRoutes(app, {
     slackInstallationControlPlaneAppId,
     slackInstallationOAuthFlow,
     resolvePreProvisionedSlackConnection,
+    organizationConnectionRepository,
     env = process.env
 }) {
     const auditTenantGuard = tenantRuntimeServices
@@ -368,6 +396,15 @@ export function registerApiRoutes(app, {
             resolvePreProvisionedConnection: resolvePreProvisionedSlackConnection
         });
     }
+    registerOrganizationConnectionsApiRoute(app, {
+        authService,
+        controlPlane: slackInstallationControlPlane,
+        appId: slackInstallationControlPlaneAppId,
+        oauthFlow: slackInstallationOAuthFlow,
+        connectionRepository: organizationConnectionRepository,
+        githubAppSlug: env.GITHUB_APP_SLUG,
+        githubStateSecret: env.BRAINBASE_GITHUB_APP_STATE_SECRET
+    });
     app.use('/api/state', createRetiredCapabilityRouter({
         capability: 'brainbase.session-state',
         owner: 'Codex app and CLI',

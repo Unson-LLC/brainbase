@@ -540,6 +540,7 @@ export function createCoreServices({
         canonicalTaskService,
         authService,
         slackInstallationControlPlane: slackInstallationControlPlaneRuntime.controlPlane,
+        organizationConnectionRepository: slackInstallationControlPlaneRuntime.repository,
         slackInstallationControlPlaneAuthMiddleware: slackInstallationControlPlaneRuntime.authMiddleware,
         slackInstallationControlPlaneAppId: slackInstallationControlPlaneRuntime.appId,
         slackInstallationOAuthFlow: slackInstallationControlPlaneRuntime.oauthFlow,

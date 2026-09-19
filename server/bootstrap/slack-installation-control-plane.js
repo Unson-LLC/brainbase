@@ -214,6 +214,7 @@ export function createSlackInstallationControlPlaneFromEnv({
     });
     const unavailable = (reason) => ({
         controlPlane: unavailableControlPlane(),
+        repository: null,
         authMiddleware,
         appId,
         oauthFlow: null,
@@ -250,6 +251,7 @@ export function createSlackInstallationControlPlaneFromEnv({
         });
         return {
             controlPlane,
+            repository,
             authMiddleware,
             appId,
             oauthFlow,

@@ -396,6 +396,21 @@ export class MultitenantPostgresRepository {
         }
     }
 
+    async listOrganizationConnections({ tenant_id, provider }) {
+        return this.withTenant(tenant_id, async (client) => {
+            const result = await client.query(
+                `SELECT connection_id, connection_revision, provider, status, installation_id, workspace_id,
+                        app_id, granted_scopes, credential_ref, installed_at
+                   FROM workspace_connections
+                  WHERE tenant_id = $1 AND provider = $2
+                  ORDER BY installed_at DESC
+                  LIMIT 20`,
+                [tenant_id, provider]
+            );
+            return result.rows ?? [];
+        });
+    }
+
     async validateConnectionRevision({
         tenant_id, connection_id, expected_connection_revision, workspace_id, app_id, required_scopes = []
     }) {
