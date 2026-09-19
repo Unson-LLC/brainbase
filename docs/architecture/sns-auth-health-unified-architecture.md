@@ -1,10 +1,14 @@
 ---
 story_id: str.brainbase.sns-auth-health-unified
 title: SNS auth health follows posting credentials architecture
-status: active
+status: retired
 ---
 
 # Architecture: SNS auth health follows posting credentials
+
+> 履歴資料。SNS運用入口は退役済みで、現在の契約は [SNS廃止仕様](../specs/retire-sns-spec.md)。
+> 投稿認証チェック実装と専用テストは [独立モジュール除去仕様](../specs/legacy-sns-leaf-removal.md) により除去した。
+> 以下のAPI・パス・運用手順は当時の記録であり、現役の実行手順ではない。
 
 ## Story
 
