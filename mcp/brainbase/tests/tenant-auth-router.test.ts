@@ -3,7 +3,7 @@ import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { TenantRoutingError, createTenantTokenRouterFromEnvironment } from '../src/auth/tenant-token-router.js';
+import { TenantRoutingError, createTenantTokenRouterFromEnvironment } from '../src/auth/tenant-auth-router.js';
 
 function jwt(organizationId: string, projectCodes: string[], exp = 4_102_444_800): string {
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');

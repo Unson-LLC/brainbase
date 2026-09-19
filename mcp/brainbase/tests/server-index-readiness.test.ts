@@ -1,8 +1,11 @@
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { __testing } from '../src/server.js';
 import { GraphAPISource } from '../src/sources/graphapi-source.js';
 import { TokenManager } from '../src/auth/token-manager.js';
+
+const fixtureTenantScope = new AsyncLocalStorage<string>();
 
 class ControlledSource extends GraphAPISource {
   failure = false;
@@ -20,10 +23,15 @@ class ControlledSource extends GraphAPISource {
     if (this.failure) throw new Error('PHILOSOPHY_UNAVAILABLE');
     return {mode: 'test', project_code: 'brainbase', scope: 'graph', prompt_block: 'VERIFIED_PHILOSOPHY'};
   }
+  override async getProjects() {
+    const tenant = fixtureTenantScope.getStore();
+    return tenant ? [{id: `project-${tenant}`, name: `Project ${tenant}`} as never] : [];
+  }
 }
 afterEach(() => {
   __testing.setIndexRefreshEnabled(false);
   __testing.setGraphSource(null);
+  __testing.resetEntityIndexStates();
 });
 function useSource() {
   const source = new ControlledSource();
@@ -67,6 +75,43 @@ test('concurrent readers share initialization and recover on the same server aft
   const results = await reads;
   for (const result of results) assert.match(result, /VERIFIED_PHILOSOPHY/);
   assert.equal(source.philosophyLoads, 3);
+});
+
+test('concurrent tenant scopes never share an in-flight entity index refresh', async () => {
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  let initializations = 0;
+  class TenantBoundSource extends ControlledSource {
+    tenant = '';
+    override async initialize() {
+      initializations++;
+      this.tenant = fixtureTenantScope.getStore() ?? '';
+      await gate;
+    }
+    override async getProjects() {
+      return [{id: `project-${this.tenant}`, name: `Project ${this.tenant}`} as never];
+    }
+  }
+  __testing.setGraphSourceFactory(() => new TenantBoundSource());
+  __testing.setIndexRefreshEnabled(true);
+
+  const reads = Promise.all([
+    fixtureTenantScope.run('org-a', () =>
+      __testing.runWithEntityIndexScope('tenant:org-a', () =>
+        __testing.handleToolCall('list_entities', {type: 'project'}))),
+    fixtureTenantScope.run('org-b', () =>
+      __testing.runWithEntityIndexScope('tenant:org-b', () =>
+        __testing.handleToolCall('list_entities', {type: 'project'}))),
+  ]);
+  await new Promise(resolve => setImmediate(resolve));
+
+  assert.equal(initializations, 2);
+  release();
+  const [orgA, orgB] = await reads;
+  assert.match(orgA, /project-org-a/);
+  assert.doesNotMatch(orgA, /project-org-b/);
+  assert.match(orgB, /project-org-b/);
+  assert.doesNotMatch(orgB, /project-org-a/);
 });
 
 test('philosophy failure is propagated after a successful index load', async () => {
