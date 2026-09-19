@@ -4,7 +4,7 @@ Use this when a user needs access to additional projects.
 
 ## Preconditions
 
-- Confirm the target projects exist in `/api/config`.
+- Confirm the target project identity and Registry binding. `/api/config` local topology is not proof of organization membership or authenticated project access.
 - Confirm the target user has exactly one active grant row unless intentionally managing multiple grants.
 - Do not print database secrets in logs or chat.
 - Load the effective local Brainbase connection from
@@ -18,10 +18,12 @@ Use this when a user needs access to additional projects.
 ## Project-code migration boundary
 
 Changing a project or app code is not an entity-only rename. Reconcile the
-Graph entity, `auth_grants.project_codes`, token/JWT refresh, `/api/config`,
-session-selectable projects, and any owning capability or Skill reference.
-Compatibility aliases require an explicit owner and removal condition; do not
-silently preserve an old ID indefinitely.
+Graph entity and Registry binding, `auth_grants.project_codes`, token/JWT
+refresh, authenticated Project Catalog API/MCP scopes, and any owning
+capability or Skill reference. `/api/config` is local runtime topology, not an
+organization access source. The old browser selector is retired; do not
+preserve aliases for it. Any alias used by an active API/MCP contract requires
+an explicit owner and removal condition.
 
 ## Example Update
 
@@ -76,5 +78,9 @@ NODE
 ## Post-Update Verification
 
 1. Re-read `auth_grants.project_codes`.
-2. Run `getSessionSelectableProjects(projectCodes)` with the new codes.
-3. Refresh browser auth so local JWT/localStorage access is not stale.
+2. Issue or refresh a token through the supported client flow, then verify its
+   `access.projectCodes` claim where available.
+3. Read the authenticated Project Catalog API and `brainbase_projects` MCP
+   result with the appropriate token. Confirm status, effective scope, and
+   project inclusion independently; do not use the retired browser selector
+   as a verification surface.

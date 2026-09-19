@@ -28,6 +28,17 @@ const retiredModules = [
 ];
 
 describe('retired browser session and terminal boundary', () => {
+    it('does not instruct operators to restore the retired session state', () => {
+        const restore = readFileSync('.claude/skills/session-restore/SKILL.md', 'utf8');
+        const operations = readFileSync('.claude/skills/brainbase-ops-guide/SKILL.md', 'utf8');
+        const terminal = readFileSync('.claude/skills/ttyd-websocket-troubleshooting/SKILL.md', 'utf8');
+        expect(terminal).not.toContain('/api/sessions/');
+        for (const document of [restore, operations, terminal]) {
+            expect(document).toContain('ADR-019');
+            expect(document).not.toMatch(/jq\s+['"]\.sessions|export BRAINBASE_SESSION_ID|セッション状態の正.*SQLite/);
+        }
+    });
+
     it.each(retiredModules)('does not retain or serve %s', async relativePath => {
         expect(existsSync(path.join(publicDir, relativePath))).toBe(false);
         const app = express();
@@ -47,16 +58,17 @@ describe('retired browser session and terminal boundary', () => {
         await request(app).get('/index.html').expect(404);
     });
 
-    it('keeps retained selector code and verification references resolvable', () => {
+    it('retires the unused selector and keeps Catalog verification references resolvable', () => {
         const capability = yaml.load(readFileSync('docs/brainbase-capabilities/capabilities/project.selector.yml', 'utf8'));
-        for (const file of capability.surfaces.code) expect(existsSync(file), file).toBe(true);
+        expect(capability.lifecycle).toBe('retired');
+        const catalog = yaml.load(readFileSync(capability.current_evidence_capability, 'utf8'));
+        for (const file of catalog.surfaces.code) expect(existsSync(file), file).toBe(true);
         for (const command of capability.verification.commands) {
             for (const file of command.match(/tests\/[^\s]+/g) || []) expect(existsSync(file), file).toBe(true);
         }
     });
 
     it('leaves no literal imports of deleted modules in remaining source or tests', () => {
-        const deleted = new Set(retiredModules.map(file => path.join(publicDir, file)));
         const references = [];
         const walk = directory => {
             for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -71,7 +83,9 @@ describe('retired browser session and terminal boundary', () => {
                     const target = specifier.startsWith('/modules/')
                         ? path.join(publicDir, specifier.slice(1))
                         : specifier.startsWith('.') ? path.resolve(path.dirname(file), specifier) : null;
-                    if (deleted.has(target)) references.push(`${path.relative(process.cwd(), file)} -> ${specifier}`);
+                    if (target?.startsWith(publicDir + path.sep) && !existsSync(target)) {
+                        references.push(`${path.relative(process.cwd(), file)} -> ${specifier}`);
+                    }
                 }
             }
         };
@@ -81,7 +95,7 @@ describe('retired browser session and terminal boundary', () => {
         expect(references).toEqual([]);
     });
 
-    it.each(['terminal.transport', 'session.hibernation', 'session.create'])('%s describes a retired boundary, not live operations', name => {
+    it.each(['terminal.transport', 'session.hibernation', 'session.create', 'project.selector'])('%s describes a retired boundary, not live operations', name => {
         const capability = yaml.load(readFileSync(
             `docs/brainbase-capabilities/capabilities/${name}.yml`, 'utf8'));
         expect(capability.lifecycle).toBe('retired');

@@ -6,6 +6,20 @@ import { describe, expect, it } from 'vitest';
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 
 describe('minimal device web surface', () => {
+    it('retains only device authentication assets and their typecheck configuration', () => {
+        const publicDir = path.join(repoRoot, 'public');
+        const files = fs.readdirSync(publicDir, { recursive: true })
+            .filter(name => fs.statSync(path.join(publicDir, name)).isFile())
+            .sort();
+
+        expect(files).toEqual([
+            'device.html',
+            'favicon.png',
+            'jsconfig.json',
+            'modules/device/device-auth-controller.js'
+        ]);
+    });
+
     it('is the only production HTML entrypoint and has no legacy UI bundle pipeline', () => {
         const publicDir = path.join(repoRoot, 'public');
         const htmlEntrypoints = fs.readdirSync(publicDir)

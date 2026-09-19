@@ -43,16 +43,16 @@ Pick the matching capability_id then **Read the yml** before reasoning. Reading 
 | `knowledge.resolve` | `knowledge.resolve.yml` | choose Graph / owning repo / team Drive / personal KG / workspace before searching |
 | `onboarding.connected-world` | `onboarding.connected-world.yml` | connector-first onboarding / MCP・Drive・Gmail・local folder / first-value answer |
 | `personal-kg` | `personal-kg.yml` | owner-visible cognitive memory (思想/実績/判断基準) for `/oyasumi`, SNS generation, morning brief; in-progress |
-| `project.catalog` | `project.catalog.yml` | configured project list used by UI / project mapping |
-| `project.selector` | `project.selector.yml` | a project is missing from the Create Session selector |
+| `project.catalog` | `project.catalog.yml` | configured project list exposed through the config API |
+| `project.selector` | `project.selector.yml` | retired browser selector; read the retirement boundary, do not restore the old UI |
 | `requirements.coverage` | `requirements.coverage.yml` | acceptance criteria still satisfied before claiming done |
 | `requirements.nocodb` | `requirements.nocodb.yml` | FRD-* / REQ-* / BUG-* lookup before scope/impl change |
 | `runtime.launchd` | `runtime.launchd.yml` | port 31013 / launchd / restart / canonical runtime source |
 | `secrets.infisical` | `secrets.infisical.yml` | secret/env/Infisical org split, CI/CD/runtime/local dev injection |
-| `session.create` | `session.create.yml` | a session cannot be created / new session flow |
-| `session.hibernation` | `session.hibernation.yml` | session runtime inventory / hibernation eligibility / hot vs cold session memory |
-| `terminal.transport` | `terminal.transport.yml` | xterm/ttyd/Enter/IME/描画 issues in session terminal |
-| `codex.app-server` | `codex.app-server.yml` | Codex App Server structured threads / turns / notifications adapter |
+| `session.create` | `session.create.yml` | retired Brainbase session creation; Codex app/CLI owns development tasks |
+| `session.hibernation` | `session.hibernation.yml` | retired session hibernation; old data is read-only evidence |
+| `terminal.transport` | `terminal.transport.yml` | retired Brainbase terminal transport; use the owning application |
+| `codex.app-server` | `codex.app-server.yml` | retired Brainbase adapter; read the current ownership boundary |
 | `verification.testing` | `verification.testing.yml` | which tests must run for the change |
 | `vibepro.impact-review` | `vibepro.impact-review.yml` | VibePro Graphify impact review for graph-sensitive changes |
 | `vibepro.skills-usage` | `vibepro.skills-usage.yml` | how Brainbase agents should use VibePro Skills |

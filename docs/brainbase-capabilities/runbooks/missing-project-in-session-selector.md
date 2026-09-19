@@ -2,7 +2,7 @@
 
 認証済みのCLI/API/MCPでProject Catalogが見えない、またはProject Provisioningの完了を確認できない場合に使います。
 
-Project Provisioningは本番ブラウザUIを持ちません。サーバー側の`session.create`/static endpointとSession Launch Pickerはretiredかつ到達不能です。保持されるWorkspace Setup selector moduleは、個人のlocal pathを扱う別Capabilityの互換・契約surfaceであり、現在のproduction static routeから配信される本番UIではありません。移行期間中は旧NocoDB `START_TASK`互換導線からFocusEngineModalが表示される場合がありますが、エンジン選択後（Modal不在時は直ちに）Codex移行案内へfail-closedし、session APIを呼びません。
+`project.selector`のブラウザー選択画面は廃止済みです。画面がないことはProject Catalog障害ではありません。Projectの認可範囲はAPI/MCPで調べ、タスクやworktreeの作成はCodex app/CLIで行います。
 
 ## 1. APIのCatalogを確認する
 
@@ -39,22 +39,12 @@ brainbase project provision verify <run-id>
 
 `status`で先行処理やpartial failureの状態を読み戻してから`resume`し、最後に`verify`します。同じbusyが続く場合は自動成功扱いにせず、該当`entity_id`の実行中runとロック保持処理を調査します。
 
-## 4. 旧セッション作成導線とFocusEngineModal互換導線を確認する
+## 4. 廃止済みブラウザー導線を混同しない
 
-desktop/mobileの新規セッション操作は`EVENTS.CREATE_SESSION`を発火し、現在のhandlerはPickerを開かずCodex移行案内へfail-closedします。NocoDBの旧タスク開始は`EVENTS.START_TASK`を発火し、移行期間中はFocusEngineModalを表示しますが、エンジン選択後は同じ案内へfail-closedします。次を確認します。
+`project.selector`は履歴記録であり、現役のUI/API/code/data surfaceはありません。`/device`はCLI等のデバイス認証を承認する画面で、Project Catalogやタスク選択画面ではありません。`/api/config`はローカルruntime topologyの情報であり、組織のProject Catalog・membership・grantの代替には使いません。
 
-- desktopの`#add-session-btn`とmobileの`#mobile-new-session-btn`が同じCodex移行案内を表示する。
-- `CREATE_SESSION`では`#session-launch-picker`と`#create-session-modal`を表示しない。
-- NocoDBの`.nocodb-task-start-btn`では`#focus-engine-modal`が表示され、エンジン選択後にCodex移行案内を表示する。
-- FocusEngineModalが存在しない場合は直ちにCodex移行案内を表示し、session作成とtask status更新を行わない。
-- `/api/sessions`、`/api/sessions/start`、`/api/sessions/create-with-worktree`を呼ばない。
-- `tests/e2e/story-nocodb-task-start-retirement.spec.js`でNocoDB開始ボタンからエンジン選択後までの実ブラウザ回帰を確認する。
-- `session-creation-mixin.js`の過去実装を現在の受け入れ証拠やProject Catalog consumerとして使わない。
+旧Session Launch Picker、Workspace Setup selector、NocoDB開始ボタンのブラウザー導線を再有効化して調査しないでください。Catalogの欠落は上記API/MCPのstatusとscopeを確認し、タスク/worktree操作はCodex app/CLIに戻します。
 
-## 5. Workspace Setupとの境界を確認する
-
-`/api/config`は個人ごとのWorkspace Setup用legacy topologyです。local pathやclone先が未設定でも、Registry上のprojectがCatalogから消えたことを意味しません。逆に、Registryへの登録だけで個人Workspaceが準備済みになることもありません。タスクとworktreeの作成・所有はCodex app/CLIが担い、Workspace Setupは別Capabilityとして扱います。
-
-## 6. 証拠境界
+## 5. 証拠境界
 
 Graph writerとGitHub writerの契約テストはfake/adapter doubleによる確認です。本番Graph/GitHub writesとproduction E2Eは対象外・未確認であり、ローカルテストやreadback契約を本番登録成功の証拠へ置き換えません。

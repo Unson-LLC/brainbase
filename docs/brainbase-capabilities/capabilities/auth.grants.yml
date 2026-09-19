@@ -4,23 +4,27 @@ purpose: Control who can log in and which project codes are visible to that user
 surfaces:
   ui:
     - Slack OAuth login
-    - Workspace Setup project selector
-    - Wiki and Graph access
+    - Device authorization approval at /device
   mcp:
     - brainbase_projects
   api:
     - GET /api/auth/verify
     - POST /api/auth/refresh
+    - POST /api/auth/device/code
+    - POST /api/auth/device/verify-user-code
+    - POST /api/auth/device/approve
+    - POST /api/auth/device/token
   code:
+    - server/routes/auth.js
     - server/services/auth-service.js
     - server/controllers/auth-controller.js
     - server/middleware/auth.js
-    - public/modules/auth/auth-manager.js
     - mcp/brainbase/src/auth/token-manager.ts
     - mcp/brainbase/src/tools/control-plane-tools.ts
   data:
     - INFO_SSOT_DATABASE_URL.auth_grants
-    - localStorage brainbase.auth.access
+    - JWT access.projectCodes
+    - localStorage brainbase.auth.token (device approval flow only)
 depends_on:
   - INFO_SSOT_DATABASE_URL
   - auth_grants
@@ -31,8 +35,8 @@ visibility_rules:
   - auth_grants.active must be true.
   - Login, device flow, and refresh require an exact slack_user_id + slack_workspace_id match in auth_grants.
   - project_codes is copied into JWT access.projectCodes.
-  - Browser localStorage may preserve stale access until refresh or relogin.
-  - Empty projectCodes means unrestricted only in UI selector logic; protected APIs may still require explicit project codes.
+  - The /device approval page reads the login token from localStorage; an old token may not reflect a recently changed grant.
+  - An empty projectCodes value is not a browser-selector policy or an implicit scope expansion; protected API and MCP surfaces enforce their own server-side authorization.
   - /api/brainbase/projects verifies the bearer or service token before reading the catalog and filters by req.access.projectCodes.
   - brainbase_projects uses token projectCodes intersected with BRAINBASE_PROJECT_CODES and does not accept caller-supplied scope.
   - MCP output records actor, role, effective project_codes, request_id, observed_at, and source without returning the token.
@@ -41,15 +45,15 @@ verification:
     - SELECT person_id, person_name, slack_user_id, role, project_codes FROM auth_grants WHERE active = true;
     - GET /api/auth/verify with the browser session or bearer token
   expected:
-    - The user's access.projectCodes contains all projects needed for the UI surface being tested.
+    - The issued token's access.projectCodes contains the project scopes expected by the protected API or MCP surface being tested.
     - After auth_grants update, a new token or refresh reflects the new project_codes.
     - An invalid or missing token cannot read /api/brainbase/projects.
     - MCP auth rejection is status:error; token acquisition or upstream outage is status:unavailable.
 common_failures:
   - 対話型クライアントにサービス認証が注入されているのにinteractiveが未指定だと、サービスの範囲が適用される。認証不一致をプロジェクト未登録と解釈しない。
   - auth_grants has techknight but config has tech-knight.
-  - auth_grants was updated but JWT/localStorage still contains the old projectCodes.
-  - A user has project access for Graph but not for the session selector because different normalization rules are used.
+  - An Auth Grant was updated, but a client still uses a token issued before the change.
+  - A project grant was updated, but a client continues using a token issued before the change.
 runbooks:
   - ../runbooks/update-auth-grant-project-codes.md
 troubleshooting:

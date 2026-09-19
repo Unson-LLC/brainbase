@@ -30,7 +30,10 @@ test.describe('story-session-launch-picker-startup-composer PR gate evidence', (
     expect(sessionCapability.surfaces).toEqual({ ui: [], api: [], code: [], data: [] });
     expect(projectCapability).not.toContain('#session-launch-picker');
     expect(projectCapability).not.toContain('#session-launch-project-select');
-    expect(projectCapability).toContain('#session-project-select');
+    expect(yaml.load(projectCapability)).toMatchObject({
+      lifecycle: 'retired',
+      surfaces: { ui: [], api: [], code: [], data: [] },
+    });
     expect(projectCapability).not.toContain('#create-session-modal');
   });
 });

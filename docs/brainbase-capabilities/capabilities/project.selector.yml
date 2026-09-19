@@ -1,57 +1,29 @@
 id: project.selector
-name: Workspace Setup project selector
-purpose: Describe the retained Workspace Setup compatibility and contract consumer of the authenticated Project Catalog; this is not a formal Project Catalog or Project Provisioning entry and is not currently served by a production static route.
+name: Browser project selector (retired)
+lifecycle: retired
+purpose: Historical record only. Brainbase no longer provides a browser project selector; project access and metadata remain available through authenticated API and MCP catalog contracts.
+architecture_decision: docs/architecture/ADR-019-codex-owns-development-runtime.md
+current_evidence_capability: docs/brainbase-capabilities/capabilities/project.catalog.yml
 surfaces:
-  ui:
-    - "#session-project-select (Workspace Setup)"
-  compatibility_consumer:
-    - "#session-project-select (Workspace Setup)"
-  api:
-    - GET /api/config/projects (authenticated runtime Project Catalog)
-    - GET /api/config (Workspace Setup local topology only)
-  code:
-    - public/modules/project-mapping.js
-  data:
-    - runtime project catalog source/status
-    - config.projects.projects
-    - auth.access.projectCodes
-    - auth_grants.project_codes
-depends_on:
-  - project.catalog
-  - auth.grants
+  ui: []
+  api: []
+  code: []
+  data: []
+depends_on: []
 visibility_rules:
-  - "Project Provisioning has no production browser UI. The retained project-mapping module is a compatibility/contract surface; its unit tests are not production browser E2E evidence. The old UI composition and synthetic-host browser test are removed."
-  - "The browser Session Launch Picker and server-side session creation are retired under session.create; this capability owns only Workspace Setup selection."
-  - "Fetch project candidates from the authenticated runtime Catalog (`GET /api/config/projects`); `/api/config` is local Workspace Setup data and never an access/catalog fallback."
-  - Add general as the first option.
-  - Exclude archived projects.
-  - Exclude projects with session_select:false.
-  - "If auth.access.projectCodes is empty, treat access as unrestricted within the authenticated catalog."
-  - "If projectCodes is non-empty, match only exact normalized project ID, explicit alias, or GitHub repository name; do not infer hyphenless IDs, parent IDs, or prefixes."
-  - "A candidate is selectable only when explicit `local.path` is configured for the current Workspace; otherwise show a disabled Workspace Setup required option and never guess a path."
-  - "Authentication, transport, Registry, or source.status unavailable failure is fail-closed: show status/error and retain only general; never re-add requested project outside returned candidates."
-  - "A loaded catalog with zero projects is shown as confirmed_empty with a 0件 message; it is not presented as an ordinary loaded list or as an unavailable state."
-  - Workspace Setup and Connected-world Onboarding are separate capabilities.
+  - Do not restore the retired browser selector or its supporting application modules.
+  - ADR-019 assigns task, thread, worktree, and terminal lifecycle to the Codex app/CLI; the Project Catalog is not a browser task-creation surface.
+  - Authenticated Project Catalog access remains defined by project.catalog and auth.grants.
+  - Historical selector tests or documents are not evidence of a live browser consumer.
 verification:
   commands:
-    - npm run test:run -- tests/ui/project-mapping-runtime-catalog.test.js tests/unit/project-mapping.test.js
-    - npx playwright test --config tests/e2e/project-provisioning.playwright.config.js
+    - npm run test:run -- tests/server/bootstrap/retired-browser-boundary.test.js
   expected:
-    - "runtime Catalog loaded candidates are the only selectable source"
-    - "exact ID, explicit alias, and GitHub repository grants are accepted; short prefix grants are rejected"
-    - "projects without explicit local.path are shown as disabled Workspace Setup required options and have no guessed path"
-    - "401, non-401, fetch exception, and source unavailable failures leave only general and expose an unavailable/error status"
-    - "a loaded catalog with zero projects exposes confirmed_empty and a 0件 status message"
-    - "a requested project outside runtime Workspace Setup candidates falls back to general"
-common_failures:
-  - grant updates are correct but Workspace Setup still has stale JWT/localStorage access.
-  - The legacy /api/config topology is accidentally used as the runtime Catalog or access fallback.
-  - A project without explicit local.path is given a guessed path.
-  - A short project grant is treated as a prefix and expands access.
-  - Browser module cache still holds an older project-mapping.js.
-runbooks:
-  - ../runbooks/missing-project-in-session-selector.md
-  - ../runbooks/update-auth-grant-project-codes.md
-troubleshooting:
-  - ../troubleshooting/project-exists-but-selector-hides-it.md
-  - ../troubleshooting/jwt-localstorage-access-stale.md
+    - The retired selector has no active UI, API, code, or data surface.
+    - Authenticated Project Catalog API and MCP contracts remain available independently of the selector.
+common_failures: []
+runbooks: []
+troubleshooting: []
+history:
+  documents:
+    - docs/architecture/ADR-019-codex-owns-development-runtime.md

@@ -38,7 +38,7 @@ ADR-019の責任分担を適用し、新しい状態管理基盤を増やさな�
 
 これはBrainbase全体の刷新完了ではなく、ADR-019の残存実装と統計取得障害に閉じた変更である。
 
-- 旧UIのstate API呼出し（public/modules/session配下）と旧運用Skillの全面退役。入口は既に410だが、説明と参照の整理が残る。
+- 旧UIのstate API呼出し（public/modules/session配下）は[残存整理](../verification/legacy-surface-completion.md)で物理削除済み。旧運用Skillの全面監査は、このUI整理だけでは完了扱いにしない。
 - lib/runtime-paths.jsとconfig-controller.jsのstateFileパス投影は書込主体ではない。消費側を確認した別のAPI互換性変更で扱う。
 - Mana統計の`test=true`疑似値と取得できない`avg_duration_ms: 0`の表示契約。今回の503修正だけで全項目の正確性を保証しない。
 - Graph、Automation、認証、外部接続それぞれの正本・責任・再試行の全面監査。

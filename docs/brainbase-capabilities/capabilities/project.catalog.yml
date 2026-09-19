@@ -7,8 +7,6 @@ surfaces:
     - brainbase project provision verify <run-id>
   mcp:
     - brainbase_projects
-  browser_consumer:
-    - "Workspace Setup project selector (local-path consumer only)"
   api:
     - GET /api/config/projects
     - GET /api/brainbase
@@ -21,8 +19,6 @@ surfaces:
     - server/routes/brainbase/overview-routes.js
     - mcp/brainbase/src/tools/control-plane-tools.ts
     - mcp/brainbase/src/server.ts
-    - public/modules/project-mapping.js
-    - public/modules/app/ui-setup-mixin.js
   data:
     - graph_entities (project business metadata SSOT)
     - project_registry (organization membership, repository configuration, and Graph binding)
@@ -31,7 +27,7 @@ surfaces:
 depends_on:
   - config.projects.projects
 visibility_rules:
-  - /api/config is the legacy Workspace Setup topology surface for local paths; it is not the organization-scoped Project Catalog authority.
+  - /api/config exposes local runtime topology; it is not the organization-scoped Project Catalog authority or an access fallback.
   - /api/config/projects exposes the organization-scoped runtime catalog, filters it to the authenticated actor's project grants, and returns source.status so Registry failure is not mistaken for confirmed success.
   - Project name, kind, lifecycle, organization entity, owner, and catalog version come from the bound Graph project entity. Registry fields with the same names are compatibility projections, not an independent authority.
   - project_registry.graph_entity_id binds technical membership to the canonical Graph subject; unresolved, ambiguous, or conflicting bindings are excluded from loaded catalog results and remain visible in migration evidence.
@@ -46,10 +42,9 @@ visibility_rules:
   - /api/brainbase requires a verified token and carries the authenticated organization into its project catalog summary; unauthenticated callers receive 401.
   - brainbase_projects intersects JWT projectCodes with BRAINBASE_PROJECT_CODES; callers cannot expand scope through tool arguments.
   - brainbase_projects returns status ok, unavailable, or error together with scope and audit evidence.
-  - "The server-side `session.create`/static endpoint and browser Session Launch Picker are retired and unreachable; neither is a catalog surface, formal entry, or acceptance-evidence surface."
-  - "Project Provisioning has no production browser UI. The retained Workspace Setup selector module is a separate compatibility/contract consumer and is not currently served by a production static route; synthetic-host tests are not production browser E2E evidence."
-  - "Desktop and mobile legacy CREATE_SESSION actions show the Codex migration notice without opening the Picker or calling session APIs."
-  - Codex app/CLI owns task and worktree creation and ownership. Workspace Setup owns per-user local paths and is separate from Project Catalog and Project Provisioning.
+  - The retired session.create capability is not a Project Catalog surface or acceptance-evidence surface.
+  - Project Provisioning has no browser UI; its active contract is the authenticated API and CLI workflow.
+  - Codex app/CLI owns task and worktree creation. Project Catalog exposes authorized project metadata through API and MCP, not a browser selector.
   - Project Catalogの公開APIとGraph Maintenanceは、Registry-aware runtime catalogを使用し、config.ymlのproject一覧へフォールバックしない。
   - Graph上のProject business subjectは、空でないnameと正の整数catalog_versionを持つ。
   - Graph projectionのsource_refはproject-catalog:<id>@<catalog_version>としてサーバーが導出し、呼び出し元の自己申告値を採用しない。
@@ -76,7 +71,7 @@ verification:
     - 未接続またはambiguousなRegistry行はloaded projectとして扱われない
     - a short grant such as growin does not authorize growin-payroll
     - Registry or catalog authentication failure remains unavailable/error and never falls back to the legacy topology
-    - Workspace Setup renders a loaded zero-project catalog as confirmed_empty with a 0件 message
+    - API and MCP callers distinguish a confirmed-empty catalog from unavailable or error states without a browser-selector fallback
     - Graph and GitHub writer assertions use test fakes or adapter doubles; production writes are out of scope and production E2E is unverified
     - config.ymlへ保存する旧Project Profile APIは404を返す
     - CLIはGraph正本のProject Provisioningだけを案内する

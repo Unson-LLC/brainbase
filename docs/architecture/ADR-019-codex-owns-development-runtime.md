@@ -39,9 +39,9 @@ Brainbase
 
 1. [完了] session/worktree/terminalのwriterと自動reconcileを停止し、旧endpointを`410 Gone`にする。
 2. [完了] 過去レコードをread-only evidenceとして凍結する。
-3. [進行中] active composition rootから旧runtimeを除去し、未参照のserver controller/service/route、tmux/PTY起動script、session activity hookと専用testを物理削除した。旧UIとcapability文書は依存順に削除する。
+3. [完了] active composition rootから旧runtimeを除去し、未参照のserver controller/service/route、tmux/PTY起動script、session activity hookと専用testを物理削除した。旧ブラウザの残存資材と専用テストも除去し、capability文書を現役API/CLIの責任へ整合した。範囲と保護対象は[残存整理の検証](../verification/legacy-surface-completion.md)を参照。本番配備の完了を意味しない。
 4. [完了] Coreの起動、health、open-file、shutdownからsession/worktree/terminal依存を除去した。legacy stateはactive runtimeでload/saveせず、移行証跡として物理ファイルだけを保護する。
-5. 未参照のSQLite/JSON state storeと専用controller/route/test、旧hibernate smoke scriptを除去する。rootの旧`setup.sh`は実行を停止し、`npm run setup`の案内だけを返す。保存済みDB/JSONを変更・削除しない。対象と検証は[状態管理の退役と障害回復](session-state-canonical-recovery.md)を参照。
+5. [完了] 未参照のSQLite/JSON state storeと専用controller/route/test、旧hibernate smoke scriptを除去した。rootの旧`setup.sh`は実行を停止し、`npm run setup`の案内だけを返す。保存済みDB/JSONを変更・削除しない。対象と検証は[状態管理の退役と障害回復](session-state-canonical-recovery.md)を参照。
 
 ## Verification
 
