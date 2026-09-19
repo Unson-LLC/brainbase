@@ -1,161 +1,37 @@
 id: codex.app-server
-name: Codex App Server adapter
+name: Codex App Server adapter (retired)
 lifecycle: retired
-purpose: Historical record of the Brainbase Codex-like UI adapter. Codex app owns threads, turns, and notifications.
+purpose: Retired historical record. Codex app/CLI owns task, thread, worktree, branch, terminal, and process lifecycle; Brainbase receives execution evidence through durable Run Receipts.
+architecture_decision: docs/architecture/ADR-019-codex-owns-development-runtime.md
+current_evidence_capability: docs/brainbase-capabilities/capabilities/run-receipt.inbox.yml
 surfaces:
-  ui:
-    - session display-route state for Codex App Server thread sessions
-    - Codex App Server display panel for routed thread sessions
-    - assistant-ui React island transcript panel for routed thread sessions
-  api:
-    - /api/sessions/report_activity
-    - /api/state/sessions/:sessionId
-    - /api/sessions/:sessionId/codex-app-server/transcript
-    - /api/sessions/:sessionId/codex-app-server/turns
-  code:
-    - server/services/codex-app-server-adapter.js
-    - server/services/codex-app-server-activity-bridge.js
-    - server/services/codex-app-server-session-state.js
-    - server/services/codex-app-server-transcript-service.js
-    - server/services/session-runtime/runtime-query-methods.js
-    - scripts/codex-app-repl.mjs
-    - scripts/lib/codex-app-server-activity-client.mjs
-    - public/modules/domain/session/session-display-route.js
-    - public/modules/app/codex-app-server-display-mixin.js
-    - ui-islands/codex-appserver-transcript/index.jsx
-    - public/dist/codex-appserver-transcript-island.js
-    - public/modules/app/session-management-mixin.js
-    - public/modules/session-ui-state.js
+  ui: []
+  api: []
+  code: []
+  data: []
+depends_on: []
+visibility_rules:
+  - "Codex app/CLI owns task, thread, worktree, branch, terminal, and process lifecycle under ADR-019."
+  - "Brainbase receives execution evidence through durable Run Receipts under the `run-receipt.inbox` capability; it does not own Codex task or turn execution."
+  - "Artifacts under `history.documents` are historical references only, not active surfaces or implementation instructions."
+verification:
+  commands:
+    - npm run test:run -- tests/unit/codex-app-server-capability-retirement.test.js
+    - VIBEPRO_EVIDENCE_ID=brainbase-boundary-cleanup npm run test:e2e -- tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts tests/e2e/story-codex-appserver-session-create-contract.spec.ts
+  expected:
+    - The retired capability remains empty of active surfaces and dependencies.
+    - Legacy implementation details remain historical references and do not become current runtime guidance.
+common_failures: []
+runbooks: []
+troubleshooting: []
+history:
+  documents:
+    - docs/architecture/codex-app-server-adapter-architecture.md
+    - docs/stories/story-codex-app-server-adapter.md
+    - docs/specs/codex-app-server-adapter-spec.md
+    - docs/stories/story-codex-appserver-thread-session-foundation.md
+    - docs/architecture/codex-appserver-thread-session-foundation-architecture.md
+    - docs/specs/codex-appserver-thread-session-foundation-spec.md
     - docs/stories/story-codex-appserver-session-create.md
     - docs/architecture/codex-appserver-session-create-architecture.md
     - docs/specs/codex-appserver-session-create-spec.md
-    - docs/stories/story-codex-appserver-display-route-consumer.md
-    - docs/stories/story-codex-appserver-xterm-default-fallback.md
-    - docs/architecture/codex-appserver-display-route-consumer-architecture.md
-    - docs/architecture/story-codex-appserver-xterm-default-fallback-architecture.md
-    - docs/specs/codex-appserver-display-route-consumer-spec.md
-    - docs/specs/story-codex-appserver-xterm-default-fallback-spec.md
-    - docs/stories/story-codex-appserver-thread-session-foundation.md
-    - docs/stories/story-codex-appserver-session-state-ssot.md
-    - docs/stories/story-codex-appserver-repl-activity-bridge.md
-    - docs/stories/story-codex-appserver-transcript-ui.md
-    - docs/stories/story-codex-appserver-assistant-ui-transcript-panel.md
-    - docs/stories/story-codex-appserver-chatgpt-polish.md
-    - docs/stories/story-codex-appserver-assistant-ui-native-adoption.md
-    - docs/architecture/codex-appserver-session-state-ssot-architecture.md
-    - docs/architecture/codex-appserver-thread-session-foundation-architecture.md
-    - docs/architecture/codex-appserver-repl-activity-bridge-architecture.md
-    - docs/architecture/codex-appserver-transcript-ui-architecture.md
-    - docs/architecture/codex-appserver-assistant-ui-transcript-panel-architecture.md
-    - docs/architecture/codex-appserver-chatgpt-polish-architecture.md
-    - docs/architecture/codex-appserver-assistant-ui-native-adoption-architecture.md
-    - docs/specs/codex-appserver-session-state-ssot-spec.md
-    - docs/specs/codex-appserver-thread-session-foundation-spec.md
-    - docs/specs/codex-appserver-repl-activity-bridge-spec.md
-    - docs/specs/codex-appserver-transcript-ui-spec.md
-    - docs/specs/codex-appserver-assistant-ui-transcript-panel-spec.md
-    - docs/specs/codex-appserver-chatgpt-polish-spec.md
-    - docs/specs/codex-appserver-assistant-ui-native-adoption-spec.md
-    - tests/server/services/codex-app-server-adapter.test.js
-    - tests/server/services/codex-app-server-activity-bridge.test.js
-    - tests/server/services/codex-app-server-session-state.test.js
-    - tests/server/services/codex-app-server-transcript-service.test.js
-    - tests/unit/codex-app-server-activity-client.test.js
-    - tests/domain/session/session-display-route.test.js
-    - tests/unit/session-ui-state.test.js
-    - tests/ui/integration/app-switch-session-runtime.test.js
-    - tests/e2e/story-codex-appserver-display-route-consumer-contract.spec.ts
-    - tests/e2e/story-codex-appserver-xterm-default-fallback-contract.spec.ts
-    - tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
-    - tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
-    - tests/e2e/story-codex-appserver-repl-activity-bridge-contract.spec.ts
-    - tests/e2e/story-codex-appserver-session-create-contract.spec.ts
-    - tests/e2e/story-codex-appserver-chatgpt-polish-contract.spec.ts
-    - tests/e2e/story-codex-appserver-assistant-ui-native-adoption-contract.spec.ts
-  data:
-    - in-memory Codex App Server process state
-    - in-memory JSON-RPC pending request map
-    - existing session hookStatus activity state when an adapter is wired through the activity bridge
-    - session.codexAppServer durable metadata for Codex-only App Server thread, turn, and restore identity
-depends_on:
-  - session.create
-  - terminal.transport
-visibility_rules:
-  - Do not restore this capability. ADR-019 assigns Codex thread and turn lifecycle to Codex app/CLI.
-  - Brainbase must consume durable Run Receipts when execution evidence is needed, not mirror Codex session state.
-  - This first slice is a backend adapter only; it must not replace xterm/tmux terminal transport.
-  - Use stdio transport first; WebSocket transport is experimental and out of scope for this capability slice.
-  - Initialize with Brainbase client metadata before sending thread or turn requests.
-  - Emit app-server notifications as structured events instead of parsing terminal text.
-  - App Server turn notifications may feed the existing activity indicator path only through the activity bridge and `activityService.reportActivity`.
-  - The terminal REPL path must send the same structured lifecycle metadata to `/api/sessions/report_activity` and persist `session.codexAppServer` through the state API.
-  - App Server-backed indicator updates must use Brainbase session ids from explicit metadata or bridge context; terminal text must not be used to infer ownership.
-  - Persist only the App Server thread, active turn, lifecycle, and restore metadata defined by `story-codex-appserver-session-state-ssot`.
-  - Codex App Server display eligibility is derived only for Codex sessions with non-stale App Server thread metadata.
-  - Codex sessions without App Server thread metadata and all Claude Code sessions remain on the xterm display route.
-  - Stale App Server metadata must remain distinguishable from missing metadata in display-route reasons.
-  - `story-codex-appserver-transcript-ui` owns native browser transcript display, App Server turn input, and a bounded session event ledger.
-  - App Server display-route consumers default to the native transcript panel once a non-stale App Server thread id exists and the feature flag is not explicitly disabled.
-  - Legacy terminal controls must remain read-only while App Server transcript mode is active; browser input must go through the App Server turn API.
-  - App Server display-route consumers must preserve xterm/ttyd fallback for Claude Code and Codex sessions without usable App Server metadata.
-  - Mobile App Server display-route consumers must stay on snapshot fallback until mobile transcript support is explicitly implemented, with a visible desktop-only fallback reason.
-  - New Codex session creation requests the App Server REPL path and must persist non-stale `session.codexAppServer` thread metadata before reporting creation success.
-  - Existing Codex sessions without App Server metadata keep terminal fallback unless an explicit creation/start request opts into Codex App Server.
-  - Keep full App Server event item persistence out of scope unless a separate ledger story defines ownership and retention.
-  - The transcript UI ledger must remain session-owned and bounded; raw App Server event streams must not be written to Graph SSOT.
-  - The assistant-ui transcript panel is a React island over the existing App Server transcript APIs; it must not require replacing the whole Brainbase shell with React.
-  - assistant-ui is currently build-time scoped for the browser transcript bundle; production Node dependency expansion requires a separate dependency gate decision.
-  - The polished assistant-ui transcript surface may improve browser rendering and composer behavior, but it must keep the App Server transcript and turn APIs as the only browser network contract.
-  - `story-codex-appserver-assistant-ui-native-adoption` resets the transcript implementation to use the OSS pre-styled `@assistant-ui/react-ui` `Thread` as the primary renderer before adding Brainbase-specific custom message UI.
-  - ChatGPT-like transcript polish must not claim server-side streaming unless a separate transport story implements and verifies streaming evidence.
-  - App Server session-state metadata is a Codex-only boundary; Claude Code sessions must not store or consume it.
-verification:
-  commands:
-    - npm run build:codex-appserver-transcript
-    - npm audit --omit=dev
-    - npm test -- tests/server/services/codex-app-server-adapter.test.js
-    - npm run test:run -- tests/server/services/codex-app-server-activity-bridge.test.js
-    - npm run test:run -- tests/server/services/codex-app-server-session-state.test.js tests/server/session-runtime-inventory.test.js
-    - npm run test:run -- tests/server/services/codex-app-server-transcript-service.test.js
-    - npm run test:run -- tests/unit/codex-app-server-activity-client.test.js
-    - npm run test:run -- tests/domain/session/session-display-route.test.js tests/unit/session-ui-state.test.js
-    - npm run test:run -- tests/ui/integration/app-switch-session-runtime.test.js
-    - npm run test:e2e -- tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
-    - npm run test:e2e -- tests/e2e/story-codex-appserver-display-route-consumer-contract.spec.ts
-    - npm run test:e2e -- tests/e2e/story-codex-appserver-session-create-contract.spec.ts
-    - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-session-state-ssot-contract.spec.ts
-    - BRAINBASE_E2E_PORT=31018 npm run test:e2e -- tests/e2e/story-codex-appserver-repl-activity-bridge-contract.spec.ts
-    - npm run test:e2e -- tests/e2e/story-codex-appserver-chatgpt-polish-contract.spec.ts
-    - npm run test:e2e -- tests/e2e/story-codex-appserver-assistant-ui-native-adoption-contract.spec.ts
-    - npx -y @openai/codex@latest app-server --help
-  expected:
-    - Adapter unit tests pass.
-    - Activity bridge tests prove `turn/started` maps to working and `turn/completed` maps to done-unread through existing hookStatus.
-    - Session-state tests prove Codex-only App Server metadata persistence, restore selection, explicit missing-metadata fallback, and Claude Code non-mutation.
-    - REPL activity client tests prove the REPL path constructs structured lifecycle metadata and session-state patches.
-    - Browser runtime proof for the transcript UI is covered by `tests/e2e/story-codex-appserver-transcript-ui-contract.spec.ts`; port 31013 live Codex CLI smoke remains optional operational evidence.
-    - Browser runtime proof for the polished assistant-ui experience is covered by `tests/e2e/story-codex-appserver-chatgpt-polish-contract.spec.ts`, including markdown/code rendering, activity rows, copy code, Enter send, and Shift+Enter multiline draft behavior.
-    - Browser/runtime proof for native assistant-ui adoption is covered by `tests/e2e/story-codex-appserver-assistant-ui-native-adoption-contract.spec.ts`, including direct `@assistant-ui/react-ui` `Thread` usage, assistant-ui markdown integration, injected distributed CSS, and App Server turn API submission.
-    - assistant-ui transcript bundle builds from `ui-islands/codex-appserver-transcript/index.jsx`, and `npm audit --omit=dev` stays scoped to production dependencies.
-    - Display route tests prove Codex App Server metadata selects the App Server route and Claude Code stays on xterm.
-    - Session creation tests prove new Codex sessions request App Server startup and wait for durable thread metadata.
-    - Transcript service tests prove thread resume/start, visible error items, optimistic user items, explicit policy pass-through, failed-turn ledger persistence, tool/input/turn items, and App Server turn payloads.
-    - Transcript route tests prove the sessions router wires transcript GET and turn POST to the service and preserves service error status.
-    - Session switching tests prove routed Codex App Server sessions default to the structured transcript panel, legacy terminal controls stay read-only until explicit fallback, explicit xterm fallback works, and Claude Code fallback still uses xterm.
-    - Display-route contract E2E covers the Story acceptance criteria through Story/ADR/Spec/code/test anchors.
-    - Codex CLI exposes the app-server command. If the local global `codex` shim is broken, use `npx -y @openai/codex@latest` as the reproducible CLI entrypoint for this capability check.
-    - Existing terminal transport remains unchanged for user-facing sessions.
-common_failures:
-  - Sending thread or turn requests before initialize/initialized handshake completes.
-  - Treating malformed stdout as fatal instead of emitting parse_error.
-  - Wiring App Server notifications directly to browser state instead of the existing activity service.
-  - Reporting REPL App Server turns as legacy unscoped working/done payloads, which can leave active turn state uncleared.
-  - Accepting App Server notifications without an explicit Brainbase session id.
-  - Exposing WebSocket app-server transport remotely without auth.
-  - Persisting app-server events into Graph SSOT directly instead of a defined session/event ledger.
-  - Reading session.codexAppServer metadata for Claude Code sessions.
-  - Treating Codex App Server display-route eligibility as permission to remove xterm fallback.
-  - Leaving legacy terminal input enabled while transcript mode is active.
-  - Reporting Codex session creation success before the App Server REPL has persisted thread metadata, causing immediate xterm fallback.
-runbooks: []
-troubleshooting: []

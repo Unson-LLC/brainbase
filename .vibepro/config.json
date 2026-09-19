@@ -563,8 +563,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "brainbase-boundary-cleanup",
+        "title": "Brainbaseの正本と認証・応答境界を明確にする",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "session-state-canonical-recovery"
+    "current_story_id": "brainbase-boundary-cleanup"
   }
 }

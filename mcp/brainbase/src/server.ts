@@ -1520,7 +1520,9 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           apiUrl: taskApiUrl,
           token: taskApiToken,
         }),
-        (toolName, extensionArgs) => handleMeshToolCall(toolName, extensionArgs, resolveBrainbaseApiUrl()),
+        (toolName, extensionArgs) => handleMeshToolCall(toolName, extensionArgs, resolveBrainbaseApiUrl(), {
+          getToken: () => globalTokenManager.getToken(),
+        }),
       ]);
       const result = extensionResult === null
         ? await handleToolCall(name, toolArgs)

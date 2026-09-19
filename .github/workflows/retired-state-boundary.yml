@@ -8,6 +8,17 @@ on:
       - 'server/bootstrap/**'
       - 'server/controllers/state-controller.js'
       - 'server/routes/**'
+      - 'server.js'
+      - 'server/middleware/csrf.js'
+      - 'mcp/brainbase/src/tools/mesh-tools.ts'
+      - 'mcp/brainbase/src/server.ts'
+      - 'mcp/brainbase/tests/tools/mesh-tools.test.ts'
+      - 'docs/brainbase-capabilities/capabilities/codex.app-server.yml'
+      - 'tests/server/routes/portal-routes.test.js'
+      - 'tests/server/routes/mesh-routes.test.js'
+      - 'tests/mesh/**'
+      - 'tests/unit/codex-app-server-capability-retirement.test.js'
+      - 'tests/e2e/story-codex-appserver-*-contract.spec.ts'
       - 'setup.sh'
       - 'scripts/setup.sh'
       - 'scripts/check-worktree.sh'
@@ -48,3 +59,18 @@ jobs:
           tests/server/routes/retired-capability.test.js
           tests/server/routes/brainbase.test.js
           tests/server/scripts/retired-setup.test.js
+          tests/server/routes/portal-routes.test.js
+          tests/server/routes/mesh-routes.test.js
+          tests/mesh/unverified-query-boundary.test.js
+          tests/mesh/query/permission-checker.test.js
+          tests/unit/codex-app-server-capability-retirement.test.js
+      - name: Verify Mesh MCP receipt and authentication contracts
+        run: node --import tsx --test mcp/brainbase/tests/tools/mesh-tools.test.ts
+      - name: Verify retired Codex capability contracts
+        env:
+          VIBEPRO_EVIDENCE_ID: brainbase-boundary-cleanup
+        run: >-
+          npm run test:e2e --
+          tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
+          tests/e2e/story-codex-appserver-session-create-contract.spec.ts
+          --reporter=line

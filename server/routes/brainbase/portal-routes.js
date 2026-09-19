@@ -87,21 +87,25 @@ export function createBrainbasePortalRouter(options = {}) {
             }
             : { decision: {}, work: {}, ship: {}, learn: {} };
 
-        const wikiStories = await fetchStories(projectCode);
-        const graphStories = await fetchGraphStories(projectCode);
-        const storySource = graphStories.length ? 'graph' : 'wiki';
-        const rawStories = graphStories.length
-            ? _mergeGraphStoriesWithWikiDetails(graphStories, wikiStories)
-            : wikiStories;
-        const mergedStories = _mergeStoriesAndMilestones(rawStories, milestones);
+        const graphStoryResult = await fetchGraphStories(projectCode);
+        const wikiStories = graphStoryResult.status === 'available' && graphStoryResult.stories.length
+            ? await fetchStories(projectCode)
+            : null;
+        const mergedStories = graphStoryResult.status === 'available'
+            ? _mergeStoriesAndMilestones(
+                _mergeGraphStoriesWithWikiDetails(graphStoryResult.stories, wikiStories || []),
+                milestones
+            )
+            : [];
         const storyMap = {
             stories: mergedStories,
             sprints,
             milestones: milestones.filter(m => !m.story_id && m.name),
             meta: {
-                storySource,
-                graphStoryCount: graphStories.length,
-                wikiStoryCount: wikiStories.length,
+                storySource: graphStoryResult.status === 'available' ? 'graph' : 'unavailable',
+                storyStatus: graphStoryResult.status,
+                graphStoryCount: graphStoryResult.status === 'available' ? graphStoryResult.stories.length : null,
+                wikiStoryCount: wikiStories?.length ?? null,
                 projectionSource: nocodbBaseId ? 'nocodb' : null
             }
         };
@@ -238,8 +242,12 @@ export function createBrainbasePortalRouter(options = {}) {
     }
 
     async function fetchGraphStories(projectCode) {
+        if (typeof infoSSOTService?.listGraphEntities !== 'function') {
+            logger.warn('Portal: Graph story source is unavailable', { projectCode, reason: 'service_not_configured' });
+            return { status: 'unavailable', stories: [] };
+        }
+
         try {
-            if (!infoSSOTService?.listGraphEntities) return [];
             const access = {
                 role: 'gm',
                 projectCodes: Array.from(new Set([projectCode, 'brainbase', 'unson'].filter(Boolean))),
@@ -249,13 +257,26 @@ export function createBrainbasePortalRouter(options = {}) {
                 projectCode: null,
                 entityType: 'story'
             });
-            return (records || [])
+            const hasMalformedRecords = Array.isArray(records) && records.some(record => {
+                if (!record || typeof record !== 'object' || Array.isArray(record)) return true;
+                if (_graphStoryProjectScope(record, projectCode) === 'other') return false;
+                return record.entity_type !== 'story'
+                    || !record.payload
+                    || typeof record.payload !== 'object'
+                    || Array.isArray(record.payload);
+            });
+            if (!Array.isArray(records) || hasMalformedRecords) {
+                logger.warn('Portal: Graph story source returned an invalid response', { projectCode });
+                return { status: 'unavailable', stories: [] };
+            }
+            const stories = records
                 .filter(record => _isGraphStoryForProject(record, projectCode))
                 .map(_normalizeGraphStory)
                 .filter(story => story.story_id && story.name);
+            return { status: 'available', stories };
         } catch (error) {
             logger.warn('Portal: Failed to fetch graph stories', { projectCode, error: error.message });
-            return [];
+            return { status: 'unavailable', stories: [] };
         }
     }
 
@@ -273,6 +294,27 @@ export function createBrainbasePortalRouter(options = {}) {
         if (projectCandidates.includes(normalizedProject)) return true;
         if (source.startsWith(`${projectCode}/`)) return true;
         return source === 'common/00_stories.md' || source.startsWith('common/');
+    }
+
+    function _graphStoryProjectScope(record, projectCode) {
+        const candidatePayload = record?.payload
+            && typeof record.payload === 'object'
+            && !Array.isArray(record.payload)
+            ? record.payload
+            : {};
+        const source = String(candidatePayload.source || '');
+        const projectCandidates = []
+            .concat(candidatePayload.project_codes || [])
+            .concat(candidatePayload.projects || [])
+            .concat(candidatePayload.project_code || [])
+            .concat(record?.project_code || [])
+            .filter(Boolean)
+            .map(value => String(value).toLowerCase());
+        const normalizedProject = String(projectCode || '').toLowerCase();
+        if (projectCandidates.includes(normalizedProject)) return 'target';
+        if (source.startsWith(`${projectCode}/`) || source.startsWith('common/')) return 'target';
+        if (projectCandidates.length || source.includes('/')) return 'other';
+        return 'unknown';
     }
 
     function _normalizeGraphStory(record) {
@@ -307,13 +349,11 @@ export function createBrainbasePortalRouter(options = {}) {
                 ...graphStory,
                 horizon: graphStory.horizon || wikiStory.horizon || '',
                 view: graphStory.view || wikiStory.view || 'business',
-                status: graphStory.status || wikiStory.status || 'active',
                 period: graphStory.period || wikiStory.period || '',
                 started_at: graphStory.started_at || wikiStory.started_at || '',
                 due_at: graphStory.due_at || wikiStory.due_at || '',
                 enemy: graphStory.enemy || wikiStory.enemy || '',
                 context: graphStory.context || wikiStory.context || '',
-                criteria: graphStory.criteria || wikiStory.criteria,
                 beat_map: graphStory.beat_map || wikiStory.beat_map
             };
         });

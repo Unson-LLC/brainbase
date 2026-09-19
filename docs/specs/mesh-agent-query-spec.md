@@ -16,6 +16,8 @@ updated: 2026-04-26
 
 # Spec: Mesh Agent Query
 
+> 現行契約（2026-09-19）: [境界整理の仕様](brainbase-boundary-cleanup-spec.md)を優先する。以下は旧設計案を含む。現在のqueryは指定ノードへの送信受付だけを返し、回答待ち・`all`宛先・結果照会は提供しない。RESTは明示設定した本人・組織の認証を要求する。送信者本人の検証がない受信queryは文脈を開示せず拒否する。以下の同期応答・broadcast・自己申告roleによる認可を現行実装済み機能として扱わない。
+
 STR-001の受入条件をArchitectureの3レイヤー構造に基づいて実装仕様に落とす。
 
 ## 1. Node Profile スキーマ

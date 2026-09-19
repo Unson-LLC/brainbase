@@ -16,13 +16,13 @@ export const meshTools: Tool[] = [
   {
     name: 'mesh_query',
     description:
-      'メッシュ上の他ノードのAIに質問する。各ノードのローカル文脈（タスク状態、コード変更、ブランチ状態）に基づいた回答が返る。',
+      '指定したノードへ質問を送信する。成功は送信受付のみを示し、相手の受信・回答・回答保存は未確認。',
     inputSchema: {
       type: 'object',
       properties: {
         to: {
           type: 'string',
-          description: "宛先ノードID。'all'で全ノードに一斉問い合わせ",
+          description: '宛先ノードID',
         },
         question: {
           type: 'string',
@@ -51,20 +51,47 @@ export const meshTools: Tool[] = [
 // Tool handlers
 // ---------------------------------------------------------------------------
 
+export interface MeshToolDependencies {
+  getToken: () => Promise<string>;
+}
+
+async function getBearerHeaders(dependencies: MeshToolDependencies): Promise<{ Authorization: string }> {
+  const token = await dependencies.getToken();
+  if (typeof token !== 'string' || !token.trim()) {
+    throw new Error('Mesh authentication token is required');
+  }
+  return { Authorization: `Bearer ${token.trim()}` };
+}
+
 export async function handleMeshToolCall(
   name: string,
   args: Record<string, unknown>,
   brainbaseUrl: string,
+  dependencies: MeshToolDependencies,
 ): Promise<string | null> {
   switch (name) {
     case 'mesh_query': {
-      const to = args.to as string;
-      const question = args.question as string;
-      const scope = (args.scope as string) || 'general';
+      const rawTo = args.to;
+      if (typeof rawTo !== 'string' || !rawTo.trim() || rawTo.trim().toLowerCase() === 'all') {
+        throw new Error('Mesh query requires a specific destination node ID');
+      }
+      const to = rawTo.trim();
+      const rawQuestion = args.question;
+      if (typeof rawQuestion !== 'string' || !rawQuestion.trim()) {
+        throw new Error('Mesh query requires a non-empty question');
+      }
+      const question = rawQuestion;
+      const rawScope = args.scope;
+      const scope = rawScope === undefined ? 'general' : rawScope;
+      if (typeof scope !== 'string' || !['status', 'code', 'project', 'general'].includes(scope)) {
+        throw new Error('Mesh query scope is invalid');
+      }
+
+      const authorization = await getBearerHeaders(dependencies);
 
       const response = await fetch(`${brainbaseUrl}/api/mesh/query`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authorization },
         body: JSON.stringify({ to, question, scope }),
       });
 
@@ -77,11 +104,24 @@ export async function handleMeshToolCall(
         || typeof data.queryId !== 'string' || !data.queryId.trim() || data.status !== 'sent') {
         throw new Error('Mesh query returned an invalid response');
       }
-      return JSON.stringify(data, null, 2);
+      if ((data.receipt_kind !== undefined && data.receipt_kind !== 'send_ack')
+        || (data.answer_status !== undefined && data.answer_status !== 'unknown')) {
+        throw new Error('Mesh query returned an invalid response');
+      }
+      return JSON.stringify({
+        queryId: data.queryId,
+        status: data.status,
+        receipt_kind: 'send_ack',
+        answer_status: 'unknown',
+        message: '送信受付を確認しました。相手の受信・回答・回答保存は未確認です。',
+      }, null, 2);
     }
 
     case 'mesh_peers': {
-      const response = await fetch(`${brainbaseUrl}/api/mesh/peers`);
+      const authorization = await getBearerHeaders(dependencies);
+      const response = await fetch(`${brainbaseUrl}/api/mesh/peers`, {
+        headers: authorization,
+      });
 
       if (!response.ok) {
         throw new Error(`Mesh peers request failed: ${response.status} ${response.statusText}`);
