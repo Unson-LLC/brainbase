@@ -161,6 +161,7 @@ describe('managed launchd runtime contract', () => {
     expect(update).toContain('if [[ "$CURRENT_SHA" != "$TARGET_SHA" ]]');
     expect(update).toContain('launchctl kickstart -k');
     expect(plist).toContain('<integer>60</integer>');
+    expect(plist).toContain('<key>BRAINBASE_UI_RUNTIME_ROOT</key><string>__RUNTIME_ROOT__</string>');
   });
 
   it('keeps an explicit known-good SHA pinned across launchd restarts and fails closed on invalid roots or pins', () => {
@@ -491,7 +492,11 @@ describe('managed launchd runtime contract', () => {
     const install = read('scripts/install-brainbase-runtime-launchd.sh');
     expect(install).toContain('plutil -replace ProgramArguments -json');
     expect(install).toContain('plutil -replace EnvironmentVariables.BRAINBASE_REPO_ROOT');
+    expect(install).toContain('plutil -replace EnvironmentVariables.BRAINBASE_UI_RUNTIME_ROOT -string "$RUNTIME_ROOT"');
+    expect(install).toContain('plutil -insert EnvironmentVariables.BRAINBASE_UI_RUNTIME_ROOT -string "$RUNTIME_ROOT" "$UI_PLIST"');
     expect(install).toContain('wait_until_unloaded');
+    expect(install).toContain('launchctl bootout "$DOMAIN/com.brainbase.ui"');
+    expect(install).toContain('launchctl bootstrap "$DOMAIN" "$UI_PLIST"');
     expect(install).toContain('launchctl bootstrap "$DOMAIN" "$MCP_PLIST"');
   });
 

@@ -3,6 +3,9 @@
 <plist version="1.0"><dict>
   <key>Label</key><string>com.brainbase.runtime-update</string>
   <key>ProgramArguments</key><array><string>__HOME__/.local/brainbase/runtime-update.sh</string></array>
+  <key>EnvironmentVariables</key><dict>
+    <key>BRAINBASE_UI_RUNTIME_ROOT</key><string>__RUNTIME_ROOT__</string>
+  </dict>
   <key>RunAtLoad</key><true/>
   <key>StartInterval</key><integer>60</integer>
   <key>StandardOutPath</key><string>__HOME__/Library/Logs/brainbase-runtime-update.log</string>
