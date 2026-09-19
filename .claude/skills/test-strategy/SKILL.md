@@ -1,41 +1,27 @@
 ---
 name: test-strategy
-description: brainbaseのTest Pyramid（Unit 80% / API 15% / E2E 5%）への準拠をチェック。カバレッジ80%以上、命名規約、テスト品質を自動検証。
+description: brainbaseの変更に対するテスト層・範囲を選ぶとき、またはテスト品質をレビューするときに使う。
 ---
 
-# Test Strategy
+# テスト範囲の選択
 
-**目的**: brainbaseのTest Pyramid戦略への準拠をチェックし、テスト品質を自動検証
+入力は変更した振る舞い・不変条件・影響範囲。出力はそれを検証するテストと結果、未確認の境界。
 
-このSkillは、CLAUDE.mdで定義されたTest戦略を自動的に実践し、高品質なテストコードを維持します。
+## 何を確かめるか
 
-## Workflow Overview
+| 変更した契約 | 優先する検証 |
+|---|---|
+| 単一の判断・変換・境界値 | 対象のUnitテスト |
+| API、認証、永続化、サービス間連携 | 対象のAPI/統合テスト。tenant境界や失敗時の保存状態も含める |
+| 画面からの操作、ブラウザとserverの接続 | 対象のE2E。下位のテストだけでユーザー操作の成功としない |
+| 文書・Skillの修正 | 参照・構文・既存の契約検証。低影響の文言修正だけなら実装をなぞる新規テストは不要 |
 
-```
-Phase 1: Test Pyramidチェック
-└── agents/phase1_pyramid_checker.md
-    └── Unit / API / E2E の比率を判断
-    └── 80% / 15% / 5% に準拠しているか確認
+より安価な層で契約を検証できるならそこから始め、残る境界にだけ範囲を広げる。
 
-Phase 2: カバレッジチェック
-└── agents/phase2_coverage_checker.md
-    └── カバレッジ80%以上か確認
-    └── カバーされていないファイルを特定
+## 実行と成功条件
 
-Phase 3: 命名規約チェック
-└── agents/phase3_naming_checker.md
-    └── describe('対象', () => { it('条件_期待結果', () => {}) })
-    └── 命名規約に準拠しているか確認
-```
-
-## カバレッジ目標
-
-**80%以上**（Critical）
-
-## 参照
-
-- **Source**: この `test-strategy` Skill
-
----
-
-最終更新: 2025-12-31
+- 実行方法・対象・閾値は現在の `package.json`、`vitest.config.js`、対象CIで確認する。Unit/API/E2Eの固定比率や一律80%を、このSkillだけで追加の合否条件にしない。
+- 対象テストは `npm run test:run -- <test-file>`。全スイートはCIに任せ、ローカルで全体検証が必要な場合は理由を明らかにする。
+- テストデータと接続先を確認する。本番や外部サービスへの影響がないローカル検証と変更起因の修正・再実行は、承認済みの作業内で進める。
+- 不変条件が破れたときに失敗するテストを選ぶ。バグ修正の再現と回帰テストは [tdd-workflow](../tdd-workflow/SKILL.md)、原因調査は [verify-first-debugging](../verify-first-debugging/SKILL.md) を必要に応じて読む。
+- 通過後は新しい変更・失敗・未解決の懸念がない限り同じ検証を繰り返さない。skip、timeout、未接続はpassに数えず、未確認範囲として報告する。
