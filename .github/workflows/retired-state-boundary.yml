@@ -5,6 +5,17 @@ on:
     paths:
       - '.github/workflows/retired-state-boundary.yml'
       - 'lib/**'
+      - 'public/modules/**'
+      - 'public/device.html'
+      - 'docs/brainbase-capabilities/capabilities/session.*.yml'
+      - 'docs/brainbase-capabilities/capabilities/terminal.transport.yml'
+      - 'tests/server/bootstrap/*boundary.test.js'
+      - 'tests/server/bootstrap/device-surface-contract.test.js'
+      - 'tests/server/bootstrap/static-routes.test.js'
+      - 'tests/e2e/story-inline-session-creation-pr-gate.spec.ts'
+      - 'tests/e2e/story-nocodb-task-start-retirement.spec.js'
+      - 'tests/server/routes/auth-device-approval.test.js'
+      - 'tests/server/routes/run-receipt-routes.test.js'
       - 'server/bootstrap/**'
       - 'server/controllers/state-controller.js'
       - 'server/routes/**'
@@ -56,6 +67,11 @@ jobs:
         run: >-
           npm run test:run --
           tests/server/bootstrap/development-runtime-boundary.test.js
+          tests/server/bootstrap/retired-browser-boundary.test.js
+          tests/server/bootstrap/device-surface-contract.test.js
+          tests/server/bootstrap/static-routes.test.js
+          tests/server/routes/auth-device-approval.test.js
+          tests/server/routes/run-receipt-routes.test.js
           tests/server/routes/retired-capability.test.js
           tests/server/routes/brainbase.test.js
           tests/server/scripts/retired-setup.test.js
@@ -73,4 +89,6 @@ jobs:
           npm run test:e2e --
           tests/e2e/story-codex-appserver-thread-session-foundation-contract.spec.ts
           tests/e2e/story-codex-appserver-session-create-contract.spec.ts
+          tests/e2e/story-inline-session-creation-pr-gate.spec.ts
+          tests/e2e/story-nocodb-task-start-retirement.spec.js
           --reporter=line

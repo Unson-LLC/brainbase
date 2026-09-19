@@ -1,35 +1,10 @@
-# Session Hibernation Mutating Smoke
+# Session Hibernation Mutating Smoke（退役済み）
 
-Use this only with a disposable idle Codex session whose runtime ownership is verified by `/api/sessions/runtime/inventory`.
+ADR-019により、Brainbaseがsessionをhibernate/resumeする機能は廃止された。この文書は履歴への入口だけを残す。旧POST手順を実行したり、削除済みruntimeを復元したりしない。
 
-1. Start Brainbase on a non-production test port.
-2. Create or select a disposable Codex session.
-3. Confirm eligibility:
+- task、worktree、terminal、processの所有者: Codex app/CLI。
+- Brainbaseが受け取る実行証跡: Run Receipt。
+- 過去のsession/archiveデータ: 読み取り専用の移行証跡として保護する。
+- 現行の退役確認: `npm run test:run -- tests/server/bootstrap/development-runtime-boundary.test.js tests/server/routes/retired-capability.test.js`
 
-```bash
-curl -s "http://127.0.0.1:31014/api/sessions/<session-id>/hibernate/eligibility"
-```
-
-Proceed only when `eligible` is `true`, `ownedProcessCount` is greater than `0`, and all owned process ids are attributed to the target session.
-
-4. Hibernate the session:
-
-```bash
-curl -s -X POST "http://127.0.0.1:31014/api/sessions/<session-id>/hibernate" \
-  -H 'Content-Type: application/json' \
-  -d '{"reason":"manual-smoke"}'
-```
-
-Expected result: `intendedState=hibernated`, `runtimeState=hibernated`, `hibernatedAt` present, restore metadata present, and the owned runtime processes are no longer running.
-
-5. Resume the runtime:
-
-```bash
-curl -s -X POST "http://127.0.0.1:31014/api/sessions/<session-id>/resume-runtime" \
-  -H 'Content-Type: application/json' \
-  -d '{"viewerId":"smoke","viewerLabel":"Smoke"}'
-```
-
-Expected result: `intendedState=active`, `runtimeState=hot`, `resumedAt` present, and the terminal runtime is reachable without creating a duplicate worktree.
-
-If no disposable owned Codex runtime is available, record the mutating smoke as not run and keep the read-only API smoke plus unit/E2E evidence separate.
+設計判断: [ADR-019](../../architecture/ADR-019-codex-owns-development-runtime.md)。旧手順の原文はGit履歴に保存されている。

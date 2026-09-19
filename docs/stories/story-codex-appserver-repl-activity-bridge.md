@@ -11,12 +11,14 @@ architecture_docs:
 related_tasks:
   - task_source: VibePro
     task_ids: []
-status: draft
+status: retired
 created_at: 2026-05-25
 updated_at: 2026-05-25
 ---
 
 # story-codex-appserver-repl-activity-bridge: Codex App Server REPL activity bridge completion
+
+> 履歴資料。ADR-019により退役済み。以下の旧runtime実装要求は現行の未完了作業ではなく、再開しない。実行証跡はRun Receiptで扱う。
 
 ## Background
 

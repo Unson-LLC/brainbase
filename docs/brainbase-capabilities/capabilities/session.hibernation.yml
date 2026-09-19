@@ -1,67 +1,29 @@
 id: session.hibernation
-name: Session hibernation
+name: Session hibernation (retired)
 lifecycle: retired
-purpose: Historical record of Brainbase-owned runtime hibernation. Codex app/CLI now owns process lifecycle.
+purpose: Historical record only. Codex app/CLI owns process lifecycle; Brainbase does not hibernate or resume sessions.
+architecture_decision: docs/architecture/ADR-019-codex-owns-development-runtime.md
+current_evidence_capability: docs/brainbase-capabilities/capabilities/run-receipt.inbox.yml
 surfaces:
-  ui:
-    - session list runtime memory chips
-    - session list sleep and resume actions backed by hibernate/resume-runtime APIs
-  api:
-    - GET /api/sessions/runtime/inventory
-    - GET /api/sessions/:id/hibernate/eligibility
-    - POST /api/sessions/:id/hibernate
-    - POST /api/sessions/:id/resume-runtime
-  code:
-    - server/services/session-runtime/runtime-query-methods.js
-    - server/services/session-runtime/runtime-lifecycle-methods.js
-    - server/controllers/session/runtime-handlers.js
-    - server/routes/sessions.js
-    - public/modules/session-list-renderer.js
-    - public/modules/domain/session/session-service.js
-    - public/modules/ui/views/session-view.js
-    - public/modules/app/session-management-mixin.js
-  data:
-    - session runtime process inventory
-    - session hibernation eligibility blockers
-    - hibernation metadata on session state
-depends_on:
-  - terminal.transport
-  - runtime.launchd
+  ui: []
+  api: []
+  code: []
+  data: []
+depends_on: []
 visibility_rules:
-  - Do not restore this capability. ADR-019 assigns terminal and process lifecycle to Codex app/CLI.
-  - Brainbase session and terminal endpoints return 410 Gone.
-  - Runtime inventory is read-only and must not mutate session lifecycle state.
-  - Manual hibernation must run eligibility first and explain blockers before any process is stopped.
-  - Manual sleep actions must give immediate visible feedback while eligibility is checked and show blocker reasons when rejected.
-  - User-facing labels should say sleep / sleeping / resume; internal API and state names remain hibernate / hibernated.
-  - Session list must not show the legacy pause action next to sleep; existing paused sessions may be shown as stopped with resume only.
-  - User-facing sleep controls are explicit manual actions; automatic hibernation starts no earlier than Phase 3.
-  - Child processes may be attributed through a uniquely matched session parent.
-  - Strongly attributed child processes under a Brainbase-owned runtime may be stopped even when their command category is unknown.
-  - Ambiguous, weak, or unattributed process ownership must block hibernation eligibility.
-  - Active turns, pending startup, pending input, active terminal owner, pinned sessions, unsupported engines, and missing restore metadata must block hibernation eligibility.
-  - Hibernation may stop only process ids attributed to the target session inventory.
-  - Resume failure must preserve hibernation metadata and mark the session `broken`.
+  - Do not restore this capability. Session and terminal endpoints return 410 Gone.
+  - Brainbase does not inspect or stop Codex-owned processes for hibernation.
+  - Preserve historical session/archive data as read-only migration evidence.
 verification:
   commands:
-    - npm run test:run -- tests/server/session-runtime-inventory.test.js
-    - npm run test:run -- tests/unit/session-list-renderer.test.js tests/unit/session-service-hibernation.test.js
-    - npm run typecheck
-    - curl -s http://127.0.0.1:31013/api/sessions/runtime/inventory
-    - curl -s http://127.0.0.1:31013/api/sessions/<session-id>/hibernate/eligibility
-    - "Safe mutating smoke, only for a disposable idle Codex session with verified ownership: POST /api/sessions/<session-id>/hibernate then POST /api/sessions/<session-id>/resume-runtime"
+    - npm run test:run -- tests/server/bootstrap/retired-browser-boundary.test.js tests/server/bootstrap/development-runtime-boundary.test.js tests/server/routes/retired-capability.test.js
   expected:
-    - Inventory includes per-session RSS and process categories.
-    - Child processes under a uniquely matched runtime parent are attributed to the same session.
-    - Eligibility returns explicit blockers before process stopping.
-    - Manual hibernation persists `hibernatedAt`, optional snapshot, process summary, and restore metadata.
-    - Resume-runtime marks success active/hot and failed restores broken.
-    - Public eligibility and ineligible hibernate responses summarize owned process count without returning full command lines or process arrays.
-common_failures:
-  - Treating weak, ambiguous, or unattributed unknown child processes as safe to stop.
-  - Treating a cold session as needing hibernation.
-  - Treating Codex sessions without resume metadata as resumable.
-  - Forgetting that active terminal ownership can mean a human is looking at or typing into the session.
-runbooks:
-  - ../runbooks/session-hibernation-mutating-smoke.md
+    - Retired browser modules are absent and live device authorization remains available.
+    - Brainbase does not compose or mutate session lifecycle services.
+common_failures: []
+runbooks: []
 troubleshooting: []
+history:
+  documents:
+    - docs/architecture/session-hibernation-mvp-architecture.md
+    - docs/brainbase-capabilities/runbooks/session-hibernation-mutating-smoke.md

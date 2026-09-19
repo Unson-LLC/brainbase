@@ -6,10 +6,6 @@ const storyPath = 'docs/stories/story-codex-appserver-thread-session-foundation.
 const architecturePath = 'docs/architecture/codex-appserver-thread-session-foundation-architecture.md';
 const specPath = 'docs/specs/codex-appserver-thread-session-foundation-spec.md';
 const capabilityPath = 'docs/brainbase-capabilities/capabilities/codex.app-server.yml';
-const displayRoutePath = 'public/modules/domain/session/session-display-route.js';
-const sessionUiStatePath = 'public/modules/session-ui-state.js';
-const displayRouteTestPath = 'tests/domain/session/session-display-route.test.js';
-const sessionUiStateTestPath = 'tests/unit/session-ui-state.test.js';
 
 async function read(path: string): Promise<string> {
   return readFile(path, 'utf8');
@@ -19,77 +15,53 @@ test.describe('Codex App Server historical lineage and retirement contract', () 
   test('history:1 records the former primary-thread App Server display route', async () => {
     const story = await read(storyPath);
     const spec = await read(specPath);
-    const route = await read(displayRoutePath);
-    const routeTest = await read(displayRouteTestPath);
 
     expect(story).toContain('Codex sessions with `session.codexAppServer.threadId` resolve to `codex_app_server`');
     expect(spec).toContain("session.codexAppServer.threadId");
-    expect(route).toContain('session.codexAppServer?.threadId');
-    expect(route).toContain('SESSION_DISPLAY_MODES.CODEX_APP_SERVER');
-    expect(routeTest).toContain('routes Codex sessions with App Server thread metadata');
   });
 
   test('history:2 records the former restore-thread App Server display route', async () => {
     const story = await read(storyPath);
     const spec = await read(specPath);
-    const route = await read(displayRoutePath);
-    const routeTest = await read(displayRouteTestPath);
 
     expect(story).toContain('Codex sessions with `session.codexAppServer.restore.threadId` resolve to `codex_app_server`');
     expect(spec).toContain("session.codexAppServer.restore.threadId");
-    expect(route).toContain('session.codexAppServer?.restore?.threadId');
-    expect(routeTest).toContain('uses restore thread metadata');
   });
 
   test('history:3 records the former xterm fallback for sessions without App Server metadata', async () => {
     const story = await read(storyPath);
     const architecture = await read(architecturePath);
     const spec = await read(specPath);
-    const routeTest = await read(displayRouteTestPath);
 
     expect(story).toContain('Codex sessions without App Server thread metadata resolve to `terminal_xterm`');
     expect(architecture).toContain('legacy Codex, stale metadata, and missing metadata');
     expect(spec).toContain("Missing App Server metadata falls back to `terminal_xterm`");
-    expect(routeTest).toContain('keeps Codex sessions without App Server metadata on xterm fallback');
   });
 
   test('history:4 records the former xterm fallback for stale App Server metadata', async () => {
     const story = await read(storyPath);
     const spec = await read(specPath);
-    const route = await read(displayRoutePath);
-    const routeTest = await read(displayRouteTestPath);
 
     expect(story).toContain('Stale App Server metadata resolves to `terminal_xterm`');
     expect(spec).toContain("session.codexAppServer.stale === true");
-    expect(route).toContain('session.codexAppServer?.stale === true');
-    expect(route).toContain('codex_app_server_thread_stale');
-    expect(routeTest).toContain('distinct xterm fallback reason');
   });
 
   test('history:5 records the former exclusion of Claude Code from the App Server display route', async () => {
     const story = await read(storyPath);
     const architecture = await read(architecturePath);
     const spec = await read(specPath);
-    const route = await read(displayRoutePath);
-    const routeTest = await read(displayRouteTestPath);
 
     expect(story).toContain('Claude Code sessions never resolve to `codex_app_server`');
     expect(architecture).toContain('Claude Code is explicitly excluded from the App Server route');
     expect(spec).toContain("Only sessions with `engine === 'codex'` can use `codex_app_server`");
-    expect(route).toContain("session.engine !== 'codex'");
-    expect(routeTest).toContain('never routes Claude Code sessions through Codex App Server metadata');
   });
 
   test('history:6 records the former session UI display-route projection', async () => {
     const story = await read(storyPath);
     const spec = await read(specPath);
-    const sessionUiState = await read(sessionUiStatePath);
-    const sessionUiStateTest = await read(sessionUiStateTestPath);
 
     expect(story).toContain('`deriveSessionUiState()` exposes the display route without changing terminal transport behavior');
     expect(spec).toContain('deriveSessionUiState(sessionId).displayRoute');
-    expect(sessionUiState).toContain('displayRoute: deriveSessionDisplayRoute(session)');
-    expect(sessionUiStateTest).toContain('Codex App Server thread metadata から display route を導出する');
   });
 
   test('history:7 records that the former display slice did not replace terminal transport', async () => {

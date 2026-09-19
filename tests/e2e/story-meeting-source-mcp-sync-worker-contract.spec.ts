@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 import express from 'express';
 import fs from 'node:fs';
@@ -21,84 +21,9 @@ import {
 } from '../helpers/test-automation-runtime.js';
 
 const storyId = 'story-meeting-source-mcp-sync-worker';
-const isWorktree = process.cwd().includes('.worktrees') || process.cwd().includes('brainbase-worktrees');
-const defaultPort = isWorktree ? 31014 : 31013;
-const e2ePort = process.env.BRAINBASE_E2E_PORT || (isWorktree ? String(defaultPort) : (process.env.BRAINBASE_PORT || process.env.PORT || String(defaultPort)));
-const baseUrl = process.env.BRAINBASE_BASE_URL || `http://localhost:${e2ePort}`;
 
 function readFile(filePath: string) {
   return fs.readFileSync(filePath, 'utf8');
-}
-
-async function fulfillJson(route: any, body: any, status = 200) {
-  await route.fulfill({
-    status,
-    contentType: 'application/json',
-    body: JSON.stringify(body)
-  });
-}
-
-async function openApp(page: Page) {
-  await page.goto(baseUrl);
-  await page.waitForLoadState('domcontentloaded');
-  await page.waitForFunction(() => window.brainbaseApp !== undefined);
-}
-
-function defaultMeetingSourcePreviewBody() {
-  return {
-    preview_id: 'preview_provider_skip_reasons',
-    dry_run: true,
-    artifact_count: 0,
-    expected_meeting_pack_count: 0,
-    provider_results: [
-      { provider: 'tactiq', artifact_count: 0, skipped: true, reason: 'adapter_not_configured' },
-      { provider: 'plaud', artifact_count: 0, skipped: true, reason: 'provider_not_connected' }
-    ],
-    clusters: [],
-    errors: []
-  };
-}
-
-async function stubSettingsMeetingSourceRoutes(page: Page, previewBody: any = defaultMeetingSourcePreviewBody()) {
-  await page.route('**/api/config/integrity', route => fulfillJson(route, {
-    stats: { projects: 1 },
-    summary: { errors: 0, warnings: 0 },
-    issues: []
-  }));
-  await page.route('**/api/config/unified', route => fulfillJson(route, { sections: [] }));
-  await page.route('**/api/config/organizations', route => fulfillJson(route, []));
-  await page.route('**/api/config/notifications', route => fulfillJson(route, { channels: {}, dnd: {} }));
-  await page.route('**/api/config', route => fulfillJson(route, {
-    projects: { projects: [{ id: 'brainbase', emoji: '' }] },
-    slack: { workspaces: {}, channels: [], members: [] },
-    github: [],
-    nocodb: []
-  }));
-  await page.route('**/api/health', route => fulfillJson(route, { ok: true }));
-  await page.route('**/api/state', route => fulfillJson(route, { sessions: [], preferences: {} }));
-  await page.route('**/api/settings/meeting-sources/mcp-providers', route => fulfillJson(route, {
-    providers: [
-      {
-        provider: 'tactiq',
-        enabled: true,
-        auth_status: 'connected',
-        account_label: 'ksato tactiq',
-        has_credential_ref: true,
-        capabilities: ['online_transcript', 'mcp_resource'],
-        cursor: {}
-      },
-      {
-        provider: 'plaud',
-        enabled: false,
-        auth_status: 'disconnected',
-        account_label: '',
-        has_credential_ref: false,
-        capabilities: ['offline_recording', 'call_recording', 'mcp_resource'],
-        cursor: {}
-      }
-    ]
-  }));
-  await page.route('**/api/settings/meeting-sources/resync-preview', route => fulfillJson(route, previewBody));
 }
 
 async function createSyncFixture({
@@ -165,7 +90,6 @@ test.describe(storyId, () => {
     const server = readFile('server.js');
     const gracefulShutdown = readFile('server/bootstrap/graceful-shutdown.js');
     const route = readFile('server/routes/meeting-source-settings.js');
-    const settingsUi = readFile('public/modules/settings/settings-core.js');
 
     // story-meeting-source-mcp-sync-worker ac:1 AC-001: Tactiq/Plaud MCP artifactをMeeting Packのsource_eventへ変換できる。
     expect(story + service, `${storyId} ac:1 AC-001 source_event`).toContain('buildSourceEventFromArtifact');
@@ -185,14 +109,14 @@ test.describe(storyId, () => {
     expect(story + service, `${storyId} ac:7 AC-007 provider isolation`).toContain('errors.push');
     // story-meeting-source-mcp-sync-worker ac:8 AC-008: Calendarに存在しない電話/雑談もsource artifactから同期できる。
     expect(architecture + service, `${storyId} ac:8 AC-008 calendar independent`).toContain('calendar_event_id: raw.calendar_event_id || null');
-    // story-meeting-source-mcp-sync-worker ac:9 AC-009: Settings UIでMCP providerの接続/疎通/解除を管理できる。
-    expect(route + settingsUi, `${storyId} ac:9 AC-009 settings provider management`).toContain('/mcp-providers');
+    // story-meeting-source-mcp-sync-worker ac:9 AC-009: MCP providerの接続/疎通/解除APIを提供する。
+    expect(route, `${storyId} ac:9 AC-009 settings provider management`).toContain('/mcp-providers');
     expect(adapters + coreServices, `${storyId} ac:9 AC-009 mcp adapter wiring`).toContain('createMeetingSourceMcpAdaptersFromEnv');
     // story-meeting-source-mcp-sync-worker ac:10 AC-010: credential_refをAPIレスポンスに漏らさない。
     expect(story + service, `${storyId} ac:10 AC-010 credential redaction`).toContain('credential_ref: _credentialRef');
     // story-meeting-source-mcp-sync-worker ac:11 AC-011: dry-run結果をoperatorが確認してから反映できる。
-    expect(route + settingsUi, `${storyId} ac:11 AC-011 preview then confirm`).toContain('/resync-preview');
-    expect(route + settingsUi, `${storyId} ac:11 AC-011 preview then confirm`).toContain('/resync-confirm');
+    expect(route, `${storyId} ac:11 AC-011 preview then confirm`).toContain('/resync-preview');
+    expect(route, `${storyId} ac:11 AC-011 preview then confirm`).toContain('/resync-confirm');
     // story-meeting-source-mcp-sync-worker ac:12 AC-012: workerのcursorは成功submit後だけ進む。
     expect(story + service, `${storyId} ac:12 AC-012 cursor advancement`).toContain('last_seen_external_id');
     expect(gracefulShutdown, `${storyId} ac:12 AC-012 scheduler shutdown`).toContain('stopScheduledSync');
@@ -617,87 +541,6 @@ test.describe(storyId, () => {
       auth_status: 'disconnected',
       has_credential_ref: false
     });
-  });
-
-  test(`${storyId} ac:7 ac:9 ac:11 S-003 provider_results_ui Settings previewでprovider別skip理由を表示する`, async ({ page }) => {
-    await stubSettingsMeetingSourceRoutes(page);
-    await openApp(page);
-    await page.waitForFunction(() => Boolean(window.brainbaseApp?.settingsCore));
-
-    await page.evaluate(async () => {
-      window.brainbaseApp.settingsCore.currentTab = 'integrations';
-      window.brainbaseApp.settingsCore.pendingIntegrationSubTab = 'meeting-sources';
-      await window.brainbaseApp.settingsCore.ui.openModal();
-    });
-
-    await expect(page.locator('#integration-detail-meeting-sources')).toHaveClass(/active/);
-    await page.locator('#meeting-source-since').fill('2026-06-25T00:00');
-    await page.locator('#meeting-source-org').fill('brainbase');
-    await page.locator('#meeting-source-project').fill('brainbase');
-    await page.locator('#meeting-source-preview-btn').click();
-
-    const providerResults = page.locator('[data-meeting-source-provider-results]');
-    await expect(providerResults).toBeVisible();
-    await expect(providerResults).toContainText('tactiq');
-    await expect(providerResults).toContainText('adapter_not_configured');
-    await expect(providerResults).toContainText('plaud');
-    await expect(providerResults).toContainText('provider_not_connected');
-    await expect(page.locator('#meeting-source-preview-result')).toContainText('providerの状態と理由を確認してください');
-  });
-
-  test(`${storyId} ac:9 ac:10 ac:11 S-003 settings_ui shows sync policy and source preview details`, async ({ page }) => {
-    await stubSettingsMeetingSourceRoutes(page, {
-      preview_id: 'preview_source_details',
-      dry_run: true,
-      artifact_count: 2,
-      expected_meeting_pack_count: 1,
-      provider_results: [
-        { provider: 'tactiq', artifact_count: 1, skipped: false },
-        { provider: 'plaud', artifact_count: 1, skipped: false }
-      ],
-      clusters: [{
-        source_cluster_id: 'msrc_online_1',
-        title: 'Online strategy meeting',
-        meeting_mode: 'online',
-        providers: ['tactiq', 'plaud'],
-        primary_source: {
-          provider: 'tactiq',
-          provider_source_id: 'tactiq-online-1',
-          external_id: 'tactiq-online-1',
-          mcp_resource_uri: 'mcp://tactiq/transcripts/tactiq-online-1'
-        },
-        supporting_sources: [{
-          provider: 'plaud',
-          provider_source_id: 'plaud-online-1',
-          external_id: 'plaud-online-1',
-          mcp_resource_uri: 'mcp://plaud/recordings/plaud-online-1'
-        }]
-      }],
-      errors: []
-    });
-    await openApp(page);
-
-    await page.evaluate(async () => {
-      window.brainbaseApp.settingsCore.currentTab = 'integrations';
-      window.brainbaseApp.settingsCore.pendingIntegrationSubTab = 'meeting-sources';
-      await window.brainbaseApp.settingsCore.ui.openModal();
-    });
-
-    await expect(page.locator('#integration-detail-meeting-sources')).toHaveClass(/active/);
-    await expect(page.locator('#meeting-source-poll-interval-minutes')).toHaveValue('15');
-    await expect(page.locator('#meeting-source-overlap-hours')).toHaveValue('24');
-    await expect(page.locator('#meeting-source-provider-priority')).toHaveValue('mode_default');
-    await page.locator('#meeting-source-since').fill('2026-06-25T00:00');
-    await page.locator('#meeting-source-org').fill('brainbase');
-    await page.locator('#meeting-source-project').fill('brainbase');
-    await page.locator('#meeting-source-preview-btn').click();
-
-    const previewResult = page.locator('#meeting-source-preview-result');
-    await expect(previewResult).toContainText('expected Meeting Pack: 1');
-    await expect(previewResult).toContainText('Primary Source');
-    await expect(previewResult).toContainText('tactiq:tactiq-online-1');
-    await expect(previewResult).toContainText('Supporting Sources');
-    await expect(previewResult).toContainText('plaud:plaud-online-1');
   });
 
   test(`${storyId} ac:1 ac:2 ac:3 ac:4 AC-001 AC-002 AC-003 AC-004 pure source_event helpers keep MCP evidence stable`, () => {

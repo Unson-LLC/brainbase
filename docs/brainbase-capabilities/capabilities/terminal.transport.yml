@@ -1,79 +1,30 @@
 id: terminal.transport
-name: Terminal xterm transport
+name: Terminal transport (retired)
 lifecycle: retired
-purpose: Historical record of Brainbase xterm/tmux/ttyd transport. Codex app/CLI now owns terminal transport.
+purpose: Historical record only. Codex app/CLI owns terminal transport; Brainbase does not provide browser xterm, tmux, or ttyd transport.
+architecture_decision: docs/architecture/ADR-019-codex-owns-development-runtime.md
+current_evidence_capability: docs/brainbase-capabilities/capabilities/run-receipt.inbox.yml
 surfaces:
-  ui:
-    - xterm terminal pane
-  api:
-    - terminal websocket endpoints
-    - terminal transport HTTP helpers
-  code:
-    - public/modules/core/terminal-transport-client.js
-    - public/modules/app/terminal-display-mixin.js
-    - server/services/terminal-transport-service.js
-    - server/services/tmux-control-client.js
-    - scripts/codex-pty-shim.py
-    - server/services/session-runtime
-  data:
-    - session runtime state
-    - terminal snapshots
-depends_on:
-  - runtime.launchd
+  ui: []
+  api: []
+  code: []
+  data: []
+depends_on: []
 visibility_rules:
-  - Do not restore this capability. ADR-019 assigns terminal transport to Codex app/CLI.
-  - Brainbase terminal HTTP, WebSocket, and console proxy surfaces are retired.
-  - Enter should provide immediate local feedback even when readiness probes lag.
-  - Table rendering snapshots must not be cleared by volatile prompt transitions.
-  - Focus loss can look like input transport failure.
-  - Pending or failed startup shells must keep the startup composer visible and reject terminal IO until the runtime is ready.
-  - Outer terminal capability/color/focus responses must be consumed by the PTY shim and must not reach Codex stdin.
-  - Terminal writes must coalesce xterm renderer refreshes so bottom-row redraws do not leave stale duplicate cells.
-  - Backspace/Delete must provide immediate local visual feedback even after prior input echo has already been confirmed.
-  - Escape/navigation keys must bypass text batching and flush any pending printable text first.
-  - Split focus reports must hold a lone ESC briefly so a following bare `[I` or `[O` can be dropped as one control response.
-  - Bare `[I` or `[O` that arrives without a held ESC is ordinary user text in the browser/server transport path.
-  - Codex PTY shim may still drop bare `[I` or `[O` only when sanitizing outer-terminal generated responses before they reach Codex stdin.
-  - Multiline paste must use a single bracketed paste transport instead of per-line `S-Enter` key simulation.
-  - Deferred desktop xterm display must wait for the first reset/full snapshot write to complete before revealing a newly opened session; WebSocket ready alone is transport-ready, not visual-ready.
+  - Do not restore this capability. ADR-019 assigns terminal and process lifecycle to Codex app/CLI.
+  - Brainbase terminal HTTP, WebSocket, and console proxy surfaces remain retired.
+  - Historical documents are not instructions to start, reconnect, or repair a Brainbase terminal.
 verification:
   commands:
-    - npm test -- tests/unit/terminal-transport-client.test.js
-    - npm test -- tests/unit/codex-pty-shim.test.js
-    - inspect /api/version to confirm canonical runtime sha
+    - npm run test:run -- tests/server/bootstrap/retired-browser-boundary.test.js tests/server/bootstrap/development-runtime-boundary.test.js tests/server/routes/retired-capability.test.js
   expected:
-    - Safe streaming text/key input logs route=control-mode and avoids terminal-io mutation latency.
-    - Paste, multiline, or unsupported control-mode input falls back to route=terminal-io.
-    - Pure Enter input takes the fast path.
-    - Table snapshots remain stable across prompt/polling transitions.
-    - Pending startup shells return 409 for terminal HTTP helpers and close websocket transport with code 4009.
-    - Xterm focus reports (`ESC[I`, `ESC[O`) are not echoed or sent as terminal input.
-    - Browser/server transport preserves bare `[I` and `[O` as user text unless they complete a held split focus report after a lone ESC.
-    - Terminal responses such as `ESC[?0u`, `ESC[0u`, `ESC[I`, `ESC[O`, and OSC 10/11 color responses are dropped before Codex can treat ESC as interrupt.
-    - Codex PTY shim drops outer-terminal bare focus fragments (`[I`, `[O`) even when the leading ESC was already consumed upstream.
-    - Streaming writes refresh the lower visible rows after write callbacks, and reset snapshots refresh all visible rows.
-    - Backspace locally erases one ASCII cell immediately and consumes the matching simple PTY echo to avoid double deletion.
-    - Esc key presses are sent immediately one-by-one and are not delayed by the text batch timer.
-    - Split focus reports (`ESC` then `[I`/`[O`) are dropped before either fragment reaches local echo or stdin.
-    - Browser-to-PTY canary verifies typed text through tmux snapshot capture, not only xterm local buffer state.
-    - Multiline paste is sent as one `paste` input and reaches tmux through `paste-buffer -p -r`.
-    - Opening a deferred xterm session with ready-before-snapshot does not reveal the old buffer before the first reset snapshot write callback completes.
-common_failures:
-  - Enter appears delayed because xterm is not repainted even though the backend received input.
-  - Streaming output is active but input silently falls back to terminal-io, causing per-character lag.
-  - Browser local echo duplicates Claude Code/TUI redraws when IME committed text or ANSI-prefixed echo is treated as plain text.
-  - Snapshot preservation regresses after develop sync if the fix is not merged.
-  - Focus reporting bytes or focus loss disrupt input order.
-  - Mobile workspace overlays inside console-area can look like terminal taps unless terminal-stage visibility is checked.
-  - Terminal response bytes leak into Codex input, causing visible fragments like `[0` or `]10;rgb...` and unsolicited "Conversation interrupted" states.
-  - Xterm renderer keeps stale lower-row cells after rapid prompt/status redraws, making the bottom of the terminal look duplicated.
-  - Backspace feels delayed because it waits for Codex/Claude PTY output once pending local echo has already been confirmed.
-  - Esc feels delayed because it is recognized as navigation for probe bypass but still waits in the printable text batch buffer.
-  - `[I` or `[O` appears when `ESC[I`/`ESC[O` is split across xterm `onData` events and the leading ESC is sent before the bare suffix arrives.
-  - Long multiline paste is slow when each line is sent as text and each newline is converted into an awaited `S-Enter` key message.
-  - A startup shell is mistaken for a ready terminal session, causing blank xterm panes or queued input to hit a missing runtime.
-  - A Claude Code session opens at the oldest retained log because the UI revealed xterm on WebSocket ready before the initial reset/full snapshot finished rendering.
-runbooks:
-  - ../runbooks/verify-31013-source.md
-troubleshooting:
-  - ../troubleshooting/launchd-overwrites-local-changes.md
+    - Retired browser terminal modules are absent and are not served.
+    - The live device authorization surface remains available.
+    - Brainbase does not compose a session or terminal lifecycle service.
+common_failures: []
+runbooks: []
+troubleshooting: []
+history:
+  documents:
+    - docs/architecture/codex-appserver-repl-activity-bridge-architecture.md
+    - docs/verification/codex-appserver-repl-activity-bridge-regression-matrix.md
