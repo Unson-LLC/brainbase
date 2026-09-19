@@ -65,8 +65,8 @@
       "statement": "The trusted common Brainbase MCP endpoint selects exactly one configured tenant credential from an explicit tenant selector or a project/project_code that belongs to exactly one signed tenant token.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 0, "ac_id": "AC-1" }],
-        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-token-router.ts", "anchor": "TenantTokenRouter" }],
-        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-token-router.test.ts", "case": "routes explicit tenants and uniquely owned projects" }]
+        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-auth-router.ts", "anchor": "TenantTokenRouter" }],
+        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-auth-router.test.ts", "case": "routes explicit tenants and uniquely owned projects" }]
       }
     },
     {
@@ -75,8 +75,8 @@
       "statement": "Unknown, ambiguous, conflicting, or organization-mismatched routes fail closed and never fall back to another tenant credential.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 1, "ac_id": "AC-2" }],
-        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-token-router.ts", "anchor": "TenantTokenRouter" }],
-        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-token-router.test.ts", "case": "fails closed at tenant boundaries" }]
+        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-auth-router.ts", "anchor": "TenantTokenRouter" }],
+        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-auth-router.test.ts", "case": "fails closed at tenant boundaries" }]
       }
     },
     {
@@ -95,8 +95,8 @@
       "statement": "Tenant configuration contains token-file paths and expected organization identifiers only; raw access or refresh tokens are never logged or stored in VibePro artifacts.",
       "origin": {
         "story_refs": [{ "kind": "acceptance_criteria", "index": 3, "ac_id": "AC-4" }],
-        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-token-router.ts", "anchor": "createTenantTokenRouterFromEnvironment" }],
-        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-token-router.test.ts", "case": "rejects inline credential material" }]
+        "code_refs": [{ "file": "mcp/brainbase/src/auth/tenant-auth-router.ts", "anchor": "createTenantTokenRouterFromEnvironment" }],
+        "test_refs": [{ "file": "mcp/brainbase/tests/tenant-auth-router.test.ts", "case": "rejects inline credential material" }]
       }
     }
   ]

@@ -7,6 +7,7 @@ import { knowledgeEvidenceTools, handleKnowledgeEvidenceToolCall } from './tools
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
@@ -49,7 +50,7 @@ import type { EntitySource } from './sources/entity-source.js';
 import { TokenManager, createConnectionTokenManager } from './auth/token-manager.js';
 import { authenticateMcpHttpRequest, type McpHttpAuthMode } from './auth/http-auth.js';
 import { RequestTokenContext, type TokenProvider } from './auth/request-token-context.js';
-import { createTenantTokenRouterFromEnvironment } from './auth/tenant-token-router.js';
+import { createTenantTokenRouterFromEnvironment } from './auth/tenant-auth-router.js';
 import { filterWikiPages } from './tools/wiki-search.js';
 import { meshTools, handleMeshToolCall } from './tools/mesh-tools.js';
 import {
@@ -93,10 +94,47 @@ import {
 } from './remote-judgment-hook-http.js';
 import { readRuntimeVersion } from './runtime-version.js';
 
-// Global index. Runtime lookups rebuild and atomically swap this snapshot.
-let entityIndex: EntityIndex;
+interface EntityIndexState {
+  index: EntityIndex;
+  refreshPromise: Promise<void> | null;
+  source: GraphAPISource | null;
+  lastAccessedAt: number;
+}
+
+// Each authenticated principal/tenant gets an independent projection. The
+// fallback state preserves stdio and test behavior where no HTTP scope exists.
+const entityIndexScope = new AsyncLocalStorage<string>();
+const entityIndexStates = new Map<string, EntityIndexState>();
+const defaultEntityIndexScope = 'default';
+const maxEntityIndexScopes = 64;
+let graphSourceFactory: (() => GraphAPISource) | null = null;
 let indexRefreshEnabled = false;
-let indexRefreshPromise: Promise<void> | null = null;
+
+function getEntityIndexState(): EntityIndexState {
+  const scope = entityIndexScope.getStore() ?? defaultEntityIndexScope;
+  let state = entityIndexStates.get(scope);
+  if (!state) {
+    if (entityIndexStates.size >= maxEntityIndexScopes) {
+      const evictable = [...entityIndexStates.entries()]
+        .filter(([key, candidate]) => key !== defaultEntityIndexScope && candidate.refreshPromise === null)
+        .sort((left, right) => left[1].lastAccessedAt - right[1].lastAccessedAt)[0];
+      if (evictable) entityIndexStates.delete(evictable[0]);
+    }
+    state = {
+      index: createEmptyIndex(),
+      refreshPromise: null,
+      source: graphSourceFactory?.() ?? null,
+      lastAccessedAt: Date.now(),
+    };
+    entityIndexStates.set(scope, state);
+  }
+  state.lastAccessedAt = Date.now();
+  return state;
+}
+
+function stableScopePart(values: string[]): string[] {
+  return [...new Set(values)].sort();
+}
 
 // Canonical Task store (companion task API on Lightsail). Mutations use a
 // dedicated bbsvc_ service token; without it the task tools report unavailable.
@@ -110,7 +148,6 @@ let globalOwnerTokenManager: TokenProvider;
 let personalKgStorageMode: PersonalKgStorageMode | undefined;
 let personalKgApiUrl: string | undefined;
 let personalKnowledgeClient: PersonalKnowledgeClient | null = null;
-let globalGraphSource: GraphAPISource | null = null;
 let defaultProjectCode = 'brainbase';
 let configuredProjectCodes: string[] | undefined;
 
@@ -250,22 +287,25 @@ async function dispatchGetEntity(args: Record<string, unknown>, deps: GraphRetri
 
 async function refreshEntityIndex(): Promise<void> {
   if (!indexRefreshEnabled) return;
-  if (!globalGraphSource) {
+  const state = getEntityIndexState();
+  if (!state.source) {
     throw new Error('Graph source is unavailable; entity index cannot be refreshed');
   }
-  if (!indexRefreshPromise) {
-    indexRefreshPromise = (async () => {
-      const nextIndex = await buildIndex(globalGraphSource as EntitySource);
-      entityIndex = nextIndex;
+  if (!state.refreshPromise) {
+    state.refreshPromise = (async () => {
+      const nextIndex = await buildIndex(state.source as EntitySource);
+      state.index = nextIndex;
     })().finally(() => {
-      indexRefreshPromise = null;
+      state.refreshPromise = null;
     });
   }
-  await indexRefreshPromise;
+  await state.refreshPromise;
 }
 
 async function hydrateExtensionQuery(name: string, args: Record<string, unknown>): Promise<void> {
-  if (!globalGraphSource) return;
+  const state = getEntityIndexState();
+  if (!state.source) return;
+  const entityIndex = state.index;
   const query = typeof args.query === 'string' ? args.query.trim() : '';
   if (!query) return;
   const types = name === 'list_extension_entities'
@@ -277,7 +317,7 @@ async function hydrateExtensionQuery(name: string, args: Record<string, unknown>
     if (!entityIndex.extensions.has(type)) continue;
     const existing = entityIndex.extensions.get(type) || new Map();
     for (const term of tokenizeEntityQuery(query)) {
-      const matches = await globalGraphSource.searchExtensionEntities(type, term);
+      const matches = await state.source.searchExtensionEntities(type, term);
       for (const entity of matches) existing.set(entity.id, entity);
     }
     entityIndex.extensions.set(type, existing);
@@ -377,11 +417,12 @@ async function prependPhilosophyContext(
 ): Promise<string> {
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
   if (!includePhilosophy) return body;
-  if (!globalGraphSource) {
+  const source = getEntityIndexState().source;
+  if (!source) {
     throw new Error('Graph source is unavailable; Philosophy Context cannot be loaded');
   }
 
-  const context = await globalGraphSource.getPhilosophyContext({
+  const context = await source.getPhilosophyContext({
     projectCode: (args.project as string) || defaultProjectCode,
     scope: (args.scope as string) || defaults.scope,
     objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
@@ -398,11 +439,12 @@ async function philosophyContextPrompt(
 ): Promise<string | undefined> {
   const includePhilosophy = args.includePhilosophy !== false && args.include_philosophy !== false;
   if (!includePhilosophy) return undefined;
-  if (!globalGraphSource) {
+  const source = getEntityIndexState().source;
+  if (!source) {
     throw new Error('Graph source is unavailable; Philosophy Context cannot be loaded');
   }
 
-  const context = await globalGraphSource.getPhilosophyContext({
+  const context = await source.getPhilosophyContext({
     projectCode: (args.project as string) || defaultProjectCode,
     scope: (args.scope as string) || defaults.scope,
     objectType: (args.objectType as string) || (args.object_type as string) || defaults.objectType,
@@ -1007,6 +1049,7 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
   if (name === 'resolve_entity' || name === 'list_extension_entities') {
     await hydrateExtensionQuery(name, args);
   }
+  const entityIndex = getEntityIndexState().index;
   switch (name) {
     case 'get_context': {
       const topic = args.topic as string;
@@ -1313,13 +1356,24 @@ export const __testing = {
     personalKnowledgeClient = null;
   },
   setEntityIndex(index: EntityIndex): void {
-    entityIndex = index;
+    getEntityIndexState().index = index;
   },
   setGraphSource(source: GraphAPISource | null): void {
-    globalGraphSource = source;
+    graphSourceFactory = source ? () => source : null;
+    getEntityIndexState().source = source;
+  },
+  setGraphSourceFactory(factory: (() => GraphAPISource) | null): void {
+    graphSourceFactory = factory;
+    entityIndexStates.clear();
   },
   setIndexRefreshEnabled(enabled: boolean): void {
     indexRefreshEnabled = enabled;
+  },
+  runWithEntityIndexScope<T>(scope: string, callback: () => T): T {
+    return entityIndexScope.run(scope, callback);
+  },
+  resetEntityIndexStates(): void {
+    entityIndexStates.clear();
   },
   setTokenManager(manager: { getToken(): Promise<string> }): void {
     globalTokenManager = manager;
@@ -1379,8 +1433,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   personalKgApiUrl = config.personalKgApiUrl;
   personalKnowledgeClient = null;
   wikiApiBaseUrl = resolveWikiApiBaseUrl(config.graphApiUrl);
-  const source = new GraphAPISource(config.graphApiUrl, requestTokenContext, config.projectCodes);
-  globalGraphSource = source;
+  graphSourceFactory = () => new GraphAPISource(config.graphApiUrl, requestTokenContext, config.projectCodes);
   indexRefreshEnabled = true;
   defaultProjectCode = config.projectCodes?.[0] || 'brainbase';
   configuredProjectCodes = config.projectCodes;
@@ -1390,7 +1443,13 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
   // hold the transport or Resolver hostage to it, or turn a failed load into
   // a successful empty result. refreshEntityIndex atomically publishes only
   // a complete snapshot and shares concurrent loads.
-  entityIndex = createEmptyIndex();
+  entityIndexStates.clear();
+  entityIndexStates.set(defaultEntityIndexScope, {
+    index: createEmptyIndex(),
+    refreshPromise: null,
+    source: graphSourceFactory(),
+    lastAccessedAt: Date.now(),
+  });
 
   // Create the MCP server.
   // Factory (not a singleton) so the stateless Streamable HTTP transport can
@@ -1702,7 +1761,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
         }
       }
 
-      let tenantRouteToken: string | undefined;
+      let tenantRoute: Awaited<ReturnType<NonNullable<typeof tenantTokenRouter>['resolve']>>;
       let tenantRoutingError: Error | undefined;
       if (auth.kind === 'shared-bearer' && tenantTokenRouter && body && typeof body === 'object') {
         const requestBody = body as { method?: unknown; params?: { arguments?: unknown } };
@@ -1714,7 +1773,7 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
           : undefined;
         if (routeArguments) {
           try {
-            tenantRouteToken = (await tenantTokenRouter.resolve(routeArguments))?.token;
+            tenantRoute = await tenantTokenRouter.resolve(routeArguments);
           } catch (error) {
             tenantRoutingError = error instanceof Error ? error : new Error(String(error));
           }
@@ -1742,11 +1801,23 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
       };
       await runAuthenticatedRequest(async () => {
         if (auth.kind === 'brainbase-jwt') {
-          await requestTokenContext.run({ token: auth.token }, handleMcpRequest);
+          const scope = `principal:${JSON.stringify({
+            organizationId: auth.principal.organizationId,
+            personId: auth.principal.personId,
+            projectCodes: stableScopePart(auth.principal.projectCodes),
+            clearance: stableScopePart(auth.principal.clearance),
+            role: auth.principal.role,
+          })}`;
+          await entityIndexScope.run(scope, () => requestTokenContext.run({ token: auth.token }, handleMcpRequest));
           return;
         }
-        if (tenantRouteToken) {
-          await requestTokenContext.run({ token: tenantRouteToken }, handleMcpRequest);
+        if (tenantRoute) {
+          const scope = `tenant:${JSON.stringify({
+            tenant: tenantRoute.tenant,
+            organizationId: tenantRoute.organizationId,
+            projectCodes: stableScopePart(tenantRoute.projectCodes),
+          })}`;
+          await entityIndexScope.run(scope, () => requestTokenContext.run({ token: tenantRoute!.token }, handleMcpRequest));
           return;
         }
         // A shared MCP bearer authenticates only the MCP edge. It must never be

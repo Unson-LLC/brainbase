@@ -3,16 +3,25 @@ import { chmod, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { TenantRoutingError, createTenantTokenRouterFromEnvironment } from '../src/auth/tenant-token-router.js';
+import { TenantRoutingError, createTenantTokenRouterFromEnvironment } from '../src/auth/tenant-auth-router.js';
 
-function jwt(organizationId: string, projectCodes: string[]): string {
+function jwt(organizationId: string, projectCodes: string[], exp = 4_102_444_800): string {
   const encode = (value: unknown) => Buffer.from(JSON.stringify(value)).toString('base64url');
-  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ organizationId, projectCodes, exp: 4_102_444_800 })}.signature`;
+  return `${encode({ alg: 'none', typ: 'JWT' })}.${encode({ organizationId, projectCodes, iat: 1, exp })}.signature`;
 }
 
-async function tokenFile(directory: string, name: string, organizationId: string, projectCodes: string[]): Promise<string> {
+async function tokenFile(
+  directory: string,
+  name: string,
+  organizationId: string,
+  projectCodes: string[],
+  options: { exp?: number; refreshToken?: string } = {},
+): Promise<string> {
   const file = join(directory, `${name}.json`);
-  await writeFile(file, JSON.stringify({ access_token: jwt(organizationId, projectCodes) }), { mode: 0o600 });
+  await writeFile(file, JSON.stringify({
+    access_token: jwt(organizationId, projectCodes, options.exp),
+    ...(options.refreshToken ? { refresh_token: options.refreshToken } : {}),
+  }), { mode: 0o600 });
   return file;
 }
 
@@ -39,6 +48,22 @@ test('an explicit tenant does not read credentials for another tenant', async ()
   });
   const router = createTenantTokenRouterFromEnvironment('https://example.invalid')!;
   assert.equal((await router.resolve({ tenant: 'available' }))?.organizationId, 'available');
+});
+
+test('project routing does not refresh an unrelated expired tenant credential', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'brainbase-tenant-router-'));
+  const owner = await tokenFile(directory, 'owner', 'owner', ['brainbase']);
+  const unrelated = await tokenFile(directory, 'unrelated', 'unrelated', ['other-project'], {
+    exp: 2,
+    refreshToken: 'expired-unrelated-refresh-token',
+  });
+  process.env.BRAINBASE_MCP_TENANT_ROUTES_JSON = JSON.stringify({
+    owner: { organization_id: 'owner', token_file: owner },
+    unrelated: { organization_id: 'unrelated', token_file: unrelated },
+  });
+
+  const router = createTenantTokenRouterFromEnvironment('https://example.invalid')!;
+  assert.equal((await router.resolve({ project_code: 'brainbase' }))?.tenant, 'owner');
 });
 
 test('tenant token router fails closed at tenant boundaries', async () => {

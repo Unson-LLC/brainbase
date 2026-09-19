@@ -1,5 +1,5 @@
 import { TokenManager } from './token-manager.js';
-import { stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 
 export interface TenantTokenRouteConfig {
   organization_id: string;
@@ -85,7 +85,7 @@ function parseConfig(raw: string): TenantTokenRouteConfig[] {
 export class TenantTokenRouter {
   constructor(private readonly credentials: TenantCredential[]) {}
 
-  private async loadRoute(credential: TenantCredential): Promise<TenantTokenRoute> {
+  private async assertSecureTokenFile(credential: TenantCredential): Promise<void> {
     const tokenFileStat = await stat(credential.tokenFile).catch(() => {
       throw new TenantRoutingError('tenant_token_unavailable', `Tenant route ${credential.tenant} token file is unavailable.`);
     });
@@ -95,6 +95,36 @@ export class TenantTokenRouter {
         `Tenant route ${credential.tenant} token file must be a regular file with mode 0600 or stricter.`,
       );
     }
+  }
+
+  private validateRouteToken(credential: TenantCredential, token: string): TenantTokenRoute {
+    const claims = decodeClaims(token);
+    if (claims.organizationId !== credential.organizationId) {
+      throw new TenantRoutingError(
+        'tenant_organization_mismatch',
+        `Tenant route ${credential.tenant} expected organization ${credential.organizationId} but token belongs to ${claims.organizationId}.`,
+      );
+    }
+    return { tenant: credential.tenant, organizationId: claims.organizationId, projectCodes: claims.projectCodes, token };
+  }
+
+  private async loadStoredRoute(credential: TenantCredential): Promise<TenantTokenRoute> {
+    await this.assertSecureTokenFile(credential);
+    let token: string | undefined;
+    try {
+      const stored = JSON.parse(await readFile(credential.tokenFile, 'utf8')) as Record<string, unknown>;
+      token = nonEmptyString(stored.access_token);
+    } catch {
+      throw new TenantRoutingError('invalid_tenant_token', `Tenant route ${credential.tenant} token file is invalid.`);
+    }
+    if (!token) {
+      throw new TenantRoutingError('invalid_tenant_token', `Tenant route ${credential.tenant} token file has no access token.`);
+    }
+    return this.validateRouteToken(credential, token);
+  }
+
+  private async loadRoute(credential: TenantCredential): Promise<TenantTokenRoute> {
+    await this.assertSecureTokenFile(credential);
     const token = await credential.tokenManager.getToken().catch((error: unknown) => {
       if (error instanceof Error && error.message.startsWith('Tenant mismatch:')) {
         throw new TenantRoutingError(
@@ -104,14 +134,7 @@ export class TenantTokenRouter {
       }
       throw error;
     });
-    const claims = decodeClaims(token);
-    if (claims.organizationId !== credential.organizationId) {
-      throw new TenantRoutingError(
-        'tenant_organization_mismatch',
-        `Tenant route ${credential.tenant} expected organization ${credential.organizationId} but token belongs to ${claims.organizationId}.`,
-      );
-    }
-    return { tenant: credential.tenant, organizationId: claims.organizationId, projectCodes: claims.projectCodes, token };
+    return this.validateRouteToken(credential, token);
   }
 
   async resolve(args: Record<string, unknown>): Promise<TenantTokenRoute | undefined> {
@@ -124,23 +147,40 @@ export class TenantTokenRouter {
     const project = projectCode ?? legacyProject;
     if (!tenant && !project) return undefined;
 
-    const tenantCredentials = tenant
-      ? this.credentials.filter(credential => credential.tenant === tenant || credential.organizationId === tenant)
-      : this.credentials;
-    if (tenant && tenantCredentials.length !== 1) {
-      throw new TenantRoutingError('unknown_tenant', `No unique configured tenant route exists for ${tenant}.`);
+    if (tenant) {
+      const tenantCredentials = this.credentials.filter(
+        credential => credential.tenant === tenant || credential.organizationId === tenant,
+      );
+      if (tenantCredentials.length !== 1) {
+        throw new TenantRoutingError('unknown_tenant', `No unique configured tenant route exists for ${tenant}.`);
+      }
+      const route = await this.loadRoute(tenantCredentials[0]);
+      if (project && !route.projectCodes.includes(project)) {
+        throw new TenantRoutingError('unknown_project', `Project ${project} is not available in the selected tenant route.`);
+      }
+      return route;
     }
-    const tenantMatches = await Promise.all(tenantCredentials.map(credential => this.loadRoute(credential)));
-    const projectMatches = project
-      ? tenantMatches.filter(route => route.projectCodes.includes(project))
-      : tenantMatches;
-    if (project && projectMatches.length === 0) {
+
+    const storedRoutes = await Promise.all(this.credentials.map(credential => this.loadStoredRoute(credential)));
+    const projectMatches = storedRoutes.filter(route => route.projectCodes.includes(project!));
+    if (projectMatches.length === 0) {
       throw new TenantRoutingError('unknown_project', `Project ${project} is not available in the selected tenant route.`);
     }
     if (projectMatches.length !== 1) {
       throw new TenantRoutingError('ambiguous_tenant', `Routing hints matched ${projectMatches.length} tenant routes.`);
     }
-    return projectMatches[0];
+    const selectedCredential = this.credentials.find(credential => credential.tenant === projectMatches[0].tenant);
+    if (!selectedCredential) {
+      throw new TenantRoutingError(
+        'invalid_tenant_config',
+        `Configured tenant route ${projectMatches[0].tenant} is unavailable.`,
+      );
+    }
+    const route = await this.loadRoute(selectedCredential);
+    if (!route.projectCodes.includes(project!)) {
+      throw new TenantRoutingError('unknown_project', `Project ${project} is not available in the selected tenant route.`);
+    }
+    return route;
   }
 }
 
