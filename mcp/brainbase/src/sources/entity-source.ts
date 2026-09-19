@@ -1,6 +1,6 @@
 /**
  * Entity Source Interface
- * Abstraction for loading entities from different sources (filesystem, API, etc.)
+ * Abstraction for loading entities from the Graph SSOT API
  */
 
 import type {

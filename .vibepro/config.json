@@ -587,8 +587,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-remove-unused-mcp-sources",
+        "title": "MCPのエンティティ取得を現行Graph経路だけに保つ",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-retire-legacy-operations"
+    "current_story_id": "story-remove-unused-mcp-sources"
   }
 }

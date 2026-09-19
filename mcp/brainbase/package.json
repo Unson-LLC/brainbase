@@ -14,8 +14,7 @@
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",
-    "@modelcontextprotocol/sdk": "1.30.0",
-    "gray-matter": "^4.0.3"
+    "@modelcontextprotocol/sdk": "1.30.0"
   },
   "devDependencies": {
     "@types/node": "20.19.43",
