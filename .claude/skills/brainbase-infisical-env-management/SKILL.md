@@ -140,7 +140,9 @@ install -d -m 700 ~/.brainbase/runtime-env
 # Universal Auth の Client ID / Client Secret は表示しない経路で投入する
 chmod 600 ~/.brainbase/runtime-env/slack-mcp.universal-auth.env
 
-cd /Users/ksato/workspace/code/brainbase
+# 確認済みのBrainbase checkout/worktreeのrepo rootで実行する。
+# 別repoや配置不明の場合は先に場所を解決し、個人固定パスへ移動しない。
+test -f scripts/check-slack-mcp-health.sh || { echo 'Brainbase repo rootで実行してください' >&2; exit 1; }
 scripts/check-slack-mcp-health.sh
 ```
 

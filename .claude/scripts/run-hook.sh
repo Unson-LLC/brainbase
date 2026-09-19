@@ -40,10 +40,6 @@ if [ -n "$CANONICAL_REPO_ROOT" ]; then
   TOOL_ROOTS+=("$CANONICAL_REPO_ROOT")
 fi
 
-if [ -d "/Users/ksato/workspace/code/brainbase" ]; then
-  TOOL_ROOTS+=("/Users/ksato/workspace/code/brainbase")
-fi
-
 if command -v git >/dev/null 2>&1 && git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
   while IFS= read -r worktree_root; do
     TOOL_ROOTS+=("$worktree_root")
