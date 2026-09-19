@@ -299,7 +299,7 @@ export function registerOrganizationConnectionsApiRoute(app, {
     githubStateSecret = process.env.BRAINBASE_GITHUB_APP_STATE_SECRET,
     githubAppVerifier,
     githubCredentialStore = controlPlane?.credentialStore,
-    githubInstallationStateStore,
+    githubAuthorizationLedger,
     githubCallbackReturnPath,
     now,
     resolveAccess
@@ -309,7 +309,7 @@ export function registerOrganizationConnectionsApiRoute(app, {
         githubStateSecret,
         githubAppVerifier,
         githubCredentialStore,
-        githubInstallationStateStore,
+        githubAuthorizationLedger,
         connectionRepository,
         githubCallbackReturnPath,
         now
@@ -327,7 +327,7 @@ export function registerOrganizationConnectionsApiRoute(app, {
             githubStateSecret,
             githubAppVerifier,
             githubCredentialStore,
-            githubInstallationStateStore,
+            githubAuthorizationLedger,
             now,
             resolveAccess
         })
@@ -405,7 +405,7 @@ export function registerApiRoutes(app, {
     organizationConnectionRepository,
     githubAppVerifier,
     githubCredentialStore,
-    githubInstallationStateStore,
+    githubAuthorizationLedger,
     githubCallbackReturnPath,
     env = process.env
 }) {
@@ -432,7 +432,7 @@ export function registerApiRoutes(app, {
         githubStateSecret: env.BRAINBASE_GITHUB_APP_STATE_SECRET,
         githubAppVerifier,
         githubCredentialStore,
-        githubInstallationStateStore,
+        githubAuthorizationLedger,
         githubCallbackReturnPath
     });
     app.use('/api/state', createRetiredCapabilityRouter({

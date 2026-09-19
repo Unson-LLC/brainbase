@@ -22,7 +22,7 @@ function app({
     githubStateSecret = 'x'.repeat(32),
     githubAppVerifier,
     githubCredentialStore,
-    githubInstallationStateStore,
+    githubAuthorizationLedger,
     githubCallbackReturnPath,
     now
 } = {}) {
@@ -46,32 +46,32 @@ function app({
         githubStateSecret,
         githubAppVerifier,
         githubCredentialStore,
-        githubInstallationStateStore,
+        githubAuthorizationLedger,
         githubCallbackReturnPath,
         now
     });
     return server;
 }
 
-function githubPorts({ stateStoreOverrides = {}, repositoryOverrides = {}, readbackInstallation } = {}) {
+function githubPorts({ ledgerOverrides = {}, repositoryOverrides = {}, readbackInstallation } = {}) {
     const installation = {
         installation_id: '123', app_id: '456', app_slug: 'brainbase-test-app',
         account: { id: '789', login: 'unson', type: 'Organization' },
         permissions: { metadata: 'read' }, suspended_at: null
     };
     const credentialMaterial = { installation_token: 'provider-secret' };
-    const stateStore = {
+    const authorizationLedger = {
         records: new Map(),
         issue: vi.fn(async (record) => {
-            stateStore.records.set(record.state_digest, record);
+            authorizationLedger.records.set(record.state_digest, record);
             return true;
         }),
         consume: vi.fn(async ({ state_digest: digest }) => {
-            const exists = stateStore.records.has(digest);
-            stateStore.records.delete(digest);
+            const exists = authorizationLedger.records.has(digest);
+            authorizationLedger.records.delete(digest);
             return exists;
         }),
-        ...stateStoreOverrides
+        ...ledgerOverrides
     };
     const credentialStore = {
         store: vi.fn(async () => ({
@@ -94,7 +94,7 @@ function githubPorts({ stateStoreOverrides = {}, repositoryOverrides = {}, readb
         cancelGitHubInstallationReservation: vi.fn(async () => undefined),
         ...repositoryOverrides
     };
-    return { stateStore, credentialStore, verifier, connectionRepository, installation, credentialMaterial };
+    return { authorizationLedger, credentialStore, verifier, connectionRepository, installation, credentialMaterial };
 }
 
 const auth = (call) => call.set('Authorization', 'Bearer test-token');
@@ -222,7 +222,7 @@ describe('organization connections API', () => {
             githubAppSlug: 'brainbase-test-app',
             githubAppVerifier: ports.verifier,
             githubCredentialStore: ports.credentialStore,
-            githubInstallationStateStore: ports.stateStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository
         }))
             .post('/api/organization-connections/github/start').send({}));
@@ -233,12 +233,12 @@ describe('organization connections API', () => {
         expect(url.pathname).toBe('/apps/brainbase-test-app/installations/new');
         expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u);
         expect(response.body).not.toHaveProperty('connected', true);
-        expect(ports.stateStore.issue).toHaveBeenCalledOnce();
-        expect(ports.stateStore.issue.mock.calls[0][0]).toMatchObject({
+        expect(ports.authorizationLedger.issue).toHaveBeenCalledOnce();
+        expect(ports.authorizationLedger.issue.mock.calls[0][0]).toMatchObject({
             provider: 'github', tenant_id: tenantId, person_id: personId,
             jti: expect.any(String), state_digest: expect.any(String)
         });
-        expect(ports.stateStore.issue.mock.calls[0][0]).not.toHaveProperty('signed_state');
+        expect(ports.authorizationLedger.issue.mock.calls[0][0]).not.toHaveProperty('signed_state');
     });
 
     it('fails closed when callback ports are not configured', async () => {
@@ -255,7 +255,7 @@ describe('organization connections API', () => {
             githubAppSlug: 'brainbase-test-app',
             githubAppVerifier: ports.verifier,
             githubCredentialStore: ports.credentialStore,
-            githubInstallationStateStore: ports.stateStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository
         });
         const started = await auth(request(server)
@@ -275,7 +275,7 @@ describe('organization connections API', () => {
         });
         expect(JSON.stringify(callback.body)).not.toContain('provider-secret');
         expect(JSON.stringify(callback.body)).not.toContain('opaque://');
-        expect(ports.stateStore.consume).toHaveBeenCalledOnce();
+        expect(ports.authorizationLedger.consume).toHaveBeenCalledOnce();
         expect(ports.verifier.verifyInstallation).toHaveBeenCalledWith({
             installation_id: '123', expected_app_slug: 'brainbase-test-app'
         });
@@ -286,7 +286,7 @@ describe('organization connections API', () => {
             credential_material: ports.credentialMaterial
         }));
         expect(ports.verifier.readInstallation).toHaveBeenCalledOnce();
-        expect(ports.stateStore.consume.mock.invocationCallOrder[0])
+        expect(ports.authorizationLedger.consume.mock.invocationCallOrder[0])
             .toBeLessThan(ports.verifier.verifyInstallation.mock.invocationCallOrder[0]);
         expect(ports.credentialStore.store.mock.invocationCallOrder[0])
             .toBeLessThan(ports.verifier.readInstallation.mock.invocationCallOrder[0]);
@@ -306,7 +306,7 @@ describe('organization connections API', () => {
             githubAppSlug: 'brainbase-test-app',
             githubAppVerifier: ports.verifier,
             githubCredentialStore: ports.credentialStore,
-            githubInstallationStateStore: ports.stateStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository
         });
         const started = await auth(request(server)
@@ -316,7 +316,7 @@ describe('organization connections API', () => {
             setup_action: 'install', installation_id: '123', state: `${state}x`
         });
         expect(tampered.status).toBe(400);
-        expect(ports.stateStore.consume).not.toHaveBeenCalled();
+        expect(ports.authorizationLedger.consume).not.toHaveBeenCalled();
 
         const first = await request(server).get('/api/organization-connections/github/callback').query({
             setup_action: 'install', installation_id: '123', state
@@ -341,7 +341,7 @@ describe('organization connections API', () => {
             githubAppSlug: 'brainbase-test-app',
             githubAppVerifier: ports.verifier,
             githubCredentialStore: ports.credentialStore,
-            githubInstallationStateStore: ports.stateStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository
         });
         const started = await auth(request(server)
@@ -367,7 +367,7 @@ describe('organization connections API', () => {
             githubAppSlug: 'brainbase-test-app',
             githubAppVerifier: ports.verifier,
             githubCredentialStore: ports.credentialStore,
-            githubInstallationStateStore: ports.stateStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository
         });
         const started = await auth(request(server)
@@ -399,7 +399,7 @@ describe('organization connections API', () => {
             githubAppSlug: 'brainbase-test-app',
             githubAppVerifier: ports.verifier,
             githubCredentialStore: ports.credentialStore,
-            githubInstallationStateStore: ports.stateStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository
         })).get('/api/organization-connections/github/status'));
 
@@ -419,7 +419,7 @@ describe('organization connections API', () => {
             githubAppSlug: 'brainbase-test-app',
             githubAppVerifier: ports.verifier,
             githubCredentialStore: ports.credentialStore,
-            githubInstallationStateStore: ports.stateStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository,
             githubCallbackReturnPath: '/settings/integrations'
         });
@@ -440,7 +440,7 @@ describe('organization connections API', () => {
             githubAppSlug: 'brainbase-test-app',
             githubAppVerifier: ports.verifier,
             githubCredentialStore: ports.credentialStore,
-            githubInstallationStateStore: ports.stateStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository,
             now: () => time
         });
@@ -453,7 +453,7 @@ describe('organization connections API', () => {
         });
         expect(callback.status).toBe(400);
         expect(callback.body.code).toBe('GITHUB_INSTALLATION_STATE_INVALID');
-        expect(ports.stateStore.consume).not.toHaveBeenCalled();
+        expect(ports.authorizationLedger.consume).not.toHaveBeenCalled();
         expect(ports.verifier.verifyInstallation).not.toHaveBeenCalled();
     });
 

@@ -149,15 +149,15 @@ function validGitHubAppSlug(value) {
 }
 
 // These ports keep GitHub App credentials, durable state storage, and repository shape out of the route.
-function hasGitHubConnectionPorts({ githubAppVerifier, githubCredentialStore, githubInstallationStateStore, connectionRepository }) {
+function hasGitHubConnectionPorts({ githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository }) {
     return typeof githubAppVerifier?.verifyInstallation === 'function'
         && typeof githubAppVerifier?.readInstallation === 'function'
         && typeof githubCredentialStore?.store === 'function'
         && typeof githubCredentialStore?.verify === 'function'
         && typeof githubCredentialStore?.materialize === 'function'
         && typeof githubCredentialStore?.revoke === 'function'
-        && typeof githubInstallationStateStore?.issue === 'function'
-        && typeof githubInstallationStateStore?.consume === 'function'
+        && typeof githubAuthorizationLedger?.issue === 'function'
+        && typeof githubAuthorizationLedger?.consume === 'function'
         && typeof connectionRepository?.reserveGitHubInstallation === 'function'
         && typeof connectionRepository?.saveGitHubInstallation === 'function'
         && typeof connectionRepository?.cancelGitHubInstallationReservation === 'function';
@@ -264,7 +264,7 @@ export function createGitHubInstallationCallbackHandler({
     githubStateSecret,
     githubAppVerifier,
     githubCredentialStore,
-    githubInstallationStateStore,
+    githubAuthorizationLedger,
     connectionRepository,
     githubCallbackReturnPath,
     now = () => new Date()
@@ -273,7 +273,7 @@ export function createGitHubInstallationCallbackHandler({
     return async (req, res) => {
         res.set('cache-control', 'no-store').set('referrer-policy', 'no-referrer');
         if (!hasGitHubConnectionPorts({
-            githubAppVerifier, githubCredentialStore, githubInstallationStateStore, connectionRepository
+            githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository
         }) || !validGitHubAppSlug(githubAppSlug) || typeof githubStateSecret !== 'string'
             || githubStateSecret.length < 32 || (githubCallbackReturnPath && !returnPath)) {
             return problem(res, 503, 'GITHUB_APP_CONNECTION_UNAVAILABLE');
@@ -287,7 +287,7 @@ export function createGitHubInstallationCallbackHandler({
         const state = verifySignedState(rawState, { secret: githubStateSecret, now });
         if (!state) return problem(res, 400, 'GITHUB_INSTALLATION_STATE_INVALID');
         try {
-            const consumed = await githubInstallationStateStore.consume({
+            const consumed = await githubAuthorizationLedger.consume({
                 ...state,
                 now: now().toISOString()
             });
@@ -426,7 +426,7 @@ export function createOrganizationConnectionsRouter({
     githubStateSecret,
     githubAppVerifier,
     githubCredentialStore = controlPlane?.credentialStore,
-    githubInstallationStateStore,
+    githubAuthorizationLedger,
     now = () => new Date(),
     resolveAccess
 } = {}) {
@@ -530,7 +530,7 @@ export function createOrganizationConnectionsRouter({
                 return problem(res, 503, 'GITHUB_APP_NOT_CONFIGURED');
             }
             if (!hasGitHubConnectionPorts({
-                githubAppVerifier, githubCredentialStore, githubInstallationStateStore, connectionRepository
+                githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository
             })) return problem(res, 503, 'GITHUB_APP_CONNECTION_UNAVAILABLE');
             const state = stateRecord({
                 tenantId: access.tenantId,
@@ -541,7 +541,7 @@ export function createOrganizationConnectionsRouter({
             if (!state) return problem(res, 503, 'GITHUB_STATE_SIGNING_NOT_CONFIGURED');
             const stateRecordForStore = { ...state };
             delete stateRecordForStore.signed_state;
-            const issued = await githubInstallationStateStore.issue(stateRecordForStore);
+            const issued = await githubAuthorizationLedger.issue(stateRecordForStore);
             if (issued !== true) return problem(res, 503, 'GITHUB_STATE_STORE_UNAVAILABLE');
             const authorizationUrl = new URL(`/apps/${githubAppSlug}/installations/new`, 'https://github.com');
             authorizationUrl.searchParams.set('state', state.signed_state);
