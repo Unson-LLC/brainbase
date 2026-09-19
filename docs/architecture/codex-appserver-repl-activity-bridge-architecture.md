@@ -1,7 +1,7 @@
 ---
 adr_id: ADR-codex-appserver-repl-activity-bridge
 title: Codex App Server REPL activity bridge completion
-status: proposed
+status: retired
 story:
   story_id: story-codex-appserver-repl-activity-bridge
   story_path: docs/stories/story-codex-appserver-repl-activity-bridge.md
@@ -10,6 +10,8 @@ updated_at: 2026-05-25
 ---
 
 # ADR-codex-appserver-repl-activity-bridge: Codex App Server REPL activity bridge completion
+
+> 履歴資料。ADR-019により退役した構成であり、以下は実装・復旧の指示ではない。現行の実行証跡はRun Receiptとして受け取る。
 
 ## Context
 

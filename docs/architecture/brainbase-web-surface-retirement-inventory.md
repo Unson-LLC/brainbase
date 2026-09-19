@@ -15,7 +15,7 @@ Brainbase Webを画面名だけで一括廃止せず、各surfaceが持つ能力
 - `server/bootstrap/static-routes.js`はGraph API landingの`/`と最小認証面の`/device`を配信する。旧operations command centerの`/app.js`は410、`/admin`、`/setup`、`/workflows`と旧ttyd assetsは404で固定した。
 - `mcp/brainbase/src/server.ts`のBrainbase MCPはGraph、Wiki、Personal KG検索に加え、認証済みproject catalog、Run Receipt Inbox/history/diagnosis、Automation Run detail/human-step resolve、Meeting Automation diagnosis、bootstrap config、admin readを提供する。
 - Admin visualizationとsetupのREST APIはMCP backendとして維持する。device authorizationはブラウザ本人確認/OAuthのため最小Webを正規面とする。SNSのCore API/ledgerはautomationから継続利用するが、専用Web UIは運用面として採用しない。
-- `docs/brainbase-capabilities/capabilities/codex.app-server.yml`はClaude CodeとApp Server metadataのないCodex sessionについてxterm fallbackを維持すると定義する。
+- `docs/brainbase-capabilities/capabilities/codex.app-server.yml`は退役記録であり、現役surfaceもxterm fallbackも持たない。task・terminalはADR-019に従いCodex app/CLIが所有する。
 - 廃止前の`public/test-infrastructure.html`はproduction code、test、scriptから参照されず、外部`jsonplaceholder.typicode.com`を使う手動デモだった。`TSK-WEBRET-001`で削除し、static 404をcontract testで固定した。
 
 ## Surface inventory
@@ -77,3 +77,5 @@ Brainbase MCPに次のcontrol-plane tool群が必要である。REST endpointを
 `TSK-WEBRET-001`から`010`まで完了した。Workflow Web、旧session shell、SNS専用Web UI、Admin Web、Setup Webは削除済みであり、Meeting Automation、Run台帳、SNS Core API/ledger、admin/setup REST backend、config正本はCoreとして残る。唯一のproduction Web UIである`device`は本人確認、OAuth、consent、pairingだけに限定し、承認者identityは認証済みtokenからサーバー側で確定する。
 
 旧session/transcript UI island、`public/dist` bundle、起動時build hook、専用E2Eも削除した。回帰テストは`public/`直下のHTML entrypointを`device.html`だけに制限し、旧bundle pipelineの再導入を失敗させる。
+
+2026-09-19の後続整理では、入口削除後も残っていた旧session/terminalの17モジュールを逆参照確認のうえ除去した。これは`public/modules`全体の削除完了を意味しない。対象・保護境界・検証範囲は[退役ブラウザ実装の検証](../verification/retired-browser-cleanup.md)を参照する。過去のsession/archiveデータは変更していない。

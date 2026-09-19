@@ -10,7 +10,6 @@ surfaces:
     - GET /api/config/projects (authenticated runtime Project Catalog)
     - GET /api/config (Workspace Setup local topology only)
   code:
-    - public/modules/app/ui-setup-mixin.js
     - public/modules/project-mapping.js
   data:
     - runtime project catalog source/status
@@ -21,7 +20,7 @@ depends_on:
   - project.catalog
   - auth.grants
 visibility_rules:
-  - "Project Provisioning has no production browser UI. The retained selector module is a compatibility/contract surface and its synthetic-host browser test is not production browser E2E evidence."
+  - "Project Provisioning has no production browser UI. The retained project-mapping module is a compatibility/contract surface; its unit tests are not production browser E2E evidence. The old UI composition and synthetic-host browser test are removed."
   - "The browser Session Launch Picker and server-side session creation are retired under session.create; this capability owns only Workspace Setup selection."
   - "Fetch project candidates from the authenticated runtime Catalog (`GET /api/config/projects`); `/api/config` is local Workspace Setup data and never an access/catalog fallback."
   - Add general as the first option.
@@ -35,7 +34,7 @@ visibility_rules:
   - Workspace Setup and Connected-world Onboarding are separate capabilities.
 verification:
   commands:
-    - npm run test:run -- tests/ui/project-mapping-runtime-catalog.test.js tests/ui/ui-setup-mixin.test.js tests/unit/project-mapping.test.js
+    - npm run test:run -- tests/ui/project-mapping-runtime-catalog.test.js tests/unit/project-mapping.test.js
     - npx playwright test --config tests/e2e/project-provisioning.playwright.config.js
   expected:
     - "runtime Catalog loaded candidates are the only selectable source"

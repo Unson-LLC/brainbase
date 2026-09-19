@@ -49,15 +49,9 @@ describe('Server Endpoints - Active Routes', () => {
     });
 
     describe('Router Endpoints', () => {
-        it('StateRouter endpoints should be accessible via /api/state', async () => {
-            expect(true).toBe(true); // プレースホルダー
-        });
+        // State/session retirement is exercised by server/routes/retired-capability.test.js.
 
         it('ConfigRouter endpoints should be accessible via /api/config', async () => {
-            expect(true).toBe(true); // プレースホルダー
-        });
-
-        it('SessionRouter endpoints should be accessible via /api/sessions', async () => {
             expect(true).toBe(true); // プレースホルダー
         });
 

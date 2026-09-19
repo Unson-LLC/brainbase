@@ -65,7 +65,6 @@
     "test:admin-personal-kg-smoke": "node scripts/admin-personal-kg-smoke.mjs",
     "test:personal-kg:production-smoke": "node scripts/personal-knowledge-promotion-production-smoke.mjs",
     "personal-kg:issue-production-smoke-fixture": "node scripts/issue-personal-knowledge-promotion-smoke-fixture.mjs",
-    "test:active-indicator": "npm run test:run -- tests/server/session-activity-state-machine-contract.test.js tests/server/session-manager.test.js tests/unit/session-activity-state.test.js tests/unit/session-indicators-ws.test.js tests/ui/views/session-view.test.js",
     "vibepro:graph-ssot": "node scripts/vibepro-graph-ssot-check.mjs",
     "ontology:publish": "node scripts/ontology-release-publish.js",
     "ontology:verify": "node scripts/ontology-release-verify.js",
