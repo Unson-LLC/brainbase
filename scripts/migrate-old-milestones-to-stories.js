@@ -146,10 +146,8 @@ async function processProject(project, dryRun) {
             console.log(`  - [${id}] ${name} (進捗: ${Math.round(progress * 100)}%)`);
         }
         console.log(`\n  💡 対応方法:`);
-        console.log(`     1. wiki stories.mdに該当Storyを追加`);
-        console.log(`     2. create-story-records-from-wiki.js で新Story作成`);
-        console.log(`     3. 進捗率を手動で新Storyに転記`);
-        console.log(`     4. 旧レコードをアーカイブ`);
+        console.log(`     Wiki経由のStory作成は退役済みです。旧スクリプトを再実行しないでください。`);
+        console.log(`     移行先と保存範囲を確認し、対象リポジトリの現行Story手順で個別に移行してください。`);
     }
 
     return {

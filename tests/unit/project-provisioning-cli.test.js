@@ -2,16 +2,36 @@ import fs from 'fs';
 import path from 'path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../cli/config.js', () => ({
-    getAuth: () => ({ token: 'signed-token', server_url: 'https://brainbase.example' }),
-    getConfig: () => ({ server_url: 'https://unused.example' })
+const configMocks = vi.hoisted(() => ({
+    getAuth: vi.fn(() => ({ token: 'signed-token', server_url: 'https://brainbase.example' })),
+    getConfig: vi.fn(() => ({ server_url: 'https://unused.example' }))
 }));
+
+vi.mock('../../cli/config.js', () => configMocks);
 
 import { runProjectProvisioning } from '../../cli/project-provisioning.js';
 
 describe('project provisioning CLI', () => {
     afterEach(() => {
         vi.restoreAllMocks();
+        configMocks.getAuth.mockReset();
+        configMocks.getAuth.mockReturnValue({ token: 'signed-token', server_url: 'https://brainbase.example' });
+        configMocks.getConfig.mockReset();
+        configMocks.getConfig.mockReturnValue({ server_url: 'https://unused.example' });
+    });
+
+    it('rejects mixed legacy auth before making an API request', async () => {
+        configMocks.getAuth.mockReturnValue({
+            mode: 'insecure_header',
+            token: 'synthetic-token',
+            server_url: 'https://brainbase.example'
+        });
+        const fetchMock = vi.spyOn(globalThis, 'fetch');
+
+        await expect(runProjectProvisioning('status', ['run-1'])).rejects.toThrow(
+            'Saved legacy insecure_header authentication is no longer supported'
+        );
+        expect(fetchMock).not.toHaveBeenCalled();
     });
 
     function mockCsrfAndRequest(payload) {

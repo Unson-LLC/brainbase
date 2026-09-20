@@ -1,6 +1,6 @@
 # Canonical Task 初回切替手順
 
-このrunbookは、Brainbaseの既存NocoDB Task表を正本のまま維持しつつ、書込経路をCanonical Task APIへ一本化する初回切替を管理する。
+このrunbookは、BrainbaseのPostgreSQL canonical_tasksを実行時の正本として維持し、書込経路をCanonical Task APIへ一本化する運用を管理する。NocoDB Task表は移行・履歴互換のために保持し、通常のruntime正本やHTTP CRUD経路には使わない。
 
 ## 所有する実行経路
 
@@ -63,7 +63,7 @@
    snapshotのdirty状態はcleanとして扱わず、この手順はclean性を主張しない。`--mac-source-root`を省略した
    同一hostの既存手順は変わらない。
 5. `npm run preflight:canonical-task-cutover -- --phase before-enable --backend postgres --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json --mac-check .vibepro/verification/canonical-task-cutover/checks/mac.json`を実行する。証跡はbackend名とbackend固有のmanifest hashを固定し、別backend向け証跡の流用を拒否する。
-6. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。command-scopedのbackend指定により、手順5のPostgres向けartifactを同じbackend identityで再検証する。指定を省略すると安全側の`nocodb`として検証され、backend mismatchで失敗する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
+ 6. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。command-scopedのbackend指定により、手順5のPostgres向けartifactを同じbackend identityで再検証する。backend指定を省略した場合も既定は`postgres`だが、証跡の取り違え（backend mismatch）を防ぐため本番手順では明示指定する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
 7. mutationが解禁されることを確認する。再起動時は、新processが単一writerを取得し、保存rowのHEAD・manifest・schema・evidence hashが一致した場合だけwriter tokenをtransaction内で引き継いで開く。不一致ならclosedのままにする。
 8. `TEST_MODE=true BRAINBASE_CANONICAL_TASK_LIVE_FIXTURE=1 npm run canonical-task:seed-live-fixture -- --ledger <workflow-ledger.json>`で、Mac実契約が使用する固定Human Stepを稼働中processの起動前に作る。担当者はCanonical Task manifestの`owner_person_id`から取得し、既に消費済みなら再利用せず失敗させる。
 9. Brainbaseを起動し、APIの作成・再送・更新・競合・完了・承認materializationの実契約をMac testから確認してからMac Companionを反映する。

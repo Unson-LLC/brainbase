@@ -1,137 +1,27 @@
-# NocoDB MCP Server
+# NocoDB compatibility package
 
-NocoDB database access via Model Context Protocol for Brainbase.
+The standalone NocoDB MCP server is retired. It is no longer registered in
+the repository `.mcp.json`, has no launchd template, and its compatibility
+launcher and `src/index.ts` exit with code `78` before loading credentials,
+environment values, the MCP SDK, or a network transport.
 
-## Features
+The package remains only for migration compatibility and the canonical task
+write-fence evidence:
 
-- List records from NocoDB tables
-- Get single record by ID
-- Create new records
-- Update existing records
-- Delete records
-- Airtable-compatible interface
+- `src/nocodb-client.ts` retains the NocoDB client used by migration tooling
+  and contract fixtures.
+- `src/canonical-task-write-guard.ts` prevents direct mutation of the
+  canonical Brainbase Tasks table and remains covered by
+  `tests/canonical-task-write-guard.test.js`.
+- The committed manifest and evidence registry are unchanged. Removing the
+  MCP entry does not remove NocoDB data, migration scripts, or Infisical
+  configuration.
 
-## Setup
-
-### 1. Install dependencies
-
-```bash
-npm install
-```
-
-### 2. Configure environment variables
-
-Add to `/Users/ksato/workspace/.env`:
+Run the package tests to verify the write fence and retired entry:
 
 ```bash
-NOCODB_URL=https://noco.unson.jp
-NOCODB_TOKEN=your_api_token
+npm test
 ```
 
-### 3. Build
-
-```bash
-npm run build
-```
-
-### 4. Add to Claude Code settings
-
-Add to `.claude/settings.json`:
-
-```json
-{
-  "mcpServers": {
-    "nocodb": {
-      "command": "node",
-      "args": ["/Users/ksato/workspace/tools/nocodb-mcp/build/index.js"],
-      "env": {
-        "NOCODB_URL": "${NOCODB_URL}",
-        "NOCODB_TOKEN": "${NOCODB_TOKEN}"
-      }
-    }
-  }
-}
-```
-
-## Development
-
-```bash
-# Watch mode
-npm run dev
-
-# Test
-npm run test
-
-# Inspector (debug)
-npm run inspector
-```
-
-## REST API contract
-
-This MCP deliberately uses more than one NocoDB API shape. Record operations
-use the v1 data endpoint after resolving the Airtable-compatible `baseId` to a
-project ID and table name. Metadata operations use v2 and address a table by
-`tableId`. Do not copy a URL between those API versions or assume that
-`baseId`, project ID, table name, and `tableId` are interchangeable.
-
-Pass `where`, including Japanese text, through the HTTP client's query-parameter
-support (`params` or `URLSearchParams`). Do not concatenate an unescaped filter
-into the URL. For the v1 record endpoint, preserve both resolved project/base
-context and table identity; for v2 endpoints, follow the endpoint's explicit
-`tableId` contract.
-
-## Tools
-
-### nocodb_list_records
-
-List records from a NocoDB table.
-
-**Parameters:**
-- `baseId` (string): Airtable base ID
-- `tableName` (string): Table name
-- `limit` (number, optional): Max records to return (default: 100)
-- `offset` (number, optional): Offset for pagination (default: 0)
-- `where` (string, optional): Filter condition
-- `sort` (string, optional): Sort order
-- `fields` (string[], optional): Fields to return
-
-### nocodb_get_record
-
-Get a single record by ID.
-
-**Parameters:**
-- `baseId` (string): Airtable base ID
-- `tableName` (string): Table name
-- `recordId` (string): Record ID
-
-### nocodb_create_record
-
-Create a new record.
-
-**Parameters:**
-- `baseId` (string): Airtable base ID
-- `tableName` (string): Table name
-- `fields` (object): Record fields
-
-### nocodb_update_record
-
-Update an existing record.
-
-**Parameters:**
-- `baseId` (string): Airtable base ID
-- `tableName` (string): Table name
-- `recordId` (string): Record ID
-- `fields` (object): Updated fields
-
-### nocodb_delete_record
-
-Delete a record.
-
-**Parameters:**
-- `baseId` (string): Airtable base ID
-- `tableName` (string): Table name
-- `recordId` (string): Record ID
-
-## License
-
-MIT
+Canonical Brainbase Tasks must use the canonical task API. Do not add a new
+standalone NocoDB MCP registration or restore the old credential-based setup.

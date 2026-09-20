@@ -115,88 +115,30 @@ beforeEach(async () => {
 // ==================== 1. GET /api/brainbase/critical-alerts ====================
 
 describe('GET /api/brainbase/critical-alerts', () => {
-  it('200: Critical Alertsを正しく返す', async () => {
-    // モック設定
-    const mockAlerts = {
-      alerts: [
-        {
-          type: 'blocker',
-          project: 'project1',
-          task: 'タスク1',
-          owner: 'テストユーザー',
-          days_blocked: 5,
-          severity: 'critical',
-        },
-      ],
-      total_critical: 1,
-      total_warning: 0,
-    };
-
-    mockGetCriticalAlerts.mockResolvedValue(mockAlerts);
-
-    // リクエスト実行
+  it('410: 退役を明示し、NocoDBへ接続しない', async () => {
     const res = await request(app).get('/api/brainbase/critical-alerts');
 
-    // 検証
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('alerts');
-    expect(res.body).toHaveProperty('total_critical');
-    expect(res.body).toHaveProperty('total_warning');
-    expect(res.body.total_critical).toBe(1);
-    expect(res.body.alerts).toHaveLength(1);
-  });
-
-  it('500: NocoDB API失敗時にエラーレスポンス', async () => {
-    // モック設定: エラーを投げる
-    mockGetCriticalAlerts.mockRejectedValue(new Error('NocoDB API failed'));
-
-    // リクエスト実行
-    const res = await request(app).get('/api/brainbase/critical-alerts');
-
-    // 検証
-    expect(res.status).toBe(500);
-    expect(res.body).toHaveProperty('error');
+    expect(res.status).toBe(410);
+    expect(res.body).toMatchObject({
+      error: 'capability_retired',
+      capability: 'brainbase.nocodb-auxiliary'
+    });
+    expect(mockGetCriticalAlerts).not.toHaveBeenCalled();
   });
 });
 
 // ==================== 2. GET /api/brainbase/strategic-overview ====================
 
 describe('GET /api/brainbase/strategic-overview', () => {
-  it('200: Strategic Overviewを正しく返す', async () => {
-    // モック設定
-    const mockStats = {
-      total: 10,
-      completed: 5,
-      inProgress: 3,
-      pending: 2,
-      blocked: 0,
-      overdue: 1,
-      completionRate: 50,
-      averageProgress: 75,
-    };
-
-    mockGetProjectStats.mockResolvedValue(mockStats);
-
-    // リクエスト実行
+  it('410: 退役を明示し、NocoDBへ接続しない', async () => {
     const res = await request(app).get('/api/brainbase/strategic-overview');
 
-    // 検証
-    expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('projects');
-    expect(res.body).toHaveProperty('bottlenecks');
-    expect(res.body.projects).toBeInstanceOf(Array);
-  });
-
-  it('500: データ取得失敗時にエラーレスポンス', async () => {
-    // モック設定: エラーを投げる
-    mockGetProjectStats.mockRejectedValue(new Error('Data fetch failed'));
-
-    // リクエスト実行
-    const res = await request(app).get('/api/brainbase/strategic-overview');
-
-    // 検証
-    expect(res.status).toBe(500);
-    expect(res.body).toHaveProperty('error');
+    expect(res.status).toBe(410);
+    expect(res.body).toMatchObject({
+      error: 'capability_retired',
+      capability: 'brainbase.nocodb-auxiliary'
+    });
+    expect(mockGetProjectStats).not.toHaveBeenCalled();
   });
 });
 
@@ -347,23 +289,18 @@ describe('GET /api/brainbase/projects', () => {
     expect(res.body).toHaveLength(1);
     expect(res.body[0]).toHaveProperty('id');
     expect(res.body[0].id).toBe('project1');
-    expect(mockGetProjectStats).toHaveBeenCalledTimes(1);
+    expect(res.body[0]).toMatchObject({
+      healthStatus: 'unavailable',
+      healthSource: 'nocodb_retired',
+      healthScore: null,
+      overdue: null,
+      blocked: null,
+      completionRate: null,
+    });
+    expect(mockGetProjectStats).not.toHaveBeenCalled();
   });
 
-  it('200: 一部のNocoDB統計取得失敗時もプロジェクト自体は返す', async () => {
-    mockGetProjectStats
-      .mockRejectedValueOnce(new Error('NocoDB forbidden'))
-      .mockResolvedValueOnce({
-        total: 10,
-        completed: 5,
-        inProgress: 3,
-        pending: 2,
-        blocked: 0,
-        overdue: 1,
-        completionRate: 50,
-        averageProgress: 63,
-      });
-
+  it('200: NocoDB統計なしでもプロジェクト一覧と利用不能状態を返す', async () => {
     const res = await request(app)
       .get('/api/brainbase/projects')
       .set('Authorization', 'Bearer all-token');
@@ -373,13 +310,16 @@ describe('GET /api/brainbase/projects', () => {
     expect(res.body.find((p) => p.id === 'project1')).toMatchObject({
       hasNocodb: true,
       healthStatus: 'unavailable',
+      healthSource: 'nocodb_retired',
       healthScore: null,
       completionRate: null,
     });
     expect(res.body.find((p) => p.id === 'project-without-nocodb')).toMatchObject({
       hasNocodb: false,
       healthStatus: 'unmapped',
+      healthSource: 'nocodb_retired',
     });
+    expect(mockGetProjectStats).not.toHaveBeenCalled();
   });
 
   it('500: ConfigParser取得失敗を確認済み0件へ変換しない', async () => {
@@ -402,40 +342,25 @@ describe('GET /api/brainbase/projects', () => {
 // ==================== 5. GET /api/brainbase/projects/:id/stats ====================
 
 describe('GET /api/brainbase/projects/:id/stats', () => {
-  it('200: 指定プロジェクトの統計を返す', async () => {
-    // モック設定
-    const mockStats = {
-      total: 10,
-      completed: 5,
-      inProgress: 3,
-      pending: 2,
-      blocked: 0,
-      overdue: 1,
-      completionRate: 50,
-      averageProgress: 60,
-    };
-
-    mockGetProjectStats.mockResolvedValue(mockStats);
-
-    // リクエスト実行
+  it('410: 指定プロジェクトの旧統計経路の退役を返す', async () => {
     const res = await request(app).get('/api/brainbase/projects/project1/stats');
 
-    // 検証
-    expect(res.status).toBe(200);
-    expect(res.body.total).toBe(10);
-    expect(res.body.completionRate).toBe(50);
-    expect(res.body.averageProgress).toBe(60);
+    expect(res.status).toBe(410);
+    expect(res.body).toMatchObject({
+      error: 'capability_retired',
+      capability: 'brainbase.nocodb-auxiliary'
+    });
+    expect(mockGetProjectStats).not.toHaveBeenCalled();
   });
 
-  it('404: 存在しないproject_idで404エラー', async () => {
-    // モック設定: プロジェクトが見つからない
-    mockGetProjectStats.mockRejectedValue(new Error('Project not found'));
-
-    // リクエスト実行
+  it('410: 存在しないproject_idでも旧統計経路の退役を返す', async () => {
     const res = await request(app).get('/api/brainbase/projects/non-existent/stats');
 
-    // 検証
-    expect(res.status).toBe(404);
-    expect(res.body).toHaveProperty('error');
+    expect(res.status).toBe(410);
+    expect(res.body).toMatchObject({
+      error: 'capability_retired',
+      capability: 'brainbase.nocodb-auxiliary'
+    });
+    expect(mockGetProjectStats).not.toHaveBeenCalled();
   });
 });

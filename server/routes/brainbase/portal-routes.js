@@ -7,6 +7,25 @@ import {
     loadRuntimeProjectCatalog
 } from '../../services/project-access/runtime-project-catalog.js';
 
+const RETIRED_LEGACY_PROJECTION = Object.freeze({
+    status: 'retired',
+    source: 'nocodb'
+});
+
+function retiredLegacyProjection() {
+    return { ...RETIRED_LEGACY_PROJECTION };
+}
+
+function emptyRetiredValueLoop() {
+    return {
+        decision: {},
+        work: {},
+        ship: {},
+        learn: {},
+        meta: retiredLegacyProjection()
+    };
+}
+
 /**
  * プロジェクトポータルAPI
  * 1リクエストでポータルに必要な全データ（方向性・課題・進捗・チーム）を返す
@@ -14,7 +33,6 @@ import {
 export function createBrainbasePortalRouter(options = {}) {
     const router = express.Router();
     const {
-        nocodbService,
         configParser,
         projectCatalogParser = configParser,
         projectCatalogAuthGuard = (_req, _res, next) => next(),
@@ -35,10 +53,10 @@ export function createBrainbasePortalRouter(options = {}) {
         if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
         const projectConfig = catalog.projects.find(p => p.id === projectCode);
         if (!projectConfig) return res.status(404).json({ error: 'Project not found' });
-        const nocodbBaseId = projectConfig.nocodb?.project_id || null;
-        if (!nocodbBaseId) return res.json({ decision: {}, work: {}, ship: {}, learn: {} });
-        const valueLoop = await fetchValueLoop(nocodbBaseId, projectCode);
-        res.json(valueLoop);
+        // The legacy NocoDB value-loop projection is retired. Keep the route
+        // shape for clients while making the absence explicit and side-effect
+        // free; Graph/Postgres-backed routes own current data instead.
+        res.json(emptyRetiredValueLoop());
     }));
 
     /**
@@ -57,38 +75,32 @@ export function createBrainbasePortalRouter(options = {}) {
             return res.status(404).json({ error: 'Project not found' });
         }
 
-        const nocodbBaseId = projectConfig.nocodb?.project_id || null;
-
-        // 全データを並行取得（既存）
-        const [direction, issues, milestones, tasks, members, health] = await Promise.all([
+        // Graph/Postgres-backed content is fetched in parallel. NocoDB
+        // projections are retired and therefore never queried here.
+        const [direction, members] = await Promise.all([
             fetchDirection(projectCode),
-            nocodbBaseId ? fetchIssues(nocodbBaseId) : { items: [], stats: { open: 0, highImpact: 0 } },
-            nocodbBaseId ? fetchMilestones(nocodbBaseId) : [],
-            nocodbBaseId ? fetchTasks(nocodbBaseId) : { items: [], stats: { total: 0, completed: 0, inProgress: 0, overdue: 0 } },
-            fetchMembers(projectCode),
-            nocodbBaseId ? fetchHealth(nocodbBaseId) : { score: 0 }
+            fetchMembers(projectCode)
         ]);
 
-        // 新規データを並行取得
-        const [frame, sprints, ships, events] = await Promise.all([
+        const [frame, events] = await Promise.all([
             fetchFrame(projectCode),
-            nocodbBaseId ? fetchSprints(nocodbBaseId) : [],
-            nocodbBaseId ? fetchShips(nocodbBaseId) : [],
             fetchEvents(projectCode)
         ]);
 
-        const valueLoop = nocodbBaseId
-            ? {
-                decision: { milestones: milestones.filter(m => m.status !== '完了'), issues: issues.items?.filter(i => i.impact === 'high') || [], decisions: [] },
-                work: { currentSprint: sprints[0] || null, tasks: tasks.items?.filter(t => t.status !== '完了') || [] },
-                ship: { items: ships },
-                learn: { retrospectives: sprints.filter(s => s.learnings).map(s => ({ period: s.period, learnings: s.learnings })).slice(0, 3) }
-            }
-            : { decision: {}, work: {}, ship: {}, learn: {} };
+        // These fields retain their response shape for compatibility, but the
+        // retired NocoDB source cannot establish any counts. `null` preserves
+        // unknown/unavailable rather than presenting a false zero.
+        const issues = { items: [], stats: { open: null, highImpact: null } };
+        const milestones = [];
+        const tasks = { items: [], stats: { total: null, completed: null, inProgress: null, overdue: null } };
+        const health = { score: null };
+        const sprints = [];
+        const ships = [];
+        const valueLoop = emptyRetiredValueLoop();
 
         const graphStoryResult = await fetchGraphStories(projectCode);
         const mergedStories = graphStoryResult.status === 'available'
-            ? _mergeStoriesAndMilestones(graphStoryResult.stories, milestones)
+            ? _mergeStoriesAndMilestones(graphStoryResult.stories, [])
             : [];
         const storyMap = {
             stories: mergedStories,
@@ -99,7 +111,7 @@ export function createBrainbasePortalRouter(options = {}) {
                 storyStatus: graphStoryResult.status,
                 graphStoryCount: graphStoryResult.status === 'available' ? graphStoryResult.stories.length : null,
                 wikiStoryCount: null,
-                projectionSource: nocodbBaseId ? 'nocodb' : null
+                projectionSource: null
             }
         };
 
@@ -117,7 +129,10 @@ export function createBrainbasePortalRouter(options = {}) {
             tasks,
             members,
             health,
-            meta: { timestamp: new Date().toISOString() },
+            meta: {
+                timestamp: new Date().toISOString(),
+                legacyProjection: retiredLegacyProjection()
+            },
             timestamp: new Date().toISOString()
         });
     }));
@@ -249,52 +264,6 @@ export function createBrainbasePortalRouter(options = {}) {
         return { title: '', content: '', available: false, frames: [] };
     }
 
-    async function fetchIssues(baseId) {
-        try {
-            const records = await nocodbService._fetchRecords(baseId, '課題');
-            const items = records.map(r => ({
-                id: r.Id ?? r.id,
-                title: r['タイトル'] || '',
-                type: r['種別'] || '',
-                status: r['ステータス'] || 'open',
-                impact: r['影響度'] || 'medium',
-                reporter: r['起票者'] || '',
-                assignee: r['担当者'] || '',
-                decisionLog: r['判断ログ'] || '',
-                description: r['説明'] || '',
-                storyUrl: r['関連ストーリー'] || ''
-            }));
-            const openItems = items.filter(i => i.status !== 'resolved');
-            return { items: openItems, stats: { open: openItems.length, highImpact: openItems.filter(i => i.impact === 'high').length } };
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch issues', { baseId, error: error.message });
-            return { items: [], stats: { open: 0, highImpact: 0 } };
-        }
-    }
-
-    async function fetchMilestones(baseId) {
-        try {
-            const records = await nocodbService._fetchRecords(baseId, 'ストーリー');
-            return records.map(r => ({
-                id: r.Id ?? r.id,
-                name: r['マイルストーン名'] || r['タイトル'] || r['名前'] || r['Name'] || r['Title'] || r['name'] || '',
-                progress: r['進捗率'] ?? r['progress'] ?? 0,
-                status: r['ステータス'] || r['status'] || '',
-                story_id: r['Story ID'] || r['story_id'] || '',
-                horizon: r['Horizon'] || r['horizon'] || '',
-                view: r['View'] || r['view'] || '',
-                period: r['Period'] || r['period'] || '',
-                startedAt: r['開始日'] || r['started_at'] || '',
-                dueAt: r['期限日'] || r['due_at'] || r['期限'] || '',
-                description: r['説明'] || '',
-                assignee: r['担当者'] || ''
-            }));
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch milestones', { baseId, error: error.message });
-            return [];
-        }
-    }
-
     function _mergeStoriesAndMilestones(stories, milestones) {
         const msMap = new Map();
         for (const m of milestones) {
@@ -312,72 +281,6 @@ export function createBrainbasePortalRouter(options = {}) {
                 dueAt: s.due_at || ms?.dueAt || null
             };
         });
-    }
-
-    async function fetchTasks(baseId) {
-        try {
-            const records = await nocodbService._fetchRecords(baseId, 'タスク');
-            const items = records.map(r => ({ id: r.Id ?? r.id, title: r['タイトル'] || '', status: r['ステータス'] || '', assignee: r['担当者'] || '', priority: r['優先度'] || '', due: r['期限'] || '' }));
-            const now = new Date();
-            const completed = items.filter(i => i.status === '完了').length;
-            const inProgress = items.filter(i => i.status === '進行中').length;
-            const overdue = items.filter(i => { if (i.status === '完了' || !i.due) return false; return new Date(i.due) < now; }).length;
-            return { items, stats: { total: items.length, completed, inProgress, overdue } };
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch tasks', { baseId, error: error.message });
-            return { items: [], stats: { total: 0, completed: 0, inProgress: 0, overdue: 0 } };
-        }
-    }
-
-    async function fetchSprints(baseId) {
-        try {
-            const records = await nocodbService._fetchRecords(baseId, 'スプリント');
-            const items = records.map(r => ({ id: r.Id ?? r.id, period: r['期間'] || '', startDate: r['開始日'] || '', endDate: r['終了日'] || '', goals: r['目標'] || '', completed: r['完了事項'] || '', blockers: r['ブロッカー'] || '', learnings: r['学び'] || '', nextWeek: r['来週の予定'] || '' }));
-            return items.sort((a, b) => { if (!a.startDate && !b.startDate) return 0; if (!a.startDate) return 1; if (!b.startDate) return -1; return new Date(b.startDate) - new Date(a.startDate); });
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch sprints', { baseId, error: error.message });
-            return [];
-        }
-    }
-
-    async function fetchShips(baseId) {
-        try {
-            const records = await nocodbService._fetchRecords(baseId, 'シップ');
-            return records.map(r => ({ id: r.Id ?? r.id, title: r['タイトル'] || '', type: r['Ship種別'] || '', status: r['ステータス'] || '', assignee: r['担当者'] || '', shippedAt: r['出荷日'] || '', evidenceUrl: r['証跡URL'] || '', description: r['説明'] || '' }));
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch ships', { baseId, error: error.message });
-            return [];
-        }
-    }
-
-    async function fetchValueLoop(baseId, projectCode) {
-        try {
-            const [vMilestones, vIssues, vTasks, vSprints, vShips] = await Promise.all([
-                fetchMilestones(baseId), fetchIssues(baseId), fetchTasks(baseId), fetchSprints(baseId), fetchShips(baseId)
-            ]);
-            const activeMilestones = vMilestones.filter(m => m.status !== '完了');
-            const highImpactIssues = (vIssues.items || []).filter(i => i.impact === 'high');
-            let recentDecisions = [];
-            if (infoSSOTService?.pool) {
-                try {
-                    const client = await infoSSOTService.pool.connect();
-                    try {
-                        const { rows } = await client.query('SELECT title, chosen, reason, decided_at FROM decisions WHERE project_id IN (SELECT id FROM projects WHERE code = $1) ORDER BY decided_at DESC LIMIT 5', [projectCode]);
-                        recentDecisions = rows.map(r => ({ title: r.title, chosen: r.chosen, reason: r.reason, decidedAt: r.decided_at }));
-                    } finally { client.release(); }
-                } catch (err) { logger.warn('Portal: Failed to fetch decisions for value loop', { projectCode, error: err.message }); }
-            }
-            const currentSprint = vSprints[0] || null;
-            const activeTasks = (vTasks.items || []).filter(t => t.status === '進行中' || t.status === '未着手');
-            const now = new Date();
-            const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-            const activeShips = vShips.filter(s => { if (s.status === 'in_progress' || s.status === 'in_review') return true; if (s.shippedAt && new Date(s.shippedAt) >= weekAgo) return true; return false; });
-            const learnings = vSprints.filter(s => s.learnings).map(s => ({ period: s.period, learnings: s.learnings })).slice(0, 3);
-            return { decision: { milestones: activeMilestones, issues: highImpactIssues, decisions: recentDecisions }, work: { currentSprint, tasks: activeTasks }, ship: { items: activeShips }, learn: { retrospectives: learnings } };
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch value loop', { baseId, projectCode, error: error.message });
-            return { decision: {}, work: {}, ship: {}, learn: {} };
-        }
     }
 
     async function fetchEvents(projectCode) {
@@ -415,21 +318,6 @@ export function createBrainbasePortalRouter(options = {}) {
         } catch (error) {
             logger.warn('Portal: Failed to fetch members', { projectCode, error: error.message });
             return [];
-        }
-    }
-
-    async function fetchHealth(baseId) {
-        try {
-            const stat = await nocodbService.getProjectStats(baseId);
-            const taskCompletion = stat.completionRate || 0;
-            const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
-            const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
-            const milestoneProgress = stat.averageProgress || 0;
-            const score = Math.round((taskCompletion * 0.3) + (overdueScore * 0.2) + (blockedScore * 0.2) + (milestoneProgress * 0.3));
-            return { score, ...stat };
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch health', { baseId, error: error.message });
-            return { score: 0 };
         }
     }
 

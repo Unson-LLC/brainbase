@@ -35,6 +35,19 @@ on:
       - 'tests/unit/wiki-sync-retirement.test.js'
       - 'cli/sync.js'
       - 'cli/config.js'
+      - 'cli/auth.js'
+      - 'cli/learning.js'
+      - 'cli/project-provisioning.js'
+      - 'mcp/nocodb/**'
+      - '.mcp.json'
+      - 'scripts/run-nocodb-mcp.sh'
+      - 'server/services/companion/canonical-task-*.js'
+      - 'tests/unit/legacy-cli-auth.test.js'
+      - 'tests/unit/project-provisioning-cli.test.js'
+      - 'tests/server/routes/brainbase-action-retirement.test.js'
+      - 'tests/server/routes/brainbase-nocodb-aux-retirement.test.js'
+      - 'tests/server/routes/nocodb-canonical-task-write-guard.test.js'
+      - 'tests/server/scripts/wiki-script-retirement.test.js'
       - 'tests/server/routes/mesh-routes.test.js'
       - 'tests/mesh/**'
       - 'tests/unit/codex-app-server-capability-retirement.test.js'
@@ -114,6 +127,23 @@ jobs:
           tests/mesh/unverified-query-boundary.test.js
           tests/mesh/query/permission-checker.test.js
           tests/unit/codex-app-server-capability-retirement.test.js
+          tests/server/scripts/wiki-script-retirement.test.js
+          tests/unit/legacy-cli-auth.test.js
+          tests/unit/learning-cli.test.js
+          tests/unit/project-provisioning-cli.test.js
+          tests/server/routes/brainbase-action-retirement.test.js
+          tests/server/routes/brainbase-nocodb-aux-retirement.test.js
+          tests/server/routes/nocodb-canonical-task-write-guard.test.js
+          tests/server/routes/project-runtime-catalog.test.js
+          tests/server/bootstrap/canonical-task-backend-selection.test.js
+          tests/server/services/canonical-task-store-config.test.js
+          tests/server/services/canonical-task-postgres-repository.test.js
+          tests/server/services/canonical-task-nocodb-repository.test.js
+          tests/server/scripts/preflight-canonical-task-cutover.test.js
+      - name: Verify standalone NocoDB MCP is retired before side effects
+        run: |
+          npm --prefix mcp/nocodb ci --ignore-scripts --no-audit --no-fund
+          npm --prefix mcp/nocodb test
       - name: Verify Mesh MCP receipt and authentication contracts
         run: node --import tsx --test mcp/brainbase/tests/tools/mesh-tools.test.ts
       - name: Verify Wiki MCP retirement contracts

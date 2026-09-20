@@ -2,11 +2,13 @@ import express from 'express';
 import { logger } from '../../utils/logger.js';
 import { asyncHandler } from '../../lib/async-handler.js';
 import { filterProjectsForAccess } from '../../services/project-access/project-code-matcher.js';
-import {
-    catalogTechnicalMetadataUnavailable,
-    catalogUnavailableResponse,
-    loadRuntimeProjectCatalog
-} from '../../services/project-access/runtime-project-catalog.js';
+import { createRetiredCapabilityRouter } from '../retired-capability.js';
+
+const NOCODB_AUXILIARY_RETIREMENT = {
+    capability: 'brainbase.nocodb-auxiliary',
+    owner: 'Canonical Graph and Task APIs',
+    replacement: 'Use the Graph project catalog and Canonical Task APIs'
+};
 
 export function createBrainbaseOverviewRouter(options = {}) {
     const router = express.Router();
@@ -14,7 +16,6 @@ export function createBrainbaseOverviewRouter(options = {}) {
         githubService,
         systemService,
         storageService,
-        nocodbService,
         configParser,
         projectCatalogParser = configParser,
         projectCatalogAuthGuard = (_req, res) => res.status(503).json({
@@ -22,12 +23,6 @@ export function createBrainbaseOverviewRouter(options = {}) {
         })
     } = options;
     const isRuntimeCatalog = typeof projectCatalogParser?.runForOrganization === 'function';
-    const catalogReadGuard = isRuntimeCatalog
-        ? projectCatalogAuthGuard
-        : (_req, _res, next) => next();
-    const catalogReadGuardUnlessFixture = (req, res, next) => (
-        req.query.test === 'true' ? next() : catalogReadGuard(req, res, next)
-    );
 
     /**
      * GET /api/brainbase
@@ -93,125 +88,11 @@ export function createBrainbaseOverviewRouter(options = {}) {
         res.json(catalog.source ? catalog : catalog.projects);
     }));
 
-    /**
-     * GET /api/brainbase/critical-alerts
-     * Critical Alerts取得（ブロッカー + 期限超過タスク）
-     * クエリパラメータ: ?test=true でテストデータを返す
-     */
-    router.get('/critical-alerts', catalogReadGuardUnlessFixture, asyncHandler(async (req, res) => {
-        if (req.query.test === 'true') {
-            return res.json({
-                alerts: [
-                    { type: 'blocker', severity: 'critical', project: 'salestailor', task: 'API認証の実装が外部依存でブロック', owner: 'tanaka', days_blocked: 7 },
-                    { type: 'overdue', severity: 'critical', project: 'zeims', task: 'UIリファクタリング', owner: 'yamada', days_overdue: 5 },
-                    { type: 'blocker', severity: 'critical', project: 'tech-knight', task: 'インフラ移行待ち', owner: 'suzuki', days_blocked: 14 },
-                    { type: 'overdue', severity: 'warning', project: 'brainbase', task: 'ドキュメント整備', owner: 'sato', days_overdue: 2 }
-                ],
-                total_critical: 3,
-                total_warning: 1
-            });
-        }
-
-        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
-        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
-        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
-        const projects = catalog.projects
-            .filter((p) => p.nocodb?.project_id)
-            .map((p) => ({ id: p.id, project_id: p.nocodb.project_id }));
-
-        const alerts = await nocodbService.getCriticalAlerts(projects);
-
-        res.json(alerts);
-    }));
-
-    /**
-     * GET /api/brainbase/strategic-overview
-     * 戦略的意思決定支援情報（プロジェクト優先度 + リソース配分）
-     */
-    router.get('/strategic-overview', catalogReadGuard, asyncHandler(async (req, res) => {
-        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
-        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
-        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
-        const projects = catalog.projects
-            .filter((p) => p.nocodb?.project_id)
-            .map((p) => ({ id: p.id, project_id: p.nocodb.project_id }));
-
-        const stats = await Promise.all(
-            projects.map((p) => nocodbService.getProjectStats(p.project_id))
-        );
-
-        const projectsWithScore = stats.map((stat, i) => {
-            const taskCompletion = stat.completionRate || 0;
-            const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
-            const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
-            const milestoneProgress = stat.averageProgress || 0;
-
-            const healthScore = Math.round(
-                (taskCompletion * 0.3) +
-                (overdueScore * 0.2) +
-                (blockedScore * 0.2) +
-                (milestoneProgress * 0.3)
-            );
-
-            let trend = 'stable';
-            let change = 0;
-            if (healthScore >= 80) {
-                trend = 'up';
-                change = Math.floor(Math.random() * 5) + 1;
-            } else if (healthScore < 60) {
-                trend = 'down';
-                change = -(Math.floor(Math.random() * 8) + 1);
-            }
-
-            const recommendations = generateRecommendations(healthScore, stat);
-
-            return {
-                name: projects[i].id,
-                health_score: healthScore,
-                trend,
-                change,
-                overdue: stat.overdue,
-                blocked: stat.blocked,
-                completion_rate: taskCompletion,
-                milestone_progress: milestoneProgress,
-                recommendations
-            };
-        });
-
-        const bottlenecks = detectBottlenecks(projectsWithScore);
-
-        projectsWithScore.sort((a, b) => b.health_score - a.health_score);
-
-        res.json({
-            projects: projectsWithScore,
-            bottlenecks
-        });
-    }));
-
-    /**
-     * GET /api/brainbase/projects/:id/stats
-     * 指定プロジェクトの統計を返す
-     * @param {string} id - プロジェクトID（config.ymlのprojects[].id）
-     */
-    router.get('/projects/:id/stats', catalogReadGuard, asyncHandler(async (req, res) => {
-        const { id } = req.params;
-
-        const catalog = await loadRuntimeProjectCatalog(projectCatalogParser, req.access || {});
-        if (catalog.source && catalog.source.status !== 'loaded') return catalogUnavailableResponse(res, catalog.source);
-        if (catalogTechnicalMetadataUnavailable(catalog)) return catalogUnavailableResponse(res, catalog.source);
-        const project = catalog.projects.find((p) => p.id === id);
-
-        if (!project || project.archived || !project.nocodb?.project_id) {
-            return res.status(404).json({
-                error: 'Project not found',
-                message: `Project '${id}' not found or archived`
-            });
-        }
-
-        const stats = await nocodbService.getProjectStats(project.nocodb.project_id);
-
-        res.json(stats);
-    }));
+    // These endpoints only exposed NocoDB projections. Keep the paths explicit
+    // so callers do not mistake an empty projection for a healthy response.
+    router.use('/critical-alerts', createRetiredCapabilityRouter(NOCODB_AUXILIARY_RETIREMENT));
+    router.use('/strategic-overview', createRetiredCapabilityRouter(NOCODB_AUXILIARY_RETIREMENT));
+    router.use('/projects/:id/stats', createRetiredCapabilityRouter(NOCODB_AUXILIARY_RETIREMENT));
 
     async function getGitHubInfo() {
         const [runners, workflows] = await Promise.all([
@@ -260,71 +141,32 @@ export function createBrainbaseOverviewRouter(options = {}) {
                     project_id: p.nocodb?.project_id || null
                 }));
 
-            const mappedProjects = projects.filter((p) => p.project_id);
-
-            const statsResults = await Promise.allSettled(
-                mappedProjects.map((p) => nocodbService.getProjectStats(p.project_id))
-            );
-
-            const healthById = new Map(statsResults.map((result, i) => {
-                const project = mappedProjects[i];
-                if (result.status === 'rejected') {
-                    logger.warn('Failed to get project stats', {
-                        project: project.id,
-                        project_id: project.project_id,
-                        error: result.reason?.message || String(result.reason)
-                    });
-                    return [project.id, {
+            const healthyProjects = projects
+                .map((project) => project.project_id
+                    ? {
                         id: project.id,
                         name: project.name,
                         hasNocodb: true,
                         healthStatus: 'unavailable',
+                        healthSource: 'nocodb_retired',
                         healthScore: null,
-                        overdue: 0,
-                        blocked: 0,
+                        overdue: null,
+                        blocked: null,
                         completionRate: null,
                         manaScore: null
-                    }];
-                }
-
-                const stat = result.value;
-                const taskCompletion = stat.completionRate || 0;
-                const overdueScore = Math.max(0, 100 - (stat.overdue * 10));
-                const blockedScore = Math.max(0, 100 - (stat.blocked * 20));
-                const milestoneProgress = stat.averageProgress || 0;
-
-                const healthScore = Math.round(
-                    (taskCompletion * 0.3) +
-                    (overdueScore * 0.2) +
-                    (blockedScore * 0.2) +
-                    (milestoneProgress * 0.3)
-                );
-
-                return [project.id, {
-                    id: project.id,
-                    name: project.name,
-                    hasNocodb: true,
-                    healthStatus: 'mapped',
-                    healthScore,
-                    overdue: stat.overdue,
-                    blocked: stat.blocked,
-                    completionRate: taskCompletion,
-                    manaScore: 92
-                }];
-            }));
-
-            const healthyProjects = projects
-                .map((project) => healthById.get(project.id) || {
-                    id: project.id,
-                    name: project.name,
-                    hasNocodb: false,
-                    healthStatus: 'unmapped',
-                    healthScore: null,
-                    overdue: 0,
-                    blocked: 0,
-                    completionRate: null,
-                    manaScore: null
-                })
+                    }
+                    : {
+                        id: project.id,
+                        name: project.name,
+                        hasNocodb: false,
+                        healthStatus: 'unmapped',
+                        healthSource: 'nocodb_retired',
+                        healthScore: null,
+                        overdue: null,
+                        blocked: null,
+                        completionRate: null,
+                        manaScore: null
+                    })
                 .sort((a, b) => {
                     if (a.hasNocodb !== b.hasNocodb) return a.hasNocodb ? -1 : 1;
                     const aHasScore = Number.isFinite(a.healthScore);
@@ -345,59 +187,4 @@ export function createBrainbaseOverviewRouter(options = {}) {
     }
 
     return router;
-}
-
-function generateRecommendations(healthScore, stat) {
-    const recommendations = [];
-
-    if (healthScore >= 80) {
-        recommendations.push('健全。現状維持でOK');
-    } else if (healthScore >= 60) {
-        if (stat.overdue > 3) {
-            recommendations.push('期限超過タスク多数。優先順位の見直しを検討');
-        }
-        if (stat.blocked > 2) {
-            recommendations.push('ブロッカー解消に注力');
-        }
-    } else {
-        recommendations.push('要注意。リソース追加またはスコープ見直しを検討');
-        if (stat.overdue > 5) {
-            recommendations.push('期限超過が多数。緊急対応が必要');
-        }
-        if (stat.blocked > 3) {
-            recommendations.push('複数のブロッカーが存在。即座の解消が必要');
-        }
-    }
-
-    return recommendations;
-}
-
-function detectBottlenecks(projects) {
-    const bottlenecks = [];
-
-    const totalTasks = projects.reduce((sum, p) => sum + (p.overdue + p.blocked), 0);
-    const avgTasks = totalTasks / projects.length;
-
-    projects.forEach((project) => {
-        const projectTasks = project.overdue + project.blocked;
-        if (projectTasks > avgTasks * 1.5) {
-            bottlenecks.push({
-                type: 'project_overload',
-                project: project.name,
-                task_count: projectTasks,
-                recommendation: `${project.name}にタスクが集中。他プロジェクトとの調整を推奨`
-            });
-        }
-    });
-
-    const criticalProjects = projects.filter((p) => p.health_score < 60);
-    if (criticalProjects.length >= projects.length * 0.3) {
-        bottlenecks.push({
-            type: 'overall_resource_shortage',
-            affected_projects: criticalProjects.length,
-            recommendation: '複数プロジェクトで健全性低下。全体的なリソース見直しが必要'
-        });
-    }
-
-    return bottlenecks;
 }

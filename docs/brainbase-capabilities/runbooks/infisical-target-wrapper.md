@@ -24,9 +24,12 @@ This starts `infisical run`, checks the configured `requiredKeys`, and exits wit
 
 ```bash
 scripts/infisical-target-run.sh --target brainbase-mcp --check
-scripts/infisical-target-run.sh --target nocodb-mcp --check
 scripts/infisical-target-run.sh --target slack-unson --check
 ```
+
+Do not use the retired `nocodb-mcp` target to launch an MCP process. Its
+metadata remains only for migration/configuration compatibility; the retired
+launcher never invokes this wrapper or retrieves its secrets.
 
 For Org-specific local targets, keep the project mapping in `~/.brainbase/infisical-targets.json` and use the Org read-only Machine Identity file:
 
@@ -105,15 +108,20 @@ the user's home directory. Override this isolation only by explicitly setting
 These launchers now resolve their default Infisical target before running:
 
 - `scripts/run-brainbase-mcp.sh`: `brainbase-mcp`
-- `scripts/run-nocodb-mcp.sh`: `nocodb-mcp`
 - `scripts/run-slack-mcp.sh unson`: `slack-unson`
 - `scripts/run-slack-mcp.sh salestailor`: `slack-salestailor`
 - `scripts/run-slack-mcp.sh techknight`: `slack-techknight`
+
+The standalone NocoDB MCP is retired. `scripts/run-nocodb-mcp.sh` is retained
+only as a fail-closed compatibility path and exits with code `78` before
+loading this wrapper, reading credentials, or starting a process. The
+`nocodb-mcp` target in `config/infisical-targets.json` remains for migration
+and configuration compatibility; retirement does not delete its secret
+configuration.
 
 Override with `INFISICAL_TARGET` or the launcher-specific variable:
 
 ```bash
 BRAINBASE_MCP_INFISICAL_TARGET=example-prod scripts/run-brainbase-mcp.sh --check
-NOCODB_MCP_INFISICAL_TARGET=example-prod scripts/run-nocodb-mcp.sh --check
 SLACK_MCP_INFISICAL_TARGET=example-prod scripts/run-slack-mcp.sh unson --check
 ```

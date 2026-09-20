@@ -31,15 +31,14 @@ function manifest(args) {
     return JSON.parse(fs.readFileSync(file, 'utf8'));
 }
 
-function authHeaders(auth) {
-    if (auth?.token) return { Authorization: `Bearer ${auth.token}` };
+export function authHeaders(auth) {
     if (auth?.mode === 'insecure_header') {
-        return {
-            'x-brainbase-role': auth.role,
-            'x-brainbase-projects': (auth.projects || []).join(','),
-            'x-brainbase-clearance': (auth.clearance || []).join(',')
-        };
+        throw new Error(
+            'Saved legacy insecure_header authentication is no longer supported. ' +
+            'Run `brainbase auth login` to authenticate with Slack Device Code Flow.'
+        );
     }
+    if (auth?.token) return { Authorization: `Bearer ${auth.token}` };
     throw new Error('Run brainbase auth login first');
 }
 
