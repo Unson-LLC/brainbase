@@ -9,15 +9,29 @@ const RUN_INFO_SSOT_DB_TESTS = process.env.RUN_INFO_SSOT_DB_TESTS === 'true';
 const describeWithInfoDb = RUN_INFO_SSOT_DB_TESTS && DATABASE_URL ? describe : describe.skip;
 if (DATABASE_URL) {
     process.env.INFO_SSOT_DATABASE_URL = DATABASE_URL;
-    process.env.ALLOW_INSECURE_SSOT_HEADERS = 'true';
 }
 
 const buildHeaders = (overrides = {}) => ({
-    'x-brainbase-role': 'gm',
-    'x-brainbase-projects': 'brainbase',
-    'x-brainbase-clearance': 'internal,restricted,finance,hr,contract',
+    'x-test-auth-role': 'gm',
+    'x-test-auth-projects': 'brainbase',
+    'x-test-auth-clearance': 'internal,restricted,finance,hr,contract',
     ...overrides
 });
+
+// This test-only middleware stands in for verified requireAuth. Application
+// code receives req.access and never reads these fixture headers.
+function installVerifiedTestAccess(app) {
+    app.use((req, _res, next) => {
+        const csv = (value) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean);
+        req.authSource = 'bearer';
+        req.access = {
+            role: String(req.get('x-test-auth-role') || 'gm').toLowerCase(),
+            projectCodes: csv(req.get('x-test-auth-projects')),
+            clearance: csv(req.get('x-test-auth-clearance'))
+        };
+        next();
+    });
+}
 
 describeWithInfoDb('Info SSOT Graph API (smoke)', () => {
     let app;
@@ -27,6 +41,7 @@ describeWithInfoDb('Info SSOT Graph API (smoke)', () => {
         service = new InfoSSOTService();
         app = express();
         app.use(express.json());
+        installVerifiedTestAccess(app);
         app.use('/api/info', createInfoSSOTRouter(service));
     });
 
@@ -158,7 +173,7 @@ describeWithInfoDb('Info SSOT Graph API (smoke)', () => {
     it('rejects graph entity upsert when role is below roleMin', async () => {
         await request(app)
             .post('/api/info/graph/entities')
-            .set(buildHeaders({ 'x-brainbase-role': 'member' }))
+            .set(buildHeaders({ 'x-test-auth-role': 'member' }))
             .send({
                 id: 'app_smoke_denied',
                 entityType: 'app',

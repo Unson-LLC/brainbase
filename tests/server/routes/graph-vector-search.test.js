@@ -11,15 +11,20 @@ vi.mock('../../../server/services/graph-embedding-provider.js', () => ({
 
 import { createInfoSSOTRouter } from '../../../server/routes/info-ssot.js';
 
-const headers = {
-    'x-brainbase-role': 'member',
-    'x-brainbase-projects': 'brainbase',
-    'x-brainbase-clearance': 'internal',
+const accessFixture = {
+    role: 'member',
+    projectCodes: ['brainbase'],
+    clearance: ['internal']
 };
 
-function appFor(infoSSOTService) {
+function appFor(infoSSOTService, access = accessFixture) {
     const app = express();
     app.use(express.json());
+    app.use((req, _res, next) => {
+        req.authSource = 'bearer';
+        req.access = access;
+        next();
+    });
     app.use('/api/info', createInfoSSOTRouter(infoSSOTService));
     return app;
 }
@@ -38,7 +43,6 @@ describe('POST /api/info/graph/search', () => {
 
         const response = await request(appFor(info))
             .post('/api/info/graph/search')
-            .set(headers)
             .send({ query: '検索語', project: 'brainbase', types: ['decision'], top_k: 1 })
             .expect(200);
 
@@ -56,7 +60,6 @@ describe('POST /api/info/graph/search', () => {
 
         const response = await request(appFor(info))
             .post('/api/info/graph/search')
-            .set(headers)
             .send({ query: '別プロジェクト', project: 'other' })
             .expect(403);
 
