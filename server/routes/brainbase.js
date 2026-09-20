@@ -4,12 +4,13 @@ import { GitHubService } from '../services/github-service.js';
 import { SystemService } from '../services/system-service.js';
 import { StorageService } from '../services/storage-service.js';
 import { NocoDBService } from '../services/nocodb-service.js';
-import { BrainbaseActionController, ACTION_TYPES, ACTION_STATUS } from '../controllers/brainbase-action-controller.js';
+import { ACTION_TYPES, ACTION_STATUS } from '../controllers/brainbase-action-controller.js';
 import { createBrainbaseManaRouter } from './brainbase/mana-routes.js';
 import { createBrainbaseOverviewRouter } from './brainbase/overview-routes.js';
 import { createBrainbaseTrendsRouter } from './brainbase/trends-routes.js';
 import { createManaCaptureRouter } from './brainbase/mana-capture-routes.js';
 import { createBrainbasePortalRouter } from './brainbase/portal-routes.js';
+import { createRetiredCapabilityRouter } from './retired-capability.js';
 import { createHonchoService } from '../services/honcho-service.js';
 
 // Re-export for backward compatibility
@@ -76,12 +77,17 @@ export function createBrainbaseRouter(options = {}) {
         sessionGuard: authGuard
     }));
 
-    // ==================== Actions API (Story 3) ====================
-    const actionController = new BrainbaseActionController(nocodbService);
-    router.post('/actions', actionController.create);
-    router.get('/actions', actionController.list);
-    router.patch('/actions/:actionId/status', actionController.updateStatus);
-    router.get('/action-types', actionController.getTypes);
+    // ==================== Legacy NocoDB Actions API ====================
+    // Action records were stored in NocoDB and this alias could still perform
+    // writes after the canonical task cutover. Retire the whole boundary so
+    // every method and sub-path is side-effect free.
+    const retiredNocoActions = createRetiredCapabilityRouter({
+        capability: 'brainbase.nocodb-actions',
+        owner: 'Brainbase canonical APIs',
+        replacement: 'Use Graph/Canonical Task workflows; legacy action records are migration-only'
+    });
+    router.use('/actions', retiredNocoActions);
+    router.use('/action-types', retiredNocoActions);
 
     return router;
 }

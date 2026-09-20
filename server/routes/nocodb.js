@@ -1,35 +1,17 @@
+import { createRetiredCapabilityRouter } from './retired-capability.js';
+
 /**
- * NocoDB Routes
- * NocoDB連携タスクのルーティング定義
+ * The former NocoDB CRUD API is retained as an explicit retired boundary.
+ *
+ * Keeping the mount point makes stale clients fail with a deterministic 410
+ * instead of silently reaching the legacy writer. Migration and historical
+ * compatibility callers use the repository directly and do not pass through
+ * this HTTP route.
  */
-import express from 'express';
-import { NocoDBController } from '../controllers/nocodb-controller.js';
-
-export function createNocoDBRouter(configParser, { canonicalTaskStoreConfig = null } = {}) {
-    const router = express.Router();
-    const controller = new NocoDBController(configParser, { canonicalTaskStoreConfig });
-
-    // GET /api/nocodb/tasks - 全プロジェクトのタスク取得
-    router.get('/tasks', controller.list);
-
-    // POST /api/nocodb/tasks - タスク作成
-    router.post('/tasks', controller.create);
-
-    // PUT /api/nocodb/tasks/:id - タスク更新
-    router.put('/tasks/:id', controller.update);
-
-    // DELETE /api/nocodb/tasks/:id - タスク削除
-    router.delete('/tasks/:id', controller.delete);
-
-    // ==================== 課題 (Issues) ====================
-    // GET /api/nocodb/issues - 全プロジェクトの課題取得
-    router.get('/issues', controller.listIssues);
-
-    // POST /api/nocodb/issues - 課題作成
-    router.post('/issues', controller.createIssue);
-
-    // PUT /api/nocodb/issues/:id - 課題更新
-    router.put('/issues/:id', controller.updateIssue);
-
-    return router;
+export function createNocoDBRouter() {
+    return createRetiredCapabilityRouter({
+        capability: 'brainbase.nocodb-api',
+        owner: 'Canonical Task PostgreSQL API',
+        replacement: 'Use /api/companion/tasks backed by PostgreSQL'
+    });
 }

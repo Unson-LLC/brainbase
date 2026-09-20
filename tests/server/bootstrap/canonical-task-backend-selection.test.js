@@ -23,18 +23,20 @@ afterEach(() => {
 });
 
 describe('Canonical Task backend selection', () => {
-    it('keeps NocoDB as the default', () => {
-        process.env.CANONICAL_TASK_ID_SECRET = 'secret';
-        expect(createCanonicalTaskRepository({ storeConfig })).toBeInstanceOf(CanonicalTaskNocoDBRepository);
-    });
-
-    it('selects PostgreSQL only when explicitly requested', () => {
+    it('uses PostgreSQL as the default runtime backend', () => {
         process.env.CANONICAL_TASK_ID_SECRET = 'secret';
         expect(createCanonicalTaskRepository({
-            backend: 'postgres',
             pool: { query() {} },
             storeConfig
         })).toBeInstanceOf(CanonicalTaskPostgresRepository);
+    });
+
+    it('keeps NocoDB available only when explicitly requested', () => {
+        process.env.CANONICAL_TASK_ID_SECRET = 'secret';
+        expect(createCanonicalTaskRepository({
+            backend: 'nocodb',
+            storeConfig
+        })).toBeInstanceOf(CanonicalTaskNocoDBRepository);
     });
 
     it('rejects invalid values without fallback', () => {
@@ -44,8 +46,8 @@ describe('Canonical Task backend selection', () => {
         })).toThrow('CANONICAL_TASK_BACKEND must be nocodb or postgres');
     });
 
-    it('uses a distinct readiness identity for PostgreSQL without changing the NocoDB default', () => {
-        expect(resolveCanonicalTaskBackend(undefined)).toBe('nocodb');
+    it('uses a distinct readiness identity for PostgreSQL while preserving explicit NocoDB compatibility', () => {
+        expect(resolveCanonicalTaskBackend(undefined)).toBe('postgres');
         expect(canonicalTaskBackendIdentityHash(storeConfig, 'nocodb')).toBe(storeConfig.identityHash);
         expect(canonicalTaskBackendIdentityHash(storeConfig, 'postgres')).not.toBe(storeConfig.identityHash);
     });

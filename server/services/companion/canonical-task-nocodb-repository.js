@@ -1,5 +1,11 @@
 import crypto from 'crypto';
 
+import { decodeCanonicalTaskCursor } from './canonical-task-cursor.js';
+
+// Preserve the repository's historical named export for migration callers
+// while keeping the decoder implementation independent of the NocoDB adapter.
+export { decodeCanonicalTaskCursor };
+
 const STATUS_TO_NOCO = Object.freeze({ pending: '未着手', in_progress: '進行中', waiting: '保留', completed: '完了', cancelled: '取消済み' });
 const NOCO_TO_STATUS = Object.freeze({
     ...Object.fromEntries(Object.entries(STATUS_TO_NOCO).map(([key, value]) => [value, key])),
@@ -69,21 +75,6 @@ function normalizeSourceReferences(value) {
 
 function encodeCursor(offset) {
     return Buffer.from(JSON.stringify({ v: 1, offset }), 'utf8').toString('base64url');
-}
-
-export function decodeCanonicalTaskCursor(cursor) {
-    if (!cursor) return 0;
-    try {
-        const value = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-        if (value?.v !== 1 || !Number.isInteger(value.offset) || value.offset < 0) throw new Error();
-        return value.offset;
-    } catch {
-        const error = new Error('Invalid cursor');
-        error.code = 'validation_failed';
-        error.status = 422;
-        error.fieldErrors = { cursor: ['invalid_cursor'] };
-        throw error;
-    }
 }
 
 export class CanonicalTaskNocoDBRepository {

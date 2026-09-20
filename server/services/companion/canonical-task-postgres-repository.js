@@ -1,6 +1,6 @@
 import crypto from 'crypto';
 
-import { decodeCanonicalTaskCursor } from './canonical-task-nocodb-repository.js';
+import { decodeCanonicalTaskCursor } from './canonical-task-cursor.js';
 
 const STATUSES = new Set(['pending', 'in_progress', 'waiting', 'completed', 'cancelled']);
 const PRIORITIES = new Set(['low', 'medium', 'high', 'urgent']);
