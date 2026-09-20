@@ -986,6 +986,13 @@ function mergePolicies(policies) {
 function selectedDags(classification, manifest) {
     const selected = [];
     for (const domain of classification.domains) {
+        if (classification.intent === 'answer'
+            && ['none', 'read'].includes(classification.action_kind)
+            && classification.risk === 'low'
+            && ['engineering', 'operations'].includes(domain)) {
+            selected.push(manifest.selectors.domain_dags.general);
+            continue;
+        }
         const implementationDag = domain === 'engineering' && classification.intent === 'implement'
             ? manifest.selectors.engineering_implementation_dag : null;
         selected.push(implementationDag ?? manifest.selectors.domain_dags[domain]);
@@ -1029,7 +1036,7 @@ function buildGraph(dagIds, manifest, { clarification = false } = {}) {
     return { active_nodes: orderedNodes, active_edges: activeEdges };
 }
 
-function materializeActiveNodeDefinitions(activeNodes, manifest) {
+function materializeActiveNodeDefinitions(activeNodes, manifest, { evidenceRequired = true } = {}) {
     const nodeMap = new Map(manifest.nodes.map((node) => [node.id, node]));
     return activeNodes.map((nodeId) => {
         const node = nodeMap.get(nodeId);
@@ -1039,7 +1046,7 @@ function materializeActiveNodeDefinitions(activeNodes, manifest) {
             kind: node.kind,
             instruction: node.instruction,
             required_capability_template: node.required_capability_template,
-            ...(['problem-frame', 'observe', 'falsify'].every((id) => activeNodes.includes(id))
+            ...(evidenceRequired && ['problem-frame', 'observe', 'falsify'].every((id) => activeNodes.includes(id))
                 && node.execution_contract ? { execution_contract: node.execution_contract } : {})
         };
     });
@@ -1179,7 +1186,11 @@ export class JudgmentResolutionService {
             suppressed_policies: policies.suppressed,
             required_capabilities: needsClassification ? [] : knowledgeCapabilities(input, reconciliation.classification),
             ...graph,
-            active_node_definitions: materializeActiveNodeDefinitions(graph.active_nodes, this.manifest),
+            active_node_definitions: materializeActiveNodeDefinitions(graph.active_nodes, this.manifest, {
+                evidenceRequired: !(reconciliation.classification?.intent === 'answer'
+                    && ['none', 'read'].includes(reconciliation.classification?.action_kind)
+                    && reconciliation.classification?.risk === 'low')
+            }),
             unresolved: status === 'needs_classification'
                 ? reconciliation.reasons
                 : status === 'needs_policy_resolution'

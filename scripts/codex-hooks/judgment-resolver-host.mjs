@@ -4616,7 +4616,7 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             ...((stopDecision.protocol_status === 'repair' || stopDecision.business_decision === 'CONTINUE') ? [
                 missingKnowledgeEvidence
                     ? `実取得と根拠判定の後、Hostが最新prefixを別のsystemMessageとして投影する。回答本文へ監査行を追加しない`
-                    : `Hostが別表示する監査内容（回答本文へ追加しない）:\n最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n${repairExpectedAuditLines.join('\n')}`
+                    : 'Hostが監査表示を別のsystemMessageとして投影する。回答本文へ監査行を追加しない'
             ] : []),
             ...(unauthorizedContinuationAudit ? ['Hostが記録していない🔁監査行を削除する'] : []),
             ...(unauthorizedStopRepairAudit ? ['Hostが記録していない🛠️監査行を削除する'] : []),

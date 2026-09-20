@@ -11,7 +11,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { registerJudgmentResolutionApiRoute } from '../../server/bootstrap/register-api-routes.js';
 import { JudgmentResolutionService } from '../../server/services/judgment-resolution-service.js';
-import { canonicalJson } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
+import { canonicalJson, readEpisodeAudit } from '../../scripts/codex-hooks/judgment-resolver-host.mjs';
 import { handleJudgmentResolutionToolCall } from '../../mcp/brainbase/src/tools/judgment-resolution-tools.ts';
 import { handleJudgmentValueProofToolCall } from '../../mcp/brainbase/src/tools/judgment-value-proof-tools.ts';
 
@@ -37,12 +37,8 @@ function retrievalAuditEnvelope(operation, outcome = '結果を取得', retrieva
     })} -->`;
 }
 
-function auditBlockFromStopOutput(output) {
-    const reason = typeof output === 'string' ? output : output?.reason;
-    const marker = '最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n';
-    const audit = reason?.split(marker)[1]?.split('\nその後、')[0]?.trim();
-    if (!audit) throw new Error('expected owner audit block in Stop reason');
-    return audit;
+function auditBlockFromJournal(identity, env) {
+    return readEpisodeAudit(`${hash(identity.session_id)}/${hash(identity.turn_id)}`, { env }).prefix;
 }
 
 function temporaryDirectory() {
@@ -1075,7 +1071,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(firstStop).toMatchObject({ code: 0, stderr: '' });
         const firstStopOutput = JSON.parse(firstStop.stdout);
         expect(firstStopOutput).toMatchObject({ decision: 'block' });
-        const auditBlock = auditBlockFromStopOutput(firstStopOutput);
+        const auditBlock = auditBlockFromJournal(identity, env);
         expect(auditBlock).toContain(routeLine);
         const repairedStop = await run('bash', [wrapper], { env, input: JSON.stringify({
             hook_event_name: 'Stop', ...identity, stop_hook_active: true,
@@ -1754,11 +1750,10 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
             decision: 'block',
             systemMessage: '🔁 未完了と判定しました。方針説明だけの回答を差し戻して作業を続けています'
         });
-        const blockedReason = JSON.parse(blocked.stdout).reason;
-        const auditBlock = auditBlockFromStopOutput(blockedReason);
-        expect(auditBlock).toContain(repairLine);
         const journalDirectory = join(journal, hash(identity.session_id));
         const turnRef = hash(identity.turn_id);
+        const auditBlock = auditBlockFromJournal(identity, env);
+        expect(auditBlock).toContain(repairLine);
         expect(JSON.parse(readFileSync(join(journalDirectory, `${turnRef}.continuation.json`), 'utf8')))
             .toMatchObject({ autonomy_continuation: { count: 1, trigger_code: 'unfinished_safe_work', status: 'requested' } });
 
@@ -1836,7 +1831,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(blocked).toMatchObject({ code: 0, stderr: '' });
         const blockedOutput = JSON.parse(blocked.stdout);
         expect(blockedOutput).toMatchObject({ decision: 'block' });
-        const exactAudit = auditBlockFromStopOutput(blockedOutput);
+        const exactAudit = auditBlockFromJournal(identity, env);
 
         // A new process must retain the retry budget and reject state-only
         // completion, even when the answer contains the requested audit lines.
@@ -1977,7 +1972,7 @@ describe('Codex Judgment Resolver Host process entrypoint', () => {
         expect(prematureOutput).toMatchObject({ decision: 'block' });
         expect(prematureOutput.reason).toContain('waiting_human');
         expect(prematureOutput.systemMessage ?? '').not.toContain('🔁');
-        const escalationAudit = auditBlockFromStopOutput(prematureOutput);
+        const escalationAudit = auditBlockFromJournal(identity, env);
         const continuation = JSON.parse(readFileSync(
             join(journal, hash(identity.session_id), `${hash(identity.turn_id)}.continuation.json`),
             'utf8'

@@ -257,12 +257,44 @@ describe('JudgmentResolutionService', () => {
         expect(receipt.required_capabilities).toEqual([]);
     });
 
-    it.each(['answer', 'investigate', 'diagnose', 'design', 'review', 'operate'])('%sには実装専用のGraphify工程を追加しない', (intent) => {
+    it.each(['investigate', 'diagnose', 'design', 'review', 'operate'])('%sには実装専用のGraphify工程を追加しない', (intent) => {
         const receipt = service.resolve(input('現在の構成を確認', proposal({
             intent, domains: ['engineering'], action_kind: 'read'
         })), { access: ACCESS, hostBinding: binding() });
         expect(receipt.active_nodes).not.toContain('graphify-impact');
         expect(receipt.selected_dag_ids).toContain('engineering.v1');
+    });
+
+    it.each([
+        [['engineering'], 'none'],
+        [['operations'], 'read'],
+        [['engineering', 'operations'], 'none']
+    ])('説明回答は証拠収集DAGへ広げない: %j / %s', (domains, actionKind) => {
+        const receipt = service.resolve(input('この表示は何を意味する？', proposal({
+            intent: 'answer', domains, action_kind: actionKind, risk: 'low'
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.selected_dag_ids).toEqual(['direct.v1']);
+        expect(receipt.active_nodes).toContain('direct-answer');
+        expect(receipt.active_nodes).not.toContain('problem-frame');
+        expect(receipt.active_node_definitions.every((node) => node.execution_contract == null)).toBe(true);
+    });
+
+    it('説明回答に問題設定signalがあっても実行証拠契約を要求しない', () => {
+        const receipt = service.resolve(input('この内部メッセージの意味を説明して', proposal({
+            intent: 'answer', domains: ['engineering'], action_kind: 'read', risk: 'low',
+            signals: ['complexity_growth', 'problem_frame_uncertain']
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.selected_dag_ids).toEqual(['direct.v1', 'cumulative-complexity.v1', 'problem-frame.v1']);
+        expect(receipt.active_node_definitions.every((node) => node.execution_contract == null)).toBe(true);
+    });
+
+    it('高リスクのanswer分類はdomain DAGとauthority DAGを維持する', () => {
+        const receipt = service.resolve(input('本番操作に関する回答を返して', proposal({
+            intent: 'answer', domains: ['engineering'], action_kind: 'external', risk: 'high',
+            signals: ['problem_frame_uncertain']
+        })), { access: ACCESS, hostBinding: binding() });
+        expect(receipt.selected_dag_ids).toEqual(['engineering.v1', 'problem-frame.v1', 'authority.v1']);
+        expect(receipt.active_node_definitions.some((node) => node.execution_contract != null)).toBe(true);
     });
 
     it('repository共有goldenでcanonical JSONとmanifest digestを固定する', () => {

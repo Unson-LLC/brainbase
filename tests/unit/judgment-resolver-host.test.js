@@ -5733,7 +5733,8 @@ describe('structured Resolver unavailable failures', () => {
             last_assistant_message: '監査対象の判断契約を確認できません。'
         }, { env: setup.env });
         expect(stopped.output).toMatchObject({ decision: 'block' });
-        expect(stopped.output.reason).toContain('参照対象のprojectを確認できない');
+        expect(audit.prefix).toContain('参照対象のprojectを確認できない');
+        expect(stopped.output.reason).not.toContain('参照対象のprojectを確認できない');
         expect(stopped.output.reason).not.toContain('mcp__brainbase__brainbase_resolve_turn');
         expect(stopped.final).toBeNull();
     });
@@ -5879,7 +5880,7 @@ describe('structured Resolver unavailable failures', () => {
     it('失敗イベント後のStopは呼び出し失敗をaudit_degradedへ投影し、classification_missingを再要求しない', async () => {
         const sessionId = 'session-structured-unavailable-stop';
         const turnId = 'turn-structured-unavailable-stop';
-        const { env, episode, invoke } = await startUnavailableEpisode({ sessionId, turnId });
+        const { env, episode, invoke, ownTurnRef } = await startUnavailableEpisode({ sessionId, turnId });
         await invoke(unavailableResponse);
 
         const firstStop = finalizeEpisode({
@@ -5890,14 +5891,16 @@ describe('structured Resolver unavailable failures', () => {
             last_assistant_message: '安全な範囲の作業を続けます。'
         }, { env });
         expect(firstStop.output).toMatchObject({ decision: 'block' });
-        expect(firstStop.output.reason).toContain('Resolver呼び出し失敗のため判断縮退');
+        const auditBlock = [
+            episode.owner_audit.display_line,
+            '⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）',
+            '🛠️ Stop修復: 最終回答を1回差し戻し → 修復完了 ✓'
+        ].join('\n');
         expect(firstStop.output.reason).not.toContain('classification_missing');
         expect(firstStop.output.reason).not.toContain('対象を特定できず');
         expect(firstStop.output.reason).not.toContain('実呼び出し0回');
-        expect(firstStop.output.reason).toContain('⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）');
+        expect(auditBlock).toContain('⚠️ Brainbase呼出: brainbase_resolve_turn → 失敗（brainbase_api_unavailable）');
         expect(firstStop.output.reason).not.toContain('mcp__brainbase__brainbase_resolve_turnをturn_ref=');
-
-        const auditBlock = firstStop.output.reason.split('最終回答の先頭に次の監査行をそのまま、この順番で各1回だけ表示する:\n')[1].split('\nその後、')[0];
 
         const stopped = finalizeEpisode({
             hook_event_name: 'Stop',

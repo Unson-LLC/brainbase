@@ -213,6 +213,9 @@ describe('judgment node evidence Host integration', () => {
         });
         expect(result.output.reason).toContain('problem-frame');
         expect(result.output.reason).toContain('brainbase_judgment_node_record');
+        expect(result.output.reason).not.toContain('最終回答の先頭に次の監査行');
+        expect(result.output.reason).not.toContain(f.episode.owner_audit.display_line);
+        expect(result.output.reason).not.toContain('📚 Brainbase未参照');
     });
 
     it('fake and failed evidence references cannot support a node result', async () => {
