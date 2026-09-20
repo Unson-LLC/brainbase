@@ -11,7 +11,7 @@ const manifest = {
     person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5', slack_user_id: 'U07LNUP582X', slack_workspace_id: 'T07LL5WV7N1'
 };
 
-function client({ grantProjects = ['baao', 'brainbase'], existingProjectPayload = null, existingOrganizationPayload = null } = {}) {
+function client({ grantProjects = ['baao', 'brainbase'], existingProjectPayload = null, existingOrganizationPayload = null, existingMembership = null } = {}) {
     const inserted = { project: false, organization: false, membership: false };
     const stored = {
         project: existingProjectPayload ? {
@@ -25,7 +25,7 @@ function client({ grantProjects = ['baao', 'brainbase'], existingProjectPayload 
             tenant_id: manifest.tenant_id,
             organization_payload: existingOrganizationPayload
         } : null,
-        membership: null
+        membership: existingMembership
     };
     const query = async (sql, params = []) => {
         const compact = sql.replace(/\s+/gu, ' ').trim();
@@ -104,5 +104,38 @@ describe('legacy organization authority bridge', () => {
         const db = client({ existingOrganizationPayload: { status: 'active', graph_organization_id: 'other' } });
         await expect(provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true }))
             .rejects.toMatchObject({ code: 'TENANT_ORGANIZATION_CONFLICT' });
+    });
+
+    it('reuses an active canonical membership for the same person and project without replacing its Slack identity', async () => {
+        const canonicalMembership = {
+            membership_id: 'membership:unson-business:U088D1HBY6L',
+            tenant_id: manifest.tenant_id,
+            organization_id: manifest.tenant_organization_id,
+            principal_id: manifest.person_id,
+            membership_payload: {
+                status: 'active', principal_type: 'person', tenant_role: 'tenant_admin',
+                project_codes: ['brainbase', 'baao'], clearance: ['internal'],
+                slack_user_id: 'U088D1HBY6L', slack_workspace_id: 'T0882T8N9UH'
+            }
+        };
+        const db = client({ existingMembership: canonicalMembership });
+        const result = await provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true });
+        expect(result.plan[2]).toEqual({ operation: 'noop', entity: 'tenant_membership', id: canonicalMembership.membership_id });
+        expect(db.inserted.membership).toBe(false);
+    });
+
+    it('rejects an existing membership that does not authorize the requested project', async () => {
+        const existingMembership = {
+            membership_id: 'membership:unson-business:U088D1HBY6L',
+            tenant_id: manifest.tenant_id,
+            organization_id: manifest.tenant_organization_id,
+            principal_id: manifest.person_id,
+            membership_payload: {
+                status: 'active', principal_type: 'person', tenant_role: 'tenant_admin',
+                project_codes: ['brainbase'], clearance: ['internal']
+            }
+        };
+        await expect(provisionLegacyOrganizationAuthorityBridge({ client: client({ existingMembership }), manifest, actorId: 'operator-keigo', commit: true }))
+            .rejects.toMatchObject({ code: 'TENANT_MEMBERSHIP_CONFLICT' });
     });
 });

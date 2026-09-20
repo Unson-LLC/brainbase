@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { isDeepStrictEqual } from 'node:util';
 
 const VERSION = 'legacy-organization-authority-bridge.v1';
 const TENANT_ID = /^ten_[0-9A-HJKMNP-TV-Z]{26}$/u;
@@ -17,7 +16,6 @@ function text(value, field, pattern = ID) {
     return value;
 }
 function stableId(parts) { return `legacy_membership_${createHash('sha256').update(JSON.stringify(parts)).digest('hex').slice(0, 32)}`; }
-function same(left, right) { return isDeepStrictEqual(left, right); }
 async function rows(client, sql, params = []) { return (await client.query(sql, params)).rows ?? []; }
 function one(found, code, message) { if (found.length !== 1) fail(code, message); return found[0]; }
 
@@ -103,8 +101,22 @@ async function ensureMembership(client, manifest, tenant, grant, plan) {
     const existing = await rows(client, 'SELECT membership_id, tenant_id, organization_id, principal_id, membership_payload FROM tenant_memberships WHERE tenant_id=$1 AND organization_id=$2 AND principal_id=$3 FOR UPDATE', [manifest.tenant_id, manifest.tenant_organization_id, manifest.person_id]);
     const desired = { membership_id: stableId([manifest.tenant_id, manifest.tenant_organization_id, manifest.person_id]), tenant_id: manifest.tenant_id, organization_id: manifest.tenant_organization_id, principal_id: manifest.person_id, membership_payload: membershipPayload(manifest, grant) };
     if (existing.length) {
-        if (existing.length !== 1 || !same(existing[0], desired)) fail('TENANT_MEMBERSHIP_CONFLICT', 'Tenant membership conflicts with desired state');
-        plan.push({ operation: 'noop', entity: 'tenant_membership', id: desired.membership_id }); return;
+        const current = existing[0];
+        const payload = current?.membership_payload;
+        const expectedTenantRole = grant.role === 'ceo' ? 'tenant_admin' : 'member';
+        const sameAuthority = existing.length === 1
+            && current.tenant_id === manifest.tenant_id
+            && current.organization_id === manifest.tenant_organization_id
+            && current.principal_id === manifest.person_id
+            && payload?.status === 'active'
+            && (!payload.principal_type || payload.principal_type === 'person')
+            && payload.tenant_role === expectedTenantRole
+            && Array.isArray(payload.project_codes)
+            && payload.project_codes.includes(manifest.project_code)
+            && Array.isArray(payload.clearance)
+            && grant.clearance.every((entry) => payload.clearance.includes(entry));
+        if (!sameAuthority) fail('TENANT_MEMBERSHIP_CONFLICT', 'Tenant membership conflicts with desired state');
+        plan.push({ operation: 'noop', entity: 'tenant_membership', id: current.membership_id }); return;
     }
     await client.query('INSERT INTO tenant_memberships (membership_id, tenant_id, tenant_revision_at_write, organization_id, principal_id, membership_payload) VALUES ($1,$2,$3,$4,$5,$6::jsonb)', [desired.membership_id, manifest.tenant_id, tenant.tenant_revision, manifest.tenant_organization_id, manifest.person_id, JSON.stringify(desired.membership_payload)]);
     plan.push({ operation: 'create', entity: 'tenant_membership', id: desired.membership_id });
