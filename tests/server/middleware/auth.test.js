@@ -308,6 +308,33 @@ describe('auth middleware', () => {
         expect(resolveTenantForOrganization).toHaveBeenCalledWith('unson');
     });
 
+    it('旧JWTの非canonical tenant claimを組織別名から正規tenantへ置き換える', async () => {
+        const app = express();
+        const resolveTenantForOrganization = vi.fn(async (organizationId) => ({
+            organization_id: organizationId,
+            tenant_id: 'ten_01M0HMA228ES64N4TFX846V8T8'
+        }));
+        app.use(requireAuth({
+            verifyToken: () => ({
+                role: 'ceo',
+                sub: 'per_sato',
+                personId: 'per_sato',
+                organizationId: 'unson',
+                tenantId: 'unson'
+            }),
+            resolveTenantForOrganization
+        }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app).get('/secure').set('Authorization', 'Bearer legacy-token').expect(200);
+
+        expect(res.body.access).toMatchObject({
+            organizationId: 'unson',
+            tenantId: 'ten_01M0HMA228ES64N4TFX846V8T8'
+        });
+        expect(resolveTenantForOrganization).toHaveBeenCalledWith('unson');
+    });
+
     it('tenant-only旧JWTは検証済みtenantを保ったまま組織を補完する', async () => {
         const app = express();
         const authService = {
