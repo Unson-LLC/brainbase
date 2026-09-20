@@ -1,5 +1,6 @@
 // @ts-check
 import { getAuthTokensFromRequest, getHeader } from '../lib/auth-cookies.js';
+import { isCanonicalId } from '../services/multitenant/ids.js';
 
 /** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
 /** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
@@ -159,7 +160,9 @@ export function requireAuth(authService, options = {}) {
             }
         }
 
-        if (access?.organizationId && !access.tenantId && authService.resolveTenantForOrganization) {
+        if (access?.organizationId
+            && !isCanonicalId(access.tenantId, 'ten')
+            && authService.resolveTenantForOrganization) {
             try {
                 const hasAuthenticatedTenantContext = Boolean(
                     authService.resolveTenantForAuthenticatedAccess
