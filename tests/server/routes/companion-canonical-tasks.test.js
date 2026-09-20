@@ -104,7 +104,7 @@ function bootstrapAppFor({ personId = 'legacy_owner' } = {}) {
 }
 
 describe('Companion canonical Task routes', () => {
-    it('passes repeated filters and returns Mac list metadata', async () => {
+    it('passes repeated filters and returns canonical list metadata', async () => {
         const { app, taskService } = appFor();
         const response = await request(app).get(
             '/api/companion/tasks?status=pending&status=waiting&priority=urgent&priority=high'

@@ -1,7 +1,7 @@
 ---
 spec_id: SPEC-canonical-task-cross-host-evidence-transfer
 story_id: story-canonical-task-cross-host-evidence-transfer
-status: active
+status: superseded
 date: 2026-09-05
 implementation_files:
   - scripts/capture-canonical-task-cutover-evidence.js
@@ -10,6 +10,8 @@ test_files:
 ---
 
 # Cross-host Mac evidence transfer spec
+
+> Canonical TaskのMac利用経路廃止により、この契約と実装・テストは削除済み。以下は履歴として保持する。
 
 `--mac-source-root`はoptionalである。指定時、captureは元Mac resultのbytesを更新せず、`mac_checkout`を
 provenanceとして保持する。snapshotのGit HEADは`head_sha`と完全一致し、raw logは元`mac_checkout`から導く

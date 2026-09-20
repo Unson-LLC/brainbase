@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "story_id": "story-companion-canonical-task-provider",
   "source_of_truth": "config/canonical-task-evidence-registry.json",
-  "required_entry_count": 65,
+  "required_entry_count": 64,
   "collector": "scripts/collect-canonical-task-evidence.js",
   "effective_invocation": {
     "spawn_mode": "argv-with-explicit-env",
@@ -250,7 +250,7 @@
       "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"SC-024\"",
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/scenario.SC-024.json",
       "artifact_schema": "canonical-task-evidence-v1",
-      "pre_fix_assertion": "SC-024 Mac wire fixture contract fails before canonical provider implementation"
+      "pre_fix_assertion": "SC-024 API wire contract fails before canonical provider implementation"
     },
     {
       "id": "scenario.SC-025",
@@ -602,15 +602,6 @@
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.migrations.nocodb.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "NocoDB required columns and idempotency uniqueness check pass"
-    },
-    {
-      "id": "surface.mac.wire-contract",
-      "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.mac.wire-contract",
-      "owner_path": "tests/fixtures/companion-canonical-task-mac-cb9c293.json",
-      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.mac.wire-contract\"",
-      "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.mac.wire-contract.json",
-      "artifact_schema": "canonical-task-evidence-v1",
-      "pre_fix_assertion": "Mac cb9c293 fixture matches live route response schema"
     },
     {
       "id": "surface.runtime-path",

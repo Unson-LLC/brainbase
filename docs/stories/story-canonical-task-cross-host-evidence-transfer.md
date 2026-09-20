@@ -1,13 +1,15 @@
 ---
 story_id: story-canonical-task-cross-host-evidence-transfer
 title: Macの読み取り専用証跡を別hostで再検証する
-status: active
+status: superseded
 date: 2026-09-05
 related_specs:
   - docs/specs/story-canonical-task-cross-host-evidence-transfer-spec.md
 ---
 
 # Macの読み取り専用証跡を別hostで再検証する
+
+> Canonical TaskのMac利用経路廃止により、この証拠転送も退役した。現行readinessはPostgreSQL、NocoDB移行確認、Brainbase runtimeの3 artifactだけを検証する。
 
 Mac consumerの正規read-only結果を、provider runtimeが動くhostで検証できないとcanonical readinessを再検証できない。
 元のresult JSONを変更せず、同じGit HEADとraw log hashを持つ運搬snapshotだけを明示指定で受け入れる。

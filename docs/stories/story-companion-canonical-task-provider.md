@@ -1,9 +1,9 @@
 ---
 story_id: story-companion-canonical-task-provider
 title: Mac Companion向け正本Task APIと承認時の一度だけ作成
-status: active
+status: completed
 created_at: 2026-07-14
-updated_at: 2026-07-14
+updated_at: 2026-09-20
 period: 2026-W29
 view: product
 responsibility_authority_docs:
@@ -17,6 +17,8 @@ spec_docs:
 
 # Mac Companion向け正本Task APIと承認時の一度だけ作成
 
+> このStoryはTask APIとsingle-writer境界を成立させて完了した。Task本文の現行正本はPostgreSQLであり、現在の契約は`story-canonical-task-postgres-ssot`と`docs/runbooks/canonical-task-cutover.md`を参照する。Mac Companion UIは現行利用経路に含めない。
+
 ## 背景
 
 BrainbaseはNocoDBのTask表をTaskの正本として既に利用している。一方、既存の
@@ -29,31 +31,30 @@ Taskを作成し、承認済みなのにTaskがない状態と、再試行によ
 
 ## 誰のため
 
-Brainbaseを個人の知識と実行の正本として使い、Mac Companionで日常的にTaskを確認、
-着手、待ち、完了へ進めるownerのため。会議から生まれたTaskも手入力Taskも、発生元に
-関係なく同じ一覧と状態遷移で扱えることを狙う。
+Brainbaseを個人の知識と実行の正本として使うownerのため。会議から生まれたTaskも
+手入力Taskも、発生元に関係なく同じAPIと状態遷移で扱えることを狙う。
 
 ## 利用ジャーニー
 
 1. 会議や受信情報からTask候補が生まれる。
-2. ownerが要対応画面で候補の内容と担当者を確認する。
+2. ownerが正規の承認面で候補の内容と担当者を確認する。
 3. 承認するとBrainbaseのTask正本へ一度だけ作成される。
-4. Mac CompanionのTask画面に同じTaskが現れる。
-5. ownerが着手、待ち、完了へ更新し、変更はBrainbase正本へ戻る。
+4. 正規のAPI consumerが同じTaskを取得する。
+5. ownerの操作を受けたconsumerが着手、待ち、完了へ更新し、変更はBrainbase正本へ戻る。
 
-このStoryは3の正本化と5のAPI境界を実装する。候補抽出は上流、Macの画面構成は下流の
-Storyであり、Taskの永続化正本を増やさない。
+このStoryは3の正本化と5のAPI境界を実装した。候補抽出とconsumerの画面構成は範囲外であり、
+Taskの永続化正本を増やさない。
 
 ## 成功指標
 
 - 同じ承認や作成要求を再試行しても、正本Taskの重複作成数が0件である。
 - 承認成功後に正本Task IDがない状態を0件にする。
 - 担当者の更新要求で自由入力名を権威値として受理する経路を0件にする。
-- Mac Companionの実クライアント契約テストがBrainbaseの実API経路に対して通る。
+- consumerのwire契約テストがBrainbaseの実API経路に対して通る。
 
 ## ユーザーストーリー
 
-佐藤として、Mac Companionで自分のTaskを確認・登録・進行・待ち・完了に変更したい。
+佐藤として、正規のconsumerから自分のTaskを確認・登録・進行・待ち・完了に変更したい。
 どの操作もBrainbaseのTask正本へ反映され、担当者はGraph PeopleのIDで一意に決まり、
 会議から承認したTask候補は同じTaskとして一度だけ現れてほしい。
 
@@ -84,9 +85,7 @@ Storyであり、Taskの永続化正本を増やさない。
 - [ ] **ac:23 no-bypass-writers**: 正本Task表への全mutationを棚卸しし、旧NocoDB routeは正本baseへの書込を拒否し、運用スクリプトは認証済みCanonical Task APIだけを使う。固定table IDへの直接fetchを残さない。
 - [ ] **ac:24 idempotency-namespace**: 認証済みactorを`{ type, id }`のcanonical principalへ正規化し、固定key順canonical JSONのbase64urlで`v1.<payload>`へ符号化する。clientの冪等keyを `api:<actorNamespace>:<client-key>`、Workflow候補を `workflow:<output-id>:<fingerprint>:<ordinal>` へserver側で変換し、認証方式差、区切り文字、外部入力の予約prefixで衝突・分離しない。
 - [ ] **ac:25 candidate-compatibility**: 既存の文字列候補とIDなしobject候補を内容由来の安定candidate IDへ正規化し、並び替え・再試行後も同じ候補集合として扱う。文字列候補のownerは推測せず、MacでGraph確認済みownerが選ばれるまでpendingに残す。
-- [ ] **ac:26 legacy-projection**: 既存NocoDB Task UIでも`waiting`/`urgent`を同じ意味で双方向表示し、未知status/priorityを`pending`/`medium`へ黙って変換しない。
 - [ ] **ac:27 mana-capture**: Manaの`/capture`は認証済みcookie sessionとCSRFを検証し、sessionからGraph確認済みperson principalを導出したinternal commandとして`CanonicalTaskService`へ渡す。client生成`capture_id`を再送中は保持し、`mana:<actorNamespace>:<capture_id>`で`pending` Taskを作る。同一personはbearer/sessionの認証方式が異なっても同じnamespaceへ収束する。configured owner以外のactorはPersonal KG境界でoperation検索前に拒否し、同じcapture IDでもownerの結果を参照・再生できない。発生元に`mana_capture`と元type/project/contentを残し、担当者は`person_id`だけを受理する。正本またはPeople障害時はlocal IDや空一覧へ縮退しない。
-- [ ] **ac:28 browser-task-mutations**: 既存ブラウザTask画面はbearer利用時に正本一覧をCanonical Task APIから取得し、opaque ID/versionを保持して旧NocoDB一覧の同一base/table行を除外する。正本baseのcreate/update/status/deleteをCanonical Task APIへ振り分け、expected versionと冪等keyを渡す。cookie-only時は正本操作を無効化してbearer再認証を要求し、旧routeへfallbackしない。正本base以外は既存NocoDB APIを維持する。
 - [ ] **ac:29 canonical-delete**: `DELETE /api/companion/tasks/:taskId` はexpected versionと冪等keyを必須にし、同じ要求を再送しても同じ削除結果を返す。版不一致・別owner・別storeを他mutationと同じ境界で拒否する。
 - [ ] **ac:30 mcp-write-boundary**: NocoDB MCPの汎用create/update/deleteと正本Task列のmetadata updateは、共有manifestから解決した正本base/tableへ到達する場合に`canonical_task_api_required`で拒否する。readと正本以外のmutationだけを維持する。
 - [ ] **ac:31 auth-and-store-config**: Task APIはinternal、service token、bearerだけを許可し、cookie-onlyとinsecure-headerをTask store到達前に拒否する。正本base/table/owner/schema versionはcommit済み共有manifestから読み、Brainbase、MCP、migrationが同じidentity hashを検証する。不一致、片側override、table/column解決失敗はmutationをfail-closedにする。
@@ -118,14 +117,11 @@ Storyであり、Taskの永続化正本を増やさない。
 - FM-013: 旧NocoDB routeが正本baseをmutateしようとした場合は409 `canonical_task_api_required` にし、NocoDBへ到達させない。
 - FM-014: 外部clientが予約prefixを含む冪等keyを送ってもserver側namespaceから脱出できず、Workflow keyと衝突しない。
 - FM-015: 既存の文字列候補や候補配列の並べ替えを未知候補として捨てず、内容由来IDで同じ候補集合へ収束させる。owner未解決は明示409にする。
-- FM-016: 既存UI adapterが正本の`waiting`/`urgent`または未知値を別の状態・優先度へ黙って縮退させない。
 - FM-017: Manaの正本書込または読取が失敗した場合は503を返し、`local-*` IDや空一覧を成功として返さない。
-- FM-018: 既存ブラウザ画面が正本baseの旧APIへmutationした場合は自動fallbackせず、実装修ーティング不備として明示失敗する。
 - FM-019: deleteの期待版不一致、冪等key衝突、正本削除後の再送はそれぞれ409、409、同一成功結果へ決定的に収束する。
 - FM-020: NocoDB MCPから正本TaskへのmutationはNocoDB credentialを持っていても拒否し、readや他tableのmutation権限へ影響させない。
 - FM-021: cookie-only、insecure-header、または正本設定のprocess内不一致を検出した場合はTask storeへ到達せず拒否する。
 - FM-022: Manaの未認証・CSRF不正・capture ID欠落はTask store到達前に拒否する。同文の別captureは別ID、同じactorの応答消失後の再送は同じIDとして扱う。別actorが同じcapture IDを使っても相互の結果を参照・再生しない。
-- FM-023: browserのCanonical一覧取得が失敗した場合は旧一覧の正本行だけを表示せず、Task画面を明示エラーにする。cookie-only時はmutationを無効化する。
 - FM-024: MCPのmanifest hash不一致、table/column親解決失敗は正本判定不能として全mutationを停止し、readだけを維持する。
 - FM-025: delete後・result保存前に停止した場合はprepared intentとNocoDB不存在を照合して成功結果を確定する。同一actor namespaceの同key異fingerprintは409、別actor namespaceは保存結果を参照できず削除後404、別key同versionは409にする。
 - FM-026: actor principalのtypeが許可enum外、IDが空・制御文字を含む、または認証元の権威IDを解決できない場合はmutationを拒否する。body由来actorや区切り文字連結でnamespaceを作らない。
@@ -133,11 +129,11 @@ Storyであり、Taskの永続化正本を増やさない。
 
 ## Release / Rollback / Observability
 
-- Release: `npm run preflight:canonical-task-cutover -- --phase before-migration`で旧Brainbase、Mana、MCP、運用scriptの停止・排水と直接writer 0件を確認する。次にPostgres調停schemaとTask表列/uniqueをapply/checkし、`--phase before-enable --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json`で認証、両承認route、非Task承認、旧route/UI、Mana、browser、MCP、delete回復、運用script、migration、Mac wire fixtureの必須回帰と共有identity/writer claimをcurrent HEADへ束ねる。`npm run canonical-task:readiness -- --enable --evidence <artifact>`成功後だけmutationを解禁し、最後にMacを反映する。
-- Rollback: Macは旧版へ戻せるが、Brainbaseは旧直接writerへ戻さない。最初に`npm run canonical-task:readiness -- --disable --reason rollback`で永続gateを閉じ、`npm run preflight:canonical-task-cutover -- --phase rollback`で追加schema、共有manifest、legacy/Mana/MCP guardの維持と旧writer非復活を確認し、新APIを停止してforward fixする。
+- Release: `npm run preflight:canonical-task-cutover -- --phase before-migration`で旧Brainbase、Mana、MCP、運用scriptの停止・排水と直接writer 0件を確認する。次にPostgres調停schemaとTask表列/uniqueをapply/checkし、`--phase before-enable --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json`で認証、両承認route、非Task承認、旧route、Mana、MCP、delete回復、運用script、migration、wire fixtureの必須回帰と共有identity/writer claimをcurrent HEADへ束ねる。`npm run canonical-task:readiness -- --enable --evidence <artifact>`成功後だけmutationを解禁する。
+- Rollback: Brainbaseは旧直接writerへ戻さない。最初に`npm run canonical-task:readiness -- --disable --reason rollback`で永続gateを閉じ、`npm run preflight:canonical-task-cutover -- --phase rollback`で追加schema、共有manifest、legacy/Mana/MCP guardの維持と旧writer非復活を確認し、新APIを停止してforward fixする。
 - Observability: Task APIの構造化error code、workflow outputのmaterialized task IDs、監査ログのactor/sourceを確認する。
 - Support: migration checkで列不足を確認し、Graph/NocoDBの障害とデータ0件を区別して復旧する。
-- Release gate: 正本store ID、NocoDB列、永続調停台帳、canonical actor principal、単一owner scope、旧writer遮断、文字列候補互換、旧UIのwaiting/urgent投影を全必須回帰のcurrent HEAD証跡で確認する。永続readiness rowとmanifest/evidence/schema/writerの再検証が一致しないprocessは再起動後も書き込みをfail-closedにする。
+- Release gate: 正本store ID、永続調停台帳、canonical actor principal、単一owner scope、旧writer遮断、文字列候補互換を全必須回帰のcurrent HEAD証跡で確認する。永続readiness rowとmanifest/evidence/schema/writerの再検証が一致しないprocessは再起動後も書き込みをfail-closedにする。
 
 ## 実装タスク
 
@@ -151,13 +147,11 @@ Storyであり、Taskの永続化正本を増やさない。
 8. `[BE]` server起動・終了・明示回復へwriter lifecycleを接続し、Workflow再投影監査を決定的IDでupsertする。
 9. `[BE]` 旧NocoDB task routeへ正本base write guardを追加し、固定tableへ直接書く4本の運用スクリプトをCanonical Task APIへ移行する。
 10. `[QA]` 旧route・運用スクリプトによるwriter bypassと、API/Workflow間の冪等key衝突を修正前に失敗するテストで固定する。
-11. `[BE/QA]` 文字列候補の互換正規化と内容由来candidate ID、既存NocoDB UIのwaiting/urgent投影を実装し、並べ替え・両resolve route・UI adapterの回帰を固定する。
+11. `[BE/QA]` 文字列候補の互換正規化と内容由来candidate IDを実装し、並べ替え・両resolve routeの回帰を固定する。
 12. `[BE/QA]` Mana captureをCanonicalTaskServiceへ移行し、pending/source_refs/person ID、冪等性、障害時503、captures読取の互換投影を固定する。
-13. `[FE/BE/QA]` 既存ブラウザTask画面の正本base mutationをCanonical APIへ振り分け、版付きdeleteを含む作成・編集・状態変更・削除を回帰検証する。
 14. `[MCP/QA]` NocoDB MCPに正本Task mutation guardを追加し、正本read・他base/table mutationの互換性を検証する。
 15. `[BE/QA]` 起動時に一度だけ解決する正本store設定を全writer/guardへ注入し、Task固有認証guardでcookie-onlyとinsecure-headerを拒否する。
 16. `[FE/BE/QA]` Mana clientに再送中保持するcapture IDを追加し、Brainbase routerでsession/CSRFを検証してactor付きinternal commandへ変換する。
-17. `[FE/QA]` ブラウザTask一覧をCanonical/legacyの二経路から統合し、正本重複除外、People選択、version更新、cookie-only無効状態を固定する。
 18. `[MCP/QA]` commit済みcanonical store manifestとidentity hashをBrainbase/MCP/migrationで共有し、record/metadata mutationのtable解決失敗をfail-closedにする。
 19. `[BE/QA]` deleteの版claim、actor namespace operation、prepared intent、停止回復、削除監査を実装する。
 20. `[BE/QA]` 認証元からtyped canonical actor principalを導出し、NFC検証とcanonical JSON base64url namespaceを生成する共通moduleをAPI、Workflow、Mana、deleteへ注入する。
@@ -167,7 +161,7 @@ Storyであり、Taskの永続化正本を増やさない。
 
 ## スコープ外
 
-- Mac Companion UIの実装。
+- consumer UIの実装。
 - 旧自由入力担当者の自動名寄せ。
 - 全プロジェクトの既存Task表を一括統合する移行。
 - NocoDBを置き換える新しいTaskデータベースの導入。

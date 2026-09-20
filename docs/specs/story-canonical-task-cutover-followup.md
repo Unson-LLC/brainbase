@@ -2,15 +2,15 @@
 
 ## 対象ユーザーと利用場面
 
-- 対象ユーザーは、Mac CompanionからBrainbaseのPersonal KGへタスクを登録・更新する正当なownerである。
-- 利用場面は、Mac Companionで収集・生成した候補を人間が承認し、Brainbase側のCanonical Taskへ確定するときである。
-- Mac CompanionはUI・収集・下書きを担い、Canonical Task、監査ログ、実行チェックポイントの正本はBrainbaseサーバーが担う。
+- 対象ユーザーは、owner認証済みconsumerからBrainbaseのPersonal KGへタスクを登録・更新する正当なownerである。
+- 利用場面は、consumerで収集・生成した候補を人間が承認し、Brainbase側のCanonical Taskへ確定するときである。
+- consumerは入力・下書きを担い、Canonical Task、監査ログ、実行チェックポイントの正本はBrainbaseサーバーが担う。
 
 ## 課題
 
 WorkflowServiceからAutomationRunServiceへの移行後、承認済み候補をCanonical Taskへmaterializeする処理と、その処理を再開可能にする永続チェックポイントが移植されていなかった。また、runtime service factoryが`canonicalTaskService`依存を受け取らず、構成時に黙って破棄していた。
 
-この状態ではAPIと読み取り経路がデプロイされていても、Mac Companionからのタスク作成・更新を安全に開通できない。
+この状態ではAPIと読み取り経路がデプロイされていても、owner認証済みconsumerからのタスク作成・更新を安全に開通できない。
 
 ## 成功状態
 
@@ -29,7 +29,7 @@ WorkflowServiceからAutomationRunServiceへの移行後、承認済み候補を
 5. materialization auditは同じoperation keyに対して重複記録されない。
 6. Canonical Task連携のfocused test、関連回帰テスト、全Vitestが新規失敗なしで完了する。
 7. 本番readinessを有効化する前に、registryで定義されたcurrent-HEAD証跡をすべて収集し、直接writerが存在しないことをpreflightで確認する。
-8. owner認証されたMac Companion経路で作成・更新を確認できない場合、mutationは未開通として扱い、成功を主張しない。
+8. owner認証されたCanonical Task API経路で作成・更新を確認できない場合、mutationは未開通として扱い、成功を主張しない。
 9. collectorが`VIBEPRO_EVIDENCE_ID`、`VIBEPRO_EVIDENCE_RESULT`、`VIBEPRO_EVIDENCE_NONCE`を注入してregistryのCanonical Task evidence specを明示したときだけ、独立worktreeからそのspecを収集する。通常Playwright discoveryは`.worktrees`と`.codex-worktrees`を引き続き除外し、registry外ID、任意test、reporter/provenanceの検証を緩めない。
 
 ## 境界判断
@@ -62,7 +62,7 @@ flowchart LR
   Run --> Ready["Canonical mutation readiness"]
   Run --> Ledger["Postgres operation checkpoint"]
   Run --> Service["CanonicalTaskService"]
-  Service --> TaskSSOT["Fixed NocoDB Task SSOT"]
+  Service --> TaskSSOT["PostgreSQL Canonical Task SSOT"]
   Spoof["Forged actor or candidate"] --> Auth
   Replay["Duplicate or conflicting decision"] --> Run
   Crash["Process crash after external write"] --> Ledger
@@ -78,7 +78,7 @@ flowchart LR
 - `AutomationRunService`はhuman-stepの決定検証、Canonical Task materializationの順序、永続checkpointからの再開を所有する。
 - `CanonicalTaskService`はTask正本への書き込み、owner/People境界、冪等性、readinessを所有する。Automation側はこれらを迂回しない。
 - `CanonicalTaskOperationRepository`はTask本文ではなく、operation key、fingerprint、Task ID、目標状態、監査phaseの調停証跡だけを所有する。
-- Mac CompanionはUI・収集・下書きだけを所有し、Task正本や承認権限をローカルへ複製しない。
+- consumerは入力・下書きだけを所有し、Task正本や承認権限をローカルへ複製しない。
 - 独立レビュー、current-HEAD検証、本番runtime証跡が揃わない場合はmutationを閉じたままにする。
 
 ## 検証証跡
@@ -89,4 +89,4 @@ flowchart LR
 - `scripts/collect-canonical-task-evidence.js`
 - worktree内での明示evidence targetと通常discovery除外を対照するPlaywright collection regression
 - `scripts/preflight-canonical-task-cutover.js`
-- owner認証済みMac Companion create/updateの実動確認
+- owner認証済みCanonical Task API create/updateの実動確認
