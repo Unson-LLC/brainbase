@@ -35,7 +35,7 @@
 
 PR #1703で共有middlewareの非本番header互換を退役した。2026-09-20の本番確認では、merge SHA `29019ecad28a5fdcb21fe42bfefdfee8d38d9648`の配備、同一SHAのapply receipt、readiness、正規利用者認証によるGraph・Canonical Task GETを確認した。header-onlyのGraph要求は401だった。この結果は将来のHEADや別環境には適用しない。
 
-下流の旧header許可分岐と`allowInsecureHeaders`引数は追加整理した。認証対象9ファイル104件、追加呼出し側8ファイル90件、型チェックが通過した。常時exclude対象の`project-provisioning-full-flow.test.js`は未実行である。統合・配備・稼働readbackはソースの検証と区別する。
+下流の旧header許可分岐と`allowInsecureHeaders`引数は追加整理した。認証・Wiki対象9ファイル104件（Wiki11件を含む）、追加呼出し側8ファイル90件、型チェックが通過した。常時exclude対象の`project-provisioning-full-flow.test.js`は未実行である。統合・配備・稼働readbackはソースの検証と区別する。
 
 引き続き未完了なのは、未指定backendの全環境移行、追加整理の統合・配備、外部設定の退役と稼働readbackである。
 
