@@ -33,7 +33,7 @@ function securedApp() {
     app.use(csrfMiddleware());
     app.use(
         '/api/info',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createInfoSSOTRouter({})
     );
     return app;

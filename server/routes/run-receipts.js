@@ -11,8 +11,7 @@ function normalizeProjectCode(value) {
 
 function isServerToServerAuth(req) {
     const authSource = String(req.authSource || '');
-    if (['internal', 'service-token'].includes(authSource)) return true;
-    return authSource === 'insecure-header' && process.env.NODE_ENV !== 'production';
+    return ['internal', 'service-token'].includes(authSource);
 }
 
 function canAccessProject(req, projectId) {

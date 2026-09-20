@@ -17,7 +17,7 @@ function canAccessProject(req, projectId) {
 }
 
 function isServerToServerAuth(req) {
-    return ['internal', 'service-token', 'bearer', 'insecure-header'].includes(String(req.authSource || ''));
+    return ['internal', 'service-token', 'bearer'].includes(String(req.authSource || ''));
 }
 
 function actorPersonId(req) {

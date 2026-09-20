@@ -98,13 +98,13 @@ async function resolveLocalRoutineProviderSubjectIds({ configParser, ownerPerson
 export function registerOnboardingApiRoute(app, { authService, onboardingRuntimeService }) {
     app.use(
         '/api/onboarding',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createOnboardingRouter({ service: onboardingRuntimeService })
     );
 }
 
 export function registerPersonalKnowledgePreAuth(app, { authService }) {
-    const authGuard = requireAuth(authService, { allowInsecureHeaders: false });
+    const authGuard = requireAuth(authService);
     app.use('/api/learning', authGuard);
     app.use('/api/personal-knowledge', authGuard);
 }
@@ -112,7 +112,7 @@ export function registerPersonalKnowledgePreAuth(app, { authService }) {
 export function registerKnowledgeResolutionApiRoute(app, { authService, service = new KnowledgeResolutionService() }) {
     app.use(
         '/api/knowledge',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createKnowledgeResolutionRouter({ service })
     );
 }
@@ -191,7 +191,7 @@ export function registerKnowledgeCatalogApiRoute(app, {
     );
     app.use(
         '/api/knowledge',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createKnowledgeCatalogRouter({
             service: catalogService,
             authoringService: resolvedAuthoringService,
@@ -208,7 +208,7 @@ export function registerKnowledgeEventApiRoutes(app, {
 }) {
     app.use(
         '/api/knowledge',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createKnowledgeEventRouter({ eventService, feedbackService, cycleQueryService })
     );
 }
@@ -224,7 +224,7 @@ export function registerJudgmentResolutionApiRoute(app, {
 }) {
     app.use(
         '/api/judgment',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         requireJudgmentCompanyAuthority({ now }),
         createJudgmentResolutionRouter({
             service, bindingSecret, now, maxAgeMs, maxFutureSkewMs, receiptWriter,
@@ -236,7 +236,7 @@ export function registerJudgmentResolutionApiRoute(app, {
 export function registerVibeproHandoffApiRoute(app, { authService, runtime }) {
     app.use(
         '/api/vibepro-handoffs',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createVibeproHandoffRouter({ runtime })
     );
 }
@@ -316,7 +316,7 @@ export function registerOrganizationConnectionsApiRoute(app, {
     }));
     app.use(
         '/api/organization-connections',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createOrganizationConnectionsRouter({
             authService,
             controlPlane,
@@ -481,18 +481,18 @@ export function registerApiRoutes(app, {
     app.use('/api/auth', createAuthRouter(authService, { googleMeetConnectionService }));
     app.use(
         '/api/project-provisioning',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createProjectProvisioningRouter({ service: projectProvisioningService })
     );
     app.use(
         '/api/info',
-        requireAuth(authService, { allowInsecureHeaders: false }),
+        requireAuth(authService),
         createInfoSSOTRouter(infoSSOTService, {
             auditTenantGuard,
             configParser: runtimeProjectCatalog
         })
     );
-    const personalKnowledgeAuthGuard = requireAuth(authService, { allowInsecureHeaders: false });
+    const personalKnowledgeAuthGuard = requireAuth(authService);
     const auditPersonalAccess = personalKnowledgeService
         ? (entry) => personalKnowledgeService.auditAccess(entry)
         : null;

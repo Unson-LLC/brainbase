@@ -226,23 +226,16 @@ describe('run receipt routes', () => {
         expect(repository.listRuns({ limit: null })).toHaveLength(0);
     });
 
-    it('POST ingest_productionではinsecure-headerを保存前に403で拒否する', async () => {
-        const previousNodeEnv = process.env.NODE_ENV;
-        process.env.NODE_ENV = 'production';
-        try {
-            const { app, repository } = createApp({ authSource: 'insecure-header' });
+    it('POST ingestではinsecure-headerを保存前に403で拒否する', async () => {
+        const { app, repository } = createApp({ authSource: 'insecure-header' });
 
-            const response = await request(app)
-                .post('/api/run-receipts/ingest')
-                .send(makeReceipt())
-                .expect(403);
+        const response = await request(app)
+            .post('/api/run-receipts/ingest')
+            .send(makeReceipt())
+            .expect(403);
 
-            expect(response.body.error).toBe('server_to_server_auth_required');
-            expect(repository.listRuns({ limit: null })).toHaveLength(0);
-        } finally {
-            if (previousNodeEnv === undefined) delete process.env.NODE_ENV;
-            else process.env.NODE_ENV = previousNodeEnv;
-        }
+        expect(response.body.error).toBe('server_to_server_auth_required');
+        expect(repository.listRuns({ limit: null })).toHaveLength(0);
     });
 
     it('POST ingest_requireAuth経由のhuman JWTはBearerでもcookieでも拒否しservice tokenだけ受理する', async () => {

@@ -3,7 +3,7 @@ import { requireAuth } from '../middleware/auth.js';
 
 export function createMeshRouter(meshService, { authService, owner = {} } = {}) {
   const router = Router();
-  router.use(requireAuth(authService, { allowInsecureHeaders: false }));
+  router.use(requireAuth(authService));
   // Mesh sends as this node, not as the HTTP caller. Until delegated node
   // identities exist, only the explicitly configured human owner may use it.
   router.use((req, res, next) => {

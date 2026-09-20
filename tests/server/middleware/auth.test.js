@@ -51,7 +51,7 @@ describe('auth middleware', () => {
         const authService = {
             verifyToken: () => ({})
         };
-        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.use(requireAuth(authService));
         app.get('/secure', (req, res) => res.json({ ok: true }));
 
         await request(app)
@@ -72,7 +72,7 @@ describe('auth middleware', () => {
                 sub: 'per_verified'
             })
         };
-        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.use(requireAuth(authService));
         app.get('/secure', (req, res) => res.json({ access: req.access, source: req.authSource }));
 
         const res = await request(app)
@@ -102,7 +102,7 @@ describe('auth middleware', () => {
                 organizationId: 'unson'
             })
         };
-        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.use(requireAuth(authService));
         app.get('/secure', (req, res) => res.json({ access: req.access }));
 
         const res = await request(app)
@@ -131,7 +131,7 @@ describe('auth middleware', () => {
                 providerTenant: 'google-domain'
             })
         };
-        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.use(requireAuth(authService));
         app.get('/secure', (req, res) => res.json({ access: req.access }));
 
         const res = await request(app)
@@ -189,7 +189,7 @@ describe('auth middleware', () => {
                 return { organization_id: 'unson', tenant_id: 'ten_unson' };
             }
         };
-        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.use(requireAuth(authService));
         app.get('/secure', (req, res) => res.json({ access: req.access }));
 
         const res = await request(app)
@@ -211,7 +211,7 @@ describe('auth middleware', () => {
             verifyToken: () => ({ role: 'ceo', sub: 'per_sato', organizationId: 'techknight', slackUserId: 'U_SATO', slackWorkspaceId: 'T_TECHKNIGHT' }),
             resolveTenantForAuthenticatedAccess,
             resolveTenantForOrganization
-        }, { allowInsecureHeaders: false }));
+        }));
         app.get('/secure', (req, res) => res.json({ access: req.access }));
 
         const res = await request(app).get('/secure').set('Authorization', 'Bearer token').expect(200);
@@ -238,7 +238,7 @@ describe('auth middleware', () => {
                 return 'org_unson';
             }
         };
-        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.use(requireAuth(authService));
         app.get('/secure', (req, res) => res.json({ access: req.access }));
 
         const res = await request(app)
@@ -263,7 +263,7 @@ describe('auth middleware', () => {
                 organizationId: 'ten_unson'
             })
         };
-        app.use(requireAuth(authService, { allowInsecureHeaders: false }));
+        app.use(requireAuth(authService));
         app.get('/secure', (req, res) => res.json({ access: req.access }));
 
         const res = await request(app)

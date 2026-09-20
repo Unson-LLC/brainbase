@@ -25,6 +25,7 @@ describe('InfoSSOTController Graph entity read contract', () => {
         await controller.listGraphEntities(req, res);
 
         expect(res.status).toHaveBeenCalledWith(401);
+        expect(res.json).toHaveBeenCalledWith({ error: 'Authenticated access context required' });
         expect(service.listGraphEntities).not.toHaveBeenCalled();
     });
 
