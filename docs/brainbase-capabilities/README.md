@@ -38,7 +38,7 @@ troubleshooting: []
 
 | Capability | Why it exists |
 |---|---|
-| `runtime.launchd` | Canonical port `31013` is managed by launchd and syncs selected paths from `origin/develop` before startup. |
+| `runtime.launchd` | ローカルAPIのport `31013`をlaunchdが管理し、使い捨てのlinked worktreeを起動対象コミットへ揃える。旧ブラウザUIやMac Companionとは別の実行環境。 |
 | `runtime.lightsail` | Production SSOT on `bb.unson.jp` runs from `/home/ubuntu/brainbase` under systemd (`brainbase-ssot.service`); deploy is manual ff-merge + restart. |
 | `project.catalog` | Defines the configured project catalog, authenticated grant scope, MCP status envelope, and audit evidence. |
 | `project.selector` | Historical record of the retired browser project selector; authenticated catalog access remains in `project.catalog`. |
