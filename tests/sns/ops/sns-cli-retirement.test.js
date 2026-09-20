@@ -23,6 +23,13 @@ const retiredLaunchdTemplates = [
     'config/com.brainbase.sns-scheduled-publisher.plist',
     'config/com.brainbase.sns-feedback-metrics-poller.plist'
 ];
+const retiredLegacyModules = [
+    'server/services/sns/feedback-service.js',
+    'server/services/sns/posting-service.js',
+    'server/services/sns/scheduler-service.js',
+    'server/services/sns/providers/x-provider.js',
+    'tests/sns/_m4-helpers.js'
+];
 const generationContextCli = 'scripts/build-sns-generation-context.js';
 const generationContextCliFiles = [
     generationContextCli,
@@ -140,6 +147,12 @@ describe('retired SNS CLI entry points', () => {
 
         for (const template of retiredLaunchdTemplates) {
             expect(fs.existsSync(path.join(root, template))).toBe(false);
+        }
+    });
+
+    it('keeps the retired SNS implementation cluster absent from the active tree', () => {
+        for (const relativePath of retiredLegacyModules) {
+            expect(fs.existsSync(path.join(root, relativePath)), relativePath).toBe(false);
         }
     });
 });
