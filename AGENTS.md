@@ -16,9 +16,9 @@ This file is the thin, always-loaded entrypoint for brainbase agents. Keep it un
 
 ## 0.5. Distribution Model
 
-- 他メンバーにも必要な動作は所有する配布repo、事実はGraph SSOT、レビュー済み文書は所有repoの`docs/`、素材はDrive、個人データは個人ホームへ置く。
-- 個人の絶対パスや個人文脈をチームGraphへ入れない。正本へのポインタはrepo相対パスかURLを使う。
-- Wiki、`shared/`、`_codex/`、submodule共有は復活させない。既存資産の移設は所有元を確かめ、今回の依頼範囲で扱う。
+分類方針の本文正本は [`docs/policies/repository-classification.md`](docs/policies/repository-classification.md) とする。この入口文書には詳細表を複製しない。
+
+**判定**: 他メンバーにも必要な動作は所有する配布repo、事実はGraph SSOT、レビュー済み文書は所有repoの`docs/`、素材はDrive、個人データは個人ホームへ置く。個人の絶対パスや個人文脈をチームGraphへ入れない。Wiki、`shared/`、`_codex/`、submodule共有は復活させない。
 
 ## 1. 作業の目的と完了
 

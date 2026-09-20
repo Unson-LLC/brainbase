@@ -4,7 +4,7 @@
 
 ## 📖 概要
 
-`examples/codex/` は、brainbaseの構造とデータ形式を理解するためのサンプルです。実際の環境では、正本はグラフ（ポストグレス）で管理し、`_codex/` は可読ミラーとして扱います。このサンプルは開発・テスト・学習目的で使用します。
+`examples/codex/` は、旧ファイル形式からGraphへ移行する処理を理解・検証するためのサンプルです。現行環境の正本はGraphであり、`_codex/` を本番の正本や可読ミラーとして新規作成しません。
 
 **重要**: このディレクトリはOSS公開用のサンプルです。実際のプロジェクト・組織・人物データは含まれていません。
 **補足**: 情報SSOT（Decision/RACI/Policy）はポストグレスが正本であり、`examples/codex` は人間向けビューのサンプルとして扱います。
@@ -70,37 +70,22 @@ npm run dev
 
 ### 2. 本番環境への移行
 
-本番環境では、プライベート `_codex/` を使用:
-
-```bash
-# シンボリックリンク作成（ローカル環境のみ）
-cd /path/to/workspace/brainbase-ui
-ln -s ../_codex _codex
-
-# .gitignoreで除外されているため、誤ってコミットされることはありません
-```
+このサンプルを本番へコピーしたり、`_codex/` のシンボリックリンクを作ったりしません。移行ツールの入力fixtureとして使い、移行後はGraph APIからreadbackして確認します。
 
 ### 3. 新規プロジェクト追加
 
-新しいプロジェクトを追加する場合は、`examples/codex` を参照しつつ `_codex/projects/` を自分で作成:
-
-```bash
-# プロジェクトディレクトリ作成
-mkdir -p _codex/projects/your-project
-
-# examples/codex/common/meta/raci/example-project.md などを参考に作成
-```
+新しいプロジェクトは、正式なプロジェクト作成経路からGraphへ登録します。このディレクトリを複製して新規プロジェクトを作りません。
 
 ## 🔒 セキュリティ
 
 - **公開データ**: `examples/codex/` はOSS公開されます
-- **非公開データ**: `_codex/` は `.gitignore` で除外され、公開されません
+- **非公開データ**: 個人ホーム、顧客repo、Graphの権限境界に置き、このサンプルへコピーしません
 - **環境変数**: 実際のAPIキー・トークンは `.env` で管理（コミット禁止）
 
 ## 📚 参照
 
 - **brainbase運用ガイド**: `CLAUDE.md`（リポジトリルート）
-- **Skills vs Codex**: `_codex/projects/brainbase/skills_concept.md`（本番環境のみ）
+- **リポジトリ分類**: `docs/policies/repository-classification.md`
 - **manaセットアップ**: 別プロジェクト（非公開）
 
 ## 🤝 コントリビューション
@@ -114,4 +99,4 @@ mkdir -p _codex/projects/your-project
 
 ---
 
-最終更新: 2025-12-26
+最終更新: 2026-09-20
