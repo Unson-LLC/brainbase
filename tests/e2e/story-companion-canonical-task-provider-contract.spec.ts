@@ -85,7 +85,7 @@ const scenarioContracts: Record<number, VitestContract> = {
     'tests/server/scripts/recover-canonical-task-writer.test.js',
   ], 'writer claimed after restart|surface.writer.release-recover'),
   29: file(workflowMaterialization, 'surface.workflow.audit-idempotency'),
-  30: file(legacyRouteGuard, 'Given canonical base, when (POST|PUT|DELETE) mutates legacy Task route'),
+  30: file(legacyRouteGuard, 'returns 410 for'),
   31: files([
     'tests/server/scripts/canonical-task-writer-policy.test.js',
     'tests/server/scripts/preflight-canonical-task-cutover.test.js',
@@ -132,7 +132,7 @@ const surfaceContracts: Record<string, VitestContract> = {
   'surface.readiness.closed-start': file('tests/server/services/canonical-task-readiness.test.js', 'starts closed and opens only when all persisted authorities match'),
   'surface.readiness.atomic-enable': file('tests/server/services/canonical-task-readiness.test.js', 'opens a running process after an external enable writes matching evidence'),
   'surface.readiness.explicit-disable': file('tests/server/services/canonical-task-readiness.test.js', 'keeps the verified release open across a clean writer restart and observes disable'),
-  'surface.legacy.route': file(legacyRouteGuard, 'Given canonical base, when (POST|PUT|DELETE) mutates legacy Task route'),
+  'surface.legacy.route': file(legacyRouteGuard, 'returns 410 for'),
   'surface.mana.auth-retry-read': files([taskService, manaRoutes], 'materializes a Mana capture with an actor-scoped stable command key|POST /capture requires a valid CSRF token|GET /captures follows canonical Task cursors'),
   'surface.delete.recovery': file(operationRepository, 'finishes a prepared delete|persists the version claim and delete intent|does not disclose another actor delete result'),
   'surface.operational-scripts': files([
