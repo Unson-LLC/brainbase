@@ -11,7 +11,7 @@ const manifest = {
     person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5', slack_user_id: 'U07LNUP582X', slack_workspace_id: 'T07LL5WV7N1'
 };
 
-function client({ grantProjects = ['baao', 'brainbase'], existingProjectPayload = null } = {}) {
+function client({ grantProjects = ['baao', 'brainbase'], existingProjectPayload = null, existingOrganizationPayload = null } = {}) {
     const inserted = { project: false, organization: false, membership: false };
     const stored = {
         project: existingProjectPayload ? {
@@ -20,7 +20,11 @@ function client({ grantProjects = ['baao', 'brainbase'], existingProjectPayload 
             project_code: manifest.project_code,
             project_payload: existingProjectPayload
         } : null,
-        organization: null,
+        organization: existingOrganizationPayload ? {
+            organization_id: manifest.tenant_organization_id,
+            tenant_id: manifest.tenant_id,
+            organization_payload: existingOrganizationPayload
+        } : null,
         membership: null
     };
     const query = async (sql, params = []) => {
@@ -33,6 +37,7 @@ function client({ grantProjects = ['baao', 'brainbase'], existingProjectPayload 
         if (compact.includes('FROM auth_grants')) return { rows: [{ id: 'grant_1', person_id: manifest.person_id, role: 'ceo', project_codes: grantProjects, clearance: ['internal'] }] };
         if (compact.startsWith('INSERT INTO tenant_projects')) { inserted.project = true; stored.project = { project_id: params[0], tenant_id: params[1], project_code: params[3], project_payload: JSON.parse(params[4]) }; return { rows: [] }; }
         if (compact.startsWith('INSERT INTO tenant_organizations')) { inserted.organization = true; stored.organization = { organization_id: params[0], tenant_id: params[1], organization_payload: JSON.parse(params[3]) }; return { rows: [] }; }
+        if (compact.startsWith('UPDATE tenant_organizations')) { stored.organization.organization_payload = { ...stored.organization.organization_payload, ...JSON.parse(params[1]) }; return { rows: [] }; }
         if (compact.startsWith('INSERT INTO tenant_memberships')) { inserted.membership = true; stored.membership = { membership_id: params[0], tenant_id: params[1], organization_id: params[3], principal_id: params[4], membership_payload: JSON.parse(params[5]) }; return { rows: [] }; }
         if (compact.includes('FROM tenant_projects') && compact.includes(' OR ')) return { rows: stored.project ? [stored.project] : [] };
         if (compact.includes('FROM tenant_organizations')) return { rows: stored.organization ? [stored.organization] : [] };
@@ -86,5 +91,18 @@ describe('legacy organization authority bridge', () => {
         const db = client({ existingProjectPayload: { source: 'approved_meeting_minutes_projection', project_code: 'other' } });
         await expect(provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true }))
             .rejects.toMatchObject({ code: 'TENANT_PROJECT_CONFLICT' });
+    });
+
+    it('enriches an existing tenant organization with the legacy Graph organization mapping', async () => {
+        const db = client({ existingOrganizationPayload: { status: 'active', display_name: 'Unson Business' } });
+        const result = await provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true });
+        expect(result.plan[1]).toEqual({ operation: 'update', entity: 'tenant_organization', id: manifest.tenant_organization_id });
+        expect(result.readback.resolved_tenant).toEqual({ tenant_id: manifest.tenant_id, organization_id: 'unson' });
+    });
+
+    it('rejects a tenant organization already mapped to another Graph organization', async () => {
+        const db = client({ existingOrganizationPayload: { status: 'active', graph_organization_id: 'other' } });
+        await expect(provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true }))
+            .rejects.toMatchObject({ code: 'TENANT_ORGANIZATION_CONFLICT' });
     });
 });
