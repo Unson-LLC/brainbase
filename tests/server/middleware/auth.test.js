@@ -119,6 +119,34 @@ describe('auth middleware', () => {
         });
     });
 
+    it('provider subjectのsubよりcanonical personIdを本人IDとして優先する', async () => {
+        const app = express();
+        const authService = {
+            verifyToken: () => ({
+                role: 'ceo',
+                sub: 'U07LNUP582X',
+                personId: 'per_sato',
+                authProvider: 'slack',
+                providerSubject: 'U07LNUP582X',
+                providerTenant: 'T_UNSON',
+                organizationId: 'unson'
+            })
+        };
+        app.use(requireAuth(authService));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer provider-subject-token')
+            .expect(200);
+
+        expect(res.body.access).toMatchObject({
+            personId: 'per_sato',
+            providerSubject: 'U07LNUP582X',
+            slackUserId: 'U07LNUP582X'
+        });
+    });
+
     it('Slack以外のprovider identityをSlack identityへ流用しない', async () => {
         const app = express();
         const authService = {
