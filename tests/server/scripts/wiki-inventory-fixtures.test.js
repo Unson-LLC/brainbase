@@ -3,7 +3,7 @@ import * as nodeFs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { runGraphWikiInventory } from '../../../scripts/migrate-graphdb-to-wiki.js';
 import { runWikiPagesInventory } from '../../../scripts/populate-wiki-pages.js';
@@ -12,6 +12,15 @@ const quietLogger = {
     log: vi.fn(),
     warn: vi.fn(),
 };
+
+const fixtureRoots = new Set();
+
+afterEach(async () => {
+    for (const root of fixtureRoots) {
+        await nodeFs.rm(root, { recursive: true, force: true });
+    }
+    fixtureRoots.clear();
+});
 
 function createPool(queryResult = { rows: [] }) {
     return {
@@ -25,6 +34,7 @@ function createPool(queryResult = { rows: [] }) {
 
 async function createWikiFixture(files) {
     const root = await nodeFs.mkdtemp(path.join(os.tmpdir(), 'brainbase-wiki-inventory-'));
+    fixtureRoots.add(root);
     for (const [relativePath, content] of Object.entries(files)) {
         const filePath = path.join(root, relativePath);
         await nodeFs.mkdir(path.dirname(filePath), { recursive: true });
@@ -139,5 +149,46 @@ describe('Wiki inventory dry-run fixtures', () => {
             fsImpl: { ...nodeFs, readFile },
             logger: quietLogger,
         })).rejects.toThrow(/Unable to read Wiki file .*I\/O failure/);
+    });
+
+    it('populate-wiki-pages surfaces a readdir failure instead of treating the tree as empty', async () => {
+        const wikiRoot = await createWikiFixture({});
+        const readdir = vi.fn(async () => {
+            const error = new Error('directory read failed');
+            error.code = 'EIO';
+            throw error;
+        });
+
+        await expect(runWikiPagesInventory({
+            dryRun: true,
+            wikiRoot,
+            pool: createPool(),
+            fsImpl: { ...nodeFs, readdir },
+            logger: quietLogger,
+        })).rejects.toThrow(/Unable to read Wiki directory .*directory read failed/);
+        expect(readdir).toHaveBeenCalledTimes(1);
+    });
+
+    it('populate-wiki-pages surfaces project query rejection with a fake pool only', async () => {
+        const wikiRoot = await createWikiFixture({ 'brainbase/query-failure.md': '# Query Failure\n' });
+        const query = vi.fn(async () => {
+            const error = new Error('project metadata read failed');
+            error.code = 'EIO';
+            throw error;
+        });
+        const pool = {
+            query,
+            connect: vi.fn(),
+            end: vi.fn(async () => {}),
+        };
+
+        await expect(runWikiPagesInventory({
+            dryRun: true,
+            wikiRoot,
+            pool,
+            logger: quietLogger,
+        })).rejects.toThrow('project metadata read failed');
+        expect(query).toHaveBeenCalledTimes(1);
+        expect(pool.connect).not.toHaveBeenCalled();
     });
 });
