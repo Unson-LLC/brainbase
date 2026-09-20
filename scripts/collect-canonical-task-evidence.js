@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { execFileSync } from 'node:child_process';
 import {
+  mkdir,
   readFile,
   unlink,
 } from 'node:fs/promises';
@@ -395,12 +396,15 @@ export async function writeCanonicalTaskEvidenceAggregate({
   registryBytes,
   sourceHead,
   artifacts,
+  runId = null,
+  artifactPaths = null,
 } = {}) {
   validateEvidenceRegistry(registry);
   invariant(Buffer.isBuffer(registryBytes), 'registryBytes must be a Buffer');
   invariant(typeof sourceHead === 'string' && sourceHead.length > 0, 'sourceHead is required');
   invariant(Array.isArray(artifacts), 'artifacts must be an array');
   invariant(artifacts.length === registry.entries.length, 'aggregate evidence count does not match registry');
+  if (runId !== null) invariant(/^[a-f0-9]{64}$/.test(runId), 'runId must be a 64-character lowercase hex value');
 
   const artifactsById = new Map(artifacts.map((artifact) => [artifact.evidence_id, artifact]));
   invariant(artifactsById.size === registry.entries.length, 'aggregate evidence IDs are not unique');
@@ -409,14 +413,15 @@ export async function writeCanonicalTaskEvidenceAggregate({
     const artifact = artifactsById.get(entry.id);
     invariant(artifact, `aggregate is missing evidence ${entry.id}`);
     invariant(artifact.source_head === sourceHead, `aggregate evidence HEAD mismatch for ${entry.id}`);
-    const artifactPath = resolveInsideRoot(rootDir, entry.artifact_path, 'evidence artifact path');
+    const artifactRelativePath = artifactPaths?.get(entry.id) || entry.artifact_path;
+    const artifactPath = resolveInsideRoot(rootDir, artifactRelativePath, 'evidence artifact path');
     const artifactBytes = await readFile(artifactPath);
     const persistedArtifact = JSON.parse(artifactBytes.toString('utf8'));
     invariant(JSON.stringify(persistedArtifact) === JSON.stringify(artifact), `aggregate evidence file mismatch for ${entry.id}`);
     evidence.push({
       evidence_id: entry.id,
       pass: artifact.pass === true,
-      artifact_path: entry.artifact_path,
+      artifact_path: artifactRelativePath,
       artifact_hash: sha256(artifactBytes),
       owner_hash: artifact.owner_hash,
       runner_result_hash: artifact.runner_result_hash,
@@ -436,9 +441,12 @@ export async function writeCanonicalTaskEvidenceAggregate({
     required_evidence_ids: registry.entries.map((entry) => entry.id),
     evidence,
   };
+  if (runId !== null) aggregate.run_id = runId;
   const aggregatePath = resolveInsideRoot(
     rootDir,
-    `.vibepro/verification/canonical-task-cutover/evidence-all-${sourceHead.slice(0, 7)}.json`,
+    runId === null
+      ? `.vibepro/verification/canonical-task-cutover/evidence-all-${sourceHead.slice(0, 7)}.json`
+      : `.vibepro/verification/canonical-task-cutover/runs/${runId}/evidence-all-${sourceHead.slice(0, 7)}.json`,
     'aggregate evidence path',
   );
   await atomicWriteJson(aggregatePath, aggregate);
@@ -450,21 +458,32 @@ export async function collectAllCanonicalTaskEvidence({
   registryPath = DEFAULT_REGISTRY_PATH,
   sourceHead = currentGitHead(rootDir),
   inheritedEnv = process.env,
+  runId = randomBytes(32).toString('hex'),
+  collectImpl = collectCanonicalTaskEvidence,
 } = {}) {
   const absoluteRegistryPath = resolveInsideRoot(rootDir, registryPath, 'registry path');
   const registryBytes = await readFile(absoluteRegistryPath);
   const registry = JSON.parse(registryBytes.toString('utf8'));
   validateEvidenceRegistry(registry);
+  invariant(/^[a-f0-9]{64}$/.test(runId), 'runId must be a 64-character lowercase hex value');
+  const runsRoot = resolveInsideRoot(rootDir, '.vibepro/verification/canonical-task-cutover/runs', 'evidence runs root');
+  await mkdir(runsRoot, { recursive: true });
+  await mkdir(path.join(runsRoot, runId));
 
   const artifacts = [];
+  const artifactPaths = new Map();
   for (const entry of registry.entries) {
-    const artifact = await collectCanonicalTaskEvidence({
+    const artifact = await collectImpl({
       id: entry.id,
       rootDir,
       registryPath,
       sourceHead,
       inheritedEnv,
     });
+    const snapshotRelativePath = `.vibepro/verification/canonical-task-cutover/runs/${runId}/raw/${entry.id}.json`;
+    const snapshotPath = resolveInsideRoot(rootDir, snapshotRelativePath, 'run evidence snapshot path');
+    await atomicWriteJson(snapshotPath, artifact);
+    artifactPaths.set(entry.id, snapshotRelativePath);
     artifacts.push(artifact);
     process.stderr.write(`${artifact.pass ? 'PASS' : 'FAIL'} ${entry.id}\n`);
   }
@@ -474,6 +493,8 @@ export async function collectAllCanonicalTaskEvidence({
     registryBytes,
     sourceHead,
     artifacts,
+    runId,
+    artifactPaths,
   });
   return { artifacts, ...aggregateResult };
 }

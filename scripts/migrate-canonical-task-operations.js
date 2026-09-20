@@ -9,11 +9,13 @@ const SCHEMA_PATH = path.join(ROOT, 'server/sql/canonical-task-operation-schema.
 const REQUIRED_TABLES = [
     'canonical_task_writer',
     'canonical_task_readiness',
+    'canonical_task_readiness_audit',
     'canonical_task_operations'
 ];
 const REQUIRED_COLUMNS = Object.freeze({
     canonical_task_writer: ['writer_token', 'process_identity', 'source_head'],
     canonical_task_readiness: ['ready', 'writer_token', 'manifest_hash', 'schema_version', 'source_head', 'evidence_hash', 'evidence_path'],
+    canonical_task_readiness_audit: ['action', 'ready', 'actor', 'change_ref', 'source_head', 'evidence_hash', 'evidence_path', 'reason', 'process_identity', 'session_context'],
     canonical_task_operations: ['scope', 'operation_key', 'state', 'writer_token', 'authorization_snapshot', 'recovery_checkpoint']
 });
 
@@ -68,17 +70,24 @@ export async function checkCanonicalTaskOperationSchema(pool) {
     }
 
     const indexResult = await pool.query(
-        `SELECT indexname FROM pg_indexes
+        `SELECT tablename, indexname FROM pg_indexes
          WHERE schemaname = current_schema()
-           AND tablename = 'canonical_task_operations'
-           AND indexname = 'canonical_task_operations_state_idx'`,
+           AND indexname = ANY($1::text[])`,
+        [['canonical_task_operations_state_idx', 'canonical_task_readiness_audit_created_at_idx']]
     );
-    if (!indexResult.rows.length) throw new Error('Canonical Task operation schema is missing canonical_task_operations_state_idx');
+    const requiredIndexes = new Map([
+        ['canonical_task_operations_state_idx', 'canonical_task_operations'],
+        ['canonical_task_readiness_audit_created_at_idx', 'canonical_task_readiness_audit']
+    ]);
+    const indexes = [...requiredIndexes.keys()];
+    const presentIndexes = new Map(indexResult.rows.map((row) => [row.indexname, row.tablename]));
+    const missingIndexes = indexes.filter((index) => presentIndexes.get(index) !== requiredIndexes.get(index));
+    if (missingIndexes.length) throw new Error(`Canonical Task operation schema is missing indexes: ${missingIndexes.join(', ')}`);
     return {
         ok: true,
         tables: REQUIRED_TABLES,
         constraints: ['operations_scope_operation_key_unique', 'operations_state_check'],
-        indexes: ['canonical_task_operations_state_idx']
+        indexes
     };
 }
 

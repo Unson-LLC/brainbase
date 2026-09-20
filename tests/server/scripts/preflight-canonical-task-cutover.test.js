@@ -5,6 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   buildEffectiveInvocation,
+  collectAllCanonicalTaskEvidence,
   collectCanonicalTaskEvidence,
   evaluateRunnerEvidence,
   validateEvidenceRegistry,
@@ -610,21 +611,51 @@ describe('before-enable evidence preflight', () => {
         if (sql.includes('SELECT writer_token, source_head')) {
           return { rowCount: 1, rows: [{ writer_token: 'writer-token-1', source_head: 'abc123' }] };
         }
+        if (sql.includes('INSERT INTO canonical_task_readiness_audit')) {
+          return { rowCount: 1, rows: [{ id: 42 }] };
+        }
         return { rowCount: 1, rows: [] };
       }),
       release: vi.fn(),
     };
 
     const result = await setCanonicalTaskReadiness({
-      argv: ['--enable', '--evidence', outputPath],
+      argv: [
+        '--enable', '--evidence', outputPath,
+        '--actor', 'person:sato_keigo', '--change-ref', 'TASK-123',
+      ],
       pool: { connect: vi.fn().mockResolvedValue(client) },
       rootDir: fixture.rootDir,
       sourceHead: 'abc123',
     });
 
-    expect(result).toMatchObject({ ready: true, source_head: 'abc123' });
+    expect(result).toMatchObject({ ready: true, source_head: 'abc123', audit_id: 42 });
     expect(queries.some(({ sql }) => sql.includes('INSERT INTO canonical_task_readiness'))).toBe(true);
+    expect(queries.some(({ sql }) => sql.includes('INSERT INTO canonical_task_readiness_audit'))).toBe(true);
     expect(queries.at(-1).sql).toBe('COMMIT');
+  });
+
+  it('rolls back a readiness transition when its audit row is not persisted', async () => {
+    const queries = [];
+    const client = {
+      query: vi.fn(async (sql) => {
+        queries.push(sql);
+        if (sql.includes('INSERT INTO canonical_task_readiness_audit')) return { rowCount: 0, rows: [] };
+        return { rowCount: 1, rows: [] };
+      }),
+      release: vi.fn(),
+    };
+
+    await expect(setCanonicalTaskReadiness({
+      argv: [
+        '--disable', '--reason', 'rollback',
+        '--actor', 'person:sato_keigo', '--change-ref', 'TASK-123',
+      ],
+      pool: { connect: vi.fn().mockResolvedValue(client) },
+    })).rejects.toThrow(/audit was not persisted/i);
+
+    expect(queries).toContain('ROLLBACK');
+    expect(queries).not.toContain('COMMIT');
   });
 
   it('rejects evidence produced for a different canonical task backend', async () => {
@@ -649,7 +680,10 @@ describe('before-enable evidence preflight', () => {
     };
 
     await expect(setCanonicalTaskReadiness({
-      argv: ['--enable', '--evidence', outputPath],
+      argv: [
+        '--enable', '--evidence', outputPath,
+        '--actor', 'person:sato_keigo', '--change-ref', 'TASK-123',
+      ],
       pool: { connect: vi.fn().mockResolvedValue(client) },
       rootDir: fixture.rootDir,
       sourceHead: 'abc123',
@@ -682,6 +716,35 @@ describe('before-enable evidence preflight', () => {
     });
     expect(result.aggregatePath).toContain('evidence-all-abc123.json');
     expect(JSON.parse(await readFile(result.aggregatePath, 'utf8'))).toEqual(result.aggregate);
+  });
+
+  it('aggregates from one immutable run snapshot when the shared artifact is overwritten', async () => {
+    const fixture = await createEvidenceFixture();
+    const registryPath = path.relative(fixture.rootDir, fixture.registryPath);
+    const runId = 'd'.repeat(64);
+    const result = await collectAllCanonicalTaskEvidence({
+      rootDir: fixture.rootDir,
+      registryPath,
+      sourceHead: 'abc123',
+      runId,
+      collectImpl: async () => {
+        await writeFile(fixture.artifactPath, JSON.stringify({ evidence_id: 'other-run' }));
+        return fixture.artifact;
+      },
+    });
+
+    expect(result.aggregate).toMatchObject({ run_id: runId, passed: 1, failed: [] });
+    expect(result.aggregate.evidence[0].artifact_path)
+      .toBe(`.vibepro/verification/canonical-task-cutover/runs/${runId}/raw/scenario.SC-001.json`);
+    expect(result.aggregatePath).toContain(`/runs/${runId}/evidence-all-abc123.json`);
+    expect(JSON.parse(await readFile(result.aggregatePath, 'utf8'))).toEqual(result.aggregate);
+    await expect(collectAllCanonicalTaskEvidence({
+      rootDir: fixture.rootDir,
+      registryPath,
+      sourceHead: 'abc123',
+      runId,
+      collectImpl: async () => fixture.artifact,
+    })).rejects.toMatchObject({ code: 'EEXIST' });
   });
 
   it('rejects an unregistered raw evidence artifact', async () => {

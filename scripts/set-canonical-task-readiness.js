@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
+import { hostname } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Pool } from 'pg';
 
@@ -23,12 +24,40 @@ export function parseCanonicalTaskReadinessArgs(argv) {
         else if (argument === '--disable') parsed.disable = true;
         else if (argument === '--evidence') parsed.evidencePath = argv[++index];
         else if (argument === '--reason') parsed.reason = argv[++index];
+        else if (argument === '--actor') parsed.actor = argv[++index];
+        else if (argument === '--change-ref') parsed.changeRef = argv[++index];
         else throw new Error(`Unknown argument: ${argument}`);
     }
     if (Boolean(parsed.enable) === Boolean(parsed.disable)) throw new Error('Specify exactly one of --enable or --disable');
     if (parsed.enable && !parsed.evidencePath) throw new Error('--enable requires --evidence');
     if (parsed.disable && !parsed.reason) throw new Error('--disable requires --reason');
+    if (!parsed.actor) throw new Error('--actor is required');
+    if (!parsed.changeRef) throw new Error('--change-ref is required');
     return parsed;
+}
+
+async function appendReadinessAudit(client, {
+    action, ready, actor, changeRef, sourceHead = null, evidenceHash = null,
+    evidencePath = null, reason = null
+}) {
+    const processIdentity = { pid: process.pid, entrypoint: 'scripts/set-canonical-task-readiness.js', hostname: hostname() };
+    const sessionContext = {
+        user: process.env.USER || null,
+        sudo_user: process.env.SUDO_USER || null,
+        ssh_connection_present: Boolean(process.env.SSH_CONNECTION),
+        ssh_client_present: Boolean(process.env.SSH_CLIENT)
+    };
+    const result = await client.query(
+        `INSERT INTO canonical_task_readiness_audit (
+            action, ready, actor, change_ref, source_head, evidence_hash,
+            evidence_path, reason, process_identity, session_context, created_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10::jsonb, NOW())
+         RETURNING id`,
+        [action, ready, actor, changeRef, sourceHead, evidenceHash, evidencePath, reason,
+            JSON.stringify(processIdentity), JSON.stringify(sessionContext)]
+    );
+    if (!result.rowCount || !result.rows[0]?.id) throw new Error('Canonical Task readiness audit was not persisted');
+    return result.rows[0].id;
 }
 
 export async function setCanonicalTaskReadiness({
@@ -51,8 +80,12 @@ export async function setCanonicalTaskReadiness({
                  ON CONFLICT (singleton_id) DO UPDATE SET ready = FALSE, reason = EXCLUDED.reason, updated_at = NOW()`,
                 [args.reason]
             );
+            const auditId = await appendReadinessAudit(client, {
+                action: 'disable', ready: false, actor: args.actor,
+                changeRef: args.changeRef, reason: args.reason
+            });
             await client.query('COMMIT');
-            return { ready: false, reason: args.reason };
+            return { ready: false, reason: args.reason, audit_id: auditId };
         }
 
         const config = createCanonicalTaskStoreConfig();
@@ -98,8 +131,12 @@ export async function setCanonicalTaskReadiness({
                 updated_at = NOW()`,
             [evidence.writer_token, backendIdentityHash, config.schemaVersion, resolvedSourceHead, evidenceHash, args.evidencePath]
         );
+        const auditId = await appendReadinessAudit(client, {
+            action: 'enable', ready: true, actor: args.actor, changeRef: args.changeRef,
+            sourceHead: resolvedSourceHead, evidenceHash, evidencePath: args.evidencePath
+        });
         await client.query('COMMIT');
-        return { ready: true, evidence_hash: evidenceHash, source_head: resolvedSourceHead };
+        return { ready: true, evidence_hash: evidenceHash, source_head: resolvedSourceHead, audit_id: auditId };
     } catch (error) {
         await client.query('ROLLBACK');
         throw error;

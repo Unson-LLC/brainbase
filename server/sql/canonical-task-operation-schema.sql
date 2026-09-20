@@ -20,6 +20,24 @@ CREATE TABLE IF NOT EXISTS canonical_task_readiness (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS canonical_task_readiness_audit (
+    id BIGSERIAL PRIMARY KEY,
+    action TEXT NOT NULL CHECK (action IN ('enable', 'disable')),
+    ready BOOLEAN NOT NULL,
+    actor TEXT NOT NULL,
+    change_ref TEXT NOT NULL,
+    source_head TEXT,
+    evidence_hash TEXT,
+    evidence_path TEXT,
+    reason TEXT,
+    process_identity JSONB NOT NULL DEFAULT '{}'::jsonb,
+    session_context JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS canonical_task_readiness_audit_created_at_idx
+    ON canonical_task_readiness_audit (created_at DESC);
+
 CREATE TABLE IF NOT EXISTS canonical_task_operations (
     id BIGSERIAL PRIMARY KEY,
     scope TEXT NOT NULL,

@@ -23,11 +23,23 @@ describe('Canonical Task writer policy commands', () => {
         expect(() => parseCanonicalTaskColumnMigrationArgs([])).toThrow('exactly one');
     });
 
-    it('requires evidence to enable and a reason to disable', () => {
-        expect(parseCanonicalTaskReadinessArgs(['--enable', '--evidence', 'evidence.json']))
-            .toMatchObject({ enable: true, evidencePath: 'evidence.json' });
+    it('requires evidence or a reason plus an actor and change reference', () => {
+        expect(parseCanonicalTaskReadinessArgs([
+            '--enable', '--evidence', 'evidence.json', '--actor', 'person:sato_keigo', '--change-ref', 'TASK-123'
+        ])).toMatchObject({
+            enable: true,
+            evidencePath: 'evidence.json',
+            actor: 'person:sato_keigo',
+            changeRef: 'TASK-123'
+        });
         expect(() => parseCanonicalTaskReadinessArgs(['--enable'])).toThrow('--evidence');
         expect(() => parseCanonicalTaskReadinessArgs(['--disable'])).toThrow('--reason');
+        expect(() => parseCanonicalTaskReadinessArgs([
+            '--disable', '--reason', 'rollback', '--change-ref', 'TASK-123'
+        ])).toThrow('--actor');
+        expect(() => parseCanonicalTaskReadinessArgs([
+            '--disable', '--reason', 'rollback', '--actor', 'person:sato_keigo'
+        ])).toThrow('--change-ref');
     });
 
     it('requires expected and replacement tokens for manual recovery', () => {

@@ -35,6 +35,9 @@ operation結果からTask ID、human step/run目標状態、監査checkpoint、p
 
 全processのmutation gateはclosedで起動する。単一writer tokenに加え、Postgresの永続readiness rowと
 current HEADの必須回帰証跡、manifest hash、schema versionを再検証できた場合だけ明示enableする。
+enable/disableは安定した操作者IDと変更参照を必須とし、readiness更新とappend-only監査行を
+同一transactionで永続化する。監査にはsource HEAD、証跡hash/path、process/session contextを残す。
+全証跡のaggregateは実行単位の不変raw snapshotだけから生成し、並行実行の共有artifact更新を混入させない。
 保存済みreadyは再起動時に無条件で継承せず、現在のwriter tokenを含めて再照合する。
 
 ## Boundaries

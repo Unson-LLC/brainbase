@@ -2,7 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { checkCanonicalTaskOperationSchema } from '../../../scripts/migrate-canonical-task-operations.js';
 
-const tables = ['canonical_task_writer', 'canonical_task_readiness', 'canonical_task_operations'];
+const tables = [
+  'canonical_task_writer',
+  'canonical_task_readiness',
+  'canonical_task_readiness_audit',
+  'canonical_task_operations',
+];
 
 function completePool(overrides = {}) {
   return {
@@ -24,6 +29,16 @@ function completePool(overrides = {}) {
           { table_name: 'canonical_task_readiness', column_name: 'source_head' },
           { table_name: 'canonical_task_readiness', column_name: 'evidence_hash' },
           { table_name: 'canonical_task_readiness', column_name: 'evidence_path' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'action' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'ready' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'actor' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'change_ref' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'source_head' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'evidence_hash' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'evidence_path' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'reason' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'process_identity' },
+          { table_name: 'canonical_task_readiness_audit', column_name: 'session_context' },
           { table_name: 'canonical_task_operations', column_name: 'scope' },
           { table_name: 'canonical_task_operations', column_name: 'operation_key' },
           { table_name: 'canonical_task_operations', column_name: 'state' },
@@ -33,7 +48,10 @@ function completePool(overrides = {}) {
         ].filter((column) => column.column_name !== overrides.missingColumn) };
       }
       if (sql.includes('pg_constraint')) return { rows: overrides.constraints ?? [{ contype: 'u', columns: ['scope', 'operation_key'] }, { contype: 'c', columns: ['state'] }] };
-      if (sql.includes('pg_indexes')) return { rows: overrides.index === false ? [] : [{ indexname: 'canonical_task_operations_state_idx' }] };
+      if (sql.includes('pg_indexes')) return { rows: overrides.index === false ? [] : [
+        { tablename: 'canonical_task_operations', indexname: 'canonical_task_operations_state_idx' },
+        { tablename: 'canonical_task_readiness_audit', indexname: 'canonical_task_readiness_audit_created_at_idx' },
+      ] };
       throw new Error(`Unexpected query: ${sql}`);
     }),
   };
@@ -45,7 +63,7 @@ describe('Canonical Task Postgres schema check', () => {
       ok: true,
       tables,
       constraints: ['operations_scope_operation_key_unique', 'operations_state_check'],
-      indexes: ['canonical_task_operations_state_idx'],
+      indexes: ['canonical_task_operations_state_idx', 'canonical_task_readiness_audit_created_at_idx'],
     });
   });
 

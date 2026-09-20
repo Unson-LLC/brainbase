@@ -13,8 +13,8 @@
 - Task移行（承認後のみ）: `npm run migrate:canonical-task-postgres-workflow -- --approve-apply`
 - Postgres切替後の検索索引追加（承認後のみ）: `npm run migrate:canonical-task-search-indexes -- --approve-apply`
 - readiness操作: `scripts/set-canonical-task-readiness.js`
-- Postgres向けenable: `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact>`
-- disable: `npm run canonical-task:readiness -- --disable --reason <reason>`
+- Postgres向けenable: `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact> --actor <stable-operator-id> --change-ref <ticket-or-run-id>`
+- disable: `npm run canonical-task:readiness -- --disable --reason <reason> --actor <stable-operator-id> --change-ref <ticket-or-run-id>`
 - writer明示回復: `npm run canonical-task:recover-writer -- --expected-token <旧token> --expected-pid <旧PID> --new-token <新process token>`
 - manifest差替え: `CANONICAL_TASK_STORE_MANIFEST`だけを許可する。base/tableの個別環境変数は禁止する。
 
@@ -29,7 +29,7 @@
    compare-and-swapが不一致なら他のoperator/processが状態を変更したため中止する。
 4. 回復操作はreadinessを`writer_recovered_requires_reverification`でclosedにする。
    current HEADで必須証跡を再収集し、before-enable preflightを通す。
-5. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact>`を実行する。
+5. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence <artifact> --actor <stable-operator-id> --change-ref <ticket-or-run-id>`を実行する。
 6. readiness、writer process identity、Task mutation、`task_store`承認materializationを読み戻して確認する。
 
 ## before-migration
@@ -53,10 +53,17 @@
    4. `npm run migrate:canonical-task-postgres -- --apply`の直接実行は拒否される。row移行処理内の失敗は、そのrow移行transactionをrollbackする。一方、`CREATE INDEX CONCURRENTLY`はtransaction外で1文ずつ実行するため、失敗済み索引を自動rollbackしたとはみなさず、手順1のvalid/ready確認と無効索引の明示削除を行う。row移行のCOMMIT後または索引作成後にfinal-checkが失敗した場合、挿入済みrowや有効な索引は削除せずreadinessをclosedのまま維持し、原因を解消して冪等なworkflow全体を先頭から再実行する。
    active writerが存在しない排水済み状態で`npm run canonical-task:check-postgres-concurrency`を実行し、実operation repositoryへの同時2要求が1回だけ処理され、同一結果を返し、検査行と一時writerが削除されたことを確認する。既存writerが現れた場合は検査を中止する。
 2. guardを含む新BrainbaseとMCPを起動する。process-local mutation gateがclosedで、mutationが503 `canonical_task_mutation_not_ready`になることを確認する。
-3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。
-4. `npm run capture:canonical-task-cutover -- --base-url http://127.0.0.1:<port> --out-dir .vibepro/verification/canonical-task-cutover/checks`を実行し、実Postgres、実NocoDB、実Brainbase processの3 artifactを生成する。
-5. `npm run preflight:canonical-task-cutover -- --phase before-enable --backend postgres --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json`を実行する。証跡はbackend名とbackend固有のmanifest hashを固定し、別backend向け証跡の流用を拒否する。
- 6. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。command-scopedのbackend指定により、手順5のPostgres向けartifactを同じbackend identityで再検証する。backend未指定は`disabled`として閉じるため、本番手順では`postgres`を明示する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
+3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。Macはこの時点ではTask一覧の実HTTP読み取りと認証拒否だけを確認し、mutationは実行しない。
+4. `npm run capture:canonical-task-cutover -- --base-url http://127.0.0.1:<port> --mac-result <Mac read-only result> --out-dir .vibepro/verification/canonical-task-cutover/checks`を実行し、実Postgres、実NocoDB、実Brainbase process、Mac read-only consumerの4 artifactを生成する。
+   capture実行hostがMac resultのhostと異なる場合だけ、読み取り専用で運搬したsnapshotを
+   `--mac-source-root <transported snapshot>`に指定する。snapshotはresultの`mac_checkout`と同じGit HEADの
+   Git repositoryであり、resultの`raw_log`を元の`mac_checkout`からの同じ相対pathに置く。captureは元resultを
+   一切書き換えず、snapshot HEAD、raw log hash、path containmentを再検証する。元の絶対raw logが元checkout外、
+   相対pathがcheckout外へescape、snapshot root/raw logにsymlink、またはHEAD/hash不一致なら失敗する。
+   snapshotのdirty状態はcleanとして扱わず、この手順はclean性を主張しない。`--mac-source-root`を省略した
+   同一hostの既存手順は変わらない。
+5. `npm run preflight:canonical-task-cutover -- --phase before-enable --backend postgres --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json --mac-check .vibepro/verification/canonical-task-cutover/checks/mac.json`を実行する。証跡はbackend名とbackend固有のmanifest hashを固定し、別backend向け証跡の流用を拒否する。
+ 6. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json --actor <stable-operator-id> --change-ref <ticket-or-run-id>`を実行する。command-scopedのbackend指定により、手順5のPostgres向けartifactを同じbackend identityで再検証する。backend未指定は`disabled`として閉じるため、本番手順では`postgres`を明示する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。readiness更新と監査行は同一transactionで保存し、返却された`audit_id`を記録する。`actor`は安定した操作者ID、`change-ref`は追跡可能な変更・実行参照を明示し、後から推定して補完しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
 7. mutationが解禁されることを確認する。再起動時は、新processが単一writerを取得し、保存rowのHEAD・manifest・schema・evidence hashが一致した場合だけwriter tokenをtransaction内で引き継いで開く。不一致ならclosedのままにする。
 8. `TEST_MODE=true BRAINBASE_CANONICAL_TASK_LIVE_FIXTURE=1 npm run canonical-task:seed-live-fixture -- --ledger <workflow-ledger.json>`で、API実契約が使用する固定Human Stepを稼働中processの起動前に作る。担当者はCanonical Task manifestの`owner_person_id`から取得し、既に消費済みなら再利用せず失敗させる。
 9. Brainbaseを起動し、APIの作成・再送・更新・競合・完了・承認materializationの実契約をconsumer contract testから確認してから受付を反映する。
@@ -87,8 +94,8 @@ readiness rowは`source_head`を固定するため、enable後にデプロイで
 
 ## rollback
 
-1. `npm run canonical-task:readiness -- --disable --reason rollback`で永続rowをclosedにし、mutationが503になることを確認する。
-2. 必要ならCanonical Task API受付を戻す。
+1. `npm run canonical-task:readiness -- --disable --reason rollback --actor <stable-operator-id> --change-ref <ticket-or-run-id>`で永続rowをclosedにし、返却された`audit_id`を記録してmutationが503になることを確認する。
+2. 必要ならMac CompanionまたはCanonical Task API受付を戻す。
 3. Postgres schema、NocoDB列・unique、共有manifest、legacy/Mana/MCP guardは維持する。
 4. `npm run preflight:canonical-task-cutover -- --phase rollback`を実行し、旧直接writerの起動コマンドと有効経路が存在しないことを確認する。
 5. 旧writerは復活させず、forward fixする。
@@ -106,6 +113,10 @@ allowlistと生成元の唯一の正本は`config/canonical-task-evidence-regist
 owner file hash、実行したtest command、終了codeをraw artifactへ保存する。
 collectorはテスト結果から`matched_tests`と`matched_assertions`も保存し、どちらかが0の場合は
 commandの終了codeが0でも`pass: false`として失敗させる。
+
+`--all`は実行ごとに64桁のrun IDを発行し、各raw evidenceを
+`.vibepro/verification/canonical-task-cutover/runs/<run-id>/raw/`へ不変スナップショットとして保存する。
+aggregateはそのrun配下だけを再読込するため、別実行が互換用の共有artifactを更新しても混在しない。
 
 `matched_tests`はrunnerごとの機械可読出力からevidence IDと完全一致するtest titleを数える。Vitestと
 Playwrightはregistryの`runner_adapters`が指定する専用JSON reporter、Node testはTAP reporterを使う。
