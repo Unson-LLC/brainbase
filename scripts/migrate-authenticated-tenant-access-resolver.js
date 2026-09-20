@@ -7,8 +7,55 @@ import { Pool } from 'pg';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SQL_PATH = path.join(ROOT, 'server/sql/authenticated-tenant-access-resolver.sql');
-const MIGRATION_ID = 'authenticated-tenant-access-resolver.v1';
+const MIGRATION_ID = 'authenticated-tenant-access-resolver.v2';
 const LOCK_NAME = `brainbase:${MIGRATION_ID}`;
+const FUNCTION_SIGNATURE = 'public.resolve_active_tenant_for_authenticated_access(text,text,text,text)';
+
+async function readback(client, sha256) {
+    const result = await client.query(
+        `SELECT procedure.prosecdef,
+                procedure.proconfig,
+                owner.rolname AS owner_name,
+                owner.rolsuper AS owner_is_superuser,
+                owner.rolbypassrls AS owner_bypasses_rls,
+                owner.rolcanlogin AS owner_can_login,
+                app_role.oid IS NOT NULL AS app_role_exists,
+                CASE WHEN app_role.oid IS NULL THEN false
+                     ELSE has_function_privilege(app_role.oid, procedure.oid, 'EXECUTE')
+                 END AS app_can_execute,
+                NOT EXISTS (
+                    SELECT 1
+                      FROM aclexplode(COALESCE(procedure.proacl, acldefault('f', procedure.proowner))) AS acl
+                     WHERE acl.grantee = 0
+                       AND acl.privilege_type = 'EXECUTE'
+                ) AS public_execute_revoked
+           FROM pg_proc AS procedure
+           JOIN pg_roles AS owner ON owner.oid = procedure.proowner
+      LEFT JOIN pg_roles AS app_role ON app_role.rolname = 'brainbase_app'
+          WHERE procedure.oid = to_regprocedure($1)`,
+        [FUNCTION_SIGNATURE]
+    );
+    const contract = result.rows[0];
+    const settings = new Set(contract?.proconfig ?? []);
+    if (!contract
+        || contract.prosecdef !== true
+        || !settings.has('search_path=pg_catalog')
+        || !settings.has('row_security=off')
+        || contract.owner_name !== 'brainbase_authenticated_tenant_resolver'
+        || contract.owner_is_superuser === true
+        || contract.owner_bypasses_rls !== true
+        || contract.owner_can_login === true
+        || contract.app_role_exists !== true
+        || contract.app_can_execute !== true
+        || contract.public_execute_revoked !== true) {
+        throw new Error('Authenticated tenant resolver security contract readback failed');
+    }
+    const ledger = await client.query('SELECT schema_sha256 FROM brainbase_schema_migrations WHERE migration_id = $1', [MIGRATION_ID]);
+    if (ledger.rows[0]?.schema_sha256 !== sha256) {
+        throw new Error('Authenticated tenant resolver schema ledger readback failed');
+    }
+    return { security_contract_verified: true, ledger_matches: true };
+}
 
 export async function runAuthenticatedTenantAccessResolverMigration({ argv = process.argv.slice(2), env = process.env, pool = null } = {}) {
     const modes = ['dry-run', 'check', 'apply'].filter((mode) => argv.includes(`--${mode}`));
@@ -28,10 +75,8 @@ export async function runAuthenticatedTenantAccessResolverMigration({ argv = pro
     try {
         client = await activePool.connect();
         if (mode === 'check') {
-            const ledger = await client.query('SELECT schema_sha256 FROM brainbase_schema_migrations WHERE migration_id = $1', [MIGRATION_ID]);
-            const fn = await client.query("SELECT to_regprocedure('public.resolve_active_tenant_for_authenticated_access(text,text,text,text)') IS NOT NULL AS present");
-            if (ledger.rows[0]?.schema_sha256 !== sha256 || fn.rows[0]?.present !== true) throw new Error('Authenticated tenant resolver readback failed');
-            return { ok: true, mode, migration_id: MIGRATION_ID, schema_sha256: sha256, persisted: true };
+            const verification = await readback(client, sha256);
+            return { ok: true, mode, migration_id: MIGRATION_ID, schema_sha256: sha256, persisted: true, ...verification };
         }
         await client.query('BEGIN');
         transactionStarted = true;
@@ -44,7 +89,12 @@ export async function runAuthenticatedTenantAccessResolverMigration({ argv = pro
             SET schema_sha256 = EXCLUDED.schema_sha256, applied_at = EXCLUDED.applied_at, applied_by = EXCLUDED.applied_by`,
         [MIGRATION_ID, sha256, mode === 'apply' ? actor : 'dry-run']);
         if (mode === 'dry-run') await client.query('ROLLBACK');
-        else await client.query('COMMIT');
+        else {
+            await client.query('COMMIT');
+            transactionStarted = false;
+            const verification = await readback(client, sha256);
+            return { ok: true, mode, migration_id: MIGRATION_ID, schema_sha256: sha256, persisted: true, ...verification };
+        }
         transactionStarted = false;
         return { ok: true, mode, migration_id: MIGRATION_ID, schema_sha256: sha256, persisted: mode === 'apply' };
     } catch (error) {
