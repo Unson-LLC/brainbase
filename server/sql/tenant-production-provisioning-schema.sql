@@ -424,13 +424,20 @@ STABLE
 SECURITY DEFINER
 SET search_path = ''
 AS $$
-    SELECT organization.tenant_id, organization.organization_id
-      FROM public.tenant_organizations AS organization
-      JOIN public.brainbase_tenants AS tenant
-        ON tenant.tenant_id = organization.tenant_id
-     WHERE organization.organization_id = requested_organization_id
-       AND tenant.status = 'active'
-     LIMIT 1
+    WITH candidates AS (
+        SELECT organization.tenant_id
+          FROM public.tenant_organizations AS organization
+          JOIN public.brainbase_tenants AS tenant
+            ON tenant.tenant_id = organization.tenant_id
+         WHERE tenant.status = 'active'
+           AND (
+               organization.organization_id = requested_organization_id
+               OR organization.organization_payload ->> 'graph_organization_id' = requested_organization_id
+           )
+    )
+    SELECT candidate.tenant_id, requested_organization_id AS organization_id
+      FROM candidates AS candidate
+     WHERE (SELECT count(*) FROM candidates) = 1
 $$;
 
 REVOKE ALL ON FUNCTION public.resolve_active_tenant_for_organization(TEXT) FROM PUBLIC;

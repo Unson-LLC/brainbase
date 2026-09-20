@@ -367,7 +367,10 @@ async function run() {
                 `INSERT INTO tenant_organizations (
                     organization_id, tenant_id, tenant_revision_at_write, organization_payload
                  ) VALUES ($1, $2, 1, $3::jsonb)`,
-                [ORGANIZATION_ID, TENANT_ID, JSON.stringify({ source: 'outcome-resolver-integration' })]
+                [ORGANIZATION_ID, TENANT_ID, JSON.stringify({
+                    source: 'outcome-resolver-integration',
+                    graph_organization_id: 'unson'
+                })]
             );
             await provisioningClient.query('COMMIT');
             const firstConnection = await provisionConnection(
@@ -405,6 +408,11 @@ async function run() {
                FROM public.resolve_active_tenant_for_organization($1)`,
             ['org_unknown_outcome_resolver']
         );
+        const graphOrganizationTenant = await resolverPool.query(
+            `SELECT tenant_id, organization_id
+               FROM public.resolve_active_tenant_for_organization($1)`,
+            ['unson']
+        );
         const resolverPrivilege = await resolverPool.query(
             `SELECT has_function_privilege(
                         current_user,
@@ -418,6 +426,34 @@ async function run() {
             organization_id: ORGANIZATION_ID
         }]);
         assert.deepEqual(unknownOrganizationTenant.rows, []);
+        assert.deepEqual(graphOrganizationTenant.rows, [{
+            tenant_id: TENANT_ID,
+            organization_id: 'unson'
+        }]);
+
+        const ambiguityClient = await resolverPool.connect();
+        try {
+            await ambiguityClient.query('BEGIN');
+            await setTenantContext(ambiguityClient, TENANT_ID);
+            await ambiguityClient.query(
+                `INSERT INTO tenant_organizations (
+                    organization_id, tenant_id, tenant_revision_at_write, organization_payload
+                 ) VALUES ($1, $2, 1, $3::jsonb)`,
+                ['org_unson_duplicate', TENANT_ID, JSON.stringify({
+                    source: 'outcome-resolver-integration-ambiguity',
+                    graph_organization_id: 'unson'
+                })]
+            );
+            const ambiguousGraphOrganizationTenant = await ambiguityClient.query(
+                `SELECT tenant_id, organization_id
+                   FROM public.resolve_active_tenant_for_organization($1)`,
+                ['unson']
+            );
+            assert.deepEqual(ambiguousGraphOrganizationTenant.rows, []);
+        } finally {
+            await ambiguityClient.query('ROLLBACK').catch(() => {});
+            ambiguityClient.release();
+        }
 
         const repository = new MultitenantPostgresRepository({
             pool: resolverPool,
