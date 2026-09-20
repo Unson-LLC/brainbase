@@ -249,8 +249,16 @@ export class CanonicalTaskService {
             return await operation();
         } catch (error) {
             if (error instanceof CanonicalTaskError || error?.code === 'validation_failed' || error?.code === 'task_not_found') throw error;
+            if (error?.code === 'canonical_task_backend_not_configured') {
+                throw new CanonicalTaskError(error.code, error.message, 503);
+            }
             throw new CanonicalTaskError('task_store_unavailable', 'Canonical Task store is unavailable', 503, { cause: error?.message });
         }
+    }
+
+    async assertAvailable() {
+        if (typeof this.repository.assertAvailable !== 'function') return;
+        await this.read(() => this.repository.assertAvailable());
     }
 
     validateQuery(query = {}, context) {

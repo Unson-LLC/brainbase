@@ -307,12 +307,12 @@ test('story-canonical-task-postgres-ssot ac:1 persistence_failure rolls back a f
   expect(transaction).not.toContain('COMMIT');
 });
 
-test('story-canonical-task-postgres-ssot ac:1 S-007 state_transition preserves the existing backend until explicit cutover', () => {
-  expect(resolveCanonicalTaskBackend(undefined)).toBe('nocodb');
+test('story-canonical-task-postgres-ssot ac:1 S-007 state_transition disables tasks until explicit backend selection', () => {
+  expect(resolveCanonicalTaskBackend(undefined)).toBe('disabled');
   expect(resolveCanonicalTaskBackend('nocodb')).toBe('nocodb');
   expect(resolveCanonicalTaskBackend('postgres')).toBe('postgres');
   expect(() => resolveCanonicalTaskBackend('unexpected')).toThrow(
-    'CANONICAL_TASK_BACKEND must be nocodb or postgres'
+    'CANONICAL_TASK_BACKEND must be disabled, nocodb, or postgres'
   );
 });
 
@@ -324,7 +324,7 @@ test('story-canonical-task-postgres-ssot ac:2 VibePro traceability surfaces are 
   expect(story).toContain('現在HEAD');
   expect(policy).toContain('Brainbase PostgreSQL canonical_tasksだけを正本');
   expect(policy).toContain('NocoDBとSlack Canvasは再生成可能な投影');
-  expect(policy).toContain('本番applyとbackend切替は別の明示承認');
+  expect(policy).toContain('CANONICAL_TASK_BACKEND未指定時はTask APIだけを503で閉じ');
 });
 
 test('story-canonical-task-postgres-ssot ac:1 S-008 workflow enforces ordered phases and stops before apply on check failure', async () => {
@@ -363,7 +363,7 @@ test('story-canonical-task-postgres-ssot flow_replay production_path_matrix scen
     ['S-004 selected PostgreSQL failure is public and never falls back', 'liveHttp', /exposes a selected PostgreSQL store failure as HTTP 503 without fallback over TCP/, /expect\(body\)\.not\.toHaveProperty\('items'\)/],
     ['S-005 opaque identifier rejection', 'e2e', /decodeId\('not-an-opaque-id'\)/, /code: 'task_not_found',\s+status: 404/],
     ['S-006 migration conflict rejection', 'e2e', /S-006 migration rejects cross-key conflict before apply/, /rejects\.toThrow\('Canonical Task migration conflict/],
-    ['S-007/state_transition explicit backend selection', 'e2e', /expect\(resolveCanonicalTaskBackend\(undefined\)\)\.toBe\('nocodb'\)/, /toThrow\(\s+'CANONICAL_TASK_BACKEND must be nocodb or postgres'/],
+    ['S-007/state_transition explicit backend selection', 'e2e', /expect\(resolveCanonicalTaskBackend\(undefined\)\)\.toBe\('disabled'\)/, /toThrow\(\s+'CANONICAL_TASK_BACKEND must be disabled, nocodb, or postgres'/],
     ['S-008 workflow state transition and rollback contract', 'e2e', /S-008 workflow enforces ordered phases/, /expect\(calls\)\.toEqual\(\['--dry-run', '--check'\]\)/],
     ['schema_failure', 'e2e', /schema_failure rejects an incomplete target schema/, /schema has missing columns/],
     ['provider_failure', 'e2e', /provider_failure stops before target persistence/, /startsWith\('INSERT INTO canonical_tasks'\)\)\)\.toBe\(false\)/],

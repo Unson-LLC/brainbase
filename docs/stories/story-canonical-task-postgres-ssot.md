@@ -31,7 +31,7 @@ API契約を利用するmana-runtime側の後続Storyで実装する。
 
 - repository契約と既存Canonical Task回帰テストが100% passする。
 - migration dry-run/checkが件数と競合を本文・secretなしで報告できる。
-- backend未指定時に本番挙動が変わらず、`postgres`指定時だけ新storeを使う。
+- backend未指定時はTask APIだけを503で閉じ、`postgres`指定時だけPostgreSQL storeを使う。
 
 ## Acceptance Criteria
 
@@ -49,7 +49,7 @@ API契約を利用するmana-runtime側の後続Storyで実装する。
 - S-004: PostgreSQL障害を隠さない。
 - S-005: 不正または存在しないIDを開示しない。
 - S-006: IDまたは冪等キー競合で閉じる。
-- S-007: backend選択を明示し、未指定時の既存挙動を維持する。
+- S-007: backend選択を明示し、未指定時は正本を選ばずfail closedにする。
 - S-008: 移行workflowのstate transitionを固定する。
 
 ### S-001: 冪等にTaskを作成する
@@ -76,13 +76,13 @@ operatorはdry-run/checkでsource、既存一致、未移行、競合の件数�
 
 legacy IDと冪等キーが別Taskを指す場合はapplyを中止し、Task本文を出さず競合件数だけを報告する。
 
-### S-007: backend選択を明示し、未指定時の既存挙動を維持する
+### S-007: backend選択を明示し、未指定時はfail closedにする
 
-`CANONICAL_TASK_BACKEND`未指定または`nocodb`では既存NocoDB repositoryを選び、`postgres`指定時だけ
-PostgreSQL repositoryを選ぶ。不正値は起動時にfail closedとし、暗黙fallbackしない。
+`CANONICAL_TASK_BACKEND=nocodb`ではNocoDB repository、`postgres`ではPostgreSQL repositoryを選ぶ。
+未指定は`disabled` repositoryを選びTask APIだけを503で閉じる。不正値は起動時にfail closedとし、暗黙fallbackしない。
 
-- **C-003 inherited_behavior**: backend未指定時のNocoDB選択、既存service/route契約、opaque IDの
-  fail-closed挙動を維持し、`postgres`の明示指定だけを新しい選択肢として追加する。
+- **C-003 inherited_behavior**: 明示したbackendの既存service/route契約とopaque IDの
+  fail-closed挙動を維持し、未指定時のNocoDB暗黙選択だけを廃止する。
 
 ### S-008: 移行workflowのstate transitionを固定する
 
@@ -92,7 +92,7 @@ PostgreSQL repositoryを選ぶ。不正値は起動時にfail closedとし、暗
 
 ## Workflow State Transitions
 
-- **pre-cutover**: backend未指定ではNocoDBが正本であり、本PRのmergeだけでは本番状態を変えない。
+- **pre-cutover**: backend未指定ではTask APIを503で閉じる。既存正本を使う環境はbackendを明示する。
 - **cutover-ready**: schema検査、dry-run、check、実動契約が成功しても、自動では切り替えない。
 - **cutover**: 別の明示承認で`CANONICAL_TASK_BACKEND=postgres`を設定した時だけPostgreSQLを正本にする。
 - **rollback**: 切替前はNocoDB設定を維持する。PostgreSQLへの本番書込み開始後はreverse syncと整合性確認を
@@ -103,7 +103,7 @@ PostgreSQL repositoryを選ぶ。不正値は起動時にfail closedとし、暗
 
 ## Delivery Evidence
 
-- **Current reality**: Canonical Task APIとsingle-writer/readiness契約は稼働済みだが、本文の永続化はNocoDB repositoryが既定。
+- **Current reality**: Canonical Task APIとsingle-writer/readiness契約は稼働済みで、backendは明示選択を必須とする。未指定時はTask APIを503で閉じ、NocoDBを暗黙選択しない。
 - **Failure modes**: backend誤指定、接続失敗、legacy IDまたは冪等キー競合、移行途中の失敗、別store IDの混入をfail-closedで扱う。
 - **Done evidence**: repository・migration・bootstrap・既存service/routeの自動テスト、Story E2E contract、VibeProの現在HEAD束縛証跡を揃える。本番applyとbackend切替はDoneに含めない。
 

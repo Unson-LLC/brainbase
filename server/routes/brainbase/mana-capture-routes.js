@@ -73,6 +73,15 @@ export function createManaCaptureRouter(options = {}) {
             return res.status(503).json({ code: 'canonical_task_service_unavailable', message: 'Canonical Task service is unavailable' });
         }
 
+        try {
+            await canonicalTaskService.assertAvailable?.();
+        } catch (error) {
+            return res.status(error.status || 503).json({
+                code: error.code || 'task_store_unavailable',
+                message: error.message || 'Canonical Task store is unavailable'
+            });
+        }
+
         const captureType = type || 'issue';
 
         // LLMでタイトル抽出（Bedrock）

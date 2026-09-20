@@ -256,6 +256,34 @@ describe('mana capture routes', () => {
     expect(res.body.id).toBeUndefined();
   });
 
+  it('POST /capture rejects an unconfigured backend before sending content to Bedrock', async () => {
+    const error = Object.assign(new Error('CANONICAL_TASK_BACKEND is not configured'), {
+      code: 'canonical_task_backend_not_configured', status: 503
+    });
+    const bedrockClient = { send: vi.fn() };
+    const canonicalTaskService = {
+      assertAvailable: vi.fn(async () => { throw error; }),
+      createManaCapture: vi.fn()
+    };
+    const sessionGuard = (req, _res, next) => {
+      req.authSource = 'cookie';
+      req.access = { personId: 'sato_keigo' };
+      next();
+    };
+    app = express();
+    app.use(express.json());
+    app.use('/api/brainbase/mana', createManaCaptureRouter({ bedrockClient, canonicalTaskService, sessionGuard }));
+
+    const res = await request(app)
+      .post('/api/brainbase/mana/capture')
+      .send({ capture_id: 'capture-disabled', content: '外部送信しない' });
+
+    expect(res.status).toBe(503);
+    expect(res.body).toMatchObject({ code: 'canonical_task_backend_not_configured' });
+    expect(bedrockClient.send).not.toHaveBeenCalled();
+    expect(canonicalTaskService.createManaCapture).not.toHaveBeenCalled();
+  });
+
   it('GET /captures follows canonical Task cursors before filtering Mana captures', async () => {
     const canonicalTaskService = {
       listTasks: vi.fn()

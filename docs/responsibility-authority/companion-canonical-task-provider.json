@@ -133,7 +133,7 @@
         "runtime_path_evidence",
         "independent_review"
       ],
-      "unknown_policy": "Task本文の永続化正本はbackend選択で一意に定める。移行前およびCANONICAL_TASK_BACKEND未指定時は固定NocoDB Task表を既定正本として維持する。CANONICAL_TASK_BACKEND=postgresを明示した切替後はBrainbase PostgreSQL canonical_tasksだけを正本とし、NocoDBとSlack Canvasは再生成可能な投影として扱う。本StoryはPostgreSQL schema、repository、移行検査までを配備するが、本番applyとbackend切替は別の明示承認まで行わない。全writerはCanonical Task APIを経由し、Graph People ID、single-writer、readiness、冪等性、監査、fail-closedの既存契約を維持する。正本または権威情報が利用不能な場合はlocal ID、空、成功へ変換しない。"
+      "unknown_policy": "Task本文の永続化正本はbackend選択で一意に定める。CANONICAL_TASK_BACKEND未指定時はTask APIだけを503で閉じ、NocoDBを暗黙の正本にしない。CANONICAL_TASK_BACKEND=postgresを明示した切替後はBrainbase PostgreSQL canonical_tasksだけを正本とし、NocoDBとSlack Canvasは再生成可能な投影として扱う。全writerはCanonical Task APIを経由し、Graph People ID、single-writer、readiness、冪等性、監査、fail-closedの既存契約を維持する。正本または権威情報が利用不能な場合はlocal ID、空、成功へ変換しない。"
     }
   ]
 }

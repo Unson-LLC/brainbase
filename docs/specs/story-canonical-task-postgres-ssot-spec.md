@@ -28,7 +28,7 @@ test_files:
 ## Invariants
 
 - 明示的な本番切替後、Task本文の唯一の正本はBrainbase PostgreSQLの`canonical_tasks`である。
-- 切替前はNocoDBを正本として維持し、本PRのmergeだけでauthorityを変更しない。
+- backendは明示選択を必須とし、未指定時はTask APIを503で閉じる。NocoDBは明示した移行・互換経路だけで利用する。
 - Graph SSOTはperson、organization、project、decisionの権威を維持する。
 - NocoDBとSlack Canvasは再生成可能な投影であり、Canvas直接編集を正本へ逆輸入しない。
 - 公開HTTP契約、owner境界、People検証、single-writer、readiness、監査を維持する。
@@ -44,8 +44,8 @@ test_files:
 
 ## Backend Selection
 
-- `CANONICAL_TASK_BACKEND` は `nocodb` または `postgres` だけを受理する。
-- 未指定は既存の`nocodb`を維持し、PRのdeployだけで正本を切り替えない。
+- `CANONICAL_TASK_BACKEND` は `disabled`、`nocodb`、`postgres` だけを受理する。
+- 未指定は`disabled`としてTask APIだけを503で閉じ、正本を暗黙選択しない。
 - 不正値や選択storeの接続失敗で別storeへ暗黙fallbackしない。
 
 ## Migration
