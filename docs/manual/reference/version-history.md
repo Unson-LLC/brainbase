@@ -8,6 +8,13 @@
 - 狭いデスクトップとモバイルで、heroの本文・画像・CTAが重ならない表示へ調整
 - Organization先行案内に、公開OSS版との違い、非公開検証中、未完成の範囲を追加
 
+## 0.6.0
+
+- outcome knowledgeとManaの共通UIをOSS packageへ移し、Organization版が公開subpathから利用できる境界を追加
+- 共通UIのJavaScript、CSS、icon assetsをnpm packageへ同梱
+- OSS、Organization、顧客設定repoのUI所有原則を文書化し、同じUIの二重実装を禁止
+- package consumer contractと共通UIの振る舞いを検証するtestを追加
+
 ## 0.5.0
 
 - Graphの候補発見、関係探索、根拠取得を行うportableな検索と、任意の埋め込み接続を追加

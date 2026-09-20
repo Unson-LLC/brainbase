@@ -54,7 +54,7 @@ function forbiddenMatches(files: string[]): string[] {
 }
 
 describe('MCP-only repository hygiene', () => {
-  it('AP-1 keeps UI and internal runtime surfaces out of the source tree', async () => {
+  it('AP-1 keeps hosted UI shells and internal runtime surfaces out of the source tree', async () => {
     const forbiddenPaths = [
       'public',
       'ui-islands',
@@ -104,6 +104,7 @@ describe('MCP-only repository hygiene', () => {
     expect(packageJson.files).toEqual([
       'dist',
       'contracts',
+      'ui',
       'docs/architecture/judgment-dag-core.md',
       'docs/management/judgment-dag-milestones.md',
       'README.md',
@@ -122,6 +123,7 @@ describe('MCP-only repository hygiene', () => {
       || file === 'package.json'
       || file.startsWith('contracts/')
       || file.startsWith('dist/')
+      || file.startsWith('ui/')
     ))).toBe(true);
   }, 30_000);
 
