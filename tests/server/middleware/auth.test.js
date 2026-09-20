@@ -308,6 +308,33 @@ describe('auth middleware', () => {
         expect(resolveTenantForOrganization).toHaveBeenCalledWith('unson');
     });
 
+    it('Slack外部IDの解決が失敗しても一意な旧組織別名から正規tenantへ解決する', async () => {
+        const app = express();
+        const resolveTenantForAuthenticatedAccess = vi.fn(async () => {
+            throw new Error('temporary identity resolver failure');
+        });
+        const resolveTenantForOrganization = vi.fn(async () => ({
+            organization_id: 'unson', tenant_id: 'ten_unson'
+        }));
+        app.use(requireAuth({
+            verifyToken: () => ({
+                role: 'ceo',
+                sub: 'per_sato',
+                organizationId: 'unson',
+                slackUserId: 'U_CURRENT',
+                slackWorkspaceId: 'T_CURRENT'
+            }),
+            resolveTenantForAuthenticatedAccess,
+            resolveTenantForOrganization
+        }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app).get('/secure').set('Authorization', 'Bearer token').expect(200);
+        expect(res.body.access).toMatchObject({ organizationId: 'unson', tenantId: 'ten_unson' });
+        expect(resolveTenantForAuthenticatedAccess).toHaveBeenCalledOnce();
+        expect(resolveTenantForOrganization).toHaveBeenCalledWith('unson');
+    });
+
     it('旧JWTの非canonical tenant claimを組織別名から正規tenantへ置き換える', async () => {
         const app = express();
         const resolveTenantForOrganization = vi.fn(async (organizationId) => ({
