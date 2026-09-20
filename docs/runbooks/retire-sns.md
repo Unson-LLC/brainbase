@@ -27,7 +27,7 @@ SNS廃止だけを理由に、未適用の共通schemaを飛ばして再起動�
 HTTP読戻しでは`/api/sns-growth`のGET/POSTが410であること、対象SHAとdirty=falseを確認する。
 個人知識と権限のスモークは別途実行し、healthだけを代用しない。
 
-## 今回の運用確認（2026-09-04）
+## 過去の運用確認（2026-09-04）
 
 - Mac: `com.brainbase.sns-scheduled-publisher`を無効化し登録解除した。disabledを読戻し、登録一覧から不在を確認。
 - 同ジョブの設定ファイルと台帳・ログは削除していない。
@@ -38,6 +38,17 @@ HTTP読戻しでは`/api/sns-growth`のGET/POSTが410であること、対象SHA
 - API廃止の本番配備、台帳件数の配備前後比較、T0/A0/P0/G0本番検証は未完了。
 
 無効化の取消しはSNS再開の別判断を要する。コードの巻戻しだけで投稿ジョブを再有効化しない。
+
+## 追加読戻し（2026-09-20）
+
+- 本番公開`/api/version`は`a28392375c09fdd5de2b4e17243888fcd848076c`、`dirty=false`。認証済みGET `/api/sns-growth`と`/api/wiki/pages`は410、`/api/companion/tasks?limit=1`は200。
+- Macの`com.brainbase.sns-scheduled-publisher`はdisabledで登録一覧に存在しない。
+- `com.brainbase.sns-feedback-metrics-poller`は登録一覧に存在しなかったがenabled overrideが残っていたため、専用Labelのみdisableした。両Labelのdisabledを読み戻した。設定ファイル・ログ・台帳は削除していない。
+- 現行サービスが使用するInfo SSOT接続・DBロールでREAD ONLYトランザクションを実行し、`sns_posting_ledger_posts`の可視件数121件を確認した。本文は取得していない。過去記録と件数は一致するが、過去と同一ロール・行集合であることや全テナントの保存を件数だけで保証しない。
+- POST `/api/sns-growth`へ空オブジェクトで確認した結果は403（Forbidden）で、現行認証では退役routerの410を本番POSTで検証できなかった。権限拡大や認証迂回は行わない。routerの全操作410と副作用なしはローカル契約テストで確認した。
+- 配備前後の同一DB・同一ロールでの台帳比較、Personal KG／昇格／権限の全本番スモークは未実施。タスクGET 200をこれらの代わりにしない。
+- 関連ローカル検証は退役API、SNS CLI、SNS移行拒否、Personal KG読取り、昇格権限の5ファイル41テスト成功（Node 22.23.2、対象lockfileの依存関係）。
+- この記録は上記対象ホスト・Labelの確認であり、全ホストや別名ジョブの不在証明ではない。
 
 ## ローカル検証
 
