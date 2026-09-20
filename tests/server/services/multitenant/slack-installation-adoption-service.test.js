@@ -42,7 +42,7 @@ function fixtures(overrides = {}) {
         store: vi.fn(async () => ({
             credential_ref: OPAQUE_REF,
             credential_mode: 'customer_oauth',
-            refresh_revision: 1
+            refresh_revision: 0
         })),
         verify: vi.fn(async () => ({ valid: true })),
         revoke: vi.fn(async () => ({ status: 'revoked' })),
@@ -121,11 +121,32 @@ describe('FixedManaSlackConnectionAdoptionService', () => {
         expect(credentialStore.verify).toHaveBeenCalledWith(expect.objectContaining({ credential_ref: OPAQUE_REF }));
         expect(repository.adoptFixedManaSlackConnection).toHaveBeenCalledWith(expect.objectContaining({
             definition: FIXED_MANA_SLACK_CONNECTION,
-            credential: { credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '1' }
+            credential: { credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '0' }
         }));
         expect(readback).toHaveBeenCalledTimes(1);
         expect(result).toMatchObject({ state: 'adopted', status: 'active' });
         expectNoSecret(result);
+    });
+
+    it.each([
+        ['missing', undefined],
+        ['negative', -1],
+        ['fractional', '1.5'],
+        ['leading zero', '01']
+    ])('rejects a %s credential refresh revision before writing the database', async (_label, refreshRevision) => {
+        const storedCredential = {
+            credential_ref: OPAQUE_REF,
+            credential_mode: 'customer_oauth'
+        };
+        if (refreshRevision !== undefined) storedCredential.refresh_revision = refreshRevision;
+        const { service, repository } = fixtures({ credentialStore: {
+            store: vi.fn(async () => storedCredential)
+        } });
+
+        await expect(service.execute({ mode: 'apply', approved: true })).rejects.toMatchObject({
+            code: 'FIXED_MANA_SLACK_CREDENTIAL_STORE_INVALID', status: 503
+        });
+        expect(repository.adoptFixedManaSlackConnection).not.toHaveBeenCalled();
     });
 
     it('is idempotent only for the exact immutable snapshot and verifies its existing credential without storing a second one', async () => {

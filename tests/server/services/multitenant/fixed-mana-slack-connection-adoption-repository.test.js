@@ -12,7 +12,7 @@ function exactSnapshot() {
         granted_scopes: [...FIXED_MANA_SLACK_CONNECTION.required_scopes],
         credential_ref: OPAQUE_REF,
         credential_mode: 'customer_oauth',
-        refresh_revision: '1',
+        refresh_revision: '0',
         status: 'active'
     };
 }
@@ -62,7 +62,7 @@ function transactionalPool({ failWrite = null, currentRows = [], orphanRows = []
 }
 
 function credential() {
-    return { credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '1' };
+    return { credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '0' };
 }
 
 describe('MultitenantPostgresRepository fixed Mana Slack adoption', () => {
@@ -131,6 +131,31 @@ describe('MultitenantPostgresRepository fixed Mana Slack adoption', () => {
         const inspectionQuery = fixture.calls.find(({ sql }) => sql.includes('SELECT wc.tenant_id, wc.connection_id'))?.sql;
         expect(inspectionQuery).toContain('FOR SHARE OF wc');
         expect(inspectionQuery).not.toContain('FOR SHARE OF wc, revision, cbr');
+    });
+
+    it('recognizes connection revision 2 with credential refresh revision 0 as existing', async () => {
+        const snapshot = exactSnapshot();
+        const fixture = transactionalPool({ currentRows: [{
+            tenant_id: FIXED_MANA_SLACK_CONNECTION.tenant_id,
+            connection_id: FIXED_MANA_SLACK_CONNECTION.connection_id,
+            connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision,
+            status: 'active', provider: 'slack',
+            installation_id: FIXED_MANA_SLACK_CONNECTION.installation_id,
+            workspace_id: FIXED_MANA_SLACK_CONNECTION.workspace_id,
+            app_id: FIXED_MANA_SLACK_CONNECTION.app_id,
+            granted_scopes: [...FIXED_MANA_SLACK_CONNECTION.required_scopes],
+            current_credential_ref: OPAQUE_REF, credential_ref: OPAQUE_REF,
+            credential_mode: 'customer_oauth', refresh_revision: '0',
+            connection_snapshot: snapshot
+        }] });
+        const repository = new MultitenantPostgresRepository({ pool: fixture.pool });
+
+        const inspection = await repository.inspectFixedManaSlackConnection({ definition: FIXED_MANA_SLACK_CONNECTION });
+
+        expect(inspection).toMatchObject({
+            state: 'existing',
+            credential: { credential_mode: 'customer_oauth', refresh_revision: '0' }
+        });
     });
 
     it('recognizes the migration snapshot with the same opaque credential reference as legacy', async () => {

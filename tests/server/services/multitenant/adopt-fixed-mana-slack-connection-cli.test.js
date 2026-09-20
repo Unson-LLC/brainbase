@@ -69,7 +69,7 @@ describe('fixed Mana Slack adoption CLI', () => {
     it('uses a distinct secondary pool for post-commit readback and returns no token or opaque reference', async () => {
         const connects = [];
         const credentialStore = {
-            store: async () => ({ credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '2' }),
+            store: async () => ({ credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '0' }),
             verify: async () => ({ valid: true }),
             revoke: async () => ({ status: 'revoked' })
         };
