@@ -102,6 +102,7 @@ const auth = (call) => call.set('Authorization', 'Bearer test-token');
 
 describe('organization connections API', () => {
     it('uses the tenant resolved by requireAuth without requiring a second Slack identity lookup', async () => {
+        const resolveTenantForAuthenticatedAccess = vi.fn(async () => null);
         const resolveTenantForOrganization = vi.fn(async (organizationId) => ({
             organization_id: organizationId,
             tenant_id: tenantId
@@ -119,6 +120,7 @@ describe('organization connections API', () => {
                     slackUserId: 'U0123456789',
                     slackWorkspaceId: 'T0123456789'
                 }),
+                resolveTenantForAuthenticatedAccess,
                 resolveTenantForOrganization,
                 resolveCanonicalSlackInstallationAccess
             },
@@ -129,12 +131,37 @@ describe('organization connections API', () => {
         expect(response.body).toEqual({
             provider: 'slack', status: 'unknown', connected: null, account: null
         });
+        expect(resolveTenantForAuthenticatedAccess).toHaveBeenCalledOnce();
         expect(resolveTenantForOrganization).toHaveBeenCalledWith('unson');
         expect(resolveCanonicalSlackInstallationAccess).not.toHaveBeenCalled();
         expect(connectionRepository.listOrganizationConnections).toHaveBeenCalledWith({
             tenant_id: tenantId,
             provider: 'slack'
         });
+    });
+
+    it('fails closed when neither Slack identity nor a unique organization alias resolves a tenant', async () => {
+        const connectionRepository = { listOrganizationConnections: vi.fn(async () => []) };
+        const response = await auth(request(app({
+            authService: {
+                pool: {},
+                verifyToken: () => ({
+                    sub: personId,
+                    personId,
+                    organizationId: 'unknown-org',
+                    role: 'ceo',
+                    slackUserId: 'U_LEGACY',
+                    slackWorkspaceId: 'T_LEGACY'
+                }),
+                resolveTenantForAuthenticatedAccess: vi.fn(async () => null),
+                resolveTenantForOrganization: vi.fn(async () => null)
+            },
+            connectionRepository
+        })).get('/api/organization-connections/slack/status'));
+
+        expect(response.status).toBe(403);
+        expect(response.body.code).toBe('ORGANIZATION_ADMIN_REQUIRED');
+        expect(connectionRepository.listOrganizationConnections).not.toHaveBeenCalled();
     });
 
     it('fails closed when canonical tenant and organization claims disagree', async () => {

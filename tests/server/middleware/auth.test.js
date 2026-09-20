@@ -222,6 +222,31 @@ describe('auth middleware', () => {
         expect(resolveTenantForOrganization).not.toHaveBeenCalled();
     });
 
+    it('Slack外部IDが未投影でも一意な旧組織別名から正規tenantへ解決する', async () => {
+        const app = express();
+        const resolveTenantForAuthenticatedAccess = vi.fn(async () => null);
+        const resolveTenantForOrganization = vi.fn(async () => ({
+            organization_id: 'unson', tenant_id: 'ten_unson'
+        }));
+        app.use(requireAuth({
+            verifyToken: () => ({
+                role: 'ceo',
+                sub: 'per_sato',
+                organizationId: 'unson',
+                slackUserId: 'U_LEGACY',
+                slackWorkspaceId: 'T_LEGACY'
+            }),
+            resolveTenantForAuthenticatedAccess,
+            resolveTenantForOrganization
+        }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app).get('/secure').set('Authorization', 'Bearer token').expect(200);
+        expect(res.body.access).toMatchObject({ organizationId: 'unson', tenantId: 'ten_unson' });
+        expect(resolveTenantForAuthenticatedAccess).toHaveBeenCalledOnce();
+        expect(resolveTenantForOrganization).toHaveBeenCalledWith('unson');
+    });
+
     it('tenant-only旧JWTは検証済みtenantを保ったまま組織を補完する', async () => {
         const app = express();
         const authService = {
