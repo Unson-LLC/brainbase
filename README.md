@@ -49,6 +49,14 @@ Brainbaseの価値は、情報を多く保存することではありません�
 
 組織向けのRBAC、承認、監査、マルチユーザー、managed connector、hosted runtimeは、共通の脳モデルを変えずに組織版で追加する領域です。
 
+### UIの所有境界
+
+- 単一利用者でも成立する共通UIは、このOSSリポジトリが所有します。
+- 組織版はOSS UIを依存として組み込み、組織・メンバー・権限・承認・監査・tenant管理だけを追加します。
+- 顧客固有のbranding、feature flag、接続先設定は顧客設定リポジトリが所有し、共通UIを複製しません。
+
+共通UIの最初の公開単位として、知識UIとMana委任UIを `@unson/brainbase-mcp/ui/*` から利用できます。
+
 実装済み・develop・計画中の境界は、[現在の状態](https://brainbase.pages.dev/guide/status)を参照してください。
 
 ## 10分で試す

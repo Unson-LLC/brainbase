@@ -4,7 +4,7 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Released — v0.5.0
+## Released — v0.6.0
 
 npm packageとGitHub Releaseとして公開済みの範囲です。
 
@@ -23,12 +23,14 @@ npm packageとGitHub Releaseとして公開済みの範囲です。
 - 過去runのreplay、outcome attachment、version間evaluationのprimitive
 - 判断が生んだ変化を機械可読に表すvalue-proof contractとrenderer
 - npm consumer smokeと公開契約digest
+- OSSとOrganizationで共用するoutcome knowledge / Mana UIとicon assets
+- Organization版が共通UIを再実装せず、OSS packageから利用するための公開subpath
 
 公開releaseのversion、`gitHead`、integrity、dist-tag、fresh install、GitHub Releaseを照合して公開完了を判断します。
 
 ## Develop — release前
 
-`develop`には存在するが、v0.5.0へは含まれていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
+`develop`には存在するが、v0.6.0へは含まれていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
 

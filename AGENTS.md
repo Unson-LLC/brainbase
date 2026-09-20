@@ -12,7 +12,9 @@ Brainbase's public promise is:
 The product boundary is explicit: 人間は、目的、判断基準、任せてよい範囲を決める。 AIは、それらを参照して探索・反証し、許可された範囲の仕事を進める。
 <!-- brainbase:public-message:end -->
 
-- Keep the repository UI-free. Do not add browser UI, session dashboards, xterm, launchd runtime, workflow mission control, or Unson internal operations.
+- Keep reusable, local-first Brainbase UI in this repository. A UI belongs here when it can run for a single owner without organization, tenant, member, role, approval, audit, or provider-installation concepts.
+- Organization products must consume and extend the OSS UI instead of copying or reimplementing it. Organization-only UI belongs in `brainbase-organization`; customer branding, feature flags, domains, and deployment values belong in customer configuration repositories.
+- Do not add internal session dashboards, xterm, launchd runtime, Unson operations, organization administration, or customer-specific defaults here.
 - The current OSS runtime is local-first and single-owner. Its canonical personal data lives under `~/.brainbase/personal-os/`.
 - Do not require hosted services, Infisical, bb.unson.jp, Lightsail, or Unson internal data for OSS behavior.
 - MCP tools must prefer canonical local SSOT files over raw `sources/` material.
