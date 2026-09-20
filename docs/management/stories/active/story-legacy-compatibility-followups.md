@@ -10,6 +10,7 @@
 - サーバーの非本番`insecure-header`互換とInfo SSOT controller直接fallbackについて、既存テストを正規認証fixtureへ移せるか確認する。本番では当該header認証は無効で、Slackと`bbsvc_`サービス認証は別経路。共有認証を一括削除しない。
 - `vibepro-graph-ssot-check.mjs`、`ontology-release-publish.js`、`generate-memory-preamble.mjs`はBearerを要求する内部クライアント。スクリプト全体ではなく、冗長な`x-brainbase-*`ヘッダーの除去を個別に検証する。
 - CLIの認証保存ではDevice Flowの応答に`expires_at`がなければ30日後を保存する一方、取得済みJWTはより早く失効し得る。期限判定・refresh token保持を別の認証修正として検証する。JWT payloadのデコードは署名検証ではなく、401の正式な原因判定はサーバー側の検証結果と区別する。
+- `docs/guides/member-onboarding.md`と`.claude/skills/add-mcp/SKILL.md`に残る旧NocoDB MCPの手動追加案内を、退役後の契約へ更新する。ユーザー別設定や外部コピーは別途読み取り確認し、共有MCPや保存データを一括削除しない。
 
 ## 受入条件
 
