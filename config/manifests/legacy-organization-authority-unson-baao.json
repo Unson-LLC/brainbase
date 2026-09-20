@@ -1,0 +1,11 @@
+{
+  "version": "legacy-organization-authority-bridge.v1",
+  "tenant_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+  "organization_id": "unson",
+  "tenant_organization_id": "ten_01M0HMA228ES64N4TFX846V8T8",
+  "project_id": "prj_01KGCS8BC76XRHFCHRRQ8G25MY",
+  "project_code": "baao",
+  "person_id": "per_01KGYC7NNS0VXADK7NP48W4VR5",
+  "slack_user_id": "U07LNUP582X",
+  "slack_workspace_id": "T07LL5WV7N1"
+}
