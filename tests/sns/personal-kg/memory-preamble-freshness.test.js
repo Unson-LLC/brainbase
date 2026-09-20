@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { fetchGraphNames, renderPreamble } from '../../../scripts/generate-memory-preamble.mjs';
+import { fetchGraphNames, graphHeaders, renderPreamble } from '../../../scripts/generate-memory-preamble.mjs';
 
 const available = { names: [], status: 'available' };
 function render(kgResult, overrides = {}) {
@@ -43,6 +43,15 @@ describe('memory preamble rendering', () => {
     expect(await fetchGraphNames('person', 'test', async () => ({ ok: true, json: async () => ({ records: [] }) })))
       .toEqual(available);
     expect((await fetchGraphNames('person', 'test', async () => { throw new Error('offline'); })).status).toBe('failed');
+  });
+  it('sends only the verified Bearer credential to Graph SSOT', async () => {
+    expect(graphHeaders('test')).toEqual({ Authorization: 'Bearer test' });
+    let observedHeaders;
+    await fetchGraphNames('person', 'test', async (_url, options) => {
+      observedHeaders = options.headers;
+      return { ok: true, json: async () => ({ records: [] }) };
+    });
+    expect(observedHeaders).toEqual({ Authorization: 'Bearer test' });
   });
 });
 

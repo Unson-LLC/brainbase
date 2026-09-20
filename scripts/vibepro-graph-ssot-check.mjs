@@ -29,9 +29,6 @@ export function buildGraphRequestHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,
     'Content-Type': 'application/json',
-    'x-brainbase-role': process.env.BRAINBASE_ROLE || 'gm',
-    'x-brainbase-projects': process.env.BRAINBASE_PROJECTS || 'brainbase',
-    'x-brainbase-clearance': process.env.BRAINBASE_CLEARANCE || 'internal,restricted,finance,hr,contract',
   };
 }
 

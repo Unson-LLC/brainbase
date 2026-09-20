@@ -30,9 +30,6 @@ import { resolvePersonalKgCliAuthority } from './lib/personal-kg-cli-authority.j
 const { Pool } = pg;
 
 const GRAPH_API = process.env.BRAINBASE_GRAPH_API_URL || 'https://bb.unson.jp';
-const PROJECTS = process.env.BRAINBASE_PROJECTS || 'brainbase,unson,salestailor,techknight,baao,mana,aitle';
-const CLEARANCE = process.env.BRAINBASE_CLEARANCE || 'internal,restricted,finance,hr,contract';
-const ROLE = process.env.BRAINBASE_ROLE || 'gm';
 const CAP_DIR = process.env.CAPABILITY_DIR
   || path.join(process.cwd(), 'docs/brainbase-capabilities/capabilities');
 
@@ -52,9 +49,6 @@ function readToken() {
 function graphHeaders(token) {
   return {
     Authorization: `Bearer ${token}`,
-    'x-brainbase-role': ROLE,
-    'x-brainbase-projects': PROJECTS,
-    'x-brainbase-clearance': CLEARANCE,
   };
 }
 
@@ -274,6 +268,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 
 export {
   fetchGraphNames,
+  graphHeaders,
   renderPreamble,
   fetchPersonalKg,
   personalKgDatabaseConfig,

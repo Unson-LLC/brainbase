@@ -104,10 +104,7 @@ export async function publishOntologyRelease({
             method: 'POST',
             headers: {
                 authorization: `Bearer ${required(env, 'BRAINBASE_GRAPH_API_TOKEN')}`,
-                'content-type': 'application/json',
-                'x-brainbase-role': env.BRAINBASE_ROLE || 'gm',
-                'x-brainbase-projects': env.BRAINBASE_PROJECTS || 'brainbase',
-                'x-brainbase-clearance': env.BRAINBASE_CLEARANCE || 'internal,restricted'
+                'content-type': 'application/json'
             },
             body: JSON.stringify({
                 release_version: version,

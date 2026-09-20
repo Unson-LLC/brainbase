@@ -16,16 +16,19 @@ describe('vibepro-graph-ssot-check', () => {
     ]);
   });
 
-  it('Graph API tokenとbrainbase権限ヘッダーを組み立てる', () => {
-    expect(buildGraphRequestHeaders('token-1')).toMatchObject({
+  it('Graph APIはBearer認証だけを送る', () => {
+    expect(buildGraphRequestHeaders('token-1')).toEqual({
       Authorization: 'Bearer token-1',
-      'x-brainbase-role': 'gm',
-      'x-brainbase-projects': 'brainbase',
+      'Content-Type': 'application/json',
     });
   });
 
   it('VibeProに必要なGraph SSOT entityとphilosophy contextを検証する', async () => {
-    const fetchImpl = vi.fn(async (url) => {
+    const fetchImpl = vi.fn(async (url, options) => {
+      expect(options.headers).toEqual({
+        Authorization: 'Bearer token-1',
+        'Content-Type': 'application/json',
+      });
       const parsedUrl = new URL(url);
       const type = parsedUrl.searchParams.get('type');
 

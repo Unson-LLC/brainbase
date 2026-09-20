@@ -279,7 +279,10 @@ describe('ontology release Git history verification', () => {
             decider_entity_id: 'person:decider',
             applier_entity_id: 'person:applier'
         });
-        expect(observedRequest.options.headers.authorization).toBe('Bearer secret-token');
+        expect(observedRequest.options.headers).toEqual({
+            authorization: 'Bearer secret-token',
+            'content-type': 'application/json'
+        });
         expect(result.generated).toEqual([
             'config/ontology/publications/1.0.0.receipt.json',
             'config/ontology/brainbase-ontology.v1.json',
