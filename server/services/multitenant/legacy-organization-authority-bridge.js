@@ -65,7 +65,13 @@ async function ensureProject(client, manifest, tenant, plan) {
     const existing = await rows(client, 'SELECT project_id, tenant_id, project_code, project_payload FROM tenant_projects WHERE project_id=$1 OR (tenant_id=$2 AND project_code=$3) FOR UPDATE', [manifest.project_id, manifest.tenant_id, manifest.project_code]);
     const desired = { project_id: manifest.project_id, tenant_id: manifest.tenant_id, project_code: manifest.project_code, project_payload: { source: 'canonical_graph_project', project_code: manifest.project_code } };
     if (existing.length) {
-        if (existing.length !== 1 || !same(existing[0], desired)) fail('TENANT_PROJECT_CONFLICT', 'Tenant project projection conflicts with desired state');
+        const current = existing[0];
+        const sameOwnership = existing.length === 1
+            && current.project_id === desired.project_id
+            && current.tenant_id === desired.tenant_id
+            && current.project_code === desired.project_code
+            && current.project_payload?.project_code === desired.project_payload.project_code;
+        if (!sameOwnership) fail('TENANT_PROJECT_CONFLICT', 'Tenant project projection conflicts with desired state');
         plan.push({ operation: 'noop', entity: 'tenant_project', id: manifest.project_id }); return;
     }
     await client.query('INSERT INTO tenant_projects (project_id, tenant_id, tenant_revision_at_write, project_code, project_payload) VALUES ($1,$2,$3,$4,$5::jsonb)', [manifest.project_id, manifest.tenant_id, tenant.tenant_revision, manifest.project_code, JSON.stringify(desired.project_payload)]);

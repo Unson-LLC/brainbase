@@ -11,9 +11,18 @@ const manifest = {
     person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5', slack_user_id: 'U07LNUP582X', slack_workspace_id: 'T07LL5WV7N1'
 };
 
-function client({ grantProjects = ['baao', 'brainbase'] } = {}) {
+function client({ grantProjects = ['baao', 'brainbase'], existingProjectPayload = null } = {}) {
     const inserted = { project: false, organization: false, membership: false };
-    const stored = { project: null, organization: null, membership: null };
+    const stored = {
+        project: existingProjectPayload ? {
+            project_id: manifest.project_id,
+            tenant_id: manifest.tenant_id,
+            project_code: manifest.project_code,
+            project_payload: existingProjectPayload
+        } : null,
+        organization: null,
+        membership: null
+    };
     const query = async (sql, params = []) => {
         const compact = sql.replace(/\s+/gu, ' ').trim();
         if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(compact) || compact.includes('set_config') || compact.includes('pg_advisory_xact_lock')) return { rows: [] };
@@ -64,5 +73,18 @@ describe('legacy organization authority bridge', () => {
             { operation: 'noop', entity: 'tenant_organization', id: manifest.tenant_organization_id },
             expect.objectContaining({ operation: 'noop', entity: 'tenant_membership' })
         ]);
+    });
+
+    it('reuses an existing canonical project projection without rewriting its provenance', async () => {
+        const db = client({ existingProjectPayload: { source: 'approved_meeting_minutes_projection', project_code: 'baao' } });
+        const result = await provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true });
+        expect(result.plan[0]).toEqual({ operation: 'noop', entity: 'tenant_project', id: manifest.project_id });
+        expect(db.inserted.project).toBe(false);
+    });
+
+    it('rejects an existing project projection whose payload points to another project code', async () => {
+        const db = client({ existingProjectPayload: { source: 'approved_meeting_minutes_projection', project_code: 'other' } });
+        await expect(provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true }))
+            .rejects.toMatchObject({ code: 'TENANT_PROJECT_CONFLICT' });
     });
 });
