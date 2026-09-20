@@ -45,7 +45,8 @@ function transactionalPool({ failWrite = null, currentRows = [], orphanRows = []
             if (sql.includes('SELECT wc.tenant_id, wc.connection_id') || sql.includes('SELECT wc.*')) return { rows: currentRows };
             if (sql.includes('SELECT wc.connection_id, wc.status')) return { rows: readRows };
             const write = sql.includes('INSERT INTO workspace_connection_revisions') ? 'revision'
-                : sql.includes('INSERT INTO workspace_connections') ? 'connection'
+                : sql.includes('INSERT INTO workspace_connections')
+                    || sql.includes('UPDATE workspace_connections') ? 'connection'
                     : sql.includes('INSERT INTO credential_broker_refs') ? 'broker'
                         : sql.includes('INSERT INTO fixed_mana_slack_connection_adoption_orphans') ? 'orphan'
                             : null;
@@ -191,20 +192,20 @@ describe('MultitenantPostgresRepository fixed Mana Slack adoption', () => {
     it('reads the post-commit records through the repository without returning credential material', async () => {
         const fixture = transactionalPool({ readRows: [{
             connection_id: FIXED_MANA_SLACK_CONNECTION.connection_id, status: 'active',
-            connection_revision: '1', credential_mode: 'customer_oauth', credential_ref: OPAQUE_REF
+            connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision, credential_mode: 'customer_oauth', credential_ref: OPAQUE_REF
         }] });
         const repository = new MultitenantPostgresRepository({ pool: fixture.pool });
 
         const result = await repository.readFixedManaSlackConnection({ definition: FIXED_MANA_SLACK_CONNECTION });
         expect(result).toEqual({
             connection: { connection_id: FIXED_MANA_SLACK_CONNECTION.connection_id, status: 'active' },
-            revision: { connection_revision: '1' }, credential: { credential_mode: 'customer_oauth' }
+            revision: { connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision }, credential: { credential_mode: 'customer_oauth' }
         });
         expect(JSON.stringify(result)).not.toContain(OPAQUE_REF);
         expect(fixture.calls.find(({ sql }) => sql.includes('SELECT wc.connection_id, wc.status'))?.sql).toContain('FOR SHARE');
     });
 
-    it('upgrades only an exact legacy row and keeps the existing opaque credential reference', async () => {
+    it('upgrades an exact legacy row by appending revision 2 without mutating revision 1', async () => {
         const fixture = transactionalPool({ currentRows: [{
             tenant_id: FIXED_MANA_SLACK_CONNECTION.tenant_id,
             tenant_revision_at_write: '4', connection_id: FIXED_MANA_SLACK_CONNECTION.connection_id,
@@ -229,7 +230,10 @@ describe('MultitenantPostgresRepository fixed Mana Slack adoption', () => {
             status: 'active'
         });
         expect(JSON.stringify(result)).not.toContain(OPAQUE_REF);
-        expect(fixture.calls.filter(({ sql }) => sql.startsWith('UPDATE '))).toHaveLength(2);
+        expect(fixture.committed).toEqual(['revision', 'connection', 'broker']);
+        expect(fixture.calls.some(({ sql }) => sql.includes('UPDATE workspace_connection_revisions'))).toBe(false);
+        expect(fixture.calls.find(({ sql }) => sql.includes('UPDATE workspace_connections'))?.values)
+            .toContain(FIXED_MANA_SLACK_CONNECTION.connection_revision);
         expect(fixture.calls.find(({ sql }) => sql.includes('SELECT wc.*'))?.sql).toContain('FOR UPDATE');
     });
 });

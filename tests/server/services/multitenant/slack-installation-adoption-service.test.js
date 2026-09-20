@@ -54,7 +54,7 @@ function fixtures(overrides = {}) {
         credentialStore,
         botToken: RAW_TOKEN,
         readback: overrides.readback ?? vi.fn(async () => ({
-            connection: { status: 'active' }, revision: { connection_revision: '1' }, credential: { credential_mode: 'customer_oauth' }
+            connection: { status: 'active' }, revision: { connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision }, credential: { credential_mode: 'customer_oauth' }
         }))
     });
     return { service, repository, slack, credentialStore };
@@ -107,7 +107,7 @@ describe('FixedManaSlackConnectionAdoptionService', () => {
 
     it('stores only an opaque reference, commits the fixed three-record adoption, then uses a separate readback client', async () => {
         const readback = vi.fn(async () => ({
-            connection: { status: 'active' }, revision: { connection_revision: '1' }, credential: { credential_mode: 'customer_oauth' }
+            connection: { status: 'active' }, revision: { connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision }, credential: { credential_mode: 'customer_oauth' }
         }));
         const { service, repository, credentialStore } = fixtures({ readback });
 
@@ -153,7 +153,7 @@ describe('FixedManaSlackConnectionAdoptionService', () => {
         expect(conflictStore.store).not.toHaveBeenCalled();
     });
 
-    it('upgrades an exact legacy snapshot only after verifying its existing broker credential', async () => {
+    it('upgrades an exact legacy snapshot by storing and verifying a revision-2 credential', async () => {
         const legacy = {
             state: 'legacy',
             credential: { credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '1' },
@@ -170,7 +170,9 @@ describe('FixedManaSlackConnectionAdoptionService', () => {
 
         await expect(service.execute({ mode: 'apply', approved: true })).resolves.toMatchObject({ state: 'upgraded' });
         expect(credentialStore.verify).toHaveBeenCalledWith(expect.objectContaining({ credential_ref: OPAQUE_REF }));
-        expect(credentialStore.store).not.toHaveBeenCalled();
+        expect(credentialStore.store).toHaveBeenCalledWith(expect.objectContaining({
+            connection_revision: '2', idempotency_key: 'fixed-mana-slack-upgrade-rev2'
+        }));
         expect(repository.upgradeFixedManaSlackConnectionSnapshot).toHaveBeenCalledWith(expect.objectContaining({
             definition: FIXED_MANA_SLACK_CONNECTION,
             credential: expect.objectContaining({ credential_ref: OPAQUE_REF })

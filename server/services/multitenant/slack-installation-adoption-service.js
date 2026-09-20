@@ -12,7 +12,7 @@ export const FIXED_MANA_SLACK_CONNECTION = Object.freeze({
     tenant_id: 'ten_01M0HMA228ES64N4TFX846V8T8',
     tenant_key: 'unson-business',
     connection_id: 'wsc_01M0HRK94FG2Y8DMBFYJHYT14K',
-    connection_revision: '1',
+    connection_revision: '2',
     provider: 'slack',
     workspace_id: 'T0882T8N9UH',
     team_name: '雲孫 事業運営',
@@ -156,8 +156,21 @@ export class FixedManaSlackConnectionAdoptionService {
             return safeResult(inspection.snapshot, 'already_adopted');
         }
         if (inspection?.state === 'legacy') {
-            const credential = opaqueCredential(inspection.credential);
-            await this.verifyCredential(credential);
+            await this.verifyCredential(opaqueCredential(inspection.credential));
+            let credential;
+            try {
+                credential = opaqueCredential(await this.credentialStore.store({
+                    tenant_id: FIXED_MANA_SLACK_CONNECTION.tenant_id,
+                    connection_id: FIXED_MANA_SLACK_CONNECTION.connection_id,
+                    connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision,
+                    provider: FIXED_MANA_SLACK_CONNECTION.provider,
+                    idempotency_key: 'fixed-mana-slack-upgrade-rev2',
+                    credential_material: this.botToken
+                }));
+                await this.verifyCredential(credential);
+            } catch (error) {
+                throw safeOperationalError(error, 'FIXED_MANA_SLACK_CREDENTIAL_STORE_FAILED');
+            }
             let upgraded;
             try {
                 upgraded = await this.repository.upgradeFixedManaSlackConnectionSnapshot({
@@ -165,6 +178,7 @@ export class FixedManaSlackConnectionAdoptionService {
                     credential
                 });
             } catch (error) {
+                await this.compensateCredential(credential);
                 throw safeOperationalError(error, 'FIXED_MANA_SLACK_DB_REGISTRATION_FAILED');
             }
             await this.verifyReadback();
@@ -179,7 +193,7 @@ export class FixedManaSlackConnectionAdoptionService {
                 connection_id: FIXED_MANA_SLACK_CONNECTION.connection_id,
                 connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision,
                 provider: FIXED_MANA_SLACK_CONNECTION.provider,
-                idempotency_key: 'fixed-mana-slack-adoption-rev1',
+                idempotency_key: 'fixed-mana-slack-adoption-rev2',
                 credential_material: this.botToken
             }));
             await this.verifyCredential(credential);
