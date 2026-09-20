@@ -45,6 +45,7 @@ on:
       - 'tests/unit/legacy-cli-auth.test.js'
       - 'tests/unit/project-provisioning-cli.test.js'
       - 'tests/server/routes/brainbase-action-retirement.test.js'
+      - 'tests/server/routes/brainbase-nocodb-aux-retirement.test.js'
       - 'tests/server/routes/nocodb-canonical-task-write-guard.test.js'
       - 'tests/server/scripts/wiki-script-retirement.test.js'
       - 'tests/server/routes/mesh-routes.test.js'
@@ -131,6 +132,7 @@ jobs:
           tests/unit/learning-cli.test.js
           tests/unit/project-provisioning-cli.test.js
           tests/server/routes/brainbase-action-retirement.test.js
+          tests/server/routes/brainbase-nocodb-aux-retirement.test.js
           tests/server/routes/nocodb-canonical-task-write-guard.test.js
           tests/server/routes/project-runtime-catalog.test.js
           tests/server/bootstrap/canonical-task-backend-selection.test.js

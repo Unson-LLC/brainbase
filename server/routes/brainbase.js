@@ -3,7 +3,6 @@ import path from 'path';
 import { GitHubService } from '../services/github-service.js';
 import { SystemService } from '../services/system-service.js';
 import { StorageService } from '../services/storage-service.js';
-import { NocoDBService } from '../services/nocodb-service.js';
 import { ACTION_TYPES, ACTION_STATUS } from '../controllers/brainbase-action-controller.js';
 import { createBrainbaseManaRouter } from './brainbase/mana-routes.js';
 import { createBrainbaseOverviewRouter } from './brainbase/overview-routes.js';
@@ -26,7 +25,6 @@ export function createBrainbaseRouter(options = {}) {
         githubService = new GitHubService(),
         systemService = new SystemService(),
         storageService = new StorageService(),
-        nocodbService = new NocoDBService(),
         configParser,
         projectCatalogParser = configParser,
         projectsRoot,
@@ -60,7 +58,6 @@ export function createBrainbaseRouter(options = {}) {
 
     // ==================== Portal API ====================
     router.use(createBrainbasePortalRouter({
-        nocodbService,
         configParser,
         projectCatalogParser,
         projectCatalogAuthGuard,
