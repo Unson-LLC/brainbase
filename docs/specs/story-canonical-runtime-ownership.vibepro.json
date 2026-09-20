@@ -1,10 +1,12 @@
 {
   "story_id": "story-canonical-runtime-ownership",
-  "outcome": "Canonical Taskの実行主体契約をOSS共通実装として再利用できる",
+  "outcome": "Canonical Taskの実行主体と業務契約をOSS共通実装として再利用できる",
   "acceptance_criteria": [
     "person、service、internalの主体を同じ公開APIで検証できる",
     "未認証主体と制御文字を拒否する",
     "主体型を含む安定した名前空間を生成する",
-    "npmの公開subpathから型と実装を利用できる"
+    "npmの公開subpathから型と実装を利用できる",
+    "状態・優先度・案件コードの正規化と状態遷移を同じ公開契約で判定できる",
+    "既存のCanonical Taskサービスが公開契約を利用しても振る舞いが変わらない"
   ]
 }
