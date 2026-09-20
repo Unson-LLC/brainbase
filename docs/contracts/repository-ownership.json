@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "components": [
+    {
+      "id": "canonical-task-service",
+      "current_repository": "brainbase-unson",
+      "final_repository": "brainbase",
+      "product_scope": "public_brainbase_common",
+      "lifecycle": "migration_pending",
+      "current_paths": ["server/services/companion/canonical-task-service.js"],
+      "migration_condition": "公開Brainbase側にデータ契約、永続化、権限、監査の同等テストを移し、組織版BFFの参照切替と同一task ID readbackを確認してから旧実装を削除する"
+    },
+    {
+      "id": "brainbase-local-mcp-runtime",
+      "current_repository": "brainbase-unson",
+      "final_repository": "brainbase",
+      "product_scope": "public_brainbase_common",
+      "lifecycle": "migration_pending",
+      "current_paths": ["mcp/brainbase/package.json"],
+      "migration_condition": "公開packageで必要なtoolsとHTTP/stdio契約を提供し、このrepoの運用overlayが公開packageを参照して同じ契約テストを通してから重複実装を削除する"
+    },
+    {
+      "id": "organization-connection-api",
+      "current_repository": "brainbase-unson",
+      "final_repository": "brainbase-organization",
+      "product_scope": "organization_product",
+      "lifecycle": "migration_pending",
+      "current_paths": ["server/routes/organization-connections.js"],
+      "migration_condition": "会社固有の資格情報注入と配備portを分離し、tenant境界、OAuth state、接続readbackの契約テストとBFF参照をbrainbase-organizationへ移してから旧routeを削除する"
+    },
+    {
+      "id": "unson-provider-operations",
+      "current_repository": "brainbase-unson",
+      "final_repository": "brainbase-unson",
+      "product_scope": "provider_operations",
+      "lifecycle": "canonical",
+      "current_paths": ["scripts/check-repository-classification.mjs"]
+    }
+  ]
+}

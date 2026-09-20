@@ -599,8 +599,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-repository-ownership-contract",
+        "title": "リポジトリ所有境界を正本化する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-remove-unused-mcp-sources"
+    "current_story_id": "story-repository-ownership-contract"
   }
 }
