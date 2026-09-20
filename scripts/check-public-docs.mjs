@@ -76,6 +76,7 @@ const architecture = await read('docs/manual/guide/architecture.md');
 const ontology = await read('docs/manual/guide/ontology.md');
 const judgmentSystem = await read('docs/manual/guide/judgment-system.md');
 const status = await read('docs/manual/guide/status.md');
+const organizationPage = await read('docs/manual/organization.md');
 const mcpTools = await read('docs/manual/reference/mcp-tools.md');
 const versionHistory = await read('docs/manual/reference/version-history.md');
 const cloudflare = await read('docs/manual/reference/cloudflare-pages.md');
@@ -109,7 +110,8 @@ for (const [path, text] of [['AGENTS.md', agents], ['CLAUDE.md', claude]]) {
 }
 
 requireText(home, '判断の理由が残る', 'docs/manual/index.md');
-requireText(home, '現在の実装を見る', 'docs/manual/index.md');
+requireText(home, '全体像を見る', 'docs/manual/index.md');
+forbidText(home, '現在の実装を見る', 'docs/manual/index.md');
 requireText(grandDesign, 'Brainbaseがない場合', 'docs/manual/guide/grand-design.md');
 requireText(grandDesign, 'Brainbaseがある場合', 'docs/manual/guide/grand-design.md');
 requireText(grandDesign, 'Personal Judgment', 'docs/manual/guide/grand-design.md');
@@ -120,14 +122,18 @@ requireText(ontology, 'オントロジー、Graph、Judgment DAGの違い', 'doc
 requireText(judgmentSystem, 'オントロジーとGraphとの関係', 'docs/manual/guide/judgment-system.md');
 requireText(judgmentSystem, 'Context / Observation', 'docs/manual/guide/judgment-system.md');
 requireText(judgmentSystem, '重要なのは反証できること', 'docs/manual/guide/judgment-system.md');
-requireText(status, 'Released — v0.4.0', 'docs/manual/guide/status.md');
+requireText(status, `Released — v${packageJson.version}`, 'docs/manual/guide/status.md');
 requireText(status, 'Develop — release前', 'docs/manual/guide/status.md');
 requireText(status, 'Planned — 未実装または未完成', 'docs/manual/guide/status.md');
 requireText(status, 'Graphを直接Webへ表示しません', 'docs/manual/guide/status.md');
+requireText(organizationPage, '公開OSS版との違い', 'docs/manual/organization.md');
+requireText(organizationPage, '非公開環境で検証中', 'docs/manual/organization.md');
+requireText(organizationPage, '未完成の範囲', 'docs/manual/organization.md');
 requireText(mcpTools, 'Ontology 2.0.0', 'docs/manual/reference/mcp-tools.md');
 requireText(mcpTools, 'Graph v2', 'docs/manual/reference/mcp-tools.md');
 requireText(mcpTools, 'resolve_entity', 'docs/manual/reference/mcp-tools.md');
-requireText(versionHistory, '## 0.4.0', 'docs/manual/reference/version-history.md');
+requireText(versionHistory, `## ${packageJson.version}`, 'docs/manual/reference/version-history.md');
+requireText(versionHistory, 'content-addressedなJudgment DAG run artifact', 'docs/manual/reference/version-history.md');
 requireText(versionHistory, '## Unreleased — develop', 'docs/manual/reference/version-history.md');
 requireText(cloudflare, 'CLOUDFLARE_ACCOUNT_ID', 'docs/manual/reference/cloudflare-pages.md');
 requireText(cloudflare, 'Brainbase Graphから公開説明を昇格する', 'docs/manual/reference/cloudflare-pages.md');

@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 
 const root = resolve(process.cwd());
 const dist = join(root, 'docs/.vitepress/dist');
+const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 
 async function read(relativePath) {
   return readFile(join(dist, relativePath), 'utf8');
@@ -25,6 +26,7 @@ const mcpTools = await read('reference/mcp-tools.html');
 
 requireText(index, '自分の判断力を、ひとり分で終わらせない。', 'index.html');
 requireText(index, '自分の判断を1つ、AIへ渡してみる', 'index.html');
+requireText(index, '全体像を見る', 'index.html');
 requireText(index, '判断は、あなたのまま。思考と実行は、並列に。', 'index.html');
 requireText(index, '同じ資料を読ませても、同じ判断にはならない', 'index.html');
 requireText(grandDesign, 'Brainbaseがある場合', 'guide/grand-design.html');
@@ -36,7 +38,7 @@ requireText(ontology, 'オントロジー、Graph、Judgment DAGの違い', 'gui
 requireText(ontology, '/assets/brainbase-ontology.svg', 'guide/ontology.html');
 requireText(judgmentSystem, 'オントロジーとGraphとの関係', 'guide/judgment-system.html');
 requireText(judgmentSystem, '重要なのは反証できること', 'guide/judgment-system.html');
-requireText(status, 'Released — v0.4.0', 'guide/status.html');
+requireText(status, `Released — v${packageJson.version}`, 'guide/status.html');
 requireText(status, 'Planned — 未実装または未完成', 'guide/status.html');
 requireText(mcpTools, 'Ontology 2.0.0', 'reference/mcp-tools.html');
 requireText(mcpTools, 'resolve_entity', 'reference/mcp-tools.html');

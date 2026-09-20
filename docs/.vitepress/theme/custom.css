@@ -177,6 +177,71 @@
   overflow: hidden;
 }
 
+/* Keep the public hero readable at the narrow desktop widths used for review. */
+.VPHero.has-image .text {
+  max-width: 100%;
+  line-break: strict;
+  text-wrap: pretty;
+}
+
+@media (min-width: 960px) {
+  .VPHero.has-image .container {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 36%);
+    align-items: center;
+    gap: clamp(24px, 4vw, 48px);
+  }
+
+  .VPHero.has-image .container > .main {
+    width: auto;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .VPHero.has-image .image {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .VPHero.has-image .image-container {
+    width: 100%;
+    max-width: 400px;
+    height: auto;
+    aspect-ratio: 1;
+    transform: none;
+  }
+
+  .VPHero.has-image .image-src {
+    max-width: 100%;
+    max-height: 100%;
+  }
+}
+
+@media (max-width: 959px) {
+  .VPHero.has-image .container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .VPHero.has-image .main {
+    order: 1;
+    min-width: 0;
+  }
+
+  .VPHero.has-image .image {
+    order: 2;
+    width: min(100%, 392px);
+    margin: 8px auto 0;
+  }
+
+  .VPHero.has-image .image-container {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+}
+
 @media (max-width: 700px) {
   .organization-waitlist-home {
     margin-top: 32px;
