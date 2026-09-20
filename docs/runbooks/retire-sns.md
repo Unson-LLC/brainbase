@@ -47,6 +47,7 @@ HTTP読戻しでは`/api/sns-growth`のGET/POSTが410であること、対象SHA
 - 現行サービスが使用するInfo SSOT接続・DBロールでREAD ONLYトランザクションを実行し、`sns_posting_ledger_posts`の可視件数121件を確認した。本文は取得していない。過去記録と件数は一致するが、過去と同一ロール・行集合であることや全テナントの保存を件数だけで保証しない。
 - POST `/api/sns-growth`へ空オブジェクトで確認した結果は403（Forbidden）で、現行認証では退役routerの410を本番POSTで検証できなかった。権限拡大や認証迂回は行わない。routerの全操作410と副作用なしはローカル契約テストで確認した。
 - 配備前後の同一DB・同一ロールでの台帳比較、Personal KG／昇格／権限の全本番スモークは未実施。タスクGET 200をこれらの代わりにしない。
+- 追加の読み取り確認では、既存CLI bearerによるGET `/api/learning/health`とGET `/api/personal-knowledge/search`が401だった。共通機能の健康性は未確認であり、認証失敗を機能不在や退役成功として扱わない。
 - 関連ローカル検証は退役API、SNS CLI、SNS移行拒否、Personal KG読取り、昇格権限の5ファイル41テスト成功（Node 22.23.2、対象lockfileの依存関係）。
 - この記録は上記対象ホスト・Labelの確認であり、全ホストや別名ジョブの不在証明ではない。
 
