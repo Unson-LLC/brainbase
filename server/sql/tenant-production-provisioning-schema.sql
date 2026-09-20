@@ -422,7 +422,8 @@ RETURNS TABLE (tenant_id TEXT, organization_id TEXT)
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = ''
+SET search_path = pg_catalog
+SET row_security = off
 AS $$
     WITH candidates AS (
         SELECT organization.tenant_id
@@ -439,6 +440,24 @@ AS $$
       FROM candidates AS candidate
      WHERE (SELECT count(*) FROM candidates) = 1
 $$;
+
+DO $brainbase_organization_tenant_resolver_role$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'brainbase_organization_tenant_resolver') THEN
+        CREATE ROLE brainbase_organization_tenant_resolver NOLOGIN NOSUPERUSER BYPASSRLS;
+    END IF;
+END
+$brainbase_organization_tenant_resolver_role$;
+
+ALTER ROLE brainbase_organization_tenant_resolver NOLOGIN NOSUPERUSER BYPASSRLS;
+GRANT USAGE ON SCHEMA public TO brainbase_organization_tenant_resolver;
+GRANT SELECT ON TABLE
+    public.brainbase_tenants,
+    public.tenant_organizations
+TO brainbase_organization_tenant_resolver;
+
+ALTER FUNCTION public.resolve_active_tenant_for_organization(TEXT)
+    OWNER TO brainbase_organization_tenant_resolver;
 
 REVOKE ALL ON FUNCTION public.resolve_active_tenant_for_organization(TEXT) FROM PUBLIC;
 DO $brainbase_outcome_tenant_resolver_grant$

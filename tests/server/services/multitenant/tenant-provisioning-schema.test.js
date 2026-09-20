@@ -62,6 +62,9 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('WHERE (SELECT count(*) FROM candidates) = 1');
         expect(sql).toContain('requested_organization_id AS organization_id');
         expect(sql).toContain('SECURITY DEFINER');
+        expect(sql).toContain('CREATE ROLE brainbase_organization_tenant_resolver NOLOGIN NOSUPERUSER BYPASSRLS');
+        expect(sql).toContain('SET row_security = off');
+        expect(sql).toContain('OWNER TO brainbase_organization_tenant_resolver');
         expect(sql).toContain('REVOKE ALL ON FUNCTION public.resolve_active_tenant_for_organization(TEXT) FROM PUBLIC');
         expect(sql).toContain('ALTER TABLE credential_broker_refs');
         expect(sql).toContain('slack_installation_intents_tenant_idx');
