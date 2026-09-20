@@ -7,6 +7,7 @@
 ## 受け入れ条件
 
 - 組織管理者だけが `Slack` と `GitHub` の接続開始 API を利用できる。
+- 接続管理APIが認可を拒否した場合は、tokenやcredentialを残さず、拒否した条件だけを構造化ログで確認できる。
 - 認証ミドルウェアが組織IDから解決したcanonical tenant権限を接続管理APIで利用し、未登録のSlack外部IDを二重に要求しない。
 - Slack installation control plane自体は、従来どおり信頼済みAppに紐づくSlack外部IDからcanonical権限を解決する。
 - Slack は既存の installation control plane と OAuth flow を再利用する。

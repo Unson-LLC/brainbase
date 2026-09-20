@@ -5,11 +5,28 @@ import { ContractError } from '../services/multitenant/errors.js';
 import { generateCanonicalId, isCanonicalId } from '../services/multitenant/ids.js';
 import { createSlackInstallationAccessResolver } from '../services/multitenant/slack-installation-access.js';
 import { validateSlackInstallationBinding } from '../services/multitenant/slack-installation-control-plane.js';
+import { logger } from '../utils/logger.js';
 
 const ADMIN_ROLES = new Set(['admin', 'owner', 'tenant_admin', 'ceo', 'gm']);
 const PROVIDERS = new Set(['slack', 'github']);
 const GITHUB_STATE_TTL_MS = 10 * 60 * 1000;
 const CREDENTIAL_MODES = new Set(['cloud_standard', 'customer_oauth', 'customer_api']);
+
+export function organizationConnectionAccessDecision({ authSource, access } = {}) {
+    if (authSource === 'service-token' || authSource === 'internal' || authSource === 'insecure-header') {
+        return { allowed: false, reason: 'interactive_session_required' };
+    }
+    if (!access) return { allowed: false, reason: 'access_unresolved' };
+    if (!isCanonicalId(access.tenantId, 'ten')) return { allowed: false, reason: 'canonical_tenant_required' };
+    if (!isCanonicalId(access.personId, 'per')) return { allowed: false, reason: 'canonical_person_required' };
+    if (isCanonicalId(access.organizationId, 'ten') && access.organizationId !== access.tenantId) {
+        return { allowed: false, reason: 'organization_tenant_mismatch' };
+    }
+    if (!ADMIN_ROLES.has(String(access.role ?? '').toLowerCase())) {
+        return { allowed: false, reason: 'organization_admin_role_required' };
+    }
+    return { allowed: true, reason: 'allowed' };
+}
 
 function problem(res, status, code) {
     return res.status(status).type('application/problem+json').json({
@@ -452,12 +469,27 @@ export function createOrganizationConnectionsRouter({
     const accessResolver = resolveAccess ?? createSlackInstallationAccessResolver({ authService, trustedAppId: appId });
 
     async function authorized(req) {
-        if (req.authSource === 'service-token' || req.authSource === 'internal'
-            || req.authSource === 'insecure-header') return null;
+        const sourceDecision = organizationConnectionAccessDecision({ authSource: req.authSource, access: null });
+        if (sourceDecision.reason === 'interactive_session_required') {
+            logger.warn('organization connection access denied', {
+                reason: sourceDecision.reason,
+                auth_source: req.authSource ?? null
+            });
+            return null;
+        }
         const access = await accessResolver({ req, auth: req.auth, access: req.access });
-        if (!access || !isCanonicalId(access.tenantId, 'ten') || !isCanonicalId(access.personId, 'per')
-            || (isCanonicalId(access.organizationId, 'ten') && access.organizationId !== access.tenantId)
-            || !ADMIN_ROLES.has(String(access.role ?? '').toLowerCase())) return null;
+        const decision = organizationConnectionAccessDecision({ authSource: req.authSource, access });
+        if (!decision.allowed) {
+            logger.warn('organization connection access denied', {
+                reason: decision.reason,
+                auth_source: req.authSource ?? null,
+                has_canonical_tenant: isCanonicalId(access?.tenantId, 'ten'),
+                has_canonical_person: isCanonicalId(access?.personId, 'per'),
+                organization_claim_kind: isCanonicalId(access?.organizationId, 'ten') ? 'tenant' : 'alias',
+                role: typeof access?.role === 'string' ? access.role.toLowerCase() : null
+            });
+            return null;
+        }
         return access;
     }
 
