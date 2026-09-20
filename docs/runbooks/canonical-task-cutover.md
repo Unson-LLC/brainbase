@@ -106,7 +106,7 @@ readiness rowは`source_head`を固定するため、enable後にデプロイで
 次の固定allowlistを`required_evidence_ids`として共有する。artifactのID集合はこの集合と完全一致しなければならず、
 未知ID、重複ID、欠落ID、`pass != true`、file hash欠落のいずれかがあればbefore-enableを失敗させる。
 
-allowlistと生成元の唯一の正本は`config/canonical-task-evidence-registry.json`である。71件の各entryは
+allowlistと生成元の唯一の正本は`config/canonical-task-evidence-registry.json`である。65件の各entryは
 `producer_command`、`owner_path`、`test_command`、`artifact_path`、`artifact_schema`、
 `pre_fix_assertion`を必須とする。証拠は登録済み`producer_command`で
 `scripts/collect-canonical-task-evidence.js`を起動して生成し、collectorは現在HEAD、registry hash、
@@ -180,9 +180,8 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - manifest path/canonical SHA-256、schema version、writer token owner/process identity
 - Task固有authのbearer/internal/service許可とcookie-only/insecure-header拒否
 - approval inbox、両human-step resolve route、非`task_store`承認回帰
-- legacy routeのread/非正本write/正本guard、旧UIのwaiting/urgent/unknown投影
+- legacy routeのread/非正本write/正本guard
 - Manaのsession/CSRF/person principal/read/retry/no-fallback
-- browserのCanonical list/create/update/transition/deleteとcookie-only無効化
 - MCPの正本record/metadata mutation guard、正本read、非正本mutation互換
 - deleteのprepared停止回復、actor type/ID/区切り文字namespace分離
 - 5本の運用scriptに直接writerがない静的検査
@@ -190,6 +189,6 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - 実Postgresでの同一operation key並行実行結果（caller 2、run 1、completed、cleanup completed）
 - Mac consumer固定wire fixtureと実route schema結果
 
-preflight artifactは上記71件の安定したevidence ID、pass状態、file hash、producer command hash、
+preflight artifactは上記65件の安定したevidence ID、pass状態、file hash、producer command hash、
 owner path/hash、raw artifact path/schema、registry hashをすべて持ち、current HEADと一致しなければならない。
 いずれかが欠落・失敗・staleの場合、明示enableはatomicに失敗し、mutation readinessは成立しない。
