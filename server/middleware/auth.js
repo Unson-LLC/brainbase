@@ -4,7 +4,7 @@ import { getAuthTokensFromRequest, getHeader } from '../lib/auth-cookies.js';
 /** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
 /** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
 /** @typedef {(error?: unknown) => unknown} NextLike */
-/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown>, resolveOrganizationIdForAccess?: (access: Record<string, unknown>) => Promise<string|null>, resolveTenantForOrganization?: (organizationId: string) => Promise<{tenant_id?: string, organization_id?: string}|null>, resolveTenantForAuthenticatedAccess?: (access: Record<string, unknown>) => Promise<{tenant_id?: string, organization_id?: string}|null> }} AuthServiceLike */
+/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown>, resolvePersonIdForAuthenticatedAccess?: (access: Record<string, unknown>) => Promise<string|null>, resolveOrganizationIdForAccess?: (access: Record<string, unknown>) => Promise<string|null>, resolveTenantForOrganization?: (organizationId: string) => Promise<{tenant_id?: string, organization_id?: string}|null>, resolveTenantForAuthenticatedAccess?: (access: Record<string, unknown>) => Promise<{tenant_id?: string, organization_id?: string}|null> }} AuthServiceLike */
 
 /**
  * @param {RequestLike} req
@@ -133,6 +133,20 @@ export function requireAuth(authService, options = {}) {
         }
 
         const access = result.access || null;
+        if (access
+            && (!access.personId || !String(access.personId).startsWith('per_'))
+            && authService.resolvePersonIdForAuthenticatedAccess) {
+            try {
+                const personId = await authService.resolvePersonIdForAuthenticatedAccess(access);
+                if (personId) {
+                    access.personId = personId;
+                }
+            } catch {
+                // Keep the verified claim visible to generic routes. Consumers that
+                // require a canonical person ID fail closed on the unresolved value.
+            }
+        }
+
         if (access && !access.organizationId && authService.resolveOrganizationIdForAccess) {
             try {
                 const organizationId = await authService.resolveOrganizationIdForAccess(access);
