@@ -1,4 +1,7 @@
-# Runbook: Verify The 31013 Source
+# Runbook: Verify The Local API 31013 Source
+
+This verifies the local API, not Mac Companion. The legacy launchd label is an
+installation identifier; see [the runtime boundary](local-api-and-companion-boundary.md).
 
 Use this before saying a fix is live on Brainbase port `31013`.
 
@@ -61,7 +64,7 @@ all agree. Do not classify a runtime from its path name or the API's
 ## Failure Signals
 
 - `dirty: true` means local files differ from the checked commit.
-- UI and updater select different runtime roots, or the API `cwd` differs from the resolved root.
+- Local API and updater select different runtime roots, or the API `cwd` differs from the resolved root.
 - the resolved root is not a Git linked worktree owned by the source repository.
 - `sha` is older than the merged PR.
-- the MCP reconciliation receipt SHA differs from the UI SHA.
+- the MCP reconciliation receipt SHA differs from the local API SHA.

@@ -37,7 +37,7 @@ PR #1703で共有middlewareの非本番header互換を退役した。2026-09-20�
 
 下流の旧header許可分岐と`allowInsecureHeaders`引数は追加整理した。認証・Wiki対象9ファイル104件（Wiki11件を含む）、追加呼出し側8ファイル90件、型チェックが通過した。常時exclude対象の`project-provisioning-full-flow.test.js`は未実行である。統合・配備・稼働readbackはソースの検証と区別する。
 
-引き続き未完了なのは、未指定backendの全環境移行、追加整理の統合・配備、外部設定の退役と稼働readbackである。
+追加整理はPR #1704で統合済み（merge SHA `59e2b9bbb67478fadb4f1a4bfd5204801dd040ce`）。「統合未完了」という旧記載は取り消す。配備・外部設定のreadbackは、対象環境と確認時のSHAを伴う証拠で個別に扱う。未指定backendの全環境移行を、この統合だけで完了とはしない。
 
 Macの限定監査では、停止済み`com.brainbase.mcp-nocodb`のplistをLaunchAgents外へ退避し、UI plistの`ALLOW_INSECURE_SSOT_HEADERS`を削除して構文検証した。古い作業checkoutの`.mcp.json`からもNocoDB entryだけを除去し、他の設定が不変であることを確認した。MCP plistの`BRAINBASE_WIKI_API_URL`はGraph URLと同値だったため除去した。各設定は事前に復元用コピーを保持し、稼働プロセスへの再読込は別確認とする。保存データ・利用履歴・他タスクの変更は削除していない。トンネル側の`BRAINBASE_WIKI_API_URL`は異なる接続先であり、learning APIにも利用されるため、名前だけで未使用とは扱わず維持した。
 
@@ -46,6 +46,12 @@ Macの限定監査では、停止済み`com.brainbase.mcp-nocodb`のplistをLaun
 Info SSOTの既存エラー文`Slack OAuth token required`は、認証方式に依存しない`Authenticated access context required`へ変更し、401分類をテストした。認証判定自体は変更していない。
 
 ## 未確認
+
+### ローカルAPIとCompanionの整理
+
+旧ブラウザUIとMac Companion、31013のローカルAPIを区別する。現行の扱いと確認方法は[境界の運用手順](../../../brainbase-capabilities/runbooks/local-api-and-companion-boundary.md)を参照する。静的な`31013`参照や`com.brainbase.ui`という識別子は、廃止済みUIの利用証拠ではない。
+
+2026-09-20のCompanion設定readbackでは、Keychainの正規保存先が`https://bb.unson.jp/api`だった。同じ保存済み認証でのCanonical Task GETは401だったため、接続先の確認と認証成功を区別する。認証失敗の根因やデータ不在は確定していない。別クライアントの認証を自動で上書きしない。
 
 外部コピー、別mount、全ホストの利用状況は未確認。静的参照があることだけを実利用の証拠とせず、参照が見つからないことだけを全範囲の不在証明としない。
 

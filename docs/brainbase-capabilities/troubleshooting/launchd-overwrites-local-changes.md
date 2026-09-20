@@ -2,21 +2,16 @@
 
 ## Symptom
 
-A fix works locally, but after restarting Brainbase on port `31013`, the files under `server/` or `public/` revert and the API/UI still behaves like old develop.
+A fix works locally, but after restarting the Brainbase local API on port `31013`, the runtime files revert and the API still behaves like old develop.
 
 ## Cause
 
-`/Users/ksato/.local/brainbase/launchd-start.sh` syncs selected paths from `origin/develop` before launching the canonical service.
-
-Synced paths include:
-
-- `server/`
-- `scripts/`
-- `public/`
-- `start.js`
-- `.mcp.json`
-- `package.json`
-- `package-lock.json`
+`/Users/ksato/.local/brainbase/launchd-start.sh` aligns the disposable managed
+runtime worktree with its resolved target commit before launching the canonical
+local API. This is not a selected-path copy into the developer checkout.
+Do not edit the managed runtime directly or reproduce its reset procedure in a
+developer checkout. The old `com.brainbase.ui` label does not mean the retired
+browser UI is active; see [the runtime boundary](../runbooks/local-api-and-companion-boundary.md).
 
 ## Fix
 

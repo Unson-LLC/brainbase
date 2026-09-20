@@ -56,6 +56,8 @@ on:
       - 'mcp/nocodb/**'
       - '.mcp.json'
       - 'scripts/run-nocodb-mcp.sh'
+      - 'scripts/lib/canonical-task-api-client.js'
+      - 'tests/server/scripts/canonical-task-api-client.test.js'
       - 'server/services/companion/canonical-task-*.js'
       - 'tests/unit/legacy-cli-auth.test.js'
       - 'tests/unit/cli-config-auth.test.js'
@@ -176,6 +178,7 @@ jobs:
           tests/server/services/canonical-task-postgres-repository.test.js
           tests/server/services/canonical-task-nocodb-repository.test.js
           tests/server/scripts/preflight-canonical-task-cutover.test.js
+          tests/server/scripts/canonical-task-api-client.test.js
           tests/unit/vibepro-graph-ssot-check.test.js
           tests/server/scripts/ontology-release-verify.test.js
           tests/sns/personal-kg/memory-preamble-freshness.test.js
