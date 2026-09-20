@@ -59,6 +59,7 @@ describe('Distribution Model contract', () => {
         const claude = read('CLAUDE.md');
         expect(read('AGENTS.md')).toBe(claude);
         expect(claude).toContain('## 0.5. Distribution Model');
+        expect(claude).toContain('docs/policies/repository-classification.md');
         expect(claude).toContain('Wiki、`shared/`、`_codex/`、submodule共有は復活させない');
     });
 });
