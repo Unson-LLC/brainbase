@@ -47,14 +47,12 @@ export function createBrainbaseRouter(options = {}) {
         githubService,
         systemService,
         storageService,
-        nocodbService,
         configParser,
         projectCatalogParser,
         projectCatalogAuthGuard
     }));
 
     router.use(createBrainbaseTrendsRouter({
-        nocodbService,
         configParser,
         projectCatalogParser,
         projectCatalogAuthGuard

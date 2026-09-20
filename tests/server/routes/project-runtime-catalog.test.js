@@ -81,7 +81,7 @@ describe('runtime project catalog routes', () => {
         expect(catalog.runForOrganization).toHaveBeenCalledWith('org-growin', expect.any(Function));
     });
 
-    it('trends heatmapはlegacy configだけのprojectを除外しGraph catalogだけを集計する', async () => {
+    it('trends heatmapはGraph catalogにアクセスせず退役を明示する', async () => {
         const catalog = runtimeCatalog();
         catalog.getProjects.mockResolvedValue({
             source: { status: 'loaded', mode: 'graph_ssot_registry_scoped' },
@@ -105,13 +105,17 @@ describe('runtime project catalog routes', () => {
 
         const response = await request(app).get('/api/brainbase/trends/heatmap');
 
-        expect(response.status).toBe(200);
-        expect(response.body.heatmap.map((project) => project.project_id)).toEqual(['registry-only']);
-        expect(nocodbService.getTrends).toHaveBeenCalledWith('registry-base', 56);
+        expect(response.status).toBe(410);
+        expect(response.body).toMatchObject({
+            error: 'capability_retired',
+            capability: 'brainbase.nocodb-auxiliary'
+        });
+        expect(nocodbService.getTrends).not.toHaveBeenCalled();
         expect(legacyParser.getAll).not.toHaveBeenCalled();
+        expect(catalog.getProjects).not.toHaveBeenCalled();
     });
 
-    it('技術設定の補完が取得不能なら空のheatmapを成功扱いしない', async () => {
+    it('技術設定の状態に関係なくtrends heatmapの退役を明示する', async () => {
         const catalog = runtimeCatalog();
         catalog.getProjects.mockResolvedValue({
             source: {
@@ -131,12 +135,16 @@ describe('runtime project catalog routes', () => {
 
         const response = await request(app).get('/api/brainbase/trends/heatmap');
 
-        expect(response.status).toBe(503);
-        expect(response.body.source.enrichment_status).toBe('unavailable');
+        expect(response.status).toBe(410);
+        expect(response.body).toMatchObject({
+            error: 'capability_retired',
+            capability: 'brainbase.nocodb-auxiliary'
+        });
         expect(nocodbService.getTrends).not.toHaveBeenCalled();
+        expect(catalog.getProjects).not.toHaveBeenCalled();
     });
 
-    it('trends単体取得はGraph catalogにあるNocoDB投影だけを許可する', async () => {
+    it('trends単体取得はproject_idに関係なく退役を明示する', async () => {
         const catalog = runtimeCatalog();
         catalog.getProjects.mockResolvedValue({
             source: { status: 'loaded', mode: 'graph_ssot_registry_scoped' },
@@ -152,9 +160,15 @@ describe('runtime project catalog routes', () => {
         const denied = await request(app).get('/api/brainbase/trends?project_id=legacy-base');
         const allowed = await request(app).get('/api/brainbase/trends?project_id=registry-base');
 
-        expect(denied.status).toBe(404);
-        expect(allowed.status).toBe(200);
-        expect(nocodbService.getTrends).toHaveBeenCalledTimes(1);
+        expect(denied.status).toBe(410);
+        expect(allowed.status).toBe(410);
+        expect(denied.body).toMatchObject({
+            error: 'capability_retired',
+            capability: 'brainbase.nocodb-auxiliary'
+        });
+        expect(allowed.body).toEqual(denied.body);
+        expect(nocodbService.getTrends).not.toHaveBeenCalled();
+        expect(catalog.getProjects).not.toHaveBeenCalled();
     });
 
     it('portal membersもGraph catalogのproject grantを通す', async () => {
@@ -171,7 +185,7 @@ describe('runtime project catalog routes', () => {
         expect(denied.status).toBe(404);
     });
 
-    it('critical alertsはlegacy configではなくGraph catalogのNocoDB投影だけを使う', async () => {
+    it('critical alertsはGraph catalogへフォールバックせず退役を明示する', async () => {
         const catalog = runtimeCatalog();
         catalog.getProjects.mockResolvedValue({
             source: { status: 'loaded', mode: 'graph_ssot_registry_scoped' },
@@ -193,14 +207,17 @@ describe('runtime project catalog routes', () => {
 
         const response = await request(app).get('/api/brainbase/critical-alerts');
 
-        expect(response.status).toBe(200);
-        expect(nocodbService.getCriticalAlerts).toHaveBeenCalledWith([
-            { id: 'registry-only', project_id: 'registry-base' }
-        ]);
+        expect(response.status).toBe(410);
+        expect(response.body).toMatchObject({
+            error: 'capability_retired',
+            capability: 'brainbase.nocodb-auxiliary'
+        });
+        expect(nocodbService.getCriticalAlerts).not.toHaveBeenCalled();
         expect(legacyParser.getAll).not.toHaveBeenCalled();
+        expect(catalog.getProjects).not.toHaveBeenCalled();
     });
 
-    it('同じURLでも別organizationへcritical alertsのcacheを共有しない', async () => {
+    it('critical alertsはorganizationが変わっても退役応答を返す', async () => {
         flushCache();
         let organizationId = null;
         const catalog = {
@@ -230,9 +247,15 @@ describe('runtime project catalog routes', () => {
         const first = await request(app).get('/api/brainbase/critical-alerts').set('x-org', 'one');
         const second = await request(app).get('/api/brainbase/critical-alerts').set('x-org', 'two');
 
-        expect(first.body.project_id).toBe('project-one');
-        expect(second.body.project_id).toBe('project-two');
-        expect(nocodbService.getCriticalAlerts).toHaveBeenCalledTimes(2);
+        expect(first.status).toBe(410);
+        expect(second.status).toBe(410);
+        expect(first.body).toMatchObject({
+            error: 'capability_retired',
+            capability: 'brainbase.nocodb-auxiliary'
+        });
+        expect(second.body).toEqual(first.body);
+        expect(nocodbService.getCriticalAlerts).not.toHaveBeenCalled();
+        expect(catalog.getProjects).not.toHaveBeenCalled();
     });
 
     it('/api/brainbaseは認証済みreq.accessのorganizationでcatalogを読みsourceを保持する', async () => {
