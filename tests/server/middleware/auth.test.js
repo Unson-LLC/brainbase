@@ -147,6 +147,39 @@ describe('auth middleware', () => {
         });
     });
 
+    it('旧Slack sessionの外部subjectを認証境界でcanonical personへ解決する', async () => {
+        const app = express();
+        let resolverInput = null;
+        const resolvePersonIdForAuthenticatedAccess = vi.fn(async (access) => {
+            resolverInput = { ...access };
+            return 'per_sato';
+        });
+        const authService = {
+            verifyToken: () => ({
+                role: 'ceo',
+                sub: 'U07LNUP582X',
+                slackUserId: 'U07LNUP582X',
+                slackWorkspaceId: 'T_UNSON',
+                organizationId: 'unson'
+            }),
+            resolvePersonIdForAuthenticatedAccess
+        };
+        app.use(requireAuth(authService));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app)
+            .get('/secure')
+            .set('Authorization', 'Bearer legacy-slack-token')
+            .expect(200);
+
+        expect(resolverInput).toMatchObject({
+            personId: 'U07LNUP582X',
+            slackUserId: 'U07LNUP582X',
+            slackWorkspaceId: 'T_UNSON'
+        });
+        expect(res.body.access.personId).toBe('per_sato');
+    });
+
     it('Slack以外のprovider identityをSlack identityへ流用しない', async () => {
         const app = express();
         const authService = {

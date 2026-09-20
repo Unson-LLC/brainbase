@@ -860,6 +860,31 @@ export class AuthService {
         }
     }
 
+    async resolvePersonIdForAuthenticatedAccess(access = {}) {
+        const claimedPersonId = typeof access.personId === 'string' ? access.personId.trim() : '';
+        if (claimedPersonId.startsWith('per_')) {
+            return claimedPersonId;
+        }
+
+        const provider = access.authProvider
+            || ((access.slackUserId || claimedPersonId.startsWith('U')) ? 'slack' : null);
+        const subject = access.providerSubject
+            || access.slackUserId
+            || (provider === 'slack' ? claimedPersonId : null);
+        const tenantId = access.providerTenant || access.slackWorkspaceId || null;
+        if (!provider || !subject) {
+            return null;
+        }
+
+        const user = await this.findUserByExternalIdentity(
+            { provider, subject, tenantId },
+            access.organizationId || null
+        );
+        return typeof user?.person_id === 'string' && user.person_id.startsWith('per_')
+            ? user.person_id
+            : null;
+    }
+
     async ensurePerson({ personId, personName }) {
         const client = await this.pool.connect();
         try {
