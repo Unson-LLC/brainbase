@@ -12,3 +12,10 @@
 - マージはADR-019の通常PR経路を維持し、古い個人checkoutの手順を再導入しない。
 
 仕様: [運用整理仕様](../../../specs/legacy-operational-closeout.md)
+
+## 2026-09-20の限定運用確認
+
+- 作業対象Macの`com.brainbase.mcp-nocodb`は登録済みで、専用の`run-nocodb-mcp.sh`から起動していた。ラベル・起動引数・PIDを確認後、そのラベルだけdisable/bootoutした。
+- 非同期停止後、同ラベルが`launchctl list`から消え、disabled overrideが残り、確認したPIDが終了していることを読み戻した。
+- インストール済みplist、Infisical設定、DBデータは削除していない。再開は可能だが、退役した旧writerの再有効化は本Storyの受入条件ではない。
+- これは対象Macの専用ジョブだけの確認で、全ホスト・外部MCPクライアントの不在証明ではない。
