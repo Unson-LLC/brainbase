@@ -39,10 +39,7 @@ const taskRoutes = 'tests/server/routes/companion-canonical-tasks.test.js';
 const workflowMaterialization = 'tests/server/services/workflow-canonical-task-materialization.test.js';
 const workflowRoutes = 'tests/server/routes/workflows.test.js';
 const manaRoutes = 'tests/server/routes/mana-capture-routes.test.js';
-const browserService = 'tests/domain/nocodb-task/nocodb-task-service.test.js';
-const browserRepository = 'tests/domain/nocodb-task/nocodb-task-repository.test.js';
 const legacyRouteGuard = 'tests/server/routes/nocodb-canonical-task-write-guard.test.js';
-const legacyAdapter = 'tests/domain/nocodb-task/nocodb-task-adapter.test.js';
 const liveApiScenarioIds = new Set([
   1, 2, 3, 4, 5, 6, 7, 8, 9, 14, 15, 18, 19, 21, 32, 39, 45,
 ]);
@@ -99,18 +96,14 @@ const scenarioContracts: Record<number, VitestContract> = {
   ], 'creates once with a server-side actor namespace|keeps type and delimiter-bearing ids disjoint'),
   33: file(workflowMaterialization, 'SC-033 normalizes legacy string candidates'),
   34: file(workflowMaterialization, 'AC-25 keeps generated candidate IDs and downstream operation keys stable across reorder'),
-  35: file(legacyAdapter, 'preserves waiting and urgent|keeps unknown legacy values visible'),
   36: files([taskService, manaRoutes], 'materializes a Mana capture with an actor-scoped stable command key|POST /capture requires a valid CSRF token'),
   37: file(manaRoutes, 'GET /captures follows canonical Task cursors before filtering Mana captures'),
-  38: file(browserService, 'merges the required canonical list|loads every canonical task page|canonical task cursor repeats'),
   39: file(operationRepository, 'finishes a prepared delete|persists the version claim and delete intent|rejects changed input for an existing actor-scoped delete key|rejects another delete key from the same actor'),
   41: files([
     taskRoutes,
     'tests/server/services/canonical-task-store-config.test.js',
   ], 'rejects cookie before Task store access|rejects insecure-header before Task store access|loads, hashes, and deeply freezes the committed manifest'),
   42: files([taskService, manaRoutes], 'materializes a Mana capture with an actor-scoped stable command key|POST /capture rejects missing capture_id|does not return a local id when the canonical store is unavailable'),
-  43: file(browserService, 'creates a canonical task with a People SSOT person id|rejects canonical creation when no People SSOT person id is available'),
-  44: file(browserRepository, 'uses the versioned Companion API and idempotency headers'),
   45: file(operationRepository, 'finishes a prepared delete after the Task has already disappeared|does not disclose another actor delete result'),
   46: files([
     'tests/server/services/canonical-task-readiness.test.js',
@@ -140,9 +133,7 @@ const surfaceContracts: Record<string, VitestContract> = {
   'surface.readiness.atomic-enable': file('tests/server/services/canonical-task-readiness.test.js', 'opens a running process after an external enable writes matching evidence'),
   'surface.readiness.explicit-disable': file('tests/server/services/canonical-task-readiness.test.js', 'keeps the verified release open across a clean writer restart and observes disable'),
   'surface.legacy.route': file(legacyRouteGuard, 'Given canonical base, when (POST|PUT|DELETE) mutates legacy Task route'),
-  'surface.legacy.ui': file(legacyAdapter, 'preserves waiting and urgent|keeps unknown legacy values visible'),
   'surface.mana.auth-retry-read': files([taskService, manaRoutes], 'materializes a Mana capture with an actor-scoped stable command key|POST /capture requires a valid CSRF token|GET /captures follows canonical Task cursors'),
-  'surface.browser.mutations': file(browserRepository, 'uses the versioned Companion API and idempotency headers'),
   'surface.delete.recovery': file(operationRepository, 'finishes a prepared delete|persists the version claim and delete intent|does not disclose another actor delete result'),
   'surface.operational-scripts': files([
     'tests/server/scripts/canonical-task-writer-policy.test.js',

@@ -160,11 +160,13 @@ export function validateEvidenceRegistry(registry) {
     parseCommandArgv(entry.test_command);
   }
 
-  if (registry.required_entry_count === 71) {
+  if (registry.required_entry_count === 65) {
+    const retiredBrowserScenarios = new Set([35, 38, 43, 44]);
     for (let number = 1; number <= 47; number += 1) {
+      if (retiredBrowserScenarios.has(number)) continue;
       invariant(ids.has(`scenario.SC-${String(number).padStart(3, '0')}`), `missing scenario.SC-${String(number).padStart(3, '0')}`);
     }
-    invariant([...ids].filter((id) => id.startsWith('surface.')).length === 24, 'registry must contain 24 surface entries');
+    invariant([...ids].filter((id) => id.startsWith('surface.')).length === 22, 'registry must contain 22 surface entries');
   }
 
   return registry.entries;
