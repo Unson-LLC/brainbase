@@ -106,7 +106,7 @@ readiness rowは`source_head`を固定するため、enable後にデプロイで
 次の固定allowlistを`required_evidence_ids`として共有する。artifactのID集合はこの集合と完全一致しなければならず、
 未知ID、重複ID、欠落ID、`pass != true`、file hash欠落のいずれかがあればbefore-enableを失敗させる。
 
-allowlistと生成元の唯一の正本は`config/canonical-task-evidence-registry.json`である。71件の各entryは
+allowlistと生成元の唯一の正本は`config/canonical-task-evidence-registry.json`である。65件の各entryは
 `producer_command`、`owner_path`、`test_command`、`artifact_path`、`artifact_schema`、
 `pre_fix_assertion`を必須とする。証拠は登録済み`producer_command`で
 `scripts/collect-canonical-task-evidence.js`を起動して生成し、collectorは現在HEAD、registry hash、
@@ -129,7 +129,7 @@ failed/skipped、test終了後、raw手書きmarker、重複markerは拒否す�
 callback完了後に出したdiagnostic lineだけを認める。
 process raw stdoutは別fileで保存しhashをartifactに含める。
 
-preflightはregistry自体の71件完全一致と重複なしを検証した上で、raw artifactのIDとpath、schema、command、
+preflightはregistry自体の65件完全一致と重複なしを検証した上で、raw artifactのIDとpath、schema、command、
 owner path/hash、registry hash、source HEADをentryと照合する。別IDのartifact入替、未登録command、
 owner変更後の古いartifact、失敗をpassとしたartifact、`matched_tests == 0`、`matched_assertions == 0`、
 期待path以外のartifactをすべて拒否する。
@@ -146,9 +146,9 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 `scenario.SC-016`, `scenario.SC-017`, `scenario.SC-018`, `scenario.SC-019`, `scenario.SC-020`,
 `scenario.SC-021`, `scenario.SC-022`, `scenario.SC-023`, `scenario.SC-024`, `scenario.SC-025`,
 `scenario.SC-026`, `scenario.SC-027`, `scenario.SC-028`, `scenario.SC-029`, `scenario.SC-030`,
-`scenario.SC-031`, `scenario.SC-032`, `scenario.SC-033`, `scenario.SC-034`, `scenario.SC-035`,
-`scenario.SC-036`, `scenario.SC-037`, `scenario.SC-038`, `scenario.SC-039`, `scenario.SC-040`,
-`scenario.SC-041`, `scenario.SC-042`, `scenario.SC-043`, `scenario.SC-044`, `scenario.SC-045`,
+`scenario.SC-031`, `scenario.SC-032`, `scenario.SC-033`, `scenario.SC-034`, `scenario.SC-036`,
+`scenario.SC-037`, `scenario.SC-039`, `scenario.SC-040`, `scenario.SC-041`, `scenario.SC-042`,
+`scenario.SC-045`,
 `scenario.SC-046`, `scenario.SC-047`
 
 ### 横断回帰証跡ID
@@ -167,9 +167,7 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - `surface.readiness.atomic-enable`: current HEAD/hash/schema/writerのtransaction検証
 - `surface.readiness.explicit-disable`: rollback先頭の明示disable
 - `surface.legacy.route`: 旧routeのread/非正本write/正本guard
-- `surface.legacy.ui`: waiting/urgent/unknown投影
 - `surface.mana.auth-retry-read`: session/CSRF、actor、再送、read、no-fallback
-- `surface.browser.mutations`: list/create/update/transition/deleteとcookie-only無効化
 - `surface.mcp.write-fence`: record/column mutation guardとread互換
 - `surface.delete.recovery`: prepared停止、削除後停止、actor分離
 - `surface.operational-scripts`: 5本の運用scriptの直接writer 0件
@@ -182,9 +180,8 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - manifest path/canonical SHA-256、schema version、writer token owner/process identity
 - Task固有authのbearer/internal/service許可とcookie-only/insecure-header拒否
 - approval inbox、両human-step resolve route、非`task_store`承認回帰
-- legacy routeのread/非正本write/正本guard、旧UIのwaiting/urgent/unknown投影
+- legacy routeのread/非正本write/正本guard
 - Manaのsession/CSRF/person principal/read/retry/no-fallback
-- browserのCanonical list/create/update/transition/deleteとcookie-only無効化
 - MCPの正本record/metadata mutation guard、正本read、非正本mutation互換
 - deleteのprepared停止回復、actor type/ID/区切り文字namespace分離
 - 5本の運用scriptに直接writerがない静的検査
@@ -192,6 +189,6 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - 実Postgresでの同一operation key並行実行結果（caller 2、run 1、completed、cleanup completed）
 - Mac consumer固定wire fixtureと実route schema結果
 
-preflight artifactは上記71件の安定したevidence ID、pass状態、file hash、producer command hash、
+preflight artifactは上記65件の安定したevidence ID、pass状態、file hash、producer command hash、
 owner path/hash、raw artifact path/schema、registry hashをすべて持ち、current HEADと一致しなければならない。
 いずれかが欠落・失敗・staleの場合、明示enableはatomicに失敗し、mutation readinessは成立しない。

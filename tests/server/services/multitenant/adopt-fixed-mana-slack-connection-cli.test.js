@@ -36,7 +36,7 @@ function pool(kind, connects) {
             if (sql.includes('SELECT connection_id, connection_revision, status\n                   FROM workspace_connections')) return { rows: [] };
             if (sql.includes('SELECT wc.tenant_id, wc.connection_id')) return { rows: [] };
             if (sql.includes('SELECT wc.connection_id, wc.status')) {
-                return { rows: [{ connection_id: 'wsc_01M0HRK94FG2Y8DMBFYJHYT14K', status: 'active', connection_revision: '1', credential_mode: 'customer_oauth' }] };
+                return { rows: [{ connection_id: 'wsc_01M0HRK94FG2Y8DMBFYJHYT14K', status: 'active', connection_revision: '2', credential_mode: 'customer_oauth' }] };
             }
             return { rows: [] };
         },
@@ -69,7 +69,7 @@ describe('fixed Mana Slack adoption CLI', () => {
     it('uses a distinct secondary pool for post-commit readback and returns no token or opaque reference', async () => {
         const connects = [];
         const credentialStore = {
-            store: async () => ({ credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '1' }),
+            store: async () => ({ credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '2' }),
             verify: async () => ({ valid: true }),
             revoke: async () => ({ status: 'revoked' })
         };

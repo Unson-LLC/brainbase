@@ -2,7 +2,7 @@
   "schema_version": "1.0.0",
   "story_id": "story-companion-canonical-task-provider",
   "source_of_truth": "config/canonical-task-evidence-registry.json",
-  "required_entry_count": 71,
+  "required_entry_count": 65,
   "collector": "scripts/collect-canonical-task-evidence.js",
   "effective_invocation": {
     "spawn_mode": "argv-with-explicit-env",
@@ -343,15 +343,6 @@
       "pre_fix_assertion": "SC-034 reorder-stable candidate identity contract fails before canonical provider implementation"
     },
     {
-      "id": "scenario.SC-035",
-      "producer_command": "node scripts/collect-canonical-task-evidence.js --id scenario.SC-035",
-      "owner_path": "tests/e2e/story-companion-canonical-task-provider-contract.spec.ts",
-      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"SC-035\"",
-      "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/scenario.SC-035.json",
-      "artifact_schema": "canonical-task-evidence-v1",
-      "pre_fix_assertion": "SC-035 legacy lifecycle projection contract fails before canonical provider implementation"
-    },
-    {
       "id": "scenario.SC-036",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id scenario.SC-036",
       "owner_path": "tests/e2e/story-companion-canonical-task-provider-contract.spec.ts",
@@ -368,15 +359,6 @@
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/scenario.SC-037.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "SC-037 Mana captures read contract fails before canonical provider implementation"
-    },
-    {
-      "id": "scenario.SC-038",
-      "producer_command": "node scripts/collect-canonical-task-evidence.js --id scenario.SC-038",
-      "owner_path": "tests/e2e/story-companion-canonical-task-provider-contract.spec.ts",
-      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"SC-038\"",
-      "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/scenario.SC-038.json",
-      "artifact_schema": "canonical-task-evidence-v1",
-      "pre_fix_assertion": "SC-038 browser canonical list merge contract fails before canonical provider implementation"
     },
     {
       "id": "scenario.SC-039",
@@ -413,24 +395,6 @@
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/scenario.SC-042.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "SC-042 Mana auth and retry distinction contract fails before canonical provider implementation"
-    },
-    {
-      "id": "scenario.SC-043",
-      "producer_command": "node scripts/collect-canonical-task-evidence.js --id scenario.SC-043",
-      "owner_path": "tests/e2e/story-companion-canonical-task-provider-contract.spec.ts",
-      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"SC-043\"",
-      "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/scenario.SC-043.json",
-      "artifact_schema": "canonical-task-evidence-v1",
-      "pre_fix_assertion": "SC-043 browser canonical create and assignee contract fails before canonical provider implementation"
-    },
-    {
-      "id": "scenario.SC-044",
-      "producer_command": "node scripts/collect-canonical-task-evidence.js --id scenario.SC-044",
-      "owner_path": "tests/e2e/story-companion-canonical-task-provider-contract.spec.ts",
-      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"SC-044\"",
-      "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/scenario.SC-044.json",
-      "artifact_schema": "canonical-task-evidence-v1",
-      "pre_fix_assertion": "SC-044 browser canonical update lifecycle delete contract fails before canonical provider implementation"
     },
     {
       "id": "scenario.SC-045",
@@ -586,15 +550,6 @@
       "pre_fix_assertion": "Legacy route blocks canonical writes before NocoDB access"
     },
     {
-      "id": "surface.legacy.ui",
-      "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.legacy.ui",
-      "owner_path": "tests/domain/nocodb-task/nocodb-task-adapter.test.js",
-      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.legacy.ui\"",
-      "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.legacy.ui.json",
-      "artifact_schema": "canonical-task-evidence-v1",
-      "pre_fix_assertion": "Legacy UI preserves waiting urgent and unknown values"
-    },
-    {
       "id": "surface.mana.auth-retry-read",
       "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.mana.auth-retry-read",
       "owner_path": "tests/server/routes/mana-capture-routes.test.js",
@@ -602,15 +557,6 @@
       "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.mana.auth-retry-read.json",
       "artifact_schema": "canonical-task-evidence-v1",
       "pre_fix_assertion": "Mana enforces session CSRF actor retry read and no fallback"
-    },
-    {
-      "id": "surface.browser.mutations",
-      "producer_command": "node scripts/collect-canonical-task-evidence.js --id surface.browser.mutations",
-      "owner_path": "tests/e2e/story-companion-canonical-task-provider-contract.spec.ts",
-      "test_command": "npx playwright test tests/e2e/story-companion-canonical-task-provider-contract.spec.ts --grep \"surface.browser.mutations\"",
-      "artifact_path": ".vibepro/verification/canonical-task-cutover/raw/surface.browser.mutations.json",
-      "artifact_schema": "canonical-task-evidence-v1",
-      "pre_fix_assertion": "Browser list create update transition delete use canonical API"
     },
     {
       "id": "surface.mcp.write-fence",

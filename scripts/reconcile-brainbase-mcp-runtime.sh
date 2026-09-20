@@ -17,6 +17,7 @@ CHATGPT_TUNNEL_LABEL="${BRAINBASE_CHATGPT_TUNNEL_LAUNCHD_LABEL:-com.brainbase.ch
 RECEIPT="${BRAINBASE_MCP_RECONCILE_RECEIPT:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.last}"
 LOCK_FILE="${BRAINBASE_MCP_RECONCILE_LOCK:-/Users/ksato/workspace/var/brainbase-mcp-reconcile.lock}"
 RUNTIME_LOCK_DIR="${BRAINBASE_RUNTIME_LOCK:-/Users/ksato/workspace/var/brainbase-runtime-update.lock}"
+SHLOCK_BIN="${BRAINBASE_SHLOCK_BIN:-/usr/bin/shlock}"
 INFISICAL_BIN="${INFISICAL_BIN:-/Users/ksato/.local/bin/infisical}"
 WAIT_ATTEMPTS="${BRAINBASE_MCP_RECONCILE_WAIT_ATTEMPTS:-30}"
 LOCK_WAIT_SECONDS="${BRAINBASE_MCP_RECONCILE_LOCK_WAIT_SECONDS:-600}"
@@ -74,7 +75,7 @@ cleanup() {
 trap cleanup EXIT
 
 waited_seconds=0
-while ! /usr/bin/shlock -p "$$" -f "$LOCK_FILE" >/dev/null 2>&1; do
+while ! "$SHLOCK_BIN" -p "$$" -f "$LOCK_FILE" >/dev/null 2>&1; do
   if ((waited_seconds >= LOCK_WAIT_SECONDS)); then
     fail "another reconciliation is already running after ${LOCK_WAIT_SECONDS} seconds"
   fi

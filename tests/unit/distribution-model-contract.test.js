@@ -59,6 +59,6 @@ describe('Distribution Model contract', () => {
         const claude = read('CLAUDE.md');
         expect(read('AGENTS.md')).toBe(claude);
         expect(claude).toContain('## 0.5. Distribution Model');
-        expect(claude).toContain('ファイル共有（shared/・submodule方式）は廃止済み');
+        expect(claude).toContain('Wiki、`shared/`、`_codex/`、submodule共有は復活させない');
     });
 });
