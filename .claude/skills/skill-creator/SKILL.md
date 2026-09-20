@@ -61,5 +61,6 @@ description: 具体的な作業をするときに使う。
 
 ## 関連資料
 
+- 既存Skillsの修正候補を選ぶ際、Jevを利用できる場合は[補助チェック](../../../docs/management/jev-skill-audit.md)を使える。判定を原文と照合し、`keep`を品質保証にしない。毎回の必須工程ではない。
 - Skill固有の手順や例は、対象Skillの `references/` またはリンク先を必要なときだけ読む。
 - リポジトリの所有・配布・Git境界は `AGENTS.md` と関連Skillを優先する。
