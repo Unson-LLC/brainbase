@@ -54,7 +54,7 @@ export function createCanonicalTaskStoreConfig({
 }
 
 export function resolveCanonicalTaskBackend(value = process.env.CANONICAL_TASK_BACKEND) {
-    const backend = value || 'postgres';
+    const backend = value || 'nocodb';
     if (!['nocodb', 'postgres'].includes(backend)) {
         throw new Error('CANONICAL_TASK_BACKEND must be nocodb or postgres');
     }

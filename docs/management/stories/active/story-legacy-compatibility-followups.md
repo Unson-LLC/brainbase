@@ -6,6 +6,7 @@
 
 ## 今回の退役変更を妨げない追加作業
 
+- Canonical Taskの未指定backendは既存契約どおりNocoDBを保持する。全対象環境の明示cutover/readbackと既存Story・Spec・authority契約の更新を別変更で確認してから既定値を移す。本番の明示的PostgreSQL設定と、未設定環境の移行完了を混同しない。
 - Wikiの保存済みデータを読む2本のスクリプトについて、`--dry-run`時の無書込みと読取失敗時の挙動をfixtureで固定する。非dry-runの接続前拒否は既に検証対象。
 - サーバーの非本番`insecure-header`互換とInfo SSOT controller直接fallbackについて、既存テストを正規認証fixtureへ移せるか確認する。本番では当該header認証は無効で、Slackと`bbsvc_`サービス認証は別経路。共有認証を一括削除しない。
 - `vibepro-graph-ssot-check.mjs`、`ontology-release-publish.js`、`generate-memory-preamble.mjs`はBearerを要求する内部クライアント。スクリプト全体ではなく、冗長な`x-brainbase-*`ヘッダーの除去を個別に検証する。

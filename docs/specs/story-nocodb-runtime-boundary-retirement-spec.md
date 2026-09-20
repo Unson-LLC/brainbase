@@ -8,8 +8,9 @@ status: active
 
 ## Invariants
 
-1. `resolveCanonicalTaskBackend()` returns `postgres` when its argument and
-   `CANONICAL_TASK_BACKEND` are unset; unsupported values still fail closed.
+1. `resolveCanonicalTaskBackend()` retains `nocodb` when its argument and
+   `CANONICAL_TASK_BACKEND` are unset. PostgreSQL remains an explicit cutover;
+   unsupported values still fail closed. No backend-selection change ships here.
 2. `createNocoDBRouter()` exposes no CRUD handlers. The mounted route returns
    HTTP 410 with `error=capability_retired` for reads and writes alike and
    never calls `fetch`.
@@ -22,8 +23,8 @@ status: active
 5. Cursor encoding/decoding is a transport concern shared by both canonical
    repositories. The PostgreSQL repository must not import the NocoDB
    repository module.
-6. The explicit NocoDB repository remains available for migration or historical
-   compatibility callers. No external NocoDB record or secret is deleted.
+6. The NocoDB repository remains available under the existing backend-selection
+   contract and for migration callers. No external record or secret is deleted.
 
 ## Verification matrix
 
