@@ -143,7 +143,15 @@ async function verifyCutoverCheckArtifact({ rootDir, name, checkPath, sourceHead
   if (name === 'postgres') {
     invariant(artifact.schema_version, 'postgres check schema_version is required');
     invariant(artifact.writer_token, 'postgres check writer_token is required');
-    invariant(artifact.required_tables?.length === 3, 'postgres check required_tables mismatch');
+    invariant(
+      sameJson(artifact.required_tables, [
+        'canonical_task_writer',
+        'canonical_task_readiness',
+        'canonical_task_readiness_audit',
+        'canonical_task_operations',
+      ]),
+      'postgres check required_tables mismatch',
+    );
   } else if (name === 'nocodb') {
     invariant(artifact.schema_version, 'nocodb check schema_version is required');
     invariant(artifact.table_id === 'm7iys8m7o1abr3f', 'nocodb check table_id mismatch');

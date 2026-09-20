@@ -203,7 +203,12 @@ async function createEvidenceFixture(overrides = {}) {
     check_kind: 'persistent_postgres',
     schema_version: '1.0.0',
     writer_token: 'writer-token-1',
-    required_tables: ['canonical_task_writer', 'canonical_task_readiness', 'canonical_task_operations'],
+    required_tables: [
+      'canonical_task_writer',
+      'canonical_task_readiness',
+      'canonical_task_readiness_audit',
+      'canonical_task_operations',
+    ],
   });
   const nocodbCheckPath = await writeCheck('nocodb', {
     artifact_schema: 'canonical-task-nocodb-check-v1',
