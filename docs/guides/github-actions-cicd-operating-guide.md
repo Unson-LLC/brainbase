@@ -79,6 +79,10 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 | VibePro Score Evidence（push後） | `develop`・`main`・`session/**`へのpush | `before..sha`の全変更を使い、直接pushとマージ後のscore証跡を再検証する | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
 | VibePro Score Evidence（手動） | 手動実行 | 単体テストとワークフロー疎通を確認する。変更ファイル集合は空として扱うため、score成果物・DAG・文書追跡の検証証跡には使わない | `.github/workflows/vibepro-score-run.yml` | `self-hosted`（Linux / WSL） |
 
+### 退役済みの専用定期処理
+
+NocoDB専用のスナップショット・ストーリー通知・進捗通知の定期処理は退役済みです。専用スクリプトとスケジュールWorkflowは削除し、旧処理を再有効化しません。この変更は共有APIや保存データを削除しません。
+
 Graph書き込み契約とProject Provisioning契約はBrainbase保守担当が管理する。2026-09-14、利用者指定によりevo2のWSLへ切り替えた。実行 `34765443275` でDocker 28.5.1の応答とPython 3.12.3を確認済み。以前のDocker応答停止は現在の診断では再現していない。ChromeとPlaywrightのOS依存ライブラリはevo2へ事前導入し、Project ProvisioningはChromeの存在と版を確認してからブラウザ契約を実行する。CI内では管理者権限を要求しない。テストと使い捨てPostgreSQLの検証は省略しない。権限は`contents: read`、上限はGraph 10分・Project 15分、同じref/PRの古い実行は中止する。失敗時はログで段階を確認してから再実行する。切戻しはrunnerを`ubuntu-latest`へ戻すが、GitHub Actionsの予算上限が解消していることを確認する。課金設定の変更や本番環境の再起動はこの作業に含めない。
 
 Graph書き込み契約ジョブに秘密情報は不要。テスト用のローカルHTTPサーバーとCI内の使い捨てPostgreSQLだけを使い、本番Graphへの書き込みは行わない。Personal Knowledge本番スモークは、別途署名済みsynthetic fixtureと明示的な実行環境を必要とし、CIの契約ジョブからはfixture検証だけを実行する。

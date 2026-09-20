@@ -2,10 +2,12 @@
 
 **バージョン**: 1.0.0
 **作成日**: 2026-01-09
-**ステータス**: Design Phase
+**ステータス**: Historical / Superseded
 **実装期間**: 8-12週間（Week 1-2からWeek 11-12）
 
 > Project Catalog API契約の正本は [API.mdの認証・プロジェクト管理API](./API.md#3-認証) です。実行環境と接続先は [Canonical 31013 launchd runtime](../../brainbase-capabilities/capabilities/runtime.launchd.yml) と [Lightsail production runtime](../../brainbase-capabilities/capabilities/runtime.lightsail.yml)、個々の実装面は現行routeを優先してください。
+>
+> この文書内のNocoDB履歴テーブル、日次スナップショット、専用Cronに関する記述は過去の設計案であり、現行の実装計画ではありません。該当スクリプトとWorkflowは退役済みです。
 
 ---
 
@@ -119,17 +121,8 @@ AITMダッシュボード: 「何を決めるべきか」を提示
 ```
 
 **日次スナップショットフロー**:
-```
-1. GitHub Actions: 毎日00:00 JST（15:00 UTC）
-   ↓
-2. scripts/daily-snapshot.js実行
-   ↓
-3. NocoDB APIで全プロジェクト統計取得
-   ↓
-4. Health Score計算
-   ↓
-5. NocoDB履歴テーブルに挿入（UNIQUE制約: project_id + snapshot_date）
-```
+
+このNocoDB専用フローは退役済みです。専用スクリプトとGitHub Actionsの定期実行は削除されており、再実装時は現行のCanonical Task／Graph境界から新しいStoryとSpecを作成します。
 
 ---
 
@@ -595,25 +588,11 @@ healthScore = Math.round(
 
 ---
 
-### 8.4 Week 5-6: Section 4 + NocoDB履歴テーブル
+### 8.4 Week 5-6: Section 4 + NocoDB履歴テーブル（退役済み計画）
 
 **目標**: トレンド分析の基盤構築
 
-**実装タスク**:
-1. NocoDB履歴テーブル作成（`プロジェクト健全性履歴`）
-2. GitHub Actions Cron Job実装（`daily-snapshot.yml`）
-3. `/api/brainbase/trends` エンドポイント実装
-4. Section 4 Trend Analysis実装
-
-**重要**:
-- 履歴データは初日から蓄積開始
-- Week 5で履歴テーブル作成 → Week 6で30日分の過去データを逆算して挿入（可能なら）
-
-**Critical Files**:
-- `.github/workflows/daily-snapshot.yml`
-- `scripts/daily-snapshot.js`
-- `server/services/nocodb-service.js` (`insertSnapshot()`, `getTrends()`)
-- `server/routes/brainbase.js`
+NocoDB履歴テーブルと専用Cronを前提としたこの計画は退役済みです。削除済みファイルを復元せず、トレンド分析が再び必要になった時点で現行の正本と保存境界を決め直します。
 
 ---
 

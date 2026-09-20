@@ -4,6 +4,17 @@ on:
   pull_request:
     paths:
       - '.github/workflows/retired-state-boundary.yml'
+      - '.github/workflows/daily-snapshot.yml'
+      - '.github/workflows/daily-story-alerts.yml'
+      - '.github/workflows/weekly-story-progress.yml'
+      - 'scripts/daily-snapshot.js'
+      - 'scripts/send-story-alerts.js'
+      - 'scripts/send-story-progress-to-slack.js'
+      - 'docs/guides/github-actions-cicd-operating-guide.md'
+      - 'docs/projects/aitm/AITM_Dashboard_Design_Spec.md'
+      - 'docs/user_stories/active/story-retire-nocodb-scheduled-jobs.md'
+      - 'docs/specs/story-retire-nocodb-scheduled-jobs-spec.md'
+      - 'tests/server/scripts/nocodb-scheduled-jobs-retirement.test.mjs'
       - 'lib/**'
       - 'public/**'
       - 'docs/brainbase-capabilities/**'
@@ -129,6 +140,8 @@ jobs:
           node-version: '22.23.2'
           package-manager-cache: false
       - run: npm ci
+      - name: Verify NocoDB scheduled-job retirement contract
+        run: node --test tests/server/scripts/nocodb-scheduled-jobs-retirement.test.mjs
       - run: bash -n setup.sh scripts/check-worktree.sh
       - run: bash -n scripts/cleanup-old-sessions.sh scripts/auto-cleanup-cron.sh .claude/scripts/dev-server-worktree.sh .claude/scripts/stop-dev-server.sh
       - name: Verify retirement and recovery contracts
