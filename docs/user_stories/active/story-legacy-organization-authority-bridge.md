@@ -10,5 +10,6 @@
 - 既存auth grantのproject codesとclearanceを変更しない。
 - Graph正本に存在し、同じorganizationに属するBAAO projectだけをtenant projectionへ登録する。
 - tenant organization、project、membershipを同一transactionで冪等に作成する。
+- 同じtenantに既存の旧組織ID別名行がある場合は再利用し、Graph対応を二重登録しない。
 - dry-runは同じ検証とreadbackを行い、永続化しない。
 - apply後は別connectionからresolver、organization、project、membershipをreadbackできる。
