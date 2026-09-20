@@ -77,6 +77,29 @@ describe('Wiki inventory dry-run fixtures', () => {
         await expect(nodeFs.access(path.join(wikiRoot, 'people/person_001.md'))).rejects.toMatchObject({ code: 'ENOENT' });
     });
 
+    it('migrate-graphdb-to-wiki surfaces entity query rejection with a fake pool only', async () => {
+        const wikiRoot = await createWikiFixture({});
+        const query = vi.fn(async () => {
+            const error = new Error('entity inventory read failed');
+            error.code = 'EIO';
+            throw error;
+        });
+        const pool = {
+            query,
+            connect: vi.fn(),
+            end: vi.fn(async () => {}),
+        };
+
+        await expect(runGraphWikiInventory({
+            dryRun: true,
+            wikiRoot,
+            pool,
+            logger: quietLogger,
+        })).rejects.toThrow('entity inventory read failed');
+        expect(query).toHaveBeenCalledTimes(1);
+        expect(pool.connect).not.toHaveBeenCalled();
+    });
+
     it('populate-wiki-pages reads Markdown without connecting or writing in dry-run', async () => {
         const wikiRoot = await createWikiFixture({ 'brainbase/fixture.md': '# Fixture Page\n' });
         const pool = createPool({ rows: [{ id: 'project_001', name: 'brainbase' }] });
