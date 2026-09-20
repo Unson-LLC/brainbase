@@ -3,6 +3,7 @@ import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
 import { registerOrganizationConnectionsApiRoute } from '../../../server/bootstrap/register-api-routes.js';
+import { organizationConnectionAccessDecision } from '../../../server/routes/organization-connections.js';
 
 const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
 const personId = 'per_01ARZ3NDEKTSV4RRFFQ69G5FAY';
@@ -101,6 +102,25 @@ function githubPorts({ ledgerOverrides = {}, repositoryOverrides = {}, readbackI
 const auth = (call) => call.set('Authorization', 'Bearer test-token');
 
 describe('organization connections API', () => {
+    it.each([
+        [{ authSource: 'service-token', access: null }, 'interactive_session_required'],
+        [{ authSource: 'jwt', access: null }, 'access_unresolved'],
+        [{ authSource: 'jwt', access: { tenantId: 'unson', personId, role: 'ceo' } }, 'canonical_tenant_required'],
+        [{ authSource: 'jwt', access: { tenantId, personId: 'legacy-person', role: 'ceo' } }, 'canonical_person_required'],
+        [{ authSource: 'jwt', access: {
+            tenantId, personId, organizationId: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAZ', role: 'ceo'
+        } }, 'organization_tenant_mismatch'],
+        [{ authSource: 'jwt', access: { tenantId, personId, role: 'member' } }, 'organization_admin_role_required']
+    ])('classifies denied access without exposing credentials', (input, reason) => {
+        expect(organizationConnectionAccessDecision(input)).toEqual({ allowed: false, reason });
+    });
+
+    it('allows a canonical organization administrator', () => {
+        expect(organizationConnectionAccessDecision({
+            authSource: 'jwt', access: { tenantId, personId, organizationId: 'unson', role: 'ceo' }
+        })).toEqual({ allowed: true, reason: 'allowed' });
+    });
+
     it('uses the tenant resolved by requireAuth without requiring a second Slack identity lookup', async () => {
         const resolveTenantForAuthenticatedAccess = vi.fn(async () => null);
         const resolveTenantForOrganization = vi.fn(async (organizationId) => ({
