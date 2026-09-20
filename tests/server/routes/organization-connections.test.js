@@ -298,6 +298,34 @@ describe('organization connections API', () => {
         expect(ports.authorizationLedger.issue.mock.calls[0][0]).not.toHaveProperty('signed_state');
     });
 
+    it('reuses a verified existing GitHub installation instead of opening GitHub settings', async () => {
+        const ports = githubPorts();
+        ports.connectionRepository.listOrganizationConnections = vi.fn(async () => [{
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ', connection_revision: '1',
+            provider: 'github', status: 'active', installation_id: '123',
+            app_id: '456', account_id: '789', account_login: 'unson',
+            credential_ref: 'opaque://github/connection'
+        }]);
+
+        const response = await auth(request(app({
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
+            connectionRepository: ports.connectionRepository
+        })).post('/api/organization-connections/github/start').send({}));
+
+        expect(response.status).toBe(200);
+        expect(response.body).toMatchObject({
+            provider: 'github', status: 'connected', connected: true,
+            account: { installation_id: '123', login: 'unson' }
+        });
+        expect(response.body).not.toHaveProperty('url');
+        expect(ports.credentialStore.verify).toHaveBeenCalledOnce();
+        expect(ports.verifier.readInstallation).toHaveBeenCalledOnce();
+        expect(ports.authorizationLedger.issue).not.toHaveBeenCalled();
+    });
+
     it('fails closed when callback ports are not configured', async () => {
         const response = await auth(request(app({ githubAppSlug: 'brainbase-test-app' }))
             .post('/api/organization-connections/github/start').send({}));

@@ -538,6 +538,35 @@ export function createOrganizationConnectionsRouter({
             if (!hasGitHubConnectionPorts({
                 githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository
             })) return problem(res, 503, 'GITHUB_APP_CONNECTION_UNAVAILABLE');
+
+            const existingRows = connectionRepository.listOrganizationConnections
+                ? await connectionRepository.listOrganizationConnections({
+                    tenant_id: access.tenantId,
+                    provider: 'github'
+                }) : [];
+            const current = Array.isArray(existingRows)
+                ? existingRows.find((row) => row?.status === 'active')
+                : null;
+            if (current) {
+                const existing = await verifiedGitHubStatus({
+                    row: current,
+                    tenantId: access.tenantId,
+                    githubAppSlug,
+                    githubAppVerifier,
+                    githubCredentialStore
+                });
+                if (existing.connected === true) {
+                    return res.status(200).set('cache-control', 'no-store').json({
+                        provider,
+                        status: 'connected',
+                        connected: true,
+                        account: {
+                            installation_id: String(current.installation_id),
+                            login: typeof current.account_login === 'string' ? current.account_login : null
+                        }
+                    });
+                }
+            }
             const state = stateRecord({
                 tenantId: access.tenantId,
                 personId: access.personId,
