@@ -7,6 +7,25 @@ import {
     loadRuntimeProjectCatalog
 } from '../../services/project-access/runtime-project-catalog.js';
 
+const RETIRED_LEGACY_PROJECTION = Object.freeze({
+    status: 'retired',
+    source: 'nocodb'
+});
+
+function retiredLegacyProjection() {
+    return { ...RETIRED_LEGACY_PROJECTION };
+}
+
+function emptyRetiredValueLoop() {
+    return {
+        decision: {},
+        work: {},
+        ship: {},
+        learn: {},
+        meta: retiredLegacyProjection()
+    };
+}
+
 /**
  * プロジェクトポータルAPI
  * 1リクエストでポータルに必要な全データ（方向性・課題・進捗・チーム）を返す
@@ -37,7 +56,7 @@ export function createBrainbasePortalRouter(options = {}) {
         // The legacy NocoDB value-loop projection is retired. Keep the route
         // shape for clients while making the absence explicit and side-effect
         // free; Graph/Postgres-backed routes own current data instead.
-        res.json({ decision: {}, work: {}, ship: {}, learn: {} });
+        res.json(emptyRetiredValueLoop());
     }));
 
     /**
@@ -68,13 +87,16 @@ export function createBrainbasePortalRouter(options = {}) {
             fetchEvents(projectCode)
         ]);
 
-        const issues = { items: [], stats: { open: 0, highImpact: 0 } };
+        // These fields retain their response shape for compatibility, but the
+        // retired NocoDB source cannot establish any counts. `null` preserves
+        // unknown/unavailable rather than presenting a false zero.
+        const issues = { items: [], stats: { open: null, highImpact: null } };
         const milestones = [];
-        const tasks = { items: [], stats: { total: 0, completed: 0, inProgress: 0, overdue: 0 } };
-        const health = { score: 0 };
+        const tasks = { items: [], stats: { total: null, completed: null, inProgress: null, overdue: null } };
+        const health = { score: null };
         const sprints = [];
         const ships = [];
-        const valueLoop = { decision: {}, work: {}, ship: {}, learn: {} };
+        const valueLoop = emptyRetiredValueLoop();
 
         const graphStoryResult = await fetchGraphStories(projectCode);
         const mergedStories = graphStoryResult.status === 'available'
@@ -107,7 +129,10 @@ export function createBrainbasePortalRouter(options = {}) {
             tasks,
             members,
             health,
-            meta: { timestamp: new Date().toISOString() },
+            meta: {
+                timestamp: new Date().toISOString(),
+                legacyProjection: retiredLegacyProjection()
+            },
             timestamp: new Date().toISOString()
         });
     }));

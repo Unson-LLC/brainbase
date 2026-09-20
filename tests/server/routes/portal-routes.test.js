@@ -114,6 +114,25 @@ describe('Brainbase Portal routes', () => {
     expect(nocodbService.getProjectStats).not.toHaveBeenCalled();
     expect(res.body.direction).toEqual({ title: '', content: '', available: false });
     expect(res.body.frame).toEqual({ title: '', content: '', available: false, frames: [] });
+    expect(res.body.issues).toEqual({ items: [], stats: { open: null, highImpact: null } });
+    expect(res.body.tasks).toEqual({ items: [], stats: { total: null, completed: null, inProgress: null, overdue: null } });
+    expect(res.body.health).toEqual({ score: null });
+    expect(res.body.meta.legacyProjection).toEqual({ status: 'retired', source: 'nocodb' });
+  });
+
+  it('退役したNocoDBのValue Loopを空データと誤認させず状態を返す', async () => {
+    const res = await request(app).get('/api/brainbase/portal/brainbase/value-loop');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      decision: {},
+      work: {},
+      ship: {},
+      learn: {},
+      meta: { status: 'retired', source: 'nocodb' },
+    });
+    expect(nocodbService._fetchRecords).not.toHaveBeenCalled();
+    expect(nocodbService.getProjectStats).not.toHaveBeenCalled();
   });
 
   it('Graphの成功した空一覧を維持し、WikiだけのStoryを復活させない', async () => {
