@@ -601,7 +601,7 @@ export class MultitenantPostgresRepository {
             const scopes = Array.isArray(current.granted_scopes) ? current.granted_scopes.map(String).sort() : [];
             const snapshotScopes = Array.isArray(snapshot?.granted_scopes)
                 ? snapshot.granted_scopes.map(String).sort() : [];
-            const exact = current.connection_id === fixed.connection_id
+            const currentExact = current.connection_id === fixed.connection_id
                 && String(current.connection_revision) === fixed.connection_revision
                 && current.status === 'active'
                 && current.provider === fixed.provider
@@ -611,7 +611,8 @@ export class MultitenantPostgresRepository {
                 && JSON.stringify(scopes) === JSON.stringify(fixed.required_scopes)
                 && current.current_credential_ref === current.credential_ref
                 && current.credential_mode === fixed.credential_mode
-                && String(current.refresh_revision) === fixed.connection_revision
+                && String(current.refresh_revision) === fixed.connection_revision;
+            const exact = currentExact
                 && snapshot?.credential_ref === current.credential_ref
                 && snapshot?.credential_mode === current.credential_mode
                 && String(snapshot?.refresh_revision) === String(current.refresh_revision)
@@ -624,7 +625,27 @@ export class MultitenantPostgresRepository {
                 && snapshot?.workspace_id === fixed.workspace_id
                 && snapshot?.app_id === fixed.app_id
                 && JSON.stringify(snapshotScopes) === JSON.stringify(fixed.required_scopes);
-            if (!exact) return { state: 'conflict', snapshot: publicFixedManaSlackSnapshot(snapshot) };
+            const legacySnapshot = currentExact
+                && snapshot?.status === 'active' && snapshot?.provider === fixed.provider
+                && snapshot?.installation_id === fixed.installation_id
+                && snapshot?.workspace_id === fixed.workspace_id && snapshot?.app_id === fixed.app_id
+                && snapshot?.credential_mode === fixed.credential_mode
+                && JSON.stringify(snapshotScopes) === JSON.stringify(fixed.required_scopes)
+                && snapshot?.tenant_id === undefined && snapshot?.connection_id === undefined
+                && snapshot?.connection_revision === undefined && snapshot?.credential_ref === undefined;
+            if (!exact && !legacySnapshot) {
+                return { state: 'conflict', snapshot: publicFixedManaSlackSnapshot(snapshot) };
+            }
+            if (legacySnapshot) {
+                return {
+                    state: 'legacy', snapshot: publicFixedManaSlackSnapshot(snapshot),
+                    credential: {
+                        credential_ref: current.credential_ref,
+                        credential_mode: current.credential_mode,
+                        refresh_revision: String(current.refresh_revision)
+                    }
+                };
+            }
             return {
                 state: 'existing',
                 snapshot: publicFixedManaSlackSnapshot(snapshot),
@@ -634,6 +655,69 @@ export class MultitenantPostgresRepository {
                     refresh_revision: String(current.refresh_revision)
                 }
             };
+        });
+    }
+
+    async upgradeFixedManaSlackConnectionSnapshot({ definition, credential, now = this.now().toISOString() }) {
+        const fixed = fixedManaSlackDefinition(definition);
+        const opaqueCredential = fixedManaSlackCredential(credential);
+        const upgradedAt = canonicalTimestamp(now);
+        if (!upgradedAt) throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+        return this.withTenant(fixed.tenant_id, async (client) => {
+            const currentResult = await client.query(
+                `SELECT wc.*, revision.connection_snapshot, cbr.credential_ref AS broker_credential_ref,
+                        cbr.credential_mode, cbr.refresh_revision
+                   FROM workspace_connections AS wc
+                   JOIN workspace_connection_revisions AS revision
+                     ON revision.tenant_id = wc.tenant_id AND revision.connection_id = wc.connection_id
+                    AND revision.connection_revision = wc.connection_revision
+                   JOIN credential_broker_refs AS cbr
+                     ON cbr.tenant_id = wc.tenant_id AND cbr.connection_id = wc.connection_id
+                    AND cbr.connection_revision = wc.connection_revision
+                  WHERE wc.tenant_id = $1 AND wc.connection_id = $2
+                  FOR UPDATE OF wc, revision, cbr`,
+                [fixed.tenant_id, fixed.connection_id]
+            );
+            const current = currentResult.rows[0];
+            const scopes = Array.isArray(current?.granted_scopes) ? current.granted_scopes.map(String).sort() : [];
+            const safeLegacy = current
+                && String(current.connection_revision) === fixed.connection_revision
+                && current.status === 'active' && current.provider === fixed.provider
+                && current.installation_id === fixed.installation_id
+                && current.workspace_id === fixed.workspace_id && current.app_id === fixed.app_id
+                && JSON.stringify(scopes) === JSON.stringify(fixed.required_scopes)
+                && current.credential_ref === current.broker_credential_ref
+                && current.credential_ref === opaqueCredential.credential_ref
+                && current.credential_mode === fixed.credential_mode
+                && String(current.refresh_revision) === fixed.connection_revision;
+            if (!safeLegacy) throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+            const contractResult = await client.query(
+                `SELECT c.contract_revision, rb.deployment_id, rb.profile
+                   FROM tenant_contract_revisions AS c
+                   JOIN tenant_contract_revision_runtime_bindings AS rb
+                     ON rb.tenant_id = c.tenant_id AND rb.contract_id = c.contract_id
+                    AND rb.contract_revision = c.contract_revision
+                  WHERE c.tenant_id = $1 AND c.status = 'active'
+                    AND c.effective_from <= $2 AND (c.effective_until IS NULL OR c.effective_until > $2)
+                  ORDER BY c.contract_revision DESC LIMIT 1 FOR SHARE`,
+                [fixed.tenant_id, upgradedAt]
+            );
+            const contract = contractResult.rows[0];
+            if (!contract) throw new ContractError('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
+            const snapshot = fixedManaSlackSnapshot(
+                fixed, opaqueCredential, contract, current.tenant_revision_at_write, current.installed_at.toISOString()
+            );
+            await client.query(
+                `UPDATE workspace_connections SET deployment_id = $3, profile = $4, contract_revision = $5
+                  WHERE tenant_id = $1 AND connection_id = $2`,
+                [fixed.tenant_id, fixed.connection_id, contract.deployment_id, contract.profile, String(contract.contract_revision)]
+            );
+            await client.query(
+                `UPDATE workspace_connection_revisions SET connection_snapshot = $4::jsonb
+                  WHERE tenant_id = $1 AND connection_id = $2 AND connection_revision = $3`,
+                [fixed.tenant_id, fixed.connection_id, fixed.connection_revision, canonicalJson(snapshot)]
+            );
+            return publicFixedManaSlackSnapshot(snapshot);
         });
     }
 
