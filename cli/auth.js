@@ -18,28 +18,45 @@ export async function login() {
 
     // Step 1: Request device code
     let deviceResponse;
+    let response;
     try {
-        const res = await fetch(`${serverUrl}/api/auth/device/code`, {
+        response = await fetch(`${serverUrl}/api/auth/device/code`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ code_verifier: codeVerifier })
         });
-        if (!res.ok) {
-            // If device flow not implemented yet, fall back to manual token
-            if (res.status === 404) {
-                return await manualTokenLogin(serverUrl);
-            }
-            throw new Error(`Server returned ${res.status}: ${await res.text()}`);
-        }
-        deviceResponse = await res.json();
     } catch (error) {
         if (error.cause?.code === 'ECONNREFUSED') {
-            console.error(`Error: Cannot connect to ${serverUrl}`);
-            console.error('Make sure the brainbase server is running.');
-            process.exit(1);
+            throw new Error(
+                `Cannot connect to ${serverUrl}. Make sure the Brainbase server is running, then run ` +
+                '`brainbase auth login` again. No credentials were saved.'
+            );
         }
-        // Fall back to manual token entry
-        return await manualTokenLogin(serverUrl);
+        throw new Error(
+            `Device Code Flow request failed: ${error instanceof Error ? error.message : String(error)}. ` +
+            'Verify the Brainbase server and run `brainbase auth login` again. No credentials were saved.'
+        );
+    }
+    if (!response.ok) {
+        const body = await response.text();
+        if (response.status === 404) {
+            throw new Error(
+                `Slack Device Code Flow is unavailable on ${serverUrl} (HTTP 404). ` +
+                'Use the current Brainbase server or complete Slack login in the web UI, then run `brainbase auth login` again. No credentials were saved.'
+            );
+        }
+        throw new Error(
+            `Server returned ${response.status}: ${body}. ` +
+            'Verify the Brainbase server and run `brainbase auth login` again. No credentials were saved.'
+        );
+    }
+    try {
+        deviceResponse = await response.json();
+    } catch (error) {
+        throw new Error(
+            `Device Code Flow response was invalid: ${error instanceof Error ? error.message : String(error)}. ` +
+            'Verify the Brainbase server and run `brainbase auth login` again. No credentials were saved.'
+        );
     }
 
     // Step 2: Display authorization info
@@ -91,39 +108,6 @@ export async function login() {
     process.exit(1);
 }
 
-/**
- * Manual token login (fallback when device flow is not available)
- */
-async function manualTokenLogin(serverUrl) {
-    console.log('\nDevice Code Flow not available on this server.');
-    console.log('Using manual token entry.\n');
-
-    // Use insecure header auth for development
-    const readline = await import('readline');
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-
-    const role = await new Promise(resolve => {
-        rl.question('Role (member/gm/ceo) [member]: ', answer => resolve(answer || 'member'));
-    });
-
-    const projects = await new Promise(resolve => {
-        rl.question('Project codes (comma-separated) []: ', answer => resolve(answer));
-    });
-
-    rl.close();
-
-    saveAuth({
-        mode: 'insecure_header',
-        role,
-        projects: projects ? projects.split(',').map(p => p.trim()) : [],
-        clearance: role === 'ceo' ? ['internal', 'restricted', 'finance', 'hr', 'contract'] : ['internal'],
-        server_url: serverUrl,
-        expires_at: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
-    });
-
-    console.log('Auth saved (insecure header mode).');
-}
-
 export function status() {
     const auth = getAuth();
     if (!auth) {
@@ -132,14 +116,18 @@ export function status() {
         return;
     }
 
-    console.log('Logged in:');
     if (auth.mode === 'insecure_header') {
-        console.log(`  Mode: insecure header (dev)`);
-        console.log(`  Role: ${auth.role}`);
-        console.log(`  Projects: ${auth.projects?.join(', ') || 'none'}`);
-    } else {
-        console.log(`  Mode: token`);
+        console.log('Legacy authentication found: insecure header mode is no longer supported.');
+        console.log('Run: brainbase auth login');
+        return;
     }
+    if (!auth.token) {
+        console.log('Saved authentication is invalid because it has no bearer token.');
+        console.log('Run: brainbase auth login');
+        return;
+    }
+    console.log('Logged in:');
+    console.log(`  Mode: token`);
     console.log(`  Server: ${auth.server_url}`);
     console.log(`  Expires: ${auth.expires_at}`);
 }

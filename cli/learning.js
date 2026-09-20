@@ -9,17 +9,18 @@ const VERIFY_FIRST_ADAPTER = 'verify-first';
 const DEFAULT_REVIEW_ROOT = '/tmp/verify-first-bugs';
 const DEFAULT_PROJECT_ID = 'brainbase';
 
-function getHeaders(auth) {
+export function getHeaders(auth) {
     if (!auth) {
         throw new Error('Not logged in. Run: brainbase auth login');
     }
     if (auth.mode === 'insecure_header') {
-        return {
-            'Content-Type': 'application/json',
-            'x-brainbase-role': auth.role,
-            'x-brainbase-projects': (auth.projects || []).join(','),
-            'x-brainbase-clearance': (auth.clearance || []).join(',')
-        };
+        throw new Error(
+            'Saved legacy insecure_header authentication is no longer supported. ' +
+            'Run `brainbase auth login` to authenticate with Slack Device Code Flow.'
+        );
+    }
+    if (!auth.token) {
+        throw new Error('Saved authentication has no bearer token. Run `brainbase auth login`');
     }
     return {
         'Content-Type': 'application/json',
