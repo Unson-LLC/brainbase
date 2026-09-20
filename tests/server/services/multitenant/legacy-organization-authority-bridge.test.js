@@ -11,7 +11,7 @@ const manifest = {
     person_id: 'per_01KGYC7NNS0VXADK7NP48W4VR5', slack_user_id: 'U07LNUP582X', slack_workspace_id: 'T07LL5WV7N1'
 };
 
-function client({ grantProjects = ['baao', 'brainbase'], grantClearance = ['internal'], existingProjectPayload = null, existingOrganizationPayload = null, existingMembership = null } = {}) {
+function client({ grantProjects = ['baao', 'brainbase'], grantClearance = ['internal'], existingProjectPayload = null, existingOrganizationPayload = null, existingLegacyAlias = false, legacyAliasTenantId = manifest.tenant_id, existingMembership = null } = {}) {
     const inserted = { project: false, organization: false, membership: false };
     const stored = {
         project: existingProjectPayload ? {
@@ -24,6 +24,11 @@ function client({ grantProjects = ['baao', 'brainbase'], grantClearance = ['inte
             organization_id: manifest.tenant_organization_id,
             tenant_id: manifest.tenant_id,
             organization_payload: existingOrganizationPayload
+        } : null,
+        legacyAlias: existingLegacyAlias ? {
+            organization_id: manifest.organization_id,
+            tenant_id: legacyAliasTenantId,
+            organization_payload: { status: 'active', project_code: 'unson' }
         } : null,
         membership: existingMembership
     };
@@ -40,7 +45,7 @@ function client({ grantProjects = ['baao', 'brainbase'], grantClearance = ['inte
         if (compact.startsWith('UPDATE tenant_organizations')) { stored.organization.organization_payload = { ...stored.organization.organization_payload, ...JSON.parse(params[1]) }; return { rows: [] }; }
         if (compact.startsWith('INSERT INTO tenant_memberships')) { inserted.membership = true; stored.membership = { membership_id: params[0], tenant_id: params[1], organization_id: params[3], principal_id: params[4], membership_payload: JSON.parse(params[5]) }; return { rows: [] }; }
         if (compact.includes('FROM tenant_projects') && compact.includes(' OR ')) return { rows: stored.project ? [stored.project] : [] };
-        if (compact.includes('FROM tenant_organizations')) return { rows: stored.organization ? [stored.organization] : [] };
+        if (compact.includes('FROM tenant_organizations')) return { rows: [stored.organization, stored.legacyAlias].filter(Boolean) };
         if (compact.includes('FROM tenant_memberships') && compact.includes('FOR UPDATE')) return { rows: stored.membership ? [stored.membership] : [] };
         if (compact.includes('resolve_active_tenant_for_organization')) return { rows: [{ tenant_id: manifest.tenant_id, organization_id: 'unson' }] };
         if (compact.includes('FROM tenant_projects')) return { rows: stored.project ? [{ project_id: stored.project.project_id, project_code: stored.project.project_code }] : [] };
@@ -98,6 +103,33 @@ describe('legacy organization authority bridge', () => {
         const result = await provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true });
         expect(result.plan[1]).toEqual({ operation: 'update', entity: 'tenant_organization', id: manifest.tenant_organization_id });
         expect(result.readback.resolved_tenant).toEqual({ tenant_id: manifest.tenant_id, organization_id: 'unson' });
+    });
+
+    it('reuses an existing legacy organization alias instead of creating a duplicate Graph mapping', async () => {
+        const db = client({
+            existingOrganizationPayload: { status: 'active', display_name: 'Unson Business' },
+            existingLegacyAlias: true
+        });
+        const result = await provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true });
+        expect(result.plan[1]).toEqual({ operation: 'noop', entity: 'tenant_organization', id: manifest.tenant_organization_id });
+        expect(result.readback.resolved_tenant).toEqual({ tenant_id: manifest.tenant_id, organization_id: 'unson' });
+        expect(db.inserted.organization).toBe(false);
+    });
+
+    it('creates a canonical organization without a duplicate Graph mapping when the legacy alias already exists', async () => {
+        const db = client({ existingLegacyAlias: true });
+        const result = await provisionLegacyOrganizationAuthorityBridge({ client: db, manifest, actorId: 'operator-keigo', commit: true });
+        expect(result.plan[1]).toEqual({ operation: 'create', entity: 'tenant_organization', id: manifest.tenant_organization_id });
+        expect(db.inserted.organization).toBe(true);
+    });
+
+    it('rejects a legacy organization alias owned by another tenant', async () => {
+        await expect(provisionLegacyOrganizationAuthorityBridge({
+            client: client({ existingOrganizationPayload: { status: 'active' }, existingLegacyAlias: true, legacyAliasTenantId: 'ten_01M0HMA228ES64N4TFX846V8T9' }),
+            manifest,
+            actorId: 'operator-keigo',
+            commit: true
+        })).rejects.toMatchObject({ code: 'TENANT_ORGANIZATION_CONFLICT' });
     });
 
     it('rejects a tenant organization already mapped to another Graph organization', async () => {
