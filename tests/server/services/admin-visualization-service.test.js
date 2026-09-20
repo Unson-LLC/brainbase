@@ -512,6 +512,31 @@ describe('AdminVisualizationService', () => {
         expect(JSON.stringify(health)).not.toContain('postgres://user:secret@example.com/db');
     });
 
+    it('INV-8 Contract-6: connected runtime stays available when diagnostic-only env keys are absent', async () => {
+        const service = new AdminVisualizationService({
+            candidateRepository: {
+                ...candidateRepository,
+                pool: {
+                    async query() {
+                        return { rows: [{ ok: 1 }] };
+                    }
+                }
+            },
+            env: {
+                INFO_SSOT_DATABASE_URL: 'postgres://user:secret@example.com/db',
+                CANDIDATE_STORE_ALLOWED_SOURCES: 'mana'
+            }
+        });
+
+        const health = await service.getHealth(access);
+
+        expect(health.runtime_config.database).toMatchObject({ status: 'available', connection_status: 'connected' });
+        expect(health.runtime_config.checks[0]).toMatchObject({ source_class: 'personal_kg', status: 'available' });
+        expect(health.runtime_config.keys.find((item) => item.key === 'BRAINBASE_ENV_PATH').status).toBe('missing');
+        expect(health.runtime_config.keys.find((item) => item.key === 'INFO_SSOT_DB_URL').status).toBe('missing');
+        expect(health.sources.find((source) => source.source_class === 'runtime_config').status).toBe('available');
+    });
+
     it('INV-8 Contract-6: DB health reports unavailable on connection failure without leaking secrets', async () => {
         const service = new AdminVisualizationService({
             candidateRepository: {

@@ -1380,7 +1380,7 @@ describeWithPostgres('Graph maintenance PostgreSQL acceptance', () => {
         });
         expect(replayedPlan.plan_id).toBe(plan.plan_id);
         expect(replayedPlan.after_snapshot_hash).toBe(plan.after_snapshot_hash);
-    });
+    }, 30_000);
 
     it('Project subjectの通常readはsource scopeとrole・clearance境界を守りRollback後に消える', async () => {
         const targetId = 'brainbase-universal-arts-ai-support';

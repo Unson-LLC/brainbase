@@ -307,7 +307,9 @@ function runtimeHealthStatus(runtimeConfig = {}) {
     if (checks.some((item) => item.status === 'unavailable')) return 'unavailable';
     if (database.connection_status === 'not_configured') return 'partial';
     if (checks.some((item) => item.status === 'partial')) return 'partial';
-    if (keys.length && keys.some((item) => item.status === 'missing')) return 'partial';
+    // Individual env keys are diagnostic metadata, not independent readiness
+    // requirements. Several are optional or aliases; the live DB and service
+    // checks above are the canonical runtime readiness signals.
     return keys.some((item) => item.status === 'present') || database.status === 'available' ? 'available' : 'unavailable';
 }
 
