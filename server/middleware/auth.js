@@ -156,9 +156,12 @@ export function requireAuth(authService, options = {}) {
                 const authenticatedMapping = hasAuthenticatedTenantContext
                     ? await authService.resolveTenantForAuthenticatedAccess(access)
                     : null;
-                const mapping = hasAuthenticatedTenantContext
-                    ? authenticatedMapping
-                    : await authService.resolveTenantForOrganization(access.organizationId);
+                // Prefer the person + provider identity when it is projected. Older
+                // signed sessions can predate that projection, so a missing match may
+                // still use the unique active organization alias. The organization
+                // resolver fails closed when the alias is missing or ambiguous.
+                const mapping = authenticatedMapping
+                    ?? await authService.resolveTenantForOrganization(access.organizationId);
                 if (mapping?.organization_id === access.organizationId && mapping?.tenant_id) {
                     access.tenantId = mapping.tenant_id;
                 }
