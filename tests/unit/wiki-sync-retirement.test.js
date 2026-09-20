@@ -1,9 +1,21 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { push } from '../../cli/sync.js';
+import { pull, push, sync, wikiStatus } from '../../cli/sync.js';
+
+vi.mock('../../cli/config.js', () => ({
+    getConfig: () => { throw new Error('Unexpected config access'); },
+    getAuth: () => { throw new Error('Unexpected auth access'); },
+    getSyncState: () => { throw new Error('Unexpected sync state access'); },
+    saveSyncState: () => { throw new Error('Unexpected sync state write'); }
+}));
 
 describe('Wiki CLI retirement boundary', () => {
-    it('refuses push before reading auth or contacting the server', async () => {
-        await expect(push()).rejects.toThrow('Wiki writes are retired');
+    afterEach(() => vi.unstubAllGlobals());
+
+    it.each([['sync', sync], ['pull', pull], ['push', push], ['status', wikiStatus]])('%s refuses before reading config/auth or contacting the server', async (_name, operation) => {
+        const fetch = vi.fn();
+        vi.stubGlobal('fetch', fetch);
+        await expect(operation()).rejects.toThrow('Wiki is retired');
+        expect(fetch).not.toHaveBeenCalled();
     });
 });

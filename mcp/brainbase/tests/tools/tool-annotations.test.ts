@@ -9,7 +9,7 @@ describe('MCP tool capability annotations', () => {
     const expectedReadOnly: Record<string, boolean> = {
       list_entities: true, get_entity: true, list_extension_types: true,
       list_extension_entities: true, search: true, resolve_entity: true,
-      get_wiki_page: true, search_personal_kg: true, brainbase_projects: true,
+      search_personal_kg: true, brainbase_projects: true,
       brainbase_bootstrap_config: true, brainbase_admin_read: true, brainbase_run_receipt_inbox: true,
       brainbase_run_receipt_history: true, brainbase_run_receipt_diagnosis: true,
       brainbase_automation_run_detail: true, brainbase_meeting_automation_diagnosis: true,

@@ -278,7 +278,7 @@ function defaultCompositionApp(receiptsById) {
         canonicalTaskStoreConfig: { ownerPersonId: 'per_owner', ownerAliasIds: [] }, canonicalTaskService: {},
         learningService: {}, learningHealthService: {}, candidateRepository: null, knowledgeEventService: null,
         knowledgeFeedbackService: null, knowledgeCycleQueryService: null, onboardingRuntimeService: null,
-        wikiService: {}, tokenUsageService: {}, agentControlCatalogService: {}, loopIntentService: {},
+        tokenUsageService: {}, agentControlCatalogService: {}, loopIntentService: {},
         meetingAutomationService: {}, automationRunService: {}, runReceiptQueryService, outcomeCaseService,
         companionApprovalInboxService: {}, meetingSourceMcpSyncService: null, externalRunnerIngestService: {},
         runReceiptIngestService: {}, routineLivenessService: {}, uploadMiddleware: (_req, _res, next) => next(),

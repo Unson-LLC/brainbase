@@ -18,8 +18,7 @@ export function createBrainbasePortalRouter(options = {}) {
         configParser,
         projectCatalogParser = configParser,
         projectCatalogAuthGuard = (_req, _res, next) => next(),
-        infoSSOTService,
-        wikiService
+        infoSSOTService
     } = options;
     const catalogReadGuard = typeof projectCatalogParser?.runForOrganization === 'function'
         ? projectCatalogAuthGuard
@@ -88,14 +87,8 @@ export function createBrainbasePortalRouter(options = {}) {
             : { decision: {}, work: {}, ship: {}, learn: {} };
 
         const graphStoryResult = await fetchGraphStories(projectCode);
-        const wikiStories = graphStoryResult.status === 'available' && graphStoryResult.stories.length
-            ? await fetchStories(projectCode)
-            : null;
         const mergedStories = graphStoryResult.status === 'available'
-            ? _mergeStoriesAndMilestones(
-                _mergeGraphStoriesWithWikiDetails(graphStoryResult.stories, wikiStories || []),
-                milestones
-            )
+            ? _mergeStoriesAndMilestones(graphStoryResult.stories, milestones)
             : [];
         const storyMap = {
             stories: mergedStories,
@@ -105,7 +98,7 @@ export function createBrainbasePortalRouter(options = {}) {
                 storySource: graphStoryResult.status === 'available' ? 'graph' : 'unavailable',
                 storyStatus: graphStoryResult.status,
                 graphStoryCount: graphStoryResult.status === 'available' ? graphStoryResult.stories.length : null,
-                wikiStoryCount: wikiStories?.length ?? null,
+                wikiStoryCount: null,
                 projectionSource: nocodbBaseId ? 'nocodb' : null
             }
         };
@@ -145,101 +138,6 @@ export function createBrainbasePortalRouter(options = {}) {
     }));
 
     // ==================== データ取得関数 ====================
-
-    async function fetchDirection(projectCode) {
-        try {
-            if (!wikiService) return { title: '', content: '', available: false };
-            const access = { role: 'member', roleRank: 1, clearance: ['internal'], projectCodes: [projectCode] };
-            const result = await wikiService.getPage(access, `${projectCode}/project.md`);
-            if (result.error) {
-                const fallback = await wikiService.getPage(access, `${projectCode}/README.md`);
-                if (fallback.error) return { title: 'project.md', content: '', available: false };
-                return { title: fallback.title || 'README.md', content: fallback.content, available: true };
-            }
-            return { title: result.title || 'project.md', content: result.content, available: true };
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch direction', { projectCode, error: error.message });
-            return { title: '', content: '', available: false };
-        }
-    }
-
-    async function fetchStories(projectCode) {
-        try {
-            if (!wikiService) return [];
-            const access = { role: 'member', roleRank: 1, clearance: ['internal'], projectCodes: [projectCode] };
-            const result = await wikiService.getPage(access, `${projectCode}/stories.md`);
-            if (result.error || !result.content) return [];
-            const content = result.content;
-            const stories = [];
-
-            // Method 1: YAML code blocks (```yaml ... ```)
-            const yamlBlocks = content.match(/```yaml\n([\s\S]*?)```/g) || [];
-            for (const block of yamlBlocks) {
-                const yaml = block.replace(/```yaml\n/, '').replace(/```/, '').trim();
-                const story = _parseStoryYaml(yaml);
-                if (story.story_id && story.horizon && story.name) stories.push(story);
-            }
-
-            // Method 2: Markdown sections with --- frontmatter (salestailor-project format)
-            // Split by "# Story:" headings
-            if (!stories.length) {
-                const storySections = content.split(/(?=^# Story:)/m);
-                for (const section of storySections) {
-                    if (!section.startsWith('# Story:')) continue;
-                    const titleMatch = section.match(/^# Story:\s*(.+)/);
-                    const name = titleMatch ? titleMatch[1].trim() : '';
-                    // Extract YAML frontmatter within section
-                    const fmMatch = section.match(/\n---\n([\s\S]*?)\n---/);
-                    const meta = {};
-                    if (fmMatch) {
-                        for (const line of fmMatch[1].split('\n')) {
-                            const m = line.match(/^(\w[\w_]*)\s*:\s*(.+)/);
-                            if (m) meta[m[1]] = m[2].trim().replace(/^["']|["']$/g, '');
-                        }
-                    }
-                    // Extract prose sections
-                    const bgMatch = section.match(/## 背景\n\n([\s\S]*?)(?=\n## |$)/);
-                    const currentMatch = section.match(/## 現状\n\n([\s\S]*?)(?=\n## |$)/);
-                    const changeMatch = section.match(/### 何を\n\n([\s\S]*?)(?=\n### |$)/);
-                    const whyMatch = section.match(/### なぜ\n\n([\s\S]*?)(?=\n## |$)/);
-                    const acMatch = section.match(/## 受け入れ基準\n\n([\s\S]*?)(?=\n## |$)/);
-
-                    const criteria = [];
-                    if (acMatch) {
-                        const acLines = acMatch[1].split('\n').filter(l => l.match(/^- \[/));
-                        for (const l of acLines) {
-                            criteria.push({ type: 'commit', description: l.replace(/^- \[.\]\s*/, '').trim() });
-                        }
-                    }
-
-                    if (meta.story_id || name) {
-                        stories.push({
-                            story_id: meta.story_id || '',
-                            frame_id: meta.frame_id || '',
-                            horizon: meta.horizon || '',
-                            view: meta.view || 'business',
-                            name: name,
-                            status: meta.status || '',
-                            period: meta.period || '',
-                            started_at: meta.started_at || '',
-                            due_at: meta.due_at || '',
-                            enemy: bgMatch ? bgMatch[1].trim().substring(0, 200) : '',
-                            context: [
-                                changeMatch ? changeMatch[1].trim() : '',
-                                whyMatch ? whyMatch[1].trim() : ''
-                            ].filter(Boolean).join(' / ').substring(0, 300),
-                            criteria: criteria.length ? criteria : undefined
-                        });
-                    }
-                }
-            }
-
-            return stories;
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch stories', { projectCode, error: error.message });
-            return [];
-        }
-    }
 
     async function fetchGraphStories(projectCode) {
         if (typeof infoSSOTService?.listGraphEntities !== 'function') {
@@ -341,95 +239,14 @@ export function createBrainbasePortalRouter(options = {}) {
         };
     }
 
-    function _mergeGraphStoriesWithWikiDetails(graphStories, wikiStories) {
-        const wikiById = new Map((wikiStories || []).map(story => [story.story_id, story]));
-        return graphStories.map(graphStory => {
-            const wikiStory = wikiById.get(graphStory.story_id) || {};
-            return {
-                ...graphStory,
-                horizon: graphStory.horizon || wikiStory.horizon || '',
-                view: graphStory.view || wikiStory.view || 'business',
-                period: graphStory.period || wikiStory.period || '',
-                started_at: graphStory.started_at || wikiStory.started_at || '',
-                due_at: graphStory.due_at || wikiStory.due_at || '',
-                enemy: graphStory.enemy || wikiStory.enemy || '',
-                context: graphStory.context || wikiStory.context || '',
-                beat_map: graphStory.beat_map || wikiStory.beat_map
-            };
-        });
+    // Direction and frame used to be read from Wiki. The route remains stable,
+    // but the retired source is explicitly unavailable and has no fallback.
+    async function fetchDirection() {
+        return { title: '', content: '', available: false };
     }
 
-    function _parseStoryYaml(yaml) {
-        const story = { criteria: [] };
-        let currentCriterion = null;
-        for (const line of yaml.split('\n')) {
-            // Top-level key: value
-            const topMatch = line.match(/^(\w[\w_]*)\s*:\s*(.+)/);
-            if (topMatch && !line.startsWith('  ')) {
-                const [, key, val] = topMatch;
-                if (key === 'criteria') continue; // criteria is an array, skip the key line
-                if (key === 'beat_map') continue; // beat_map is a dict
-                story[key] = val.replace(/^["']|["']$/g, '').trim();
-                continue;
-            }
-            // criteria array item: - type: commit
-            const criteriaTypeMatch = line.match(/^\s+-\s+type:\s+(.+)/);
-            if (criteriaTypeMatch) {
-                currentCriterion = { type: criteriaTypeMatch[1].trim() };
-                story.criteria.push(currentCriterion);
-                continue;
-            }
-            // criteria description:
-            const criteriaDescMatch = line.match(/^\s+description:\s*"?(.+?)"?\s*$/);
-            if (criteriaDescMatch && currentCriterion) {
-                currentCriterion.description = criteriaDescMatch[1];
-                continue;
-            }
-            // beat_map entries: q1: "..."
-            const beatMatch = line.match(/^\s+(q\d+|[a-z]\d+):\s*"?(.+?)"?\s*$/);
-            if (beatMatch) {
-                if (!story.beat_map) story.beat_map = {};
-                story.beat_map[beatMatch[1]] = beatMatch[2];
-            }
-        }
-        if (!story.criteria.length) delete story.criteria;
-        return story;
-    }
-
-    async function fetchFrame(projectCode) {
-        try {
-            if (!wikiService) return { title: '', content: '', available: false, frames: [] };
-            const access = { role: 'member', roleRank: 1, clearance: ['internal'], projectCodes: [projectCode] };
-            const result = await wikiService.getPage(access, `${projectCode}/frame.md`);
-            if (result.error) {
-                const fallback = await wikiService.getPage(access, `${projectCode}/project.md`);
-                if (fallback.error) {
-                    const readmeFallback = await wikiService.getPage(access, `${projectCode}/README.md`);
-                    if (readmeFallback.error) return { title: 'frame.md', content: '', available: false, frames: [] };
-                    return { title: readmeFallback.title || 'README.md', content: readmeFallback.content, available: true, frames: [] };
-                }
-                return { title: fallback.title || 'project.md', content: fallback.content, available: true, frames: [] };
-            }
-            // Parse multiple frames from YAML blocks
-            const frames = _parseFrameBlocks(result.content);
-            return { title: result.title || 'frame.md', content: result.content, available: true, frames };
-        } catch (error) {
-            logger.warn('Portal: Failed to fetch frame', { projectCode, error: error.message });
-            return { title: '', content: '', available: false, frames: [] };
-        }
-    }
-
-    function _parseFrameBlocks(content) {
-        const blocks = content.match(/```yaml\n([\s\S]*?)```/g) || [];
-        return blocks.map(block => {
-            const yaml = block.replace(/```yaml\n/, '').replace(/```/, '').trim();
-            const frame = {};
-            for (const line of yaml.split('\n')) {
-                const m = line.match(/^(\w[\w_]*)\s*:\s*"?(.+?)"?\s*$/);
-                if (m) frame[m[1]] = m[2];
-            }
-            return frame;
-        }).filter(f => f.frame_id);
+    async function fetchFrame() {
+        return { title: '', content: '', available: false, frames: [] };
     }
 
     async function fetchIssues(baseId) {

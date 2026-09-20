@@ -67,7 +67,6 @@ function createBootstrapApp({
         knowledgeFeedbackService: null,
         knowledgeCycleQueryService: null,
         onboardingRuntimeService: null,
-        wikiService: {},
         tokenUsageService: {},
         agentControlCatalogService: {},
         loopIntentService: {},

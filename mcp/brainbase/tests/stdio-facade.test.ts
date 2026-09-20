@@ -138,9 +138,6 @@ function makeFakeClient(
     close: async () => {
       state.closeCalls += 1;
     },
-    listResources: async () => ({ resources: [] }),
-    listResourceTemplates: async () => ({ resourceTemplates: [] }),
-    readResource: async () => ({ contents: [] }),
     callTool: async () => {
       state.callToolCalls += 1;
       return callTool();
@@ -171,7 +168,7 @@ async function waitUntil(predicate: () => boolean, timeoutMs = 2_000): Promise<v
   }
 }
 
-test('initialize, tools/list, and resource template discovery do not wait for backend startup', async () => {
+test('initialize and tools/list do not wait for backend startup', async () => {
   const state: FakeClientState = {
     connectCalls: 0,
     closeCalls: 0,
@@ -196,8 +193,6 @@ test('initialize, tools/list, and resource template discovery do not wait for ba
     const catalog = await facade.client.listTools();
     assert.ok(catalog.tools.length > 0);
     assert.equal(state.connectCalls, 1, 'kickoff owns the only pending backend connect');
-    const templates = await facade.client.listResourceTemplates();
-    assert.equal(templates.resourceTemplates.length, 1);
     const readiness = await facade.client.callTool({ name: 'get_entity', arguments: {} });
     assert.equal(readiness.isError, true);
     assert.equal((readiness._meta as Record<string, unknown>)['brainbase.retryable'], true);
@@ -208,22 +203,20 @@ test('initialize, tools/list, and resource template discovery do not wait for ba
   }
 });
 
-test('resource readiness errors preserve retryability and reason', async () => {
+test('retired Wiki resources do not wait for or call the facade backend', async () => {
+  let readinessCalls = 0;
   const backend = {
     ensureReady: async () => {
+      readinessCalls++;
       throw new BackendReadinessError('starting');
     },
   };
   const facade = await connectFacade(backend);
   try {
-    await assert.rejects(
-      facade.client.listResources(),
-      (error: unknown) => {
-        assert.ok(error instanceof McpError);
-        assert.deepEqual(error.data, { retryable: true, reason: 'starting' });
-        return true;
-      },
-    );
+    await assert.rejects(facade.client.listResources());
+    await assert.rejects(facade.client.listResourceTemplates());
+    await assert.rejects(facade.client.readResource({ uri: 'brainbase://wiki/page/brainbase/project' }));
+    assert.equal(readinessCalls, 0);
   } finally {
     await closeFacade(facade.client, facade.server);
   }
@@ -460,7 +453,12 @@ test('retired search calls do not wait for or call the facade backend', async ()
     return {callTool: async () => { toolCalls++; throw new Error('must not forward'); }} as unknown as BackendClient;
   }});
   try {
-    for (const [name, args] of [['get_context', {topic: 'q'}], ['search_wiki', {query: 'q'}], ['search', {query: 'q', mode: 'lexical'}]] as const) {
+    for (const [name, args] of [
+      ['get_context', {topic: 'q'}],
+      ['search_wiki', {query: 'q'}],
+      ['get_wiki_page', {path: 'brainbase/project'}],
+      ['search', {query: 'q', mode: 'lexical'}],
+    ] as const) {
       const result = await facade.client.callTool({name, arguments: args});
       assert.equal(result.isError, true);
       assert.match(JSON.stringify(result), /removed|disabled/);

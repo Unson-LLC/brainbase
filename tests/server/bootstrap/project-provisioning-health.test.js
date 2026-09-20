@@ -41,7 +41,6 @@ function bootstrapApp(runtimeCatalog, authService = null) {
         learningService: {},
         learningHealthService: {},
         candidateRepository: null,
-        wikiService: {},
         tokenUsageService: {},
         uploadMiddleware: (_req, _res, next) => next(),
         appVersion: 'test',

@@ -72,16 +72,6 @@ const TARGETS: Record<string, AuditTarget> = {
       return String(event.event_id ?? event.body_hash ?? '個人記憶');
     },
   },
-  search_wiki: {
-    source: 'Wiki互換面',
-    operation: '検索',
-    query: (args) => String(args.query ?? ''),
-  },
-  get_wiki_page: {
-    source: 'Wiki互換面',
-    operation: '取得',
-    query: (args) => String(args.path ?? ''),
-  },
   brainbase_projects: {
     source: 'Brainbase',
     operation: '取得',

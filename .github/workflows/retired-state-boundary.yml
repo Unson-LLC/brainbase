@@ -24,9 +24,17 @@ on:
       - 'server/middleware/csrf.js'
       - 'mcp/brainbase/src/tools/mesh-tools.ts'
       - 'mcp/brainbase/src/server.ts'
+      - 'mcp/brainbase/src/stdio-facade.ts'
+      - 'mcp/brainbase/src/tools/knowledge-owner-audit.ts'
+      - 'mcp/brainbase/src/tools/tool-annotations.ts'
+      - 'mcp/brainbase/tests/**'
       - 'mcp/brainbase/tests/tools/mesh-tools.test.ts'
       - 'docs/brainbase-capabilities/capabilities/codex.app-server.yml'
       - 'tests/server/routes/portal-routes.test.js'
+      - 'tests/server/routes/wiki-retirement.test.js'
+      - 'tests/unit/wiki-sync-retirement.test.js'
+      - 'cli/sync.js'
+      - 'cli/config.js'
       - 'tests/server/routes/mesh-routes.test.js'
       - 'tests/mesh/**'
       - 'tests/unit/codex-app-server-capability-retirement.test.js'
@@ -100,12 +108,23 @@ jobs:
           tests/server/scripts/retired-setup.test.js
           tests/server/scripts/legacy-operations-retirement.test.js
           tests/server/routes/portal-routes.test.js
+          tests/server/routes/wiki-retirement.test.js
+          tests/unit/wiki-sync-retirement.test.js
           tests/server/routes/mesh-routes.test.js
           tests/mesh/unverified-query-boundary.test.js
           tests/mesh/query/permission-checker.test.js
           tests/unit/codex-app-server-capability-retirement.test.js
       - name: Verify Mesh MCP receipt and authentication contracts
         run: node --import tsx --test mcp/brainbase/tests/tools/mesh-tools.test.ts
+      - name: Verify Wiki MCP retirement contracts
+        run: >-
+          node --import tsx --test
+          mcp/brainbase/tests/stdio-facade.test.ts
+          mcp/brainbase/tests/server-startup.test.ts
+          mcp/brainbase/tests/server-index-readiness.test.ts
+          mcp/brainbase/tests/server-http-contract.test.ts
+          mcp/brainbase/tests/tools/tool-annotations.test.ts
+          mcp/brainbase/tests/tools/knowledge-owner-audit.test.ts
       - name: Verify retired Codex capability contracts
         env:
           VIBEPRO_EVIDENCE_ID: brainbase-boundary-cleanup

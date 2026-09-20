@@ -123,8 +123,10 @@ test('philosophy failure is propagated after a successful index load', async () 
  test('retired search paths reject before loading the Graph index', async () => {
   const source = useSource(); source.failure = true;
   for (const [name, args] of [
-    ['get_context', {topic: 'question'}], ['search_wiki', {query: 'question'}],
+    ['get_context', {topic: 'question'}],
+    ['search_wiki', {query: 'question'}],
+    ['get_wiki_page', {path: 'brainbase/project'}],
     ['search', {query: 'question', mode: 'lexical'}],
-  ] as const) await assert.rejects(__testing.handleToolCall(name, args), /removed|disabled/);
+  ] as const) await assert.rejects(__testing.handleToolCall(name, args), /removed|disabled|retired/);
   assert.equal(source.loads, 0); assert.equal(source.philosophyLoads, 0);
 });

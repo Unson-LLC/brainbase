@@ -160,16 +160,11 @@ describe('LearningService', () => {
     let pool;
     let service;
     let selectQueue;
-    let wikiService;
     let repoRoot;
     let ontologyFixtures;
 
     beforeEach(() => {
         selectQueue = [];
-        wikiService = {
-            savePage: vi.fn(async () => ({ success: true })),
-            setPageAccess: vi.fn(async () => ({ success: true }))
-        };
         repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bb-learning-service-'));
         ontologyFixtures = [];
         pool = {
@@ -187,7 +182,6 @@ describe('LearningService', () => {
         pool.connect = vi.fn(async () => ({ query: pool.query, release: vi.fn() }));
         service = new LearningService({
             pool,
-            wikiService,
             repoRoot,
             candidateRepository: new PgCandidateRepository({ pool })
         });
@@ -356,7 +350,6 @@ describe('LearningService', () => {
         expect(result.every((candidate) => candidate.apply_mode === 'manual')).toBe(true);
         expect(result.some((candidate) => candidate.pillar === 'document' && candidate.doc_type === 'architecture')).toBe(true);
         expect(result.some((candidate) => candidate.pillar === 'skill')).toBe(true);
-        expect(wikiService.savePage).not.toHaveBeenCalled();
         expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(false);
     });
 
@@ -390,7 +383,6 @@ describe('LearningService', () => {
             status: 'evaluated',
             apply_mode: 'manual'
         });
-        expect(wikiService.savePage).not.toHaveBeenCalled();
         expect(fs.existsSync(path.join(repoRoot, '.claude/skills/recovery/SKILL.md'))).toBe(true);
     });
 
@@ -707,7 +699,6 @@ describe('LearningService', () => {
                 apply_mode: 'manual'
             }
         });
-        expect(wikiService.savePage).not.toHaveBeenCalled();
     });
 
     it('recordSkillUsage呼び出し時_skill_usage_logs に INSERT される', async () => {

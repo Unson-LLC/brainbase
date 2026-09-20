@@ -93,7 +93,6 @@ function createBootstrapApp({ authService = createAuthService(), infoSSOTService
         learningService,
         learningHealthService: {},
         candidateRepository: null,
-        wikiService: {},
         tokenUsageService: {},
         workflowService: {},
         externalRunnerIngestService: {},

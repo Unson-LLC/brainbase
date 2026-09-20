@@ -12,10 +12,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   CallToolRequestSchema,
-  ListResourcesRequestSchema,
-  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
-  ReadResourceRequestSchema,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import {
@@ -322,8 +319,6 @@ async function hydrateExtensionQuery(name: string, args: Record<string, unknown>
   }
 }
 
-const WIKI_RESOURCE_URI_PREFIX = 'brainbase://wiki/page/';
-const WIKI_RESOURCE_TEMPLATE = 'brainbase://wiki/page/{path}';
 
 export function isAuthorizedMcpHttpRequest(authorization: string | undefined, expectedToken: string): boolean {
   if (!authorization?.startsWith('Bearer ') || expectedToken.length === 0) return false;
@@ -641,38 +636,6 @@ function formatEntityList(entities: unknown[]): string {
   return lines.join('\n');
 }
 
-async function fetchWikiPages() {
-  const token = await globalTokenManager.getToken();
-  const url = new URL('/api/wiki/pages', wikiApiBaseUrl);
-  const response = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Wiki API error: ${response.status} ${response.statusText}`);
-  }
-
-  return (await response.json()) as Array<{ path: string; title: string; project_id: string | null }>;
-}
-
-async function fetchWikiPage(pagePath: string) {
-  const token = await globalTokenManager.getToken();
-  const url = new URL('/api/wiki/page', wikiApiBaseUrl);
-  url.searchParams.set('path', pagePath);
-  const response = await fetch(url.toString(), {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error(`Wiki page not found: ${pagePath}`);
-    }
-    throw new Error(`Wiki API error: ${response.status} ${response.statusText}`);
-  }
-
-  return (await response.json()) as { path: string; title: string; content: string; project_id?: string | null };
-}
-
 interface PersonalKgHit {
   id: string;
   cognitive_type: string;
@@ -759,23 +722,6 @@ async function fetchPersonalKgSearch(
 
   const events = await getPersonalKnowledgeClient().search(query, options.limit);
   return events.map(canonicalPersonalKgHit);
-}
-
-function wikiPathToResourceUri(pagePath: string): string {
-  return `${WIKI_RESOURCE_URI_PREFIX}${pagePath}`;
-}
-
-function resourceUriToWikiPath(uri: string): string {
-  if (!uri.startsWith(WIKI_RESOURCE_URI_PREFIX)) {
-    throw new Error(`Unsupported wiki resource URI: ${uri}`);
-  }
-
-  const pagePath = decodeURIComponent(uri.slice(WIKI_RESOURCE_URI_PREFIX.length));
-  if (!pagePath) {
-    throw new Error(`Missing wiki path in resource URI: ${uri}`);
-  }
-
-  return pagePath;
 }
 
 /**
@@ -949,20 +895,6 @@ const tools: Tool[] = [
     },
   },
   {
-    name: 'get_wiki_page',
-    description: 'Get the full content of a wiki page by its path.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        path: {
-          type: 'string',
-          description: 'The wiki page path (e.g. "brainbase/project", "salestailor/02_offer")',
-        },
-      },
-      required: ['path'],
-    },
-  },
-  {
     name: 'search_personal_kg',
     description:
       "Search the authenticated user's separate Personal KG (owner-visible memory_candidates) by keyword over the full body text. This is an owner-only source for the user's own stance, values, sales/content philosophy, or decision principles; it is not a substitute for general organizational Graph search. Returns cognitive_type and confidence. Owner-only, non-redacted content.",
@@ -1028,8 +960,8 @@ export function rejectLegacySearchSurface(name: string, args: Record<string, unk
   if (name === 'get_context') {
     throw new Error('MCP tool "get_context" was removed from the normal search surface; use "search" for general Graph questions or "get_entity"/"resolve_entity" for a known identity.');
   }
-  if (name === 'search_wiki') {
-    throw new Error('MCP tool "search_wiki" was removed from the normal search surface; use "brainbase_knowledge_resolve" to locate the canonical document source.');
+  if (name === 'search_wiki' || name === 'get_wiki_page') {
+    throw new Error(`MCP tool "${name}" was removed; use "brainbase_knowledge_resolve" to locate the canonical document source.`);
   }
   if (name === 'search' && args.mode === 'lexical') {
     throw new Error('Lexical search mode is disabled; call "search" without mode for semantic Graph retrieval, or use "resolve_entity"/"get_entity" for a known identifier.');
@@ -1192,12 +1124,6 @@ async function handleToolCall(name: string, args: Record<string, unknown>): Prom
       });
 
       return JSON.stringify({ philosophy_context: philosophy_context ?? null, ...result }, null, 2);
-    }
-
-    case 'get_wiki_page': {
-      const pagePath = args.path as string;
-      const data = await fetchWikiPage(pagePath);
-      return `# ${data.title}\n\n${data.content}`;
     }
 
     case 'search_personal_kg': {
@@ -1401,53 +1327,11 @@ export async function runServer(legacyCodexPath?: string): Promise<void> {
     {
       capabilities: {
         tools: {},
-        resources: {},
       },
     }
   );
 
   // Register tool handlers
-  server.setRequestHandler(ListResourcesRequestSchema, async () => {
-    const pages = await fetchWikiPages();
-    return {
-      resources: pages.map((page) => ({
-        uri: wikiPathToResourceUri(page.path),
-        name: page.title || page.path,
-        title: page.title || page.path,
-        description: page.project_id ? `Wiki page for project ${page.project_id}` : 'Wiki page',
-        mimeType: 'text/markdown',
-      })),
-    };
-  });
-
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => {
-    return {
-      resourceTemplates: [
-        {
-          uriTemplate: WIKI_RESOURCE_TEMPLATE,
-          name: 'wiki-page',
-          title: 'Wiki Page',
-          description: 'Read a brainbase wiki page by path. Example URI: brainbase://wiki/page/brainbase/project',
-          mimeType: 'text/markdown',
-        },
-      ],
-    };
-  });
-
-  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-    const pagePath = resourceUriToWikiPath(request.params.uri);
-    const page = await fetchWikiPage(pagePath);
-    return {
-      contents: [
-        {
-          uri: request.params.uri,
-          mimeType: 'text/markdown',
-          text: `# ${page.title}\n\n${page.content}`,
-        },
-      ],
-    };
-  });
-
   server.setRequestHandler(ListToolsRequestSchema, async () => {
     return { tools: publishedTools };
   });

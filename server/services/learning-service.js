@@ -593,9 +593,8 @@ export function buildSkillCandidateContent(episode, wikiTargetRef, targetRef = d
 }
 
 export class LearningService {
-    constructor({ pool, wikiService = null, repoRoot = process.cwd(), ontologyRegistry = null, candidateRepository = null }) {
+    constructor({ pool, repoRoot = process.cwd(), ontologyRegistry = null, candidateRepository = null }) {
         this.pool = pool;
-        this.wikiService = wikiService;
         this.repoRoot = repoRoot;
         this.ontologyRegistry = ontologyRegistry || new OntologyRegistry();
         this.candidateRepository = candidateRepository;

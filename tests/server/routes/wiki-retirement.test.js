@@ -13,12 +13,20 @@ function createApp(wikiService) {
 
 describe('Wiki retirement boundary', () => {
     it.each([
+        ['get', '/api/wiki/pages'],
+        ['get', '/api/wiki/page?path=legacy/page'],
         ['post', '/api/wiki/page'],
         ['delete', '/api/wiki/page?path=legacy/page'],
         ['put', '/api/wiki/page/access'],
+        ['get', '/api/wiki/sync/manifest'],
+        ['post', '/api/wiki/sync/pull'],
         ['post', '/api/wiki/sync/push']
-    ])('%s %s refuses writes without calling the Wiki service', async (method, url) => {
+    ])('%s %s refuses without calling the Wiki service', async (method, url) => {
         const wikiService = {
+            listPages: vi.fn(),
+            getPage: vi.fn(),
+            getManifest: vi.fn(),
+            bulkGetPages: vi.fn(),
             savePage: vi.fn(),
             deletePage: vi.fn(),
             setPageAccess: vi.fn(),
@@ -28,17 +36,8 @@ describe('Wiki retirement boundary', () => {
 
         expect(response.status).toBe(410);
         expect(response.body).toEqual(WIKI_RETIREMENT);
-        expect(wikiService.savePage).not.toHaveBeenCalled();
-        expect(wikiService.deletePage).not.toHaveBeenCalled();
-        expect(wikiService.setPageAccess).not.toHaveBeenCalled();
-        expect(wikiService.bulkSavePages).not.toHaveBeenCalled();
-    });
-
-    it('keeps manifest reads available for migration export', async () => {
-        const wikiService = { getManifest: vi.fn(async () => [{ path: 'legacy/page' }]) };
-        const response = await request(createApp(wikiService)).get('/api/wiki/sync/manifest');
-
-        expect(response.status).toBe(200);
-        expect(response.body).toEqual([{ path: 'legacy/page' }]);
+        for (const methodName of Object.keys(wikiService)) {
+            expect(wikiService[methodName]).not.toHaveBeenCalled();
+        }
     });
 });

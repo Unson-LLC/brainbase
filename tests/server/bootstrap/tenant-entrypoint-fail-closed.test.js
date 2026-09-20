@@ -40,7 +40,6 @@ function bootstrapApp({ env }) {
         learningService: {},
         learningHealthService: {},
         candidateRepository: null,
-        wikiService: {},
         tokenUsageService: {},
         uploadMiddleware: (_req, _res, next) => next(),
         appVersion: 'test',

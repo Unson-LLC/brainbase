@@ -29,7 +29,18 @@ Brainbase Wiki is retired as a writable storage system. Brainbase remains the re
 | business documents, collaborative files and binaries | owning team Drive |
 | personal/private material | workspace home |
 
-The legacy Wiki API retains reads, manifest and bulk pull only for inventory and export. Page writes, deletion, access mutation and bulk push return HTTP 410 with `WIKI_RETIRED_READ_ONLY`. The CLI keeps `pull`, `status`, and the legacy `sync` alias as read-only export operations; `push` is refused.
+The initial retirement retained reads, manifest and bulk pull for inventory and export. That transitional runtime contract is superseded by the decision below.
+
+### 2026-09-20: 未使用Wikiの実行経路を撤去
+
+利用者がWikiを使用していないことを確認した。静的なコード参照は実利用の証拠ではないため、残った参照だけを理由に移行運用を維持しない。
+
+- APIは読取り・manifest・pullも含めHTTP 410を返す。既存のエラーコードはクライアント互換のため保持する。
+- CLIのsync/pull/push/statusは、認証・通信・ファイル操作前に廃止を通知する。
+- Wiki service/controller、起動時注入、portalのWiki補完、MCP tool/resourceを除去する。
+- 保存済みデータ・旧移行スクリプト・本番反映はこの変更に含めない。データ削除の条件とバックアップ要件は下記のまま維持する。
+
+対象仕様: `docs/specs/unused-wiki-retirement.md`
 
 ## Migration phases
 

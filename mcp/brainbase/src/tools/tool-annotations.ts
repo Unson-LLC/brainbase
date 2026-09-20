@@ -8,8 +8,6 @@ const READ_ONLY_TOOL_NAMES = new Set([
   'list_extension_entities',
   'search',
   'resolve_entity',
-  'search_wiki',
-  'get_wiki_page',
   'search_personal_kg',
   'brainbase_projects',
   'brainbase_bootstrap_config',

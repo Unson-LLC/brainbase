@@ -114,7 +114,6 @@ function makeBootstrapApp({
         learningService: { searchPersonalKgCandidates: vi.fn() },
         learningHealthService: {},
         candidateRepository: null,
-        wikiService: {},
         tokenUsageService: {},
         agentControlCatalogService: automationRuntime.agentControlCatalogService,
         loopIntentService: automationRuntime.loopIntentService,

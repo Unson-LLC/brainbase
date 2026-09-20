@@ -30,7 +30,6 @@ export function createBrainbaseRouter(options = {}) {
         projectCatalogParser = configParser,
         projectsRoot,
         infoSSOTService,
-        wikiService,
         canonicalTaskService,
         authGuard,
         projectCatalogAuthGuard
@@ -66,8 +65,7 @@ export function createBrainbaseRouter(options = {}) {
         configParser,
         projectCatalogParser,
         projectCatalogAuthGuard,
-        infoSSOTService,
-        wikiService
+        infoSSOTService
     }));
 
     // ==================== mana Capture + Chat API (P0) ====================

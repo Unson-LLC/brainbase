@@ -24,16 +24,10 @@ import type { Transport, TransportSendOptions } from '@modelcontextprotocol/sdk/
 import {
   CallToolRequestSchema,
   ErrorCode,
-  ListResourcesRequestSchema,
-  ListResourceTemplatesRequestSchema,
   ListToolsRequestSchema,
   McpError,
-  ReadResourceRequestSchema,
   type CallToolResult,
   type JSONRPCMessage,
-  type ListResourceTemplatesResult,
-  type ListResourcesResult,
-  type ResourceTemplate,
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 
@@ -72,15 +66,6 @@ export type BackendDiagnostic = ProcessDiagnostic & {
   timestamp: string;
   attempt: number;
   elapsed_ms: number;
-};
-
-/** This is intentionally duplicated from the backend's static resource catalog. */
-export const WIKI_RESOURCE_TEMPLATE: ResourceTemplate = {
-  uriTemplate: 'brainbase://wiki/page/{path}',
-  name: 'wiki-page',
-  title: 'Wiki Page',
-  description: 'Read a brainbase wiki page by path. Example URI: brainbase://wiki/page/brainbase/project',
-  mimeType: 'text/markdown',
 };
 
 export type BackendReadinessReason = 'starting' | 'backoff' | 'exhausted' | 'closed';
@@ -726,7 +711,6 @@ function backendToolFailureResult(): CallToolResult {
 
 export interface FacadeOptions {
   tools?: Tool[];
-  resourceTemplates?: ResourceTemplate[];
   requestTimeoutMs?: number;
 }
 
@@ -735,36 +719,13 @@ export function createFacadeServer(
   options: FacadeOptions = {},
 ): Server {
   const tools = options.tools ?? publishedTools;
-  const resourceTemplates = options.resourceTemplates ?? [WIKI_RESOURCE_TEMPLATE];
   const timeoutMs = options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const server = new Server(
     { name: 'brainbase', version: '1.0.0' },
-    { capabilities: { tools: {}, resources: {} } },
+    { capabilities: { tools: {} } },
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
-
-  server.setRequestHandler(ListResourceTemplatesRequestSchema, async (): Promise<ListResourceTemplatesResult> => ({
-    resourceTemplates,
-  }));
-
-  server.setRequestHandler(ListResourcesRequestSchema, async (request, extra): Promise<ListResourcesResult> => {
-    const client = await requireBackend(backend);
-    try {
-      return await client.listResources(request.params, requestOptions(extra, timeoutMs));
-    } catch {
-      throw asBackendMcpError();
-    }
-  });
-
-  server.setRequestHandler(ReadResourceRequestSchema, async (request, extra) => {
-    const client = await requireBackend(backend);
-    try {
-      return await client.readResource(request.params, requestOptions(extra, timeoutMs));
-    } catch {
-      throw asBackendMcpError();
-    }
-  });
 
   server.setRequestHandler(CallToolRequestSchema, async (request, extra): Promise<CallToolResult> => {
     try {

@@ -39,7 +39,6 @@ import {
     JsonFileOnboardingRunRepository,
     OnboardingRuntimeService
 } from '../services/onboarding/onboarding-runtime-service.js';
-import { WikiService } from '../services/wiki-service.js';
 import { TokenUsageService } from '../services/token-usage-service.js';
 import { ExternalRunnerIngestService } from '../services/external-runner/ingest-service.js';
 import { RunReceiptIngestService } from '../services/run-receipt/ingest-service.js';
@@ -299,7 +298,6 @@ export function createCoreServices({
     const githubAuthorizationLedger = infoSSOTService.pool
         ? createPostgresGitHubAuthorizationLedger({ pool: infoSSOTService.pool })
         : null;
-    const wikiService = new WikiService({ pool: infoSSOTService.pool });
     // Memory Promotion Kernel is the sole memory_candidates access boundary.
     // Construct it before LearningService so the compatibility API delegates to it.
     const candidateRepository = infoSSOTService.pool
@@ -361,7 +359,6 @@ export function createCoreServices({
         : null;
     const learningService = new LearningService({
         pool: infoSSOTService.pool,
-        wikiService,
         repoRoot: serverDir,
         candidateRepository
     });
@@ -563,7 +560,6 @@ export function createCoreServices({
         resolvePreProvisionedSlackConnection: slackInstallationControlPlaneRuntime.resolvePreProvisionedConnection,
         slackInstallationControlPlaneReady: slackInstallationControlPlaneRuntime.ready,
         slackInstallationControlPlaneReason: slackInstallationControlPlaneRuntime.reason,
-        wikiService,
         learningService,
         learningHealthService,
         candidateRepository,

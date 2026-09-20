@@ -165,9 +165,14 @@ it('HTTP rejects retired search calls and publishes only semantic search', async
     try {
       await client.connect(new StreamableHTTPClientTransport(new URL(`${baseUrl}/mcp`), {requestInit: {headers: {Authorization: 'Bearer server-http-contract-token'}}}));
       const catalog = await client.listTools();
-      assert.ok(!catalog.tools.some(tool => ['get_context', 'search_wiki'].includes(tool.name)));
+      assert.ok(!catalog.tools.some(tool => ['get_context', 'search_wiki', 'get_wiki_page'].includes(tool.name)));
       assert.deepEqual((catalog.tools.find(tool => tool.name === 'search')!.inputSchema.properties!.mode as {enum: string[]}).enum, ['semantic']);
-      for (const [name, args] of [['get_context', {topic: 'q'}], ['search_wiki', {query: 'q'}], ['search', {query: 'q', mode: 'lexical'}]] as const) {
+      for (const [name, args] of [
+        ['get_context', {topic: 'q'}],
+        ['search_wiki', {query: 'q'}],
+        ['get_wiki_page', {path: 'brainbase/project'}],
+        ['search', {query: 'q', mode: 'lexical'}],
+      ] as const) {
         const result = await client.callTool({name, arguments: args});
         assert.equal(result.isError, true);
         assert.match(JSON.stringify(result), /removed|disabled/);
