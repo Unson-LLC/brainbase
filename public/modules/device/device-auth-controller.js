@@ -101,7 +101,7 @@ export class DeviceAuthController {
 
                 this.showStep('approve');
             } else {
-                this.showGlobalError('Google Workspace認証情報が見つかりません。もう一度お試しください。');
+                this.showGlobalError('組織認証情報が見つかりません。もう一度お試しください。');
             }
         }
     }
@@ -170,7 +170,7 @@ export class DeviceAuthController {
         sessionStorage.setItem('brainbase_device_code', this.deviceCode);
         sessionStorage.setItem('brainbase_user_code', this.userCode);
 
-        // The server selects the configured provider (Google Workspace for Growin).
+        // The server selects the configured organization identity provider.
         const returnUrl = `/device?auth_callback=true`;
         const authUrl = `/api/auth/login/start?origin=${encodeURIComponent(returnUrl)}&redirect=${encodeURIComponent(returnUrl)}`;
 
