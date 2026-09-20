@@ -27,6 +27,10 @@
       "types": "./dist/portable-graph.d.ts",
       "import": "./dist/portable-graph.js"
     },
+    "./canonical-task-principal": {
+      "types": "./dist/canonical-task-principal.d.ts",
+      "import": "./dist/canonical-task-principal.js"
+    },
     "./ui/outcome-knowledge": "./ui/outcome-knowledge.js",
     "./ui/outcome-knowledge.css": "./ui/outcome-knowledge.css",
     "./ui/outcome-mana": "./ui/outcome-mana.js",

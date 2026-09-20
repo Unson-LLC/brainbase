@@ -177,8 +177,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-canonical-runtime-ownership",
+        "title": "Canonical TaskとMCP共通実装をOSSへ移管する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-oss-graph-retrieval"
+    "current_story_id": "story-canonical-runtime-ownership"
   }
 }
