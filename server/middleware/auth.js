@@ -5,7 +5,7 @@ import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 /** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
 /** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
 /** @typedef {(error?: unknown) => unknown} NextLike */
-/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown>, resolveOrganizationIdForAccess?: (access: Record<string, unknown>) => Promise<string|null>, resolveTenantForOrganization?: (organizationId: string) => Promise<{tenant_id?: string, organization_id?: string}|null> }} AuthServiceLike */
+/** @typedef {{ verifyToken: (token: string) => Record<string, unknown>, verifyServiceToken?: (token: string) => Record<string, unknown>, resolveOrganizationIdForAccess?: (access: Record<string, unknown>) => Promise<string|null>, resolveTenantForOrganization?: (organizationId: string) => Promise<{tenant_id?: string, organization_id?: string}|null>, resolveTenantForAuthenticatedAccess?: (access: Record<string, unknown>) => Promise<{tenant_id?: string, organization_id?: string}|null> }} AuthServiceLike */
 
 /**
  * @param {RequestLike} req
@@ -177,7 +177,18 @@ export function requireAuth(authService, options = {}) {
 
         if (access?.organizationId && !access.tenantId && authService.resolveTenantForOrganization) {
             try {
-                const mapping = await authService.resolveTenantForOrganization(access.organizationId);
+                const hasAuthenticatedTenantContext = Boolean(
+                    authService.resolveTenantForAuthenticatedAccess
+                    && access.personId
+                    && access.slackUserId
+                    && access.slackWorkspaceId
+                );
+                const authenticatedMapping = hasAuthenticatedTenantContext
+                    ? await authService.resolveTenantForAuthenticatedAccess(access)
+                    : null;
+                const mapping = hasAuthenticatedTenantContext
+                    ? authenticatedMapping
+                    : await authService.resolveTenantForOrganization(access.organizationId);
                 if (mapping?.organization_id === access.organizationId && mapping?.tenant_id) {
                     access.tenantId = mapping.tenant_id;
                 }

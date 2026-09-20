@@ -306,6 +306,26 @@ describe('MultitenantPostgresRepository', () => {
         expect(pool.query).toHaveBeenCalledWith(expect.stringContaining('resolve_active_tenant_for_organization'), ['org_business']);
     });
 
+    it('認証済み本人とSlack workspaceで重複organization aliasを一意に解決する', async () => {
+        const mapping = { tenant_id: 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX', organization_id: 'techknight' };
+        const pool = { query: vi.fn(async () => ({ rows: [mapping] })) };
+        const repository = new MultitenantPostgresRepository({ pool });
+        await expect(repository.resolveTenantForAuthenticatedAccess({
+            organizationId: 'techknight', personId: 'per_sato', slackUserId: 'U_SATO', slackWorkspaceId: 'T_TECHKNIGHT'
+        })).resolves.toEqual(mapping);
+        expect(pool.query).toHaveBeenCalledWith(
+            expect.stringContaining('resolve_active_tenant_for_authenticated_access'),
+            ['techknight', 'per_sato', 'U_SATO', 'T_TECHKNIGHT']
+        );
+    });
+
+    it('認証文脈が欠ける場合はauthenticated tenant resolverを呼ばない', async () => {
+        const pool = { query: vi.fn() };
+        const repository = new MultitenantPostgresRepository({ pool });
+        await expect(repository.resolveTenantForAuthenticatedAccess({ organizationId: 'techknight' })).resolves.toBeNull();
+        expect(pool.query).not.toHaveBeenCalled();
+    });
+
     it('authority project bindingをtenant RLS下でproject_idから正規project_codeへ解決する', async () => {
         const tenantId = 'ten_01ARZ3NDEKTSV4RRFFQ69G5FAX';
         const project = {

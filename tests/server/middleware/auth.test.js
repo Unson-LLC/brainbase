@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 import { requireAuth } from '../../../server/middleware/auth.js';
@@ -194,6 +194,27 @@ describe('auth middleware', () => {
 
         expect(res.body.access.organizationId).toBe('unson');
         expect(res.body.access.tenantId).toBe('ten_unson');
+    });
+
+    it('重複する組織別名を認証済み本人とSlack workspaceで正規tenantへ解決する', async () => {
+        const app = express();
+        const resolveTenantForOrganization = vi.fn(async () => null);
+        const resolveTenantForAuthenticatedAccess = vi.fn(async () => ({
+            organization_id: 'techknight', tenant_id: 'ten_techknight'
+        }));
+        app.use(requireAuth({
+            verifyToken: () => ({ role: 'ceo', sub: 'per_sato', organizationId: 'techknight', slackUserId: 'U_SATO', slackWorkspaceId: 'T_TECHKNIGHT' }),
+            resolveTenantForAuthenticatedAccess,
+            resolveTenantForOrganization
+        }, { allowInsecureHeaders: false }));
+        app.get('/secure', (req, res) => res.json({ access: req.access }));
+
+        const res = await request(app).get('/secure').set('Authorization', 'Bearer token').expect(200);
+        expect(res.body.access.tenantId).toBe('ten_techknight');
+        expect(resolveTenantForAuthenticatedAccess).toHaveBeenCalledWith(expect.objectContaining({
+            organizationId: 'techknight', personId: 'per_sato', slackUserId: 'U_SATO', slackWorkspaceId: 'T_TECHKNIGHT'
+        }));
+        expect(resolveTenantForOrganization).not.toHaveBeenCalled();
     });
 
     it('tenant-only旧JWTは検証済みtenantを保ったまま組織を補完する', async () => {
