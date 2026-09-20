@@ -968,12 +968,13 @@ describe('judgment resolver publication surfaces', () => {
         const claude = read('CLAUDE.md');
         const agents = read('AGENTS.md');
         expect(agents).toBe(claude);
-        expect(claude).toContain('未解決episodeを開くだけ');
-        expect(claude).toContain('PostToolUse');
-        expect(claude).toContain('Stop');
-        expect(claude).toContain('model-callable `brainbase_resolve_turn`');
-        expect(claude).toContain('canonical turn input');
-        expect(claude).toContain('通常の権限・承認を置き換えない');
+        expect(claude.split('\n').length).toBeLessThanOrEqual(200);
+        expect(claude).toContain('brainbase_resolve_turn');
+        expect(claude).toContain('turn_ref');
+        expect(claude).toContain('TurnContract');
+        expect(claude).toContain('brainbase-judgment-resolver');
+        expect(claude).toContain('監査表示と完了状態は現行Hostの契約に従う');
+        expect(claude).toContain('receiptは操作の許可ではない');
         expect(claude).toContain('未一致を`general/answer`へ落としたり必要能力を減らしたりしない');
     });
 
@@ -1017,7 +1018,17 @@ describe('judgment resolver publication surfaces', () => {
         const architecture = read('docs/architecture/story-brainbase-judgment-resolver-v1.md');
         const story = read('docs/management/stories/active/story-brainbase-judgment-resolver-v1.md');
         const spec = read('docs/specs/story-brainbase-judgment-resolver-v1.md');
-        const surfaces = [skill, capability, runbook, architecture, story, spec];
+        const surfaces = [capability, runbook, architecture, story, spec];
+        // The Skill follows the current Host contract; legacy runtime details live in the references.
+        for (const term of ['brainbase_resolve_turn', 'turn_ref', 'model_interpretation', 'TurnContract',
+            'PostToolUse', 'Stop', 'insufficient', 'tool_use_id', 'trusted_hash', 'proven_active']) {
+            expect(skill).toContain(term);
+        }
+        expect(skill).toContain('canonical inputを読み出し・再構成して送らない');
+        expect(skill).toContain('Host所有の監査行を追加・模倣しない');
+        expect(skill).toContain('最後のtool call');
+        expect(skill).toContain('通常の権限境界を別に守る');
+        expect(skill).toContain('前段を更新したら後段も更新した結果に結び直す');
 
         for (const surface of surfaces) {
             expect(surface).toMatch(/model.*(call|呼|Resolver)/iu);
@@ -1057,8 +1068,8 @@ describe('judgment resolver publication surfaces', () => {
         expect(architecture).toMatch(/Claude Code lifecycle production and Hook activation remain separate, unfinished adapter work/iu);
         expect(spec).toMatch(/Claude Code lifecycle adapter and its Hook activation are not yet implemented/iu);
         expect(capability).toMatch(/Claude Code lifecycle production and Hook activation remain unfinished adapter work/iu);
-        expect(skill).toContain('SQLite');
-        expect(skill).toContain('非zero exit');
+        expect(skill).toContain('runbooks/judgment-resolve.md');
+        expect(skill).toContain('config/judgment-runtime-manifest.json');
         expect(capability).toContain('non-final `audit_degraded` receipt');
         expect(capability).toContain('rejects a late Start for the same identity');
         expect(capability).toMatch(/unjournaled|model-authored.*🛠️/u);
@@ -1087,7 +1098,7 @@ describe('judgment resolver publication surfaces', () => {
         expect(spec).toContain('explicit non-zero hook failure');
         expect(spec).toContain('Repository code never writes Codex `trusted_hash`');
         expect(capability).toContain('scripts/check-codex-judgment-hook-readiness.mjs');
-        expect(skill).toContain('既存task、過去artifact、direct entrypoint実行はlive activationの代用にならない');
+        expect(skill).toContain('既存taskや直接entrypointの実行で代用しない');
     });
 
     it('公開面が全runtimeのStop単一確定境界を同じ言葉で説明する', () => {
