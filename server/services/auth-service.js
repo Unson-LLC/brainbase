@@ -591,10 +591,7 @@ export class AuthService {
                  LEFT JOIN organizations o
                    ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
                  WHERE ag.slack_user_id = $1
-                   AND (
-                     o.workspace_id = $2
-                     OR (o.id IS NULL AND ag.slack_workspace_id = $2)
-                   )
+                   AND COALESCE(o.workspace_id, ag.slack_workspace_id) = $2
                    ${organizationId ? 'AND ag.organization_id = $3' : ''}
                    AND ag.active = true
                  ORDER BY CASE
@@ -755,7 +752,7 @@ export class AuthService {
                  LEFT JOIN organizations o
                    ON o.id = COALESCE(ag.organization_id, ag.slack_workspace_id)
                  WHERE ag.slack_user_id = $1
-                   ${requireExactWorkspace ? 'AND (o.workspace_id = $2 OR (o.id IS NULL AND ag.slack_workspace_id = $2))' : ''}
+                   ${requireExactWorkspace ? 'AND COALESCE(o.workspace_id, ag.slack_workspace_id) = $2' : ''}
                    ${organizationId ? `AND (ag.organization_id = $${requireExactWorkspace ? 3 : 2} OR (ag.organization_id IS NULL AND o.id = $${requireExactWorkspace ? 3 : 2}))` : ''}
                    AND ag.active = true
                  ORDER BY CASE

@@ -34,6 +34,7 @@ describe('AuthService auth grant precedence', () => {
 
         expect(grant.organization_id).toBe('sato-personal');
         expect(observed[0].sql).toContain('organization_id = $3');
+        expect(observed[0].sql).toContain('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2');
         expect(observed[0].sql).toContain('JOIN projects p');
         expect(observed[0].sql).toContain('p.organization_id = ag.organization_id');
         expect(observed[0].params).toEqual(['U_SATO', 'T_UNSON', 'sato-personal']);
@@ -497,8 +498,44 @@ describe('AuthService auth grant precedence', () => {
         expect(user.person_id).toBe('per_grant');
         expect(user.workspace_id).toBe('unson');
         expect(observedQueries[1].params).toEqual(['U_MEMBER', 'T_EXACT']);
-        expect(observedQueries[1].sql).toContain('ag.slack_workspace_id = $2');
+        expect(observedQueries[1].sql).toContain('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2');
         expect(observedQueries[1].sql).toContain('COALESCE(ag.organization_id, o.id) as organization_id');
+    });
+
+    it('falls back to the grant Slack workspace when the organization mapping is unset', async () => {
+        const observedQueries = [];
+        const queries = [
+            { rows: [] },
+            {
+                rows: [{
+                    person_id: 'per_sato',
+                    name: '佐藤 圭吾',
+                    slack_user_id: 'U_SATO',
+                    slack_workspace_id: 'T_PERSONAL',
+                    organization_id: 'sato-personal',
+                    role: 'ceo',
+                    project_codes: ['sato-portfolio'],
+                    clearance: ['internal'],
+                    status: true
+                }]
+            }
+        ];
+        const client = {
+            query: async (sql, params) => {
+                observedQueries.push({ sql, params });
+                return queries.shift();
+            },
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const user = await authService.findUserBySlackId('U_SATO', 'T_PERSONAL', 'sato-personal');
+
+        expect(user?.person_id).toBe('per_sato');
+        expect(observedQueries[1].params).toEqual(['U_SATO', 'T_PERSONAL', 'sato-personal']);
+        expect(observedQueries[1].sql).toContain('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2');
+        expect(observedQueries[1].sql).not.toContain('o.id IS NULL');
     });
 
     it('keeps the users workspace as the default organization when multiple grants share one Slack identity', async () => {
@@ -538,7 +575,7 @@ describe('AuthService auth grant precedence', () => {
         const client = {
             query: async (sql, params) => {
                 observedQueries.push({ sql, params });
-                const isCanonicalMapping = sql.includes('o.workspace_id = $2');
+                const isCanonicalMapping = sql.includes('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2');
                 const isUnsonTeam = params[1] === 'T089CNQ4D1A';
                 return {
                     rows: isCanonicalMapping && isUnsonTeam
@@ -574,13 +611,13 @@ describe('AuthService auth grant precedence', () => {
         expect(grant?.organization_id).toBe('unson');
         expect(wrongTeamGrant).toBeNull();
         expect(observedQueries[0].sql).toContain('JOIN organizations');
-        expect(observedQueries[0].sql).toContain('o.workspace_id = $2');
+        expect(observedQueries[0].sql).toContain('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2');
     });
 
     it('keeps direct provider IDs working for legacy grants without an organization mapping', async () => {
         const client = {
             query: async (sql, params) => ({
-                rows: sql.includes('ag.slack_workspace_id = $2') && params[1] === 'T_LEGACY'
+                rows: sql.includes('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2') && params[1] === 'T_LEGACY'
                     ? [{ slack_user_id: 'U_LEGACY', slack_workspace_id: 'T_LEGACY', active: true }]
                     : []
             }),
@@ -625,7 +662,7 @@ describe('AuthService auth grant precedence', () => {
                 observedQueries.push({ sql, params });
                 const isUsersQuery = sql.includes('FROM users') && !sql.includes('FROM auth_grants ag');
                 const isGrantQuery = sql.includes('FROM auth_grants ag');
-                const isCanonicalMapping = sql.includes('o.workspace_id = $2');
+                const isCanonicalMapping = sql.includes('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2');
                 const isUnsonTeam = params[1] === 'T089CNQ4D1A';
                 if (isUsersQuery && isCanonicalMapping && isUnsonTeam) return { rows: [userRow] };
                 if (isGrantQuery && isCanonicalMapping && isUnsonTeam) return { rows: [grantRow] };
@@ -644,7 +681,7 @@ describe('AuthService auth grant precedence', () => {
         expect(observedQueries[0].sql).toContain('JOIN organizations');
         expect(observedQueries[0].sql).toContain('o.workspace_id = $2');
         expect(observedQueries[1].sql).toContain('o.id = COALESCE');
-        expect(observedQueries[1].sql).toContain('o.workspace_id = $2');
+        expect(observedQueries[1].sql).toContain('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2');
     });
 
     it('uses the same canonical Slack workspace mapping for the configured Slack provider path', async () => {
@@ -675,7 +712,7 @@ describe('AuthService auth grant precedence', () => {
                 queries.push({ sql, params });
                 const isUsersQuery = sql.includes('FROM users') && !sql.includes('FROM auth_grants ag');
                 const isGrantQuery = sql.includes('FROM auth_grants ag');
-                const isCanonicalMapping = sql.includes('o.workspace_id = $2');
+                const isCanonicalMapping = sql.includes('COALESCE(o.workspace_id, ag.slack_workspace_id) = $2');
                 if (isCanonicalMapping && params[1] === 'T089CNQ4D1A') {
                     return { rows: isUsersQuery ? [userRow] : isGrantQuery ? [grantRow] : [] };
                 }
