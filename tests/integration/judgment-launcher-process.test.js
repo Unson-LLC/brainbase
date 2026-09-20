@@ -214,8 +214,12 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
         const fakeCurl = join(fakeBin, 'curl');
         writeFileSync(fakeCurl, `#!/bin/bash\nprintf '{"runtime":{"git":{"sha":"%s"}}}\\n' "$CANDIDATE_TARGET_SHA"\n`);
         chmodSync(fakeCurl, 0o700);
+        const fakeShlock = join(fakeBin, 'shlock');
+        writeFileSync(fakeShlock, '#!/bin/bash\nprintf "%s\\n" "$2" > "$4"\n');
+        chmodSync(fakeShlock, 0o700);
 
         const result = await run('bash', [RECONCILER, targetSha], {
+            timeoutMs: 30_000,
             env: {
                 ...process.env,
                 PATH: `${fakeBin}:${process.env.PATH}`,
@@ -223,6 +227,8 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
                 BRAINBASE_UI_RUNTIME_ROOT: uiRuntime,
                 BRAINBASE_MCP_RECONCILE_LOCK: join(fixtureDir, 'reconcile.lock'),
                 BRAINBASE_MCP_RECONCILE_RECEIPT: join(fixtureDir, 'reconcile.receipt'),
+                BRAINBASE_RUNTIME_LOCK: join(fixtureDir, 'runtime-update.lock'),
+                BRAINBASE_SHLOCK_BIN: fakeShlock,
                 BRAINBASE_MCP_RECONCILE_WAIT_ATTEMPTS: '1',
                 CANDIDATE_TARGET_SHA: targetSha,
                 CANDIDATE_PREFLIGHT_LOG: reconcileLog,
@@ -237,7 +243,8 @@ describe('brainbase MCP launcher judgment binding process contract', () => {
         expect(readFileSync(reconcileLog, 'utf8').trim()).toBe(targetSha);
         expect(actualMcpSha).toBe(baseSha);
         expect(existsSync(join(fixtureDir, 'reconcile.receipt'))).toBe(false);
-    });
+        expect(existsSync(join(fixtureDir, 'runtime-update.lock'))).toBe(false);
+    }, 30_000);
 
     it('tracked dirtyなruntime checkoutはMCP起動前にexit 78で拒否する', async () => {
         const apiUrl = await healthyServer();
