@@ -163,6 +163,40 @@ describe('AuthService auth grant precedence', () => {
         expect(result.access.organizationId).toBe('techknight');
     });
 
+    it('組織切替tokenには古いgrant workspaceではなく組織のcanonical workspaceを発行する', async () => {
+        const authService = new AuthService();
+        authService.findGrantForPerson = vi.fn().mockResolvedValue({
+            person_id: 'per_sato',
+            person_name: '佐藤 圭吾',
+            slack_user_id: 'U07LNUP582X',
+            slack_workspace_id: 'T_UNSON',
+            organization_id: 'techknight',
+            organization_workspace_id: 'T_TECHKNIGHT',
+            role: 'ceo',
+            project_codes: ['techknight'],
+            clearance: ['internal']
+        });
+        authService.ensurePerson = vi.fn(async ({ personId }) => personId);
+        authService.issueToken = vi.fn().mockReturnValue('access-token');
+        authService.issueRefreshToken = vi.fn().mockReturnValue('refresh-token');
+        authService.createAuditLog = vi.fn();
+
+        await authService.switchOrganization({
+            personId: 'per_sato',
+            organizationId: 'techknight'
+        });
+
+        expect(authService.issueToken).toHaveBeenCalledWith(expect.objectContaining({
+            slackWorkspaceId: 'T_TECHKNIGHT'
+        }));
+        expect(authService.issueRefreshToken).toHaveBeenCalledWith(expect.objectContaining({
+            slackWorkspaceId: 'T_TECHKNIGHT'
+        }));
+        expect(authService.createAuditLog).toHaveBeenCalledWith(expect.objectContaining({
+            slackWorkspaceId: 'T_TECHKNIGHT'
+        }));
+    });
+
     it('accepts equivalent organization grants for the same person and selects one identity deterministically', async () => {
         const client = {
             query: async () => ({ rows: [
@@ -286,6 +320,52 @@ describe('AuthService auth grant precedence', () => {
             organizationId: 'sato-personal'
         }));
         expect(result.access.organizationId).toBe('sato-personal');
+    });
+
+    it('旧refresh tokenのworkspaceが古くても同一organizationのgrantでcanonical workspaceへ更新する', async () => {
+        const authService = new AuthService();
+        authService.verifyRefreshToken = vi.fn().mockReturnValue({
+            typ: 'refresh',
+            slackUserId: 'U_SATO',
+            slackWorkspaceId: 'T_OLD',
+            organizationId: 'techknight'
+        });
+        authService.findGrant = vi.fn().mockResolvedValue(null);
+        authService.findUserBySlackId = vi.fn().mockResolvedValue({
+            person_id: 'per_sato',
+            name: '佐藤 圭吾',
+            workspace_id: 'techknight'
+        });
+        authService.findGrantForPerson = vi.fn().mockResolvedValue({
+            person_id: 'per_sato',
+            person_name: '佐藤 圭吾',
+            slack_user_id: 'U_SATO',
+            slack_workspace_id: 'T_OLD',
+            organization_id: 'techknight',
+            organization_workspace_id: 'T_TECHKNIGHT',
+            role: 'ceo',
+            project_codes: ['techknight'],
+            clearance: ['internal']
+        });
+        authService.ensurePerson = vi.fn(async ({ personId }) => personId);
+        authService.issueToken = vi.fn().mockReturnValue('access-token');
+        authService.issueRefreshToken = vi.fn().mockReturnValue('refresh-token');
+
+        await authService.refreshSession('old-refresh-token');
+
+        expect(authService.findUserBySlackId).toHaveBeenCalledWith('U_SATO', null, 'techknight');
+        expect(authService.findGrantForPerson).toHaveBeenCalledWith({
+            personId: 'per_sato',
+            organizationId: 'techknight'
+        });
+        expect(authService.issueToken).toHaveBeenCalledWith(expect.objectContaining({
+            slackWorkspaceId: 'T_TECHKNIGHT',
+            organizationId: 'techknight'
+        }));
+        expect(authService.issueRefreshToken).toHaveBeenCalledWith(expect.objectContaining({
+            slackWorkspaceId: 'T_TECHKNIGHT',
+            organizationId: 'techknight'
+        }));
     });
 
     it('refresh時もgrant権限を使いながらログイン時と同じGraph人物IDを維持する', async () => {
@@ -435,6 +515,7 @@ describe('AuthService auth grant precedence', () => {
         expect(user.project_codes).toEqual(['brainbase', 'sato-portfolio']);
         expect(user.clearance).toEqual(['internal', 'restricted']);
         expect(user.role).toBe('ceo');
+        expect(user.person_id).toBe('per_grant');
     });
 
     it('requires an active grant for the exact Slack workspace when authenticating', async () => {
@@ -461,6 +542,34 @@ describe('AuthService auth grant precedence', () => {
         authService.pool = { connect: async () => client };
 
         const user = await authService.findUserBySlackId('U_MEMBER', 'T_EXACT');
+
+        expect(user).toBeNull();
+    });
+
+    it('requires an active grant when recovering a signed organization without a workspace', async () => {
+        const queries = [
+            {
+                rows: [{
+                    slack_user_id: 'U_MEMBER',
+                    person_id: 'per_user',
+                    workspace_id: 'legacy-workspace',
+                    name: 'Legacy User',
+                    role: 'member',
+                    project_codes: ['brainbase'],
+                    clearance: ['internal'],
+                    status: 'active'
+                }]
+            },
+            { rows: [] }
+        ];
+        const client = {
+            query: async () => queries.shift(),
+            release: () => {}
+        };
+        const authService = new AuthService();
+        authService.pool = { connect: async () => client };
+
+        const user = await authService.findUserBySlackId('U_MEMBER', null, 'techknight');
 
         expect(user).toBeNull();
     });

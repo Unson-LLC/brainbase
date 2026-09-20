@@ -777,7 +777,7 @@ export class AuthService {
 
             // Login and refresh must use the same authorization SSOT. A legacy users
             // row alone must never mint a token that the exact workspace grant cannot refresh.
-            if (requireExactWorkspace && !grantRows[0]) {
+            if ((requireExactWorkspace || organizationId) && !grantRows[0]) {
                 return null;
             }
 
@@ -787,6 +787,7 @@ export class AuthService {
                 // arrays, so grant fields must override rather than act as fallbacks.
                 if (grantRows[0]) {
                     const grant = grantRows[0];
+                    if (grant.person_id) user.person_id = grant.person_id;
                     if (Array.isArray(grant.clearance)) user.clearance = grant.clearance;
                     if (Array.isArray(grant.project_codes)) user.project_codes = grant.project_codes;
                     if (grant.role) user.role = grant.role;
@@ -876,10 +877,16 @@ export class AuthService {
             return null;
         }
 
-        const user = await this.findUserByExternalIdentity(
+        let user = await this.findUserByExternalIdentity(
             { provider, subject, tenantId },
             access.organizationId || null
         );
+        if (!user && provider === 'slack' && tenantId && access.organizationId) {
+            user = await this.findUserByExternalIdentity(
+                { provider, subject, tenantId: null },
+                access.organizationId
+            );
+        }
         return typeof user?.person_id === 'string' && user.person_id.startsWith('per_')
             ? user.person_id
             : null;
@@ -951,7 +958,7 @@ export class AuthService {
             clearance,
             personId: grant.person_id || null,
             slackUserId: grant.slack_user_id,
-            slackWorkspaceId: grant.slack_workspace_id,
+            slackWorkspaceId: grant.organization_workspace_id || grant.slack_workspace_id || null,
             organizationId: grant.organization_id || grant.workspace_id || null
         };
     }
@@ -1201,22 +1208,38 @@ export class AuthService {
         }
         if (!payload.authProvider) {
             const requestedOrganizationId = payload.organizationId || payload.organization_id || null;
-            const grant = await this.findGrant({
+            let grant = await this.findGrant({
                 slackUserId: identity.subject,
                 slackWorkspaceId: identity.tenantId,
                 organizationId: requestedOrganizationId
             });
+            let legacyUser = null;
+            if (!grant && requestedOrganizationId && identity.tenantId) {
+                legacyUser = await this.findUserBySlackId(
+                    identity.subject,
+                    null,
+                    requestedOrganizationId
+                );
+                if (legacyUser?.person_id) {
+                    grant = await this.findGrantForPerson({
+                        personId: legacyUser.person_id,
+                        organizationId: requestedOrganizationId
+                    });
+                }
+            }
             if (!grant) throw new Error('Access is not granted');
-            const legacyUser = requestedOrganizationId
-                ? await this.findUserBySlackId(identity.subject, identity.tenantId, requestedOrganizationId)
-                : await this.findUserBySlackId(identity.subject, identity.tenantId);
+            if (!legacyUser) {
+                legacyUser = requestedOrganizationId
+                    ? await this.findUserBySlackId(identity.subject, identity.tenantId, requestedOrganizationId)
+                    : await this.findUserBySlackId(identity.subject, identity.tenantId);
+            }
             const personId = await this.ensurePerson({ personId: legacyUser?.person_id || grant.person_id, personName: legacyUser?.name || grant.person_name });
             const access = this.buildAccessFromGrant({ ...grant, person_id: personId });
             const organizationId = grant.organization_id || legacyUser?.workspace_id || null;
             if (!organizationId) throw new Error('Organization access is not granted');
             return {
-                token: this.issueToken({ ...access, personId, slackUserId: identity.subject, slackWorkspaceId: identity.tenantId, organizationId }),
-                refresh_token: this.issueRefreshToken({ slackUserId: identity.subject, slackWorkspaceId: identity.tenantId, organizationId }),
+                token: this.issueToken({ ...access, personId, slackUserId: identity.subject, slackWorkspaceId: access.slackWorkspaceId, organizationId }),
+                refresh_token: this.issueRefreshToken({ slackUserId: identity.subject, slackWorkspaceId: access.slackWorkspaceId, organizationId }),
                 access: { ...access, personId, organizationId }
             };
         }
@@ -1296,19 +1319,19 @@ export class AuthService {
             projectCodes: access.projectCodes,
             clearance: access.clearance,
             personId: resolvedPersonId,
-            slackUserId: grant.slack_user_id,
-            slackWorkspaceId: grant.slack_workspace_id,
+            slackUserId: access.slackUserId,
+            slackWorkspaceId: access.slackWorkspaceId,
             organizationId: requestedOrganizationId
         });
         const refreshToken = this.issueRefreshToken({
-            slackUserId: grant.slack_user_id,
-            slackWorkspaceId: grant.slack_workspace_id,
+            slackUserId: access.slackUserId,
+            slackWorkspaceId: access.slackWorkspaceId,
             organizationId: requestedOrganizationId
         });
         await this.createAuditLog({
             personId: resolvedPersonId,
-            slackUserId: grant.slack_user_id,
-            slackWorkspaceId: grant.slack_workspace_id,
+            slackUserId: access.slackUserId,
+            slackWorkspaceId: access.slackWorkspaceId,
             eventType: 'AUTH_ORGANIZATION_SWITCH',
             metadata: { organization_id: requestedOrganizationId }
         });
