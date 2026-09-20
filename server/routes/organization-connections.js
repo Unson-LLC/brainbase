@@ -150,17 +150,22 @@ function validGitHubAppSlug(value) {
 
 // These ports keep GitHub App credentials, durable state storage, and repository shape out of the route.
 function hasGitHubConnectionPorts({ githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository }) {
-    return typeof githubAppVerifier?.verifyInstallation === 'function'
-        && typeof githubAppVerifier?.readInstallation === 'function'
+    return hasGitHubReadbackPorts({ githubAppVerifier, githubCredentialStore, connectionRepository })
+        && typeof githubAppVerifier?.verifyInstallation === 'function'
         && typeof githubCredentialStore?.store === 'function'
-        && typeof githubCredentialStore?.verify === 'function'
-        && typeof githubCredentialStore?.materialize === 'function'
         && typeof githubCredentialStore?.revoke === 'function'
         && typeof githubAuthorizationLedger?.issue === 'function'
         && typeof githubAuthorizationLedger?.consume === 'function'
         && typeof connectionRepository?.reserveGitHubInstallation === 'function'
         && typeof connectionRepository?.saveGitHubInstallation === 'function'
         && typeof connectionRepository?.cancelGitHubInstallationReservation === 'function';
+}
+
+function hasGitHubReadbackPorts({ githubAppVerifier, githubCredentialStore, connectionRepository }) {
+    return typeof githubAppVerifier?.readInstallation === 'function'
+        && typeof githubCredentialStore?.verify === 'function'
+        && typeof githubCredentialStore?.materialize === 'function'
+        && typeof connectionRepository?.listOrganizationConnections === 'function';
 }
 
 function normalizeGitHubInstallation(value, { installationId, appSlug }) {
@@ -261,7 +266,15 @@ async function verifiedGitHubStatus({
             && String(row.account_login).toLowerCase() !== installation.account.login.toLowerCase())) {
         return cleanStatusRow(row);
     }
-    return { ...cleanStatusRow(row), status: 'connected', connected: true };
+    return {
+        ...cleanStatusRow(row),
+        status: 'connected',
+        connected: true,
+        account: {
+            installation_id: installation.installation_id,
+            login: installation.account.login
+        }
+    };
 }
 
 export function createGitHubInstallationCallbackHandler({
@@ -535,38 +548,30 @@ export function createOrganizationConnectionsRouter({
             if (!validGitHubAppSlug(githubAppSlug)) {
                 return problem(res, 503, 'GITHUB_APP_NOT_CONFIGURED');
             }
+            if (hasGitHubReadbackPorts({ githubAppVerifier, githubCredentialStore, connectionRepository })) {
+                const existingRows = await connectionRepository.listOrganizationConnections({
+                    tenant_id: access.tenantId,
+                    provider: 'github'
+                });
+                const current = Array.isArray(existingRows)
+                    ? existingRows.find((row) => row?.status === 'active')
+                    : null;
+                if (current) {
+                    const existing = await verifiedGitHubStatus({
+                        row: current,
+                        tenantId: access.tenantId,
+                        githubAppSlug,
+                        githubAppVerifier,
+                        githubCredentialStore
+                    });
+                    if (existing.connected === true) {
+                        return res.status(200).set('cache-control', 'no-store').json({ provider, ...existing });
+                    }
+                }
+            }
             if (!hasGitHubConnectionPorts({
                 githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository
             })) return problem(res, 503, 'GITHUB_APP_CONNECTION_UNAVAILABLE');
-
-            const existingRows = connectionRepository.listOrganizationConnections
-                ? await connectionRepository.listOrganizationConnections({
-                    tenant_id: access.tenantId,
-                    provider: 'github'
-                }) : [];
-            const current = Array.isArray(existingRows)
-                ? existingRows.find((row) => row?.status === 'active')
-                : null;
-            if (current) {
-                const existing = await verifiedGitHubStatus({
-                    row: current,
-                    tenantId: access.tenantId,
-                    githubAppSlug,
-                    githubAppVerifier,
-                    githubCredentialStore
-                });
-                if (existing.connected === true) {
-                    return res.status(200).set('cache-control', 'no-store').json({
-                        provider,
-                        status: 'connected',
-                        connected: true,
-                        account: {
-                            installation_id: String(current.installation_id),
-                            login: typeof current.account_login === 'string' ? current.account_login : null
-                        }
-                    });
-                }
-            }
             const state = stateRecord({
                 tenantId: access.tenantId,
                 personId: access.personId,

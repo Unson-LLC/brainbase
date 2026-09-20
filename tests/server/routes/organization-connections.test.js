@@ -326,6 +326,80 @@ describe('organization connections API', () => {
         expect(ports.authorizationLedger.issue).not.toHaveBeenCalled();
     });
 
+    it('reuses a verified existing installation without new-install callback ports', async () => {
+        const ports = githubPorts();
+        ports.connectionRepository.listOrganizationConnections = vi.fn(async ({ tenant_id, provider }) => {
+            expect(tenant_id).toBe(tenantId);
+            expect(provider).toBe('github');
+            return [{
+                connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ', connection_revision: '1',
+                provider: 'github', status: 'active', installation_id: '123',
+                app_id: '456', account_id: '789', credential_ref: 'opaque://github/connection'
+            }];
+        });
+        delete ports.connectionRepository.reserveGitHubInstallation;
+        delete ports.credentialStore.store;
+
+        const response = await auth(request(app({
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            connectionRepository: ports.connectionRepository
+        })).post('/api/organization-connections/github/start').send({}));
+
+        expect(response.status).toBe(200);
+        expect(response.body.account).toEqual({ installation_id: '123', login: 'unson' });
+    });
+
+    it('does not claim an existing GitHub connection when its credential cannot be verified', async () => {
+        const ports = githubPorts();
+        ports.credentialStore.verify.mockResolvedValue({ valid: false });
+        ports.connectionRepository.listOrganizationConnections = vi.fn(async () => [{
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ', connection_revision: '1',
+            provider: 'github', status: 'active', installation_id: '123',
+            credential_ref: 'opaque://github/connection'
+        }]);
+
+        const response = await auth(request(app({
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
+            connectionRepository: ports.connectionRepository
+        })).post('/api/organization-connections/github/start').send({}));
+
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('authorization_required');
+        expect(response.body).not.toHaveProperty('connected', true);
+        expect(ports.verifier.readInstallation).not.toHaveBeenCalled();
+    });
+
+    it('does not reuse an existing GitHub connection when provider readback identifies another installation', async () => {
+        const ports = githubPorts({ readbackInstallation: {
+            installation_id: '999', app_id: '456', app_slug: 'brainbase-test-app',
+            account: { id: '789', login: 'unson', type: 'Organization' },
+            permissions: { metadata: 'read' }, suspended_at: null
+        } });
+        ports.connectionRepository.listOrganizationConnections = vi.fn(async () => [{
+            connection_id: 'wsc_01ARZ3NDEKTSV4RRFFQ69G5FAZ', connection_revision: '1',
+            provider: 'github', status: 'active', installation_id: '123',
+            credential_ref: 'opaque://github/connection'
+        }]);
+
+        const response = await auth(request(app({
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
+            connectionRepository: ports.connectionRepository
+        })).post('/api/organization-connections/github/start').send({}));
+
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('authorization_required');
+        expect(response.body).not.toHaveProperty('connected', true);
+        expect(ports.verifier.readInstallation).toHaveBeenCalledOnce();
+    });
+
     it('fails closed when callback ports are not configured', async () => {
         const response = await auth(request(app({ githubAppSlug: 'brainbase-test-app' }))
             .post('/api/organization-connections/github/start').send({}));
