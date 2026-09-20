@@ -82,8 +82,18 @@ async function ensureOrganization(client, manifest, tenant, plan) {
     const existing = await rows(client, 'SELECT organization_id, tenant_id, organization_payload FROM tenant_organizations WHERE organization_id=$1 FOR UPDATE', [manifest.tenant_organization_id]);
     const desired = { organization_id: manifest.tenant_organization_id, tenant_id: manifest.tenant_id, organization_payload: { status: 'active', graph_organization_id: manifest.organization_id } };
     if (existing.length) {
-        if (existing.length !== 1 || !same(existing[0], desired)) fail('TENANT_ORGANIZATION_CONFLICT', 'Tenant organization projection conflicts with desired state');
-        plan.push({ operation: 'noop', entity: 'tenant_organization', id: manifest.tenant_organization_id }); return;
+        const current = existing[0];
+        const sameOwnership = existing.length === 1
+            && current.organization_id === desired.organization_id
+            && current.tenant_id === desired.tenant_id
+            && (!current.organization_payload?.status || current.organization_payload.status === 'active')
+            && (!current.organization_payload?.graph_organization_id || current.organization_payload.graph_organization_id === manifest.organization_id);
+        if (!sameOwnership) fail('TENANT_ORGANIZATION_CONFLICT', 'Tenant organization projection conflicts with desired state');
+        if (current.organization_payload?.graph_organization_id === manifest.organization_id) {
+            plan.push({ operation: 'noop', entity: 'tenant_organization', id: manifest.tenant_organization_id }); return;
+        }
+        await client.query('UPDATE tenant_organizations SET organization_payload=organization_payload || $2::jsonb WHERE organization_id=$1', [manifest.tenant_organization_id, JSON.stringify(desired.organization_payload)]);
+        plan.push({ operation: 'update', entity: 'tenant_organization', id: manifest.tenant_organization_id }); return;
     }
     await client.query('INSERT INTO tenant_organizations (organization_id, tenant_id, tenant_revision_at_write, organization_payload) VALUES ($1,$2,$3,$4::jsonb)', [manifest.tenant_organization_id, manifest.tenant_id, tenant.tenant_revision, JSON.stringify(desired.organization_payload)]);
     plan.push({ operation: 'create', entity: 'tenant_organization', id: manifest.tenant_organization_id });
