@@ -58,6 +58,9 @@ describe('tenant production provisioning schema', () => {
         expect(sql).toContain('billing_principal_id TEXT NOT NULL');
         expect(sql).toContain('tenant_outcome_service_profiles_connection_idx');
         expect(sql).toContain('resolve_active_tenant_for_organization');
+        expect(sql).toContain("organization.organization_payload ->> 'graph_organization_id' = requested_organization_id");
+        expect(sql).toContain('WHERE (SELECT count(*) FROM candidates) = 1');
+        expect(sql).toContain('requested_organization_id AS organization_id');
         expect(sql).toContain('SECURITY DEFINER');
         expect(sql).toContain('REVOKE ALL ON FUNCTION public.resolve_active_tenant_for_organization(TEXT) FROM PUBLIC');
         expect(sql).toContain('ALTER TABLE credential_broker_refs');
