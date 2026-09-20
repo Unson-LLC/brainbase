@@ -979,6 +979,22 @@ export class MultitenantPostgresRepository {
         }
     }
 
+    async resolveTenantForAuthenticatedAccess({ organizationId, personId, slackUserId, slackWorkspaceId }) {
+        if (![organizationId, personId, slackUserId, slackWorkspaceId].every((value) => typeof value === 'string' && value.length > 0)) {
+            return null;
+        }
+        try {
+            const result = await this.pool.query(
+                `SELECT tenant_id, organization_id
+                   FROM public.resolve_active_tenant_for_authenticated_access($1, $2, $3, $4)`,
+                [organizationId, personId, slackUserId, slackWorkspaceId]
+            );
+            return result.rows[0] ?? null;
+        } catch (error) {
+            throw unavailable(error);
+        }
+    }
+
     async resolveOutcomeServiceTenant(tenantId) {
         if (typeof tenantId !== 'string' || tenantId.length === 0) {
             throw new ContractError('TENANT_SCOPE_MISMATCH', { status: 403, fault_domain: 'protocol' });

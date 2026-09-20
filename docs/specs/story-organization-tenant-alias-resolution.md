@@ -4,3 +4,6 @@
 
 候補が正確に1件のときだけ、その`tenant_id`と入力された組織IDを返す。0件または2件以上では0行を返す。これによりJWTのGraph組織IDを保持したままtenant scopeを補完し、曖昧なaliasを任意のtenantへ結び付けない。
 
+`resolve_active_tenant_for_authenticated_access(text, text, text, text)`は、組織候補に加えてcanonical personのactive membershipと、同じtenantに属するactive Slack workspace connectionを照合する。認証済みのperson ID、Slack user ID、Slack workspace IDがすべて一致し、候補が正確に1件の場合だけtenantを返す。
+
+middlewareはpersonとSlackの認証文脈が揃う場合にauthenticated resolverだけを使う。その照合が失敗してもorganization-only resolverへフォールバックしない。旧JWTなど認証文脈が不足する場合だけ、従来のorganization-only resolverを使う。

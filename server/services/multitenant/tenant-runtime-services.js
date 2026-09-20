@@ -237,7 +237,8 @@ export function createTenantRuntimeServicesFromEnv({
         resolveProfile: (input) => repository.resolveOutcomeServiceProfile(input),
         resolveTenant: (input) => repository.resolveOutcomeServiceTenant(input),
         resolveConnection: (input) => repository.resolveOutcomeServiceConnection(input),
-        resolveTenantForOrganization: (organizationId) => repository.resolveTenantForOrganization(organizationId)
+        resolveTenantForOrganization: (organizationId) => repository.resolveTenantForOrganization(organizationId),
+        resolveTenantForAuthenticatedAccess: (access) => repository.resolveTenantForAuthenticatedAccess(access)
     };
     return createTenantRuntimeServices({
         serviceAuth,
