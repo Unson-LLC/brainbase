@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { isIP } from 'node:net';
 
 const STATUS = Object.freeze({
     '未着手': 'pending',
@@ -34,15 +35,54 @@ function operationKey(namespace, value) {
     return `operational-script-${namespace}-${digest}`;
 }
 
+function configuredBaseUrl(options) {
+    if (Object.prototype.hasOwnProperty.call(options, 'baseUrl')) return options.baseUrl;
+    if (process.env.BRAINBASE_TASK_API_BASE_URL !== undefined) {
+        return process.env.BRAINBASE_TASK_API_BASE_URL;
+    }
+    return process.env.BRAINBASE_API_URL;
+}
+
+function isLoopbackHostname(hostname) {
+    const normalized = hostname.toLowerCase().replace(/^\[|\]$/gu, '');
+    if (normalized === 'localhost') return true;
+    if (isIP(normalized) === 4) return normalized.startsWith('127.');
+    return isIP(normalized) === 6 && normalized === '::1';
+}
+
+function normalizeBaseUrl(value) {
+    if (typeof value !== 'string' || !value.trim()) {
+        throw new Error('Canonical Task API baseUrl is required');
+    }
+
+    const candidate = value.trim();
+    if (!/^https?:\/\//iu.test(candidate)) {
+        throw new Error('Canonical Task API baseUrl must be an absolute HTTP(S) URL');
+    }
+
+    let parsed;
+    try {
+        parsed = new URL(candidate);
+    } catch {
+        throw new Error('Canonical Task API baseUrl must be an absolute HTTP(S) URL');
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error('Canonical Task API baseUrl must be an absolute HTTP(S) URL');
+    }
+    if (parsed.username || parsed.password || /[?#]/u.test(candidate) || parsed.search || parsed.hash) {
+        throw new Error('Canonical Task API baseUrl must not contain credentials, query, or fragment');
+    }
+    if (parsed.protocol === 'http:' && !isLoopbackHostname(parsed.hostname)) {
+        throw new Error('Canonical Task API baseUrl must use HTTPS for non-loopback hosts');
+    }
+    return candidate.replace(/\/+$/u, '');
+}
+
 export class CanonicalTaskApiClient {
-    constructor({
-        baseUrl = process.env.BRAINBASE_API_URL || 'http://localhost:31013',
-        token = requiredToken(),
-        fetchImpl = fetch
-    } = {}) {
-        this.baseUrl = baseUrl.replace(/\/$/, '');
-        this.token = token;
-        this.fetch = fetchImpl;
+    constructor(options = {}) {
+        this.baseUrl = normalizeBaseUrl(configuredBaseUrl(options));
+        this.token = options.token === undefined ? requiredToken() : options.token;
+        this.fetch = options.fetchImpl === undefined ? fetch : options.fetchImpl;
     }
 
     async request(path, { method = 'GET', body, idempotencyKey } = {}) {

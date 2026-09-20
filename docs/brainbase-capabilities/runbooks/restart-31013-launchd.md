@@ -1,9 +1,13 @@
-# Runbook: Restart Brainbase 31013 With launchd
+# Runbook: Restart Brainbase Local API 31013 With launchd
+
+This restarts the local API, not Mac Companion or the retired browser UI. The
+`com.brainbase.ui` label is retained for installation compatibility. See
+[the runtime boundary](local-api-and-companion-boundary.md).
 
 The 60-second updater normally applies merged `develop` automatically. Use this only when an immediate restart is needed.
 
 The source checkout is `/Users/ksato/workspace/repos/brainbase`. The process runs
-from the disposable linked worktree selected by both the UI and updater launchd
+from the disposable linked worktree selected by both the local API and updater launchd
 jobs. Do not edit that runtime directly. The launcher default is
 `/Users/ksato/workspace/repos/.runtime/brainbase-31013`, but an approved external
 root may be configured through `BRAINBASE_UI_RUNTIME_ROOT`.
@@ -86,6 +90,6 @@ Expected after a clean canonical restart:
 ```text
 dirty = false
 sha = latest intended origin/develop commit
-cwd = resolved RUNTIME_ROOT selected identically by UI and updater
+cwd = resolved RUNTIME_ROOT selected identically by local API and updater
 MCP receipt sha = the same sha
 ```

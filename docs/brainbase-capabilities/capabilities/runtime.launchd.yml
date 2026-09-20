@@ -1,6 +1,6 @@
 id: runtime.launchd
 name: Canonical 31013 launchd runtime
-purpose: Keep the canonical Brainbase UI on port 31013 running from an automatically managed linked worktree owned by the repos checkout and synced to merged develop code.
+purpose: Keep the Brainbase local API on port 31013 running from an automatically managed linked worktree owned by the repos checkout and synced to merged develop code. The retired browser UI and the separate Mac Companion app are not this service.
 surfaces:
   ui: []
   api:
@@ -32,8 +32,9 @@ visibility_rules:
   - A configured runtime root may be on approved external storage. Its path alone does not make it noncanonical; the launchd configuration, linked-worktree metadata, clean state, target SHA, and MCP receipt must agree.
   - The updater checks origin/develop every 60 seconds and restarts launchd only when the runtime SHA differs.
   - launchd-start fetches origin/develop, resets only the disposable runtime, installs dependencies when package-lock changes, and builds MCP before startup.
-  - Local unmerged patches in synced paths cannot persist through launchd restart.
-  - After the UI reports the merged develop SHA, the MCP runtime is fast-forwarded to the same SHA, rebuilt, restarted, and authenticated before reconciliation is complete.
+  - Local unmerged patches in the disposable runtime cannot persist through launchd restart.
+  - The com.brainbase.ui label and BRAINBASE_UI_RUNTIME_ROOT are installation compatibility identifiers, not evidence that the retired browser UI is active.
+  - After the local API reports the merged develop SHA, the MCP runtime is fast-forwarded to the same SHA, rebuilt, restarted, and authenticated before reconciliation is complete.
 verification:
   commands:
     - curl -s http://127.0.0.1:31013/api/version
@@ -41,18 +42,19 @@ verification:
     - launchctl print gui/$(id -u)/com.brainbase.ui
     - cat /Users/ksato/workspace/var/brainbase-mcp-reconcile.last
   expected:
-    - /api/version runtime.cwd matches the identical BRAINBASE_UI_RUNTIME_ROOT selected by the UI and updater launchd jobs, or the launcher default when neither job overrides it
+    - /api/version runtime.cwd matches the identical BRAINBASE_UI_RUNTIME_ROOT selected by the local API and updater launchd jobs, or the launcher default when neither job overrides it
     - /api/version runtime.git.sha matches the intended origin/develop commit
     - /api/version runtime.git.dirty is false for canonical verification
     - brainbase-mcp-reconcile.last sha matches /api/version runtime.git.sha
     - scripts/run-brainbase-mcp.sh --check returns BRAINBASE_MCP_AVAILABLE
 common_failures:
-  - Unmerged local changes disappear after launchd restart because launchd-start checks out origin/develop paths.
+  - Unmerged changes in the disposable runtime disappear after launchd restart because launchd-start aligns the managed worktree with its resolved target commit.
   - A manual node start.js process does not replace launchd if KeepAlive restarts another process.
   - A stale PID file can delay or confuse startup.
   - A fetch failure is nonzero and is never reported as a successful update.
   - MCP reconciliation fails closed when the shared runtime SHA differs, cannot build, or fails task API authentication.
 runbooks:
+  - ../runbooks/local-api-and-companion-boundary.md
   - ../runbooks/restart-31013-launchd.md
   - ../runbooks/verify-31013-source.md
 troubleshooting:
