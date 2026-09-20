@@ -11,6 +11,7 @@
 - `vibepro-graph-ssot-check.mjs`、`ontology-release-publish.js`、`generate-memory-preamble.mjs`はBearerを要求する内部クライアント。スクリプト全体ではなく、冗長な`x-brainbase-*`ヘッダーの除去を個別に検証する。
 - CLIの認証保存ではDevice Flowの応答に`expires_at`がなければ30日後を保存する一方、取得済みJWTはより早く失効し得る。期限判定・refresh token保持を別の認証修正として検証する。JWT payloadのデコードは署名検証ではなく、401の正式な原因判定はサーバー側の検証結果と区別する。
 - `docs/guides/member-onboarding.md`と`.claude/skills/add-mcp/SKILL.md`に残る旧NocoDB MCPの手動追加案内を、退役後の契約へ更新する。ユーザー別設定や外部コピーは別途読み取り確認し、共有MCPや保存データを一括削除しない。
+- `tests/e2e/story-canonical-task-postgres-ssot-contract.spec.ts`の模擬DB fixtureを現行のschema preflightに合わせる。変更前`a28392375c`とNocoDB退役変更後で同じ11件中4件が失敗し、`project_codes`と索引問い合わせの模擬応答不足により本来の競合・復旧分岐へ到達しない。実DB障害や今回の回帰と混同せず、別Specでfixture修正後に再検証する。
 
 ## 受入条件
 
