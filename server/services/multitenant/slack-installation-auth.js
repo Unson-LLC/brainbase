@@ -110,7 +110,7 @@ export function createSlackInstallationControlPlaneAuthMiddleware({
     trustedAppId
 } = {}) {
     const userGuard = authService
-        ? requireAuth(authService, { allowInsecureHeaders: false })
+        ? requireAuth(authService)
         : unavailableMiddleware('USER_AUTH_CONFIGURATION_REQUIRED');
     const canonicalAccessResolver = createSlackInstallationAccessResolver({
         authService,

@@ -24,7 +24,7 @@ function canonicalizeOwnerIdentity(req, ownerPersonId) {
 }
 
 function isServerToServerOrNativeAuth(req) {
-    return ['internal', 'service-token', 'bearer', 'insecure-header'].includes(String(req.authSource || ''));
+    return ['internal', 'service-token', 'bearer'].includes(String(req.authSource || ''));
 }
 
 function createCompanionAccessGuard({

@@ -9,9 +9,8 @@ import { getAuthTokensFromRequest, getHeader } from '../lib/auth-cookies.js';
 /**
  * @param {RequestLike} req
  * @param {AuthServiceLike} authService
- * @param {{ allowInsecureHeaders?: boolean, structuredErrors?: boolean }} [options]
  */
-export function resolveAuthContext(req, authService, options = {}) {
+export function resolveAuthContext(req, authService) {
     if (req?.method === 'OPTIONS') {
         return { ok: true, bypass: true };
     }
@@ -111,12 +110,12 @@ export function resolveAuthContext(req, authService, options = {}) {
 
 /**
  * @param {AuthServiceLike} authService
- * @param {{ allowInsecureHeaders?: boolean, structuredErrors?: boolean }} [options]
+ * @param {{ structuredErrors?: boolean }} [options]
  * @returns {(req: RequestLike, res: ResponseLike, next: NextLike) => unknown}
  */
 export function requireAuth(authService, options = {}) {
     return async (req, res, next) => {
-        const result = resolveAuthContext(req, authService, options);
+        const result = resolveAuthContext(req, authService);
         if (result?.bypass) {
             return next();
         }

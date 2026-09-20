@@ -10,14 +10,14 @@ import { ExternalRunnerIngestService } from '../../../server/services/external-r
 import { InMemoryWorkflowRepository } from '../../../server/services/workflow/workflow-repository.js';
 import { buildAgentReportPayload } from '../../../scripts/bin/bb-report-submit.mjs';
 
-function createApp() {
+function createApp({ authSource = 'internal' } = {}) {
     const app = express();
     const repository = new InMemoryWorkflowRepository();
     const ingestService = new ExternalRunnerIngestService({ workflowRepository: repository });
     app.use(express.json());
     app.use((req, _res, next) => {
         req.access = { role: 'member', projectCodes: ['brainbase'] };
-        req.authSource = 'internal';
+        req.authSource = authSource;
         next();
     });
     app.use('/api/external-runner', createExternalRunnerRouter(ingestService));
@@ -127,6 +127,20 @@ describe('external runner routes', () => {
 
         expect(response.body).toMatchObject({
             error: 'Authorization token required'
+        });
+        expect(repository.listRuns()).toHaveLength(0);
+    });
+
+    it('rejects legacy insecure-header external runner ingest before persistence', async () => {
+        const { app, repository } = createApp({ authSource: 'insecure-header' });
+
+        const response = await request(app)
+            .post('/api/external-runner/ingest')
+            .send(makePayload())
+            .expect(403);
+
+        expect(response.body).toMatchObject({
+            error: 'server_to_server_auth_required'
         });
         expect(repository.listRuns()).toHaveLength(0);
     });

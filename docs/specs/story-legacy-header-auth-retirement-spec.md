@@ -26,14 +26,17 @@ Story: `docs/management/stories/active/story-legacy-header-auth-retirement.md`
 1. `BRAINBASE_TEST_MODE=true`でheaderだけを送った`requireAuth`は401を返す。Bearer tokenは送らず、自己申告role・project・clearanceが認証に昇格しないことを確認する。
 2. 検証済みBearerにspoofing headerを添えても、access role/project/person identityは検証済みclaimのままである。
 3. Slack provider JWT、Google provider JWT、session cookie、internal API key、`bbsvc_` service token、OPTIONS bypassの既存テストが通る。
-4. 明示的に`allowInsecureHeaders: false`を渡す既存routeと、下流の`authSource === 'insecure-header'`拒否側テストは変更せず通る。
+4. 既存routeから廃止済みの`allowInsecureHeaders`引数を除去しても、下流の
+   `authSource === 'insecure-header'`拒否側テストは通る。下流の到達不能な受入分岐は
+   `story-auth-boundary-residual-cleanup`で整理する。
 
 ## 変更しない境界
 
 - `BRAINBASE_TEST_MODE`全体、DB、production設定、本番操作、個人設定。
 - `knowledge-retrieve-service-auth.js`の未信頼header拒否。
 - mesh、Info SSOT、Companion Task、Slack installation control-planeなどの明示拒否・防御コード。
-- `run-receipts`、`external-runner`、`companion`の下流dead-branch整理と、関連文書の更新。
+- 共有middleware以外の下流dead-branch整理は、`story-auth-boundary-residual-cleanup`の
+  最小Specで扱う。
 
 ## 影響確認
 

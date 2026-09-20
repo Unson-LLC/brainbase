@@ -11,12 +11,12 @@ export function createAuthRouter(authService, { googleMeetConnectionService = nu
     router.get('/google/start', controller.slackStart);
     router.get('/slack/callback', controller.slackCallback);
     router.get('/google/callback', controller.slackCallback);
-    router.get('/google/meet/start', requireAuth(authService, { allowInsecureHeaders: false }), controller.googleMeetStart);
-    router.get('/google/meet/callback', requireAuth(authService, { allowInsecureHeaders: false }), controller.googleMeetCallback);
+    router.get('/google/meet/start', requireAuth(authService), controller.googleMeetStart);
+    router.get('/google/meet/callback', requireAuth(authService), controller.googleMeetCallback);
     router.post('/token/exchange', controller.tokenExchange);
     router.post('/refresh', controller.refresh);
-    router.get('/organizations', requireAuth(authService, { allowInsecureHeaders: false }), controller.organizations);
-    router.post('/organizations/switch', requireAuth(authService, { allowInsecureHeaders: false }), controller.switchOrganization);
+    router.get('/organizations', requireAuth(authService), controller.organizations);
+    router.post('/organizations/switch', requireAuth(authService), controller.switchOrganization);
     router.post('/logout', requireAuth(authService), controller.logout);
     router.get('/verify', requireAuth(authService), controller.verify);
     router.post('/service-tokens', requireAuth(authService), controller.createServiceToken);
@@ -25,7 +25,7 @@ export function createAuthRouter(authService, { googleMeetConnectionService = nu
     // Device Code Flow endpoints
     router.post('/device/code', controller.deviceCodeRequest);
     router.post('/device/verify-user-code', controller.verifyUserCodeEndpoint);
-    router.post('/device/approve', requireAuth(authService, { allowInsecureHeaders: false }), controller.approveDevice);
+    router.post('/device/approve', requireAuth(authService), controller.approveDevice);
     router.post('/device/deny', controller.denyDevice);
     router.post('/device/token', controller.deviceTokenRequest);
 

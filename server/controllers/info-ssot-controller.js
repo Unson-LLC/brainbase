@@ -17,7 +17,7 @@ function getErrorMessage(error) {
 
 /** @param {Request & { access?: AccessContext }} req */
 function buildAccessContext(req) {
-    if (!req.access) throw new Error('Slack OAuth token required');
+    if (!req.access) throw new Error('Authenticated access context required');
     return req.access;
 }
 
@@ -38,7 +38,7 @@ function assertAccessContext(access) {
 function resolveErrorStatus(error) {
     if (Number.isInteger(error?.status)) return error.status;
     const message = getErrorMessage(error);
-    if (message.includes('Slack OAuth token required')) {
+    if (message.includes('Authenticated access context required')) {
         return 401;
     }
     if (message.includes('Bearer authorization')) {

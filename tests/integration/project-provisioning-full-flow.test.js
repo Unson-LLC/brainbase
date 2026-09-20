@@ -334,7 +334,7 @@ app.use(csrfMiddleware());
 app.get('/api/csrf-token', csrfTokenHandler);
 app.use(
     '/api/project-provisioning',
-    requireAuth(authService, { allowInsecureHeaders: false }),
+    requireAuth(authService),
     createProjectProvisioningRouter({ service: serviceProxy })
 );
 
