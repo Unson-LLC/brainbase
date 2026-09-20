@@ -1921,9 +1921,7 @@ describe('Codex Judgment Resolver Host', () => {
             ['list_extension_entities', { type: 'project', query: 'brainbase' }, '検索', 'search'],
             ['search', { query: 'brainbase' }, '検索', 'search'],
             ['resolve_entity', { query: 'Brainbase' }, '検索', 'search'],
-            ['search_personal_kg', { query: '判断' }, '検索', 'search'],
-            ['search_wiki', { query: '移行' }, '検索', 'search'],
-            ['get_wiki_page', { path: 'docs/index.md' }, '取得', 'retrieve']
+            ['search_personal_kg', { query: '判断' }, '検索', 'search']
         ];
 
         for (const [toolName, toolInput, operation, eventKind] of matrix) {
@@ -2275,7 +2273,7 @@ describe('Codex Judgment Resolver Host', () => {
         const expectedKinds = {
             get_context: 'retrieve', list_entities: 'retrieve', get_entity: 'retrieve',
             list_extension_types: 'retrieve', list_extension_entities: 'retrieve', search: 'search',
-            resolve_entity: 'retrieve', search_wiki: 'search', get_wiki_page: 'retrieve', search_personal_kg: 'search',
+            resolve_entity: 'retrieve', search_personal_kg: 'search',
             brainbase_projects: 'retrieve', brainbase_bootstrap_config: 'retrieve', brainbase_admin_read: 'retrieve',
             brainbase_run_receipt_inbox: 'retrieve', brainbase_run_receipt_history: 'retrieve', brainbase_run_receipt_diagnosis: 'retrieve',
             brainbase_automation_run_detail: 'retrieve', brainbase_meeting_automation_diagnosis: 'retrieve', brainbase_onboarding_get: 'retrieve',

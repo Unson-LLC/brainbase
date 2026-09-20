@@ -23,10 +23,7 @@ Usage:
   brainbase auth login     Login to brainbase server
   brainbase auth status    Show authentication status
   brainbase auth logout    Clear saved credentials
-  brainbase wiki sync      Read-only export (legacy alias)
-  brainbase wiki pull      Export wiki from server
-  brainbase wiki push      Refused: Wiki writes are retired
-  brainbase wiki status    Show retirement/export diff
+  brainbase wiki ...       廃止済み（Graph・所有repo・Driveを利用）
   brainbase learn add      明示した学びを記録し、知識候補を作成する
   brainbase learn ingest-reviews  検証レビューから知識候補を作成する
   brainbase learn daily    日次の候補収集と確認待ち一覧を更新する

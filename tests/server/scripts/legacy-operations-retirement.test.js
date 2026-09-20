@@ -159,7 +159,7 @@ describe('PR command docs after lifecycle retirement', () => {
 });
 
 describe('verified legacy residue', () => {
-    it('removes unreachable MCP search cases while retaining the rejection guard and active helpers', () => {
+    it('removes retired MCP Wiki handlers while retaining the rejection guard and Graph search', () => {
         const serverSource = readFileSync(
             path.join(repositoryRoot, 'mcp/brainbase/src/server.ts'),
             'utf8'
@@ -172,9 +172,9 @@ describe('verified legacy residue', () => {
         expect(serverSource).not.toMatch(/'list_extension_entities', 'get_context', 'get_entity'/);
         expect(serverSource).toContain('export function rejectLegacySearchSurface');
         expect(serverSource).toContain("if (name === 'get_context')");
-        expect(serverSource).toContain("if (name === 'search_wiki')");
-        expect(serverSource).toContain('async function fetchWikiPages');
-        expect(serverSource).toContain('case \'get_wiki_page\':');
+        expect(serverSource).toContain("if (name === 'search_wiki' || name === 'get_wiki_page')");
+        expect(serverSource).not.toContain('async function fetchWikiPage');
+        expect(serverSource).not.toMatch(/case 'get_wiki_page'\s*:/);
         expect(serverSource).toContain('searchEntities(entityIndex, query)');
     });
 

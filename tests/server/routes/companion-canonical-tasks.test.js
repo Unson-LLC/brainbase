@@ -90,7 +90,6 @@ function bootstrapAppFor({ personId = 'legacy_owner' } = {}) {
         learningService: { searchPersonalKgCandidates: vi.fn() },
         learningHealthService: {},
         candidateRepository: null,
-        wikiService: {},
         tokenUsageService: {},
         workflowService: undefined,
         externalRunnerIngestService: {},

@@ -9,7 +9,6 @@ describe('Brainbase Portal routes', () => {
   let configParser;
   let nocodbService;
   let infoSSOTService;
-  let wikiService;
 
   beforeEach(() => {
     configParser = {
@@ -69,42 +68,12 @@ describe('Brainbase Portal routes', () => {
       pool: null,
     };
 
-    wikiService = {
-      getPage: vi.fn(async (_access, pagePath) => {
-        if (pagePath === 'brainbase/stories.md') {
-          return {
-            title: 'stories.md',
-            content: [
-              '```yaml',
-              'story_id: C1-001',
-              'horizon: quarter',
-              'frame_id: wiki-frame',
-              'view: user',
-              'name: Wiki side story detail',
-              'status: draft',
-              'criteria:',
-              '  - type: commit',
-              '    description: Wiki acceptance condition',
-              '```',
-              '```yaml',
-              'story_id: WIKI-ONLY',
-              'name: Wiki-only story',
-              'horizon: quarter',
-              '```',
-            ].join('\n'),
-          };
-        }
-        return { error: 'not found' };
-      }),
-    };
-
     app = express();
     app.use(express.json());
     app.use('/api/brainbase', createBrainbasePortalRouter({
       configParser,
       nocodbService,
       infoSSOTService,
-      wikiService,
     }));
   });
 
@@ -122,7 +91,7 @@ describe('Brainbase Portal routes', () => {
     expect(res.body.storyMap.meta).toMatchObject({
       storySource: 'graph',
       graphStoryCount: 1,
-      wikiStoryCount: 2,
+      wikiStoryCount: null,
       projectionSource: 'nocodb',
     });
     expect(res.body.storyMap.stories).toHaveLength(1);
@@ -133,14 +102,16 @@ describe('Brainbase Portal routes', () => {
       graphEntityId: 'story_c1001',
       graphProjectCode: 'unson',
       graphSource: 'common/00_stories.md',
-      horizon: 'quarter',
-      view: 'user',
+      horizon: '',
+      view: '',
       status: 'active',
       criteria: [{ type: 'commit', description: 'Graph acceptance condition' }],
       progress: 42,
       nocodbStatus: '進行中',
       assignee: 'Operator K',
     });
+    expect(res.body.direction).toEqual({ title: '', content: '', available: false });
+    expect(res.body.frame).toEqual({ title: '', content: '', available: false, frames: [] });
   });
 
   it('Graphの成功した空一覧を維持し、WikiだけのStoryを復活させない', async () => {
@@ -155,13 +126,10 @@ describe('Brainbase Portal routes', () => {
       graphStoryCount: 0,
     });
     expect(res.body.storyMap.stories).toEqual([]);
-    expect(wikiService.getPage).not.toHaveBeenCalledWith(
-      expect.anything(),
-      'brainbase/stories.md',
-    );
+    expect(res.body.storyMap.meta.wikiStoryCount).toBeNull();
   });
 
-  it('WikiはGraph storyの説明だけを補足し、識別子・状態・受入条件を補わない', async () => {
+  it('Wiki退役後はGraph storyの不足フィールドを補完せず、未提供のまま返す', async () => {
     infoSSOTService.listGraphEntities.mockResolvedValueOnce([
       {
         id: 'story_c1001',
@@ -183,10 +151,12 @@ describe('Brainbase Portal routes', () => {
       story_id: 'C1-001',
       frame_id: '',
       name: 'Canonical Graph title',
-      horizon: 'quarter',
+      horizon: '',
+      view: '',
       status: '',
     });
     expect(res.body.storyMap.stories[0]).not.toHaveProperty('criteria');
+    expect(res.body.storyMap.meta.wikiStoryCount).toBeNull();
   });
 
   it('Graph取得失敗を空一覧と区別し、Story件数をunknownにする', async () => {
@@ -272,10 +242,7 @@ describe('Brainbase Portal routes', () => {
       storyStatus: 'available',
       graphStoryCount: 0,
     });
-    expect(wikiService.getPage).not.toHaveBeenCalledWith(
-      expect.anything(),
-      'brainbase/stories.md',
-    );
+    expect(res.body.storyMap.meta.wikiStoryCount).toBeNull();
   });
 
   it('明示的に別プロジェクトの不正レコードは対象Story一覧を取得不能にしない', async () => {

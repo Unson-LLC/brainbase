@@ -41,6 +41,11 @@ describe('knowledge owner audit', () => {
     );
   });
 
+  it('does not audit retired Wiki tools', () => {
+    assert.equal(buildKnowledgeOwnerAudit('get_wiki_page', { path: 'brainbase/project' }, '# old'), null);
+    assert.equal(buildKnowledgeOwnerAudit('search_wiki', { query: 'old' }, '# old'), null);
+  });
+
   it('reports a completed no-result search without claiming absence', () => {
     assert.deepStrictEqual(
       buildKnowledgeOwnerAudit('search_personal_kg', { query: 'unknown principle' }, 'No personal KG entries found'),

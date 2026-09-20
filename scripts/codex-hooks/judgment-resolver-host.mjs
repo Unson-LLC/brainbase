@@ -138,7 +138,7 @@ const JUDGMENT_AUDIT_READ_TOOL_NAME = 'mcp__brainbase__brainbase_judgment_audit_
 const OWNER_AUDIT_SCHEMA_VERSION = 'brainbase-owner-audit-v1';
 const BRAINBASE_READ_TOOL_NAMES = Object.freeze([
     'get_context', 'list_entities', 'get_entity', 'list_extension_types', 'list_extension_entities',
-    'search', 'resolve_entity', 'search_wiki', 'get_wiki_page', 'search_personal_kg',
+    'search', 'resolve_entity', 'search_personal_kg',
     'brainbase_projects', 'brainbase_bootstrap_config', 'brainbase_admin_read',
     'brainbase_run_receipt_inbox', 'brainbase_run_receipt_history', 'brainbase_run_receipt_diagnosis',
     'brainbase_automation_run_detail', 'brainbase_meeting_automation_diagnosis', 'brainbase_onboarding_get',
@@ -157,7 +157,6 @@ export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
     ...BRAINBASE_READ_TOOL_NAMES.map((name) => [name, 'retrieve']),
     ...BRAINBASE_WRITE_TOOL_NAMES.map((name) => [name, 'write']),
     ['search', 'search'],
-    ['search_wiki', 'search'],
     ['search_personal_kg', 'search'],
     ['brainbase_resolve_turn', 'turn_resolution'],
     ['brainbase_knowledge_resolve', 'route'],
@@ -171,7 +170,7 @@ export const BRAINBASE_TOOL_KIND_BY_NAME = Object.freeze(Object.fromEntries([
 export const BRAINBASE_TOOL_SEMANTIC_STRATEGY_BY_NAME = Object.freeze({
     get_context: 'owner_audit', list_entities: 'owner_audit', get_entity: 'owner_audit',
     list_extension_types: 'owner_audit', list_extension_entities: 'owner_audit', search: 'owner_audit',
-    resolve_entity: 'owner_audit', search_wiki: 'owner_audit', get_wiki_page: 'owner_audit', search_personal_kg: 'owner_audit',
+    resolve_entity: 'owner_audit', search_personal_kg: 'owner_audit',
     brainbase_projects: 'control_plane', brainbase_bootstrap_config: 'published_contract', brainbase_admin_read: 'control_plane',
     brainbase_run_receipt_inbox: 'control_plane', brainbase_run_receipt_history: 'control_plane', brainbase_run_receipt_diagnosis: 'published_contract',
     brainbase_automation_run_detail: 'published_contract', brainbase_meeting_automation_diagnosis: 'published_contract', brainbase_onboarding_get: 'published_contract',

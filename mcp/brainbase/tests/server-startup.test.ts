@@ -43,10 +43,15 @@ test('published search traverses Graph and reports API failure through real stdi
   try {
     await client.connect(transport, {timeout: 10000});
     const catalog = await client.listTools();
-    assert.ok(!catalog.tools.some(tool => ['get_context', 'search_wiki'].includes(tool.name)));
+    assert.ok(!catalog.tools.some(tool => ['get_context', 'search_wiki', 'get_wiki_page'].includes(tool.name)));
     assert.deepEqual((catalog.tools.find(tool => tool.name === 'search')!.inputSchema.properties!.mode as {enum: string[]}).enum, ['semantic']);
     for (const name of ['get_entity', 'resolve_entity', 'list_entities', 'search_personal_kg']) assert.ok(catalog.tools.some(tool => tool.name === name));
-    for (const [name, args] of [['get_context', {topic: 'q'}], ['search_wiki', {query: 'q'}], ['search', {query: 'q', mode: 'lexical'}]] as const) {
+    for (const [name, args] of [
+      ['get_context', {topic: 'q'}],
+      ['search_wiki', {query: 'q'}],
+      ['get_wiki_page', {path: 'brainbase/project'}],
+      ['search', {query: 'q', mode: 'lexical'}],
+    ] as const) {
       const rejected = await client.callTool({name, arguments: args});
       assert.equal(rejected.isError, true); assert.match(JSON.stringify(rejected), /removed|disabled/);
     }

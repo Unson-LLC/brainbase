@@ -375,7 +375,6 @@ export function registerApiRoutes(app, {
     personalKnowledgeService,
     personalKnowledgePromotionService,
     onboardingRuntimeService,
-    wikiService,
     tokenUsageService,
     agentControlCatalogService,
     loopIntentService,
@@ -460,7 +459,6 @@ export function registerApiRoutes(app, {
         projectCatalogParser: runtimeProjectCatalog,
         projectsRoot,
         infoSSOTService,
-        wikiService,
         canonicalTaskService,
         authGuard: requireAuth(authService),
         projectCatalogAuthGuard: requireAuth(authService)
@@ -637,7 +635,7 @@ export function registerApiRoutes(app, {
         owner: 'Brainbase',
         replacement: 'SNS運用は廃止済みです。既存台帳は保全しています。'
     }));
-    app.use('/api/wiki', createWikiRouter(wikiService));
+    app.use('/api/wiki', createWikiRouter());
     app.use('/api/usage', createUsageRouter(tokenUsageService));
     const workflowAuthGuard = requireAuth(authService);
     app.use('/api/workflows', workflowAuthGuard, createWorkflowRouter({
