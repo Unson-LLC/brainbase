@@ -502,6 +502,12 @@ export class MultitenantPostgresRepository {
             };
             await client.query('SET CONSTRAINTS ALL DEFERRED');
             await client.query(
+                `INSERT INTO workspace_connection_revisions (
+                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
+                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
+                [tenant_id, connection_id, revision, canonicalJson(snapshot), recordedAt]
+            );
+            await client.query(
                 `INSERT INTO workspace_connections (
                     connection_id, connection_revision, tenant_id, tenant_revision_at_write,
                     provider, installation_id, workspace_id, app_id, granted_scopes,
@@ -510,12 +516,6 @@ export class MultitenantPostgresRepository {
                 [connection_id, revision, tenant_id, tenant.tenant_revision,
                     String(installation.installation_id), String(installation.account.id),
                     String(installation.app_id), Object.keys(permissions).sort(), credential.credential_ref, recordedAt]
-            );
-            await client.query(
-                `INSERT INTO workspace_connection_revisions (
-                    tenant_id, connection_id, connection_revision, connection_snapshot, recorded_at
-                 ) VALUES ($1,$2,$3,$4::jsonb,$5)`,
-                [tenant_id, connection_id, revision, canonicalJson(snapshot), recordedAt]
             );
             await client.query(
                 `INSERT INTO credential_broker_refs (

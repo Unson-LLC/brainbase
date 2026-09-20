@@ -1254,6 +1254,14 @@ describe('MultitenantPostgresRepository', () => {
             String(sql).includes('INSERT INTO workspace_connections')
             && values.includes('credref://github/123')
         ))).toBe(true);
+        const revisionInsert = query.mock.calls.findIndex(([sql]) => (
+            String(sql).includes('INSERT INTO workspace_connection_revisions')
+        ));
+        const connectionInsert = query.mock.calls.findIndex(([sql]) => (
+            String(sql).includes('INSERT INTO workspace_connections')
+        ));
+        expect(revisionInsert).toBeGreaterThan(-1);
+        expect(revisionInsert).toBeLessThan(connectionInsert);
         expect(query.mock.calls.some(([sql]) => String(sql).includes('INSERT INTO credential_broker_refs'))).toBe(true);
         expect(query.mock.calls.some(([sql]) => String(sql).includes('DELETE FROM github_installation_reservations'))).toBe(true);
     });
