@@ -1,0 +1,9 @@
+{
+  "story_id": "story-unson-runtime-cutover",
+  "outcome": "雲孫ランタイムがCanonical Task主体の独自コピーを持たずOSS正本を利用する",
+  "acceptance_criteria": [
+    "既存のローカル入口は互換re-exportだけになる",
+    "依存はOSSの移管済みcommitへ固定される",
+    "既存のprincipalとCanonical Task serviceテストが通る"
+  ]
+}

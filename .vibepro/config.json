@@ -611,8 +611,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-unson-runtime-cutover",
+        "title": "雲孫ランタイムを所有repoの実装へ切り替える",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-repository-ownership-contract"
+    "current_story_id": "story-unson-runtime-cutover"
   }
 }
