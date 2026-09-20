@@ -163,22 +163,27 @@ export function requireAuth(authService, options = {}) {
         if (access?.organizationId
             && !isCanonicalId(access.tenantId, 'ten')
             && authService.resolveTenantForOrganization) {
+            const hasAuthenticatedTenantContext = Boolean(
+                authService.resolveTenantForAuthenticatedAccess
+                && access.personId
+                && access.slackUserId
+                && access.slackWorkspaceId
+            );
+            let mapping = null;
+            if (hasAuthenticatedTenantContext) {
+                try {
+                    mapping = await authService.resolveTenantForAuthenticatedAccess(access);
+                } catch {
+                    // A current provider identity may not be projected into the
+                    // canonical membership yet. Continue to the unique active alias.
+                }
+            }
             try {
-                const hasAuthenticatedTenantContext = Boolean(
-                    authService.resolveTenantForAuthenticatedAccess
-                    && access.personId
-                    && access.slackUserId
-                    && access.slackWorkspaceId
-                );
-                const authenticatedMapping = hasAuthenticatedTenantContext
-                    ? await authService.resolveTenantForAuthenticatedAccess(access)
-                    : null;
                 // Prefer the person + provider identity when it is projected. Older
-                // signed sessions can predate that projection, so a missing match may
-                // still use the unique active organization alias. The organization
-                // resolver fails closed when the alias is missing or ambiguous.
-                const mapping = authenticatedMapping
-                    ?? await authService.resolveTenantForOrganization(access.organizationId);
+                // signed sessions can predate that projection, so a missing or failed
+                // lookup may still use the unique active organization alias. The
+                // organization resolver fails closed when the alias is missing or ambiguous.
+                mapping ??= await authService.resolveTenantForOrganization(access.organizationId);
                 if (mapping?.organization_id === access.organizationId && mapping?.tenant_id) {
                     access.tenantId = mapping.tenant_id;
                 }
