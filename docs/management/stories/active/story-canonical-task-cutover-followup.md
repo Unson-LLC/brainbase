@@ -8,7 +8,7 @@ period: 2026-W31
 view: engineering
 architecture_docs:
   - docs/architecture/ADR-016-canonical-task-single-writer.md
-  - docs/architecture/story-companion-canonical-task-provider.md
+  - docs/architecture/story-canonical-task-postgres-ssot.md
 spec_docs:
   - docs/specs/story-canonical-task-cutover-followup.md
 responsibility_authority_docs:
@@ -22,12 +22,12 @@ responsibility_authority_docs:
 WorkflowServiceからAutomationRunServiceへの移行後、承認済みTask候補を正本へmaterializeする処理と、
 その処理を再開可能にするPostgres checkpointが移植されていなかった。さらにruntime factoryが
 `canonicalTaskService`を受け取らず、依存を構成時に破棄していた。そのためAPIとread経路は存在しても、
-Mac Companionからの作成・更新を安全に開通できない。
+owner認証済みconsumerからの作成・更新を安全に開通できない。
 
 ## Failure modes
 
 - 同じ承認の再送でTaskが重複する。
-- NocoDB書き込み後の停止でTask IDがWorkflowへ投影されず、再試行が別Taskを作る。
+- PostgreSQL書き込み後の停止でTask IDがWorkflowへ投影されず、再試行が別Taskを作る。
 - 同じ候補へ異なる決定を再送して既存結果を上書きする。
 - runtime factoryで依存が欠落し、テスト環境だけ成功して本番経路がmaterializeしない。
 - current-HEAD証跡が不足したままmutationを開き、未検証writerを本番へ到達させる。
@@ -39,14 +39,14 @@ Mac Companionからの作成・更新を安全に開通できない。
 - 全Vitestがcurrent HEADで新規失敗なく成功する。
 - 独立したgate evidence reviewが変更差分と失敗モードを確認する。
 - 本番HEADに対するevidence registry全件とbefore-enable preflightが成功する。
-- owner認証されたMac Companionのcreate/update実動確認が成功した場合だけmutationを開通扱いにする。
+- owner認証されたCanonical Task APIのcreate/update実動確認が成功した場合だけmutationを開通扱いにする。
 
 ## Scope
 
 - AutomationRunServiceへ承認materializationとdurable checkpoint/reconciliationを復元する。
 - runtime factoryからCanonicalTaskServiceを注入する。
 - 旧WorkflowServiceを参照する検証fixtureをAutomationRunServiceへ更新する。
-- Canonical Taskのsingle-writer、owner authority、fixed store、readiness設計は変更しない。
+- Canonical Taskのsingle-writer、owner authority、PostgreSQL正本、readiness設計は変更しない。
 
 ## Acceptance criteria
 
@@ -62,7 +62,7 @@ Mac Companionからの作成・更新を安全に開通できない。
 
 新しいADRは不要。今回の変更は
 `docs/architecture/ADR-016-canonical-task-single-writer.md` と
-`docs/architecture/story-companion-canonical-task-provider.md` が定める既存境界内で、
+`docs/architecture/story-canonical-task-postgres-ssot.md` が定める既存境界内で、
 移行時に欠落したorchestrationを復元するものである。
 
 ## Release and rollback

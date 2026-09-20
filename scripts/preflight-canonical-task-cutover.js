@@ -117,11 +117,6 @@ const CUTOVER_CHECKS = Object.freeze({
     schema: 'canonical-task-runtime-check-v1',
     kind: 'brainbase_server_process',
   },
-  mac: {
-    option: 'macCheckPath',
-    schema: 'canonical-task-mac-consumer-check-v1',
-    kind: 'mac_live_read_only_contract',
-  },
 });
 
 async function verifyCutoverCheckArtifact({ rootDir, name, checkPath, sourceHead }) {
@@ -168,13 +163,6 @@ async function verifyCutoverCheckArtifact({ rootDir, name, checkPath, sourceHead
       /\/api\/companion\/tasks\//.test(artifact.mutation_probe?.endpoint ?? ''),
       'runtime check mutation probe endpoint mismatch',
     );
-  } else if (name === 'mac') {
-    expectField(artifact, 'provider_source_head', sourceHead);
-    invariant(artifact.read_only_contract?.pass === true, 'mac check read_only_contract pass mismatch');
-    invariant(artifact.read_only_contract?.exit_code === 0, 'mac check read_only_contract exit_code mismatch');
-    invariant(artifact.read_only_contract?.matched_tests >= 1, 'mac check read_only_contract matched_tests mismatch');
-    invariant(path.isAbsolute(artifact.mac_checkout ?? ''), 'mac check mac_checkout must be absolute');
-    invariant(/^[a-f0-9]{40}$/.test(artifact.mac_source_head ?? ''), 'mac check mac_source_head is invalid');
   }
 
   return {
@@ -423,7 +411,6 @@ async function assembleBeforeEnableEvidence({
   postgresCheckPath,
   nocodbCheckPath,
   runtimeCheckPath,
-  macCheckPath,
   backend: requestedBackend,
 }) {
   const backend = resolveCanonicalTaskBackend(requestedBackend);
@@ -467,7 +454,7 @@ async function assembleBeforeEnableEvidence({
     : resolveInsideRoot(rootDir, manifestPath, 'manifest path');
   const { value: manifest } = await readJsonWithBytes(manifestAbsolutePath, 'canonical task store manifest');
   const manifestIdentityHash = sha256(canonicalJson(manifest));
-  const checkPaths = { postgresCheckPath, nocodbCheckPath, runtimeCheckPath, macCheckPath };
+  const checkPaths = { postgresCheckPath, nocodbCheckPath, runtimeCheckPath };
   const cutoverChecks = [];
   for (const [name, definition] of Object.entries(CUTOVER_CHECKS)) {
     cutoverChecks.push(await verifyCutoverCheckArtifact({
@@ -551,7 +538,6 @@ export async function verifyBeforeEnableEvidenceFile({
     postgresCheckPath: checksByName.get('postgres').artifact_path,
     nocodbCheckPath: checksByName.get('nocodb').artifact_path,
     runtimeCheckPath: checksByName.get('runtime').artifact_path,
-    macCheckPath: checksByName.get('mac').artifact_path,
   });
   invariant(canonicalJson(candidate) === canonicalJson(expected), 'before-enable evidence does not match independently verified inputs');
   return { evidence: expected, bytes, absolutePath: absoluteEvidencePath };
@@ -569,7 +555,6 @@ export function parseArgs(argv) {
     else if (argument === '--postgres-check') parsed.postgresCheckPath = argv[++index];
     else if (argument === '--nocodb-check') parsed.nocodbCheckPath = argv[++index];
     else if (argument === '--runtime-check') parsed.runtimeCheckPath = argv[++index];
-    else if (argument === '--mac-check') parsed.macCheckPath = argv[++index];
     else throw new Error(`Unknown argument: ${argument}`);
   }
   invariant(VALID_PHASES.has(parsed.phase), '--phase must be before-migration, before-enable, or rollback');

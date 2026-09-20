@@ -224,15 +224,6 @@ async function createEvidenceFixture(overrides = {}) {
       code: 'canonical_task_mutation_not_ready',
     },
   });
-  const macCheckPath = await writeCheck('mac', {
-    artifact_schema: 'canonical-task-mac-consumer-check-v1',
-    check_kind: 'mac_live_read_only_contract',
-    provider_source_head: 'abc123',
-    mac_source_head: 'c'.repeat(40),
-    mac_checkout: '/Users/ksato/workspace/code/brainbase-mac-companion',
-    read_only_contract: { pass: true, exit_code: 0, matched_tests: 1 },
-  });
-
   return {
     rootDir,
     registry,
@@ -245,11 +236,59 @@ async function createEvidenceFixture(overrides = {}) {
     postgresCheckPath,
     nocodbCheckPath,
     runtimeCheckPath,
-    macCheckPath,
   };
 }
 
 describe('canonical task evidence registry and runner parsing', () => {
+  it('keeps the retired provider documents aligned with the current evidence and PostgreSQL authority', async () => {
+    const registry = JSON.parse(await readFile(
+      path.join(process.cwd(), 'config/canonical-task-evidence-registry.json'),
+      'utf8',
+    ));
+    const spec = await readFile(
+      path.join(process.cwd(), 'docs/specs/story-companion-canonical-task-provider-spec.md'),
+      'utf8',
+    );
+    const architecture = await readFile(
+      path.join(process.cwd(), 'docs/architecture/story-companion-canonical-task-provider.md'),
+      'utf8',
+    );
+    const story = await readFile(
+      path.join(process.cwd(), 'docs/stories/story-companion-canonical-task-provider.md'),
+      'utf8',
+    );
+    const cutoverFollowup = await readFile(
+      path.join(process.cwd(), 'docs/management/stories/active/story-canonical-task-cutover-followup.md'),
+      'utf8',
+    );
+    const authority = JSON.parse(await readFile(
+      path.join(process.cwd(), 'docs/responsibility-authority/companion-canonical-task-provider.json'),
+      'utf8',
+    ));
+
+    expect(spec).toContain(`固定${registry.required_entry_count}件`);
+    expect(spec).toContain(`${registry.required_entry_count} entry`);
+    expect({
+      scenarios: registry.entries.filter((entry) => entry.id.startsWith('scenario.')).length,
+      surfaces: registry.entries.filter((entry) => entry.id.startsWith('surface.')).length,
+    }).toEqual({ scenarios: 43, surfaces: 21 });
+    expect(spec).toMatch(/status: superseded/);
+    expect(spec).toContain('story-canonical-task-postgres-ssot-spec');
+    expect(architecture).toMatch(/status: superseded/);
+    expect(architecture).toContain('story-canonical-task-postgres-ssot');
+    expect(authority.responsibilities[0].primary_authority.ref)
+      .toBe('docs/architecture/story-canonical-task-postgres-ssot.md#decision');
+    expect(authority.responsibilities[0].supporting_authority[0].ref)
+      .toBe('docs/specs/story-canonical-task-postgres-ssot-spec.md#invariants');
+    expect(spec).not.toMatch(/既存NocoDB UI adapter|既存ブラウザrepository|既存ブラウザmutation|browser modal\/event|旧route\/UI/);
+    expect(architecture).not.toMatch(/既存ブラウザTask画面|legacy route\/UI|Mana、browser/);
+    expect(story).toMatch(/status: completed/);
+    expect(story).not.toMatch(/ac:26 legacy-projection|ac:28 browser-task-mutations|既存ブラウザTask画面|既存NocoDB Task UI/);
+    expect(cutoverFollowup).toContain('docs/architecture/story-canonical-task-postgres-ssot.md');
+    expect(cutoverFollowup).not.toContain('docs/architecture/story-companion-canonical-task-provider.md');
+    expect(cutoverFollowup).not.toMatch(/Mac Companionから|owner認証されたMac Companion|NocoDB書き込み後/);
+  });
+
   it('keeps the operator runbook aligned with the PostgreSQL migration and readiness backend context', async () => {
     const runbook = await readFile(
       path.join(process.cwd(), 'docs/runbooks/canonical-task-cutover.md'),
@@ -500,7 +539,6 @@ describe('before-enable evidence preflight', () => {
       postgresCheckPath: fixture.postgresCheckPath,
       nocodbCheckPath: fixture.nocodbCheckPath,
       runtimeCheckPath: fixture.runtimeCheckPath,
-      macCheckPath: fixture.macCheckPath,
     });
 
     expect(output).toMatchObject({
@@ -513,7 +551,7 @@ describe('before-enable evidence preflight', () => {
       writer_token: 'writer-token-1',
       required_evidence_ids: ['scenario.SC-001'],
     });
-    expect(output.cutover_checks).toHaveLength(4);
+    expect(output.cutover_checks).toHaveLength(3);
     expect(output.evidence).toHaveLength(1);
     expect(JSON.parse(await readFile(outputPath, 'utf8'))).toEqual(output);
     await expect(verifyBeforeEnableEvidenceFile({
@@ -562,7 +600,6 @@ describe('before-enable evidence preflight', () => {
       postgresCheckPath: fixture.postgresCheckPath,
       nocodbCheckPath: fixture.nocodbCheckPath,
       runtimeCheckPath: fixture.runtimeCheckPath,
-      macCheckPath: fixture.macCheckPath,
       backend: 'postgres',
     });
     vi.stubEnv('CANONICAL_TASK_STORE_MANIFEST', fixture.manifestPath);
@@ -602,7 +639,6 @@ describe('before-enable evidence preflight', () => {
       postgresCheckPath: fixture.postgresCheckPath,
       nocodbCheckPath: fixture.nocodbCheckPath,
       runtimeCheckPath: fixture.runtimeCheckPath,
-      macCheckPath: fixture.macCheckPath,
       backend: 'nocodb',
     });
     vi.stubEnv('CANONICAL_TASK_STORE_MANIFEST', fixture.manifestPath);
@@ -662,7 +698,6 @@ describe('before-enable evidence preflight', () => {
       postgresCheckPath: fixture.postgresCheckPath,
       nocodbCheckPath: fixture.nocodbCheckPath,
       runtimeCheckPath: fixture.runtimeCheckPath,
-      macCheckPath: fixture.macCheckPath,
     })).rejects.toThrow(/unregistered evidence artifact/i);
   });
 
@@ -671,7 +706,6 @@ describe('before-enable evidence preflight', () => {
     ['stale runtime HEAD', 'runtimeCheckPath', { source_head: 'old-head' }, /source_head/i],
     ['in-memory runtime harness', 'runtimeCheckPath', { runtime_kind: 'in_memory_harness' }, /runtime_kind/i],
     ['open runtime mutation gate', 'runtimeCheckPath', { mutation_probe: { method: 'PATCH', status: 404, code: 'not_found' } }, /status mismatch/i],
-    ['failed Mac read-only contract', 'macCheckPath', { read_only_contract: { pass: false, exit_code: 1, matched_tests: 0 } }, /read_only_contract/i],
   ])('rejects %s', async (_name, field, mutation, expected) => {
     const fixture = await createEvidenceFixture();
     if (mutation) {
@@ -687,7 +721,6 @@ describe('before-enable evidence preflight', () => {
       postgresCheckPath: field === 'postgresCheckPath' && mutation === null ? null : fixture.postgresCheckPath,
       nocodbCheckPath: fixture.nocodbCheckPath,
       runtimeCheckPath: fixture.runtimeCheckPath,
-      macCheckPath: fixture.macCheckPath,
     })).rejects.toThrow(expected);
   });
 });

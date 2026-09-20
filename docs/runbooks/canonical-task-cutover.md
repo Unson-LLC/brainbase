@@ -7,7 +7,7 @@
 - 事前検査: `scripts/preflight-canonical-task-cutover.js`
 - 自動テスト: `tests/server/scripts/preflight-canonical-task-cutover.test.js`
 - 実行: `npm run preflight:canonical-task-cutover -- --phase <phase>`
-- 実環境証跡収集: `npm run capture:canonical-task-cutover -- --base-url <Brainbase URL> --mac-result <Mac read-only result> [--mac-source-root <transported snapshot>] --out-dir <directory>`
+- 実環境証跡収集: `npm run capture:canonical-task-cutover -- --base-url <Brainbase URL> --out-dir <directory>`
 - 実Postgres並行検査: `npm run canonical-task:check-postgres-concurrency`
 - 既存行の冪等キーbackfill: `npm run backfill:canonical-task-idempotency-keys -- --dry-run|--apply`
 - Task移行（承認後のみ）: `npm run migrate:canonical-task-postgres-workflow -- --approve-apply`
@@ -53,20 +53,13 @@
    4. `npm run migrate:canonical-task-postgres -- --apply`の直接実行は拒否される。row移行処理内の失敗は、そのrow移行transactionをrollbackする。一方、`CREATE INDEX CONCURRENTLY`はtransaction外で1文ずつ実行するため、失敗済み索引を自動rollbackしたとはみなさず、手順1のvalid/ready確認と無効索引の明示削除を行う。row移行のCOMMIT後または索引作成後にfinal-checkが失敗した場合、挿入済みrowや有効な索引は削除せずreadinessをclosedのまま維持し、原因を解消して冪等なworkflow全体を先頭から再実行する。
    active writerが存在しない排水済み状態で`npm run canonical-task:check-postgres-concurrency`を実行し、実operation repositoryへの同時2要求が1回だけ処理され、同一結果を返し、検査行と一時writerが削除されたことを確認する。既存writerが現れた場合は検査を中止する。
 2. guardを含む新BrainbaseとMCPを起動する。process-local mutation gateがclosedで、mutationが503 `canonical_task_mutation_not_ready`になることを確認する。
-3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。Macはこの時点ではTask一覧の実HTTP読み取りと認証拒否だけを確認し、mutationは実行しない。
-4. `npm run capture:canonical-task-cutover -- --base-url http://127.0.0.1:<port> --mac-result <Mac read-only result> --out-dir .vibepro/verification/canonical-task-cutover/checks`を実行し、実Postgres、実NocoDB、実Brainbase process、Mac read-only consumerの4 artifactを生成する。
-   capture実行hostがMac resultのhostと異なる場合だけ、読み取り専用で運搬したsnapshotを
-   `--mac-source-root <transported snapshot>`に指定する。snapshotはresultの`mac_checkout`と同じGit HEADの
-   Git repositoryであり、resultの`raw_log`を元の`mac_checkout`からの同じ相対pathに置く。captureは元resultを
-   一切書き換えず、snapshot HEAD、raw log hash、path containmentを再検証する。元の絶対raw logが元checkout外、
-   相対pathがcheckout外へescape、snapshot root/raw logにsymlink、またはHEAD/hash不一致なら失敗する。
-   snapshotのdirty状態はcleanとして扱わず、この手順はclean性を主張しない。`--mac-source-root`を省略した
-   同一hostの既存手順は変わらない。
-5. `npm run preflight:canonical-task-cutover -- --phase before-enable --backend postgres --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json --mac-check .vibepro/verification/canonical-task-cutover/checks/mac.json`を実行する。証跡はbackend名とbackend固有のmanifest hashを固定し、別backend向け証跡の流用を拒否する。
+3. 下記「必須証跡」の全回帰をcurrent HEADで実行する。
+4. `npm run capture:canonical-task-cutover -- --base-url http://127.0.0.1:<port> --out-dir .vibepro/verification/canonical-task-cutover/checks`を実行し、実Postgres、実NocoDB、実Brainbase processの3 artifactを生成する。
+5. `npm run preflight:canonical-task-cutover -- --phase before-enable --backend postgres --evidence-out .vibepro/verification/canonical-task-cutover/before-enable.json --postgres-check .vibepro/verification/canonical-task-cutover/checks/postgres.json --nocodb-check .vibepro/verification/canonical-task-cutover/checks/nocodb.json --runtime-check .vibepro/verification/canonical-task-cutover/checks/runtime.json`を実行する。証跡はbackend名とbackend固有のmanifest hashを固定し、別backend向け証跡の流用を拒否する。
  6. `CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence .vibepro/verification/canonical-task-cutover/before-enable.json`を実行する。command-scopedのbackend指定により、手順5のPostgres向けartifactを同じbackend identityで再検証する。backend未指定は`disabled`として閉じるため、本番手順では`postgres`を明示する。artifact、manifest、schema、writerのtransaction内再検証が失敗した場合はclosed rowを変更しない。稼働中processは各mutation前に永続rowを再照合するため、enable後の再起動は不要である。
 7. mutationが解禁されることを確認する。再起動時は、新processが単一writerを取得し、保存rowのHEAD・manifest・schema・evidence hashが一致した場合だけwriter tokenをtransaction内で引き継いで開く。不一致ならclosedのままにする。
-8. `TEST_MODE=true BRAINBASE_CANONICAL_TASK_LIVE_FIXTURE=1 npm run canonical-task:seed-live-fixture -- --ledger <workflow-ledger.json>`で、Mac実契約が使用する固定Human Stepを稼働中processの起動前に作る。担当者はCanonical Task manifestの`owner_person_id`から取得し、既に消費済みなら再利用せず失敗させる。
-9. Brainbaseを起動し、APIの作成・再送・更新・競合・完了・承認materializationの実契約をMac testから確認してからMac Companionを反映する。
+8. `TEST_MODE=true BRAINBASE_CANONICAL_TASK_LIVE_FIXTURE=1 npm run canonical-task:seed-live-fixture -- --ledger <workflow-ledger.json>`で、API実契約が使用する固定Human Stepを稼働中processの起動前に作る。担当者はCanonical Task manifestの`owner_person_id`から取得し、既に消費済みなら再利用せず失敗させる。
+9. Brainbaseを起動し、APIの作成・再送・更新・競合・完了・承認materializationの実契約をconsumer contract testから確認してから受付を反映する。
 
 ## デプロイ・再起動時のHEAD更新（enable後の通常運用）
 
@@ -95,7 +88,7 @@ readiness rowは`source_head`を固定するため、enable後にデプロイで
 ## rollback
 
 1. `npm run canonical-task:readiness -- --disable --reason rollback`で永続rowをclosedにし、mutationが503になることを確認する。
-2. 必要ならMac CompanionまたはCanonical Task API受付を戻す。
+2. 必要ならCanonical Task API受付を戻す。
 3. Postgres schema、NocoDB列・unique、共有manifest、legacy/Mana/MCP guardは維持する。
 4. `npm run preflight:canonical-task-cutover -- --phase rollback`を実行し、旧直接writerの起動コマンドと有効経路が存在しないことを確認する。
 5. 旧writerは復活させず、forward fixする。
@@ -106,7 +99,7 @@ readiness rowは`source_head`を固定するため、enable後にデプロイで
 次の固定allowlistを`required_evidence_ids`として共有する。artifactのID集合はこの集合と完全一致しなければならず、
 未知ID、重複ID、欠落ID、`pass != true`、file hash欠落のいずれかがあればbefore-enableを失敗させる。
 
-allowlistと生成元の唯一の正本は`config/canonical-task-evidence-registry.json`である。65件の各entryは
+allowlistと生成元の唯一の正本は`config/canonical-task-evidence-registry.json`である。64件の各entryは
 `producer_command`、`owner_path`、`test_command`、`artifact_path`、`artifact_schema`、
 `pre_fix_assertion`を必須とする。証拠は登録済み`producer_command`で
 `scripts/collect-canonical-task-evidence.js`を起動して生成し、collectorは現在HEAD、registry hash、
@@ -129,7 +122,7 @@ failed/skipped、test終了後、raw手書きmarker、重複markerは拒否す�
 callback完了後に出したdiagnostic lineだけを認める。
 process raw stdoutは別fileで保存しhashをartifactに含める。
 
-preflightはregistry自体の65件完全一致と重複なしを検証した上で、raw artifactのIDとpath、schema、command、
+preflightはregistry自体の64件完全一致と重複なしを検証した上で、raw artifactのIDとpath、schema、command、
 owner path/hash、registry hash、source HEADをentryと照合する。別IDのartifact入替、未登録command、
 owner変更後の古いartifact、失敗をpassとしたartifact、`matched_tests == 0`、`matched_assertions == 0`、
 期待path以外のartifactをすべて拒否する。
@@ -173,7 +166,6 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - `surface.operational-scripts`: 5本の運用scriptの直接writer 0件
 - `surface.migrations.postgres`: operation/writer/readiness schema apply/check
 - `surface.migrations.nocodb`: 必須列と冪等key unique apply/check
-- `surface.mac.wire-contract`: 固定fixtureと実route schema
 - `surface.runtime-path`: current HEADから起動したprocessのcwd/command/commit
 
 - source HEAD、各phaseのJSON出力と終了code、各証跡fileのSHA-256
@@ -187,8 +179,7 @@ duplicate marker、env欠落、result path差替え、reporter hash差替えを�
 - 5本の運用scriptに直接writerがない静的検査
 - Postgres/NocoDB migration apply/check結果と再起動readiness回帰
 - 実Postgresでの同一operation key並行実行結果（caller 2、run 1、completed、cleanup completed）
-- Mac consumer固定wire fixtureと実route schema結果
 
-preflight artifactは上記65件の安定したevidence ID、pass状態、file hash、producer command hash、
+preflight artifactは上記64件の安定したevidence ID、pass状態、file hash、producer command hash、
 owner path/hash、raw artifact path/schema、registry hashをすべて持ち、current HEADと一致しなければならない。
 いずれかが欠落・失敗・staleの場合、明示enableはatomicに失敗し、mutation readinessは成立しない。

@@ -7,12 +7,12 @@
       "id": "canonical_task_persistence",
       "primary_authority": {
         "kind": "architecture",
-        "ref": "docs/architecture/story-companion-canonical-task-provider.md#ssot"
+        "ref": "docs/architecture/story-canonical-task-postgres-ssot.md#decision"
       },
       "supporting_authority": [
         {
           "kind": "spec",
-          "ref": "docs/specs/story-companion-canonical-task-provider-spec.md#不変条件"
+          "ref": "docs/specs/story-canonical-task-postgres-ssot-spec.md#invariants"
         },
         {
           "kind": "architecture",
@@ -95,8 +95,7 @@
           "tests/server/scripts/recover-canonical-task-writer.test.js",
           "tests/server/scripts/migrate-canonical-task-postgres-store.test.js",
           "tests/server/routes/mana-capture-routes.test.js",
-          "mcp/nocodb/tests/canonical-task-write-guard.test.js",
-          "tests/fixtures/companion-canonical-task-mac-cb9c293.json"
+          "mcp/nocodb/tests/canonical-task-write-guard.test.js"
         ],
         "symbols": [
           "CanonicalTaskService",
@@ -115,7 +114,6 @@
           "identity_boundary",
           "durable_idempotency",
           "single_writer_recovery",
-          "mac_wire_contract",
           "mana_capture",
           "mcp_write_fence",
           "task_auth_boundary",

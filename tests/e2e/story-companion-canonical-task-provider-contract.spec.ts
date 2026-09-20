@@ -13,7 +13,6 @@ type EvidenceEntry = {
 };
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const verifiedMacSourceHead = '8b1c95fe7c8bf76e7dadd56aa912ae417227aba8';
 const registry = JSON.parse(
   readFileSync(path.join(rootDir, 'config/canonical-task-evidence-registry.json'), 'utf8'),
 ) as { entries: EvidenceEntry[] };
@@ -55,7 +54,7 @@ test.afterAll(async () => {
 });
 
 const scenarioContracts: Record<number, VitestContract> = {
-  1: file(taskRoutes, 'passes repeated filters and returns Mac list metadata'),
+  1: file(taskRoutes, 'passes repeated filters and returns canonical list metadata'),
   2: file(taskService, 'creates once with a server-side actor namespace'),
   3: file(taskService, 'returns 409 instead of replaying another PATCH for the same Task version'),
   4: file(taskService, 'returns current task on version conflict'),
@@ -77,6 +76,7 @@ const scenarioContracts: Record<number, VitestContract> = {
   21: file(taskService, 'recovers an already-applied PATCH after restart without writing NocoDB again'),
   22: file(workflowMaterialization, 'surface.workflow.retry-reconcile'),
   23: file(workflowRoutes, 'denies human step resolution by another project member'),
+  24: file(taskRoutes, 'routes bounded task search before the task ID route'),
   25: file(workflowRoutes, 'keeps the review run visible after resolving one generated human approval'),
   26: file(taskService, 'materializes approved workflow candidates and applies only declared edits'),
   27: file(workflowMaterialization, 'AC-20 fails closed'),
@@ -176,30 +176,6 @@ function runVitest(contract: VitestContract) {
   ]);
   expect(output, `No passing Vitest assertion matched ${contract.testNamePattern}`)
     .toMatch(/Tests\s+[1-9]\d* passed/);
-}
-
-function assertMacWireFixture() {
-  const fixture = JSON.parse(readFileSync(
-    path.join(rootDir, 'tests/fixtures/companion-canonical-task-mac-cb9c293.json'),
-    'utf8',
-  ));
-  const page = fixture.sample_list_response;
-  const task = page.items[0];
-  expect(fixture.mac_source_head).toBe(verifiedMacSourceHead);
-  expect(Object.keys(fixture.routes).sort()).toEqual(['create', 'list', 'read', 'transition', 'update']);
-  expect(page).toEqual(expect.objectContaining({
-    total_count: expect.any(Number),
-    count_status: 'exact',
-    read_status: 'complete',
-    warnings: expect.any(Array),
-    as_of: expect.any(String),
-  }));
-  expect(task).toEqual(expect.objectContaining({
-    id: expect.any(String), version: expect.any(Number), title: expect.any(String),
-    status: 'waiting', priority: 'high', source_refs: expect.any(Array),
-    created_at: expect.any(String), updated_at: expect.any(String), web_url: expect.any(String),
-  }));
-  expect(task.source_refs[0]).toEqual({ type: 'workflow_output', id: 'output-1', url: null });
 }
 
 async function verifyRuntimeProcessPath() {
@@ -319,10 +295,6 @@ async function verifyUnauthenticatedMutation() {
 async function verifyEvidenceContract(evidenceId: string) {
   if (evidenceId === 'scenario.SC-014') {
     await verifyUnauthenticatedMutation();
-    return;
-  }
-  if (evidenceId === 'scenario.SC-024' || evidenceId === 'surface.mac.wire-contract') {
-    assertMacWireFixture();
     return;
   }
   if (evidenceId === 'scenario.SC-040' || evidenceId === 'surface.mcp.write-fence') {

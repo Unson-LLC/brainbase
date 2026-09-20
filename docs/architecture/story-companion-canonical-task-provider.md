@@ -1,13 +1,17 @@
 ---
 title: Companion Canonical Task Provider Architecture
-status: proposed
+status: superseded
 date: 2026-07-14
 story_id: story-companion-canonical-task-provider
+superseded_by:
+  - docs/architecture/story-canonical-task-postgres-ssot.md
 related_decisions:
   - docs/architecture/ADR-016-canonical-task-single-writer.md
 ---
 
 # Companion Canonical Task Provider Architecture
+
+> Task APIとsingle-writer境界の成立時点を記録した履歴文書である。Task本文の現行正本とbackend構成は`story-canonical-task-postgres-ssot`を正本とし、NocoDB正本、旧ブラウザUI、Mac Companion UIを現行構成として扱わない。
 
 ## 決定
 
@@ -62,11 +66,6 @@ configured ownerへscopeし、別person filter/assignmentを403にする。servi
 ownerの作成で担当者が省略された場合はconfigured ownerを補完する。一覧と単体取得はowner担当Taskだけを
 返し、未担当・別person Taskは存在を開示せず404にする。ownerからの担当解除・別person指定は403である。
 service/internalだけが固定store内の未担当TaskとGraph確認済みの別person Taskを扱える。
-
-既存ブラウザTask画面はbearer利用時だけCanonical一覧を取得し、opaque ID/versionを正本行identityとして保持する。
-旧NocoDB一覧は非正本baseだけを表示し、manifestと一致するbase/table行はCanonical一覧との結合前に除外する。
-Canonical一覧失敗時に旧正本行へfallbackしない。cookie-only sessionでは正本controlsを無効化してbearer再認証を
-要求する。正本projectの担当者入力はPeople selectorとし、自由入力表示名を送らない。
 
 Mana captureはbrowser sessionとCSRFを検証し、bodyのactor/ownerを信用せずsessionからGraph person principalを導出したinternal commandへ
 変換する。clientは操作ごとにcapture UUIDを生成し、応答確定まで同じIDを再送する。同文の新規操作は新IDを使う。
@@ -140,8 +139,8 @@ local gateをclosedで起動し、writer claim/reconcile後に保存rowと現在
 `CanonicalTaskService`のcreate/update/transition/delete、Mana internal command、`task_store` materializationは
 同じ`assertMutationReady()`をservice入口で強制する。欠落・不一致・DB障害はreadを維持して503にする。
 
-before-enable preflightは認証、approval inbox、両resolve route、非Task承認、legacy route/UI、Mana、browser、
-MCP、delete回復、4 script、migration、Mac wire fixtureの証跡file hashをcurrent HEADへ束ねる。明示enable commandは
+before-enable preflightは認証、approval inbox、両resolve route、非Task承認、legacy route、Mana、MCP、
+delete回復、4 script、migration、wire fixtureの証跡file hashをcurrent HEADへ束ねる。明示enable commandは
 artifactと現在値をtransaction内で再検証し、全条件成立時だけrowをreadyへupsertする。失敗時はclosed stateを
 変更しない。restart時は保存readyを無条件に信用せず再照合し、rollbackは最初に明示disableする。
 
