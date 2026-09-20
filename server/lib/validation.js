@@ -66,19 +66,6 @@ export function getPriorityLabel(priority) {
 }
 
 /**
- * テスト/開発環境でのヘッダーベース認証を許可するか判定
- * @returns {boolean}
- */
-export function isInsecureHeaderAuthAllowed() {
-    if (process.env.NODE_ENV === 'production') {
-        return false;
-    }
-    return process.env.ALLOW_INSECURE_SSOT_HEADERS === 'true'
-        || process.env.BRAINBASE_TEST_MODE === 'true'
-        || process.env.NODE_ENV === 'test';
-}
-
-/**
  * CSV文字列をパースして配列に変換
  * @param {string} value
  * @returns {string[]}

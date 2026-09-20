@@ -1,6 +1,5 @@
 // @ts-check
 import { getAuthTokensFromRequest, getHeader } from '../lib/auth-cookies.js';
-import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
 
 /** @typedef {import('../lib/auth-cookies.js').RequestLike & { method?: string, headers?: Record<string, string | undefined>, auth?: unknown, access?: unknown, authSource?: string | null }} RequestLike */
 /** @typedef {{ status: (code: number) => { json: (body: unknown) => unknown } }} ResponseLike */
@@ -43,34 +42,6 @@ export function resolveAuthContext(req, authService, options = {}) {
             access,
             authSource: 'internal'
         };
-    }
-
-    if (options.allowInsecureHeaders !== false && isInsecureHeaderAuthAllowed()) {
-        const role = (getHeader(req, 'x-brainbase-role') || getHeader(req, 'x-role') || '').toLowerCase();
-        if (role) {
-            const projectHeader = getHeader(req, 'x-brainbase-projects') || getHeader(req, 'x-projects') || '';
-            const clearanceHeader = getHeader(req, 'x-brainbase-clearance') || getHeader(req, 'x-clearance') || '';
-            const projectCodes = parseCsv(projectHeader);
-            const clearance = parseCsv(clearanceHeader);
-
-            const access = {
-                role,
-                projectCodes,
-                clearance,
-                level: role === 'ceo' ? 3 : role === 'gm' ? 2 : 1,
-                employmentType: 'contractor',
-                personId: null,
-                slackUserId: null,
-                slackWorkspaceId: null,
-                tenantId: null
-            };
-            return {
-                ok: true,
-                auth: null,
-                access,
-                authSource: 'insecure-header'
-            };
-        }
     }
 
     try {
