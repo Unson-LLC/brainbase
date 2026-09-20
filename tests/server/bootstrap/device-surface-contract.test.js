@@ -46,11 +46,25 @@ describe('minimal device web surface', () => {
         const stepIds = [...html.matchAll(/id="step-([^"]+)"/g)].map((match) => match[1]);
 
         expect(stepIds).toEqual(['input', 'login', 'approve', 'success', 'error']);
-        expect(html).toContain('Google Workspaceでログイン');
-        expect(html).not.toContain('Slackでログイン');
         expect(html).toContain('/modules/device/device-auth-controller.js');
         expect(html).not.toMatch(/href="\/(?:admin|setup|workflows|sns-growth)/);
         expect(html).not.toMatch(/dashboard|settings|project list/i);
+    });
+
+    it('uses provider-neutral organization login copy', () => {
+        const html = fs.readFileSync(path.join(repoRoot, 'public/device.html'), 'utf8');
+        const controller = fs.readFileSync(
+            path.join(repoRoot, 'public/modules/device/device-auth-controller.js'),
+            'utf8'
+        );
+
+        expect(html).toContain('組織アカウントでログイン');
+        expect(html).toContain('組織で利用しているアカウントでログインしてください');
+        expect(html).not.toContain('Google Workspace');
+        expect(html).not.toContain('Growin');
+        expect(html).not.toContain('Slackでログイン');
+        expect(controller).toContain('組織認証情報が見つかりません。もう一度お試しください。');
+        expect(controller).not.toContain('Google Workspace');
     });
 
     it('uses a bearer token and never sends caller-provided Slack identity', () => {
