@@ -4,7 +4,7 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Released — v0.4.0
+## Released — v0.5.0
 
 npm packageとGitHub Releaseとして公開済みの範囲です。
 
@@ -12,37 +12,36 @@ npm packageとGitHub Releaseとして公開済みの範囲です。
 - MCPによる`get_context`、`search`、`resolve_entity`などの文脈参照
 - Graph v2とRelation Registry
 - Ontology 2.0.0と履歴versionの解釈
+- Graphの候補発見・関係探索・根拠取得と、任意の埋め込み接続
+- OSS Graphを設定した組織サービスへ移行・検索するための明示的な接続境界
 - Evidence Receipt
 - Judgment systemとしてのCore Philosophy
 - Judgment DAGのarchitectureとroadmap
 - typed DAG contractとpreflight validation
+- ローカルの決定論的Judgment DAG runner
+- content-addressedなrun artifactの保存・検証付き再読込
+- 過去runのreplay、outcome attachment、version間evaluationのprimitive
+- 判断が生んだ変化を機械可読に表すvalue-proof contractとrenderer
 - npm consumer smokeと公開契約digest
 
 公開releaseのversion、`gitHead`、integrity、dist-tag、fresh install、GitHub Releaseを照合して公開完了を判断します。
 
 ## Develop — release前
 
-`develop`には存在するが、v0.4.0へは含まれていない範囲です。
+`develop`には存在するが、v0.5.0へは含まれていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
-- `executeJudgmentDAG`によるローカル決定論的runner
-- runner登録の事前検証
-- nodeごとの直接依存output
-- JSON-compatibleでdeep-frozenなrun record
-- R1ローカル不変artifact storeのplanning contract
-- 公開説明のP0〜P2同期、CI、Cloudflare Pages自動deploy、Graph candidateからPRを作る昇格経路
+- このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
 
 `develop`にあることは、npmへ公開済み、production ready、組織導入可能という意味ではありません。
 
 ## Planned — 未実装または未完成
 
-- 不変run artifactの永続store実装
-- 過去runのreplay
-- outcomeとevaluationの本格実装
+- outcomeとevaluationを実運用データへ継続接続する運用
 - human / agent / committee runnerの運用契約
 - authority graphとapproval workflow
 - Personal → Project → Organizationのscope promotion
 - マルチユーザー、RBAC、監査保持、managed connector、hosted runtime、HA
-- Brainbase Deploymentでの実案件dogfoodとexpert escalation削減の計測
+- 実案件での継続利用とexpert escalation削減の計測
 
 計画文書やacceptance criteriaがあることは、実装や実証の完了を意味しません。
 

@@ -241,11 +241,8 @@ function renderHomeHero(copy) {
       text: 自分の判断を1つ、AIへ渡してみる
       link: /guide/quick-start
     - theme: alt
-      text: 複数のAIがどう動くかを見る
-      link: /guide/grand-design
-    - theme: alt
-      text: 現在の実装を見る
-      link: /guide/status`;
+      text: 全体像を見る
+      link: /guide/grand-design`;
 }
 
 function renderHomeBody(copy) {

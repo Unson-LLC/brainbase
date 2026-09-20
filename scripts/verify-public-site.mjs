@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+import { readFile } from 'node:fs/promises';
+
+const packageJson = JSON.parse(
+  await readFile(new URL('../package.json', import.meta.url), 'utf8')
+);
 const baseUrl = (process.env.BRAINBASE_PUBLIC_URL ?? 'https://brainbase.pages.dev').replace(/\/$/, '');
 const expectedSha = process.env.EXPECTED_BUILD_SHA?.slice(0, 12);
 const attempts = Number(process.env.PUBLIC_READBACK_ATTEMPTS ?? 12);
@@ -15,7 +20,7 @@ const checks = [
   },
   { path: '/guide/architecture', required: ['仕組みとシステム構成', '意味と事実の中核', 'resolve_entity'] },
   { path: '/guide/ontology', required: ['オントロジーとは', 'オントロジー、Graph、Judgment DAGの違い'] },
-  { path: '/guide/status', required: ['Released — v0.4.0', 'Planned — 未実装または未完成'] },
+  { path: '/guide/status', required: [`Released — v${packageJson.version}`, 'Planned — 未実装または未完成'] },
   { path: '/reference/mcp-tools', required: ['Ontology 2.0.0', 'resolve_entity'] },
   { path: '/assets/brainbase-grand-design.svg', required: ['Brainbaseのシステム構成', '意味と事実の中核'] },
   { path: '/assets/brainbase-ontology.svg', required: ['Brainbaseのオントロジー概念図', 'supersedes'] }

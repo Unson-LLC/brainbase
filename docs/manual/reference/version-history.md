@@ -4,6 +4,25 @@
 
 ## Unreleased — develop
 
+- 公開サイトのrelease表記をpackage versionと同期し、固定versionの検証を廃止
+- 狭いデスクトップとモバイルで、heroの本文・画像・CTAが重ならない表示へ調整
+- Organization先行案内に、公開OSS版との違い、非公開検証中、未完成の範囲を追加
+
+## 0.5.0
+
+- Graphの候補発見、関係探索、根拠取得を行うportableな検索と、任意の埋め込み接続を追加
+- OSS Graphを設定済みの組織サービスへ明示的に移行・検索する接続境界を追加
+- content-addressedなJudgment DAG run artifactの保存と検証付き再読込を追加
+- 過去runのreplay、outcome attachment、version間evaluationのprimitiveを追加
+- 判断が生んだ変化を機械可読に表すvalue-proof contractとrendererを追加
+- npm tarballをfresh consumerから利用し、公開subpathとartifact contractを検証
+
+## 0.4.1
+
+- production-safeなAutonomy Gate canaryを追加
+
+## 公開サイト更新（0.4.x期間）
+
 - 公開コピーを「自分の判断力を、ひとり分で終わらせない。」へ更新
 - OSS版の中心価値を、資料検索や説明削減ではなく、本人の判断による壁打ちの深掘りと複数AIへの判断共有へ変更
 - 「頭のいい自分を、壁打ち相手にも、実行部隊にも。」を体験コピーとして追加
