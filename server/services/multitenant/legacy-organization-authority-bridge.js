@@ -114,7 +114,8 @@ async function ensureMembership(client, manifest, tenant, grant, plan) {
             && Array.isArray(payload.project_codes)
             && payload.project_codes.includes(manifest.project_code)
             && Array.isArray(payload.clearance)
-            && grant.clearance.every((entry) => payload.clearance.includes(entry));
+            && payload.clearance.length > 0
+            && payload.clearance.every((entry) => grant.clearance.includes(entry));
         if (!sameAuthority) fail('TENANT_MEMBERSHIP_CONFLICT', 'Tenant membership conflicts with desired state');
         plan.push({ operation: 'noop', entity: 'tenant_membership', id: current.membership_id }); return;
     }
