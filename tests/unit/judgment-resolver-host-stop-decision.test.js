@@ -25,11 +25,15 @@ afterEach(() => {
 async function fixture({
     autonomyDecision = 'continue',
     autonomyReasonCode = 'routine_in_scope',
-    prompt = '修正して'
+    prompt = '修正して',
+    visibleProtocolRepair = 'enabled'
 } = {}) {
     const root = mkdtempSync(join(tmpdir(), 'brainbase-stop-decision-'));
     temporaryPaths.push(root);
-    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const env = {
+        BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+        BRAINBASE_JUDGMENT_VISIBLE_PROTOCOL_REPAIR: visibleProtocolRepair
+    };
     const payload = {
         session_id: `session-${hash(root).slice(0, 12)}`,
         turn_id: 'turn-stop-decision',
@@ -292,7 +296,7 @@ describe('Stop business decision and protocol repair separation', () => {
         expect(result.output.systemMessage ?? '').not.toContain('🔁');
     });
 
-    it('業務完了・監査不足はRELEASE/repairとして一回だけ監査修復し本文を保持する', async () => {
+    it('本文に監査表示がなくても業務・監査ともに完了したStopを解放する', async () => {
         const f = await fixture();
         f.execution();
         f.state('completed');
@@ -318,18 +322,17 @@ describe('Stop business decision and protocol repair separation', () => {
 
         const result = f.stop(originalBody, { includeAudit: false });
 
-        expect(result.output.decision).toBe('block');
-        expect(result.continuation).toMatchObject({
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output).not.toHaveProperty('reason');
+        expect(result.continuation).toBeUndefined();
+        expect(result.final).toMatchObject({
             stop_decision: {
                 business_decision: 'RELEASE',
-                protocol_status: 'repair'
-            },
-            stop_repair: { count: 1, status: 'requested' }
+                protocol_status: 'ready'
+            }
         });
-        expect(result.continuation.autonomy_continuation).toBeUndefined();
-        expect(JSON.stringify(result.continuation.stop_decision.business_reasons)).not.toContain('owner.audit.display');
-        expect(JSON.stringify(result.continuation.stop_decision.protocol_reasons)).toContain('owner.audit.display');
-        expect(result.continuation.answer_body_binding.body_digest).toBe(hash(originalBody));
+        expect(result.final.autonomy_continuation).toBeUndefined();
+        expect(result.final.stop_decision.protocol_reasons).not.toContain('owner.audit.display');
     });
 
     it('業務不足と監査不足をCONTINUE/repairの別理由として返す', async () => {
@@ -342,12 +345,12 @@ describe('Stop business decision and protocol repair separation', () => {
         expect(result.continuation).toMatchObject({
             stop_decision: {
                 business_decision: 'CONTINUE',
-                protocol_status: 'repair'
+                protocol_status: 'ready'
             }
         });
         expect(JSON.stringify(result.continuation.stop_decision.business_reasons)).toContain('unfinished_safe_work');
         expect(JSON.stringify(result.continuation.stop_decision.business_reasons)).not.toContain('owner.audit.display');
-        expect(JSON.stringify(result.continuation.stop_decision.protocol_reasons)).toContain('owner.audit.display');
+        expect(result.continuation.stop_decision.protocol_reasons).toEqual([]);
         expect(JSON.stringify(result.continuation.stop_decision.protocol_reasons)).not.toContain('unfinished_safe_work');
         expect(result.continuation.autonomy_continuation).toMatchObject({
             trigger_code: 'unfinished_safe_work',
@@ -368,5 +371,63 @@ describe('Stop business decision and protocol repair separation', () => {
         expect(noStateResult.continuation.missing_capabilities).toEqual(expect.arrayContaining([
             'judgment_state_record'
         ]));
+    });
+
+    it('表示修復を無効化したruntimeは監査不足だけならblockせず縮退記録を残す', async () => {
+        const f = await fixture({ visibleProtocolRepair: 'disabled' });
+        f.execution();
+
+        const result = f.stop('修正しました。');
+
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output).not.toHaveProperty('reason');
+        expect(result.output.systemMessage).toContain('⚠️ 監査縮退: judgment_state_record');
+        expect(result.continuation).toBeUndefined();
+        expect(result.final).toMatchObject({
+            completion_status: 'audit_degraded',
+            protocol_status: 'audit_protocol_incomplete',
+            missing_capabilities: expect.arrayContaining(['judgment_state_record']),
+            stop_decision: {
+                business_decision: 'RELEASE',
+                protocol_status: 'repair'
+            }
+        });
+    });
+
+    it('表示修復を無効化しても安全な残作業は引き続きblockする', async () => {
+        const f = await fixture({ visibleProtocolRepair: 'disabled' });
+        f.state('pending');
+
+        const result = f.stop('修正方針は対象を修正する方法です。');
+
+        expect(result.output.decision).toBe('block');
+        expect(result.continuation).toMatchObject({
+            stop_decision: {
+                business_decision: 'CONTINUE',
+                protocol_status: 'ready'
+            },
+            autonomy_continuation: {
+                trigger_code: 'unfinished_safe_work',
+                status: 'requested'
+            }
+        });
+    });
+
+    it('表示修復を無効化しても人間確認の状態不足は引き続きblockする', async () => {
+        const f = await fixture({
+            autonomyDecision: 'escalate',
+            autonomyReasonCode: 'risk_or_external',
+            prompt: '本番反映を承認して',
+            visibleProtocolRepair: 'disabled'
+        });
+
+        const result = f.stop('本番反映の承認をお願いします。');
+
+        expect(result.output.decision).toBe('block');
+        expect(result.continuation.stop_decision).toMatchObject({
+            business_decision: 'ASK_HUMAN',
+            protocol_status: 'repair'
+        });
+        expect(result.continuation.autonomy_continuation).toBeUndefined();
     });
 });
