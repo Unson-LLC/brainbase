@@ -77,8 +77,8 @@ function opaqueCredential(value) {
         || value.credential_mode !== FIXED_MANA_SLACK_CONNECTION.credential_mode) {
         throw failure('FIXED_MANA_SLACK_CREDENTIAL_STORE_INVALID');
     }
-    const refreshRevision = String(value.refresh_revision ?? '1');
-    if (!/^[1-9][0-9]*$/u.test(refreshRevision)) {
+    const refreshRevision = String(value.refresh_revision ?? '');
+    if (!/^(0|[1-9][0-9]*)$/u.test(refreshRevision)) {
         throw failure('FIXED_MANA_SLACK_CREDENTIAL_STORE_INVALID');
     }
     return {

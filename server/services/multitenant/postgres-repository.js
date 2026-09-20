@@ -128,7 +128,7 @@ function fixedManaSlackCredential(credential) {
     if (!credential || typeof credential.credential_ref !== 'string'
         || credential.credential_ref.length === 0 || credential.credential_ref.length > 512
         || credential.credential_mode !== 'customer_oauth'
-        || !/^[1-9][0-9]*$/u.test(refreshRevision)) {
+        || !/^(0|[1-9][0-9]*)$/u.test(refreshRevision)) {
         throw new ContractError('FIXED_MANA_SLACK_CREDENTIAL_STORE_INVALID', { status: 503 });
     }
     return {
@@ -611,7 +611,7 @@ export class MultitenantPostgresRepository {
                 && JSON.stringify(scopes) === JSON.stringify(fixed.required_scopes)
                 && current.current_credential_ref === current.credential_ref
                 && current.credential_mode === fixed.credential_mode
-                && String(current.refresh_revision) === fixed.connection_revision;
+                && /^(0|[1-9][0-9]*)$/u.test(String(current.refresh_revision));
             const exact = currentExact
                 && snapshot?.credential_ref === current.credential_ref
                 && snapshot?.credential_mode === current.credential_mode

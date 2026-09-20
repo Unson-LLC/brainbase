@@ -33,3 +33,13 @@ Slackが更新トークンを返さない場合、credential storeは`refresh_re
 - `tests/server/services/multitenant/slack-installation-control-plane.integration.test.js`
 - `tests/server/services/multitenant/slack-installation-oauth-flow.test.js`
 - `tests/server/services/multitenant/persistence-schema.test.js`
+
+## 固定Mana Slack接続への適用
+
+`story-fixed-mana-slack-zero-refresh`では、このOAuth契約を固定接続の採用処理にも適用する。接続の`connection_revision`と資格情報の`refresh_revision`は独立した版数であり、一致を要求しない。`refresh_revision`は`0`または先頭ゼロのない正の整数だけを受理し、採用直後の再確認でも同じ値を保持して照合する。
+
+- `server/services/multitenant/slack-installation-adoption-service.js`
+- `server/services/multitenant/postgres-repository.js`
+- `tests/server/services/multitenant/slack-installation-adoption-service.test.js`
+- `tests/server/services/multitenant/fixed-mana-slack-connection-adoption-repository.test.js`
+- `tests/server/services/multitenant/adopt-fixed-mana-slack-connection-cli.test.js`
