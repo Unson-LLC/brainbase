@@ -12,6 +12,7 @@ import {
 } from '../services/companion/canonical-task-store-config.js';
 import { CanonicalTaskNocoDBRepository } from '../services/companion/canonical-task-nocodb-repository.js';
 import { CanonicalTaskPostgresRepository } from '../services/companion/canonical-task-postgres-repository.js';
+import { CanonicalTaskUnavailableRepository } from '../services/companion/canonical-task-unavailable-repository.js';
 import { CanonicalTaskOperationRepository } from '../services/companion/canonical-task-operation-repository.js';
 import { CanonicalTaskReadiness } from '../services/companion/canonical-task-readiness.js';
 import { createCanonicalTaskSourceHeadGuard } from '../services/companion/canonical-task-source-head-guard.js';
@@ -98,6 +99,7 @@ export function createCanonicalTaskRepository({
     storeConfig
 } = {}) {
     const resolvedBackend = resolveCanonicalTaskBackend(backend);
+    if (resolvedBackend === 'disabled') return new CanonicalTaskUnavailableRepository();
     return resolvedBackend === 'postgres'
         ? new CanonicalTaskPostgresRepository({ pool, storeConfig })
         : new CanonicalTaskNocoDBRepository({ storeConfig });

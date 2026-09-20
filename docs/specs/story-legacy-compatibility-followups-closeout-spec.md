@@ -5,7 +5,7 @@ Story: `docs/management/stories/active/story-legacy-compatibility-followups.md`
 ## 受入条件
 
 1. 個別の変更結果を対応するStory・Specと結び、実装・検証済みの範囲と稼働環境で未確認の範囲を区別する。
-2. Canonical Taskの切替手順は`CANONICAL_TASK_BACKEND=postgres`を明示する。変数未設定時の既定値は実装どおり`nocodb`と説明し、本変更で既定値を変更しない。
+2. Canonical Taskの切替手順は`CANONICAL_TASK_BACKEND=postgres`を明示する。変数未設定時は`disabled`としてTask APIだけを503で閉じ、NocoDBを暗黙選択しない。
 3. 古いHEADのreadiness証拠を現行HEADの成功と扱わない。利用者認証不足や環境未確認は残件として保持する。
 4. データ、秘密情報、ユーザー別設定、他作業の変更は削除しない。
 5. 追加・更新した退役境界テストは既存のCIで実行する。本番への接続や権限をCIに追加しない。

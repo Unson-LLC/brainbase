@@ -13,7 +13,7 @@ Brainbase PostgreSQL に移し、Canvas と NocoDB を投影先へ降格する�
 - `CanonicalTaskPostgresRepository` は既存repository契約を実装し、公開HTTP契約を変更しない。
 - opaque ID は既存 `ct1` を維持する。新規IDには store discriminator `postgres` と UUID を署名して埋め込む。
 - 既存NocoDB opaque IDは移行期間中に読み取れるよう、migrationで同じ公開IDへ対応する `legacy_nocodb_id` を保持する。
-- `CANONICAL_TASK_BACKEND=nocodb|postgres` で明示選択し、未指定は安全のため既存 `nocodb` とする。
+- `CANONICAL_TASK_BACKEND=nocodb|postgres` で明示選択する。未指定は`disabled`としてTask APIだけを503で閉じ、NocoDBへ暗黙fallbackしない。
 - Postgres選択時も既存single-writer/readiness/operation ledgerを使い、mutation経路を増やさない。
 - migrationは NocoDB read -> PostgreSQL upsert の一方向だけとし、dry-run/check/applyを分離する。
 - 再実行時はIDだけでなくpayload fingerprint・version・operation markerの完全一致を要求し、

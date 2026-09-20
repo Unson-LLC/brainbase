@@ -6,7 +6,7 @@
 
 ## 棚卸し時の追加作業
 
-- Canonical Taskの未指定backendは既存契約どおりNocoDBを保持する。全対象環境の明示cutover/readbackと既存Story・Spec・authority契約の更新を別変更で確認してから既定値を移す。本番の明示的PostgreSQL設定と、未設定環境の移行完了を混同しない。
+- Canonical Taskの未指定backendは`disabled`としてTask APIだけを503で閉じ、NocoDBを暗黙選択しない。明示`nocodb`と`postgres`は維持する。本番の明示的PostgreSQL設定と、未設定環境の移行完了を混同しない。
 - Wikiの保存済みデータを読む2本のスクリプトについて、`--dry-run`時の無書込みと読取失敗時の挙動をfixtureで固定する。非dry-runの接続前拒否は既に検証対象。
 - サーバーの非本番`insecure-header`互換とInfo SSOT controller直接fallbackについて、既存テストを正規認証fixtureへ移せるか確認する。本番では当該header認証は無効で、Slackと`bbsvc_`サービス認証は別経路。共有認証を一括削除しない。
 - `vibepro-graph-ssot-check.mjs`、`ontology-release-publish.js`、`generate-memory-preamble.mjs`はBearerを要求する内部クライアント。スクリプト全体ではなく、冗長な`x-brainbase-*`ヘッダーの除去を個別に検証する。
@@ -55,7 +55,7 @@ Info SSOTの既存エラー文`Slack OAuth token required`は、認証方式に�
 
 外部コピー、別mount、全ホストの利用状況は未確認。静的参照があることだけを実利用の証拠とせず、参照が見つからないことだけを全範囲の不在証明としない。
 
-## 未指定backendの廃止前に確認する範囲
+## 未指定backend廃止後も確認する範囲
 
 コード上で明示`postgres`を確認できるのはGrowin APIの`infra/gcp/growin/main.tf`。これだけで実機反映や全環境の移行完了とは判定しない。
 
@@ -66,4 +66,4 @@ Info SSOTの既存エラー文`Slack OAuth token required`は、認証方式に�
 
 2026-09-20の実機読み取りでは、Macの稼働runtimeは本番と同じ`29019ec`でもbackend未指定である。Mac上のDBは`canonical_tasks`273件・readiness closed、本番LightsailのDBは951件・readiness readyだった。これらは別DBであり、件数差だけでは未移行件数を算出できない。ローカルDBを本番正本とみなしたり、環境変数だけを変更してwriterを有効化したりしない。ローカル経路の用途とデータ照合・切替証拠は未完了。
 
-以上を確認してから、既存Story・Spec・authority契約と未指定backendテストを一緒に更新する。デフォルト値だけの変更、認証失敗を未利用と解釈すること、古いHEADのreadiness流用は行わない。
+既存Story・Spec・authority契約と未指定backendテストは、未指定時`disabled`のfail-closed契約へ更新した。上記の環境確認は引き続き個別に行い、認証失敗を未利用と解釈することや、古いHEADのreadiness流用は行わない。

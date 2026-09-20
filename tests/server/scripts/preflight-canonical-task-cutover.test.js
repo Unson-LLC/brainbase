@@ -284,7 +284,7 @@ describe('canonical task evidence registry and runner parsing', () => {
     expect(runbook).toContain(
       'CANONICAL_TASK_BACKEND=postgres npm run canonical-task:readiness -- --enable --evidence',
     );
-    expect(runbook).toContain('backend mismatch');
+    expect(runbook).toContain('backend未指定は`disabled`として閉じる');
   });
 
   it('requires a complete registry with unique IDs, artifact paths, and one registered adapter', () => {
@@ -488,6 +488,7 @@ describe('before-enable evidence preflight', () => {
   });
 
   it('builds a canonical before-enable artifact bound to all registry entries and cutover inputs', async () => {
+    vi.stubEnv('CANONICAL_TASK_BACKEND', 'nocodb');
     const fixture = await createEvidenceFixture();
     const outputPath = path.join(fixture.rootDir, 'before-enable.json');
     const output = await buildBeforeEnableEvidence({
@@ -525,6 +526,7 @@ describe('before-enable evidence preflight', () => {
   });
 
   it('rejects a passing-looking before-enable summary that omits independently verifiable inputs', async () => {
+    vi.stubEnv('CANONICAL_TASK_BACKEND', 'nocodb');
     const fixture = await createEvidenceFixture();
     const outputPath = path.join(fixture.rootDir, 'forged-before-enable.json');
     await writeFile(outputPath, `${JSON.stringify({

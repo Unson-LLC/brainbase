@@ -1,16 +1,16 @@
 ---
 story_id: story-nocodb-runtime-boundary-retirement
 spec_id: spec-nocodb-runtime-boundary-retirement-v1
-status: active
+status: complete
 ---
 
 # NocoDB runtime boundary retirement — implementation spec
 
 ## Invariants
 
-1. `resolveCanonicalTaskBackend()` retains `nocodb` when its argument and
-   `CANONICAL_TASK_BACKEND` are unset. PostgreSQL remains an explicit cutover;
-   unsupported values still fail closed. No backend-selection change ships here.
+1. `resolveCanonicalTaskBackend()` returns `disabled` when its argument and
+   `CANONICAL_TASK_BACKEND` are unset. NocoDB and PostgreSQL require explicit
+   selection; unsupported values fail closed.
 2. `createNocoDBRouter()` exposes no CRUD handlers. The mounted route returns
    HTTP 410 with `error=capability_retired` for reads and writes alike and
    never calls `fetch`.
@@ -23,14 +23,14 @@ status: active
 5. Cursor encoding/decoding is a transport concern shared by both canonical
    repositories. The PostgreSQL repository must not import the NocoDB
    repository module.
-6. The NocoDB repository remains available under the existing backend-selection
-   contract and for migration callers. No external record or secret is deleted.
+6. The NocoDB repository remains available only under explicit backend selection
+   and for migration callers. No external record or secret is deleted.
 
 ## Verification matrix
 
 | Invariant | Test/evidence |
 | --- | --- |
-| backend default | backend selection and canonical-task contract tests |
+| backend fail-closed | backend selection and canonical-task contract tests |
 | retired route | all-method route test with a fetch spy |
 | no portal projection | portal route test with a throwing NocoDB service |
 | shared cursor | repository cursor tests and static import inspection |
