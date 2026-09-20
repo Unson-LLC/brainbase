@@ -1,54 +1,45 @@
 ---
 name: brainbase-judgment-resolver
-description: Brainbase管理対象turnを1つのjudgment episodeとして扱い、初期判断・0..N回のknowledge利用・Stop時の完了証拠をmodel-independentに運用するときに使うSkill。
+description: Brainbase管理対象turnのHost指示とTurnContractに従って、判断・参照・完了証拠を扱うときに使う。
 ---
 
 # Brainbase Judgment Resolver
 
-## Source of truth
+## 目的と正本
 
-- Capability: `docs/brainbase-capabilities/capabilities/judgment.resolve.yml`
-- Runbook: `docs/brainbase-capabilities/runbooks/judgment-resolve.md`
-- Runtime manifest: `config/judgment-runtime-manifest.json`
+一つのturnの意味判断、必要な参照、実行証拠、完了状態を取り違えずに扱う。現在のHost bootstrapと返されたTurnContractを優先し、Skillに記した過去のruntime仕様で上書きしない。
 
-## Per-turn contract
+実装・障害調査で必要なときだけ、次を参照する。
 
-1. Global `UserPromptSubmit` Hostが、current request、順序付きの生のuser/assistant発話、prior finalized episodes、project/runtime、適用instructionのdigestからcanonical `conversation_context`を作る。modelは文脈を要約・選別・生成しない。
-2. UserPromptSubmitは生のturn inputを短期episodeへ保存するだけで、意味分類やBrainbase利用可否を確定しない。Codex modelが自然言語を解釈し、毎turn最初にmodel-callable `brainbase_resolve_turn`へその解釈を渡す。
-   - Preferred input is exactly `{ turn_ref, model_interpretation }`. `turn_ref` is the Host-issued journal reference; `model_interpretation` must contain exactly `intent`, `domains`, `action_kind`, `risk`, `confidence`, and `signals`. Do not pass raw `turn_input`, a journal path, or extra interpretation fields. Legacy `turn_input` forms are migration compatibility only.
-3. Brainbaseは保存済みturn input、model interpretation、manifest-owned policyを突合し、改変不能なTurnContractを返す。`semantic_matchers`は義務・action floor・riskを追加できる安全railだが、未一致を`general/answer`へ落としたり必要能力を減らしたりしない。
-4. PostToolUseは`resolve_turn`と後続toolの証拠をturnへ結合する。Stopは成功した`resolve_turn`証拠がなければ必ず差し戻し、TurnContractのrequired capabilitiesと実行証拠が揃った場合だけ完了させる。
-5. `PostToolUse` Hostは実際に完了した全tool callをappend-only eventとして記録する。raw tool入出力やsecretは保存せず、tool名・成功状態・digestだけを保存する。Brainbase callだけは安全な短い要約とowner表示行も保存し、一般toolの実行証跡は最終監査行へ表示しない。同じturnのepisode開始・event確定・Stop確定はturn専用SQLiteの`BEGIN IMMEDIATE` transactionで直列化し、並列callは原子的なjournal commit順で`event_sequence`を付ける。process終了時はOSがtransaction lockを解放するため、Hostがstale lock fileを判定・削除しない。同じ`tool_use_id`の再送は再利用し、異なる内容との衝突は明示的に失敗する。
-6. `brainbase_knowledge_resolve`は決定的な参照先routeの選択であり、検索そのものではない。成功したこのexact toolだけがrequired `knowledge.resolve`を満たす。表示は`📚 Brainbase参照先:`とし、検索・取得済みとは書かない。実際の検索・取得はそのtool callごとに別表示する。
-   - Graphを選んだ必須参照turnは、同一turnの`search`/`get_entity`実取得と`brainbase_knowledge_evidence_record`による質問別評価まで必要。`sufficient`は本文を取得したIDに限る。取得失敗・本文不足は`insufficient`で記録し、回答にも不足を明示する。根拠評価後に再取得した場合は評価し直す。モデルの意味判定でありHostが回答の真偽を保証したとは扱わない。
-7. Hostは`Stop`でevent集合と実際の`last_assistant_message`を検証し、契約を満たした場合だけcomplete final episode receiptを原子的に1件確定する。`PostToolUse`はeventと状態をjournalへ記録するだけで、final receiptを確定しない。復元可能なCodex App委任Stopは`post_generation_recovery` episodeを開始してから同じ検査へ進み、finalにもlifecycle markerを束縛する。開始前のdigest-only orphan eventがある場合は改ざん検証後に`pre_episode_audit_gap`として束縛し、実行・状態・required capabilityの証拠には数えず、同一task内で再実行させて最終receiptを`audit_degraded: pre_episode_tool_events`にする。runtime 2.4以降の実装・操作turnでは、最後のtool callで`brainbase_judgment_state_record`を実行して同一episodeのjournalへ状態を記録する。`pending`または`pending_safe_work=true`は差し戻す。`completed`は状態eventより前に成功した一般toolの`PostToolUse`証跡が1件以上あり、状態eventが最後の場合だけ通す。`waiting_human`は許可済みreason codeと可視`⚠️`行が一致する場合だけ通す。状態欠落・不正・古い状態はfail-closedで差し戻す。runtime 2.3は本文内HTML marker、2.2以前は自然文検出をrollout互換として残す。最終回答は保存済み`🧠`行とowner表示用の`📚`/`⚠️`行からなる完全な監査ブロックで始める。同一tool・同一input digestの再試行はappend-only eventと集合digestを保ったまま、owner表示だけを終端結果1行へ集約する。失敗後に成功した場合は復旧済みと過去失敗回数、直近が失敗なら警告を表示し、別条件の呼出しと終端eventのcommit順を保つ。Hostはその完全一致を検証し、成功時は`owner_audit_source: 'assistant_answer'`と回答全体の`answer_digest`を記録する。監査行の欠落・順序違い・未記録の`🔁`/`🛠️`行は`owner.audit.display`の未達とし、最初のStopが正確な監査ブロックを返して一度だけ差し戻す。監査だけを修復する場合は元の業務本文をdigestで束縛し、削除・要約・置換を拒否する。継続markerが既にある再Stopでも未達なら二度目はblockせず`audit_degraded`へ有限収束するが、`owner_audit_complete`をtrueにしない。`systemMessage`は途中通知や修復指示であり、ownerに表示された証拠には数えない。必須`brainbase_resolve_turn`、required `knowledge.resolve`、必須value proof、autonomy契約も同じStopで検査する。episode開始eventがない真のorphanは完全監査へ偽装しない。`audit_degraded`は完了、Brainbase参照成功、prior finalized judgment、action authorizationではない。`UserPromptSubmit`はturn inputをjournalへ保存し、model contextには`turn_ref`だけを渡す。モデルは`brainbase_resolve_turn`を`{ turn_ref, model_interpretation }`で呼び、MCP serverがjournalから正本入力を読む。`brainbase_resolve_turn`成功の`PostToolUse`は判断契約の確定を通知し、最終回答の先頭へ監査行を表示するよう明示する。`escalate`は`needs_classification`、`needs_policy_resolution`、または一致する`human_approval` policyだけで発生する。承認・tool unavailable・integrity failureの詳細はCapabilityとRunbookを正本とする。
-8. `needs_classification`はResolver障害ではない。model interpretationが未提出、参照先のないfollow-up、knowledge分類に必要なproject context不足ならclarification DAGに従う。matcher未一致だけを理由に`general/answer`へ自動確定しない。
-9. `project_code`は判断文脈でありaction authorityではない。project access不能だけで判断全体を拒否せず、project policyは認証済みscope内だけ適用する。
-10. Initial/final receiptは判断経路と完了状態の証拠であり、write/external actionのauthorizationではない。Stopのautonomy検査は不要な質問停止を防ぐ会話継続境界に限り、通常のplatform permission・approval・executor authorizationを置き換えない。
-11. Hostが作ったowner向け`🧠 判断参照:`行とBrainbase callの終端結果を表す`📚`/`⚠️`行は、最終assistant回答の先頭へ完全な監査ブロックとして一度だけ出す。`Stop`は実際の回答を検査する唯一の確定境界であり、`PostToolUse systemMessage`や保存済みjournalだけを表示証拠にしない。参照必須でなく実際のBrainbase callが0件なら、`📚 Brainbase未参照: 必須参照なし・実呼び出し0回 ✓`を含める。不要質問を実際に差し戻したturnだけjournal由来の`🔁`完了行を、実際にStop修復したturnだけ`🛠️`行を含める。実行していない参照・検索・取得・差し戻し・修復の行は含めない。
+- [Capability](../../../docs/brainbase-capabilities/capabilities/judgment.resolve.yml)
+- [Runbook](../../../docs/brainbase-capabilities/runbooks/judgment-resolve.md)
+- [Runtime manifest](../../../config/judgment-runtime-manifest.json)
 
-差し戻し済みruntime 2.4 continuationで必須value proofより先に`completed` state PostToolUseが来た場合、そのPostToolUseは`decision:block`を弱めずに返してfinalを作らない。value proofと新しい最後のstateをjournalへ記録した後も、後続Stopが実際のassistant回答を検証した場合だけ判断レシートを確定する。
+## turnの開始と参照
 
-## 回答前の監査行取得
+- Hostの未解決episodeは意味分類でも完了receiptでもない。Hostが要求する最初の呼出しで、`brainbase_resolve_turn`へ発行済み`turn_ref`とモデル自身の意味解釈を渡す。
+- 入力は原則 `{ turn_ref, model_interpretation }`。解釈のキーは`intent`、`domains`、`action_kind`、`risk`、`confidence`、`signals`だけ。canonical inputを読み出し・再構成して送らない。移行互換の入力は現行Hostが明示した場合だけ使う。
+- 返された契約を保持する。keyword未一致を理由に義務を減らしたり、途中で独自に再分類したりしない。
+- `brainbase_knowledge_resolve`は参照先の決定であり、検索・取得の証拠ではない。契約に必要な場合は指定された実取得と質問別の根拠評価まで行う。
+- Graph必須参照では同じturnで取得した本文とIDを根拠に`brainbase_knowledge_evidence_record`を記録する。失敗・不足は`insufficient`のまま扱い、追加取得後は評価も更新する。
 
-- 最終回答を生成する直前に `brainbase_judgment_audit_read({ turn_ref })` を呼び、返された `data.prefix` を回答の先頭へそのまま一度だけ付ける。監査行の文言を推測せず、監査行を得るためだけに最初のStopを発火させない。
-- 実装・操作turnでは、業務toolとvalue proofを完了した後に監査行を取得し、その後 `brainbase_judgment_state_record` を最後のtool callとして実行する。取得後にBrainbaseの業務toolを追加実行した場合は、最新の監査行を取得し直す。
-- この読み取りは参照・検索・業務実行の証拠を増やさず、episodeを完了しない。Stopは引き続き実回答・必須能力・未完了作業を検証する。事前取得を省略した場合や古い監査行を使った場合の、既存の有限修復は維持する。
-- Codex DesktopのStop `systemMessage` は最終assistant回答への追記機能ではない。Hostだけが出力した監査行を表示成功としない。
+## 判断と業務の証拠
 
-## Activation readiness
+- 証拠を要求するjudgment nodeは、実調査・検証の後にfinding、evidence_fit、unknownsと成功した実業務toolの`tool_use_id`を記録する。route、record、自己申告を実取得・検証の代わりにしない。
+- 前段を更新したら後段も更新した結果に結び直す。根拠が不足する結論は`insufficient`とし、許可範囲内の追加確認へ戻る。
+- モデルの意味判定やJev等の評価値は、実動作・人間行動・内容の真偽を独立に保証しない。変更した振る舞いは対象テストやreadbackで確かめる。
+- receiptは書き込み、外部送信、課金、本番変更の許可ではない。通常の権限境界を別に守る。
 
-- Hookファイル、`hooks.json`、`config.toml`のtrust sectionが存在するだけではactiveの証明にならない。`npm run check:judgment-hook-readiness -- --cwd <canonical-checkout>`でCodex Hostの`hooks/list`を照会し、3つのHookが`ready_for_fresh_task`であることを確認する。
-- `modified`、`untrusted`、missing、disabled、matcher不一致は`trust_required`またはconfiguration errorとして非zeroにする。repo codeやautomationはCodexの`trusted_hash`を書き換えない。ownerが`/hooks`で現在の定義を承認する。
-- integrity failureは成功に丸めず、明示的な非zero exitとする。
-- 承認後に作成した新規Codex taskでepisode/event/finalとtranscriptを照合できた場合だけ`proven_active`とする。既存task、過去artifact、direct entrypoint実行はlive activationの代用にならない。
+## 完了と監査表示
 
-## Completion and failure
+- 依頼された許可済み作業、selected node、required capability、要求されたvalue proofを満たしてから完了する。未処理や復旧可能な安全な作業を残して`completed`にしない。
+- 実装・操作turnでHostが要求する`brainbase_judgment_state_record`は、業務toolとvalue proofの後、最後のtool callとして記録する。追加作業が発生した場合の回復も現行Hostの指示に従う。
+- 最終回答の監査表示は現行Host契約に従う。Hostが別表示する構成では回答本文を一度だけ返し、Host所有の監査行を追加・模倣しない。旧構成のprefix挿入や`brainbase_judgment_audit_read`は、そのturnのHostが明示的に要求した場合に限る。
+- PostToolUseの成功やstate記録だけで最終receipt確定とは扱わない。Stopによる受理と、業務の実行・検証を区別する。
+- 自律継続できない場合は、現行契約で許可された理由と具体的な不足・次の行動を示す。権限範囲を広げて回復しない。
 
-- selected node、required capability、ユーザー依頼が完了したら、Hostが保存したowner監査行を先頭に各一回表示して最終応答を返す。
-- `continue`の実装・操作依頼では、runtime 2.4以降は回答外のjournal状態と同一episodeの成功tool証跡を照合し、未完了なら`unfinished_safe_work`として差し戻す。`completed`状態があっても回答検査を省略せず、不要な確認質問は`unnecessary_user_question`として差し戻す。`brainbase_resolve_turn`成功後は確定済み判断行が直前の`classification_missing`行と確認質問を置き換える。途中表示は`🔁 未完了と判定しました`、完了監査は`🔁 実行継続`として不要質問の差し戻しと区別する。これで本文キーワードとHTMLコメントへの依存はなくなるが、Graph必須turnの`content_verification_status`は`model_assessed_with_retrieval`または`insufficient`、その他は`not_evaluated`である。モデルの充足判定も意味的な正しさの独立した証明ではなく、テスト・readback・専門検証を別に要求する。
-- managed/resolvedという状態だけを理由に処理を止めない。
-- active nodeまたは明示された調査・実装・操作が未完なら継続する。
-- Host pre-turnが`unmanaged`ならmodel生成は始めない。modelが後からResolverを呼んで回復したことにしない。
-- receiptにない判断をHostやmodelが独自に再分類しない。
-- required `knowledge.resolve`・必須turn resolution・value proof・autonomy契約・owner監査表示のいずれかを満たせない最初の修復可能なStopは`decision:block`で継続し、finalを作らない。owner監査表示はjournal由来の完全な監査ブロックが最終assistant回答の先頭にあり、各行が順序どおり1回だけ現れる場合に限って成立する。不完全な正常episodeのactive再Stop（`stop_hook_active=true`かつ継続marker既存）は非zeroで終了せず、`audit_degraded`として1回だけ有限収束する。episode欠落時は、現在session/current turnへ一意に束縛できる正規Codex App委任だけを`post_generation_recovery`として回復する。それ以外は警告修復を1回だけ要求して`audit_degraded`へ有限収束させるが、「Brainbaseを使った」証拠や完了receiptへは変換しない。
+## Hook稼働を調べる場合
+
+- Hookファイル、trust設定、過去artifactの存在だけを稼働証明にしない。`npm run check:judgment-hook-readiness -- --cwd <canonical-checkout>`でHostのreadinessを照会する。
+- `modified`、`untrusted`、missing、disabled、matcher不一致、integrity failureは正常扱いしない。repo codeから`trusted_hash`を更新せず、必要な承認はownerが`/hooks`で行う。
+- 承認後の新規taskでepisode、event、finalとtranscriptを照合できた場合だけ`proven_active`とする。既存taskや直接entrypointの実行で代用しない。
