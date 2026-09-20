@@ -52,7 +52,10 @@ async function fixture({
 } = {}) {
     const root = mkdtempSync(join(tmpdir(), 'brainbase-node-evidence-'));
     temporaryPaths.push(root);
-    const env = { BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal') };
+    const env = {
+        BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+        BRAINBASE_JUDGMENT_VISIBLE_PROTOCOL_REPAIR: 'disabled'
+    };
     const payload = {
         session_id: `session-${hash(root).slice(0, 12)}`,
         turn_id: 'turn-node-evidence',
@@ -195,27 +198,27 @@ async function fixture({
 }
 
 describe('judgment node evidence Host integration', () => {
-    it('missing node results become a bounded protocol repair after actual execution', async () => {
+    it('missing node results degrade the audit without replaying an already-complete answer', async () => {
         const f = await fixture();
         f.execution();
         f.state('completed');
 
         const result = f.stop('調査結果を報告します。');
 
-        expect(result.output.decision).toBe('block');
-        expect(result.continuation).toMatchObject({
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output).not.toHaveProperty('reason');
+        expect(result.output.systemMessage).toContain('⚠️ 監査縮退: judgment.node_evidence');
+        expect(result.continuation).toBeUndefined();
+        expect(result.final).toMatchObject({
+            completion_status: 'audit_degraded',
+            protocol_status: 'audit_protocol_incomplete',
+            missing_capabilities: expect.arrayContaining(['judgment.node_evidence']),
             stop_decision: {
                 business_decision: 'RELEASE',
                 protocol_status: 'repair',
                 protocol_reasons: expect.arrayContaining(['judgment.node_evidence'])
-            },
-            missing_capabilities: expect.arrayContaining(['judgment.node_evidence'])
+            }
         });
-        expect(result.output.reason).toContain('problem-frame');
-        expect(result.output.reason).toContain('brainbase_judgment_node_record');
-        expect(result.output.reason).not.toContain('最終回答の先頭に次の監査行');
-        expect(result.output.reason).not.toContain(f.episode.owner_audit.display_line);
-        expect(result.output.reason).not.toContain('📚 Brainbase未参照');
     });
 
     it('fake and failed evidence references cannot support a node result', async () => {
@@ -239,9 +242,12 @@ describe('judgment node evidence Host integration', () => {
         expect(failed.event.success).toBe(false);
         expect(fake.event.success).toBe(true);
         expect(failedEvidence.event.success).toBe(true);
-        expect(result.output.decision).toBe('block');
-        expect(result.continuation.missing_capabilities).toContain('judgment.node_evidence');
-        expect(result.output.reason).toContain('problem-frame');
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output).not.toHaveProperty('reason');
+        expect(result.final).toMatchObject({
+            completion_status: 'audit_degraded',
+            missing_capabilities: expect.arrayContaining(['judgment.node_evidence'])
+        });
     });
 
     it('normalizes node response whitespace but rejects a semantic response mismatch', async () => {
@@ -269,8 +275,9 @@ describe('judgment node evidence Host integration', () => {
         f.state('completed');
 
         const result = f.stop('応答整合性を検証しました。');
-        expect(result.output.decision).toBe('block');
-        expect(result.continuation.missing_capabilities).toContain('judgment.node_evidence');
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output).not.toHaveProperty('reason');
+        expect(result.final.missing_capabilities).toContain('judgment.node_evidence');
     });
 
     it('insufficient observe returns its concrete next action instead of completing', async () => {
@@ -295,9 +302,11 @@ describe('judgment node evidence Host integration', () => {
 
         const result = f.stop('不足している根拠を明示しました。');
 
-        expect(result.output.decision).toBe('block');
-        expect(result.continuation.missing_capabilities).toContain('judgment.node_evidence');
-        expect(result.output.reason).toContain('一次資料の行動生成モデルを追加取得してobserveを再評価する。');
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output).not.toHaveProperty('reason');
+        expect(result.final.missing_capabilities).toContain('judgment.node_evidence');
+        expect(result.final.judgment_node_evidence.next_action)
+            .toBe('一次資料の行動生成モデルを追加取得してobserveを再評価する。');
     });
 
     it('new retrieval and reassessment after insufficient observe can complete the chain', async () => {
@@ -370,27 +379,25 @@ describe('judgment node evidence Host integration', () => {
         const result = f.stop('制御ノードの記録だけで完了を宣言します。');
 
         expect(control.event.success).toBe(true);
-        expect(result.output.decision).toBe('block');
-        expect(result.continuation.missing_capabilities).toContain('judgment.node_evidence');
-        expect(result.continuation.stop_decision.business_reasons).toEqual([]);
+        expect(result.output.decision).toBeUndefined();
+        expect(result.output).not.toHaveProperty('reason');
+        expect(result.final.missing_capabilities).toContain('judgment.node_evidence');
+        expect(result.final.stop_decision.business_reasons).toEqual([]);
     });
 
-    it('bounded repair exhaustion never completes an unverified chain', async () => {
+    it('protocol-only failure degrades immediately without a visible repair retry', async () => {
         const f = await fixture();
         f.execution();
         f.state('completed');
 
         const first = f.stop('根拠が不足したまま回答します。');
-        const second = f.stop('根拠が不足したまま回答します。');
-        const exhausted = f.stop('根拠が不足したまま回答します。');
-
-        expect(first.output.decision).toBe('block');
-        expect(second.output.decision).toBe('block');
-        expect(exhausted.final).toMatchObject({
+        expect(first.output.decision).toBeUndefined();
+        expect(first.output).not.toHaveProperty('reason');
+        expect(first.final).toMatchObject({
             completion_status: 'audit_degraded',
             judgment_node_evidence: { ready: false }
         });
-        expect(exhausted.final.completion_status).not.toBe('complete');
+        expect(first.final.completion_status).not.toBe('complete');
     });
 
     it('human-authorization escalation takes precedence over missing node evidence', async () => {

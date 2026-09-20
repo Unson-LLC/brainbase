@@ -4561,8 +4561,17 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
         ...(stopDecision.business_decision === 'CONTINUE' ? ['autonomy.continuation'] : []),
         ...(missingStopState ? ['judgment_state_record'] : [])
     ])];
+    const suppressVisibleProtocolRepair = String(
+        env.BRAINBASE_JUDGMENT_VISIBLE_PROTOCOL_REPAIR || 'enabled'
+    ).trim().toLowerCase() === 'disabled';
+    // Codex Desktop turns every Stop `decision:block` reason into a visible
+    // <hook_prompt>. Protocol-only repair must therefore be recorded as an
+    // audit degradation instead of replaying an already-complete answer.
+    // Business continuation remains blocking so unfinished approved work is
+    // still completed before the turn can end.
     const shouldBlock = stopDecision.business_decision === 'CONTINUE'
-        || stopDecision.protocol_status === 'repair';
+        || (stopDecision.protocol_status === 'repair'
+            && (!suppressVisibleProtocolRepair || stopDecision.business_decision !== 'RELEASE'));
     const continuationTriggerCode = stopDecision.business_decision === 'CONTINUE'
         ? stopDecision.business_reasons[0] ?? 'unfinished_safe_work'
         : null;
@@ -4760,7 +4769,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             completion_status: 'audit_degraded',
             degradation_reason: 'pre_episode_tool_events',
             pre_episode_audit_gap: preEpisodeAuditGap
-        } : stopDecision.protocol_status === 'degraded' ? {
+        } : (stopDecision.protocol_status === 'degraded'
+            || (suppressVisibleProtocolRepair && stopDecision.protocol_status === 'repair')) ? {
             completion_status: 'audit_degraded',
             degradation_reason: stopDecision.business_decision === 'CONTINUE'
                 ? 'autonomy.continuation'
@@ -4771,7 +4781,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
             degradation_reason: 'value_proof_unconfirmed',
             missing_capabilities: ['judgment.value_proof.outcome_verified']
         } : { completion_status: 'complete' }),
-        protocol_status: stopDecision.protocol_status === 'degraded' || preEpisodeAuditGap
+        protocol_status: (stopDecision.protocol_status === 'degraded'
+            || (suppressVisibleProtocolRepair && stopDecision.protocol_status === 'repair')) || preEpisodeAuditGap
             || (valueProofRequired && valueProof?.state !== 'outcome_verified')
             ? 'audit_protocol_incomplete'
             : 'audit_protocol_complete',
@@ -4840,6 +4851,8 @@ function finalizeEpisodeLocked(payload, episode, paths, env) {
     const baseOutput = completedAuditOutput(valueProof, valueProofAttention);
     const immediateDegradationReason = preEpisodeAuditGap
         ? 'pre_episode_tool_events'
+        : suppressVisibleProtocolRepair && stopDecision.protocol_status === 'repair'
+            ? decisionMissingCapabilities[0]
         : stopAlreadyBlockedOnce
             ? stopDecision.business_decision === 'CONTINUE'
                 ? 'autonomy.continuation'
