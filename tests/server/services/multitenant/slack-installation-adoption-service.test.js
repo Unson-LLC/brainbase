@@ -19,6 +19,11 @@ function fixtures(overrides = {}) {
             connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision,
             status: 'active'
         })),
+        upgradeFixedManaSlackConnectionSnapshot: vi.fn(async () => ({
+            ...FIXED_MANA_SLACK_CONNECTION,
+            granted_scopes: [...FIXED_MANA_SLACK_CONNECTION.required_scopes],
+            status: 'active'
+        })),
         recordFixedManaSlackConnectionAdoptionOrphan: vi.fn(async () => ({ state: 'orphaned' })),
         ...overrides.repository
     };
@@ -146,6 +151,30 @@ describe('FixedManaSlackConnectionAdoptionService', () => {
             code: 'FIXED_MANA_SLACK_CONNECTION_CONFLICT', status: 409
         });
         expect(conflictStore.store).not.toHaveBeenCalled();
+    });
+
+    it('upgrades an exact legacy snapshot only after verifying its existing broker credential', async () => {
+        const legacy = {
+            state: 'legacy',
+            credential: { credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '1' },
+            snapshot: {
+                provider: 'slack', installation_id: FIXED_MANA_SLACK_CONNECTION.installation_id,
+                workspace_id: FIXED_MANA_SLACK_CONNECTION.workspace_id, app_id: FIXED_MANA_SLACK_CONNECTION.app_id,
+                granted_scopes: [...FIXED_MANA_SLACK_CONNECTION.required_scopes],
+                credential_mode: 'customer_oauth', status: 'active'
+            }
+        };
+        const { service, repository, credentialStore } = fixtures({ repository: {
+            inspectFixedManaSlackConnection: vi.fn(async () => legacy)
+        } });
+
+        await expect(service.execute({ mode: 'apply', approved: true })).resolves.toMatchObject({ state: 'upgraded' });
+        expect(credentialStore.verify).toHaveBeenCalledWith(expect.objectContaining({ credential_ref: OPAQUE_REF }));
+        expect(credentialStore.store).not.toHaveBeenCalled();
+        expect(repository.upgradeFixedManaSlackConnectionSnapshot).toHaveBeenCalledWith(expect.objectContaining({
+            definition: FIXED_MANA_SLACK_CONNECTION,
+            credential: expect.objectContaining({ credential_ref: OPAQUE_REF })
+        }));
     });
 
     it('rolls back the database transaction, revokes the opaque reference, and durably blocks retry when revoke fails without disclosing it', async () => {

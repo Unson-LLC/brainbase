@@ -102,6 +102,7 @@ export class FixedManaSlackConnectionAdoptionService {
     constructor({ repository, slack, credentialStore, botToken, readback } = {}) {
         if (!repository || typeof repository.inspectFixedManaSlackConnection !== 'function'
             || typeof repository.adoptFixedManaSlackConnection !== 'function'
+            || typeof repository.upgradeFixedManaSlackConnectionSnapshot !== 'function'
             || typeof repository.recordFixedManaSlackConnectionAdoptionOrphan !== 'function') {
             throw new Error('Fixed Mana Slack adoption repository is required');
         }
@@ -153,6 +154,21 @@ export class FixedManaSlackConnectionAdoptionService {
         if (inspection?.state === 'existing') {
             await this.verifyCredential(opaqueCredential(inspection.credential));
             return safeResult(inspection.snapshot, 'already_adopted');
+        }
+        if (inspection?.state === 'legacy') {
+            const credential = opaqueCredential(inspection.credential);
+            await this.verifyCredential(credential);
+            let upgraded;
+            try {
+                upgraded = await this.repository.upgradeFixedManaSlackConnectionSnapshot({
+                    definition: FIXED_MANA_SLACK_CONNECTION,
+                    credential
+                });
+            } catch (error) {
+                throw safeOperationalError(error, 'FIXED_MANA_SLACK_DB_REGISTRATION_FAILED');
+            }
+            await this.verifyReadback();
+            return safeResult(upgraded, 'upgraded');
         }
         if (inspection?.state !== 'absent') throw failure('FIXED_MANA_SLACK_CONNECTION_CONFLICT', { status: 409 });
 
