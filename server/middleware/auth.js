@@ -87,7 +87,7 @@ export function resolveAuthContext(req, authService) {
             clearance: decoded.clearance || [],
             level: decoded.level || 1,
             employmentType: decoded.employmentType || 'contractor',
-            personId: decoded.sub || decoded.personId || null,
+            personId: decoded.personId || decoded.sub || null,
             authProvider: decoded.authProvider || null,
             providerSubject: decoded.providerSubject || null,
             providerTenant: decoded.providerTenant || null,
