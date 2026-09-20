@@ -1,7 +1,7 @@
 # メンバーオンボーディングガイド
 
 **対象**: brainbase-unsonを新たに利用するUnsonメンバー
-**更新日**: 2026-03-20
+**更新日**: 2026-09-20
 
 ---
 
@@ -33,7 +33,7 @@ npm run setup
 
 これだけで以下が全自動で実行される：
 - `npm install`（依存パッケージ）
-- MCP Server依存インストール（brainbase / nocodb / jibble）
+- MCP関連パッケージの依存インストール（brainbase / jibble / NocoDB移行互換パッケージ）
 - `gogcli` インストール（Google Suite CLI、Homebrew経由）
 - `.env` 生成（認証情報・DB接続含む）
 - macOS: launchd plist生成 + サーバー自動起動
@@ -44,9 +44,14 @@ npm run setup
 | ツール | 用途 | 確認コマンド |
 |--------|------|-------------|
 | brainbase MCP | brainbase Graph（人物・組織・プロジェクト・顧客・用語・ADR等）への問い合わせ窓口 → [詳細](#brainbase-mcpbrainbase-graphとは) | Claude Codeで自動読み込み |
-| nocodb MCP | タスク・スプリント・マイルストーン管理 | Claude Codeで自動読み込み |
+| standalone NocoDB MCP | **退役済み。登録・起動しない** | `.mcp.json`に登録がないこと |
+| NocoDB互換パッケージ | 移行処理とcanonical taskの書込みガードの互換・証拠テスト | `npm --prefix mcp/nocodb test` |
 | jibble MCP | 勤怠・工数管理 | Claude Codeで自動読み込み |
 | gogcli | Google Suite CLI（Gmail/Calendar/Drive等） | `gog --version` |
+
+旧独立NocoDB MCPは、Claude Codeの自動読み込み対象ではない。`mcp/nocodb`は移行互換と
+canonical taskの直接書込み拒否を検証するために保持しており、NocoDBデータ、移行スクリプト、
+Infisicalの設定・secretを削除したり、別のMCPとして再登録したりしない。
 
 ### 2. 認証（Slackログイン）
 

@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+import { isAuthActive } from './token-expiry.js';
 
 const CONFIG_DIR = path.join(os.homedir(), '.brainbase');
 const CONFIG_FILE = path.join(CONFIG_DIR, 'config.json');
@@ -35,7 +36,7 @@ export function getAuth() {
     if (fs.existsSync(AUTH_FILE)) {
         try {
             const auth = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf-8'));
-            if (!auth.expires_at || new Date(auth.expires_at) >= new Date()) {
+            if (isAuthActive(auth)) {
                 return auth;
             }
         } catch { /* fall through */ }

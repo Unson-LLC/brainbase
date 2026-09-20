@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { getConfig, getAuth, saveAuth, clearAuth } from './config.js';
+import { resolveTokenExpiry } from './token-expiry.js';
 
 /**
  * Device Code Flow authentication (with PKCE)
@@ -81,11 +82,35 @@ export async function login() {
 
             if (res.ok) {
                 const tokenData = await res.json();
-                saveAuth({
-                    token: tokenData.access_token,
-                    expires_at: tokenData.expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-                    server_url: serverUrl
+                if (typeof tokenData.access_token !== 'string' || !tokenData.access_token) {
+                    const error = new Error(
+                        'Device Code Flow response did not include an access token. ' +
+                        'Verify the Brainbase server and run `brainbase auth login` again. No credentials were saved.'
+                    );
+                    error.code = 'INVALID_TOKEN_RESPONSE';
+                    throw error;
+                }
+                const expiresAt = resolveTokenExpiry({
+                    ...tokenData,
+                    token: tokenData.access_token
                 });
+                if (!expiresAt) {
+                    const error = new Error(
+                        'Device Code Flow response did not include usable token expiry metadata. ' +
+                        'Verify the Brainbase server and run `brainbase auth login` again. No credentials were saved.'
+                    );
+                    error.code = 'INVALID_TOKEN_RESPONSE';
+                    throw error;
+                }
+                const auth = {
+                    token: tokenData.access_token,
+                    expires_at: expiresAt,
+                    server_url: serverUrl
+                };
+                if (typeof tokenData.refresh_token === 'string' && tokenData.refresh_token) {
+                    auth.refresh_token = tokenData.refresh_token;
+                }
+                saveAuth(auth);
                 console.log('Login successful!');
                 return;
             }
@@ -99,7 +124,8 @@ export async function login() {
                 console.error('\nAuthorization expired. Please try again.');
                 process.exit(1);
             }
-        } catch {
+        } catch (error) {
+            if (error?.code === 'INVALID_TOKEN_RESPONSE') throw error;
             // Network error, retry
         }
     }

@@ -15,10 +15,20 @@ on:
       - 'tests/server/bootstrap/static-routes.test.js'
       - 'tests/e2e/story-inline-session-creation-pr-gate.spec.ts'
       - 'tests/e2e/story-nocodb-task-start-retirement.spec.js'
+      - 'tests/e2e/story-canonical-task-postgres-ssot-contract.spec.ts'
+      - 'docs/runbooks/canonical-task-cutover.md'
+      - 'docs/guides/member-onboarding.md'
+      - '.claude/skills/add-mcp/SKILL.md'
       - 'tests/server/routes/auth-device-approval.test.js'
       - 'tests/server/routes/run-receipt-routes.test.js'
       - 'server/bootstrap/**'
       - 'server/controllers/state-controller.js'
+      - 'server/controllers/info-ssot-controller.js'
+      - 'tests/server/controllers/info-ssot-controller.test.js'
+      - 'tests/server/routes/info-ssot-context.test.js'
+      - 'tests/server/routes/graph-vector-search.test.js'
+      - 'tests/server/routes/info-ssot-sim.test.js'
+      - 'tests/server/routes/info-ssot-graph.test.js'
       - 'server/routes/**'
       - 'server.js'
       - 'server/middleware/csrf.js'
@@ -36,6 +46,7 @@ on:
       - 'cli/sync.js'
       - 'cli/config.js'
       - 'cli/auth.js'
+      - 'cli/token-expiry.js'
       - 'cli/learning.js'
       - 'cli/project-provisioning.js'
       - 'mcp/nocodb/**'
@@ -43,11 +54,16 @@ on:
       - 'scripts/run-nocodb-mcp.sh'
       - 'server/services/companion/canonical-task-*.js'
       - 'tests/unit/legacy-cli-auth.test.js'
+      - 'tests/unit/cli-config-auth.test.js'
+      - 'tests/unit/cli-token-expiry.test.js'
       - 'tests/unit/project-provisioning-cli.test.js'
       - 'tests/server/routes/brainbase-action-retirement.test.js'
       - 'tests/server/routes/brainbase-nocodb-aux-retirement.test.js'
       - 'tests/server/routes/nocodb-canonical-task-write-guard.test.js'
       - 'tests/server/scripts/wiki-script-retirement.test.js'
+      - 'tests/server/scripts/wiki-inventory-fixtures.test.js'
+      - 'scripts/migrate-graphdb-to-wiki.js'
+      - 'scripts/populate-wiki-pages.js'
       - 'tests/server/routes/mesh-routes.test.js'
       - 'tests/mesh/**'
       - 'tests/unit/codex-app-server-capability-retirement.test.js'
@@ -69,6 +85,12 @@ on:
       - 'tests/server/scripts/legacy-operations-retirement.test.js'
       - 'scripts/session-runtime/**'
       - 'scripts/build-sns-generation-context.js'
+      - 'scripts/vibepro-graph-ssot-check.mjs'
+      - 'scripts/ontology-release-publish.js'
+      - 'scripts/generate-memory-preamble.mjs'
+      - 'tests/unit/vibepro-graph-ssot-check.test.js'
+      - 'tests/server/scripts/ontology-release-verify.test.js'
+      - 'tests/sns/personal-kg/memory-preamble-freshness.test.js'
       - 'scripts/lib/retired-sns-cli.js'
       - 'tests/sns/ops/sns-cli-retirement.test.js'
       - 'tests/sns/personal-kg/personal-knowledge-graph-reader.test.js'
@@ -114,6 +136,11 @@ jobs:
           tests/server/bootstrap/retired-browser-boundary.test.js
           tests/server/bootstrap/device-surface-contract.test.js
           tests/server/bootstrap/static-routes.test.js
+          tests/server/controllers/info-ssot-controller.test.js
+          tests/server/routes/info-ssot-context.test.js
+          tests/server/routes/graph-vector-search.test.js
+          tests/server/routes/info-ssot-sim.test.js
+          tests/server/routes/info-ssot-graph.test.js
           tests/server/routes/auth-device-approval.test.js
           tests/server/routes/run-receipt-routes.test.js
           tests/server/routes/retired-capability.test.js
@@ -128,7 +155,10 @@ jobs:
           tests/mesh/query/permission-checker.test.js
           tests/unit/codex-app-server-capability-retirement.test.js
           tests/server/scripts/wiki-script-retirement.test.js
+          tests/server/scripts/wiki-inventory-fixtures.test.js
           tests/unit/legacy-cli-auth.test.js
+          tests/unit/cli-config-auth.test.js
+          tests/unit/cli-token-expiry.test.js
           tests/unit/learning-cli.test.js
           tests/unit/project-provisioning-cli.test.js
           tests/server/routes/brainbase-action-retirement.test.js
@@ -140,6 +170,9 @@ jobs:
           tests/server/services/canonical-task-postgres-repository.test.js
           tests/server/services/canonical-task-nocodb-repository.test.js
           tests/server/scripts/preflight-canonical-task-cutover.test.js
+          tests/unit/vibepro-graph-ssot-check.test.js
+          tests/server/scripts/ontology-release-verify.test.js
+          tests/sns/personal-kg/memory-preamble-freshness.test.js
       - name: Verify standalone NocoDB MCP is retired before side effects
         run: |
           npm --prefix mcp/nocodb ci --ignore-scripts --no-audit --no-fund
@@ -164,4 +197,5 @@ jobs:
           tests/e2e/story-codex-appserver-session-create-contract.spec.ts
           tests/e2e/story-inline-session-creation-pr-gate.spec.ts
           tests/e2e/story-nocodb-task-start-retirement.spec.js
+          tests/e2e/story-canonical-task-postgres-ssot-contract.spec.ts
           --reporter=line

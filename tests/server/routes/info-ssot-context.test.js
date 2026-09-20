@@ -3,11 +3,19 @@ import request from 'supertest';
 import express from 'express';
 import { createInfoSSOTRouter } from '../../../server/routes/info-ssot.js';
 
-const buildHeaders = () => ({
-    'x-brainbase-role': 'gm',
-    'x-brainbase-projects': 'brainbase',
-    'x-brainbase-clearance': 'internal,restricted,finance,hr,contract'
-});
+const accessFixture = {
+    role: 'gm',
+    projectCodes: ['brainbase'],
+    clearance: ['internal', 'restricted', 'finance', 'hr', 'contract']
+};
+
+function installVerifiedAccess(app, access = accessFixture) {
+    app.use((req, _res, next) => {
+        req.authSource = 'bearer';
+        req.access = access;
+        next();
+    });
+}
 
 describe('Info SSOT context route', () => {
     it('AC-005: ontology audit actual call siteでtenant audit guardを実行する', async () => {
@@ -15,9 +23,10 @@ describe('Info SSOT context route', () => {
         const auditTenantGuard = vi.fn((_req, _res, next) => next());
         const app = express();
         app.use(express.json());
+        installVerifiedAccess(app);
         app.use('/api/info', createInfoSSOTRouter(service, { auditTenantGuard }));
 
-        await request(app).post('/api/info/ontology/audit').set(buildHeaders()).send({}).expect(200);
+        await request(app).post('/api/info/ontology/audit').send({}).expect(200);
 
         expect(auditTenantGuard).toHaveBeenCalledOnce();
         expect(service.auditOntology).toHaveBeenCalledOnce();
@@ -29,11 +38,11 @@ describe('Info SSOT context route', () => {
         };
         const app = express();
         app.use(express.json());
+        installVerifiedAccess(app);
         app.use('/api/info', createInfoSSOTRouter(service));
 
         const res = await request(app)
             .post('/api/info/ontology/infer/decisions')
-            .set(buildHeaders())
             .send({ version: '1.0.0', snapshot: { entities: [], edges: [] } })
             .expect(200);
 
@@ -56,11 +65,11 @@ describe('Info SSOT context route', () => {
         };
         const app = express();
         app.use(express.json());
+        installVerifiedAccess(app);
         app.use('/api/info', createInfoSSOTRouter(service));
 
         const res = await request(app)
             .get('/api/info/context?project=brainbase&types=project,push_case&includePhilosophy=true&scope=crm&objectType=push_case&operation=write&maxRecommended=4')
-            .set(buildHeaders())
             .expect(200);
 
         expect(res.body.philosophy_context.scope).toBe('crm');

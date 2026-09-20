@@ -19,11 +19,14 @@ Brainbase CLI利用者として、Slack Device Code Flowが利用できないと
 - [x] 旧`insecure_header`形式の`auth.json`をCLIの学習・プロジェクト操作で送信しない。
 - [x] 旧`insecure_header`形式の保存値を`auth status`で現行ログインとして表示しない。
 - [x] Slack Device Code Flowの成功時は従来どおりBearer tokenを`auth.json`へ保存する。
+- [x] Device Code Flowの成功時は返却された`refresh_token`を保持し、`expires_at`・`expires_in`・JWTの`exp`のうち最も早い期限を`auth.json`へ保存する。JWTの`exp`は署名検証ではなく、ローカル期限上限としてだけ扱う。
+- [x] 期限情報がないトークンは保存せず、30日固定の推測値へフォールバックしない。既存`auth.json`の期限判定もJWTの`exp`を上限として扱う。
 - [x] `tokens.json`のSlackログイン由来Bearer tokenと、共有Google providerのサーバー側契約は変更しない。
 
 ## 検証
 
 - 旧保存値の拒否、Device Flow 404・接続失敗時のfail-closed、成功時のBearer保存をCLI単体テストで確認する。
+- Device Flowのrefresh token保持、期限の最小値判定、期限情報不足時のfail-closed、JWT期限切れの既存`auth.json`拒否をCLI単体テストで確認する。
 - 既存の学習CLI・プロジェクトプロビジョニングCLIテストを再実行する。
 - 本番・外部サービス・保存済みの利用者認証情報は変更しない。
 

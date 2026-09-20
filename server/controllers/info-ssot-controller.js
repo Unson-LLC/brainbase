@@ -1,7 +1,7 @@
 import { PortableGraphService } from '../services/portable-graph-service.js';
 // @ts-check
 import { logger } from '../utils/logger.js';
-import { isInsecureHeaderAuthAllowed, parseCsv } from '../lib/validation.js';
+import { parseCsv } from '../lib/validation.js';
 import { OntologyError } from '../services/ontology-kernel.js';
 import { GraphMaintenanceService } from '../services/graph-maintenance-service.js';
 import { GraphVectorSearchService } from '../services/graph-vector-search-service.js';
@@ -17,43 +17,20 @@ function getErrorMessage(error) {
 
 /** @param {Request & { access?: AccessContext }} req */
 function buildAccessContext(req) {
-    if (req.access) {
-        return req.access;
-    }
-    if (!isInsecureHeaderAuthAllowed()) {
-        throw new Error('Slack OAuth token required');
-    }
-    const role = (req.get('x-brainbase-role') || req.get('x-role') || '').toLowerCase();
-    const projectHeader = req.get('x-brainbase-projects') || req.get('x-projects') || '';
-    const clearanceHeader = req.get('x-brainbase-clearance') || req.get('x-clearance') || '';
-    const projectCodes = parseCsv(projectHeader);
-    const clearance = parseCsv(clearanceHeader);
-    const personId = req.get('x-brainbase-person-id') || req.get('x-person-id') || null;
-    const workspace = req.get('x-brainbase-workspace') || req.get('x-workspace') || null;
-    const channelId = req.get('x-brainbase-channel-id') || req.get('x-channel-id') || null;
-    const sessionId = req.get('x-brainbase-session-id') || req.get('x-session-id') || null;
-
-    return {
-        role,
-        projectCodes,
-        clearance,
-        personId,
-        workspace,
-        channelId,
-        sessionId
-    };
+    if (!req.access) throw new Error('Slack OAuth token required');
+    return req.access;
 }
 
 /** @param {AccessContext} access */
 function assertAccessContext(access) {
     if (!access.role) {
-        throw new Error('Access role is required (x-brainbase-role)');
+        throw new Error('Access role is required');
     }
     if (!access.projectCodes.length) {
-        throw new Error('Access project list is required (x-brainbase-projects)');
+        throw new Error('Access project list is required');
     }
     if (!access.clearance.length) {
-        throw new Error('Access clearance is required (x-brainbase-clearance)');
+        throw new Error('Access clearance is required');
     }
 }
 

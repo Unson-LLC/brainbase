@@ -10,6 +10,20 @@ import { runCanonicalTaskPostgresMigrationWorkflow } from '../../scripts/run-can
 const rootDir = process.cwd();
 const read = (file: string) => readFileSync(path.join(rootDir, file), 'utf8');
 const storeConfig = { schemaVersion: 1, baseId: 'legacy-base', tableId: 'legacy-table' };
+const requiredCanonicalTaskColumns = [
+  'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
+  'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
+  'review_at', 'completed_at', 'source_refs', 'project_codes', 'version',
+  'idempotency_key', 'payload_fingerprint', 'last_operation_key',
+  'last_operation_fingerprint', 'created_at', 'updated_at'
+];
+const validCanonicalTaskIndexes = [
+  { indexname: 'canonical_tasks_status_priority_idx', indisvalid: true, indisready: true },
+  { indexname: 'canonical_tasks_assignee_due_idx', indisvalid: true, indisready: true },
+  { indexname: 'canonical_tasks_project_codes_idx', indisvalid: true, indisready: true },
+  { indexname: 'canonical_tasks_title_trgm_idx', indisvalid: true, indisready: true },
+  { indexname: 'canonical_tasks_search_cursor_idx', indisvalid: true, indisready: true }
+];
 
 function taskRow(overrides = {}) {
   return {
@@ -26,6 +40,7 @@ function taskRow(overrides = {}) {
     review_at: null,
     completed_at: null,
     source_refs: [],
+    project_codes: [],
     version: 1,
     idempotency_key: 'e2e-key',
     payload_fingerprint: 'fingerprint',
@@ -145,22 +160,12 @@ test('story-canonical-task-postgres-ssot ac:1 S-001 S-002 S-004 S-005 repository
 
 test('story-canonical-task-postgres-ssot ac:1 S-003 migration dry-run is redacted and write-free', async () => {
   const queries: string[] = [];
-  const requiredColumns = [
-    'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
-    'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
-    'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
-    'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
-    'created_at', 'updated_at'
-  ];
   const pool = {
     query: async (text: string) => {
       queries.push(text);
       if (text.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
-      if (text.includes('information_schema.columns')) return { rows: requiredColumns.map((column_name) => ({ column_name })) };
-      if (text.includes('pg_indexes')) return { rows: [
-        { indexname: 'canonical_tasks_status_priority_idx' },
-        { indexname: 'canonical_tasks_assignee_due_idx' }
-      ] };
+      if (text.includes('information_schema.columns')) return { rows: requiredCanonicalTaskColumns.map((column_name) => ({ column_name })) };
+      if (text.includes('FROM pg_index AS index_state')) return { rows: validCanonicalTaskIndexes };
       if (text.startsWith('SELECT legacy_nocodb_id')) return { rows: [] };
       if (text.startsWith('SELECT COUNT(*)')) return { rows: [{ count: 0 }] };
       throw new Error(`unexpected SQL: ${text}`);
@@ -212,22 +217,11 @@ test('story-canonical-task-postgres-ssot ac:1 provider_failure stops before targ
       if (text.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
       if (text.includes('information_schema.columns')) {
         return {
-          rows: [
-            'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
-            'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
-            'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
-            'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
-            'created_at', 'updated_at'
-          ].map((column_name) => ({ column_name }))
+          rows: requiredCanonicalTaskColumns.map((column_name) => ({ column_name }))
         };
       }
-      if (text.includes('pg_indexes')) {
-        return {
-          rows: [
-            { indexname: 'canonical_tasks_status_priority_idx' },
-            { indexname: 'canonical_tasks_assignee_due_idx' }
-          ]
-        };
+      if (text.includes('FROM pg_index AS index_state')) {
+        return { rows: validCanonicalTaskIndexes };
       }
       throw new Error(`unexpected SQL: ${text}`);
     }
@@ -249,18 +243,9 @@ test('story-canonical-task-postgres-ssot ac:1 S-006 migration rejects cross-key 
     query: async (text: string) => {
       if (text.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
       if (text.includes('information_schema.columns')) {
-        return { rows: [
-          'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
-          'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
-          'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
-          'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
-          'created_at', 'updated_at'
-        ].map((column_name) => ({ column_name })) };
+        return { rows: requiredCanonicalTaskColumns.map((column_name) => ({ column_name })) };
       }
-      if (text.includes('pg_indexes')) return { rows: [
-        { indexname: 'canonical_tasks_status_priority_idx' },
-        { indexname: 'canonical_tasks_assignee_due_idx' }
-      ] };
+      if (text.includes('FROM pg_index AS index_state')) return { rows: validCanonicalTaskIndexes };
       if (text.startsWith('SELECT legacy_nocodb_id')) {
         return { rows: [{ legacy_nocodb_id: '42', idempotency_key: 'another-key' }] };
       }
@@ -297,26 +282,14 @@ test('story-canonical-task-postgres-ssot ac:1 persistence_failure rolls back a f
     },
     release: () => transaction.push('RELEASE')
   };
-  const requiredColumns = [
-    'id', 'legacy_nocodb_id', 'title', 'description', 'status', 'priority',
-    'assignee_person_id', 'assignee_display_name', 'due_at', 'waiting_on',
-    'review_at', 'completed_at', 'source_refs', 'version', 'idempotency_key',
-    'payload_fingerprint', 'last_operation_key', 'last_operation_fingerprint',
-    'created_at', 'updated_at'
-  ];
   const pool = {
     query: async (text: string) => {
       if (text.includes('information_schema.tables')) return { rows: [{ table_name: 'canonical_tasks' }] };
       if (text.includes('information_schema.columns')) {
-        return { rows: requiredColumns.map((column_name) => ({ column_name })) };
+        return { rows: requiredCanonicalTaskColumns.map((column_name) => ({ column_name })) };
       }
-      if (text.includes('pg_indexes')) {
-        return {
-          rows: [
-            { indexname: 'canonical_tasks_status_priority_idx' },
-            { indexname: 'canonical_tasks_assignee_due_idx' }
-          ]
-        };
+      if (text.includes('FROM pg_index AS index_state')) {
+        return { rows: validCanonicalTaskIndexes };
       }
       if (text.startsWith('SELECT legacy_nocodb_id')) return { rows: [] };
       return { rows: [] };

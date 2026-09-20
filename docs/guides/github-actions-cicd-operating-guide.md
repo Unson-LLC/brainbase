@@ -67,7 +67,7 @@ Graphにはリポジトリ、Workflow、環境、責任主体、重要な出荷�
 
 | ジョブ名 | トリガー | 目的 | ワークフロー | ランナー |
 |---|---|---|---|---|
-| 旧状態管理の退役・障害回復契約 | 対象ファイルのPull Request | 旧state実装の不在、Wiki/NocoDBの退役境界、CLI旧認証の拒否、PostgreSQL既定化、旧installerのデータ非変更、Mana統計取得失敗と再試行を検証する。本番接続・配備なし | `.github/workflows/retired-state-boundary.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
+| 旧状態管理の退役・障害回復契約 | 対象ファイルのPull Request | 旧state実装の不在、Wiki/NocoDBの退役境界、CLI旧認証の拒否、Canonical Taskの明示backend選択とPostgreSQL契約、旧installerのデータ非変更、Mana統計取得失敗と再試行を検証する。本番接続・配備なし | `.github/workflows/retired-state-boundary.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
 | 判断監査と開始失敗の回帰検証 | 対象ファイルのPull Requestと`develop`へのpush | Hookの契約・開始失敗・記録専用モード・設定確認を検証する。実環境への配備は行わない | `.github/workflows/judgment-value-proof-consumer.yml` | `self-hosted`（Linux / X64 / wsl-linux） |
 | Graph書き込み契約 | `develop`・`main`へのPull Requestとpush | Graph書き込み所有者、認証・CSRF契約、Personal Knowledge署名境界、実PostgreSQL migration、顧客データを使わないスモーク証跡契約を検証する | `.github/workflows/graph-writer-contract.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
 | Project Provisioning契約 | `develop`・`main`へのPull Requestとpush | 型検査、使い捨てPostgreSQLでのRLS・migration、API・CLI・MCP統合、Workspace Setup互換ブラウザ契約を検証する | `.github/workflows/project-provisioning-contract.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |

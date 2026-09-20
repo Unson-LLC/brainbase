@@ -14,6 +14,12 @@ import { login, status } from '../../cli/auth.js';
 import { getHeaders } from '../../cli/learning.js';
 import { authHeaders } from '../../cli/project-provisioning.js';
 
+function unsignedJwt(payload) {
+    const header = Buffer.from(JSON.stringify({ alg: 'none', typ: 'JWT' })).toString('base64url');
+    const body = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return `${header}.${body}.unsigned`;
+}
+
 describe('CLI authentication safety boundary', () => {
     afterEach(() => {
         vi.restoreAllMocks();
@@ -63,7 +69,39 @@ describe('CLI authentication safety boundary', () => {
         expect(configMocks.saveAuth).not.toHaveBeenCalled();
     });
 
-    it('stores only the bearer token after a successful Device Code Flow', async () => {
+    it('stores the bearer and refresh tokens with a JWT-bounded expiry after Device Code Flow', async () => {
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        const accessToken = unsignedJwt({ exp: Date.parse('2030-01-01T00:00:00.000Z') / 1000 });
+        vi.stubGlobal('fetch', vi.fn()
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    device_code: 'device-code',
+                    user_code: 'ABCD-EFGH',
+                    verification_uri: 'https://brainbase.example/device',
+                    interval: -1,
+                    expires_in: 1
+                })
+            })
+            .mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    access_token: accessToken,
+                    refresh_token: 'refresh-token'
+                })
+            }));
+
+        await login();
+
+        expect(configMocks.saveAuth).toHaveBeenCalledWith({
+            token: accessToken,
+            refresh_token: 'refresh-token',
+            expires_at: '2030-01-01T00:00:00.000Z',
+            server_url: 'https://brainbase.example'
+        });
+    });
+
+    it('fails closed when the token response has no usable expiry metadata', async () => {
         vi.spyOn(console, 'log').mockImplementation(() => {});
         vi.stubGlobal('fetch', vi.fn()
             .mockResolvedValueOnce({
@@ -79,18 +117,13 @@ describe('CLI authentication safety boundary', () => {
             .mockResolvedValueOnce({
                 ok: true,
                 json: async () => ({
-                    access_token: 'signed-token',
-                    expires_at: '2030-01-01T00:00:00.000Z'
+                    access_token: 'opaque-token',
+                    refresh_token: 'refresh-token'
                 })
             }));
 
-        await login();
-
-        expect(configMocks.saveAuth).toHaveBeenCalledWith({
-            token: 'signed-token',
-            expires_at: '2030-01-01T00:00:00.000Z',
-            server_url: 'https://brainbase.example'
-        });
+        await expect(login()).rejects.toThrow('did not include usable token expiry metadata');
+        expect(configMocks.saveAuth).not.toHaveBeenCalled();
     });
 
     it('rejects a legacy insecure_header auth record instead of sending authority headers', () => {
