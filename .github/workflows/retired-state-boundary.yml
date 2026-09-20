@@ -139,7 +139,9 @@ jobs:
           tests/server/services/canonical-task-nocodb-repository.test.js
           tests/server/scripts/preflight-canonical-task-cutover.test.js
       - name: Verify standalone NocoDB MCP is retired before side effects
-        run: node --test mcp/nocodb/tests/standalone-retirement.test.js
+        run: |
+          npm --prefix mcp/nocodb ci --ignore-scripts --no-audit --no-fund
+          npm --prefix mcp/nocodb test
       - name: Verify Mesh MCP receipt and authentication contracts
         run: node --import tsx --test mcp/brainbase/tests/tools/mesh-tools.test.ts
       - name: Verify Wiki MCP retirement contracts
