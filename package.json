@@ -115,7 +115,7 @@
     "@aws-sdk/lib-dynamodb": "^3.978.0",
     "@modelcontextprotocol/sdk": "^1.25.2",
     "@octokit/rest": "^22.0.1",
-    "@unson/brainbase-mcp": "github:Unson-LLC/brainbase#3b04094cba489ff08fa1954f2f05d3c4c7c0b57a",
+    "@unson/brainbase-mcp": "github:Unson-LLC/brainbase#f562a9430040394c9970af9b5f93c2b4e5d09805",
     "better-sqlite3": "^12.9.0",
     "chokidar": "^5.0.0",
     "cors": "^2.8.5",
