@@ -199,12 +199,17 @@ function sameGitHubInstallation(expected, actual) {
         && actual.suspended_at === null);
 }
 
-function safeCallbackReturnPath(value) {
+function safeCallbackReturnUrl(value) {
     if (value === undefined || value === null || value === '') return null;
-    if (typeof value !== 'string' || !value.startsWith('/') || value.startsWith('//')
-        || value.includes('\\') || value.includes('?') || value.includes('#')
-        || /[\u0000-\u001f\u007f]/u.test(value)) return null;
-    return value;
+    if (typeof value !== 'string' || /[\u0000-\u001f\u007f]/u.test(value)) return null;
+    let url;
+    try {
+        url = new URL(value);
+    } catch {
+        return null;
+    }
+    if (url.protocol !== 'https:' || url.username || url.password || url.hash) return null;
+    return url.toString();
 }
 
 async function verifiedGitHubStatus({
@@ -266,16 +271,16 @@ export function createGitHubInstallationCallbackHandler({
     githubCredentialStore,
     githubAuthorizationLedger,
     connectionRepository,
-    githubCallbackReturnPath,
+    githubCallbackReturnUrl,
     now = () => new Date()
 } = {}) {
-    const returnPath = safeCallbackReturnPath(githubCallbackReturnPath);
+    const returnUrl = safeCallbackReturnUrl(githubCallbackReturnUrl);
     return async (req, res) => {
         res.set('cache-control', 'no-store').set('referrer-policy', 'no-referrer');
         if (!hasGitHubConnectionPorts({
             githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository
         }) || !validGitHubAppSlug(githubAppSlug) || typeof githubStateSecret !== 'string'
-            || githubStateSecret.length < 32 || (githubCallbackReturnPath && !returnPath)) {
+            || githubStateSecret.length < 32 || (githubCallbackReturnUrl && !returnUrl)) {
             return problem(res, 503, 'GITHUB_APP_CONNECTION_UNAVAILABLE');
         }
         const installationId = req.query?.installation_id;
@@ -405,7 +410,7 @@ export function createGitHubInstallationCallbackHandler({
                 }
             }
 
-            if (returnPath) return res.status(303).set('location', returnPath).set('cache-control', 'no-store').end();
+            if (returnUrl) return res.status(303).set('location', returnUrl).set('cache-control', 'no-store').end();
             return res.status(200).set('cache-control', 'no-store').json({
                 provider: 'github', status: 'connected', connected: true,
                 account: { installation_id: installation.installation_id, login: installation.account.login }

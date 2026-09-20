@@ -300,7 +300,7 @@ export function registerOrganizationConnectionsApiRoute(app, {
     githubAppVerifier,
     githubCredentialStore = controlPlane?.credentialStore,
     githubAuthorizationLedger,
-    githubCallbackReturnPath,
+    githubCallbackReturnUrl = process.env.GITHUB_APP_CALLBACK_RETURN_URL,
     now,
     resolveAccess
 }) {
@@ -311,7 +311,7 @@ export function registerOrganizationConnectionsApiRoute(app, {
         githubCredentialStore,
         githubAuthorizationLedger,
         connectionRepository,
-        githubCallbackReturnPath,
+        githubCallbackReturnUrl,
         now
     }));
     app.use(
@@ -409,7 +409,7 @@ export function registerApiRoutes(app, {
     githubAppVerifier,
     githubCredentialStore,
     githubAuthorizationLedger,
-    githubCallbackReturnPath,
+    githubCallbackReturnUrl,
     env = process.env
 }) {
     const auditTenantGuard = tenantRuntimeServices
@@ -436,7 +436,7 @@ export function registerApiRoutes(app, {
         githubAppVerifier,
         githubCredentialStore,
         githubAuthorizationLedger,
-        githubCallbackReturnPath
+        githubCallbackReturnUrl: githubCallbackReturnUrl ?? env.GITHUB_APP_CALLBACK_RETURN_URL
     });
     app.use('/api/state', createRetiredCapabilityRouter({
         capability: 'brainbase.session-state',

@@ -32,7 +32,7 @@ function app({
     githubAppVerifier,
     githubCredentialStore,
     githubAuthorizationLedger,
-    githubCallbackReturnPath,
+    githubCallbackReturnUrl,
     now
 } = {}) {
     const server = express();
@@ -48,7 +48,7 @@ function app({
         githubAppVerifier,
         githubCredentialStore,
         githubAuthorizationLedger,
-        githubCallbackReturnPath,
+        githubCallbackReturnUrl,
         now
     });
     return server;
@@ -470,7 +470,7 @@ describe('organization connections API', () => {
         expect(JSON.stringify(response.body)).not.toContain(credential);
     });
 
-    it('redirects only to the configured fixed relative callback path', async () => {
+    it('redirects only to the configured fixed HTTPS callback URL', async () => {
         const ports = githubPorts();
         const server = app({
             githubAppSlug: 'brainbase-test-app',
@@ -478,7 +478,7 @@ describe('organization connections API', () => {
             githubCredentialStore: ports.credentialStore,
             githubAuthorizationLedger: ports.authorizationLedger,
             connectionRepository: ports.connectionRepository,
-            githubCallbackReturnPath: '/settings/integrations'
+            githubCallbackReturnUrl: 'https://bb-app.unson.jp/?github=connected'
         });
         const started = await auth(request(server)
             .post('/api/organization-connections/github/start').send({}));
@@ -487,7 +487,30 @@ describe('organization connections API', () => {
             state: new URL(started.body.url).searchParams.get('state')
         });
         expect(response.status).toBe(303);
-        expect(response.headers.location).toBe('/settings/integrations');
+        expect(response.headers.location).toBe('https://bb-app.unson.jp/?github=connected');
+    });
+
+    it.each([
+        'http://bb-app.unson.jp/?github=connected',
+        'https://user:password@bb-app.unson.jp/?github=connected',
+        'https://bb-app.unson.jp/?github=connected#fragment',
+        '/settings/integrations'
+    ])('rejects unsafe fixed callback URL %s before consuming state', async (githubCallbackReturnUrl) => {
+        const ports = githubPorts();
+        const server = app({
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
+            connectionRepository: ports.connectionRepository,
+            githubCallbackReturnUrl
+        });
+        const response = await request(server).get('/api/organization-connections/github/callback').query({
+            setup_action: 'install', installation_id: '123', state: 'invalid'
+        });
+        expect(response.status).toBe(503);
+        expect(response.body.code).toBe('GITHUB_APP_CONNECTION_UNAVAILABLE');
+        expect(ports.authorizationLedger.consume).not.toHaveBeenCalled();
     });
 
     it('rejects expired GitHub state without consuming it or checking the installation', async () => {
