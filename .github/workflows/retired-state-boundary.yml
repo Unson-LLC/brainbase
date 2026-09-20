@@ -32,6 +32,10 @@ on:
       - 'server/routes/**'
       - 'server.js'
       - 'server/middleware/csrf.js'
+      - 'server/middleware/auth.js'
+      - 'server/lib/validation.js'
+      - 'tests/server/middleware/auth.test.js'
+      - 'tests/server/lib/validation-auth.test.js'
       - 'mcp/brainbase/src/tools/mesh-tools.ts'
       - 'mcp/brainbase/src/server.ts'
       - 'mcp/brainbase/src/stdio-facade.ts'
@@ -137,6 +141,8 @@ jobs:
           tests/server/bootstrap/device-surface-contract.test.js
           tests/server/bootstrap/static-routes.test.js
           tests/server/controllers/info-ssot-controller.test.js
+          tests/server/middleware/auth.test.js
+          tests/server/lib/validation-auth.test.js
           tests/server/routes/info-ssot-context.test.js
           tests/server/routes/graph-vector-search.test.js
           tests/server/routes/info-ssot-sim.test.js

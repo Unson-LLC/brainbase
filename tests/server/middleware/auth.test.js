@@ -17,28 +17,33 @@ describe('auth middleware', () => {
             .expect(401);
     });
 
-    it('test modeではヘッダー認証が優先される', async () => {
+    it('非本番フラグが有効でも自己申告headerだけでは認証されない', async () => {
         const app = express();
         const authService = {
-            verifyToken: () => ({
+            verifyToken: vi.fn(() => ({
                 role: 'member',
                 projectCodes: ['alpha'],
                 clearance: ['internal'],
                 personId: 'per_1'
-            })
+            }))
         };
         app.use(requireAuth(authService));
         app.get('/secure', (req, res) => res.json({ access: req.access }));
 
-        const res = await request(app)
-            .get('/secure')
-            .set('Authorization', 'Bearer dummy')
-            .set('x-brainbase-role', 'ceo')
-            .set('x-brainbase-projects', 'alpha')
-            .expect(200);
-
-        expect(res.body.access.role).toBe('ceo');
-        expect(res.body.access.projectCodes).toEqual(['alpha']);
+        const previous = process.env.BRAINBASE_TEST_MODE;
+        process.env.BRAINBASE_TEST_MODE = 'true';
+        try {
+            await request(app)
+                .get('/secure')
+                .set('x-brainbase-role', 'ceo')
+                .set('x-brainbase-projects', 'alpha')
+                .set('x-brainbase-clearance', 'restricted')
+                .expect(401);
+        } finally {
+            if (previous === undefined) delete process.env.BRAINBASE_TEST_MODE;
+            else process.env.BRAINBASE_TEST_MODE = previous;
+        }
+        expect(authService.verifyToken).not.toHaveBeenCalled();
     });
 
     it('strict modeではinsecure headerを認証として扱わない', async () => {
