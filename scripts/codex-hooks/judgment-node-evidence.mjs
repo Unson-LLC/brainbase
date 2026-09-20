@@ -133,8 +133,9 @@ export function isSuccessfulJudgmentEvidenceEvent(event) {
     // Do not let a record/audit/state operation become node evidence by name.
     const toolName = typeof event.tool_name === 'string' ? event.tool_name : '';
     if (NON_BUSINESS_TOOL_PATTERN.test(toolName)) return false;
-    if (/(?:^|__)(?:brainbase_projects|brainbase_admin_read|brainbase_run_receipt_inbox|brainbase_run_receipt_history|authorize_tenant_resource)$/u.test(toolName)) return false;
-    if (/brainbase_(?:judgment_(?:node|audit|state|value_proof)|knowledge_(?:resolve|evidence)|personal_kg_answer)_/u.test(toolName)) return false;
+    if (/(?:^|__)(?:brainbase_projects|brainbase_admin_read|brainbase_run_receipt_inbox|brainbase_run_receipt_history|authorize_tenant_resource)$/u.test(toolName)
+        && toolName !== 'mcp__brainbase-personal__brainbase_admin_read') return false;
+    if (/brainbase_(?:judgment_(?:node|audit|state|value_proof)|knowledge_(?:resolve|evidence)|personal_kg_answer)(?:_|$)/u.test(toolName)) return false;
     // A transport-successful search/retrieval with no usable result is an
     // attempt, not evidence. Keep this check deliberately narrow: arbitrary
     // business events without retrieval metadata remain valid provenance.

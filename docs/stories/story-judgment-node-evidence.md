@@ -7,3 +7,9 @@ Jevによる人間のUI行動の検証では、評価データの検索は行わ
 対象は既存engineering DAGのproblem-frame、observe、falsify、decide。各段階の短い結論、根拠との適合、不足、次の行動を既存Host journalに結び付ける。根拠不足は完了と区別し、許可済みの調査を実行してから再評価する。
 
 受入条件: 実行していない根拠・失敗した取得・古い段階の結果で完了できない。不足後の再取得と再評価で復帰できる。単純な回答や旧contractは影響を受けない。権限判断は既存autonomyのまま。
+
+## 追加受入条件: オーケストレータ内のMCP呼び出し
+
+Codexのオーケストレータ経由でMCPを呼んだ場合も、Codex所有の同一turnトランスクリプトに成功済み `McpToolCall` があれば、Hostがその実IDを判断根拠候補として通知する。モデルがラッパーのIDを推測したり、非公開journalを探索したりする必要はない。
+
+Hostは同一session・同一root turn・完了済み・成功応答の呼び出しだけを取り込む。失敗、別turn、競合する重複、Brainbase自身のcontrol/record呼び出しは根拠にしない。個人用Brainbaseの診断取得は、組織Brainbaseの管理系取得と名前が同じでも一律除外しない。

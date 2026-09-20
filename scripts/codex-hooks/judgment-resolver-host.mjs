@@ -546,6 +546,69 @@ export function reconcileNativeMcpFailures(payload, { env = process.env } = {}) 
     }, { env, nativeFailureResult: item.result ?? null, nativeUpstreamErrorCode: nativeMcpUpstreamErrorCode(item) }));
 }
 
+// Codex orchestration tools can execute MCP calls without emitting a separate
+// PostToolUse hook for the inner call. Promote only Codex-owned, completed
+// same-session/root-turn items from the canonical transcript. The original
+// item id remains the evidence handle; wrapper text is never parsed.
+export function reconcileNativeMcpCompletions(payload, { env = process.env } = {}) {
+    const hookEventName = payload?.hook_event_name ?? payload?.hookEventName;
+    if (hookEventName !== 'PostToolUse' || !hasVerifiedNativeMcpStart(payload, env)
+        || typeof payload.transcript_path !== 'string') return [];
+    const identity = payloadIdentity(payload);
+    const paths = identity ? journalPaths(identity.sessionRef, identity.turnId, env) : null;
+    const existingIds = new Set(paths ? episodeEvents(paths).map((event) => event.tool_use_id) : []);
+    let entries;
+    try {
+        const path = realpathSync(payload.transcript_path);
+        if (!statSync(path).isFile() || !transcriptRoots(env).some(root => pathInside(path, root))) return [];
+        entries = readFileSync(path, 'utf8').split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
+    } catch { return []; }
+    const metas = entries.filter(entry => entry?.type === 'session_meta');
+    if (metas.length === 0 || metas.some(({ payload: meta }) => !meta
+        || meta.id !== payload.session_id || meta.session_id !== payload.session_id
+        || meta.source?.subagent)) return [];
+    const turns = entries.filter(entry => entry?.type === 'turn_context' && entry.payload?.turn_id === payload.turn_id);
+    if (turns.length === 0 || turns.some(({ payload: turn }) => turn.root_turn_id !== payload.turn_id)) return [];
+    const currentItemIndex = entries.findIndex((entry) => entry?.type === 'event_msg'
+        && entry.payload?.type === 'item_completed'
+        && entry.payload?.thread_id === payload.session_id
+        && entry.payload?.turn_id === payload.turn_id
+        && entry.payload?.item?.id === payload.tool_use_id);
+    if (currentItemIndex < 0) return [];
+    const causalBoundary = currentItemIndex;
+    const candidates = [];
+    for (const [entryIndex, entry] of entries.entries()) {
+        const completed = entry?.payload;
+        const item = completed?.item;
+        if (entryIndex >= causalBoundary || entry?.type !== 'event_msg' || completed?.type !== 'item_completed'
+            || completed.thread_id !== payload.session_id || completed.turn_id !== payload.turn_id
+            || item?.type !== 'McpToolCall' || item.server !== 'brainbase-personal'
+            || item.status !== 'completed' || !nonEmptyString(item.id)
+            || !nonEmptyString(item.server) || !nonEmptyString(item.tool)
+            || !/^[a-z0-9][a-z0-9_-]{0,79}$/u.test(item.server)
+            || !/^[a-z0-9][a-z0-9_-]{0,119}$/u.test(item.tool)
+            || !record(item.arguments) || !record(item.result) || item.result.isError === true
+            || !validCallToolResultEnvelope(item.result)
+            || item.id === payload.tool_use_id) continue;
+        candidates.push(item);
+    }
+    const unique = new Map();
+    for (const item of candidates) {
+        if (unique.has(item.id) && canonicalJson(unique.get(item.id)) !== canonicalJson(item)) {
+            throw new Error('judgment_native_mcp_item_conflict');
+        }
+        unique.set(item.id, item);
+    }
+    return [...unique.values()].map(item => recordBrainbaseToolUse({
+        ...payload,
+        hook_event_name: 'PostToolUse',
+        tool_name: `mcp__${item.server}__${item.tool}`,
+        tool_use_id: item.id,
+        tool_input: item.arguments,
+        tool_response: item.result
+    }, { env })).filter((event) => event && !existingIds.has(event.tool_use_id));
+}
+
 function transcriptTurnResolutionSurface(payload, env) {
     const surface = readCanonicalTranscript(payload, env).turn_resolution_surface;
     return surface?.status === 'unavailable' ? surface : null;
@@ -5441,6 +5504,9 @@ export async function processHookPayload(payload, dependencies = {}) {
         );
     }
     if (eventName === 'PostToolUse' || eventName === 'PostToolUseFailure') {
+        const promotedEvents = eventName === 'PostToolUse'
+            ? reconcileNativeMcpCompletions(payload, dependencies)
+            : [];
         const event = recordBrainbaseToolUse(payload, dependencies);
         if (event?.schema_version === 'brainbase-judgment-orphan-tool-event-v1') {
             return { systemMessage: ORPHAN_TOOL_EVENT_WARNING };
@@ -5476,7 +5542,8 @@ export async function processHookPayload(payload, dependencies = {}) {
                 };
             }
         }
-        const messages = [...new Set([event?.display_line, event?.system_message]
+        const messages = [...new Set([...promotedEvents.flatMap((promoted) => [promoted?.display_line, promoted?.system_message]),
+            event?.display_line, event?.system_message]
             .filter((message) => typeof message === 'string' && message.length > 0))];
         return messages.length > 0 ? { systemMessage: messages.join('\n') } : {};
     }

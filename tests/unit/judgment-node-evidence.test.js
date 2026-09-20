@@ -201,6 +201,44 @@ describe('judgment node evidence', () => {
         expect(result.status).toBe('invalid');
     });
 
+    it('accepts a personal Brainbase diagnostic read without treating it as the organization control plane', () => {
+        const result = evaluateJudgmentNodeEvidence([
+            event('personal-health', 1, {
+                event_kind: 'retrieve',
+                tool_name: 'mcp__brainbase-personal__brainbase_admin_read',
+                safe_metadata: { retrieval_outcome: 'result' },
+            }),
+            nodeEvent('node-result', 2, baseResult({ evidence_tool_use_ids: ['personal-health'] })),
+        ], receipt('problem-frame'));
+        expect(result.ready).toBe(true);
+    });
+
+    it.each(['brainbase', 'brainbase-unson', 'brainbase-techknight'])(
+        'rejects %s admin reads as organization control-plane evidence',
+        (server) => {
+            const result = evaluateJudgmentNodeEvidence([
+                event('organization-health', 1, {
+                    event_kind: 'retrieve',
+                    tool_name: `mcp__${server}__brainbase_admin_read`,
+                    safe_metadata: { retrieval_outcome: 'result' },
+                }),
+                nodeEvent('node-result', 2, baseResult({ evidence_tool_use_ids: ['organization-health'] })),
+            ], receipt('problem-frame'));
+            expect(result.status).toBe('invalid');
+        },
+    );
+
+    it('rejects a personal knowledge resolver receipt as business evidence', () => {
+        const result = evaluateJudgmentNodeEvidence([
+            event('resolver-route', 1, {
+                event_kind: 'route',
+                tool_name: 'mcp__brainbase-personal__brainbase_knowledge_resolve',
+            }),
+            nodeEvent('node-result', 2, baseResult({ evidence_tool_use_ids: ['resolver-route'] })),
+        ], receipt('problem-frame'));
+        expect(result.status).toBe('invalid');
+    });
+
     it('does not advance a repeated insufficient result without fresh evidence', () => {
         const insufficient = baseResult({ status: 'insufficient', unknowns: ['Missing observation.'], next_action: 'Advance to decide.' });
         const result = evaluateJudgmentNodeEvidence([

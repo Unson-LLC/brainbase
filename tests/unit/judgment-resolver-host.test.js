@@ -14,6 +14,7 @@ import {
     canonicalJson,
     finalizeEpisode,
     processHookPayload,
+    reconcileNativeMcpCompletions,
     recordBrainbaseToolUse,
     readEpisodeAudit,
     resolveAndAdopt,
@@ -90,6 +91,76 @@ function hash(value) {
 function event(type, payload) {
     return JSON.stringify({ type, payload });
 }
+
+describe('nested native MCP completion reconciliation', () => {
+    it('promotes a successful same-turn personal MCP call and exposes its exact evidence id', async () => {
+        const root = temporaryDirectory();
+        const transcript = join(root, 'session.jsonl');
+        const env = {
+            BRAINBASE_JUDGMENT_TRANSCRIPT_ROOTS: root,
+            BRAINBASE_JUDGMENT_JOURNAL_DIR: join(root, 'journal'),
+        };
+        const payload = {
+            hook_event_name: 'UserPromptSubmit', session_id: 'session-nested-success',
+            turn_id: 'turn-nested-success', transcript_path: transcript,
+            prompt: 'Personal MCPの認証状態を確認して', cwd: process.cwd(),
+        };
+        writeFileSync(transcript, [
+            event('session_meta', { id: payload.session_id, session_id: payload.session_id }),
+            event('turn_context', { turn_id: payload.turn_id, root_turn_id: payload.turn_id }),
+        ].join('\n'));
+        await processHookPayload(payload, { env, fetchImpl: vi.fn().mockImplementation(async (_url, init) => {
+            const request = JSON.parse(init.body);
+            const receipt = {
+                ...validReceipt(request),
+                active_node_definitions: [{
+                    id: 'problem-frame', kind: 'judgment', instruction: 'Frame the problem.',
+                    required_capability_template: null, execution_contract: 'judgment-node-evidence-v1',
+                }],
+            };
+            return { ok: true, status: 200, json: async () => ({ management_status: 'managed', receipt }) };
+        }) });
+        writeFileSync(transcript, `${readFileSync(transcript, 'utf8')}\n${event('event_msg', {
+            type: 'item_completed', thread_id: payload.session_id, turn_id: payload.turn_id,
+            item: {
+                type: 'McpToolCall', id: 'exec-personal-health', server: 'brainbase-personal',
+                tool: 'brainbase_admin_read', status: 'completed', arguments: { view: 'health' },
+                result: { content: [{ type: 'text', text: '{"status":"ok"}' }] },
+            },
+        })}\n${event('event_msg', {
+            type: 'item_completed', thread_id: payload.session_id, turn_id: payload.turn_id,
+            item: { type: 'CommandExecution', id: 'exec-outer-wrapper', status: 'completed' },
+        })}\n${event('event_msg', {
+            type: 'item_completed', thread_id: payload.session_id, turn_id: payload.turn_id,
+            item: {
+                type: 'McpToolCall', id: 'exec-future-personal', server: 'brainbase-personal',
+                tool: 'brainbase_admin_read', status: 'completed', arguments: { view: 'future' },
+                result: { content: [{ type: 'text', text: '{"status":"ok"}' }] },
+            },
+        })}\n${event('event_msg', {
+            type: 'item_completed', thread_id: payload.session_id, turn_id: payload.turn_id,
+            item: {
+                type: 'McpToolCall', id: 'exec-organization-alias', server: 'brainbase-unson',
+                tool: 'brainbase_admin_read', status: 'completed', arguments: { view: 'health' },
+                result: { content: [{ type: 'text', text: '{"status":"ok"}' }] },
+            },
+        })}`);
+
+        const output = await processHookPayload({
+            ...payload,
+            hook_event_name: 'PostToolUse',
+            tool_name: 'functions.exec',
+            tool_use_id: 'exec-outer-wrapper',
+            tool_input: { code: 'nested MCP call' },
+            tool_response: { status: 'ok' },
+        }, { env });
+
+        expect(output.systemMessage).toContain('判断の参照ID: exec-personal-health');
+        expect(output.systemMessage).not.toContain('exec-future-personal');
+        expect(output.systemMessage).not.toContain('exec-organization-alias');
+        expect(reconcileNativeMcpCompletions(payload, { env })).toEqual([]);
+    });
+});
 
 function structuredStopState(status, { pendingSafeWork = false, runtimeReasonCode = null } = {}) {
     return `<!-- brainbase-stop-state:${JSON.stringify({

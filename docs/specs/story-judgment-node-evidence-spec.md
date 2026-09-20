@@ -27,6 +27,14 @@ Hostは記録した時点より前の、このepisode内の成功した業務too
 
 PR/CIで統合し、稼働runtimeへの反映と新規turnでの実証は別に報告する。
 
+## CodexネイティブMCP証拠の昇格
+
+`functions.exec` などのオーケストレータ内で実行されたMCPは、外側のtool responseだけで意味を再構成しない。Hostは許可済みtranscript root内のCodex所有JSONLを読み、現在のsessionとroot turnに一致する `event_msg.item_completed` の `McpToolCall` を照合する。
+
+`status=completed`、構造化arguments、エラーでないresultを満たす呼び出しを、元の `server`・`tool`・`id` のまま通常イベントへ昇格する。既存イベントとの同一ID再生は冪等、内容競合はfail closedとする。組織Brainbase serverは既存PostToolUseとの二重記録を避け、オーケストレータで可視性が失われる別serverの成功呼び出しを対象にする。
+
+昇格したイベントが判断根拠として適格なら、既存のPostToolUse `systemMessage` と同じ形式で不透明な参照IDを返す。本文やsecretは通知せず、適合性評価は引き続きモデルとnode evaluatorが担う。
+
 ## 実装検証結果（2026-09-19）
 
 - Node 22.23.2と作業領域専用の依存関係で `npm run test:judgment-resolution` が成功。判断系644件、MCP373件、root/MCPの型検査が通過。レビューで管理系イベントの除外と不足時の追加実行チェックを修正し、全件を再検証済み。開始失敗からの復旧32件も成功。
