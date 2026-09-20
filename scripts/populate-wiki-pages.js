@@ -19,28 +19,15 @@ import fs from 'fs/promises';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
-import { ulid } from 'ulid';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ─────────────────── CLI args ───────────────────
+const RETIRED_MESSAGE = 'wiki_pages population is retired. Only --dry-run inventory is allowed.';
 
-const DRY_RUN = process.argv.includes('--dry-run');
-
-if (!DRY_RUN) {
-    console.error('ERROR: wiki_pages population is retired. Only --dry-run inventory is allowed.');
-    process.exit(1);
+function logMessage(logger, method, ...args) {
+    if (typeof logger?.[method] === 'function') logger[method](...args);
 }
-
-const WIKI_ROOT = process.argv.find((_, i, a) => a[i - 1] === '--wiki-root')
-    || process.env.BRAINBASE_WIKI_ROOT
-    || path.resolve(__dirname, '..', '..', 'wiki');
-
-const DB_URL = process.env.INFO_SSOT_DATABASE_URL
-    || process.env.INFO_SSOT_DB_URL
-    || process.env.DATABASE_URL
-    || 'postgresql://localhost:5432/brainbase';
 
 // ─────────────────── Helpers ───────────────────
 
@@ -48,15 +35,15 @@ const DB_URL = process.env.INFO_SSOT_DATABASE_URL
  * Recursively collect all .md files under a directory.
  * Returns paths relative to baseDir.
  */
-async function collectMarkdownFiles(baseDir) {
+export async function collectMarkdownFiles(baseDir, fsImpl = fs) {
     const results = [];
 
     async function walk(dir) {
         let entries;
         try {
-            entries = await fs.readdir(dir, { withFileTypes: true });
-        } catch {
-            return; // directory doesn't exist or inaccessible
+            entries = await fsImpl.readdir(dir, { withFileTypes: true });
+        } catch (error) {
+            throw new Error(`Unable to read Wiki directory ${dir}: ${error.message}`, { cause: error });
         }
         for (const entry of entries) {
             const fullPath = path.join(dir, entry.name);
@@ -129,47 +116,59 @@ function toWikiPath(relPath) {
     return p;
 }
 
-// ─────────────────── Main ───────────────────
+// ─────────────────── Inventory runner ───────────────────
 
-async function main() {
-    console.log(`[populate] Wiki root:  ${WIKI_ROOT}`);
-    console.log(`[populate] Database:   ${DB_URL.replace(/\/\/.*@/, '//<credentials>@')}`);
-    console.log(`[populate] Dry run:    ${DRY_RUN}`);
-    console.log('');
+const PROJECT_QUERY = `SELECT ge.id, ge.payload->>'name' as name
+             FROM graph_entities ge WHERE ge.entity_type = 'project'`;
 
-    // 1. Verify wiki directory exists
-    try {
-        const stat = await fs.stat(WIKI_ROOT);
-        if (!stat.isDirectory()) {
-            console.error(`ERROR: ${WIKI_ROOT} is not a directory`);
-            process.exit(1);
-        }
-    } catch {
-        console.error(`ERROR: Wiki directory not found: ${WIKI_ROOT}`);
-        process.exit(1);
+/**
+ * Read saved Wiki Markdown and project metadata for a dry-run inventory.
+ * No write path is exposed by this runner; read failures reject the run.
+ */
+export async function runWikiPagesInventory({
+    dryRun = true,
+    wikiRoot,
+    dbUrl,
+    pool: suppliedPool,
+    fsImpl = fs,
+    logger = console,
+} = {}) {
+    if (!dryRun) {
+        throw new Error(`ERROR: ${RETIRED_MESSAGE}`);
+    }
+    if (!wikiRoot) {
+        throw new Error('ERROR: Wiki root is required');
+    }
+    if (!suppliedPool && !dbUrl) {
+        throw new Error('ERROR: DATABASE_URL is required');
     }
 
-    // 2. Collect all markdown files
-    const mdFiles = await collectMarkdownFiles(WIKI_ROOT);
-    console.log(`[populate] Found ${mdFiles.length} markdown files`);
+    let stat;
+    try {
+        stat = await fsImpl.stat(wikiRoot);
+    } catch (error) {
+        throw new Error(`Unable to read Wiki directory ${wikiRoot}: ${error.message}`, { cause: error });
+    }
+    if (!stat.isDirectory()) {
+        throw new Error(`ERROR: ${wikiRoot} is not a directory`);
+    }
+
+    const mdFiles = await collectMarkdownFiles(wikiRoot, fsImpl);
+    logMessage(logger, 'log', `[populate] Found ${mdFiles.length} markdown files`);
 
     if (mdFiles.length === 0) {
-        console.log('[populate] Nothing to do.');
-        return;
+        logMessage(logger, 'log', '[populate] Nothing to do.');
+        return { mdFiles, pages: [], warnings: [] };
     }
 
-    // 3. Connect to database and fetch known projects (with name→id mapping)
-    const pool = new pg.Pool({ connectionString: DB_URL });
+    const pool = suppliedPool || new pg.Pool({ connectionString: dbUrl });
+    const ownsPool = !suppliedPool;
 
-    // Build folder-name → project ULID mapping
-    // Projects table uses ULID IDs (prj_01KG...) but wiki folders use slug names (salestailor, zeims, etc.)
-    const folderToProjectId = new Map();
     try {
-        const { rows } = await pool.query(
-            `SELECT ge.id, ge.payload->>'name' as name
-             FROM graph_entities ge WHERE ge.entity_type = 'project'`
-        );
-        // Map lowercase name variants to project ID
+        // Build folder-name → project ULID mapping. A failed read is fatal:
+        // an empty mapping is not evidence that no projects exist.
+        const folderToProjectId = new Map();
+        const { rows } = await pool.query(PROJECT_QUERY);
         const NAME_TO_FOLDER = {
             'brainbase': 'brainbase',
             'baao': 'baao',
@@ -191,170 +190,104 @@ async function main() {
         };
         for (const row of rows) {
             const name = (row.name || '').toLowerCase();
-            // Direct lowercase match
             for (const [pattern, folder] of Object.entries(NAME_TO_FOLDER)) {
-                if (name === pattern || name.toLowerCase() === pattern) {
-                    folderToProjectId.set(folder, row.id);
-                }
+                if (name === pattern) folderToProjectId.set(folder, row.id);
             }
-            // Also try name as-is (lowercased) → folder
-            if (!folderToProjectId.has(name)) {
-                folderToProjectId.set(name, row.id);
-            }
+            if (!folderToProjectId.has(name)) folderToProjectId.set(name, row.id);
         }
-        console.log(`[populate] Project mapping: ${folderToProjectId.size} entries`);
+        logMessage(logger, 'log', `[populate] Project mapping: ${folderToProjectId.size} entries`);
         for (const [folder, id] of folderToProjectId) {
-            console.log(`  ${folder} → ${id}`);
-        }
-    } catch (err) {
-        console.warn(`[populate] WARNING: Could not query projects: ${err.message}`);
-        console.warn('[populate] Continuing without project mapping...');
-    }
-
-    // 4. Build page records
-    const pages = [];
-    const warnings = [];
-    const unmappedFolders = new Set();
-
-    for (const relPath of mdFiles) {
-        const wikiPath = toWikiPath(relPath);
-        const { projectId: folderName, sensitivity } = deriveProjectInfo(relPath);
-
-        // Resolve folder name to actual project ULID
-        let resolvedProjectId = null;
-        if (folderName) {
-            resolvedProjectId = folderToProjectId.get(folderName) || folderToProjectId.get(folderName.toLowerCase()) || null;
-            if (!resolvedProjectId && !unmappedFolders.has(folderName)) {
-                warnings.push(`Wiki folder '${folderName}' has no matching project in DB`);
-                unmappedFolders.add(folderName);
-            }
+            logMessage(logger, 'log', `  ${folder} → ${id}`);
         }
 
-        // Extract title, content_hash, size_bytes, content from file
-        let title;
-        let contentHash = null;
-        let sizeBytes = null;
-        let fileContent = null;
-        try {
-            fileContent = await fs.readFile(path.join(WIKI_ROOT, relPath), 'utf-8');
-            title = extractTitle(fileContent);
-            contentHash = crypto.createHash('sha256').update(fileContent).digest('hex');
-            sizeBytes = Buffer.byteLength(fileContent, 'utf-8');
-        } catch {
-            title = null;
-        }
-        if (!title) {
-            title = titleFromPath(relPath);
-        }
+        const pages = [];
+        const warnings = [];
+        const unmappedFolders = new Set();
 
-        pages.push({
-            wikiPath,
-            title,
-            roleMin: 'member',
-            sensitivity,
-            projectId: resolvedProjectId,
-            contentHash,
-            sizeBytes,
-            content: fileContent,
-        });
-    }
+        for (const relPath of mdFiles) {
+            const wikiPath = toWikiPath(relPath);
+            const { projectId: folderName, sensitivity } = deriveProjectInfo(relPath);
 
-    // Print warnings
-    if (warnings.length > 0) {
-        console.log('');
-        for (const w of warnings) {
-            console.warn(`  WARNING: ${w}`);
-        }
-    }
-
-    // 5. Dry-run output
-    if (DRY_RUN) {
-        console.log('');
-        console.log('─── Dry Run: pages to upsert ───');
-        for (const p of pages) {
-            const proj = p.projectId ?? '(null)';
-            const sens = p.sensitivity !== 'internal' ? ` [${p.sensitivity}]` : '';
-            console.log(`  ${p.wikiPath}  →  project=${proj}${sens}  title="${p.title}"`);
-        }
-        console.log('');
-        console.log(`[populate] Total: ${pages.length} pages would be upserted`);
-        await pool.end();
-        return;
-    }
-
-    // 6. UPSERT into wiki_pages
-    console.log('');
-    console.log(`[populate] Upserting ${pages.length} wiki_pages records...`);
-
-    const client = await pool.connect();
-    let inserted = 0;
-    let updated = 0;
-    let errors = 0;
-
-    try {
-        await client.query('BEGIN');
-
-        for (const p of pages) {
-            try {
-                const result = await client.query(
-                    `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id, content_hash, size_bytes, content)
-                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                     ON CONFLICT (path) DO UPDATE SET
-                         title = EXCLUDED.title,
-                         sensitivity = EXCLUDED.sensitivity,
-                         project_id = EXCLUDED.project_id,
-                         content_hash = EXCLUDED.content_hash,
-                         size_bytes = EXCLUDED.size_bytes,
-                         content = EXCLUDED.content,
-                         updated_at = NOW()
-                     RETURNING (xmax = 0) AS is_insert`,
-                    [
-                        `wiki_${ulid()}`,
-                        p.wikiPath,
-                        p.title,
-                        p.roleMin,
-                        p.sensitivity,
-                        p.projectId,
-                        p.contentHash,
-                        p.sizeBytes,
-                        p.content,
-                    ]
-                );
-                if (result.rows[0]?.is_insert) {
-                    inserted++;
-                } else {
-                    updated++;
+            let resolvedProjectId = null;
+            if (folderName) {
+                resolvedProjectId = folderToProjectId.get(folderName)
+                    || folderToProjectId.get(folderName.toLowerCase())
+                    || null;
+                if (!resolvedProjectId && !unmappedFolders.has(folderName)) {
+                    warnings.push(`Wiki folder '${folderName}' has no matching project in DB`);
+                    unmappedFolders.add(folderName);
                 }
-            } catch (err) {
-                console.error(`  ERROR: ${p.wikiPath}: ${err.message}`);
-                errors++;
             }
+
+            let fileContent;
+            try {
+                fileContent = await fsImpl.readFile(path.join(wikiRoot, relPath), 'utf-8');
+            } catch (error) {
+                throw new Error(`Unable to read Wiki file ${path.join(wikiRoot, relPath)}: ${error.message}`, { cause: error });
+            }
+            const title = extractTitle(fileContent) || titleFromPath(relPath);
+
+            pages.push({
+                wikiPath,
+                title,
+                roleMin: 'member',
+                sensitivity,
+                projectId: resolvedProjectId,
+                contentHash: crypto.createHash('sha256').update(fileContent).digest('hex'),
+                sizeBytes: Buffer.byteLength(fileContent, 'utf-8'),
+                content: fileContent,
+            });
         }
 
-        await client.query('COMMIT');
-    } catch (err) {
-        await client.query('ROLLBACK');
-        console.error(`[populate] Transaction failed, rolled back: ${err.message}`);
-        process.exit(1);
+        if (warnings.length > 0) {
+            logMessage(logger, 'log', '');
+            for (const warning of warnings) logMessage(logger, 'warn', `  WARNING: ${warning}`);
+        }
+
+        logMessage(logger, 'log', '');
+        logMessage(logger, 'log', '─── Dry Run: pages to upsert ───');
+        for (const page of pages) {
+            const project = page.projectId ?? '(null)';
+            const sensitivity = page.sensitivity !== 'internal' ? ` [${page.sensitivity}]` : '';
+            logMessage(logger, 'log', `  ${page.wikiPath}  →  project=${project}${sensitivity}  title="${page.title}"`);
+        }
+        logMessage(logger, 'log', '');
+        logMessage(logger, 'log', `[populate] Total: ${pages.length} pages would be upserted`);
+
+        return { mdFiles, pages, warnings };
     } finally {
-        client.release();
+        if (ownsPool) await pool.end();
     }
-
-    // 7. Summary
-    console.log('');
-    console.log('========== Populate Summary ==========');
-    console.log(`  Files scanned:   ${mdFiles.length}`);
-    console.log(`  Rows inserted:   ${inserted}`);
-    console.log(`  Rows updated:    ${updated}`);
-    console.log(`  Errors:          ${errors}`);
-    console.log(`  Warnings:        ${warnings.length}`);
-    console.log(`  Wiki root:       ${WIKI_ROOT}`);
-    console.log('======================================');
-
-    await pool.end();
 }
 
-main().catch(err => {
-    console.error('[populate] Fatal error:', err);
-    process.exit(1);
-});
+export async function main(argv = process.argv.slice(2)) {
+    const dryRun = argv.includes('--dry-run');
+    const wikiRoot = argv.find((_, index, args) => args[index - 1] === '--wiki-root')
+        || process.env.BRAINBASE_WIKI_ROOT
+        || path.resolve(__dirname, '..', '..', 'wiki');
+    const dbUrl = process.env.INFO_SSOT_DATABASE_URL
+        || process.env.INFO_SSOT_DB_URL
+        || process.env.DATABASE_URL
+        || 'postgresql://localhost:5432/brainbase';
+
+    if (!dryRun) {
+        console.error(`ERROR: ${RETIRED_MESSAGE}`);
+        return 1;
+    }
+
+    console.log(`[populate] Wiki root:  ${wikiRoot}`);
+    console.log(`[populate] Database:   ${dbUrl.replace(/\/\/.*@/, '//<credentials>@')}`);
+    console.log(`[populate] Dry run:    ${dryRun}`);
+    console.log('');
+    await runWikiPagesInventory({ dryRun, wikiRoot, dbUrl });
+    return 0;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    main().then(code => {
+        if (code) process.exitCode = code;
+    }).catch(error => {
+        console.error('[populate] Fatal error:', error);
+        process.exitCode = 1;
+    });
+}

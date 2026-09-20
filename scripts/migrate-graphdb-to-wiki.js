@@ -22,27 +22,11 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DRY_RUN = process.argv.includes('--dry-run');
-const WIKI_ROOT = process.argv.find((_, i, a) => a[i - 1] === '--wiki-root')
-    || process.env.BRAINBASE_WIKI_ROOT
-    || path.resolve(__dirname, '..', '..', 'wiki');
+const RETIRED_MESSAGE = 'GraphDB → Wiki materialization is retired. Query Graph directly; only --dry-run inventory is allowed.';
 
-const DB_URL = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL;
-
-if (!DRY_RUN) {
-    console.error('ERROR: GraphDB → Wiki materialization is retired. Query Graph directly; only --dry-run inventory is allowed.');
-    process.exit(1);
+function logMessage(logger, method, ...args) {
+    if (typeof logger?.[method] === 'function') logger[method](...args);
 }
-
-if (!DB_URL) {
-    console.error('ERROR: INFO_SSOT_DATABASE_URL is required');
-    process.exit(1);
-}
-
-console.log(`[migrate] Wiki root: ${WIKI_ROOT}`);
-console.log(`[migrate] Dry run: ${DRY_RUN}`);
-
-const pool = new pg.Pool({ connectionString: DB_URL });
 
 // ─────────────────── Entity → Markdown converters ───────────────────
 
@@ -337,13 +321,9 @@ function entityToMarkdown(entity) {
     }
 }
 
-// ─────────────────── Main ───────────────────
+// ─────────────────── Inventory runner ───────────────────
 
-async function main() {
-    // 1. Fetch all entities from graph_entities
-    console.log('[migrate] Fetching entities from graph_entities...');
-    const { rows: entities } = await pool.query(
-        `SELECT id AS entity_id, entity_type, project_id, payload, role_min, sensitivity, updated_at
+const ENTITY_QUERY = `SELECT id AS entity_id, entity_type, project_id, payload, role_min, sensitivity, updated_at
          FROM graph_entities
          WHERE entity_type IN ('person', 'project', 'org', 'decision', 'glossary_term',
                                 'speaking', 'media_appearance', 'role_assignment',
@@ -356,108 +336,110 @@ async function main() {
              WHERE entity_type = 'project'
                AND payload->>'code' LIKE 'simproj_%'
            )
-         ORDER BY entity_type, id`
+         ORDER BY entity_type, id`;
+
+/**
+ * Read the GraphDB rows and inspect the corresponding Wiki paths.
+ *
+ * This runner is deliberately dry-run only. The injected fs/pool arguments
+ * make the read-only and failure boundaries testable without touching a real
+ * database or the saved Wiki tree.
+ */
+export async function runGraphWikiInventory({
+    dryRun = true,
+    wikiRoot,
+    dbUrl,
+    pool: suppliedPool,
+    fsImpl = fs,
+    logger = console,
+} = {}) {
+    if (!dryRun) {
+        throw new Error(`ERROR: ${RETIRED_MESSAGE}`);
+    }
+    if (!wikiRoot) {
+        throw new Error('ERROR: Wiki root is required');
+    }
+    if (!suppliedPool && !dbUrl) {
+        throw new Error('ERROR: INFO_SSOT_DATABASE_URL is required');
+    }
+
+    const pool = suppliedPool || new pg.Pool({ connectionString: dbUrl });
+    const ownsPool = !suppliedPool;
+
+    try {
+    // 1. Fetch all entities from graph_entities
+    logMessage(logger, 'log', '[migrate] Fetching entities from graph_entities...');
+    const { rows: entities } = await pool.query(
+        ENTITY_QUERY
     );
-    console.log(`[migrate] Found ${entities.length} entities`);
+    logMessage(logger, 'log', `[migrate] Found ${entities.length} entities`);
 
     // 2. Filter: only migrate narrative-suitable types (skip raci, app, customer)
     const stats = { created: 0, skipped: 0, dbInserted: 0 };
-    const wikiPagesInserts = [];
 
     for (const entity of entities) {
         const wikiPath = entityToWikiPath(entity);
-        const filePath = path.join(WIKI_ROOT, `${wikiPath}.md`);
+        const filePath = path.join(wikiRoot, `${wikiPath}.md`);
         const content = entityToMarkdown(entity);
 
         // Check if file already exists
         try {
-            await fs.access(filePath);
-            console.log(`  [skip] ${wikiPath} (already exists)`);
+            await fsImpl.access(filePath);
+            logMessage(logger, 'log', `  [skip] ${wikiPath} (already exists)`);
             stats.skipped++;
             continue;
-        } catch {
-            // File doesn't exist, proceed
-        }
-
-        if (DRY_RUN) {
-            console.log(`  [dry-run] Would create: ${wikiPath} (${content.length} chars)`);
-            stats.created++;
-            continue;
-        }
-
-        // Create directory and write file
-        await fs.mkdir(path.dirname(filePath), { recursive: true });
-        await fs.writeFile(filePath, content, 'utf-8');
-        console.log(`  [created] ${wikiPath}`);
-        stats.created++;
-
-        // Prepare wiki_pages insert
-        wikiPagesInserts.push({
-            path: wikiPath,
-            title: entity.payload?.name || entity.payload?.title || wikiPath.split('/').pop(),
-            roleMin: entity.role_min || 'member',
-            sensitivity: entity.sensitivity || 'internal',
-            projectId: entity.project_id || null
-        });
-    }
-
-    // 3. Insert wiki_pages records
-    if (!DRY_RUN && wikiPagesInserts.length > 0) {
-        console.log(`\n[migrate] Inserting ${wikiPagesInserts.length} wiki_pages records...`);
-        const client = await pool.connect();
-        try {
-            await client.query('BEGIN');
-
-            // Ensure wiki_pages table exists
-            await client.query(`
-                CREATE TABLE IF NOT EXISTS wiki_pages (
-                    id text PRIMARY KEY,
-                    path text UNIQUE NOT NULL,
-                    title text NOT NULL,
-                    role_min text NOT NULL DEFAULT 'member',
-                    sensitivity text NOT NULL DEFAULT 'internal',
-                    project_id text REFERENCES projects(id),
-                    created_at timestamptz NOT NULL DEFAULT NOW(),
-                    updated_at timestamptz NOT NULL DEFAULT NOW()
-                )
-            `);
-
-            for (const page of wikiPagesInserts) {
-                const id = `wiki_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-                await client.query(
-                    `INSERT INTO wiki_pages (id, path, title, role_min, sensitivity, project_id)
-                     VALUES ($1, $2, $3, $4, $5, $6)
-                     ON CONFLICT (path) DO NOTHING`,
-                    [id, page.path, page.title, page.roleMin, page.sensitivity, page.projectId]
-                );
-                stats.dbInserted++;
-            }
-
-            await client.query('COMMIT');
-            console.log(`[migrate] DB records inserted: ${stats.dbInserted}`);
         } catch (error) {
-            await client.query('ROLLBACK');
-            console.error('[migrate] DB insert failed, rolled back:', error.message);
-        } finally {
-            client.release();
+            if (error?.code !== 'ENOENT') {
+                throw new Error(`Unable to inspect Wiki file ${filePath}: ${error.message}`, { cause: error });
+            }
         }
+
+        logMessage(logger, 'log', `  [dry-run] Would create: ${wikiPath} (${content.length} chars)`);
+        stats.created++;
     }
 
     // 4. Summary
-    console.log('\n========== Migration Summary ==========');
-    console.log(`  Files created:   ${stats.created}`);
-    console.log(`  Files skipped:   ${stats.skipped}`);
-    console.log(`  DB records:      ${stats.dbInserted}`);
-    console.log(`  Wiki root:       ${WIKI_ROOT}`);
-    if (DRY_RUN) {
-        console.log('  ⚠️  DRY RUN - no changes were made');
+    logMessage(logger, 'log', '\n========== Migration Summary ==========');
+    logMessage(logger, 'log', `  Files created:   ${stats.created}`);
+    logMessage(logger, 'log', `  Files skipped:   ${stats.skipped}`);
+    logMessage(logger, 'log', `  DB records:      ${stats.dbInserted}`);
+    logMessage(logger, 'log', `  Wiki root:       ${wikiRoot}`);
+    logMessage(logger, 'log', '  ⚠️  DRY RUN - no changes were made');
+    logMessage(logger, 'log', '========================================');
+
+    return { entities, stats };
+    } finally {
+        if (ownsPool) await pool.end();
     }
-    console.log('========================================');
 }
 
-main()
-    .catch(error => {
+export async function main(argv = process.argv.slice(2)) {
+    const dryRun = argv.includes('--dry-run');
+    const wikiRoot = argv.find((_, index, args) => args[index - 1] === '--wiki-root')
+        || process.env.BRAINBASE_WIKI_ROOT
+        || path.resolve(__dirname, '..', '..', 'wiki');
+    const dbUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL;
+
+    if (!dryRun) {
+        console.error(`ERROR: ${RETIRED_MESSAGE}`);
+        return 1;
+    }
+    if (!dbUrl) {
+        console.error('ERROR: INFO_SSOT_DATABASE_URL is required');
+        return 1;
+    }
+
+    console.log(`[migrate] Wiki root: ${wikiRoot}`);
+    console.log(`[migrate] Dry run: ${dryRun}`);
+    await runGraphWikiInventory({ dryRun, wikiRoot, dbUrl });
+    return 0;
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === __filename) {
+    main().then(code => {
+        if (code) process.exitCode = code;
+    }).catch(error => {
         console.error('[migrate] Fatal error:', error);
-        process.exit(1);
-    })
-    .finally(() => pool.end());
+        process.exitCode = 1;
+    });
+}
