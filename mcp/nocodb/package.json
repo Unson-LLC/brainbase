@@ -1,11 +1,8 @@
 {
   "name": "@brainbase/nocodb-mcp-server",
   "version": "1.0.0",
-  "description": "NocoDB MCP Server for Brainbase",
+  "description": "Retired NocoDB compatibility package for migration and canonical write-fence evidence",
   "type": "module",
-  "bin": {
-    "nocodb-mcp-server": "build/index.js"
-  },
   "files": [
     "build"
   ],
@@ -13,8 +10,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "prepare": "npm run build",
-    "test": "node --test tests/*.test.js",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+    "test": "node --test tests/*.test.js"
   },
   "keywords": [
     "nocodb",
@@ -25,9 +21,7 @@
     "brainbase"
   ],
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "axios": "^1.7.9",
-    "dotenv": "^17.2.3"
+    "axios": "^1.7.9"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",

@@ -782,7 +782,6 @@ fi
   it('does not let installable runtime configuration revive the retired clone', () => {
     const runtimeFiles = [
       'config/com.brainbase.mcp-brainbase.plist',
-      'config/com.brainbase.mcp-nocodb.plist',
       'config/com.brainbase.mcp-slack-unson.plist',
       'config/com.brainbase.mcp-slack-salestailor.plist',
       'config/com.brainbase.mcp-slack-techknight.plist',
@@ -796,6 +795,7 @@ fi
       expect(read(path), path).not.toContain('/Users/ksato/workspace/code/brainbase');
     }
     for (const path of [
+      'config/com.brainbase.mcp-nocodb.plist',
       'config/com.brainbase.sns-feedback-metrics-poller.plist',
       'config/com.brainbase.sns-scheduled-publisher.plist',
     ]) {
