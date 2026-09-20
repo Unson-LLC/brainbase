@@ -163,7 +163,19 @@ async function readbackRows(client, manifest) {
 }
 
 export async function readbackLegacyOrganizationAuthorityBridge({ client, manifest: raw } = {}) {
+    if (!client?.query) fail('DATABASE_CONFIG_REQUIRED', 'A PostgreSQL client is required');
     const manifest = normalizeLegacyOrganizationAuthorityBridgeManifest(raw);
-    await foundation(client, manifest, 'FOR SHARE');
-    return readbackRows(client, manifest);
+    let began = false;
+    try {
+        await client.query('BEGIN'); began = true;
+        await client.query("SELECT set_config('brainbase.tenant_id',$1,true)", [manifest.tenant_id]);
+        await foundation(client, manifest, 'FOR SHARE');
+        const readback = await readbackRows(client, manifest);
+        await client.query('COMMIT'); began = false;
+        return readback;
+    } catch (error) {
+        if (began) { try { await client.query('ROLLBACK'); } catch {} }
+        if (error instanceof LegacyOrganizationAuthorityBridgeError) throw error;
+        throw new LegacyOrganizationAuthorityBridgeError('UPSTREAM_UNAVAILABLE', 'Legacy organization bridge readback failed; inspect control-plane logs');
+    }
 }

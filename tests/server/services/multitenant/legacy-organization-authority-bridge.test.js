@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
     normalizeLegacyOrganizationAuthorityBridgeManifest,
-    provisionLegacyOrganizationAuthorityBridge
+    provisionLegacyOrganizationAuthorityBridge,
+    readbackLegacyOrganizationAuthorityBridge
 } from '../../../../server/services/multitenant/legacy-organization-authority-bridge.js';
 
 const manifest = {
@@ -13,6 +14,7 @@ const manifest = {
 
 function client({ grantProjects = ['baao', 'brainbase'], grantClearance = ['internal'], existingProjectPayload = null, existingOrganizationPayload = null, existingLegacyAlias = false, legacyAliasTenantId = manifest.tenant_id, existingMembership = null } = {}) {
     const inserted = { project: false, organization: false, membership: false };
+    const queries = [];
     const stored = {
         project: existingProjectPayload ? {
             project_id: manifest.project_id,
@@ -34,6 +36,7 @@ function client({ grantProjects = ['baao', 'brainbase'], grantClearance = ['inte
     };
     const query = async (sql, params = []) => {
         const compact = sql.replace(/\s+/gu, ' ').trim();
+        queries.push({ compact, params });
         if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(compact) || compact.includes('set_config') || compact.includes('pg_advisory_xact_lock')) return { rows: [] };
         if (compact.includes('FROM brainbase_tenants')) return { rows: [{ tenant_id: manifest.tenant_id, tenant_key: 'unson-business', tenant_revision: 1, status: 'active' }] };
         if (compact.includes('FROM organizations')) return { rows: [{ id: 'unson' }] };
@@ -52,7 +55,7 @@ function client({ grantProjects = ['baao', 'brainbase'], grantClearance = ['inte
         if (compact.includes('FROM tenant_memberships')) return { rows: stored.membership ? [{ membership_id: stored.membership.membership_id, principal_id: stored.membership.principal_id, membership_payload: stored.membership.membership_payload }] : [] };
         throw new Error(`Unexpected query: ${compact} ${JSON.stringify(params)}`);
     };
-    return { query, inserted };
+    return { query, inserted, queries };
 }
 
 describe('legacy organization authority bridge', () => {
@@ -187,5 +190,34 @@ describe('legacy organization authority bridge', () => {
         };
         await expect(provisionLegacyOrganizationAuthorityBridge({ client: client({ existingMembership }), manifest, actorId: 'operator-keigo', commit: true }))
             .rejects.toMatchObject({ code: 'TENANT_MEMBERSHIP_CONFLICT' });
+    });
+
+    it('sets tenant context in a transaction before independent post-commit readback', async () => {
+        const canonicalMembership = {
+            membership_id: 'membership:unson-business:U088D1HBY6L',
+            tenant_id: manifest.tenant_id,
+            organization_id: manifest.tenant_organization_id,
+            principal_id: manifest.person_id,
+            membership_payload: {
+                status: 'active', principal_type: 'person', tenant_role: 'tenant_admin',
+                project_codes: ['brainbase', 'baao'], clearance: ['internal']
+            }
+        };
+        const db = client({
+            existingProjectPayload: { source: 'approved_meeting_minutes_projection', project_code: 'baao' },
+            existingOrganizationPayload: { status: 'active' },
+            existingLegacyAlias: true,
+            existingMembership: canonicalMembership
+        });
+
+        const result = await readbackLegacyOrganizationAuthorityBridge({ client: db, manifest });
+
+        expect(result.resolved_tenant).toEqual({ tenant_id: manifest.tenant_id, organization_id: 'unson' });
+        expect(db.queries[0]).toEqual({ compact: 'BEGIN', params: [] });
+        expect(db.queries[1]).toEqual({
+            compact: "SELECT set_config('brainbase.tenant_id',$1,true)",
+            params: [manifest.tenant_id]
+        });
+        expect(db.queries.at(-1)).toEqual({ compact: 'COMMIT', params: [] });
     });
 });

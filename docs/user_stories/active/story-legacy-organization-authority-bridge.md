@@ -12,4 +12,4 @@
 - tenant organization、project、membershipを同一transactionで冪等に作成する。
 - 同じtenantに既存の旧組織ID別名行がある場合は再利用し、Graph対応を二重登録しない。
 - dry-runは同じ検証とreadbackを行い、永続化しない。
-- apply後は別connectionからresolver、organization、project、membershipをreadbackできる。
+- apply後は別connectionでもtenant contextをtransaction内に設定し、RLSを迂回せずresolver、organization、project、membershipをreadbackできる。
