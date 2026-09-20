@@ -632,7 +632,10 @@ export class MultitenantPostgresRepository {
                 && snapshot?.credential_mode === fixed.credential_mode
                 && JSON.stringify(snapshotScopes) === JSON.stringify(fixed.required_scopes)
                 && snapshot?.tenant_id === undefined && snapshot?.connection_id === undefined
-                && snapshot?.connection_revision === undefined && snapshot?.credential_ref === undefined;
+                && snapshot?.connection_revision === undefined
+                && snapshot?.refresh_revision === undefined
+                && (snapshot?.credential_ref === undefined
+                    || snapshot?.credential_ref === current.credential_ref);
             if (!exact && !legacySnapshot) {
                 return { state: 'conflict', snapshot: publicFixedManaSlackSnapshot(snapshot) };
             }
