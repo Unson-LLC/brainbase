@@ -118,7 +118,9 @@ describe('FixedManaSlackConnectionAdoptionService', () => {
             connection_id: FIXED_MANA_SLACK_CONNECTION.connection_id,
             credential_material: RAW_TOKEN
         }));
-        expect(credentialStore.verify).toHaveBeenCalledWith(expect.objectContaining({ credential_ref: OPAQUE_REF }));
+        expect(credentialStore.verify).toHaveBeenCalledWith(expect.objectContaining({
+            connection_revision: '2', credential_ref: OPAQUE_REF
+        }));
         expect(repository.adoptFixedManaSlackConnection).toHaveBeenCalledWith(expect.objectContaining({
             definition: FIXED_MANA_SLACK_CONNECTION,
             credential: { credential_ref: OPAQUE_REF, credential_mode: 'customer_oauth', refresh_revision: '0' }
@@ -161,7 +163,9 @@ describe('FixedManaSlackConnectionAdoptionService', () => {
 
         await expect(service.execute({ mode: 'apply', approved: true })).resolves.toMatchObject({ state: 'already_adopted' });
         expect(credentialStore.store).not.toHaveBeenCalled();
-        expect(credentialStore.verify).toHaveBeenCalledWith(expect.objectContaining({ credential_ref: OPAQUE_REF }));
+        expect(credentialStore.verify).toHaveBeenCalledWith(expect.objectContaining({
+            connection_revision: '2', credential_ref: OPAQUE_REF
+        }));
 
         const { service: conflictService, credentialStore: conflictStore } = fixtures({ repository: {
             inspectFixedManaSlackConnection: vi.fn(async () => ({
@@ -190,7 +194,12 @@ describe('FixedManaSlackConnectionAdoptionService', () => {
         } });
 
         await expect(service.execute({ mode: 'apply', approved: true })).resolves.toMatchObject({ state: 'upgraded' });
-        expect(credentialStore.verify).toHaveBeenCalledWith(expect.objectContaining({ credential_ref: OPAQUE_REF }));
+        expect(credentialStore.verify).toHaveBeenNthCalledWith(1, expect.objectContaining({
+            connection_revision: '1', credential_ref: OPAQUE_REF
+        }));
+        expect(credentialStore.verify).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            connection_revision: '2', credential_ref: OPAQUE_REF
+        }));
         expect(credentialStore.store).toHaveBeenCalledWith(expect.objectContaining({
             connection_revision: '2', idempotency_key: 'fixed-mana-slack-upgrade-rev2'
         }));

@@ -156,7 +156,7 @@ export class FixedManaSlackConnectionAdoptionService {
             return safeResult(inspection.snapshot, 'already_adopted');
         }
         if (inspection?.state === 'legacy') {
-            await this.verifyCredential(opaqueCredential(inspection.credential));
+            await this.verifyCredential(opaqueCredential(inspection.credential), '1');
             let credential;
             try {
                 credential = opaqueCredential(await this.credentialStore.store({
@@ -239,13 +239,13 @@ export class FixedManaSlackConnectionAdoptionService {
         // root; app_id remains an immutable DB tuple, not mutable CLI input.
     }
 
-    async verifyCredential(credential) {
+    async verifyCredential(credential, connectionRevision = FIXED_MANA_SLACK_CONNECTION.connection_revision) {
         let verified;
         try {
             verified = await this.credentialStore.verify({
                 tenant_id: FIXED_MANA_SLACK_CONNECTION.tenant_id,
                 connection_id: FIXED_MANA_SLACK_CONNECTION.connection_id,
-                connection_revision: FIXED_MANA_SLACK_CONNECTION.connection_revision,
+                connection_revision: connectionRevision,
                 provider: FIXED_MANA_SLACK_CONNECTION.provider,
                 credential_ref: credential.credential_ref
             });
