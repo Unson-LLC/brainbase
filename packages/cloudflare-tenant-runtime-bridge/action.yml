@@ -4,6 +4,11 @@ description: Deploy the canonical Brainbase tenant runtime bridge with the calle
 runs:
   using: composite
   steps:
+    - name: Configure Mana outcome authority verification key
+      shell: bash
+      run: |
+        test -n "${MANA_OUTCOME_AUTHORITY_JWKS_JSON:-}"
+        printf '%s' "$MANA_OUTCOME_AUTHORITY_JWKS_JSON" | npx --yes wrangler@4.124.0 secret put MANA_OUTCOME_AUTHORITY_JWKS_JSON --config "$GITHUB_ACTION_PATH/wrangler.jsonc"
     - name: Deploy canonical bridge
       shell: bash
       run: npx --yes wrangler@4.124.0 deploy --config "$GITHUB_ACTION_PATH/wrangler.jsonc"

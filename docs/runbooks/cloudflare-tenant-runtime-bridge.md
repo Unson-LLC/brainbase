@@ -77,6 +77,7 @@ npx wrangler secret put BRAINBASE_TENANT_RUNTIME_ORIGIN_HOSTNAME --config packag
 npx wrangler secret put BRAINBASE_SERVICE_JWT --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
 npx wrangler secret put CF_ACCESS_CLIENT_ID --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
 npx wrangler secret put CF_ACCESS_CLIENT_SECRET --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
+npx wrangler secret put MANA_OUTCOME_AUTHORITY_JWKS_JSON --config packages/cloudflare-tenant-runtime-bridge/wrangler.jsonc
 npm run build --prefix packages/cloudflare-tenant-runtime-bridge
 npm run deploy --prefix packages/cloudflare-tenant-runtime-bridge
 ```

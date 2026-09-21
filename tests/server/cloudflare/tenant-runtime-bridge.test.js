@@ -15,6 +15,41 @@ const ENV = Object.freeze({
     CF_ACCESS_CLIENT_SECRET: 'access-client-secret-not-a-production-secret'
 });
 
+function b64url(bytes) {
+    return Buffer.from(bytes).toString('base64url');
+}
+
+function canonicalize(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`;
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalize(value[key])}`).join(',')}}`;
+}
+
+async function signedOutcomeRequest(overrides = {}) {
+    const pair = await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']);
+    const publicJwk = await crypto.subtle.exportKey('jwk', pair.publicKey);
+    const principal = { tenant_id: 'ten_a', project_id: 'baao', actor_principal_id: 'per_a' };
+    const persisted = { contract_id: 'contract-a', contract_version: '2', run_id: 'run-a',
+        resource_ref: 'meeting-minutes:baao' };
+    const issuedAt = new Date();
+    const payload = { schema_version: '1.0', issuer: 'unson-business-mana-runtime',
+        audience: 'brainbase-tenant-runtime', issued_at: issuedAt.toISOString(),
+        expires_at: new Date(issuedAt.getTime() + 60_000).toISOString(), operation_id: 'op_a', principal, persisted,
+        authority_revision: '2:1', profile_id: 'meeting_minutes_github_v1',
+        run_mode: 'safe_test', contract_status: 'draft', ...(overrides.payload ?? {}) };
+    const header = b64url(new TextEncoder().encode(canonicalize({ alg: 'EdDSA', b64: false,
+        crit: ['b64'], kid: 'key-a', typ: 'application/mana-outcome-authority-proof+jws' })));
+    const signature = await crypto.subtle.sign({ name: 'Ed25519' }, pair.privateKey,
+        new TextEncoder().encode(`${header}.${canonicalize(payload)}`));
+    const body = { profile: 'meeting_minutes_github_v1', principal, persisted,
+        required: { operation_id: 'op_a', run_mode: 'safe_test' }, authority_proof: { payload,
+            integrity: { method: 'jws_detached', algorithm: 'EdDSA', key_id: 'key-a',
+                value: `${header}..${b64url(signature)}` } }, ...(overrides.body ?? {}) };
+    return { body, env: { ...ENV, MANA_OUTCOME_AUTHORITY_JWKS_JSON: JSON.stringify({ keys: [
+        { ...publicJwk, kid: 'key-a', use: 'sig', alg: 'EdDSA' }
+    ] }) } };
+}
+
 function request(path = '/api/v1/runtime/provider-requests:forward', init = {}) {
     return new Request(`http://127.0.0.1:31016${path}`, {
         method: 'POST',
@@ -55,14 +90,10 @@ describe('Cloudflare tenant runtime private bridge', () => {
         });
         expect(config.routes).toBeUndefined();
         expect(config.vars).toBeUndefined();
-        expect(config.services).toContainEqual({
-            binding: 'MANA_OUTCOME_AUTHORITY_READBACK_SERVICE',
-            service: 'unson-business-mana-runtime',
-            entrypoint: 'OutcomeAuthorityReadbackService'
-        });
+        expect(config.services).toBeUndefined();
     });
 
-    it('reads persisted Mana authority before forwarding an outcome issuance request', async () => {
+    it('verifies signed persisted Mana authority before forwarding an outcome issuance request', async () => {
         const readback = {
             principal: { tenant_id: 'ten_a', project_id: 'baao', actor_principal_id: 'per_a' },
             persisted: { contract_id: 'contract-a', contract_version: '2', run_id: 'run-a',
@@ -70,33 +101,51 @@ describe('Cloudflare tenant runtime private bridge', () => {
             authority_revision: '2:1', profile_id: 'meeting_minutes_github_v1',
             run_mode: 'safe_test', contract_status: 'draft'
         };
-        const authorityFetch = vi.fn(async (input, init) => {
-            expect(new URL(input).pathname).toBe('/v1/outcome-authority:readback');
-            expect(JSON.parse(init.body)).toEqual({
-                tenant: 'ten_a', project: 'baao', actor: 'per_a', contract: 'contract-a',
-                version: 2, run: 'run-a', resource: 'meeting-minutes:baao'
-            });
-            return Response.json(readback);
-        });
         const fetchImpl = vi.fn(async (input) => {
             const forwarded = new Request(input);
+            const forwardedBody = await forwarded.clone().json();
+            expect(forwardedBody).not.toHaveProperty('authority_proof');
             const encoded = forwarded.headers.get('brainbase-outcome-authority-readback');
             expect(JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))).toEqual(readback);
             return Response.json({ ok: true });
         });
-        const body = {
-            principal: { tenant_id: 'ten_a', project_id: 'baao', actor_principal_id: 'per_a' },
-            persisted: { contract_id: 'contract-a', contract_version: '2', run_id: 'run-a',
-                resource_ref: 'meeting-minutes:baao' }
-        };
+        const { body, env } = await signedOutcomeRequest();
 
         const response = await handleTenantRuntimeBridgeRequest(request('/v1/outcome-service-context:issue', {
             body: JSON.stringify(body)
-        }), { ...ENV, MANA_OUTCOME_AUTHORITY_READBACK_SERVICE: { fetch: authorityFetch } }, { fetchImpl });
+        }), env, { fetchImpl });
 
         expect(response.status).toBe(200);
-        expect(authorityFetch).toHaveBeenCalledOnce();
         expect(fetchImpl).toHaveBeenCalledOnce();
+    });
+
+    it('rejects a signed proof when the forwarded principal is changed', async () => {
+        const { body, env } = await signedOutcomeRequest({ body: {
+            principal: { tenant_id: 'ten_other', project_id: 'baao', actor_principal_id: 'per_a' }
+        } });
+        const fetchImpl = vi.fn();
+        const response = await handleTenantRuntimeBridgeRequest(request('/v1/outcome-service-context:issue', {
+            body: JSON.stringify(body)
+        }), env, { fetchImpl });
+        expect(response.status).toBe(403);
+        await expect(response.json()).resolves.toMatchObject({ code: 'OUTCOME_AUTHORITY_PROOF_INVALID' });
+        expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it('rejects expired or tampered proofs before the upstream request', async () => {
+        const expired = await signedOutcomeRequest({ payload: {
+            issued_at: '2026-01-01T00:00:00.000Z', expires_at: '2026-01-01T00:01:00.000Z'
+        } });
+        const tampered = await signedOutcomeRequest();
+        tampered.body.authority_proof.integrity.value = `${tampered.body.authority_proof.integrity.value.slice(0, -1)}A`;
+        for (const candidate of [expired, tampered]) {
+            const fetchImpl = vi.fn();
+            const response = await handleTenantRuntimeBridgeRequest(request('/v1/outcome-service-context:issue', {
+                body: JSON.stringify(candidate.body)
+            }), candidate.env, { fetchImpl });
+            expect(response.status).toBe(403);
+            expect(fetchImpl).not.toHaveBeenCalled();
+        }
     });
 
     it('forwards the exact provider route to the configured Tunnel origin with Access service auth', async () => {

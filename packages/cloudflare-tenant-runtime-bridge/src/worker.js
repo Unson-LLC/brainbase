@@ -17,7 +17,6 @@ export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
     '/api/v1/runtime/operation-receipts:finalize-with-pricing'
 ]);
 const OUTCOME_CONTEXT_ISSUE_PATH = '/v1/outcome-service-context:issue';
-const OUTCOME_AUTHORITY_READBACK_PATH = '/v1/outcome-authority:readback';
 const OUTCOME_AUTHORITY_READBACK_HEADER = 'brainbase-outcome-authority-readback';
 export const VERIFICATION_KEYS_PATH = '/api/v1/runtime/verification-keys';
 const RECEIPT_HISTORY_PATH = /^\/api\/v1\/runtime\/operation-receipts\/receipt_[0-9A-HJKMNP-TV-Z]{26}\/history:read$/;
@@ -152,31 +151,70 @@ function upstreamHeaders(request, env, outcomeAuthorityReadback = null) {
     return headers;
 }
 
-async function readOutcomeAuthority(requestBody, env) {
-    const service = env?.MANA_OUTCOME_AUTHORITY_READBACK_SERVICE;
-    if (!service || typeof service.fetch !== 'function') throw new Error('bridge_configuration_invalid');
+function canonicalize(value) {
+    if (value === null || typeof value !== 'object') return JSON.stringify(value);
+    if (Array.isArray(value)) return `[${value.map(canonicalize).join(',')}]`;
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalize(value[key])}`).join(',')}}`;
+}
+
+function base64UrlDecode(value) {
+    const normalized = value.replaceAll('-', '+').replaceAll('_', '/');
+    const binary = atob(normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '='));
+    return Uint8Array.from(binary, (character) => character.charCodeAt(0));
+}
+
+async function verifyOutcomeAuthority(requestBody, env, now = new Date()) {
     let body;
     try {
         body = JSON.parse(new TextDecoder().decode(requestBody));
     } catch {
         throw new TypeError('request_body_invalid');
     }
-    const readback = {
-        tenant: body?.principal?.tenant_id,
-        project: body?.principal?.project_id,
-        actor: body?.principal?.actor_principal_id,
-        contract: body?.persisted?.contract_id,
-        version: Number(body?.persisted?.contract_version),
-        run: body?.persisted?.run_id,
-        resource: body?.persisted?.resource_ref
-    };
-    const response = await service.fetch(`https://mana.internal${OUTCOME_AUTHORITY_READBACK_PATH}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', accept: 'application/json' },
-        body: JSON.stringify(readback)
-    });
-    if (!response.ok) throw new Error('outcome_authority_readback_denied');
-    return response.json();
+    const proof = body?.authority_proof;
+    const payload = proof?.payload;
+    const integrity = proof?.integrity;
+    if (!payload || !integrity || integrity.method !== 'jws_detached' || integrity.algorithm !== 'EdDSA') {
+        throw new Error('outcome_authority_proof_invalid');
+    }
+    let jwks;
+    try { jwks = JSON.parse(requiredSecret(env, 'MANA_OUTCOME_AUTHORITY_JWKS_JSON')); }
+    catch { throw new Error('bridge_configuration_invalid'); }
+    const matches = Array.isArray(jwks?.keys) ? jwks.keys.filter((key) => key?.kid === integrity.key_id
+        && key.kty === 'OKP' && key.crv === 'Ed25519' && (!key.use || key.use === 'sig')) : [];
+    if (matches.length !== 1) throw new Error('outcome_authority_proof_invalid');
+    const [protectedHeader, detached, encodedSignature, ...rest] = String(integrity.value).split('.');
+    let header;
+    try { header = JSON.parse(new TextDecoder().decode(base64UrlDecode(protectedHeader))); }
+    catch { throw new Error('outcome_authority_proof_invalid'); }
+    if (!protectedHeader || detached !== '' || !encodedSignature || rest.length
+        || header.alg !== 'EdDSA' || header.b64 !== false || header.kid !== integrity.key_id
+        || canonicalize(header.crit) !== '["b64"]'
+        || header.typ !== 'application/mana-outcome-authority-proof+jws') {
+        throw new Error('outcome_authority_proof_invalid');
+    }
+    let key;
+    try { key = await crypto.subtle.importKey('jwk', matches[0], { name: 'Ed25519' }, false, ['verify']); }
+    catch { throw new Error('bridge_configuration_invalid'); }
+    const verified = await crypto.subtle.verify({ name: 'Ed25519' }, key, base64UrlDecode(encodedSignature),
+        new TextEncoder().encode(`${protectedHeader}.${canonicalize(payload)}`));
+    const issuedAt = Date.parse(payload.issued_at);
+    const expiresAt = Date.parse(payload.expires_at);
+    const observedAt = now.getTime();
+    if (!verified || payload.schema_version !== '1.0' || payload.issuer !== 'unson-business-mana-runtime'
+        || payload.audience !== 'brainbase-tenant-runtime' || !Number.isFinite(issuedAt) || !Number.isFinite(expiresAt)
+        || expiresAt <= issuedAt || expiresAt - issuedAt > 60_000 || issuedAt > observedAt + 10_000 || expiresAt < observedAt - 10_000
+        || canonicalize(payload.principal) !== canonicalize(body.principal)
+        || canonicalize(payload.persisted) !== canonicalize(body.persisted)
+        || payload.operation_id !== body?.required?.operation_id
+        || payload.run_mode !== body?.required?.run_mode
+        || payload.profile_id !== body?.profile
+        || typeof payload.authority_revision !== 'string' || !payload.authority_revision
+        || !['draft', 'active'].includes(payload.contract_status)) {
+        throw new Error('outcome_authority_proof_invalid');
+    }
+    return { principal: payload.principal, persisted: payload.persisted,
+        authority_revision: payload.authority_revision, profile_id: payload.profile_id,
+        run_mode: payload.run_mode, contract_status: payload.contract_status };
 }
 
 function safeUpstreamProblem(body, upstream, logger) {
@@ -237,11 +275,14 @@ export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl
     let outcomeAuthorityReadback = null;
     if (route.path === OUTCOME_CONTEXT_ISSUE_PATH) {
         try {
-            outcomeAuthorityReadback = await readOutcomeAuthority(body, env);
+            outcomeAuthorityReadback = await verifyOutcomeAuthority(body, env);
+            const { authority_proof: _authorityProof, ...forwardBody } = JSON.parse(new TextDecoder().decode(body));
+            body = new TextEncoder().encode(JSON.stringify(forwardBody));
         } catch (error) {
             if (error instanceof TypeError) return problem(400, 'REQUEST_BODY_INVALID');
             if (error?.message === 'bridge_configuration_invalid') return problem(503, 'BRIDGE_CONFIGURATION_INVALID');
-            return problem(502, 'OUTCOME_AUTHORITY_READBACK_FAILED', true);
+            if (error?.message === 'outcome_authority_proof_invalid') return problem(403, 'OUTCOME_AUTHORITY_PROOF_INVALID');
+            return problem(502, 'OUTCOME_AUTHORITY_PROOF_VERIFICATION_FAILED', true);
         }
     }
     try {
