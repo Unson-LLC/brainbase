@@ -1,33 +1,35 @@
 import { describe, expect, it, vi } from 'vitest';
+import { ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
 import {
     createKnowledgeBedrockAdapter,
-    knowledgeBedrockContract
+    knowledgeBedrockContract,
+    QWEN3_235B_MODEL_ID
 } from '../../server/services/knowledge-bedrock-adapter.js';
 import { KnowledgeAIAdapterContractError } from '../../server/services/knowledge-capture-preview-adapter.js';
 
 function providerResponse(value) {
     return {
-        body: new TextEncoder().encode(JSON.stringify({
-            content: [{ text: JSON.stringify(value) }]
-        }))
+        output: {
+            message: {
+                content: [{ text: JSON.stringify(value) }]
+            }
+        }
     };
 }
 
 describe('knowledge Bedrock adapter', () => {
-    it('reuses the existing InvokeModel Anthropic contract for a strict capture proposal', async () => {
+    it('uses the Converse contract for a strict capture proposal', async () => {
         const bedrockClient = {
             send: vi.fn(async (command) => {
-                expect(command.input.modelId).toBe('model-test');
-                expect(command.input.contentType).toBe('application/json');
-                expect(command.input.accept).toBe('application/json');
-                const request = JSON.parse(command.input.body);
-                expect(request).toMatchObject({
-                    anthropic_version: 'bedrock-2023-05-31',
-                    max_tokens: 1024,
-                    system: expect.stringContaining('knowledge capture proposal adapter')
+                expect(command).toBeInstanceOf(ConverseCommand);
+                expect(command.input).toMatchObject({
+                    modelId: QWEN3_235B_MODEL_ID,
+                    inferenceConfig: { maxTokens: 1024 },
+                    system: [{ text: expect.stringContaining('knowledge capture proposal adapter') }],
+                    messages: [{ role: 'user', content: [{ text: expect.any(String) }] }]
                 });
-                const input = JSON.parse(request.messages[0].content[0].text);
+                const input = JSON.parse(command.input.messages[0].content[0].text);
                 expect(input).toMatchObject({
                     project_code: 'alpha',
                     content: 'new note',
@@ -49,11 +51,7 @@ describe('knowledge Bedrock adapter', () => {
                 });
             })
         };
-        const adapter = createKnowledgeBedrockAdapter({
-            bedrockClient,
-            modelId: 'model-test',
-            maxTokens: 1024
-        });
+        const adapter = createKnowledgeBedrockAdapter({ bedrockClient });
 
         await expect(adapter.proposeCapture({
             project_code: 'alpha',
@@ -74,9 +72,10 @@ describe('knowledge Bedrock adapter', () => {
     it('sends only the isolated preview inputs and preserves exact candidate citations', async () => {
         const bedrockClient = {
             send: vi.fn(async (command) => {
-                const request = JSON.parse(command.input.body);
-                expect(request.messages[0].role).toBe('user');
-                const input = JSON.parse(request.messages[0].content[0].text);
+                expect(command).toBeInstanceOf(ConverseCommand);
+                expect(command.input.modelId).toBe(QWEN3_235B_MODEL_ID);
+                expect(command.input.messages[0].role).toBe('user');
+                const input = JSON.parse(command.input.messages[0].content[0].text);
                 expect(input).toMatchObject({
                     project_code: 'alpha',
                     question: 'what applies?',
@@ -93,7 +92,7 @@ describe('knowledge Bedrock adapter', () => {
                 });
             })
         };
-        const adapter = createKnowledgeBedrockAdapter({ bedrockClient, modelId: 'model-test' });
+        const adapter = createKnowledgeBedrockAdapter({ bedrockClient });
 
         await expect(adapter.preview({
             project_code: 'alpha',
@@ -113,10 +112,10 @@ describe('knowledge Bedrock adapter', () => {
     it('fails closed on malformed provider output rather than returning raw text', async () => {
         const bedrockClient = {
             send: vi.fn(async () => ({
-                body: new TextEncoder().encode(JSON.stringify({ content: [{ text: 'title only' }] }))
+                output: { message: { content: [{ text: 'title only' }] } }
             }))
         };
-        const adapter = createKnowledgeBedrockAdapter({ bedrockClient, modelId: 'model-test' });
+        const adapter = createKnowledgeBedrockAdapter({ bedrockClient });
 
         await expect(adapter.proposeCapture({ content: 'new note' }))
             .rejects.toBeInstanceOf(KnowledgeAIAdapterContractError);
@@ -124,14 +123,25 @@ describe('knowledge Bedrock adapter', () => {
             .rejects.toBeInstanceOf(KnowledgeAIAdapterContractError);
     });
 
-    it('requires explicit provider client and model id', () => {
+    it('fails closed when the Converse response has missing or multiple text blocks', async () => {
+        for (const response of [
+            {},
+            { output: { message: { content: [] } } },
+            { output: { message: { content: [{ text: '{}' }, { text: '{}' }] } } }
+        ]) {
+            const bedrockClient = { send: vi.fn(async () => response) };
+            const adapter = createKnowledgeBedrockAdapter({ bedrockClient });
+            await expect(adapter.proposeCapture({ content: 'new note' }))
+                .rejects.toBeInstanceOf(KnowledgeAIAdapterContractError);
+        }
+    });
+
+    it('requires a provider client and uses the Qwen3 235B standard contract', () => {
         expect(() => createKnowledgeBedrockAdapter()).toThrow(/bedrockClient/);
-        expect(() => createKnowledgeBedrockAdapter({ bedrockClient: { send: vi.fn() } }))
-            .toThrow(/modelId/);
         expect(knowledgeBedrockContract).toEqual({
-            anthropicVersion: 'bedrock-2023-05-31',
-            request: 'InvokeModelCommand',
-            response: 'content[0].text JSON'
+            modelId: QWEN3_235B_MODEL_ID,
+            request: 'ConverseCommand',
+            response: 'output.message.content[0].text JSON'
         });
     });
 });
