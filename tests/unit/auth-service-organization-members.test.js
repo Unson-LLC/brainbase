@@ -8,6 +8,10 @@ function serviceWithClient(query, slackDirectory = null) {
         connect: async () => ({ query, release: () => {} })
     };
     service.slackDirectory = slackDirectory;
+    service.resolveTenantForOrganization = async (organizationId) => ({
+        tenant_id: organizationId === 'baao-organization' ? 'ten_baao' : 'ten_unson',
+        organization_id: organizationId
+    });
     return service;
 }
 
@@ -38,8 +42,8 @@ describe('AuthService organization member administration', () => {
             active: true
         };
         const slackDirectory = {
-            findMember: async ({ workspaceId, slackUserId }) => {
-                expect({ workspaceId, slackUserId }).toEqual({ workspaceId: 'T_BAAO', slackUserId: 'UTESTBAAO1' });
+            findMember: async ({ tenantId, workspaceId, slackUserId }) => {
+                expect({ tenantId, workspaceId, slackUserId }).toEqual({ tenantId: 'ten_baao', workspaceId: 'T_BAAO', slackUserId: 'UTESTBAAO1' });
                 return { slackUserId: 'UTESTBAAO1', displayName: '山本 力弥', realName: '山本 力弥', email: 'yamamoto@baao.jp' };
             }
         };
@@ -68,8 +72,8 @@ describe('AuthService organization member administration', () => {
 
     it('searches the authenticated tenant Slack workspace and hides registered users', async () => {
         const slackDirectory = {
-            listMembers: async ({ workspaceId, query }) => {
-                expect({ workspaceId, query }).toEqual({ workspaceId: 'T_BAAO', query: '山本' });
+            listMembers: async ({ tenantId, workspaceId, query }) => {
+                expect({ tenantId, workspaceId, query }).toEqual({ tenantId: 'ten_baao', workspaceId: 'T_BAAO', query: '山本' });
                 return [
                     { slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥', email: 'yamamoto@baao.jp' },
                     { slackUserId: 'UREGISTERED1', displayName: '登録済み', realName: '登録済み', email: 'registered@baao.jp' }
@@ -89,12 +93,13 @@ describe('AuthService organization member administration', () => {
 
     it('uses the unique member-directory workspace linked by organization grants when login Slack differs', async () => {
         const slackDirectory = {
-            resolveWorkspaceId: async ({ workspaceIds }) => {
+            resolveWorkspaceId: async ({ tenantId, workspaceIds }) => {
+                expect(tenantId).toBe('ten_unson');
                 expect(workspaceIds).toEqual(['T_LOGIN', 'T_BUSINESS']);
                 return 'T_BUSINESS';
             },
-            listMembers: async ({ workspaceId, query }) => {
-                expect({ workspaceId, query }).toEqual({ workspaceId: 'T_BUSINESS', query: '山本' });
+            listMembers: async ({ tenantId, workspaceId, query }) => {
+                expect({ tenantId, workspaceId, query }).toEqual({ tenantId: 'ten_unson', workspaceId: 'T_BUSINESS', query: '山本' });
                 return [{ slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥', email: 'yamamoto@example.jp' }];
             }
         };
@@ -122,8 +127,8 @@ describe('AuthService organization member administration', () => {
             }
             return { rows: [] };
         }, {
-            listMembers: async ({ workspaceId }) => {
-                expect(workspaceId).toBe('T_BAAO');
+            listMembers: async ({ tenantId, workspaceId }) => {
+                expect({ tenantId, workspaceId }).toEqual({ tenantId: 'ten_baao', workspaceId: 'T_BAAO' });
                 return [{ slackUserId: 'UYAMAMOTO1', email: 'yamamoto@baao.jp' }];
             }
         });
