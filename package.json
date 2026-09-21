@@ -35,6 +35,10 @@
       "types": "./dist/canonical-task-contract.d.ts",
       "import": "./dist/canonical-task-contract.js"
     },
+    "./personal-knowledge": {
+      "types": "./dist/personal-knowledge.d.ts",
+      "import": "./dist/personal-knowledge.js"
+    },
     "./ui/outcome-knowledge": "./ui/outcome-knowledge.js",
     "./ui/outcome-knowledge.css": "./ui/outcome-knowledge.css",
     "./ui/outcome-mana": "./ui/outcome-mana.js",

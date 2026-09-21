@@ -17,6 +17,17 @@ import { getOntologyImpact, inferPersonalOs, portableOntology, resolveOntologyVe
 import { loadPersonalOs } from './ssot.js';
 import { getContext, listEntities, onboardingStatus, searchAll, searchPersonalKg } from './tools.js';
 import type { CanonicalEntityKind, GraphFileV2 } from './types.js';
+import {
+  createLocalPersonalKnowledgeStore,
+  createPersonalKnowledgeClient,
+  decodePersonalKnowledgeContextHeader,
+  PERSONAL_KNOWLEDGE_CONTRACT_VERSION,
+  validatePersonalKnowledgeContext,
+  type PersonalKnowledgeClient,
+  type PersonalKnowledgeContext,
+  type PersonalKnowledgeEventInput,
+  type PersonalKnowledgeStore
+} from './personal-knowledge.js';
 
 const argsSchema = z.object({
   dataDir: z.string().optional(),
@@ -38,6 +49,31 @@ const argsSchema = z.object({
 });
 
 const searchArgsSchema = argsSchema.pick({ dataDir: true, query: true, limit: true, project: true, as_of: true, asOf: true, seedIds: true, steps: true, mode: true }).strict();
+
+const personalKnowledgeEventSchema = z.object({
+  event_id: z.string().min(1),
+  body: z.string().optional(),
+  content: z.string().optional(),
+  body_hash: z.string().min(1).optional(),
+  occurred_at: z.string().min(1).optional(),
+  captured_at: z.string().min(1).optional(),
+  source: z.unknown().optional(),
+  source_pointer: z.unknown().optional(),
+  parent_episode_id: z.string().min(1).nullable().optional(),
+  permission_snapshot: z.record(z.unknown()).optional(),
+  sensitivity: z.string().min(1).optional(),
+  kind: z.string().min(1).optional(),
+  type: z.string().min(1).optional(),
+  tags: z.array(z.string().min(1)).optional(),
+  metadata: z.record(z.unknown()).optional()
+}).strict();
+
+const personalKnowledgeContextSchema = z.object({}).strict();
+const personalKnowledgeRegisterSchema = z.object({ event: personalKnowledgeEventSchema }).strict();
+const personalKnowledgeSearchSchema = z.object({
+  query: z.string(),
+  limit: z.number().int().min(1).max(50).optional()
+}).strict();
 
 const mentionSpanSchema = z.object({
   start: z.number().int().nonnegative(),
@@ -194,6 +230,61 @@ export const toolDefinitions = [
         dataDir: { type: 'string' },
         query: { type: 'string' },
         limit: { type: 'number' }
+      }
+    }
+  },
+  {
+    name: 'personal_knowledge_context',
+    description: 'Return the authenticated v1 personal knowledge context. Identity and storage selection come from trusted configuration, not tool arguments.',
+    inputSchema: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {}
+    }
+  },
+  {
+    name: 'personal_knowledge_register',
+    description: 'Register one v1 personal knowledge event in the explicitly configured local or managed context. Caller identity, organization, source, and path are never accepted as event fields.',
+    inputSchema: {
+      type: 'object',
+      required: ['event'],
+      additionalProperties: false,
+      properties: {
+        event: {
+          type: 'object',
+          required: ['event_id'],
+          additionalProperties: false,
+          properties: {
+            event_id: { type: 'string', minLength: 1 },
+            body: { type: 'string' },
+            content: { type: 'string' },
+            body_hash: { type: 'string', minLength: 1 },
+            occurred_at: { type: 'string', minLength: 1 },
+            captured_at: { type: 'string', minLength: 1 },
+            source: {},
+            source_pointer: {},
+            parent_episode_id: { type: ['string', 'null'] },
+            permission_snapshot: { type: 'object' },
+            sensitivity: { type: 'string', minLength: 1 },
+            kind: { type: 'string', minLength: 1 },
+            type: { type: 'string', minLength: 1 },
+            tags: { type: 'array', items: { type: 'string', minLength: 1 } },
+            metadata: { type: 'object' }
+          }
+        }
+      }
+    }
+  },
+  {
+    name: 'personal_knowledge_search',
+    description: 'Search the explicitly configured v1 personal knowledge context. The result includes the verified context and never falls back to another store.',
+    inputSchema: {
+      type: 'object',
+      required: ['query'],
+      additionalProperties: false,
+      properties: {
+        query: { type: 'string', minLength: 1, maxLength: 4000 },
+        limit: { type: 'integer', minimum: 1, maximum: 50 }
       }
     }
   },
@@ -362,6 +453,33 @@ export const toolDefinitions = [
   }
 ] as const;
 
+const managedPersonalKnowledgeToolNames = new Set([
+  'personal_knowledge_context',
+  'personal_knowledge_register',
+  'personal_knowledge_search'
+]);
+
+function isPersonalKnowledgeTool(name: string): boolean {
+  return managedPersonalKnowledgeToolNames.has(name);
+}
+
+function configuredPersonalKnowledgeMode(): 'local' | 'managed_cloud' {
+  const configuredMode = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_MODE?.trim()
+    || process.env.BRAINBASE_PERSONAL_KG_STORAGE_MODE?.trim()
+    || 'local';
+  if (configuredMode === 'local' || configuredMode === 'managed_cloud') {
+    return configuredMode;
+  }
+  throw new Error(`Unsupported Personal Knowledge mode: ${configuredMode}.`);
+}
+
+function configuredToolDefinitions() {
+  if (configuredPersonalKnowledgeMode() === 'managed_cloud') {
+    return toolDefinitions.filter((tool) => isPersonalKnowledgeTool(tool.name));
+  }
+  return [...toolDefinitions];
+}
+
 let embeddingProvider: EmbeddingProvider | undefined;
 let embeddingProviderInitialized = false;
 function configuredEmbeddingProvider(): EmbeddingProvider | undefined {
@@ -372,7 +490,87 @@ function configuredEmbeddingProvider(): EmbeddingProvider | undefined {
   return embeddingProvider;
 }
 
+type PersonalKnowledgeRuntime = PersonalKnowledgeStore | PersonalKnowledgeClient;
+
+function configuredPersonalKnowledgeContext(): PersonalKnowledgeContext {
+  const encoded = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_CONTEXT?.trim()
+    || process.env.BRAINBASE_PERSONAL_CONTEXT?.trim();
+  if (encoded) return decodePersonalKnowledgeContextHeader(encoded);
+
+  const scope = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_SCOPE?.trim()
+    || process.env.BRAINBASE_PERSONAL_SCOPE?.trim()
+    || 'organization_private';
+  const owner = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_OWNER_PERSON_ID?.trim()
+    || process.env.BRAINBASE_PERSON_ID?.trim();
+  const source = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_SOURCE_ID?.trim()
+    || process.env.BRAINBASE_PERSONAL_SOURCE_ID?.trim();
+  const organization = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_ORGANIZATION_ID?.trim()
+    || process.env.BRAINBASE_ORGANIZATION_ID?.trim();
+  if (!owner || !source) {
+    throw new Error('Managed Personal Knowledge requires owner person and source configuration.');
+  }
+  return validatePersonalKnowledgeContext({
+    contract_version: PERSONAL_KNOWLEDGE_CONTRACT_VERSION,
+    scope,
+    owner_person_id: owner,
+    organization_id: scope === 'personal_owned' ? null : organization,
+    source_id: source
+  });
+}
+
+function configuredPersonalKnowledgeRuntime(): PersonalKnowledgeRuntime {
+  const configuredMode = configuredPersonalKnowledgeMode();
+  if (configuredMode === 'local') {
+    const encodedContext = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_CONTEXT?.trim()
+      || process.env.BRAINBASE_PERSONAL_CONTEXT?.trim();
+    if (encodedContext) {
+      const context = decodePersonalKnowledgeContextHeader(encodedContext);
+      if (context.scope !== 'personal_owned' || context.organization_id !== null) {
+        throw new Error('OSS local Personal Knowledge requires a personal_owned context.');
+      }
+      return createLocalPersonalKnowledgeStore({ context });
+    }
+    return createLocalPersonalKnowledgeStore();
+  }
+  const apiUrl = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_API_URL?.trim()
+    || process.env.BRAINBASE_PERSONAL_KG_MANAGED_CLOUD_API_URL?.trim();
+  if (!apiUrl) throw new Error('Managed Personal Knowledge requires an explicit API URL.');
+  const token = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_TOKEN
+    || process.env.BRAINBASE_PERSONAL_KG_TOKEN;
+  if (!token?.trim()) throw new Error('Managed Personal Knowledge requires an authenticated token.');
+  return createPersonalKnowledgeClient({
+    mode: 'managed_cloud',
+    apiUrl,
+    expectedContext: configuredPersonalKnowledgeContext(),
+    token
+  });
+}
+
+async function callPersonalKnowledgeTool(name: string, rawArgs: unknown): Promise<unknown> {
+  const runtime = configuredPersonalKnowledgeRuntime();
+  if (name === 'personal_knowledge_context') {
+    personalKnowledgeContextSchema.parse(rawArgs ?? {});
+    return runtime.getContext();
+  }
+  if (name === 'personal_knowledge_register') {
+    const args = personalKnowledgeRegisterSchema.parse(rawArgs ?? {});
+    return runtime.register(args.event as PersonalKnowledgeEventInput);
+  }
+  if (name === 'personal_knowledge_search') {
+    const args = personalKnowledgeSearchSchema.parse(rawArgs ?? {});
+    return runtime.search(args.query, args.limit);
+  }
+  throw new Error(`Unknown Personal Knowledge tool: ${name}`);
+}
+
 export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Promise<unknown> {
+  const mode = configuredPersonalKnowledgeMode();
+  if (mode === 'managed_cloud' && !isPersonalKnowledgeTool(name)) {
+    throw new Error('managed_cloud Personal Knowledge MCP only permits personal_knowledge_context, personal_knowledge_register, and personal_knowledge_search.');
+  }
+  if (isPersonalKnowledgeTool(name)) {
+    return callPersonalKnowledgeTool(name, rawArgs);
+  }
   if (name in connectedSchemas) {
     return callConnectedOnboardingTool(name as keyof typeof connectedSchemas, rawArgs);
   }
@@ -743,7 +941,7 @@ export function createServer(): Server {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [...toolDefinitions]
+    tools: configuredToolDefinitions()
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
