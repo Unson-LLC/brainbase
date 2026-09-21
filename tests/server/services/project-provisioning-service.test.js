@@ -178,12 +178,12 @@ describe('ProjectProvisioningService', () => {
         expect(authGrantService.addProjectGrant).not.toHaveBeenCalled();
     });
 
-    it('organizationIdとtenantIdが一致しないactorを曖昧なtenant identityとして拒否する', async () => {
+    it('組織コードと正規tenant IDが異なるactorでも組織scopeでcheckできる', async () => {
         const { service, repository } = createHarness();
 
-        await expect(service.check({ ...actor, tenantId: 'other-org' }, manifest)).rejects.toMatchObject({
-            code: 'PROJECT_PROVISIONING_TENANT_IDENTITY_MISMATCH',
-            statusCode: 409
+        await expect(service.check({ ...actor, tenantId: 'ten_unson' }, manifest)).resolves.toMatchObject({
+            ok: true,
+            writes_performed: 0
         });
         expect(repository.runs.size).toBe(0);
         expect(repository.projects.size).toBe(0);
