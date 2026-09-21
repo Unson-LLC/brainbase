@@ -1,0 +1,19 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-organization-member-management-v1",
+  "title": "テナント管理者が組織メンバーと権限を管理できる",
+  "acceptance_criteria": [
+    "CEOだけが正本メンバーAPIを利用できる",
+    "organization_idは認証済みaccessから解決する",
+    "追加するproject_codesは同じorganization_idに所属するものだけ許可する",
+    "最後の有効なCEOは降格または無効化できない",
+    "一組織のgrant無効化でperson全体を無効化しない",
+    "追加・更新を監査ログへ記録する"
+  ],
+  "verification": [
+    "tests/unit/auth-service-organization-members.test.js",
+    "tests/unit/auth-service-grants.test.js",
+    "eslint changed files",
+    "git diff --check"
+  ]
+}

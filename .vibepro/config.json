@@ -623,8 +623,15 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-organization-member-management-v1",
+        "title": "テナント管理者が組織メンバーと権限を管理できる",
+        "ssot": "local",
+        "status": "active",
+        "contract_type": "outcome"
       }
     ],
-    "current_story_id": "story-unson-runtime-cutover"
+    "current_story_id": "story-organization-member-management-v1"
   }
 }

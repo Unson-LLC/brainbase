@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-organization-member-management-v1",
+  "role": "reviewer",
+  "status": "pass",
+  "summary": "CEO認可、organization_id固定、project所属検証、最後のCEO保護、組織grantとperson状態の分離を確認。阻害事項なし",
+  "recorded_at": "2026-09-21T02:53:40.928Z",
+  "findings": [],
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 3 file(s)",
+    "recorded_head_sha": null,
+    "surface_files": [
+      {
+        "path": "server/controllers/auth-controller.js",
+        "sha256": "d03bc4f0a6cf101e07bdc389918dd1e50d8ea6f1b63389c04f193f1ac79b7c67",
+        "size": 49445
+      },
+      {
+        "path": "server/services/auth-service.js",
+        "sha256": "36ee5a1eedd91cb8c32e6a5efa3b91d16d9c3e31028b7125b137a6a5a7229cdc",
+        "size": 82153
+      },
+      {
+        "path": "tests/unit/auth-service-organization-members.test.js",
+        "sha256": "c3568fdb51efcabac21dfc3f1f9ebcd8feb8ebd860dec46c7201f89ca1afd04a",
+        "size": 4508
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "9e4558f8a21651a04150632f61e2c05f1cca7e418711d3c6b04ed3b7d70e541d"
+  },
+  "reviewer": {
+    "system": null,
+    "id": null
+  }
+}

@@ -618,6 +618,91 @@ export class AuthController {
     };
 
     /** @param {Request & { access?: any }} req @param {Response} res */
+    members = async (req, res) => {
+        const access = req.access || {};
+        if (String(access.role || '').toLowerCase() !== 'ceo' || !access.organizationId) {
+            return res.status(403).json({ error: 'CEO role is required' });
+        }
+        try {
+            const members = await this.authService.listOrganizationMembers(access.organizationId);
+            return res.json({ organizationId: access.organizationId, members });
+        } catch (error) {
+            return res.status(500).json({ error: getErrorMessage(error) || 'Member lookup failed' });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    createMember = async (req, res) => {
+        const access = req.access || {};
+        if (String(access.role || '').toLowerCase() !== 'ceo' || !access.organizationId) {
+            return res.status(403).json({ error: 'CEO role is required' });
+        }
+        try {
+            const member = await this.authService.createOrganizationMember({
+                organizationId: access.organizationId,
+                personName: req.body?.personName,
+                slackUserId: req.body?.slackUserId,
+                role: req.body?.role,
+                projectCodes: req.body?.projectCodes
+            });
+            await this.authService.createAuditLog({
+                personId: access.personId || null,
+                slackUserId: access.slackUserId || null,
+                slackWorkspaceId: access.slackWorkspaceId || null,
+                eventType: 'AUTH_MEMBER_CREATED',
+                metadata: {
+                    organizationId: access.organizationId,
+                    grantId: member.id,
+                    role: member.role,
+                    projectCodes: member.project_codes
+                }
+            });
+            return res.status(201).json({ member });
+        } catch (error) {
+            const message = getErrorMessage(error) || 'Member creation failed';
+            const status = /required|invalid|already|outside/i.test(message) ? 400 : 500;
+            return res.status(status).json({ error: message });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    updateMember = async (req, res) => {
+        const access = req.access || {};
+        if (String(access.role || '').toLowerCase() !== 'ceo' || !access.organizationId) {
+            return res.status(403).json({ error: 'CEO role is required' });
+        }
+        try {
+            const member = await this.authService.updateOrganizationMember({
+                organizationId: access.organizationId,
+                grantId: req.params.grantId,
+                personName: req.body?.personName,
+                role: req.body?.role,
+                projectCodes: req.body?.projectCodes,
+                active: req.body?.active
+            });
+            await this.authService.createAuditLog({
+                personId: access.personId || null,
+                slackUserId: access.slackUserId || null,
+                slackWorkspaceId: access.slackWorkspaceId || null,
+                eventType: 'AUTH_MEMBER_UPDATED',
+                metadata: {
+                    organizationId: access.organizationId,
+                    grantId: member.id,
+                    role: member.role,
+                    projectCodes: member.project_codes,
+                    active: member.active
+                }
+            });
+            return res.json({ member });
+        } catch (error) {
+            const message = getErrorMessage(error) || 'Member update failed';
+            const status = /not found/i.test(message) ? 404
+                : /required|invalid|last active|outside/i.test(message) ? 400 : 500;
+            return res.status(status).json({ error: message });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
     logout = async (req, res) => {
         try {
             const access = req.access || {};

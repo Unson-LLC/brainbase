@@ -1,0 +1,392 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-organization-member-management-v1",
+  "updated_at": "2026-09-21T02:52:13.411Z",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-09-21T02:52:12.518Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.28",
+      "exact_version": "0.2.0-beta.28",
+      "root": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.28/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.28/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/Users/ksato/.local/share/vibepro-runtime/current/node_modules/vibepro/bin/vibepro.js",
+      "runtime_module": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.28/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.28",
+          "package_json_sha256": "f4a9e542286e8159dae286bbfb4fbb0b813bc5be304c04cd223361861f2b147e",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "dea09e2ddea48693d0efb96eddb1959295767223",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "dea09e2ddea48693d0efb96eddb1959295767223",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "dea09e2ddea48693d0efb96eddb1959295767223",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "dea09e2ddea48693d0efb96eddb1959295767223",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "88e130793adbde2629b6e9acf2a8341f521de463b02e8718c93a8bb96d69348c",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "warnings": [
+    {
+      "id": "verification_run_counts_not_parsed",
+      "command_name": "verify run",
+      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    }
+  ],
+  "commands": [
+    {
+      "kind": "unit",
+      "status": "pass",
+      "command": "npm run test:run -- tests/unit/auth-service-organization-members.test.js tests/unit/auth-service-grants.test.js tests/unit/auth-service-permission.test.js",
+      "summary": "vibepro verify run executed the unit command: exit_code=0, duration_ms=1749, status=pass computed from the exit code | agent summary: 正本auth_grantsのテナント境界とCEO保護",
+      "artifact": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.json",
+      "artifact_check": {
+        "status": "verified",
+        "format": "generic_status",
+        "artifact_outcome": "pass",
+        "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+      },
+      "artifact_observed_values": {
+        "status": "pass",
+        "exit_code": "0",
+        "evidence_source": "runner_direct",
+        "run_artifact": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.json",
+        "run_log": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.log",
+        "duration_ms": "1749",
+        "started_at": "2026-09-21T02:52:10.408Z",
+        "finished_at": "2026-09-21T02:52:12.157Z",
+        "head_sha_before": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+        "head_sha_after": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+        "head_sha": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+        "worktree_sampled": "true",
+        "worktree_sampling_complete": "true",
+        "worktree_sha256_before": "60ab82c82d291af0c0b76eb2b747087e7d5f82e38756ff6c30e7e44423466e65",
+        "worktree_sha256_after": "60ab82c82d291af0c0b76eb2b747087e7d5f82e38756ff6c30e7e44423466e65",
+        "stdout_sha256": "49850c037a2d40de34ca2fb3fc177ca875c7426cb1e95a04561f77d747e35690",
+        "output_sha256": "49850c037a2d40de34ca2fb3fc177ca875c7426cb1e95a04561f77d747e35690",
+        "output_bytes": "8270",
+        "log_truncated": "false",
+        "output_metrics": "none",
+        "timed_out": "false",
+        "output_limit_exceeded": "false",
+        "external_kill_signal": "none",
+        "timeout_ms": "7200000",
+        "max_output_bytes": "67108864",
+        "harness_env_removed": "none",
+        "runner_node_version": "v22.23.2",
+        "tree_mutated_during_run": "false",
+        "head_moved_during_run": "false",
+        "worktree_changed_during_run": "false",
+        "worktree_status_sha256_before": "9ff30dc3c4dfd014c11cc5956077bc58bde700e4ff19c12f93b0eb8c3992da36",
+        "worktree_status_sha256_after": "9ff30dc3c4dfd014c11cc5956077bc58bde700e4ff19c12f93b0eb8c3992da36",
+        "worktree_diff_sha256_before": "cd1e93675e8cc88f11da10e550d84fc2a91ce71fff377bae129e3205971b602f",
+        "worktree_diff_sha256_after": "cd1e93675e8cc88f11da10e550d84fc2a91ce71fff377bae129e3205971b602f"
+      },
+      "observation": {
+        "targets": [
+          "server/services/auth-service.js",
+          "server/controllers/auth-controller.js"
+        ],
+        "scenarios": [
+          "同一組織だけを更新し最後のCEOを保持する"
+        ],
+        "values": {
+          "status": "pass",
+          "exit_code": "0",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.json",
+          "run_log": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.log",
+          "duration_ms": "1749",
+          "started_at": "2026-09-21T02:52:10.408Z",
+          "finished_at": "2026-09-21T02:52:12.157Z",
+          "head_sha_before": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+          "head_sha_after": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+          "head_sha": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "60ab82c82d291af0c0b76eb2b747087e7d5f82e38756ff6c30e7e44423466e65",
+          "worktree_sha256_after": "60ab82c82d291af0c0b76eb2b747087e7d5f82e38756ff6c30e7e44423466e65",
+          "stdout_sha256": "49850c037a2d40de34ca2fb3fc177ca875c7426cb1e95a04561f77d747e35690",
+          "output_sha256": "49850c037a2d40de34ca2fb3fc177ca875c7426cb1e95a04561f77d747e35690",
+          "output_bytes": "8270",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "7200000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.2",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "9ff30dc3c4dfd014c11cc5956077bc58bde700e4ff19c12f93b0eb8c3992da36",
+          "worktree_status_sha256_after": "9ff30dc3c4dfd014c11cc5956077bc58bde700e4ff19c12f93b0eb8c3992da36",
+          "worktree_diff_sha256_before": "cd1e93675e8cc88f11da10e550d84fc2a91ce71fff377bae129e3205971b602f",
+          "worktree_diff_sha256_after": "cd1e93675e8cc88f11da10e550d84fc2a91ce71fff377bae129e3205971b602f"
+        }
+      },
+      "observation_check": {
+        "status": "recorded",
+        "reason": "observation states the inspected targets and what was observed"
+      },
+      "evidence_source": "runner_direct",
+      "computed_observation": {
+        "producer": "vibepro verify run",
+        "computed_keys": [
+          "status",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "exit_code",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "values": {
+          "status": "pass",
+          "evidence_source": "runner_direct",
+          "run_artifact": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.json",
+          "run_log": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.log",
+          "exit_code": "0",
+          "duration_ms": "1749",
+          "started_at": "2026-09-21T02:52:10.408Z",
+          "finished_at": "2026-09-21T02:52:12.157Z",
+          "head_sha_before": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+          "head_sha_after": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+          "head_sha": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+          "worktree_sampled": "true",
+          "worktree_sampling_complete": "true",
+          "worktree_sha256_before": "60ab82c82d291af0c0b76eb2b747087e7d5f82e38756ff6c30e7e44423466e65",
+          "worktree_sha256_after": "60ab82c82d291af0c0b76eb2b747087e7d5f82e38756ff6c30e7e44423466e65",
+          "stdout_sha256": "49850c037a2d40de34ca2fb3fc177ca875c7426cb1e95a04561f77d747e35690",
+          "output_sha256": "49850c037a2d40de34ca2fb3fc177ca875c7426cb1e95a04561f77d747e35690",
+          "output_bytes": "8270",
+          "log_truncated": "false",
+          "output_metrics": "none",
+          "timed_out": "false",
+          "output_limit_exceeded": "false",
+          "external_kill_signal": "none",
+          "timeout_ms": "7200000",
+          "max_output_bytes": "67108864",
+          "harness_env_removed": "none",
+          "runner_node_version": "v22.23.2",
+          "tree_mutated_during_run": "false",
+          "head_moved_during_run": "false",
+          "worktree_changed_during_run": "false",
+          "worktree_status_sha256_before": "9ff30dc3c4dfd014c11cc5956077bc58bde700e4ff19c12f93b0eb8c3992da36",
+          "worktree_status_sha256_after": "9ff30dc3c4dfd014c11cc5956077bc58bde700e4ff19c12f93b0eb8c3992da36",
+          "worktree_diff_sha256_before": "cd1e93675e8cc88f11da10e550d84fc2a91ce71fff377bae129e3205971b602f",
+          "worktree_diff_sha256_after": "cd1e93675e8cc88f11da10e550d84fc2a91ce71fff377bae129e3205971b602f"
+        },
+        "artifact_derived_keys": [
+          "status",
+          "exit_code",
+          "evidence_source",
+          "run_artifact",
+          "run_log",
+          "duration_ms",
+          "started_at",
+          "finished_at",
+          "head_sha_before",
+          "head_sha_after",
+          "head_sha",
+          "worktree_sampled",
+          "worktree_sampling_complete",
+          "worktree_sha256_before",
+          "worktree_sha256_after",
+          "stdout_sha256",
+          "output_sha256",
+          "output_bytes",
+          "log_truncated",
+          "output_metrics",
+          "timed_out",
+          "output_limit_exceeded",
+          "external_kill_signal",
+          "timeout_ms",
+          "max_output_bytes",
+          "harness_env_removed",
+          "runner_node_version",
+          "tree_mutated_during_run",
+          "head_moved_during_run",
+          "worktree_changed_during_run",
+          "worktree_status_sha256_before",
+          "worktree_status_sha256_after",
+          "worktree_diff_sha256_before",
+          "worktree_diff_sha256_after"
+        ],
+        "run_artifact": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.json",
+        "run_log": ".vibepro/pr/story-organization-member-management-v1/verification-runs/unit.log",
+        "tree_mutated_during_run": false,
+        "head_moved_during_run": false,
+        "worktree_changed_during_run": false,
+        "worktree_sampled": true,
+        "worktree_sampling_complete": true,
+        "output_metrics": "none"
+      },
+      "executed_at": "2026-09-21T02:52:12.157Z",
+      "git_context": {
+        "head_sha": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+        "current_branch": "codex/member-management",
+        "dirty": true,
+        "raw_dirty": true,
+        "status_fingerprint_hash": "7449edf380c4b95b5635aedad8da2d4f61b8c1fe30e3df2a1dba606809339e79",
+        "user_status_fingerprint_hash": "1b469b19cdf009cb084bbd638f0e6c577e4df2ba79592482400e3b91e58a9d35",
+        "fingerprint_scope": {
+          "user_excludes": [
+            ".vibepro/",
+            ".worktrees/vibepro/"
+          ]
+        },
+        "recorded_at": "2026-09-21T02:52:13.398Z"
+      },
+      "content_binding": {
+        "schema_version": "0.1.0",
+        "model": "vibepro-content-scoped-evidence-freshness-v1",
+        "mode": "content_surface",
+        "status": "recorded",
+        "reason": "content surface recorded for 2 file(s)",
+        "recorded_head_sha": "483f1bba400d3d1b6c1fbc86867f1db160c36988",
+        "surface_files": [
+          {
+            "path": "server/controllers/auth-controller.js",
+            "sha256": "d03bc4f0a6cf101e07bdc389918dd1e50d8ea6f1b63389c04f193f1ac79b7c67",
+            "size": 49445
+          },
+          {
+            "path": "server/services/auth-service.js",
+            "sha256": "36ee5a1eedd91cb8c32e6a5efa3b91d16d9c3e31028b7125b137a6a5a7229cdc",
+            "size": 82153
+          }
+        ],
+        "missing_files": [],
+        "surface_hash": "d7b1c6c654ff59f98d9611291039d3a30a543c51c4dfde190d14ae1ea83d091b"
+      },
+      "runtime_identity": {
+        "schema_version": "0.2.0",
+        "collected_at": "2026-09-21T02:52:12.518Z",
+        "mode": "normal",
+        "source_kind": "npm_package",
+        "test_context": null,
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.28",
+          "exact_version": "0.2.0-beta.28",
+          "root": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.28/node_modules/vibepro"
+        },
+        "cli": {
+          "entrypoint": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.28/node_modules/vibepro/bin/vibepro.js",
+          "invoked_as": "/Users/ksato/.local/share/vibepro-runtime/current/node_modules/vibepro/bin/vibepro.js",
+          "runtime_module": "/Users/ksato/.local/share/vibepro-runtime/0.2.0-beta.28/node_modules/vibepro/src/runtime-info.js"
+        },
+        "release_manifest": {
+          "status": "valid",
+          "manifest": {
+            "schema_version": "0.1.0",
+            "package": {
+              "name": "vibepro",
+              "version": "0.2.0-beta.28",
+              "package_json_sha256": "f4a9e542286e8159dae286bbfb4fbb0b813bc5be304c04cd223361861f2b147e",
+              "entrypoint": "bin/vibepro.js"
+            },
+            "source_git": {
+              "commit": "dea09e2ddea48693d0efb96eddb1959295767223",
+              "origin_url": "https://github.com/Unson-LLC/vibepro",
+              "origin_main_commit": "dea09e2ddea48693d0efb96eddb1959295767223",
+              "origin_main_relation": "same",
+              "dirty": false
+            }
+          },
+          "errors": []
+        },
+        "source_git": {
+          "is_git_repo": false,
+          "commit": "dea09e2ddea48693d0efb96eddb1959295767223",
+          "branch": null,
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "dea09e2ddea48693d0efb96eddb1959295767223",
+          "origin_main_relation": "published",
+          "dirty": false,
+          "dirty_summary": []
+        },
+        "identity_digest": "88e130793adbde2629b6e9acf2a8341f521de463b02e8718c93a8bb96d69348c",
+        "integrity": {
+          "status": "trusted",
+          "code": null,
+          "purpose": "evidence_generation",
+          "reasons": [
+            "manifested immutable npm runtime"
+          ]
+        }
+      },
+      "managed_worktree_context": null,
+      "warnings": [
+        {
+          "id": "verification_run_counts_not_parsed",
+          "command_name": "verify run",
+          "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+        }
+      ]
+    }
+  ]
+}
