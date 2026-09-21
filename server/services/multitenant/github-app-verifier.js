@@ -137,6 +137,62 @@ export function createGitHubAppVerifierFromEnv({ env = process.env, fetchImpl = 
         return installationSnapshot(body, { installationId, appId, appSlug });
     }
 
+    async function readOrganizationInstallation(organizationLogin) {
+        if (typeof organizationLogin !== 'string' || !/^[A-Za-z0-9-]{1,39}$/u.test(organizationLogin)) {
+            throw new ContractError('GITHUB_INSTALLATION_VERIFICATION_FAILED', {
+                status: 502,
+                fault_domain: 'external_provider'
+            });
+        }
+        let response;
+        try {
+            response = await fetchImpl(
+                `${GITHUB_API_URL}/orgs/${encodeURIComponent(organizationLogin)}/installation`,
+                {
+                    method: 'GET',
+                    headers: {
+                        accept: 'application/vnd.github+json',
+                        authorization: `Bearer ${appJwt()}`,
+                        'x-github-api-version': GITHUB_API_VERSION
+                    },
+                    signal: AbortSignal.timeout(10_000)
+                }
+            );
+        } catch {
+            throw new ContractError('GITHUB_INSTALLATION_VERIFICATION_FAILED', {
+                status: 502,
+                retryable: true,
+                fault_domain: 'external_provider'
+            });
+        }
+        if (response?.status === 404) return null;
+        if (!response?.ok) {
+            throw new ContractError('GITHUB_INSTALLATION_VERIFICATION_FAILED', {
+                status: 502,
+                retryable: response?.status === 429 || Number(response?.status) >= 500,
+                fault_domain: 'external_provider'
+            });
+        }
+        let body;
+        try {
+            body = await response.json();
+        } catch {
+            throw new ContractError('GITHUB_INSTALLATION_VERIFICATION_FAILED', {
+                status: 502,
+                fault_domain: 'external_provider'
+            });
+        }
+        const installationId = String(body?.id ?? '');
+        const installation = installationSnapshot(body, { installationId, appId, appSlug });
+        if (installation.account.login.toLowerCase() !== organizationLogin.toLowerCase()) {
+            throw new ContractError('GITHUB_INSTALLATION_VERIFICATION_FAILED', {
+                status: 502,
+                fault_domain: 'external_provider'
+            });
+        }
+        return installation;
+    }
+
     function assertExpectedSlug(expectedAppSlug) {
         if (typeof expectedAppSlug !== 'string' || expectedAppSlug.toLowerCase() !== appSlug.toLowerCase()) {
             throw new ContractError('GITHUB_INSTALLATION_VERIFICATION_FAILED', {
@@ -147,6 +203,23 @@ export function createGitHubAppVerifierFromEnv({ env = process.env, fetchImpl = 
     }
 
     return Object.freeze({
+        async verifyOrganizationInstallation({
+            organization_login: organizationLogin,
+            expected_app_slug: expectedAppSlug
+        } = {}) {
+            assertExpectedSlug(expectedAppSlug);
+            const installation = await readOrganizationInstallation(organizationLogin);
+            if (!installation) return null;
+            return {
+                installation,
+                credential_material: JSON.stringify({
+                    version: 1,
+                    provider: 'github',
+                    app_id: appId,
+                    installation_id: installation.installation_id
+                })
+            };
+        },
         async verifyInstallation({ installation_id: installationId, expected_app_slug: expectedAppSlug } = {}) {
             assertExpectedSlug(expectedAppSlug);
             const installation = await readInstallation(installationId);

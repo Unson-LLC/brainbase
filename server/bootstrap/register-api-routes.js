@@ -35,7 +35,8 @@ import { createKnowledgeDelegationRouter } from '../routes/knowledge-delegation.
 import { createSlackInstallationControlPlaneRouter } from '../routes/slack-installation-control-plane.js';
 import {
     createGitHubInstallationCallbackHandler,
-    createOrganizationConnectionsRouter
+    createOrganizationConnectionsRouter,
+    parseGitHubOrganizationBindings
 } from '../routes/organization-connections.js';
 import { createProjectProvisioningRouter } from '../routes/project-provisioning.js';
 import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/multitenant/slack-installation-auth.js';
@@ -301,6 +302,7 @@ export function registerOrganizationConnectionsApiRoute(app, {
     githubAppVerifier,
     githubCredentialStore = controlPlane?.credentialStore,
     githubAuthorizationLedger,
+    githubOrganizationBindings = parseGitHubOrganizationBindings(process.env.PROJECT_PROVISIONING_GITHUB_BINDINGS),
     githubCallbackReturnUrl = process.env.GITHUB_APP_CALLBACK_RETURN_URL,
     now,
     resolveAccess
@@ -329,6 +331,7 @@ export function registerOrganizationConnectionsApiRoute(app, {
             githubAppVerifier,
             githubCredentialStore,
             githubAuthorizationLedger,
+            githubOrganizationBindings,
             now,
             // requireAuth has already verified the token and resolved a legacy
             // organization claim to its canonical tenant. Re-resolving this

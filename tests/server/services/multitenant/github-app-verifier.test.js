@@ -68,6 +68,36 @@ describe('GitHub App verifier', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+    it('finds an existing installation by its server-authorized organization login', async () => {
+        const { verifier, fetchImpl } = fixture();
+
+        const result = await verifier.verifyOrganizationInstallation({
+            organization_login: 'Unson-LLC',
+            expected_app_slug: 'brainbase-app'
+        });
+
+        expect(result.installation).toMatchObject({
+            installation_id: '123', account: { login: 'Unson-LLC' }
+        });
+        expect(fetchImpl.mock.calls[0][0]).toBe('https://api.github.com/orgs/Unson-LLC/installation');
+    });
+
+    it('returns null when the authorized organization has no installation', async () => {
+        const noInstallation = createGitHubAppVerifierFromEnv({
+            env: {
+                GITHUB_APP_ID: '456', GITHUB_APP_SLUG: 'brainbase-app',
+                GITHUB_APP_PRIVATE_KEY: generateKeyPairSync('rsa', { modulusLength: 2048 })
+                    .privateKey.export({ type: 'pkcs8', format: 'pem' })
+            },
+            fetchImpl: vi.fn(async () => ({ ok: false, status: 404 })),
+            now: () => new Date('2026-09-20T00:00:00.000Z')
+        });
+
+        await expect(noInstallation.verifyOrganizationInstallation({
+            organization_login: 'Unson-LLC', expected_app_slug: 'brainbase-app'
+        })).resolves.toBeNull();
+    });
+
     it('fails closed for incomplete or invalid GitHub App configuration', () => {
         expect(createGitHubAppVerifierFromEnv({ env: {} })).toBeNull();
         expect(createGitHubAppVerifierFromEnv({

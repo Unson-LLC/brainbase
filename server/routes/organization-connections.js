@@ -165,6 +165,26 @@ function validGitHubAppSlug(value) {
     return typeof value === 'string' && /^[a-zA-Z0-9-]+$/u.test(value);
 }
 
+export function parseGitHubOrganizationBindings(value) {
+    if (!value) return {};
+    let parsed = value;
+    if (typeof value === 'string') {
+        try {
+            parsed = JSON.parse(value);
+        } catch {
+            return null;
+        }
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+    const bindings = {};
+    for (const [organizationId, binding] of Object.entries(parsed)) {
+        const owner = binding?.owner;
+        if (!organizationId || typeof owner !== 'string' || !/^[A-Za-z0-9-]{1,39}$/u.test(owner)) continue;
+        bindings[organizationId] = { owner };
+    }
+    return bindings;
+}
+
 // These ports keep GitHub App credentials, durable state storage, and repository shape out of the route.
 function hasGitHubConnectionPorts({ githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository }) {
     return hasGitHubReadbackPorts({ githubAppVerifier, githubCredentialStore, connectionRepository })
@@ -294,6 +314,116 @@ async function verifiedGitHubStatus({
     };
 }
 
+async function persistGitHubInstallation({
+    tenantId,
+    personId,
+    idempotencyKey,
+    inspected,
+    installation,
+    githubAppSlug,
+    githubAppVerifier,
+    githubCredentialStore,
+    connectionRepository
+}) {
+    const reservation = await connectionRepository.reserveGitHubInstallation({
+        tenant_id: tenantId,
+        initiated_by_person_id: personId,
+        installation,
+        idempotency_key: idempotencyKey
+    });
+    const connectionId = reservation?.connection_id;
+    const connectionRevision = String(reservation?.connection_revision ?? '');
+    if (!isCanonicalId(connectionId, 'wsc') || !/^[1-9][0-9]*$/u.test(connectionRevision)) {
+        return { error: { status: 503, code: 'GITHUB_CONNECTION_STATE_UNAVAILABLE' } };
+    }
+    const credentialBinding = {
+        tenant_id: tenantId,
+        connection_id: connectionId,
+        connection_revision: connectionRevision,
+        provider: 'github'
+    };
+    let credential;
+    let saved = false;
+    try {
+        const stored = await githubCredentialStore.store({
+            ...credentialBinding,
+            idempotency_key: idempotencyKey,
+            credential_material: inspected.credential_material
+        });
+        if (typeof stored?.credential_ref === 'string' && stored.credential_ref.length > 0
+            && stored.credential_ref.length <= 512) {
+            credential = { credential_ref: stored.credential_ref };
+        }
+        if (typeof stored?.credential_ref !== 'string' || stored.credential_ref.length === 0
+            || stored.credential_ref.length > 512
+            || !CREDENTIAL_MODES.has(stored.credential_mode)
+            || !Number.isInteger(stored.refresh_revision) || stored.refresh_revision < 0) {
+            return { error: { status: 502, code: 'GITHUB_CREDENTIAL_STORE_INVALID' } };
+        }
+        credential = {
+            ...credential,
+            credential_ref: stored.credential_ref,
+            credential_mode: stored.credential_mode,
+            refresh_revision: stored.refresh_revision
+        };
+        const referenceBinding = { ...credentialBinding, credential_ref: credential.credential_ref };
+        const storedCredential = await githubCredentialStore.verify(referenceBinding);
+        if (storedCredential?.valid !== true) {
+            return { error: { status: 502, code: 'GITHUB_CREDENTIAL_STORE_INVALID' } };
+        }
+        const materialized = await githubCredentialStore.materialize(
+            credential.credential_ref,
+            credentialBinding
+        );
+        if (!materialized || !Object.hasOwn(materialized, 'credential_material')
+            || materialized.credential_material === null || materialized.credential_material === undefined) {
+            return { error: { status: 502, code: 'GITHUB_CREDENTIAL_STORE_INVALID' } };
+        }
+        const providerReadback = await githubAppVerifier.readInstallation({
+            installation_id: installation.installation_id,
+            credential_material: materialized.credential_material,
+            expected_app_slug: githubAppSlug
+        });
+        const readbackInstallation = normalizeGitHubInstallation(providerReadback, {
+            installationId: installation.installation_id,
+            appSlug: githubAppSlug
+        });
+        if (!sameGitHubInstallation(installation, readbackInstallation)) {
+            return { error: { status: 502, code: 'GITHUB_INSTALLATION_READBACK_MISMATCH' } };
+        }
+        await connectionRepository.saveGitHubInstallation({
+            tenant_id: tenantId,
+            initiated_by_person_id: personId,
+            connection_id: connectionId,
+            connection_revision: connectionRevision,
+            installation,
+            credential
+        });
+        saved = true;
+        return { saved: true };
+    } finally {
+        if (credential?.credential_ref && !saved) {
+            try {
+                await githubCredentialStore.revoke({
+                    ...credentialBinding,
+                    credential_ref: credential.credential_ref,
+                    reason: 'github_installation_registration_failed'
+                });
+            } catch { /* Keep reservation cleanup independent of credential cleanup. */ }
+        }
+        if (!saved) {
+            try {
+                await connectionRepository.cancelGitHubInstallationReservation({
+                    tenant_id: tenantId,
+                    connection_id: connectionId,
+                    connection_revision: connectionRevision,
+                    idempotency_key: idempotencyKey
+                });
+            } catch { /* Preserve the original registration failure. */ }
+        }
+    }
+}
+
 export function createGitHubInstallationCallbackHandler({
     githubAppSlug,
     githubStateSecret,
@@ -341,104 +471,18 @@ export function createGitHubInstallationCallbackHandler({
                 return problem(res, 502, 'GITHUB_INSTALLATION_VERIFICATION_FAILED');
             }
 
-            const reservation = await connectionRepository.reserveGitHubInstallation({
-                tenant_id: state.tenant_id,
-                initiated_by_person_id: state.person_id,
+            const persistence = await persistGitHubInstallation({
+                tenantId: state.tenant_id,
+                personId: state.person_id,
+                idempotencyKey: state.jti,
+                inspected,
                 installation,
-                idempotency_key: state.jti
+                githubAppSlug,
+                githubAppVerifier,
+                githubCredentialStore,
+                connectionRepository
             });
-            const connectionId = reservation?.connection_id;
-            const connectionRevision = String(reservation?.connection_revision ?? '');
-            if (!isCanonicalId(connectionId, 'wsc') || !/^[1-9][0-9]*$/u.test(connectionRevision)) {
-                return problem(res, 503, 'GITHUB_CONNECTION_STATE_UNAVAILABLE');
-            }
-            const credentialBinding = {
-                tenant_id: state.tenant_id,
-                connection_id: connectionId,
-                connection_revision: connectionRevision,
-                provider: 'github'
-            };
-            let credential;
-            let saved = false;
-            try {
-                const stored = await githubCredentialStore.store({
-                    ...credentialBinding,
-                    idempotency_key: state.jti,
-                    credential_material: inspected.credential_material
-                });
-                // Track a bounded opaque reference immediately so a bad metadata response
-                // cannot leave a credential behind when validation below fails.
-                if (typeof stored?.credential_ref === 'string' && stored.credential_ref.length > 0
-                    && stored.credential_ref.length <= 512) {
-                    credential = { credential_ref: stored.credential_ref };
-                }
-                if (typeof stored?.credential_ref !== 'string' || stored.credential_ref.length === 0
-                    || stored.credential_ref.length > 512
-                    || !CREDENTIAL_MODES.has(stored.credential_mode)
-                    || !Number.isInteger(stored.refresh_revision) || stored.refresh_revision < 0) {
-                    return problem(res, 502, 'GITHUB_CREDENTIAL_STORE_INVALID');
-                }
-                credential = {
-                    ...credential,
-                    credential_ref: stored.credential_ref,
-                    credential_mode: stored.credential_mode,
-                    refresh_revision: stored.refresh_revision
-                };
-                const referenceBinding = { ...credentialBinding, credential_ref: credential.credential_ref };
-                const storedCredential = await githubCredentialStore.verify(referenceBinding);
-                if (storedCredential?.valid !== true) {
-                    return problem(res, 502, 'GITHUB_CREDENTIAL_STORE_INVALID');
-                }
-                const materialized = await githubCredentialStore.materialize(
-                    credential.credential_ref,
-                    credentialBinding
-                );
-                if (!materialized || !Object.hasOwn(materialized, 'credential_material')
-                    || materialized.credential_material === null || materialized.credential_material === undefined) {
-                    return problem(res, 502, 'GITHUB_CREDENTIAL_STORE_INVALID');
-                }
-                const providerReadback = await githubAppVerifier.readInstallation({
-                    installation_id: installationId,
-                    credential_material: materialized.credential_material,
-                    expected_app_slug: githubAppSlug
-                });
-                const readbackInstallation = normalizeGitHubInstallation(providerReadback, {
-                    installationId,
-                    appSlug: githubAppSlug
-                });
-                if (!sameGitHubInstallation(installation, readbackInstallation)) {
-                    return problem(res, 502, 'GITHUB_INSTALLATION_READBACK_MISMATCH');
-                }
-                await connectionRepository.saveGitHubInstallation({
-                    tenant_id: state.tenant_id,
-                    initiated_by_person_id: state.person_id,
-                    connection_id: connectionId,
-                    connection_revision: connectionRevision,
-                    installation,
-                    credential
-                });
-                saved = true;
-            } finally {
-                if (credential?.credential_ref && !saved) {
-                    try {
-                        await githubCredentialStore.revoke({
-                            ...credentialBinding,
-                            credential_ref: credential.credential_ref,
-                            reason: 'github_installation_registration_failed'
-                        });
-                    } catch { /* Keep reservation cleanup independent of credential cleanup. */ }
-                }
-                if (!saved) {
-                    try {
-                        await connectionRepository.cancelGitHubInstallationReservation({
-                            tenant_id: state.tenant_id,
-                            connection_id: connectionId,
-                            connection_revision: connectionRevision,
-                            idempotency_key: state.jti
-                        });
-                    } catch { /* Preserve the original callback failure. */ }
-                }
-            }
+            if (persistence.error) return problem(res, persistence.error.status, persistence.error.code);
 
             if (returnUrl) return res.status(303).set('location', returnUrl).set('cache-control', 'no-store').end();
             return res.status(200).set('cache-control', 'no-store').json({
@@ -462,6 +506,7 @@ export function createOrganizationConnectionsRouter({
     githubAppVerifier,
     githubCredentialStore = controlPlane?.credentialStore,
     githubAuthorizationLedger,
+    githubOrganizationBindings = {},
     now = () => new Date(),
     resolveAccess
 } = {}) {
@@ -580,6 +625,9 @@ export function createOrganizationConnectionsRouter({
             if (!validGitHubAppSlug(githubAppSlug)) {
                 return problem(res, 503, 'GITHUB_APP_NOT_CONFIGURED');
             }
+            if (githubOrganizationBindings === null) {
+                return problem(res, 503, 'GITHUB_ORGANIZATION_BINDING_INVALID');
+            }
             if (hasGitHubReadbackPorts({ githubAppVerifier, githubCredentialStore, connectionRepository })) {
                 const existingRows = await connectionRepository.listOrganizationConnections({
                     tenant_id: access.tenantId,
@@ -604,6 +652,46 @@ export function createOrganizationConnectionsRouter({
             if (!hasGitHubConnectionPorts({
                 githubAppVerifier, githubCredentialStore, githubAuthorizationLedger, connectionRepository
             })) return problem(res, 503, 'GITHUB_APP_CONNECTION_UNAVAILABLE');
+            const organizationBinding = githubOrganizationBindings?.[access.organizationId];
+            if (organizationBinding?.owner
+                && typeof githubAppVerifier.verifyOrganizationInstallation === 'function') {
+                const inspected = await githubAppVerifier.verifyOrganizationInstallation({
+                    organization_login: organizationBinding.owner,
+                    expected_app_slug: githubAppSlug
+                });
+                if (inspected) {
+                    const installation = normalizeGitHubInstallation(inspected, {
+                        installationId: inspected?.installation?.installation_id,
+                        appSlug: githubAppSlug
+                    });
+                    if (!installation
+                        || installation.account.login.toLowerCase() !== organizationBinding.owner.toLowerCase()
+                        || !Object.hasOwn(inspected, 'credential_material')
+                        || inspected.credential_material === null
+                        || inspected.credential_material === undefined) {
+                        return problem(res, 502, 'GITHUB_INSTALLATION_VERIFICATION_FAILED');
+                    }
+                    const adoption = await persistGitHubInstallation({
+                        tenantId: access.tenantId,
+                        personId: access.personId,
+                        idempotencyKey: `adopt:${access.tenantId}:${installation.installation_id}`,
+                        inspected,
+                        installation,
+                        githubAppSlug,
+                        githubAppVerifier,
+                        githubCredentialStore,
+                        connectionRepository
+                    });
+                    if (adoption.error) return problem(res, adoption.error.status, adoption.error.code);
+                    return res.status(200).set('cache-control', 'no-store').json({
+                        provider: 'github', status: 'connected', connected: true,
+                        account: {
+                            installation_id: installation.installation_id,
+                            login: installation.account.login
+                        }
+                    });
+                }
+            }
             const state = stateRecord({
                 tenantId: access.tenantId,
                 personId: access.personId,

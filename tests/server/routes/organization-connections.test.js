@@ -33,6 +33,7 @@ function app({
     githubAppVerifier,
     githubCredentialStore,
     githubAuthorizationLedger,
+    githubOrganizationBindings,
     githubCallbackReturnUrl,
     now
 } = {}) {
@@ -49,6 +50,7 @@ function app({
         githubAppVerifier,
         githubCredentialStore,
         githubAuthorizationLedger,
+        githubOrganizationBindings,
         githubCallbackReturnUrl,
         now
     });
@@ -85,6 +87,7 @@ function githubPorts({ ledgerOverrides = {}, repositoryOverrides = {}, readbackI
     };
     const verifier = {
         verifyInstallation: vi.fn(async () => ({ installation, credential_material: credentialMaterial })),
+        verifyOrganizationInstallation: vi.fn(async () => ({ installation, credential_material: credentialMaterial })),
         readInstallation: vi.fn(async () => ({ installation: readbackInstallation ?? installation }))
     };
     const connectionRepository = {
@@ -343,6 +346,94 @@ describe('organization connections API', () => {
             jti: expect.any(String), state_digest: expect.any(String)
         });
         expect(ports.authorizationLedger.issue.mock.calls[0][0]).not.toHaveProperty('signed_state');
+    });
+
+    it('adopts an orphaned GitHub installation only through the tenant owner binding', async () => {
+        const ports = githubPorts();
+        ports.installation.account.login = 'Unson-LLC';
+        const authService = {
+            verifyToken: () => ({
+                sub: personId, personId, tenantId, organizationId: 'unson', role: 'tenant_admin'
+            })
+        };
+        const response = await auth(request(app({
+            authService,
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
+            githubOrganizationBindings: { unson: { owner: 'Unson-LLC' } },
+            connectionRepository: ports.connectionRepository
+        })).post('/api/organization-connections/github/start').send({}));
+
+        expect(response.status).toBe(200);
+        expect(response.body).toEqual({
+            provider: 'github', status: 'connected', connected: true,
+            account: { installation_id: '123', login: 'Unson-LLC' }
+        });
+        expect(ports.verifier.verifyOrganizationInstallation).toHaveBeenCalledWith({
+            organization_login: 'Unson-LLC', expected_app_slug: 'brainbase-test-app'
+        });
+        expect(ports.connectionRepository.saveGitHubInstallation).toHaveBeenCalledOnce();
+        expect(ports.authorizationLedger.issue).not.toHaveBeenCalled();
+        expect(JSON.stringify(response.body)).not.toContain('provider-secret');
+        expect(JSON.stringify(response.body)).not.toContain('opaque://');
+    });
+
+    it('does not inspect an orphaned installation without a tenant owner binding', async () => {
+        const ports = githubPorts();
+        const response = await auth(request(app({
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
+            githubOrganizationBindings: { unson: { owner: 'Unson-LLC' } },
+            connectionRepository: ports.connectionRepository
+        })).post('/api/organization-connections/github/start').send({}));
+
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('authorization_required');
+        expect(ports.verifier.verifyOrganizationInstallation).not.toHaveBeenCalled();
+    });
+
+    it('opens new authorization when the bound organization has no existing installation', async () => {
+        const ports = githubPorts();
+        ports.verifier.verifyOrganizationInstallation.mockResolvedValue(null);
+        const authService = {
+            verifyToken: () => ({
+                sub: personId, personId, tenantId, organizationId: 'unson', role: 'tenant_admin'
+            })
+        };
+
+        const response = await auth(request(app({
+            authService,
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
+            githubOrganizationBindings: { unson: { owner: 'Unson-LLC' } },
+            connectionRepository: ports.connectionRepository
+        })).post('/api/organization-connections/github/start').send({}));
+
+        expect(response.status).toBe(200);
+        expect(response.body.status).toBe('authorization_required');
+        expect(ports.authorizationLedger.issue).toHaveBeenCalledOnce();
+    });
+
+    it('fails closed when the server organization binding configuration is invalid', async () => {
+        const ports = githubPorts();
+        const response = await auth(request(app({
+            githubAppSlug: 'brainbase-test-app',
+            githubAppVerifier: ports.verifier,
+            githubCredentialStore: ports.credentialStore,
+            githubAuthorizationLedger: ports.authorizationLedger,
+            githubOrganizationBindings: null,
+            connectionRepository: ports.connectionRepository
+        })).post('/api/organization-connections/github/start').send({}));
+
+        expect(response.status).toBe(503);
+        expect(response.body.code).toBe('GITHUB_ORGANIZATION_BINDING_INVALID');
+        expect(ports.authorizationLedger.issue).not.toHaveBeenCalled();
     });
 
     it('reuses a verified existing GitHub installation instead of opening GitHub settings', async () => {
