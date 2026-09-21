@@ -1,5 +1,6 @@
 import express from 'express';
 
+import { createOutcomeServiceContextRouter } from '../routes/outcome-service-context.js';
 import { createTenantRuntimeRouter } from '../routes/tenant-runtime.js';
 
 const LOOPBACK_HOSTS = new Set(['127.0.0.1', '::1', 'localhost']);
@@ -20,6 +21,10 @@ export function createTenantRuntimeInternalApp(services) {
     app.disable('x-powered-by');
     app.use(express.json({ limit: '256kb' }));
     app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
+    app.use('/v1', createOutcomeServiceContextRouter({
+        serviceAuth: services.serviceAuth,
+        outcomeServiceContextIssuer: services.outcomeServiceContextIssuer
+    }));
     return app;
 }
 
