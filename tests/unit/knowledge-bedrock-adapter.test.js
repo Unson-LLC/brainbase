@@ -109,6 +109,34 @@ describe('knowledge Bedrock adapter', () => {
         });
     });
 
+    it('drops fabricated evidence when capture has no supplied materials', async () => {
+        const bedrockClient = {
+            send: vi.fn(async () => providerResponse({
+                proposal: {
+                    kind: 'decision',
+                    summary: 'A proposed decision',
+                    scope: 'project',
+                    owner_candidate: null,
+                    relations: []
+                },
+                evidence: [{ source_ref: 'fabricated-without-version' }],
+                unknown: [],
+                version: 'bedrock-v1',
+                readback: { state: 'provider_received', verified: false }
+            }))
+        };
+        const adapter = createKnowledgeBedrockAdapter({ bedrockClient });
+
+        await expect(adapter.proposeCapture({
+            project_code: 'brainbase',
+            content: 'a source-only capture',
+            materials: []
+        })).resolves.toMatchObject({
+            evidence: [],
+            version: 'bedrock-v1'
+        });
+    });
+
     it('fails closed on malformed provider output rather than returning raw text', async () => {
         const bedrockClient = {
             send: vi.fn(async () => ({
