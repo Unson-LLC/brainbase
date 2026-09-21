@@ -9,11 +9,13 @@ function normalizedMember(member) {
     if (!member || member.deleted || member.is_bot || member.is_app_user || member.id === 'USLACKBOT') return null;
     const realName = String(member.real_name || member.profile?.real_name || '').trim();
     const displayName = String(member.profile?.display_name || realName || member.name || '').trim();
-    if (!/^U[A-Z0-9]{8,}$/u.test(String(member.id || '')) || !displayName) return null;
+    const email = String(member.profile?.email || '').trim().toLowerCase();
+    if (!/^U[A-Z0-9]{8,}$/u.test(String(member.id || '')) || !displayName || !/^[^\s@]+@[^\s@]+$/u.test(email)) return null;
     return {
         slackUserId: member.id,
         displayName,
         realName: realName || displayName,
+        email,
         avatarUrl: String(member.profile?.image_72 || '').trim() || null
     };
 }
@@ -28,15 +30,18 @@ export class SlackWorkspaceDirectory {
     async connection(workspaceId) {
         const { rows } = await this.pool.query(
             `SELECT wc.tenant_id, wc.connection_id, wc.connection_revision, wc.provider,
-                    wc.workspace_id, wc.credential_ref
+                    wc.workspace_id, wc.credential_ref, wc.granted_scopes
                FROM workspace_connections wc
               WHERE wc.provider = 'slack' AND wc.workspace_id = $1 AND wc.status = 'active'
-                AND 'users:read' = ANY(wc.granted_scopes)
               ORDER BY wc.installed_at DESC
               LIMIT 2`,
             [workspaceId]
         );
         if (rows.length !== 1) throw new Error('Organization Slack directory connection is unavailable or ambiguous');
+        const scopes = new Set(rows[0].granted_scopes || []);
+        if (!scopes.has('users:read') || !scopes.has('users:read.email')) {
+            throw new Error('Organization Slack directory requires users:read and users:read.email scopes');
+        }
         return rows[0];
     }
 
@@ -66,7 +71,7 @@ export class SlackWorkspaceDirectory {
             cursor = String(payload.response_metadata?.next_cursor || '').trim();
         } while (cursor && members.length < 1000);
         const needle = String(query || '').trim().toLocaleLowerCase('ja');
-        return members.filter((member) => !needle || [member.displayName, member.realName]
+        return members.filter((member) => !needle || [member.displayName, member.realName, member.email]
             .some((value) => value.toLocaleLowerCase('ja').includes(needle)));
     }
 
