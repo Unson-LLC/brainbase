@@ -40,7 +40,7 @@ describe('AuthService organization member administration', () => {
         const slackDirectory = {
             findMember: async ({ workspaceId, slackUserId }) => {
                 expect({ workspaceId, slackUserId }).toEqual({ workspaceId: 'T_BAAO', slackUserId: 'UTESTBAAO1' });
-                return { slackUserId: 'UTESTBAAO1', displayName: '山本 力弥', realName: '山本 力弥' };
+                return { slackUserId: 'UTESTBAAO1', displayName: '山本 力弥', realName: '山本 力弥', email: 'yamamoto@baao.jp' };
             }
         };
         const service = serviceWithClient(async (sql, params) => {
@@ -71,8 +71,8 @@ describe('AuthService organization member administration', () => {
             listMembers: async ({ workspaceId, query }) => {
                 expect({ workspaceId, query }).toEqual({ workspaceId: 'T_BAAO', query: '山本' });
                 return [
-                    { slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥' },
-                    { slackUserId: 'UREGISTERED1', displayName: '登録済み', realName: '登録済み' }
+                    { slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥', email: 'yamamoto@baao.jp' },
+                    { slackUserId: 'UREGISTERED1', displayName: '登録済み', realName: '登録済み', email: 'registered@baao.jp' }
                 ];
             }
         };
@@ -83,7 +83,27 @@ describe('AuthService organization member administration', () => {
         }, slackDirectory);
 
         await expect(service.listSlackWorkspaceMembers('baao-organization', '山本')).resolves.toEqual([
-            { slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥' }
+            { slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥', email: 'yamamoto@baao.jp' }
+        ]);
+    });
+
+    it('adds Slack email addresses to existing organization members without exposing a different tenant', async () => {
+        const service = serviceWithClient(async (sql, params) => {
+            if (sql.includes('FROM auth_grants')) return { rows: [{ id: 'grant_1', person_name: '山本 力弥', slack_user_id: 'UYAMAMOTO1', role: 'member' }] };
+            if (sql.startsWith('SELECT workspace_id')) {
+                expect(params).toEqual(['baao-organization']);
+                return { rows: [{ workspace_id: 'T_BAAO' }] };
+            }
+            return { rows: [] };
+        }, {
+            listMembers: async ({ workspaceId }) => {
+                expect(workspaceId).toBe('T_BAAO');
+                return [{ slackUserId: 'UYAMAMOTO1', email: 'yamamoto@baao.jp' }];
+            }
+        });
+
+        await expect(service.listOrganizationMembers('baao-organization')).resolves.toEqual([
+            { id: 'grant_1', person_name: '山本 力弥', slack_user_id: 'UYAMAMOTO1', role: 'member', email: 'yamamoto@baao.jp' }
         ]);
     });
 

@@ -773,6 +773,22 @@ export class AuthService {
                   ORDER BY active DESC, person_name ASC, id ASC`,
                 [requestedOrganizationId]
             );
+            if (this.slackDirectory && rows.length > 0) {
+                try {
+                    const organization = await client.query(
+                        'SELECT workspace_id FROM organizations WHERE id = $1',
+                        [requestedOrganizationId]
+                    );
+                    const workspaceId = organization.rows[0]?.workspace_id;
+                    if (workspaceId) {
+                        const slackMembers = await this.slackDirectory.listMembers({ workspaceId });
+                        const emails = new Map(slackMembers.map((member) => [member.slackUserId, member.email]));
+                        return rows.map((row) => ({ ...row, email: emails.get(row.slack_user_id) || null }));
+                    }
+                } catch {
+                    // Member administration remains available when Slack directory enrichment is temporarily unavailable.
+                }
+            }
             return rows;
         } finally {
             client.release();
