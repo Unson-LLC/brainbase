@@ -103,12 +103,6 @@ function assertOperator(actor) {
     }
     const organizationId = String(actor?.organizationId || '').trim();
     const tenantId = String(actor?.tenantId || '').trim();
-    if (organizationId && tenantId && organizationId !== tenantId) {
-        const error = new Error('organizationId and tenantId must match');
-        error.code = 'PROJECT_PROVISIONING_TENANT_IDENTITY_MISMATCH';
-        error.statusCode = 409;
-        throw error;
-    }
     if (!(organizationId || tenantId)) {
         const error = new Error('organizationId is required');
         error.code = 'PROJECT_PROVISIONING_ORGANIZATION_REQUIRED';
