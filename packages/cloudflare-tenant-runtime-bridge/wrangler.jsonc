@@ -1,5 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
+  "account_id": "788e556343893a7135c29b782c22fb24",
   "name": "brainbase-tenant-runtime",
   "main": "src/worker.js",
   "compatibility_date": "2026-08-18",
