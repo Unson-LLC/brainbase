@@ -1,6 +1,7 @@
 export const MAX_REQUEST_BODY_BYTES = 256 * 1024;
 
 export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
+    '/v1/outcome-service-context:issue',
     '/api/v1/runtime/company-authority:resolve',
     '/api/v1/runtime/knowledge:resolve',
     '/api/v1/runtime/knowledge:retrieve',
@@ -15,6 +16,9 @@ export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
     '/api/v1/runtime/operation-receipts:finalize',
     '/api/v1/runtime/operation-receipts:finalize-with-pricing'
 ]);
+const OUTCOME_CONTEXT_ISSUE_PATH = '/v1/outcome-service-context:issue';
+const OUTCOME_AUTHORITY_READBACK_PATH = '/v1/outcome-authority:readback';
+const OUTCOME_AUTHORITY_READBACK_HEADER = 'brainbase-outcome-authority-readback';
 export const VERIFICATION_KEYS_PATH = '/api/v1/runtime/verification-keys';
 const RECEIPT_HISTORY_PATH = /^\/api\/v1\/runtime\/operation-receipts\/receipt_[0-9A-HJKMNP-TV-Z]{26}\/history:read$/;
 const REQUEST_HEADERS = Object.freeze([
@@ -129,7 +133,7 @@ async function readBoundedBody(request) {
     return body;
 }
 
-function upstreamHeaders(request, env) {
+function upstreamHeaders(request, env, outcomeAuthorityReadback = null) {
     const headers = new Headers();
     for (const name of REQUEST_HEADERS) {
         const value = request.headers.get(name);
@@ -138,7 +142,41 @@ function upstreamHeaders(request, env) {
     headers.set('authorization', `Bearer ${requiredSecret(env, 'BRAINBASE_SERVICE_JWT')}`);
     headers.set('cf-access-client-id', requiredSecret(env, 'CF_ACCESS_CLIENT_ID'));
     headers.set('cf-access-client-secret', requiredSecret(env, 'CF_ACCESS_CLIENT_SECRET'));
+    if (outcomeAuthorityReadback) {
+        const bytes = new TextEncoder().encode(JSON.stringify(outcomeAuthorityReadback));
+        let binary = '';
+        for (const byte of bytes) binary += String.fromCharCode(byte);
+        headers.set(OUTCOME_AUTHORITY_READBACK_HEADER, btoa(binary)
+            .replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, ''));
+    }
     return headers;
+}
+
+async function readOutcomeAuthority(requestBody, env) {
+    const service = env?.MANA_OUTCOME_AUTHORITY_READBACK_SERVICE;
+    if (!service || typeof service.fetch !== 'function') throw new Error('bridge_configuration_invalid');
+    let body;
+    try {
+        body = JSON.parse(new TextDecoder().decode(requestBody));
+    } catch {
+        throw new TypeError('request_body_invalid');
+    }
+    const readback = {
+        tenant: body?.principal?.tenant_id,
+        project: body?.principal?.project_id,
+        actor: body?.principal?.actor_principal_id,
+        contract: body?.persisted?.contract_id,
+        version: Number(body?.persisted?.contract_version),
+        run: body?.persisted?.run_id,
+        resource: body?.persisted?.resource_ref
+    };
+    const response = await service.fetch(`https://mana.internal${OUTCOME_AUTHORITY_READBACK_PATH}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', accept: 'application/json' },
+        body: JSON.stringify(readback)
+    });
+    if (!response.ok) throw new Error('outcome_authority_readback_denied');
+    return response.json();
 }
 
 function safeUpstreamProblem(body, upstream, logger) {
@@ -182,7 +220,6 @@ export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl
     let headers;
     try {
         origin = configuredOrigin(env);
-        headers = upstreamHeaders(request, env);
     } catch {
         return problem(503, 'BRIDGE_CONFIGURATION_INVALID');
     }
@@ -195,6 +232,22 @@ export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl
             if (error instanceof RangeError) return problem(413, 'REQUEST_BODY_TOO_LARGE');
             return problem(400, 'REQUEST_BODY_INVALID');
         }
+    }
+
+    let outcomeAuthorityReadback = null;
+    if (route.path === OUTCOME_CONTEXT_ISSUE_PATH) {
+        try {
+            outcomeAuthorityReadback = await readOutcomeAuthority(body, env);
+        } catch (error) {
+            if (error instanceof TypeError) return problem(400, 'REQUEST_BODY_INVALID');
+            if (error?.message === 'bridge_configuration_invalid') return problem(503, 'BRIDGE_CONFIGURATION_INVALID');
+            return problem(502, 'OUTCOME_AUTHORITY_READBACK_FAILED', true);
+        }
+    }
+    try {
+        headers = upstreamHeaders(request, env, outcomeAuthorityReadback);
+    } catch {
+        return problem(503, 'BRIDGE_CONFIGURATION_INVALID');
     }
 
     const upstreamUrl = new URL(route.path, origin);

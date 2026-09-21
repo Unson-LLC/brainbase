@@ -55,6 +55,48 @@ describe('Cloudflare tenant runtime private bridge', () => {
         });
         expect(config.routes).toBeUndefined();
         expect(config.vars).toBeUndefined();
+        expect(config.services).toContainEqual({
+            binding: 'MANA_OUTCOME_AUTHORITY_READBACK_SERVICE',
+            service: 'unson-business-mana-runtime',
+            entrypoint: 'OutcomeAuthorityReadbackService'
+        });
+    });
+
+    it('reads persisted Mana authority before forwarding an outcome issuance request', async () => {
+        const readback = {
+            principal: { tenant_id: 'ten_a', project_id: 'baao', actor_principal_id: 'per_a' },
+            persisted: { contract_id: 'contract-a', contract_version: '2', run_id: 'run-a',
+                resource_ref: 'meeting-minutes:baao' },
+            authority_revision: '2:1', profile_id: 'meeting_minutes_github_v1',
+            run_mode: 'safe_test', contract_status: 'draft'
+        };
+        const authorityFetch = vi.fn(async (input, init) => {
+            expect(new URL(input).pathname).toBe('/v1/outcome-authority:readback');
+            expect(JSON.parse(init.body)).toEqual({
+                tenant: 'ten_a', project: 'baao', actor: 'per_a', contract: 'contract-a',
+                version: 2, run: 'run-a', resource: 'meeting-minutes:baao'
+            });
+            return Response.json(readback);
+        });
+        const fetchImpl = vi.fn(async (input) => {
+            const forwarded = new Request(input);
+            const encoded = forwarded.headers.get('brainbase-outcome-authority-readback');
+            expect(JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'))).toEqual(readback);
+            return Response.json({ ok: true });
+        });
+        const body = {
+            principal: { tenant_id: 'ten_a', project_id: 'baao', actor_principal_id: 'per_a' },
+            persisted: { contract_id: 'contract-a', contract_version: '2', run_id: 'run-a',
+                resource_ref: 'meeting-minutes:baao' }
+        };
+
+        const response = await handleTenantRuntimeBridgeRequest(request('/v1/outcome-service-context:issue', {
+            body: JSON.stringify(body)
+        }), { ...ENV, MANA_OUTCOME_AUTHORITY_READBACK_SERVICE: { fetch: authorityFetch } }, { fetchImpl });
+
+        expect(response.status).toBe(200);
+        expect(authorityFetch).toHaveBeenCalledOnce();
+        expect(fetchImpl).toHaveBeenCalledOnce();
     });
 
     it('forwards the exact provider route to the configured Tunnel origin with Access service auth', async () => {

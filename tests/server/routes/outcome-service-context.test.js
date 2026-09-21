@@ -47,6 +47,7 @@ describe('outcome service context production route bootstrap', () => {
                 expires_at: '2099-01-01T00:00:00.000Z',
                 capabilities: ['outcome.generate']
             });
+            req.serviceTokenClaims = { sub: 'mana-runtime' };
             next();
         });
         const requestPayload = {
@@ -70,6 +71,8 @@ describe('outcome service context production route bootstrap', () => {
 
         const response = await request(createApp({ serviceAuth, outcomeServiceContextIssuer: { issue } }))
             .post('/v1/outcome-service-context:issue')
+            .set('brainbase-outcome-authority-readback', Buffer.from(JSON.stringify({ authority_revision: '2' }))
+                .toString('base64url'))
             .send(requestPayload);
 
         expect(response.status).toBe(200);
@@ -80,7 +83,8 @@ describe('outcome service context production route bootstrap', () => {
         expect(issue).toHaveBeenCalledOnce();
         expect(issue).toHaveBeenCalledWith(requestPayload, expect.objectContaining({
             subject: 'mana-runtime',
-            deployment_id: 'dep_test'
+            deployment_id: 'dep_test',
+            outcomeAuthorityReadback: { authority_revision: '2' }
         }));
     });
 

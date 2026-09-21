@@ -15,6 +15,17 @@ function unavailable(req, res) {
     return res.status(problem.status).type('application/problem+json').json(problem);
 }
 
+function trustedOutcomeAuthorityReadback(req) {
+    const encoded = req.get('brainbase-outcome-authority-readback');
+    if (typeof encoded !== 'string' || encoded.length === 0 || encoded.length > 8192) return null;
+    try {
+        const value = JSON.parse(Buffer.from(encoded, 'base64url').toString('utf8'));
+        return value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+    } catch {
+        return null;
+    }
+}
+
 /**
  * The outcome context issuer is deliberately supplied by production
  * composition. This router does not resolve tenants, profiles, credentials,
@@ -38,8 +49,10 @@ export function createOutcomeServiceContextRouter({
         // the transport identity as the public shape while carrying the
         // verified claims to Mana readback adapters; request/body claims are
         // never used for this purpose.
+        const outcomeAuthorityReadback = trustedOutcomeAuthorityReadback(req);
         const serviceIdentity = req.serviceTokenClaims
-            ? Object.freeze({ ...req.serviceIdentity, serviceTokenClaims: req.serviceTokenClaims })
+            ? Object.freeze({ ...req.serviceIdentity, serviceTokenClaims: req.serviceTokenClaims,
+                ...(outcomeAuthorityReadback ? { outcomeAuthorityReadback } : {}) })
             : req.serviceIdentity;
         const response = await outcomeServiceContextIssuer.issue(req.body, serviceIdentity);
         res.set('Cache-Control', 'no-store');

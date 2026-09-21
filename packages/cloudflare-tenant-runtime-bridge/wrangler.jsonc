@@ -5,6 +5,13 @@
   "compatibility_date": "2026-08-18",
   "workers_dev": false,
   "preview_urls": false,
+  "services": [
+    {
+      "binding": "MANA_OUTCOME_AUTHORITY_READBACK_SERVICE",
+      "service": "unson-business-mana-runtime",
+      "entrypoint": "OutcomeAuthorityReadbackService"
+    }
+  ],
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
