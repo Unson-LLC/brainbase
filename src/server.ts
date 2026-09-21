@@ -453,6 +453,33 @@ export const toolDefinitions = [
   }
 ] as const;
 
+const managedPersonalKnowledgeToolNames = new Set([
+  'personal_knowledge_context',
+  'personal_knowledge_register',
+  'personal_knowledge_search'
+]);
+
+function isPersonalKnowledgeTool(name: string): boolean {
+  return managedPersonalKnowledgeToolNames.has(name);
+}
+
+function configuredPersonalKnowledgeMode(): 'local' | 'managed_cloud' {
+  const configuredMode = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_MODE?.trim()
+    || process.env.BRAINBASE_PERSONAL_KG_STORAGE_MODE?.trim()
+    || 'local';
+  if (configuredMode === 'local' || configuredMode === 'managed_cloud') {
+    return configuredMode;
+  }
+  throw new Error(`Unsupported Personal Knowledge mode: ${configuredMode}.`);
+}
+
+function configuredToolDefinitions() {
+  if (configuredPersonalKnowledgeMode() === 'managed_cloud') {
+    return toolDefinitions.filter((tool) => isPersonalKnowledgeTool(tool.name));
+  }
+  return [...toolDefinitions];
+}
+
 let embeddingProvider: EmbeddingProvider | undefined;
 let embeddingProviderInitialized = false;
 function configuredEmbeddingProvider(): EmbeddingProvider | undefined {
@@ -492,9 +519,7 @@ function configuredPersonalKnowledgeContext(): PersonalKnowledgeContext {
 }
 
 function configuredPersonalKnowledgeRuntime(): PersonalKnowledgeRuntime {
-  const configuredMode = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_MODE?.trim()
-    || process.env.BRAINBASE_PERSONAL_KG_STORAGE_MODE?.trim()
-    || 'local';
+  const configuredMode = configuredPersonalKnowledgeMode();
   if (configuredMode === 'local') {
     const encodedContext = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_CONTEXT?.trim()
       || process.env.BRAINBASE_PERSONAL_CONTEXT?.trim();
@@ -506,9 +531,6 @@ function configuredPersonalKnowledgeRuntime(): PersonalKnowledgeRuntime {
       return createLocalPersonalKnowledgeStore({ context });
     }
     return createLocalPersonalKnowledgeStore();
-  }
-  if (configuredMode !== 'managed_cloud') {
-    throw new Error(`Unsupported Personal Knowledge mode: ${configuredMode}.`);
   }
   const apiUrl = process.env.BRAINBASE_PERSONAL_KNOWLEDGE_API_URL?.trim()
     || process.env.BRAINBASE_PERSONAL_KG_MANAGED_CLOUD_API_URL?.trim();
@@ -542,7 +564,11 @@ async function callPersonalKnowledgeTool(name: string, rawArgs: unknown): Promis
 }
 
 export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Promise<unknown> {
-  if (name === 'personal_knowledge_context' || name === 'personal_knowledge_register' || name === 'personal_knowledge_search') {
+  const mode = configuredPersonalKnowledgeMode();
+  if (mode === 'managed_cloud' && !isPersonalKnowledgeTool(name)) {
+    throw new Error('managed_cloud Personal Knowledge MCP only permits personal_knowledge_context, personal_knowledge_register, and personal_knowledge_search.');
+  }
+  if (isPersonalKnowledgeTool(name)) {
     return callPersonalKnowledgeTool(name, rawArgs);
   }
   if (name in connectedSchemas) {
@@ -915,7 +941,7 @@ export function createServer(): Server {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [...toolDefinitions]
+    tools: configuredToolDefinitions()
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {

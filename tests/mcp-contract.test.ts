@@ -1,12 +1,13 @@
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { createFixturePersonalOs } from './fixtures.js';
 import { canonicalResolutionGraph } from './canonical-resolution-fixture.js';
-import { callBrainbaseTool, toolDefinitions } from '../src/server.js';
+import { callBrainbaseTool, createServer, toolDefinitions } from '../src/server.js';
 
 const dirs: string[] = [];
 
@@ -37,6 +38,7 @@ function createClient(dataDir?: string): { client: Client; transport: StdioClien
 }
 
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
@@ -100,6 +102,7 @@ describe('MCP contract', () => {
   });
 
   it('S-4 lists v1 tools through stdio server startup', async () => {
+    vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_MODE', 'local');
     const { client, transport } = createClient();
 
     await client.connect(transport);
@@ -128,6 +131,38 @@ describe('MCP contract', () => {
     } finally {
       await client.close();
     }
+  });
+
+  it('managed_cloud advertises only the three personal-knowledge tools', async () => {
+    vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_MODE', 'managed_cloud');
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    const client = new Client({
+      name: 'brainbase-managed-contract-test',
+      version: '0.0.0'
+    });
+    const server = createServer();
+
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    try {
+      const result = await client.listTools();
+      expect(result.tools.map((tool) => tool.name)).toEqual([
+        'personal_knowledge_context',
+        'personal_knowledge_register',
+        'personal_knowledge_search'
+      ]);
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it('managed_cloud rejects legacy local tools before accessing a local Personal OS', async () => {
+    vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_MODE', 'managed_cloud');
+    await expect(callBrainbaseTool('search_personal_kg', {
+      dataDir: '/path/that/must/not/be opened',
+      query: 'secret'
+    })).rejects.toThrow(/managed_cloud Personal Knowledge MCP only permits/);
   });
 
   it('resolves text against Graph v2 over stdio without returning plaintext or local paths', async () => {
@@ -388,6 +423,7 @@ describe('MCP contract', () => {
   });
 
   it('C-6 returns deterministic JSON-compatible tool results from fixture SSOT', async () => {
+    vi.stubEnv('BRAINBASE_PERSONAL_KNOWLEDGE_MODE', 'local');
     const dataDir = await fixtureDir();
 
     await expect(callBrainbaseTool('get_context', { dataDir })).resolves.toMatchObject({

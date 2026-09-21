@@ -18,6 +18,7 @@ OSS版のBrainbaseを使う人として、個人の知識を一つの永続的�
 - 同じ `event_id` と正規化後の内容を同時に登録した場合、すべての呼出しが一つの永続イベントに収束する。同じIDで内容が異なる登録は失敗する。
 - managed clientは接続先と認証を検証し、リダイレクトと通信失敗を拒否し、ローカル保存へフォールバックしない。
 - MCPは明示的なcontext/register/searchツールを提供し、モデルが制御する引数から所有者、組織、source、ファイルシステムのパスを受け付けない。
+- managed_cloudのMCPセッションは `personal_knowledge_context`、`personal_knowledge_register`、`personal_knowledge_search` だけを広告・実行し、既存のローカルPersonal OSツールを広告せず、呼び出しも拒否する。組織Graphなど別の組織機能は別MCPで提供する。localモードの既存ツールと `search_personal_kg` の互換性は維持する。
 - 既存の `search_personal_kg` ツールと、そのローカルPersonal KGの動作は変更せず利用できる。
 
 ## 対象外
