@@ -70,6 +70,7 @@ function captureSystemPrompt() {
         'The object must contain: proposal, evidence (array), unknown (array), version, and readback.',
         'proposal must contain kind, summary, scope, owner_candidate, and relations.',
         'Every evidence item must include version and may reference only supplied material ids.',
+        'If materials is empty, evidence must be an empty array.',
         'Keep uncertainty explicit in unknown; do not infer missing owners, versions, or persistence.',
         'readback must include state and a boolean verified. This is a proposal only; it is not persisted.',
         'Never invent catalog ids, versions, source URLs, or retrieval receipts.'
@@ -97,7 +98,7 @@ function buildRequest({ modelId, maxTokens, system, input }) {
             role: 'user',
             content: [{ text: payload }]
         }],
-        inferenceConfig: { maxTokens }
+        inferenceConfig: { maxTokens, temperature: 0 }
     });
 }
 
@@ -140,6 +141,9 @@ export function createKnowledgeBedrockAdapter({
                 exclusions: Array.isArray(input.exclusions) ? input.exclusions : []
             };
             const parsed = await invoke(captureSystemPrompt(), safeInput);
+            if (safeInput.materials.length === 0) {
+                parsed.evidence = [];
+            }
             return validateCaptureProposal(parsed, {
                 allowedReferences: allowedReferences(safeInput.materials)
             });
