@@ -42,6 +42,7 @@ import { createSlackInstallationControlPlaneAuthMiddleware } from '../services/m
 import { isRemoteCredentialStoreConfigured, createRemoteCredentialStore } from '../services/multitenant/remote-credential-store.js';
 import { PgAccountRepository } from '../services/account/account-repository.js';
 import { GoogleMeetConnectionService } from '../services/auth/google-meet-connection-service.js';
+import { GoogleServiceConnectionService } from '../services/auth/google-service-connection-service.js';
 import {
     createTenantEntrypointGuard,
     createUnavailableTenantEntrypointGuard
@@ -471,14 +472,26 @@ export function registerApiRoutes(app, {
         replacement: 'Use the terminal attached to the Codex task'
     }));
     let googleMeetConnectionService = null;
+    let googleServiceConnectionService = null;
     if (authService?.pool && isRemoteCredentialStoreConfigured(env)) {
+        const provider = authService.providerRegistry.require('google-workspace');
+        const credentialStore = createRemoteCredentialStore({ env });
+        const accountRepository = new PgAccountRepository({ pool: authService.pool });
         googleMeetConnectionService = new GoogleMeetConnectionService({
-            provider: authService.providerRegistry.require('google-workspace'),
-            credentialStore: createRemoteCredentialStore({ env }),
-            accountRepository: new PgAccountRepository({ pool: authService.pool })
+            provider,
+            credentialStore,
+            accountRepository
+        });
+        googleServiceConnectionService = new GoogleServiceConnectionService({
+            provider,
+            credentialStore,
+            accountRepository
         });
     }
-    app.use('/api/auth', createAuthRouter(authService, { googleMeetConnectionService }));
+    app.use('/api/auth', createAuthRouter(authService, {
+        googleMeetConnectionService,
+        googleServiceConnectionService
+    }));
     app.use(
         '/api/project-provisioning',
         requireAuth(authService),

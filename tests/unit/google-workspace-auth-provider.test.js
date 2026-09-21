@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
     createGoogleWorkspaceAuthProvider,
-    GOOGLE_MEET_READ_SCOPES
+    GOOGLE_IDENTITY_SCOPES,
+    GOOGLE_MEET_READ_SCOPES,
+    GOOGLE_SERVICE_IDS,
+    GOOGLE_SERVICE_SCOPES
 } from '../../server/services/auth/providers/google-workspace-auth-provider.js';
 
 describe('Google Workspace auth provider', () => {
@@ -110,6 +113,47 @@ describe('Google Workspace auth provider', () => {
         expect(meet.searchParams.get('include_granted_scopes')).toBe('true');
         expect(meet.searchParams.get('prompt')).toBe('consent');
         expect(meet.searchParams.get('redirect_uri')).toBe('https://api.example.test/api/auth/google/meet/callback');
+    });
+
+    it('builds service-specific consent with the fixed allowlist and exact capability scope', () => {
+        const provider = createGoogleWorkspaceAuthProvider({
+            clientId: 'google-client', clientSecret: 'google-secret',
+            redirectUri: 'https://api.example.test/api/auth/google/callback',
+            integrationRedirectUri: 'https://api.example.test/api/auth/google/meet/callback',
+            allowedDomains: ['growin.jp']
+        });
+
+        expect(GOOGLE_SERVICE_IDS).toEqual(['gmail', 'google-calendar', 'google-drive']);
+        for (const service of GOOGLE_SERVICE_IDS) {
+            const url = new URL(provider.buildGoogleServiceAuthorizationUrl(service, `${service}-state`));
+            expect(url.searchParams.get('scope')?.split(' ')).toEqual([
+                ...GOOGLE_IDENTITY_SCOPES,
+                ...GOOGLE_SERVICE_SCOPES[service]
+            ]);
+            expect(url.searchParams.get('state')).toBe(`${service}-state`);
+            expect(url.searchParams.get('redirect_uri')).toBe(
+                'https://api.example.test/api/auth/google/meet/callback'
+            );
+        }
+        expect(() => provider.buildGoogleServiceAuthorizationUrl('google-workspace', 'state'))
+            .toThrow(/not supported/i);
+    });
+
+    it('allows incremental service token exchange without a refresh token', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+            access_token: 'service-access'
+        }), { status: 200 }));
+        const provider = createGoogleWorkspaceAuthProvider({
+            clientId: 'google-client', clientSecret: 'google-secret',
+            integrationRedirectUri: 'https://api.example.test/api/auth/google/meet/callback',
+            fetchImpl
+        });
+
+        await expect(provider.exchangeGoogleServiceCode('gmail', 'code-1'))
+            .resolves.toEqual({ access_token: 'service-access' });
+        expect(fetchImpl.mock.calls[0][1].body.get('redirect_uri')).toBe(
+            'https://api.example.test/api/auth/google/meet/callback'
+        );
     });
 
     it('exchanges and refreshes Meet credentials without changing the login flow', async () => {

@@ -172,6 +172,16 @@ export class InMemoryAccountRepository {
         return { ...r };
     }
 
+    update(id, input = {}) {
+        const existing = this.accounts.get(id);
+        if (!existing) throw new AccountValidationError('account not found');
+        const merged = { ...existing, ...input, id };
+        validateInput(merged);
+        merged.updated_at = new Date().toISOString();
+        this.accounts.set(id, merged);
+        return { ...merged };
+    }
+
     setDefault({ subject_type, subject_id, service, purpose, account_id, priority = 100, created_by_person_id }) {
         if (!this.accounts.has(account_id)) {
             throw new AccountValidationError('account not found for default');
@@ -336,6 +346,52 @@ export class PgAccountRepository {
         );
         if (!rows[0]) throw new AccountValidationError('account not found');
         return normalizeAccount(rows[0]);
+    }
+
+    async update(id, input = {}) {
+        const existing = await this.findById(id);
+        if (!existing) throw new AccountValidationError('account not found');
+        const merged = { ...existing, ...input, id };
+        validateInput(merged);
+        try {
+            const { rows } = await this.pool.query(
+                `UPDATE integration_accounts
+                 SET service = $2, scope_type = $3, owner_person_id = $4, org_id = $5,
+                     project_id = $6, display_name = $7, external_account_id = $8,
+                     external_handle = $9, credential_ref = $10::jsonb,
+                     oauth_client_ref = $11::jsonb, status = $12, capabilities = $13,
+                     rate_limit_profile_id = $14, metadata = $15::jsonb,
+                     updated_by_person_id = $16, updated_at = NOW()
+                 WHERE id = $1
+                 RETURNING *`,
+                [
+                    id,
+                    merged.service,
+                    merged.scope_type,
+                    merged.owner_person_id || null,
+                    merged.org_id || null,
+                    merged.project_id || null,
+                    merged.display_name,
+                    merged.external_account_id || null,
+                    merged.external_handle || null,
+                    JSON.stringify(merged.credential_ref),
+                    merged.oauth_client_ref ? JSON.stringify(merged.oauth_client_ref) : null,
+                    merged.status || 'connected',
+                    merged.capabilities || [],
+                    merged.rate_limit_profile_id || null,
+                    JSON.stringify(merged.metadata || {}),
+                    merged.updated_by_person_id || null
+                ]
+            );
+            if (!rows[0]) throw new AccountValidationError('account not found');
+            return normalizeAccount(rows[0]);
+        } catch (error) {
+            if (error && /credential_ref must not contain secret key/.test(error.message || '')) {
+                const key = (error.message || '').split(':').at(-1)?.trim() || 'secret';
+                throw new CredentialSecretLeakError(key);
+            }
+            throw error;
+        }
     }
 
     async setDefault({ subject_type, subject_id, service, purpose, account_id, priority = 100, created_by_person_id }) {
