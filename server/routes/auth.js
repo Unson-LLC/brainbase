@@ -29,6 +29,10 @@ export function createAuthRouter(authService, {
     router.post('/refresh', controller.refresh);
     router.get('/organizations', requireAuth(authService), controller.organizations);
     router.post('/organizations/switch', requireAuth(authService), controller.switchOrganization);
+    router.get('/members', requireAuth(authService), controller.members);
+    router.get('/members/slack-directory', requireAuth(authService), controller.slackDirectory);
+    router.post('/members', requireAuth(authService), controller.createMember);
+    router.patch('/members/:grantId', requireAuth(authService), controller.updateMember);
     router.post('/logout', requireAuth(authService), controller.logout);
     router.get('/verify', requireAuth(authService), controller.verify);
     router.post('/service-tokens', requireAuth(authService), controller.createServiceToken);

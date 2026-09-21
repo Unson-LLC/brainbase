@@ -7,6 +7,7 @@ import { logger } from '../utils/logger.js';
 import { AuthProviderRegistry } from './auth/auth-provider-registry.js';
 import { createSlackAuthProvider } from './auth/providers/slack-auth-provider.js';
 import { createGoogleWorkspaceAuthProvider } from './auth/providers/google-workspace-auth-provider.js';
+import { createSlackWorkspaceDirectory } from './auth/slack-workspace-directory.js';
 
 const DEFAULT_SCOPES = 'openid profile email';
 const DEFAULT_CLEARANCE = ['internal', 'restricted'];
@@ -188,6 +189,7 @@ export class AuthService {
     constructor({ providerRegistry = null, authProviderId = process.env.BRAINBASE_AUTH_PROVIDER || 'slack' } = {}) {
         this.databaseUrl = process.env.INFO_SSOT_DATABASE_URL || process.env.INFO_SSOT_DB_URL || '';
         this.pool = this.databaseUrl ? new Pool({ connectionString: this.databaseUrl }) : null;
+        this.slackDirectory = createSlackWorkspaceDirectory({ pool: this.pool });
         this.jwtSecret = process.env.BRAINBASE_JWT_SECRET || '';
         this.serviceTokenSecret = process.env.BRAINBASE_SERVICE_TOKEN_SECRET || this.jwtSecret || '';
         this.serviceTokenTtlSeconds = Number(process.env.BRAINBASE_SERVICE_TOKEN_TTL_SECONDS || DEFAULT_SERVICE_TOKEN_TTL_SECONDS);
@@ -753,6 +755,155 @@ export class AuthService {
                 });
             }
             return organizations.map(({ organization }) => organization);
+        } finally {
+            client.release();
+        }
+    }
+
+    async listOrganizationMembers(organizationId) {
+        const requestedOrganizationId = typeof organizationId === 'string' ? organizationId.trim() : '';
+        if (!this.pool || !requestedOrganizationId) throw new Error('organizationId is required');
+        const client = await this.pool.connect();
+        try {
+            const { rows } = await client.query(
+                `SELECT id, person_id, person_name, slack_user_id, role, project_codes,
+                        active, created_at, updated_at
+                   FROM auth_grants
+                  WHERE organization_id = $1
+                  ORDER BY active DESC, person_name ASC, id ASC`,
+                [requestedOrganizationId]
+            );
+            return rows;
+        } finally {
+            client.release();
+        }
+    }
+
+    async listSlackWorkspaceMembers(organizationId, query = '') {
+        const requestedOrganizationId = typeof organizationId === 'string' ? organizationId.trim() : '';
+        const requestedQuery = typeof query === 'string' ? query.trim().slice(0, 100) : '';
+        if (!this.pool || !requestedOrganizationId) throw new Error('organizationId is required');
+        if (!this.slackDirectory) throw new Error('Organization Slack directory is not configured');
+        const client = await this.pool.connect();
+        try {
+            const organization = await client.query('SELECT workspace_id FROM organizations WHERE id = $1', [requestedOrganizationId]);
+            const workspaceId = organization.rows[0]?.workspace_id;
+            if (!workspaceId) throw new Error('Organization Slack workspace is not configured');
+            const registered = await client.query(
+                'SELECT slack_user_id FROM auth_grants WHERE organization_id = $1',
+                [requestedOrganizationId]
+            );
+            const registeredIds = new Set(registered.rows.map((row) => row.slack_user_id));
+            const members = await this.slackDirectory.listMembers({ workspaceId, query: requestedQuery });
+            return members.filter((member) => !registeredIds.has(member.slackUserId));
+        } finally {
+            client.release();
+        }
+    }
+
+    async createOrganizationMember(input = {}) {
+        const organizationId = typeof input.organizationId === 'string' ? input.organizationId.trim() : '';
+        const slackUserId = typeof input.slackUserId === 'string' ? input.slackUserId.trim().toUpperCase() : '';
+        const role = typeof input.role === 'string' ? input.role.trim().toLowerCase() : 'member';
+        const projectCodes = normalizeList(input.projectCodes);
+        if (!organizationId || !/^U[A-Z0-9]{8,}$/.test(slackUserId)) {
+            throw new Error('organizationId and a valid slackUserId are required');
+        }
+        if (!Object.hasOwn(ROLE_RANK, role)) throw new Error('role is invalid');
+        if (!this.pool) throw new Error('Database pool is not configured');
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            const organization = await client.query('SELECT workspace_id FROM organizations WHERE id = $1', [organizationId]);
+            if (!organization.rows[0]) throw new Error('Organization not found');
+            if (!organization.rows[0].workspace_id) throw new Error('Organization Slack workspace is not configured');
+            const projects = await client.query(
+                'SELECT code FROM projects WHERE organization_id = $1 AND code = ANY($2::text[])',
+                [organizationId, projectCodes]
+            );
+            if (projects.rowCount !== projectCodes.length) throw new Error('projectCodes contains a project outside the organization');
+            if (!this.slackDirectory) throw new Error('Organization Slack directory is not configured');
+            const slackMember = await this.slackDirectory.findMember({
+                workspaceId: organization.rows[0].workspace_id,
+                slackUserId
+            });
+            if (!slackMember) throw new Error('Slack member was not found in the organization workspace');
+            const personName = String(slackMember.realName || slackMember.displayName || '').trim();
+            if (!personName || personName.length > 100) throw new Error('Slack member name is invalid');
+            const duplicate = await client.query(
+                'SELECT 1 FROM auth_grants WHERE organization_id = $1 AND slack_user_id = $2 LIMIT 1',
+                [organizationId, slackUserId]
+            );
+            if (duplicate.rowCount) throw new Error('Member already exists');
+            const personId = `person_${ulid().toLowerCase()}`;
+            const grantId = `grant_${ulid().toLowerCase()}`;
+            await client.query('INSERT INTO people (id, name, status) VALUES ($1, $2, $3)', [personId, personName, 'active']);
+            const { rows } = await client.query(
+                `INSERT INTO auth_grants
+                    (id, person_id, person_name, slack_user_id, slack_workspace_id, organization_id, role, project_codes, active)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8::text[], true)
+                 RETURNING id, person_id, person_name, slack_user_id, role, project_codes, active, created_at, updated_at`,
+                [grantId, personId, personName, slackUserId, organization.rows[0].workspace_id, organizationId, role, projectCodes]
+            );
+            await client.query('COMMIT');
+            return rows[0];
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    async updateOrganizationMember(input = {}) {
+        const organizationId = typeof input.organizationId === 'string' ? input.organizationId.trim() : '';
+        const grantId = typeof input.grantId === 'string' ? input.grantId.trim() : '';
+        if (!organizationId || !grantId || !this.pool) throw new Error('organizationId and grantId are required');
+        const client = await this.pool.connect();
+        try {
+            await client.query('BEGIN');
+            // Serialize member-role changes within the tenant so two concurrent
+            // demotions cannot both observe another active CEO.
+            await client.query('SELECT id FROM auth_grants WHERE organization_id = $1 FOR UPDATE', [organizationId]);
+            const currentResult = await client.query(
+                'SELECT * FROM auth_grants WHERE id = $1 AND organization_id = $2 FOR UPDATE',
+                [grantId, organizationId]
+            );
+            const current = currentResult.rows[0];
+            if (!current) throw new Error('Member not found');
+            const personName = input.personName === undefined ? current.person_name : String(input.personName).trim();
+            const role = input.role === undefined ? current.role : String(input.role).trim().toLowerCase();
+            const projectCodes = input.projectCodes === undefined ? current.project_codes : normalizeList(input.projectCodes);
+            const active = input.active === undefined ? current.active : input.active === true;
+            if (!personName || personName.length > 100) throw new Error('personName is required and must be at most 100 characters');
+            if (!Object.hasOwn(ROLE_RANK, role)) throw new Error('role is invalid');
+            const projects = await client.query(
+                'SELECT code FROM projects WHERE organization_id = $1 AND code = ANY($2::text[])',
+                [organizationId, projectCodes]
+            );
+            if (projects.rowCount !== projectCodes.length) throw new Error('projectCodes contains a project outside the organization');
+            if (current.active && current.role === 'ceo' && (!active || role !== 'ceo')) {
+                const otherCeo = await client.query(
+                    "SELECT 1 FROM auth_grants WHERE organization_id = $1 AND active = true AND role = 'ceo' AND id <> $2 LIMIT 1",
+                    [organizationId, grantId]
+                );
+                if (!otherCeo.rowCount) throw new Error('The last active CEO cannot be removed');
+            }
+            const { rows } = await client.query(
+                `UPDATE auth_grants
+                    SET person_name = $3, role = $4, project_codes = $5::text[], active = $6, updated_at = NOW()
+                  WHERE id = $1 AND organization_id = $2
+                  RETURNING id, person_id, person_name, slack_user_id, role, project_codes, active, created_at, updated_at`,
+                [grantId, organizationId, personName, role, projectCodes, active]
+            );
+            // A person can hold grants in multiple organizations. Disabling one
+            // tenant grant must not globally deactivate that person.
+            await client.query('UPDATE people SET name = $2 WHERE id = $1', [current.person_id, personName]);
+            await client.query('COMMIT');
+            return rows[0];
+        } catch (error) {
+            await client.query('ROLLBACK');
+            throw error;
         } finally {
             client.release();
         }
