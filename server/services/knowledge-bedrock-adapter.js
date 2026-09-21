@@ -1,4 +1,4 @@
-import { InvokeModelCommand } from '@aws-sdk/client-bedrock-runtime';
+import { ConverseCommand } from '@aws-sdk/client-bedrock-runtime';
 
 import {
     KnowledgeAIAdapterContractError,
@@ -7,7 +7,7 @@ import {
     validatePreviewAnswer
 } from './knowledge-capture-preview-adapter.js';
 
-const ANTHROPIC_VERSION = 'bedrock-2023-05-31';
+export const QWEN3_235B_MODEL_ID = 'qwen.qwen3-235b-a22b-2507-v1:0';
 
 function requiredText(value, field) {
     if (typeof value !== 'string' || !value.trim()) {
@@ -37,35 +37,17 @@ function providerPayload(input) {
     }
 }
 
-function decodeResponseBody(body) {
-    if (body == null) {
-        throw new KnowledgeAIAdapterContractError('knowledge provider response body is missing');
-    }
-    try {
-        return new TextDecoder().decode(body);
-    } catch (error) {
-        throw new KnowledgeAIAdapterContractError('knowledge provider response body is not decodable', {
-            cause: error instanceof Error ? error.message : String(error)
-        });
-    }
-}
-
 function parseProviderOutput(response) {
-    let envelope;
-    try {
-        envelope = JSON.parse(decodeResponseBody(response?.body));
-    } catch (error) {
-        if (error instanceof KnowledgeAIAdapterContractError) throw error;
-        throw new KnowledgeAIAdapterContractError('knowledge provider response is not valid JSON', {
-            cause: error instanceof Error ? error.message : String(error)
-        });
-    }
-    const text = envelope?.content?.[0]?.text;
-    if (typeof text !== 'string' || !text.trim()) {
+    const content = response?.output?.message?.content;
+    const textBlocks = Array.isArray(content)
+        ? content.filter((block) => typeof block?.text === 'string')
+        : [];
+    if (textBlocks.length !== 1 || !textBlocks[0].text.trim()) {
         throw new KnowledgeAIAdapterContractError(
-            'knowledge provider response must include content[0].text'
+            'knowledge provider response must include exactly one non-empty output.message.content text'
         );
     }
+    const text = textBlocks[0].text;
     try {
         return JSON.parse(text);
     } catch (error) {
@@ -108,31 +90,30 @@ function previewSystemPrompt() {
 
 function buildRequest({ modelId, maxTokens, system, input }) {
     const payload = providerPayload(input);
-    return new InvokeModelCommand({
+    return new ConverseCommand({
         modelId,
-        contentType: 'application/json',
-        accept: 'application/json',
-        body: JSON.stringify({
-            anthropic_version: ANTHROPIC_VERSION,
-            max_tokens: maxTokens,
-            system,
-            messages: [{
-                role: 'user',
-                content: [{ type: 'text', text: payload }]
-            }]
-        })
+        system: [{ text: system }],
+        messages: [{
+            role: 'user',
+            content: [{ text: payload }]
+        }],
+        inferenceConfig: { maxTokens }
     });
 }
 
 /**
  * Build a knowledge adapter on top of the existing Bedrock Runtime contract.
  *
- * The caller must provide both a client and a model id.  There is deliberately
- * no environment lookup, default client, fallback provider, or raw-text
- * fallback here.  Bootstrap can therefore keep knowledge AI unavailable until
- * an explicit provider is approved and injected.
+ * The caller must provide a client. Qwen3 235B is the single standard model;
+ * the optional modelId parameter exists for explicit dependency injection in
+ * isolated callers and tests. There is deliberately no environment lookup,
+ * fallback provider, or raw-text fallback here.
  */
-export function createKnowledgeBedrockAdapter({ bedrockClient, modelId, maxTokens = 1024 } = {}) {
+export function createKnowledgeBedrockAdapter({
+    bedrockClient,
+    modelId = QWEN3_235B_MODEL_ID,
+    maxTokens = 1024
+} = {}) {
     if (!bedrockClient || typeof bedrockClient.send !== 'function') {
         throw new TypeError('bedrockClient with send(command) is required');
     }
@@ -182,7 +163,7 @@ export function createKnowledgeBedrockAdapter({ bedrockClient, modelId, maxToken
 }
 
 export const knowledgeBedrockContract = Object.freeze({
-    anthropicVersion: ANTHROPIC_VERSION,
-    request: 'InvokeModelCommand',
-    response: 'content[0].text JSON'
+    modelId: QWEN3_235B_MODEL_ID,
+    request: 'ConverseCommand',
+    response: 'output.message.content[0].text JSON'
 });

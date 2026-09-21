@@ -47,7 +47,6 @@ function configureServerEnvironment(rootDir, { enabled }) {
     vi.stubEnv('CANONICAL_TASK_ID_SECRET', 'fixture-secret');
     vi.stubEnv('BRAINBASE_PROJECT_CATALOG_MODE', 'disabled');
     vi.stubEnv('BRAINBASE_KNOWLEDGE_BEDROCK_ENABLED', enabled ? '1' : '');
-    vi.stubEnv('BRAINBASE_KNOWLEDGE_BEDROCK_MODEL_ID', enabled ? 'fixture-model' : '');
 }
 
 async function closeStartedServer() {
@@ -90,7 +89,7 @@ describe('server Knowledge Bedrock composition', () => {
         }));
     });
 
-    it('passes no adapter when production Bedrock opt-in and model configuration are absent', async () => {
+    it('passes no adapter when production Bedrock opt-in is absent', async () => {
         const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainbase-server-bedrock-wiring-'));
         createdDirectories.push(rootDir);
         configureServerEnvironment(rootDir, { enabled: false });
