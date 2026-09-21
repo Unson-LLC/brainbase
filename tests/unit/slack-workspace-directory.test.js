@@ -43,6 +43,24 @@ describe('SlackWorkspaceDirectory', () => {
             .rejects.toThrow('unavailable or ambiguous');
     });
 
+    it('selects the unique active connection from organization-linked workspace candidates', async () => {
+        const pool = { query: vi.fn(async (_sql, params) => ({ rows: [{
+            tenant_id: 'ten_unson', connection_id: 'wsc_business', connection_revision: 2,
+            provider: 'slack', workspace_id: 'T_BUSINESS', credential_ref: 'credential://business',
+            granted_scopes: ['users:read', 'users:read.email']
+        }], params })) };
+        const directory = new SlackWorkspaceDirectory({
+            pool,
+            credentialMaterializer: { materialize: async () => Buffer.from('xoxb-secret') },
+            fetchImpl: vi.fn(async () => Response.json({ ok: true, members: [], response_metadata: { next_cursor: '' } }))
+        });
+
+        await directory.listMembers({ workspaceIds: ['T_LOGIN', 'T_BUSINESS'] });
+
+        expect(pool.query.mock.calls[0][1]).toEqual([['T_LOGIN', 'T_BUSINESS']]);
+        expect(pool.query.mock.calls[0][0]).toContain('wc.workspace_id = ANY($1::text[])');
+    });
+
     it('fails closed when the connection cannot read member email addresses', async () => {
         const directory = new SlackWorkspaceDirectory({
             pool: { query: async () => ({ rows: [{ granted_scopes: ['users:read'] }] }) },

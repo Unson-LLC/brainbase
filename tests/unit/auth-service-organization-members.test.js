@@ -87,8 +87,34 @@ describe('AuthService organization member administration', () => {
         ]);
     });
 
+    it('uses the unique member-directory workspace linked by organization grants when login Slack differs', async () => {
+        const slackDirectory = {
+            resolveWorkspaceId: async ({ workspaceIds }) => {
+                expect(workspaceIds).toEqual(['T_LOGIN', 'T_BUSINESS']);
+                return 'T_BUSINESS';
+            },
+            listMembers: async ({ workspaceId, query }) => {
+                expect({ workspaceId, query }).toEqual({ workspaceId: 'T_BUSINESS', query: '山本' });
+                return [{ slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥', email: 'yamamoto@example.jp' }];
+            }
+        };
+        const service = serviceWithClient(async (sql) => {
+            if (sql.includes('UNION')) return { rows: [{ workspace_id: 'T_LOGIN' }, { workspace_id: 'T_BUSINESS' }] };
+            if (sql.includes('SELECT slack_user_id FROM auth_grants')) return { rows: [] };
+            return { rows: [] };
+        }, slackDirectory);
+
+        await expect(service.listSlackWorkspaceMembers('unson', '山本')).resolves.toEqual([
+            { slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥', email: 'yamamoto@example.jp' }
+        ]);
+    });
+
     it('adds Slack email addresses to existing organization members without exposing a different tenant', async () => {
         const service = serviceWithClient(async (sql, params) => {
+            if (sql.includes('UNION')) {
+                expect(params).toEqual(['baao-organization']);
+                return { rows: [{ workspace_id: 'T_BAAO' }] };
+            }
             if (sql.includes('FROM auth_grants')) return { rows: [{ id: 'grant_1', person_name: '山本 力弥', slack_user_id: 'UYAMAMOTO1', role: 'member' }] };
             if (sql.startsWith('SELECT workspace_id')) {
                 expect(params).toEqual(['baao-organization']);

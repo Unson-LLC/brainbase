@@ -27,15 +27,22 @@ export class SlackWorkspaceDirectory {
         this.fetchImpl = fetchImpl;
     }
 
-    async connection(workspaceId) {
+    async connection(workspaceIds) {
+        const candidates = [...new Set((Array.isArray(workspaceIds) ? workspaceIds : [workspaceIds])
+            .map((value) => String(value || '').trim())
+            .filter(Boolean))];
+        if (candidates.length === 0) throw new Error('Organization Slack directory connection is unavailable or ambiguous');
+        const workspacePredicate = candidates.length === 1
+            ? 'wc.workspace_id = $1'
+            : 'wc.workspace_id = ANY($1::text[])';
         const { rows } = await this.pool.query(
             `SELECT wc.tenant_id, wc.connection_id, wc.connection_revision, wc.provider,
                     wc.workspace_id, wc.credential_ref, wc.granted_scopes
                FROM workspace_connections wc
-              WHERE wc.provider = 'slack' AND wc.workspace_id = $1 AND wc.status = 'active'
+              WHERE wc.provider = 'slack' AND ${workspacePredicate} AND wc.status = 'active'
               ORDER BY wc.installed_at DESC
               LIMIT 2`,
-            [workspaceId]
+            [candidates.length === 1 ? candidates[0] : candidates]
         );
         if (rows.length !== 1) throw new Error('Organization Slack directory connection is unavailable or ambiguous');
         const scopes = new Set(rows[0].granted_scopes || []);
@@ -45,11 +52,16 @@ export class SlackWorkspaceDirectory {
         return rows[0];
     }
 
-    async listMembers({ workspaceId, query = '' }) {
+    async resolveWorkspaceId({ workspaceIds }) {
+        const connection = await this.connection(workspaceIds);
+        return connection.workspace_id;
+    }
+
+    async listMembers({ workspaceId, workspaceIds, query = '' }) {
         if (!this.credentialMaterializer || typeof this.fetchImpl !== 'function') {
             throw new Error('Organization Slack directory is not configured');
         }
-        const connection = await this.connection(workspaceId);
+        const connection = await this.connection(workspaceIds || workspaceId);
         const token = await this.credentialMaterializer.materialize(connection.credential_ref, {
             tenant_id: connection.tenant_id,
             connection_id: connection.connection_id,
