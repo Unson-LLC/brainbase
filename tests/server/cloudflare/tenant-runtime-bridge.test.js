@@ -103,6 +103,9 @@ describe('Cloudflare tenant runtime private bridge', () => {
         };
         const fetchImpl = vi.fn(async (input) => {
             const forwarded = new Request(input);
+            expect(forwarded.url).toBe(
+                'https://tenant-runtime.internal.example.test/api/v1/runtime/outcome-service-context:issue'
+            );
             const forwardedBody = await forwarded.clone().json();
             expect(forwardedBody).not.toHaveProperty('authority_proof');
             const encoded = forwarded.headers.get('brainbase-outcome-authority-readback');
@@ -137,7 +140,10 @@ describe('Cloudflare tenant runtime private bridge', () => {
             issued_at: '2026-01-01T00:00:00.000Z', expires_at: '2026-01-01T00:01:00.000Z'
         } });
         const tampered = await signedOutcomeRequest();
-        tampered.body.authority_proof.integrity.value = `${tampered.body.authority_proof.integrity.value.slice(0, -1)}A`;
+        const [protectedHeader, detachedPayload, signature] = tampered.body.authority_proof.integrity.value.split('.');
+        const tamperedSignature = Buffer.from(signature, 'base64url');
+        tamperedSignature[0] ^= 0x01;
+        tampered.body.authority_proof.integrity.value = `${protectedHeader}.${detachedPayload}.${tamperedSignature.toString('base64url')}`;
         for (const candidate of [expired, tampered]) {
             const fetchImpl = vi.fn();
             const response = await handleTenantRuntimeBridgeRequest(request('/v1/outcome-service-context:issue', {

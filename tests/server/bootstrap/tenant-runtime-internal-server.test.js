@@ -138,7 +138,7 @@ describe('tenant runtime internal service binding', () => {
         servers.push(server);
         const address = server.address();
 
-        const response = await fetch(`http://127.0.0.1:${address.port}/v1/outcome-service-context:issue`, {
+        const response = await fetch(`http://127.0.0.1:${address.port}/api/v1/runtime/outcome-service-context:issue`, {
             method: 'POST',
             headers: {
                 authorization: `Bearer ${serviceToken}`,

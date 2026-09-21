@@ -20,11 +20,13 @@ export function createTenantRuntimeInternalApp(services) {
     const app = express();
     app.disable('x-powered-by');
     app.use(express.json({ limit: '256kb' }));
-    app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
-    app.use('/v1', createOutcomeServiceContextRouter({
+    const outcomeRouterOptions = {
         serviceAuth: services.serviceAuth,
         outcomeServiceContextIssuer: services.outcomeServiceContextIssuer
-    }));
+    };
+    app.use('/api/v1/runtime', createOutcomeServiceContextRouter(outcomeRouterOptions));
+    app.use('/api/v1/runtime', createTenantRuntimeRouter(services));
+    app.use('/v1', createOutcomeServiceContextRouter(outcomeRouterOptions));
     return app;
 }
 

@@ -17,6 +17,7 @@ export const CANONICAL_RUNTIME_POST_PATHS = Object.freeze([
     '/api/v1/runtime/operation-receipts:finalize-with-pricing'
 ]);
 const OUTCOME_CONTEXT_ISSUE_PATH = '/v1/outcome-service-context:issue';
+const OUTCOME_CONTEXT_ORIGIN_PATH = '/api/v1/runtime/outcome-service-context:issue';
 const OUTCOME_AUTHORITY_READBACK_HEADER = 'brainbase-outcome-authority-readback';
 export const VERIFICATION_KEYS_PATH = '/api/v1/runtime/verification-keys';
 const RECEIPT_HISTORY_PATH = /^\/api\/v1\/runtime\/operation-receipts\/receipt_[0-9A-HJKMNP-TV-Z]{26}\/history:read$/;
@@ -291,7 +292,10 @@ export async function handleTenantRuntimeBridgeRequest(request, env, { fetchImpl
         return problem(503, 'BRIDGE_CONFIGURATION_INVALID');
     }
 
-    const upstreamUrl = new URL(route.path, origin);
+    const upstreamPath = route.path === OUTCOME_CONTEXT_ISSUE_PATH
+        ? OUTCOME_CONTEXT_ORIGIN_PATH
+        : route.path;
+    const upstreamUrl = new URL(upstreamPath, origin);
     const upstreamRequest = new Request(upstreamUrl, {
         method: route.method,
         headers,

@@ -642,8 +642,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-outcome-context-protected-origin-path",
+        "title": "Mana成果発行を保護済みprivate runtimeパスへ接続する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-outcome-context-private-runtime-route"
+    "current_story_id": "story-outcome-context-protected-origin-path"
   }
 }
