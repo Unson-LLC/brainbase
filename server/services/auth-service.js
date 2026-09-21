@@ -775,9 +775,9 @@ export class AuthService {
             );
             if (this.slackDirectory && rows.length > 0) {
                 try {
-                    const workspaceId = await this.resolveOrganizationSlackWorkspaceId(client, requestedOrganizationId);
+                    const { tenantId, workspaceId } = await this.resolveOrganizationSlackDirectory(client, requestedOrganizationId);
                     if (workspaceId) {
-                        const slackMembers = await this.slackDirectory.listMembers({ workspaceId });
+                        const slackMembers = await this.slackDirectory.listMembers({ tenantId, workspaceId });
                         const emails = new Map(slackMembers.map((member) => [member.slackUserId, member.email]));
                         return rows.map((row) => ({ ...row, email: emails.get(row.slack_user_id) || null }));
                     }
@@ -805,13 +805,21 @@ export class AuthService {
         return [...new Set(rows.map((row) => String(row.workspace_id || '').trim()).filter(Boolean))];
     }
 
-    async resolveOrganizationSlackWorkspaceId(client, organizationId) {
+    async resolveOrganizationSlackDirectory(client, organizationId) {
+        if (typeof this.resolveTenantForOrganization !== 'function') {
+            throw new Error('Organization Slack directory tenant resolver is not configured');
+        }
+        const mapping = await this.resolveTenantForOrganization(organizationId);
+        const tenantId = String(mapping?.tenant_id || '').trim();
+        if (!tenantId || mapping?.organization_id !== organizationId) {
+            throw new Error('Organization Slack directory tenant context is unavailable');
+        }
         const workspaceIds = await this.organizationSlackWorkspaceIds(client, organizationId);
         if (workspaceIds.length === 0) throw new Error('Organization Slack workspace is not configured');
         if (typeof this.slackDirectory?.resolveWorkspaceId === 'function') {
-            return this.slackDirectory.resolveWorkspaceId({ workspaceIds });
+            return { tenantId, workspaceId: await this.slackDirectory.resolveWorkspaceId({ tenantId, workspaceIds }) };
         }
-        return workspaceIds[0];
+        return { tenantId, workspaceId: workspaceIds[0] };
     }
 
     async listSlackWorkspaceMembers(organizationId, query = '') {
@@ -821,13 +829,13 @@ export class AuthService {
         if (!this.slackDirectory) throw new Error('Organization Slack directory is not configured');
         const client = await this.pool.connect();
         try {
-            const workspaceId = await this.resolveOrganizationSlackWorkspaceId(client, requestedOrganizationId);
+            const { tenantId, workspaceId } = await this.resolveOrganizationSlackDirectory(client, requestedOrganizationId);
             const registered = await client.query(
                 'SELECT slack_user_id FROM auth_grants WHERE organization_id = $1',
                 [requestedOrganizationId]
             );
             const registeredIds = new Set(registered.rows.map((row) => row.slack_user_id));
-            const members = await this.slackDirectory.listMembers({ workspaceId, query: requestedQuery });
+            const members = await this.slackDirectory.listMembers({ tenantId, workspaceId, query: requestedQuery });
             return members.filter((member) => !registeredIds.has(member.slackUserId));
         } finally {
             client.release();
@@ -849,7 +857,7 @@ export class AuthService {
             await client.query('BEGIN');
             const organization = await client.query('SELECT workspace_id FROM organizations WHERE id = $1', [organizationId]);
             if (!organization.rows[0]) throw new Error('Organization not found');
-            const workspaceId = await this.resolveOrganizationSlackWorkspaceId(client, organizationId);
+            const { tenantId, workspaceId } = await this.resolveOrganizationSlackDirectory(client, organizationId);
             const projects = await client.query(
                 'SELECT code FROM projects WHERE organization_id = $1 AND code = ANY($2::text[])',
                 [organizationId, projectCodes]
@@ -857,6 +865,7 @@ export class AuthService {
             if (projects.rowCount !== projectCodes.length) throw new Error('projectCodes contains a project outside the organization');
             if (!this.slackDirectory) throw new Error('Organization Slack directory is not configured');
             const slackMember = await this.slackDirectory.findMember({
+                tenantId,
                 workspaceId,
                 slackUserId
             });
