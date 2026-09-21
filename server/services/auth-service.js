@@ -41,6 +41,10 @@ const KNOWLEDGE_DELEGATION_ALLOWED_FIELDS = new Set([
     'knowledgeRefs'
 ]);
 
+function invalidOAuthState() {
+    return { ok: false, origin: null, codeChallenge: null, redirect: null, service: null };
+}
+
 function normalizeList(value) {
     if (!Array.isArray(value)) {
         return [];
@@ -241,6 +245,7 @@ export class AuthService {
 
         this.stateStore = new Map();
         this.stateTtlMs = 10 * 60 * 1000;
+        this.consumedSignedStates = new Map(); // state digest → expiresAt
         this.codeChallengeStore = new Map(); // code → { codeChallenge, createdAt }
 
         // Device Code Flow stores
@@ -292,16 +297,17 @@ export class AuthService {
         return `${prefix}_${ulid()}`;
     }
 
-    createState({ origin, codeChallenge, redirect } = {}) {
+    createState({ origin, codeChallenge, redirect, service } = {}) {
         if (this.stateSecret) {
-            return this.createSignedState({ origin, codeChallenge, redirect });
+            return this.createSignedState({ origin, codeChallenge, redirect, service });
         }
         const state = crypto.randomBytes(16).toString('hex');
         this.stateStore.set(state, {
             createdAt: Date.now(),
             origin: typeof origin === 'string' ? origin : null,
             codeChallenge: typeof codeChallenge === 'string' ? codeChallenge : null,
-            redirect: typeof redirect === 'string' ? redirect : null
+            redirect: typeof redirect === 'string' ? redirect : null,
+            service: typeof service === 'string' ? service : null
         });
         return state;
     }
@@ -313,13 +319,35 @@ export class AuthService {
         const record = this.stateStore.get(state);
         this.stateStore.delete(state);
         if (!record || !record.createdAt) {
-            return { ok: false, origin: null, codeChallenge: null, redirect: null };
+            return invalidOAuthState();
         }
         const ok = Date.now() - record.createdAt < this.stateTtlMs;
-        return { ok, origin: record.origin || null, codeChallenge: record.codeChallenge || null, redirect: record.redirect || null };
+        return {
+            ok,
+            origin: record.origin || null,
+            codeChallenge: record.codeChallenge || null,
+            redirect: record.redirect || null,
+            service: record.service || null
+        };
     }
 
-    createSignedState({ origin, codeChallenge, redirect } = {}) {
+    /** Return state metadata without consuming a state token. Used only to
+     * select the service-specific callback path before one-time consumption. */
+    peekState(state) {
+        if (this.stateSecret) return this.consumeSignedState(state, { consume: false });
+        const record = this.stateStore.get(state);
+        if (!record || !record.createdAt) return invalidOAuthState();
+        const ok = Date.now() - record.createdAt < this.stateTtlMs;
+        return {
+            ok,
+            origin: record.origin || null,
+            codeChallenge: record.codeChallenge || null,
+            redirect: record.redirect || null,
+            service: record.service || null
+        };
+    }
+
+    createSignedState({ origin, codeChallenge, redirect, service } = {}) {
         const ts = Date.now();
         const nonce = crypto.randomBytes(16).toString('hex');
         const originValue = typeof origin === 'string' && origin.length > 0
@@ -331,9 +359,12 @@ export class AuthService {
         const redirectValue = typeof redirect === 'string' && redirect.length > 0
             ? Buffer.from(redirect, 'utf8').toString('base64url')
             : '';
+        const serviceValue = typeof service === 'string' && service.length > 0
+            ? Buffer.from(service, 'utf8').toString('base64url')
+            : '';
 
         let payload = `${ts}.${nonce}`;
-        const fields = [originValue, codeChallengeValue, redirectValue];
+        const fields = [originValue, codeChallengeValue, redirectValue, serviceValue];
         let lastFieldIndex = fields.length - 1;
         while (lastFieldIndex >= 0 && !fields[lastFieldIndex]) lastFieldIndex -= 1;
         for (let i = 0; i <= lastFieldIndex; i += 1) {
@@ -347,15 +378,16 @@ export class AuthService {
         return `${payload}.${signature}`;
     }
 
-    consumeSignedState(state) {
-        if (typeof state !== 'string') return { ok: false, origin: null, codeChallenge: null, redirect: null };
+    consumeSignedState(state, { consume = true } = {}) {
+        if (typeof state !== 'string') return invalidOAuthState();
         const parts = state.split('.');
         // 3: ts.nonce.signature
         // 4: ts.nonce.origin.signature
         // 5: ts.nonce.origin.codeChallenge.signature
         // 6: ts.nonce.origin.codeChallenge.redirect.signature
-        if (parts.length < 3 || parts.length > 6) {
-            return { ok: false, origin: null, codeChallenge: null, redirect: null };
+        // 7: ts.nonce.origin.codeChallenge.redirect.service.signature
+        if (parts.length < 3 || parts.length > 7) {
+            return invalidOAuthState();
         }
 
         const signature = parts[parts.length - 1];
@@ -367,7 +399,7 @@ export class AuthService {
         const redirectEncoded = fields[2] || '';
 
         if (!tsRaw || !nonce || !signature) {
-            return { ok: false, origin: null, codeChallenge: null, redirect: null };
+            return invalidOAuthState();
         }
 
         const payload = parts.slice(0, -1).join('.');
@@ -380,19 +412,28 @@ export class AuthService {
             const sigBuf = Buffer.from(signature, 'hex');
             const expBuf = Buffer.from(expected, 'hex');
             if (sigBuf.length !== expBuf.length) {
-                return { ok: false, origin: null, codeChallenge: null, redirect: null };
+                return invalidOAuthState();
             }
             if (!crypto.timingSafeEqual(sigBuf, expBuf)) {
-                return { ok: false, origin: null, codeChallenge: null, redirect: null };
+                return invalidOAuthState();
             }
         } catch {
-            return { ok: false, origin: null, codeChallenge: null, redirect: null };
+            return invalidOAuthState();
         }
         const ts = Number(tsRaw);
-        if (!Number.isFinite(ts)) return { ok: false, origin: null, codeChallenge: null, redirect: null };
+        if (!Number.isFinite(ts)) return invalidOAuthState();
         const ageMs = Math.abs(Date.now() - ts);
         if (ageMs >= this.stateTtlMs) {
-            return { ok: false, origin: null, codeChallenge: null, redirect: null };
+            return invalidOAuthState();
+        }
+
+        const now = Date.now();
+        for (const [digest, expiresAt] of this.consumedSignedStates) {
+            if (expiresAt <= now) this.consumedSignedStates.delete(digest);
+        }
+        const stateDigest = crypto.createHash('sha256').update(state).digest('hex');
+        if (this.consumedSignedStates.has(stateDigest)) {
+            return invalidOAuthState();
         }
 
         let origin = null;
@@ -422,7 +463,20 @@ export class AuthService {
             }
         }
 
-        return { ok: true, origin, codeChallenge, redirect };
+        let service = null;
+        const serviceEncoded = fields[3] || '';
+        if (serviceEncoded) {
+            try {
+                service = Buffer.from(serviceEncoded, 'base64url').toString('utf8');
+            } catch {
+                service = null;
+            }
+        }
+
+        if (consume) {
+            this.consumedSignedStates.set(stateDigest, ts + this.stateTtlMs);
+        }
+        return { ok: true, origin, codeChallenge, redirect, service };
     }
 
     buildAuthorizeUrl(state, req) {

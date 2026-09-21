@@ -3,12 +3,38 @@
 import { normalizeExternalIdentity } from '../auth-provider-registry.js';
 
 export const GOOGLE_WORKSPACE_AUTH_PROVIDER_ID = 'google-workspace';
+/**
+ * Google OAuth is authorized against one Workspace account, while the
+ * capabilities granted to Brainbase are service-specific. Keep these ids
+ * stable because they are persisted in OAuth state and account metadata.
+ */
+export const GOOGLE_SERVICE_IDS = Object.freeze([
+    'gmail',
+    'google-calendar',
+    'google-drive'
+]);
+export const GOOGLE_SERVICE_SCOPES = Object.freeze({
+    gmail: Object.freeze(['https://www.googleapis.com/auth/gmail.compose']),
+    'google-calendar': Object.freeze(['https://www.googleapis.com/auth/calendar.readonly']),
+    'google-drive': Object.freeze(['https://www.googleapis.com/auth/drive.readonly'])
+});
+export const GOOGLE_IDENTITY_SCOPES = Object.freeze(['openid', 'profile', 'email']);
 export const GOOGLE_MEET_READ_SCOPES = Object.freeze([
     'https://www.googleapis.com/auth/meetings.space.readonly',
     'https://www.googleapis.com/auth/calendar.readonly',
     'https://www.googleapis.com/auth/documents.readonly',
     'https://www.googleapis.com/auth/gmail.compose'
 ]);
+
+export function normalizeGoogleService(value) {
+    const service = String(value || '').trim().toLowerCase();
+    return GOOGLE_SERVICE_IDS.includes(service) ? service : null;
+}
+
+export function getGoogleServiceScopes(value) {
+    const service = normalizeGoogleService(value);
+    return service ? [...GOOGLE_SERVICE_SCOPES[service]] : [];
+}
 
 export class GoogleWorkspaceAuthProviderError extends Error {
     constructor(message, code = 'google_workspace_auth_error') {
@@ -153,6 +179,26 @@ export function createGoogleWorkspaceAuthProvider(options = {}) {
             if (allowedDomains.length === 1) url.searchParams.set('hd', allowedDomains[0]);
             return url.toString();
         },
+        buildGoogleServiceAuthorizationUrl(service, state, req) {
+            const normalizedService = normalizeGoogleService(service);
+            if (!normalizedService) {
+                throw new GoogleWorkspaceAuthProviderError('Google service is not supported', 'unsupported_google_service');
+            }
+            requireIntegrationConfig(req);
+            const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+            url.searchParams.set('client_id', clientId);
+            url.searchParams.set('redirect_uri', resolveIntegrationRedirectUri(req));
+            url.searchParams.set('response_type', 'code');
+            // Identity scopes are required for tenant-bound account lookup;
+            // capabilities contain only the service scope URLs below.
+            url.searchParams.set('scope', [...GOOGLE_IDENTITY_SCOPES, ...getGoogleServiceScopes(normalizedService)].join(' '));
+            url.searchParams.set('state', state);
+            url.searchParams.set('access_type', 'offline');
+            url.searchParams.set('include_granted_scopes', 'true');
+            url.searchParams.set('prompt', 'consent');
+            if (allowedDomains.length === 1) url.searchParams.set('hd', allowedDomains[0]);
+            return url.toString();
+        },
         async exchangeCode(code, req) {
             requireConfig(req, true);
             const response = await fetchImpl('https://oauth2.googleapis.com/token', {
@@ -189,6 +235,32 @@ export function createGoogleWorkspaceAuthProvider(options = {}) {
             if (!response.ok || !data.access_token || !data.refresh_token) {
                 throw new GoogleWorkspaceAuthProviderError('Google Meet token exchange failed', 'provider_exchange_failed');
             }
+            return data;
+        },
+        async exchangeGoogleServiceCode(service, code, req) {
+            const normalizedService = normalizeGoogleService(service);
+            if (!normalizedService) {
+                throw new GoogleWorkspaceAuthProviderError('Google service is not supported', 'unsupported_google_service');
+            }
+            requireIntegrationConfig(req, true);
+            const response = await fetchImpl('https://oauth2.googleapis.com/token', {
+                method: 'POST',
+                headers: { 'content-type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({
+                    client_id: clientId,
+                    client_secret: clientSecret,
+                    redirect_uri: resolveIntegrationRedirectUri(req),
+                    code: String(code),
+                    grant_type: 'authorization_code'
+                })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.access_token) {
+                throw new GoogleWorkspaceAuthProviderError('Google service token exchange failed', 'provider_exchange_failed');
+            }
+            // Google omits refresh_token when the account already granted the
+            // client these scopes. The connection layer must preserve its
+            // existing refresh token in that case.
             return data;
         },
         async refreshMeetAccessToken(refreshToken) {

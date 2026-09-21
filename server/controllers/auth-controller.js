@@ -18,6 +18,13 @@ function getErrorMessage(error) {
     return error instanceof Error ? error.message : String(error || '');
 }
 
+/** @param {unknown} error */
+function getErrorCode(error) {
+    return error && typeof error === 'object' && typeof error.code === 'string'
+        ? error.code
+        : '';
+}
+
 const STORAGE_TOKEN_KEY = 'brainbase.auth.token';
 const STORAGE_ACCESS_KEY = 'brainbase.auth.access';
 const STORAGE_REFRESH_KEY = 'brainbase.auth.refresh';
@@ -240,40 +247,71 @@ function renderAuthCallbackHtml({ token, access, refresh_token: refreshToken }, 
 }
 
 export class AuthController {
-    /** @param {any} authService @param {{ googleMeetConnectionService?: any }} [options] */
+    /** @param {any} authService @param {{ googleMeetConnectionService?: any, googleServiceConnectionService?: any }} [options] */
     constructor(authService, options = {}) {
         this.authService = authService;
         this.googleMeetConnectionService = options.googleMeetConnectionService || null;
+        this.googleServiceConnectionService = options.googleServiceConnectionService || null;
     }
 
     /** @param {Request & { access?: any }} req @param {Response} res */
     googleMeetStart = async (req, res) => {
         try {
-            if (!this.googleMeetConnectionService) {
-                return res.status(503).json({ error: 'Google Meet connection is not configured' });
+            const service = typeof req.query.service === 'string' ? req.query.service.trim() : '';
+            const connectionService = service
+                ? this.googleServiceConnectionService
+                : this.googleMeetConnectionService;
+            if (!connectionService) {
+                return res.status(503).json({
+                    error: service
+                        ? 'Google service connection is not configured'
+                        : 'Google Meet connection is not configured'
+                });
             }
-            const state = this.authService.createState({ redirect: '/settings' });
+            const state = this.authService.createState({
+                redirect: '/settings',
+                ...(service ? { service } : {})
+            });
             setOAuthStateCookie(res, req, state);
-            const url = this.googleMeetConnectionService.buildAuthorizationUrl({ state, req });
+            const url = service
+                ? connectionService.buildAuthorizationUrl({ service, state, req })
+                : connectionService.buildAuthorizationUrl({ state, req });
             if (String(req.query.json || '').toLowerCase() === 'true') return res.json({ url });
             return res.redirect(url);
         } catch (error) {
-            logger.error('Failed to start Google Meet connection', { error });
-            return res.status(500).json({ error: getErrorMessage(error) || 'Failed to start Google Meet connection' });
+            logger.error('Failed to start Google connection', { error });
+            const message = getErrorMessage(error);
+            const status = getErrorCode(error) === 'unsupported_google_service'
+                || message === 'unsupported_google_service' ? 400 : 500;
+            return res.status(status).json({ error: message || 'Failed to start Google connection' });
         }
     };
 
     /** @param {Request & { access?: any }} req @param {Response} res */
     googleMeetCallback = async (req, res) => {
         try {
-            if (!this.googleMeetConnectionService) {
-                return res.status(503).json({ error: 'Google Meet connection is not configured' });
-            }
             const code = typeof req.query.code === 'string' ? req.query.code : '';
             const state = typeof req.query.state === 'string' ? req.query.state : '';
             if (!code || !state) return res.status(400).json({ error: 'code and state are required' });
             const browserStateIsValid = verifyOAuthStateCookie(req, state);
             clearOAuthStateCookie(res);
+            if (!browserStateIsValid) return res.status(400).json({ error: 'Invalid state' });
+            // A service-specific state must select the matching connection service
+            // before the one-time state is consumed. `peekState` is read-only;
+            // older test doubles and deployments may not expose it, so callback
+            // selection also remains bound to the consumed result below.
+            const peekedState = typeof this.authService.peekState === 'function'
+                ? this.authService.peekState(state)
+                : null;
+            const peekedService = peekedState?.ok && typeof peekedState.service === 'string'
+                ? peekedState.service
+                : '';
+            if (peekedService && !this.googleServiceConnectionService) {
+                return res.status(503).json({ error: 'Google service connection is not configured' });
+            }
+            if (!peekedService && !this.googleMeetConnectionService && !this.googleServiceConnectionService) {
+                return res.status(503).json({ error: 'Google connection is not configured' });
+            }
             const stateResult = browserStateIsValid ? this.authService.consumeState(state) : { ok: false };
             if (!stateResult?.ok) return res.status(400).json({ error: 'Invalid state' });
             const personId = req.access?.personId;
@@ -281,13 +319,58 @@ export class AuthController {
             if (!personId || !organizationId) {
                 return res.status(403).json({ error: 'Authenticated organization context is required' });
             }
-            const account = await this.googleMeetConnectionService.connect({
-                code, req, personId, organizationId, idempotencyKey: state
-            });
+            const service = typeof stateResult.service === 'string' ? stateResult.service.trim() : '';
+            const connectionService = service
+                ? this.googleServiceConnectionService
+                : this.googleMeetConnectionService;
+            if (!connectionService) {
+                return res.status(503).json({
+                    error: service
+                        ? 'Google service connection is not configured'
+                        : 'Google Meet connection is not configured'
+                });
+            }
+            const connectInput = {
+                code, req, personId, organizationId, idempotencyKey: state,
+                ...(service ? { service } : {})
+            };
+            const account = await connectionService.connect(connectInput);
             return res.json({ ok: true, account });
         } catch (error) {
-            logger.error('Google Meet connection callback failed', { error });
-            return res.status(500).json({ error: getErrorMessage(error) || 'Google Meet connection failed' });
+            logger.error('Google connection callback failed', { error });
+            const message = getErrorMessage(error);
+            const status = getErrorCode(error) === 'unsupported_google_service'
+                || message === 'unsupported_google_service' ? 400 : 500;
+            return res.status(status).json({ error: message || 'Google connection failed' });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
+    googleMeetStatus = async (req, res) => {
+        try {
+            if (!this.googleServiceConnectionService) {
+                return res.status(503).json({ error: 'Google service connection is not configured' });
+            }
+            const personId = req.access?.personId;
+            const organizationId = req.access?.organizationId;
+            if (!personId || !organizationId) {
+                return res.status(403).json({ error: 'Authenticated organization context is required' });
+            }
+            const service = typeof req.query.service === 'string' && req.query.service.trim()
+                ? req.query.service.trim()
+                : 'google-meet';
+            const status = await this.googleServiceConnectionService.status({
+                service,
+                personId,
+                organizationId
+            });
+            return res.json(status);
+        } catch (error) {
+            logger.error('Google connection status lookup failed', { error });
+            const message = getErrorMessage(error);
+            const status = getErrorCode(error) === 'unsupported_google_service'
+                || message === 'unsupported_google_service' ? 400 : 500;
+            return res.status(status).json({ error: message || 'Google connection status lookup failed' });
         }
     };
 
