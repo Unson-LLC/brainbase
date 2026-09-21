@@ -1,0 +1,9 @@
+name: Deploy Brainbase tenant runtime bridge
+description: Deploy the canonical Brainbase tenant runtime bridge with the caller's Cloudflare credentials.
+
+runs:
+  using: composite
+  steps:
+    - name: Deploy canonical bridge
+      shell: bash
+      run: npx --yes wrangler@4.124.0 deploy --config "$GITHUB_ACTION_PATH/wrangler.jsonc"
