@@ -115,8 +115,7 @@ function normalizeAuthority(value) {
 }
 
 function createProviderReadback({ provider }) {
-    if (typeof provider?.verifyAuthority !== 'function') return null;
-    return async (input) => {
+    return async (input, serviceIdentity) => {
         const organizations = input.profile?.organization_ids;
         if (!Array.isArray(organizations) || organizations.length !== 1 || !nonEmpty(organizations[0])) {
             throw new Error('Outcome service profile must name exactly one organization for Mana readback');
@@ -125,7 +124,7 @@ function createProviderReadback({ provider }) {
         if (organizationId === input.tenant) {
             throw new Error('Outcome service tenant and organization must be distinct');
         }
-        const authority = await provider.verifyAuthority({
+        const authority = serviceIdentity?.outcomeAuthorityReadback ?? await provider?.verifyAuthority?.({
             tenant_id: input.tenant,
             organization_id: organizationId,
             delegated_actor_person_id: input.actor,
