@@ -274,6 +274,7 @@ export function createCoreServices({
     if (tenantRuntimeServices) {
         tenantRuntimeServices = {
             ...tenantRuntimeServices,
+            outcomeServiceContextIssuer,
             meetingMinutesContextReceiptService
         };
     }

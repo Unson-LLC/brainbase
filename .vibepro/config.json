@@ -630,8 +630,20 @@
         "ssot": "local",
         "status": "active",
         "contract_type": "outcome"
+      },
+      {
+        "story_id": "story-outcome-context-private-runtime-route",
+        "title": "Manaの成果コンテキスト発行をprivate runtimeへ接続する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-organization-member-management-v1"
+    "current_story_id": "story-outcome-context-private-runtime-route"
   }
 }

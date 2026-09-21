@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto';
 import jwt from 'jsonwebtoken';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
     startTenantRuntimeInternalServer,
@@ -38,6 +38,19 @@ function createServices() {
         deploymentId: 'dep_01ARZ3NDEKTSV4RRFFQ69G5FAX',
         deploymentProfile: 'shared_cloud'
     });
+}
+
+function createOutcomeIssuingServices() {
+    const services = createServices();
+    const issue = vi.fn(async (body, identity) => ({
+        context_id: 'ctx_private_runtime_test',
+        correlation_id: body.correlation_id,
+        service_subject: identity.subject
+    }));
+    return {
+        services: { ...services, outcomeServiceContextIssuer: { issue } },
+        issue
+    };
 }
 
 function issueCanonicalServiceToken(overrides = {}) {
@@ -114,6 +127,34 @@ afterEach(async () => {
 });
 
 describe('tenant runtime internal service binding', () => {
+    it('Manaの成果コンテキスト発行要求をprivate listenerの認証境界へ接続する', async () => {
+        const { services, issue } = createOutcomeIssuingServices();
+        const server = await startTenantRuntimeInternalServer({
+            services,
+            host: '127.0.0.1',
+            port: 0,
+            log: { log: () => {} }
+        });
+        servers.push(server);
+        const address = server.address();
+
+        const response = await fetch(`http://127.0.0.1:${address.port}/v1/outcome-service-context:issue`, {
+            method: 'POST',
+            headers: {
+                authorization: `Bearer ${serviceToken}`,
+                'content-type': 'application/json'
+            },
+            body: JSON.stringify({ correlation_id: 'corr_private_runtime_test' })
+        });
+
+        expect(response.status).toBe(200);
+        await expect(response.json()).resolves.toMatchObject({
+            context_id: 'ctx_private_runtime_test',
+            correlation_id: 'corr_private_runtime_test'
+        });
+        expect(issue).toHaveBeenCalledOnce();
+    });
+
     it('P0-1: manaが専用内部portのservice-authenticated routeへ到達できる', async () => {
         const server = await startTenantRuntimeInternalServer({
             services: createServices(),
