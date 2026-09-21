@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import { AuthService } from '../../server/services/auth-service.js';
 
-function serviceWithClient(query) {
+function serviceWithClient(query, slackDirectory = null) {
     const service = new AuthService();
     service.pool = {
         connect: async () => ({ query, release: () => {} })
     };
+    service.slackDirectory = slackDirectory;
     return service;
 }
 
@@ -36,6 +37,12 @@ describe('AuthService organization member administration', () => {
             project_codes: ['baao'],
             active: true
         };
+        const slackDirectory = {
+            findMember: async ({ workspaceId, slackUserId }) => {
+                expect({ workspaceId, slackUserId }).toEqual({ workspaceId: 'T_BAAO', slackUserId: 'UTESTBAAO1' });
+                return { slackUserId: 'UTESTBAAO1', displayName: '山本 力弥', realName: '山本 力弥' };
+            }
+        };
         const service = serviceWithClient(async (sql, params) => {
             statements.push({ sql, params });
             if (sql.startsWith('SELECT workspace_id')) return { rows: [{ workspace_id: 'T_BAAO' }], rowCount: 1 };
@@ -43,11 +50,10 @@ describe('AuthService organization member administration', () => {
             if (sql.startsWith('SELECT 1 FROM auth_grants')) return { rows: [], rowCount: 0 };
             if (sql.includes('INSERT INTO auth_grants')) return { rows: [createdMember], rowCount: 1 };
             return { rows: [], rowCount: 0 };
-        });
+        }, slackDirectory);
 
         await expect(service.createOrganizationMember({
             organizationId: 'baao-organization',
-            personName: '山本 力弥',
             slackUserId: 'UTESTBAAO1',
             role: 'member',
             projectCodes: ['baao']
@@ -58,6 +64,46 @@ describe('AuthService organization member administration', () => {
             '山本 力弥', 'UTESTBAAO1', 'T_BAAO', 'baao-organization', 'member', ['baao']
         ]);
         expect(statements.at(-1).sql).toBe('COMMIT');
+    });
+
+    it('searches the authenticated tenant Slack workspace and hides registered users', async () => {
+        const slackDirectory = {
+            listMembers: async ({ workspaceId, query }) => {
+                expect({ workspaceId, query }).toEqual({ workspaceId: 'T_BAAO', query: '山本' });
+                return [
+                    { slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥' },
+                    { slackUserId: 'UREGISTERED1', displayName: '登録済み', realName: '登録済み' }
+                ];
+            }
+        };
+        const service = serviceWithClient(async (sql) => {
+            if (sql.startsWith('SELECT workspace_id')) return { rows: [{ workspace_id: 'T_BAAO' }], rowCount: 1 };
+            if (sql.includes('FROM auth_grants')) return { rows: [{ slack_user_id: 'UREGISTERED1' }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        }, slackDirectory);
+
+        await expect(service.listSlackWorkspaceMembers('baao-organization', '山本')).resolves.toEqual([
+            { slackUserId: 'UYAMAMOTO1', displayName: '山本 力弥', realName: '山本 力弥' }
+        ]);
+    });
+
+    it('rejects a forged Slack ID that is not in the tenant workspace', async () => {
+        const statements = [];
+        const service = serviceWithClient(async (sql) => {
+            statements.push(sql);
+            if (sql.startsWith('SELECT workspace_id')) return { rows: [{ workspace_id: 'T_BAAO' }], rowCount: 1 };
+            if (sql.startsWith('SELECT code FROM projects')) return { rows: [{ code: 'baao' }], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        }, { findMember: async () => null });
+
+        await expect(service.createOrganizationMember({
+            organizationId: 'baao-organization',
+            slackUserId: 'UFORGED001',
+            role: 'member',
+            projectCodes: ['baao']
+        })).rejects.toThrow('Slack member was not found in the organization workspace');
+        expect(statements).toContain('ROLLBACK');
+        expect(statements.some((sql) => sql.startsWith('INSERT INTO people'))).toBe(false);
     });
 
     it('rejects a project code outside the organization and rolls back creation', async () => {

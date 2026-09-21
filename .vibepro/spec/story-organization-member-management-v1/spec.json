@@ -5,6 +5,8 @@
   "acceptance_criteria": [
     "CEOだけが正本メンバーAPIを利用できる",
     "organization_idは認証済みaccessから解決する",
+    "追加候補は接続済みSlackワークスペースから検索し、Slack IDを手入力させない",
+    "登録時にSlack所属を再照合し、別ワークスペースまたは偽造IDを拒否する",
     "追加するproject_codesは同じorganization_idに所属するものだけ許可する",
     "最後の有効なCEOは降格または無効化できない",
     "一組織のgrant無効化でperson全体を無効化しない",

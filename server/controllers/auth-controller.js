@@ -632,6 +632,24 @@ export class AuthController {
     };
 
     /** @param {Request & { access?: any }} req @param {Response} res */
+    slackDirectory = async (req, res) => {
+        const access = req.access || {};
+        if (String(access.role || '').toLowerCase() !== 'ceo' || !access.organizationId) {
+            return res.status(403).json({ error: 'CEO role is required' });
+        }
+        try {
+            const members = await this.authService.listSlackWorkspaceMembers(
+                access.organizationId,
+                req.query?.query
+            );
+            return res.json({ organizationId: access.organizationId, members });
+        } catch (error) {
+            const message = getErrorMessage(error) || 'Slack member lookup failed';
+            return res.status(/required|invalid/i.test(message) ? 400 : 503).json({ error: message });
+        }
+    };
+
+    /** @param {Request & { access?: any }} req @param {Response} res */
     createMember = async (req, res) => {
         const access = req.access || {};
         if (String(access.role || '').toLowerCase() !== 'ceo' || !access.organizationId) {
@@ -640,7 +658,6 @@ export class AuthController {
         try {
             const member = await this.authService.createOrganizationMember({
                 organizationId: access.organizationId,
-                personName: req.body?.personName,
                 slackUserId: req.body?.slackUserId,
                 role: req.body?.role,
                 projectCodes: req.body?.projectCodes
