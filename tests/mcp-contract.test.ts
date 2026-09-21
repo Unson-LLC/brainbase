@@ -47,6 +47,9 @@ describe('MCP contract', () => {
       'list_entities',
       'search',
       'search_personal_kg',
+      'personal_knowledge_context',
+      'personal_knowledge_register',
+      'personal_knowledge_search',
       'onboarding_status',
       'brainbase_onboarding_start',
       'brainbase_onboarding_get',
@@ -73,7 +76,7 @@ describe('MCP contract', () => {
     const review = toolDefinitions.find((tool) => tool.name === 'brainbase_onboarding_review');
     expect((review?.inputSchema as { properties?: { actions?: { minItems?: number } } }).properties?.actions?.minItems).toBe(1);
     expect((review?.inputSchema as { properties?: { actions?: { items?: { oneOf?: unknown[] } } } }).properties?.actions?.items?.oneOf).toHaveLength(4);
-    const resolver = toolDefinitions.at(14);
+    const resolver = toolDefinitions.at(17);
     expect(resolver).toMatchObject({
       name: 'resolve_entity',
       inputSchema: {
@@ -107,6 +110,9 @@ describe('MCP contract', () => {
         'list_entities',
         'search',
         'search_personal_kg',
+        'personal_knowledge_context',
+        'personal_knowledge_register',
+        'personal_knowledge_search',
         'onboarding_status',
         'brainbase_onboarding_start',
         'brainbase_onboarding_get',
