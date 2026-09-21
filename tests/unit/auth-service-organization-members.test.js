@@ -25,6 +25,41 @@ describe('AuthService organization member administration', () => {
         expect(observed[0].params).toEqual(['unson']);
     });
 
+    it('registers BAAO member Yamamoto with the baao project in the authenticated tenant', async () => {
+        const statements = [];
+        const createdMember = {
+            id: 'grant_yamamoto',
+            person_id: 'person_yamamoto',
+            person_name: '山本 力弥',
+            slack_user_id: 'UTESTBAAO1',
+            role: 'member',
+            project_codes: ['baao'],
+            active: true
+        };
+        const service = serviceWithClient(async (sql, params) => {
+            statements.push({ sql, params });
+            if (sql.startsWith('SELECT workspace_id')) return { rows: [{ workspace_id: 'T_BAAO' }], rowCount: 1 };
+            if (sql.startsWith('SELECT code FROM projects')) return { rows: [{ code: 'baao' }], rowCount: 1 };
+            if (sql.startsWith('SELECT 1 FROM auth_grants')) return { rows: [], rowCount: 0 };
+            if (sql.includes('INSERT INTO auth_grants')) return { rows: [createdMember], rowCount: 1 };
+            return { rows: [], rowCount: 0 };
+        });
+
+        await expect(service.createOrganizationMember({
+            organizationId: 'baao-organization',
+            personName: '山本 力弥',
+            slackUserId: 'UTESTBAAO1',
+            role: 'member',
+            projectCodes: ['baao']
+        })).resolves.toEqual(createdMember);
+
+        const grantInsert = statements.find(({ sql }) => sql.includes('INSERT INTO auth_grants'));
+        expect(grantInsert.params.slice(2)).toEqual([
+            '山本 力弥', 'UTESTBAAO1', 'T_BAAO', 'baao-organization', 'member', ['baao']
+        ]);
+        expect(statements.at(-1).sql).toBe('COMMIT');
+    });
+
     it('rejects a project code outside the organization and rolls back creation', async () => {
         const statements = [];
         const service = serviceWithClient(async (sql) => {
