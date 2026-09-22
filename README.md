@@ -2,6 +2,11 @@
 
 Brainbase is a local-first MCP server for handing your personal source of truth to AI coding tools.
 
+Operators who work across multiple Cloudflare organizations can use the explicit,
+fail-closed [Cloudflare CLI profile wrapper](docs/runbooks/cloudflare-cli-profiles.md).
+It keeps credentials in Wrangler while binding each local alias to an expected
+Cloudflare Account ID.
+
 The v1 value is narrow by design: create a canonical local SSOT for yourself, your work, relationships, and decisions, then expose it through MCP tools that Codex, Claude, and CodeCode can call.
 
 This repository does not include the internal Brainbase UI, session runtime, xterm transport, workflow mission control, social operations, hosted backend, Infisical setup, or Unson internal data. Those belong in the internal `brainbase-unson` system.
