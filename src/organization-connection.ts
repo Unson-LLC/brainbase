@@ -192,6 +192,7 @@ const MAX_CODE_LENGTH = 4 * 1024;
 const MAX_AUTHORIZATION_URL_LENGTH = 8 * 1024;
 const MAX_CONNECTION_ID_LENGTH = 256;
 const SECRET_KEY_PATTERN = /(?:access|refresh|id)?[_-]?(?:token|secret)|credential|password|private[_-]?key|authorization[_-]?code|client[_-]?secret/i;
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/u;
 
 function fail(
   code: string,
@@ -212,7 +213,7 @@ function normalizeString(
     if (options.required) fail('validation_error', `${field} is required`, 400, { field });
     return null;
   }
-  if (/[\u0000-\u001f\u007f]/u.test(normalized)) {
+  if (CONTROL_CHARACTER_PATTERN.test(normalized)) {
     fail('validation_error', `${field} contains control characters`, 400, { field });
   }
   if (options.max && normalized.length > options.max) {
@@ -417,7 +418,7 @@ function normalizeAuthorizationUrl(value: unknown): string {
     fail('connection_provider_response_invalid', 'Provider response is invalid', 502);
   }
   const normalized = value.normalize('NFKC').trim();
-  if (!normalized || /[\u0000-\u001f\u007f]/u.test(normalized) ||
+  if (!normalized || CONTROL_CHARACTER_PATTERN.test(normalized) ||
       normalized.length > MAX_AUTHORIZATION_URL_LENGTH) {
     fail('connection_provider_response_invalid', 'Provider response is invalid', 502);
   }

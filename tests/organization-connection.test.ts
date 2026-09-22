@@ -60,17 +60,12 @@ function createFixture(options: {
     },
   };
   const providerAdapter: OrganizationConnectionProviderAdapter = {
-    async createAuthorization({ state }) {
+    async createAuthorization(input) {
       adapterCalls.push({ action: 'authorize' });
       if (options.adapter?.createAuthorization) {
-        return options.adapter.createAuthorization({
-          provider: 'slack',
-          binding,
-          state,
-          intent: { returnRef: 'connections' },
-        });
+        return options.adapter.createAuthorization(input);
       }
-      return { authorizationUrl: `https://provider.example.test/authorize?state=${state}` };
+      return { authorizationUrl: `https://provider.example.test/authorize?state=${input.state}` };
     },
     async exchangeAuthorizationCode(input) {
       adapterCalls.push({ action: 'exchange', code: input.code });
@@ -143,6 +138,98 @@ describe('OrganizationConnectionService', () => {
     });
     expect(stored).not.toHaveProperty('state');
     expect(JSON.stringify(stored)).not.toContain(started.state);
+  });
+
+  it('accepts lowercase identifiers and rejects control characters', async () => {
+    const binding = { tenantId: 'tenant', personId: 'person' };
+    const fixture = createFixture({
+      adapter: {
+        async createAuthorization(input) {
+          expect(input.provider).toBe('github');
+          expect(input.binding).toEqual(binding);
+          return { authorizationUrl: 'https://github.example.test/authorize' };
+        },
+        async exchangeAuthorizationCode(input) {
+          expect(input.provider).toBe('github');
+          expect(input.binding).toEqual(binding);
+          return {
+            provider: 'github',
+            connectionId: 'connection-lowercase',
+            status: 'active',
+            displayName: 'workspace',
+          };
+        },
+        async readConnection(input) {
+          expect(input.provider).toBe('github');
+          expect(input.binding).toEqual(binding);
+          return {
+            provider: 'github',
+            connectionId: 'connection-lowercase',
+            status: 'active',
+            displayName: 'workspace',
+          };
+        },
+      },
+    });
+    const started = await fixture.service.startAuthorization({
+      provider: 'github',
+      binding,
+    });
+    expect(started.authorizationUrl).toBe('https://github.example.test/authorize');
+    const completed = await fixture.service.completeAuthorization({
+      provider: 'github',
+      binding,
+      state: started.state,
+      code: 'authorization-code',
+    });
+    expect(completed.connection.displayName).toBe('workspace');
+    const readback = await fixture.service.readConnection({
+      provider: 'github',
+      binding,
+      connectionId: completed.connection.connectionId,
+    });
+    expect(readback?.displayName).toBe('workspace');
+
+    const invalidProvider = createFixture();
+    await expect(invalidProvider.service.startAuthorization({
+      provider: 'github\u0000',
+      binding,
+    })).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+
+    const invalidTenant = createFixture();
+    await expect(invalidTenant.service.startAuthorization({
+      provider: 'github',
+      binding: { tenantId: 'tenant\u0085', personId: 'person' },
+    })).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+
+    const invalidUrl = createFixture({
+      adapter: {
+        async createAuthorization() {
+          return { authorizationUrl: 'https://github.example.test/authorize\u007f' };
+        },
+      },
+    });
+    await expect(invalidUrl.service.startAuthorization({
+      provider: 'github',
+      binding,
+    })).rejects.toMatchObject({ code: 'connection_provider_response_invalid', status: 502 });
+
+    const invalidDisplay = createFixture({
+      adapter: {
+        async readConnection() {
+          return {
+            provider: 'slack',
+            connectionId: 'connection-1',
+            status: 'active',
+            displayName: 'workspace\u001f',
+          };
+        },
+      },
+    });
+    await expect(invalidDisplay.service.readConnection({
+      provider: 'slack',
+      binding: invalidDisplay.binding,
+    })).rejects.toMatchObject({ code: 'connection_provider_response_invalid', status: 502 });
   });
 
   it('enforces tenant/person/provider binding and consumes state only once', async () => {
