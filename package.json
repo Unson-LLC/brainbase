@@ -43,6 +43,10 @@
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"
     },
+    "./organization-connection": {
+      "types": "./dist/organization-connection.d.ts",
+      "import": "./dist/organization-connection.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"

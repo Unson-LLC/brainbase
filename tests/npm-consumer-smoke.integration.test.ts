@@ -79,6 +79,14 @@ describe('npm tarball consumer smoke', () => {
           list: 'passed',
           moduleResolution: expect.stringMatching(/^dist\/canonical-task-service\.js$/u)
         },
+        organizationConnection: {
+          subpathImport: 'passed',
+          start: 'passed',
+          complete: 'passed',
+          readback: 'passed',
+          replay: 'passed',
+          moduleResolution: expect.stringMatching(/^dist\/organization-connection\.js$/u)
+        },
         contractArtifacts: {
           schema: 'passed',
           fixture: 'passed',

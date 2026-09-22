@@ -60,6 +60,7 @@ import {
   validateJudgmentDAG
 } from '@unson/brainbase-mcp/judgment-dag';
 import { CanonicalTaskService } from '@unson/brainbase-mcp/canonical-task-service';
+import { OrganizationConnectionService } from '@unson/brainbase-mcp/organization-connection';
 
 const legacyOntology = await import('@unson/brainbase-mcp/dist/ontology.js');
 if (Object.keys(legacyOntology).length === 0) {
@@ -178,6 +179,98 @@ const consumerTaskList = await consumerTaskService.listTasks({}, consumerTaskCon
 if (consumerTask.id !== 'consumer-task-1' || consumerTaskList.items.length !== 1) {
   throw new Error('canonical task service consumer fixture did not read back its task');
 }
+
+const organizationConnectionModulePath = fileURLToPath(
+  import.meta.resolve('@unson/brainbase-mcp/organization-connection')
+);
+if (!organizationConnectionModulePath.startsWith(packageRoot + path.sep)) {
+  throw new Error('organization connection subpath resolved outside the installed package');
+}
+const organizationStates = new Map();
+const organizationStateRepository = {
+  async save(record) {
+    organizationStates.set(record.stateHash, { record: structuredClone(record) });
+  },
+  async consume({ stateHash, now }) {
+    const entry = organizationStates.get(stateHash);
+    if (!entry) return { status: 'missing' };
+    if (entry.consumedAt) return { status: 'replayed', record: structuredClone(entry.record) };
+    if (Date.parse(now) >= Date.parse(entry.record.expiresAt)) {
+      return { status: 'expired', record: structuredClone(entry.record) };
+    }
+    entry.consumedAt = now;
+    return { status: 'consumed', record: structuredClone(entry.record), consumedAt: now };
+  }
+};
+const organizationConnectionService = new OrganizationConnectionService({
+  stateRepository: organizationStateRepository,
+  providerAdapter: {
+    async createAuthorization({ state }) {
+      return { authorizationUrl: 'https://consumer.example.test/provider/authorize?state=' + state };
+    },
+    async exchangeAuthorizationCode() {
+      return {
+        provider: 'slack',
+        connectionId: 'consumer-connection-1',
+        status: 'active',
+        displayName: 'Consumer workspace',
+        scopes: ['channels:read']
+      };
+    },
+    async readConnection() {
+      return {
+        provider: 'slack',
+        connectionId: 'consumer-connection-1',
+        status: 'active',
+        displayName: 'Consumer workspace',
+        scopes: ['channels:read']
+      };
+    }
+  },
+  policy: { authorize() {} },
+  clock: () => new Date('2026-09-22T00:00:00.000Z')
+});
+const organizationBinding = { tenantId: 'consumer-tenant', personId: 'consumer-user' };
+const organizationStarted = await organizationConnectionService.startAuthorization({
+  provider: 'slack',
+  binding: organizationBinding,
+  intent: { returnRef: 'connections' }
+});
+const organizationCompleted = await organizationConnectionService.completeAuthorization({
+  provider: 'slack',
+  binding: organizationBinding,
+  state: organizationStarted.state,
+  code: 'consumer-authorization-code'
+});
+const organizationReadback = await organizationConnectionService.readConnection({
+  provider: 'slack',
+  binding: organizationBinding,
+  connectionId: organizationCompleted.connection.connectionId
+});
+if (organizationReadback?.connectionId !== 'consumer-connection-1' ||
+    organizationReadback.status !== 'active') {
+  throw new Error('organization connection consumer fixture did not read back its connection');
+}
+let organizationReplay = 'failed';
+try {
+  await organizationConnectionService.completeAuthorization({
+    provider: 'slack',
+    binding: organizationBinding,
+    state: organizationStarted.state,
+    code: 'consumer-authorization-code'
+  });
+} catch (error) {
+  if (error?.code === 'oauth_state_replayed' && error?.status === 409) organizationReplay = 'passed';
+}
+if (organizationReplay !== 'passed') throw new Error('organization connection state replay was not rejected');
+const organizationConnection = {
+  subpathImport: 'passed',
+  start: 'passed',
+  complete: 'passed',
+  readback: 'passed',
+  replay: organizationReplay,
+  moduleResolution: path.relative(packageRoot, organizationConnectionModulePath).split(path.sep).join('/')
+};
 
 const fixture = artifactContents.fixture;
 const expectedExecutionOrder = [
@@ -565,6 +658,7 @@ try {
         list: 'passed',
         moduleResolution: path.relative(packageRoot, canonicalTaskModulePath).split(path.sep).join('/')
       },
+      organizationConnection,
       contractVerification: {
         sourceLockSources: sourceLock.sources.length,
         digestFiles: digest.files.length,
