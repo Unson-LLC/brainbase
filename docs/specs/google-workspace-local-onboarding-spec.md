@@ -1,4 +1,4 @@
-# Otawara Google Workspace Local Onboarding Spec
+# Google Workspace Local Onboarding Spec
 
 ## Invariants
 
@@ -29,4 +29,3 @@
 
 - Unit and CLI tests cover JSON and markdown output for the Google Workspace local profile.
 - Acceptance E2E checks every story acceptance criterion against the CLI output and README.
-

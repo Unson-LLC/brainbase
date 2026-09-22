@@ -1,4 +1,4 @@
-# Otawara Google Workspace Local Onboarding Architecture
+# Google Workspace Local Onboarding Architecture
 
 ## Decision
 
@@ -28,4 +28,3 @@ Add a planning-only onboarding surface that converts an agent interview result i
 - No source import implementation.
 - No server operations handoff.
 - No automatic config mutation for Gmail, Calendar, Drive, Notion, or local notes.
-
