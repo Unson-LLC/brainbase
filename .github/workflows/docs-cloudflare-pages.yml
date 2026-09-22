@@ -27,6 +27,15 @@ on:
         required: true
         type: boolean
         default: false
+      sync_service_jwt:
+        description: Sync BRAINBASE_SERVICE_JWT to brainbase-tenant-runtime
+        required: true
+        type: boolean
+        default: false
+      expected_account_id:
+        description: Exact Cloudflare account ID safety check for secret sync
+        required: false
+        type: string
 
 concurrency:
   group: brainbase-public-docs-${{ github.ref }}
@@ -42,6 +51,7 @@ jobs:
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      BRAINBASE_SERVICE_JWT: ${{ secrets.BRAINBASE_SERVICE_JWT }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -71,6 +81,24 @@ jobs:
 
       - name: Smoke-test built HTML
         run: npm run docs:smoke
+
+      - name: Validate bounded Worker secret target
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_service_jwt == true }}
+        env:
+          EXPECTED_ACCOUNT_ID: ${{ inputs.expected_account_id }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$BRAINBASE_SERVICE_JWT"
+          test "$CLOUDFLARE_ACCOUNT_ID" = "$EXPECTED_ACCOUNT_ID"
+
+      - name: Sync and verify Worker service token
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_service_jwt == true }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$BRAINBASE_SERVICE_JWT" | npx --yes wrangler@4.37.1 secret put BRAINBASE_SERVICE_JWT --name brainbase-tenant-runtime
+          npx --yes wrangler@4.37.1 secret list --name brainbase-tenant-runtime | jq -e 'any(.[]; .name == "BRAINBASE_SERVICE_JWT")'
 
       - name: Decide whether to deploy
         id: deployment
