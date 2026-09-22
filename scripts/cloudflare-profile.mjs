@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
-import { access, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, rm } from "node:fs/promises";
 import { constants } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 
@@ -180,6 +180,31 @@ async function runWrangler(profile, args, options = {}) {
   return result;
 }
 
+async function inspectNamedProfile(profile) {
+  const directory = await mkdtemp(join(tmpdir(), "cloudflare-profile-auth-"));
+  let activated = false;
+  try {
+    const activation = await runWrangler(
+      profile,
+      ["auth", "activate", profile.wranglerProfile, directory],
+      { capture: true },
+    );
+    if (activation.code !== 0) {
+      throw new Error("Wrangler named authentication is unavailable");
+    }
+    activated = true;
+
+    const result = await runWrangler(profile, ["--cwd", directory, "whoami"], { capture: true });
+    if (result.code !== 0) throw new Error("Wrangler named authentication is unavailable");
+    return result.stdout;
+  } finally {
+    if (activated) {
+      await runWrangler(profile, ["auth", "deactivate", directory], { capture: true });
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   const [alias, action, ...rest] = process.argv.slice(2);
   if (!alias || !action || ["-h", "--help", "help"].includes(alias)) {
@@ -197,13 +222,8 @@ async function main() {
 
   if (action === "doctor") {
     const config = await validateConfig(profile, configFromArgs(rest));
-    const result = await runWrangler(
-      profile,
-      ["--profile", profile.wranglerProfile, "whoami"],
-      { capture: true },
-    );
-    if (result.code !== 0) throw new Error("Wrangler named authentication is unavailable");
-    if (!result.stdout.toLowerCase().includes(profile.accountId.toLowerCase())) {
+    const identity = await inspectNamedProfile(profile);
+    if (!identity.toLowerCase().includes(profile.accountId.toLowerCase())) {
       throw new Error("authenticated profile cannot see the expected Cloudflare account");
     }
     console.log(`profile: ${alias}`);
