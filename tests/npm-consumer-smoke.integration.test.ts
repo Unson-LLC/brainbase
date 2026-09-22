@@ -73,6 +73,12 @@ describe('npm tarball consumer smoke', () => {
       judgmentDag: {
         subpathImport: 'passed',
         legacyDeepImport: 'passed',
+        canonicalTask: {
+          subpathImport: 'passed',
+          create: 'passed',
+          list: 'passed',
+          moduleResolution: expect.stringMatching(/^dist\/canonical-task-service\.js$/u)
+        },
         contractArtifacts: {
           schema: 'passed',
           fixture: 'passed',
