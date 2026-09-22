@@ -39,6 +39,10 @@
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"
     },
+    "./streamable-http": {
+      "types": "./dist/streamable-http.d.ts",
+      "import": "./dist/streamable-http.js"
+    },
     "./ui/outcome-knowledge": "./ui/outcome-knowledge.js",
     "./ui/outcome-knowledge.css": "./ui/outcome-knowledge.css",
     "./ui/outcome-mana": "./ui/outcome-mana.js",
