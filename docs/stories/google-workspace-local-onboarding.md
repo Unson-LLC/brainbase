@@ -1,4 +1,4 @@
-# Otawara Google Workspace Local Onboarding Plan
+# Google Workspace Local Onboarding Plan
 
 ## Background
 
@@ -14,4 +14,3 @@ As a first personal Brainbase MCP adopter using Google Workspace, a 24/365 SSH-a
 - Scattered tasks in Google Calendar and local notes are treated as candidate extraction inputs, while abandoned Notion is marked inactive and not used as a required connector.
 - The plan includes next commands for `onboard:diagnose-sources`, `onboard:candidates`, `onboard:install`, and `doctor`.
 - JSON and markdown output are deterministic and do not write canonical SSOT files.
-
