@@ -59,6 +59,7 @@ import {
   saveJudgmentDAGRunArtifact,
   validateJudgmentDAG
 } from '@unson/brainbase-mcp/judgment-dag';
+import { CanonicalTaskService } from '@unson/brainbase-mcp/canonical-task-service';
 
 const legacyOntology = await import('@unson/brainbase-mcp/dist/ontology.js');
 if (Object.keys(legacyOntology).length === 0) {
@@ -130,6 +131,52 @@ const canonicalDigest = digest.files.map((file) => (
 )).join('');
 if (sha256(canonicalDigest) !== digest.digest) {
   throw new Error('digest aggregate does not match its canonical file hashes');
+}
+
+const canonicalTaskModulePath = fileURLToPath(import.meta.resolve('@unson/brainbase-mcp/canonical-task-service'));
+if (!canonicalTaskModulePath.startsWith(packageRoot + path.sep)) {
+  throw new Error('canonical task service subpath resolved outside the installed package');
+}
+const consumerTasks = new Map();
+const consumerRepository = {
+  async list() {
+    return { items: [...consumerTasks.values()], totalCount: consumerTasks.size };
+  },
+  async search() {
+    return { items: [...consumerTasks.values()], totalCount: consumerTasks.size };
+  },
+  async get(id) { return consumerTasks.get(id) ?? null; },
+  async findByIdempotencyKey(key) {
+    return [...consumerTasks.values()].find((task) => task.idempotency_key === key) ?? null;
+  },
+  async create(input) {
+    const task = { ...input, id: 'consumer-task-1', version: 1 };
+    consumerTasks.set(task.id, task);
+    return task;
+  },
+  async update(id, patch) {
+    const task = { ...consumerTasks.get(id), ...patch };
+    consumerTasks.set(id, task);
+    return task;
+  },
+  async delete(id) { consumerTasks.delete(id); }
+};
+const consumerTaskService = new CanonicalTaskService({
+  repository: consumerRepository,
+  policy: { authorize() {} },
+  baseUrl: 'https://consumer.example.test'
+});
+const consumerTaskContext = {
+  principal: { type: 'person', id: 'consumer-user' },
+  authSource: 'bearer',
+  idempotencyKey: 'consumer-task-create'
+};
+const consumerTask = await consumerTaskService.createTask(
+  { title: 'consumer subpath task' }, consumerTaskContext
+);
+const consumerTaskList = await consumerTaskService.listTasks({}, consumerTaskContext);
+if (consumerTask.id !== 'consumer-task-1' || consumerTaskList.items.length !== 1) {
+  throw new Error('canonical task service consumer fixture did not read back its task');
 }
 
 const fixture = artifactContents.fixture;
@@ -512,6 +559,12 @@ try {
     legacyDeepImport: 'passed',
     contractArtifacts: Object.fromEntries(Object.keys(contractArtifacts).map((name) => [name, 'passed'])),
     judgmentDag: {
+      canonicalTask: {
+        subpathImport: 'passed',
+        create: 'passed',
+        list: 'passed',
+        moduleResolution: path.relative(packageRoot, canonicalTaskModulePath).split(path.sep).join('/')
+      },
       contractVerification: {
         sourceLockSources: sourceLock.sources.length,
         digestFiles: digest.files.length,
@@ -673,6 +726,7 @@ export async function runConsumerSmoke(tarballPath, options = {}) {
       cli: { help: 'passed', start: 'passed', seed: 'passed', doctor: 'passed' },
       mcp: { toolsList: 'passed', contextReadback: 'passed', toolCount: mcp.toolCount },
       judgmentDag: {
+        canonicalTask: mcp.judgmentDag.canonicalTask,
         subpathImport: 'passed',
         legacyDeepImport: mcp.legacyDeepImport,
         contractArtifacts: Object.fromEntries(CONTRACT_ARTIFACT_NAMES.map((name) => [name, mcp.contractArtifacts[name]])),

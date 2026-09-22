@@ -35,6 +35,10 @@
       "types": "./dist/canonical-task-contract.d.ts",
       "import": "./dist/canonical-task-contract.js"
     },
+    "./canonical-task-service": {
+      "types": "./dist/canonical-task-service.d.ts",
+      "import": "./dist/canonical-task-service.js"
+    },
     "./personal-knowledge": {
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"
