@@ -135,7 +135,26 @@ describe('CanonicalTaskService', () => {
     await expect(failingService.listTasks({}, fixture.context())).rejects.toMatchObject({
       code: 'task_store_unavailable',
       status: 503,
-      message: 'database detail',
+      message: 'Task store is unavailable',
     });
+  });
+
+  it('does not expose audit failure details', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const failingService = new CanonicalTaskService({
+      repository: fixture.repository,
+      auditRepository: {
+        async upsertAuditLog() {
+          throw new Error('database audit detail');
+        },
+      },
+    });
+    await expect(failingService.createTask({ title: 'Audited task' }, fixture.context('audit-1')))
+      .rejects.toMatchObject({
+        code: 'task_audit_unavailable',
+        status: 503,
+        message: 'Task audit is unavailable',
+        details: {},
+      });
   });
 });

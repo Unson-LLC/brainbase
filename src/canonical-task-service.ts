@@ -748,8 +748,8 @@ export class CanonicalTaskService {
     };
     try {
       await this.auditRepository.upsertAuditLog(entry);
-    } catch (error) {
-      throw new CanonicalTaskError('task_audit_unavailable', error instanceof Error ? error.message : 'Task audit is unavailable', 503);
+    } catch {
+      throw new CanonicalTaskError('task_audit_unavailable', 'Task audit is unavailable', 503);
     }
   }
 
@@ -758,7 +758,7 @@ export class CanonicalTaskService {
       return await operation();
     } catch (error) {
       if (error instanceof CanonicalTaskError) throw error;
-      throw new CanonicalTaskError('task_store_unavailable', error instanceof Error ? error.message : 'Task store is unavailable', 503);
+      throw new CanonicalTaskError('task_store_unavailable', 'Task store is unavailable', 503);
     }
   }
 
