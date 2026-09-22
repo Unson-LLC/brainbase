@@ -101,6 +101,16 @@ describe("cloudflare-profile", () => {
     expect(result.stdout).toContain("authentication: available");
     expect(result.stdout).toContain("account: ...111111");
     expect(result.stdout).not.toContain(accountId);
+    const calls = (await readFile(context.calls, "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line).args);
+    expect(calls).toHaveLength(3);
+    expect(calls[0][0]).toBe("auth");
+    expect(calls[0][1]).toBe("activate");
+    expect(calls[0][2]).toBe("unson");
+    expect(calls[1]).toEqual(["--cwd", calls[0][3], "whoami"]);
+    expect(calls[2]).toEqual(["auth", "deactivate", calls[0][3]]);
   });
 
   it("doctor fails when named authentication cannot see the expected account", async () => {
