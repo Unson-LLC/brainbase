@@ -67,6 +67,10 @@
       "types": "./dist/constraint-exception-store.d.ts",
       "import": "./dist/constraint-exception-store.js"
     },
+    "./judgment-problem-snapshot": {
+      "types": "./dist/judgment-problem-snapshot.d.ts",
+      "import": "./dist/judgment-problem-snapshot.js"
+    },
     "./personal-knowledge": {
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"

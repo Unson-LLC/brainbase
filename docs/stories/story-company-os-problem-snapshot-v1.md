@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-problem-snapshot-v1
 title: 判断時の目的・前提・権限を固定して再確認できる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-objectives-v1", "story-company-os-world-model-v1", "story-company-os-constraints-v1"]
 external_dependencies: []
@@ -46,10 +46,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: 問い・所有範囲・範囲・目的と基準・観測・モデル・制約・権限・資源・期限の参照版をJudgmentProblemに束ねて読戻せる。
-- [ ] AC-02: 可変証拠は使用内容または不変参照とhashを保持し、保存にも読取にも元のアクセス境界を維持する。
-- [ ] AC-03: 欠落参照・適用外モデル・未解決の必須条件は判断利用不可として具体的に返す。
-- [ ] AC-04: 元データ変更後も旧Problemは不変で、新条件は同じ案件の新改訂になる。スナップショット自体は実行許可にならない。
+- [x] AC-01: 問い・所有範囲・範囲・目的と基準・観測・モデル・制約・権限・資源・期限の参照版をJudgmentProblemに束ねて読戻せる。
+- [x] AC-02: 可変証拠は使用内容または不変参照とhashを保持し、保存にも読取にも元のアクセス境界を維持する。historical readでもcanonical referenceの現在read ACLとexact revision/digestを確認し、embedded copyがACL失効を迂回しない。
+- [x] AC-03: 欠落参照・適用外モデル・未解決の必須条件は判断利用不可として具体的に返す。
+- [x] AC-04: 元データ変更後も旧Problemは不変で、新条件は同じ案件の新改訂になる。スナップショット自体は実行許可にならない。
 
 ## 対象外
 
@@ -59,4 +59,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+対象実装と受入条件は、`npm run build` と `npx vitest run tests/judgment-problem-snapshot.test.ts`（11 tests）で検証済み。テストにはhistorical readのcurrent ACL失効拒否、記録時点の用途・適用期間を再評価しない読戻し、embedded copyによるACL迂回拒否を含む。PR作成・CI・レビューは未完了のため、statusは `in_progress` のままレビュー待ちとする。VibeProのactiveは登録が有効である意味であり、PR/CI完了を意味しない。
