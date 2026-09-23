@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-subdag-v1
 title: 下位判断の根拠と不確実性まで辿って親判断に使える
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -57,4 +57,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-`src/judgment-dag-composition.ts` とStory05のProblemSnapshot adapterをfocused branchへ実装し、`npm run build` と `npx vitest run tests/judgment-problem-snapshot.test.ts tests/judgment-dag-composition.test.ts`（2 files、26 tests）で検証済み。検証には、現在ACLを確認するsnapshot参照、historical readerの実行利用拒否、DAG版・入出力契約・委任scope・capabilityの事前検証、artifact readback不一致、循環、子の失敗／保留伝播を含む。任意callbackのsandboxや外部作用の隔離はhost側の責任であり、OSSの保証範囲を越えていない。統合delta reviewはpass済み。PR作成・CI・mergeは未完了のため、statusは `in_progress` のままとする。VibeProのactiveは登録が有効である意味であり、PR/CI完了を意味しない。
+`src/judgment-dag-composition.ts` とStory05のProblemSnapshot adapterを実装し、`npm run build` と `npx vitest run tests/judgment-problem-snapshot.test.ts tests/judgment-dag-composition.test.ts`（2 files、combined 26 tests）で検証済み。検証には、現在ACLを確認するsnapshot参照、historical readerの実行利用拒否、DAG版・入出力契約・委任scope・capabilityの事前検証、artifact readback不一致、循環、子の失敗／保留伝播を含む。任意callbackのsandboxや外部作用の隔離はhost側の責任であり、OSSの保証範囲を越えていない。PR #526（[merge d7ddc89](https://github.com/Unson-LLC/brainbase/commit/d7ddcc899b71829535a930298d8af3242d0c3b61)）、[CI 35839045812](https://github.com/Unson-LLC/brainbase/actions/runs/35839045812) pass、combined 26 testsとreview pass。

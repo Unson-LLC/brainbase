@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-sidecar-v1
 title: SSOT sidecar の初回作成と失敗回復を原子的に扱える
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -24,10 +24,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: `mutatePersonalOsWithSidecar` は既存の1引数 mutator と互換性を保ちつつ、対象 sidecar の直前内容を2番目の引数で受け取れる。未作成なら `undefined` になる。
-- [ ] AC-02: `readPersonalOsSidecar` は SSOT のlockとtransaction recoveryを経て、未作成なら `undefined`、commit済みならその内容を返す。
-- [ ] AC-03: 初回 sidecar 作成のpublicationが失敗したとき、canonical 4ファイルを直前状態へ戻し、新しく作った sidecar を残さない。
-- [ ] AC-04: 既存 sidecar の更新が失敗したとき、canonical 4ファイルと既存 sidecar の内容を直前状態へ戻す。
+- [x] AC-01: `mutatePersonalOsWithSidecar` は既存の1引数 mutator と互換性を保ちつつ、対象 sidecar の直前内容を2番目の引数で受け取れる。未作成なら `undefined` になる。
+- [x] AC-02: `readPersonalOsSidecar` は SSOT のlockとtransaction recoveryを経て、未作成なら `undefined`、commit済みならその内容を返す。
+- [x] AC-03: 初回 sidecar 作成のpublicationが失敗したとき、canonical 4ファイルを直前状態へ戻し、新しく作った sidecar を残さない。
+- [x] AC-04: 既存 sidecar の更新が失敗したとき、canonical 4ファイルと既存 sidecar の内容を直前状態へ戻す。
 
 ## 対象外
 
@@ -35,4 +35,4 @@ external_dependencies: []
 
 ## 検証と完了
 
-最小Specは [`docs/specs/company-os-sidecar-v1.md`](../specs/company-os-sidecar-v1.md) に置く。`tests/ssot-atomic.test.ts` の初回作成・読込・失敗rollback fixtureで受入条件を確認し、`npm run build` と対象テストを実行する。full suite、push、PR、mergeはこのStoryの実装担当の完了条件に含めない。
+最小Specは [`docs/specs/company-os-sidecar-v1.md`](../specs/company-os-sidecar-v1.md) に置き、初回作成・読込・失敗rollback fixtureで受入条件を確認済み。PR #523（[merge 7d7da51](https://github.com/Unson-LLC/brainbase/commit/7d7da51047629cb85e3b0a2c4fecf7c0a2210cef)）、[CI 35836983284](https://github.com/Unson-LLC/brainbase/actions/runs/35836983284) pass、focused 22 tests。

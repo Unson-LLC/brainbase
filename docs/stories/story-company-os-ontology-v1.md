@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-ontology-v1
 title: 目的・状態・仮説・制約を混同せず契約検証できる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -44,10 +44,10 @@ Graphを利用する開発者として、目的と手段、観測と仮説、採
 
 ## 受入条件
 
-- [ ] AC-01: objective / variable / model / constraint と関係の意味・接続型・版を登録し、旧版の解釈を保持する。
-- [ ] AC-02: 草案保存と判断利用・評価利用の検証条件を分け、単位・集計範囲・期間・定義版の不整合を具体的な理由で返す。
-- [ ] AC-03: 貢献から達成、モデル入出力から因果証明、採用承認から真実を推論しない。世界の循環関係をDAG循環として拒否しない。
-- [ ] AC-04: 認識状態・採用範囲・ACL・保存先を独立して検証し、新旧fixtureの互換性と禁止推論の反例をテストする。
+- [x] AC-01: objective / variable / model / constraint と関係の意味・接続型・版を登録し、旧版の解釈を保持する。
+- [x] AC-02: 草案保存と判断利用・評価利用の検証条件を分け、単位・集計範囲・期間・定義版の不整合を具体的な理由で返す。
+- [x] AC-03: 貢献から達成、モデル入出力から因果証明、採用承認から真実を推論しない。世界の循環関係をDAG循環として拒否しない。
+- [x] AC-04: 認識状態・採用範囲・ACL・保存先を独立して検証し、新旧fixtureの互換性と禁止推論の反例をテストする。
 
 ## 対象外
 
@@ -57,4 +57,4 @@ Graphの本番型有効化、4型のCRUD、既存Kernelの再実装。
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-実装を開始し、共通型・関係・実行時validator・consumer smokeを追加中。PR CIは既存repo hygieneの承認済みworkflow契約に従い、本Storyから新規workflowを追加しない。受入条件の最終確認とPR/CI/mergeは未完了であり、完了扱いにしない。
+共通型・関係・実行時validator・consumer smokeを実装し、受入条件を確認済み。PR #521（[merge 793e571](https://github.com/Unson-LLC/brainbase/commit/793e571352f018b4d89f201283aacae3365abbf7)）、[CI 35831944139](https://github.com/Unson-LLC/brainbase/actions/runs/35831944139) pass、独立レビューとdelta review pass。

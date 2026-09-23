@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-world-model-v1
 title: 観測と仮説を区別した世界モデルを判断に使える
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -59,4 +59,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は実装中。AC-01〜04はreview、実storeのaffected tests（12件）、`npm run build`で確認済み。sidecar共通実装とObjectiveの版付き定義storeを依存先として固定している。GitHub CIとこのStoryのPR作成・mergeは未完了であり、VibeProのactiveは登録が有効である意味で、公開・配布済みを意味しない。
+AC-01〜04はreview、実storeのaffected tests（12件）、`npm run build`で確認済み。sidecar共通実装とObjectiveの版付き定義storeを依存先として固定している。PR #525（[merge fd03778](https://github.com/Unson-LLC/brainbase/commit/fd03778bb3c86df4ccd11d5d765d3354b90c80a4)）、[CI 35837699152](https://github.com/Unson-LLC/brainbase/actions/runs/35837699152) pass、12 testsとreview pass。

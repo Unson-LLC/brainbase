@@ -441,6 +441,66 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-company-os-world-model-reference-safety-v1",
+        "title": "sidecarのsupersedes参照とclone安全性を一貫して扱える",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-company-os-world-model-persistence-adoption-v1",
+        "title": "world-modelのdigest永続化とapproved adoptionの証跡参照を一致させる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-company-os-reservation-runtime-input-safety-v1",
+        "title": "null runtime inputを確約前にfail-closedで拒否する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-company-os-reservation-corrupt-ledger-diagnostics-v1",
+        "title": "深いcorrupt ledgerを診断可能な形で拒否する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-company-os-shared-dist-build-pack-isolation-v1",
+        "title": "共有distのbuildとpack競合疑いを調査して隔離する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-company-os-sidecar-v1"
