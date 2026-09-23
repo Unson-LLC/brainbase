@@ -405,6 +405,26 @@ function equalScope(left: FoundationScope, right: FoundationScope): boolean {
   return canonicalJson(left) === canonicalJson(right);
 }
 
+function scopeContains(container: FoundationScope, target: FoundationScope): boolean {
+  const allowedSubjects = new Set(container.subjectIds);
+  if (target.subjectIds.length === 0 || target.subjectIds.some((subjectId) => !allowedSubjects.has(subjectId))) return false;
+  if (Date.parse(target.validFrom) < Date.parse(container.validFrom)) return false;
+  if (container.validUntil !== undefined) {
+    if (target.validUntil === undefined || Date.parse(target.validUntil) > Date.parse(container.validUntil)) return false;
+  }
+  return true;
+}
+
+function candidateScopeViolation(
+  selectionScope: FoundationScope,
+  candidateRefs: readonly ProblemSelectionCandidateReference[]
+): string | undefined {
+  const outside = candidateRefs.find((reference) => !scopeContains(selectionScope, reference.ownerScope));
+  return outside === undefined
+    ? undefined
+    : `candidate ${outside.candidateId} owner scope is outside selection owner scope`;
+}
+
 function normalizeDigest(value: unknown, field: string): string {
   const digest = requireString(value, field);
   if (!DIGEST_PATTERN.test(digest)) throw error('invalid_request', `${field} must be a sha256:<64 lowercase hex> digest`);
@@ -726,6 +746,7 @@ function explorationLimitViolation(
  * selection run would have routed to human review.
  */
 function selectedRecordPolicyViolation(
+  ownerScope: FoundationScope,
   fixedConditions: ProblemSelectionFixedConditions,
   candidateRefs: readonly ProblemSelectionCandidateReference[],
   assessments: readonly ProblemSelectionCandidateAssessment[],
@@ -736,6 +757,8 @@ function selectedRecordPolicyViolation(
 ): string | undefined {
   const candidateViolation = candidateCountViolation(fixedConditions, candidateRefs);
   if (candidateViolation !== undefined) return candidateViolation;
+  const scopeViolation = candidateScopeViolation(ownerScope, candidateRefs);
+  if (scopeViolation !== undefined) return scopeViolation;
   if (objectiveConflicts.length > 0 || assessments.some((assessment) => assessment.objectiveConflicts.length > 0)) {
     return 'objective criteria are incomparable';
   }
@@ -795,6 +818,11 @@ export async function createProblemSelection(request: ProblemSelectionRequest): 
   const assessments: ProblemSelectionCandidateAssessment[] = [];
   let resolutionFailure = false;
   for (const reference of candidateRefs) {
+    if (!scopeContains(ownerScope, reference.ownerScope)) {
+      resolutionFailure = true;
+      assessments.push(reviewAssessment(reference, 'candidate owner scope is outside selection owner scope', fixedConditions.costs));
+      continue;
+    }
     try {
       const record = await request.candidateStore.readCandidate(reference.candidateId, request.candidateContext);
       if (record === null) {
@@ -810,6 +838,11 @@ export async function createProblemSelection(request: ProblemSelectionRequest): 
       if (canonicalCandidateDigest(record) !== reference.payloadDigest) {
         resolutionFailure = true;
         assessments.push(reviewAssessment(reference, 'candidate payload digest no longer matches the fixed selection input', fixedConditions.costs));
+        continue;
+      }
+      if (!scopeContains(ownerScope, record.ownerScope)) {
+        resolutionFailure = true;
+        assessments.push(reviewAssessment(reference, 'candidate owner scope is outside selection owner scope', fixedConditions.costs));
         continue;
       }
       if (!equalScope(record.ownerScope, reference.ownerScope)) {
@@ -869,7 +902,7 @@ export async function createProblemSelection(request: ProblemSelectionRequest): 
   const normalizedAssessments = evaluation.assessments ?? assessments;
   const unknowns = mergeUnknowns(evaluation.unknowns ?? [], fixedUnknowns(fixedConditions), normalizedAssessments.flatMap(assessmentUnknowns));
   const objectiveConflicts = [...(evaluation.objectiveConflicts ?? []), ...normalizedAssessments.flatMap((item) => item.objectiveConflicts)];
-  const policyViolation = selectedRecordPolicyViolation(fixedConditions, candidateRefs, normalizedAssessments, objectiveConflicts, evaluation.selectedCandidateId, evaluation.action, unknowns);
+  const policyViolation = selectedRecordPolicyViolation(ownerScope, fixedConditions, candidateRefs, normalizedAssessments, objectiveConflicts, evaluation.selectedCandidateId, evaluation.action, unknowns);
   const shouldRequireReview = evaluation.status === 'human_review_required' || policyViolation !== undefined;
   const effectiveEvaluation: ProblemSelectionEvaluationResult = shouldRequireReview && evaluation.status !== 'human_review_required'
     ? { ...evaluation, status: 'human_review_required', reason: policyViolation !== undefined ? `${evaluation.reason}; ${policyViolation}` : `${evaluation.reason}; comparison is not fully available` }
@@ -1074,6 +1107,7 @@ function validateProblemSelectionRecord(value: unknown): ProblemSelectionRecord 
   }
   if (value.status === 'selected') {
     const policyViolation = selectedRecordPolicyViolation(
+      ownerScope,
       fixedConditions,
       candidateRefs,
       assessments,

@@ -35,6 +35,12 @@ const scope: FoundationScope = {
   validUntil: '2026-12-31T23:59:59.000Z'
 };
 
+const otherHotelScope: FoundationScope = {
+  subjectIds: ['hotel-2'],
+  validFrom: '2026-01-01T00:00:00.000Z',
+  validUntil: '2026-12-31T23:59:59.000Z'
+};
+
 const digest = (character: string): string => `sha256:${character.repeat(64)}`;
 
 const objectiveRef: ProblemSelectionFoundationReference = {
@@ -257,6 +263,60 @@ describe('problem selection contract', () => {
     expect(result).not.toHaveProperty('candidate-1.statement');
     expect(JSON.stringify(result)).not.toContain('private candidate statement');
     expect(Object.isFrozen(result)).toBe(true);
+  });
+
+  it('routes a candidate outside the selection scope to human review and rejects selected scope crossings', async () => {
+    const outsideCandidate = { ...candidateRecord('candidate-1', 'e'), ownerScope: otherHotelScope };
+    const evaluator = vi.fn(async () => selected('start'));
+    const review = await createProblemSelection(request([outsideCandidate], selected('start'), {
+      evaluator: { evaluate: evaluator }
+    }));
+
+    expect(review.status).toBe('human_review_required');
+    expect(review.assessments[0]?.status).toBe('unavailable');
+    expect(review.assessments[0]?.rationale).toContain('outside selection owner scope');
+    expect(evaluator).not.toHaveBeenCalled();
+
+    const reviewRoot = await mkdtemp(join(tmpdir(), 'brainbase-problem-selection-scope-review-'));
+    temporaryRoots.push(reviewRoot);
+    const reviewStore = createProblemSelectionRecordStore({ root: reviewRoot });
+    await expect(reviewStore.save(review, { principal: 'org-1' })).resolves.toMatchObject({ status: 'created' });
+
+    const selectedRecord = await createProblemSelection(request([candidateRecord('candidate-1', 'e')], selected('start')));
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-problem-selection-scope-boundary-'));
+    temporaryRoots.push(root);
+    const store = createProblemSelectionRecordStore({ root });
+
+    const moveCandidateScopeOutside = (record: Record<string, unknown>): void => {
+      const candidateRefs = record.candidateRefs as Array<Record<string, unknown>>;
+      const reference = candidateRefs[0];
+      if (reference === undefined) throw new Error('selection candidate reference was not written');
+      const outsideReference = { ...reference, ownerScope: otherHotelScope };
+      candidateRefs[0] = outsideReference;
+      const assessments = record.assessments as Array<Record<string, unknown>>;
+      const assessment = assessments[0];
+      if (assessment === undefined) throw new Error('selection assessment was not written');
+      assessment.reference = outsideReference;
+      const decision = record.decision as Record<string, unknown>;
+      decision.candidate = outsideReference;
+      const problemCreationRequest = record.problemCreationRequest as Record<string, unknown> | undefined;
+      if (problemCreationRequest !== undefined) problemCreationRequest.candidate = outsideReference;
+    };
+
+    const malformed = JSON.parse(JSON.stringify(selectedRecord)) as Record<string, unknown>;
+    moveCandidateScopeOutside(malformed);
+    await expect(store.save(malformed as typeof selectedRecord, { principal: 'org-1' }))
+      .rejects.toMatchObject({ code: 'invalid_record', message: expect.stringContaining('outside selection owner scope') });
+
+    const receipt = await store.save(selectedRecord, { principal: 'org-1' });
+    const [filename] = await readdir(join(root, 'problem-selections'));
+    if (filename === undefined) throw new Error('selection record was not written');
+    const recordPath = join(root, 'problem-selections', filename);
+    const envelope = JSON.parse(await readFile(recordPath, 'utf8')) as { record: Record<string, unknown> };
+    moveCandidateScopeOutside(envelope.record);
+    await writeFile(recordPath, `${JSON.stringify(envelope)}\n`, 'utf8');
+    await expect(store.read(receipt.recordId, { principal: 'org-1' }))
+      .rejects.toMatchObject({ code: 'invalid_record', message: expect.stringContaining('outside selection owner scope') });
   });
 
   it('keeps unresolved cost unknown and routes ordinary actions to human review', async () => {
