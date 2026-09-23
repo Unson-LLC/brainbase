@@ -381,4 +381,57 @@ describe('company OS receipt adapter', () => {
     const missingPort = createOutcomeCaseReceiptSourcePort(missingSource);
     await expect(missingPort.read(requested, access)).rejects.toMatchObject({ code: 'source_unavailable' });
   });
+
+  it('rejects non-JSON OutcomeCase conditions before linking', async () => {
+    class ConditionInstance {
+      readonly value = 'class-instance';
+    }
+    const invalidConditions: readonly unknown[] = [
+      new Date('2026-09-23T00:00:00.000Z'),
+      new Map([['kind', 'map']]),
+      new Set(['set']),
+      new ConditionInstance()
+    ];
+
+    for (const [index, conditions] of invalidConditions.entries()) {
+      const directory = await dataDir();
+      const canonicalSource = {
+        state: 'canonical-closed',
+        owner_refs: [{ status: 'typed' as const, ref: { id: 'project-canonical', type: 'project', revision: '9' } }],
+        conditions
+      } as unknown as OutcomeCaseRead['source'];
+      const outcomeCase: OutcomeCasePort = {
+        async read(reference) {
+          return {
+            reference: { id: reference.id, revision: '7', digest: 'sha256:outcome' },
+            source: canonicalSource,
+            acl: { ownerId: 'owner-1', visibility: 'private', readerIds: ['auditor-1'], writerIds: [] },
+            scope: {
+              subjectIds: ['project-hotel'],
+              validFrom: '2026-01-01T00:00:00.000Z',
+              validUntil: '2026-12-31T23:59:59.000Z'
+            }
+          };
+        }
+      };
+      const adapter = createCompanyOsReceiptAdapter({
+        dataDir: directory,
+        sourcePorts: { outcome_case: createOutcomeCaseReceiptSourcePort(outcomeCase) }
+      });
+      const requested = {
+        ...source('outcome_case', `outcome-invalid-${index}`, 'caller-state', null),
+        revision: undefined,
+        owner_refs: [{ status: 'unknown' as const, reason: 'legacy_untyped' as const }]
+      };
+
+      await expect(adapter.link({
+        id: `link-invalid-conditions-${index}`,
+        source: requested,
+        judgment_refs: [],
+        recorded_at: '2026-09-23T00:00:00.000Z',
+        access
+      })).rejects.toMatchObject({ code: 'source_unavailable' });
+      await expect(readFile(join(directory, COMPANY_OS_RECEIPT_LINK_SIDECAR), 'utf8')).rejects.toThrow();
+    }
+  });
 });

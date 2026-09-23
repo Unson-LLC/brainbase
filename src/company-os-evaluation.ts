@@ -1109,7 +1109,7 @@ function assertOutcomeCaseRead(value: OutcomeCaseRead): void {
 }
 
 function assertOutcomeCaseSource(value: unknown): asserts value is OutcomeCaseCanonicalSource {
-  if (!isRecord(value) || !isNonEmptyString(value.state) || !Array.isArray(value.owner_refs)) {
+  if (!isJsonPlainObject(value) || !isNonEmptyString(value.state) || !Array.isArray(value.owner_refs)) {
     throw new CompanyOsEvaluationError(
       'integrity_mismatch',
       'OutcomeCase resolver returned invalid canonical source metadata'
@@ -1120,7 +1120,7 @@ function assertOutcomeCaseSource(value: unknown): asserts value is OutcomeCaseCa
 }
 
 function assertOutcomeCaseOwnerReference(value: unknown, label: string): asserts value is OutcomeCaseOwnerReference {
-  if (!isRecord(value) || (value.status !== 'typed' && value.status !== 'unknown')) {
+  if (!isJsonPlainObject(value) || (value.status !== 'typed' && value.status !== 'unknown')) {
     throw new CompanyOsEvaluationError('integrity_mismatch', `${label} has an invalid status`);
   }
   if (value.status === 'unknown') {
@@ -1129,7 +1129,7 @@ function assertOutcomeCaseOwnerReference(value: unknown, label: string): asserts
     }
     return;
   }
-  if (!isRecord(value.ref)
+  if (!isJsonPlainObject(value.ref)
     || !isNonEmptyString(value.ref.id)
     || !isNonEmptyString(value.ref.type)
     || (value.ref.revision !== undefined && !isNonEmptyString(value.ref.revision))
@@ -1139,7 +1139,7 @@ function assertOutcomeCaseOwnerReference(value: unknown, label: string): asserts
 }
 
 function assertOutcomeCaseConditions(value: unknown, label: string): asserts value is OutcomeCaseConditions {
-  if (!isRecord(value)) {
+  if (!isJsonPlainObject(value)) {
     throw new CompanyOsEvaluationError('integrity_mismatch', `${label} must be an object`);
   }
   assertOutcomeCaseConditionValue(value, label);
@@ -1155,7 +1155,7 @@ function assertOutcomeCaseConditionValue(value: unknown, label: string): asserts
     value.forEach((item, index) => assertOutcomeCaseConditionValue(item, `${label}[${index}]`));
     return;
   }
-  if (isRecord(value)) {
+  if (isJsonPlainObject(value)) {
     for (const [key, item] of Object.entries(value)) {
       if (!isNonEmptyString(key)) {
         throw new CompanyOsEvaluationError('integrity_mismatch', `${label} contains an empty key`);
@@ -1382,6 +1382,16 @@ function deepFreeze<T>(value: T): T {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isJsonPlainObject(value: unknown): value is Record<string, unknown> {
+  if (!isRecord(value)) return false;
+  try {
+    const prototype = Object.getPrototypeOf(value);
+    return prototype === Object.prototype || prototype === null;
+  } catch {
+    return false;
+  }
 }
 
 function isEvaluationScalar(value: unknown): value is EvaluationScalar {

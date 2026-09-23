@@ -187,7 +187,7 @@ function measurement(
   };
 }
 
-function createOutcomeCasePort() {
+function createOutcomeCasePort(sourceConditions: unknown = { pilot: 'hotel-ai' }) {
   const canonical = {
     id: 'outcome-hotel-ai-phone-pilot',
     revision: '1',
@@ -211,8 +211,8 @@ function createOutcomeCasePort() {
         source: {
           state: 'closed',
           owner_refs: [{ status: 'typed', ref: { id: 'project-hotel', type: 'project', revision: '3' } }],
-          conditions: { pilot: 'hotel-ai' }
-        },
+          conditions: sourceConditions
+        } as unknown as OutcomeCaseRead['source'],
         acl: { ...currentAcl, readerIds: [...currentAcl.readerIds], writerIds: [...currentAcl.writerIds] },
         scope
       };
@@ -226,7 +226,7 @@ function createOutcomeCasePort() {
   };
 }
 
-async function makeHarness() {
+async function makeHarness(sourceConditions: unknown = { pilot: 'hotel-ai' }) {
   const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-company-os-evaluation-'));
   dataDirs.push(dataDir);
   await initializePersonalOs(dataDir);
@@ -256,7 +256,7 @@ async function makeHarness() {
     access: { principal: 'owner-1' },
     referenceProvider
   });
-  const outcome = createOutcomeCasePort();
+  const outcome = createOutcomeCasePort(sourceConditions);
   const evaluation = createCompanyOsEvaluationStore({
     dataDir,
     foundation: createFoundationDefinitionLoadPort(foundationStore),
@@ -395,6 +395,24 @@ describe('Company OS evaluation contract', () => {
     expect(converted.actuals[1]?.variableRef).toEqual(qualityV2);
     expect(converted.actuals[1]?.effectiveVariableRef).toEqual(harness.qualityRef);
     expect(converted.actuals[1]?.conversion?.provenance.id).toBe('conversion-quality-percentage-to-ratio-v1');
+  });
+
+  it('fails closed when OutcomeCase source conditions are not JSON values', async () => {
+    class ConditionInstance {
+      readonly value = 'class-instance';
+    }
+    const invalidConditions: readonly unknown[] = [
+      new Date('2026-09-23T00:00:00.000Z'),
+      new Map([['kind', 'map']]),
+      new Set(['set']),
+      new ConditionInstance()
+    ];
+
+    for (const conditions of invalidConditions) {
+      const harness = await makeHarness(conditions);
+      await expect(harness.evaluation.evaluate(requestFor(harness)))
+        .rejects.toMatchObject({ code: 'integrity_mismatch' });
+    }
   });
 
   it('rechecks current ACL and trusted scope when reading historical evaluation inputs', async () => {
