@@ -1,0 +1,180 @@
+/* Shared Objective editor surface. The host owns shell, identity and policy. */
+.objective-editor-root {
+  --objective-paper: var(--paper, #fbfbf8);
+  --objective-canvas: var(--canvas, #f2f3ef);
+  --objective-ink: var(--ink, #141714);
+  --objective-muted: var(--muted, #626a64);
+  --objective-quiet: var(--quiet, #8b938c);
+  --objective-line: var(--line, #d9ded9);
+  --objective-line-strong: var(--line-dark, #b8c0b9);
+  --objective-green: var(--green, #087d62);
+  --objective-green-soft: var(--green-soft, #e5f1ec);
+  --objective-amber: var(--amber, #a56d05);
+  --objective-amber-soft: var(--amber-soft, #fff2ce);
+  --objective-red: var(--red, #c82a39);
+  --objective-red-soft: var(--red-soft, #fdebed);
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+  color: var(--objective-ink);
+  font-family: Geist, "Noto Sans JP", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+.objective-editor-root *,
+.objective-editor-root *::before,
+.objective-editor-root *::after { box-sizing: border-box; }
+.objective-editor-root button,
+.objective-editor-root input,
+.objective-editor-root select,
+.objective-editor-root textarea { font: inherit; }
+.objective-editor-root h1,
+.objective-editor-root p { margin: 0; }
+.objective-editor-root h1 { font-size: clamp(1.35rem, 2.5vw, 1.85rem); letter-spacing: -.035em; line-height: 1.2; }
+.objective-editor-root [hidden] { display: none !important; }
+
+.objective-editor-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .75rem 1rem;
+  align-items: start;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--objective-line);
+}
+.objective-editor-header-copy { display: grid; gap: .3rem; min-width: 0; }
+.objective-editor-header-copy p { color: var(--objective-muted); font-size: .82rem; }
+.objective-editor-eyebrow { color: var(--objective-green); font-size: .64rem; font-weight: 760; letter-spacing: .1em; }
+.objective-editor-toolbar { display: flex; gap: .2rem; align-items: center; flex-wrap: wrap; border-bottom: 1px solid var(--objective-line); }
+.objective-editor-tab {
+  min-height: 2.4rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: .6rem .75rem .5rem;
+  color: var(--objective-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: .8rem;
+  font-weight: 680;
+}
+.objective-editor-tab:hover,
+.objective-editor-tab.is-active { border-bottom-color: var(--objective-green); color: var(--objective-ink); }
+.objective-editor-toolbar > .objective-editor-button-secondary { margin-left: auto; }
+.objective-editor-content { min-width: 0; }
+.objective-editor-panel { display: grid; gap: .8rem; min-width: 0; }
+.objective-editor-panel-heading { font-size: 1rem; font-weight: 730; }
+.objective-editor-muted,
+.objective-editor-help { color: var(--objective-muted); font-size: .77rem; }
+.objective-editor-list { display: grid; gap: 0; border-top: 1px solid var(--objective-line); }
+.objective-editor-list-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .75rem;
+  align-items: center;
+  width: 100%;
+  min-height: 4.2rem;
+  border: 0;
+  border-bottom: 1px solid var(--objective-line);
+  padding: .75rem 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.objective-editor-list-row:hover { background: var(--objective-canvas); }
+.objective-editor-list-copy { display: grid; gap: .15rem; min-width: 0; }
+.objective-editor-list-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.objective-editor-list-copy small { color: var(--objective-quiet); font-size: .7rem; }
+.objective-editor-list-badges { display: flex; gap: .3rem; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.objective-editor-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.65rem;
+  border: 1px solid var(--objective-line);
+  border-radius: 999px;
+  padding: .16rem .5rem;
+  color: var(--objective-muted);
+  background: var(--objective-paper);
+  font-size: .68rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.objective-editor-badge-judgment_available,
+.objective-editor-badge-verified { border-color: color-mix(in srgb, var(--objective-green) 40%, var(--objective-line)); color: var(--objective-green); background: var(--objective-green-soft); }
+.objective-editor-badge-draft,
+.objective-editor-badge-conflict { border-color: color-mix(in srgb, var(--objective-amber) 40%, var(--objective-line)); color: var(--objective-amber); background: var(--objective-amber-soft); }
+.objective-editor-badge-permission_denied,
+.objective-editor-badge-api_unavailable,
+.objective-editor-badge-missing,
+.objective-editor-badge-saved_unverified { border-color: color-mix(in srgb, var(--objective-red) 35%, var(--objective-line)); color: var(--objective-red); background: var(--objective-red-soft); }
+.objective-editor-empty { padding: 1.5rem 0; color: var(--objective-muted); }
+.objective-editor-skeleton { height: 3.5rem; margin-bottom: .4rem; border-bottom: 1px solid var(--objective-line); color: var(--objective-quiet); font-size: .76rem; }
+.objective-editor-notice { display: grid; gap: .25rem; border: 1px solid var(--objective-line); padding: .7rem .8rem; background: var(--objective-canvas); }
+.objective-editor-notice p { color: var(--objective-muted); font-size: .78rem; }
+.objective-editor-notice-permission_denied,
+.objective-editor-notice-api_unavailable,
+.objective-editor-notice-conflict,
+.objective-editor-notice-missing { border-color: color-mix(in srgb, var(--objective-red) 35%, var(--objective-line)); background: var(--objective-red-soft); }
+.objective-editor-form { display: grid; gap: 1rem; max-width: 58rem; }
+.objective-editor-identity,
+.objective-editor-inline-fields,
+.objective-editor-inline-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.objective-editor-inline-form { align-items: end; }
+.objective-editor-field { display: grid; gap: .3rem; min-width: 0; }
+.objective-editor-label { color: var(--objective-muted); font-size: .75rem; font-weight: 680; }
+.objective-editor-input {
+  width: 100%;
+  min-height: 2.45rem;
+  border: 1px solid var(--objective-line-strong);
+  border-radius: .35rem;
+  padding: .55rem .65rem;
+  color: var(--objective-ink);
+  background: var(--objective-paper);
+}
+.objective-editor-input:focus { outline: 2px solid color-mix(in srgb, var(--objective-green) 45%, transparent); outline-offset: 1px; border-color: var(--objective-green); }
+textarea.objective-editor-input { min-height: 5.4rem; resize: vertical; }
+.objective-editor-readonly-value { display: grid; align-content: center; gap: .2rem; min-height: 2.45rem; border-bottom: 1px solid var(--objective-line); }
+.objective-editor-subheading { font-size: .84rem; font-weight: 730; }
+.objective-editor-readiness,
+.objective-editor-reference-section,
+.objective-editor-criteria { display: grid; gap: .5rem; border-top: 1px solid var(--objective-line); padding-top: .8rem; }
+.objective-editor-issue-list,
+.objective-editor-reference-list,
+.objective-editor-link-list { display: grid; gap: .3rem; margin: 0; padding: 0; list-style: none; }
+.objective-editor-issue-list { color: var(--objective-red); font-size: .76rem; }
+.objective-editor-reference-item,
+.objective-editor-link-item { display: flex; gap: .55rem; align-items: center; flex-wrap: wrap; min-height: 2.25rem; border-bottom: 1px solid var(--objective-line); padding: .35rem 0; }
+.objective-editor-reference-item small,
+.objective-editor-link-item small { width: 100%; color: var(--objective-muted); font-size: .72rem; }
+.objective-editor-reference-item .objective-editor-button-danger { margin-left: auto; }
+.objective-editor-criteria legend { padding: 0; font-size: .84rem; font-weight: 730; }
+.objective-editor-criterion-row { display: grid; grid-template-columns: minmax(8rem, 1.4fr) minmax(6rem, .8fr) minmax(6rem, .7fr) minmax(6rem, .8fr) auto; gap: .5rem; align-items: end; padding: .5rem 0; border-bottom: 1px solid var(--objective-line); }
+.objective-editor-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; padding-top: .3rem; }
+.objective-editor-actions .objective-editor-muted { margin-right: auto; }
+.objective-editor-button {
+  min-height: 2.35rem;
+  border: 1px solid var(--objective-line-strong);
+  border-radius: .3rem;
+  padding: .45rem .7rem;
+  color: var(--objective-ink);
+  background: var(--objective-paper);
+  cursor: pointer;
+  font-size: .75rem;
+  font-weight: 700;
+}
+.objective-editor-button:hover { border-color: var(--objective-green); }
+.objective-editor-button-primary { border-color: var(--objective-green); color: white; background: var(--objective-green); }
+.objective-editor-button-secondary { color: var(--objective-muted); background: transparent; }
+.objective-editor-button-danger { border-color: color-mix(in srgb, var(--objective-red) 45%, var(--objective-line)); color: var(--objective-red); background: transparent; }
+.objective-editor-button:disabled { cursor: wait; opacity: .55; }
+
+@media (max-width: 720px) {
+  .objective-editor-header,
+  .objective-editor-list-row { grid-template-columns: 1fr; }
+  .objective-editor-list-badges { justify-content: flex-start; }
+  .objective-editor-toolbar > .objective-editor-button-secondary { margin-left: 0; }
+  .objective-editor-identity,
+  .objective-editor-inline-fields,
+  .objective-editor-inline-form { grid-template-columns: 1fr; }
+  .objective-editor-criterion-row { grid-template-columns: 1fr 1fr; }
+  .objective-editor-criterion-row .objective-editor-button { grid-column: 1 / -1; justify-self: start; }
+}
