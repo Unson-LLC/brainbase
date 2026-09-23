@@ -206,7 +206,6 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
   ): Promise<DecisionAdapterLegacyDecisionResponse> {
     const request = normalizeDecisionRequest(input);
     assertContext(context);
-    await this.validateConditions(request.conditions, context);
     await initializePersonalOs(this.dataDir);
 
     const decisionId = request.decision_id ?? `dec-${randomUUID()}`;
@@ -242,6 +241,7 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
       if (Object.prototype.hasOwnProperty.call(sidecar.decisions, decisionId)) {
         throw new DecisionAdapterError('decision_conflict', `Decision sidecar entry ${decisionId} already exists`);
       }
+      await this.validateConditions(request.conditions, context);
       await this.authorize({ action: 'create', context, current, decision, graph_entity: entity });
       const stored: StoredDecisionRecord = {
         decision_id: decisionId,
@@ -262,6 +262,7 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
         decisions: [...current.decisions, decision],
         graph: nextGraph
       };
+      assertStagedDecision(next, serializeSidecar(nextSidecar), decisionId, request.conditions);
       return {
         next,
         sidecarContent: serializeSidecar(nextSidecar),
@@ -269,7 +270,6 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
       };
     });
 
-    await this.assertReadback(decisionId, context, request.conditions);
     return result;
   }
 
@@ -279,7 +279,6 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
   ): Promise<DecisionAdapterLegacyAiDecisionResponse> {
     const request = normalizeAiDecisionLogRequest(input);
     assertContext(context);
-    await this.validateConditions(request.conditions, context);
     await initializePersonalOs(this.dataDir);
 
     const aiDecisionId = `aid-${randomUUID()}`;
@@ -315,6 +314,7 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
       if (existing && !sameConditions(existing.conditions, request.conditions)) {
         throw new DecisionAdapterError('condition_unavailable', `Decision ${request.decision_id} has different recorded conditions`);
       }
+      await this.validateConditions(request.conditions, context);
       await this.authorize({ action: 'create', context, current, decision, graph_entity: graphEntity });
       const stored: StoredDecisionRecord = existing ?? {
         decision_id: request.decision_id,
@@ -330,6 +330,13 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
         ...sidecar,
         decisions: { ...sidecar.decisions, [request.decision_id]: nextStored }
       } satisfies DecisionAdapterSidecar;
+      assertStagedAiDecisionLog(
+        current,
+        serializeSidecar(nextSidecar),
+        request.decision_id,
+        aiDecisionId,
+        request.conditions
+      );
       return {
         next: current,
         sidecarContent: serializeSidecar(nextSidecar),
@@ -337,7 +344,6 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
       };
     });
 
-    await this.assertReadback(request.decision_id, context, request.conditions);
     return result;
   }
 
@@ -442,27 +448,6 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
     }
   }
 
-  private async assertReadback(
-    decisionId: string,
-    context: DecisionAdapterContext,
-    expectedConditions: DecisionAdapterConditions,
-  ): Promise<void> {
-    let read: DecisionAdapterReadResult;
-    try {
-      read = await this.readDecision({ decision_id: decisionId }, context);
-    } catch (error) {
-      if (error instanceof DecisionAdapterError) throw error;
-      throw new DecisionAdapterError('readback_mismatch', formatError(error));
-    }
-    if (read.condition_status !== 'recorded'
-      || read.conditions === undefined
-      || !sameConditions(read.conditions, expectedConditions)
-      || !read.graph_entity
-      || read.graph_entity.id !== decisionId
-      || read.graph_entity.type !== 'decision') {
-      throw new DecisionAdapterError('readback_mismatch', `Decision ${decisionId} did not read back with its canonical references`);
-    }
-  }
 }
 
 export function createDecisionAdapter(options: DecisionAdapterStoreOptions): DecisionAdapterPort {
@@ -682,6 +667,47 @@ function validateStoredDecision(value: StoredDecisionRecord, key: string): void 
     normalizeTimestamp(log.created_at, 'created_at');
     if (ids.has(log.ai_decision_id)) throw new DecisionAdapterError('store_corrupt', `Duplicate AI log ${log.ai_decision_id}`);
     ids.add(log.ai_decision_id);
+  }
+}
+
+function assertStagedDecision(
+  next: PersonalOs,
+  sidecarContent: string,
+  decisionId: string,
+  expectedConditions: DecisionAdapterConditions,
+): void {
+  assertStagedCanonicalDecision(next, decisionId);
+  const sidecar = parseSidecar(sidecarContent);
+  const stored = sidecar.decisions[decisionId];
+  if (!stored || !sameConditions(stored.conditions, expectedConditions)) {
+    throw new DecisionAdapterError('readback_mismatch', `Staged Decision ${decisionId} does not contain its canonical references`);
+  }
+}
+
+function assertStagedAiDecisionLog(
+  next: PersonalOs,
+  sidecarContent: string,
+  decisionId: string,
+  aiDecisionId: string,
+  expectedConditions: DecisionAdapterConditions,
+): void {
+  assertStagedCanonicalDecision(next, decisionId);
+  const sidecar = parseSidecar(sidecarContent);
+  const stored = sidecar.decisions[decisionId];
+  const log = stored?.ai_logs.find((candidate) => candidate.ai_decision_id === aiDecisionId);
+  if (!stored || !log || !sameConditions(stored.conditions, expectedConditions) || !sameConditions(log.conditions, expectedConditions)) {
+    throw new DecisionAdapterError('readback_mismatch', `Staged AI decision-log ${aiDecisionId} is not attached to ${decisionId}`);
+  }
+}
+
+function assertStagedCanonicalDecision(next: PersonalOs, decisionId: string): void {
+  if (next.graph.version !== 2) {
+    throw new DecisionAdapterError('readback_mismatch', `Staged canonical Graph ${decisionId} is not Graph v2`);
+  }
+  const decision = next.decisions.find((candidate) => candidate.id === decisionId);
+  const graphEntity = next.graph.entities.find((candidate) => candidate.id === decisionId);
+  if (!decision || !graphEntity || graphEntity.type !== 'decision') {
+    throw new DecisionAdapterError('readback_mismatch', `Staged canonical Decision ${decisionId} is incomplete`);
   }
 }
 

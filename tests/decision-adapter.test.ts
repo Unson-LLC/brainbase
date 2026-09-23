@@ -187,6 +187,46 @@ describe('DecisionAdapterPort', () => {
     await expect(readPersonalOsSidecar(dataDir, DECISION_ADAPTER_SIDECAR)).resolves.toBeUndefined();
   });
 
+  it('returns commit acknowledgements without rolling back when a later current read is denied', async () => {
+    const dataDir = await makeDataDir();
+    let validationCalls = 0;
+    const store = createDecisionAdapter({
+      dataDir,
+      conditionValidator: {
+        validate: async () => ++validationCalls <= 2
+      }
+    });
+
+    await expect(store.createDecision(decisionRequest(), context())).resolves.toMatchObject({
+      decision_id: 'decision-1',
+      event_id: expect.stringMatching(/^evt-/u)
+    });
+    expect(validationCalls).toBe(1);
+
+    await expect(store.createAiDecisionLog({
+      decision_id: 'decision-1',
+      summary: 'Keep the bounded pilot as the next step.',
+      conditions: conditions()
+    }, context())).resolves.toMatchObject({
+      ai_decision_id: expect.stringMatching(/^aid-/u),
+      event_id: expect.stringMatching(/^evt-/u)
+    });
+    expect(validationCalls).toBe(2);
+    await expect(loadPersonalOs(dataDir)).resolves.toMatchObject({
+      decisions: [{ id: 'decision-1' }]
+    });
+    const sidecar = JSON.parse(await readFile(join(dataDir, DECISION_ADAPTER_SIDECAR), 'utf8')) as {
+      decisions: Record<string, { ai_logs: unknown[] }>;
+    };
+    expect(sidecar.decisions['decision-1']?.ai_logs).toHaveLength(1);
+
+    await expect(store.readDecision({ decision_id: 'decision-1' }, context()))
+      .rejects.toMatchObject({ code: 'condition_unavailable' });
+    await expect(loadPersonalOs(dataDir)).resolves.toMatchObject({
+      decisions: [{ id: 'decision-1' }]
+    });
+  });
+
   it('uses the canonical Graph owner boundary when no organization policy is injected', async () => {
     const dataDir = await makeDataDir();
     await mutatePersonalOs(dataDir, (current) => ({

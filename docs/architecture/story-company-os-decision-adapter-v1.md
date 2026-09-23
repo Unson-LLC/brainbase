@@ -43,9 +43,12 @@ DecisionAdapterPort -- required refs --> DecisionAdapterStore
 ```
 
 - Decision の新規書込みと条件 sidecar は、既存 SSOT lock/transaction で一つに commit する。
+- staged canonical/sidecar の一致、trusted provider の現在参照確認、認可は、その lock 内で
+  commit 前に検証する。成功レスポンスはこの原子的 commit の acknowledgement とする。
 - Graph v1 は旧読み出しを許すが、新規 canonical Decision 書込みは Graph v2 を要求する。
 - 同じ Decision ID の既存 record がある場合は上書きせず、revision/更新契約がないため拒否する。
-- sidecar の破損、canonical readback の不一致、trusted provider の拒否は fail closed とする。
+- sidecar の破損、commit 前の canonical readback 不一致、trusted provider／認可の拒否は fail
+  closed とする。commit 後の current ACL/readback 拒否は保存済みデータを巻き戻さない。
 - `event_id` と `ai_decision_id` は互換 response/証跡識別子であり、別の canonical Decision
   正本を作らない。
 
@@ -54,6 +57,8 @@ DecisionAdapterPort -- required refs --> DecisionAdapterStore
 既存の Decision record と旧読み出しは保持する。新しい adapter が使えない場合は
 sidecar を参照しない旧 read を続けられる。sidecar と canonical aggregate の更新失敗は
 共通 transaction recovery に委譲し、途中状態を成功として返さない。
+commit 後に current ACL が変わった場合の read 拒否は、別の read 結果として扱い、他 writer の
+更新を含む保存済み canonical/sidecar を事後 rollback しない。
 
 ## 却下した案
 
