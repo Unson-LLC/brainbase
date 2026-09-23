@@ -25,6 +25,8 @@ composition runは、任意の`fixed_conditions`だけでは開始できない�
 `problem_snapshot`として受け取り、親run・各子run・各子evaluation requestへ同じ参照を渡す。
 `snapshot_reader`はその参照を使って現在の存在と読取権限を再確認し、同じ参照・
 `judgment-problem-snapshot.v1`・`problem_id`・`revision`を持つsnapshotを返す。
+compositionのreader request/resultには`reference_resolution: 'current'`を含め、
+coordinatorはこの値を要求・検証する。
 新規のcomposition runでStory05の`loadJudgmentProblemSnapshot`を使うadapterは、
 `reference_resolution: 'current'`とcanonical reference providerを必須にする。
 保存済み本文だけを再現する`historical`解決は監査・replay専用であり、現在の正本の

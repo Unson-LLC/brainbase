@@ -55,6 +55,8 @@ export interface JudgmentDAGProblemSnapshotReference {
 
 export interface JudgmentDAGProblemSnapshotReadRequest {
   readonly mode: 'read';
+  /** Composition execution must revalidate canonical references at read time. */
+  readonly reference_resolution: 'current';
   readonly reference: JudgmentDAGProblemSnapshotReference;
 }
 
@@ -68,6 +70,8 @@ export interface JudgmentDAGProblemSnapshotReadRequest {
  */
 export interface JudgmentDAGProblemSnapshotReadResult {
   readonly status: 'resolved';
+  /** Historical snapshot replay is an audit path, not an execution input. */
+  readonly reference_resolution: 'current';
   readonly reference: JudgmentDAGProblemSnapshotReference;
   readonly snapshot: JudgmentDAGJSONValue;
 }
@@ -984,6 +988,7 @@ async function readProblemSnapshot(
   try {
     rawResult = await parsed.snapshot_reader.read({
       mode: 'read',
+      reference_resolution: 'current',
       reference: parsed.problem_snapshot
     });
   } catch {
@@ -995,8 +1000,12 @@ async function readProblemSnapshot(
 
   try {
     const result = requireRecord(rawResult, 'snapshot_reader result');
-    requireExactKeys(result, ['status', 'reference', 'snapshot'], 'snapshot_reader result');
-    if (result.status !== 'resolved') {
+    requireExactKeys(
+      result,
+      ['reference_resolution', 'status', 'reference', 'snapshot'],
+      'snapshot_reader result'
+    );
+    if (result.status !== 'resolved' || result.reference_resolution !== 'current') {
       throw new Error('snapshot is not resolved');
     }
     const reference = parseProblemSnapshotReference(

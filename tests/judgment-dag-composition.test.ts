@@ -122,6 +122,7 @@ function request(
   const snapshotReader = {
     read: vi.fn(async ({ reference }: { reference: typeof problemSnapshot }) => ({
       status: 'resolved' as const,
+      reference_resolution: 'current' as const,
       reference,
       snapshot: {
         snapshot_version: 'judgment-problem-snapshot.v1',
@@ -272,6 +273,7 @@ describe('Judgment DAG composition contract', () => {
     expect(record.children[0]?.problem_snapshot).toEqual(runRequest.problem_snapshot);
     expect(runRequest.snapshot_reader.read).toHaveBeenCalledWith({
       mode: 'read',
+      reference_resolution: 'current',
       reference: runRequest.problem_snapshot
     });
     expect(runRequest.dag_resolver.resolve).toHaveBeenCalledTimes(4);
@@ -377,6 +379,7 @@ describe('Judgment DAG composition contract', () => {
         });
         return {
           status: 'resolved',
+          reference_resolution: 'current',
           reference,
           snapshot: snapshot as unknown as JudgmentDAGJSONValue
         };
@@ -426,6 +429,7 @@ describe('Judgment DAG composition contract', () => {
         });
         return {
           status: 'resolved',
+          reference_resolution: 'current',
           reference,
           snapshot: snapshot as unknown as JudgmentDAGJSONValue
         };
@@ -443,6 +447,31 @@ describe('Judgment DAG composition contract', () => {
     await expect(executeJudgmentDAGComposition(runRequest)).rejects.toMatchObject({
       code: 'snapshot_unavailable'
     });
+    expect(port.execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects a historical snapshot reader result for a new composition run', async () => {
+    const definition = composition();
+    const port: JudgmentDAGSubDAGEvaluationPort = {
+      execute: vi.fn(async (childRequest) => resultFor(definition, childRequest.invocation_id))
+    };
+    const runRequest = request(definition, port);
+    const historicalReader = {
+      read: vi.fn(async () => ({
+        status: 'resolved',
+        reference_resolution: 'historical',
+        reference: runRequest.problem_snapshot,
+        snapshot: {
+          snapshot_version: 'judgment-problem-snapshot.v1',
+          problem_id: runRequest.problem_snapshot.problem_id,
+          revision: runRequest.problem_snapshot.revision
+        }
+      }))
+    } as unknown as JudgmentDAGProblemSnapshotReader;
+
+    await expect(
+      executeJudgmentDAGComposition({ ...runRequest, snapshot_reader: historicalReader })
+    ).rejects.toMatchObject({ code: 'snapshot_unavailable' });
     expect(port.execute).not.toHaveBeenCalled();
   });
 
