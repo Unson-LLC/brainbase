@@ -121,6 +121,27 @@ export interface JudgmentViewReadEvaluationRequest {
 }
 
 /**
+ * Evidence is intentionally read through a host-owned port.  The host must
+ * re-check the caller's current ACL and resolve the exact historical
+ * kind/id/revision requested here; the view never treats a reference string
+ * as proof that the evidence can still be read.
+ */
+export interface JudgmentViewReadEvidenceRequest {
+  readonly invocationId: string;
+  readonly runId?: string;
+  readonly reference: JudgmentDAGEvidenceReference;
+  readonly access: JudgmentViewAccessContext;
+  readonly resolution: 'historical';
+}
+
+export interface JudgmentViewEvidenceRecord {
+  readonly kind: string;
+  readonly id: string;
+  readonly revision: string;
+  readonly digest?: string;
+}
+
+/**
  * Adapters can be backed by the canonical Foundation store, Problem snapshot
  * store, DAG artifact store, and Evaluation store.  They return an explicit
  * failure instead of turning a missing or unauthorized record into null.
@@ -138,6 +159,10 @@ export interface JudgmentViewReadPort {
   readonly readRunArtifact: (
     request: JudgmentViewReadRunArtifactRequest,
   ) => JudgmentViewPortResult<JudgmentDAGRunRecord> | Promise<JudgmentViewPortResult<JudgmentDAGRunRecord>>;
+  /** Current ACL plus exact historical evidence reference validation. */
+  readonly readEvidence: (
+    request: JudgmentViewReadEvidenceRequest,
+  ) => JudgmentViewPortResult<JudgmentViewEvidenceRecord> | Promise<JudgmentViewPortResult<JudgmentViewEvidenceRecord>>;
   /** Optional until a host has an exact run-to-evaluation index. */
   readonly readEvaluation?: (
     request: JudgmentViewReadEvaluationRequest,
@@ -212,7 +237,8 @@ export interface JudgmentViewEvidence {
   readonly runId?: string;
   readonly kind: string;
   readonly id: string;
-  readonly revision?: string;
+  readonly revision: string;
+  readonly digest?: string;
 }
 
 export interface JudgmentViewChildRun {
@@ -353,6 +379,21 @@ function validEvidenceReference(value: unknown): value is JudgmentDAGEvidenceRef
     && nonEmptyString(value.kind)
     && nonEmptyString(value.id)
     && (value.revision === undefined || nonEmptyString(value.revision));
+}
+
+function validHistoricalEvidenceReference(value: unknown): value is JudgmentDAGEvidenceReference & { readonly revision: string } {
+  return validEvidenceReference(value) && nonEmptyString(value.revision);
+}
+
+function validEvidenceRecord(value: unknown, reference: JudgmentDAGEvidenceReference): value is JudgmentViewEvidenceRecord {
+  return isRecord(value)
+    && nonEmptyString(value.kind)
+    && value.kind === reference.kind
+    && nonEmptyString(value.id)
+    && value.id === reference.id
+    && nonEmptyString(value.revision)
+    && value.revision === reference.revision
+    && (value.digest === undefined || nonEmptyString(value.digest));
 }
 
 function validSubdagResult(value: unknown): value is JudgmentDAGSubDAGRunRecord['result'] {
@@ -645,20 +686,58 @@ async function buildObjectiveView(
   });
 }
 
-function buildEvidenceCollection(run: JudgmentDAGCompositionRunRecord): JudgmentViewCollection<JudgmentViewEvidence> {
+function highestFailure(results: readonly JudgmentViewReadFailure[]): JudgmentViewReadFailure {
+  const priority: readonly JudgmentViewFailureStatus[] = [
+    'invalid',
+    'permission_denied',
+    'unavailable',
+    'unknown',
+    'undecidable',
+  ];
+  return [...results].sort((left, right) => priority.indexOf(left.status) - priority.indexOf(right.status))[0]
+    ?? failure('unknown', 'historical evidence could not be resolved');
+}
+
+async function buildEvidenceCollection(
+  run: JudgmentDAGCompositionRunRecord,
+  access: JudgmentViewAccessContext,
+  port: JudgmentViewReadPort,
+): Promise<JudgmentViewCollection<JudgmentViewEvidence>> {
   const evidence: JudgmentViewEvidence[] = [];
+  const failures: JudgmentViewReadFailure[] = [];
   for (const child of run.children) {
     for (const reference of child.result.evidence) {
+      if (!validHistoricalEvidenceReference(reference)) {
+        failures.push(failure('invalid', 'historical evidence reference must include a revision'));
+        continue;
+      }
+      const evidenceResult = await safeRead(() => port.readEvidence({
+        invocationId: child.invocation_id,
+        ...(child.result.run_reference?.run_id ? { runId: child.result.run_reference.run_id } : {}),
+        reference,
+        access,
+        resolution: 'historical',
+      }));
+      if (evidenceResult.status !== 'resolved') {
+        failures.push(evidenceResult);
+        continue;
+      }
+      if (!validEvidenceRecord(evidenceResult.value, reference)) {
+        failures.push(failure('invalid', 'historical evidence readback does not match the requested reference'));
+        continue;
+      }
       evidence.push({
         source: 'subdag',
         invocationId: child.invocation_id,
         ...(child.result.run_reference?.run_id ? { runId: child.result.run_reference.run_id } : {}),
-        kind: reference.kind,
-        id: reference.id,
-        ...(reference.revision === undefined ? {} : { revision: reference.revision }),
+        kind: evidenceResult.value.kind,
+        id: evidenceResult.value.id,
+        revision: evidenceResult.value.revision,
+        ...(evidenceResult.value.digest === undefined ? {} : { digest: evidenceResult.value.digest }),
       });
     }
   }
+  if (failures.length > 0) return collectionFailure(highestFailure(failures));
   return resolvedCollection(evidence);
 }
 
@@ -693,7 +772,12 @@ function sameEvaluationSnapshot(
 ): boolean {
   return evaluation.snapshot.snapshotId === snapshot.snapshot_id
     && evaluation.snapshot.problemId === snapshot.problem_id
-    && evaluation.snapshot.revision === snapshot.revision;
+    && evaluation.snapshot.revision === snapshot.revision
+    // snapshot_id is the canonical immutable Problem snapshot digest.  The
+    // evaluation must carry the same digest; matching locator fields alone is
+    // insufficient because a tampered evaluation could otherwise look
+    // historical while pointing at a different snapshot body.
+    && evaluation.snapshot.digest === snapshot.snapshot_id;
 }
 
 function buildEvaluationSections(
@@ -751,7 +835,7 @@ export interface JudgmentViewService {
 
 export function createJudgmentViewService(port: JudgmentViewReadPort): JudgmentViewService {
   if (!port || typeof port !== 'object') throw new TypeError('A judgment view read port is required');
-  for (const method of ['readCompositionRun', 'readProblemSnapshot', 'readFoundationReference', 'readRunArtifact']) {
+  for (const method of ['readCompositionRun', 'readProblemSnapshot', 'readFoundationReference', 'readRunArtifact', 'readEvidence']) {
     if (typeof port[method as keyof JudgmentViewReadPort] !== 'function') {
       throw new TypeError(`${method} is required`);
     }
@@ -766,7 +850,7 @@ export function createJudgmentViewService(port: JudgmentViewReadPort): JudgmentV
       const run = runResult.value;
       const runSection = resolvedSection(buildRunView(run));
       const childRuns = resolvedCollection(run.children.map(buildChildView));
-      const evidence = buildEvidenceCollection(run);
+      const evidence = await buildEvidenceCollection(run, request.access, port);
       const problemResult = await safeRead(() => port.readProblemSnapshot({
         reference: run.problem_snapshot,
         access: request.access,

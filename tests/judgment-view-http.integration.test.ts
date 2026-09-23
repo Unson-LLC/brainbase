@@ -434,6 +434,16 @@ describe('judgment view HTTP integration', () => {
           return { status: 'unknown' as const, reason: error instanceof Error ? error.message : 'artifact read failed' };
         }
       },
+      async readEvidence(request) {
+        return {
+          status: 'resolved' as const,
+          value: {
+            kind: request.reference.kind,
+            id: request.reference.id,
+            revision: request.reference.revision ?? '',
+          },
+        };
+      },
       async readEvaluation(request) {
         try {
           const record = await evaluationStore.read(request.evaluationId ?? evaluationRecord.id, {

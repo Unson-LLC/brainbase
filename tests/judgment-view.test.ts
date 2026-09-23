@@ -147,7 +147,7 @@ function evaluation() {
   return {
     version: 1 as const,
     id: 'evaluation-1',
-    snapshot: { snapshotId: problemRef.snapshot_id, problemId: problemRef.problem_id, revision: problemRef.revision, digest: `sha256:${'s'.repeat(64)}` },
+    snapshot: { snapshotId: problemRef.snapshot_id, problemId: problemRef.problem_id, revision: problemRef.revision, digest: problemRef.snapshot_id },
     objectiveRef,
     outcomeCaseRef: { id: 'outcome-1', revision: '1', digest: `sha256:${'e'.repeat(64)}` },
     predictions: [],
@@ -176,6 +176,18 @@ function port(overrides: Partial<JudgmentViewReadPort> = {}) {
     readRunArtifact: vi.fn((request) => {
       requests.push(request);
       return { status: 'resolved' as const, value: artifact() };
+    }),
+    readEvidence: vi.fn((request) => {
+      requests.push(request);
+      return {
+        status: 'resolved' as const,
+        value: {
+          kind: request.reference.kind,
+          id: request.reference.id,
+          revision: request.reference.revision,
+          digest: `sha256:${'e'.repeat(64)}`,
+        },
+      };
     }),
     readEvaluation: vi.fn((request) => {
       requests.push(request);
@@ -236,6 +248,48 @@ describe('historical judgment view', () => {
     expect(document.resultEvaluation.status).toBe('undecidable');
     expect(document.judgmentValidity.status).toBe('undecidable');
     expect(document.resultEvaluation.value).toBeUndefined();
+  });
+
+  it('rejects an evaluation whose snapshot digest differs from the historical Problem snapshot', async () => {
+    const { source } = port({
+      readEvaluation: vi.fn(() => ({
+        status: 'resolved' as const,
+        value: { ...evaluation(), snapshot: { ...evaluation().snapshot, digest: `sha256:${'t'.repeat(64)}` } },
+      })),
+    });
+
+    const document = await createJudgmentViewService(source).read({ runId, access });
+
+    expect(document.resultEvaluation.status).toBe('invalid');
+    expect(document.judgmentValidity.status).toBe('invalid');
+    expect(document.status).toBe('invalid');
+  });
+
+  it('fails closed when historical evidence cannot be revalidated with current ACL', async () => {
+    const { source } = port({
+      readEvidence: vi.fn(() => ({ status: 'permission_denied' as const, reason: 'evidence access was revoked' })),
+    });
+
+    const document = await createJudgmentViewService(source).read({ runId, access });
+
+    expect(document.evidence.status).toBe('permission_denied');
+    expect(document.evidence.items).toBeNull();
+    expect(document.status).toBe('permission_denied');
+  });
+
+  it('rejects historical evidence readback that does not match the requested revision', async () => {
+    const { source } = port({
+      readEvidence: vi.fn((request) => ({
+        status: 'resolved' as const,
+        value: { kind: request.reference.kind, id: request.reference.id, revision: 'different-revision' },
+      })),
+    });
+
+    const document = await createJudgmentViewService(source).read({ runId, access });
+
+    expect(document.evidence.status).toBe('invalid');
+    expect(document.evidence.items).toBeNull();
+    expect(document.status).toBe('invalid');
   });
 
   it('does not choose arbitrarily when a historical Problem pins multiple Objectives', async () => {

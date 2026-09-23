@@ -97,6 +97,27 @@ describe('judgment view UI contract', () => {
     expect(normalized.childRuns).toMatchObject({ status: 'resolved', items: [], absence_confirmed: true });
   });
 
+  it('does not trust a resolved top-level status when a section is permission denied', () => {
+    const normalized = normalizeJudgmentView(view({
+      status: 'resolved',
+      objective: { status: 'permission_denied', reason: 'Objectiveへの権限がありません' },
+    }));
+
+    expect(normalized.objective.status).toBe('permission_denied');
+    expect(normalized.status).toBe('permission_denied');
+  });
+
+  it('does not render an empty Objective value as confirmed', () => {
+    const normalized = normalizeJudgmentView(view({
+      status: 'resolved',
+      objective: { status: 'resolved', value: {} },
+    }));
+
+    expect(normalized.objective.status).toBe('unknown');
+    expect(normalized.objective.value).toBeUndefined();
+    expect(normalized.status).toBe('unknown');
+  });
+
   it('rejects a malformed Objective criterion instead of filtering it out', () => {
     const normalized = normalizeJudgmentView(view({
       objective: {
@@ -108,7 +129,8 @@ describe('judgment view UI contract', () => {
       },
     }));
 
-    expect(normalized.objective.value.criteria).toMatchObject({ status: 'unknown', items: null, absence_confirmed: false });
+    expect(normalized.objective).toMatchObject({ status: 'unknown' });
+    expect(normalized.objective.value).toBeUndefined();
   });
 
   it('renders historical trace, conclusion-to-evidence anchor, held child, and separate evaluation states', () => {

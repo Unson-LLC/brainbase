@@ -21,6 +21,7 @@ const STATUS_LABELS = Object.freeze({
 const CHILD_STATUS_LABELS = Object.freeze({ completed: '完了', failed: '失敗', held: '保留' });
 const ACHIEVEMENT_LABELS = Object.freeze({ achieved: '達成', not_achieved: '未達成', indeterminate: '判定不能' });
 const VALIDITY_LABELS = Object.freeze({ valid: '妥当', invalid: '不妥当', indeterminate: '判定不能' });
+const STATUS_PRECEDENCE = Object.freeze(['invalid', 'permission_denied', 'unavailable', 'unknown', 'undecidable', 'resolved']);
 
 function getDocument(explicit) {
   const value = explicit ?? (typeof document === 'undefined' ? null : document);
@@ -61,6 +62,13 @@ function status(value) {
   return STATUSES.includes(value) ? value : 'unknown';
 }
 
+function aggregateStatus(sections) {
+  for (const candidate of STATUS_PRECEDENCE) {
+    if (sections.some((section) => status(section?.status) === candidate)) return candidate;
+  }
+  return 'unknown';
+}
+
 function label(value, fallback = '未確認') {
   if (value === null || value === undefined) return fallback;
   if (typeof value === 'string') return value.trim() || fallback;
@@ -89,6 +97,13 @@ function normalizeSection(value) {
   return value.status === 'resolved'
     ? { status: 'resolved', value: value.value }
     : { status: value.status, ...(nonEmpty(value.reason) ? { reason: value.reason } : {}) };
+}
+
+function normalizedResolvedSection(section, validator, reason) {
+  if (section.status !== 'resolved') return section;
+  return validator(section.value)
+    ? section
+    : { status: 'unknown', reason };
 }
 
 function normalizeCollection(value, itemValidator = () => true) {
@@ -124,20 +139,81 @@ function validChild(value) {
 }
 
 function validEvidence(value) {
-  return isRecord(value) && value.source === 'subdag' && nonEmpty(value.invocationId) && nonEmpty(value.kind) && nonEmpty(value.id);
+  return isRecord(value) && value.source === 'subdag' && nonEmpty(value.invocationId) && nonEmpty(value.kind) && nonEmpty(value.id) && nonEmpty(value.revision);
 }
 
 function validCriterion(value) {
   return isRecord(value)
     && validRef(value.variableRef)
     && value.variableRef.type === 'variable'
-    && isRecord(value.variable);
+    && isRecord(value.variable)
+    && nonEmpty(value.variable.meaning)
+    && nonEmpty(value.variable.subject)
+    && nonEmpty(value.variable.valueKind)
+    && nonEmpty(value.variable.aggregation)
+    && nonEmpty(value.variable.granularity)
+    && ['at_least', 'at_most', 'equals'].includes(value.operator)
+    && (value.target === undefined || ['string', 'number', 'boolean'].includes(typeof value.target));
+}
+
+function validRun(value) {
+  return isRecord(value)
+    && nonEmpty(value.runId)
+    && ['completed', 'failed', 'held'].includes(value.status)
+    && nonEmpty(value.question)
+    && isRecord(value.composition)
+    && nonEmpty(value.composition.id)
+    && nonEmpty(value.composition.version)
+    && isRecord(value.parentDag)
+    && nonEmpty(value.parentDag.id)
+    && nonEmpty(value.parentDag.version)
+    && isRecord(value.problemSnapshot)
+    && nonEmpty(value.problemSnapshot.snapshot_id)
+    && nonEmpty(value.problemSnapshot.problem_id)
+    && nonEmpty(value.problemSnapshot.revision);
+}
+
+function validConclusion(value) {
+  return isRecord(value)
+    && value.source === 'parent-run-artifact'
+    && nonEmpty(value.runId)
+    && isRecord(value.dag)
+    && nonEmpty(value.dag.id)
+    && nonEmpty(value.dag.version)
+    && Object.hasOwn(value, 'value');
+}
+
+function validProblem(value) {
+  return isRecord(value)
+    && nonEmpty(value.snapshotId)
+    && nonEmpty(value.problemId)
+    && nonEmpty(value.revision)
+    && nonEmpty(value.question)
+    && Array.isArray(value.references)
+    && value.references.every(validReferenceItem);
+}
+
+function validObjective(value) {
+  return isRecord(value)
+    && validRef(value.ref)
+    && value.ref.type === 'objective'
+    && nonEmpty(value.meaning)
+    && nonEmpty(value.desiredState)
+    && nonEmpty(value.adoptionState)
+    && Array.isArray(value.beneficiaryIds)
+    && value.beneficiaryIds.every(nonEmpty)
+    && isRecord(value.criteria);
 }
 
 function validResultEvaluation(value) {
   return isRecord(value) && nonEmpty(value.evaluationId)
     && ['achieved', 'not_achieved', 'indeterminate'].includes(value.achievement)
-    && Array.isArray(value.criteria) && Array.isArray(value.predictionComparisons)
+    && Array.isArray(value.criteria) && value.criteria.every(isRecord)
+    && Array.isArray(value.predictionComparisons) && value.predictionComparisons.every(isRecord)
+    && isRecord(value.outcomeCaseRef)
+    && nonEmpty(value.outcomeCaseRef.id)
+    && nonEmpty(value.outcomeCaseRef.revision)
+    && nonEmpty(value.outcomeCaseRef.digest)
     && nonEmpty(value.evaluatedAt);
 }
 
@@ -155,27 +231,27 @@ export function normalizeJudgmentView(input) {
   if (!isRecord(input) || input.mode !== 'historical') {
     return { contract_version: JUDGMENT_VIEW_UI_CONTRACT_VERSION, mode: 'historical', status: 'unknown', reason: '判断記録を確認できません' };
   }
-  const run = normalizeSection(input.run);
-  const conclusion = normalizeSection(input.conclusion);
-  const problem = normalizeSection(input.problem);
-  const objective = normalizeSection(input.objective);
+  const run = normalizedResolvedSection(normalizeSection(input.run), validRun, 'Runの表示データが不正です');
+  const conclusion = normalizedResolvedSection(normalizeSection(input.conclusion), validConclusion, '結論の表示データが不正です');
+  const problem = normalizedResolvedSection(normalizeSection(input.problem), validProblem, 'Problemの表示データが不正です');
+  const objective = normalizedResolvedSection(normalizeSection(input.objective), validObjective, 'Objectiveの表示データが不正です');
   const evidence = normalizeCollection(input.evidence, validEvidence);
   const childRuns = normalizeCollection(input.childRuns, validChild);
   const resultEvaluation = normalizeSection(input.resultEvaluation);
   const judgmentValidity = normalizeSection(input.judgmentValidity);
-  const normalizedObjective = objective.status === 'resolved'
-    && isRecord(objective.value)
-    && validRef(objective.value.ref)
-    && nonEmpty(objective.value.meaning)
-    && nonEmpty(objective.value.desiredState)
-    ? {
-      ...objective,
-      value: {
-        ...objective.value,
-        criteria: normalizeCollection(objective.value.criteria, validCriterion),
-      },
-    }
-    : objective;
+  let normalizedObjective = objective;
+  if (objective.status === 'resolved' && isRecord(objective.value)) {
+    const criteria = normalizeCollection(objective.value.criteria, validCriterion);
+    normalizedObjective = criteria.status === 'resolved'
+      ? {
+        ...objective,
+        value: {
+          ...objective.value,
+          criteria,
+        },
+      }
+      : { status: criteria.status, ...(nonEmpty(criteria.reason) ? { reason: criteria.reason } : {}) };
+  }
   const normalizedEvaluation = resultEvaluation.status === 'resolved' && validResultEvaluation(resultEvaluation.value)
     ? resultEvaluation
     : resultEvaluation.status === 'resolved'
@@ -186,11 +262,24 @@ export function normalizeJudgmentView(input) {
     : judgmentValidity.status === 'resolved'
       ? { status: 'unknown', reason: '判断妥当性の表示データが不正です' }
       : judgmentValidity;
+  const normalizedSections = [
+    run,
+    conclusion,
+    problem,
+    normalizedObjective,
+    evidence,
+    childRuns,
+    normalizedEvaluation,
+    normalizedValidity,
+  ];
+  const aggregate = aggregateStatus([{ status: input.status }, ...normalizedSections]);
+  const reason = normalizedSections.find((section) => section.status !== 'resolved' && nonEmpty(section.reason))?.reason;
   return {
     ...input,
     contract_version: JUDGMENT_VIEW_UI_CONTRACT_VERSION,
     mode: 'historical',
-    status: status(input.status),
+    status: aggregate,
+    ...(reason ? { reason } : {}),
     run,
     conclusion,
     problem,
