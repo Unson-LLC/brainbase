@@ -59,9 +59,12 @@ export interface JudgmentDAGProblemSnapshotReadRequest {
 }
 
 /**
- * A Story05 adapter returns a validated, currently readable snapshot. The
- * coordinator checks the locator and identity fields; the adapter owns the
- * actual store lookup and current authorization check.
+ * A Story05 adapter used by a new composition run must return a snapshot
+ * validated with `reference_resolution: 'current'` and a canonical reference
+ * provider. The coordinator checks the locator and identity fields; the
+ * adapter owns the actual store lookup and current authorization/existence
+ * check. `historical` resolution is for audit/replay only and cannot satisfy
+ * this execution reader contract.
  */
 export interface JudgmentDAGProblemSnapshotReadResult {
   readonly status: 'resolved';

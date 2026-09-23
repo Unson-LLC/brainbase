@@ -25,6 +25,12 @@ composition runは、任意の`fixed_conditions`だけでは開始できない�
 `problem_snapshot`として受け取り、親run・各子run・各子evaluation requestへ同じ参照を渡す。
 `snapshot_reader`はその参照を使って現在の存在と読取権限を再確認し、同じ参照・
 `judgment-problem-snapshot.v1`・`problem_id`・`revision`を持つsnapshotを返す。
+新規のcomposition runでStory05の`loadJudgmentProblemSnapshot`を使うadapterは、
+`reference_resolution: 'current'`とcanonical reference providerを必須にする。
+保存済み本文だけを再現する`historical`解決は監査・replay専用であり、現在の正本の
+ACL・存在・適用範囲を確認しないため、実行用の`snapshot_reader`へ流用してはならない。
+canonical reference providerが拒否・欠落・解決不能を返した場合は、snapshotを解決済みと
+扱わず、coordinatorはportを呼ばず`snapshot_unavailable`で終了する。
 snapshotの保存、ACL、証拠参照の解決はStory05のadapterが所有し、coordinatorはそのSSOTを
 複製しない。読めない、参照が一致しない、revisionが違う場合はportを呼ばず
 `snapshot_unavailable`で終了する。`fixed_conditions`はsnapshotの補助条件であり、
@@ -85,7 +91,7 @@ readerがない、読めない、identityが一致しない場合は`artifact_re
 ## 受入条件と検証
 
 1. 有効な親子構成のtopological order、problem snapshot参照、固定条件、委任subset、入力・出力・run参照をrecordで確認する。
-2. snapshotの不存在・権限拒否・参照不一致、構成循環、重複・未解決dependency、scope・DAG版・契約不一致をfail closedする。
+2. snapshotの不存在・権限拒否・canonical reference providerによる拒否・参照不一致、構成循環、重複・未解決dependency、scope・DAG版・契約不一致をfail closedする。
 3. snapshot・DAG版・入出力契約の事前検証がportより先に実行され、capability違反時もportが呼ばれないことを確認する。
 4. artifact IDを返す子でreadbackを要求し、run/dag identity不一致を`artifact_readback_failed`にすることを確認する。
 5. 子の`failed` / `held`と依存先のheld伝播が親`completed`へ丸められないことを確認する。
