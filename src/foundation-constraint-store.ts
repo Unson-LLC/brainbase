@@ -170,7 +170,7 @@ export class FoundationConstraintStore<TConstraint extends ConstraintProjection 
       );
       return await this.exceptionStore.append(exception, resolvedContext);
     } catch (error) {
-      throw normalizeFoundationError(error, exception.constraintRef.id);
+      throw normalizeFoundationError(error, exceptionConstraintId(exception));
     }
   }
 
@@ -276,6 +276,14 @@ export class FoundationConstraintStore<TConstraint extends ConstraintProjection 
       }
     }
   }
+}
+
+function exceptionConstraintId(exception: unknown): string | undefined {
+  if (!exception || typeof exception !== 'object') return undefined;
+  const reference = (exception as { constraintRef?: unknown }).constraintRef;
+  if (!reference || typeof reference !== 'object') return undefined;
+  const id = (reference as { id?: unknown }).id;
+  return typeof id === 'string' ? id : undefined;
 }
 
 export function createFoundationConstraintStore(
