@@ -97,10 +97,14 @@ export interface JudgmentProblemSnapshotAccessContext {
 
 /**
  * `current` revalidates canonical references for a new judgment.  `historical`
- * reads only the immutable snapshot envelope after snapshot ACL checks; it is
- * for audit/replay of the recorded conditions and never grants execution.
+ * rechecks only the current read ACL and exact digest of each canonical
+ * reference, while preserving the recorded use/applicability conditions for
+ * audit/replay.  Neither mode grants execution.
  */
 export type JudgmentProblemReferenceResolutionMode = 'current' | 'historical';
+
+/** The resolver phase makes historical ACL checks explicit at the port. */
+export type JudgmentProblemReferenceResolutionPhase = 'save' | 'read' | 'historical_read';
 
 export type JudgmentProblemSnapshotAccessAction = 'read' | 'write';
 
@@ -136,13 +140,15 @@ export interface JudgmentProblemReferenceResolution {
 /**
  * A provider is the only place that knows how an Observation, authority,
  * Model, or Constraint is resolved.  This store does not duplicate their
- * validation rules.  It is called on save and on `current` loads; historical
- * loads intentionally use only the immutable snapshot envelope.
+ * validation rules.  It is called on save and on every load.  A
+ * `historical_read` must still pass the provider's trusted current read ACL and
+ * exact revision/digest check, but must not re-evaluate recorded use or scope
+ * applicability.
  */
 export interface JudgmentProblemReferenceProvider {
   resolve(input: {
     readonly reference: JudgmentProblemReference;
-    readonly phase: 'save' | 'read';
+    readonly phase: JudgmentProblemReferenceResolutionPhase;
     readonly context: JudgmentProblemSnapshotAccessContext;
   }): JudgmentProblemReferenceResolution | Promise<JudgmentProblemReferenceResolution>;
 }
@@ -162,7 +168,7 @@ export interface LoadJudgmentProblemSnapshotRequest {
   readonly revision?: string;
   readonly access: JudgmentProblemSnapshotAccessContext;
   readonly accessProvider?: JudgmentProblemSnapshotAccessProvider;
-  /** Defaults to `current`; historical replay does not query canonical stores. */
+  /** Defaults to `current`; historical reads still require the provider for current ACL/digest checks. */
   readonly reference_resolution?: JudgmentProblemReferenceResolutionMode;
   readonly referenceProvider?: JudgmentProblemReferenceProvider;
 }
@@ -572,7 +578,7 @@ function evidenceReference(
 
 async function resolveOneReference(
   reference: JudgmentProblemReference,
-  phase: 'save' | 'read',
+  phase: JudgmentProblemReferenceResolutionPhase,
   context: JudgmentProblemSnapshotAccessContext,
   provider: JudgmentProblemReferenceProvider,
   errorReference: JudgmentProblemReference = reference
@@ -612,7 +618,7 @@ async function resolveOneReference(
 
 async function resolveReferences(
   snapshot: JudgmentProblemSnapshot,
-  phase: 'save' | 'read',
+  phase: JudgmentProblemReferenceResolutionPhase,
   context: JudgmentProblemSnapshotAccessContext,
   provider: JudgmentProblemReferenceProvider
 ): Promise<void> {
@@ -902,12 +908,15 @@ export async function loadJudgmentProblemSnapshot(
       }
     }
   }
-  if (referenceResolution === 'current') {
-    if (!request.referenceProvider || typeof request.referenceProvider.resolve !== 'function') {
-      fail('invalid_request', 'referenceProvider.resolve is required for current reference resolution');
-    }
-    await resolveReferences(envelope.snapshot, 'read', context, request.referenceProvider);
+  if (!request.referenceProvider || typeof request.referenceProvider.resolve !== 'function') {
+    fail('invalid_request', `referenceProvider.resolve is required for ${referenceResolution} reference resolution`);
   }
+  await resolveReferences(
+    envelope.snapshot,
+    referenceResolution === 'current' ? 'read' : 'historical_read',
+    context,
+    request.referenceProvider
+  );
   return envelope.snapshot;
 }
 
@@ -928,16 +937,19 @@ export interface JudgmentProblemFoundationReferenceReader {
 
 /**
  * Adapt the generic foundation store to the snapshot resolver.  The store
- * read, exact digest check, foundation-use validation, and scope applicability
- * check always run before an optional caller validator.  The optional
- * validator can add organization-specific policy, but cannot bypass the
- * canonical store or make a draft/out-of-scope definition appear resolved.
+ * read and exact digest check always run before an optional caller validator.
+ * `save`/`read` additionally validate the definition for judgment use and
+ * reference scope.  `historical_read` deliberately skips those past-use and
+ * applicability checks, but the trusted store must still enforce its current
+ * read ACL; an old revision cannot be read through a revoked current ACL.
+ * The optional validator can add organization-specific policy, but cannot
+ * bypass the canonical store or digest check.
  */
 export function createJudgmentProblemFoundationReferenceProvider(options: {
   readonly store: JudgmentProblemFoundationReferenceReader;
   readonly validate?: (input: {
     readonly reference: JudgmentProblemReference;
-    readonly phase: 'save' | 'read';
+    readonly phase: JudgmentProblemReferenceResolutionPhase;
     readonly context: JudgmentProblemSnapshotAccessContext;
     readonly record: {
       readonly definition: FoundationDefinition;
@@ -946,7 +958,7 @@ export function createJudgmentProblemFoundationReferenceProvider(options: {
   }) => JudgmentProblemReferenceResolution | Promise<JudgmentProblemReferenceResolution>;
   readonly resolveOther?: (input: {
     readonly reference: JudgmentProblemReference;
-    readonly phase: 'save' | 'read';
+    readonly phase: JudgmentProblemReferenceResolutionPhase;
     readonly context: JudgmentProblemSnapshotAccessContext;
   }) => JudgmentProblemReferenceResolution | Promise<JudgmentProblemReferenceResolution>;
 }): JudgmentProblemReferenceProvider {
@@ -970,19 +982,21 @@ export function createJudgmentProblemFoundationReferenceProvider(options: {
         return { status: 'unresolved', message: 'Foundation revision did not return a matching definition' };
       }
       const definition = resolved.definition as unknown as FoundationDefinition;
-      const validation = validateFoundationDefinition(definition, { use: 'judgment' });
-      if (!validation.valid) {
-        const notApplicable = validation.issues.some((issue) => (
-          issue.code === 'UNAUTHORIZED_USE' || issue.code === 'UNVERIFIED_MODEL'
-        ));
-        return {
-          status: notApplicable ? 'not_applicable' : 'unresolved',
-          message: validation.issues.map((issue) => issue.message).join('; ')
-        };
-      }
-      const applicability = validateFoundationReferenceApplicability(input.reference, definition);
-      if (!applicability.valid) {
-        return { status: 'not_applicable', message: applicability.message };
+      if (input.phase !== 'historical_read') {
+        const validation = validateFoundationDefinition(definition, { use: 'judgment' });
+        if (!validation.valid) {
+          const notApplicable = validation.issues.some((issue) => (
+            issue.code === 'UNAUTHORIZED_USE' || issue.code === 'UNVERIFIED_MODEL'
+          ));
+          return {
+            status: notApplicable ? 'not_applicable' : 'unresolved',
+            message: validation.issues.map((issue) => issue.message).join('; ')
+          };
+        }
+        const applicability = validateFoundationReferenceApplicability(input.reference, definition);
+        if (!applicability.valid) {
+          return { status: 'not_applicable', message: applicability.message };
+        }
       }
       if (options.validate) {
         return options.validate({

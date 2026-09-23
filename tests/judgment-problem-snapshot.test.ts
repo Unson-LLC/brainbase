@@ -9,6 +9,7 @@ import {
   loadJudgmentProblemSnapshot,
   saveJudgmentProblemSnapshot,
   type JudgmentProblemReference,
+  type JudgmentProblemReferenceResolutionPhase,
   type JudgmentProblemReferenceProvider,
   type JudgmentProblemSnapshot,
   type JudgmentProblemSnapshotAccessProvider
@@ -68,7 +69,7 @@ function snapshot(question = 'Which rollout should we validate?'): JudgmentProbl
 }
 
 function provider(
-  calls: Array<{ phase: 'save' | 'read'; reference: JudgmentProblemReference }>,
+  calls: Array<{ phase: JudgmentProblemReferenceResolutionPhase; reference: JudgmentProblemReference }>,
   statusFor: Partial<Record<JudgmentProblemReference['kind'], 'missing' | 'not_applicable' | 'unresolved'>> = {}
 ): JudgmentProblemReferenceProvider {
   return {
@@ -153,7 +154,7 @@ function foundationModel(variableId: string): ModelDefinition {
 describe('JudgmentProblem snapshot contract', () => {
   it('captures required references, preserves optional omission, and reloads immutably', async () => {
     const root = await temporaryRoot();
-    const calls: Array<{ phase: 'save' | 'read'; reference: JudgmentProblemReference }> = [];
+    const calls: Array<{ phase: JudgmentProblemReferenceResolutionPhase; reference: JudgmentProblemReference }> = [];
     const original = snapshot();
 
     const receipt = await saveJudgmentProblemSnapshot({
@@ -190,12 +191,23 @@ describe('JudgmentProblem snapshot contract', () => {
       referenceProvider: provider([], {})
     });
 
+    const historicalCalls: Array<{ phase: JudgmentProblemReferenceResolutionPhase; reference: JudgmentProblemReference }> = [];
+    await expect(loadJudgmentProblemSnapshot({
+      root,
+      snapshot_id: receipt.snapshot_id,
+      access: { principal: 'bob' },
+      reference_resolution: 'historical',
+      referenceProvider: provider(historicalCalls)
+    })).resolves.toEqual(original);
+    expect(historicalCalls).toHaveLength(8);
+    expect(historicalCalls.every((call) => call.phase === 'historical_read')).toBe(true);
+
     await expect(loadJudgmentProblemSnapshot({
       root,
       snapshot_id: receipt.snapshot_id,
       access: { principal: 'bob' },
       reference_resolution: 'historical'
-    })).resolves.toEqual(original);
+    })).rejects.toMatchObject({ code: 'invalid_request' });
 
     await expect(loadJudgmentProblemSnapshot({
       root,
@@ -235,7 +247,7 @@ describe('JudgmentProblem snapshot contract', () => {
         : item)
     };
 
-    const refCalls: Array<{ phase: 'save' | 'read'; reference: JudgmentProblemReference }> = [];
+    const refCalls: Array<{ phase: JudgmentProblemReferenceResolutionPhase; reference: JudgmentProblemReference }> = [];
     const receipt = await saveJudgmentProblemSnapshot({
       root,
       snapshot: withEvidence,
@@ -432,6 +444,21 @@ describe('JudgmentProblem snapshot contract', () => {
     })).resolves.toEqual({ status: 'resolved', digest: modelRef.digest });
 
     const defaultFoundationProvider = createJudgmentProblemFoundationReferenceProvider({ store });
+    const expiredReference = {
+      ...variableReference,
+      valid_to: '2027-12-31T00:00:00.000Z'
+    };
+    await expect(defaultFoundationProvider.resolve({
+      reference: expiredReference,
+      phase: 'read',
+      context: { principal: 'bob' }
+    })).resolves.toMatchObject({ status: 'not_applicable' });
+    await expect(defaultFoundationProvider.resolve({
+      reference: expiredReference,
+      phase: 'historical_read',
+      context: { principal: 'bob' }
+    })).resolves.toEqual({ status: 'resolved', digest: variableRef.digest });
+
     const openEndedRef = await store.create({
       ...foundationVariable('open-ended-variable'),
       scope: { subjectIds: ['hotel-alpha'], validFrom: foundationScope.validFrom }
@@ -475,12 +502,26 @@ describe('JudgmentProblem snapshot contract', () => {
       phase: 'save',
       context: { principal: 'alice' }
     })).resolves.toMatchObject({ status: 'not_applicable' });
+    await expect(defaultFoundationProvider.resolve({
+      reference: {
+        ...variableReference,
+        id: draft.id,
+        digest: draft.digest as `sha256:${string}`
+      },
+      phase: 'historical_read',
+      context: { principal: 'alice' }
+    })).resolves.toEqual({ status: 'resolved', digest: draft.digest });
 
     await expect(foundationProvider.resolve({
       reference: { ...modelReference, scope: { type: 'project', id: 'other-hotel' } },
       phase: 'save',
       context: { principal: 'bob' }
     })).resolves.toMatchObject({ status: 'not_applicable' });
+    await expect(foundationProvider.resolve({
+      reference: { ...modelReference, scope: { type: 'project', id: 'other-hotel' } },
+      phase: 'historical_read',
+      context: { principal: 'bob' }
+    })).resolves.toEqual({ status: 'resolved', digest: modelRef.digest });
 
     await store.update({
       reference: variableRef,
@@ -493,6 +534,82 @@ describe('JudgmentProblem snapshot contract', () => {
       phase: 'read',
       context: { principal: 'bob' }
     })).rejects.toMatchObject({ code: 'authorization_denied' });
+    await expect(foundationProvider.resolve({
+      reference: variableReference,
+      phase: 'historical_read',
+      context: { principal: 'bob' }
+    })).rejects.toMatchObject({ code: 'authorization_denied' });
+  });
+
+  it('does not let a revoked canonical ACL be bypassed by historical embedded evidence', async () => {
+    const root = await temporaryRoot();
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'brainbase-jp-embedded-foundation-'));
+    roots.push(dataDir);
+    await initializePersonalOs(dataDir);
+    const store = createFoundationRevisionStore({ dataDir });
+    const variable = foundationVariable('embedded-copy-source');
+    const variableRef = await store.create(variable, { principal: 'alice' });
+    const content = { source: 'canonical-variable', value: 42 };
+    const variableReference: JudgmentProblemReference = {
+      ...reference('variable', 10),
+      id: variableRef.id,
+      revision: variableRef.revision,
+      digest: variableRef.digest as `sha256:${string}`,
+      evidence: {
+        mode: 'embedded_content',
+        digest: digest(content),
+        content,
+        access: {
+          ownerId: 'alice',
+          visibility: 'private',
+          readerIds: ['bob'],
+          writerIds: ['alice']
+        }
+      }
+    };
+    const withEvidence: JudgmentProblemSnapshot = {
+      ...snapshot(),
+      references: [...snapshot().references, variableReference]
+    };
+    const receipt = await saveJudgmentProblemSnapshot({
+      root,
+      snapshot: withEvidence,
+      access: { principal: 'alice' },
+      referenceProvider: provider([])
+    });
+    const foundationProvider = createJudgmentProblemFoundationReferenceProvider({ store });
+    const referenceProvider: JudgmentProblemReferenceProvider = {
+      resolve(input) {
+        if (input.reference.kind === 'variable') return foundationProvider.resolve(input);
+        return { status: 'resolved', digest: input.reference.digest };
+      }
+    };
+
+    await expect(loadJudgmentProblemSnapshot({
+      root,
+      snapshot_id: receipt.snapshot_id,
+      access: { principal: 'bob' },
+      reference_resolution: 'historical',
+      referenceProvider
+    })).resolves.toMatchObject({
+      references: expect.arrayContaining([expect.objectContaining({
+        id: variableRef.id,
+        evidence: expect.objectContaining({ content })
+      })])
+    });
+
+    await store.update({
+      reference: variableRef,
+      next: { ...variable, acl: { ...variable.acl, readerIds: [] } }
+    }, { principal: 'alice' });
+
+    await expect(loadJudgmentProblemSnapshot({
+      root,
+      snapshot_id: receipt.snapshot_id,
+      access: { principal: 'bob' },
+      reference_resolution: 'historical',
+      referenceProvider
+    })).rejects.toMatchObject({ code: 'unauthorized' });
   });
 
   it('does not accept a tampered canonical envelope', async () => {
