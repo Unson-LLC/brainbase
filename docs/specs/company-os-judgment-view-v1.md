@@ -27,7 +27,7 @@ storage_boundary: read_only_composition_of_canonical_ports
 
 1. trusted access contextを検証し、Composition runを`runId`と照合する。
 2. runのProblem snapshot locatorを`historical`で読み、snapshot id、problem id、revisionを照合する。
-3. snapshotからObjectiveを一つだけ選び、Foundation storeからexact `objective` refを読む。Objective criteriaの各Variable refもsnapshotにpinされたexact revision/digestで読む。
+3. snapshotにObjective refが一つだけあることを検証し、Foundation storeからそのexact `objective` refを読む。Objective refがない、または複数ある場合は、先頭・末尾などを恣意的に選ばず`invalid`として返す。Objective criteriaの各Variable refもsnapshotにpinされたexact revision/digestで読む。
 4. Parent DAGのartifactをrun idとDAG id/versionで照合し、execution orderの最後のnode outputだけを結論として返す。artifactのnode内部やchain-of-thoughtはUIへ投影しない。
 5. child runはcompleted、failed、heldを保持し、各結論、適用可能性、不確実性、証拠参照を表示する。
 6. Evaluationが解決できる場合、Objective達成度・予測差分と、判断時点の妥当性を別セクションへ返す。評価がないことは未達成や妥当と解釈しない。
@@ -66,6 +66,7 @@ handlerは対象外URLなら`false`を返す。対象URLのcontext欠落は401�
 - 結論のfinal node outputと、historical Problem/Objective/Variableのexact refを同じdocumentで追える。
 - Objective達成度と判断妥当性が別々に表示される。出荷・利用・価値の参照がない場合は未確認として残る。
 - Objective、Variable、artifact、Evaluationのtype・revision・digest不一致を`invalid`または`unknown`で返す。
+- Objective refが複数あるProblem snapshotは、選択を省略したまま一つへ絞らず`invalid`で返す。
 - permission denied、missing、held、indeterminateを空一覧、0件、成功、未達成へ変換しない。
 - queryでtenant/principal/scopeを上書きできず、異なるtenantのrecordを返さない。
 - UIで「当時版（historical）」が表示され、結論から「根拠へ移動」でevidence sectionへ遷移できる。
@@ -76,7 +77,7 @@ handlerは対象外URLなら`false`を返す。対象URLのcontext欠落は401�
 
 ```bash
 npm run build
-npx vitest run tests/judgment-view.test.ts tests/judgment-view-http.test.ts tests/ui/judgment-view.test.mjs tests/ui-package-contract.test.ts
+npx vitest run tests/judgment-view.test.ts tests/judgment-view-http.test.ts tests/judgment-view-http.integration.test.ts tests/ui/judgment-view.test.mjs tests/ui-package-contract.test.ts
 ```
 
 ## 対象外

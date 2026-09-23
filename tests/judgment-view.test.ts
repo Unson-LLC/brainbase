@@ -237,4 +237,25 @@ describe('historical judgment view', () => {
     expect(document.judgmentValidity.status).toBe('undecidable');
     expect(document.resultEvaluation.value).toBeUndefined();
   });
+
+  it('does not choose arbitrarily when a historical Problem pins multiple Objectives', async () => {
+    const historicalSnapshot = snapshot();
+    const secondObjective = {
+      ...historicalSnapshot.references.find((reference) => reference.kind === 'objective')!,
+      id: 'objective-2',
+    };
+    const { source } = port({
+      readProblemSnapshot: vi.fn(() => ({
+        status: 'resolved' as const,
+        value: { ...historicalSnapshot, references: [...historicalSnapshot.references, secondObjective] },
+      })),
+    });
+
+    const document = await createJudgmentViewService(source).read({ runId, access });
+
+    expect(document.objective.status).toBe('invalid');
+    expect(document.objective.value).toBeUndefined();
+    expect(document.reason).toContain('exactly one objective reference');
+    expect(document.status).toBe('invalid');
+  });
 });
