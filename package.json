@@ -79,6 +79,10 @@
       "types": "./dist/constraint-exception-store.d.ts",
       "import": "./dist/constraint-exception-store.js"
     },
+    "./decision-adapter": {
+      "types": "./dist/decision-adapter.d.ts",
+      "import": "./dist/decision-adapter.js"
+    },
     "./world-model": {
       "types": "./dist/world-model.d.ts",
       "import": "./dist/world-model.js"
