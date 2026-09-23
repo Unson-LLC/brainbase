@@ -67,13 +67,13 @@ Variable definitionにも論理IDとrevisionを持たせ、更新は旧revision�
 
 ## Story参照
 
-ObjectiveとStoryは多対多で参照できる。各参照は次の意味を一つだけ持つ。
+ObjectiveとStoryは多対多で参照できる。各参照は共有Ontologyのtyped relationとして、次の意味を一つだけ持つ。
 
 | link kind | 意味 | この関係だけから導けないこと |
 | --- | --- | --- |
-| contribution | StoryがObjectiveへの価値貢献を目指す | Story完了がObjective達成を意味しない |
-| execution dependency | Storyの判断・実行がObjectiveまたは別Storyの結果に依存する | 目的への貢献や時間順を意味しない |
-| time condition | Storyの期限・評価時点がObjectiveの期間条件に関係する | Story完了が期間内の達成を意味しない |
+| contribution (`contributes_to`) | StoryまたはObjectiveが、別のObjectiveへの価値貢献を目指す | Story完了や下位Objectiveの達成が上位Objectiveの達成を意味しない |
+| execution dependency (`execution_depends_on`) | Storyの判断・実行がObjectiveまたは別Storyの結果に依存する | 目的への貢献や時間順を意味しない |
+| time condition (`time_condition`) | Storyの期限・評価時点がObjectiveの期間条件に関係する。`deadline`または`evaluation_window`と期間を明示する | Story完了が期間内の達成や実行依存を意味しない |
 
 同じStoryとObjectiveの間に、意味が異なる複数の参照を持てる。参照の追加、削除、意味変更もObjectiveまたは関係の新revisionとして扱い、過去revisionを上書きしない。公開APIは依存関係を一つの`depends_on`へ丸めない。
 
@@ -87,7 +87,7 @@ ObjectiveとStoryは多対多で参照できる。各参照は次の意味を一
 - `readObjective(id, authorization, revision?)`：指定revisionまたはread時点の最新revisionを返す。越境readを拒否する。
 - `updateObjective(id, expectedRevision, patch, authorization)`：expectedRevisionが現在のrevisionと一致する場合だけ新revisionを作る。旧revisionを変更しない。
 - `checkObjectiveReadiness(id, revision, authorization)`：達成判定への利用可否と不足理由を返す。保存や目的の更新を行わない。
-- `linkObjectiveStory(id, expectedRevision, storyId, linkKind, authorization)`：typed linkを含む新revisionを作る。`linkKind`を推測・省略して受理しない。
+- `linkObjectiveStory(input, authorization)`：Objectiveの明示revisionとStory ID、`linkKind`を受け取り、typed linkを保存する。`linkKind`を推測・省略して受理しない。`time_condition`では期間を必須とする。
 
 ### Variable
 

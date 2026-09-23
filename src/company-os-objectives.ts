@@ -3,6 +3,8 @@ import type {
   ObjectiveCriterion,
   VariableDefinition,
   FoundationDefinition,
+  FoundationRevision,
+  FoundationTimeCondition,
   FoundationValidationIssue
 } from './ontology-foundation.js';
 import { validateFoundationDefinition } from './ontology-foundation.js';
@@ -24,6 +26,16 @@ export interface ObjectiveReadiness {
   ready: boolean;
   /** Definition and referenced Variable issues; observations are not inferred. */
   issues: readonly ObjectiveReadinessIssue[];
+}
+
+export type StoryObjectiveLinkKind = 'contribution' | 'execution_dependency' | 'time_condition';
+
+export interface StoryObjectiveLinkInput {
+  storyId: string;
+  storyRevision?: string;
+  objective: FoundationRevision;
+  linkKind: StoryObjectiveLinkKind;
+  timeCondition?: FoundationTimeCondition;
 }
 
 /**
@@ -148,6 +160,36 @@ export class CompanyOsObjectives {
   /** Exposes typed relation persistence without creating a second relation store. */
   addRelation(relation: Parameters<FoundationRevisionStore['addRelation']>[0], context: FoundationStoreContext): Promise<void> {
     return this.store.addRelation(relation, context);
+  }
+
+  /**
+   * Stores one explicitly typed Story/Objective reference.  The relation kind
+   * is required by the caller and is never inferred from the Story text.
+   * Objective revisions are supplied explicitly so a later Objective update
+   * cannot silently rewrite the historical link.
+   */
+  linkObjectiveStory(input: StoryObjectiveLinkInput, context: FoundationStoreContext): Promise<void> {
+    if (!input || typeof input.storyId !== 'string' || input.storyId.length === 0) {
+      throw new TypeError('A Story id is required');
+    }
+    if (!input.objective || input.objective.type !== 'objective') {
+      throw new TypeError('A versioned Objective reference is required');
+    }
+    const relationByKind = {
+      contribution: 'contributes_to',
+      execution_dependency: 'execution_depends_on',
+      time_condition: 'time_condition'
+    } as const;
+    return this.addRelation({
+      relation: relationByKind[input.linkKind],
+      source: {
+        id: input.storyId,
+        type: 'story',
+        ...(input.storyRevision === undefined ? {} : { revision: input.storyRevision })
+      },
+      target: input.objective,
+      ...(input.timeCondition === undefined ? {} : { timeCondition: input.timeCondition })
+    }, context);
   }
 
   private readTyped(

@@ -150,11 +150,20 @@ export type FoundationDefinition =
 
 export type FoundationRelationId =
   | 'contributes_to'
+  | 'execution_depends_on'
+  | 'time_condition'
   | 'evaluated_by'
   | 'uses_as_input'
   | 'predicts'
   | 'applies_to'
   | 'used_as_basis';
+
+export type FoundationTimeConditionKind = 'deadline' | 'evaluation_window';
+
+export interface FoundationTimeCondition {
+  kind: FoundationTimeConditionKind;
+  period: FoundationPeriod;
+}
 
 export type FoundationRelationEndpoint =
   | FoundationType
@@ -179,6 +188,8 @@ export interface FoundationRelationReference {
   relation: FoundationRelationId;
   source: FoundationRevision | DecisionRevision | { id: string; type: FoundationRelationEndpoint; revision?: string };
   target: FoundationRevision | DecisionRevision | { id: string; type: FoundationRelationEndpoint; revision?: string };
+  /** Required only by `time_condition`; forbidden for other relation kinds. */
+  timeCondition?: FoundationTimeCondition;
 }
 
 export interface FoundationValidationIssue {
@@ -282,11 +293,38 @@ const typeContracts: Record<FoundationType, FoundationTypeContract> = {
 export const judgmentFoundationRelations: Readonly<Record<FoundationRelationId, FoundationRelationDefinition>> = deepFreeze({
   contributes_to: {
     id: 'contributes_to',
+    from: ['story', 'objective'],
+    to: ['objective'],
+    meaning: 'A Story or Objective aims to contribute to an Objective.',
+    permittedInferences: [],
+    prohibitedInferences: [
+      'story completion does not establish objective achievement',
+      'objective contribution does not establish objective achievement'
+    ]
+  },
+  execution_depends_on: {
+    id: 'execution_depends_on',
+    from: ['story'],
+    to: ['story', 'objective'],
+    meaning: 'A Story judgment or execution requires a result or decision from the referenced Story or Objective.',
+    permittedInferences: [],
+    prohibitedInferences: [
+      'execution dependency does not establish contribution',
+      'execution dependency does not establish time ordering',
+      'execution dependency does not establish objective achievement'
+    ]
+  },
+  time_condition: {
+    id: 'time_condition',
     from: ['story'],
     to: ['objective'],
-    meaning: 'A Story aims to contribute to an Objective.',
+    meaning: 'A Story deadline or evaluation window is related to the referenced Objective period.',
     permittedInferences: [],
-    prohibitedInferences: ['story completion does not establish objective achievement']
+    prohibitedInferences: [
+      'time condition does not establish contribution',
+      'time condition does not establish execution dependency',
+      'story completion does not establish objective achievement'
+    ]
   },
   evaluated_by: {
     id: 'evaluated_by',
@@ -358,8 +396,11 @@ const FOUNDATION_VALUE_KINDS = ['number', 'boolean', 'string', 'state'] as const
 const FOUNDATION_AGGREGATIONS = ['none', 'sum', 'average', 'count', 'min', 'max', 'last', 'custom'] as const;
 const FOUNDATION_OPERATORS = ['at_least', 'at_most', 'equals'] as const;
 const FOUNDATION_VALIDATION_STATES = ['unverified', 'in_progress', 'supported', 'verified', 'refuted'] as const;
+const FOUNDATION_TIME_CONDITION_KINDS = ['deadline', 'evaluation_window'] as const;
 const FOUNDATION_RELATION_IDS = [
   'contributes_to',
+  'execution_depends_on',
+  'time_condition',
   'evaluated_by',
   'uses_as_input',
   'predicts',
@@ -423,6 +464,10 @@ function isFoundationOperator(value: unknown): value is FoundationOperator {
 
 function isFoundationValidationState(value: unknown): value is FoundationValidationState {
   return isOneOf(value, FOUNDATION_VALIDATION_STATES);
+}
+
+function isFoundationTimeConditionKind(value: unknown): value is FoundationTimeConditionKind {
+  return isOneOf(value, FOUNDATION_TIME_CONDITION_KINDS);
 }
 
 function isFoundationRelationId(value: unknown): value is FoundationRelationId {
@@ -778,11 +823,61 @@ export function validateFoundationRelation(reference: unknown): FoundationValida
       message: `${relation} does not accept target type ${targetType}.`
     });
   }
+  if (relation === 'time_condition') {
+    validateTimeCondition(reference.timeCondition, issues);
+  } else if (reference.timeCondition !== undefined) {
+    issues.push({
+      code: 'INVALID_FIELD',
+      path: 'timeCondition',
+      message: `timeCondition is only valid for the time_condition relation.`
+    });
+  }
   return {
     valid: issues.length === 0,
     status: issues.length === 0 ? 'valid' : 'invalid',
     issues
   };
+}
+
+function validateTimeCondition(value: unknown, issues: FoundationValidationIssue[]): void {
+  if (!isRecord(value)) {
+    issues.push({
+      code: 'MISSING_FIELD',
+      path: 'timeCondition',
+      message: 'time_condition relations require a timeCondition object.'
+    });
+    return;
+  }
+  if (!isFoundationTimeConditionKind(value.kind)) {
+    issues.push({
+      code: 'INVALID_FIELD',
+      path: 'timeCondition.kind',
+      message: `Unknown time condition kind ${String(value.kind)}.`
+    });
+  }
+  if (!isRecord(value.period)) {
+    issues.push({
+      code: 'MISSING_FIELD',
+      path: 'timeCondition.period',
+      message: 'timeCondition.period must contain from and until.'
+    });
+    return;
+  }
+  if (!isNonEmptyString(value.period.from) || !isNonEmptyString(value.period.until)) {
+    issues.push({
+      code: 'INVALID_FIELD',
+      path: 'timeCondition.period',
+      message: 'timeCondition.period.from and until must be non-empty ISO date strings.'
+    });
+    return;
+  }
+  if (!isValidPeriod({ from: value.period.from, until: value.period.until })) {
+    issues.push({
+      code: 'INVALID_FIELD',
+      path: 'timeCondition.period',
+      message: 'timeCondition.period must contain valid dates with until at or after from.'
+    });
+  }
 }
 
 export function validateEvaluationCompatibility(

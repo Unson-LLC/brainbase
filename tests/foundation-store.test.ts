@@ -8,7 +8,7 @@ import {
   createFoundationRevisionStore
 } from '../src/foundation-store.js';
 import { createCompanyOsObjectives } from '../src/company-os-objectives.js';
-import { initializePersonalOs } from '../src/ssot.js';
+import { initializePersonalOs, loadPersonalOs } from '../src/ssot.js';
 
 const dataDirs: string[] = [];
 
@@ -185,6 +185,59 @@ describe('GraphFoundationRevisionStore', () => {
       target: { ...variableRef, revision: '9' }
     }, { principal: 'owner-1' }))
       .rejects.toMatchObject({ code: 'not_found' });
+  });
+
+  it('keeps Story/Objective contribution, execution dependency, and time condition distinct', async () => {
+    const dataDir = await makeDataDir();
+    const api = createCompanyOsObjectives(createFoundationRevisionStore({ dataDir }));
+    const objective = await api.createObjective(objectiveDefinition(), { principal: 'owner-1' });
+    const context = { principal: 'owner-1' };
+
+    await api.linkObjectiveStory({
+      storyId: 'story-ai-phone-pilot',
+      objective,
+      linkKind: 'contribution'
+    }, context);
+    await api.linkObjectiveStory({
+      storyId: 'story-ai-phone-pilot',
+      objective,
+      linkKind: 'execution_dependency'
+    }, context);
+    await api.linkObjectiveStory({
+      storyId: 'story-ai-phone-pilot',
+      objective,
+      linkKind: 'time_condition',
+      timeCondition: {
+        kind: 'evaluation_window',
+        period: objectiveDefinition().evaluationPeriod
+      }
+    }, context);
+
+    const saved = await loadPersonalOs(dataDir);
+    expect(saved.graph.version).toBe(2);
+    if (saved.graph.version !== 2) throw new Error('Expected Graph v2');
+    expect(saved.graph.foundation?.relations).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        relation: 'contributes_to',
+        source: { id: 'story-ai-phone-pilot', type: 'story' },
+        target: objective
+      }),
+      expect.objectContaining({
+        relation: 'execution_depends_on',
+        source: { id: 'story-ai-phone-pilot', type: 'story' },
+        target: objective
+      }),
+      expect.objectContaining({
+        relation: 'time_condition',
+        source: { id: 'story-ai-phone-pilot', type: 'story' },
+        target: objective,
+        timeCondition: {
+          kind: 'evaluation_window',
+          period: objectiveDefinition().evaluationPeriod
+        }
+      })
+    ]));
+    expect(saved.graph.foundation?.relations).toHaveLength(3);
   });
 
   it('provides typed Objective and Variable operations with definition-only readiness', async () => {
