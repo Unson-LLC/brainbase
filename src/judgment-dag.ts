@@ -37,6 +37,17 @@ export {
   replayJudgmentDAGRun
 } from './judgment-dag-replay-evaluation.js';
 
+export {
+  JUDGMENT_DAG_COMPOSITION_STATUSES,
+  JUDGMENT_DAG_COMPOSITION_VERSION,
+  JUDGMENT_DAG_SUBDAG_STATUSES,
+  JudgmentDAGCompositionError,
+  assertValidJudgmentDAGComposition,
+  createJudgmentDAGCompositionDefinition,
+  executeJudgmentDAGComposition,
+  validateJudgmentDAGComposition
+} from './judgment-dag-composition.js';
+
 export type {
   JudgmentDAG,
   JudgmentDAGEdge,
@@ -95,3 +106,36 @@ export type {
   JudgmentDAGVersionComparison,
   ReplayJudgmentDAGRunRequest
 } from './judgment-dag-replay-evaluation.js';
+
+export type {
+  JudgmentDAGCompositionChildRunSource,
+  JudgmentDAGCompositionDefinition,
+  JudgmentDAGCompositionErrorCode,
+  JudgmentDAGCompositionRunRecord,
+  JudgmentDAGCompositionRunRequest,
+  JudgmentDAGCompositionStatus,
+  JudgmentDAGCompositionValidationResult,
+  JudgmentDAGDelegationScope,
+  JudgmentDAGEvidenceReference,
+  JudgmentDAGInputOutputContractValidationRequest,
+  JudgmentDAGInputOutputContractValidator,
+  JudgmentDAGProblemSnapshotId,
+  JudgmentDAGProblemSnapshotReadRequest,
+  JudgmentDAGProblemSnapshotReadResult,
+  JudgmentDAGProblemSnapshotReader,
+  JudgmentDAGProblemSnapshotReference,
+  JudgmentDAGRunReference,
+  JudgmentDAGRunArtifactReadRequest,
+  JudgmentDAGRunArtifactReader,
+  JudgmentDAGSubDAGDefinition,
+  JudgmentDAGSubDAGExecutionPort,
+  JudgmentDAGSubDAGExecutionRequest,
+  JudgmentDAGSubDAGEvaluationPort,
+  JudgmentDAGSubDAGResult,
+  JudgmentDAGSubDAGRunRecord,
+  JudgmentDAGSubDAGStatus,
+  JudgmentDAGVersionResolution,
+  JudgmentDAGVersionReference,
+  JudgmentDAGVersionResolver,
+  JudgmentDAGVersionResolverRequest
+} from './judgment-dag-composition.js';
