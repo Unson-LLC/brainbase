@@ -1,9 +1,11 @@
 ---
 story_id: story-company-os-receipt-adapter-v1
 title: 既存の実行記録と成果記録を判断へ接続して区別できる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
+implementation_status: local_implementation_complete
+verification_status: affected_tests_and_build_passed_ci_pending
 owner_repository: brainbase
 depends_on: ["story-company-os-evaluation-v1", "story-company-os-decision-adapter-v1"]
 external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "provided_but_required_adapter_surface_missing"}]
@@ -51,9 +53,9 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ## 受入条件
 
-- [ ] AC-01: RunReceipt・OutcomeCase・meeting context receipt・Companion decision eventへ共通判断参照を接続する。
-- [ ] AC-02: telemetryやcontext receiptを判断そのものへ変換せず、元の記録種別・ID・hash・状態を保持する。
-- [ ] AC-03: 実行成功やOutcomeCase閉鎖を目的達成／判断品質へ自動変換しない。旧記録の未記録条件を表示する。
+- [x] AC-01: RunReceipt・OutcomeCase・meeting context receipt・Companion decision eventへ共通判断参照を接続する。
+- [x] AC-02: telemetryやcontext receiptを判断そのものへ変換せず、元の記録種別・ID・hash・状態を保持する。
+- [x] AC-03: 実行成功やOutcomeCase閉鎖を目的達成／判断品質へ自動変換しない。旧記録の未記録条件を表示する。
 - [ ] AC-04: 対象入口ごとの読戻し・旧client互換・権限境界・切戻しを検証する。
 
 ## 対象外
@@ -64,4 +66,4 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+現在はOSS単独のport・sidecar・fixture実装まで完了している。`npm run build`とReceipt adapterの5テストは通過した。AC-04のうちproviderの現在ACL、不在、identity mismatch、冪等性、SSOT側の保存失敗なしはfixtureで確認したが、旧clientの実runtime接続、PR、CI、外部sourceの実読戻しは未確認である。VibeProのactiveは登録が有効である意味であり、PR/CI完了を意味しない。
