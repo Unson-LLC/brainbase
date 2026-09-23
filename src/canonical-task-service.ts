@@ -16,6 +16,21 @@ import {
 
 type JsonRecord = Record<string, unknown>;
 
+type CanonicalTaskDeleteResult = {
+  task_id: string;
+  deleted: true;
+  version: number;
+};
+
+/**
+ * The operation coordinator persists this private field with a prepared
+ * delete result so a completed replay can rebuild its audit envelope after
+ * the task row has been removed. It is stripped before the public response.
+ */
+type CanonicalTaskDeleteOperationResult = CanonicalTaskDeleteResult & {
+  _audit_source_refs?: unknown[];
+};
+
 export type CanonicalTaskAction =
   | 'list'
   | 'search'
@@ -25,9 +40,17 @@ export type CanonicalTaskAction =
   | 'transition'
   | 'delete';
 
+export type CanonicalTaskAuditAction =
+  | 'canonical_task.created'
+  | 'canonical_task.updated'
+  | 'canonical_task.transitioned'
+  | 'canonical_task.deleted';
+
 export interface CanonicalTaskContext extends JsonRecord {
   principal: CanonicalTaskPrincipal;
   authSource?: string | null;
+  auditPrincipal?: CanonicalTaskPrincipal | null;
+  auditAuthSource?: string | null;
   idempotencyKey?: string | null;
 }
 
@@ -118,8 +141,12 @@ export interface CanonicalTaskSearchPage extends CanonicalTaskPage {
 export interface CanonicalTaskAuditEntry extends JsonRecord {
   id: string;
   actor: CanonicalTaskPrincipal;
+  actor_id: string;
+  actor_type: CanonicalTaskPrincipal['type'];
+  actor_principal: CanonicalTaskPrincipal;
+  actor_namespace: string;
   auth_source: string | null;
-  action: CanonicalTaskAction;
+  action: CanonicalTaskAuditAction;
   target_type: 'canonical_task';
   target_id: string;
   changes: JsonRecord;
@@ -167,11 +194,47 @@ export interface CanonicalTaskOperationRequest<T> {
   scope: string;
   operationKey: string;
   fingerprint: string;
+  /**
+   * Persist only the stable reference needed to resume an operation. The
+   * coordinator must not need to serialize the complete Task payload.
+   */
+  projectResult?: (result: T) => unknown;
+  /**
+   * Inspect durable state after a caller or coordinator restart. A recovery
+   * result is deliberately explicit so a missing record is not mistaken for
+   * a successful replay.
+   */
+  recover?: () => Promise<CanonicalTaskOperationRecovery<T>>;
   run: () => Promise<T>;
+}
+
+export interface CanonicalTaskOperationRecovery<T> {
+  recovered: boolean;
+  result?: T;
+}
+
+export interface CanonicalTaskPreparedDeleteRequest<T> {
+  scope?: string;
+  operationKey: string;
+  fingerprint: string;
+  /** Fingerprint for the task-version claim paired with the delete intent. */
+  versionFingerprint: string;
+  versionClaimKey: string;
+  principalNamespace: string;
+  prepare: () => Promise<{
+    result: T;
+    task?: CanonicalTaskRecord | null;
+    authorizationSnapshot?: JsonRecord;
+  }>;
+  findTask: () => Promise<CanonicalTaskRecord | null>;
+  removeTask: (task?: CanonicalTaskRecord) => Promise<void>;
+  projectResult?: (result: T) => unknown;
+  recover?: () => Promise<CanonicalTaskOperationRecovery<T>>;
 }
 
 export interface CanonicalTaskOperationRepository {
   execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T>;
+  executePreparedDelete?<T>(request: CanonicalTaskPreparedDeleteRequest<T>): Promise<T>;
 }
 
 export interface CanonicalTaskServiceOptions {
@@ -202,8 +265,11 @@ export class CanonicalTaskError extends Error {
     this.code = code;
     this.status = status;
     this.details = details;
-    this.fieldErrors = options.fieldErrors ?? {};
-    this.currentTask = options.currentTask;
+    this.fieldErrors = options.fieldErrors
+      ?? (details.fieldErrors as Record<string, string[]> | undefined)
+      ?? {};
+    this.currentTask = options.currentTask
+      ?? (details.currentTask as CanonicalTaskRecord | undefined);
   }
 }
 
@@ -240,6 +306,16 @@ function fail(code: string, message: string, status = 400, details: JsonRecord =
   throw new CanonicalTaskError(code, message, status, details);
 }
 
+function failValidation(fieldErrors: Record<string, string[]>): never {
+  throw new CanonicalTaskError(
+    'validation_failed',
+    'Canonical Task request is invalid',
+    422,
+    { fieldErrors },
+    { fieldErrors },
+  );
+}
+
 function normalizeString(value: unknown, field: string, options: { required?: boolean; max?: number } = {}): string | null {
   const normalized = value == null ? '' : String(value).normalize('NFKC').trim();
   if (!normalized) {
@@ -267,7 +343,7 @@ function normalizeLimit(value: unknown, max = MAX_LIMIT): number {
   if (value == null || value === '') return DEFAULT_LIMIT;
   const limit = Number(value);
   if (!Number.isInteger(limit) || limit < 1 || limit > max) {
-    fail('validation_error', `limit must be an integer between 1 and ${max}`, 400, { field: 'limit' });
+    failValidation({ limit: [`must_be_between_1_and_${max}`] });
   }
   return limit;
 }
@@ -292,7 +368,7 @@ function normalizeCollection(value: unknown, field: string): string[] | undefine
 function normalizeProjectCodes(value: unknown): string[] | undefined {
   if (value == null || value === '') return undefined;
   if (hasInvalidCanonicalTaskProjectCode(value)) {
-    fail('validation_error', 'project_codes contains an invalid value', 400, { field: 'project_codes' });
+    failValidation({ project_codes: ['invalid_project_code'] });
   }
   return normalizeCanonicalTaskProjectCodes(value);
 }
@@ -337,11 +413,26 @@ function extractPersistedFingerprint(task: CanonicalTaskRecord): string | null {
   return typeof value === 'string' ? value : null;
 }
 
+function projectTaskResult(result: unknown): unknown {
+  if (!result || typeof result !== 'object') return result;
+  const candidate = result as JsonRecord;
+  if (typeof candidate.id === 'string' && Number.isInteger(candidate.version)) {
+    return { task_id: candidate.id, task_version: candidate.version };
+  }
+  if (typeof candidate.task_id === 'string' && Number.isInteger(candidate.version)) {
+    return { task_id: candidate.task_id, task_version: candidate.version };
+  }
+  return result;
+}
+
 function normalizePage(page: CanonicalTaskPage, normalize: (task: CanonicalTaskRecord) => CanonicalTaskRecord): CanonicalTaskPage {
   const items = Array.isArray(page.items) ? page.items.map(normalize) : [];
-  const totalCount = Number.isInteger(page.totalCount)
+  // An explicit null means that the backend did not request or cannot provide
+  // a count. Preserve that evidence instead of turning it into a false exact
+  // count derived from the current page.
+  const totalCount = page.totalCount !== undefined
     ? page.totalCount
-    : (Number.isInteger(page.total_count) ? page.total_count : items.length);
+    : (page.total_count !== undefined ? page.total_count : items.length);
   const countStatus = page.countStatus ?? page.count_status ?? 'exact';
   const nextCursor = page.nextCursor ?? page.next_cursor ?? null;
   const readStatus = page.readStatus ?? page.read_status ?? 'complete';
@@ -398,6 +489,13 @@ export class CanonicalTaskService {
     const normalizedFilters = this.normalizeSearchFilters(filters);
     await this.authorize('search', normalizedContext, undefined, normalizedFilters);
     const scoped = await this.scopeFilters('search', normalizedContext, normalizedFilters);
+    if (typeof this.repository.search !== 'function') {
+      throw new CanonicalTaskError(
+        'task_search_unavailable',
+        'Canonical Task search is unavailable',
+        503,
+      );
+    }
     const page = await this.read(() => this.repository.search(scoped));
     const normalizedPage = normalizePage(page, (task) => this.normalizeResponse(task));
     return {
@@ -424,18 +522,23 @@ export class CanonicalTaskService {
     await this.authorize('create', normalizedContext, undefined, payload);
     const operation = operationKey(normalizedContext.principal, clientKey, 'api:');
     const inputFingerprint = fingerprint(payload);
-    const run = async (): Promise<CanonicalTaskRecord> => {
+    const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
       const existing = await this.read(() => this.repository.findByIdempotencyKey(operation));
-      if (existing) {
-        const existingFingerprint = extractPersistedFingerprint(existing);
-        if (existingFingerprint && existingFingerprint !== inputFingerprint) {
-          throw new CanonicalTaskError('idempotency_conflict', 'The idempotency key was already used for another task', 409, {
-            idempotency_key: clientKey,
-          });
-        }
-        await this.authorize('read', normalizedContext, existing);
-        return this.normalizeResponse(existing);
+      if (!existing) return { recovered: false };
+      const existingFingerprint = extractPersistedFingerprint(existing);
+      if (existingFingerprint && existingFingerprint !== inputFingerprint) {
+        throw new CanonicalTaskError('idempotency_conflict', 'The idempotency key was already used for another task', 409, {
+          idempotency_key: clientKey,
+        });
       }
+      // Recovery is a fresh authorization boundary. A persisted operation is
+      // never trusted merely because its idempotency key matches.
+      await this.authorize('read', normalizedContext, existing);
+      return { recovered: true, result: this.normalizeResponse(existing) };
+    };
+    const run = async (): Promise<CanonicalTaskRecord> => {
+      const recovered = await recover();
+      if (recovered.recovered && recovered.result) return recovered.result;
       const created = await this.read(() => this.repository.create({
         ...payload,
         status: 'pending',
@@ -443,13 +546,29 @@ export class CanonicalTaskService {
         idempotency_key: operation,
         payload_fingerprint: inputFingerprint,
       }));
-      await this.audit(normalizedContext, 'create', created, {
-        operation_key: operation,
-        input: payload,
-      });
       return this.normalizeResponse(created);
     };
-    return this.executeOperation({ scope: 'canonical_task', operationKey: operation, fingerprint: inputFingerprint, run });
+    const result = await this.executeOperation({
+      scope: 'canonical_task',
+      operationKey: operation,
+      fingerprint: inputFingerprint,
+      projectResult: projectTaskResult,
+      recover,
+      run,
+    });
+    const normalized = this.normalizeResponse(result);
+    // Audit each invocation, including a replay/recovery. The deterministic
+    // entry id lets an upsert sink collapse retries without losing evidence
+    // that the audit write was attempted again.
+    await this.audit(
+      normalizedContext,
+      'canonical_task.created',
+      normalized,
+      { before: null, after: normalized },
+      operation,
+      inputFingerprint,
+    );
+    return normalized;
   }
 
   async updateTask(taskId: string, input: CanonicalTaskUpdateInput & { expected_version?: number }, expectedVersion: number, context: CanonicalTaskContext): Promise<CanonicalTaskRecord>;
@@ -494,9 +613,12 @@ export class CanonicalTaskService {
       : maybeInput;
     const normalizedContext = await this.normalizeContext(context as CanonicalTaskContext);
     const expected = this.requireExpectedVersion(expectedVersion);
-    if (!isCanonicalTaskStatus(status)) fail('validation_error', 'status is invalid', 400, { field: 'status' });
+    if (!isCanonicalTaskStatus(status)) failValidation({ to_status: ['invalid_status'] });
     const patch: JsonRecord = { status };
     if (status === 'waiting') {
+      if (input.waitingOn == null || !String(input.waitingOn).normalize('NFKC').trim()) {
+        failValidation({ waiting_on: ['required_for_waiting'] });
+      }
       patch.waiting_on = normalizeString(input.waitingOn, 'waiting_on', { required: true, max: 500 });
       patch.review_at = normalizeIsoDate(input.reviewAt, 'review_at');
     } else {
@@ -522,28 +644,140 @@ export class CanonicalTaskService {
       ? expectedVersionOrInput
       : expectedVersionOrInput.expected_version);
     const clientKey = this.requireIdempotencyKey(normalizedContext);
-    const task = await this.read(() => this.repository.get(normalizedId));
-    if (!task) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
-    await this.authorize('delete', normalizedContext, task);
-    this.assertVersion(task, version);
-    const operation = operationKey(normalizedContext.principal, `${normalizedId}:${clientKey}`, 'delete:');
-    const run = async () => {
+    // A prepared-delete coordinator owns the durable operation lookup. Do not
+    // require the row to remain visible before entering it: a completed
+    // operation may legitimately recover after the delete removed the row.
+    // The fallback path still performs the ordinary read and authorization
+    // checks before invoking the local operation runner.
+    let task: CanonicalTaskRecord | null = null;
+    if (!this.operationRepository?.executePreparedDelete) {
+      task = await this.read(() => this.repository.get(normalizedId));
+      if (!task) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
+      await this.authorize('delete', normalizedContext, task);
+      this.assertVersion(task, version);
+    }
+    // The client key identifies the delete command. The task/version claim is
+    // carried separately so an operation coordinator can atomically claim the
+    // exact row version without allowing another actor to replay the command.
+    const operation = operationKey(normalizedContext.principal, clientKey, 'delete:');
+    const versionClaimKey = `task-version:${normalizedId}:${version}`;
+    const versionFingerprint = fingerprint({
+      kind: 'delete',
+      taskId: normalizedId,
+      expectedVersion: version,
+    });
+    const actorNamespace = principalNamespace(normalizedContext.principal);
+    const operationFingerprint = fingerprint({
+      kind: 'delete',
+      taskId: normalizedId,
+      expectedVersion: version,
+      principalNamespace: actorNamespace,
+    });
+    const result: CanonicalTaskDeleteResult = {
+      task_id: normalizedId,
+      deleted: true,
+      version: version + 1,
+    };
+    const prepare = async (): Promise<{
+      result: CanonicalTaskDeleteOperationResult;
+      task: CanonicalTaskRecord;
+      authorizationSnapshot: JsonRecord;
+    }> => {
       const current = await this.read(() => this.repository.get(normalizedId));
       if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
+      await this.authorize('delete', normalizedContext, current);
       this.assertVersion(current, version);
-      await this.read(() => this.repository.delete(normalizedId, version));
-      await this.audit(normalizedContext, 'delete', current, {
-        operation_key: operation,
-        expected_version: version,
-      });
-      return { task_id: normalizedId, deleted: true as const, version: version + 1 };
+      task = current;
+      return {
+        result: {
+          ...result,
+          _audit_source_refs: Array.isArray(current.source_refs) ? current.source_refs : [],
+        },
+        task: current,
+        authorizationSnapshot: {
+          task_id: normalizedId,
+          task_version: current.version,
+          actor: normalizedContext.principal,
+          auth_source: normalizedContext.authSource ?? null,
+        },
+      };
     };
-    return this.executeOperation({
-      scope: 'canonical_task',
-      operationKey: operation,
-      fingerprint: fingerprint({ taskId: normalizedId, expectedVersion: version }),
-      run,
-    });
+    const findTask = async (): Promise<CanonicalTaskRecord | null> =>
+      this.read(() => this.repository.get(normalizedId)).then((current) => {
+        if (current) task = current;
+        return current;
+      });
+    const removeTask = async (current?: CanonicalTaskRecord): Promise<void> => {
+      const taskToRemove = current ?? await this.read(() => this.repository.get(normalizedId));
+      if (!taskToRemove) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
+      task = taskToRemove;
+      // The coordinator may call removeTask after an earlier prepare step.
+      // Recheck the current policy at the destructive boundary so a revoked
+      // actor cannot delete a task using a previously prepared authorization.
+      await this.authorize('delete', normalizedContext, taskToRemove);
+      this.assertVersion(taskToRemove, version);
+      await this.read(() => this.repository.delete(normalizedId, version));
+    };
+    let deleted: CanonicalTaskDeleteOperationResult;
+    if (this.operationRepository?.executePreparedDelete) {
+      deleted = await this.operationRepository.executePreparedDelete({
+        scope: 'canonical_task',
+        operationKey: operation,
+        fingerprint: operationFingerprint,
+        versionFingerprint,
+        versionClaimKey,
+        principalNamespace: actorNamespace,
+        prepare,
+        findTask,
+        removeTask,
+        projectResult: projectTaskResult,
+      });
+    } else {
+      deleted = await this.executeOperation({
+        scope: 'canonical_task',
+        operationKey: operation,
+        fingerprint: operationFingerprint,
+        projectResult: projectTaskResult,
+        run: async () => {
+          const prepared = await prepare();
+          await removeTask(prepared.task);
+          return prepared.result;
+        },
+      });
+    }
+    // A completed replay may return without prepare/findTask, because the
+    // durable operation result is sufficient. Keep the audit target stable in
+    // that case while avoiding a second task-store read that would turn a
+    // successful replay into task_not_found.
+    const publicDeleted: CanonicalTaskDeleteResult = {
+      task_id: deleted.task_id,
+      deleted: true,
+      version: deleted.version,
+    };
+    const auditSourceRefs = Array.isArray(task?.source_refs)
+      ? task.source_refs
+      : (Array.isArray(deleted._audit_source_refs) ? deleted._audit_source_refs : null);
+    // A legacy completed operation may only contain the public delete result.
+    // Do not synthesize source_refs: [] in that case, because an audit upsert
+    // would erase the source references recorded by the original execution.
+    if (!task && auditSourceRefs === null) return publicDeleted;
+    const auditTask = task ?? {
+      id: normalizedId,
+      version,
+      title: '',
+      status: 'pending' as const,
+      priority: 'medium' as const,
+      source_refs: auditSourceRefs ?? [],
+    };
+    await this.audit(
+      normalizedContext,
+      'canonical_task.deleted',
+      auditTask,
+      { before: { task_id: normalizedId, version }, after: null },
+      operation,
+      operationFingerprint,
+    );
+    return publicDeleted;
   }
 
   private async versionedMutation(input: {
@@ -559,43 +793,101 @@ export class CanonicalTaskService {
     const current = await this.read(() => this.repository.get(taskId));
     if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
     await this.authorize(input.action, input.context, current, input.patch);
-    this.assertVersion(current, expectedVersion);
-    if (input.transitionStatus && !canTransitionCanonicalTaskStatus(current.status, input.transitionStatus)) {
-      throw new CanonicalTaskError('invalid_transition', `Cannot transition task from ${current.status} to ${input.transitionStatus}`, 409, {
-        from: current.status,
-        to: input.transitionStatus,
-      }, { currentTask: this.normalizeResponse(current) });
-    }
     const operation = operationKey(input.context.principal, `${taskId}:${expectedVersion}`, `${input.action}:`);
     const mutationTimestamp = this.clock().toISOString();
     const patch = {
       ...input.patch,
       version: expectedVersion + 1,
       updated_at: mutationTimestamp,
-      ...(input.transitionStatus === 'completed' ? { completed_at: mutationTimestamp } : {}),
+      ...(input.action === 'transition'
+        ? { completed_at: input.transitionStatus === 'completed' ? mutationTimestamp : null }
+        : {}),
+    };
+    // Keep this fingerprint independent of the wall clock. A restart may
+    // reconstruct the same command at a different instant, while the marker
+    // must still identify the already-applied mutation.
+    const operationFingerprint = fingerprint({
+      action: input.action,
+      taskId,
+      expectedVersion,
+      patch: input.patch,
+      transitionStatus: input.transitionStatus ?? null,
+      principal: input.context.principal,
+    });
+    const wasApplied = (candidate: CanonicalTaskRecord): boolean =>
+      candidate.version === expectedVersion + 1
+      && candidate._last_operation_key === operation
+      && candidate._last_operation_fingerprint === operationFingerprint;
+    if (!wasApplied(current)) {
+      this.assertVersion(current, expectedVersion);
+      if (input.transitionStatus && !canTransitionCanonicalTaskStatus(current.status, input.transitionStatus)) {
+        throw new CanonicalTaskError('invalid_transition', `Cannot transition task from ${current.status} to ${input.transitionStatus}`, 409, {
+          from: current.status,
+          to: input.transitionStatus,
+        }, { currentTask: this.normalizeResponse(current) });
+      }
+    }
+    const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
+      const latest = await this.read(() => this.repository.get(taskId));
+      if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
+      await this.authorize(input.action, input.context, latest, input.patch);
+      if (wasApplied(latest)) return { recovered: true, result: this.normalizeResponse(latest) };
+      this.assertVersion(latest, expectedVersion);
+      if (input.transitionStatus && !canTransitionCanonicalTaskStatus(latest.status, input.transitionStatus)) {
+        throw new CanonicalTaskError('invalid_transition', `Cannot transition task from ${latest.status} to ${input.transitionStatus}`, 409, {
+          from: latest.status,
+          to: input.transitionStatus,
+        }, { currentTask: this.normalizeResponse(latest) });
+      }
+      return { recovered: false };
     };
     const run = async (): Promise<CanonicalTaskRecord> => {
       const latest = await this.read(() => this.repository.get(taskId));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
+      if (wasApplied(latest)) return this.normalizeResponse(latest);
       this.assertVersion(latest, expectedVersion);
+      if (input.transitionStatus && !canTransitionCanonicalTaskStatus(latest.status, input.transitionStatus)) {
+        throw new CanonicalTaskError('invalid_transition', `Cannot transition task from ${latest.status} to ${input.transitionStatus}`, 409, {
+          from: latest.status,
+          to: input.transitionStatus,
+        }, { currentTask: this.normalizeResponse(latest) });
+      }
       const updated = await this.read(() => this.repository.update(taskId, {
         ...patch,
         _last_operation_key: operation,
-        _last_operation_fingerprint: fingerprint(patch),
+        _last_operation_fingerprint: operationFingerprint,
       }));
-      await this.audit(input.context, input.action, updated, {
-        operation_key: operation,
-        patch: input.patch,
-        expected_version: expectedVersion,
-      });
       return this.normalizeResponse(updated);
     };
-    return this.executeOperation({
+    const result = await this.executeOperation({
       scope: 'canonical_task',
       operationKey: operation,
-      fingerprint: fingerprint(patch),
+      fingerprint: operationFingerprint,
+      projectResult: projectTaskResult,
+      recover,
       run,
     });
+    const normalized = this.normalizeResponse(result);
+    const auditAction: CanonicalTaskAuditAction = input.action === 'update'
+      ? 'canonical_task.updated'
+      : 'canonical_task.transitioned';
+    const changes: JsonRecord = input.action === 'update'
+      ? {
+          before: { version: expectedVersion },
+          after: { version: normalized.version },
+          fields: input.patch,
+        }
+      : {
+          before: { version: expectedVersion },
+          after: { status: normalized.status, version: normalized.version },
+          transition: {
+            to_status: input.transitionStatus,
+            ...(input.patch.waiting_on !== undefined ? { waiting_on: input.patch.waiting_on } : {}),
+            ...(input.patch.review_at !== undefined ? { review_at: input.patch.review_at } : {}),
+          },
+        };
+    await this.audit(input.context, auditAction, normalized, changes, operation, operationFingerprint);
+    return normalized;
   }
 
   private normalizeCreateInput(input: CanonicalTaskCreateInput): JsonRecord {
@@ -666,7 +958,12 @@ export class CanonicalTaskService {
 
   private normalizeSearchFilters(filters: CanonicalTaskSearchFilters): CanonicalTaskSearchFilters {
     const normalized = this.normalizeListFilters(filters);
-    const q = normalizeString(filters.q ?? filters.query, 'q', { max: MAX_SEARCH_LENGTH }) ?? '';
+    const rawQuery = filters.q ?? filters.query;
+    const query = typeof rawQuery === 'string' ? rawQuery.normalize('NFKC').trim() : '';
+    if (!query) failValidation({ query: ['required'] });
+    if (/[\u0000-\u001f\u007f]/u.test(query)) failValidation({ query: ['contains_control_characters'] });
+    if (query.length > MAX_SEARCH_LENGTH) failValidation({ query: ['too_long'] });
+    const q = normalizeString(query, 'query', { required: true, max: MAX_SEARCH_LENGTH }) as string;
     const tokens = q.split(/\s+/u).filter(Boolean);
     const limit = normalizeLimit(filters.limit, 20);
     return { ...normalized, q, query: q, tokens, limit };
@@ -734,12 +1031,29 @@ export class CanonicalTaskService {
       : request.run();
   }
 
-  private async audit(context: CanonicalTaskContext, action: CanonicalTaskAction, task: CanonicalTaskRecord, changes: JsonRecord): Promise<void> {
+  private async audit(
+    context: CanonicalTaskContext,
+    action: CanonicalTaskAuditAction,
+    task: CanonicalTaskRecord,
+    changes: JsonRecord,
+    operationKey: string,
+    operationFingerprint: string,
+  ): Promise<void> {
     if (!this.auditRepository) return;
+    const actor = context.auditPrincipal
+      ? normalizeCanonicalTaskPrincipal(context.auditPrincipal)
+      : context.principal;
     const entry: CanonicalTaskAuditEntry = {
-      id: `canonical-task:${action}:${task.id}:${fingerprint(changes).slice(0, 24)}`,
-      actor: context.principal,
-      auth_source: context.authSource ?? null,
+      // The operation identity, rather than the returned task payload, is the
+      // replay key. A retried command therefore upserts the same audit row
+      // even when a repository adds timestamps or other response fields.
+      id: `canonical-task:${fingerprint({ action, operationKey, operationFingerprint })}`,
+      actor,
+      actor_id: actor.id,
+      actor_type: actor.type,
+      actor_principal: actor,
+      actor_namespace: principalNamespace(actor),
+      auth_source: context.auditAuthSource ?? context.authSource ?? null,
       action,
       target_type: 'canonical_task',
       target_id: task.id,
@@ -758,6 +1072,16 @@ export class CanonicalTaskService {
       return await operation();
     } catch (error) {
       if (error instanceof CanonicalTaskError) throw error;
+      // Keep the fail-closed backend selection contract observable to the
+      // host boundary while still hiding arbitrary storage details.
+      if (error && typeof error === 'object'
+        && (error as { code?: unknown }).code === 'canonical_task_backend_not_configured') {
+        throw new CanonicalTaskError(
+          'canonical_task_backend_not_configured',
+          'Canonical Task backend is not configured',
+          503,
+        );
+      }
       throw new CanonicalTaskError('task_store_unavailable', 'Task store is unavailable', 503);
     }
   }

@@ -1,5 +1,6 @@
 import {
   CanonicalTaskService,
+  type CanonicalTaskOperationRepository,
   type CanonicalTaskAuditEntry,
   type CanonicalTaskContext,
   type CanonicalTaskPage,
@@ -10,9 +11,11 @@ import {
 function clone<T>(value: T): T {
   return structuredClone(value);
 }
-export function createCanonicalTaskServiceFixture() {
+export function createCanonicalTaskServiceFixture(options: { operationRepository?: CanonicalTaskOperationRepository } = {}) {
   const tasks = new Map<string, CanonicalTaskRecord>();
   const auditEntries: CanonicalTaskAuditEntry[] = [];
+  const auditCalls: CanonicalTaskAuditEntry[] = [];
+  const auditById = new Map<string, CanonicalTaskAuditEntry>();
   const actions: string[] = [];
   let nextId = 1;
   const repository: CanonicalTaskRepository = {
@@ -63,13 +66,17 @@ export function createCanonicalTaskServiceFixture() {
       tasks.delete(taskId);
     },
   };
+  const auditRepository = {
+    async upsertAuditLog(entry: CanonicalTaskAuditEntry) {
+      auditCalls.push(clone(entry));
+      auditById.set(entry.id, clone(entry));
+      auditEntries.splice(0, auditEntries.length, ...auditById.values());
+    },
+  };
   const service = new CanonicalTaskService({
     repository,
-    auditRepository: {
-      async upsertAuditLog(entry) {
-        auditEntries.push(clone(entry));
-      },
-    },
+    auditRepository,
+    ...(options.operationRepository ? { operationRepository: options.operationRepository } : {}),
     policy: {
       authorize({ action }) {
         actions.push(action);
@@ -86,5 +93,5 @@ export function createCanonicalTaskServiceFixture() {
     authSource: 'bearer',
     ...(idempotencyKey ? { idempotencyKey } : {}),
   });
-  return { service, repository, tasks, auditEntries, actions, context };
+  return { service, repository, tasks, auditEntries, auditCalls, actions, context, auditRepository };
 }

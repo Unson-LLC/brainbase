@@ -22,10 +22,13 @@ describe('CanonicalTaskService', () => {
     });
     expect(created).not.toHaveProperty('_payload_fingerprint');
     expect(fixture.auditEntries[0]).toMatchObject({
-      action: 'create',
+      action: 'canonical_task.created',
       target_type: 'canonical_task',
       target_id: 'task-1',
       actor: { type: 'person', id: 'consumer-user' },
+      actor_id: 'consumer-user',
+      actor_type: 'person',
+      actor_principal: { type: 'person', id: 'consumer-user' },
     });
     expect(fixture.auditEntries[0]).not.toHaveProperty('project_id');
 
