@@ -313,6 +313,9 @@ export function createObjectiveFoundationRoute(options: ObjectiveFoundationHttpR
         if (method === 'PUT') {
           if (!options.replaceObjectiveConstraintRefs) throw new FoundationHttpError(501, 'api_unavailable', 'Constraint relation API is not configured');
           const body = await readJsonBody(request, bodyLimitBytes);
+          // Validate the raw envelope before extracting `refs` so an
+          // authority field cannot hide beside an otherwise valid collection.
+          assertNoAuthorityFields(body);
           const refs = parseConstraintReferences(body);
           const result = await options.replaceObjectiveConstraintRefs(
             objectiveReference,
@@ -396,6 +399,10 @@ function parseUpdateBody(payload: unknown, request: Request): {
   body: unknown;
   expectedRevision: string;
 } {
+  // A PUT may carry a CAS envelope (`{ expectedRevision, definition }`).
+  // Check the envelope itself before unwrapping it; otherwise an authority
+  // field beside `definition` would be silently ignored by the builder.
+  assertNoAuthorityFields(payload);
   const object = asRecord(payload);
   const expectedRevision = positiveRevision(
     firstString(object, 'expectedRevision', 'expected_revision')
@@ -408,11 +415,7 @@ function parseUpdateBody(payload: unknown, request: Request): {
 function sanitizeMutationBody(payload: unknown): Readonly<Record<string, unknown>> {
   const object = asRecord(payload);
   if (!object) throw new FoundationHttpError(400, 'invalid_input', 'JSON object body is required');
-  for (const key of Object.keys(object)) {
-    if (AUTHORITY_FIELDS.has(key)) {
-      throw new FoundationHttpError(400, 'authority_field_in_body', `Request body cannot set ${key}`);
-    }
-  }
+  assertNoAuthorityFields(object);
   const definition = { ...object };
   delete definition.revision;
   delete definition.expectedRevision;
@@ -421,6 +424,16 @@ function sanitizeMutationBody(payload: unknown): Readonly<Record<string, unknown
     throw new FoundationHttpError(400, 'invalid_input', 'Objective definition type must be objective');
   }
   return Object.freeze(definition);
+}
+
+function assertNoAuthorityFields(payload: unknown): void {
+  const object = asRecord(payload);
+  if (!object) return;
+  for (const key of Object.keys(object)) {
+    if (AUTHORITY_FIELDS.has(key)) {
+      throw new FoundationHttpError(400, 'authority_field_in_body', `Request body cannot set ${key}`);
+    }
+  }
 }
 
 function parseConstraintReferences(payload: unknown): FoundationRevision[] {
@@ -443,7 +456,15 @@ function readinessPayload(readiness: ObjectiveReadiness): ObjectiveReadiness & {
 function normalizeCollectionPayload(value: unknown, key: 'links' | 'refs'): Record<string, unknown> {
   if (Array.isArray(value)) return { state: value.length ? 'ready' : 'empty', [key]: value, absence_confirmed: true };
   const object = asRecord(value);
-  if (object) return { ...object, [key]: Array.isArray(object[key]) ? object[key] : object.records ?? [], absence_confirmed: object.absence_confirmed !== false };
+  if (object && Object.prototype.hasOwnProperty.call(object, key) && Array.isArray(object[key])) {
+    return {
+      ...object,
+      [key]: object[key],
+      // A collection without an explicit absence claim is not a confirmed
+      // empty result. Preserve false/unknown instead of inventing true.
+      absence_confirmed: object.absence_confirmed === true,
+    };
+  }
   throw new FoundationHttpError(500, 'readback_mismatch', `The ${key} adapter returned an invalid collection`);
 }
 

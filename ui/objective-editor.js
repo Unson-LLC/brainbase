@@ -278,7 +278,10 @@ export function normalizeObjectiveCollection(payload) {
   if (recordsValue === null) {
     return { state: explicitState === 'empty' ? 'unknown' : explicitState, records: null, absence_confirmed: false };
   }
-  const records = recordsValue.map(normalizeObjectiveRecord).filter(Boolean);
+  const records = recordsValue.map(normalizeObjectiveRecord);
+  if (records.some((record) => !record || record.type !== 'objective')) {
+    return { state: 'unknown', records: null, absence_confirmed: false };
+  }
   const state = explicitState === 'permission_denied' || explicitState === 'api_unavailable' || explicitState === 'conflict'
     ? explicitState
     : records.length ? 'ready' : 'empty';
@@ -293,7 +296,10 @@ export function normalizeReferenceCollection(payload, keys = ['refs', 'reference
   const recordsValue = collectionRecords(payload, keys);
   const explicitState = normalizeState(payloadValue(payload, 'state', 'status'), 'unknown');
   if (recordsValue === null) return { state: explicitState, refs: null, absence_confirmed: false };
-  const refs = recordsValue.map((value) => normalizeReference(value)).filter(Boolean);
+  const refs = recordsValue.map((value) => normalizeReference(value));
+  if (refs.some((ref) => !ref)) {
+    return { state: 'unknown', refs: null, absence_confirmed: false };
+  }
   return {
     state: explicitState === 'permission_denied' || explicitState === 'api_unavailable' || explicitState === 'conflict'
       ? explicitState : refs.length ? 'ready' : 'empty',
@@ -310,9 +316,12 @@ export function normalizeStoryObjectiveLinks(payload) {
     const object = objectValue(value);
     if (!object) return null;
     const relation = nonEmptyText(firstValue(object, 'relation', 'linkKind', 'link_kind', 'kind'));
-    const objective = normalizeReference(firstValue(object, 'objective', 'target', 'objectiveRef', 'objective_ref'), 'objective');
+    const objective = normalizeReference(firstValue(object, 'objective', 'target', 'objectiveRef', 'objective_ref'));
     const story = normalizeReference(firstValue(object, 'story', 'source', 'storyRef', 'story_ref'), 'story');
-    if (!relation || !objective) return null;
+    // The relation target is the canonical Objective. A model, Story, or
+    // other resource must never be rendered as an Objective by defaulting its
+    // type from the relation position.
+    if (!relation || !objective || objective.type !== 'objective') return null;
     return {
       relation,
       relationLabel: RELATION_LABELS[relation] ?? relation,
@@ -322,6 +331,9 @@ export function normalizeStoryObjectiveLinks(payload) {
       raw: object,
     };
   }).filter(Boolean);
+  if (links.length !== recordsValue.length) {
+    return { state: 'unknown', links: null, absence_confirmed: false };
+  }
   return {
     state: explicitState === 'permission_denied' || explicitState === 'api_unavailable' || explicitState === 'conflict'
       ? explicitState : links.length ? 'ready' : 'empty',
@@ -1001,11 +1013,23 @@ export function createObjectiveEditorController(options = {}) {
         render();
         return state.save;
       }
+      const expectedRevision = state.editor.expectedRevision;
+      if (mode !== 'create' && (!expectedRevision || savedRef.revision === expectedRevision)) {
+        state.save = {
+          state: 'saved_unverified',
+          message: '更新応答にexpectedRevisionとは異なる新版が含まれていません。',
+          mutation,
+          expectedRevision,
+          reference: savedRef,
+        };
+        render();
+        return state.save;
+      }
       const readMethod = portMethod(port, 'readObjective');
       const readback = readMethod ? normalizeObjectiveRecord(await readMethod(savedRef.id, context, savedRef.revision)) : null;
       const returnedDefinition = readback ? { id: readback.id, type: readback.type, revision: readback.revision, digest: readback.digest } : null;
       const referenceMatches = definitionsEqual(savedRef, returnedDefinition);
-      if (!referenceMatches || !readback) {
+      if (!referenceMatches || !readback || (mode !== 'create' && (!expectedRevision || readback.revision === expectedRevision))) {
         state.save = { state: 'saved_unverified', message: '保存応答後の同じID・新版のreadbackを確認できません。', mutation, readback };
         render();
         return state.save;

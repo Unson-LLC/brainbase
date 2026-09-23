@@ -164,6 +164,59 @@ describe('Foundation Objective HTTP boundary', () => {
     expect(fake.objectives.updateObjective).toHaveBeenCalledTimes(1);
   });
 
+  it('rejects authority fields on the raw update and constraint envelopes before expansion', async () => {
+    const fake = fakeObjectiveOptions();
+    const buildDefinition = vi.fn(builder);
+    const replaceObjectiveConstraintRefs = vi.fn(async () => []);
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      csrf: { verify: async () => true },
+      buildDefinition,
+      replaceObjectiveConstraintRefs,
+    });
+
+    const update = await handler.handle(jsonRequest('/api/foundation/objectives/objective-1', {
+      method: 'PUT',
+      body: JSON.stringify({
+        expectedRevision: '1',
+        tenantId: 'attacker-tenant',
+        definition: { meaning: 'authority must not cross the envelope' },
+      }),
+    }));
+    expect(update.status).toBe(400);
+    expect((await responseJson(update)).error.code).toBe('authority_field_in_body');
+    expect(buildDefinition).not.toHaveBeenCalled();
+    expect(fake.objectives.updateObjective).not.toHaveBeenCalled();
+
+    const constraints = await handler.handle(jsonRequest('/api/foundation/objectives/objective-1/constraints', {
+      method: 'PUT',
+      body: JSON.stringify({ tenantId: 'attacker-tenant', refs: [] }),
+    }));
+    expect(constraints.status).toBe(400);
+    expect((await responseJson(constraints)).error.code).toBe('authority_field_in_body');
+    expect(replaceObjectiveConstraintRefs).not.toHaveBeenCalled();
+  });
+
+  it('returns readback_mismatch when relation adapters omit their required collection key', async () => {
+    const fake = fakeObjectiveOptions();
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      csrf: { verify: async () => true },
+      listStoryObjectiveLinks: async () => ({}),
+      listObjectiveConstraintRefs: async () => ({}),
+    });
+
+    const links = await handler.handle(new Request('http://localhost/api/foundation/stories/story-1/objectives'));
+    expect(links.status).toBe(500);
+    expect((await responseJson(links)).error.code).toBe('readback_mismatch');
+
+    const refs = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1/constraints'));
+    expect(refs.status).toBe(500);
+    expect((await responseJson(refs)).error.code).toBe('readback_mismatch');
+  });
+
   it('composes an additional route under the same local router and trusted context', async () => {
     const fake = fakeObjectiveOptions();
     const seenContexts: unknown[] = [];

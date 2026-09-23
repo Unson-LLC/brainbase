@@ -4,6 +4,7 @@ import {
   createObjectiveEditorController,
   normalizeObjectiveCollection,
   normalizeObjectiveRecord,
+  normalizeReferenceCollection,
   normalizeStoryObjectiveLinks,
   objectiveJudgmentState,
 } from '../../ui/objective-editor.js';
@@ -88,11 +89,30 @@ describe('Objective editor common UI contract', () => {
     expect(objectiveJudgmentState(ready)).toBe('judgment_available');
   });
 
+  it('does not turn malformed collection items into a confirmed empty or partial result', () => {
+    const objectives = normalizeObjectiveCollection({ records: [objectiveRecord(), { id: 'broken-objective', type: 'objective' }] });
+    expect(objectives).toMatchObject({ state: 'unknown', records: null, absence_confirmed: false });
+
+    const wrongType = normalizeObjectiveCollection({ records: [{ id: 'model-1', type: 'model', revision: '1' }] });
+    expect(wrongType).toMatchObject({ state: 'unknown', records: null, absence_confirmed: false });
+
+    const refs = normalizeReferenceCollection({ refs: [{ id: 'constraint-1', type: 'constraint', revision: '1' }, { id: 'broken-ref' }] });
+    expect(refs).toMatchObject({ state: 'unknown', refs: null, absence_confirmed: false });
+  });
+
   it('renders Story relation labels without copying Story content', () => {
     const links = normalizeStoryObjectiveLinks({ links: [{ relation: 'contributes_to', objective: { id: 'objective-1', type: 'objective', revision: '2' }, story: { id: 'story-1', type: 'story', revision: '1' } }] });
     expect(links.links[0]).toMatchObject({ relation: 'contributes_to', relationLabel: '目的への貢献' });
     expect(links.links[0].objective).toMatchObject({ id: 'objective-1', revision: '2' });
     expect(links.links[0].raw).not.toHaveProperty('content');
+  });
+
+  it('rejects a Story relation whose target is a model instead of an Objective', () => {
+    const links = normalizeStoryObjectiveLinks({ links: [{ relation: 'contributes_to', objective: { id: 'model-1', type: 'model', revision: '1' }, story: { id: 'story-1', type: 'story', revision: '1' } }] });
+    expect(links).toMatchObject({ state: 'unknown', links: null, absence_confirmed: false });
+
+    const missingType = normalizeStoryObjectiveLinks({ links: [{ relation: 'contributes_to', objective: { id: 'objective-1', revision: '1' }, story: { id: 'story-1', type: 'story', revision: '1' } }] });
+    expect(missingType).toMatchObject({ state: 'unknown', links: null, absence_confirmed: false });
   });
 
   it('requires the same ID and a readback of the new revision before verified', async () => {
@@ -142,5 +162,26 @@ describe('Objective editor common UI contract', () => {
     expect(result.currentRevision).toBe('2');
     expect(updates).toBe(1);
     expect(controller.state.editor.draft.meaning).toBe('入力を保持する');
+  });
+
+  it('keeps an update unverified when the mutation returns the expected revision again', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    let updates = 0;
+    const port = {
+      readObjective: async () => objectiveRecord(),
+      checkObjectiveReadiness: async () => ({ ready: true, issues: [] }),
+      updateObjective: async (id, expectedRevision) => {
+        updates += 1;
+        return { id, type: 'objective', revision: expectedRevision, digest: 'sha256:objective-1' };
+      },
+    };
+    const controller = createObjectiveEditorController({ root, port, context: { principal: 'owner-1' }, canEdit: true, autoLoad: false });
+    await controller.selectObjective({ id: 'objective-load', type: 'objective', revision: '1' });
+    const result = await controller.saveObjective({ ...controller.state.editor.draft, meaning: '新版を返さない更新' });
+    expect(result.state).toBe('saved_unverified');
+    expect(result.expectedRevision).toBe('1');
+    expect(result.reference.revision).toBe('1');
+    expect(updates).toBe(1);
   });
 });
