@@ -107,6 +107,10 @@
       "types": "./dist/durable-waits.d.ts",
       "import": "./dist/durable-waits.js"
     },
+    "./durable-wait-http": {
+      "types": "./dist/durable-wait-http.d.ts",
+      "import": "./dist/durable-wait-http.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
