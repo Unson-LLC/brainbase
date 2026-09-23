@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-execution-authority-v1
 title: 実行直前に失効した権限や不足した資源での操作を止める
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -64,4 +64,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は実装中。PRと統合前のためcompletedにはしていない。対象検証は `npm run build` と `npx vitest run tests/execution-authority.test.ts`（12 tests）を実行済み。実装はOSS共通portと副作用のないadapterまでで、組織provider、Manaの実作用、tenant/RACIの本番接続は未確認・対象外である。
+AC-01〜04は、`npm run build` と `npx vitest run tests/execution-authority.test.ts`（12 tests）、および実装した予約adapterの検証で確認済みである。実装はOSS共通portと副作用のないadapterまでで、組織provider、Manaの実作用、tenant/RACIの本番接続は未確認・対象外である。[PR #530](https://github.com/Unson-LLC/brainbase/pull/530) はmerge [`b08e96f`](https://github.com/Unson-LLC/brainbase/commit/b08e96f)、[CI 35847575227](https://github.com/Unson-LLC/brainbase/actions/runs/35847575227) passである。

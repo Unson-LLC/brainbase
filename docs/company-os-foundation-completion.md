@@ -2,9 +2,9 @@
 
 2026-09-23時点の完了記録。対象は `Unson-LLC/brainbase` のOSS共通基盤と、その共通SSOT sidecar補助である。
 
-## 完了した8 Story
+## 先行完了の8記録
 
-8件ともStory本文の受入条件を確認し、実装開始済み（`implementation_started: true`）から、レビュー・CI・mergeまで完了した。Story本文の `status` は `done` とし、`.vibepro/config.json` の `status: active` は登録状態を示す既存値として維持している。
+先行時点の8記録は、Story本文の受入条件を確認し、実装開始済み（`implementation_started: true`）から、レビュー・CI・mergeまで完了した。Story本文の `status` は `done` とし、`.vibepro/config.json` の `status: active` は登録状態を示す既存値として維持している。
 
 | Story | Story本文 | PR / merge | CI・検証 |
 | --- | --- | --- | --- |
@@ -21,13 +21,52 @@
 
 先行基盤を含む最後の [CI 35839045812](https://github.com/Unson-LLC/brainbase/actions/runs/35839045812) は、head `c12fd3ab8251164ac30f29a2ce71a839909c27d4` で74 files・777 tests、public contracts 2 files・11 tests、build/docs/smoke passを確認した。deployはskipであり、npm公開・配布・本番組込みの完了を意味しない。
 
-## 未実装の境界
+## 第二batchの機能範囲と証跡（2026-09-23時点）
 
-当初計画の未実装Storyは `planned` のまま維持し、組織固有・Mana側のStoryや予定を完了へ変更していない。元のOSS側残件13件も `planned`・`implementation_started: false` を維持する。当初計画全体の残り19件へ、今回追加したレビュー追補5件は算入せず、別のplanned登録として扱う。OSS共通基盤の完了は、npm公開、配布repoへの取り込み、組織runtime／Manaへの本番組込みを含まない。
+既存の8件は、元26 StoryのOSS 7件と、別枠のsidecar補助1件で構成する。今回、元26 Storyの `story-company-os-evaluation-v1`（07）、`story-company-os-problem-candidates-v1`（08）、`story-company-os-problem-selection-v1`（09）、`story-company-os-execution-authority-v1`（11）、`story-company-os-effect-reconciliation-v1`（12）、`story-company-os-durable-waits-v1`（13）、`story-company-os-learning-adoption-v1`（14）、`story-company-os-impact-review-v1`（15）、`story-company-os-objective-editor-v1`（16）、`story-company-os-judgment-view-v1`（17）、`story-company-os-decision-adapter-v1`（19）、`story-company-os-knowledge-adapter-v1`（20）、`story-company-os-receipt-adapter-v1`（21）がmerge済みとなり、元26 Storyの完了数は20件（01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21）になった。sidecar補助は元26 Storyの件数に含めない。
+
+完了済みのOSS基盤は、目的・制約・問題候補・選択・評価・待機・学習採用・前提変更の影響レビュー・目的編集・判断表示・知識採用・実行記録／成果記録の判断参照・Decision参照を版付きの共通契約で扱い、SSOT sidecarとHTTP実行権限portを介して接続する。下表は各機能の実装、レビュー、CI、mergeの状態を集約し、未mergeの実装は完了数へ算入しない。
+
+| 区分 | 対象 | 証跡・状態 |
+| --- | --- | --- |
+| 元26 Story・完了 | `story-company-os-problem-candidates-v1`（08） | [Story本文](stories/story-company-os-problem-candidates-v1.md) / [PR #531](https://github.com/Unson-LLC/brainbase/pull/531) / merge [`e3e126e`](https://github.com/Unson-LLC/brainbase/commit/e3e126e7e13a89115801e25f554553d43bcb9343) / head [`39f4e22`](https://github.com/Unson-LLC/brainbase/commit/39f4e22af28303f0318f9c695788a430bbe22d23) / [CI 35848807258](https://github.com/Unson-LLC/brainbase/actions/runs/35848807258) success |
+| 元26 Story・完了 | `story-company-os-execution-authority-v1`（11） | [Story本文](stories/story-company-os-execution-authority-v1.md) / [PR #530](https://github.com/Unson-LLC/brainbase/pull/530) / merge [`b08e96f`](https://github.com/Unson-LLC/brainbase/commit/b08e96f) / [CI 35847575227](https://github.com/Unson-LLC/brainbase/actions/runs/35847575227) pass |
+| 元26 Story・完了 | `story-company-os-evaluation-v1`（07） | [Story本文](stories/story-company-os-evaluation-v1.md) / [PR #533](https://github.com/Unson-LLC/brainbase/pull/533) / merge [`7e635968`](https://github.com/Unson-LLC/brainbase/commit/7e6359681af6606e14cba8ca8116ca559504e900) / head [`50dfc0c`](https://github.com/Unson-LLC/brainbase/commit/50dfc0c16e5872c262c0141b666ec61fc271f876) / [CI 35850113260](https://github.com/Unson-LLC/brainbase/actions/runs/35850113260) success、delta review blockingなし |
+| 元26 Story・完了 | `story-company-os-problem-selection-v1`（09） | [Story本文](stories/story-company-os-problem-selection-v1.md) / [PR #537](https://github.com/Unson-LLC/brainbase/pull/537) / merge [`02cfceb`](https://github.com/Unson-LLC/brainbase/commit/02cfcebecda461b38d347a7eeaeff703fa04a746) / [CI 35858558216](https://github.com/Unson-LLC/brainbase/actions/runs/35858558216) pass、scope/persistence policy review pass |
+| 元26 Story・完了 | `story-company-os-effect-reconciliation-v1`（12、owner: `mana-runtime`）「成否不明の外部実行を重複させず照合して回復できる」 | [PR #1392](https://github.com/Unson-LLC/mana-runtime/pull/1392) / merge [`e8840739`](https://github.com/Unson-LLC/mana-runtime/commit/e88407390c3d27e17ffe0255a570144e5cabdc99) / [CI 35860844242](https://github.com/Unson-LLC/mana-runtime/actions/runs/35860844242) success、review pass、82 tests |
+| 元26 Story・完了 | `story-company-os-durable-waits-v1`（13） | [Story本文](stories/story-company-os-durable-waits-v1.md) / [PR #534](https://github.com/Unson-LLC/brainbase/pull/534) / merge [`5e39a996`](https://github.com/Unson-LLC/brainbase/commit/5e39a99663dae0e9e17443353d028fef3f8b6200) / [CI 35857188292](https://github.com/Unson-LLC/brainbase/actions/runs/35857188292) success、11 tests・review pass |
+| 元26 Story・完了 | `story-company-os-learning-adoption-v1`（14） | [Story本文](stories/story-company-os-learning-adoption-v1.md) / [PR #538](https://github.com/Unson-LLC/brainbase/pull/538) / merge [`03a8d05d`](https://github.com/Unson-LLC/brainbase/commit/03a8d05d260bfdcb242e89bd781965ba93edb7da) / [CI 35857192193](https://github.com/Unson-LLC/brainbase/actions/runs/35857192193) success、actual use・current ACL・read cross-reference修正後にreview pass |
+| 元26 Story・完了 | `story-company-os-impact-review-v1`（15） | [Story本文](stories/story-company-os-impact-review-v1.md) / [PR #543](https://github.com/Unson-LLC/brainbase/pull/543) / merge [`aab6b44c`](https://github.com/Unson-LLC/brainbase/commit/aab6b44c67ea98793039f658c5aa51c32eaaa990) / [CI 35861880593](https://github.com/Unson-LLC/brainbase/actions/runs/35861880593) success、review pass、18 tests |
+| 元26 Story・完了 | `story-company-os-objective-editor-v1`（16） | [Story本文](stories/story-company-os-objective-editor-v1.md) / [PR #535](https://github.com/Unson-LLC/brainbase/pull/535) / merge [`394192a`](https://github.com/Unson-LLC/brainbase/commit/394192ade414dfb14d89dd5cb81f5749d3fd6201) / [CI 35853410350](https://github.com/Unson-LLC/brainbase/actions/runs/35853410350) success、delta 10 tests + 4×3 states pass、blockingなし |
+| 元26 Story・完了 | `story-company-os-decision-adapter-v1`（19） | [Story本文](stories/story-company-os-decision-adapter-v1.md) / [PR #536](https://github.com/Unson-LLC/brainbase/pull/536) / merge [`bdf02f8`](https://github.com/Unson-LLC/brainbase/commit/bdf02f848d3c78fdfbf50602c75c3b9efadc382e) / [CI 35851699844](https://github.com/Unson-LLC/brainbase/actions/runs/35851699844) success・review pass |
+| 元26 Story・完了 | `story-company-os-judgment-view-v1`（17） | [Story本文](stories/story-company-os-judgment-view-v1.md) / [PR #542](https://github.com/Unson-LLC/brainbase/pull/542) / merge [`653ad398`](https://github.com/Unson-LLC/brainbase/commit/653ad398e11834bb9dbef277033ce8c18486d58a) / head [`8b83b18`](https://github.com/Unson-LLC/brainbase/commit/8b83b1818f8b29d7988042ff06ca3270a835ec38) / [CI 35860181294](https://github.com/Unson-LLC/brainbase/actions/runs/35860181294) success、review pass、ローカルUI確認済み |
+| 元26 Story・実装開始・未完了 | `story-company-os-mana-resume-v1`（18、owner: `mana-runtime`）「Manaがイベントと期限から共通判断を重複なく再開する」 | 実装開始。PR・CI・merge証跡は未確認で、完了件数へは算入しない |
+| 元26 Story・完了 | `story-company-os-knowledge-adapter-v1`（20） | [Story本文](stories/story-company-os-knowledge-adapter-v1.md) / [PR #544](https://github.com/Unson-LLC/brainbase/pull/544) / merge [`3af12f6b`](https://github.com/Unson-LLC/brainbase/commit/3af12f6b3c2c7bf17869f45ae4883e44fd51cc7e) / head [`5e1b7a1`](https://github.com/Unson-LLC/brainbase/commit/5e1b7a1360e905d5ace25d6569549f5cd5aad109) / [CI 35863091278](https://github.com/Unson-LLC/brainbase/actions/runs/35863091278) success、foundation store review pass、13 tests・build pass |
+| 元26 Story・完了 | `story-company-os-receipt-adapter-v1`（21） | [Story本文](stories/story-company-os-receipt-adapter-v1.md) / [PR #539](https://github.com/Unson-LLC/brainbase/pull/539) / merge [`298cf302`](https://github.com/Unson-LLC/brainbase/commit/298cf30275355beac0b7fe2694817573831158c6) / [CI 35862370066](https://github.com/Unson-LLC/brainbase/actions/runs/35862370066) success、review pass、15 tests |
+| 元26 Story・実装開始・未完了 | `story-company-os-hotel-pilot-v1`（22、owner: `brainbase`）「匿名ホテル例で判断・評価・学習の共通契約を一周できる」 | 実装開始。PR・CI・merge証跡は未確認で、完了件数へは算入しない |
+| 元26 Story・実装済み・未完了 | `story-company-os-org-reservations-v1`（23、owner: `brainbase-organization`）「組織の資源を権限と承認範囲内で予約できる」 | [PR #105](https://github.com/Unson-LLC/brainbase-organization/pull/105) のfix [`71cbd27`](https://github.com/Unson-LLC/brainbase-organization/commit/71cbd279d34fa53ccc2249a268619cb5c3886b01) / Linux CI 35853221730・35853221538 success / Windows CI [35853221631](https://github.com/Unson-LLC/brainbase-organization/actions/runs/35853221631) queued/offline。未mergeのため完了件数へは算入しない |
+| 元26 Story・実装済み・未完了 | `story-company-os-org-execution-authority-v1`（24、owner: `brainbase-organization`）「組織の承認取消を実行開始時の許可へ反映できる」 | [PR #108](https://github.com/Unson-LLC/brainbase-organization/pull/108) head `42ec555`、review pass、Linux CI 35859433685 success・Windows CI 35859433506 queued。未mergeのため完了件数へは算入しない |
+| 元26 Story・実装開始・未完了 | `story-company-os-org-ui-composition-v1`（25、owner: `brainbase-organization`）「共通の目的・判断画面を組織の権限で利用できる」 | 実装開始。PR・CI・merge証跡は未確認で、完了件数へは算入しない |
+| 元26 Story・実装済み・未完了 | `story-company-os-org-learning-approval-v1`（26、owner: `brainbase-organization`）「モデルや目的の改訂を組織の承認で採用できる」 | [PR #109](https://github.com/Unson-LLC/brainbase-organization/pull/109) head `26a71f7`、review pass、Web CI 35862013713・Linux CI 35862013981 success、Windows CI 35862013654 offline queue。未mergeのため完了件数へは算入しない |
+| supporting・完了 | 予約API `story-company-os-reservation-api-v1` | [Story本文](stories/story-company-os-reservation-api-v1.md) / [PR #532](https://github.com/Unson-LLC/brainbase/pull/532) / merge [`3c74332`](https://github.com/Unson-LLC/brainbase/commit/3c74332) / [CI 35848463010](https://github.com/Unson-LLC/brainbase/actions/runs/35848463010) pass。元26 Storyとは別計数 |
+| supporting・完了 | self-host連携 `brainbase-project` | [PR #13](https://github.com/Unson-LLC/brainbase-project/pull/13) / merge [`669eb479`](https://github.com/Unson-LLC/brainbase-project/commit/669eb479) / self-host CI 35843999780・main CI 35844068678 pass。OSS Storyの完了件数とは別計数 |
+| supporting・完了 | HTTP実行権限port | OSSのHTTP hostが信頼済みprincipal・scope・権限portを受け取り、実行開始前の権限検証と副作用境界を提供する。実装 [`0843fa0b`](https://github.com/Unson-LLC/brainbase/commit/0843fa0b) / [PR #541](https://github.com/Unson-LLC/brainbase/pull/541) / merge [`bd1a5eb`](https://github.com/Unson-LLC/brainbase/commit/bd1a5eb686ad1bc6864b677b6e6d61ae3f1a4ae7) / [CI 35857197264](https://github.com/Unson-LLC/brainbase/actions/runs/35857197264) success・review pass。元26 Storyとは別計数 |
+
+`.vibepro/config.json` の登録状態 `active` は登録状態として維持する。予約API・self-host連携・HTTP実行権限portはsupportingとして記録し、元26 Storyの完了数へ加えない。
+
+### 未完了とレビュー追補候補
+
+表の未完了行は未完了のまま扱う。08のreviewで示された非blockingの追補候補（current ACL失効テスト、merge元本文の機密root扱い）は、今回の完了条件を変えず、Story・configへ未登録である。
+
+Story16/17のローカルUIは確認済み。deployと組織UI／組織runtimeの本番org接続は未確認である。
+
+## 未完了の境界
+
+組織固有・Mana側の未完了Storyや予定を完了へ変更していない。元26 Storyは20/26件がmerge済みで、残り6件は表の状態を維持する。当初計画全体の残り6件へ、今回追加したレビュー追補5件は算入せず、別のplanned登録として扱う。OSS共通基盤の完了は、npm公開、配布repoへの取り込み、組織runtime／Manaへの本番組込みを含まない。
 
 ## 追補Story
 
-レビューで残った候補4件と、共有 `dist` のbuild/pack競合疑いを切り分ける調査1件を、実装なしのplanned Storyとして登録した。
+レビューで残った候補4件と、共有 `dist` のbuild/pack出力先分離を切り分ける調査1件をplanned Storyとして登録した。共有distの出力先分離に関するsupport PR #540はmerge [`3e3155b`](https://github.com/Unson-LLC/brainbase/commit/3e3155ba87192bf148e99e55d44a5a1e66932ead) と [CI 35856933300](https://github.com/Unson-LLC/brainbase/actions/runs/35856933300) successで記録する。追補Storyは元26 Storyの完了数に含めない。
 
 - [story-company-os-world-model-reference-safety-v1.md](stories/story-company-os-world-model-reference-safety-v1.md)
 - [story-company-os-world-model-persistence-adoption-v1.md](stories/story-company-os-world-model-persistence-adoption-v1.md)
@@ -35,4 +74,4 @@
 - [story-company-os-reservation-corrupt-ledger-diagnostics-v1.md](stories/story-company-os-reservation-corrupt-ledger-diagnostics-v1.md)
 - [story-company-os-shared-dist-build-pack-isolation-v1.md](stories/story-company-os-shared-dist-build-pack-isolation-v1.md)
 
-共有 `dist` の件は、`tests/npm-consumer-smoke.integration.test.ts:37` のroot build、`tests/npm-release-validation.integration.test.ts:46` から `scripts/npm-release.mjs:245` の `npm pack` prepare、`tests/repo-hygiene.test.ts:43` のdry-run prepareが同じ出力先へ書く疑いを記録したもの。旧CI 35837694006で `foundation-store.js` read EOFが出たが、局所package 8 testsと同時実行1回では再現せず、原因は未確定のまま実装変更を行っていない。
+共有 `dist` の件は、`tests/npm-consumer-smoke.integration.test.ts:37` のroot build、`tests/npm-release-validation.integration.test.ts:46` から `scripts/npm-release.mjs:245` の `npm pack` prepare、`tests/repo-hygiene.test.ts:43` のdry-run prepareが同じ出力先へ書く疑いを記録したもの。旧CI 35837694006で `foundation-store.js` read EOFが出たが、局所package 8 testsと同時実行1回では再現せず、原因は未確定である。PR #534のCI 35850159015でも同じshared `dist` EOFが確認され、support PR #540はmerge・CI successとなった。追補Storyは原因確定や本番安定性を意味しない。

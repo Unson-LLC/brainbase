@@ -63,6 +63,14 @@
       "types": "./dist/company-os-evaluation.d.ts",
       "import": "./dist/company-os-evaluation.js"
     },
+    "./company-os-receipt-adapter": {
+      "types": "./dist/company-os-receipt-adapter.d.ts",
+      "import": "./dist/company-os-receipt-adapter.js"
+    },
+    "./company-os-learning-adoption": {
+      "types": "./dist/company-os-learning-adoption.d.ts",
+      "import": "./dist/company-os-learning-adoption.js"
+    },
     "./constraint-resolution": {
       "types": "./dist/constraint-resolution.d.ts",
       "import": "./dist/constraint-resolution.js"
@@ -83,9 +91,17 @@
       "types": "./dist/decision-adapter.d.ts",
       "import": "./dist/decision-adapter.js"
     },
+    "./knowledge-adapter": {
+      "types": "./dist/knowledge-adapter.d.ts",
+      "import": "./dist/knowledge-adapter.js"
+    },
     "./world-model": {
       "types": "./dist/world-model.d.ts",
       "import": "./dist/world-model.js"
+    },
+    "./problem-selection": {
+      "types": "./dist/problem-selection.d.ts",
+      "import": "./dist/problem-selection.js"
     },
     "./judgment-problem-snapshot": {
       "types": "./dist/judgment-problem-snapshot.d.ts",
@@ -111,6 +127,22 @@
       "types": "./dist/durable-wait-http.d.ts",
       "import": "./dist/durable-wait-http.js"
     },
+    "./judgment-view": {
+      "types": "./dist/judgment-view.d.ts",
+      "import": "./dist/judgment-view.js"
+    },
+    "./judgment-view-http": {
+      "types": "./dist/judgment-view-http.d.ts",
+      "import": "./dist/judgment-view-http.js"
+    },
+    "./execution-authority-http": {
+      "types": "./dist/execution-authority-http.d.ts",
+      "import": "./dist/execution-authority-http.js"
+    },
+    "./company-os-impact-review": {
+      "types": "./dist/company-os-impact-review.d.ts",
+      "import": "./dist/company-os-impact-review.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
@@ -119,6 +151,8 @@
     "./ui/outcome-knowledge.css": "./ui/outcome-knowledge.css",
     "./ui/outcome-mana": "./ui/outcome-mana.js",
     "./ui/outcome-mana.css": "./ui/outcome-mana.css",
+    "./ui/judgment-view": "./ui/judgment-view.js",
+    "./ui/judgment-view.css": "./ui/judgment-view.css",
     "./ui/objective-editor": "./ui/objective-editor.js",
     "./ui/objective-editor.css": "./ui/objective-editor.css",
     "./ui/icons/*": "./ui/icons/*",

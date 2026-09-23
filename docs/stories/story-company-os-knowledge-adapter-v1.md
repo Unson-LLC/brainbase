@@ -1,12 +1,12 @@
 ---
 story_id: story-company-os-knowledge-adapter-v1
 title: 既存の知識候補と承認から採用判断の条件を辿れる
-status: planned
+status: done
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-learning-adoption-v1", "story-company-os-decision-adapter-v1"]
-external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "provided_but_required_adapter_surface_missing"}]
+external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "common_port_provided_owner_fixtures_external"}]
 ---
 
 # 既存の知識候補と承認から採用判断の条件を辿れる
@@ -26,13 +26,22 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。列挙する旧API／型がOSSに存在するとは仮定しない。canonical-runtime-ownershipのTask契約は提供済みだが、必要なadapter面は不足しているため、所有portの定義と提供範囲を確定してから着手する。旧社内runtimeをOSSから直接呼ばず、互換契約の範囲だけを移す。廃止経路は復活させない。
 
-- `brainbase / story-canonical-runtime-ownership`：requires_owned_api_surface（Task契約は提供済み、必要adapter面が不足）
+- `brainbase / story-canonical-runtime-ownership`：requires_owned_api_surface（OSS共通portは提供済み。各owner側の適合fixture／readbackは所有repoで検証する）
 
 ### 現時点の提供状況（2026-09-23確認）
 
-- **不足**: `src/personal-knowledge.ts` は個人所有のcontext／event／store／client契約であり、AC-01の会社共有Knowledge Event・feedback・candidate昇格・Graph maintenance承認adapterと、AC-03のMeetingKnowledgeEventBridge共有読戻し面は提供されていない。
-- **再利用**: `src/personal-knowledge.ts` のevent／context／ACL境界と `src/judgment-value-proof.ts` のfeedback／proof型を共通契約の部品にする。個人Knowledgeを会社Graphの正本へ拡張しない。
-- **着手前条件**: OSS所有のKnowledge adapter portを定義し、quarantine・ACL・Human Gate・元証拠・権限拒否を旧入口fixtureで固定する。組織承認providerやManaの外部入口はこのStoryの正本にせず、結果をportで受けられることを確認してから実装を開始する。
+- **共通port**: `src/knowledge-adapter.ts` が会社／組織側のKnowledge Event、feedback、candidate昇格、Graph maintenance、Human Gate、MeetingKnowledgeEventBridgeの結果を受け取る `LegacyKnowledgeRecordPort`／`KnowledgeAdoptionReadPort` を定義する。各旧入口の実装所有者は組織側に残し、旧入口の適合fixtureでquarantine・ACL・元証拠・権限拒否の形を固定する。
+- **採用locator**: `src/company-os-learning-adoption.ts` が採用record全体のcanonical digestを使う `LearningAdoptionLocator` と、現在ACL・候補・検証・採用targetのexact readbackを行う `readAdoptionByLocator` を提供する。採用record内部のcatalog versionやtarget revisionをlocatorへ流用しない。
+- **保存と境界**: `src/personal-knowledge.ts` のevent／context／ACL境界と `src/judgment-value-proof.ts` のfeedback／proof型は共通契約の部品として参照する。個人Knowledgeを会社Graphの正本へ拡張せず、OSS adapterは本文・tenant data・secretを保存しない。
+- **着手条件（履歴）**: OSS所有のKnowledge adapter portを定義し、quarantine・ACL・Human Gate・元証拠・権限拒否を旧入口fixtureで固定する。組織承認providerやManaの外部入口はこのStoryの正本にせず、結果をportで受けられることを確認してから実装を開始する。
+
+### 実装着手後の提供範囲（2026-09-23）
+
+- `src/knowledge-adapter.ts` に、既存host recordを本文ごと移さず、exact source locator・provenance・判断条件・readonly adoption locatorだけを接続する `LegacyKnowledgeRecordPort`／`KnowledgeAdoptionReadPort`／`KnowledgeConditionReferenceAdapter` を追加した。採用locatorは`id/schema/contentDigest`のv2契約とし、旧v1の`id/revision/digest`はlegacyとして保持して再解釈しない。
+- `GraphKnowledgeConditionAdapter` は `evidence/knowledge-condition-adapter.json` をsidecarとして使い、provider readをSSOT lock外、canonical aggregateとsidecarのCAS・staged readback・transaction publicationをlock内で行う。
+- `tests/knowledge-adapter.test.ts` は実際のpersonal SSOTを使い、quarantine、ACL拒否／不明、provider障害、not-found、exact revision/digest、provenance・adoption readback、idempotency、conflict、canonical CASを固定する。旧入口は本番runtimeを直接呼ばず、名前付きport適合fixtureで互換境界を検証する。
+- `tests/company-os-learning-adoption.test.ts` は実際のlearning storeとFoundation storeを使い、採用locatorの正本digest、locator readback、digest不一致、current ACL変更による拒否を固定する。
+- 旧会社HTTP route、組織の承認provider、MeetingKnowledgeEventBridgeの本番runtime組み込みはこのOSS Storyの完了条件に含めない。組織側owner portの適合とreadbackは、各所有repoのfixture／CIで検証し、OSSはその結果を受け取る共通契約と切替／切戻し境界を提供する。
 
 ## 設計参照
 
@@ -51,10 +60,10 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ## 受入条件
 
-- [ ] AC-01: Knowledge Event／feedback／candidate昇格とGraph maintenanceの既存承認記録へ共通判断参照を接続する。
-- [ ] AC-02: quarantine・ACL・Human Gateを維持し、候補抽出や承認自体を真実の証明にしない。
-- [ ] AC-03: MeetingKnowledgeEventBridgeが持つ元証拠を保持し、条件未記録の旧イベントを補作しない。
-- [ ] AC-04: 各対象入口の互換性・参照readback・権限拒否を検証し、経路単位で切替／切戻しできる。
+- [x] AC-01: Knowledge Event／feedback／candidate昇格とGraph maintenanceの各旧入口を、名前付きport適合fixtureで共通判断参照へ接続する。各record本文の所有・承認はhost側に残す。
+- [x] AC-02: quarantine・ACL・Human Gateを維持し、候補抽出や承認自体を真実の証明にしない。
+- [x] AC-03: MeetingKnowledgeEventBridgeの適合portが返す元証拠を保持し、条件未記録の旧イベントを補作しない。
+- [x] AC-04: 各対象入口の互換性・参照readback・current ACL／権限拒否をfixtureと実storeで検証し、port binding単位で切替／切戻しできる。外部サービスや社内runtimeの本番接続は完了条件にしない。
 
 ## 対象外
 
@@ -64,4 +73,7 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+## 実装状況
+
+- `src/knowledge-adapter.ts` に、Knowledge Event・feedback・candidate昇格・Graph maintenanceを本文ごと移さず、exact source locator・provenance・判断条件・readonly adoption locatorだけを接続する共通portとadapterを実装した。`src/company-os-learning-adoption.ts` の採用locator、sidecarのCAS・staged readback・transaction publication、quarantine・ACL・Human Gate・元証拠の境界を維持する。
+- AC-01〜04は実装・review・CIで確認済み。[PR #544](https://github.com/Unson-LLC/brainbase/pull/544) はmerge [`3af12f6b3c2c7bf17869f45ae4883e44fd51cc7e`](https://github.com/Unson-LLC/brainbase/commit/3af12f6b3c2c7bf17869f45ae4883e44fd51cc7e)、head [`5e1b7a1360e905d5ace25d6569549f5cd5aad109`](https://github.com/Unson-LLC/brainbase/commit/5e1b7a1360e905d5ace25d6569549f5cd5aad109)、[CI 35863091278](https://github.com/Unson-LLC/brainbase/actions/runs/35863091278) success、foundation store review pass、13 tests・build passである。旧会社HTTP route・組織承認provider・MeetingKnowledgeEventBridgeの本番接続は完了条件に含めない。VibeProの `active` は登録状態を示し、完了状態とは別である。

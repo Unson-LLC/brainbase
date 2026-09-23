@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-problem-selection-v1
 title: 新規着手と継続・保留を目的と資源の条件で比較できる
-status: planned
+status: done
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-problem-candidates-v1", "story-company-os-problem-snapshot-v1", "story-company-os-subdag-v1"]
 external_dependencies: []
@@ -46,10 +46,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: 共通判断DAGで新規・継続・何もしない・追加観測を比較し、切替・機会・探索費用と探索上限を固定する。
-- [ ] AC-02: 制約・条件付き選好・委譲外の判断を区別し、比較不能な目的の衝突は理由付きで責任者へ返す。
-- [ ] AC-03: 着手／継続／観測／保留／中止、理由・担当・条件・見直し時期を残し、採択対象をProblemに接続する。
-- [ ] AC-04: 選択結果だけでは資源確約・権限拡大・Objective変更をせず、異なる所有範囲の資源を合算しない。
+- [x] AC-01: 共通判断DAGで新規・継続・何もしない・追加観測を比較し、切替・機会・探索費用と探索上限を固定する。
+- [x] AC-02: 制約・条件付き選好・委譲外の判断を区別し、比較不能な目的の衝突は理由付きで責任者へ返す。
+- [x] AC-03: 着手／継続／観測／保留／中止、理由・担当・条件・見直し時期を残し、採択対象をProblemに接続する。
+- [x] AC-04: 選択結果だけでは資源確約・権限拡大・Objective変更をせず、異なる所有範囲の資源を合算しない。
 
 ## 対象外
 
@@ -59,4 +59,8 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+実装済み。`src/problem-selection.ts` に選択用meta Problem、候補のcurrent ACL／digest
+検証、比較結果、後続Problem作成要求、immutable SelectionRecord storeを実装し、
+`tests/problem-selection.test.ts` で各アクション、unknown、目的衝突、候補境界、
+実storeの読戻しと改ざん検知を検証する。focused TypeScript検査も通過している。
+全体buildは既存のworktree依存・`src/server.ts` 型エラーのためローカルでは完了していない。[PR #537](https://github.com/Unson-LLC/brainbase/pull/537) はmerge [`02cfcebecda461b38d347a7eeaeff703fa04a746`](https://github.com/Unson-LLC/brainbase/commit/02cfcebecda461b38d347a7eeaeff703fa04a746)、[CI 35858558216](https://github.com/Unson-LLC/brainbase/actions/runs/35858558216) pass、scope/persistence policy review passである。

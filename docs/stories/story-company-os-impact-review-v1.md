@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-impact-review-v1
 title: 前提の変更で影響する計画だけを再判断に戻せる
-status: planned
+status: done
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-learning-adoption-v1", "story-company-os-durable-waits-v1", "story-company-os-execution-authority-v1"]
 external_dependencies: []
@@ -26,7 +26,8 @@ external_dependencies: []
 
 実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。
 
-- なし。既存実装との重複は着手時に確認する。
+- `src/company-os-impact-review.ts` が、版付きのObjective・World Model・Constraint・判断方法の変更から影響計画を逆引きし、`continue`・`hold`・`stop`を実行権限と分離して返す。
+- `tests/company-os-impact-review.test.ts` と `tests/company-os-impact-review-durable-wait.integration.test.ts` が、未解決参照、権限・制約の停止、Durable Wait、再判断の不変条件を検証する。
 
 ## 設計参照
 
@@ -46,10 +47,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: 採用されたモデル・目的・制約・方法の新旧版と参照関係から対象計画を抽出し、無関係な計画は変更しない。
-- [ ] AC-02: 再評価要否と実行許可を分離し、権限失効・制約違反は停止、主要前提反証は未実行行為を保留する。
-- [ ] AC-03: 軽微な更新は理由付き続行、未判定は担当・期限付きとし、重要な可能性のある作用は判定まで保留する。
-- [ ] AC-04: 再判断は同案件の新Problem/runとなり、過去の外部作用を取り消したと記録しない。
+- [x] AC-01: 採用されたモデル・目的・制約・方法の新旧版と参照関係から対象計画を抽出し、無関係な計画は変更しない。
+- [x] AC-02: 再評価要否と実行許可を分離し、権限失効・制約違反は停止、主要前提反証は未実行行為を保留する。
+- [x] AC-03: 軽微な更新は理由付き続行、未判定は担当・期限付きとし、重要な可能性のある作用は判定まで保留する。
+- [x] AC-04: 再判断は同案件の新Problem/runとなり、過去の外部作用を取り消したと記録しない。
 
 ## 対象外
 
@@ -59,4 +60,7 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+## 実装状況
+
+- `src/company-os-impact-review.ts` と `docs/specs/company-os-impact-review-v1.md` に、参照時点の版・digestを保持する影響逆引き、実行権限と分離した `continue`・`hold`・`stop`、不変通知、Durable Wait経由の再判断を実装した。影響レビューは計画・Problem snapshot・run・Reservation・ExecutionAuthorityを直接変更しない。
+- AC-01〜04は実装・review・CIで確認済み。[PR #543](https://github.com/Unson-LLC/brainbase/pull/543) はmerge [`aab6b44c67ea98793039f658c5aa51c32eaaa990`](https://github.com/Unson-LLC/brainbase/commit/aab6b44c67ea98793039f658c5aa51c32eaaa990)、[CI 35861880593](https://github.com/Unson-LLC/brainbase/actions/runs/35861880593) success、review pass、18 testsである。VibeProの `active` は登録状態を示し、完了状態とは別である。
