@@ -60,9 +60,16 @@ Objective・Constraint・条件付き選好・委譲外判断・切替／機会�
   どちらかが欠ける不完全な結果は採択せず、`human_review_required` とする。
 - `start`／`continue` の採択は候補参照と `completeSnapshotRequired: true` を持つ
   `problemCreationRequest` を返す。これは Problem 作成要求であり、実行許可ではない。
+- 保存・読戻し境界でも、`selected` のレコードは候補参照と行動を必須とし、
+  `start`／`continue` なら候補・行動が一致する `problemCreationRequest` と
+  `completeSnapshotRequired: true` を必須とする。
+- 既知の候補探索費用が固定した `maxExplorationCost` を超える場合は、比較結果が
+  `selected` でも着手へ進めず `human_review_required` とする。単位や定義が比較できない
+  場合は超過とみなさず、unknown として人手確認へ戻す。
 - unknown は `ProblemSelectionUnknown` として理由付きで保持する。未知の費用を `0` に
   置換しない。unknown が残る `start`／`continue`／`hold`／`stop` は人手確認へ戻し、
-  `observe` は追加観測という選択を保持できる。
+  `observe` は追加観測という選択を保持できる。候補 assessment の `unknown` 状態や
+  typed cost の unknown も、レコード上位の unknown 集合へ昇格する。
 - 比較結果だけで資源権限、実行権限、Objective 更新を発行しない。保存レコードの
   `resourceAuthority`、`executionPermission`、`objectiveChange` は常に `none`。
 - SelectionRecord は content-addressed な不変 JSON。保存後の同じ ID は同じ canonical

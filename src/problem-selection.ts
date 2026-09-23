@@ -674,6 +674,44 @@ function fixedUnknowns(fixed: ProblemSelectionFixedConditions): readonly Problem
   return unknowns;
 }
 
+function assessmentUnknowns(assessment: ProblemSelectionCandidateAssessment): readonly ProblemSelectionUnknown[] {
+  const unknowns: ProblemSelectionUnknown[] = [...assessment.unknowns];
+  if (assessment.status === 'unknown') unknowns.push({ status: 'unknown', reason: assessment.rationale });
+  for (const value of Object.values(assessment.costs)) {
+    if (value.status === 'unknown') unknowns.push(value);
+  }
+  return unknowns;
+}
+
+function mergeUnknowns(...groups: readonly (readonly ProblemSelectionUnknown[])[]): readonly ProblemSelectionUnknown[] {
+  const seen = new Set<string>();
+  const merged: ProblemSelectionUnknown[] = [];
+  for (const group of groups) {
+    for (const unknown of group) {
+      const key = `${unknown.status}\u0000${unknown.reason}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      merged.push(unknown);
+    }
+  }
+  return merged;
+}
+
+function explorationLimitViolation(
+  fixedConditions: ProblemSelectionFixedConditions,
+  evaluation: ProblemSelectionEvaluationResult,
+  assessments: readonly ProblemSelectionCandidateAssessment[]
+): string | undefined {
+  if (evaluation.selectedCandidateId === undefined) return undefined;
+  const limit = fixedConditions.explorationLimit.maxExplorationCost;
+  if (limit.status !== 'known') return undefined;
+  const assessment = assessments.find((item) => item.reference.candidateId === evaluation.selectedCandidateId);
+  const exploration = assessment?.costs.exploration;
+  if (exploration === undefined || exploration.status !== 'known') return undefined;
+  if (exploration.value <= limit.value) return undefined;
+  return `selected candidate exploration cost ${exploration.value} exceeds the fixed exploration limit ${limit.value}`;
+}
+
 /**
  * Resolve candidates and create one immutable selection record. Candidate
  * bodies are used only inside the evaluator call and are never copied into
@@ -792,13 +830,14 @@ export async function createProblemSelection(request: ProblemSelectionRequest): 
   }
   const normalizedAssessments = evaluation.assessments ?? assessments;
   const anyConflict = normalizedAssessments.some((item) => item.objectiveConflicts.length > 0) || (evaluation.objectiveConflicts?.length ?? 0) > 0;
-  const unknowns = [...(evaluation.unknowns ?? []), ...fixedUnknowns(fixedConditions), ...normalizedAssessments.flatMap((item) => item.unknowns)];
+  const unknowns = mergeUnknowns(evaluation.unknowns ?? [], fixedUnknowns(fixedConditions), normalizedAssessments.flatMap(assessmentUnknowns));
   const objectiveConflicts = [...(evaluation.objectiveConflicts ?? []), ...normalizedAssessments.flatMap((item) => item.objectiveConflicts)];
   const hasUnavailable = normalizedAssessments.some((item) => item.status === 'unavailable' || item.status === 'incomparable');
+  const limitViolation = explorationLimitViolation(fixedConditions, evaluation, normalizedAssessments);
   const selectedObserve = evaluation.action === 'observe';
-  const shouldRequireReview = evaluation.status === 'human_review_required' || anyConflict || hasUnavailable || (unknowns.length > 0 && !selectedObserve);
+  const shouldRequireReview = evaluation.status === 'human_review_required' || anyConflict || hasUnavailable || limitViolation !== undefined || (unknowns.length > 0 && !selectedObserve);
   const effectiveEvaluation: ProblemSelectionEvaluationResult = shouldRequireReview && evaluation.status !== 'human_review_required'
-    ? { ...evaluation, status: 'human_review_required', reason: anyConflict ? `${evaluation.reason}; objective criteria are incomparable` : unknowns.length > 0 ? `${evaluation.reason}; unresolved unknowns remain` : `${evaluation.reason}; comparison is not fully available` }
+    ? { ...evaluation, status: 'human_review_required', reason: anyConflict ? `${evaluation.reason}; objective criteria are incomparable` : limitViolation !== undefined ? `${evaluation.reason}; ${limitViolation}` : unknowns.length > 0 ? `${evaluation.reason}; unresolved unknowns remain` : `${evaluation.reason}; comparison is not fully available` }
     : evaluation;
   const decision = decisionFromEvaluation(effectiveEvaluation, candidateRefs, normalizedAssessments);
   const problemCreationRequest = decision.status === 'selected' && (decision.action === 'start' || decision.action === 'continue') && decision.candidate !== undefined
@@ -973,6 +1012,9 @@ function validateProblemSelectionRecord(value: unknown): ProblemSelectionRecord 
     ...(value.decision.reviewAt === undefined ? {} : { reviewAt: requireIsoTimestamp(value.decision.reviewAt, 'record.decision.reviewAt') })
   };
   assertReviewAt(decision);
+  if (value.status === 'selected' && (decision.candidate === undefined || decision.action === undefined)) {
+    throw error('invalid_record', 'selected record decisions must include candidate and action');
+  }
   if (decision.candidate !== undefined
     && !candidateRefs.some((ref) => canonicalJson(ref) === canonicalJson(decision.candidate))) {
     throw error('invalid_record', 'record.decision.candidate is outside the fixed candidate set');
@@ -991,6 +1033,9 @@ function validateProblemSelectionRecord(value: unknown): ProblemSelectionRecord 
       || decision.action !== problemCreationRequest.action) {
       throw error('invalid_record', 'problemCreationRequest must match a selected decision');
     }
+  }
+  if (value.status === 'selected' && (decision.action === 'start' || decision.action === 'continue') && problemCreationRequest === undefined) {
+    throw error('invalid_record', 'start and continue decisions require problemCreationRequest');
   }
   return deepFreeze({
     recordVersion: PROBLEM_SELECTION_RECORD_VERSION,

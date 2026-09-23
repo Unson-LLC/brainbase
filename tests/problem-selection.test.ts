@@ -253,6 +253,66 @@ describe('problem selection contract', () => {
     expect(result.decision.reason).toContain('objective criteria are incomparable');
   });
 
+  it('returns human review when the selected candidate exceeds the fixed exploration cost limit', async () => {
+    const record = candidateRecord('candidate-1', 'e');
+    const result = await createProblemSelection(request([record], {
+      ...selected('start'),
+      assessments: [{
+        reference: candidateReference(record),
+        status: 'eligible',
+        rationale: 'candidate is comparable',
+        conditions: [],
+        costs: { ...fixedConditions.costs, exploration: { status: 'known', value: 11 } },
+        unknowns: [],
+        objectiveConflicts: []
+      }]
+    }));
+
+    expect(result.status).toBe('human_review_required');
+    expect(result.problemCreationRequest).toBeUndefined();
+    expect(result.decision.reason).toContain('exploration cost 11 exceeds the fixed exploration limit 10');
+  });
+
+  it('promotes an unknown assessment status into the record unknown set', async () => {
+    const record = candidateRecord('candidate-1', 'e');
+    const result = await createProblemSelection(request([record], {
+      ...selected('start'),
+      assessments: [{
+        reference: candidateReference(record),
+        status: 'unknown',
+        rationale: 'candidate fit could not be established',
+        conditions: [],
+        costs: fixedConditions.costs,
+        unknowns: [],
+        objectiveConflicts: []
+      }]
+    }));
+
+    expect(result.status).toBe('human_review_required');
+    expect(result.problemCreationRequest).toBeUndefined();
+    expect(result.unknowns).toContainEqual({ status: 'unknown', reason: 'candidate fit could not be established' });
+  });
+
+  it('promotes unknown typed assessment costs into the record unknown set', async () => {
+    const record = candidateRecord('candidate-1', 'e');
+    const result = await createProblemSelection(request([record], {
+      ...selected('start'),
+      assessments: [{
+        reference: candidateReference(record),
+        status: 'eligible',
+        rationale: 'candidate is otherwise comparable',
+        conditions: [],
+        costs: { ...fixedConditions.costs, exploration: { status: 'unknown', reason: 'candidate exploration cost is not measured' } },
+        unknowns: [],
+        objectiveConflicts: []
+      }]
+    }));
+
+    expect(result.status).toBe('human_review_required');
+    expect(result.problemCreationRequest).toBeUndefined();
+    expect(result.unknowns).toContainEqual({ status: 'unknown', reason: 'candidate exploration cost is not measured' });
+  });
+
   it('does not accept an incomplete selected evaluation', async () => {
     const result = await createProblemSelection(request([candidateRecord('candidate-1', 'e')], {
       status: 'selected',
@@ -308,6 +368,45 @@ describe('problem selection record store', () => {
     const bytes = await readFile(recordPath, 'utf8');
     await writeFile(recordPath, bytes.replace('selected for start', 'tampered selection reason'), 'utf8');
     await expect(store.read(receipt.recordId, { principal: 'reviewer-1' })).rejects.toMatchObject({ code: 'integrity_mismatch' });
+  });
+
+  it.each([
+    ['decision candidate', (record: Record<string, unknown>) => {
+      const decision = record.decision as Record<string, unknown>;
+      delete decision.candidate;
+    }],
+    ['decision action', (record: Record<string, unknown>) => {
+      const decision = record.decision as Record<string, unknown>;
+      delete decision.action;
+    }],
+    ['problem creation request', (record: Record<string, unknown>) => {
+      delete record.problemCreationRequest;
+    }]
+  ] as const)('rejects a selected record missing %s at the save boundary', async (_label, mutate) => {
+    const record = await createProblemSelection(request([candidateRecord('candidate-1', 'e')], selected('start')));
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-problem-selection-invalid-'));
+    temporaryRoots.push(root);
+    const malformed = JSON.parse(JSON.stringify(record)) as Record<string, unknown>;
+    mutate(malformed);
+
+    await expect(createProblemSelectionRecordStore({ root }).save(malformed as typeof record, { principal: 'org-1' }))
+      .rejects.toMatchObject({ code: 'invalid_record' });
+  });
+
+  it('rejects a selected record missing a required field at the load boundary', async () => {
+    const record = await createProblemSelection(request([candidateRecord('candidate-1', 'e')], selected('start')));
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-problem-selection-invalid-load-'));
+    temporaryRoots.push(root);
+    const store = createProblemSelectionRecordStore({ root });
+    const receipt = await store.save(record, { principal: 'org-1' });
+    const [filename] = await readdir(join(root, 'problem-selections'));
+    if (filename === undefined) throw new Error('selection record was not written');
+    const recordPath = join(root, 'problem-selections', filename);
+    const envelope = JSON.parse(await readFile(recordPath, 'utf8')) as { record: { decision: Record<string, unknown> } };
+    delete envelope.record.decision.candidate;
+    await writeFile(recordPath, `${JSON.stringify(envelope)}\n`, 'utf8');
+
+    await expect(store.read(receipt.recordId, { principal: 'org-1' })).rejects.toMatchObject({ code: 'invalid_record' });
   });
 });
 
