@@ -55,6 +55,18 @@
       "types": "./dist/company-os-objectives.d.ts",
       "import": "./dist/company-os-objectives.js"
     },
+    "./constraint-resolution": {
+      "types": "./dist/constraint-resolution.d.ts",
+      "import": "./dist/constraint-resolution.js"
+    },
+    "./foundation-constraint-store": {
+      "types": "./dist/foundation-constraint-store.d.ts",
+      "import": "./dist/foundation-constraint-store.js"
+    },
+    "./constraint-exception-store": {
+      "types": "./dist/constraint-exception-store.d.ts",
+      "import": "./dist/constraint-exception-store.js"
+    },
     "./world-model": {
       "types": "./dist/world-model.d.ts",
       "import": "./dist/world-model.js"
