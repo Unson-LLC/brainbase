@@ -305,6 +305,32 @@ describe('ConstraintService', () => {
     }));
   });
 
+  it('rejects exception readback when immutable approval metadata is tampered with', async () => {
+    const fixture = createFixture();
+    const draft = await fixture.service.createConstraint(createConstraint(), ownerContext);
+    const adopted = await fixture.service.adoptConstraint(draft.id, draft.revision, decision, ownerContext);
+    const exception: ConstraintExceptionRecord = {
+      id: 'exception-readback-tamper',
+      constraintRef: { id: adopted.id, revision: adopted.revision },
+      decisionRef: decision,
+      approverId: 'owner-1',
+      scope: adopted.scope,
+      expiresAt: '2026-09-25T00:00:00.000Z',
+      rationale: '承認済みの限定実証',
+    };
+    const tampered: ConstraintExceptionRecord = {
+      ...exception,
+      approverId: 'owner-2',
+      scope: { ...exception.scope, validUntil: '2026-09-30T00:00:00.000Z' },
+      expiresAt: '2026-09-29T00:00:00.000Z',
+      rationale: '改ざんされた根拠',
+    };
+    vi.spyOn(fixture.store, 'appendException').mockImplementation(async () => tampered);
+
+    await expect(fixture.service.registerException(exception, ownerContext))
+      .rejects.toMatchObject<Partial<ConstraintError>>({ code: 'constraint_store_corrupt' });
+  });
+
   it('rejects cross-owner resolution and exception authorization', async () => {
     const fixture = createFixture();
     const constraint = createConstraint();

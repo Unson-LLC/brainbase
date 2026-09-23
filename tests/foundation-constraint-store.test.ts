@@ -118,6 +118,33 @@ describe('FoundationConstraintStore', () => {
     expect(exceptions.list).toHaveBeenCalledWith({ constraintId: definition.id }, context);
   });
 
+  it('fails closed for direct exception read/write by an actor outside the current Constraint ACL', async () => {
+    const definition = createConstraint();
+    const foundation = createFoundationFake(definition);
+    const exception: ConstraintExceptionRecord = {
+      id: 'exception-private-direct-call',
+      constraintRef: { id: definition.id, revision: definition.revision },
+      decisionRef: { id: 'decision-1', type: 'decision', revision: '1' },
+      approverId: 'owner-1',
+      scope: definition.scope,
+      expiresAt: '2026-10-01T00:00:00.000Z',
+      rationale: 'private exception',
+    };
+    const exceptions: ConstraintExceptionStore = {
+      append: vi.fn(async (value) => value),
+      list: vi.fn(async () => [exception]),
+    };
+    const store = new FoundationConstraintStore({ foundationStore: foundation, exceptionStore: exceptions });
+    const otherActorContext = { actorId: 'actor-2', ownerId: 'owner-1' } as const;
+
+    await expect(store.appendException(exception, otherActorContext))
+      .rejects.toMatchObject({ code: 'authorization_denied' });
+    await expect(store.listExceptions({ constraintId: definition.id }, otherActorContext))
+      .rejects.toMatchObject({ code: 'authorization_denied' });
+    expect(exceptions.append).not.toHaveBeenCalled();
+    expect(exceptions.list).not.toHaveBeenCalled();
+  });
+
   it('fails closed when canonical persistence has no authenticated owner context', async () => {
     const definition = createConstraint();
     const foundation = createFoundationFake(definition);

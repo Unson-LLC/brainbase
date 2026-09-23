@@ -6,6 +6,7 @@
  * value contracts for resolver-specific APIs without defining another Graph
  * entity shape.
  */
+import { isDeepStrictEqual } from 'node:util';
 import type {
   ConstraintDefinition,
   ConstraintException,
@@ -885,8 +886,8 @@ export class ConstraintService<
     }
     try {
       const stored = await this.options.store.appendException(clone(exception), context);
-      if (stored.id !== exception.id || stored.constraintRef.id !== exception.constraintRef.id || stored.constraintRef.revision !== exception.constraintRef.revision) {
-        fail('constraint_store_corrupt', 'exception store readback identity did not match', 500, {
+      if (!isDeepStrictEqual(stored, exception)) {
+        fail('constraint_store_corrupt', 'exception store readback payload did not match', 500, {
           id: exception.id,
         });
       }

@@ -12,7 +12,10 @@ import {
   type ConstraintProjection,
   type ConstraintStore,
   type ConstraintStoreQuery,
+  validateConstraintExceptionRecord,
 } from './constraint-resolution.js';
+
+type ExceptionAccess = 'read' | 'write';
 
 /**
  * Exception records are deliberately a host supplied boundary.  The shared
@@ -158,6 +161,13 @@ export class FoundationConstraintStore<TConstraint extends ConstraintProjection 
   ): Promise<ConstraintExceptionRecord> {
     const resolvedContext = context ?? missingContext();
     try {
+      validateConstraintExceptionRecord(exception);
+      await this.authorizeExceptionTarget(
+        exception.constraintRef.id,
+        exception.constraintRef.revision,
+        resolvedContext,
+        'write',
+      );
       return await this.exceptionStore.append(exception, resolvedContext);
     } catch (error) {
       throw normalizeFoundationError(error, exception.constraintRef.id);
@@ -170,9 +180,100 @@ export class FoundationConstraintStore<TConstraint extends ConstraintProjection 
   ): Promise<readonly ConstraintExceptionRecord[]> {
     const resolvedContext = context ?? missingContext();
     try {
-      return await this.exceptionStore.list(query, resolvedContext);
+      if (query.constraintId !== undefined) {
+        await this.authorizeExceptionTarget(
+          query.constraintId,
+          query.constraintRevision,
+          resolvedContext,
+          'read',
+        );
+      }
+      const exceptions = await this.exceptionStore.list(query, resolvedContext);
+      for (const exception of exceptions) {
+        validateConstraintExceptionRecord(exception);
+        await this.authorizeExceptionTarget(
+          exception.constraintRef.id,
+          exception.constraintRef.revision,
+          resolvedContext,
+          'read',
+        );
+      }
+      return exceptions;
     } catch (error) {
       throw normalizeFoundationError(error, query.constraintId);
+    }
+  }
+
+  /**
+   * The injected exception boundary is intentionally persistence-only and may
+   * not enforce Foundation ACLs itself.  Resolve the referenced Constraint at
+   * this adapter boundary before allowing exception evidence to cross it.
+   * Current ACL controls access even when an exception points at an older
+   * revision; the exact revision is still read to reject dangling references.
+   */
+  private async authorizeExceptionTarget(
+    constraintId: string,
+    constraintRevision: string | undefined,
+    context: ConstraintAuthorizationContext,
+    access: ExceptionAccess,
+  ): Promise<void> {
+    const storeContext = toFoundationContext(context);
+    const current = await this.foundationStore.readLatest('constraint', constraintId, storeContext);
+    if (!current || current.definition.type !== 'constraint') {
+      throw new ConstraintError(
+        'constraint_not_found',
+        'exception target constraint was not found',
+        404,
+        { id: constraintId },
+      );
+    }
+    if (constraintRevision !== undefined) {
+      const referenced = await this.foundationStore.read({
+        id: constraintId,
+        type: 'constraint',
+        revision: constraintRevision,
+      }, storeContext);
+      if (!referenced || referenced.definition.type !== 'constraint') {
+        throw new ConstraintError(
+          'constraint_not_found',
+          'exception target constraint revision was not found',
+          404,
+          { id: constraintId, revision: constraintRevision },
+        );
+      }
+    }
+
+    const target = current.definition;
+    if (target.acl.ownerId !== context.ownerId) {
+      throw new ConstraintError(
+        'scope_violation',
+        'exception target constraint is outside the authorization context',
+        403,
+        { id: target.id, ownerId: target.acl.ownerId },
+      );
+    }
+    const canRead = target.acl.visibility === 'public'
+      || target.acl.ownerId === context.actorId
+      || target.acl.readerIds.includes(context.actorId)
+      || target.acl.writerIds.includes(context.actorId);
+    if (!canRead) {
+      throw new ConstraintError(
+        'authorization_denied',
+        'actor cannot read the exception target constraint',
+        403,
+        { id: target.id },
+      );
+    }
+    if (access === 'write') {
+      const canWrite = target.acl.ownerId === context.actorId || target.acl.writerIds.includes(context.actorId);
+      if (!canWrite) {
+        throw new ConstraintError(
+          'authorization_denied',
+          'actor cannot write exceptions for the target constraint',
+          403,
+          { id: target.id },
+        );
+      }
     }
   }
 }
