@@ -6,9 +6,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { CompanyOsEvaluationRecord, EvaluationAccessContext } from '../src/company-os-evaluation.js';
 import {
   COMPANY_OS_LEARNING_ADOPTION_SIDECAR,
+  COMPANY_OS_LEARNING_ADOPTION_LOCATOR_SCHEMA,
   CompanyOsLearningAdoptionError,
   createCompanyOsLearningAdoptionStore,
   createFoundationLearningTargetPort,
+  createLearningAdoptionLocator,
+  createLearningAdoptionLocatorReadPort,
   digestEvaluationRecord,
   type LearningEvaluationPort,
   type LearningRunReceipt,
@@ -371,7 +374,7 @@ describe('company OS learning adoption', () => {
     await expect(harness.store.readCandidate(candidate.id, harness.access)).rejects.toMatchObject({ code: 'corrupt_record' });
   }, 15000);
 
-  it('does not invent a knowledge adoption locator from the real learning store', async () => {
+  it('exposes an exact learning adoption locator through the real store and rechecks ACL/target readback', async () => {
     const harness = await makeHarness();
     const candidate = await harness.store.createCandidate(candidateRequest(harness, 'candidate-knowledge-adapter'));
     const validation = await harness.store.createValidation({
@@ -396,9 +399,9 @@ describe('company OS learning adoption', () => {
       access: harness.access
     });
 
-    // The host fixture identifies a candidate-promotion record by the real
-    // adoption id. The knowledge adapter still requires a source locator;
-    // the learning record itself is read through the public store API.
+    // The host fixture identifies a candidate-promotion source by the real
+    // adoption id. Its numeric revision belongs to that legacy source
+    // record; it is not used as the adoption locator revision.
     const source = {
       kind: 'candidate_promotion' as const,
       id: adoption.id,
@@ -406,21 +409,28 @@ describe('company OS learning adoption', () => {
       digest: adoption.digest
     };
     const adoptionReads: string[] = [];
+    const adoptionLocator = createLearningAdoptionLocator(adoption);
+    expect(adoptionLocator).toEqual({
+      id: adoption.id,
+      schema: COMPANY_OS_LEARNING_ADOPTION_LOCATOR_SCHEMA,
+      contentDigest: adoption.digest
+    });
+    const locatorReadPort = createLearningAdoptionLocatorReadPort(harness.store);
+    await expect(locatorReadPort.read({ locator: adoptionLocator, access: harness.access })).resolves.toEqual(adoptionLocator);
+
     const adoptionPort: KnowledgeAdoptionReadPort = {
       async read({ source: requested, context }) {
         adoptionReads.push(requested.id);
-        const current = await harness.store.readAdoption(requested.id, {
-          principal: context.principal,
-          scope
+        if (!requested.digest) return { status: 'unavailable' };
+        const current = await locatorReadPort.read({
+          locator: {
+            id: requested.id,
+            schema: COMPANY_OS_LEARNING_ADOPTION_LOCATOR_SCHEMA,
+            contentDigest: requested.digest
+          },
+          access: { principal: context.principal, scope }
         });
-        if (!current) return { status: 'unrecorded' };
-
-        // LearningAdoptionRecord has no adoption-record revision. Its
-        // catalog version and adopted target revision are different values;
-        // neither may be fabricated as the knowledge locator revision.
-        expect(current.id).toBe(adoption.id);
-        expect('revision' in current).toBe(false);
-        return { status: 'unavailable' };
+        return current ? { status: 'recorded', adoption: current } : { status: 'unrecorded' };
       }
     };
     const adapter = createKnowledgeConditionAdapter({
@@ -448,13 +458,38 @@ describe('company OS learning adoption', () => {
     expect(attached).toMatchObject({
       source_status: 'present',
       condition_status: 'recorded',
-      adoption_status: 'unavailable'
+      adoption_status: 'recorded',
+      adoption: adoptionLocator
     });
-    expect(attached.adoption).toBeUndefined();
     await expect(adapter.read(source, { principal: harness.access.principal })).resolves.toMatchObject({
       condition_status: 'recorded',
-      adoption_status: 'unavailable'
+      adoption_status: 'recorded',
+      adoption: adoptionLocator
     });
     expect(adoptionReads).toEqual([adoption.id, adoption.id]);
+
+    await expect(harness.store.readAdoptionByLocator({
+      ...adoptionLocator,
+      contentDigest: `sha256:${'0'.repeat(64)}`
+    }, harness.access)).rejects.toMatchObject({ code: 'integrity_mismatch' });
+
+    await harness.foundationStore.update({
+      reference: {
+        id: adoption.adoptedTarget.id,
+        type: 'model',
+        revision: adoption.adoptedTarget.revision,
+        digest: adoption.adoptedTarget.digest
+      },
+      next: {
+        ...harness.initialModel,
+        revision: adoption.adoptedTarget.revision,
+        relationship: 'Current ACL changed after adoption.',
+        acl: { ...harness.initialModel.acl, readerIds: [] }
+      }
+    }, harness.access);
+    await expect(locatorReadPort.read({
+      locator: adoptionLocator,
+      access: { principal: 'reader-1', scope }
+    })).rejects.toMatchObject({ code: 'authorization_denied' });
   }, 15000);
 });

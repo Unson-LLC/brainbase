@@ -14,7 +14,9 @@ import {
 import type { PersonalOs } from './types.js';
 
 /** Common contract for attaching exact judgment conditions to old knowledge records. */
-export const KNOWLEDGE_ADAPTER_VERSION = 'knowledge-condition-adapter.v1' as const;
+export const KNOWLEDGE_ADAPTER_VERSION = 'knowledge-condition-adapter.v2' as const;
+/** A read-only compatibility marker for sidecars written by the v1 adapter. */
+export const LEGACY_KNOWLEDGE_ADAPTER_VERSION = 'knowledge-condition-adapter.v1' as const;
 export const KNOWLEDGE_ADAPTER_SIDECAR = 'evidence/knowledge-condition-adapter.json' as const;
 
 export type KnowledgeRecordKind =
@@ -46,8 +48,10 @@ export interface KnowledgeEvidenceReference {
 
 export interface KnowledgeAdoptionReference {
   readonly id: string;
-  readonly revision: string;
-  readonly digest: string;
+  /** Semantic schema of the host adoption record, not a catalog version. */
+  readonly schema: string;
+  /** Canonical digest of the complete host adoption record. */
+  readonly contentDigest: string;
 }
 
 export type KnowledgeSourceStatus = 'present' | 'quarantined' | 'retracted' | 'not_found' | 'denied';
@@ -155,12 +159,20 @@ interface StoredKnowledgeBinding {
   readonly conditions: DecisionAdapterConditions;
   readonly provenance: readonly KnowledgeEvidenceReference[];
   readonly adoption?: KnowledgeAdoptionReference;
+  /** Preserved v1 locator; never reinterpreted as a v2 locator. */
+  readonly legacy_adoption?: LegacyKnowledgeAdoptionReference;
   readonly attached_at: string;
 }
 
 interface KnowledgeAdapterSidecar {
   readonly version: typeof KNOWLEDGE_ADAPTER_VERSION;
   readonly bindings: Readonly<Record<string, StoredKnowledgeBinding>>;
+}
+
+interface LegacyKnowledgeAdoptionReference {
+  readonly id: string;
+  readonly revision: string;
+  readonly digest: string;
 }
 
 interface KnowledgeAdapterSnapshot {
@@ -391,6 +403,20 @@ export class GraphKnowledgeConditionAdapter implements KnowledgeConditionReferen
         adoption_status: 'unavailable'
       };
     }
+    if (stored.legacy_adoption) {
+      // The v1 shape has no semantic schema/contentDigest contract. Preserve
+      // it for an explicit migration, but never treat its revision as the
+      // current adoption locator or claim this binding is verified.
+      return {
+        source: requestedSource,
+        resolved_source: clone(exactSource),
+        source_status: sourceRead.source_status,
+        acl_status: sourceRead.acl_status,
+        condition_status: 'unavailable',
+        provenance: clone(stored.provenance),
+        adoption_status: 'unavailable'
+      };
+    }
     const adoption = await this.readAdoption(exactSource, context, 'read');
     if (stored.adoption && adoption.status === 'denied') {
       return {
@@ -545,9 +571,17 @@ function normalizeAdoptionReference(value: unknown, field: string): KnowledgeAdo
   const input = value as Record<string, unknown>;
   return {
     id: normalizeText(input.id, `${field}.id`, 512),
-    revision: normalizeRevision(input.revision, `${field}.revision`),
-    digest: normalizeDigest(input.digest, `${field}.digest`)
+    schema: normalizeSchema(input.schema, `${field}.schema`),
+    contentDigest: normalizeDigest(input.contentDigest, `${field}.contentDigest`)
   };
+}
+
+function normalizeSchema(value: unknown, field: string): string {
+  const schema = normalizeText(value, field, 128);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/u.test(schema)) {
+    throw new KnowledgeAdapterError('validation_error', `${field} must be a semantic schema identifier`);
+  }
+  return schema;
 }
 
 function normalizeConditions(value: unknown): DecisionAdapterConditions {
@@ -656,14 +690,15 @@ function assertStagedBinding(sidecar: KnowledgeAdapterSidecar, key: string, expe
   }
 }
 
-type ComparableKnowledgeBinding = Pick<StoredKnowledgeBinding, 'idempotency_key' | 'source' | 'conditions' | 'provenance' | 'adoption'>;
+type ComparableKnowledgeBinding = Pick<StoredKnowledgeBinding, 'idempotency_key' | 'source' | 'conditions' | 'provenance' | 'adoption' | 'legacy_adoption'>;
 
 function sameBindingPayload(left: ComparableKnowledgeBinding, right: ComparableKnowledgeBinding): boolean {
   return left.idempotency_key === right.idempotency_key
     && sameJson(left.source, right.source)
     && sameJson(left.conditions, right.conditions)
     && sameJson(left.provenance, right.provenance)
-    && sameJson(left.adoption, right.adoption);
+    && sameJson(left.adoption, right.adoption)
+    && sameJson(left.legacy_adoption, right.legacy_adoption);
 }
 
 function makeAttachReceipt(
@@ -672,6 +707,7 @@ function makeAttachReceipt(
   adoption: { readonly status: KnowledgeAdoptionStatus; readonly adoption?: KnowledgeAdoptionReference },
   operation: 'created' | 'existing',
 ): KnowledgeConditionAttachReceipt {
+  const legacy = binding.legacy_adoption !== undefined;
   return {
     binding_id: binding.binding_id,
     operation,
@@ -679,11 +715,11 @@ function makeAttachReceipt(
     resolved_source: clone(binding.source),
     source_status: sourceRead.source_status,
     acl_status: sourceRead.acl_status,
-    condition_status: 'recorded',
+    condition_status: legacy ? 'unavailable' : 'recorded',
     conditions: clone(binding.conditions),
     provenance: clone(binding.provenance),
-    adoption_status: adoption.status,
-    ...(adoption.adoption ? { adoption: clone(adoption.adoption) } : {})
+    adoption_status: legacy ? 'unavailable' : adoption.status,
+    ...(!legacy && adoption.adoption ? { adoption: clone(adoption.adoption) } : {})
   };
 }
 
@@ -699,15 +735,35 @@ function parseSidecar(content: string | undefined): KnowledgeAdapterSidecar {
     throw new KnowledgeAdapterError('store_corrupt', 'Knowledge adapter sidecar must be an object');
   }
   const value = parsed as Record<string, unknown>;
-  if (value.version !== KNOWLEDGE_ADAPTER_VERSION || !value.bindings || typeof value.bindings !== 'object' || Array.isArray(value.bindings)) {
+  if ((value.version !== KNOWLEDGE_ADAPTER_VERSION && value.version !== LEGACY_KNOWLEDGE_ADAPTER_VERSION)
+    || !value.bindings || typeof value.bindings !== 'object' || Array.isArray(value.bindings)) {
     throw new KnowledgeAdapterError('store_corrupt', 'Knowledge adapter sidecar has an unsupported schema');
   }
   const bindings: Record<string, StoredKnowledgeBinding> = {};
   for (const [key, raw] of Object.entries(value.bindings as Record<string, unknown>)) {
-    validateStoredBinding(raw as StoredKnowledgeBinding, key);
-    bindings[key] = clone(raw as StoredKnowledgeBinding);
+    if (value.version === LEGACY_KNOWLEDGE_ADAPTER_VERSION) {
+      bindings[key] = migrateLegacyBinding(raw, key);
+    } else {
+      validateStoredBinding(raw as StoredKnowledgeBinding, key);
+      bindings[key] = clone(raw as StoredKnowledgeBinding);
+    }
   }
   return { version: KNOWLEDGE_ADAPTER_VERSION, bindings };
+}
+
+function migrateLegacyBinding(value: unknown, key: string): StoredKnowledgeBinding {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new KnowledgeAdapterError('store_corrupt', `Knowledge adapter binding ${key} is invalid`);
+  }
+  const raw = value as Record<string, unknown>;
+  validateLegacyStoredBinding(raw, key);
+  const { adoption, ...rest } = raw;
+  const migrated = {
+    ...rest,
+    ...(adoption === undefined ? {} : { legacy_adoption: clone(adoption as LegacyKnowledgeAdoptionReference) })
+  } as StoredKnowledgeBinding;
+  validateStoredBinding(migrated, key);
+  return migrated;
 }
 
 function validateStoredBinding(value: StoredKnowledgeBinding, key: string): void {
@@ -723,8 +779,41 @@ function validateStoredBinding(value: StoredKnowledgeBinding, key: string): void
   normalizeConditions(value.conditions);
   if (!Array.isArray(value.provenance)) throw new KnowledgeAdapterError('store_corrupt', `Knowledge adapter binding ${key} has invalid provenance`);
   value.provenance.forEach((entry, index) => normalizeEvidenceReference(entry, `bindings.${key}.provenance[${index}]`));
+  if (value.adoption !== undefined && value.legacy_adoption !== undefined) {
+    throw new KnowledgeAdapterError('store_corrupt', `Knowledge adapter binding ${key} mixes adoption locator schemas`);
+  }
   if (value.adoption !== undefined) normalizeAdoptionReference(value.adoption, `bindings.${key}.adoption`);
+  if (value.legacy_adoption !== undefined) validateLegacyAdoptionReference(value.legacy_adoption, `bindings.${key}.legacy_adoption`);
   normalizeTimestamp(value.attached_at, `bindings.${key}.attached_at`);
+}
+
+function validateLegacyStoredBinding(value: Record<string, unknown>, key: string): void {
+  const source = normalizeSourceReference(value.source, `bindings.${key}.source`);
+  if (value.binding_id !== bindingIdFor(source) || key !== sourceKey(source)) {
+    throw new KnowledgeAdapterError('store_corrupt', `Knowledge adapter binding ${key} has an invalid identity`);
+  }
+  normalizeText(value.idempotency_key, `bindings.${key}.idempotency_key`, 512);
+  if (!hasExactSourceLocator(source)) throw new KnowledgeAdapterError('store_corrupt', `Knowledge adapter binding ${key} has no exact source locator`);
+  if (value.source_status_at_attach !== 'present' && value.source_status_at_attach !== 'quarantined') {
+    throw new KnowledgeAdapterError('store_corrupt', `Knowledge adapter binding ${key} has an invalid source status`);
+  }
+  normalizeConditions(value.conditions);
+  if (!Array.isArray(value.provenance)) throw new KnowledgeAdapterError('store_corrupt', `Knowledge adapter binding ${key} has invalid provenance`);
+  value.provenance.forEach((entry, index) => normalizeEvidenceReference(entry, `bindings.${key}.provenance[${index}]`));
+  if (value.adoption !== undefined) {
+    validateLegacyAdoptionReference(value.adoption, `bindings.${key}.adoption`);
+  }
+  normalizeTimestamp(value.attached_at, `bindings.${key}.attached_at`);
+}
+
+function validateLegacyAdoptionReference(value: unknown, field: string): asserts value is LegacyKnowledgeAdoptionReference {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new KnowledgeAdapterError('store_corrupt', `${field} is invalid`);
+  }
+  const input = value as Record<string, unknown>;
+  normalizeText(input.id, `${field}.id`, 512);
+  normalizeRevision(input.revision, `${field}.revision`);
+  normalizeDigest(input.digest, `${field}.digest`);
 }
 
 function serializeSidecar(sidecar: KnowledgeAdapterSidecar): string {

@@ -1,10 +1,12 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   KNOWLEDGE_ADAPTER_SIDECAR,
+  LEGACY_KNOWLEDGE_ADAPTER_VERSION,
   KnowledgeAdapterError,
+  type KnowledgeRecordKind,
   createKnowledgeConditionAdapter,
   type KnowledgeAdoptionReadPort,
   type LegacyKnowledgeRecordPort,
@@ -65,6 +67,18 @@ function provider(
   return { read };
 }
 
+const legacyRecordKinds: readonly KnowledgeRecordKind[] = [
+  'knowledge_event',
+  'knowledge_feedback',
+  'candidate',
+  'candidate_promotion',
+  'graph_maintenance_plan',
+  'human_gate_receipt',
+  'graph_maintenance_receipt',
+  'meeting_bridge_event',
+  'meeting_bridge_candidate'
+];
+
 describe('KnowledgeConditionReferenceAdapter', () => {
   it('stores exact condition/provenance locators without copying the host knowledge body', async () => {
     const dataDir = await makeDataDir();
@@ -85,8 +99,8 @@ describe('KnowledgeConditionReferenceAdapter', () => {
       status: 'recorded' as const,
       adoption: {
         id: 'adoption-1',
-        revision: '5',
-        digest: `sha256:${'d'.repeat(64)}`
+        schema: 'host-adoption.v1',
+        contentDigest: `sha256:${'d'.repeat(64)}`
       }
     }));
     const adapter = createKnowledgeConditionAdapter({
@@ -105,8 +119,8 @@ describe('KnowledgeConditionReferenceAdapter', () => {
       adoption_status: 'recorded',
       adoption: {
         id: 'adoption-1',
-        revision: '5',
-        digest: `sha256:${'d'.repeat(64)}`
+        schema: 'host-adoption.v1',
+        contentDigest: `sha256:${'d'.repeat(64)}`
       }
     });
     expect(recordRead).toHaveBeenCalledWith({ source: source(), context: context() });
@@ -144,6 +158,87 @@ describe('KnowledgeConditionReferenceAdapter', () => {
     await expect(adapter.attach(source(), conditions({
       method: { id: 'method-2', version: '1' }
     }), context())).rejects.toMatchObject({ code: 'condition_conflict' });
+  });
+
+  it('keeps every named legacy entry behind the port contract across cutover and rollback', async () => {
+    const dataDir = await makeDataDir();
+    const routeCalls: string[] = [];
+    const makeRoute = (route: string): LegacyKnowledgeRecordPort => provider(async ({ source: requested }) => {
+      routeCalls.push(`${route}:${requested.kind}`);
+      return {
+        source_status: 'present' as const,
+        acl_status: 'allowed' as const,
+        source: exactSource(requested),
+        provenance: [{ kind: 'legacy-entry', id: `${requested.kind}:${requested.id}` }]
+      };
+    });
+
+    let activeRoute = makeRoute('primary');
+    const adapter = createKnowledgeConditionAdapter({
+      dataDir,
+      recordPort: {
+        read(input) {
+          return activeRoute.read(input);
+        }
+      }
+    });
+
+    for (const kind of legacyRecordKinds) {
+      const sourceRef = { kind, id: `${kind}-1` } as const;
+      await expect(adapter.attach(sourceRef, conditions(), context())).resolves.toMatchObject({
+        condition_status: 'recorded',
+        resolved_source: exactSource(sourceRef)
+      });
+      await expect(adapter.read(sourceRef, context())).resolves.toMatchObject({
+        condition_status: 'recorded',
+        provenance: [{ kind: 'legacy-entry', id: `${kind}:${kind}-1` }]
+      });
+    }
+
+    activeRoute = makeRoute('fallback');
+    await expect(adapter.read({ kind: 'meeting_bridge_event', id: 'meeting_bridge_event-1' }, context()))
+      .resolves.toMatchObject({ condition_status: 'recorded' });
+    activeRoute = makeRoute('primary');
+    await expect(adapter.read({ kind: 'meeting_bridge_event', id: 'meeting_bridge_event-1' }, context()))
+      .resolves.toMatchObject({ condition_status: 'recorded' });
+
+    expect(routeCalls).toContain('fallback:meeting_bridge_event');
+    expect(routeCalls.filter((call) => call === 'primary:meeting_bridge_event')).toHaveLength(3);
+  });
+
+  it('preserves a v1 adoption locator without reinterpreting it as a v2 locator', async () => {
+    const dataDir = await makeDataDir();
+    const adapter = createKnowledgeConditionAdapter({
+      dataDir,
+      recordPort: provider(async ({ source: requested }) => ({
+        source_status: 'present' as const,
+        acl_status: 'allowed' as const,
+        source: exactSource(requested),
+        provenance: []
+      }))
+    });
+    await adapter.attach(source(), conditions(), context());
+
+    const sidecarPath = join(dataDir, KNOWLEDGE_ADAPTER_SIDECAR);
+    const sidecar = JSON.parse(await readFile(sidecarPath, 'utf8')) as {
+      version: string;
+      bindings: Record<string, Record<string, unknown>>;
+    };
+    const key = Object.keys(sidecar.bindings)[0];
+    const binding = key === undefined ? undefined : sidecar.bindings[key];
+    if (!binding) throw new Error('test sidecar binding was not created');
+    sidecar.version = LEGACY_KNOWLEDGE_ADAPTER_VERSION;
+    binding.adoption = {
+      id: 'legacy-adoption-1',
+      revision: '3',
+      digest: `sha256:${'e'.repeat(64)}`
+    };
+    await writeFile(sidecarPath, `${JSON.stringify(sidecar)}\n`, 'utf8');
+
+    await expect(adapter.read(source(), context())).resolves.toMatchObject({
+      condition_status: 'unavailable',
+      adoption_status: 'unavailable'
+    });
   });
 
   it('requires the provider to return an exact revision and digest and detects stale requested locators', async () => {
@@ -240,7 +335,7 @@ describe('KnowledgeConditionReferenceAdapter', () => {
         read: vi.fn(async () => adoptionState === 'recorded'
           ? {
             status: 'recorded' as const,
-            adoption: { id: 'adoption-1', revision: '1', digest: `sha256:${'f'.repeat(64)}` }
+            adoption: { id: 'adoption-1', schema: 'host-adoption.v1', contentDigest: `sha256:${'f'.repeat(64)}` }
           }
           : { status: 'unavailable' as const })
       }
