@@ -61,6 +61,10 @@ import {
 } from '@unson/brainbase-mcp/judgment-dag';
 import { CanonicalTaskService } from '@unson/brainbase-mcp/canonical-task-service';
 import { OrganizationConnectionService } from '@unson/brainbase-mcp/organization-connection';
+import {
+  JUDGMENT_FOUNDATION_CONTRACT_VERSION,
+  judgmentFoundationContract
+} from '@unson/brainbase-mcp/ontology-foundation';
 
 const legacyOntology = await import('@unson/brainbase-mcp/dist/ontology.js');
 if (Object.keys(legacyOntology).length === 0) {
@@ -83,6 +87,17 @@ for (const [name, packagePath] of Object.entries(contractArtifactPaths)) {
 
 const sourceLockPath = fileURLToPath(contractArtifacts.sourceLock.resolved);
 const packageRoot = path.resolve(path.dirname(sourceLockPath), '../..');
+const ontologyFoundationModulePath = fileURLToPath(
+  await import.meta.resolve('@unson/brainbase-mcp/ontology-foundation')
+);
+if (!ontologyFoundationModulePath.startsWith(packageRoot + path.sep)) {
+  throw new Error('ontology-foundation subpath resolved outside the installed package');
+}
+if (JUDGMENT_FOUNDATION_CONTRACT_VERSION !== '0.1.0' ||
+    judgmentFoundationContract.graphActivation !== 'deferred' ||
+    judgmentFoundationContract.canonicalStoreAdoption !== 'future-story-02-plus') {
+  throw new Error('ontology-foundation contract manifest is not readable from the public subpath');
+}
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 const snapshot = (value) => JSON.stringify(value, (key, entry) => (
   entry === undefined ? '__undefined__' : entry
@@ -650,6 +665,10 @@ try {
     toolNames: result.tools.map((tool) => tool.name),
     contextReadback: { project: 'Atlas', relationship: '田中', decisionPrinciple: '正規エンティティ同士をIDで接続する' },
     legacyDeepImport: 'passed',
+    ontologyFoundation: {
+      subpathImport: 'passed',
+      moduleResolution: path.relative(packageRoot, ontologyFoundationModulePath).split(path.sep).join('/')
+    },
     contractArtifacts: Object.fromEntries(Object.keys(contractArtifacts).map((name) => [name, 'passed'])),
     judgmentDag: {
       canonicalTask: {
@@ -819,6 +838,7 @@ export async function runConsumerSmoke(tarballPath, options = {}) {
       consumerRoot,
       cli: { help: 'passed', start: 'passed', seed: 'passed', doctor: 'passed' },
       mcp: { toolsList: 'passed', contextReadback: 'passed', toolCount: mcp.toolCount },
+      ontologyFoundation: mcp.ontologyFoundation,
       judgmentDag: {
         canonicalTask: mcp.judgmentDag.canonicalTask,
         subpathImport: 'passed',

@@ -70,6 +70,10 @@ describe('npm tarball consumer smoke', () => {
         toolsList: 'passed',
         contextReadback: 'passed'
       },
+      ontologyFoundation: {
+        subpathImport: 'passed',
+        moduleResolution: 'dist/ontology-foundation.js'
+      },
       judgmentDag: {
         subpathImport: 'passed',
         legacyDeepImport: 'passed',
