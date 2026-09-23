@@ -68,6 +68,68 @@ function createFixture(options: {
 }
 
 describe('ConstraintService', () => {
+  it('rejects non-existent RFC3339 calendar dates in scopes and queries', async () => {
+    const fixture = createFixture();
+    await expect(
+      fixture.service.createConstraint(
+        createConstraint({
+          scope: {
+            subjectIds: ['project-1'],
+            validFrom: '2026-02-30T00:00:00.000Z',
+          },
+        }),
+        ownerContext,
+      ),
+    ).rejects.toMatchObject<Partial<ConstraintError>>({ code: 'invalid_scope' });
+
+    await expect(
+      fixture.service.resolveConstraints(
+        {
+          ownerId: 'owner-1',
+          subjectId: 'project-1',
+          targetId: 'solution-selection',
+          asOf: '2026-09-31T00:00:00.000Z',
+        },
+        ownerContext,
+      ),
+    ).rejects.toMatchObject<Partial<ConstraintError>>({ code: 'invalid_scope' });
+  });
+
+  it('rejects an inline exception whose scope escapes the parent constraint', async () => {
+    const fixture = createFixture();
+    await expect(
+      fixture.service.createConstraint(
+        createConstraint({
+          exceptions: [{
+            decisionRef: decision,
+            scope: {
+              subjectIds: ['project-2'],
+              validFrom: '2026-09-01T00:00:00.000Z',
+              validUntil: '2026-09-15T00:00:00.000Z',
+            },
+          }],
+        }),
+        ownerContext,
+      ),
+    ).rejects.toMatchObject<Partial<ConstraintError>>({ code: 'invalid_scope' });
+
+    await expect(
+      fixture.service.createConstraint(
+        createConstraint({
+          exceptions: [{
+            decisionRef: decision,
+            scope: {
+              subjectIds: ['project-1'],
+              validFrom: '2026-09-01T00:00:00.000Z',
+              validUntil: '2026-10-15T00:00:00.000Z',
+            },
+          }],
+        }),
+        ownerContext,
+      ),
+    ).rejects.toMatchObject<Partial<ConstraintError>>({ code: 'invalid_scope' });
+  });
+
   it('stores qualitative conditions immutably and rejects stale revisions', async () => {
     const fixture = createFixture();
     const created = await fixture.service.createConstraint(createConstraint(), ownerContext);

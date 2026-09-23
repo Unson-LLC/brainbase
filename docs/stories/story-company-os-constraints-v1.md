@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-constraints-v1
 title: 判断に適用する制約とその採用根拠を確認できる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-ontology-v1"]
 external_dependencies: []
@@ -57,4 +57,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+実装を開始し、共有Ontology契約とFoundationRevisionStoreへ接続するSpec・adapter・テストを整備中。受入条件、対象build、レビュー、PR、CIは未完了であり、VibeProのactiveは完了を意味しない。

@@ -2,9 +2,9 @@
 spec_id: company-os-constraints-v1
 story_id: story-company-os-constraints-v1
 status: draft
-spec_maturity: implementation_ready_pending_ontology_contract
+spec_maturity: implementation_ready
 owner_repository: brainbase
-storage_boundary: injected_versioned_store
+storage_boundary: foundation_revision_store_plus_atomic_evidence_adapter
 ---
 
 # 判断に適用する制約 v1 最小仕様
@@ -100,12 +100,12 @@ interface ConstraintEvaluationProvider<TConstraint = ConstraintProjection> {
 - 組織のmember・role・RACI・承認台帳の実装
 - 条件式の実行評価、資源予約、外部作用の開始
 - 全社ポリシーの自動制定、ConstraintとObjectiveの自動合算
-- Graph SSOTの4型の別定義やpackage exportの変更
+- Graph SSOTの4型の別定義、条件式の実装評価、組織固有の認可規則
 
 ## 検証
 
 - `npm run build`
-- `npm run test:run -- tests/constraint-resolution.test.ts`
+- `npx vitest run tests/constraint-resolution.test.ts tests/foundation-constraint-store.test.ts tests/constraint-exception-store.test.ts tests/ssot-atomic.test.ts tests/ontology-foundation.test.ts`
 - `scripts/graphify-impact-context.mjs` のlookup結果を `.vibepro/graphify/` に保持する
 
-`FoundationConstraintStore` はObjective Storyの `FoundationRevisionStore` へConstraint本体のcreate/read/update/listを接続し、既存PersonalOsの原子commitを迂回する個別Graphファイルを作らない。Foundation storeの認証主体はresolverのowner contextから渡す。例外に必要な承認者・期限・理由は、共有Ontologyの現行 `ConstraintException` にないため、canonicalな証跡／実行側の `ConstraintExceptionStore` を注入する。実装が未接続のまま例外をローカルsidecarへ保存することは許可しない。共有契約が拡張された場合はこのadapterをその保存操作へ差し替える。
+`FoundationConstraintStore` はObjective Storyの `FoundationRevisionStore` へConstraint本体のcreate/read/update/listを接続し、既存PersonalOsの原子commitを迂回する個別Graphファイルを作らない。Foundation storeの認証主体は認証済み `actorId` から渡し、callerが指定する `ownerId` を主体へ昇格しない。例外に必要な承認者・期限・理由は、共有Ontologyの現行 `ConstraintException` にないため、`ConstraintService` の注入認可portを通過した後、共通SSOTの原子証跡領域へ接続する `AtomicConstraintExceptionStore` へ保存する。これは組織固有のrole・承認規則を実装せず、同じ証跡をlist/readbackできる。共有契約が拡張された場合はこのadapterをその保存操作へ差し替える。

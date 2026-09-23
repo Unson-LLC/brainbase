@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it, vi, afterEach } from 'vitest';
 import {
   FoundationConstraintStore,
   type ConstraintExceptionStore,
@@ -7,9 +10,27 @@ import type {
   ConstraintExceptionRecord,
   ConstraintProjection,
 } from '../src/constraint-resolution.js';
+import {
+  ConstraintService,
+  type ConstraintAuthorizationPort,
+} from '../src/constraint-resolution.js';
 import type { FoundationRevisionStore } from '../src/foundation-store.js';
+import { createFoundationRevisionStore } from '../src/foundation-store.js';
+import { initializePersonalOs } from '../src/ssot.js';
 
 const context = { actorId: 'owner-1', ownerId: 'owner-1' } as const;
+const dataDirs: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(dataDirs.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+});
+
+async function makeDataDir(): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), 'brainbase-constraint-'));
+  dataDirs.push(directory);
+  await initializePersonalOs(directory);
+  return directory;
+}
 
 function createConstraint(overrides: Partial<ConstraintProjection> = {}): ConstraintProjection {
   return {
@@ -18,7 +39,7 @@ function createConstraint(overrides: Partial<ConstraintProjection> = {}): Constr
     revision: '1',
     meaning: 'MVPは現場に二重入力を要求しない',
     adoptionState: 'draft',
-    authorizedUses: ['judgment'],
+    authorizedUses: ['draft', 'judgment'],
     acl: { ownerId: 'owner-1', visibility: 'private', readerIds: [], writerIds: [] },
     storage: 'ontology',
     provenance: [{ sourceId: 'story-1', sourceKind: 'document', evidenceIds: [] }],
@@ -108,5 +129,63 @@ describe('FoundationConstraintStore', () => {
 
     await expect(store.getLatest(definition.id)).rejects.toMatchObject({ code: 'authorization_denied' });
     expect(foundation.readLatest).not.toHaveBeenCalled();
+  });
+
+  it('uses actorId as the Foundation principal and rejects a different actor on real read/write', async () => {
+    const dataDir = await makeDataDir();
+    const foundation = createFoundationRevisionStore({ dataDir });
+    const exceptions: ConstraintExceptionStore = {
+      append: vi.fn(async (exception) => exception),
+      list: vi.fn(async () => []),
+    };
+    const store = new FoundationConstraintStore({ foundationStore: foundation, exceptionStore: exceptions });
+    const definition = createConstraint();
+
+    await expect(store.append({ record: definition, expectedPreviousRevision: null }, context)).resolves.toEqual(definition);
+
+    const otherActorContext = { actorId: 'actor-2', ownerId: 'owner-1' } as const;
+    await expect(store.getLatest(definition.id, otherActorContext))
+      .rejects.toMatchObject({ code: 'authorization_denied' });
+    await expect(store.append({
+      record: createConstraint({ revision: '2', condition: '別の条件' }),
+      expectedPreviousRevision: '1',
+    }, otherActorContext)).rejects.toMatchObject({ code: 'authorization_denied' });
+
+    await expect(store.getLatest(definition.id, context)).resolves.toEqual(definition);
+  });
+
+  it('propagates the authenticated actor through resolver to Foundation adapter', async () => {
+    const dataDir = await makeDataDir();
+    const foundation = createFoundationRevisionStore({ dataDir });
+    const definition = createConstraint();
+    await foundation.create(definition, { principal: 'owner-1' });
+    const listSpy = vi.spyOn(foundation, 'list');
+    const exceptions: ConstraintExceptionStore = {
+      append: vi.fn(async (exception) => exception),
+      list: vi.fn(async () => []),
+    };
+    const store = new FoundationConstraintStore({ foundationStore: foundation, exceptionStore: exceptions });
+    const authorization: ConstraintAuthorizationPort = {
+      authorize: vi.fn(async () => undefined),
+    };
+    const service = new ConstraintService({
+      store,
+      authorization,
+      decisionReader: { exists: vi.fn(async () => true) },
+      evaluator: { evaluate: vi.fn(async () => ({ status: 'resolved' as const, applies: true })) },
+    });
+
+    const result = await service.resolveConstraints({
+      ownerId: 'owner-1',
+      subjectId: 'project-1',
+      targetId: 'solution-selection',
+      asOf: '2026-09-15T00:00:00.000Z',
+    }, { actorId: 'actor-2', ownerId: 'owner-1' });
+
+    expect(result.status).toBe('unresolved');
+    expect(result.unresolvedReasons).toEqual([
+      expect.objectContaining({ code: 'constraint_store_unavailable' }),
+    ]);
+    expect(listSpy).toHaveBeenCalledWith('constraint', { principal: 'actor-2' });
   });
 });

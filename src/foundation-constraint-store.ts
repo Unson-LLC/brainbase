@@ -184,14 +184,17 @@ export function createFoundationConstraintStore(
 }
 
 function toFoundationContext(context?: ConstraintAuthorizationContext): FoundationStoreContext {
-  if (!context?.ownerId) return missingContext();
-  return { principal: context.ownerId };
+  // `ownerId` identifies the target scope.  It is caller supplied request
+  // data and must never be promoted to an authenticated principal.  The
+  // principal is the actor identity established by the trusted auth boundary.
+  if (!context?.actorId) return missingContext();
+  return { principal: context.actorId };
 }
 
 function missingContext(): never {
   throw new ConstraintError(
     'authorization_denied',
-    'Foundation constraint persistence requires an authenticated owner context',
+    'Foundation constraint persistence requires an authenticated actor context',
     403,
   );
 }

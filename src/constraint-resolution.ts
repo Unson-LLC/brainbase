@@ -292,11 +292,60 @@ function optionalText(value: unknown, field: string): string | undefined {
 
 function parseTimestamp(value: unknown, field: string): number {
   const text = requiredText(value, field);
-  const parsed = Date.parse(text);
-  if (!Number.isFinite(parsed)) {
+  const parsed = parseStrictRfc3339(text);
+  if (parsed === undefined) {
     fail('invalid_scope', `${field} must be an RFC3339 timestamp`, 400, { field, value });
   }
   return parsed;
+}
+
+/**
+ * Date.parse accepts calendar values such as 2026-02-30 and silently moves
+ * them into March. Scope boundaries are part of the ontology contract, so a
+ * resolver must reject the value instead of changing its meaning.
+ */
+function parseStrictRfc3339(value: string): number | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/u.exec(value);
+  if (!match) return undefined;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const fraction = match[7] ?? '';
+  const zone = match[8];
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) return undefined;
+  if (hour > 23 || minute > 59 || second > 59) return undefined;
+
+  let offsetMinutes = 0;
+  if (zone !== 'Z') {
+    const sign = zone[0] === '-' ? -1 : 1;
+    const offsetHour = Number(zone.slice(1, 3));
+    const offsetMinute = Number(zone.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) return undefined;
+    offsetMinutes = sign * (offsetHour * 60 + offsetMinute);
+  }
+
+  // Date.UTC treats years 0..99 as 1900..1999. The contract accepts a
+  // four-digit year, so set those years back explicitly after conversion.
+  const milliseconds = Number((fraction + '000').slice(0, 3));
+  let timestamp = Date.UTC(year, month - 1, day, hour, minute, second, milliseconds);
+  if (year < 100) {
+    const normalized = new Date(timestamp);
+    normalized.setUTCFullYear(year);
+    timestamp = normalized.getTime();
+  }
+  timestamp -= offsetMinutes * 60_000;
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
 }
 
 function validateRevision(value: unknown, field = 'revision'): string {
@@ -416,7 +465,15 @@ function validateConstraint<TConstraint extends ConstraintProjection>(record: TC
   record.exceptions.forEach((exception, index) => {
     if (!isRecord(exception)) fail('invalid_constraint', 'exception must be an object', 400, { index });
     validateDecisionReference(exception.decisionRef, `exceptions[${index}].decisionRef`);
-    validateScope(exception.scope, `exceptions[${index}].scope`);
+    const exceptionScope = validateScope(exception.scope, `exceptions[${index}].scope`);
+    if (!scopeIsWithin(exceptionScope, record.scope)) {
+      fail(
+        'invalid_scope',
+        'constraint exception scope must be non-empty and remain within the parent constraint scope',
+        400,
+        { field: `exceptions[${index}].scope` },
+      );
+    }
   });
   if (!Array.isArray(record.adoptionBasis)) {
     fail('invalid_constraint', 'adoptionBasis must be an array', 400, { field: 'adoptionBasis' });
@@ -620,6 +677,11 @@ function validateExceptionRecord(exception: ConstraintExceptionRecord): void {
   validateScope(exception.scope, 'exception.scope');
   parseTimestamp(exception.expiresAt, 'exception.expiresAt');
   requiredText(exception.rationale, 'exception.rationale');
+}
+
+/** Validate a durable exception before a persistence adapter writes it. */
+export function validateConstraintExceptionRecord(exception: ConstraintExceptionRecord): void {
+  validateExceptionRecord(exception);
 }
 
 function scopeIsWithin(inner: ConstraintScope, outer: ConstraintScope): boolean {
