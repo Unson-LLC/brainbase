@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-subdag-v1
 title: 下位判断の根拠と不確実性まで辿って親判断に使える
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-problem-snapshot-v1"]
 external_dependencies: []
@@ -44,10 +44,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: DAG定義版・今回の構成版・runを分離し、親子runと入出力契約を記録する。
-- [ ] AC-02: 子へ問い・入力・固定条件・委任範囲を渡し、結論・根拠・適用範囲・不確実性・run参照を返す。
-- [ ] AC-03: 子の必要権限が親の委任範囲を超えれば実行しない。判断ノードから資源確約や外部作用を起こせない。
-- [ ] AC-04: 循環・型不一致・子の失敗／保留を検出し、親の成功へ丸めない。構成変更は新改訂として再検証する。
+- [x] AC-01: DAG定義版・今回の構成版・runを分離し、親子runと入出力契約を記録する。
+- [x] AC-02: 子へ問い・入力・固定条件・委任範囲を渡し、結論・根拠・適用範囲・不確実性・run参照を返す。
+- [x] AC-03: 子の必要権限が親の委任範囲を超えれば実行しない。判断ノードから資源確約や外部作用を起こせない。
+- [x] AC-04: 循環・型不一致・子の失敗／保留を検出し、親の成功へ丸めない。構成変更は新改訂として再検証する。
 
 ## 対象外
 
@@ -57,4 +57,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+`src/judgment-dag-composition.ts` とStory05のProblemSnapshot adapterをfocused branchへ実装し、`npm run build` と `npx vitest run tests/judgment-problem-snapshot.test.ts tests/judgment-dag-composition.test.ts`（2 files、26 tests）で検証済み。検証には、現在ACLを確認するsnapshot参照、historical readerの実行利用拒否、DAG版・入出力契約・委任scope・capabilityの事前検証、artifact readback不一致、循環、子の失敗／保留伝播を含む。任意callbackのsandboxや外部作用の隔離はhost側の責任であり、OSSの保証範囲を越えていない。統合delta reviewはpass済み。PR作成・CI・mergeは未完了のため、statusは `in_progress` のままとする。VibeProのactiveは登録が有効である意味であり、PR/CI完了を意味しない。
