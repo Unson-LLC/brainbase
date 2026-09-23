@@ -349,6 +349,48 @@ describe('KnowledgeConditionReferenceAdapter', () => {
     });
   });
 
+  it('does not backfill an adoption locator into a historical binding', async () => {
+    const dataDir = await makeDataDir();
+    let adoptionState: 'unrecorded' | 'recorded' = 'unrecorded';
+    const adoptionRead = vi.fn(async () => adoptionState === 'unrecorded'
+      ? { status: 'unrecorded' as const }
+      : {
+        status: 'recorded' as const,
+        adoption: {
+          id: 'adoption-later',
+          schema: 'host-adoption.v1',
+          contentDigest: `sha256:${'e'.repeat(64)}`
+        }
+      });
+    const adapter = createKnowledgeConditionAdapter({
+      dataDir,
+      recordPort: provider(async ({ source: requested }) => ({
+        source_status: 'present' as const,
+        acl_status: 'allowed' as const,
+        source: exactSource(requested),
+        provenance: []
+      })),
+      adoptionPort: { read: adoptionRead }
+    });
+
+    const attached = await adapter.attach(source(), conditions(), context());
+    expect(attached).toMatchObject({
+      condition_status: 'recorded',
+      adoption_status: 'unrecorded'
+    });
+    expect(attached.adoption).toBeUndefined();
+
+    adoptionRead.mockClear();
+    adoptionState = 'recorded';
+    const readback = await adapter.read(source(), context());
+    expect(readback).toMatchObject({
+      condition_status: 'recorded',
+      adoption_status: 'unrecorded'
+    });
+    expect(readback.adoption).toBeUndefined();
+    expect(adoptionRead).not.toHaveBeenCalled();
+  });
+
   it('rejects a canonical aggregate change that occurs while the provider is being read', async () => {
     const dataDir = await makeDataDir();
     let releaseProvider: (() => void) | undefined;

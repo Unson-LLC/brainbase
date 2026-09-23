@@ -417,8 +417,25 @@ export class GraphKnowledgeConditionAdapter implements KnowledgeConditionReferen
         adoption_status: 'unavailable'
       };
     }
+    // An adoption locator is part of the historical binding snapshot. A
+    // provider may record adoption after this binding was attached, but that
+    // later record belongs to a new binding/revision and must not be surfaced
+    // as if it had been saved here.
+    const storedAdoption = stored.adoption;
+    if (!storedAdoption) {
+      return {
+        source: requestedSource,
+        resolved_source: clone(exactSource),
+        source_status: sourceRead.source_status,
+        acl_status: sourceRead.acl_status,
+        condition_status: 'recorded',
+        conditions: clone(stored.conditions),
+        provenance: clone(stored.provenance),
+        adoption_status: this.adoptionPort ? 'unrecorded' : 'unavailable'
+      };
+    }
     const adoption = await this.readAdoption(exactSource, context, 'read');
-    if (stored.adoption && adoption.status === 'denied') {
+    if (adoption.status === 'denied') {
       return {
         source: requestedSource,
         resolved_source: clone(exactSource),
@@ -429,7 +446,7 @@ export class GraphKnowledgeConditionAdapter implements KnowledgeConditionReferen
         adoption_status: 'denied'
       };
     }
-    if (stored.adoption && adoption.status === 'unavailable') {
+    if (adoption.status === 'unavailable') {
       return {
         source: requestedSource,
         resolved_source: clone(exactSource),
@@ -440,7 +457,7 @@ export class GraphKnowledgeConditionAdapter implements KnowledgeConditionReferen
         adoption_status: 'unavailable'
       };
     }
-    if (stored.adoption && adoption.status === 'unrecorded') {
+    if (adoption.status === 'unrecorded') {
       return {
         source: requestedSource,
         resolved_source: clone(exactSource),
@@ -451,8 +468,8 @@ export class GraphKnowledgeConditionAdapter implements KnowledgeConditionReferen
         adoption_status: 'unrecorded'
       };
     }
-    if (stored.adoption && adoption.status === 'recorded'
-      && (!adoption.adoption || !sameJson(stored.adoption, adoption.adoption))) {
+    if (adoption.status === 'recorded'
+      && (!adoption.adoption || !sameJson(storedAdoption, adoption.adoption))) {
       return {
         source: requestedSource,
         resolved_source: clone(exactSource),
@@ -472,7 +489,7 @@ export class GraphKnowledgeConditionAdapter implements KnowledgeConditionReferen
       conditions: clone(stored.conditions),
       provenance: clone(stored.provenance),
       adoption_status: adoption.status,
-      ...(adoption.adoption ? { adoption: clone(adoption.adoption) } : {})
+      adoption: clone(storedAdoption)
     };
   }
 
