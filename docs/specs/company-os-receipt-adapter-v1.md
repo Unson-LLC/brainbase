@@ -4,7 +4,7 @@
 
 公開portは`company-os-receipt-adapter`から提供する。
 
-- `ReceiptAdapterPort.link`: sourceを現在のportで検証し、providerが返すcanonical referenceを保存時スナップショットとして同じSSOT transactionで不変のリンクにする。requestのowner、state、未指定のrevision/hashは正本として保存しない。
+- `ReceiptAdapterPort.link`: sourceを現在のportで検証し、providerが返すcanonical referenceを保存時スナップショットとして同じSSOT transactionで不変のリンクにする。requestのowner、state、未指定のrevision/hashは正本として保存しない。OutcomeCase adapterでは `OutcomeCaseRead.source` の `state`・`owner_refs`・`conditions` だけを保存し、requestの同名値をfallbackしない。
 - `ReceiptAdapterPort.read`: 保存recordを読み、source portで現在の認可と存在を再検証して投影する。
 - `ReceiptAdapterPort.list`: 保存recordを全件読み、各sourceを現在のportで再検証して投影する。
 - `ReceiptSourcePort.read`: source所有者が現在のread ACLを検証し、current referenceを返す。返却`null`はsource不在を表す。
@@ -20,7 +20,7 @@
 3. 実行成功、OutcomeCaseのclosure、contextのresolved、decision eventの受信をObjective達成または判断品質へ自動変換しない。返却statusは`unrecorded`である。
 4. link/read/listの各境界でsource providerの認可・存在・identityを検証する。linkではproviderのcanonical referenceを保存し、read/listではkind・ID・revision・hash・owner refs・conditionsを厳密に比較する。stateだけは可変値として保存スナップショットと現在値を分ける。provider不在、拒否、不一致、読戻し不能、保存snapshot digest不一致はfail closedし、未検証recordを返さない。
 5. 同一link IDの同一内容は冪等に読戻し、別内容は`revision_conflict`にする。保存失敗でcanonical SSOTやsource正本を巻き戻さない。
-6. OutcomeCasePortをsource portへ接続できる。closureやevaluationをOSS側へ再実装しない。
+6. OutcomeCasePortをsource portへ接続できる。adapterはproviderのcanonical referenceとsource projectionを使い、callerのstate・owner_refs・conditionsを保存しない。projectionの欠落・不正は `source_unavailable` としてfail closedする。closureやevaluationをOSS側へ再実装しない。
 
 ## 非目標
 

@@ -15,7 +15,7 @@
 
 ## 保存と読戻し
 
-リンク保存の前にsource portを読み、source ownerが返すcanonical referenceを保存時スナップショットとして固定する。requestのowner、state、未指定のrevision/hashは正本として保存せず、指定されたrevision/hash/conditionsだけをlookup条件として検証する。sidecarへの保存は`mutatePersonalOsWithSidecar`のSSOT transactionで行うが、外部portをtransaction lock内から呼ばない。
+リンク保存の前にsource portを読み、source ownerが返すcanonical referenceを保存時スナップショットとして固定する。requestのowner、state、未指定のrevision/hashは正本として保存せず、指定されたrevision/hash/conditionsだけをlookup条件として検証する。OutcomeCaseは `OutcomeCaseRead.source` の `state`・`owner_refs`・`conditions` をtrusted projectionとして使い、callerの同名値をfallbackしない。projectionが欠落・不正なら保存前にfail closedする。sidecarへの保存は`mutatePersonalOsWithSidecar`のSSOT transactionで行うが、外部portをtransaction lock内から呼ばない。
 
 保存するsource referenceは、canonicalなkind・ID・revision・hash・state・owner reference・conditionsを不変に保持し、source snapshot digestでsidecar改変を検出する。読戻しでは同じrecordを返しつつ、source portから得た現在のstateを`source_read`へ返す。stateの変化は実行後の状態変化であり、保存時の証跡を書き換えない。read/listではkind・ID・revision・hash・owner reference・conditionsを恒久識別子として厳密に照合し、stateだけを可変値として扱う。
 
@@ -25,4 +25,4 @@
 
 `judgment_refs`はObjective、Problem、DAG、Decision、Evaluation、evidenceなどの版付き参照を保持するだけで、source記録を判断結果へ変換しない。特に`objective_status`と`judgment_quality_status`は初期値を`unrecorded`として固定する。
 
-既存のOutcomeCasePortは、source側のread portを構成するadapterから利用できる。DAG run artifactやvalue proofはsource receiptそのものへ変換せず、`evidence`または`dag`のjudgment referenceとして参照する。
+既存のOutcomeCasePortは、source側のread portを構成するadapterから利用できる。adapterはproviderのcanonical referenceとsource projectionをreceiptへ写像し、callerのsource metadataを信頼しない。DAG run artifactやvalue proofはsource receiptそのものへ変換せず、`evidence`または`dag`のjudgment referenceとして参照する。

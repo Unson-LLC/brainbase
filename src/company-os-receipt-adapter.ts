@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto';
 import type { FoundationScope } from './ontology-foundation.js';
 import type {
-  OutcomeCaseCanonicalReference,
+  OutcomeCaseCanonicalSource,
+  OutcomeCaseConditions,
+  OutcomeCaseConditionValue,
+  OutcomeCaseOwnerReference,
   OutcomeCasePort,
+  OutcomeCaseRead,
   OutcomeCaseReference
 } from './company-os-evaluation.js';
 import {
@@ -200,9 +204,7 @@ export function createOutcomeCaseReceiptSourcePort(port: OutcomeCasePort): Recei
         ...(reference.revision === undefined ? {} : { revision: reference.revision }),
         ...(reference.hash === null ? {} : { digest: reference.hash })
       };
-      let resolved: {
-        reference: OutcomeCaseCanonicalReference;
-      };
+      let resolved: OutcomeCaseRead;
       try {
         resolved = await port.read(outcomeReference, {
           principal: normalizedAccess.principal,
@@ -217,15 +219,117 @@ export function createOutcomeCaseReceiptSourcePort(port: OutcomeCasePort): Recei
         || !isNonEmptyString(resolved.reference.digest)) {
         throw new CompanyOsReceiptAdapterError('source_unavailable', `OutcomeCase ${reference.id} returned invalid canonical metadata`);
       }
+      assertOutcomeCaseSourceProjection(resolved.source, `OutcomeCase ${reference.id}`);
       return {
         reference: {
-          ...cloneSourceReference(reference),
+          kind: 'outcome_case',
+          id: resolved.reference.id,
           revision: resolved.reference.revision,
-          hash: resolved.reference.digest
+          hash: resolved.reference.digest,
+          state: resolved.source.state,
+          owner_refs: resolved.source.owner_refs.map(cloneOutcomeCaseOwnerReference),
+          ...(resolved.source.conditions === undefined
+            ? {}
+            : { conditions: cloneOutcomeCaseConditions(resolved.source.conditions) })
         }
       };
     }
   };
+}
+
+function assertOutcomeCaseSourceProjection(
+  value: unknown,
+  label: string
+): asserts value is OutcomeCaseCanonicalSource {
+  if (!isRecord(value) || !isNonEmptyString(value.state) || !Array.isArray(value.owner_refs)) {
+    throw new CompanyOsReceiptAdapterError('source_unavailable', `${label} returned invalid canonical source metadata`);
+  }
+  value.owner_refs.forEach((owner, index) => assertOutcomeCaseOwnerReference(owner, `${label}.source.owner_refs[${index}]`));
+  if (value.conditions !== undefined) {
+    assertOutcomeCaseConditions(value.conditions, `${label}.source.conditions`);
+  }
+}
+
+function assertOutcomeCaseOwnerReference(value: unknown, label: string): asserts value is OutcomeCaseOwnerReference {
+  if (!isRecord(value) || (value.status !== 'typed' && value.status !== 'unknown')) {
+    throw new CompanyOsReceiptAdapterError('source_unavailable', `${label} has an invalid status`);
+  }
+  if (value.status === 'unknown') {
+    if (!['not_recorded', 'legacy_untyped', 'source_unavailable'].includes(String(value.reason))) {
+      throw new CompanyOsReceiptAdapterError('source_unavailable', `${label} has an invalid unknown reason`);
+    }
+    return;
+  }
+  if (!isRecord(value.ref)
+    || !isNonEmptyString(value.ref.id)
+    || !isNonEmptyString(value.ref.type)
+    || (value.ref.revision !== undefined && !isNonEmptyString(value.ref.revision))
+    || (value.ref.digest !== undefined && !isNonEmptyString(value.ref.digest))) {
+    throw new CompanyOsReceiptAdapterError('source_unavailable', `${label}.ref has an invalid shape`);
+  }
+}
+
+function assertOutcomeCaseConditions(
+  value: unknown,
+  label: string
+): asserts value is OutcomeCaseConditions {
+  if (!isRecord(value)) {
+    throw new CompanyOsReceiptAdapterError('source_unavailable', `${label} must be an object`);
+  }
+  assertOutcomeCaseConditionValue(value, label);
+}
+
+function assertOutcomeCaseConditionValue(
+  value: unknown,
+  label: string
+): asserts value is OutcomeCaseConditionValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) return;
+    throw new CompanyOsReceiptAdapterError('source_unavailable', `${label} contains a non-finite number`);
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertOutcomeCaseConditionValue(item, `${label}[${index}]`));
+    return;
+  }
+  if (isRecord(value)) {
+    for (const [key, item] of Object.entries(value)) {
+      if (!isNonEmptyString(key)) {
+        throw new CompanyOsReceiptAdapterError('source_unavailable', `${label} contains an empty key`);
+      }
+      assertOutcomeCaseConditionValue(item, `${label}.${key}`);
+    }
+    return;
+  }
+  throw new CompanyOsReceiptAdapterError('source_unavailable', `${label} contains a non-JSON value`);
+}
+
+function cloneOutcomeCaseOwnerReference(owner: OutcomeCaseOwnerReference): ReceiptOwnerReference {
+  return owner.status === 'typed'
+    ? {
+        status: 'typed',
+        ref: {
+          id: owner.ref.id,
+          type: owner.ref.type,
+          ...(owner.ref.revision === undefined ? {} : { revision: owner.ref.revision }),
+          ...(owner.ref.digest === undefined ? {} : { digest: owner.ref.digest })
+        }
+      }
+    : { status: 'unknown', reason: owner.reason };
+}
+
+function cloneOutcomeCaseConditions(conditions: OutcomeCaseConditions): ReceiptSourceConditions {
+  return cloneOutcomeCaseConditionValue(conditions) as ReceiptSourceConditions;
+}
+
+function cloneOutcomeCaseConditionValue(value: OutcomeCaseConditionValue): ReceiptSourceConditionValue {
+  if (Array.isArray(value)) return value.map(cloneOutcomeCaseConditionValue);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, cloneOutcomeCaseConditionValue(child as OutcomeCaseConditionValue)])
+    );
+  }
+  return value;
 }
 
 class GraphCompanyOsReceiptAdapter implements ReceiptAdapterPort {

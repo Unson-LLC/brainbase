@@ -99,8 +99,44 @@ export interface OutcomeCaseCanonicalReference {
   readonly digest: string;
 }
 
+export type OutcomeCaseOwnerUnknownReason = 'not_recorded' | 'legacy_untyped' | 'source_unavailable';
+
+export interface OutcomeCaseEntityReference {
+  readonly id: string;
+  readonly type: string;
+  readonly revision?: string;
+  readonly digest?: string;
+}
+
+export type OutcomeCaseOwnerReference =
+  | { readonly status: 'typed'; readonly ref: OutcomeCaseEntityReference }
+  | { readonly status: 'unknown'; readonly reason: OutcomeCaseOwnerUnknownReason };
+
+export type OutcomeCaseConditionValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly OutcomeCaseConditionValue[]
+  | { readonly [key: string]: OutcomeCaseConditionValue };
+
+export type OutcomeCaseConditions = Readonly<Record<string, OutcomeCaseConditionValue>>;
+
+/**
+ * Trusted source-owned metadata returned with an OutcomeCase read.  The
+ * adapter must use this projection when creating a receipt link; caller
+ * supplied receipt state, owners, or conditions are lookup input only.
+ */
+export interface OutcomeCaseCanonicalSource {
+  readonly state: string;
+  readonly owner_refs: readonly OutcomeCaseOwnerReference[];
+  readonly conditions?: OutcomeCaseConditions;
+}
+
 export interface OutcomeCaseRead {
   readonly reference: OutcomeCaseCanonicalReference;
+  /** Current source-owned identity/state projection, checked at read time. */
+  readonly source: OutcomeCaseCanonicalSource;
   /** Current ACL, evaluated at read time. */
   readonly acl: FoundationAcl;
   readonly scope: FoundationScope;
@@ -1026,6 +1062,7 @@ async function readCanonicalOutcomeCase(
   }
   return {
     reference: cloneCaseReference(resolved.reference),
+    source: cloneOutcomeCaseSource(resolved.source),
     acl: cloneAcl(resolved.acl),
     scope: cloneScope(resolved.scope)
   };
@@ -1068,6 +1105,66 @@ function assertOutcomeCaseRead(value: OutcomeCaseRead): void {
     || !isValidAcl(value.acl) || !isValidScope(value.scope)) {
     throw new CompanyOsEvaluationError('integrity_mismatch', 'OutcomeCase resolver returned invalid canonical metadata');
   }
+  assertOutcomeCaseSource(value.source);
+}
+
+function assertOutcomeCaseSource(value: unknown): asserts value is OutcomeCaseCanonicalSource {
+  if (!isRecord(value) || !isNonEmptyString(value.state) || !Array.isArray(value.owner_refs)) {
+    throw new CompanyOsEvaluationError(
+      'integrity_mismatch',
+      'OutcomeCase resolver returned invalid canonical source metadata'
+    );
+  }
+  value.owner_refs.forEach((owner, index) => assertOutcomeCaseOwnerReference(owner, `source.owner_refs[${index}]`));
+  if (value.conditions !== undefined) assertOutcomeCaseConditions(value.conditions, 'source.conditions');
+}
+
+function assertOutcomeCaseOwnerReference(value: unknown, label: string): asserts value is OutcomeCaseOwnerReference {
+  if (!isRecord(value) || (value.status !== 'typed' && value.status !== 'unknown')) {
+    throw new CompanyOsEvaluationError('integrity_mismatch', `${label} has an invalid status`);
+  }
+  if (value.status === 'unknown') {
+    if (!['not_recorded', 'legacy_untyped', 'source_unavailable'].includes(String(value.reason))) {
+      throw new CompanyOsEvaluationError('integrity_mismatch', `${label} has an invalid unknown reason`);
+    }
+    return;
+  }
+  if (!isRecord(value.ref)
+    || !isNonEmptyString(value.ref.id)
+    || !isNonEmptyString(value.ref.type)
+    || (value.ref.revision !== undefined && !isNonEmptyString(value.ref.revision))
+    || (value.ref.digest !== undefined && !isNonEmptyString(value.ref.digest))) {
+    throw new CompanyOsEvaluationError('integrity_mismatch', `${label}.ref has an invalid shape`);
+  }
+}
+
+function assertOutcomeCaseConditions(value: unknown, label: string): asserts value is OutcomeCaseConditions {
+  if (!isRecord(value)) {
+    throw new CompanyOsEvaluationError('integrity_mismatch', `${label} must be an object`);
+  }
+  assertOutcomeCaseConditionValue(value, label);
+}
+
+function assertOutcomeCaseConditionValue(value: unknown, label: string): asserts value is OutcomeCaseConditionValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) return;
+    throw new CompanyOsEvaluationError('integrity_mismatch', `${label} contains a non-finite number`);
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertOutcomeCaseConditionValue(item, `${label}[${index}]`));
+    return;
+  }
+  if (isRecord(value)) {
+    for (const [key, item] of Object.entries(value)) {
+      if (!isNonEmptyString(key)) {
+        throw new CompanyOsEvaluationError('integrity_mismatch', `${label} contains an empty key`);
+      }
+      assertOutcomeCaseConditionValue(item, `${label}.${key}`);
+    }
+    return;
+  }
+  throw new CompanyOsEvaluationError('integrity_mismatch', `${label} contains a non-JSON value`);
 }
 
 function assertCriterionCompatibility(criterion: ObjectiveCriterion, variable: VariableDefinition, index: number): void {
@@ -1145,6 +1242,38 @@ function cloneFoundationRef(reference: FoundationRef): FoundationRef {
 
 function cloneCaseReference(reference: OutcomeCaseCanonicalReference): OutcomeCaseCanonicalReference {
   return { id: reference.id, revision: reference.revision, digest: reference.digest };
+}
+
+function cloneOutcomeCaseSource(source: OutcomeCaseCanonicalSource): OutcomeCaseCanonicalSource {
+  return {
+    state: source.state,
+    owner_refs: source.owner_refs.map((owner) => owner.status === 'typed'
+      ? {
+          status: 'typed',
+          ref: {
+            id: owner.ref.id,
+            type: owner.ref.type,
+            ...(owner.ref.revision === undefined ? {} : { revision: owner.ref.revision }),
+            ...(owner.ref.digest === undefined ? {} : { digest: owner.ref.digest })
+          }
+        }
+      : { status: 'unknown', reason: owner.reason }),
+    ...(source.conditions === undefined ? {} : { conditions: cloneOutcomeCaseConditions(source.conditions) })
+  };
+}
+
+function cloneOutcomeCaseConditions(conditions: OutcomeCaseConditions): OutcomeCaseConditions {
+  return cloneOutcomeCaseConditionValue(conditions) as OutcomeCaseConditions;
+}
+
+function cloneOutcomeCaseConditionValue(value: OutcomeCaseConditionValue): OutcomeCaseConditionValue {
+  if (Array.isArray(value)) return value.map(cloneOutcomeCaseConditionValue);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, cloneOutcomeCaseConditionValue(child as OutcomeCaseConditionValue)])
+    );
+  }
+  return value;
 }
 
 function cloneEvaluationMeasurement(measurement: EvaluationMeasurement): EvaluationMeasurement {

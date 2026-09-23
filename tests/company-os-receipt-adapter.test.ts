@@ -11,7 +11,7 @@ import {
   type ReceiptSourcePort,
   type ReceiptSourceReference
 } from '../src/company-os-receipt-adapter.js';
-import type { OutcomeCasePort } from '../src/company-os-evaluation.js';
+import type { OutcomeCasePort, OutcomeCaseRead } from '../src/company-os-evaluation.js';
 
 const dataDirs: string[] = [];
 
@@ -269,11 +269,17 @@ describe('company OS receipt adapter', () => {
 
   it('adapts the existing read-only OutcomeCasePort without importing its closure semantics', async () => {
     const calls: string[] = [];
+    const canonicalSource = {
+      state: 'canonical-closed',
+      owner_refs: [{ status: 'typed' as const, ref: { id: 'project-canonical', type: 'project', revision: '9' } }],
+      conditions: { closure: 'canonical' }
+    };
     const outcomeCase: OutcomeCasePort = {
       async read(reference, actor) {
         calls.push(`${reference.id}:${reference.revision ?? 'latest'}:${actor.principal}`);
         return {
           reference: { id: reference.id, revision: '7', digest: 'sha256:outcome' },
+          source: canonicalSource,
           acl: { ownerId: 'owner-1', visibility: 'private', readerIds: ['auditor-1'], writerIds: [] },
           scope: {
             subjectIds: ['project-hotel'],
@@ -284,11 +290,95 @@ describe('company OS receipt adapter', () => {
       }
     };
     const port = createOutcomeCaseReceiptSourcePort(outcomeCase);
-    const reference = source('outcome_case', 'outcome-1', 'closed', null);
+    const reference = {
+      ...source('outcome_case', 'outcome-1', 'caller-state', null),
+      owner_refs: [{ status: 'unknown' as const, reason: 'legacy_untyped' as const }],
+      conditions: { caller: 'untrusted' }
+    };
     const projection = await port.read(reference, access);
     expect(calls).toEqual(['outcome-1:latest:auditor-1']);
     expect(projection?.reference.revision).toBe('7');
     expect(projection?.reference.hash).toBe('sha256:outcome');
-    expect(projection?.reference.state).toBe('closed');
+    expect(projection?.reference.state).toBe('canonical-closed');
+    expect(projection?.reference.owner_refs).toEqual(canonicalSource.owner_refs);
+    expect(projection?.reference.conditions).toEqual(canonicalSource.conditions);
+  });
+
+  it('persists only the trusted OutcomeCase source projection and fails closed when it is absent', async () => {
+    const directory = await dataDir();
+    const canonicalSource = {
+      state: 'canonical-closed',
+      owner_refs: [{ status: 'typed' as const, ref: { id: 'project-canonical', type: 'project', revision: '9' } }],
+      conditions: { closure: 'canonical' }
+    };
+    let currentReference = { id: 'outcome-2', revision: '7', digest: 'sha256:outcome' };
+    let currentSource = canonicalSource;
+    const outcomeCase: OutcomeCasePort = {
+      async read(reference) {
+        return {
+          reference: { ...currentReference, id: reference.id },
+          source: currentSource,
+          acl: { ownerId: 'owner-1', visibility: 'private', readerIds: ['auditor-1'], writerIds: [] },
+          scope: {
+            subjectIds: ['project-hotel'],
+            validFrom: '2026-01-01T00:00:00.000Z',
+            validUntil: '2026-12-31T23:59:59.000Z'
+          }
+        };
+      }
+    };
+    const adapter = createCompanyOsReceiptAdapter({
+      dataDir: directory,
+      sourcePorts: { outcome_case: createOutcomeCaseReceiptSourcePort(outcomeCase) }
+    });
+    const requested = {
+      ...source('outcome_case', 'outcome-2', 'caller-state', null),
+      revision: undefined,
+      owner_refs: [{ status: 'unknown' as const, reason: 'legacy_untyped' as const }]
+    };
+    const linked = await adapter.link({
+      id: 'link-outcome-canonical',
+      source: requested,
+      judgment_refs: [],
+      recorded_at: '2026-09-23T00:00:00.000Z',
+      access
+    });
+    expect(linked.link.source).toEqual({
+      kind: 'outcome_case',
+      id: 'outcome-2',
+      revision: '7',
+      hash: 'sha256:outcome',
+      ...canonicalSource
+    });
+
+    const identityMismatches = [
+      { reference: { ...currentReference, revision: '8' } },
+      { reference: { ...currentReference, digest: 'sha256:changed' } },
+      { source: { ...currentSource, owner_refs: [{ status: 'unknown' as const, reason: 'not_recorded' as const }] } },
+      { source: { ...currentSource, conditions: { closure: 'changed' } } }
+    ] as const;
+    for (const mismatch of identityMismatches) {
+      if ('reference' in mismatch) currentReference = mismatch.reference;
+      if ('source' in mismatch) currentSource = mismatch.source;
+      await expect(adapter.read('link-outcome-canonical', access)).rejects.toMatchObject({ code: 'integrity_mismatch' });
+      currentReference = { id: 'outcome-2', revision: '7', digest: 'sha256:outcome' };
+      currentSource = canonicalSource;
+    }
+
+    const missingSource: OutcomeCasePort = {
+      async read(reference) {
+        return {
+          reference: { id: reference.id, revision: '7', digest: 'sha256:outcome' },
+          acl: { ownerId: 'owner-1', visibility: 'private', readerIds: ['auditor-1'], writerIds: [] },
+          scope: {
+            subjectIds: ['project-hotel'],
+            validFrom: '2026-01-01T00:00:00.000Z',
+            validUntil: '2026-12-31T23:59:59.000Z'
+          }
+        } as unknown as OutcomeCaseRead;
+      }
+    };
+    const missingPort = createOutcomeCaseReceiptSourcePort(missingSource);
+    await expect(missingPort.read(requested, access)).rejects.toMatchObject({ code: 'source_unavailable' });
   });
 });
