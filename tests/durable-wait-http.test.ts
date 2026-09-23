@@ -290,4 +290,101 @@ describe('durable wait canonical HTTP adapter', () => {
     expect(unverified.response.status).toBe(403);
     expect(unverified.body?.error?.code).toBe('mutation_origin_unverified');
   });
+
+  it('checks owner scope before every mutation and leaves cross-scope state unchanged', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-scope-mutation-'));
+    roots.push(root);
+    const store = new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } });
+    const handler = createDurableWaitHttpHandler({ storeFactory: () => store });
+    const baseUrl = await start(handler, {
+      default: context(),
+      otherScope: context({ scopeId: 'org-2' }),
+    });
+
+    const createWait = async (waitId: string): Promise<void> => {
+      const created = await request(baseUrl, '/api/v1/durable-waits/create', {
+        method: 'POST',
+        body: createBody(waitId),
+      });
+      expect(created.response.status).toBe(200);
+    };
+    const readAsOwner = async (waitId: string): Promise<Record<string, any>> => {
+      const read = await request(baseUrl, `/api/v1/durable-waits/${waitId}`, { method: 'GET' });
+      expect(read.response.status).toBe(200);
+      return read.body?.result as Record<string, any>;
+    };
+    const rejectCrossScope = async (path: string, body: Record<string, unknown>): Promise<void> => {
+      const rejected = await request(baseUrl, path, {
+        method: 'POST',
+        headers: { 'x-test-context': 'otherScope' },
+        body,
+      });
+      expect(rejected.response.status).toBe(403);
+      expect(rejected.body?.error?.code).toBe('unauthorized');
+    };
+
+    const claimWaitId = 'wait-cross-scope-claim';
+    await createWait(claimWaitId);
+    const claimBefore = await readAsOwner(claimWaitId);
+    await rejectCrossScope('/api/v1/durable-waits/claim', {
+      wait_id: claimWaitId,
+      request_id: 'operation-cross-scope-claim',
+      trigger: 'manual',
+    });
+    expect(await readAsOwner(claimWaitId)).toEqual(claimBefore);
+
+    const handoffWaitId = 'wait-cross-scope-handoff';
+    await createWait(handoffWaitId);
+    const handoffBefore = await readAsOwner(handoffWaitId);
+    await rejectCrossScope('/api/v1/durable-waits/handoff', {
+      wait_id: handoffWaitId,
+      request_id: 'operation-cross-scope-handoff',
+      responsible: { principal: 'owner', scope: 'org-1' },
+      reason: 'cross scope handoff',
+    });
+    expect(await readAsOwner(handoffWaitId)).toEqual(handoffBefore);
+
+    const premiseWaitId = 'wait-cross-scope-premise';
+    await createWait(premiseWaitId);
+    const premiseBefore = await readAsOwner(premiseWaitId);
+    await rejectCrossScope('/api/v1/durable-waits/premise-changed', {
+      wait_id: premiseWaitId,
+      new_problem_snapshot: {
+        snapshot_id: snapshotId,
+        problem_id: 'problem-2',
+        revision: '2',
+      },
+      reason: 'cross scope premise change',
+    });
+    expect(await readAsOwner(premiseWaitId)).toEqual(premiseBefore);
+
+    const effectWaitId = 'wait-cross-scope-effect';
+    await createWait(effectWaitId);
+    const effectBefore = await readAsOwner(effectWaitId);
+    await rejectCrossScope('/api/v1/durable-waits/effect-unknown', {
+      wait_id: effectWaitId,
+      reason: 'cross scope effect uncertainty',
+    });
+    expect(await readAsOwner(effectWaitId)).toEqual(effectBefore);
+
+    const resumeWaitId = 'wait-cross-scope-resume';
+    await createWait(resumeWaitId);
+    const ownerClaim = await request(baseUrl, '/api/v1/durable-waits/claim', {
+      method: 'POST',
+      body: { wait_id: resumeWaitId, request_id: 'operation-owner-claim', trigger: 'manual' },
+    });
+    expect(ownerClaim.response.status).toBe(200);
+    const claimResult = ownerClaim.body?.result as {
+      claim?: { claim_id?: string; request_id?: string; lease?: { lease_id?: string; token?: string } };
+    };
+    const resumeBefore = await readAsOwner(resumeWaitId);
+    await rejectCrossScope('/api/v1/durable-waits/resume', {
+      wait_id: resumeWaitId,
+      request_id: claimResult.claim?.request_id,
+      claim_id: claimResult.claim?.claim_id,
+      lease_id: claimResult.claim?.lease?.lease_id,
+      lease_token: claimResult.claim?.lease?.token,
+    });
+    expect(await readAsOwner(resumeWaitId)).toEqual(resumeBefore);
+  });
 });

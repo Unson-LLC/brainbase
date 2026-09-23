@@ -549,6 +549,16 @@ export function createDurableWaitHttpHandler(options: DurableWaitHttpOptions): D
 
     try {
       const store = await options.storeFactory(context);
+      if (route.operation !== 'create') {
+        // owner_scope is immutable after creation. Resolve it through the
+        // current ACL before entering any mutation so a principal shared by
+        // two scopes cannot mutate a wait and receive a 403 only afterwards.
+        // The store's own compare-and-swap preflight then rechecks the current
+        // record while holding its mutation boundary for concurrent updates.
+        const waitId = (parsed as { readonly wait_id: string }).wait_id;
+        const current = await store.read({ wait_id: waitId, principal: context.principal });
+        assertOwnerScope(current, context);
+      }
       let result: unknown;
       switch (route.operation) {
         case 'create':
