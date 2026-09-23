@@ -1,5 +1,27 @@
 import type { DecisionRecord, PersonalOs } from './types.js';
 import { canonicalRelationRegistry } from './relation-registry.js';
+import {
+  JUDGMENT_FOUNDATION_CONTRACT_VERSION,
+  judgmentFoundationContract
+} from './ontology-foundation.js';
+
+/**
+ * The judgment foundation is an extension manifest.  Keeping this reference
+ * outside releaseV1/releaseV2 preserves the historical interpretation while
+ * giving canonical-store work one shared contract to adopt later.
+ */
+export {
+  JUDGMENT_FOUNDATION_CONTRACT_VERSION,
+  judgmentFoundationContract
+} from './ontology-foundation.js';
+
+export const judgmentFoundationReference = Object.freeze({
+  contractVersion: JUDGMENT_FOUNDATION_CONTRACT_VERSION,
+  status: judgmentFoundationContract.status,
+  historicalOntologyVersions: judgmentFoundationContract.historicalOntologyVersions,
+  canonicalStoreAdoption: judgmentFoundationContract.canonicalStoreAdoption,
+  graphActivation: judgmentFoundationContract.graphActivation
+});
 
 export const ONTOLOGY_V1_VERSION = '1.0.0' as const;
 export const ONTOLOGY_VERSION = '2.0.0' as const;

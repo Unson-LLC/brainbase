@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-ontology-v1
 title: 目的・状態・仮説・制約を混同せず契約検証できる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: []
 external_dependencies: [{"story_id": "story-brainbase-ontology-kernel", "source_repo": "brainbase-unson", "relationship": "reuse_or_extract_contract", "availability": "unverified_at_registration"}]
@@ -57,4 +57,4 @@ Graphの本番型有効化、4型のCRUD、既存Kernelの再実装。
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+実装を開始し、共通型・関係・実行時validator・consumer smoke・PR CIを追加中。受入条件の最終確認とPR/CI/mergeは未完了であり、完了扱いにしない。
