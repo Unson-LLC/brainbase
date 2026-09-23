@@ -1,12 +1,12 @@
 ---
 story_id: story-company-os-evaluation-v1
 title: 判断開始時の目的で成果と判断の妥当性を別々に評価できる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-problem-snapshot-v1"]
-external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "brainbase-unson", "relationship": "reuse_or_extract_contract", "availability": "unverified_at_registration"}]
+external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "brainbase-unson", "relationship": "read-only OutcomeCasePort adapter", "availability": "candidate_provider_verified_at_40d3d8f57d463e2f22a98423d74af3b7ed1aba93"}]
 ---
 
 # 判断開始時の目的で成果と判断の妥当性を別々に評価できる
@@ -26,7 +26,7 @@ external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "br
 
 実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。
 
-- `brainbase-unson / story-outcome-case-v1`：reuse_or_extract_contract（提供版未確認）
+- `brainbase-unson / story-outcome-case-v1`：read-only OutcomeCasePort adapter（候補実装 commit `40d3d8f57d463e2f22a98423d74af3b7ed1aba93`）。OSSの `origin/develop` commit `770655c4cdb56195fa1e441455372830840f03c1` にはOutcomeCase APIがなく、既存orgの閉鎖・API・Postgres・RACIはOSSへコピーしない。
 
 ## 設計参照
 
@@ -57,4 +57,9 @@ external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "br
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+## 実装状況
+
+- `src/company-os-evaluation.ts` に、Problem snapshotのhistorical read、exact Foundation定義loader、read-only OutcomeCasePort、immutable evaluation sidecar store（`evaluate`／`read`／`list`）を実装した。
+- `tests/company-os-evaluation.test.ts` は実際のcanonical Graph/Foundation storeとsidecarを使い、ホテルの負荷・品質反例、欠損・未到来・未来期間、明示conversion provenance、現在ACL失効、scope越境、sidecar破損・派生値改ざん、重複IDを検証する。
+- `docs/specs/company-os-evaluation-v1.md` に、所有境界、保存場所、公開port、評価手順、不変条件、エラー境界を固定した。
+- `npm run build` と `npx vitest run tests/company-os-evaluation.test.ts --reporter verbose` を実行済み。レビューとCIの完了まではStoryを完了扱いにしない。
