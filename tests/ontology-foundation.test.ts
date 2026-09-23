@@ -149,7 +149,8 @@ describe('judgment foundation ontology extension', () => {
       'objective', 'variable', 'model', 'constraint'
     ]);
     expect(Object.keys(judgmentFoundationContract.relations)).toEqual([
-      'contributes_to', 'evaluated_by', 'uses_as_input', 'predicts', 'applies_to', 'used_as_basis'
+      'contributes_to', 'execution_depends_on', 'time_condition', 'evaluated_by',
+      'uses_as_input', 'predicts', 'applies_to', 'used_as_basis'
     ]);
     expect(judgmentFoundationContract.graphActivation).toBe('deferred');
     expect(judgmentFoundationContract.canonicalStoreAdoption).toBe('future-story-02-plus');
@@ -297,6 +298,47 @@ describe('judgment foundation ontology extension', () => {
     expect(validateFoundationRelation(contribution)).toMatchObject({ valid: true, status: 'valid' });
     expect(inferFoundationConclusions(contribution)).toEqual([]);
     expect(validateFoundationRelation({
+      relation: 'contributes_to',
+      source: { id: 'parent-objective', type: 'objective', revision: '2' },
+      target: { id: 'reduce-front-desk-load', type: 'objective', revision: '1' }
+    })).toMatchObject({ valid: true, status: 'valid' });
+    expect(validateFoundationRelation({
+      relation: 'execution_depends_on',
+      source: { id: 'story-2', type: 'story' },
+      target: { id: 'story-1', type: 'story' }
+    })).toMatchObject({ valid: true, status: 'valid' });
+    expect(inferFoundationConclusions({
+      relation: 'execution_depends_on',
+      source: { id: 'story-2', type: 'story' },
+      target: { id: 'reduce-front-desk-load', type: 'objective', revision: '1' }
+    })).toEqual([]);
+    expect(validateFoundationRelation({
+      relation: 'time_condition',
+      source: { id: 'story-1', type: 'story' },
+      target: { id: 'reduce-front-desk-load', type: 'objective', revision: '1' },
+      timeCondition: {
+        kind: 'evaluation_window',
+        period: evaluationPeriod
+      }
+    })).toMatchObject({ valid: true, status: 'valid' });
+    expect(validateFoundationRelation({
+      relation: 'time_condition',
+      source: { id: 'story-1', type: 'story' },
+      target: { id: 'reduce-front-desk-load', type: 'objective', revision: '1' }
+    })).toMatchObject({
+      valid: false,
+      issues: expect.arrayContaining([expect.objectContaining({ path: 'timeCondition', code: 'MISSING_FIELD' })])
+    });
+    expect(validateFoundationRelation({
+      relation: 'execution_depends_on',
+      source: { id: 'story-2', type: 'story' },
+      target: { id: 'reduce-front-desk-load', type: 'objective', revision: '1' },
+      timeCondition: { kind: 'deadline', period: evaluationPeriod }
+    })).toMatchObject({
+      valid: false,
+      issues: expect.arrayContaining([expect.objectContaining({ path: 'timeCondition', code: 'INVALID_FIELD' })])
+    });
+    expect(validateFoundationRelation({
       relation: 'evaluated_by',
       source: { id: 'reduce-front-desk-load', type: 'objective' },
       target: { id: 'front-desk-total-minutes', type: 'variable' }
@@ -307,6 +349,13 @@ describe('judgment foundation ontology extension', () => {
     });
     expect(judgmentFoundationRelations.uses_as_input.prohibitedInferences).toContain(
       'input declaration does not prove causality or model accuracy'
+    );
+    expect(judgmentFoundationRelations.execution_depends_on.prohibitedInferences).toEqual(expect.arrayContaining([
+      'execution dependency does not establish contribution',
+      'execution dependency does not establish time ordering'
+    ]));
+    expect(judgmentFoundationRelations.time_condition.prohibitedInferences).toContain(
+      'time condition does not establish execution dependency'
     );
     expect(judgmentFoundationContract.inference).toEqual({
       worldModelCycles: 'allowed',

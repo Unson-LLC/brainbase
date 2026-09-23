@@ -10,8 +10,9 @@ status: accepted
 
 The shared ontology extension registers `objective`, `variable`, `model`, and
 `constraint` as versioned semantic definitions. It registers typed relations
-for contribution, evaluation, model input/output, constraint applicability,
-and historical decision basis. The extension is read-compatible with the
+for Story and Objective contribution, Story execution dependency, Story time
+conditions, evaluation, model input/output, constraint applicability, and
+historical decision basis. The extension is read-compatible with the
 historical ontology releases `1.0.0` and `2.0.0`; it is an extension manifest
 only and does not activate new production Graph types or implement CRUD.
 
@@ -35,6 +36,11 @@ each exception carries its own decision-backed scope.
 Relations do not imply achievement, causality, accuracy, truth, or current
 validity. World-model cycles are allowed as semantic relationships; execution
 DAG cycle rejection remains the responsibility of the execution contract.
+`contributes_to` accepts Story→Objective and Objective→Objective; it never
+turns contribution into achievement. `execution_depends_on` accepts
+Story→Story or Story→Objective and is not a contribution or a time ordering.
+`time_condition` accepts Story→Objective and carries an explicit deadline or
+evaluation-window period; it is not a contribution or an execution dependency.
 Runtime validators accept unknown input and reject unknown types/enums,
 malformed arrays, invalid dates/references/provenance, and self-declared use
 of retired or refuted definitions.

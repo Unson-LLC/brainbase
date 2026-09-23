@@ -43,6 +43,18 @@
       "types": "./dist/canonical-task-service.d.ts",
       "import": "./dist/canonical-task-service.js"
     },
+    "./foundation-catalog": {
+      "types": "./dist/foundation-catalog.d.ts",
+      "import": "./dist/foundation-catalog.js"
+    },
+    "./foundation-store": {
+      "types": "./dist/foundation-store.d.ts",
+      "import": "./dist/foundation-store.js"
+    },
+    "./company-os-objectives": {
+      "types": "./dist/company-os-objectives.d.ts",
+      "import": "./dist/company-os-objectives.js"
+    },
     "./personal-knowledge": {
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"

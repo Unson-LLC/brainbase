@@ -5,6 +5,7 @@ import { hostname } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, win32 } from 'node:path';
 import { z } from 'zod';
 import { validateCanonicalGraph } from './canonical-graph.js';
+import { assertFoundationCatalog } from './foundation-catalog.js';
 import { assertOntologyValid } from './ontology.js';
 import { planCanonicalGraphMigration, type CanonicalGraphMigrationPlan } from './ontology-migration.js';
 import { emptyGraph, emptyRelationships, schemaTemplates } from './templates.js';
@@ -339,6 +340,7 @@ function validateAggregate(os: PersonalOs): void {
   os.decisions.forEach((decision) => decisionSchema.parse(decision));
   assertOntologyValid(os);
   validateCanonicalGraph(os.graph);
+  if (os.graph.version === 2) assertFoundationCatalog(os.graph.foundation);
 }
 
 function parseGraph(value: unknown): GraphFile {
@@ -354,7 +356,12 @@ function parseGraph(value: unknown): GraphFile {
     }
     validateCanonicalGraph(value, { allowDuplicateEntityIds: true });
   }
+  if (isGraphV2(value)) assertFoundationCatalog(value.foundation);
   return value as GraphFile;
+}
+
+function isGraphV2(value: unknown): value is Extract<GraphFile, { version: 2 }> {
+  return typeof value === 'object' && value !== null && (value as { version?: unknown }).version === 2;
 }
 
 function serializeJsonl(values: unknown[]): string {
