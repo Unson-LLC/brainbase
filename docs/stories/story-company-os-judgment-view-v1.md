@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-judgment-view-v1
 title: 共通画面で判断の目的・根拠・結果を版ごとに追える
-status: planned
+status: implementation
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-subdag-v1", "story-company-os-evaluation-v1"]
 external_dependencies: []
@@ -26,7 +26,9 @@ external_dependencies: []
 
 実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。
 
-- なし。既存実装との重複は着手時に確認する。
+- `src/judgment-view.ts` が既存のComposition／Problem snapshot／Foundation／artifact／Evaluationの読み取りportを合成する。
+- `src/judgment-view-http.ts` が組織側のlocal serverへcomposeできるGET routeを提供する。
+- `ui/judgment-view.js` と `ui/judgment-view.css` がOSS単独のread-only表示を提供する。
 
 ## 設計参照
 
@@ -58,4 +60,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+実装中。VibeProのactiveは登録が有効である意味であり、受入条件の検証完了とは別である。
