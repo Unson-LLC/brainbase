@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-hotel-pilot-v1
 title: 匿名ホテル例で判断・評価・学習の共通契約を一周できる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -60,4 +60,9 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。OutcomeCaseはfixtureのため、本番状態を `production_unproven`、外部送信を `unrecorded` として保存する。
 
-現行baseの正式なReceipt adapter APIを含めて接続し、affected 8 files / 58 testsは通過している。snapshot参照はWorldModel実体読取とhost-owned canonical fixture mapで照合し、予約ロック中は事前に読んだ保存済みsnapshotを再照合する。前提反証は既存のimpact-review契約どおり `hold` として同じWait／claim／snapshotを保持し、再評価後に新Problem／新runへhandoffする。旧v1のsnapshot・selection・evaluationはv2から変更せず、handoff後の旧v1 authorityは拒否してeffectを増やさない。buildは既存のSDK署名不一致で未完了、レビュー・PR・CI・mergeも未完了であり、完了表示はしていない。
+## 実装状況
+
+- 現行baseの正式なReceipt adapter APIを含め、Foundation／World Model／Problem selection／Problem snapshot／composition／reservation／authority／evaluation／learning adoptionを匿名ホテルfixtureで接続した。snapshot参照はWorldModel実体読取とhost-owned canonical fixture mapで照合し、予約ロック中は事前に読んだ保存済みsnapshotを再照合する。前提反証は`hold`として同じWait／claim／snapshotを保持し、再評価後に新Problem／新runへhandoffする。旧v1のsnapshot・selection・evaluationはv2から変更せず、handoff後の旧v1 authorityは拒否してeffectを増やさない。
+- AC-01〜04は実装・review・CIで確認済み。[PR #548](https://github.com/Unson-LLC/brainbase/pull/548) はmerge [`3e63823e9e9597e9c16880426818a174bfa72955`](https://github.com/Unson-LLC/brainbase/commit/3e63823e9e9597e9c16880426818a174bfa72955)、head [`31bc902dbed555bbb5ac08dfb16484eb278b8694`](https://github.com/Unson-LLC/brainbase/commit/31bc902dbed555bbb5ac08dfb16484eb278b8694)、[CI 35873855880](https://github.com/Unson-LLC/brainbase/actions/runs/35873855880) success、review pass（旧run拒否・正本refs修正 [`6736b1cab423533dd97f37817edf077f472c98d9`](https://github.com/Unson-LLC/brainbase/commit/6736b1cab423533dd97f37817edf077f472c98d9)）、affected 8 files / 58 tests・strict TS、本番外fixtureである。OutcomeCaseは`production_unproven`、外部送信は`unrecorded`として保持する。
+- 実storeを複数接続するpilot統合fixtureはfull-suite並列時にVitestの5秒既定値を超えるため、対象テストだけ30秒のローカルtimeoutを設定する。global timeoutは変更しない。timeout修正 [`63df2b5`](https://github.com/Unson-LLC/brainbase/commit/63df2b5bdae8c17fe924820ca7c3a5258ac2049b) は [CI 35876582564](https://github.com/Unson-LLC/brainbase/actions/runs/35876582564) successである。
+- ローカルbuildはroot `node_modules` のSDK署名不一致で失敗し、baseでも同じエラーを確認した。locked dependency buildは成功しているため、これはCIの成功と分けて記録する。VibeProの `active` は登録状態を示し、完了状態とは別である。
