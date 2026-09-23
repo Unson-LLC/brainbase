@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-shared-dist-build-pack-isolation-v1
 title: 共有distのbuildとpack競合疑いを調査して隔離する
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: []
 external_dependencies: []
@@ -17,15 +17,21 @@ buildとpackage検証を同時に実行しても共有 `dist` の中間状態を
 
 ## 根拠と不確実性
 
-- `tests/npm-consumer-smoke.integration.test.ts:37` のroot build、`tests/npm-release-validation.integration.test.ts:46` から `scripts/npm-release.mjs:245` の `npm pack` prepare、`tests/repo-hygiene.test.ts:43` の `npm pack` dry-run prepareが共有 `dist` へ書き込む疑いがある。
-- 旧CI 35837694006では `foundation-store.js` のread EOFが出たが、局所package 8 testsと同時実行1回では再現していない。原因は未確定で、現実装の変更根拠にはしない。
+- `tests/npm-consumer-smoke.integration.test.ts:37` のroot build、`tests/npm-release-validation.integration.test.ts:46` から `scripts/npm-release.mjs:245` の `npm pack`、`tests/repo-hygiene.test.ts:43` の `npm pack` dry-runが、従来は同じroot `dist`をpack入力としていた。prepare付きpackはroot `dist`へ書き込むため、build workerとの共有書込み境界になっていた。
+- 8並列のroot `tsc -p tsconfig.json`で `dist/canonical-graph.d.ts` の長さ0を観測し、共有出力の中間状態を直接確認した。一方、旧CI 35837694006の `foundation-store.js` read EOFとpack同時実行での再現は未確認であり、同一原因とは断定しない。
 
 ## 受入条件
 
-- [ ] build／pack／consumer smokeの共有出力先とprepare経路を列挙し、同時実行時の書込・読込境界を再現可能な形で記録する。
-- [ ] read EOFを含む失敗を、決定的な競合・単発失敗・別原因に切り分け、未再現は未確認として残す。
-- [ ] 必要な隔離方法をfocused testまたは実行手順で検証し、原因確定前に現実装を変更しない。
+- [x] build／pack／consumer smokeの共有出力先とprepare経路を列挙し、8並列 `tsc` とverbose lifecycle traceで同時実行時の書込・読込境界を記録した。
+- [x] 共有 `dist` の中間状態は再現できたが、旧CIのread EOF自体とpack同時実行での再現は未確認として残した。
+- [x] pack入力を一時ディレクトリへ構成し、pack処理がroot `dist`へ書き込まない隔離を実装した。repo hygiene、release validation、consumer smokeで検証した。
 
 ## 検証と完了
 
-レビュー追補の登録のみ。新Spec、実装、テスト、review、PR、CI、mergeは未着手である。
+## 実装・検証状況
+
+- 新Spec: `.vibepro/spec/story-company-os-shared-dist-build-pack-isolation-v1/draft.json`
+- 実装: `scripts/npm-release.mjs` にpack入力の一時構成を追加し、repo hygieneは生成物 `dist` をpack dry-runから除外した。`package.json` の `prepare: npm run build` 契約は変更していない。
+- 検証済み: `npx vitest run tests/repo-hygiene.test.ts --reporter=verbose`（7 tests pass）、`npx vitest run tests/npm-release-validation.integration.test.ts --reporter=verbose`（1 test pass）、consumer smoke（testTimeout 180000で1 test pass）、`git diff --check`。
+- 未確認: 旧CIのread EOFがこの競合だけで再現すること。通常のconsumer smoke既定60秒は共有ホスト負荷でtimeoutしたため、timeoutを変更せずにCIで再確認する。
+- PR、CI、mergeは未完了である。

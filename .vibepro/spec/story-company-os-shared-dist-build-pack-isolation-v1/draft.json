@@ -1,0 +1,135 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-company-os-shared-dist-build-pack-isolation-v1",
+  "generated_by": {
+    "caller": "codex",
+    "stage": "implementation_contract"
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "package検証はrootのprepare/buildをpack処理中に実行せず、共有root distへpack処理から書き込まない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001",
+            "text_snippet": "build／pack／consumer smokeの共有出力先とprepare経路を列挙"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/npm-release.mjs",
+            "anchor": "stagePackageForPacking"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/repo-hygiene.test.ts",
+            "case": "INV-4 publishes only runtime package files and public docs"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/repo-hygiene.test.ts",
+            "must_cover": "INV-4 publishes only runtime package files and public docs"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-23T11:15:12.487Z",
+      "last_revised_at": "2026-09-23T11:15:12.487Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "release artifactとrepo hygieneのpack入力を一時ディレクトリへ先に構成し、生成物を共有distではなくpack入力として読むことで、並行root buildとの共有書込み競合を作らない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-003",
+            "text_snippet": "必要な隔離方法をfocused testまたは実行手順で検証"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "scripts/npm-release.mjs",
+            "anchor": "createReleaseArtifact"
+          },
+          {
+            "file": "scripts/npm-release.mjs",
+            "anchor": "packFilesInIsolation"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/npm-release-validation.integration.test.ts",
+            "case": "audits production dependencies and hashes a real tarball without publication credentials"
+          },
+          {
+            "file": "tests/npm-consumer-smoke.integration.test.ts",
+            "case": "runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/npm-release-validation.integration.test.ts",
+            "must_cover": "audits production dependencies and hashes a real tarball without publication credentials"
+          },
+          {
+            "file_glob": "tests/npm-consumer-smoke.integration.test.ts",
+            "must_cover": "runs the public CLI and MCP tools/list plus the public runner API from a fresh installed consumer"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-23T11:15:12.487Z",
+      "last_revised_at": "2026-09-23T11:15:12.487Z"
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "公開packageのprepare契約はnpm run buildのまま維持し、consumer smokeのroot build責務とpack入力の隔離責務を混同しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-001",
+            "text_snippet": "prepare経路を列挙"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "package.json",
+            "anchor": "prepare"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/git-commit-consumer-smoke.integration.test.ts",
+            "case": "declares the build lifecycle required by an exact git dependency"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/git-commit-consumer-smoke.integration.test.ts",
+            "must_cover": "declares the build lifecycle required by an exact git dependency"
+          }
+        ]
+      },
+      "confidence": 1,
+      "first_seen_at": "2026-09-23T11:15:12.487Z",
+      "last_revised_at": "2026-09-23T11:15:12.487Z"
+    }
+  ],
+  "generated_at": "2026-09-23T11:15:12.484Z",
+  "previous_spec_id": null
+}
