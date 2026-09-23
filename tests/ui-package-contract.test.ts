@@ -18,6 +18,8 @@ describe('OSS共通UIの公開契約', () => {
       './ui/outcome-knowledge.css': './ui/outcome-knowledge.css',
       './ui/outcome-mana': './ui/outcome-mana.js',
       './ui/outcome-mana.css': './ui/outcome-mana.css',
+      './ui/judgment-view': './ui/judgment-view.js',
+      './ui/judgment-view.css': './ui/judgment-view.css',
       './ui/objective-editor': './ui/objective-editor.js',
       './ui/objective-editor.css': './ui/objective-editor.css',
       './ui/icons/*': './ui/icons/*',
@@ -30,6 +32,8 @@ describe('OSS共通UIの公開契約', () => {
       'outcome-knowledge.css',
       'outcome-mana.js',
       'outcome-mana.css',
+      'judgment-view.js',
+      'judgment-view.css',
       'objective-editor.js',
       'objective-editor.css',
     ].map((file) => readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8')));
