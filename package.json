@@ -79,6 +79,10 @@
       "types": "./dist/problem-candidates.d.ts",
       "import": "./dist/problem-candidates.js"
     },
+    "./problem-selection": {
+      "types": "./dist/problem-selection.d.ts",
+      "import": "./dist/problem-selection.js"
+    },
     "./judgment-problem-snapshot": {
       "types": "./dist/judgment-problem-snapshot.d.ts",
       "import": "./dist/judgment-problem-snapshot.js"
