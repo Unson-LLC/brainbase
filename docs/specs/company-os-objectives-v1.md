@@ -92,7 +92,7 @@ interface FoundationEndpointResource {
 }
 ```
 
-返却値にStory本文、要約、private projectionを含めない。指定revisionが存在することを確認し、認可には現在revisionのACL・scopeを使う。ID不在、revision不在、resolver未設定、返却metadata不正の場合はrelationを保存せずfail-closedにする。resolverはcanonical lock外から別のaggregateを読み直して認可してはならない。
+返却値にStory本文、要約、private projectionを含めない。指定revisionが存在することを確認し、認可には現在revisionのACL・scopeを使う。revisionを省略したID-only endpointは、返却`revision`と`currentRevision`が一致しなければ拒否する。明示した旧revisionは存在確認後、そのrevisionをrelationへ保存し、認可は現在revisionのACL・scopeで行う。ID不在、revision不在、resolver未設定、返却metadata不正の場合はrelationを保存せずfail-closedにする。resolverはcanonical lock外から別のaggregateを読み直して認可してはならない。
 
 OSS単独利用では`createLocalStoryResolver`を使えるが、これはStory本文の保存先ではない。revisionごとのID・scope・ACLというadapter metadataだけを受け取り、最大revisionをcurrentとして解決する。組織版・Story providerは自分の正本から同じresolver portを実装する。越境判定は注入policy、またはtrusted contextのsubject scopeと解決済みresource scopeで行い、呼出し元がリクエスト本文に書いたowner/scopeを根拠にしない。
 

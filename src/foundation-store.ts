@@ -679,6 +679,9 @@ function validateEndpointResource(
   if (endpoint.revision !== undefined && endpoint.revision !== resource.revision) {
     throw new FoundationStoreError('authorization_denied', 'The endpoint resolver did not resolve the requested revision');
   }
+  if (endpoint.revision === undefined && resource.revision !== resource.currentRevision) {
+    throw new FoundationStoreError('authorization_denied', 'An ID-only endpoint must resolve to its current revision');
+  }
   if (compareRevisions(resource.currentRevision, resource.revision) < 0) {
     throw new FoundationStoreError('authorization_denied', 'The endpoint resolver returned a revision newer than current');
   }

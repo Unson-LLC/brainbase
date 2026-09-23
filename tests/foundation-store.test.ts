@@ -345,6 +345,34 @@ describe('GraphFoundationRevisionStore', () => {
     expect(saved.graph.foundation?.relations ?? []).toEqual([]);
   });
 
+  it('rejects an ID-only Story link when the resolver returns an older revision', async () => {
+    const dataDir = await makeDataDir();
+    const localResolver = createLocalStoryResolver([
+      storyRevision('story-stale-id', '1'),
+      storyRevision('story-stale-id', '2')
+    ]);
+    const store = createFoundationRevisionStore({
+      dataDir,
+      endpointResolver: {
+        async resolve(request) {
+          const resource = await localResolver.resolve(request);
+          return resource ? { ...resource, revision: '1' } : null;
+        }
+      }
+    });
+    const objective = await store.create(objectiveDefinition(), { principal: 'owner-1' });
+
+    await expect(store.addRelation({
+      relation: 'contributes_to',
+      source: { id: 'story-stale-id', type: 'story' },
+      target: objective
+    }, { principal: 'owner-1' })).rejects.toMatchObject({ code: 'authorization_denied' });
+
+    const saved = await loadPersonalOs(dataDir);
+    if (saved.graph.version !== 2) throw new Error('Expected Graph v2');
+    expect(saved.graph.foundation?.relations ?? []).toEqual([]);
+  });
+
   it('passes only Story authorization metadata to policy and persists the resolved revision', async () => {
     const dataDir = await makeDataDir();
     const storyResolver = createLocalStoryResolver([storyRevision('story-resolved', '1')]);
