@@ -59,6 +59,10 @@
       "types": "./dist/company-os-objectives.d.ts",
       "import": "./dist/company-os-objectives.js"
     },
+    "./company-os-evaluation": {
+      "types": "./dist/company-os-evaluation.d.ts",
+      "import": "./dist/company-os-evaluation.js"
+    },
     "./constraint-resolution": {
       "types": "./dist/constraint-resolution.d.ts",
       "import": "./dist/constraint-resolution.js"
@@ -79,6 +83,10 @@
       "types": "./dist/world-model.d.ts",
       "import": "./dist/world-model.js"
     },
+    "./problem-candidates": {
+      "types": "./dist/problem-candidates.d.ts",
+      "import": "./dist/problem-candidates.js"
+    },
     "./judgment-problem-snapshot": {
       "types": "./dist/judgment-problem-snapshot.d.ts",
       "import": "./dist/judgment-problem-snapshot.js"
@@ -94,6 +102,14 @@
     "./resource-reservations": {
       "types": "./dist/resource-reservations.d.ts",
       "import": "./dist/resource-reservations.js"
+    },
+    "./resource-reservation-http": {
+      "types": "./dist/resource-reservation-http.d.ts",
+      "import": "./dist/resource-reservation-http.js"
+    },
+    "./execution-authority": {
+      "types": "./dist/execution-authority.d.ts",
+      "import": "./dist/execution-authority.js"
     },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
