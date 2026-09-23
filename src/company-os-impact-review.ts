@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { initializePersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } from './ssot.js';
+import type { DurableWaitStore } from './durable-waits.js';
 import type { FoundationAcl } from './ontology-foundation.js';
 
 /**
@@ -132,6 +133,27 @@ export interface ImpactReviewWaitPort {
     readonly responsible?: ImpactReviewResponsible;
     readonly reason: string;
   }): Promise<unknown>;
+}
+
+/**
+ * Adapt Story 13's canonical durable-wait ledger to the impact-review port.
+ * The coordinator remains independent from the ledger implementation; this
+ * boundary only forwards the two operations it is allowed to request.
+ */
+export function createCompanyOsImpactReviewDurableWaitPort(
+  store: Pick<DurableWaitStore, 'create' | 'markPremiseChanged'>,
+): ImpactReviewWaitPort {
+  if (!store || typeof store.create !== 'function' || typeof store.markPremiseChanged !== 'function') {
+    throw new CompanyOsImpactReviewError('invalid_request', 'durable wait store is required');
+  }
+  return {
+    create(input) {
+      return store.create(input);
+    },
+    markPremiseChanged(input) {
+      return store.markPremiseChanged(input);
+    },
+  };
 }
 
 export interface ImpactReviewNewProblemAndRun {
