@@ -67,6 +67,10 @@
       "types": "./dist/company-os-receipt-adapter.d.ts",
       "import": "./dist/company-os-receipt-adapter.js"
     },
+    "./company-os-learning-adoption": {
+      "types": "./dist/company-os-learning-adoption.d.ts",
+      "import": "./dist/company-os-learning-adoption.js"
+    },
     "./constraint-resolution": {
       "types": "./dist/constraint-resolution.d.ts",
       "import": "./dist/constraint-resolution.js"
@@ -91,10 +95,6 @@
       "types": "./dist/world-model.d.ts",
       "import": "./dist/world-model.js"
     },
-    "./problem-candidates": {
-      "types": "./dist/problem-candidates.d.ts",
-      "import": "./dist/problem-candidates.js"
-    },
     "./judgment-problem-snapshot": {
       "types": "./dist/judgment-problem-snapshot.d.ts",
       "import": "./dist/judgment-problem-snapshot.js"
@@ -111,13 +111,13 @@
       "types": "./dist/resource-reservations.d.ts",
       "import": "./dist/resource-reservations.js"
     },
-    "./resource-reservation-http": {
-      "types": "./dist/resource-reservation-http.d.ts",
-      "import": "./dist/resource-reservation-http.js"
+    "./durable-waits": {
+      "types": "./dist/durable-waits.d.ts",
+      "import": "./dist/durable-waits.js"
     },
-    "./execution-authority": {
-      "types": "./dist/execution-authority.d.ts",
-      "import": "./dist/execution-authority.js"
+    "./execution-authority-http": {
+      "types": "./dist/execution-authority-http.d.ts",
+      "import": "./dist/execution-authority-http.js"
     },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
@@ -137,7 +137,19 @@
     "./contracts/judgment-dag/digest.json": "./contracts/judgment-dag/digest.json",
     "./contracts/judgment-value-proof/schema.json": "./contracts/judgment-value-proof/schema.json",
     "./contracts/judgment-value-proof/fixture.json": "./contracts/judgment-value-proof/fixture.json",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./problem-candidates": {
+      "types": "./dist/problem-candidates.d.ts",
+      "import": "./dist/problem-candidates.js"
+    },
+    "./resource-reservation-http": {
+      "types": "./dist/resource-reservation-http.d.ts",
+      "import": "./dist/resource-reservation-http.js"
+    },
+    "./execution-authority": {
+      "types": "./dist/execution-authority.d.ts",
+      "import": "./dist/execution-authority.js"
+    }
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
