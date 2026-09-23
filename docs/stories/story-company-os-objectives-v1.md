@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-objectives-v1
 title: 目的と評価基準を版付きで保存し判断から参照できる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-ontology-v1"]
 external_dependencies: []
@@ -57,4 +57,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+現在は実装中。共有Ontology契約の正式統合と、AC-03の関係種別の確定・実装を残している。完了判定は受入条件と実体テストの確認後に行う。

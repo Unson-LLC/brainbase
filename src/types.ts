@@ -1,3 +1,9 @@
+import type {
+  FoundationDefinition,
+  FoundationRelationReference,
+  FoundationRevision
+} from './ontology-foundation.js';
+
 export type EntityKind = 'person' | 'org' | 'project' | 'relationship' | 'decision';
 export type CanonicalEntityKind = 'person' | 'org' | 'project' | 'decision';
 export type CoreRelation =
@@ -54,6 +60,26 @@ export interface CanonicalEdge {
   };
 }
 
+/**
+ * Versioned definitions that extend the historical Graph v2 contract.
+ *
+ * This is deliberately an extension of the canonical aggregate rather than a
+ * second objectives/world-model file.  The old Graph entities and edges keep
+ * their historical interpretation; foundation records are validated by their
+ * own shared ontology contract.
+ */
+export interface FoundationCatalogRecord {
+  definition: FoundationDefinition;
+  digest: string;
+}
+
+export interface FoundationCatalog {
+  version: 1;
+  records: FoundationCatalogRecord[];
+  latest: Record<string, FoundationRevision>;
+  relations: FoundationRelationReference[];
+}
+
 export interface GraphFileV2 {
   version: 2;
   ontology: {
@@ -68,6 +94,7 @@ export interface GraphFileV2 {
   };
   entities: CanonicalEntity[];
   edges: CanonicalEdge[];
+  foundation?: FoundationCatalog;
 }
 
 export type GraphFile = GraphFileV1 | GraphFileV2;

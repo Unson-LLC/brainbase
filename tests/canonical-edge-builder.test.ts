@@ -58,6 +58,15 @@ describe('applyCanonicalWrites', () => {
     expect(twice).toEqual(once);
   });
 
+  it('preserves the foundation extension while updating historical canonical entities and edges', () => {
+    const foundation = { version: 1 as const, records: [], latest: {}, relations: [] };
+    const graph = { ...baseGraph(), foundation };
+
+    const result = applyCanonicalWrites(graph, { entities: [], edges: [] });
+
+    expect(result.foundation).toEqual(foundation);
+  });
+
   it('fails loudly for Graph v1 instead of silently writing disconnected entities', () => {
     const graph: GraphFileV1 = { version: 1, entities: [] };
 
