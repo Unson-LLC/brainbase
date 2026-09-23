@@ -1,16 +1,14 @@
-import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runCli } from '../../src/cli.js';
+import { packFilesInIsolation } from '../../scripts/npm-release.mjs';
 import { defaultDataDir } from '../../src/paths.js';
 import { toolDefinitions } from '../../src/server.js';
 import { loadPersonalOs } from '../../src/ssot.js';
 
-const execFileAsync = promisify(execFile);
 const dirs: string[] = [];
 
 async function tempDir(): Promise<string> {
@@ -71,8 +69,7 @@ describe('brainbase-mcp-only story acceptance', () => {
     await expect(runCli(['onboard:install', '--target', 'codex', '--dir', dir, '--dry-run'], codexOutput.io)).resolves.toBe(0);
     await expect(runCli(['onboard:install', '--target', 'claude', '--dir', dir, '--dry-run'], claudeOutput.io)).resolves.toBe(0);
     await expect(runCli(['onboard:install', '--target', 'codecode', '--dir', dir, '--dry-run'], codecodeOutput.io)).resolves.toBe(0);
-    const [pack] = JSON.parse((await execFileAsync('npm', ['pack', '--dry-run', '--json'], { cwd: repoRoot })).stdout) as Array<{ files: Array<{ path: string }> }>;
-    const packedFiles = pack.files.map((file) => file.path);
+    const packedFiles = await packFilesInIsolation(repoRoot);
 
     expect(packageJson.name, 'brainbase-mcp-only ac:1 The root package is @unson/brainbase-mcp, with brainbase-mcp for stdio MCP and brainbase for onboarding CLI.').toBe('@unson/brainbase-mcp');
     expect(packageJson.bin, 'brainbase-mcp-only ac:1 The root package is @unson/brainbase-mcp, with brainbase-mcp for stdio MCP and brainbase for onboarding CLI.').toMatchObject({ 'brainbase-mcp': 'dist/index.js', brainbase: 'dist/cli.js' });
