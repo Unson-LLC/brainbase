@@ -5,7 +5,7 @@ status: in_progress
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
-depends_on: ["story-company-os-ontology-v1"]
+depends_on: ["story-company-os-ontology-v1", "story-company-os-objectives-v1", "story-company-os-sidecar-v1"]
 external_dependencies: []
 ---
 
@@ -39,6 +39,8 @@ external_dependencies: []
 ## 依存するストーリー
 
 - `brainbase / story-company-os-ontology-v1`
+- `brainbase / story-company-os-objectives-v1`
+- `brainbase / story-company-os-sidecar-v1`
 
 依存は提供契約の先行条件。目的への貢献・期限とは異なる。外部依存を含め、着手時に採用版と提供範囲を最小Specで固定する。
 
@@ -57,4 +59,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は実装中。最小Specと実storeのaffected testsは揃っているが、統合branchへの反映と公開パッケージのCI確認が残っている。VibeProのactiveは登録が有効である意味であり、merge済み・配布済みを意味しない。
+現在は実装中。AC-01〜04はreview、実storeのaffected tests（12件）、`npm run build`で確認済み。sidecar共通実装とObjectiveの版付き定義storeを依存先として固定している。GitHub CIとこのStoryのPR作成・mergeは未完了であり、VibeProのactiveは登録が有効である意味で、公開・配布済みを意味しない。
