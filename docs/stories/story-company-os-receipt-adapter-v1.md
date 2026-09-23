@@ -6,7 +6,7 @@ created_at: 2026-09-23
 implementation_started: false
 owner_repository: brainbase
 depends_on: ["story-company-os-evaluation-v1", "story-company-os-decision-adapter-v1"]
-external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "unverified_at_registration"}]
+external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "provided_but_required_adapter_surface_missing"}]
 ---
 
 # 既存の実行記録と成果記録を判断へ接続して区別できる
@@ -24,9 +24,15 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ## 既存実装との差分
 
-実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。 列挙する旧API／型がOSSに存在するとは仮定しない。canonical-runtime-ownershipの提供契約を確認し、未移管なら着手を保留する。旧社内runtimeをOSSから直接呼ばず、互換契約の範囲だけを移す。廃止経路は復活させない。
+実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。列挙する旧API／型がOSSに存在するとは仮定しない。canonical-runtime-ownershipのTask契約は提供済みだが、必要なadapter面は不足しているため、所有portの定義と提供範囲を確定してから着手する。旧社内runtimeをOSSから直接呼ばず、互換契約の範囲だけを移す。廃止経路は復活させない。
 
-- `brainbase / story-canonical-runtime-ownership`：requires_owned_api_surface（提供版未確認）
+- `brainbase / story-canonical-runtime-ownership`：requires_owned_api_surface（Task契約は提供済み、必要adapter面が不足）
+
+### 現時点の提供状況（2026-09-23確認）
+
+- **不足**: `src/judgment-dag.ts` はDAGのrun／replay artifact／evaluationを、`src/judgment-value-proof.ts` はproof／feedbackを提供するが、AC-01のRunReceipt・OutcomeCase・meeting context receipt・Companion decision eventを共通判断へ接続するadapterは提供されていない。
+- **再利用**: DAGの不変artifact／replay参照とvalue proofの証拠型を共通Receipt参照の基礎にする。外部作用の照合・回復はMana側のoutbox／reconciliationを別所有面として参照し、OSSへ移管しない。
+- **着手前条件**: OSS所有のReceipt reference portを定義し、元の記録種別・ID・hash・状態と判断参照を同じ読戻しで保持する。組織・Manaの投影を接続する前に、実行成功やOutcomeCase閉鎖をObjective達成／判断品質へ変換しないfixtureと旧client互換を固定する。
 
 ## 設計参照
 

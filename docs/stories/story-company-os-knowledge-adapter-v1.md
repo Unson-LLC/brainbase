@@ -6,7 +6,7 @@ created_at: 2026-09-23
 implementation_started: false
 owner_repository: brainbase
 depends_on: ["story-company-os-learning-adoption-v1", "story-company-os-decision-adapter-v1"]
-external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "unverified_at_registration"}]
+external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "provided_but_required_adapter_surface_missing"}]
 ---
 
 # 既存の知識候補と承認から採用判断の条件を辿れる
@@ -24,9 +24,15 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ## 既存実装との差分
 
-実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。 列挙する旧API／型がOSSに存在するとは仮定しない。canonical-runtime-ownershipの提供契約を確認し、未移管なら着手を保留する。旧社内runtimeをOSSから直接呼ばず、互換契約の範囲だけを移す。廃止経路は復活させない。
+実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。列挙する旧API／型がOSSに存在するとは仮定しない。canonical-runtime-ownershipのTask契約は提供済みだが、必要なadapter面は不足しているため、所有portの定義と提供範囲を確定してから着手する。旧社内runtimeをOSSから直接呼ばず、互換契約の範囲だけを移す。廃止経路は復活させない。
 
-- `brainbase / story-canonical-runtime-ownership`：requires_owned_api_surface（提供版未確認）
+- `brainbase / story-canonical-runtime-ownership`：requires_owned_api_surface（Task契約は提供済み、必要adapter面が不足）
+
+### 現時点の提供状況（2026-09-23確認）
+
+- **不足**: `src/personal-knowledge.ts` は個人所有のcontext／event／store／client契約であり、AC-01の会社共有Knowledge Event・feedback・candidate昇格・Graph maintenance承認adapterと、AC-03のMeetingKnowledgeEventBridge共有読戻し面は提供されていない。
+- **再利用**: `src/personal-knowledge.ts` のevent／context／ACL境界と `src/judgment-value-proof.ts` のfeedback／proof型を共通契約の部品にする。個人Knowledgeを会社Graphの正本へ拡張しない。
+- **着手前条件**: OSS所有のKnowledge adapter portを定義し、quarantine・ACL・Human Gate・元証拠・権限拒否を旧入口fixtureで固定する。組織承認providerやManaの外部入口はこのStoryの正本にせず、結果をportで受けられることを確認してから実装を開始する。
 
 ## 設計参照
 
