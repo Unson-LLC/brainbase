@@ -91,6 +91,10 @@
       "types": "./dist/world-model.d.ts",
       "import": "./dist/world-model.js"
     },
+    "./problem-selection": {
+      "types": "./dist/problem-selection.d.ts",
+      "import": "./dist/problem-selection.js"
+    },
     "./judgment-problem-snapshot": {
       "types": "./dist/judgment-problem-snapshot.d.ts",
       "import": "./dist/judgment-problem-snapshot.js"
