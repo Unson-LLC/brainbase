@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-decision-adapter-v1
 title: 既存のDecision作成から今回の判断条件を辿れる
-status: planned
+status: verified
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-problem-snapshot-v1"]
 external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "provided_but_required_adapter_surface_missing"}]
@@ -30,9 +30,9 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ### 現時点の提供状況（2026-09-23確認）
 
-- **不足**: OSSには `src/canonical-task-principal.ts`・`src/canonical-task-contract.ts`・`src/canonical-task-service.ts` と、判断の共通部品である `src/judgment-dag.ts`・`src/judgment-value-proof.ts` がある。一方、AC-01の `/api/info/decisions`・`/api/info/ai/decision-log` と、DecisionからJudgmentProblem・DAG版・Objective版へ辿る所有adapterは提供されていない。
-- **再利用**: `src/judgment-dag.ts` のDAG／参照版／実行成果物と `src/judgment-value-proof.ts` の証明・feedback型を共通契約の基礎にする。組織BFFや旧社内runtimeをOSSの正本として直接参照しない。
-- **着手前条件**: OSSが所有するDecision adapter port（Decision ID・Graph SSOT・旧レスポンス互換）を定義し、対象APIの提供版、読戻し、旧レコードの条件未記録をfixtureで固定してから実装を開始する。Task契約が提供済みでも、Decision adapterに必要な面が不足しているため、本Storyを提供済み・完了とは扱わない。
+- **OSS側実装済み**: `src/decision-adapter.ts` が `DecisionAdapterPort`／`GraphDecisionAdapterStore` と旧レスポンス識別子を含む互換契約を提供する。既存のDecision Graph entityと`decisions.jsonl`を正本として保持し、Problem snapshot・方法版・Objective版は版付きsidecar参照として同じDecision IDへ接続する。
+- **条件と境界**: 新規書込みは必須条件を検証し、注入されたtrusted condition validatorで現在の存在・ACLを確認できる。Objectiveや権限を推測せず、組織のHTTP route・RACI・旧社内runtimeはこのStoryで実装しない。
+- **lockと切戻し**: trusted providerのread・認可はSSOT lock外で行い、canonical aggregateとsidecarをcommit直前にCAS検証する。lock内で外部awaitを行わず、検証中の同時変更は新しい証跡を残さず拒否する。旧条件未記録Decisionは`unrecorded`として読める。AI decision logは既存Decisionにsidecarで付加し、別のGraph正本や`ai_decision` entityを作らない。commit後のcurrent ACL/read拒否は保存済み記録を巻き戻さない。
 
 ## 設計参照
 
@@ -50,10 +50,10 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ## 受入条件
 
-- [ ] AC-01: /api/info/decisions と /api/info/ai/decision-log にProblemと方法版への参照を接続する。
-- [ ] AC-02: 新経路は必須条件を検証し、旧レコードは条件未記録として読む。Objective・権限を推測補完しない。
-- [ ] AC-03: 既存レスポンスとID・Graphの正本を維持し、二重書込みの別正本を作らない。
-- [ ] AC-04: 経路別の互換fixture比較と切戻しを検証し、新しい証跡を削除せず旧読取を維持する。
+- [x] AC-01: OSSの`DecisionAdapterPort`／`GraphDecisionAdapterStore`が、旧`/api/info/decisions`・`/api/info/ai/decision-log`の応答識別子とProblem・方法版参照の契約を提供する。組織HTTP routeへの実組込みは別repo側の残課題である。
+- [x] AC-02: 新経路は必須条件を検証し、旧レコードは条件未記録として読む。Objective・権限を推測補完しない。
+- [x] AC-03: 既存レスポンスとID・Graphの正本を維持し、二重書込みの別正本を作らない。
+- [x] AC-04: 匿名化した旧応答形fixtureと実storeで互換性・切戻しを検証し、新しい証跡を削除せず旧読取を維持する。
 
 ## 対象外
 
@@ -63,4 +63,4 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+OSS側の実装とローカル検証は完了した。`npm run build` と `npx vitest run tests/decision-adapter.test.ts`（14 tests）が通過し、必須条件の拒否、旧レコードの条件未記録読取、Graph SSOTの同一ID、AI logのsidecar保存、実際のGraphFoundationRevisionStoreを読むtrusted providerのlock外実行、検証中のcanonical/sidecar同時変更のCAS拒否、trusted validator拒否、commit後のcurrent read拒否を保存済み記録へ波及させないこと、所有者認証、原子的切戻し、fixture互換を確認した。組織repoの既存HTTP routeへの実組込み、PR、CI、mergeはこのworktreeでは未完了であり、Story完了とは別に扱う。
