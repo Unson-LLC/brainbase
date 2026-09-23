@@ -67,6 +67,10 @@
       "types": "./dist/constraint-exception-store.d.ts",
       "import": "./dist/constraint-exception-store.js"
     },
+    "./world-model": {
+      "types": "./dist/world-model.d.ts",
+      "import": "./dist/world-model.js"
+    },
     "./judgment-problem-snapshot": {
       "types": "./dist/judgment-problem-snapshot.d.ts",
       "import": "./dist/judgment-problem-snapshot.js"
@@ -78,6 +82,10 @@
     "./organization-connection": {
       "types": "./dist/organization-connection.d.ts",
       "import": "./dist/organization-connection.js"
+    },
+    "./resource-reservations": {
+      "types": "./dist/resource-reservations.d.ts",
+      "import": "./dist/resource-reservations.js"
     },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
