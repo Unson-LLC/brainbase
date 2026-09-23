@@ -34,6 +34,12 @@ import { loadPersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } fr
  */
 export const COMPANY_OS_LEARNING_ADOPTION_CONTRACT_VERSION = '0.1.0' as const;
 export const COMPANY_OS_LEARNING_ADOPTION_RECORD_CATALOG_VERSION = 1 as const;
+/**
+ * Stable identity for a canonical adoption record when it crosses a
+ * knowledge boundary. This is deliberately separate from the catalog
+ * version and from the adopted foundation target revision.
+ */
+export const COMPANY_OS_LEARNING_ADOPTION_LOCATOR_SCHEMA = 'company-os-learning-adoption-record.v1' as const;
 export const COMPANY_OS_LEARNING_ADOPTION_SIDECAR = 'evidence/company-os-learning-adoption.json' as const;
 
 export type LearningTargetKind = 'world_model' | 'judgment_method' | 'execution_method' | 'objective';
@@ -61,6 +67,17 @@ export interface LearningTargetVersion {
 export interface LearningCandidateReference {
   readonly id: string;
   readonly digest: string;
+}
+
+/**
+ * Stable locator for a canonical adoption record. `contentDigest` is the
+ * digest of the complete adoption record; it is not a catalog version and it
+ * is not the revision of the target adopted by that record.
+ */
+export interface LearningAdoptionLocator {
+  readonly id: string;
+  readonly schema: typeof COMPANY_OS_LEARNING_ADOPTION_LOCATOR_SCHEMA;
+  readonly contentDigest: string;
 }
 
 export interface LearningEvaluationReference {
@@ -125,6 +142,17 @@ export interface LearningAuthorizationDecision {
 
 export interface LearningAdoptionAuthorizationPort {
   authorize(request: LearningAuthorizationRequest): Promise<LearningAuthorizationDecision> | LearningAuthorizationDecision;
+}
+
+/**
+ * A host adapter can expose this port to a knowledge reader. Implementations
+ * must re-read the canonical adoption record before returning its locator.
+ */
+export interface LearningAdoptionLocatorReadPort {
+  read(input: {
+    readonly locator: LearningAdoptionLocator;
+    readonly access: LearningAccessContext;
+  }): Promise<LearningAdoptionLocator | null>;
 }
 
 export interface LearningTargetRevisionPreparationInput {
@@ -231,6 +259,21 @@ export interface LearningAdoptionRecord {
   readonly digest: string;
 }
 
+/**
+ * Project a canonical adoption record into the locator contract used by
+ * knowledge adapters.  The full record digest is the content identity; the
+ * catalog version and adopted target revision have different meanings.
+ */
+export function createLearningAdoptionLocator(
+  record: Pick<LearningAdoptionRecord, 'id' | 'digest'>
+): LearningAdoptionLocator {
+  const id = requireId(record?.id, 'adoption locator id');
+  if (!isDigest(record?.digest)) {
+    throw new CompanyOsLearningAdoptionError('invalid_input', 'adoption locator requires a sha256 content digest');
+  }
+  return { id, schema: COMPANY_OS_LEARNING_ADOPTION_LOCATOR_SCHEMA, contentDigest: record.digest };
+}
+
 export interface RecordLearningRunUseRequest {
   readonly id: string;
   readonly runId: string;
@@ -262,6 +305,10 @@ export interface CompanyOsLearningAdoptionStore {
   readValidation(id: string, access: LearningAccessContext): Promise<LearningValidation | null>;
   adopt(request: AdoptLearningCandidateRequest): Promise<LearningAdoptionRecord>;
   readAdoption(id: string, access: LearningAccessContext): Promise<LearningAdoptionRecord | null>;
+  /** Read the stable locator after the canonical record and its target are revalidated. */
+  readAdoptionLocator(id: string, access: LearningAccessContext): Promise<LearningAdoptionLocator | null>;
+  /** Resolve an exact locator through the current canonical ACL/target read boundary. */
+  readAdoptionByLocator(locator: LearningAdoptionLocator, access: LearningAccessContext): Promise<LearningAdoptionRecord | null>;
   recordRunUse(request: RecordLearningRunUseRequest): Promise<LearningRunUseRecord>;
   readRunUse(id: string, access: LearningAccessContext): Promise<LearningRunUseRecord | null>;
 }
@@ -346,6 +393,24 @@ export function createCompanyOsLearningAdoptionStore(options: LearningAdoptionSt
     throw new CompanyOsLearningAdoptionError('invalid_input', 'runReceipt.read is required when a run receipt port is provided');
   }
   return new GraphCompanyOsLearningAdoptionStore(options);
+}
+
+/**
+ * Expose only the exact adoption locator after the store has performed its
+ * current ACL, candidate, validation, and canonical target checks.
+ */
+export function createLearningAdoptionLocatorReadPort(
+  store: Pick<CompanyOsLearningAdoptionStore, 'readAdoptionByLocator'>
+): LearningAdoptionLocatorReadPort {
+  if (!store || typeof store.readAdoptionByLocator !== 'function') {
+    throw new TypeError('A learning adoption store with readAdoptionByLocator is required');
+  }
+  return {
+    async read({ locator, access }) {
+      const record = await store.readAdoptionByLocator(locator, access);
+      return record ? createLearningAdoptionLocator(record) : null;
+    }
+  };
 }
 
 /**
@@ -677,6 +742,25 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
     return cloneJson(adoption);
   }
 
+  async readAdoptionLocator(id: string, access: LearningAccessContext): Promise<LearningAdoptionLocator | null> {
+    const adoption = await this.readAdoption(id, access);
+    return adoption ? createLearningAdoptionLocator(adoption) : null;
+  }
+
+  async readAdoptionByLocator(locator: LearningAdoptionLocator, access: LearningAccessContext): Promise<LearningAdoptionRecord | null> {
+    const normalized = normalizeLearningAdoptionLocator(locator);
+    const adoption = await this.readAdoption(normalized.id, access);
+    if (!adoption) return null;
+    const current = createLearningAdoptionLocator(adoption);
+    if (!sameJson(current, normalized)) {
+      throw new CompanyOsLearningAdoptionError(
+        'integrity_mismatch',
+        `Adoption ${normalized.id} does not match the requested canonical locator`
+      );
+    }
+    return adoption;
+  }
+
   async recordRunUse(request: RecordLearningRunUseRequest): Promise<LearningRunUseRecord> {
     const access = assertAccess(request.access);
     if (request.runPhase !== 'planned' && request.runPhase !== 'actual') {
@@ -931,6 +1015,23 @@ function normalizeRecordReference(reference: LearningCandidateReference, label: 
     throw new CompanyOsLearningAdoptionError('invalid_input', `${label} requires id and sha256 digest`);
   }
   return { id: reference.id, digest: reference.digest };
+}
+
+function normalizeLearningAdoptionLocator(value: unknown): LearningAdoptionLocator {
+  if (!isRecord(value)
+    || value.schema !== COMPANY_OS_LEARNING_ADOPTION_LOCATOR_SCHEMA
+    || !isNonEmptyString(value.id)
+    || !isDigest(value.contentDigest)) {
+    throw new CompanyOsLearningAdoptionError(
+      'invalid_input',
+      'adoption locator requires id, the registered schema, and a sha256 contentDigest'
+    );
+  }
+  return {
+    id: value.id,
+    schema: COMPANY_OS_LEARNING_ADOPTION_LOCATOR_SCHEMA,
+    contentDigest: value.contentDigest
+  };
 }
 
 function normalizeRunReceiptReference(reference: LearningRunReceiptReference | undefined): LearningRunReceiptReference {

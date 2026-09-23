@@ -91,6 +91,10 @@
       "types": "./dist/decision-adapter.d.ts",
       "import": "./dist/decision-adapter.js"
     },
+    "./knowledge-adapter": {
+      "types": "./dist/knowledge-adapter.d.ts",
+      "import": "./dist/knowledge-adapter.js"
+    },
     "./world-model": {
       "types": "./dist/world-model.d.ts",
       "import": "./dist/world-model.js"
