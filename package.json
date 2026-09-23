@@ -55,6 +55,10 @@
       "types": "./dist/company-os-objectives.d.ts",
       "import": "./dist/company-os-objectives.js"
     },
+    "./world-model": {
+      "types": "./dist/world-model.d.ts",
+      "import": "./dist/world-model.js"
+    },
     "./personal-knowledge": {
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"

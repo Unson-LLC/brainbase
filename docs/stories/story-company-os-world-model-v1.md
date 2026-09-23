@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-world-model-v1
 title: 観測と仮説を区別した世界モデルを判断に使える
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-ontology-v1"]
 external_dependencies: []
@@ -44,10 +44,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: Variableは定義、観測は対象・時点・期間・出典付きの値として分離し、同一定義版で読戻せる。
-- [ ] AC-02: Modelの入出力・適用条件・定性的関係または式・不確実性・根拠・検証状態を版付きで保存できる。
-- [ ] AC-03: candidateから正式モデルへ採用しても元仮説・証拠・ACL・未検証状態を残し、用途への採用を検証済みと表示しない。
-- [ ] AC-04: 発生／有効時点と記録時点を区別し、後日訂正された観測でも過去判断が参照した内容を復元できる。
+- [x] AC-01: Variableは定義、観測は対象・時点・期間・出典付きの値として分離し、同一定義版で読戻せる。
+- [x] AC-02: Modelの入出力・適用条件・定性的関係または式・不確実性・根拠・検証状態を版付きで保存できる。
+- [x] AC-03: candidateから正式モデルへ採用しても元仮説・証拠・ACL・未検証状態を残し、用途への採用を検証済みと表示しない。
+- [x] AC-04: 発生／有効時点と記録時点を区別し、後日訂正された観測でも過去判断が参照した内容を復元できる。
 
 ## 対象外
 
@@ -57,4 +57,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+現在は実装中。最小Specと実storeのaffected testsは揃っているが、統合branchへの反映と公開パッケージのCI確認が残っている。VibeProのactiveは登録が有効である意味であり、merge済み・配布済みを意味しない。
