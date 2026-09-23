@@ -2,9 +2,10 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { ObjectiveDefinition, VariableDefinition } from '../src/ontology-foundation.js';
+import type { FoundationAcl, FoundationScope, ObjectiveDefinition, VariableDefinition } from '../src/ontology-foundation.js';
 import {
   FoundationStoreError,
+  createLocalStoryResolver,
   createFoundationRevisionStore
 } from '../src/foundation-store.js';
 import { createCompanyOsObjectives } from '../src/company-os-objectives.js';
@@ -73,6 +74,29 @@ function objectiveDefinition(): ObjectiveDefinition {
   };
 }
 
+function storyRevision(
+  id = 'story-ai-phone-pilot',
+  revision = '1',
+  overrides: { acl?: Partial<FoundationAcl>; scope?: Partial<FoundationScope> } = {}
+) {
+  return {
+    id,
+    revision,
+    acl: {
+      ownerId: 'owner-1',
+      visibility: 'private' as const,
+      readerIds: ['reader-1'],
+      writerIds: [],
+      ...overrides.acl
+    },
+    scope: {
+      subjectIds: ['org-1'],
+      validFrom: '2026-01-01T00:00:00.000Z',
+      ...overrides.scope
+    }
+  };
+}
+
 describe('GraphFoundationRevisionStore', () => {
   it('persists objective and variable revisions in Graph SSOT and reads them back', async () => {
     const dataDir = await makeDataDir();
@@ -99,7 +123,7 @@ describe('GraphFoundationRevisionStore', () => {
       desiredState: '',
       beneficiaryIds: [],
       criteria: [],
-      evaluationPeriod: { from: '2026-01-01T00:00:00.000Z', until: '2026-01-01T00:00:00.000Z' }
+      evaluationPeriod: { from: '2026-01-01T00:00:00.000Z', until: '2026-01-01T00:00:00.001Z' }
     } as ObjectiveDefinition;
     await expect(store.create(draft, { principal: 'owner-1' })).resolves.toMatchObject({ revision: '1' });
     await expect(store.readLatest('objective', 'objective-draft', { principal: 'reader-1' })).resolves.toMatchObject({
@@ -189,7 +213,10 @@ describe('GraphFoundationRevisionStore', () => {
 
   it('keeps Story/Objective contribution, execution dependency, and time condition distinct', async () => {
     const dataDir = await makeDataDir();
-    const api = createCompanyOsObjectives(createFoundationRevisionStore({ dataDir }));
+    const api = createCompanyOsObjectives(createFoundationRevisionStore({
+      dataDir,
+      endpointResolver: createLocalStoryResolver([storyRevision()])
+    }));
     const objective = await api.createObjective(objectiveDefinition(), { principal: 'owner-1' });
     const context = { principal: 'owner-1' };
 
@@ -219,17 +246,17 @@ describe('GraphFoundationRevisionStore', () => {
     expect(saved.graph.foundation?.relations).toEqual(expect.arrayContaining([
       expect.objectContaining({
         relation: 'contributes_to',
-        source: { id: 'story-ai-phone-pilot', type: 'story' },
+        source: { id: 'story-ai-phone-pilot', type: 'story', revision: '1' },
         target: objective
       }),
       expect.objectContaining({
         relation: 'execution_depends_on',
-        source: { id: 'story-ai-phone-pilot', type: 'story' },
+        source: { id: 'story-ai-phone-pilot', type: 'story', revision: '1' },
         target: objective
       }),
       expect.objectContaining({
         relation: 'time_condition',
-        source: { id: 'story-ai-phone-pilot', type: 'story' },
+        source: { id: 'story-ai-phone-pilot', type: 'story', revision: '1' },
         target: objective,
         timeCondition: {
           kind: 'evaluation_window',
@@ -238,6 +265,137 @@ describe('GraphFoundationRevisionStore', () => {
       })
     ]));
     expect(saved.graph.foundation?.relations).toHaveLength(3);
+  });
+
+  it('fails closed for a missing Story and leaves the canonical aggregate unchanged', async () => {
+    const dataDir = await makeDataDir();
+    const store = createFoundationRevisionStore({
+      dataDir,
+      endpointResolver: createLocalStoryResolver([])
+    });
+    const objective = await store.create(objectiveDefinition(), { principal: 'owner-1' });
+
+    await expect(store.addRelation({
+      relation: 'contributes_to',
+      source: { id: 'story-does-not-exist', type: 'story' },
+      target: objective
+    }, { principal: 'owner-1' })).rejects.toMatchObject({ code: 'not_found' });
+
+    const saved = await loadPersonalOs(dataDir);
+    expect(saved.graph.version).toBe(2);
+    if (saved.graph.version !== 2) throw new Error('Expected Graph v2');
+    expect(saved.graph.foundation?.relations ?? []).toEqual([]);
+  });
+
+  it('fails closed when no trusted resolver is configured for a Story endpoint', async () => {
+    const dataDir = await makeDataDir();
+    const store = createFoundationRevisionStore({ dataDir });
+    const objective = await store.create(objectiveDefinition(), { principal: 'owner-1' });
+
+    await expect(store.addRelation({
+      relation: 'contributes_to',
+      source: { id: 'story-provider-owned', type: 'story' },
+      target: objective
+    }, { principal: 'owner-1' })).rejects.toMatchObject({ code: 'authorization_denied' });
+  });
+
+  it('rejects a Story outside the trusted subject scope before writing a relation', async () => {
+    const dataDir = await makeDataDir();
+    const store = createFoundationRevisionStore({
+      dataDir,
+      endpointResolver: createLocalStoryResolver([storyRevision('story-other-org', '1', {
+        scope: { subjectIds: ['org-2'] }
+      })])
+    });
+    const objective = await store.create(objectiveDefinition(), { principal: 'owner-1' });
+
+    await expect(store.addRelation({
+      relation: 'contributes_to',
+      source: { id: 'story-other-org', type: 'story' },
+      target: objective
+    }, {
+      principal: 'owner-1',
+      scope: { subjectIds: ['org-1'], validFrom: '2026-01-01T00:00:00.000Z' }
+    })).rejects.toMatchObject({ code: 'scope_violation' });
+
+    const saved = await loadPersonalOs(dataDir);
+    if (saved.graph.version !== 2) throw new Error('Expected Graph v2');
+    expect(saved.graph.foundation?.relations ?? []).toEqual([]);
+  });
+
+  it('uses the current Story ACL when linking an older Story revision', async () => {
+    const dataDir = await makeDataDir();
+    const store = createFoundationRevisionStore({
+      dataDir,
+      endpointResolver: createLocalStoryResolver([
+        storyRevision('story-revoked', '1'),
+        storyRevision('story-revoked', '2', { acl: { ownerId: 'different-owner' } })
+      ])
+    });
+    const objective = await store.create(objectiveDefinition(), { principal: 'owner-1' });
+
+    await expect(store.addRelation({
+      relation: 'contributes_to',
+      source: { id: 'story-revoked', type: 'story', revision: '1' },
+      target: objective
+    }, { principal: 'owner-1' })).rejects.toMatchObject({ code: 'authorization_denied' });
+
+    const saved = await loadPersonalOs(dataDir);
+    if (saved.graph.version !== 2) throw new Error('Expected Graph v2');
+    expect(saved.graph.foundation?.relations ?? []).toEqual([]);
+  });
+
+  it('passes only Story authorization metadata to policy and persists the resolved revision', async () => {
+    const dataDir = await makeDataDir();
+    const storyResolver = createLocalStoryResolver([storyRevision('story-resolved', '1')]);
+    const linkResources: unknown[][] = [];
+    let resolverSawCurrentAggregate = false;
+    const store = createFoundationRevisionStore({
+      dataDir,
+      endpointResolver: {
+        async resolve(request) {
+          resolverSawCurrentAggregate = request.current.graph.version === 2;
+          return storyResolver.resolve(request);
+        }
+      },
+      policy: {
+        authorize(request) {
+          if (request.action === 'link') linkResources.push([...(request.resources ?? [])]);
+        }
+      }
+    });
+    const objective = await store.create(objectiveDefinition(), { principal: 'owner-1' });
+
+    await store.addRelation({
+      relation: 'contributes_to',
+      source: { id: 'story-resolved', type: 'story' },
+      target: objective
+    }, { principal: 'owner-1' });
+
+    expect(resolverSawCurrentAggregate).toBe(true);
+    const story = linkResources[0]?.find((resource) => (
+      typeof resource === 'object' && resource !== null && 'type' in resource && resource.type === 'story'
+    )) as Record<string, unknown> | undefined;
+    expect(story).toMatchObject({
+      id: 'story-resolved',
+      type: 'story',
+      revision: '1',
+      currentRevision: '1',
+      acl: { ownerId: 'owner-1' },
+      scope: { subjectIds: ['org-1'] }
+    });
+    expect(story).not.toHaveProperty('meaning');
+    expect(story).not.toHaveProperty('desiredState');
+
+    const saved = await loadPersonalOs(dataDir);
+    if (saved.graph.version !== 2) throw new Error('Expected Graph v2');
+    expect(saved.graph.foundation?.relations).toEqual([
+      expect.objectContaining({
+        relation: 'contributes_to',
+        source: { id: 'story-resolved', type: 'story', revision: '1' },
+        target: objective
+      })
+    ]);
   });
 
   it('provides typed Objective and Variable operations with definition-only readiness', async () => {

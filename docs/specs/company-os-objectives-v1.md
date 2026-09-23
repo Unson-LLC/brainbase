@@ -77,6 +77,25 @@ ObjectiveとStoryは多対多で参照できる。各参照は共有Ontologyのt
 
 同じStoryとObjectiveの間に、意味が異なる複数の参照を持てる。参照の追加、削除、意味変更もObjectiveまたは関係の新revisionとして扱い、過去revisionを上書きしない。公開APIは依存関係を一つの`depends_on`へ丸めない。
 
+### 外部Story endpointの解決
+
+StoryはこのOSSの歴史Graph entityやFoundation catalogへ本文を複製して保存しない。`linkObjectiveStory`がIDだけでリンクを作らないよう、storeには信頼済みの`FoundationEndpointResolver`を注入できる。resolverは既存`mutatePersonalOs`のcanonical lock内で、現在のaggregate・呼出し元context・endpoint（ID、型、任意のrevision）を受け取り、次の認可メタデータだけを返す。
+
+```ts
+interface FoundationEndpointResource {
+  id: string;
+  type: 'story' | /* provider-owned endpoint */ string;
+  revision: string;
+  currentRevision: string;
+  acl: { ownerId: string; visibility: string; readerIds: string[]; writerIds: string[] };
+  scope: { subjectIds: string[]; validFrom: string; validUntil?: string };
+}
+```
+
+返却値にStory本文、要約、private projectionを含めない。指定revisionが存在することを確認し、認可には現在revisionのACL・scopeを使う。ID不在、revision不在、resolver未設定、返却metadata不正の場合はrelationを保存せずfail-closedにする。resolverはcanonical lock外から別のaggregateを読み直して認可してはならない。
+
+OSS単独利用では`createLocalStoryResolver`を使えるが、これはStory本文の保存先ではない。revisionごとのID・scope・ACLというadapter metadataだけを受け取り、最大revisionをcurrentとして解決する。組織版・Story providerは自分の正本から同じresolver portを実装する。越境判定は注入policy、またはtrusted contextのsubject scopeと解決済みresource scopeで行い、呼出し元がリクエスト本文に書いたowner/scopeを根拠にしない。
+
 ## 最小公開操作（論理契約）
 
 最終的な関数名とTypeScript型は共有Ontology契約後に確定する。実装は次の操作能力を満たす。
@@ -112,9 +131,11 @@ interface FoundationRevisionStore {
     expectedRevision?: string;
   }, context: { principal: string }): Promise<FoundationRef>;
   list(type: FoundationType | undefined, context: { principal: string }): Promise<FoundationRecord[]>;
-  addRelation(relation: FoundationRelationReference, context: { principal: string }): Promise<void>;
+  addRelation(relation: FoundationRelationReference, context: { principal: string; scope?: FoundationScope }): Promise<void>;
 }
 ```
+
+`FoundationAuthorizationRequest.resources`には、local Foundation definitionと外部endpointの認可metadataを含める。policyへ渡す前にcloneし、Story本文を渡さない。resolverまたはpolicyが現在ACL・scopeを拒否した場合、relation追加はcanonical aggregateを変更しない。
 
 `FoundationRef` は `id`・`type`・`revision`・`digest` を持ち、revisionの内容から決定的に計算する。Graph v2の `foundation` 拡張に版付きrecord、logical IDごとのlatest pointer、typed relationを保存し、別の `objectives.json` や sidecarを目的の正本として作らない。古いGraph v2の解釈は変えず、拡張がないGraphは空カタログとして読み出せる。Objective/Variableの固有操作は、このポートを使う薄い `CompanyOsObjectives` wrapperから公開する。
 
