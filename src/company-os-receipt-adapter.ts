@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { FoundationScope } from './ontology-foundation.js';
 import type {
   OutcomeCaseCanonicalReference,
@@ -10,8 +11,8 @@ import {
   readPersonalOsSidecar
 } from './ssot.js';
 
-export const COMPANY_OS_RECEIPT_ADAPTER_CONTRACT_VERSION = '0.1.0' as const;
-export const COMPANY_OS_RECEIPT_LINK_CATALOG_VERSION = 1 as const;
+export const COMPANY_OS_RECEIPT_ADAPTER_CONTRACT_VERSION = '0.1.1' as const;
+export const COMPANY_OS_RECEIPT_LINK_CATALOG_VERSION = 2 as const;
 export const COMPANY_OS_RECEIPT_LINK_SIDECAR = 'evidence/company-os-receipt-links.json' as const;
 
 export type ReceiptSourceKind =
@@ -41,6 +42,16 @@ export interface ReceiptUnknownOwnerReference {
 
 export type ReceiptOwnerReference = ReceiptTypedOwnerReference | ReceiptUnknownOwnerReference;
 
+export type ReceiptSourceConditionValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly ReceiptSourceConditionValue[]
+  | { readonly [key: string]: ReceiptSourceConditionValue };
+
+export type ReceiptSourceConditions = Readonly<Record<string, ReceiptSourceConditionValue>>;
+
 /**
  * The source's original identity and state.  `hash: null` means the source
  * did not record a hash; the adapter never computes one as a replacement.
@@ -52,6 +63,8 @@ export interface ReceiptSourceReference {
   readonly hash: string | null;
   readonly state: string;
   readonly owner_refs: readonly ReceiptOwnerReference[];
+  /** Optional source-owned conditions that are part of the stable identity. */
+  readonly conditions?: ReceiptSourceConditions;
 }
 
 export type ReceiptJudgmentReferenceKind =
@@ -103,6 +116,8 @@ export interface ReceiptLinkRecord {
   readonly id: string;
   /** The source reference captured at link time, not a mutable source copy. */
   readonly source: ReceiptSourceReference;
+  /** Digest of the immutable source snapshot; source.hash remains source-owned metadata. */
+  readonly source_digest: string;
   readonly judgment_refs: readonly ReceiptJudgmentReference[];
   readonly recorded_at: string;
   /** These statuses are intentionally not derived from source execution state. */
@@ -222,8 +237,10 @@ class GraphCompanyOsReceiptAdapter implements ReceiptAdapterPort {
 
     // External reads happen before the SSOT lock. The transaction callback
     // below must remain pure so a provider cannot deadlock on the same lock.
-    const currentSource = await this.readCurrentSource(normalized.source, normalized.access);
-    const record = makeLinkRecord(normalized);
+    const currentSource = await this.readCurrentSource(normalized.source, normalized.access, 'link');
+    // The request is only a lookup locator.  The source owner's canonical
+    // projection is the trusted snapshot that must be persisted.
+    const record = makeLinkRecord(normalized, currentSource.reference);
     const stored = await mutatePersonalOsWithSidecar(
       this.options.dataDir,
       COMPANY_OS_RECEIPT_LINK_SIDECAR,
@@ -231,7 +248,7 @@ class GraphCompanyOsReceiptAdapter implements ReceiptAdapterPort {
         const catalog = parseCatalog(sidecarContent);
         const existing = catalog.records.find((candidate) => candidate.id === record.id);
         if (existing !== undefined) {
-          if (!sameJson(existing, record)) {
+          if (!sameLinkPayload(existing, record)) {
             throw new CompanyOsReceiptAdapterError(
               'revision_conflict',
               `Receipt link ${record.id} already exists with different content`
@@ -276,7 +293,8 @@ class GraphCompanyOsReceiptAdapter implements ReceiptAdapterPort {
 
   private async readCurrentSource(
     reference: ReceiptSourceReference,
-    access: ReceiptAccessContext
+    access: ReceiptAccessContext,
+    mode: 'link' | 'stored' = 'stored'
   ): Promise<ReceiptSourceRead> {
     const port = this.options.sourcePorts[reference.kind];
     if (!port || typeof port.read !== 'function') {
@@ -303,7 +321,11 @@ class GraphCompanyOsReceiptAdapter implements ReceiptAdapterPort {
       if (error instanceof CompanyOsReceiptAdapterError) throw error;
       throw new CompanyOsReceiptAdapterError('source_unavailable', formatError(error));
     }
-    assertSourceIdentity(reference, projection.reference);
+    if (mode === 'link') {
+      assertSourceLocator(reference, projection.reference);
+    } else {
+      assertSourceIdentity(reference, projection.reference);
+    }
     return {
       reference: cloneSourceReference(projection.reference),
       state_changed: projection.reference.state !== reference.state
@@ -355,11 +377,15 @@ function normalizeLinkRequest(request: ReceiptLinkRequest): Required<Pick<Receip
   };
 }
 
-function makeLinkRecord(request: ReturnType<typeof normalizeLinkRequest>): ReceiptLinkRecord {
+function makeLinkRecord(
+  request: ReturnType<typeof normalizeLinkRequest>,
+  canonicalSource: ReceiptSourceReference
+): ReceiptLinkRecord {
   return {
     version: COMPANY_OS_RECEIPT_LINK_CATALOG_VERSION,
     id: request.id,
-    source: cloneSourceReference(request.source),
+    source: cloneSourceReference(canonicalSource),
+    source_digest: sourceSnapshotDigest(canonicalSource),
     judgment_refs: request.judgment_refs.map(cloneJudgmentReference),
     recorded_at: request.recorded_at,
     objective_status: 'unrecorded',
@@ -372,7 +398,10 @@ function makeProjection(record: ReceiptLinkRecord, sourceRead: ReceiptSourceRead
     link: cloneLinkRecord(record),
     source_read: {
       reference: cloneSourceReference(sourceRead.reference),
-      state_changed: sourceRead.state_changed
+      // Always compare against the persisted snapshot.  In particular, a
+      // link request may contain caller-supplied state that the provider
+      // correctly replaces with its canonical current state.
+      state_changed: sourceRead.reference.state !== record.source.state
     }
   };
 }
@@ -409,6 +438,10 @@ function parseStoredRecord(value: unknown, label: string): ReceiptLinkRecord {
     throw new CompanyOsReceiptAdapterError('corrupt_record', `${label} has invalid id or recorded_at`);
   }
   assertSourceReference(value.source, `${label}.source`, 'corrupt_record');
+  if (!isSourceDigest(value.source_digest)
+    || value.source_digest !== sourceSnapshotDigest(value.source)) {
+    throw new CompanyOsReceiptAdapterError('corrupt_record', `${label}.source_digest does not match the source snapshot`);
+  }
   if (!Array.isArray(value.judgment_refs)) {
     throw new CompanyOsReceiptAdapterError('corrupt_record', `${label}.judgment_refs must be an array`);
   }
@@ -424,6 +457,7 @@ function parseStoredRecord(value: unknown, label: string): ReceiptLinkRecord {
     version: COMPANY_OS_RECEIPT_LINK_CATALOG_VERSION,
     id: value.id,
     source: cloneSourceReference(value.source),
+    source_digest: value.source_digest,
     judgment_refs: judgmentRefs,
     recorded_at: value.recorded_at,
     objective_status: 'unrecorded',
@@ -450,6 +484,9 @@ function assertSourceReference(
     throw new CompanyOsReceiptAdapterError(code, `${label} has an invalid shape`);
   }
   value.owner_refs.forEach((owner, index) => assertOwnerReference(owner, `${label}.owner_refs[${index}]`, code));
+  if (value.conditions !== undefined) {
+    assertSourceConditions(value.conditions, `${label}.conditions`, code);
+  }
 }
 
 function assertOwnerReference(value: unknown, label: string, code: ReceiptAdapterErrorCode): void {
@@ -471,6 +508,43 @@ function assertOwnerReference(value: unknown, label: string, code: ReceiptAdapte
   }
 }
 
+function assertSourceConditions(
+  value: unknown,
+  label: string,
+  code: ReceiptAdapterErrorCode
+): asserts value is ReceiptSourceConditions {
+  if (!isRecord(value)) {
+    throw new CompanyOsReceiptAdapterError(code, `${label} must be an object`);
+  }
+  assertSourceConditionValue(value, label, code);
+}
+
+function assertSourceConditionValue(
+  value: unknown,
+  label: string,
+  code: ReceiptAdapterErrorCode
+): asserts value is ReceiptSourceConditionValue {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) return;
+    throw new CompanyOsReceiptAdapterError(code, `${label} contains a non-finite number`);
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertSourceConditionValue(item, `${label}[${index}]`, code));
+    return;
+  }
+  if (isRecord(value)) {
+    for (const [key, item] of Object.entries(value)) {
+      if (!isNonEmptyString(key)) {
+        throw new CompanyOsReceiptAdapterError(code, `${label} contains an empty key`);
+      }
+      assertSourceConditionValue(item, `${label}.${key}`, code);
+    }
+    return;
+  }
+  throw new CompanyOsReceiptAdapterError(code, `${label} contains a non-JSON value`);
+}
+
 function assertSourceProjection(value: unknown): asserts value is ReceiptSourceProjection {
   if (!isRecord(value)) {
     throw new CompanyOsReceiptAdapterError('source_unavailable', 'Source provider returned an invalid projection');
@@ -478,7 +552,7 @@ function assertSourceProjection(value: unknown): asserts value is ReceiptSourceP
   assertSourceReference(value.reference, 'Source projection.reference', 'source_unavailable');
 }
 
-function assertSourceIdentity(expected: ReceiptSourceReference, actual: ReceiptSourceReference): void {
+function assertSourceLocator(expected: ReceiptSourceReference, actual: ReceiptSourceReference): void {
   if (expected.kind !== actual.kind || expected.id !== actual.id) {
     throw new CompanyOsReceiptAdapterError('integrity_mismatch', 'Source provider returned a different kind or ID');
   }
@@ -487,6 +561,30 @@ function assertSourceIdentity(expected: ReceiptSourceReference, actual: ReceiptS
   }
   if (expected.hash !== null && expected.hash !== actual.hash) {
     throw new CompanyOsReceiptAdapterError('integrity_mismatch', 'Source provider returned a different hash');
+  }
+  if (expected.conditions !== undefined && !sameJson(expected.conditions, actual.conditions)) {
+    throw new CompanyOsReceiptAdapterError('integrity_mismatch', 'Source provider returned different conditions');
+  }
+}
+
+/**
+ * Verifies the stable identity of a saved source snapshot against its current
+ * owner projection.  State is deliberately excluded: a source may transition
+ * after linking and is reported through `state_changed` instead.
+ */
+function assertSourceIdentity(expected: ReceiptSourceReference, actual: ReceiptSourceReference): void {
+  assertSourceLocator(expected, actual);
+  if (expected.revision !== actual.revision) {
+    throw new CompanyOsReceiptAdapterError('integrity_mismatch', 'Source provider returned a different revision');
+  }
+  if (expected.hash !== actual.hash) {
+    throw new CompanyOsReceiptAdapterError('integrity_mismatch', 'Source provider returned a different hash');
+  }
+  if (!sameJson(expected.owner_refs, actual.owner_refs)) {
+    throw new CompanyOsReceiptAdapterError('integrity_mismatch', 'Source provider returned different owner references');
+  }
+  if (!sameJson(expected.conditions, actual.conditions)) {
+    throw new CompanyOsReceiptAdapterError('integrity_mismatch', 'Source provider returned different conditions');
   }
 }
 
@@ -544,8 +642,23 @@ function cloneSourceReference(reference: ReceiptSourceReference): ReceiptSourceR
             ...(owner.ref.digest === undefined ? {} : { digest: owner.ref.digest })
           }
         }
-      : { status: 'unknown', reason: owner.reason })
+      : { status: 'unknown', reason: owner.reason }),
+    ...(reference.conditions === undefined ? {} : { conditions: cloneSourceConditions(reference.conditions) })
   };
+}
+
+function cloneSourceConditions(conditions: ReceiptSourceConditions): ReceiptSourceConditions {
+  return cloneSourceConditionValue(conditions) as ReceiptSourceConditions;
+}
+
+function cloneSourceConditionValue(value: ReceiptSourceConditionValue): ReceiptSourceConditionValue {
+  if (Array.isArray(value)) return value.map(cloneSourceConditionValue);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, child]) => [key, cloneSourceConditionValue(child as ReceiptSourceConditionValue)])
+    );
+  }
+  return value;
 }
 
 function cloneJudgmentReference(reference: ReceiptJudgmentReference): ReceiptJudgmentReference {
@@ -562,6 +675,7 @@ function cloneLinkRecord(record: ReceiptLinkRecord): ReceiptLinkRecord {
     version: COMPANY_OS_RECEIPT_LINK_CATALOG_VERSION,
     id: record.id,
     source: cloneSourceReference(record.source),
+    source_digest: record.source_digest,
     judgment_refs: record.judgment_refs.map(cloneJudgmentReference),
     recorded_at: record.recorded_at,
     objective_status: 'unrecorded',
@@ -573,8 +687,48 @@ function judgmentReferenceKey(reference: ReceiptJudgmentReference): string {
   return `${reference.kind}:${reference.id}:${reference.revision ?? ''}:${reference.digest ?? ''}`;
 }
 
+function sameLinkPayload(left: ReceiptLinkRecord, right: ReceiptLinkRecord): boolean {
+  return left.id === right.id
+    && left.recorded_at === right.recorded_at
+    && sameSourceIdentity(left.source, right.source)
+    && sameJson(left.judgment_refs, right.judgment_refs);
+}
+
+function sameSourceIdentity(left: ReceiptSourceReference, right: ReceiptSourceReference): boolean {
+  return left.kind === right.kind
+    && left.id === right.id
+    && left.revision === right.revision
+    && left.hash === right.hash
+    && sameJson(left.owner_refs, right.owner_refs)
+    && sameJson(left.conditions, right.conditions);
+}
+
 function sameJson(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return stableJson(left) === stableJson(right);
+}
+
+function sourceSnapshotDigest(source: ReceiptSourceReference): string {
+  return `sha256:${createHash('sha256').update(stableJson(source), 'utf8').digest('hex')}`;
+}
+
+function isSourceDigest(value: unknown): value is string {
+  return typeof value === 'string' && /^sha256:[a-f0-9]{64}$/u.test(value);
+}
+
+function stableJson(value: unknown): string {
+  return JSON.stringify(canonicalizeJson(value));
+}
+
+function canonicalizeJson(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeJson);
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+        .map(([key, child]) => [key, canonicalizeJson(child)])
+    );
+  }
+  return value;
 }
 
 function isStrictRfc3339(value: unknown): value is string {

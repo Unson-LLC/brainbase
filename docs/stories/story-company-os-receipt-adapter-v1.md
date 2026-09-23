@@ -66,4 +66,4 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在はOSS単独のport・sidecar・fixture実装まで完了している。`npm run build`とReceipt adapterの5テストは通過した。AC-04のうちproviderの現在ACL、不在、identity mismatch、冪等性、SSOT側の保存失敗なしはfixtureで確認したが、旧clientの実runtime接続、PR、CI、外部sourceの実読戻しは未確認である。VibeProのactiveは登録が有効である意味であり、PR/CI完了を意味しない。
+現在はOSS単独のport・sidecar・fixture実装まで完了している。providerのcanonical source binding、保存snapshot digest、保存時stateと現在stateの分離、owner/revision/hash/conditionsのidentity mismatch、ACL、不在、冪等性、SSOT側の保存失敗なしを、Receipt adapterの7テストで確認した。`npm run build`も通過している。旧clientの実runtime接続、PR、CI、外部sourceの実読戻しは未確認である。VibeProのactiveは登録が有効である意味であり、PR/CI完了を意味しない。

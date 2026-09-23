@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -131,6 +131,75 @@ describe('company OS receipt adapter', () => {
     expect(projection?.source_read.reference.state).toBe('failed');
     expect(projection?.source_read.state_changed).toBe(true);
     expect(projection?.link.objective_status).toBe('unrecorded');
+  });
+
+  it('persists the canonical source snapshot and rejects a tampered snapshot envelope', async () => {
+    const directory = await dataDir();
+    const requested = {
+      ...source('run_receipt', 'source-a', 'caller-state', null),
+      revision: undefined,
+      owner_refs: [{ status: 'unknown' as const, reason: 'legacy_untyped' as const }]
+    };
+    const canonical = {
+      ...source('run_receipt', 'source-a', 'canonical-state', 'sha256:canonical'),
+      revision: '7',
+      conditions: { pilot: 'hotel-ai', evaluated: true }
+    };
+    const alternate = source('run_receipt', 'source-b', 'success', 'sha256:alternate');
+    const current = new Map<string, ReceiptSourceReference>([
+      [canonical.id, canonical],
+      [alternate.id, alternate]
+    ]);
+    const adapter = createCompanyOsReceiptAdapter({ dataDir: directory, sourcePorts: makeSourcePorts(current) });
+
+    const linked = await adapter.link({
+      id: 'link-canonical-source',
+      source: requested,
+      judgment_refs: [],
+      recorded_at: '2026-09-23T00:00:00.000Z',
+      access
+    });
+    expect(linked.link.source).toEqual(canonical);
+    expect(linked.link.source_digest).toMatch(/^sha256:[a-f0-9]{64}$/u);
+    expect(linked.source_read.state_changed).toBe(false);
+
+    const sidecarPath = join(directory, COMPANY_OS_RECEIPT_LINK_SIDECAR);
+    const sidecar = JSON.parse(await readFile(sidecarPath, 'utf8')) as {
+      records: Array<{ source: ReceiptSourceReference }>;
+    };
+    sidecar.records[0].source = { ...sidecar.records[0].source, id: alternate.id };
+    await writeFile(sidecarPath, `${JSON.stringify(sidecar, null, 2)}\n`, 'utf8');
+
+    await expect(adapter.read('link-canonical-source', access)).rejects.toMatchObject({ code: 'corrupt_record' });
+  });
+
+  it('fails closed when the current source stable identity changes', async () => {
+    const directory = await dataDir();
+    const recorded = {
+      ...source('meeting_context_receipt', 'context-identity', 'resolved', 'sha256:context-identity'),
+      revision: '3',
+      conditions: { scope: 'pilot', channel: 'phone' }
+    };
+    const current = new Map<string, ReceiptSourceReference>([[recorded.id, recorded]]);
+    const adapter = createCompanyOsReceiptAdapter({ dataDir: directory, sourcePorts: makeSourcePorts(current) });
+
+    await adapter.link({
+      id: 'link-identity',
+      source: recorded,
+      judgment_refs: [],
+      recorded_at: '2026-09-23T00:00:00.000Z',
+      access
+    });
+    const mismatches: readonly ReceiptSourceReference[] = [
+      { ...recorded, revision: '4' },
+      { ...recorded, hash: 'sha256:changed' },
+      { ...recorded, owner_refs: [{ status: 'unknown', reason: 'not_recorded' }] },
+      { ...recorded, conditions: { scope: 'pilot', channel: 'chat' } }
+    ];
+    for (const mismatch of mismatches) {
+      current.set(recorded.id, mismatch);
+      await expect(adapter.read('link-identity', access)).rejects.toMatchObject({ code: 'integrity_mismatch' });
+    }
   });
 
   it('fails closed before persistence for ACL denial, provider absence, and identity mismatch', async () => {
