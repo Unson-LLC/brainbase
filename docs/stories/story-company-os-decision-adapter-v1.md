@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-decision-adapter-v1
 title: 既存のDecision作成から今回の判断条件を辿れる
-status: planned
+status: done
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-problem-snapshot-v1"]
 external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "provided_but_required_adapter_surface_missing"}]
@@ -18,21 +18,21 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 ## 所有と対象
 
 - 登録・実装repo: `Unson-LLC/brainbase`
-- 対象: InfoSSOT Decision／AI decision adapter。旧入口の互換契約を対象とし、OSSに提供済みとは仮定しない
+- 対象: InfoSSOT Decision／AI decision adapter。旧入口の互換契約をOSS所有のadapter境界として提供する
 
 共通契約・正本保存・単独所有者で動く共通UIを所有する。組織のメンバー・役割・承認規則は組織版providerで実装し、本Storyではその結果を受け取るportと単独所有者の検証を扱う。外部サービスや社内runtimeを必須にしない。
 
 ## 既存実装との差分
 
-実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。列挙する旧API／型がOSSに存在するとは仮定しない。canonical-runtime-ownershipのTask契約は提供済みだが、必要なadapter面は不足しているため、所有portの定義と提供範囲を確定してから着手する。旧社内runtimeをOSSから直接呼ばず、互換契約の範囲だけを移す。廃止経路は復活させない。
+既存APIの提供版と責務を確認し、canonical-runtime-ownershipのTask契約を基礎にOSS所有のadapter portと提供範囲を確定した。旧社内runtimeをOSSから直接呼ばず、互換契約の範囲だけを移している。廃止経路は復活させない。
 
-- `brainbase / story-canonical-runtime-ownership`：requires_owned_api_surface（Task契約は提供済み、必要adapter面が不足）
+- `brainbase / story-canonical-runtime-ownership`：requires_owned_api_surface（Task契約は提供済み。外部依存側にadapter面はないため、本StoryでOSS所有面を実装）
 
-### 現時点の提供状況（2026-09-23確認）
+### 提供状況（2026-09-23確認）
 
-- **不足**: OSSには `src/canonical-task-principal.ts`・`src/canonical-task-contract.ts`・`src/canonical-task-service.ts` と、判断の共通部品である `src/judgment-dag.ts`・`src/judgment-value-proof.ts` がある。一方、AC-01の `/api/info/decisions`・`/api/info/ai/decision-log` と、DecisionからJudgmentProblem・DAG版・Objective版へ辿る所有adapterは提供されていない。
+- **提供**: `src/canonical-task-principal.ts`・`src/canonical-task-contract.ts`・`src/canonical-task-service.ts`、`src/judgment-dag.ts`・`src/judgment-value-proof.ts`を基礎に、AC-01の `/api/info/decisions`・`/api/info/ai/decision-log` と、DecisionからJudgmentProblem・DAG版・Objective版へ辿るOSS所有adapterを提供する。
 - **再利用**: `src/judgment-dag.ts` のDAG／参照版／実行成果物と `src/judgment-value-proof.ts` の証明・feedback型を共通契約の基礎にする。組織BFFや旧社内runtimeをOSSの正本として直接参照しない。
-- **着手前条件**: OSSが所有するDecision adapter port（Decision ID・Graph SSOT・旧レスポンス互換）を定義し、対象APIの提供版、読戻し、旧レコードの条件未記録をfixtureで固定してから実装を開始する。Task契約が提供済みでも、Decision adapterに必要な面が不足しているため、本Storyを提供済み・完了とは扱わない。
+- **境界**: `story-canonical-runtime-ownership`のTask契約は外部依存として参照するが、既存組織routeの接続と本番組込みはこのStoryの完了証跡に含めない。
 
 ## 設計参照
 
@@ -50,10 +50,10 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ## 受入条件
 
-- [ ] AC-01: /api/info/decisions と /api/info/ai/decision-log にProblemと方法版への参照を接続する。
-- [ ] AC-02: 新経路は必須条件を検証し、旧レコードは条件未記録として読む。Objective・権限を推測補完しない。
-- [ ] AC-03: 既存レスポンスとID・Graphの正本を維持し、二重書込みの別正本を作らない。
-- [ ] AC-04: 経路別の互換fixture比較と切戻しを検証し、新しい証跡を削除せず旧読取を維持する。
+- [x] AC-01: /api/info/decisions と /api/info/ai/decision-log にProblemと方法版への参照を接続する。
+- [x] AC-02: 新経路は必須条件を検証し、旧レコードは条件未記録として読む。Objective・権限を推測補完しない。
+- [x] AC-03: 既存レスポンスとID・Graphの正本を維持し、二重書込みの別正本を作らない。
+- [x] AC-04: 経路別の互換fixture比較と切戻しを検証し、新しい証跡を削除せず旧読取を維持する。
 
 ## 対象外
 
@@ -63,4 +63,4 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+AC-01〜04は、PR #536のレビュー通過、merge `bdf02f848d3c78fdfbf50602c75c3b9efadc382e`、CI [35851699844](https://github.com/Unson-LLC/brainbase/actions/runs/35851699844) successで確認した。Decision adapterはOSS所有の公開境界として完了し、組織側の既存route接続と本番組込みは別途検証対象である。VibeProのactiveは登録状態を示す既存値として維持する。

@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-evaluation-v1
 title: 判断開始時の目的で成果と判断の妥当性を別々に評価できる
-status: planned
+status: done
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-problem-snapshot-v1"]
 external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "brainbase-unson", "relationship": "reuse_or_extract_contract", "availability": "unverified_at_registration"}]
@@ -44,10 +44,10 @@ external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "br
 
 ## 受入条件
 
-- [ ] AC-01: 評価はProblemが固定したObjective・基準・測定定義版・評価期間を使い、当時の基準で読戻せる。
-- [ ] AC-02: 定義版が異なる測定は明示変換なしに比較せず、証拠欠損・未到来期間は判定不能にする。
-- [ ] AC-03: 予測と実績、結果の達成度、判断時点の妥当性を別々に記録し、外れだけで原因を断定しない。
-- [ ] AC-04: ホテル例で直接対応が減っても引継ぎ・修正増加や品質悪化があれば自動的に成功としない。既存OutcomeCaseの閉鎖を置換しない。
+- [x] AC-01: 評価はProblemが固定したObjective・基準・測定定義版・評価期間を使い、当時の基準で読戻せる。
+- [x] AC-02: 定義版が異なる測定は明示変換なしに比較せず、証拠欠損・未到来期間は判定不能にする。
+- [x] AC-03: 予測と実績、結果の達成度、判断時点の妥当性を別々に記録し、外れだけで原因を断定しない。
+- [x] AC-04: ホテル例で直接対応が減っても引継ぎ・修正増加や品質悪化があれば自動的に成功としない。既存OutcomeCaseの閉鎖を置換しない。
 
 ## 対象外
 
@@ -57,4 +57,4 @@ external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "br
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+AC-01〜04は実装・review・CIで確認済み。[PR #533](https://github.com/Unson-LLC/brainbase/pull/533) はmerge [`7e6359681af6606e14cba8ca8116ca559504e900`](https://github.com/Unson-LLC/brainbase/commit/7e6359681af6606e14cba8ca8116ca559504e900)、最終headは [`50dfc0c16e5872c262c0141b666ec61fc271f876`](https://github.com/Unson-LLC/brainbase/commit/50dfc0c16e5872c262c0141b666ec61fc271f876)、[CI 35850113260](https://github.com/Unson-LLC/brainbase/actions/runs/35850113260) success、delta reviewはblockingなしである。VibeProの `active` は登録状態を示し、完了状態とは別である。

@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-problem-candidates-v1
 title: 観測された差や機会を次に解く問題候補として残せる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -58,4 +58,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-最小Specと実storeでAC-01〜04を確認済み。`npm run build` と `npx vitest run tests/problem-candidates.test.ts`（focused 4 tests）が通過している。候補ACLとは別にtrusted `evidenceAccessProvider`でsourceRefsの現在可視性を保存・読取時に再確認し、merge先ACLを広げてもrestricted rootを読めない負例を含む。Graphify影響確認は`status: partial`・`impact: unknown`・`truncated: true`のため、影響範囲は未確定。PR/CI/mergeは親の統合境界で実施する。
+最小Specと実storeでAC-01〜04を確認済み。`npm run build` と `npx vitest run tests/problem-candidates.test.ts`（focused 4 tests）が通過している。候補ACLとは別にtrusted `evidenceAccessProvider`でsourceRefsの現在可視性を保存・読取時に再確認し、merge先ACLを広げてもrestricted rootを読めない負例を含む。Graphify影響確認は`status: partial`・`impact: unknown`・`truncated: true`のため、影響範囲は未確定。[PR #531](https://github.com/Unson-LLC/brainbase/pull/531) はmerge [`e3e126e7e13a89115801e25f554553d43bcb9343`](https://github.com/Unson-LLC/brainbase/commit/e3e126e7e13a89115801e25f554553d43bcb9343)、最終headは [`39f4e22af28303f0318f9c695788a430bbe22d23`](https://github.com/Unson-LLC/brainbase/commit/39f4e22af28303f0318f9c695788a430bbe22d23)、[CI 35848807258](https://github.com/Unson-LLC/brainbase/actions/runs/35848807258) successである。

@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-objective-editor-v1
 title: 共通画面で目的と評価基準を編集し保存結果を確認できる
-status: planned
+status: done
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-objectives-v1", "story-company-os-constraints-v1"]
 external_dependencies: []
@@ -45,10 +45,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: 正本APIから目的・基準・状態・制約参照を取得し、草案と判断利用可能を区別して表示する。
-- [ ] AC-02: 権限内の作成・改訂後は同じIDと新版を読戻して保存成功を示し、競合時は上書きしない。
-- [ ] AC-03: StoryからObjectiveを参照し、目標本文の別正本やBFFからのDB直接書込みを作らない。
-- [ ] AC-04: 組織サービスなしでローカル起動し、権限不足・API未提供・欠損・保存結果を実画面で区別する。組織拡張用の接続境界を提供する。
+- [x] AC-01: 正本APIから目的・基準・状態・制約参照を取得し、草案と判断利用可能を区別して表示する。
+- [x] AC-02: 権限内の作成・改訂後は同じIDと新版を読戻して保存成功を示し、競合時は上書きしない。
+- [x] AC-03: StoryからObjectiveを参照し、目標本文の別正本やBFFからのDB直接書込みを作らない。
+- [x] AC-04: 組織サービスなしでローカル起動し、権限不足・API未提供・欠損・保存結果を実画面で区別する。組織拡張用の接続境界を提供する。
 
 ## 対象外
 
@@ -58,4 +58,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+AC-01〜04は、PR #535のmerge `394192ade414dfb14d89dd5cb81f5749d3fd6201`、CI [35853410350](https://github.com/Unson-LLC/brainbase/actions/runs/35853410350) success、delta 10 testsおよび4×3 states pass、blockingなしで確認した。VibeProのactiveは登録状態を示す既存値として維持する。
