@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-knowledge-adapter-v1
 title: 既存の知識候補と承認から採用判断の条件を辿れる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-learning-adoption-v1", "story-company-os-decision-adapter-v1"]
 external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "source_repo": "brainbase", "relationship": "requires_owned_api_surface", "availability": "provided_but_required_adapter_surface_missing"}]
@@ -32,7 +32,14 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 - **不足**: `src/personal-knowledge.ts` は個人所有のcontext／event／store／client契約であり、AC-01の会社共有Knowledge Event・feedback・candidate昇格・Graph maintenance承認adapterと、AC-03のMeetingKnowledgeEventBridge共有読戻し面は提供されていない。
 - **再利用**: `src/personal-knowledge.ts` のevent／context／ACL境界と `src/judgment-value-proof.ts` のfeedback／proof型を共通契約の部品にする。個人Knowledgeを会社Graphの正本へ拡張しない。
-- **着手前条件**: OSS所有のKnowledge adapter portを定義し、quarantine・ACL・Human Gate・元証拠・権限拒否を旧入口fixtureで固定する。組織承認providerやManaの外部入口はこのStoryの正本にせず、結果をportで受けられることを確認してから実装を開始する。
+- **着手条件（履歴）**: OSS所有のKnowledge adapter portを定義し、quarantine・ACL・Human Gate・元証拠・権限拒否を旧入口fixtureで固定する。組織承認providerやManaの外部入口はこのStoryの正本にせず、結果をportで受けられることを確認してから実装を開始する。
+
+### 実装着手後の提供範囲（2026-09-23）
+
+- `src/knowledge-adapter.ts` に、既存host recordを本文ごと移さず、exact source locator・provenance・判断条件・readonly adoption locatorだけを接続する `LegacyKnowledgeRecordPort`／`KnowledgeAdoptionReadPort`／`KnowledgeConditionReferenceAdapter` を追加した。
+- `GraphKnowledgeConditionAdapter` は `evidence/knowledge-condition-adapter.json` をsidecarとして使い、provider readをSSOT lock外、canonical aggregateとsidecarのCAS・staged readback・transaction publicationをlock内で行う。
+- `tests/knowledge-adapter.test.ts` は実際のpersonal SSOTを使い、quarantine、ACL拒否／不明、provider障害、not-found、exact revision/digest、provenance・adoption readback、idempotency、conflict、canonical CASを固定する。
+- 旧会社HTTP route、組織の承認provider、MeetingKnowledgeEventBridgeの実組み込みは未実装であり、このport実装だけでAC-01〜04の全体完了とは扱わない。組織側のowner port適合とreadbackは親Storyのレビュー・CIで確認する。
 
 ## 設計参照
 
@@ -64,4 +71,4 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+現在は実装着手済み。OSSの共通portとpersonal adapterの最小実装・fixture検証を進めている。旧会社入口の実組み込み、組織境界、外部配備、PR/CIは未完了であり、VibeProのactive登録やこのcommitだけを完了証拠にしない。
