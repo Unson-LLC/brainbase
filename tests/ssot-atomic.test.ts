@@ -3,7 +3,7 @@ import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runCli } from '../src/cli.js';
-import { initializePersonalOs, loadPersonalOs, mutatePersonalOs, mutatePersonalOsWithSidecar } from '../src/ssot.js';
+import { initializePersonalOs, loadPersonalOs, mutatePersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } from '../src/ssot.js';
 
 const canonicalFiles = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'];
 const dirs: string[] = [];
@@ -44,6 +44,70 @@ describe('local SSOT atomic recovery', () => {
       }))).rejects.toThrow(/Unsafe SSOT transaction sidecar path/);
     }
     await expect(canonicalSnapshot(dir)).resolves.toEqual(before);
+  });
+
+  it('creates a new sidecar transactionally and exposes its previous content to the mutator', async () => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+    const sidecar = 'resource-reservations/ledger.json';
+
+    await mutatePersonalOsWithSidecar(dir, sidecar, (current, previous) => {
+      expect(previous).toBeUndefined();
+      return { next: current, sidecarContent: 'first\n', result: true };
+    });
+    await mutatePersonalOsWithSidecar(dir, sidecar, (current, previous) => {
+      expect(previous).toBe('first\n');
+      return { next: current, sidecarContent: 'second\n', result: true };
+    });
+
+    await expect(readFile(join(dir, sidecar), 'utf8')).resolves.toBe('second\n');
+  });
+
+  it('reads a missing or committed sidecar through the SSOT recovery boundary', async () => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+    const sidecar = 'shared/state.json';
+
+    await expect(readPersonalOsSidecar(dir, sidecar)).resolves.toBeUndefined();
+    await mutatePersonalOsWithSidecar(dir, sidecar, (current) => ({
+      next: current,
+      sidecarContent: 'committed\n',
+      result: true
+    }));
+
+    await expect(readPersonalOsSidecar(dir, sidecar)).resolves.toBe('committed\n');
+  });
+
+  it('rolls back a failed sidecar publication, removing a new sidecar and restoring an old one', async () => {
+    const dir = await tempDir();
+    await initializePersonalOs(dir);
+    const sidecar = 'resource-reservations/ledger.json';
+    await mutatePersonalOsWithSidecar(dir, sidecar, (current) => ({
+      next: current,
+      sidecarContent: 'before\n',
+      result: true
+    }));
+    const before = await canonicalSnapshot(dir);
+
+    process.env.BRAINBASE_SSOT_FAIL_AFTER_PUBLISH = '5';
+    await expect(mutatePersonalOsWithSidecar(dir, 'resource-reservations/new-ledger.json', (current) => ({
+      next: current,
+      sidecarContent: 'new\n',
+      result: true
+    }))).rejects.toThrow(/Injected SSOT publish failure/);
+    await expect(access(join(dir, 'resource-reservations/new-ledger.json'))).rejects.toThrow();
+    await expect(canonicalSnapshot(dir)).resolves.toEqual(before);
+    await expect(readFile(join(dir, sidecar), 'utf8')).resolves.toBe('before\n');
+
+    delete process.env.BRAINBASE_SSOT_FAIL_AFTER_PUBLISH;
+    process.env.BRAINBASE_SSOT_FAIL_AFTER_PUBLISH = '5';
+    await expect(mutatePersonalOsWithSidecar(dir, sidecar, (current) => ({
+      next: current,
+      sidecarContent: 'after\n',
+      result: true
+    }))).rejects.toThrow(/Injected SSOT publish failure/);
+    await expect(canonicalSnapshot(dir)).resolves.toEqual(before);
+    await expect(readFile(join(dir, sidecar), 'utf8')).resolves.toBe('before\n');
   });
 
   it('leaves the legacy four-file shape and no runtime residue after a normal mutation', async () => {

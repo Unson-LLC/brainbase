@@ -26,6 +26,7 @@ interface TransactionMetadata {
   version: 1;
   mode: 'initialization' | 'mutation';
   sidecarFiles?: string[];
+  previousSidecarFiles?: string[];
 }
 
 interface TransactionSidecar {
@@ -120,18 +121,31 @@ export async function mutatePersonalOs(
 export async function mutatePersonalOsWithSidecar<T>(
   dataDir: string,
   sidecarPath: string,
-  mutator: (current: PersonalOs) => { next: PersonalOs; sidecarContent: string; result: T } | Promise<{ next: PersonalOs; sidecarContent: string; result: T }>
+  mutator: (current: PersonalOs, sidecarContent?: string) => { next: PersonalOs; sidecarContent: string; result: T } | Promise<{ next: PersonalOs; sidecarContent: string; result: T }>
 ): Promise<T> {
   assertSafeSidecarPath(sidecarPath);
   return withSsotLock(dataDir, async () => {
     await recoverTransactions(dataDir);
     assertCompleteCanonicalSet(dataDir, await canonicalPresence(dataDir));
     const current = await loadPersonalOsUnlocked(dataDir);
-    const mutation = await mutator(current);
+    const mutation = await mutator(current, await readOptionalSidecar(dataDir, sidecarPath));
     const normalized = { ...mutation.next, dataDir, sourceCount: current.sourceCount };
     validateAggregate(normalized);
     await commitAggregate(dataDir, normalized, 'mutation', [{ relativePath: sidecarPath, content: mutation.sidecarContent }]);
     return mutation.result;
+  });
+}
+
+/**
+ * Reads a sidecar while holding the canonical SSOT lock. A missing sidecar is
+ * returned as undefined so a first mutation can create it transactionally.
+ */
+export async function readPersonalOsSidecar(dataDir: string, sidecarPath: string): Promise<string | undefined> {
+  assertSafeSidecarPath(sidecarPath);
+  return withSsotLock(dataDir, async () => {
+    await recoverTransactions(dataDir);
+    assertCompleteCanonicalSet(dataDir, await canonicalPresence(dataDir));
+    return readOptionalSidecar(dataDir, sidecarPath);
   });
 }
 
@@ -232,11 +246,22 @@ async function commitAggregate(
     await mkdir(previousDir, { recursive: true });
     await copyCanonicalSet(dataDir, previousDir);
     for (const sidecar of sidecars) {
-      await mkdir(dirname(join(previousDir, sidecar.relativePath)), { recursive: true });
-      await copyFile(join(dataDir, sidecar.relativePath), join(previousDir, sidecar.relativePath));
+      if (await exists(join(dataDir, sidecar.relativePath))) {
+        await mkdir(dirname(join(previousDir, sidecar.relativePath)), { recursive: true });
+        await copyFile(join(dataDir, sidecar.relativePath), join(previousDir, sidecar.relativePath));
+      }
     }
   }
-  const metadata: TransactionMetadata = { version: 1, mode, ...(sidecars.length > 0 ? { sidecarFiles: sidecars.map((item) => item.relativePath) } : {}) };
+  const sidecarFiles = sidecars.map((item) => item.relativePath);
+  const previousSidecarFiles = mode === 'mutation'
+    ? (await Promise.all(sidecars.map(async (item) => (await exists(join(dataDir, item.relativePath))) ? item.relativePath : undefined))).filter((item): item is string => item !== undefined)
+    : [];
+  const metadata: TransactionMetadata = {
+    version: 1,
+    mode,
+    ...(sidecarFiles.length > 0 ? { sidecarFiles } : {}),
+    ...(mode === 'mutation' && sidecarFiles.length > 0 ? { previousSidecarFiles } : {})
+  };
   await writeFile(join(stagingDir, 'transaction.json'), `${JSON.stringify(metadata, null, 2)}\n`);
   await writeFile(join(stagingDir, 'PREPARED'), '');
   await rename(stagingDir, transactionDir);
@@ -287,7 +312,13 @@ async function recoverTransaction(dataDir: string, transactionDir: string): Prom
   if (process.env.BRAINBASE_SSOT_FAIL_RECOVERY === '1') {
     throw new Error(`Injected SSOT transaction recovery failure for ${transactionDir}`);
   }
-  await publishCanonicalSet(dataDir, retainedDir, `recovery-${randomUUID()}`, false, metadata.sidecarFiles ?? []);
+  const previousSidecarFiles = metadata.mode === 'initialization'
+    ? metadata.sidecarFiles ?? []
+    : metadata.previousSidecarFiles ?? metadata.sidecarFiles ?? [];
+  await publishCanonicalSet(dataDir, retainedDir, `recovery-${randomUUID()}`, false, previousSidecarFiles);
+  if (metadata.mode === 'mutation') {
+    await removeSidecars(dataDir, (metadata.sidecarFiles ?? []).filter((path) => !previousSidecarFiles.includes(path)));
+  }
   await rm(transactionDir, { recursive: true, force: true });
 }
 
@@ -324,6 +355,13 @@ async function publishCanonicalSet(
     if (allowInjectedFailure && Number.isFinite(failAfter) && published === failAfter) {
       throw new Error(`Injected SSOT publish failure after ${published} file(s)`);
     }
+  }
+}
+
+async function removeSidecars(dataDir: string, relativePaths: string[]): Promise<void> {
+  for (const relativePath of relativePaths) {
+    assertSafeSidecarPath(relativePath);
+    await rm(join(dataDir, relativePath), { force: true });
   }
 }
 
@@ -487,7 +525,11 @@ async function readTransactionMetadata(transactionDir: string): Promise<Transact
   if (value.sidecarFiles !== undefined && (!Array.isArray(value.sidecarFiles) || value.sidecarFiles.some((path) => typeof path !== 'string'))) {
     throw new Error(`Invalid registered SSOT transaction sidecars in ${transactionDir}`);
   }
+  if (value.previousSidecarFiles !== undefined && (!Array.isArray(value.previousSidecarFiles) || value.previousSidecarFiles.some((path) => typeof path !== 'string'))) {
+    throw new Error(`Invalid registered SSOT transaction previous sidecars in ${transactionDir}`);
+  }
   for (const path of value.sidecarFiles ?? []) assertSafeSidecarPath(path);
+  for (const path of value.previousSidecarFiles ?? []) assertSafeSidecarPath(path);
   return value as TransactionMetadata;
 }
 
@@ -519,6 +561,15 @@ async function exists(path: string): Promise<boolean> {
     return true;
   } catch {
     return false;
+  }
+}
+
+async function readOptionalSidecar(dataDir: string, sidecarPath: string): Promise<string | undefined> {
+  try {
+    return await readFile(join(dataDir, sidecarPath), 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+    throw error;
   }
 }
 

@@ -429,8 +429,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-company-os-sidecar-v1",
+        "title": "SSOT sidecar の初回作成と失敗回復を原子的に扱える",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-canonical-runtime-ownership"
+    "current_story_id": "story-company-os-sidecar-v1"
   }
 }
