@@ -166,6 +166,33 @@ const selected = (action: 'start' | 'continue' | 'observe' | 'hold' | 'stop'): P
   ...(action === 'hold' ? { reviewAt: '2026-07-01T00:00:00.000Z' } : {})
 });
 
+async function expectSelectedPolicyMutationRejected(
+  records: readonly ProblemCandidateRecord[],
+  mutate: (record: Record<string, unknown>) => void,
+  reason: string
+): Promise<void> {
+  const record = await createProblemSelection(request(records, selected('start')));
+  const root = await mkdtemp(join(tmpdir(), 'brainbase-problem-selection-policy-'));
+  temporaryRoots.push(root);
+  const store = createProblemSelectionRecordStore({ root });
+  const malformed = JSON.parse(JSON.stringify(record)) as Record<string, unknown>;
+  mutate(malformed);
+
+  await expect(store.save(malformed as typeof record, { principal: 'org-1' }))
+    .rejects.toMatchObject({ code: 'invalid_record', message: expect.stringContaining(reason) });
+
+  const receipt = await store.save(record, { principal: 'org-1' });
+  const [filename] = await readdir(join(root, 'problem-selections'));
+  if (filename === undefined) throw new Error('selection record was not written');
+  const recordPath = join(root, 'problem-selections', filename);
+  const envelope = JSON.parse(await readFile(recordPath, 'utf8')) as { record: Record<string, unknown> };
+  mutate(envelope.record);
+  await writeFile(recordPath, `${JSON.stringify(envelope)}\n`, 'utf8');
+
+  await expect(store.read(receipt.recordId, { principal: 'org-1' }))
+    .rejects.toMatchObject({ code: 'invalid_record', message: expect.stringContaining(reason) });
+}
+
 describe('problem selection contract', () => {
   it.each(['start', 'continue', 'observe', 'hold', 'stop'] as const)(
     'records the explicit %s action without issuing authority',
@@ -407,6 +434,34 @@ describe('problem selection record store', () => {
     await writeFile(recordPath, `${JSON.stringify(envelope)}\n`, 'utf8');
 
     await expect(store.read(receipt.recordId, { principal: 'org-1' })).rejects.toMatchObject({ code: 'invalid_record' });
+  });
+
+  it('revalidates the candidate count policy at save and load boundaries', async () => {
+    const records = [candidateRecord('candidate-1', 'e'), candidateRecord('candidate-2', 'f')];
+    await expectSelectedPolicyMutationRejected(records, (record) => {
+      const fixed = record.fixedConditions as Record<string, unknown>;
+      const explorationLimit = fixed.explorationLimit as Record<string, unknown>;
+      explorationLimit.maxCandidates = 1;
+    }, 'candidate count 2 exceeds the fixed exploration limit 1');
+  });
+
+  it('revalidates assessment unknowns at save and load boundaries', async () => {
+    await expectSelectedPolicyMutationRejected([candidateRecord('candidate-1', 'e')], (record) => {
+      const assessments = record.assessments as Array<Record<string, unknown>>;
+      const assessment = assessments[0];
+      if (assessment === undefined) throw new Error('selection assessment was not written');
+      assessment.status = 'unknown';
+    }, 'unresolved unknowns remain');
+  });
+
+  it('revalidates typed exploration cost limits at save and load boundaries', async () => {
+    await expectSelectedPolicyMutationRejected([candidateRecord('candidate-1', 'e')], (record) => {
+      const assessments = record.assessments as Array<Record<string, unknown>>;
+      const assessment = assessments[0];
+      if (assessment === undefined) throw new Error('selection assessment was not written');
+      const costs = assessment.costs as Record<string, unknown>;
+      costs.exploration = { status: 'known', value: 11 };
+    }, 'selected candidate exploration cost 11 exceeds the fixed exploration limit 10');
   });
 });
 

@@ -697,19 +697,49 @@ function mergeUnknowns(...groups: readonly (readonly ProblemSelectionUnknown[])[
   return merged;
 }
 
+function candidateCountViolation(
+  fixedConditions: ProblemSelectionFixedConditions,
+  candidateRefs: readonly ProblemSelectionCandidateReference[]
+): string | undefined {
+  if (candidateRefs.length <= fixedConditions.explorationLimit.maxCandidates) return undefined;
+  return `candidate count ${candidateRefs.length} exceeds the fixed exploration limit ${fixedConditions.explorationLimit.maxCandidates}`;
+}
+
 function explorationLimitViolation(
   fixedConditions: ProblemSelectionFixedConditions,
-  evaluation: ProblemSelectionEvaluationResult,
+  selectedCandidateId: string | undefined,
   assessments: readonly ProblemSelectionCandidateAssessment[]
 ): string | undefined {
-  if (evaluation.selectedCandidateId === undefined) return undefined;
+  if (selectedCandidateId === undefined) return undefined;
   const limit = fixedConditions.explorationLimit.maxExplorationCost;
   if (limit.status !== 'known') return undefined;
-  const assessment = assessments.find((item) => item.reference.candidateId === evaluation.selectedCandidateId);
+  const assessment = assessments.find((item) => item.reference.candidateId === selectedCandidateId);
   const exploration = assessment?.costs.exploration;
   if (exploration === undefined || exploration.status !== 'known') return undefined;
   if (exploration.value <= limit.value) return undefined;
   return `selected candidate exploration cost ${exploration.value} exceeds the fixed exploration limit ${limit.value}`;
+}
+
+/**
+ * Conditions that make a selected record unsafe to persist. This is shared
+ * with generation so the record boundary cannot accept a state that the
+ * selection run would have routed to human review.
+ */
+function selectedRecordPolicyViolation(
+  fixedConditions: ProblemSelectionFixedConditions,
+  candidateRefs: readonly ProblemSelectionCandidateReference[],
+  assessments: readonly ProblemSelectionCandidateAssessment[],
+  selectedCandidateId: string | undefined,
+  action: ProblemSelectionAction | undefined,
+  unknowns: readonly ProblemSelectionUnknown[]
+): string | undefined {
+  const candidateViolation = candidateCountViolation(fixedConditions, candidateRefs);
+  if (candidateViolation !== undefined) return candidateViolation;
+  const limitViolation = explorationLimitViolation(fixedConditions, selectedCandidateId, assessments);
+  if (limitViolation !== undefined) return limitViolation;
+  const unresolved = mergeUnknowns(unknowns, fixedUnknowns(fixedConditions), assessments.flatMap(assessmentUnknowns));
+  if (unresolved.length > 0 && action !== 'observe') return 'unresolved unknowns remain';
+  return undefined;
 }
 
 /**
@@ -729,8 +759,9 @@ export async function createProblemSelection(request: ProblemSelectionRequest): 
   const candidateRefs = request.candidateRefs.map((entry, index) => normalizeCandidateReference(entry, `candidateRefs[${index}]`));
   assertCandidateReferencesUnique(candidateRefs);
   if (candidateRefs.length === 0) throw error('invalid_request', 'candidateRefs must contain at least one candidate');
-  if (candidateRefs.length > fixedConditions.explorationLimit.maxCandidates) {
-    const reason = `candidate count ${candidateRefs.length} exceeds the fixed exploration limit ${fixedConditions.explorationLimit.maxCandidates}`;
+  const candidateViolation = candidateCountViolation(fixedConditions, candidateRefs);
+  if (candidateViolation !== undefined) {
+    const reason = candidateViolation;
     return deepFreeze({
       recordVersion: PROBLEM_SELECTION_RECORD_VERSION,
       contractVersion: PROBLEM_SELECTION_CONTRACT_VERSION,
@@ -833,11 +864,10 @@ export async function createProblemSelection(request: ProblemSelectionRequest): 
   const unknowns = mergeUnknowns(evaluation.unknowns ?? [], fixedUnknowns(fixedConditions), normalizedAssessments.flatMap(assessmentUnknowns));
   const objectiveConflicts = [...(evaluation.objectiveConflicts ?? []), ...normalizedAssessments.flatMap((item) => item.objectiveConflicts)];
   const hasUnavailable = normalizedAssessments.some((item) => item.status === 'unavailable' || item.status === 'incomparable');
-  const limitViolation = explorationLimitViolation(fixedConditions, evaluation, normalizedAssessments);
-  const selectedObserve = evaluation.action === 'observe';
-  const shouldRequireReview = evaluation.status === 'human_review_required' || anyConflict || hasUnavailable || limitViolation !== undefined || (unknowns.length > 0 && !selectedObserve);
+  const policyViolation = selectedRecordPolicyViolation(fixedConditions, candidateRefs, normalizedAssessments, evaluation.selectedCandidateId, evaluation.action, unknowns);
+  const shouldRequireReview = evaluation.status === 'human_review_required' || anyConflict || hasUnavailable || policyViolation !== undefined;
   const effectiveEvaluation: ProblemSelectionEvaluationResult = shouldRequireReview && evaluation.status !== 'human_review_required'
-    ? { ...evaluation, status: 'human_review_required', reason: anyConflict ? `${evaluation.reason}; objective criteria are incomparable` : limitViolation !== undefined ? `${evaluation.reason}; ${limitViolation}` : unknowns.length > 0 ? `${evaluation.reason}; unresolved unknowns remain` : `${evaluation.reason}; comparison is not fully available` }
+    ? { ...evaluation, status: 'human_review_required', reason: anyConflict ? `${evaluation.reason}; objective criteria are incomparable` : policyViolation !== undefined ? `${evaluation.reason}; ${policyViolation}` : `${evaluation.reason}; comparison is not fully available` }
     : evaluation;
   const decision = decisionFromEvaluation(effectiveEvaluation, candidateRefs, normalizedAssessments);
   const problemCreationRequest = decision.status === 'selected' && (decision.action === 'start' || decision.action === 'continue') && decision.candidate !== undefined
@@ -1036,6 +1066,17 @@ function validateProblemSelectionRecord(value: unknown): ProblemSelectionRecord 
   }
   if (value.status === 'selected' && (decision.action === 'start' || decision.action === 'continue') && problemCreationRequest === undefined) {
     throw error('invalid_record', 'start and continue decisions require problemCreationRequest');
+  }
+  if (value.status === 'selected') {
+    const policyViolation = selectedRecordPolicyViolation(
+      fixedConditions,
+      candidateRefs,
+      assessments,
+      decision.candidate?.candidateId,
+      decision.action,
+      unknowns
+    );
+    if (policyViolation !== undefined) throw error('invalid_record', `selected record violates selection policy: ${policyViolation}`);
   }
   return deepFreeze({
     recordVersion: PROBLEM_SELECTION_RECORD_VERSION,
