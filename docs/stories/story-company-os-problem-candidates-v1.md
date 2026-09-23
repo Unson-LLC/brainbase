@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-problem-candidates-v1
 title: 観測された差や機会を次に解く問題候補として残せる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-objectives-v1", "story-company-os-world-model-v1"]
 external_dependencies: []
@@ -45,10 +45,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: Objectiveと観測差・機会・脅威・不確実性・期限・期待効果・必要資源を参照する候補を保存できる。
-- [ ] AC-02: 完成したProblemやStoryを候補作成の前提にせず、不明な値を確定値にしない。
-- [ ] AC-03: 同じ発生イベントの重複取込を抑止し、更新・統合しても元の根拠を辿れる。
-- [ ] AC-04: 候補を所有範囲・責任者・状態で読戻しでき、権限外の証拠を要約経由でも漏らさない。
+- [x] AC-01: Objectiveと観測差・機会・脅威・不確実性・期限・期待効果・必要資源を参照する候補を保存できる。
+- [x] AC-02: 完成したProblemやStoryを候補作成の前提にせず、不明な値を確定値にしない。
+- [x] AC-03: 同じ発生イベントの重複取込を抑止し、更新・統合しても元の根拠を辿れる。
+- [x] AC-04: 候補を所有範囲・責任者・状態で読戻しでき、権限外の証拠を要約経由でも漏らさない。
 
 ## 対象外
 
@@ -58,4 +58,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+最小Specと実storeでAC-01〜04を確認済み。`npm run build` と `npx vitest run tests/problem-candidates.test.ts`（focused 4 tests）が通過している。候補ACLとは別にtrusted `evidenceAccessProvider`でsourceRefsの現在可視性を保存・読取時に再確認し、merge先ACLを広げてもrestricted rootを読めない負例を含む。Graphify影響確認は`status: partial`・`impact: unknown`・`truncated: true`のため、影響範囲は未確定。PR/CI/mergeは親の統合境界で実施する。
