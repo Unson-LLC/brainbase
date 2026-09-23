@@ -215,6 +215,12 @@ const resolvedReferenceProvider: JudgmentProblemReferenceProvider = {
   resolve: ({ reference }) => ({ status: 'resolved', digest: reference.digest })
 };
 
+const rejectedCurrentReferenceProvider: JudgmentProblemReferenceProvider = {
+  resolve: ({ reference, phase }) => phase === 'read'
+    ? { status: 'missing', message: `canonical ${reference.kind} is no longer readable` }
+    : { status: 'resolved', digest: reference.digest }
+};
+
 describe('Judgment DAG composition contract', () => {
   it('is available from the side-effect-free public DAG entrypoint', () => {
     expect(publicJudgmentDAG.executeJudgmentDAGComposition)
@@ -366,7 +372,8 @@ describe('Judgment DAG composition contract', () => {
           root,
           snapshot_id: reference.snapshot_id,
           access: { principal: 'alice' },
-          reference_resolution: 'historical'
+          reference_resolution: 'current',
+          referenceProvider: resolvedReferenceProvider
         });
         return {
           status: 'resolved',
@@ -393,6 +400,50 @@ describe('Judgment DAG composition contract', () => {
       revision: saved.revision
     });
     expect(port.execute).toHaveBeenCalledTimes(3);
+  });
+
+  it('fails closed when current canonical reference resolution is rejected', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-subdag-snapshot-'));
+    snapshotRoots.push(root);
+    const saved = await saveJudgmentProblemSnapshot({
+      root,
+      snapshot: persistedProblemSnapshot(),
+      access: { principal: 'alice' },
+      referenceProvider: resolvedReferenceProvider
+    });
+    const definition = composition();
+    const port: JudgmentDAGSubDAGEvaluationPort = {
+      execute: vi.fn(async (childRequest) => resultFor(definition, childRequest.invocation_id))
+    };
+    const snapshotReader: JudgmentDAGProblemSnapshotReader = {
+      read: async ({ reference }) => {
+        const snapshot = await loadJudgmentProblemSnapshot({
+          root,
+          snapshot_id: reference.snapshot_id,
+          access: { principal: 'alice' },
+          reference_resolution: 'current',
+          referenceProvider: rejectedCurrentReferenceProvider
+        });
+        return {
+          status: 'resolved',
+          reference,
+          snapshot: snapshot as unknown as JudgmentDAGJSONValue
+        };
+      }
+    };
+    const runRequest = request(definition, port, undefined, {
+      problem_snapshot: {
+        snapshot_id: saved.snapshot_id,
+        problem_id: saved.problem_id,
+        revision: saved.revision
+      },
+      snapshot_reader: snapshotReader
+    });
+
+    await expect(executeJudgmentDAGComposition(runRequest)).rejects.toMatchObject({
+      code: 'snapshot_unavailable'
+    });
+    expect(port.execute).not.toHaveBeenCalled();
   });
 
   it('resolves exact DAG versions and rejects a resolver mismatch before evaluation', async () => {
