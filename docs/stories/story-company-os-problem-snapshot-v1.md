@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-problem-snapshot-v1
 title: 判断時の目的・前提・権限を固定して再確認できる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-objectives-v1", "story-company-os-world-model-v1", "story-company-os-constraints-v1"]
 external_dependencies: []
@@ -59,4 +59,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+実装中。VibeProのactiveは登録が有効である意味であり、実装完了・PR完了を意味しない。

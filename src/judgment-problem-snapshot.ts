@@ -1,9 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { link, open, lstat, mkdir, readdir, readFile, unlink } from 'node:fs/promises';
 import path from 'node:path';
-import type {
-  FoundationAcl,
-  FoundationRevision
+import {
+  validateFoundationDefinition,
+  type FoundationDefinition,
+  type FoundationAcl,
+  type FoundationRevision,
+  type FoundationScope
 } from './ontology-foundation.js';
 
 /**
@@ -66,6 +69,13 @@ export interface JudgmentProblemReference {
   readonly evidence?: JudgmentProblemEvidenceBinding;
 }
 
+/**
+ * Stable name shared by sub-DAG and reservation consumers.  A ProblemRef is
+ * intentionally only a versioned, scoped reference; it never carries an
+ * execution grant or a mutable canonical definition.
+ */
+export type ProblemRef = JudgmentProblemReference;
+
 export interface JudgmentProblemSnapshot {
   readonly snapshot_version: typeof JUDGMENT_PROBLEM_SNAPSHOT_VERSION;
   readonly problem_id: string;
@@ -84,6 +94,13 @@ export interface JudgmentProblemSnapshotAccessContext {
   /** Identity resolved by the caller's trusted boundary. */
   readonly principal: string;
 }
+
+/**
+ * `current` revalidates canonical references for a new judgment.  `historical`
+ * reads only the immutable snapshot envelope after snapshot ACL checks; it is
+ * for audit/replay of the recorded conditions and never grants execution.
+ */
+export type JudgmentProblemReferenceResolutionMode = 'current' | 'historical';
 
 export type JudgmentProblemSnapshotAccessAction = 'read' | 'write';
 
@@ -119,7 +136,8 @@ export interface JudgmentProblemReferenceResolution {
 /**
  * A provider is the only place that knows how an Observation, authority,
  * Model, or Constraint is resolved.  This store does not duplicate their
- * validation rules.
+ * validation rules.  It is called on save and on `current` loads; historical
+ * loads intentionally use only the immutable snapshot envelope.
  */
 export interface JudgmentProblemReferenceProvider {
   resolve(input: {
@@ -144,7 +162,9 @@ export interface LoadJudgmentProblemSnapshotRequest {
   readonly revision?: string;
   readonly access: JudgmentProblemSnapshotAccessContext;
   readonly accessProvider?: JudgmentProblemSnapshotAccessProvider;
-  readonly referenceProvider: JudgmentProblemReferenceProvider;
+  /** Defaults to `current`; historical replay does not query canonical stores. */
+  readonly reference_resolution?: JudgmentProblemReferenceResolutionMode;
+  readonly referenceProvider?: JudgmentProblemReferenceProvider;
 }
 
 export interface JudgmentProblemSnapshotReceipt {
@@ -582,7 +602,10 @@ async function resolveOneReference(
     fail('invalid_request', `Reference provider returned an invalid result for ${reference.kind}/${reference.id}@${reference.revision}`, errorReference);
   }
   if (result.status !== 'resolved') throw providerResultError(errorReference, result);
-  if (result.digest !== undefined && result.digest !== reference.digest) {
+  if (result.digest === undefined) {
+    fail('integrity_mismatch', `Reference provider did not return the exact revision digest for ${reference.kind}/${reference.id}@${reference.revision}`, errorReference);
+  }
+  if (result.digest !== reference.digest) {
     fail('integrity_mismatch', `Reference provider digest does not match ${reference.kind}/${reference.id}@${reference.revision}`, errorReference);
   }
 }
@@ -842,6 +865,10 @@ export async function loadJudgmentProblemSnapshot(
   if (!isPlainRecord(request)) fail('invalid_request', 'load request must be a plain object');
   const root = requireRoot(request.root);
   const context = validateAccessContext(request.access);
+  const referenceResolution = request.reference_resolution ?? 'current';
+  if (referenceResolution !== 'current' && referenceResolution !== 'historical') {
+    fail('invalid_request', 'reference_resolution must be current or historical');
+  }
   if (request.snapshot_id === undefined && (request.problem_id === undefined || request.revision === undefined)) {
     fail('invalid_request', 'load requires snapshot_id or problem_id and revision');
   }
@@ -875,7 +902,12 @@ export async function loadJudgmentProblemSnapshot(
       }
     }
   }
-  await resolveReferences(envelope.snapshot, 'read', context, request.referenceProvider);
+  if (referenceResolution === 'current') {
+    if (!request.referenceProvider || typeof request.referenceProvider.resolve !== 'function') {
+      fail('invalid_request', 'referenceProvider.resolve is required for current reference resolution');
+    }
+    await resolveReferences(envelope.snapshot, 'read', context, request.referenceProvider);
+  }
   return envelope.snapshot;
 }
 
@@ -891,13 +923,15 @@ export interface JudgmentProblemFoundationReferenceReader {
   read(
     reference: FoundationRevision,
     context: { readonly principal: string }
-  ): Promise<{ readonly digest: string } | { readonly definition: unknown; readonly digest: string } | null>;
+  ): Promise<{ readonly digest: string; readonly definition?: unknown } | null>;
 }
 
 /**
- * Adapt the generic foundation store to the snapshot resolver without
- * deciding Model/Constraint applicability here.  A caller supplies the
- * applicability callback; the store only performs the version/digest read.
+ * Adapt the generic foundation store to the snapshot resolver.  The store
+ * read, exact digest check, foundation-use validation, and scope applicability
+ * check always run before an optional caller validator.  The optional
+ * validator can add organization-specific policy, but cannot bypass the
+ * canonical store or make a draft/out-of-scope definition appear resolved.
  */
 export function createJudgmentProblemFoundationReferenceProvider(options: {
   readonly store: JudgmentProblemFoundationReferenceReader;
@@ -905,6 +939,10 @@ export function createJudgmentProblemFoundationReferenceProvider(options: {
     readonly reference: JudgmentProblemReference;
     readonly phase: 'save' | 'read';
     readonly context: JudgmentProblemSnapshotAccessContext;
+    readonly record: {
+      readonly definition: FoundationDefinition;
+      readonly digest: string;
+    };
   }) => JudgmentProblemReferenceResolution | Promise<JudgmentProblemReferenceResolution>;
   readonly resolveOther?: (input: {
     readonly reference: JudgmentProblemReference;
@@ -914,7 +952,6 @@ export function createJudgmentProblemFoundationReferenceProvider(options: {
 }): JudgmentProblemReferenceProvider {
   return {
     async resolve(input) {
-      if (options.validate) return options.validate(input);
       if (!['objective', 'variable', 'model', 'constraint'].includes(input.reference.kind)) {
         if (options.resolveOther) return options.resolveOther(input);
         return { status: 'unresolved', message: `No provider is registered for ${input.reference.kind}` };
@@ -929,7 +966,69 @@ export function createJudgmentProblemFoundationReferenceProvider(options: {
       );
       if (!resolved) return { status: 'missing', message: 'Foundation revision was not found' };
       if (resolved.digest !== input.reference.digest) return { status: 'unresolved', message: 'Foundation digest changed' };
-      return { status: 'resolved', digest: input.reference.digest };
+      if (!isPlainRecord(resolved.definition) || resolved.definition.type !== input.reference.kind) {
+        return { status: 'unresolved', message: 'Foundation revision did not return a matching definition' };
+      }
+      const definition = resolved.definition as unknown as FoundationDefinition;
+      const validation = validateFoundationDefinition(definition, { use: 'judgment' });
+      if (!validation.valid) {
+        const notApplicable = validation.issues.some((issue) => (
+          issue.code === 'UNAUTHORIZED_USE' || issue.code === 'UNVERIFIED_MODEL'
+        ));
+        return {
+          status: notApplicable ? 'not_applicable' : 'unresolved',
+          message: validation.issues.map((issue) => issue.message).join('; ')
+        };
+      }
+      const applicability = validateFoundationReferenceApplicability(input.reference, definition);
+      if (!applicability.valid) {
+        return { status: 'not_applicable', message: applicability.message };
+      }
+      if (options.validate) {
+        return options.validate({
+          ...input,
+          record: { definition, digest: resolved.digest }
+        });
+      }
+      return { status: 'resolved', digest: resolved.digest as JudgmentProblemSnapshotId };
     }
   };
+}
+
+interface ApplicabilityResult {
+  readonly valid: boolean;
+  readonly message?: string;
+}
+
+function validateFoundationReferenceApplicability(
+  reference: JudgmentProblemReference,
+  definition: FoundationDefinition
+): ApplicabilityResult {
+  const scopes: readonly FoundationScope[] = definition.type === 'model'
+    ? [definition.scope, definition.applicability]
+    : [definition.scope];
+  for (const scope of scopes) {
+    if (!scopeContainsReference(scope, reference)) {
+      return {
+        valid: false,
+        message: `Foundation ${definition.type}/${definition.id}@${definition.revision} is outside the reference scope or validity period`
+      };
+    }
+  }
+  return { valid: true };
+}
+
+function scopeContainsReference(scope: FoundationScope, reference: JudgmentProblemReference): boolean {
+  if (!scope.subjectIds.includes(reference.scope.id)) return false;
+  const sourceFrom = Date.parse(scope.validFrom);
+  const sourceUntil = scope.validUntil === undefined ? Number.POSITIVE_INFINITY : Date.parse(scope.validUntil);
+  const referenceFrom = Date.parse(reference.valid_from);
+  const referenceUntil = reference.valid_to == null ? Number.POSITIVE_INFINITY : Date.parse(reference.valid_to);
+  // Open-ended source/reference periods are represented by +Infinity.  Only
+  // supplied timestamps must be finite; rejecting Infinity here would make
+  // every valid open-ended Foundation scope look inapplicable.
+  if (!Number.isFinite(sourceFrom) || !Number.isFinite(referenceFrom)) return false;
+  if (scope.validUntil !== undefined && !Number.isFinite(sourceUntil)) return false;
+  if (reference.valid_to != null && !Number.isFinite(referenceUntil)) return false;
+  return sourceFrom <= referenceFrom && sourceUntil >= referenceUntil;
 }

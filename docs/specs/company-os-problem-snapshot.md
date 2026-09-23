@@ -70,6 +70,11 @@ interface JudgmentProblemSnapshot {
 interface SnapshotAccessContext {
   principal: string;
 }
+
+interface LoadReferenceOptions {
+  /** `current` is the default; `historical` skips live canonical resolution. */
+  reference_resolution?: 'current' | 'historical';
+}
 ```
 
 `digest` は参照元の版と使用内容を結びつける。可変な証拠は `embedded_content` または provider が保証する `immutable_reference` のどちらかで固定し、いずれも内容 hash と元の読取境界を保持する。秘密値や bearer token をスナップショットへ埋め込まない。
@@ -92,7 +97,9 @@ interface SnapshotAccessContext {
 
 ## 読取
 
-読取は `snapshot_id` または `problem_id`・`revision` と `SnapshotAccessContext` を受け取る。保存時の `read_policy` と evidence の ACL を `accessProvider` で再評価し、readable でなければ `unauthorized`、artifact がなければ `not_found`、参照先の必須条件が現在の用途に適用できなければ `not_applicable`、欠落していれば `missing_reference`、解決不能なら `unresolved_constraint` を返す。アクセス境界を caller の都合で広げない。戻り値は再帰的に凍結した snapshot とする。
+読取は `snapshot_id` または `problem_id`・`revision` と `SnapshotAccessContext` を受け取る。保存時の `read_policy` と evidence の ACL を `accessProvider` で再評価し、readable でなければ `unauthorized`、artifact がなければ `not_found`、参照先の必須条件が現在の用途に適用できなければ `not_applicable`、欠落していれば `missing_reference`、解決不能なら `unresolved_constraint` を返す。アクセス境界を caller の都合で広げない。戻り値は再帰的に凍結した snapshot とする。`reference_resolution` は省略時の `current` と、保存済みの参照束だけを監査・再現する `historical` を選べる。
+
+スナップショット本文の過去条件再現と、参照先正本の現在 ACL は別の境界として扱う。スナップショットの bytes、参照ID、revision、digest、埋込み証拠は保存後に変更・削除しない。`current` では canonical reference provider が読取時にも現在の正本ストアの ACL、用途、適用範囲を検証するため、現在の正本を再解決できない場合は `unauthorized`／`not_applicable`／`unresolved_constraint` を返す。これは新しい判断で参照を再利用できるかを確認する経路であり、過去の snapshot 本文を再現する経路とは分ける。`historical` は snapshot ACL と artifact integrity を確認したうえで provider を呼ばず、保存済みの reference と digest、埋込み証拠だけを返す。したがって、正本の現在 ACL が変更されたことだけで保存済み本文の監査・再現を妨げない。`historical` の結果を現在の判断・実行の適用可否へ流用してはならず、実行権限も付与しない。
 
 読取は判断条件の再確認に限定し、runner、resource reservation、external action、approval のいずれも開始しない。authority reference は判断時に観測した根拠であって、現在の権限確認や実行許可ではない。
 
