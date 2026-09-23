@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-problem-selection-v1
 title: 新規着手と継続・保留を目的と資源の条件で比較できる
-status: planned
+status: implemented
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-problem-candidates-v1", "story-company-os-problem-snapshot-v1", "story-company-os-subdag-v1"]
 external_dependencies: []
@@ -59,4 +59,9 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+実装済み。`src/problem-selection.ts` に選択用meta Problem、候補のcurrent ACL／digest
+検証、比較結果、後続Problem作成要求、immutable SelectionRecord storeを実装し、
+`tests/problem-selection.test.ts` で各アクション、unknown、目的衝突、候補境界、
+実storeの読戻しと改ざん検知を検証する。focused TypeScript検査も通過している。
+全体buildは既存のworktree依存・`src/server.ts` 型エラーのためローカルでは完了しておらず、
+全体suiteとCIで継続確認する。

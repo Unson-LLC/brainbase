@@ -1,0 +1,238 @@
+.judgment-view {
+  --judgment-ink: #172033;
+  --judgment-muted: #667085;
+  --judgment-border: #d8dee9;
+  --judgment-panel: #ffffff;
+  --judgment-surface: #f5f7fb;
+  --judgment-accent: #3157d5;
+  --judgment-success: #18794e;
+  --judgment-warning: #9a6700;
+  --judgment-danger: #b42318;
+  box-sizing: border-box;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 28px;
+  color: var(--judgment-ink);
+  background: var(--judgment-surface);
+  font: 15px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.judgment-view *,
+.judgment-view *::before,
+.judgment-view *::after {
+  box-sizing: inherit;
+}
+
+.judgment-view-header {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.judgment-view-kicker {
+  color: var(--judgment-accent);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+
+.judgment-view h1,
+.judgment-view h2,
+.judgment-view h3,
+.judgment-view p {
+  margin-top: 0;
+}
+
+.judgment-view h1 {
+  margin-bottom: 0;
+  font-size: clamp(24px, 4vw, 34px);
+  letter-spacing: -.02em;
+}
+
+.judgment-view h2 {
+  margin-bottom: 14px;
+  font-size: 18px;
+}
+
+.judgment-view h3 {
+  margin: 18px 0 8px;
+  font-size: 14px;
+}
+
+.judgment-view-mode,
+.judgment-view-muted {
+  color: var(--judgment-muted);
+}
+
+.judgment-view-mode {
+  margin-bottom: 0;
+}
+
+.judgment-view-status {
+  justify-self: start;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.judgment-view-panel {
+  margin-top: 14px;
+  padding: 20px;
+  border: 1px solid var(--judgment-border);
+  border-radius: 12px;
+  background: var(--judgment-panel);
+  box-shadow: 0 2px 10px rgb(22 32 55 / 4%);
+}
+
+.judgment-view-conclusion {
+  border-color: color-mix(in srgb, var(--judgment-accent) 45%, var(--judgment-border));
+}
+
+.judgment-view-conclusion-value {
+  overflow: auto;
+  margin: 0;
+  padding: 14px;
+  border-radius: 8px;
+  background: #eef2ff;
+  color: #1d2d68;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.judgment-view-link-row {
+  margin: 12px 0 0;
+}
+
+.judgment-view a {
+  color: var(--judgment-accent);
+  font-weight: 600;
+}
+
+.judgment-view-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid currentColor;
+  border-radius: 4px;
+  background: #f8fafc;
+}
+
+.judgment-view-notice.is-unknown,
+.judgment-view-status.is-unknown,
+.judgment-view-status.is-undecidable {
+  color: var(--judgment-warning);
+}
+
+.judgment-view-notice.is-permission_denied,
+.judgment-view-status.is-permission_denied {
+  color: var(--judgment-danger);
+}
+
+.judgment-view-notice.is-unavailable,
+.judgment-view-status.is-unavailable {
+  color: #995c00;
+}
+
+.judgment-view-notice.is-invalid,
+.judgment-view-status.is-invalid {
+  color: #8e2a2a;
+}
+
+.judgment-view-notice.is-resolved,
+.judgment-view-status.is-resolved {
+  color: var(--judgment-success);
+}
+
+.judgment-view-run-meta,
+.judgment-view-question,
+.judgment-view-objective-state {
+  margin-bottom: 10px;
+}
+
+.judgment-view-objective-state {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.judgment-view-meta {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.35fr) 1fr;
+  margin: 0;
+  border-top: 1px solid var(--judgment-border);
+}
+
+.judgment-view-meta dt,
+.judgment-view-meta dd {
+  margin: 0;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--judgment-border);
+}
+
+.judgment-view-meta dt {
+  color: var(--judgment-muted);
+  font-size: 13px;
+}
+
+.judgment-view-reference-list,
+.judgment-view-evidence-list,
+.judgment-view-criteria,
+.judgment-view-child-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.judgment-view-reference-list li,
+.judgment-view-evidence-list li,
+.judgment-view-criteria li {
+  overflow-wrap: anywhere;
+}
+
+.judgment-view-child {
+  display: grid;
+  gap: 2px;
+  padding: 9px 11px;
+  border-left: 3px solid var(--judgment-border);
+  border-radius: 4px;
+  background: #f8fafc;
+}
+
+.judgment-view-child.is-completed {
+  border-left-color: var(--judgment-success);
+}
+
+.judgment-view-child.is-failed,
+.judgment-view-child.is-held {
+  border-left-color: var(--judgment-warning);
+}
+
+.judgment-view-evaluation-block + .judgment-view-evaluation-block {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--judgment-border);
+}
+
+.judgment-view-evaluation-block h3 {
+  margin-top: 0;
+}
+
+@media (max-width: 640px) {
+  .judgment-view {
+    padding: 18px;
+  }
+
+  .judgment-view-panel {
+    padding: 16px;
+  }
+
+  .judgment-view-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .judgment-view-meta dt {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+}
