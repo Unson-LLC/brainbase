@@ -95,6 +95,10 @@
       "types": "./dist/resource-reservation-http.d.ts",
       "import": "./dist/resource-reservation-http.js"
     },
+    "./execution-authority": {
+      "types": "./dist/execution-authority.d.ts",
+      "import": "./dist/execution-authority.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
