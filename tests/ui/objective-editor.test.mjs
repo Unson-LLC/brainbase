@@ -81,7 +81,8 @@ afterEach(() => {
 
 describe('Objective editor common UI contract', () => {
   it('keeps unknown, draft, and judgment-ready states distinct', () => {
-    expect(normalizeObjectiveCollection({ records: [] })).toMatchObject({ state: 'empty', absence_confirmed: true });
+    expect(normalizeObjectiveCollection({ records: [] })).toMatchObject({ state: 'unknown', records: null, absence_confirmed: false });
+    expect(normalizeObjectiveCollection({ records: [], state: 'empty', absence_confirmed: true })).toMatchObject({ state: 'empty', records: [], absence_confirmed: true });
     expect(normalizeObjectiveCollection({ status: 'unknown' })).toMatchObject({ state: 'unknown', absence_confirmed: false });
     const draft = normalizeObjectiveRecord(objectiveRecord({ definition: { ...objectiveRecord().definition, adoptionState: 'draft' } }));
     expect(objectiveJudgmentState(draft)).toBe('draft');
@@ -98,6 +99,30 @@ describe('Objective editor common UI contract', () => {
 
     const refs = normalizeReferenceCollection({ refs: [{ id: 'constraint-1', type: 'constraint', revision: '1' }, { id: 'broken-ref' }] });
     expect(refs).toMatchObject({ state: 'unknown', refs: null, absence_confirmed: false });
+  });
+
+  it('requires explicit absence confirmation for empty constraints and Story links', () => {
+    expect(normalizeReferenceCollection({ refs: [], state: 'empty', absence_confirmed: false }))
+      .toMatchObject({ state: 'unknown', refs: null, absence_confirmed: false });
+    expect(normalizeReferenceCollection({ refs: [], state: 'empty', absence_confirmed: true }))
+      .toMatchObject({ state: 'empty', refs: [], absence_confirmed: true });
+
+    expect(normalizeStoryObjectiveLinks({ links: [], state: 'empty', absence_confirmed: false }))
+      .toMatchObject({ state: 'unknown', links: null, absence_confirmed: false });
+    expect(normalizeStoryObjectiveLinks({ links: [], state: 'empty', absence_confirmed: true }))
+      .toMatchObject({ state: 'empty', links: [], absence_confirmed: true });
+  });
+
+  it('rejects an Objective when any criterion has a non-Variable reference', () => {
+    const invalid = objectiveRecord({
+      definition: {
+        ...objectiveRecord().definition,
+        criteria: [{ variableRef: { id: 'model-1', type: 'model', revision: '1' }, operator: 'at_most', target: 1 }],
+      },
+    });
+    expect(normalizeObjectiveRecord(invalid)).toBeNull();
+    expect(normalizeObjectiveCollection({ records: [invalid] }))
+      .toMatchObject({ state: 'unknown', records: null, absence_confirmed: false });
   });
 
   it('renders Story relation labels without copying Story content', () => {

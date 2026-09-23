@@ -230,6 +230,12 @@ export function normalizeObjectiveRecord(payload) {
   if (!id || !revision) return null;
   const criteriaValue = firstValue(definition, 'criteria');
   const criteria = asArray(criteriaValue);
+  // A malformed criterion must invalidate the whole Objective readback.  It
+  // is unsafe to drop a broken Variable reference and present the remaining
+  // criteria as a usable (or empty) set for saving or judgment.
+  if (criteriaValue !== undefined && criteria === null) return null;
+  const normalizedCriteria = criteria ? criteria.map(normalizeCriterion) : null;
+  if (normalizedCriteria?.some((criterion) => !criterion)) return null;
   const readiness = normalizeReadiness(firstValue(source, 'readiness', 'judgmentReadiness', 'judgment_readiness'));
   const constraintRefsValue = firstValue(source, 'constraintRefs', 'constraint_refs', 'constraints');
   const constraintRefs = asArray(constraintRefsValue);
@@ -241,7 +247,7 @@ export function normalizeObjectiveRecord(payload) {
     meaning: nonEmptyText(firstValue(definition, 'meaning')),
     beneficiaryIds: asArray(firstValue(definition, 'beneficiaryIds', 'beneficiary_ids')),
     desiredState: nonEmptyText(firstValue(definition, 'desiredState', 'desired_state')),
-    criteria: criteria ? criteria.map(normalizeCriterion).filter(Boolean) : null,
+    criteria: normalizedCriteria,
     evaluationPeriod: normalizePeriod(firstValue(definition, 'evaluationPeriod', 'evaluation_period')),
     accountableId: nonEmptyText(firstValue(definition, 'accountableId', 'accountable_id')),
     epistemicState: nonEmptyText(firstValue(definition, 'epistemicState', 'epistemic_state')),
@@ -282,13 +288,17 @@ export function normalizeObjectiveCollection(payload) {
   if (records.some((record) => !record || record.type !== 'objective')) {
     return { state: 'unknown', records: null, absence_confirmed: false };
   }
+  const absenceConfirmed = payloadValue(payload, 'absence_confirmed', 'absenceConfirmed') === true;
+  if (records.length === 0 && !absenceConfirmed) {
+    return { state: 'unknown', records: null, absence_confirmed: false };
+  }
   const state = explicitState === 'permission_denied' || explicitState === 'api_unavailable' || explicitState === 'conflict'
     ? explicitState
     : records.length ? 'ready' : 'empty';
   return {
     state,
     records,
-    absence_confirmed: payloadValue(payload, 'absence_confirmed', 'absenceConfirmed') !== false,
+    absence_confirmed: absenceConfirmed,
   };
 }
 
@@ -300,11 +310,15 @@ export function normalizeReferenceCollection(payload, keys = ['refs', 'reference
   if (refs.some((ref) => !ref)) {
     return { state: 'unknown', refs: null, absence_confirmed: false };
   }
+  const absenceConfirmed = payloadValue(payload, 'absence_confirmed', 'absenceConfirmed') === true;
+  if (refs.length === 0 && !absenceConfirmed) {
+    return { state: 'unknown', refs: null, absence_confirmed: false };
+  }
   return {
     state: explicitState === 'permission_denied' || explicitState === 'api_unavailable' || explicitState === 'conflict'
       ? explicitState : refs.length ? 'ready' : 'empty',
     refs,
-    absence_confirmed: payloadValue(payload, 'absence_confirmed', 'absenceConfirmed') !== false,
+    absence_confirmed: absenceConfirmed,
   };
 }
 
@@ -334,11 +348,15 @@ export function normalizeStoryObjectiveLinks(payload) {
   if (links.length !== recordsValue.length) {
     return { state: 'unknown', links: null, absence_confirmed: false };
   }
+  const absenceConfirmed = payloadValue(payload, 'absence_confirmed', 'absenceConfirmed') === true;
+  if (links.length === 0 && !absenceConfirmed) {
+    return { state: 'unknown', links: null, absence_confirmed: false };
+  }
   return {
     state: explicitState === 'permission_denied' || explicitState === 'api_unavailable' || explicitState === 'conflict'
       ? explicitState : links.length ? 'ready' : 'empty',
     links,
-    absence_confirmed: payloadValue(payload, 'absence_confirmed', 'absenceConfirmed') !== false,
+    absence_confirmed: absenceConfirmed,
   };
 }
 
