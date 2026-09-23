@@ -71,6 +71,10 @@
       "types": "./dist/foundation-constraint-store.d.ts",
       "import": "./dist/foundation-constraint-store.js"
     },
+    "./foundation-http": {
+      "types": "./dist/foundation-http.d.ts",
+      "import": "./dist/foundation-http.js"
+    },
     "./constraint-exception-store": {
       "types": "./dist/constraint-exception-store.d.ts",
       "import": "./dist/constraint-exception-store.js"
@@ -119,6 +123,8 @@
     "./ui/outcome-knowledge.css": "./ui/outcome-knowledge.css",
     "./ui/outcome-mana": "./ui/outcome-mana.js",
     "./ui/outcome-mana.css": "./ui/outcome-mana.css",
+    "./ui/objective-editor": "./ui/objective-editor.js",
+    "./ui/objective-editor.css": "./ui/objective-editor.css",
     "./ui/icons/*": "./ui/icons/*",
     "./dist/*": "./dist/*",
     "./contracts/judgment-dag/schema.json": "./contracts/judgment-dag/schema.json",
