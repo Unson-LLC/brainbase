@@ -123,6 +123,10 @@
       "types": "./dist/durable-waits.d.ts",
       "import": "./dist/durable-waits.js"
     },
+    "./durable-wait-http": {
+      "types": "./dist/durable-wait-http.d.ts",
+      "import": "./dist/durable-wait-http.js"
+    },
     "./judgment-view": {
       "types": "./dist/judgment-view.d.ts",
       "import": "./dist/judgment-view.js"
