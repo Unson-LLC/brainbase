@@ -91,6 +91,10 @@
       "types": "./dist/resource-reservations.d.ts",
       "import": "./dist/resource-reservations.js"
     },
+    "./durable-waits": {
+      "types": "./dist/durable-waits.d.ts",
+      "import": "./dist/durable-waits.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
