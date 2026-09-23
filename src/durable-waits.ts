@@ -263,6 +263,13 @@ export class DurableWaitError extends Error {
   }
 }
 
+/** Internal marker for the CAS branch that can reconcile a concurrent claim. */
+class DurableWaitPreflightConflict extends DurableWaitError {
+  constructor(message: string, wait_id?: string) {
+    super('state_conflict', message, wait_id);
+  }
+}
+
 interface DurableWaitLedger {
   readonly version: typeof DURABLE_WAIT_VERSION;
   readonly waits: DurableWaitRecord[];
@@ -412,57 +419,65 @@ export class DurableWaitStore {
     const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
     await this.authorize('claim', normalized.principal, preflightRecord.read_policy, preflightRecord);
     await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
-    return mutatePersonalOsWithSidecar<DurableWaitClaimResult>(this.dataDir, this.sidecarPath, (current, content) => {
-      const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
-      const record = findWait(ledger, normalized.wait_id);
-      if (record.state === 'reconciliation_wait') {
-        throw new DurableWaitError('reconciliation_required', `Wait ${record.wait_id} requires external-effect reconciliation`, record.wait_id);
-      }
-      if (record.state === 'handoff_required' || record.state === 'resumed' || record.state === 'failed' || record.state === 'cancelled') {
-        throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
-      }
-      // Validate the incoming event/timer before treating an existing claim as
-      // a duplicate. A different, not-yet-ready trigger must not receive a
-      // claim it cannot legitimately resume.
-      assertTriggerReady(record, normalized);
-      if (record.claim !== undefined) {
-        if (Date.parse(record.claim.lease.expires_at) > normalized.nowMs) {
-          return {
-            next: current,
-            sidecarContent: serializeLedger(ledger),
-            result: {
-              wait: freezeClone(record),
-              claim: freezeClone(record.claim),
-              duplicate: true,
-              claimed_by_this_request: record.claim.request_id === normalized.request_id
-                && record.claim.claimed_by === normalized.principal
-            }
-          };
+    try {
+      return await mutatePersonalOsWithSidecar<DurableWaitClaimResult>(this.dataDir, this.sidecarPath, (current, content) => {
+        const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
+        const record = findWait(ledger, normalized.wait_id);
+        if (record.state === 'reconciliation_wait') {
+          throw new DurableWaitError('reconciliation_required', `Wait ${record.wait_id} requires external-effect reconciliation`, record.wait_id);
         }
-        throw new DurableWaitError('lease_expired', `Wait ${record.wait_id} requires handoff after lease expiry`, record.wait_id);
-      }
-      const claim = makeClaim(normalized, this.nowFromMillis(normalized.nowMs), normalized.leaseMs);
-      const now = this.timestamp(normalized.nowMs);
-      const updated = updateRecord(record, {
-        state: 'claimed',
-        claim,
-        updated_at: now,
-        history: appendHistory(record, {
-          action: 'claim',
-          occurred_at: now,
-          principal: normalized.principal,
-          from_state: record.state,
-          to_state: 'claimed',
-          detail: normalized.trigger === 'event' ? `event:${normalized.event_type ?? ''}` : normalized.trigger
-        })
+        if (record.state === 'handoff_required' || record.state === 'resumed' || record.state === 'failed' || record.state === 'cancelled') {
+          throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
+        }
+        // Validate the incoming event/timer before treating an existing claim as
+        // a duplicate. A different, not-yet-ready trigger must not receive a
+        // claim it cannot legitimately resume.
+        assertTriggerReady(record, normalized);
+        if (record.claim !== undefined) {
+          if (Date.parse(record.claim.lease.expires_at) > normalized.nowMs) {
+            return {
+              next: current,
+              sidecarContent: serializeLedger(ledger),
+              result: {
+                wait: freezeClone(record),
+                claim: freezeClone(record.claim),
+                duplicate: true,
+                claimed_by_this_request: record.claim.request_id === normalized.request_id
+                  && record.claim.claimed_by === normalized.principal
+              }
+            };
+          }
+          throw new DurableWaitError('lease_expired', `Wait ${record.wait_id} requires handoff after lease expiry`, record.wait_id);
+        }
+        const claim = makeClaim(normalized, this.nowFromMillis(normalized.nowMs), normalized.leaseMs);
+        const now = this.timestamp(normalized.nowMs);
+        const updated = updateRecord(record, {
+          state: 'claimed',
+          claim,
+          updated_at: now,
+          history: appendHistory(record, {
+            action: 'claim',
+            occurred_at: now,
+            principal: normalized.principal,
+            from_state: record.state,
+            to_state: 'claimed',
+            detail: normalized.trigger === 'event' ? `event:${normalized.event_type ?? ''}` : normalized.trigger
+          })
+        });
+        replaceWait(ledger, updated);
+        return {
+          next: current,
+          sidecarContent: serializeLedger(ledger),
+          result: { wait: freezeClone(updated), claim: freezeClone(claim), duplicate: false, claimed_by_this_request: true }
+        };
       });
-      replaceWait(ledger, updated);
-      return {
-        next: current,
-        sidecarContent: serializeLedger(ledger),
-        result: { wait: freezeClone(updated), claim: freezeClone(claim), duplicate: false, claimed_by_this_request: true }
-      };
-    });
+    } catch (error) {
+      if (!(error instanceof DurableWaitPreflightConflict)) throw error;
+      // A concurrent winner has already committed the claim. Re-read once,
+      // outside the SSOT mutation lock, and return that winner only after the
+      // current ACL, snapshot access, trigger context, and lease are checked.
+      return this.reconcileClaimAfterPreflightConflict(normalized);
+    }
   }
 
   async handoff(input: DurableWaitHandoffInput): Promise<DurableWaitRecord> {
@@ -664,13 +679,13 @@ export class DurableWaitStore {
     // state rather than committing a stale decision.
     if (fingerprintPersonalOs(current) !== preflight.aggregateFingerprint
       || fingerprintText(sidecarContent) !== preflight.sidecarFingerprint) {
-      throw new DurableWaitError('state_conflict', 'Personal OS changed while validating the durable wait; retry', waitId);
+      throw new DurableWaitPreflightConflict('Personal OS changed while validating the durable wait; retry', waitId);
     }
     const ledger = parseLedger(sidecarContent);
     if (waitId !== undefined) {
       const record = findWait(ledger, waitId);
       if (preflight.waitFingerprint === undefined || fingerprintRecord(record) !== preflight.waitFingerprint) {
-        throw new DurableWaitError('state_conflict', `Wait ${waitId} changed while validating the durable wait; retry`, waitId);
+        throw new DurableWaitPreflightConflict(`Wait ${waitId} changed while validating the durable wait; retry`, waitId);
       }
     }
     return ledger;
@@ -679,6 +694,34 @@ export class DurableWaitStore {
   private async readStored(waitId: string): Promise<DurableWaitRecord> {
     const ledger = parseLedger(await readPersonalOsSidecar(this.dataDir, this.sidecarPath));
     return findWait(ledger, waitId);
+  }
+
+  private async reconcileClaimAfterPreflightConflict(
+    input: DurableWaitClaimInput & { readonly nowMs: number }
+  ): Promise<DurableWaitClaimResult> {
+    const record = await this.readStored(input.wait_id);
+    await this.authorize('claim', input.principal, record.read_policy, record);
+    await this.verifyProblem(input.principal, record.problem_snapshot);
+    if (record.state === 'reconciliation_wait') {
+      throw new DurableWaitError('reconciliation_required', `Wait ${record.wait_id} requires external-effect reconciliation`, record.wait_id);
+    }
+    if (record.state === 'handoff_required' || record.state === 'resumed' || record.state === 'failed' || record.state === 'cancelled') {
+      throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
+    }
+    assertTriggerReady(record, input);
+    if (record.state !== 'claimed' || record.claim === undefined) {
+      throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} has no winning claim`, record.wait_id);
+    }
+    if (Date.parse(record.claim.lease.expires_at) <= input.nowMs) {
+      throw new DurableWaitError('lease_expired', `Wait ${record.wait_id} requires handoff after lease expiry`, record.wait_id);
+    }
+    return {
+      wait: freezeClone(record),
+      claim: freezeClone(record.claim),
+      duplicate: true,
+      claimed_by_this_request: record.claim.request_id === input.request_id
+        && record.claim.claimed_by === input.principal
+    };
   }
 
   private async authorize(action: DurableWaitAccessAction, principal: string, acl: FoundationAcl, wait?: DurableWaitRecord): Promise<void> {

@@ -153,6 +153,48 @@ describe('DurableWaitStore', () => {
     })).resolves.toMatchObject({ claim_id: winner.claim.claim_id });
   });
 
+  it('reconciles a forced CAS loser through current providers', async () => {
+    const clock = nowClock();
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-waits-overlap-'));
+    roots.push(root);
+    let claimAccessCalls = 0;
+    let claimAccessEntrants = 0;
+    let releaseClaimAccess!: () => void;
+    const bothClaimsEntered = new Promise<void>((resolve) => { releaseClaimAccess = resolve; });
+    const access = {
+      authorize: async ({ action }: { action: string }) => {
+        if (action === 'claim') {
+          claimAccessCalls += 1;
+          claimAccessEntrants += 1;
+          if (claimAccessEntrants === 2) releaseClaimAccess();
+          if (claimAccessEntrants <= 2) await bothClaimsEntered;
+        }
+        return true;
+      }
+    };
+    let problemReadCalls = 0;
+    const gatedProblemSnapshot: DurableWaitProblemSnapshotPort = {
+      verify: async ({ phase }) => {
+        if (phase === 'read') problemReadCalls += 1;
+        return true;
+      }
+    };
+    const createStore = new DurableWaitStore({ dataDir: root, problemSnapshot: gatedProblemSnapshot, access, clock: clock.now, defaultLeaseMs: 100 });
+    await createWait(createStore);
+    const left = new DurableWaitStore({ dataDir: root, problemSnapshot: gatedProblemSnapshot, access, clock: clock.now, defaultLeaseMs: 100 });
+    const right = new DurableWaitStore({ dataDir: root, problemSnapshot: gatedProblemSnapshot, access, clock: clock.now, defaultLeaseMs: 100 });
+
+    const results = await Promise.all([
+      left.claim({ wait_id: 'wait-1', principal: 'worker-1', trigger: 'event', request_id: 'forced-overlap-1', event_type: 'evidence.received', event_id: 'event-1' }),
+      right.claim({ wait_id: 'wait-1', principal: 'worker-2', trigger: 'event', request_id: 'forced-overlap-2', event_type: 'evidence.received', event_id: 'event-1' })
+    ]);
+
+    expect(results.filter((result) => result.claimed_by_this_request)).toHaveLength(1);
+    expect(results.filter((result) => result.duplicate && !result.claimed_by_this_request)).toHaveLength(1);
+    expect(claimAccessCalls).toBe(3);
+    expect(problemReadCalls).toBe(3);
+  });
+
   it('hands off an expired lease and accepts one idempotent resume receipt', async () => {
     const { store, clock } = await makeStore();
     await createWait(store);
