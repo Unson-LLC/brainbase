@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-durable-waits-v1
 title: 証拠待ちや期限超過を再起動後も担当へ戻せる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -57,4 +57,4 @@ Mana独自の判断規則、外部作用不明runの自動再実行。
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-実装を開始し、最小Specと永続wait/claim adapterを追加した。`npm run build` と `npx vitest run tests/durable-waits.test.ts`（8 tests）および関連既存テストを検証済み。レビュー・CI・PRは親agentで実施するため、Storyは `in_progress` のままとする。
+最小Specと永続wait/claim adapterを追加した。`npm run build` と `npx vitest run tests/durable-waits.test.ts`（8 tests）および関連既存テストを検証済み。[PR #534](https://github.com/Unson-LLC/brainbase/pull/534) はmerge [`5e39a99663dae0e9e17443353d028fef3f8b6200`](https://github.com/Unson-LLC/brainbase/commit/5e39a99663dae0e9e17443353d028fef3f8b6200)、[CI 35857188292](https://github.com/Unson-LLC/brainbase/actions/runs/35857188292) success、11 tests・review passである。VibeProの `active` は登録状態を示す既存値として維持する。

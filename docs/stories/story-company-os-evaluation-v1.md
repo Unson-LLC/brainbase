@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-evaluation-v1
 title: 判断開始時の目的で成果と判断の妥当性を別々に評価できる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -44,10 +44,10 @@ external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "br
 
 ## 受入条件
 
-- [ ] AC-01: 評価はProblemが固定したObjective・基準・測定定義版・評価期間を使い、当時の基準で読戻せる。
-- [ ] AC-02: 定義版が異なる測定は明示変換なしに比較せず、証拠欠損・未到来期間は判定不能にする。
-- [ ] AC-03: 予測と実績、結果の達成度、判断時点の妥当性を別々に記録し、外れだけで原因を断定しない。
-- [ ] AC-04: ホテル例で直接対応が減っても引継ぎ・修正増加や品質悪化があれば自動的に成功としない。既存OutcomeCaseの閉鎖を置換しない。
+- [x] AC-01: 評価はProblemが固定したObjective・基準・測定定義版・評価期間を使い、当時の基準で読戻せる。
+- [x] AC-02: 定義版が異なる測定は明示変換なしに比較せず、証拠欠損・未到来期間は判定不能にする。
+- [x] AC-03: 予測と実績、結果の達成度、判断時点の妥当性を別々に記録し、外れだけで原因を断定しない。
+- [x] AC-04: ホテル例で直接対応が減っても引継ぎ・修正増加や品質悪化があれば自動的に成功としない。既存OutcomeCaseの閉鎖を置換しない。
 
 ## 対象外
 
@@ -62,4 +62,6 @@ external_dependencies: [{"story_id": "story-outcome-case-v1", "source_repo": "br
 - `src/company-os-evaluation.ts` に、Problem snapshotのhistorical read、exact Foundation定義loader、read-only OutcomeCasePort、immutable evaluation sidecar store（`evaluate`／`read`／`list`）を実装した。
 - `tests/company-os-evaluation.test.ts` は実際のcanonical Graph/Foundation storeとsidecarを使い、ホテルの負荷・品質反例、欠損・未到来・未来期間、明示conversion provenance、現在ACL失効、scope越境、sidecar破損・派生値改ざん、重複IDを検証する。
 - `docs/specs/company-os-evaluation-v1.md` に、所有境界、保存場所、公開port、評価手順、不変条件、エラー境界を固定した。
-- `npm run build` と `npx vitest run tests/company-os-evaluation.test.ts --reporter verbose` を実行済み。レビューとCIの完了まではStoryを完了扱いにしない。
+- `npm run build` と `npx vitest run tests/company-os-evaluation.test.ts --reporter verbose` を実行済み。
+
+AC-01〜04は実装・review・CIで確認済み。[PR #533](https://github.com/Unson-LLC/brainbase/pull/533) はmerge [`7e6359681af6606e14cba8ca8116ca559504e900`](https://github.com/Unson-LLC/brainbase/commit/7e6359681af6606e14cba8ca8116ca559504e900)、最終headは [`50dfc0c16e5872c262c0141b666ec61fc271f876`](https://github.com/Unson-LLC/brainbase/commit/50dfc0c16e5872c262c0141b666ec61fc271f876)、[CI 35850113260](https://github.com/Unson-LLC/brainbase/actions/runs/35850113260) success、delta reviewはblockingなしである。OutcomeCasePortはread-only境界として扱い、既存orgの閉鎖・API・Postgres・RACIのOSS組込みと本番検証は完了条件に含めない。VibeProの `active` は登録状態を示し、完了状態とは別である。

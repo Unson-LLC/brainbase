@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-learning-adoption-v1
 title: 結果から作った改訂候補を権限と根拠付きで次回へ採用できる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -46,10 +46,10 @@ external_dependencies: [{"story_id": "story-brainbase-knowledge-event-cycle", "s
 
 ## 受入条件
 
-- [ ] AC-01: 更新先を世界モデル・判断方法・実行方法・Objectiveに分け、根拠・反例・不確実性・適用範囲付き候補を残す。
-- [ ] AC-02: 測定誤差・実行差・外部変化を検討可能にし、予測との差だけでモデルの誤りを確定しない。
-- [ ] AC-03: 検証結果と採用権限を確認して新版を作り、Objective変更は対応する権限へ戻す。旧版・旧runは不変。
-- [ ] AC-04: 採用記録と次回runの実利用記録を分け、未検証モデルの限定採用を検証済みへ格上げしない。
+- [x] AC-01: 更新先を世界モデル・判断方法・実行方法・Objectiveに分け、根拠・反例・不確実性・適用範囲付き候補を残す。
+- [x] AC-02: 測定誤差・実行差・外部変化を検討可能にし、予測との差だけでモデルの誤りを確定しない。
+- [x] AC-03: 検証結果と採用権限を確認して新版を作り、Objective変更は対応する権限へ戻す。旧版・旧runは不変。
+- [x] AC-04: 採用記録と次回runの実利用記録を分け、未検証モデルの限定採用を検証済みへ格上げしない。
 
 ## 対象外
 
@@ -65,4 +65,4 @@ external_dependencies: [{"story_id": "story-brainbase-knowledge-event-cycle", "s
 - `src/company-os-learning-adoption.ts` に、候補・検証・採用・planned選択・actual receipt-backed実利用を分離する公開store、評価／対象／承認／host-owned run receipt port、Foundation Graph v2 adapterを実装した。候補・検証・採用・run利用は `evidence/company-os-learning-adoption.json` にdigest付きで保存し、採用時だけFoundation新版をcanonical Graphへatomic commitする。actual run-useはplanned記録だけでは成立せず、receiptの現在ACL／scope・run ID・採用版exact targetをreadbackで確認する。
 - Story07評価の提供版は `7e6359681af6606e14cba8ca8116ca559504e900`。組織側のKnowledge Event Cycle、Memory Promotion Kernel、Meeting Judgment Learningは契約参照に限定し、組織データ・API・権限をOSSへコピーしない。
 - `tests/company-os-learning-adoption.test.ts` は実際のGraph／Foundation storeとsidecarを使い、ホテルの外部変化、予測差だけの反証拒否、reader採用拒否、対象revision競合、sidecar破損、planned run-use冪等性、actual receipt-backed exact-version利用、receipt改ざん拒否、candidate target ACL失効を検証する。
-- `npm run build` と `npx vitest run tests/company-os-learning-adoption.test.ts --reporter verbose` は成功済み。レビュー・CI・mergeの完了まではStoryを完了扱いにしない。
+- `npm run build` と `npx vitest run tests/company-os-learning-adoption.test.ts --reporter verbose` は成功済み。[PR #538](https://github.com/Unson-LLC/brainbase/pull/538) はmerge [`03a8d05d260bfdcb242e89bd781965ba93edb7da`](https://github.com/Unson-LLC/brainbase/commit/03a8d05d260bfdcb242e89bd781965ba93edb7da)、[CI 35857192193](https://github.com/Unson-LLC/brainbase/actions/runs/35857192193) success、actual-use・current ACL・read cross-reference修正後にreview passである。組織側のKnowledge Event Cycle、Memory Promotion Kernel、Meeting Judgment Learningは契約参照に限定し、組織データ・API・権限をOSSへコピーしない。VibeProの `active` は登録状態を示す既存値として維持する。
