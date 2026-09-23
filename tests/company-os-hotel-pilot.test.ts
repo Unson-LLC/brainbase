@@ -40,7 +40,7 @@ import { createProblemCandidateStore } from '../src/problem-candidates.js';
 import { createProblemSelection, createProblemSelectionRecordStore, evaluateProblemSelectionWithComposition } from '../src/problem-selection.js';
 import type { JudgmentDAGCompositionDefinition, JudgmentDAGProblemSnapshotReference } from '../src/judgment-dag-composition.js';
 import type { JudgmentDAGJSONValue } from '../src/judgment-dag-runner.js';
-import { createResourceReservationExecutionPort, ExecutionAuthorityService } from '../src/execution-authority.js';
+import { createResourceReservationExecutionPort, ExecutionAuthorityService, type ExecutionCheckRequest } from '../src/execution-authority.js';
 import { createResourceReservationProblemSnapshotPort, ResourceReservationService } from '../src/resource-reservations.js';
 import { DurableWaitStore } from '../src/durable-waits.js';
 import {
@@ -297,7 +297,8 @@ function pilotSnapshot(input: {
   variables: readonly (FoundationRevision & { readonly digest: string })[];
   model: FoundationRevision & { readonly digest: string };
   constraint: FoundationRevision & { readonly digest: string };
-  observationIds: readonly string[];
+  observationReferences: readonly JudgmentProblemReference[];
+  hostReferences: readonly JudgmentProblemReference[];
   revision?: string;
   problemId?: string;
 }): JudgmentProblemSnapshot {
@@ -307,13 +308,8 @@ function pilotSnapshot(input: {
     ...input.variables.map((ref) => snapshotReference('variable', ref)),
     snapshotReference('model', input.model),
     snapshotReference('constraint', input.constraint),
-    ...input.observationIds.map((id) => evidenceReference('observation', id, { id })),
-    evidenceReference('criterion', 'criterion-hotel-load', { load: 100 }),
-    evidenceReference('criterion', 'criterion-hotel-quality', { quality: 0.9 }),
-    evidenceReference('authority', 'authority-hotel-pilot', { ownerId }),
-    evidenceReference('resource', 'resource-hotel-pilot-fixture', { sideEffect: 'fixture-only' }),
-    evidenceReference('deadline', 'deadline-hotel-pilot', { at: '2026-04-30T23:59:59.999Z' }),
-    evidenceReference('dag', 'dag-hotel-pilot', { version: '1' }),
+    ...input.observationReferences,
+    ...input.hostReferences,
   ];
   return {
     snapshot_version: 'judgment-problem-snapshot.v1',
@@ -354,21 +350,98 @@ describe('company OS hotel pilot', () => {
     const actualCorrectionValue = numberValue(actualCorrection.value);
     const actualQualityValue = numberValue(actualQuality.value);
     const actualTotal = actualDirectValue + actualHandoffValue + actualCorrectionValue;
+    const observationRecords = [baselineTotal, baselineQuality, actualDirect, actualHandoff, actualCorrection, actualQuality] as const;
+    const observationReferences = observationRecords.map((record) => ({
+      ...evidenceReference('observation', record.id, record),
+      valid_from: record.period.from,
+      valid_to: record.period.until,
+    }));
+    const hostReferenceDefinitions = [
+      { kind: 'criterion' as const, id: 'criterion-hotel-load', value: { load: 100 } },
+      { kind: 'criterion' as const, id: 'criterion-hotel-quality', value: { quality: 0.9 } },
+      { kind: 'authority' as const, id: 'authority-hotel-pilot', value: { ownerId, scopeId: hotelId, permission: 'fixture-only' } },
+      { kind: 'resource' as const, id: 'resource-hotel-pilot-fixture', value: { sideEffect: 'fixture-only', scopeId: hotelId } },
+      { kind: 'deadline' as const, id: 'deadline-hotel-pilot', value: { at: '2026-04-30T23:59:59.999Z' } },
+      { kind: 'dag' as const, id: 'dag-hotel-pilot', value: { version: '1', ownerId } },
+    ] as const;
+    const hostReferenceRecords = new Map(hostReferenceDefinitions.map((entry) => [
+      `${entry.kind}/${entry.id}`,
+      {
+        revision: '1',
+        digest: digest(entry.value) as `sha256:${string}`,
+        scope: { type: 'project' as const, id: hotelId },
+        valid_from: period.from,
+        valid_to: period.until,
+      },
+    ]));
+    const hostReferences = hostReferenceDefinitions.map((entry) => {
+      const record = hostReferenceRecords.get(`${entry.kind}/${entry.id}`)!;
+      return {
+        kind: entry.kind,
+        id: entry.id,
+        revision: record.revision,
+        digest: record.digest,
+        scope: record.scope,
+        valid_from: record.valid_from,
+        valid_to: record.valid_to,
+      } satisfies JudgmentProblemReference;
+    });
     const foundationProvider = createJudgmentProblemFoundationReferenceProvider({ store: foundationStore });
     const referenceProvider: JudgmentProblemReferenceProvider = {
       async resolve(input) {
         if (['objective', 'variable', 'model', 'constraint'].includes(input.reference.kind)) {
           return foundationProvider.resolve(input);
         }
-        return { status: 'resolved', digest: input.reference.digest };
+        if (input.reference.kind === 'observation') {
+          if (input.context.principal !== ownerId
+            || input.reference.scope.type !== 'project'
+            || input.reference.scope.id !== hotelId
+            || input.reference.revision !== '1') {
+            return { status: 'unauthorized', message: 'Observation reference is outside the fixture ACL or revision.' };
+          }
+          try {
+            const record = await worldModel.readObservation(input.reference.id, { principal: input.context.principal });
+            if (!record) return { status: 'missing', message: 'Observation was not found in the world-model store.' };
+            if (record.subjectId !== hotelId
+              || record.period.from !== input.reference.valid_from
+              || record.period.until !== input.reference.valid_to) {
+              return { status: 'unresolved', message: 'Observation scope or validity does not match the snapshot reference.' };
+            }
+            const resolvedDigest = digest(record) as `sha256:${string}`;
+            if (resolvedDigest !== input.reference.digest) {
+              return { status: 'unresolved', message: 'Observation digest changed.' };
+            }
+            return { status: 'resolved', digest: resolvedDigest };
+          } catch {
+            return { status: 'unauthorized', message: 'Observation ACL denied the read.' };
+          }
+        }
+        const hostRecord = hostReferenceRecords.get(`${input.reference.kind}/${input.reference.id}`);
+        if (!hostRecord) return { status: 'missing', message: 'Host-owned fixture reference was not found.' };
+        if (input.context.principal !== ownerId
+          || input.reference.scope.type !== hostRecord.scope.type
+          || input.reference.scope.id !== hostRecord.scope.id
+          || input.reference.revision !== hostRecord.revision
+          || input.reference.valid_from !== hostRecord.valid_from
+          || input.reference.valid_to !== hostRecord.valid_to) {
+          return { status: 'unauthorized', message: 'Host-owned fixture reference is outside the fixture ACL or revision.' };
+        }
+        if (input.reference.digest !== hostRecord.digest) {
+          return { status: 'unresolved', message: 'Host-owned fixture reference digest changed.' };
+        }
+        return { status: 'resolved', digest: hostRecord.digest };
       },
     };
+    const unknownReference = { ...hostReferences[0]!, id: 'criterion-unknown' };
+    expect(await referenceProvider.resolve({ reference: unknownReference, phase: 'read', context })).toMatchObject({ status: 'missing' });
+    expect(await referenceProvider.resolve({ reference: { ...observationReferences[0]!, digest: digest({ tampered: true }) as `sha256:${string}` }, phase: 'read', context })).toMatchObject({ status: 'unresolved' });
     const snapshot = pilotSnapshot({
       objective,
       variables: [total, quality, direct, handoff, correction],
       model,
       constraint,
-      observationIds: [baselineTotal.id, baselineQuality.id, actualDirect.id, actualHandoff.id, actualCorrection.id, actualQuality.id],
+      observationReferences,
+      hostReferences,
     });
     const receipt = await saveJudgmentProblemSnapshot({
       root: dataDir,
@@ -735,7 +808,8 @@ describe('company OS hotel pilot', () => {
       variables: [total, quality, direct, handoff, correction],
       model: modelV2,
       constraint,
-      observationIds: [baselineTotal.id, baselineQuality.id, actualDirect.id, actualHandoff.id, actualCorrection.id, actualQuality.id],
+      observationReferences,
+      hostReferences,
       problemId: 'problem-hotel-pilot-v2',
     });
     const receiptV2 = await saveJudgmentProblemSnapshot({
@@ -849,91 +923,64 @@ describe('company OS hotel pilot', () => {
         createNewProblemAndRun: async () => ({ problem: newProblem, run_id: 'run-hotel-pilot-v2' }),
       },
     });
-    const impactResult = await impactCoordinator.review({ access: impactAccess, changes: [impactChange] });
-    expect(impactResult.decisions[0]?.disposition).toBe('hold');
-    const waitId = impactResult.decisions[0]?.wait_id;
-    expect(waitId).toMatch(/^impact-review-/u);
-    const persistedWait = await impactWaitStore1.get({ wait_id: waitId!, principal: ownerId });
-    expect(persistedWait).toMatchObject({
-      state: 'waiting',
-      problem_snapshot: oldProblem,
-      run_ref: { run_id: 'run-hotel-pilot-v1' },
-    });
-    const impactWaitStore2 = new DurableWaitStore({
-      dataDir,
-      clock: () => new Date('2026-05-04T00:00:00.000Z'),
-      problemSnapshot: impactSnapshotPort,
-    });
-    const claim = await impactWaitStore2.claim({
-      wait_id: waitId!,
-      principal: ownerId,
-      request_id: 'claim-hotel-pilot-v1',
-      trigger: 'event',
-      event_type: 'impact_review',
-      event_id: waitId!,
-      occurred_at: '2026-05-04T00:00:00.000Z',
-    });
-    expect(claim.claimed_by_this_request).toBe(true);
-    const impactWaitStore3 = new DurableWaitStore({
-      dataDir,
-      clock: () => new Date('2026-05-04T00:00:00.000Z'),
-      problemSnapshot: impactSnapshotPort,
-    });
-    const restartedWait = await impactWaitStore3.get({ wait_id: waitId!, principal: ownerId });
-    expect(restartedWait).toMatchObject({
-      state: 'claimed',
-      problem_snapshot: oldProblem,
-      run_ref: { run_id: 'run-hotel-pilot-v1' },
-      claim: { request_id: 'claim-hotel-pilot-v1', claim_id: claim.claim.claim_id },
-    });
-    const reassessed = await impactCoordinator.reassess({
-      access: impactAccess,
-      plan: impactPlan,
-      changes: [impactChange],
-      reason: impactChange.reason,
-      wait_id: waitId,
-    });
-    expect(reassessed).toEqual({ problem: newProblem, run_id: 'run-hotel-pilot-v2', wait_id: waitId });
-    const handoffWait = await impactWaitStore3.get({ wait_id: waitId!, principal: ownerId });
-    expect(handoffWait).toMatchObject({
-      state: 'handoff_required',
-      problem_snapshot: oldProblem,
-      next_problem: newProblem,
-      run_ref: { run_id: 'run-hotel-pilot-v1' },
-    });
-
     const reservationProblem = {
       problem_snapshot_id: receipt.snapshot_id,
       problem_id: snapshot.problem_id,
       revision: snapshot.revision,
     };
+    let reservationProblemV2: typeof reservationProblem | undefined;
+    let impactWaitStoreForExecution: DurableWaitStore | undefined;
+    let currentImpactWaitId: string | undefined;
+    const storedSnapshotReferences = new Map<string, JudgmentProblemReference>();
+    const reservationReferenceProvider: JudgmentProblemReferenceProvider = {
+      resolve: async ({ reference, context: referenceContext }) => {
+        if (referenceContext.principal !== ownerId) return { status: 'unauthorized' as const };
+        const stored = storedSnapshotReferences.get(`${reference.kind}/${reference.id}/${reference.revision}`);
+        if (stored === undefined) return { status: 'missing' as const };
+        if (
+          stored.digest !== reference.digest
+          || stored.scope.type !== reference.scope.type
+          || stored.scope.id !== reference.scope.id
+          || stored.valid_from !== reference.valid_from
+          || stored.valid_to !== reference.valid_to
+        ) return { status: 'unresolved' as const };
+        return { status: 'resolved' as const, digest: stored.digest };
+      },
+    };
     // Reservation mutations already hold the SSOT lock. Read and validate the
     // canonical snapshot before entering that transaction, then expose the
     // immutable record through the lock-safe verifier port.
-    const reservationSnapshotRecord = {
-      snapshot_version: snapshot.snapshot_version,
-      problem_id: snapshot.problem_id,
-      revision: snapshot.revision,
-      owner_scope: snapshot.owner_scope,
-      execution_permission: snapshot.execution_permission,
-    };
     const reservationSnapshotPort = createResourceReservationProblemSnapshotPort({
       root: dataDir,
-      load: async () => reservationSnapshotRecord,
+      load: async ({ root, snapshot_id, access, reference_resolution }) => {
+        const loaded = await loadJudgmentProblemSnapshot({
+          root,
+          snapshot_id,
+          access,
+          reference_resolution,
+          referenceProvider: reservationReferenceProvider,
+        });
+        return {
+          snapshot_version: loaded.snapshot_version,
+          problem_id: loaded.problem_id,
+          revision: loaded.revision,
+          owner_scope: loaded.owner_scope,
+          execution_permission: loaded.execution_permission,
+        };
+      },
     });
-    expect(await reservationSnapshotPort.verify({ tenantId, principal: ownerId, scopeId: hotelId, reference: reservationProblem })).toBe(true);
     const reservation = new ResourceReservationService({
       dataDir,
       authorization: {
-        authorize: () => ({
+        authorize: (request) => ({
           status: 'approved' as const,
-          approvalId: 'approval-hotel-pilot-v1',
+          approvalId: request.runId === 'run-hotel-pilot-v2' ? 'approval-hotel-pilot-v2' : 'approval-hotel-pilot-v1',
           expiresAt: '2026-05-04T00:00:00.000Z',
           evidence: { source: 'hotel-pilot-sideeffect-free-fixture' },
         }),
       },
       problemSnapshot: reservationSnapshotPort,
-      capacity: { read: () => 1 },
+      capacity: { read: () => 2 },
       clock: () => new Date('2026-05-02T02:00:00.000Z'),
     });
     await reservation.initialize();
@@ -957,6 +1004,10 @@ describe('company OS hotel pilot', () => {
       referenceProvider,
     });
     expect(reservationSnapshotRead.problem_id).toBe(snapshot.problem_id);
+    for (const reference of reservationSnapshotRead.references) {
+      storedSnapshotReferences.set(`${reference.kind}/${reference.id}/${reference.revision}`, reference);
+    }
+    expect(await reservationSnapshotPort.verify({ tenantId, principal: ownerId, scopeId: hotelId, reference: reservationProblem })).toBe(true);
     const approvedReservation = await reservation.approve(reservationRequest);
     const reservedReservation = await reservation.reserve({
       ...reservationRequest,
@@ -964,20 +1015,61 @@ describe('company OS hotel pilot', () => {
       approvalId: approvedReservation.reservation.approval.approvalId,
     });
     let fixtureEffectCalls = 0;
-    const check = (input: { check: string }) => ({
-      status: 'approved' as const,
-      revision: `${input.check}-1`,
-      fencingToken: `${input.check}-token`,
-      expiresAt: '2026-05-04T00:00:00.000Z',
-      evidence: { source: 'hotel-pilot-sideeffect-free-fixture' },
-    });
+    const authorityFixture = {
+      id: 'authority-hotel-pilot',
+      ownerId,
+      scopeId: hotelId,
+      permission: 'fixture-only',
+      constraintRefs: [constraint.id],
+    } as const;
+    const check = async (input: ExecutionCheckRequest) => {
+      const currentWait = currentImpactWaitId === undefined || impactWaitStoreForExecution === undefined
+        ? undefined
+        : await impactWaitStoreForExecution.get({ wait_id: currentImpactWaitId, principal: ownerId });
+      const expectedProblem = input.runId === 'run-hotel-pilot-v1'
+        ? reservationProblem
+        : input.runId === 'run-hotel-pilot-v2'
+          ? reservationProblemV2
+          : undefined;
+      const fixtureScopeValid = input.tenantId === tenantId
+        && input.principal === authorityFixture.ownerId
+        && input.scopeId === authorityFixture.scopeId
+        && input.authorityRef === authorityFixture.id
+        && input.constraintRefs.length === authorityFixture.constraintRefs.length
+        && input.constraintRefs.every((ref) => authorityFixture.constraintRefs.includes(ref))
+        && expectedProblem !== undefined
+        && input.problem.problem_snapshot_id === expectedProblem.problem_snapshot_id
+        && input.problem.problem_id === expectedProblem.problem_id
+        && input.problem.revision === expectedProblem.revision;
+      if (!fixtureScopeValid) return { status: 'revoked' as const, revision: `${input.check}-fixture-denied` };
+      if (currentWait?.state === 'handoff_required' && input.runId === 'run-hotel-pilot-v1') {
+        return { status: 'revoked' as const, revision: `${input.check}-handoff-required` };
+      }
+      const revision = `${input.check}-1`;
+      if (input.expectedRevision !== undefined && input.expectedRevision !== revision) {
+        return { status: 'revoked' as const, revision };
+      }
+      return {
+        status: 'approved' as const,
+        revision,
+        fencingToken: `${input.check}-token`,
+        expiresAt: '2026-05-04T00:00:00.000Z',
+        evidence: { source: 'hotel-pilot-sideeffect-free-fixture', permission: authorityFixture.permission },
+      };
+    };
     const authority = new ExecutionAuthorityService({
       dataDir,
       authority: { verify: check },
       approval: { verify: check },
       constraint: { verify: check },
       reservation: createResourceReservationExecutionPort({ service: reservation }),
-      readAccess: { verify: () => ({ status: 'approved' as const, revision: 'read-1' }) },
+      readAccess: {
+        verify: ({ tenantId: currentTenantId, principal, scopeId }) => currentTenantId === tenantId
+          && principal === ownerId
+          && scopeId === hotelId
+          ? { status: 'approved' as const, revision: 'read-1' }
+          : { status: 'revoked' as const, revision: 'read-fixture-denied' },
+      },
       effect: {
         start: () => {
           fixtureEffectCalls += 1;
@@ -1003,5 +1095,123 @@ describe('company OS hotel pilot', () => {
     expect(execution.effect.status).toBe('started');
     expect(execution.intent.problem).toEqual(reservationProblem);
     expect(fixtureEffectCalls).toBe(1);
+
+    const impactResult = await impactCoordinator.review({ access: impactAccess, changes: [impactChange] });
+    expect(impactResult.decisions[0]?.disposition).toBe('hold');
+    const waitId = impactResult.decisions[0]?.wait_id;
+    expect(waitId).toMatch(/^impact-review-/u);
+    const persistedWait = await impactWaitStore1.get({ wait_id: waitId!, principal: ownerId });
+    expect(persistedWait).toMatchObject({
+      state: 'waiting',
+      problem_snapshot: oldProblem,
+      run_ref: { run_id: 'run-hotel-pilot-v1' },
+    });
+    const impactWaitStore2 = new DurableWaitStore({
+      dataDir,
+      clock: () => new Date('2026-05-04T00:00:00.000Z'),
+      problemSnapshot: impactSnapshotPort,
+    });
+    const claim = await impactWaitStore2.claim({
+      wait_id: waitId!,
+      principal: ownerId,
+      request_id: 'claim-hotel-pilot-v1',
+      trigger: 'event',
+      event_type: 'impact_review',
+      event_id: waitId!,
+      occurred_at: '2026-05-04T00:00:00.000Z',
+    });
+    expect(claim.claimed_by_this_request).toBe(true);
+    impactWaitStoreForExecution = new DurableWaitStore({
+      dataDir,
+      clock: () => new Date('2026-05-04T00:00:00.000Z'),
+      problemSnapshot: impactSnapshotPort,
+    });
+    currentImpactWaitId = waitId;
+    const restartedWait = await impactWaitStoreForExecution.get({ wait_id: waitId!, principal: ownerId });
+    expect(restartedWait).toMatchObject({
+      state: 'claimed',
+      problem_snapshot: oldProblem,
+      run_ref: { run_id: 'run-hotel-pilot-v1' },
+      claim: { request_id: 'claim-hotel-pilot-v1', claim_id: claim.claim.claim_id },
+    });
+    const reassessed = await impactCoordinator.reassess({
+      access: impactAccess,
+      plan: impactPlan,
+      changes: [impactChange],
+      reason: impactChange.reason,
+      wait_id: waitId,
+    });
+    expect(reassessed).toEqual({ problem: newProblem, run_id: 'run-hotel-pilot-v2', wait_id: waitId });
+    const handoffWait = await impactWaitStoreForExecution.get({ wait_id: waitId!, principal: ownerId });
+    expect(handoffWait).toMatchObject({
+      state: 'handoff_required',
+      problem_snapshot: oldProblem,
+      next_problem: newProblem,
+      run_ref: { run_id: 'run-hotel-pilot-v1' },
+    });
+
+    await expect(authority.start({
+      operationId: 'execution-hotel-pilot-v1-after-handoff',
+      tenantId,
+      principal: ownerId,
+      scopeId: hotelId,
+      runId: 'run-hotel-pilot-v1',
+      reservationId: reservedReservation.reservation.reservationId,
+      approvalId: reservedReservation.reservation.approval.approvalId,
+      authorityRef: authorityFixture.id,
+      constraintRefs: [constraint.id],
+      problem: reservationProblem,
+    })).rejects.toMatchObject({ code: 'authority_revoked' });
+    expect(fixtureEffectCalls).toBe(1);
+
+    reservationProblemV2 = {
+      problem_snapshot_id: receiptV2.snapshot_id,
+      problem_id: snapshotV2.problem_id,
+      revision: snapshotV2.revision,
+    };
+    const reservationSnapshotV2Read = await loadJudgmentProblemSnapshot({
+      root: dataDir,
+      snapshot_id: receiptV2.snapshot_id,
+      access: context,
+      reference_resolution: 'current',
+      referenceProvider,
+    });
+    for (const reference of reservationSnapshotV2Read.references) {
+      storedSnapshotReferences.set(`${reference.kind}/${reference.id}/${reference.revision}`, reference);
+    }
+    expect(await reservationSnapshotPort.verify({ tenantId, principal: ownerId, scopeId: hotelId, reference: reservationProblemV2 })).toBe(true);
+    const reservationRequestV2 = {
+      operationId: 'operation-hotel-pilot-v2',
+      tenantId,
+      principal: ownerId,
+      scopeId: hotelId,
+      resourceId: 'resource-hotel-pilot-fixture',
+      period: { startsAt: '2026-05-03T03:00:00.000Z', endsAt: '2026-05-03T04:00:00.000Z' },
+      amount: 1,
+      unit: 'run',
+      runId: 'run-hotel-pilot-v2',
+      problem: reservationProblemV2,
+    };
+    const approvedReservationV2 = await reservation.approve(reservationRequestV2);
+    const reservedReservationV2 = await reservation.reserve({
+      ...reservationRequestV2,
+      operationId: 'operation-hotel-pilot-v2-reserve',
+      approvalId: approvedReservationV2.reservation.approval.approvalId,
+    });
+    const executionV2 = await authority.start({
+      operationId: 'execution-hotel-pilot-v2',
+      tenantId,
+      principal: ownerId,
+      scopeId: hotelId,
+      runId: 'run-hotel-pilot-v2',
+      reservationId: reservedReservationV2.reservation.reservationId,
+      approvalId: reservedReservationV2.reservation.approval.approvalId,
+      authorityRef: authorityFixture.id,
+      constraintRefs: [constraint.id],
+      problem: reservationProblemV2,
+    });
+    expect(executionV2.effect.status).toBe('started');
+    expect(executionV2.intent.problem).toEqual(reservationProblemV2);
+    expect(fixtureEffectCalls).toBe(2);
   });
 });

@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-hotel-pilot-v1
 title: 匿名ホテル例で判断・評価・学習の共通契約を一周できる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-impact-review-v1", "story-company-os-problem-selection-v1", "story-company-os-knowledge-adapter-v1", "story-company-os-receipt-adapter-v1"]
 external_dependencies: []
@@ -26,7 +26,7 @@ external_dependencies: []
 
 実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。
 
-- なし。既存実装との重複は着手時に確認する。
+- 既存のFoundation／World model／Problem selection／Problem snapshot／composition／reservation／authority／evaluation／learning adoption／Receipt adapter APIを再利用する。個別の正本実装は追加しない。
 
 ## 設計参照
 
@@ -47,10 +47,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: 匿名のホテルfixture一件をOSS単独で動かし、目的・モデル・制約→問題選択→下位DAG→副作用のない試験adapter→観測・評価を接続する。
-- [ ] AC-02: 引継ぎ・修正負荷と品質を含めた結果から改訂候補を作り、採用した新版を次回runが参照したことをreadbackする。
-- [ ] AC-03: 証拠待ち・前提反証・再起動を一つずつ含め、停止／保留／新Problemでの再判断と旧run不変を確認する。
-- [ ] AC-04: 経路一覧の未移行／条件未記録を明示し、fixture成功を顧客の価値実証や本番完了と表示しない。
+- [x] AC-01: 匿名のホテルfixture一件をOSS単独で動かし、目的・モデル・制約→問題選択→下位DAG→副作用のない試験adapter→観測・評価を接続する。
+- [x] AC-02: 引継ぎ・修正負荷と品質を含めた結果から改訂候補を作り、採用した新版を次回runが参照したことをreadbackする。
+- [x] AC-03: 証拠待ち・前提反証・再起動を一つずつ含め、`hold`から再評価を経て新Problem／新runで再判断し、旧run・旧評価を不変に保つことを確認する。
+- [x] AC-04: 経路一覧の未移行／条件未記録を明示し、`production_unproven` と `external_send=unrecorded` を保持したまま、fixture成功を顧客の価値実証や本番完了と表示しない。
 
 ## 対象外
 
@@ -58,6 +58,6 @@ external_dependencies: []
 
 ## 検証と完了
 
-受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
+受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。OutcomeCaseはfixtureのため、本番状態を `production_unproven`、外部送信を `unrecorded` として保存する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+現行baseの正式なReceipt adapter APIを含めて接続し、affected 8 files / 58 testsは通過している。snapshot参照はWorldModel実体読取とhost-owned canonical fixture mapで照合し、予約ロック中は事前に読んだ保存済みsnapshotを再照合する。前提反証は既存のimpact-review契約どおり `hold` として同じWait／claim／snapshotを保持し、再評価後に新Problem／新runへhandoffする。旧v1のsnapshot・selection・evaluationはv2から変更せず、handoff後の旧v1 authorityは拒否してeffectを増やさない。buildは既存のSDK署名不一致で未完了、レビュー・PR・CI・mergeも未完了であり、完了表示はしていない。
