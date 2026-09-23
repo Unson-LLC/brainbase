@@ -13,8 +13,10 @@ import type {
 import {
   createProblemSelection,
   createProblemSelectionRecordStore,
+  type ProblemSelectionCandidateAssessment,
   type ProblemSelectionEvaluationResult,
   type ProblemSelectionFixedConditions,
+  type ProblemSelectionObjectiveConflict,
   type ProblemSelectionRequest,
   type ProblemSelectionCandidateReference,
   type ProblemSelectionFoundationReference
@@ -165,6 +167,27 @@ const selected = (action: 'start' | 'continue' | 'observe' | 'hold' | 'stop'): P
   reason: `selected for ${action}`,
   ...(action === 'hold' ? { reviewAt: '2026-07-01T00:00:00.000Z' } : {})
 });
+
+function assessmentFor(
+  record: ProblemCandidateRecord,
+  overrides: Partial<Omit<ProblemSelectionCandidateAssessment, 'reference'>> = {}
+): ProblemSelectionCandidateAssessment {
+  return {
+    reference: candidateReference(record),
+    status: 'eligible',
+    rationale: 'candidate is comparable',
+    conditions: [],
+    costs: fixedConditions.costs,
+    unknowns: [],
+    objectiveConflicts: [],
+    ...overrides
+  };
+}
+
+const policyConflict: ProblemSelectionObjectiveConflict = {
+  objectiveIds: [objectiveRef.id, 'objective-quality'],
+  reason: 'quality and load cannot be compared under the fixed criteria'
+};
 
 async function expectSelectedPolicyMutationRejected(
   records: readonly ProblemCandidateRecord[],
@@ -462,6 +485,192 @@ describe('problem selection record store', () => {
       const costs = assessment.costs as Record<string, unknown>;
       costs.exploration = { status: 'known', value: 11 };
     }, 'selected candidate exploration cost 11 exceeds the fixed exploration limit 10');
+  });
+
+  it.each([
+    {
+      name: 'record-level objective conflict',
+      records: [candidateRecord('candidate-1', 'e')],
+      evaluation: { ...selected('start'), objectiveConflicts: [policyConflict] },
+      expectedGenerationStatus: 'human_review_required' as const,
+      expectedPersistence: 'reject' as const,
+      mutate: (record: Record<string, unknown>) => { record.objectiveConflicts = [policyConflict]; },
+      reason: 'objective criteria are incomparable'
+    },
+    {
+      name: 'assessment-level objective conflict',
+      records: [candidateRecord('candidate-1', 'e')],
+      evaluation: {
+        ...selected('start'),
+        assessments: [assessmentFor(candidateRecord('candidate-1', 'e'), { objectiveConflicts: [policyConflict] })]
+      },
+      expectedGenerationStatus: 'human_review_required' as const,
+      expectedPersistence: 'reject' as const,
+      mutate: (record: Record<string, unknown>) => {
+        const assessments = record.assessments as Array<Record<string, unknown>>;
+        const assessment = assessments[0];
+        if (assessment === undefined) throw new Error('selection assessment was not written');
+        assessment.objectiveConflicts = [policyConflict];
+      },
+      reason: 'objective criteria are incomparable'
+    },
+    {
+      name: 'assessment incomparable status',
+      records: [candidateRecord('candidate-1', 'e')],
+      evaluation: {
+        ...selected('start'),
+        assessments: [assessmentFor(candidateRecord('candidate-1', 'e'), { status: 'incomparable' })]
+      },
+      expectedGenerationStatus: 'human_review_required' as const,
+      expectedPersistence: 'reject' as const,
+      mutate: (record: Record<string, unknown>) => {
+        const assessments = record.assessments as Array<Record<string, unknown>>;
+        const assessment = assessments[0];
+        if (assessment === undefined) throw new Error('selection assessment was not written');
+        assessment.status = 'incomparable';
+      },
+      reason: 'comparison is not fully available'
+    },
+    {
+      name: 'assessment unavailable status',
+      records: [candidateRecord('candidate-1', 'e')],
+      evaluation: {
+        ...selected('start'),
+        assessments: [assessmentFor(candidateRecord('candidate-1', 'e'), { status: 'unavailable' })]
+      },
+      expectedGenerationStatus: 'human_review_required' as const,
+      expectedPersistence: 'reject' as const,
+      mutate: (record: Record<string, unknown>) => {
+        const assessments = record.assessments as Array<Record<string, unknown>>;
+        const assessment = assessments[0];
+        if (assessment === undefined) throw new Error('selection assessment was not written');
+        assessment.status = 'unavailable';
+      },
+      reason: 'comparison is not fully available'
+    },
+    {
+      name: 'assessment unknown status',
+      records: [candidateRecord('candidate-1', 'e')],
+      evaluation: {
+        ...selected('start'),
+        assessments: [assessmentFor(candidateRecord('candidate-1', 'e'), { status: 'unknown', rationale: 'candidate fit is not established' })]
+      },
+      expectedGenerationStatus: 'human_review_required' as const,
+      expectedPersistence: 'reject' as const,
+      mutate: (record: Record<string, unknown>) => {
+        const assessments = record.assessments as Array<Record<string, unknown>>;
+        const assessment = assessments[0];
+        if (assessment === undefined) throw new Error('selection assessment was not written');
+        assessment.status = 'unknown';
+      },
+      reason: 'unresolved unknowns remain'
+    },
+    {
+      name: 'typed unknown exploration cost',
+      records: [candidateRecord('candidate-1', 'e')],
+      evaluation: {
+        ...selected('start'),
+        assessments: [assessmentFor(candidateRecord('candidate-1', 'e'), {
+          costs: { ...fixedConditions.costs, exploration: { status: 'unknown', reason: 'candidate exploration cost is not measured' } }
+        })]
+      },
+      expectedGenerationStatus: 'human_review_required' as const,
+      expectedPersistence: 'reject' as const,
+      mutate: (record: Record<string, unknown>) => {
+        const assessments = record.assessments as Array<Record<string, unknown>>;
+        const assessment = assessments[0];
+        if (assessment === undefined) throw new Error('selection assessment was not written');
+        const costs = assessment.costs as Record<string, unknown>;
+        costs.exploration = { status: 'unknown', reason: 'candidate exploration cost is not measured' };
+      },
+      reason: 'unresolved unknowns remain'
+    },
+    {
+      name: 'typed exploration cost over limit',
+      records: [candidateRecord('candidate-1', 'e')],
+      evaluation: {
+        ...selected('start'),
+        assessments: [assessmentFor(candidateRecord('candidate-1', 'e'), {
+          costs: { ...fixedConditions.costs, exploration: { status: 'known', value: 11 } }
+        })]
+      },
+      expectedGenerationStatus: 'human_review_required' as const,
+      expectedPersistence: 'reject' as const,
+      mutate: (record: Record<string, unknown>) => {
+        const assessments = record.assessments as Array<Record<string, unknown>>;
+        const assessment = assessments[0];
+        if (assessment === undefined) throw new Error('selection assessment was not written');
+        const costs = assessment.costs as Record<string, unknown>;
+        costs.exploration = { status: 'known', value: 11 };
+      },
+      reason: 'selected candidate exploration cost 11 exceeds the fixed exploration limit 10'
+    },
+    {
+      name: 'candidate count over limit',
+      records: [candidateRecord('candidate-1', 'e'), candidateRecord('candidate-2', 'f')],
+      evaluation: selected('start'),
+      requestOverrides: {
+        fixedConditions: { ...fixedConditions, explorationLimit: { ...fixedConditions.explorationLimit, maxCandidates: 1 } }
+      },
+      expectedGenerationStatus: 'human_review_required' as const,
+      expectedPersistence: 'reject' as const,
+      mutate: (record: Record<string, unknown>) => {
+        const fixed = record.fixedConditions as Record<string, unknown>;
+        const explorationLimit = fixed.explorationLimit as Record<string, unknown>;
+        explorationLimit.maxCandidates = 1;
+      },
+      reason: 'candidate count 2 exceeds the fixed exploration limit 1'
+    },
+    {
+      name: 'observe preserves unknowns',
+      records: [candidateRecord('candidate-1', 'e')],
+      evaluation: {
+        ...selected('observe'),
+        assessments: [assessmentFor(candidateRecord('candidate-1', 'e'), { status: 'unknown', rationale: 'candidate fit is not established' })]
+      },
+      expectedGenerationStatus: 'selected' as const,
+      expectedPersistence: 'accept' as const,
+      mutate: undefined,
+      reason: ''
+    }
+  ])('keeps generation and persistence policy aligned: $name', async ({
+    records,
+    evaluation,
+    requestOverrides,
+    expectedGenerationStatus,
+    expectedPersistence,
+    mutate,
+    reason
+  }) => {
+    const generated = await createProblemSelection(request(records, evaluation, requestOverrides ?? {}));
+    expect(generated.status).toBe(expectedGenerationStatus);
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-problem-selection-policy-table-'));
+    temporaryRoots.push(root);
+    const store = createProblemSelectionRecordStore({ root });
+
+    if (expectedPersistence === 'accept') {
+      const receipt = await store.save(generated, { principal: 'org-1' });
+      expect(receipt.status).toBe('created');
+      await expect(store.read(receipt.recordId, { principal: 'org-1' })).resolves.toEqual(generated);
+      return;
+    }
+
+    if (mutate === undefined) throw new Error('rejected policy case must provide a record mutation');
+    const baseline = await createProblemSelection(request(records, selected('start')));
+    const malformed = JSON.parse(JSON.stringify(baseline)) as Record<string, unknown>;
+    mutate(malformed);
+    await expect(store.save(malformed as typeof baseline, { principal: 'org-1' }))
+      .rejects.toMatchObject({ code: 'invalid_record', message: expect.stringContaining(reason) });
+
+    const receipt = await store.save(baseline, { principal: 'org-1' });
+    const [filename] = await readdir(join(root, 'problem-selections'));
+    if (filename === undefined) throw new Error('selection record was not written');
+    const recordPath = join(root, 'problem-selections', filename);
+    const envelope = JSON.parse(await readFile(recordPath, 'utf8')) as { record: Record<string, unknown> };
+    mutate(envelope.record);
+    await writeFile(recordPath, `${JSON.stringify(envelope)}\n`, 'utf8');
+    await expect(store.read(receipt.recordId, { principal: 'org-1' }))
+      .rejects.toMatchObject({ code: 'invalid_record', message: expect.stringContaining(reason) });
   });
 });
 

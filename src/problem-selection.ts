@@ -729,12 +729,19 @@ function selectedRecordPolicyViolation(
   fixedConditions: ProblemSelectionFixedConditions,
   candidateRefs: readonly ProblemSelectionCandidateReference[],
   assessments: readonly ProblemSelectionCandidateAssessment[],
+  objectiveConflicts: readonly ProblemSelectionObjectiveConflict[],
   selectedCandidateId: string | undefined,
   action: ProblemSelectionAction | undefined,
   unknowns: readonly ProblemSelectionUnknown[]
 ): string | undefined {
   const candidateViolation = candidateCountViolation(fixedConditions, candidateRefs);
   if (candidateViolation !== undefined) return candidateViolation;
+  if (objectiveConflicts.length > 0 || assessments.some((assessment) => assessment.objectiveConflicts.length > 0)) {
+    return 'objective criteria are incomparable';
+  }
+  if (assessments.some((assessment) => assessment.status === 'unavailable' || assessment.status === 'incomparable')) {
+    return 'comparison is not fully available';
+  }
   const limitViolation = explorationLimitViolation(fixedConditions, selectedCandidateId, assessments);
   if (limitViolation !== undefined) return limitViolation;
   const unresolved = mergeUnknowns(unknowns, fixedUnknowns(fixedConditions), assessments.flatMap(assessmentUnknowns));
@@ -860,14 +867,12 @@ export async function createProblemSelection(request: ProblemSelectionRequest): 
     };
   }
   const normalizedAssessments = evaluation.assessments ?? assessments;
-  const anyConflict = normalizedAssessments.some((item) => item.objectiveConflicts.length > 0) || (evaluation.objectiveConflicts?.length ?? 0) > 0;
   const unknowns = mergeUnknowns(evaluation.unknowns ?? [], fixedUnknowns(fixedConditions), normalizedAssessments.flatMap(assessmentUnknowns));
   const objectiveConflicts = [...(evaluation.objectiveConflicts ?? []), ...normalizedAssessments.flatMap((item) => item.objectiveConflicts)];
-  const hasUnavailable = normalizedAssessments.some((item) => item.status === 'unavailable' || item.status === 'incomparable');
-  const policyViolation = selectedRecordPolicyViolation(fixedConditions, candidateRefs, normalizedAssessments, evaluation.selectedCandidateId, evaluation.action, unknowns);
-  const shouldRequireReview = evaluation.status === 'human_review_required' || anyConflict || hasUnavailable || policyViolation !== undefined;
+  const policyViolation = selectedRecordPolicyViolation(fixedConditions, candidateRefs, normalizedAssessments, objectiveConflicts, evaluation.selectedCandidateId, evaluation.action, unknowns);
+  const shouldRequireReview = evaluation.status === 'human_review_required' || policyViolation !== undefined;
   const effectiveEvaluation: ProblemSelectionEvaluationResult = shouldRequireReview && evaluation.status !== 'human_review_required'
-    ? { ...evaluation, status: 'human_review_required', reason: anyConflict ? `${evaluation.reason}; objective criteria are incomparable` : policyViolation !== undefined ? `${evaluation.reason}; ${policyViolation}` : `${evaluation.reason}; comparison is not fully available` }
+    ? { ...evaluation, status: 'human_review_required', reason: policyViolation !== undefined ? `${evaluation.reason}; ${policyViolation}` : `${evaluation.reason}; comparison is not fully available` }
     : evaluation;
   const decision = decisionFromEvaluation(effectiveEvaluation, candidateRefs, normalizedAssessments);
   const problemCreationRequest = decision.status === 'selected' && (decision.action === 'start' || decision.action === 'continue') && decision.candidate !== undefined
@@ -1072,6 +1077,7 @@ function validateProblemSelectionRecord(value: unknown): ProblemSelectionRecord 
       fixedConditions,
       candidateRefs,
       assessments,
+      objectiveConflicts,
       decision.candidate?.candidateId,
       decision.action,
       unknowns
