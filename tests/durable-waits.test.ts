@@ -8,6 +8,9 @@ import {
   type DurableWaitProblemSnapshotPort,
   type DurableWaitRecord
 } from '../src/durable-waits.js';
+import { createFoundationRevisionStore } from '../src/foundation-store.js';
+import type { VariableDefinition } from '../src/ontology-foundation.js';
+import { initializePersonalOs, mutatePersonalOs } from '../src/ssot.js';
 
 const roots: string[] = [];
 const snapshotId = `sha256:${'a'.repeat(64)}`;
@@ -212,5 +215,85 @@ describe('DurableWaitStore', () => {
     const { root } = await makeStore();
     const rejecting = new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => false } });
     await expect(createWait(rejecting)).rejects.toMatchObject({ code: 'problem_snapshot_invalid' });
+  });
+
+  it('runs a same-SSOT Problem provider outside the mutation lock', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-waits-foundation-'));
+    roots.push(root);
+    await initializePersonalOs(root);
+    const foundationStore = createFoundationRevisionStore({ dataDir: root });
+    const variable: VariableDefinition = {
+      id: 'variable-same-ssot',
+      type: 'variable',
+      revision: '1',
+      meaning: 'A variable used to prove the canonical reader can be called during a wait mutation.',
+      adoptionState: 'approved',
+      authorizedUses: ['draft', 'judgment', 'evaluation'],
+      acl: { ownerId: 'owner', visibility: 'private', readerIds: ['owner'], writerIds: ['owner'] },
+      storage: 'ontology',
+      provenance: [{ sourceId: 'story-company-os-durable-waits-v1', sourceKind: 'document', evidenceIds: [] }],
+      scope: { subjectIds: ['org-1'], validFrom: '2026-01-01T00:00:00.000Z' },
+      subject: 'front-desk',
+      valueKind: 'number',
+      unit: 'minute',
+      aggregation: 'sum',
+      granularity: 'week',
+      measurementMethod: 'weekly event aggregation'
+    };
+    const reference = await foundationStore.create(variable, { principal: 'owner' });
+    const sameSsotProblemSnapshot: DurableWaitProblemSnapshotPort = {
+      verify: async ({ principal, reference: problem }) => {
+        const resolved = await foundationStore.read({
+          id: reference.id,
+          type: reference.type,
+          revision: reference.revision
+        }, { principal });
+        return resolved?.digest === problem.snapshot_id;
+      }
+    };
+    const store = new DurableWaitStore({ dataDir: root, problemSnapshot: sameSsotProblemSnapshot });
+    const created = await createWait(store, {
+      problem_snapshot: { snapshot_id: reference.digest, problem_id: 'problem-same-ssot', revision: '1' }
+    });
+
+    const claimed = await store.claim({
+      wait_id: created.wait_id,
+      principal: 'owner',
+      trigger: 'event',
+      request_id: 'request-same-ssot',
+      event_type: 'evidence.received',
+      event_id: 'event-1'
+    });
+    expect(claimed.claimed_by_this_request).toBe(true);
+  });
+
+  it('rejects a mutation when the canonical aggregate changes after provider preflight', async () => {
+    const { root, store, clock } = await makeStore();
+    await createWait(store);
+    let mutateDuringClaimAuthorization = true;
+    const access = {
+      authorize: async ({ action }: { action: string }) => {
+        if (action === 'claim' && mutateDuringClaimAuthorization) {
+          mutateDuringClaimAuthorization = false;
+          await mutatePersonalOs(root, (current) => ({
+            ...current,
+            personalKg: [...current.personalKg, { id: 'cas-marker', type: 'judgment', text: 'preflight changed' }]
+          }));
+        }
+        return true;
+      }
+    };
+    const guarded = new DurableWaitStore({ dataDir: root, problemSnapshot, access, clock: clock.now, defaultLeaseMs: 100 });
+    clock.advance(10_000);
+
+    await expect(guarded.claim({
+      wait_id: 'wait-1',
+      principal: 'worker-1',
+      trigger: 'event',
+      request_id: 'request-cas',
+      event_type: 'evidence.received',
+      event_id: 'event-1'
+    })).rejects.toMatchObject({ code: 'state_conflict' });
+    await expect(store.get({ wait_id: 'wait-1', principal: 'owner' })).resolves.toMatchObject({ state: 'waiting' });
   });
 });

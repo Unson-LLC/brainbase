@@ -1,11 +1,12 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import {
   defaultJudgmentProblemSnapshotAccessProvider,
   type JudgmentProblemScope,
   type JudgmentProblemReferenceResolutionPhase
 } from './judgment-problem-snapshot.js';
 import type { FoundationAcl } from './ontology-foundation.js';
-import { initializePersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } from './ssot.js';
+import { initializePersonalOs, loadPersonalOs, mutatePersonalOsWithSidecar, readPersonalOsSidecar } from './ssot.js';
+import type { PersonalOs } from './types.js';
 
 /** Story13's persisted contract. The ledger is deliberately separate from the
  * canonical graph but is committed by the same Personal OS sidecar transaction.
@@ -267,6 +268,19 @@ interface DurableWaitLedger {
   readonly waits: DurableWaitRecord[];
 }
 
+/**
+ * The providers used to authorize a wait or resolve its Problem snapshot may
+ * read the same canonical SSOT.  They therefore must run before the mutation
+ * lock is acquired.  The mutation callback only performs this CAS check and
+ * never awaits an external provider while the lock is held.
+ */
+interface DurableWaitMutationPreflight {
+  readonly aggregateFingerprint: string;
+  readonly sidecarFingerprint: string;
+  readonly record?: DurableWaitRecord;
+  readonly waitFingerprint?: string;
+}
+
 const SNAPSHOT_ID_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 const WAIT_STATES: readonly DurableWaitState[] = [
@@ -319,10 +333,12 @@ export class DurableWaitStore {
 
   async create(input: DurableWaitCreateInput): Promise<DurableWaitRecord> {
     const normalized = normalizeCreateInput(input, this.now());
+    await this.initialize();
+    const preflight = await this.captureMutationPreflight();
     await this.authorize('write', normalized.principal, normalized.read_policy);
     await this.verifyProblem(normalized.principal, normalized.problem_snapshot, 'save');
-    await this.initialize();
-    return mutatePersonalOsWithSidecar<DurableWaitRecord>(this.dataDir, this.sidecarPath, async (current, content) => {
+    return mutatePersonalOsWithSidecar<DurableWaitRecord>(this.dataDir, this.sidecarPath, (current, content) => {
+      this.assertMutationPreflight(current, content, preflight);
       const ledger = parseLedger(content);
       if (ledger.waits.some((wait) => wait.wait_id === normalized.wait_id)) {
         throw new DurableWaitError('state_conflict', `Wait ${normalized.wait_id} already exists`, normalized.wait_id);
@@ -392,11 +408,13 @@ export class DurableWaitStore {
   async claim(input: DurableWaitClaimInput): Promise<DurableWaitClaimResult> {
     const normalized = normalizeClaimInput(input, this.now(), this.defaultLeaseMs);
     await this.initialize();
-    return mutatePersonalOsWithSidecar<DurableWaitClaimResult>(this.dataDir, this.sidecarPath, async (current, content) => {
-      const ledger = parseLedger(content);
+    const preflight = await this.captureMutationPreflight(normalized.wait_id);
+    const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
+    await this.authorize('claim', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
+    return mutatePersonalOsWithSidecar<DurableWaitClaimResult>(this.dataDir, this.sidecarPath, (current, content) => {
+      const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
       const record = findWait(ledger, normalized.wait_id);
-      await this.authorize('claim', normalized.principal, record.read_policy, record);
-      await this.verifyProblem(normalized.principal, record.problem_snapshot);
       if (record.state === 'reconciliation_wait') {
         throw new DurableWaitError('reconciliation_required', `Wait ${record.wait_id} requires external-effect reconciliation`, record.wait_id);
       }
@@ -450,11 +468,13 @@ export class DurableWaitStore {
   async handoff(input: DurableWaitHandoffInput): Promise<DurableWaitRecord> {
     const normalized = normalizeHandoffInput(input, this.now(), this.defaultLeaseMs);
     await this.initialize();
-    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, async (current, content) => {
-      const ledger = parseLedger(content);
+    const preflight = await this.captureMutationPreflight(normalized.wait_id);
+    const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
+    await this.authorize('claim', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
+    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
+      const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
       const record = findWait(ledger, normalized.wait_id);
-      await this.authorize('claim', normalized.principal, record.read_policy, record);
-      await this.verifyProblem(normalized.principal, record.problem_snapshot);
       if (record.state !== 'claimed' || record.claim === undefined) {
         throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} has no active claim to hand off`, record.wait_id);
       }
@@ -497,11 +517,13 @@ export class DurableWaitStore {
   async resume(input: DurableWaitResumeInput): Promise<DurableWaitResumeReceipt> {
     const normalized = normalizeResumeInput(input);
     await this.initialize();
-    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, async (current, content) => {
-      const ledger = parseLedger(content);
+    const preflight = await this.captureMutationPreflight(normalized.wait_id);
+    const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
+    await this.authorize('claim', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
+    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
+      const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
       const record = findWait(ledger, normalized.wait_id);
-      await this.authorize('claim', normalized.principal, record.read_policy, record);
-      await this.verifyProblem(normalized.principal, record.problem_snapshot);
       if (record.resume_receipt !== undefined) {
         assertResumeBinding(record, normalized);
         return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(record.resume_receipt) };
@@ -547,12 +569,14 @@ export class DurableWaitStore {
   async markPremiseChanged(input: DurableWaitPremiseChangedInput): Promise<DurableWaitRecord> {
     const normalized = normalizePremiseChangedInput(input);
     await this.initialize();
-    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, async (current, content) => {
-      const ledger = parseLedger(content);
+    const preflight = await this.captureMutationPreflight(normalized.wait_id);
+    const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
+    await this.authorize('claim', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
+    await this.verifyProblem(normalized.principal, normalized.new_problem_snapshot);
+    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
+      const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
       const record = findWait(ledger, normalized.wait_id);
-      await this.authorize('claim', normalized.principal, record.read_policy, record);
-      await this.verifyProblem(normalized.principal, record.problem_snapshot);
-      await this.verifyProblem(normalized.principal, normalized.new_problem_snapshot);
       if (record.state === 'resumed' || record.state === 'cancelled' || record.state === 'failed') {
         throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
       }
@@ -580,11 +604,13 @@ export class DurableWaitStore {
   async markEffectUnknown(input: DurableWaitEffectUnknownInput): Promise<DurableWaitRecord> {
     const normalized = normalizeEffectUnknownInput(input);
     await this.initialize();
-    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, async (current, content) => {
-      const ledger = parseLedger(content);
+    const preflight = await this.captureMutationPreflight(normalized.wait_id);
+    const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
+    await this.authorize('claim', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
+    return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
+      const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
       const record = findWait(ledger, normalized.wait_id);
-      await this.authorize('claim', normalized.principal, record.read_policy, record);
-      await this.verifyProblem(normalized.principal, record.problem_snapshot);
       if (record.state === 'resumed' || record.state === 'cancelled' || record.state === 'failed') {
         throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
       }
@@ -608,6 +634,46 @@ export class DurableWaitStore {
       replaceWait(ledger, updated);
       return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(updated) };
     });
+  }
+
+  private async captureMutationPreflight(waitId?: string): Promise<DurableWaitMutationPreflight> {
+    // These reads intentionally happen outside mutatePersonalOsWithSidecar's
+    // lock. A trusted provider may use GraphFoundationRevisionStore or read
+    // another sidecar rooted at the same dataDir, both of which acquire the
+    // canonical lock themselves.
+    const sidecarContent = await readPersonalOsSidecar(this.dataDir, this.sidecarPath);
+    const ledger = parseLedger(sidecarContent);
+    const record = waitId === undefined ? undefined : findWait(ledger, waitId);
+    const current = await loadPersonalOs(this.dataDir);
+    return {
+      aggregateFingerprint: fingerprintPersonalOs(current),
+      sidecarFingerprint: fingerprintText(sidecarContent),
+      ...(record === undefined ? {} : { record, waitFingerprint: fingerprintRecord(record) })
+    };
+  }
+
+  private assertMutationPreflight(
+    current: PersonalOs,
+    sidecarContent: string | undefined,
+    preflight: DurableWaitMutationPreflight,
+    waitId?: string
+  ): DurableWaitLedger {
+    // This is the compare-and-swap boundary. Providers have already run, so
+    // no external await is permitted in the SSOT lock callback. If either
+    // aggregate changed after preflight, retry against the newly authorized
+    // state rather than committing a stale decision.
+    if (fingerprintPersonalOs(current) !== preflight.aggregateFingerprint
+      || fingerprintText(sidecarContent) !== preflight.sidecarFingerprint) {
+      throw new DurableWaitError('state_conflict', 'Personal OS changed while validating the durable wait; retry', waitId);
+    }
+    const ledger = parseLedger(sidecarContent);
+    if (waitId !== undefined) {
+      const record = findWait(ledger, waitId);
+      if (preflight.waitFingerprint === undefined || fingerprintRecord(record) !== preflight.waitFingerprint) {
+        throw new DurableWaitError('state_conflict', `Wait ${waitId} changed while validating the durable wait; retry`, waitId);
+      }
+    }
+    return ledger;
   }
 
   private async readStored(waitId: string): Promise<DurableWaitRecord> {
@@ -1039,6 +1105,35 @@ function serializeLedger(ledger: DurableWaitLedger): string {
 
 function sameProblem(left: DurableWaitProblemReference, right: DurableWaitProblemReference): boolean {
   return left.snapshot_id === right.snapshot_id && left.problem_id === right.problem_id && left.revision === right.revision;
+}
+
+function requireMutationRecord(preflight: DurableWaitMutationPreflight, waitId: string): DurableWaitRecord {
+  if (preflight.record === undefined) {
+    throw new DurableWaitError('not_found', `Wait ${waitId} was not found`, waitId);
+  }
+  return preflight.record;
+}
+
+function fingerprintPersonalOs(value: PersonalOs): string {
+  return fingerprintValue({
+    graph: value.graph,
+    personalKg: value.personalKg,
+    relationships: value.relationships,
+    decisions: value.decisions,
+    sourceCount: value.sourceCount
+  });
+}
+
+function fingerprintRecord(value: DurableWaitRecord): string {
+  return fingerprintValue(value);
+}
+
+function fingerprintText(value: string | undefined): string {
+  return fingerprintValue(value === undefined ? { missing: true } : { content: value });
+}
+
+function fingerprintValue(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(value), 'utf8').digest('hex');
 }
 
 function enumValue<T extends string>(value: unknown, values: readonly T[], label: string): T {
