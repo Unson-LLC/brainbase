@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { DurableWaitStore } from '../src/durable-waits.js';
 import {
   createDurableWaitHttpHandler,
+  createDurableWaitHttpHost,
   type DurableWaitHttpHandler,
   type TrustedDurableWaitRequestContext,
 } from '../src/durable-wait-http.js';
@@ -32,6 +33,25 @@ async function start(
     const key = request.headers['x-test-context'];
     const contextKey = Array.isArray(key) ? key[0] : key;
     void handler(request, response, contexts[contextKey ?? 'default'] ?? null);
+  });
+  servers.push(server);
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('HTTP server did not bind');
+  return `http://127.0.0.1:${address.port}`;
+}
+
+async function startCanonicalHost(
+  storeFactory: Parameters<typeof createDurableWaitHttpHost>[0]['storeFactory'],
+  contexts: Record<string, TrustedDurableWaitRequestContext | null> = { default: context() },
+): Promise<string> {
+  const server = createDurableWaitHttpHost({
+    storeFactory,
+    resolveContext: async (request) => {
+      const key = request.headers['x-test-context'];
+      const contextKey = Array.isArray(key) ? key[0] : key;
+      return contexts[contextKey ?? 'default'] ?? null;
+    },
   });
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -84,6 +104,45 @@ afterEach(async () => {
 });
 
 describe('durable wait canonical HTTP adapter', () => {
+  it('mounts a trusted host around the real store and returns a bounded route response', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-host-'));
+    roots.push(root);
+    const baseUrl = await startCanonicalHost(() => new DurableWaitStore({
+      dataDir: root,
+      problemSnapshot: { verify: () => true },
+    }));
+
+    const created = await request(baseUrl, '/api/v1/durable-waits/create', {
+      method: 'POST',
+      body: createBody('wait-host-1'),
+    });
+    expect(created.response.status).toBe(200);
+
+    const read = await request(baseUrl, '/api/v1/durable-waits/wait-host-1', { method: 'GET' });
+    expect(read.response.status).toBe(200);
+    expect(read.body?.result?.wait_id).toBe('wait-host-1');
+
+    const unknown = await request(baseUrl, '/health', { method: 'GET' });
+    expect(unknown.response.status).toBe(404);
+    expect(unknown.body?.error?.code).toBe('not_found');
+  });
+
+  it('fails closed when the host cannot resolve an authenticated context', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-host-auth-'));
+    roots.push(root);
+    const baseUrl = await startCanonicalHost(
+      () => new DurableWaitStore({ dataDir: root, problemSnapshot: { verify: () => true } }),
+      { default: null },
+    );
+
+    const response = await request(baseUrl, '/api/v1/durable-waits/create', {
+      method: 'POST',
+      body: createBody('wait-host-unauthenticated'),
+    });
+    expect(response.response.status).toBe(401);
+    expect(response.body?.error?.code).toBe('unauthorized');
+  });
+
   it('uses the real store for create, read, claim and idempotent resume across a new store instance', async () => {
     const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-wait-http-'));
     roots.push(root);

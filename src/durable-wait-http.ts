@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { z } from 'zod';
 import {
   DURABLE_WAIT_VERSION,
@@ -48,6 +48,21 @@ export interface DurableWaitHttpOptions {
   readonly verifyMutationRequest?: (
     input: DurableWaitMutationVerificationInput,
   ) => MaybePromise<boolean>;
+}
+
+/**
+ * The smallest canonical Node host composition for this transport.
+ *
+ * Authentication and tenant/scope resolution remain host-owned.  The resolver
+ * must return a context only after those checks have completed; a missing or
+ * failed resolution is deliberately passed to the handler as an unauthenticated
+ * request.  This helper only mounts the canonical handler and never infers
+ * identity from request headers or body fields.
+ */
+export interface DurableWaitHttpHostOptions extends DurableWaitHttpOptions {
+  readonly resolveContext: (
+    request: IncomingMessage,
+  ) => MaybePromise<TrustedDurableWaitRequestContext | null>;
 }
 
 /** A composable route handler. `false` means that another host route may handle it. */
@@ -568,4 +583,32 @@ export function createDurableWaitHttpHandler(options: DurableWaitHttpOptions): D
     }
     return true;
   };
+}
+
+/**
+ * Create a startable Node HTTP host around the canonical handler.
+ *
+ * The caller owns `server.listen()` and the authentication implementation.
+ * A route outside the durable-wait base path is answered with a generic 404 so
+ * a standalone fixture cannot leave the request hanging; larger hosts can use
+ * `createDurableWaitHttpHandler` directly when they need route delegation.
+ */
+export function createDurableWaitHttpHost(options: DurableWaitHttpHostOptions): Server {
+  if (!options || typeof options !== 'object' || typeof options.resolveContext !== 'function') {
+    throw new TypeError('resolveContext is required');
+  }
+  const handler = createDurableWaitHttpHandler(options);
+  return createServer((request, response) => {
+    void Promise.resolve()
+      .then(() => options.resolveContext(request))
+      .catch(() => null)
+      .then((context) => handler(request, response, context))
+      .then((handled) => {
+        if (handled || response.headersSent) return;
+        writeError(response, 404, 'not_found', 'Route was not found');
+      })
+      .catch(() => {
+        writeError(response, 500, 'internal_error', 'Durable wait host failed');
+      });
+  });
 }
