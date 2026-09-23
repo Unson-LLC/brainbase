@@ -133,6 +133,15 @@ async function stagePackageForPacking(root, stagingDirectory, { includeGenerated
   const packageRoot = path.join(stagingDirectory, 'pack-input');
   const files = includeGenerated ? manifest.files ?? [] : (manifest.files ?? []).filter((entry) => entry !== 'dist');
   const stagedManifest = { ...manifest, files };
+  if (stagedManifest.scripts) {
+    stagedManifest.scripts = { ...stagedManifest.scripts };
+    // npm may run prepare while packing a local directory even when
+    // --ignore-scripts is supplied. Pack input already contains generated
+    // output, so lifecycle hooks must not rebuild the repository or staging
+    // directory. Keep the source manifest unchanged for git consumers.
+    for (const hook of ['prepack', 'prepare', 'postpack']) delete stagedManifest.scripts[hook];
+    if (!Object.keys(stagedManifest.scripts).length) delete stagedManifest.scripts;
+  }
   await mkdir(packageRoot, { recursive: true });
   await writeFile(path.join(packageRoot, 'package.json'), `${JSON.stringify(stagedManifest, null, 2)}\n`);
 
