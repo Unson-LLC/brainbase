@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-knowledge-adapter-v1
 title: 既存の知識候補と承認から採用判断の条件を辿れる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -60,10 +60,10 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ## 受入条件
 
-- [ ] AC-01: Knowledge Event／feedback／candidate昇格とGraph maintenanceの各旧入口を、名前付きport適合fixtureで共通判断参照へ接続する。各record本文の所有・承認はhost側に残す。
-- [ ] AC-02: quarantine・ACL・Human Gateを維持し、候補抽出や承認自体を真実の証明にしない。
-- [ ] AC-03: MeetingKnowledgeEventBridgeの適合portが返す元証拠を保持し、条件未記録の旧イベントを補作しない。
-- [ ] AC-04: 各対象入口の互換性・参照readback・current ACL／権限拒否をfixtureと実storeで検証し、port binding単位で切替／切戻しできる。外部サービスや社内runtimeの本番接続は完了条件にしない。
+- [x] AC-01: Knowledge Event／feedback／candidate昇格とGraph maintenanceの各旧入口を、名前付きport適合fixtureで共通判断参照へ接続する。各record本文の所有・承認はhost側に残す。
+- [x] AC-02: quarantine・ACL・Human Gateを維持し、候補抽出や承認自体を真実の証明にしない。
+- [x] AC-03: MeetingKnowledgeEventBridgeの適合portが返す元証拠を保持し、条件未記録の旧イベントを補作しない。
+- [x] AC-04: 各対象入口の互換性・参照readback・current ACL／権限拒否をfixtureと実storeで検証し、port binding単位で切替／切戻しできる。外部サービスや社内runtimeの本番接続は完了条件にしない。
 
 ## 対象外
 
@@ -73,4 +73,7 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は実装着手済み。OSSの共通port、採用locator、personal adapterの最小実装・実store／fixture検証を進めている。旧入口のowner側adapter適合、組織境界のfixture／CI、外部配備、PR/CIは所有repoの検証範囲であり、このOSS commitだけを本番接続やStory全体の完了証拠にしない。
+## 実装状況
+
+- `src/knowledge-adapter.ts` に、Knowledge Event・feedback・candidate昇格・Graph maintenanceを本文ごと移さず、exact source locator・provenance・判断条件・readonly adoption locatorだけを接続する共通portとadapterを実装した。`src/company-os-learning-adoption.ts` の採用locator、sidecarのCAS・staged readback・transaction publication、quarantine・ACL・Human Gate・元証拠の境界を維持する。
+- AC-01〜04は実装・review・CIで確認済み。[PR #544](https://github.com/Unson-LLC/brainbase/pull/544) はmerge [`3af12f6b3c2c7bf17869f45ae4883e44fd51cc7e`](https://github.com/Unson-LLC/brainbase/commit/3af12f6b3c2c7bf17869f45ae4883e44fd51cc7e)、head [`5e1b7a1360e905d5ace25d6569549f5cd5aad109`](https://github.com/Unson-LLC/brainbase/commit/5e1b7a1360e905d5ace25d6569549f5cd5aad109)、[CI 35863091278](https://github.com/Unson-LLC/brainbase/actions/runs/35863091278) success、foundation store review pass、13 tests・build passである。旧会社HTTP route・組織承認provider・MeetingKnowledgeEventBridgeの本番接続は完了条件に含めない。VibeProの `active` は登録状態を示し、完了状態とは別である。
