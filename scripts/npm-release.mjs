@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, appendFile, cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -115,6 +116,46 @@ function gitSha(root, ref = 'HEAD') {
 
 async function currentPackage(root) {
   return JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+}
+
+async function pathExists(file) {
+  try {
+    await access(file);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+async function stagePackageForPacking(root, stagingDirectory, { includeGenerated = true } = {}) {
+  const manifest = await currentPackage(root);
+  const packageRoot = path.join(stagingDirectory, 'pack-input');
+  const files = includeGenerated ? manifest.files ?? [] : (manifest.files ?? []).filter((entry) => entry !== 'dist');
+  const stagedManifest = { ...manifest, files };
+  if (stagedManifest.scripts) {
+    stagedManifest.scripts = { ...stagedManifest.scripts };
+    // npm may run prepare while packing a local directory even when
+    // --ignore-scripts is supplied. Pack input already contains generated
+    // output, so lifecycle hooks must not rebuild the repository or staging
+    // directory. Keep the source manifest unchanged for git consumers.
+    for (const hook of ['prepack', 'prepare', 'postpack']) delete stagedManifest.scripts[hook];
+    if (!Object.keys(stagedManifest.scripts).length) delete stagedManifest.scripts;
+  }
+  await mkdir(packageRoot, { recursive: true });
+  await writeFile(path.join(packageRoot, 'package.json'), `${JSON.stringify(stagedManifest, null, 2)}\n`);
+
+  for (const entry of files) {
+    const source = path.join(root, entry);
+    const destination = path.join(packageRoot, entry);
+    if (!(await pathExists(source))) continue;
+
+    // Copy generated output into the package staging area without invoking
+    // prepare/build. The repository dist must never be written by packaging;
+    // any build that precedes this operation owns the repository output.
+    await cp(source, destination, { recursive: true });
+  }
+  return { packageRoot, manifest: stagedManifest };
 }
 
 export function readNpmMetadata(packageName, version, root = rootDefault, spawn = spawnSync) {
@@ -242,9 +283,10 @@ function packedResult(output, expectedVersion) {
 export async function createReleaseArtifact(root, artifactDirectory, expectedVersion, expectedSha, execute = run) {
   const stagingDirectory = await mkdtemp(path.join(artifactDirectory, '.brainbase-npm-pack-'));
   try {
+    const { packageRoot: packInputRoot } = await stagePackageForPacking(root, stagingDirectory);
     const initial = packedResult(execute(
       'npm',
-      ['pack', '--ignore-scripts', '--json', '--pack-destination', stagingDirectory],
+      ['pack', packInputRoot, '--ignore-scripts', '--json', '--pack-destination', stagingDirectory],
       root
     ), expectedVersion);
     const initialTarball = path.resolve(stagingDirectory, initial.filename);
@@ -284,6 +326,25 @@ export async function createReleaseArtifact(root, artifactDirectory, expectedVer
       tarballSha256: await sha256(tarballPath),
       tarballIntegrity: await sha512Integrity(tarballPath)
     };
+  } finally {
+    await rm(stagingDirectory, { recursive: true, force: true });
+  }
+}
+
+export async function packFilesInIsolation(root, execute = run) {
+  const stagingDirectory = await mkdtemp(path.join(tmpdir(), 'brainbase-npm-pack-dry-run-'));
+  try {
+    // Repository hygiene validates the package manifest and public static
+    // files. Exclude generated dist from this dry-run so it cannot race with
+    // a concurrent root build; release artifact validation copies the current
+    // generated dist into its own staging directory below.
+    const { packageRoot, manifest } = await stagePackageForPacking(root, stagingDirectory, { includeGenerated: false });
+    const packed = packedResult(execute(
+      'npm',
+      ['pack', packageRoot, '--dry-run', '--ignore-scripts', '--json'],
+      root
+    ), manifest.version);
+    return packed.files.map((file) => file.path);
   } finally {
     await rm(stagingDirectory, { recursive: true, force: true });
   }

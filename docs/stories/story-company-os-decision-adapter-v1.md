@@ -30,8 +30,11 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ### 提供状況（2026-09-23確認）
 
+- **OSS側実装済み**: `src/decision-adapter.ts` が `DecisionAdapterPort`／`GraphDecisionAdapterStore` と旧レスポンス識別子を含む互換契約を提供する。既存のDecision Graph entityと`decisions.jsonl`を正本として保持し、Problem snapshot・方法版・Objective版は版付きsidecar参照として同じDecision IDへ接続する。
 - **提供**: `src/canonical-task-principal.ts`・`src/canonical-task-contract.ts`・`src/canonical-task-service.ts`、`src/judgment-dag.ts`・`src/judgment-value-proof.ts`を基礎に、AC-01の `/api/info/decisions`・`/api/info/ai/decision-log` と、DecisionからJudgmentProblem・DAG版・Objective版へ辿るOSS所有adapterを提供する。
 - **再利用**: `src/judgment-dag.ts` のDAG／参照版／実行成果物と `src/judgment-value-proof.ts` の証明・feedback型を共通契約の基礎にする。組織BFFや旧社内runtimeをOSSの正本として直接参照しない。
+- **条件と境界**: 新規書込みは必須条件を検証し、注入されたtrusted condition validatorで現在の存在・ACLを確認できる。Objectiveや権限を推測せず、組織のHTTP route・RACI・旧社内runtimeはこのStoryで実装しない。
+- **lockと切戻し**: trusted providerのread・認可はSSOT lock外で行い、canonical aggregateとsidecarをcommit直前にCAS検証する。lock内で外部awaitを行わず、検証中の同時変更は新しい証跡を残さず拒否する。旧条件未記録Decisionは`unrecorded`として読める。AI decision logは既存Decisionにsidecarで付加し、別のGraph正本や`ai_decision` entityを作らない。commit後のcurrent ACL/read拒否は保存済み記録を巻き戻さない。
 - **境界**: `story-canonical-runtime-ownership`のTask契約は外部依存として参照するが、既存組織routeの接続と本番組込みはこのStoryの完了証跡に含めない。
 
 ## 設計参照
@@ -50,10 +53,10 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 ## 受入条件
 
-- [x] AC-01: /api/info/decisions と /api/info/ai/decision-log にProblemと方法版への参照を接続する。
+- [x] AC-01: OSSの`DecisionAdapterPort`／`GraphDecisionAdapterStore`が、旧`/api/info/decisions`・`/api/info/ai/decision-log`の応答識別子とProblem・方法版参照の契約を提供する。組織HTTP routeへの実組込みは別repo側の残課題である。
 - [x] AC-02: 新経路は必須条件を検証し、旧レコードは条件未記録として読む。Objective・権限を推測補完しない。
 - [x] AC-03: 既存レスポンスとID・Graphの正本を維持し、二重書込みの別正本を作らない。
-- [x] AC-04: 経路別の互換fixture比較と切戻しを検証し、新しい証跡を削除せず旧読取を維持する。
+- [x] AC-04: 匿名化した旧応答形fixtureと実storeで互換性・切戻しを検証し、新しい証跡を削除せず旧読取を維持する。
 
 ## 対象外
 
@@ -63,4 +66,4 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-AC-01〜04は、PR #536のレビュー通過、merge `bdf02f848d3c78fdfbf50602c75c3b9efadc382e`、CI [35851699844](https://github.com/Unson-LLC/brainbase/actions/runs/35851699844) successで確認した。Decision adapterはOSS所有の公開境界として完了し、組織側の既存route接続と本番組込みは別途検証対象である。VibeProのactiveは登録状態を示す既存値として維持する。
+AC-01〜04は、`npm run build` と `npx vitest run tests/decision-adapter.test.ts`（14 tests）で、必須条件の拒否、旧レコードの条件未記録読取、Graph SSOTの同一ID、AI logのsidecar保存、実際のGraphFoundationRevisionStoreを読むtrusted providerのlock外実行、検証中のcanonical/sidecar同時変更のCAS拒否、trusted validator拒否、commit後のcurrent read拒否を保存済み記録へ波及させないこと、所有者認証、原子的切戻し、fixture互換を確認した。さらにPR #536のレビュー通過、merge `bdf02f848d3c78fdfbf50602c75c3b9efadc382e`、CI [35851699844](https://github.com/Unson-LLC/brainbase/actions/runs/35851699844) successで確認した。Decision adapterはOSS所有の公開境界として完了し、組織側の既存route接続と本番組込みは別途検証対象である。VibeProのactiveは登録状態を示す既存値として維持する。

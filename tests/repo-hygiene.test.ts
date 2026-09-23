@@ -4,6 +4,7 @@ import { constants } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { packFilesInIsolation } from '../scripts/npm-release.mjs';
 
 const repoRoot = process.cwd();
 const execFileAsync = promisify(execFile);
@@ -40,9 +41,7 @@ async function gitTrackedFiles(): Promise<string[]> {
 }
 
 async function packFiles(): Promise<string[]> {
-  const { stdout } = await execFileAsync('npm', ['pack', '--dry-run', '--json'], { cwd: repoRoot });
-  const [pack] = JSON.parse(stdout) as Array<{ files: Array<{ path: string }> }>;
-  return pack.files.map((file) => file.path);
+  return packFilesInIsolation(repoRoot);
 }
 
 function forbiddenMatches(files: string[]): string[] {
