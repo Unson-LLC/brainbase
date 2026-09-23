@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CanonicalTaskError,
   CanonicalTaskService,
   type CanonicalTaskOperationRepository,
   type CanonicalTaskOperationRequest,
@@ -186,7 +187,8 @@ describe('CanonicalTaskService parity contracts', () => {
       },
     };
     const fixture = createCanonicalTaskServiceFixture({ operationRepository });
-    await fixture.service.createTask({ title: 'Versioned task' }, taskContext('seed'));
+    const sourceRefs = [{ type: 'manual', id: 'delete-source' }];
+    await fixture.service.createTask({ title: 'Versioned task', source_refs: sourceRefs }, taskContext('seed'));
 
     let updateCalls = 0;
     const update = fixture.repository.update.bind(fixture.repository);
@@ -204,6 +206,7 @@ describe('CanonicalTaskService parity contracts', () => {
 
     const deleted = await fixture.service.deleteTask('task-1', { expected_version: 2 }, taskContext('delete-1'));
     expect(deleted).toEqual({ task_id: 'task-1', deleted: true, version: 3 });
+    expect(deleted).not.toHaveProperty('_audit_source_refs');
     expect(preparedDeletes[0]).toMatchObject({
       operationKey: expect.stringMatching(/^delete:v1\..+:delete-1$/u),
       versionClaimKey: 'task-version:task-1:2',
@@ -215,8 +218,81 @@ describe('CanonicalTaskService parity contracts', () => {
 
     const deleteReplay = await fixture.service.deleteTask('task-1', { expected_version: 2 }, taskContext('delete-1'));
     expect(deleteReplay).toEqual(deleted);
+    expect(deleteReplay).not.toHaveProperty('_audit_source_refs');
     expect(removeCalls).toBe(1);
     expect(preparedDeletes).toHaveLength(2);
+    const deleteAuditCalls = fixture.auditCalls.filter((entry) => entry.action === 'canonical_task.deleted');
+    expect(deleteAuditCalls).toHaveLength(2);
+    expect(deleteAuditCalls[0].source_refs).toEqual(sourceRefs);
+    expect(deleteAuditCalls[1].source_refs).toEqual(sourceRefs);
+    expect(fixture.auditEntries.filter((entry) => entry.action === 'canonical_task.deleted')).toHaveLength(1);
+    expect(fixture.auditEntries.find((entry) => entry.action === 'canonical_task.deleted')?.source_refs)
+      .toEqual(sourceRefs);
+  });
+
+  it('rechecks delete authorization immediately before removing a prepared task', async () => {
+    let deleteAuthorizations = 0;
+    let deleteCalls = 0;
+    const fixture = createCanonicalTaskServiceFixture();
+    const operationRepository: CanonicalTaskOperationRepository = {
+      async execute<T>(request: CanonicalTaskOperationRequest<T>): Promise<T> {
+        return request.run();
+      },
+      async executePreparedDelete<T>(request): Promise<T> {
+        const prepared = await request.prepare();
+        const current = await request.findTask();
+        if (current) await request.removeTask(current);
+        return prepared.result;
+      },
+    };
+    const service = new CanonicalTaskService({
+      repository: fixture.repository,
+      auditRepository: fixture.auditRepository,
+      operationRepository,
+      policy: {
+        authorize({ action }) {
+          if (action !== 'delete') return;
+          deleteAuthorizations += 1;
+          if (deleteAuthorizations > 1) {
+            throw new CanonicalTaskError('forbidden', 'Delete authorization was revoked', 403);
+          }
+        },
+      },
+      clock: () => new Date('2026-01-02T00:00:00.000Z'),
+      baseUrl: 'https://consumer.example.test',
+    });
+    const repositoryDelete = fixture.repository.delete.bind(fixture.repository);
+    fixture.repository.delete = async (taskId, expectedVersion) => {
+      deleteCalls += 1;
+      return repositoryDelete(taskId, expectedVersion);
+    };
+
+    await service.createTask({ title: 'Revocable delete' }, taskContext('seed'));
+
+    await expect(service.deleteTask('task-1', { expected_version: 1 }, taskContext('delete-1')))
+      .rejects.toMatchObject({ code: 'forbidden', status: 403 });
+    expect(deleteAuthorizations).toBe(2);
+    expect(deleteCalls).toBe(0);
+    expect(fixture.tasks).toHaveLength(1);
+  });
+
+  it('preserves completed_at when an ordinary update follows a completed transition', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    await fixture.service.createTask({ title: 'Completed task' }, taskContext('create-1'));
+    await fixture.service.transitionTask('task-1', 'completed', 1, taskContext());
+
+    const updated = await fixture.service.updateTask('task-1', { title: 'Completed task renamed' }, 2, taskContext());
+
+    expect(updated).toMatchObject({
+      title: 'Completed task renamed',
+      status: 'completed',
+      version: 3,
+      completed_at: '2026-01-02T00:00:00.000Z',
+    });
+    expect(fixture.tasks.get('task-1')).toMatchObject({
+      version: 3,
+      completed_at: '2026-01-02T00:00:00.000Z',
+    });
   });
 
   it('requires waiting details and explicitly clears completed_at on non-completed transitions', async () => {

@@ -16,6 +16,21 @@ import {
 
 type JsonRecord = Record<string, unknown>;
 
+type CanonicalTaskDeleteResult = {
+  task_id: string;
+  deleted: true;
+  version: number;
+};
+
+/**
+ * The operation coordinator persists this private field with a prepared
+ * delete result so a completed replay can rebuild its audit envelope after
+ * the task row has been removed. It is stripped before the public response.
+ */
+type CanonicalTaskDeleteOperationResult = CanonicalTaskDeleteResult & {
+  _audit_source_refs?: unknown[];
+};
+
 export type CanonicalTaskAction =
   | 'list'
   | 'search'
@@ -658,9 +673,13 @@ export class CanonicalTaskService {
       expectedVersion: version,
       principalNamespace: actorNamespace,
     });
-    const result = { task_id: normalizedId, deleted: true as const, version: version + 1 };
+    const result: CanonicalTaskDeleteResult = {
+      task_id: normalizedId,
+      deleted: true,
+      version: version + 1,
+    };
     const prepare = async (): Promise<{
-      result: typeof result;
+      result: CanonicalTaskDeleteOperationResult;
       task: CanonicalTaskRecord;
       authorizationSnapshot: JsonRecord;
     }> => {
@@ -670,7 +689,10 @@ export class CanonicalTaskService {
       this.assertVersion(current, version);
       task = current;
       return {
-        result,
+        result: {
+          ...result,
+          _audit_source_refs: Array.isArray(current.source_refs) ? current.source_refs : [],
+        },
         task: current,
         authorizationSnapshot: {
           task_id: normalizedId,
@@ -689,10 +711,14 @@ export class CanonicalTaskService {
       const taskToRemove = current ?? await this.read(() => this.repository.get(normalizedId));
       if (!taskToRemove) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       task = taskToRemove;
+      // The coordinator may call removeTask after an earlier prepare step.
+      // Recheck the current policy at the destructive boundary so a revoked
+      // actor cannot delete a task using a previously prepared authorization.
+      await this.authorize('delete', normalizedContext, taskToRemove);
       this.assertVersion(taskToRemove, version);
       await this.read(() => this.repository.delete(normalizedId, version));
     };
-    let deleted: typeof result;
+    let deleted: CanonicalTaskDeleteOperationResult;
     if (this.operationRepository?.executePreparedDelete) {
       deleted = await this.operationRepository.executePreparedDelete({
         scope: 'canonical_task',
@@ -723,13 +749,25 @@ export class CanonicalTaskService {
     // durable operation result is sufficient. Keep the audit target stable in
     // that case while avoiding a second task-store read that would turn a
     // successful replay into task_not_found.
+    const publicDeleted: CanonicalTaskDeleteResult = {
+      task_id: deleted.task_id,
+      deleted: true,
+      version: deleted.version,
+    };
+    const auditSourceRefs = Array.isArray(task?.source_refs)
+      ? task.source_refs
+      : (Array.isArray(deleted._audit_source_refs) ? deleted._audit_source_refs : null);
+    // A legacy completed operation may only contain the public delete result.
+    // Do not synthesize source_refs: [] in that case, because an audit upsert
+    // would erase the source references recorded by the original execution.
+    if (!task && auditSourceRefs === null) return publicDeleted;
     const auditTask = task ?? {
       id: normalizedId,
       version,
       title: '',
       status: 'pending' as const,
       priority: 'medium' as const,
-      source_refs: [],
+      source_refs: auditSourceRefs ?? [],
     };
     await this.audit(
       normalizedContext,
@@ -739,7 +777,7 @@ export class CanonicalTaskService {
       operation,
       operationFingerprint,
     );
-    return deleted;
+    return publicDeleted;
   }
 
   private async versionedMutation(input: {
@@ -761,7 +799,9 @@ export class CanonicalTaskService {
       ...input.patch,
       version: expectedVersion + 1,
       updated_at: mutationTimestamp,
-      completed_at: input.transitionStatus === 'completed' ? mutationTimestamp : null,
+      ...(input.action === 'transition'
+        ? { completed_at: input.transitionStatus === 'completed' ? mutationTimestamp : null }
+        : {}),
     };
     // Keep this fingerprint independent of the wall clock. A restart may
     // reconstruct the same command at a different instant, while the marker
