@@ -23,6 +23,10 @@
       "types": "./dist/ontology-foundation.d.ts",
       "import": "./dist/ontology-foundation.js"
     },
+    "./judgment-dag-composition": {
+      "types": "./dist/judgment-dag-composition.d.ts",
+      "import": "./dist/judgment-dag-composition.js"
+    },
     "./judgment-value-proof": {
       "types": "./dist/judgment-value-proof.d.ts",
       "import": "./dist/judgment-value-proof.js"
