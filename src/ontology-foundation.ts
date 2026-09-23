@@ -223,8 +223,13 @@ export interface FoundationEvaluationExpectation {
 export interface FoundationTypeContract {
   type: FoundationType;
   meaning: string;
+  /** Fields supplied by the shared definition base for every non-draft use. */
+  requiredBase: readonly string[];
+  /** Type-specific fields required for the named use. */
   requiredForJudgment: readonly string[];
   requiredForEvaluation: readonly string[];
+  /** Conditional requirements that cannot be represented by one flat list. */
+  conditionalRequirements?: readonly string[];
 }
 
 export interface JudgmentFoundationContract {
@@ -246,26 +251,31 @@ const typeContracts: Record<FoundationType, FoundationTypeContract> = {
   objective: {
     type: 'objective',
     meaning: 'A desired state for a beneficiary, with explicit criteria and an evaluation period.',
+    requiredBase: ['id', 'type', 'revision', 'meaning', 'adoptionState', 'authorizedUses', 'acl', 'storage', 'provenance', 'scope'],
     requiredForJudgment: ['beneficiaryIds', 'desiredState', 'criteria', 'evaluationPeriod'],
-    requiredForEvaluation: ['criteria', 'evaluationPeriod']
+    requiredForEvaluation: ['beneficiaryIds', 'desiredState', 'criteria', 'evaluationPeriod']
   },
   variable: {
     type: 'variable',
     meaning: 'A definition of a state or outcome value, including measurement and aggregation semantics.',
+    requiredBase: ['id', 'type', 'revision', 'meaning', 'adoptionState', 'authorizedUses', 'acl', 'storage', 'provenance', 'scope'],
     requiredForJudgment: ['subject', 'valueKind', 'aggregation', 'granularity', 'measurementMethod'],
-    requiredForEvaluation: ['aggregation', 'granularity', 'measurementMethod', 'scope']
+    requiredForEvaluation: ['subject', 'valueKind', 'aggregation', 'granularity', 'measurementMethod'],
+    conditionalRequirements: ['unit when valueKind is number']
   },
   model: {
     type: 'model',
     meaning: 'A scoped relationship or calculation describing how variables may change; it is not an LLM model name.',
-    requiredForJudgment: ['inputVariableRefs', 'outputVariableRefs', 'applicability', 'relationship', 'uncertainty', 'validationState'],
-    requiredForEvaluation: ['inputVariableRefs', 'outputVariableRefs', 'applicability', 'validationState']
+    requiredBase: ['id', 'type', 'revision', 'meaning', 'adoptionState', 'authorizedUses', 'acl', 'storage', 'provenance', 'scope'],
+    requiredForJudgment: ['epistemicState', 'inputVariableRefs', 'outputVariableRefs', 'applicability', 'relationship', 'uncertainty', 'validationState'],
+    requiredForEvaluation: ['epistemicState', 'inputVariableRefs', 'outputVariableRefs', 'applicability', 'relationship', 'uncertainty', 'validationState']
   },
   constraint: {
     type: 'constraint',
     meaning: 'A condition that applies to a bounded target and validity period, with decision-backed exceptions.',
+    requiredBase: ['id', 'type', 'revision', 'meaning', 'adoptionState', 'authorizedUses', 'acl', 'storage', 'provenance', 'scope'],
     requiredForJudgment: ['condition', 'appliesTo', 'exceptions', 'adoptionBasis'],
-    requiredForEvaluation: ['condition', 'appliesTo']
+    requiredForEvaluation: ['condition', 'appliesTo', 'exceptions', 'adoptionBasis']
   }
 };
 
@@ -619,8 +629,9 @@ function isScopeValue(value: unknown): value is FoundationScope {
   }
   if (!isNonEmptyString(value.validFrom)) return false;
   if (value.validUntil !== undefined && !isNonEmptyString(value.validUntil)) return false;
-  const until = value.validUntil ?? value.validFrom;
-  return isValidPeriod({ from: value.validFrom, until });
+  if (parseStrictRfc3339(value.validFrom) === undefined) return false;
+  if (value.validUntil === undefined) return true;
+  return isValidPeriod({ from: value.validFrom, until: value.validUntil });
 }
 
 function isNonEmptyStringArray(value: unknown): value is string[] {
@@ -841,6 +852,24 @@ export function validateEvaluationCompatibility(
     issues.push({ code: 'INVALID_FIELD', path: 'period', message: 'Evaluation requires a valid period.' });
   }
 
+  const definitionScope = isRecord(variable) && isScopeValue(variable.scope)
+    ? variable.scope
+    : undefined;
+  if (definitionScope && isScopeValue(actualScope) && !scopeWithin(actualScope, definitionScope)) {
+    issues.push({
+      code: 'EVALUATION_SCOPE_MISMATCH',
+      path: 'scope',
+      message: 'Evaluation scope must stay within the Variable subject and validity scope.'
+    });
+  }
+  if (definitionScope && isPeriodValue(actualPeriod) && !periodWithinScope(actualPeriod, definitionScope)) {
+    issues.push({
+      code: 'EVALUATION_PERIOD_MISMATCH',
+      path: 'period',
+      message: 'Evaluation period must stay within the Variable validity scope.'
+    });
+  }
+
   if (actualRevision && variableId && variableRevision &&
       (actualRevision.id !== variableId || actualRevision.revision !== variableRevision)) {
     issues.push({
@@ -998,6 +1027,7 @@ function validateTypeSpecificDefinition(
     case 'constraint':
       if (!isNonEmptyString(definition.condition)) issues.push(missing('condition'));
       if (isEmptyRequiredArray(definition.appliesTo)) issues.push(missing('appliesTo'));
+      if (definition.exceptions === undefined) issues.push(missing('exceptions'));
       if (isEmptyRequiredArray(definition.adoptionBasis)) issues.push(missing('adoptionBasis'));
       break;
   }
@@ -1053,7 +1083,15 @@ function validateDefinitionShape(
             return;
           }
           validateDecisionValue(exception.decisionRef, `exceptions[${index}].decisionRef`, issues);
-          validateScope(exception.scope, `exceptions[${index}].scope`, issues, false);
+          validateScope(exception.scope, `exceptions[${index}].scope`, issues, true);
+          if (isScopeValue(exception.scope) && isScopeValue(definition.scope)
+            && !scopeWithin(exception.scope, definition.scope)) {
+            issues.push({
+              code: 'INVALID_FIELD',
+              path: `exceptions[${index}].scope`,
+              message: 'Constraint exception scope must be non-empty and remain within the parent Constraint scope.'
+            });
+          }
         });
       }
       optionalArray(definition.adoptionBasis, 'adoptionBasis', issues);
@@ -1112,9 +1150,54 @@ function validateScope(scope: unknown, path: string, issues: FoundationValidatio
 }
 
 function isValidPeriod(period: FoundationPeriod): boolean {
-  const from = Date.parse(period.from);
-  const until = Date.parse(period.until);
-  return !Number.isNaN(from) && !Number.isNaN(until) && until >= from;
+  const from = parseStrictRfc3339(period.from);
+  const until = parseStrictRfc3339(period.until);
+  return from !== undefined && until !== undefined && until > from;
+}
+
+/**
+ * Parse only RFC3339 date-time values and validate calendar components before
+ * converting them. Date.parse accepts values such as 2026-02-30 by silently
+ * normalizing them into March, which would make a scope or evaluation period
+ * mean something other than what its author wrote.
+ */
+function parseStrictRfc3339(value: string): number | undefined {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
+  if (!match) return undefined;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const hour = Number(match[4]);
+  const minute = Number(match[5]);
+  const second = Number(match[6]);
+  const fraction = match[7] ?? '';
+  const zone = match[8];
+  if (month < 1 || month > 12 || day < 1 || day > daysInMonth(year, month)) return undefined;
+  if (hour > 23 || minute > 59 || second > 59) return undefined;
+
+  let offsetMinutes = 0;
+  if (zone !== 'Z') {
+    const sign = zone[0] === '-' ? -1 : 1;
+    const offsetHour = Number(zone.slice(1, 3));
+    const offsetMinute = Number(zone.slice(4, 6));
+    if (offsetHour > 23 || offsetMinute > 59) return undefined;
+    offsetMinutes = sign * (offsetHour * 60 + offsetMinute);
+  }
+
+  // Date.UTC treats years 0..99 as 1900..1999; the contract's four-digit
+  // year range is handled explicitly so the conversion remains unambiguous.
+  const milliseconds = Number((fraction + '000').slice(0, 3));
+  const timestamp = Date.UTC(year, month - 1, day, hour, minute, second, milliseconds)
+    - offsetMinutes * 60_000;
+  return Number.isFinite(timestamp) ? timestamp : undefined;
+}
+
+function daysInMonth(year: number, month: number): number {
+  if (month === 2) {
+    return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  }
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
 }
 
 function sameScope(left: FoundationScope, right: FoundationScope): boolean {
@@ -1125,6 +1208,33 @@ function sameScope(left: FoundationScope, right: FoundationScope): boolean {
 
 function samePeriod(left: FoundationPeriod, right: FoundationPeriod): boolean {
   return left.from === right.from && left.until === right.until;
+}
+
+function scopeWithin(inner: FoundationScope, outer: FoundationScope): boolean {
+  const outerSubjects = new Set(outer.subjectIds);
+  const subjectsContained = inner.subjectIds.every((subjectId) => outerSubjects.has(subjectId));
+  if (!subjectsContained) return false;
+  const innerFrom = parseStrictRfc3339(inner.validFrom);
+  const outerFrom = parseStrictRfc3339(outer.validFrom);
+  if (innerFrom === undefined || outerFrom === undefined || innerFrom < outerFrom) return false;
+  if (inner.validUntil === undefined) return outer.validUntil === undefined;
+  const innerUntil = parseStrictRfc3339(inner.validUntil);
+  if (innerUntil === undefined) return false;
+  if (outer.validUntil === undefined) return true;
+  const outerUntil = parseStrictRfc3339(outer.validUntil);
+  return outerUntil !== undefined && innerUntil <= outerUntil;
+}
+
+function periodWithinScope(period: FoundationPeriod, scope: FoundationScope): boolean {
+  const periodFrom = parseStrictRfc3339(period.from);
+  const periodUntil = parseStrictRfc3339(period.until);
+  const scopeFrom = parseStrictRfc3339(scope.validFrom);
+  if (periodFrom === undefined || periodUntil === undefined || scopeFrom === undefined || periodFrom < scopeFrom) {
+    return false;
+  }
+  if (scope.validUntil === undefined) return true;
+  const scopeUntil = parseStrictRfc3339(scope.validUntil);
+  return scopeUntil !== undefined && periodUntil <= scopeUntil;
 }
 
 function isRevisionEndpoint(type: FoundationRelationEndpoint): type is FoundationType | 'decision' {

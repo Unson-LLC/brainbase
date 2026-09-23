@@ -70,6 +70,9 @@ jobs:
       - name: Build package
         run: npm run build
 
+      - name: Run package tests
+        run: npm test
+
       - name: Validate public-message projections and documentation
         run: npm run docs:check
 

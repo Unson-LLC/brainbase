@@ -47,7 +47,7 @@ of retired or refuted definitions.
 | AC-002 | Draft retention and fail-closed judgment/evaluation compatibility validation | `validateFoundationDefinition`, `validateEvaluationCompatibility`, `tests/ontology-foundation.test.ts` |
 | AC-003 | Forbidden inference metadata and world-model cycle policy | `judgmentFoundationRelations`, `inferFoundationConclusions`, `tests/ontology-foundation.test.ts` |
 | AC-004 | Independent epistemic/adoption/ACL/storage/provenance axes and malformed runtime rejection | `FoundationDefinitionBase`, runtime validators, `tests/ontology-foundation.test.ts` |
-| AC-005 | Public package subpath consumer import and PR CI verification | `package.json`, `scripts/npm-consumer-smoke.mjs`, `tests/npm-consumer-smoke.integration.test.ts`, `.github/workflows/test.yml` |
+| AC-005 | Public package subpath consumer import; the approved PR validation workflow runs package build and full tests | `package.json`, `scripts/npm-consumer-smoke.mjs`, `tests/npm-consumer-smoke.integration.test.ts`, `.github/workflows/docs-cloudflare-pages.yml` |
 
 ## Explicit non-goals
 
@@ -59,7 +59,8 @@ reuse this shared contract rather than fork it.
 ## Verification boundary
 
 The focused ontology tests, TypeScript build, and isolated npm consumer smoke
-are local evidence. The full local suite has two known timeout failures in
-existing SSOT cleanup/concurrent-writer and full-suite consumer-smoke paths;
-those results are recorded as unresolved environment/fixture evidence and are
-left to PR CI. They are not treated as feature success or as zero failures.
+are local evidence. The repository hygiene contract permits only its approved
+publication workflows, so this Story does not add a new workflow. The approved
+documentation workflow now runs the package build and full test suite for the
+PR paths used by this Story; a CI failure is not treated as feature success or
+as zero failures.

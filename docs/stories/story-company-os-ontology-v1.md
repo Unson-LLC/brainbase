@@ -57,4 +57,4 @@ Graphの本番型有効化、4型のCRUD、既存Kernelの再実装。
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-実装を開始し、共通型・関係・実行時validator・consumer smoke・PR CIを追加中。受入条件の最終確認とPR/CI/mergeは未完了であり、完了扱いにしない。
+実装を開始し、共通型・関係・実行時validator・consumer smokeを追加中。PR CIは既存repo hygieneの承認済みworkflow契約に従い、本Storyから新規workflowを追加しない。受入条件の最終確認とPR/CI/mergeは未完了であり、完了扱いにしない。

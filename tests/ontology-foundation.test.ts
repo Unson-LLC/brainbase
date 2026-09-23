@@ -154,6 +154,18 @@ describe('judgment foundation ontology extension', () => {
     expect(judgmentFoundationContract.graphActivation).toBe('deferred');
     expect(judgmentFoundationContract.canonicalStoreAdoption).toBe('future-story-02-plus');
     expect(Object.isFrozen(judgmentFoundationContract)).toBe(true);
+    expect(judgmentFoundationContract.types.objective.requiredBase).toEqual(
+      expect.arrayContaining(['id', 'type', 'revision', 'meaning', 'adoptionState', 'authorizedUses', 'acl', 'storage', 'provenance', 'scope'])
+    );
+    expect(judgmentFoundationContract.types.objective.requiredForEvaluation).toEqual(
+      expect.arrayContaining(['beneficiaryIds', 'desiredState', 'criteria', 'evaluationPeriod'])
+    );
+    expect(judgmentFoundationContract.types.model.requiredForEvaluation).toEqual(
+      expect.arrayContaining(['epistemicState', 'relationship', 'uncertainty', 'validationState'])
+    );
+    expect(judgmentFoundationContract.types.constraint.requiredForEvaluation).toEqual(
+      expect.arrayContaining(['exceptions', 'adoptionBasis'])
+    );
     expect(judgmentFoundationRelations.contributes_to.prohibitedInferences).toContain(
       'story completion does not establish objective achievement'
     );
@@ -232,6 +244,48 @@ describe('judgment foundation ontology extension', () => {
       period: evaluationPeriod
     }, { scope, period: evaluationPeriod });
     expect(compatible).toMatchObject({ valid: true, status: 'valid', issues: [] });
+
+    const narrowerEvaluationScope = {
+      subjectIds: ['hotel-1'],
+      validFrom: '2026-02-01T00:00:00.000Z',
+      validUntil: '2026-03-01T00:00:00.000Z'
+    };
+    const narrowerEvaluationPeriod = {
+      from: '2026-02-10T00:00:00.000Z',
+      until: '2026-02-20T00:00:00.000Z'
+    };
+    expect(validateEvaluationCompatibility(definition, {
+      variableRef: { id: definition.id, type: 'variable', revision: definition.revision },
+      unit: definition.unit,
+      aggregation: definition.aggregation,
+      granularity: definition.granularity,
+      scope: narrowerEvaluationScope,
+      period: narrowerEvaluationPeriod
+    })).toMatchObject({ valid: true, status: 'valid', issues: [] });
+
+    const outsideSubject = validateEvaluationCompatibility(definition, {
+      variableRef: { id: definition.id, type: 'variable', revision: definition.revision },
+      unit: definition.unit,
+      aggregation: definition.aggregation,
+      granularity: definition.granularity,
+      scope: { ...narrowerEvaluationScope, subjectIds: ['hotel-2'] },
+      period: narrowerEvaluationPeriod
+    });
+    expect(outsideSubject.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'EVALUATION_SCOPE_MISMATCH' })
+    ]));
+
+    const outsidePeriod = validateEvaluationCompatibility(definition, {
+      variableRef: { id: definition.id, type: 'variable', revision: definition.revision },
+      unit: definition.unit,
+      aggregation: definition.aggregation,
+      granularity: definition.granularity,
+      scope: narrowerEvaluationScope,
+      period: { from: '2027-01-01T00:00:00.000Z', until: '2027-01-10T00:00:00.000Z' }
+    });
+    expect(outsidePeriod.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ code: 'EVALUATION_PERIOD_MISMATCH' })
+    ]));
   });
 
   it('keeps forbidden inferences explicit and allows world-model cycles', () => {
@@ -350,6 +404,22 @@ describe('judgment foundation ontology extension', () => {
       expect.objectContaining({ path: 'scope', code: 'INVALID_FIELD' })
     ]));
 
+    const impossibleDate = validateFoundationDefinition({
+      ...variable(),
+      scope: { ...scope, validFrom: '2026-02-30T00:00:00.000Z' }
+    } as unknown, { use: 'draft' });
+    expect(impossibleDate.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'scope', code: 'INVALID_FIELD' })
+    ]));
+
+    const equalPeriod = validateFoundationDefinition({
+      ...objective(),
+      evaluationPeriod: { from: '2026-10-01T00:00:00.000Z', until: '2026-10-01T00:00:00.000Z' }
+    } as unknown, { use: 'evaluation' });
+    expect(equalPeriod.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'evaluationPeriod', code: 'INVALID_FIELD' })
+    ]));
+
     const malformedDecisionBackedScope = validateFoundationDefinition({
       ...constraint(),
       exceptions: [{ decisionRef: 'decision-mvp-entry-exception', scope }]
@@ -357,6 +427,28 @@ describe('judgment foundation ontology extension', () => {
     expect(malformedDecisionBackedScope).toMatchObject({ valid: false });
     expect(malformedDecisionBackedScope.issues).toEqual(expect.arrayContaining([
       expect.objectContaining({ path: 'exceptions[0].decisionRef', code: 'INVALID_REVISION_REFERENCE' })
+    ]));
+
+    const emptyExceptionScope = validateFoundationDefinition({
+      ...constraint(),
+      exceptions: [{
+        decisionRef: { id: 'decision-mvp-entry-exception', type: 'decision', revision: '2' },
+        scope: { subjectIds: [], validFrom: scope.validFrom, validUntil: scope.validUntil }
+      }]
+    } as unknown, { use: 'execution' });
+    expect(emptyExceptionScope.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'exceptions[0].scope.subjectIds', code: 'MISSING_FIELD' })
+    ]));
+
+    const outsideExceptionScope = validateFoundationDefinition({
+      ...constraint(),
+      exceptions: [{
+        decisionRef: { id: 'decision-mvp-entry-exception', type: 'decision', revision: '2' },
+        scope: { ...scope, subjectIds: ['hotel-2'] }
+      }]
+    } as unknown, { use: 'execution' });
+    expect(outsideExceptionScope.issues).toEqual(expect.arrayContaining([
+      expect.objectContaining({ path: 'exceptions[0].scope', code: 'INVALID_FIELD' })
     ]));
 
     const malformedEvaluationReference = validateEvaluationCompatibility(variable(), {
