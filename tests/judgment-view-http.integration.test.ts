@@ -360,6 +360,11 @@ describe('judgment view HTTP integration', () => {
         }
         return {
           reference: outcomeReference,
+          source: {
+            state: 'closed',
+            owner_refs: [{ status: 'typed', ref: { id: 'project-hotel', type: 'project', revision: '3' } }],
+            conditions: { pilot: 'hotel-ai' }
+          },
           acl: acl(),
           scope: foundationScope,
         };
