@@ -115,6 +115,10 @@
       "types": "./dist/execution-authority.d.ts",
       "import": "./dist/execution-authority.js"
     },
+    "./execution-authority-http": {
+      "types": "./dist/execution-authority-http.d.ts",
+      "import": "./dist/execution-authority-http.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
