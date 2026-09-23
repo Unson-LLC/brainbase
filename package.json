@@ -131,6 +131,10 @@
       "types": "./dist/execution-authority-http.d.ts",
       "import": "./dist/execution-authority-http.js"
     },
+    "./company-os-impact-review": {
+      "types": "./dist/company-os-impact-review.d.ts",
+      "import": "./dist/company-os-impact-review.js"
+    },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
