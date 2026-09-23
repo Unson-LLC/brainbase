@@ -79,6 +79,22 @@ function indexReturning(items: readonly ImpactReviewAffectedPlan[]): ImpactRevie
 function waitPort() {
   return {
     create: vi.fn(async () => undefined),
+    read: vi.fn(async ({ wait_id }: { readonly wait_id: string }) => {
+      if (wait_id !== 'impact-review-wait-1') throw { code: 'not_found' };
+      return {
+        wait_id,
+        owner_scope: plan().owner_scope,
+        read_policy: plan().read_policy,
+        problem_snapshot: plan().problem_snapshot,
+        condition: { expression: 'impact-review:plan-1:a material premise changed; create a new Problem/run after review' },
+        deadline: { due_at: plan().due_at },
+        responsible: plan().responsible,
+        resume_method: 'new_problem',
+        failure_policy: 'new_problem',
+        run_ref: { run_id: plan().run_id },
+        state: 'waiting',
+      };
+    }),
     markPremiseChanged: vi.fn(async () => undefined),
   } satisfies ImpactReviewWaitPort;
 }
@@ -133,7 +149,7 @@ describe('CompanyOsImpactReviewCoordinator', () => {
     expect(second.decisions[0]?.wait_id).toBe(first.decisions[0]?.wait_id);
     expect(waits.create).toHaveBeenCalledTimes(1);
     expect(waits.create).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      wait_id: computeImpactReviewWaitId('plan-1', ['change-1'], 'a material premise changed; create a new Problem/run after review'),
+      wait_id: computeImpactReviewWaitId('plan-1', ['change-1'], 'a material premise changed; create a new Problem/run after review', [reference()]),
       resume_method: 'new_problem',
       failure_policy: 'new_problem',
       deadline: { due_at: '2026-10-01T00:00:00.000Z' },
@@ -236,6 +252,7 @@ describe('CompanyOsImpactReviewCoordinator', () => {
       wait_id: 'impact-review-wait-1',
     });
     expect(rejudgment.createNewProblemAndRun).toHaveBeenCalledWith(expect.objectContaining({ plan: oldPlan }));
+    expect(rejudgment.createNewProblemAndRun).toHaveBeenCalledWith(expect.objectContaining({ operation_id: expect.stringMatching(/^impact-review-rejudgment-/u) }));
     expect(waits.markPremiseChanged).toHaveBeenCalledWith(expect.objectContaining({
       wait_id: 'impact-review-wait-1',
       new_problem_snapshot: { snapshot_id: `sha256:${'c'.repeat(64)}`, problem_id: 'problem-2', revision: '1' },

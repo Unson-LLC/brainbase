@@ -16,11 +16,13 @@
 - `hold`: 重要な前提の変更・反証、権限/Constraintの不明、外部作用の不明。決定的な`wait_id`でDurable Waitを作り、担当者と期限を保持する。外部作用不明は`reconcile_external_effect`として扱い、再判断へ直行しない。
 - `continue`: 軽微な変更で、現行の権限とConstraintが有効。完了済み計画は履歴を不変のまま残し、過去の効果を取消扱いしない。
 
-通知は変更・計画・判定・根拠参照から決定的に計算したIDで保存する。同じ内容の再試行は既存通知を返し、通知やWaitを二重作成しない。通知sidecarは参照、理由、時刻だけを保持し、Canonical Objective/Model/Constraintの本文を複製しない。
+通知は変更・計画・判定・根拠参照から計算した内容と`created_at`を含む記録ダイジェストで保存する。再試行時は時刻を除く通知内容で既存記録を見つけ、同じ不変記録を返す。sidecar上の時刻や本文の改変はダイジェスト不一致として拒否する。通知sidecarは参照、理由、時刻だけを保持し、Canonical Objective/Model/Constraintの本文を複製しない。
+
+Holdの`wait_id`には計画、変更ID、理由に加えて、判断に使ったCanonical参照の版とダイジェストを含める。期限がないWaitは影響レビュー固有のイベント条件を持たせ、Durable Waitの条件契約を満たす。通知記録の書込みに失敗して再試行した場合は、current ACLで既存Waitを読み、同一payloadなら再利用する。
 
 ## 再判断
 
-`reassess` は、完了済み計画または外部作用不明の計画を上書きしない。現在の参照を再検証したあと、`ImpactReviewRejudgmentPort` に新しいProblemとrunの作成を依頼する。既存のwaitを指定した場合は、Durable Waitの`markPremiseChanged`と同じ形で新しいProblem参照を履歴へ追加する。Reservationの取消、実行の補償、過去runの書換えはこのSpecの範囲外である。
+`reassess` は、完了済み計画または外部作用不明の計画を上書きしない。現在の参照を再検証し、既存のwaitを指定した場合はcurrent ACLでWaitを読み、run、旧Problem snapshot、計画IDの一致を新しいProblem/runの作成前に検証する。その後、`ImpactReviewRejudgmentPort` に同じ入力で再試行しても変わらない`operation_id`とともに新しいProblemとrunの作成を依頼する。既存のwaitを指定した場合は、Durable Waitの`markPremiseChanged`と同じ形で新しいProblem参照を履歴へ追加する。外部作用不明はreconciliation waitに留め、再判断へ直行しない。Reservationの取消、実行の補償、過去runの書換えはこのSpecの範囲外である。
 
 ## 実装と統合
 

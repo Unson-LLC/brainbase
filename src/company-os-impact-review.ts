@@ -126,6 +126,8 @@ export interface ImpactReviewDurableWaitCreateInput {
 export interface ImpactReviewWaitPort {
   /** The adapter must treat wait_id as an idempotency key. */
   create(input: ImpactReviewDurableWaitCreateInput): Promise<unknown>;
+  /** Read the canonical wait with current ACL and snapshot checks. */
+  readonly read?: (input: { readonly wait_id: string; readonly principal: string }) => Promise<unknown>;
   markPremiseChanged(input: {
     readonly wait_id: string;
     readonly principal: string;
@@ -138,17 +140,20 @@ export interface ImpactReviewWaitPort {
 /**
  * Adapt Story 13's canonical durable-wait ledger to the impact-review port.
  * The coordinator remains independent from the ledger implementation; this
- * boundary only forwards the two operations it is allowed to request.
+ * boundary only forwards the wait operations it is allowed to request.
  */
 export function createCompanyOsImpactReviewDurableWaitPort(
-  store: Pick<DurableWaitStore, 'create' | 'markPremiseChanged'>,
+  store: Pick<DurableWaitStore, 'create' | 'get' | 'markPremiseChanged'>,
 ): ImpactReviewWaitPort {
-  if (!store || typeof store.create !== 'function' || typeof store.markPremiseChanged !== 'function') {
+  if (!store || typeof store.create !== 'function' || typeof store.get !== 'function' || typeof store.markPremiseChanged !== 'function') {
     throw new CompanyOsImpactReviewError('invalid_request', 'durable wait store is required');
   }
   return {
     create(input) {
       return store.create(input);
+    },
+    read(input) {
+      return store.get(input);
     },
     markPremiseChanged(input) {
       return store.markPremiseChanged(input);
@@ -167,6 +172,8 @@ export interface ImpactReviewRejudgmentPort {
     readonly plan: ImpactReviewPlan;
     readonly changes: readonly ImpactReviewChange[];
     readonly reason: string;
+    /** Stable across retries so the provider can make Problem/run creation idempotent. */
+    readonly operation_id: string;
   }): Promise<ImpactReviewNewProblemAndRun>;
 }
 
@@ -205,6 +212,7 @@ export class CompanyOsImpactReviewError extends Error {
     | 'invalid_provider_result'
     | 'unresolved_reference'
     | 'notification_conflict'
+    | 'wait_conflict'
     | 'corrupt_sidecar'
     | 'missing_dependency'
     | 'rejudgment_not_allowed';
@@ -368,6 +376,7 @@ export class CompanyOsImpactReviewCoordinator {
       throw new CompanyOsImpactReviewError('invalid_request', 'at least one impact change is required');
     }
     const changes = request.changes.map(validateChange);
+    validateUniqueChangeIds(changes);
     const resolved: ImpactReviewChange[] = [];
     const references: ImpactReviewReference[] = [];
     const unresolved_changes: ImpactReviewUnresolvedChange[] = [];
@@ -400,30 +409,35 @@ export class CompanyOsImpactReviewCoordinator {
     const decisions: ImpactReviewPlanDecision[] = [];
     for (const entry of grouped) {
       const classification = classifyPlan(entry.plan, entry.matches, new Map(resolved.map((change) => [change.change_id, change])));
+      const planReferences = referencesForPlan(entry.plan, references);
       let wait_id: string | undefined;
       if (classification.disposition === 'hold') {
         if (!this.waits) throw new CompanyOsImpactReviewError('missing_dependency', 'durable wait port is required for a held plan');
-        wait_id = computeImpactReviewWaitId(entry.plan.plan_id, entry.matches.map((match) => match.change_id), classification.reason);
-        const existing = (await this.notifications.read()).find((record) => record.notification_id === computeImpactReviewNotificationId({
-          plan_id: entry.plan.plan_id,
-          disposition: classification.disposition,
-          change_ids: entry.matches.map((match) => match.change_id),
-          reason: classification.reason,
-          references: referencesForPlan(entry.plan, references),
-          wait_id,
-        }));
-        if (existing?.wait_id !== wait_id) {
-          await this.waits.create(buildWaitInput(entry.plan, request.access, wait_id, classification.reason));
-        }
+        wait_id = computeImpactReviewWaitId(entry.plan.plan_id, entry.matches.map((match) => match.change_id), classification.reason, planReferences);
       }
-      const notification = await this.notifications.record({
+      const notificationInput: ImpactReviewNotificationInput = {
         plan_id: entry.plan.plan_id,
         disposition: classification.disposition,
         change_ids: entry.matches.map((match) => match.change_id),
         reason: classification.reason,
-        references: referencesForPlan(entry.plan, references),
-        wait_id,
-      });
+        references: planReferences,
+        ...(wait_id ? { wait_id } : {}),
+      };
+      const existing = (await this.notifications.read()).find((record) => sameNotificationContent(record, notificationInput));
+      if (classification.disposition === 'hold' && !existing) {
+        const waitInput = buildWaitInput(entry.plan, request.access, wait_id!, classification.reason);
+        const existingWait = this.waits?.read
+          ? await readWaitOrMissing(this.waits, { wait_id: wait_id!, principal: request.access.principal })
+          : undefined;
+        if (existingWait !== undefined) {
+          assertWaitPayload(existingWait, waitInput);
+        } else {
+          await this.waits!.create(waitInput);
+        }
+      }
+      const notification = existing
+        ? { record: existing, status: 'existing' as const }
+        : await this.notifications.record(notificationInput);
       decisions.push({
         plan: clone(entry.plan),
         matches: entry.matches.map(clone),
@@ -459,17 +473,33 @@ export class CompanyOsImpactReviewCoordinator {
     if (!this.rejudgment) throw new CompanyOsImpactReviewError('missing_dependency', 'rejudgment port is required');
 
     const changes = request.changes.map(validateChange);
+    validateUniqueChangeIds(changes);
     for (const change of changes) {
       const current = await this.currentReferences.readCurrent(change.current, request.access);
       if (!current || !sameReference(current, change.current)) {
         throw new CompanyOsImpactReviewError('unresolved_reference', `cannot reassess with unresolved reference ${change.current.id}`);
       }
     }
+    if (request.wait_id) {
+      if (!this.waits || !this.waits.read) {
+        throw new CompanyOsImpactReviewError('missing_dependency', 'durable wait read port is required to validate reassessment');
+      }
+      const wait = await this.waits.read({ wait_id: request.wait_id, principal: request.access.principal });
+      assertReassessmentWait(wait, request);
+    }
+    const operation_id = computeImpactReviewRejudgmentOperationId({
+      access: request.access,
+      plan: request.plan,
+      changes,
+      reason: request.reason,
+      wait_id: request.wait_id,
+    });
     const created = await this.rejudgment.createNewProblemAndRun({
       access: request.access,
       plan: clone(request.plan),
       changes,
       reason: request.reason,
+      operation_id,
     });
     validateNewProblemAndRun(created);
     if (request.wait_id) {
@@ -491,12 +521,52 @@ export function computeImpactReviewNotificationId(input: ImpactReviewNotificatio
   return `sha256:${createHash('sha256').update(canonicalJson(normalized), 'utf8').digest('hex')}`;
 }
 
-export function computeImpactReviewWaitId(planId: string, changeIds: readonly string[], reason: string): string {
+export function computeImpactReviewWaitId(
+  planId: string,
+  changeIds: readonly string[],
+  reason: string,
+  references: readonly ImpactReviewReference[] = [],
+): string {
   if (!isNonEmpty(planId) || !isNonEmpty(reason) || changeIds.length === 0) {
     throw new CompanyOsImpactReviewError('invalid_request', 'plan id, change ids, and reason are required for a wait id');
   }
-  const digest = createHash('sha256').update(canonicalJson({ plan_id: planId, change_ids: [...new Set(changeIds)].sort(), reason }), 'utf8').digest('hex');
+  const canonicalReferences = references.map((reference, index) => validateReference(reference, `wait references[${index}]`)).sort(compareReferences);
+  const digest = createHash('sha256').update(canonicalJson({
+    plan_id: planId,
+    change_ids: [...new Set(changeIds)].sort(),
+    reason,
+    references: canonicalReferences,
+  }), 'utf8').digest('hex');
   return `impact-review-${digest}`;
+}
+
+export function computeImpactReviewRejudgmentOperationId(input: {
+  readonly access: ImpactReviewAccessContext;
+  readonly plan: ImpactReviewPlan;
+  readonly changes: readonly ImpactReviewChange[];
+  readonly reason: string;
+  readonly wait_id?: string;
+}): string {
+  if (!input || !isNonEmpty(input.plan.plan_id) || !isNonEmpty(input.plan.run_id) || !isNonEmpty(input.reason)) {
+    throw new CompanyOsImpactReviewError('invalid_request', 'plan, run, and reassessment reason are required for an operation id');
+  }
+  const digest = createHash('sha256').update(canonicalJson({
+    principal: input.access.principal,
+    plan_id: input.plan.plan_id,
+    run_id: input.plan.run_id,
+    problem_snapshot: input.plan.problem_snapshot,
+    wait_id: input.wait_id,
+    changes: input.changes.map((change) => ({
+      change_id: change.change_id,
+      source: change.source,
+      previous: change.previous,
+      current: change.current,
+      significance: change.significance,
+      reason: change.reason,
+    })).sort((left, right) => left.change_id.localeCompare(right.change_id, 'en')),
+    reason: input.reason.trim(),
+  }), 'utf8').digest('hex');
+  return `impact-review-rejudgment-${digest}`;
 }
 
 function buildWaitInput(
@@ -513,7 +583,10 @@ function buildWaitInput(
     owner_scope: clone(plan.owner_scope),
     read_policy: clone(plan.read_policy),
     problem_snapshot: clone(plan.problem_snapshot),
-    condition: { expression: `impact-review:${plan.plan_id}:${reason}` },
+    condition: {
+      ...(plan.due_at ? {} : { event: { event_type: 'impact_review', event_id: wait_id } }),
+      expression: `impact-review:${plan.plan_id}:${reason}`,
+    },
     ...(plan.due_at ? { deadline: { due_at: plan.due_at } } : {}),
     responsible: clone(plan.responsible),
     resume_method: effectUnknown ? 'reconcile_external_effect' : authorizationUnknown ? 'manual_review' : 'new_problem',
@@ -527,14 +600,14 @@ function classifyPlan(
   matches: readonly ImpactReviewPlanMatch[],
   changes: ReadonlyMap<string, ImpactReviewChange>,
 ): { disposition: ImpactReviewDisposition; reason: string } {
+  if (plan.execution_state === 'effect_unknown') {
+    return { disposition: 'hold', reason: 'external effect is unknown; reconciliation is required before any rejudgment' };
+  }
   if (plan.authority_state === 'revoked' || plan.authority_state === 'expired') {
     return { disposition: 'stop', reason: `execution authority is ${plan.authority_state}; no further execution is permitted` };
   }
   if (plan.constraint_state === 'violated' || plan.constraint_state === 'expired') {
     return { disposition: 'stop', reason: `constraint is ${plan.constraint_state}; no further execution is permitted` };
-  }
-  if (plan.execution_state === 'effect_unknown') {
-    return { disposition: 'hold', reason: 'external effect is unknown; reconciliation is required before any rejudgment' };
   }
   if (plan.execution_state === 'completed') {
     return { disposition: 'continue', reason: 'completed history remains immutable; no pending execution is changed' };
@@ -582,6 +655,85 @@ function referencesForPlan(plan: ImpactReviewPlan, current: readonly ImpactRevie
   return [...refs].map(clone).sort(compareReferences);
 }
 
+async function readWaitOrMissing(
+  waits: ImpactReviewWaitPort,
+  input: { readonly wait_id: string; readonly principal: string },
+): Promise<unknown | undefined> {
+  if (!waits.read) return undefined;
+  try {
+    return await waits.read(input);
+  } catch (error) {
+    if (isWaitNotFoundError(error)) return undefined;
+    throw error;
+  }
+}
+
+function isWaitNotFoundError(error: unknown): boolean {
+  return Boolean(error && typeof error === 'object' && (error as { readonly code?: unknown }).code === 'not_found');
+}
+
+function assertWaitPayload(value: unknown, expected: ImpactReviewDurableWaitCreateInput): void {
+  if (!value || typeof value !== 'object') throw new CompanyOsImpactReviewError('invalid_provider_result', 'durable wait read returned an invalid record');
+  const actual = value as Record<string, unknown>;
+  const comparableActual = {
+    wait_id: actual.wait_id,
+    owner_scope: actual.owner_scope,
+    read_policy: actual.read_policy,
+    problem_snapshot: actual.problem_snapshot,
+    condition: actual.condition,
+    deadline: actual.deadline,
+    responsible: actual.responsible,
+    resume_method: actual.resume_method,
+    failure_policy: actual.failure_policy,
+    run_ref: actual.run_ref,
+  };
+  const comparableExpected = {
+    wait_id: expected.wait_id,
+    owner_scope: expected.owner_scope,
+    read_policy: expected.read_policy,
+    problem_snapshot: expected.problem_snapshot,
+    condition: expected.condition,
+    deadline: expected.deadline,
+    responsible: expected.responsible,
+    resume_method: expected.resume_method,
+    failure_policy: expected.failure_policy,
+    run_ref: expected.run_ref,
+  };
+  if (canonicalJson(comparableActual) !== canonicalJson(comparableExpected)) {
+    throw new CompanyOsImpactReviewError('wait_conflict', `durable wait ${expected.wait_id} has a different payload`);
+  }
+}
+
+function assertReassessmentWait(value: unknown, request: ImpactReviewReassessRequest): void {
+  if (!value || typeof value !== 'object') throw new CompanyOsImpactReviewError('invalid_provider_result', 'durable wait read returned an invalid record');
+  const record = value as {
+    readonly wait_id?: unknown;
+    readonly problem_snapshot?: unknown;
+    readonly run_ref?: { readonly run_id?: unknown };
+    readonly condition?: { readonly expression?: unknown };
+    readonly state?: unknown;
+  };
+  if (record.wait_id !== request.wait_id) {
+    throw new CompanyOsImpactReviewError('wait_conflict', 'durable wait id does not match the reassessment request');
+  }
+  if (canonicalJson(record.problem_snapshot) !== canonicalJson(request.plan.problem_snapshot)) {
+    throw new CompanyOsImpactReviewError('wait_conflict', 'durable wait Problem snapshot does not match the plan');
+  }
+  if (record.run_ref?.run_id !== request.plan.run_id) {
+    throw new CompanyOsImpactReviewError('wait_conflict', 'durable wait run does not match the plan');
+  }
+  const expression = record.condition?.expression;
+  if (!isNonEmpty(expression) || !expression.startsWith(`impact-review:${request.plan.plan_id}:`)) {
+    throw new CompanyOsImpactReviewError('wait_conflict', 'durable wait plan does not match the reassessment request');
+  }
+  if (record.state === 'reconciliation_wait') {
+    throw new CompanyOsImpactReviewError('rejudgment_not_allowed', 'reconcile the durable wait external effect before rejudgment');
+  }
+  if (record.state === 'resumed' || record.state === 'failed' || record.state === 'cancelled') {
+    throw new CompanyOsImpactReviewError('rejudgment_not_allowed', `durable wait is ${String(record.state)} and cannot be reassessed`);
+  }
+}
+
 function validateAccess(access: ImpactReviewAccessContext): void {
   if (!access || !isNonEmpty(access.principal)) throw new CompanyOsImpactReviewError('invalid_request', 'access principal is required');
   if (access.scope) validateScope(access.scope, 'access.scope');
@@ -598,6 +750,14 @@ function validateChange(input: ImpactReviewChange): ImpactReviewChange {
     if (previous.kind !== current.kind || previous.id !== current.id) throw new CompanyOsImpactReviewError('invalid_request', 'previous and current references must identify the same canonical item');
   }
   return clone({ ...input, current });
+}
+
+function validateUniqueChangeIds(changes: readonly ImpactReviewChange[]): void {
+  const seen = new Set<string>();
+  for (const change of changes) {
+    if (seen.has(change.change_id)) throw new CompanyOsImpactReviewError('invalid_request', `change id ${change.change_id} appears more than once`);
+    seen.add(change.change_id);
+  }
 }
 
 function validateReference(input: ImpactReviewReference, label: string): ImpactReviewReference {
@@ -658,7 +818,7 @@ function normalizeNotificationInput(input: ImpactReviewNotificationInput, clock:
   if (change_ids.some((id) => id === '')) throw new CompanyOsImpactReviewError('invalid_request', 'notification change ids must be non-empty');
   const references = input.references.map((reference, index) => validateReference(reference, `notification.references[${index}]`)).sort(compareReferences);
   const created_at = input.created_at ?? clock().toISOString();
-  if (!isNonEmpty(created_at)) throw new CompanyOsImpactReviewError('invalid_request', 'notification created_at is required');
+  if (!isNonEmpty(created_at) || Number.isNaN(Date.parse(created_at))) throw new CompanyOsImpactReviewError('invalid_request', 'notification created_at must be a valid timestamp');
   return {
     plan_id: input.plan_id.trim(),
     disposition: input.disposition,
@@ -670,7 +830,7 @@ function normalizeNotificationInput(input: ImpactReviewNotificationInput, clock:
   };
 }
 
-function normalizeNotificationPayload(input: ImpactReviewNotificationInput): Omit<ImpactReviewNotificationInput, 'created_at'> {
+function normalizeNotificationPayload(input: ImpactReviewNotificationInput): ImpactReviewNotificationInput {
   return {
     plan_id: input.plan_id.trim(),
     disposition: input.disposition,
@@ -678,6 +838,7 @@ function normalizeNotificationPayload(input: ImpactReviewNotificationInput): Omi
     reason: input.reason.trim(),
     references: [...input.references].map(clone).sort(compareReferences),
     ...(input.wait_id ? { wait_id: input.wait_id } : {}),
+    ...(input.created_at !== undefined ? { created_at: input.created_at } : {}),
   };
 }
 
@@ -723,7 +884,22 @@ function serializeNotificationLedger(ledger: NotificationLedger): string {
 }
 
 function sameNotificationPayload(left: ImpactReviewNotificationRecord, right: ImpactReviewNotificationRecord): boolean {
-  return canonicalJson({ ...left, notification_id: undefined, created_at: undefined }) === canonicalJson({ ...right, notification_id: undefined, created_at: undefined });
+  return canonicalJson({ ...left, notification_id: undefined }) === canonicalJson({ ...right, notification_id: undefined });
+}
+
+function sameNotificationContent(left: ImpactReviewNotificationRecord, right: ImpactReviewNotificationInput): boolean {
+  return canonicalJson(notificationContentPayload(left)) === canonicalJson(notificationContentPayload(right));
+}
+
+function notificationContentPayload(input: Pick<ImpactReviewNotificationInput, 'plan_id' | 'disposition' | 'change_ids' | 'reason' | 'references' | 'wait_id'>): unknown {
+  return {
+    plan_id: input.plan_id.trim(),
+    disposition: input.disposition,
+    change_ids: [...new Set(input.change_ids.map((id) => String(id).trim()))].sort((left, right) => left.localeCompare(right, 'en')),
+    reason: input.reason.trim(),
+    references: [...input.references].map(clone).sort(compareReferences),
+    ...(input.wait_id ? { wait_id: input.wait_id } : {}),
+  };
 }
 
 function deduplicateMatches(matches: readonly ImpactReviewPlanMatch[]): ImpactReviewPlanMatch[] {
