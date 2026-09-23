@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-durable-waits-v1
 title: 証拠待ちや期限超過を再起動後も担当へ戻せる
-status: planned
+status: in_progress
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-problem-snapshot-v1"]
 external_dependencies: []
@@ -44,10 +44,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: 証拠／イベント条件・期限または定期見直し・担当・再開方法・条件未達時処置・関連runを保存する。
-- [ ] AC-02: イベントとタイマーの同時到来は一回の再開claimになり、lease切れの引継ぎでも重複処理を防ぐ。
-- [ ] AC-03: 安全な再開と新Problemを要する前提変更を区別し、外部作用不明なら照合待ちへ送る。
-- [ ] AC-04: 証拠未着の期限超過、worker停止、担当引継ぎを検証し、結果と次の責任を永続化する。
+- [x] AC-01: 証拠／イベント条件・期限または定期見直し・担当・再開方法・条件未達時処置・関連runを保存する。
+- [x] AC-02: イベントとタイマーの同時到来は一回の再開claimになり、勝者のrequest/lease/tokenだけが再開できる。lease切れの引継ぎでも重複処理を防ぐ。
+- [x] AC-03: 安全な再開と新Problemを要する前提変更を区別し、外部作用不明なら照合待ちへ送る。
+- [x] AC-04: 証拠未着の期限超過、worker停止、担当引継ぎを検証し、結果と次の責任を永続化する。
 
 ## 対象外
 
@@ -57,4 +57,4 @@ Mana独自の判断規則、外部作用不明runの自動再実行。
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+実装を開始し、最小Specと永続wait/claim adapterを追加した。`npm run build` と `npx vitest run tests/durable-waits.test.ts`（8 tests）および関連既存テストを検証済み。レビュー・CI・PRは親agentで実施するため、Storyは `in_progress` のままとする。
