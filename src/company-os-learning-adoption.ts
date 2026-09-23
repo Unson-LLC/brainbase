@@ -166,10 +166,35 @@ export interface LearningEvaluationPort {
   read(id: string, access: EvaluationAccessContext): Promise<CompanyOsEvaluationRecord | null>;
 }
 
+/**
+ * The execution host owns run receipts.  The adoption ledger stores only the
+ * exact receipt reference; it never accepts a caller-supplied receipt body.
+ * A host must re-read the receipt with its current authorization boundary and
+ * return the exact target version that the run actually used.
+ */
+export interface LearningRunReceiptReference {
+  readonly id: string;
+  readonly digest: string;
+}
+
+export interface LearningRunReceipt {
+  readonly id: string;
+  readonly runId: string;
+  readonly runPhase: 'actual';
+  readonly adoptedTarget: LearningTargetReference;
+  readonly digest: string;
+}
+
+export interface LearningRunReceiptPort {
+  read(reference: LearningRunReceiptReference, access: LearningAccessContext): Promise<LearningRunReceipt | null>;
+}
+
 export interface LearningAdoptionStoreOptions {
   readonly dataDir: string;
   readonly evaluation: LearningEvaluationPort;
   readonly target: LearningTargetPort;
+  /** Optional for planned-only consumers; required to record/read actual use. */
+  readonly runReceipt?: LearningRunReceiptPort;
   readonly authorization?: LearningAdoptionAuthorizationPort;
   readonly now?: () => string;
 }
@@ -210,8 +235,10 @@ export interface RecordLearningRunUseRequest {
   readonly id: string;
   readonly runId: string;
   readonly adoptionId: string;
-  /** Only a not-yet-started run may record a selected adoption. */
-  readonly runPhase: 'planned';
+  /** planned selects a version; actual proves the running host used it. */
+  readonly runPhase: 'planned' | 'actual';
+  /** Required for actual; it is read from the host-owned receipt port. */
+  readonly receiptRef?: LearningRunReceiptReference;
   readonly access: LearningAccessContext;
 }
 
@@ -222,7 +249,8 @@ export interface LearningRunUseRecord {
   readonly adoptionId: string;
   readonly requestDigest: string;
   readonly adoptedTarget: LearningTargetReference;
-  readonly runPhase: 'planned';
+  readonly runPhase: 'planned' | 'actual';
+  readonly receiptRef?: LearningRunReceiptReference;
   readonly usedAt: string;
   readonly digest: string;
 }
@@ -313,6 +341,9 @@ export function createCompanyOsLearningAdoptionStore(options: LearningAdoptionSt
   if (!options.target || typeof options.target.readCurrent !== 'function' || typeof options.target.read !== 'function'
     || typeof options.target.prepareRevision !== 'function' || typeof options.target.commitRevision !== 'function') {
     throw new CompanyOsLearningAdoptionError('invalid_input', 'a complete target port is required');
+  }
+  if (options.runReceipt !== undefined && typeof options.runReceipt.read !== 'function') {
+    throw new CompanyOsLearningAdoptionError('invalid_input', 'runReceipt.read is required when a run receipt port is provided');
   }
   return new GraphCompanyOsLearningAdoptionStore(options);
 }
@@ -585,6 +616,9 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
         throw new CompanyOsLearningAdoptionError('integrity_mismatch', 'Candidate or validation changed before adoption commit');
       }
       const result = this.options.target.commitRevision({ currentAggregate, expectedCurrent: target, prepared });
+      if (!sameRefIdentity(result.adopted.reference, candidate.target)) {
+        throw new CompanyOsLearningAdoptionError('integrity_mismatch', 'Adopted target changed the candidate logical identity');
+      }
       const adoption: LearningAdoptionRecord = {
         version: COMPANY_OS_LEARNING_ADOPTION_RECORD_CATALOG_VERSION,
         id,
@@ -628,8 +662,14 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
     if (!sameRefDigest(validation.candidateRef, adoption.candidateRef)) {
       throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Adoption ${id} links a validation for a different candidate`);
     }
+    if (!sameRefExact(adoption.previousTarget, candidate.target)
+      || !sameRefIdentity(adoption.previousTarget, candidate.target)
+      || !sameRefIdentity(adoption.adoptedTarget, candidate.target)) {
+      throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Adoption ${id} changed the candidate target identity`);
+    }
     const target = await this.options.target.read(adoption.adoptedTarget, context);
-    if (!target || !sameRefDigest(target.reference, adoption.adoptedTarget)) {
+    if (!target || !isTargetReferenceShape(target.reference) || !sameRefExact(target.reference, adoption.adoptedTarget)
+      || !sameRefIdentity(target.reference, candidate.target)) {
       throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Adopted target for ${id} is not readable at its exact revision`);
     }
     void candidate;
@@ -639,13 +679,23 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
 
   async recordRunUse(request: RecordLearningRunUseRequest): Promise<LearningRunUseRecord> {
     const access = assertAccess(request.access);
-    if (request.runPhase !== 'planned') throw new CompanyOsLearningAdoptionError('invalid_input', 'Only planned runs may record a learning adoption');
+    if (request.runPhase !== 'planned' && request.runPhase !== 'actual') {
+      throw new CompanyOsLearningAdoptionError('invalid_input', 'runPhase must be planned or actual');
+    }
     const id = requireId(request.id, 'run-use id');
     const runId = requireId(request.runId, 'run id');
     const adoptionId = requireId(request.adoptionId, 'adoption id');
     const adoption = await this.readAdoption(adoptionId, access);
     if (!adoption) throw new CompanyOsLearningAdoptionError('not_found', `Adoption ${adoptionId} was not found`);
-    const requestDigest = digestJson({ id, runId, adoptionId, runPhase: request.runPhase, principal: access.principal });
+    const receiptRef = request.runPhase === 'actual'
+      ? normalizeRunReceiptReference(request.receiptRef)
+      : request.receiptRef === undefined
+        ? undefined
+        : (() => { throw new CompanyOsLearningAdoptionError('invalid_input', 'planned run-use cannot carry a receipt reference'); })();
+    if (request.runPhase === 'actual') {
+      await this.readAndAssertRunReceipt(receiptRef!, runId, adoption, access);
+    }
+    const requestDigest = digestJson({ id, runId, adoptionId, runPhase: request.runPhase, receiptRef, principal: access.principal });
     let committed: LearningRunUseRecord | undefined;
     await this.mutateLedger(async (ledger) => {
       const existing = ledger.runUses.find((item) => item.id === id);
@@ -664,7 +714,8 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
         adoptionId,
         requestDigest,
         adoptedTarget: cloneJson(adoption.adoptedTarget),
-        runPhase: 'planned',
+        runPhase: request.runPhase,
+        ...(receiptRef ? { receiptRef: cloneJson(receiptRef) } : {}),
         usedAt: this.now(),
         digest: ''
       };
@@ -686,7 +737,13 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
     if (!record) return null;
     if (digestLearningRecord({ ...record, digest: '' }) !== record.digest) throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Run use ${id} digest does not match`);
     const adoption = await this.readAdoption(record.adoptionId, context);
-    if (!adoption || !sameRefDigest(adoption.adoptedTarget, record.adoptedTarget)) throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Run use ${id} points to a different adoption`);
+    if (!adoption || !sameRefExact(adoption.adoptedTarget, record.adoptedTarget)) throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Run use ${id} points to a different adoption`);
+    if (record.runPhase === 'actual') {
+      if (!record.receiptRef) throw new CompanyOsLearningAdoptionError('corrupt_record', `Actual run use ${id} has no receipt reference`);
+      await this.readAndAssertRunReceipt(record.receiptRef, record.runId, adoption, context);
+    } else if (record.receiptRef !== undefined) {
+      throw new CompanyOsLearningAdoptionError('corrupt_record', `Planned run use ${id} has an unexpected receipt reference`);
+    }
     return cloneJson(record);
   }
 
@@ -706,6 +763,9 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
     if (validation.digest !== reference.digest) throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Validation ${reference.id} digest does not match`);
     const candidate = await this.readCandidateByReference(validation.candidateRef, access);
     if (!candidate) return null;
+    if (!sameRefDigest(validation.sourceEvaluationRef, candidate.sourceEvaluationRef)) {
+      throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Validation ${validation.id} source evaluation changed`);
+    }
     assertValidationLogic(validation);
     return cloneJson(validation);
   }
@@ -716,7 +776,34 @@ class GraphCompanyOsLearningAdoptionStore implements CompanyOsLearningAdoptionSt
     if (digestEvaluationRecord(evaluation) !== candidate.sourceEvaluationRef.digest) {
       throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Candidate ${candidate.id} source evaluation changed`);
     }
+    const target = await this.options.target.read(candidate.target, access);
+    if (!target || !isTargetReferenceShape(target.reference) || !sameRefExact(target.reference, candidate.target)
+      || !sameRefIdentity(target.reference, candidate.target)) {
+      throw new CompanyOsLearningAdoptionError('integrity_mismatch', `Candidate ${candidate.id} target is not readable at its exact revision`);
+    }
+    assertScopeAccess(target.scope, access);
     assertScopeAccess(candidate.applicability, access);
+  }
+
+  private async readAndAssertRunReceipt(
+    reference: LearningRunReceiptReference,
+    runId: string,
+    adoption: LearningAdoptionRecord,
+    access: LearningAccessContext
+  ): Promise<LearningRunReceipt> {
+    if (!this.options.runReceipt) {
+      throw new CompanyOsLearningAdoptionError('unsupported_target', 'Actual run-use requires a host-owned run receipt port');
+    }
+    const receipt = await this.options.runReceipt.read(reference, access);
+    if (!receipt) throw new CompanyOsLearningAdoptionError('not_found', `Run receipt ${reference.id} was not found`);
+    if (!isRecord(receipt) || !isTargetReferenceShape(receipt.adoptedTarget)
+      || receipt.id !== reference.id || receipt.digest !== reference.digest
+      || digestLearningRecord({ ...receipt, digest: '' }) !== receipt.digest
+      || receipt.runId !== runId || receipt.runPhase !== 'actual'
+      || !sameRefExact(receipt.adoptedTarget, adoption.adoptedTarget)) {
+      throw new CompanyOsLearningAdoptionError('readback_mismatch', `Run receipt ${reference.id} does not prove exact adopted target use`);
+    }
+    return receipt;
   }
 
   private async findAdoptionByIdempotencyKey(key: string, access: LearningAccessContext): Promise<LearningAdoptionRecord | null> {
@@ -846,6 +933,13 @@ function normalizeRecordReference(reference: LearningCandidateReference, label: 
   return { id: reference.id, digest: reference.digest };
 }
 
+function normalizeRunReceiptReference(reference: LearningRunReceiptReference | undefined): LearningRunReceiptReference {
+  if (!isRecord(reference) || !isNonEmptyString(reference.id) || !isDigest(reference.digest)) {
+    throw new CompanyOsLearningAdoptionError('invalid_input', 'actual run-use requires a receiptRef with id and sha256 digest');
+  }
+  return { id: reference.id, digest: reference.digest };
+}
+
 function assertPreparedRevision(prepared: LearningTargetRevisionPreparation, current: LearningTargetVersion): void {
   if (!prepared || !sameRefIdentity(prepared.target, current.target) || !isRevision(prepared.reference.revision)
     || !isDigest(prepared.reference.digest) || prepared.reference.revision === current.reference.revision) {
@@ -950,6 +1044,19 @@ function sameRefIdentity(left: LearningTargetReference, right: LearningTargetRef
   return left.kind === right.kind && left.id === right.id && left.foundationType === right.foundationType;
 }
 
+function sameRefExact(left: LearningTargetReference, right: LearningTargetReference): boolean {
+  return sameRefIdentity(left, right) && left.revision === right.revision && left.digest === right.digest;
+}
+
+function isTargetReferenceShape(value: unknown): value is LearningTargetReference {
+  return isRecord(value)
+    && ['world_model', 'judgment_method', 'execution_method', 'objective'].includes(value.kind)
+    && isNonEmptyString(value.id)
+    && isRevision(value.revision)
+    && isDigest(value.digest)
+    && (value.foundationType === undefined || ['objective', 'variable', 'model', 'constraint'].includes(value.foundationType));
+}
+
 function sameRefDigest(left: { id: string; digest: string }, right: { id: string; digest: string }): boolean {
   return left.id === right.id && left.digest === right.digest;
 }
@@ -1041,8 +1148,16 @@ function assertLedger(value: unknown): asserts value is LearningLedger {
   }
   for (const runUse of value.runUses) {
     if (!isRecord(runUse) || runUse.version !== 1 || !isNonEmptyString(runUse.id) || !isDigest(runUse.digest)
+      || !['planned', 'actual'].includes(runUse.runPhase)
+      || !isTargetReferenceShape(runUse.adoptedTarget)
+      || (runUse.runPhase === 'actual' && !isRunReceiptReferenceShape(runUse.receiptRef))
+      || (runUse.runPhase === 'planned' && runUse.receiptRef !== undefined)
       || digestLearningRecord({ ...runUse, digest: '' }) !== runUse.digest) throw new CompanyOsLearningAdoptionError('corrupt_record', 'Learning run-use digest or shape is invalid');
   }
+}
+
+function isRunReceiptReferenceShape(value: unknown): value is LearningRunReceiptReference {
+  return isRecord(value) && isNonEmptyString(value.id) && isDigest(value.digest);
 }
 
 function uniqueIds(values: readonly unknown[], label: string): void {

@@ -31,7 +31,7 @@ storage_boundary: canonical_graph_plus_learning_adoption_sidecar
 - `createCandidate`／`readCandidate`：評価のexact digest、対象のexact revision、grounds、counterexamples、uncertainty、applicabilityを持つ候補を保存・読取する。
 - `createValidation`／`readValidation`：候補に結び付くfinding、結論、model disposition、basisを保存・読取する。`refuted`は`other`だけのfindingでは登録できず、予測差だけで反証しない。
 - `adopt`／`readAdoption`：候補と検証のdigestを再確認し、現在のACL・scopeと採用権限を検証して、新しいtarget revisionと採用recordを同一canonical lock内で作る。
-- `recordRunUse`／`readRunUse`：`planned` runへ採用版を選んだ事実だけを、adoptionとは別のimmutable recordとして残す。開始済みrunへの自動注入APIは提供しない。
+- `recordRunUse`／`readRunUse`：`planned` runへ採用版を選んだ記録と、host-owned receiptで`actual` runがそのexact採用版を使った記録を、adoptionとは別のimmutable recordとして残す。開始済みrunへの自動注入APIは提供しない。`actual`には`LearningRunReceiptPort`のreadbackが必須で、callerがreceipt本文を直接渡すことはできない。
 - `createCompanyOsLearningEvaluationPort`：Story07評価storeを読み取り専用portへ適合する。
 - `createFoundationLearningTargetPort`：OSSが所有するObjective／world modelのFoundation targetを提供する。判断方法・実行方法のproviderは別実装とする。
 - `LearningTargetPort.prepareRevision` はlock外で外部読み取り・検証を行い、`commitRevision` はlock内で同期的にexact CASを行う純粋なcommit契約とする。commit中のネットワーク呼出しやSSOT再入を許さない。
@@ -45,7 +45,8 @@ storage_boundary: canonical_graph_plus_learning_adoption_sidecar
 3. 候補を参照する検証recordに、`measurement_error`、`execution_difference`、`external_change`、`other` のfindingと結論・model disposition・根拠を保存する。
 4. 採用時は候補と検証のexact digest、対象の現在exact revision、現在ACL、scope、採用権限を確認する。対象providerがlock外で次のrevisionを準備し、lock内で対象の現在revisionを再確認する。
 5. CASに成功した場合だけ、Foundation targetの新版と採用recordをcanonical Graph v2＋sidecarへatomic commitする。既存revision、候補、検証、過去runは上書きしない。
-6. 採用された版を次の`planned` runが使う場合、採用recordのexact target参照をrun-use recordへコピーする。採用と実利用は別々に読み戻せる。
+6. 採用された版を次の`planned` runが使う場合、採用recordのexact target参照をrun-use recordへコピーする。これは選択予定の記録であり、実利用の証跡ではない。
+7. hostがrunを実際に完了した後、`LearningRunReceiptPort`から現在のACL／scopeでreceiptを読み、run ID・`actual` phase・receipt digest・採用recordのexact targetとの一致を検証してから`actual` run-use recordを保存する。保存後のreadでも同じreceiptを再読して、exact adopted versionの実利用を確認する。
 
 ## 不変条件
 
@@ -57,6 +58,9 @@ storage_boundary: canonical_graph_plus_learning_adoption_sidecar
 - sidecarの構文が正しくても、record digest、候補・検証の参照、採用targetのexact digestが不一致なら`corrupt_record`または`integrity_mismatch`で読み取りを拒否する。
 - 同一adoptionのidempotency keyを異なる候補・検証・principalで再利用できない。run-useも同じIDに異なるrun・adoption・principalを登録できない。
 - `readAdoption`と`readRunUse`は参照先の現在ACLを通し、採用・run利用のrecordだけを根拠に対象本文や権限を復元しない。
+- `planned` run-useは実利用を意味せず、receipt referenceを持てない。`actual` run-useはhost-owned receiptのreadbackなしに保存できず、receiptが示すrun ID・phase・targetは記録されたrun-useと採用版に一致しなければならない。
+- candidateのtargetはcandidate作成時のexact revisionとして、candidate／validation／adoption／run-useの各readでtarget providerへ再読する。現在ACLまたはscopeが失効している場合、過去revisionの保存ACLだけで読み出せない。
+- validationの`sourceEvaluationRef`はcandidateの同じevaluation referenceと一致し、adoptionの`previousTarget`と`adoptedTarget`はcandidate targetの同じlogical identityを指す。これらを満たさない改ざんrecordはreadbackで拒否する。
 - 採用は目的・世界モデル・判断方法・実行方法の更新先を混同しない。Objective変更の権限は対象のproviderへ戻し、候補や検証の保存権限から自動的に付与しない。
 
 ## エラー境界
@@ -70,7 +74,8 @@ storage_boundary: canonical_graph_plus_learning_adoption_sidecar
 - ホテルのworld model候補に根拠・反例・不確実性を保存し、外部変化をfindingにした検証から新版を作る。採用後もModelの`unverified`を維持し、旧revisionのdigestを変更しない。
 - `other`だけのfindingで`refuted`を登録できず、measurement errorを含む検証なら登録できる。readerの採用を現在ACLで拒否する。
 - 対象revisionが採用前に進んだ場合は`revision_conflict`で失敗し、sidecarの不正追記は`corrupt_record`でfail closedする。
-- planned runの同一利用は冪等であり、別内容の再利用は拒否する。
+- planned runの同一利用は冪等であり、別内容の再利用は拒否する。actual runはhost-owned receiptをreadしてexact adopted versionの利用を記録し、receiptのtarget改ざん・run ID不一致・stale digestをreadbackで拒否する。
+- candidate／validation／adoptionのreadは対象のexact revisionをcurrent ACL／scopeで再検証し、ACL失効後のreaderを拒否する。validationのsource evaluation参照とadoption target identityの不一致もfail closedにする。
 
 検証コマンドは次のとおり。
 

@@ -11,6 +11,8 @@ import {
   createFoundationLearningTargetPort,
   digestEvaluationRecord,
   type LearningEvaluationPort,
+  type LearningRunReceipt,
+  type LearningRunReceiptPort,
   type LearningTargetReference
 } from '../src/company-os-learning-adoption.js';
 import { createFoundationRevisionStore, type FoundationRevisionStore } from '../src/foundation-store.js';
@@ -86,6 +88,20 @@ function digest(value: unknown): `sha256:${string}` {
   return `sha256:${createHash('sha256').update(JSON.stringify(value), 'utf8').digest('hex')}`;
 }
 
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalize);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right, 'en'))
+      .map(([key, entry]) => [key, canonicalize(entry)]));
+  }
+  return value;
+}
+
+function learningRunReceiptDigest(receipt: Omit<LearningRunReceipt, 'digest'>): `sha256:${string}` {
+  return digest(canonicalize({ ...receipt, digest: '' }));
+}
+
 function evaluationRecord(objectiveRef: FoundationRef): CompanyOsEvaluationRecord {
   return {
     version: 1,
@@ -136,10 +152,21 @@ async function makeHarness() {
   const evaluation = evaluationRecord(modelRef);
   const evaluationPort = makeEvaluationPort(evaluation);
   const target = createFoundationLearningTargetPort({ foundationStore });
+  const receipts = new Map<string, LearningRunReceipt>();
+  const runReceipt: LearningRunReceiptPort = {
+    async read(reference, access) {
+      if (access.principal !== 'owner-1') {
+        throw new CompanyOsLearningAdoptionError('authorization_denied', 'Run receipt current ACL denied the read');
+      }
+      const receipt = receipts.get(reference.id);
+      return receipt ? JSON.parse(JSON.stringify(receipt)) as LearningRunReceipt : null;
+    }
+  };
   const store = createCompanyOsLearningAdoptionStore({
     dataDir,
     evaluation: evaluationPort,
     target,
+    runReceipt,
     now: () => '2026-04-02T00:00:00.000Z'
   });
   const targetRef: LearningTargetReference = {
@@ -150,7 +177,7 @@ async function makeHarness() {
     foundationType: 'model'
   };
   const access = { principal: 'owner-1', scope } as const;
-  return { dataDir, foundationStore, modelRef, initialModel, evaluation, store, targetRef, access };
+  return { dataDir, foundationStore, modelRef, initialModel, evaluation, store, targetRef, access, receipts };
 }
 
 function candidateRequest(harness: Awaited<ReturnType<typeof makeHarness>>, id = 'candidate-1') {
@@ -174,7 +201,7 @@ function candidateRequest(harness: Awaited<ReturnType<typeof makeHarness>>, id =
 }
 
 describe('company OS learning adoption', () => {
-  it('keeps candidate, validation, adoption, and planned run use as separate immutable records', async () => {
+  it('keeps candidate, validation, adoption, planned selection, and actual receipt-backed use separate', async () => {
     const harness = await makeHarness();
     const candidate = await harness.store.createCandidate(candidateRequest(harness));
     expect(candidate.target.kind).toBe('world_model');
@@ -229,6 +256,33 @@ describe('company OS learning adoption', () => {
       runPhase: 'planned',
       access: harness.access
     })).rejects.toMatchObject({ code: 'revision_conflict' });
+
+    const receiptWithoutDigest: Omit<LearningRunReceipt, 'digest'> = {
+      id: 'run-receipt-1',
+      runId: 'judgment-run-actual',
+      runPhase: 'actual',
+      adoptedTarget: adoption.adoptedTarget
+    };
+    const receipt: LearningRunReceipt = {
+      ...receiptWithoutDigest,
+      digest: learningRunReceiptDigest(receiptWithoutDigest)
+    };
+    harness.receipts.set(receipt.id, receipt);
+    const actualRunUse = await harness.store.recordRunUse({
+      id: 'run-use-actual',
+      runId: receipt.runId,
+      adoptionId: adoption.id,
+      runPhase: 'actual',
+      receiptRef: { id: receipt.id, digest: receipt.digest },
+      access: harness.access
+    });
+    expect(actualRunUse.runPhase).toBe('actual');
+    expect(actualRunUse.receiptRef).toEqual({ id: receipt.id, digest: receipt.digest });
+    expect(actualRunUse.adoptedTarget).toEqual(adoption.adoptedTarget);
+    expect(await harness.store.readRunUse(actualRunUse.id, harness.access)).toEqual(actualRunUse);
+
+    harness.receipts.set(receipt.id, { ...receipt, adoptedTarget: adoption.previousTarget });
+    await expect(harness.store.readRunUse(actualRunUse.id, harness.access)).rejects.toMatchObject({ code: 'readback_mismatch' });
   }, 15000);
 
   it('rejects refutation based only on a prediction gap and denies adoption to a reader', async () => {
@@ -255,6 +309,11 @@ describe('company OS learning adoption', () => {
       validatedAt: '2026-04-02T01:00:00.000Z',
       access: harness.access
     });
+    await harness.foundationStore.update({
+      reference: harness.modelRef,
+      next: { ...harness.initialModel, relationship: 'ACL was revoked after the candidate was created.', acl: { ...harness.initialModel.acl, readerIds: [] } }
+    }, harness.access);
+    await expect(harness.store.readCandidate(candidate.id, { principal: 'reader-1', scope })).rejects.toMatchObject({ code: 'authorization_denied' });
     await expect(harness.store.adopt({
       id: 'adoption-reader',
       idempotencyKey: 'adoption-reader-key',

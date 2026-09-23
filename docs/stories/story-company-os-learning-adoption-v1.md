@@ -62,7 +62,7 @@ external_dependencies: [{"story_id": "story-brainbase-knowledge-event-cycle", "s
 ## 実装状況
 
 - 最小Specは [`docs/specs/company-os-learning-adoption-v1.md`](../specs/company-os-learning-adoption-v1.md) に固定した。
-- `src/company-os-learning-adoption.ts` に、候補・検証・採用・planned run利用を分離する公開store、評価／対象／承認port、Foundation Graph v2 adapterを実装した。候補・検証・採用・run利用は `evidence/company-os-learning-adoption.json` にdigest付きで保存し、採用時だけFoundation新版をcanonical Graphへatomic commitする。
+- `src/company-os-learning-adoption.ts` に、候補・検証・採用・planned選択・actual receipt-backed実利用を分離する公開store、評価／対象／承認／host-owned run receipt port、Foundation Graph v2 adapterを実装した。候補・検証・採用・run利用は `evidence/company-os-learning-adoption.json` にdigest付きで保存し、採用時だけFoundation新版をcanonical Graphへatomic commitする。actual run-useはplanned記録だけでは成立せず、receiptの現在ACL／scope・run ID・採用版exact targetをreadbackで確認する。
 - Story07評価の提供版は `7e6359681af6606e14cba8ca8116ca559504e900`。組織側のKnowledge Event Cycle、Memory Promotion Kernel、Meeting Judgment Learningは契約参照に限定し、組織データ・API・権限をOSSへコピーしない。
-- `tests/company-os-learning-adoption.test.ts` は実際のGraph／Foundation storeとsidecarを使い、ホテルの外部変化、予測差だけの反証拒否、reader採用拒否、対象revision競合、sidecar破損、run-use冪等性を検証する。
+- `tests/company-os-learning-adoption.test.ts` は実際のGraph／Foundation storeとsidecarを使い、ホテルの外部変化、予測差だけの反証拒否、reader採用拒否、対象revision競合、sidecar破損、planned run-use冪等性、actual receipt-backed exact-version利用、receipt改ざん拒否、candidate target ACL失効を検証する。
 - `npm run build` と `npx vitest run tests/company-os-learning-adoption.test.ts --reporter verbose` は成功済み。レビュー・CI・mergeの完了まではStoryを完了扱いにしない。
