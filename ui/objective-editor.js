@@ -125,6 +125,13 @@ function normalizeState(value, fallback = UNKNOWN) {
   return state;
 }
 
+const EXPLICIT_COLLECTION_FAILURES = new Set(['permission_denied', 'api_unavailable', 'missing', 'conflict']);
+
+function explicitCollectionFailure(state, key) {
+  if (!EXPLICIT_COLLECTION_FAILURES.has(state)) return null;
+  return { state, [key]: null, absence_confirmed: false };
+}
+
 function normalizeRevision(value) {
   const revision = nonEmptyText(value);
   return revision && /^[1-9]\d*$/.test(revision) ? revision : revision;
@@ -281,6 +288,8 @@ function collectionRecords(payload, keys) {
 export function normalizeObjectiveCollection(payload) {
   const recordsValue = collectionRecords(payload, ['records', 'objectives', 'items', 'data']);
   const explicitState = normalizeState(payloadValue(payload, 'state', 'status'), 'unknown');
+  const explicitFailure = explicitCollectionFailure(explicitState, 'records');
+  if (explicitFailure) return explicitFailure;
   if (recordsValue === null) {
     return { state: explicitState === 'empty' ? 'unknown' : explicitState, records: null, absence_confirmed: false };
   }
@@ -305,6 +314,8 @@ export function normalizeObjectiveCollection(payload) {
 export function normalizeReferenceCollection(payload, keys = ['refs', 'references', 'constraints', 'records', 'items', 'data']) {
   const recordsValue = collectionRecords(payload, keys);
   const explicitState = normalizeState(payloadValue(payload, 'state', 'status'), 'unknown');
+  const explicitFailure = explicitCollectionFailure(explicitState, 'refs');
+  if (explicitFailure) return explicitFailure;
   if (recordsValue === null) return { state: explicitState, refs: null, absence_confirmed: false };
   const refs = recordsValue.map((value) => normalizeReference(value));
   if (refs.some((ref) => !ref)) {
@@ -325,6 +336,8 @@ export function normalizeReferenceCollection(payload, keys = ['refs', 'reference
 export function normalizeStoryObjectiveLinks(payload) {
   const recordsValue = collectionRecords(payload, ['links', 'relations', 'records', 'items', 'data']);
   const explicitState = normalizeState(payloadValue(payload, 'state', 'status'), 'unknown');
+  const explicitFailure = explicitCollectionFailure(explicitState, 'links');
+  if (explicitFailure) return explicitFailure;
   if (recordsValue === null) return { state: explicitState, links: null, absence_confirmed: false };
   const links = recordsValue.map((value) => {
     const object = objectValue(value);

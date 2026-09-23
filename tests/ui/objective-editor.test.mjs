@@ -113,6 +113,17 @@ describe('Objective editor common UI contract', () => {
       .toMatchObject({ state: 'empty', links: [], absence_confirmed: true });
   });
 
+  it('preserves explicit collection failures instead of treating them as unknown or empty', () => {
+    expect(normalizeObjectiveCollection({ records: [], state: 'permission_denied' }))
+      .toMatchObject({ state: 'permission_denied', records: null, absence_confirmed: false });
+    expect(normalizeReferenceCollection({ refs: [], state: 'api_unavailable' }))
+      .toMatchObject({ state: 'api_unavailable', refs: null, absence_confirmed: false });
+    expect(normalizeStoryObjectiveLinks({ links: [], state: 'conflict' }))
+      .toMatchObject({ state: 'conflict', links: null, absence_confirmed: false });
+    expect(normalizeObjectiveCollection({ records: [], state: 'missing' }))
+      .toMatchObject({ state: 'missing', records: null, absence_confirmed: false });
+  });
+
   it('rejects an Objective when any criterion has a non-Variable reference', () => {
     const invalid = objectiveRecord({
       definition: {
