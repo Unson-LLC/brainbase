@@ -32,7 +32,7 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 - **OSS側実装済み**: `src/decision-adapter.ts` が `DecisionAdapterPort`／`GraphDecisionAdapterStore` と旧レスポンス識別子を含む互換契約を提供する。既存のDecision Graph entityと`decisions.jsonl`を正本として保持し、Problem snapshot・方法版・Objective版は版付きsidecar参照として同じDecision IDへ接続する。
 - **条件と境界**: 新規書込みは必須条件を検証し、注入されたtrusted condition validatorで現在の存在・ACLを確認できる。Objectiveや権限を推測せず、組織のHTTP route・RACI・旧社内runtimeはこのStoryで実装しない。
-- **互換と切戻し**: 旧条件未記録Decisionは`unrecorded`として読める。AI decision logは既存Decisionにsidecarで付加し、別のGraph正本や`ai_decision` entityを作らない。commit前の原子的な失敗時は新しい証跡を残さず、commit後のcurrent ACL/read拒否は保存済み記録を巻き戻さない。
+- **lockと切戻し**: trusted providerのread・認可はSSOT lock外で行い、canonical aggregateとsidecarをcommit直前にCAS検証する。lock内で外部awaitを行わず、検証中の同時変更は新しい証跡を残さず拒否する。旧条件未記録Decisionは`unrecorded`として読める。AI decision logは既存Decisionにsidecarで付加し、別のGraph正本や`ai_decision` entityを作らない。commit後のcurrent ACL/read拒否は保存済み記録を巻き戻さない。
 
 ## 設計参照
 
@@ -63,4 +63,4 @@ external_dependencies: [{"story_id": "story-canonical-runtime-ownership", "sourc
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-OSS側の実装とローカル検証は完了した。`npm run build` と `npx vitest run tests/decision-adapter.test.ts`（11 tests）が通過し、必須条件の拒否、旧レコードの条件未記録読取、Graph SSOTの同一ID、AI logのsidecar保存、trusted validator拒否、commit後のcurrent read拒否を保存済み記録へ波及させないこと、所有者認証、原子的切戻し、fixture互換を確認した。組織repoの既存HTTP routeへの実組込み、PR、CI、mergeはこのworktreeでは未完了であり、Story完了とは別に扱う。
+OSS側の実装とローカル検証は完了した。`npm run build` と `npx vitest run tests/decision-adapter.test.ts`（14 tests）が通過し、必須条件の拒否、旧レコードの条件未記録読取、Graph SSOTの同一ID、AI logのsidecar保存、実際のGraphFoundationRevisionStoreを読むtrusted providerのlock外実行、検証中のcanonical/sidecar同時変更のCAS拒否、trusted validator拒否、commit後のcurrent read拒否を保存済み記録へ波及させないこと、所有者認証、原子的切戻し、fixture互換を確認した。組織repoの既存HTTP routeへの実組込み、PR、CI、mergeはこのworktreeでは未完了であり、Story完了とは別に扱う。

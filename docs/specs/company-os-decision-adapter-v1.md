@@ -42,7 +42,11 @@ provider は現在の ACL と正本の存在を確認し、拒否または不明
 `createDecision` は既存 `DecisionRecord` と Graph v2 の `type: decision` entity を同じ
 `decision_id` で追加し、sidecar の `decisions[decision_id]` に条件参照を保存する。既存 ID
 は conflict とし、更新や supersede は別契約に委譲する。canonical と sidecar の構造・条件・
-認可は SSOT lock 内の commit 前に検証する。返却する `event_id` は互換 response の識別子で、
+認可は、まず SSOT lock 外で trusted provider に検証を委譲する。検証完了後に取得した
+canonical aggregate と sidecar の内容を、SSOT lock 内で commit 直前に比較する。比較に失敗
+した場合は `decision_conflict` として拒否し、外部 provider の read や await を lock 内で
+実行しない。lock 内では canonical/sidecar の構造、staged readback、CAS のみを検証する。
+返却する `event_id` は互換 response の識別子で、
 レスポンスは原子的 commit の acknowledgement であり、commit 後の current ACL/readback を
 同じ書込みの失敗として再評価しない。canonical event store を新設しない。
 
@@ -70,7 +74,10 @@ authority_status: "unrecorded"
 
 ## 原子性・切戻し
 
-canonical 4ファイルと sidecar は `mutatePersonalOsWithSidecar` 一回で commit する。sidecar
+canonical 4ファイルと sidecar は `mutatePersonalOsWithSidecar` 一回で commit する。lock 外の
+trusted provider／認可検証後、canonical aggregate と sidecar の事前スナップショットが
+commit直前の値と一致することをCASとして確認する。一方でも変更されていれば、canonical
+または sidecar の新しい証跡を残さず `decision_conflict` で拒否する。sidecar
 のschema不正、trusted validator／認可の拒否、Graph v1、既存ID、commit 前の staged
 readback不一致は全て失敗し、新しい Decision、sidecar、互換 response を成功として残さない。
 SSOT publish failure は共通 transaction recovery に委譲する。既存旧recordの read は sidecar
@@ -88,7 +95,7 @@ fixtureではない。
 | AC-01 | 条件束と同じ Decision ID の create/readback、および AI log の関連付け |
 | AC-02 | 条件欠落・不正参照の拒否、sidecarなし旧recordの `unrecorded`、推測なし |
 | AC-03 | canonical Graph/Decision と sidecarの一回の原子commit、duplicate SSOTなし |
-| AC-04 | 旧response fixture、commit前のvalidator拒否、SSOT publish failure後の全体rollback、およびcommit後のread拒否が保存を巻き戻さないこと |
+| AC-04 | 旧response fixture、実際のSSOTを読むproviderのlock外実行、validator拒否、検証中のcanonical/sidecar同時変更に対するCAS拒否、SSOT publish failure後の全体rollback、およびcommit後のread拒否が保存を巻き戻さないこと |
 
 検証コマンドは `npm run build`、`npx vitest run tests/decision-adapter.test.ts` とする。
 OSS adapter単独と契約fixtureの検証が完了しても、組織版既存 HTTP route への実組み込み・

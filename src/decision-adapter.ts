@@ -176,6 +176,11 @@ interface StoredDecisionRecord {
   readonly ai_logs: readonly DecisionAdapterAiLogRecord[];
 }
 
+interface DecisionAdapterSnapshot {
+  readonly current: PersonalOs;
+  readonly sidecarContent?: string;
+}
+
 interface DecisionAdapterSidecar {
   readonly version: typeof DECISION_ADAPTER_VERSION;
   readonly decisions: Readonly<Record<string, StoredDecisionRecord>>;
@@ -211,7 +216,7 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
     const decisionId = request.decision_id ?? `dec-${randomUUID()}`;
     const eventId = `evt-${randomUUID()}`;
     const now = new Date().toISOString();
-    const decision = omitUndefined({
+    const decision: DecisionRecord = omitUndefined({
       id: decisionId,
       title: request.title,
       decision: request.decision,
@@ -220,7 +225,7 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
       effectiveAt: request.effectiveAt,
       tags: request.tags === undefined ? undefined : [...request.tags],
       updatedAt: now
-    });
+    }) as DecisionRecord;
     const entity: CanonicalEntity = omitUndefined({
       id: decisionId,
       type: 'decision' as const,
@@ -229,20 +234,29 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
       tags: request.tags === undefined ? undefined : [...request.tags]
     });
 
-    const result = await this.mutateSidecar(async (current, sidecarContent) => {
+    const snapshot = await this.loadSnapshot();
+    const sidecar = parseSidecar(snapshot.sidecarContent);
+    assertCreateDecisionState(snapshot.current, sidecar, decisionId);
+
+    // Trusted providers may read the SSOT. Run them before acquiring the
+    // mutation lock; the commit callback below only performs pure checks and
+    // the optimistic canonical/sidecar compare-and-swap.
+    await this.validateConditions(request.conditions, context);
+    await this.authorize({
+      action: 'create',
+      context,
+      current: snapshot.current,
+      decision,
+      graph_entity: entity
+    });
+
+    const result = await this.mutateSidecar((current, sidecarContent) => {
+      assertDecisionSnapshotUnchanged(snapshot, current, sidecarContent);
+      const currentSidecar = parseSidecar(sidecarContent);
+      assertCreateDecisionState(current, currentSidecar, decisionId);
       if (current.graph.version !== 2) {
         throw new DecisionAdapterError('graph_unsupported', 'New Decision writes require canonical Graph v2');
       }
-      if (current.decisions.some((candidate) => candidate.id === decisionId)
-        || current.graph.entities.some((candidate) => candidate.id === decisionId)) {
-        throw new DecisionAdapterError('decision_conflict', `Decision ${decisionId} already exists`);
-      }
-      const sidecar = parseSidecar(sidecarContent);
-      if (Object.prototype.hasOwnProperty.call(sidecar.decisions, decisionId)) {
-        throw new DecisionAdapterError('decision_conflict', `Decision sidecar entry ${decisionId} already exists`);
-      }
-      await this.validateConditions(request.conditions, context);
-      await this.authorize({ action: 'create', context, current, decision, graph_entity: entity });
       const stored: StoredDecisionRecord = {
         decision_id: decisionId,
         conditions: clone(request.conditions),
@@ -250,14 +264,14 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
         ai_logs: []
       };
       const nextSidecar = {
-        ...sidecar,
-        decisions: { ...sidecar.decisions, [decisionId]: stored }
+        ...currentSidecar,
+        decisions: { ...currentSidecar.decisions, [decisionId]: stored }
       } satisfies DecisionAdapterSidecar;
-      const nextGraph = {
+      const nextGraph: GraphFile = {
         ...current.graph,
         entities: [...current.graph.entities, entity]
       };
-      const next = {
+      const next: PersonalOs = {
         ...current,
         decisions: [...current.decisions, decision],
         graph: nextGraph
@@ -297,7 +311,41 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
       created_at: now
     });
 
-    const result = await this.mutateSidecar(async (current, sidecarContent) => {
+    const snapshot = await this.loadSnapshot();
+    const snapshotDecision = snapshot.current.decisions.find(
+      (candidate) => candidate.id === request.decision_id
+    );
+    if (!snapshotDecision) {
+      throw new DecisionAdapterError('decision_not_found', `Decision ${request.decision_id} was not found`);
+    }
+    if (snapshot.current.graph.version !== 2) {
+      throw new DecisionAdapterError('graph_unsupported', 'AI decision-log writes require canonical Graph v2');
+    }
+    const snapshotGraphEntity = snapshot.current.graph.entities.find(
+      (candidate) => candidate.id === request.decision_id
+    );
+    if (!snapshotGraphEntity || snapshotGraphEntity.type !== 'decision') {
+      throw new DecisionAdapterError('readback_mismatch', `Canonical Graph entity ${request.decision_id} is missing`);
+    }
+    const snapshotSidecar = parseSidecar(snapshot.sidecarContent);
+    const snapshotExisting = snapshotSidecar.decisions[request.decision_id];
+    if (snapshotExisting && !sameConditions(snapshotExisting.conditions, request.conditions)) {
+      throw new DecisionAdapterError('condition_unavailable', `Decision ${request.decision_id} has different recorded conditions`);
+    }
+
+    // Trusted providers may read the SSOT. They must complete before the
+    // mutation lock is acquired; the callback below is intentionally pure.
+    await this.validateConditions(request.conditions, context);
+    await this.authorize({
+      action: 'create',
+      context,
+      current: snapshot.current,
+      decision: snapshotDecision,
+      graph_entity: snapshotGraphEntity
+    });
+
+    const result = await this.mutateSidecar((current, sidecarContent) => {
+      assertDecisionSnapshotUnchanged(snapshot, current, sidecarContent);
       const decision = current.decisions.find((candidate) => candidate.id === request.decision_id);
       if (!decision) {
         throw new DecisionAdapterError('decision_not_found', `Decision ${request.decision_id} was not found`);
@@ -314,8 +362,6 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
       if (existing && !sameConditions(existing.conditions, request.conditions)) {
         throw new DecisionAdapterError('condition_unavailable', `Decision ${request.decision_id} has different recorded conditions`);
       }
-      await this.validateConditions(request.conditions, context);
-      await this.authorize({ action: 'create', context, current, decision, graph_entity: graphEntity });
       const stored: StoredDecisionRecord = existing ?? {
         decision_id: request.decision_id,
         conditions: clone(request.conditions),
@@ -401,6 +447,17 @@ export class GraphDecisionAdapterStore implements DecisionAdapterPort {
   private async loadCurrent(): Promise<PersonalOs> {
     try {
       return await loadPersonalOs(this.dataDir);
+    } catch (error) {
+      throw new DecisionAdapterError('store_corrupt', formatError(error));
+    }
+  }
+
+  private async loadSnapshot(): Promise<DecisionAdapterSnapshot> {
+    try {
+      return {
+        current: await loadPersonalOs(this.dataDir),
+        sidecarContent: await readPersonalOsSidecar(this.dataDir, this.sidecarPath)
+      };
     } catch (error) {
       throw new DecisionAdapterError('store_corrupt', formatError(error));
     }
@@ -668,6 +725,40 @@ function validateStoredDecision(value: StoredDecisionRecord, key: string): void 
     if (ids.has(log.ai_decision_id)) throw new DecisionAdapterError('store_corrupt', `Duplicate AI log ${log.ai_decision_id}`);
     ids.add(log.ai_decision_id);
   }
+}
+
+function assertCreateDecisionState(
+  current: PersonalOs,
+  sidecar: DecisionAdapterSidecar,
+  decisionId: string,
+): void {
+  if (current.graph.version !== 2) {
+    throw new DecisionAdapterError('graph_unsupported', 'New Decision writes require canonical Graph v2');
+  }
+  if (current.decisions.some((candidate) => candidate.id === decisionId)
+    || current.graph.entities.some((candidate) => candidate.id === decisionId)) {
+    throw new DecisionAdapterError('decision_conflict', `Decision ${decisionId} already exists`);
+  }
+  if (Object.prototype.hasOwnProperty.call(sidecar.decisions, decisionId)) {
+    throw new DecisionAdapterError('decision_conflict', `Decision sidecar entry ${decisionId} already exists`);
+  }
+}
+
+function assertDecisionSnapshotUnchanged(
+  snapshot: DecisionAdapterSnapshot,
+  current: PersonalOs,
+  sidecarContent: string | undefined,
+): void {
+  if (!sameCanonicalAggregate(snapshot.current, current) || snapshot.sidecarContent !== sidecarContent) {
+    throw new DecisionAdapterError(
+      'decision_conflict',
+      'Canonical Decision aggregate or sidecar changed while trusted references were being validated'
+    );
+  }
+}
+
+function sameCanonicalAggregate(left: PersonalOs, right: PersonalOs): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 function assertStagedDecision(

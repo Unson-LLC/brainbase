@@ -10,12 +10,21 @@ import {
   type DecisionAdapterContext,
   type DecisionAdapterDecisionRequest
 } from '../src/decision-adapter.js';
-import { initializePersonalOs, loadPersonalOs, mutatePersonalOs, readPersonalOsSidecar } from '../src/ssot.js';
+import type { ObjectiveDefinition } from '../src/ontology-foundation.js';
+import { createFoundationRevisionStore } from '../src/foundation-store.js';
+import {
+  initializePersonalOs,
+  loadPersonalOs,
+  mutatePersonalOs,
+  mutatePersonalOsWithSidecar,
+  readPersonalOsSidecar
+} from '../src/ssot.js';
 
 const dataDirs: string[] = [];
 
 afterEach(async () => {
   delete process.env.BRAINBASE_SSOT_FAIL_AFTER_PUBLISH;
+  delete process.env.BRAINBASE_SSOT_LOCK_TIMEOUT_MS;
   await Promise.all(dataDirs.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
 });
 
@@ -50,6 +59,34 @@ function decisionRequest(overrides: Partial<DecisionAdapterDecisionRequest> = {}
     decision: 'Run a bounded pilot before expanding the change.',
     conditions: conditions(),
     ...overrides
+  };
+}
+
+function objectiveDefinition(): ObjectiveDefinition {
+  return {
+    id: 'objective-1',
+    type: 'objective',
+    revision: '1',
+    meaning: 'Reduce front-desk response load',
+    adoptionState: 'draft',
+    authorizedUses: ['draft', 'judgment', 'evaluation'],
+    acl: {
+      ownerId: 'person-1',
+      visibility: 'private',
+      readerIds: [],
+      writerIds: []
+    },
+    storage: 'ontology',
+    provenance: [{ sourceId: 'decision-adapter-test', sourceKind: 'document', evidenceIds: [] }],
+    scope: { subjectIds: ['org-1'], validFrom: '2026-01-01T00:00:00.000Z' },
+    beneficiaryIds: ['org-1'],
+    desiredState: 'Reduce total front-desk response load.',
+    criteria: [],
+    evaluationPeriod: {
+      from: '2026-01-01T00:00:00.000Z',
+      until: '2026-03-31T23:59:59.000Z'
+    },
+    accountableId: 'person-1'
   };
 }
 
@@ -185,6 +222,114 @@ describe('DecisionAdapterPort', () => {
     expect(validate).toHaveBeenCalledOnce();
     await expect(loadPersonalOs(dataDir)).resolves.toMatchObject({ decisions: [] });
     await expect(readPersonalOsSidecar(dataDir, DECISION_ADAPTER_SIDECAR)).resolves.toBeUndefined();
+  });
+
+  it('runs real SSOT-reading condition and authorization providers outside the mutation lock', async () => {
+    const dataDir = await makeDataDir();
+    process.env.BRAINBASE_SSOT_LOCK_TIMEOUT_MS = '100';
+    const foundation = createFoundationRevisionStore({ dataDir });
+    await foundation.create(objectiveDefinition(), { principal: 'person-1' });
+    const validate = vi.fn(async ({ conditions: input, context: currentContext }: {
+      conditions: DecisionAdapterConditions;
+      context: DecisionAdapterContext;
+    }) => {
+      for (const reference of input.objective_refs) {
+        if (!(await foundation.read(reference, { principal: currentContext.principal }))) return false;
+      }
+      return true;
+    });
+    const authorize = vi.fn(async ({ context: currentContext }: {
+      context: DecisionAdapterContext;
+    }) => Boolean(await foundation.readLatest('objective', 'objective-1', {
+      principal: currentContext.principal
+    })));
+    const store = createDecisionAdapter({
+      dataDir,
+      conditionValidator: { validate },
+      authorization: { authorize }
+    });
+
+    await expect(store.createDecision(decisionRequest(), context())).resolves.toMatchObject({
+      decision_id: 'decision-1'
+    });
+    expect(validate).toHaveBeenCalledOnce();
+    expect(authorize).toHaveBeenCalledOnce();
+  });
+
+  it('rejects a canonical aggregate changed while trusted references are being validated', async () => {
+    const dataDir = await makeDataDir();
+    process.env.BRAINBASE_SSOT_LOCK_TIMEOUT_MS = '100';
+    let validationStarted!: () => void;
+    let releaseValidation!: () => void;
+    const started = new Promise<void>((resolve) => {
+      validationStarted = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      releaseValidation = resolve;
+    });
+    const store = createDecisionAdapter({
+      dataDir,
+      conditionValidator: {
+        validate: async () => {
+          validationStarted();
+          await gate;
+          return true;
+        }
+      }
+    });
+    const pending = store.createDecision(decisionRequest(), context());
+    await started;
+    await mutatePersonalOs(dataDir, (current) => ({
+      ...current,
+      personalKg: [...current.personalKg, {
+        id: 'validation-race',
+        type: 'judgment',
+        text: 'Concurrent canonical update'
+      }]
+    }));
+    releaseValidation();
+
+    await expect(pending).rejects.toMatchObject({ code: 'decision_conflict' });
+    await expect(loadPersonalOs(dataDir)).resolves.toMatchObject({
+      decisions: [],
+      personalKg: [expect.objectContaining({ id: 'validation-race' })]
+    });
+    await expect(readPersonalOsSidecar(dataDir, DECISION_ADAPTER_SIDECAR)).resolves.toBeUndefined();
+  });
+
+  it('rejects a sidecar changed while trusted references are being validated', async () => {
+    const dataDir = await makeDataDir();
+    process.env.BRAINBASE_SSOT_LOCK_TIMEOUT_MS = '100';
+    let validationStarted!: () => void;
+    let releaseValidation!: () => void;
+    const started = new Promise<void>((resolve) => {
+      validationStarted = resolve;
+    });
+    const gate = new Promise<void>((resolve) => {
+      releaseValidation = resolve;
+    });
+    const store = createDecisionAdapter({
+      dataDir,
+      conditionValidator: {
+        validate: async () => {
+          validationStarted();
+          await gate;
+          return true;
+        }
+      }
+    });
+    const pending = store.createDecision(decisionRequest(), context());
+    await started;
+    await mutatePersonalOsWithSidecar(dataDir, DECISION_ADAPTER_SIDECAR, (current, content) => ({
+      next: current,
+      sidecarContent: content ?? JSON.stringify({ version: 'decision-adapter.v1', decisions: {} }),
+      result: undefined
+    }));
+    releaseValidation();
+
+    await expect(pending).rejects.toMatchObject({ code: 'decision_conflict' });
+    await expect(loadPersonalOs(dataDir)).resolves.toMatchObject({ decisions: [] });
+    await expect(readPersonalOsSidecar(dataDir, DECISION_ADAPTER_SIDECAR)).resolves.toContain('decision-adapter.v1');
   });
 
   it('returns commit acknowledgements without rolling back when a later current read is denied', async () => {

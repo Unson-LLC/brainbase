@@ -43,8 +43,10 @@ DecisionAdapterPort -- required refs --> DecisionAdapterStore
 ```
 
 - Decision の新規書込みと条件 sidecar は、既存 SSOT lock/transaction で一つに commit する。
-- staged canonical/sidecar の一致、trusted provider の現在参照確認、認可は、その lock 内で
-  commit 前に検証する。成功レスポンスはこの原子的 commit の acknowledgement とする。
+- trusted provider の現在参照確認と認可は lock 外で実行する。取得した canonical aggregate と
+  sidecar のスナップショットを、lock 内で commit 直前に compare-and-swap し、staged
+  canonical/sidecar の一致と構造だけを再確認する。provider の read、認可処理、任意の外部
+  await を lock 内で実行しない。成功レスポンスはこの原子的 commit の acknowledgement とする。
 - Graph v1 は旧読み出しを許すが、新規 canonical Decision 書込みは Graph v2 を要求する。
 - 同じ Decision ID の既存 record がある場合は上書きせず、revision/更新契約がないため拒否する。
 - sidecar の破損、commit 前の canonical readback 不一致、trusted provider／認可の拒否は fail
