@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-objectives-v1
 title: 目的と評価基準を版付きで保存し判断から参照できる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -44,10 +44,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: Objectiveの対象者・望ましい状態・責任者・期間と、Variable定義・達成閾値を含む評価基準を保存／読戻しできる。
-- [ ] AC-02: 不完全な草案を保存できるが、基準未確定のまま達成判定に使えない。欠損と0を区別する。
-- [ ] AC-03: StoryとObjectiveの多対多参照、目的への貢献、実行依存、時間条件を区別する。
-- [ ] AC-04: 更新は新版とし旧版を保持する。越境read/write・未許可変更を拒否し、同時改訂の競合を検出する。
+- [x] AC-01: Objectiveの対象者・望ましい状態・責任者・期間と、Variable定義・達成閾値を含む評価基準を保存／読戻しできる。
+- [x] AC-02: 不完全な草案を保存できるが、基準未確定のまま達成判定に使えない。欠損と0を区別する。
+- [x] AC-03: StoryとObjectiveの多対多参照、目的への貢献、実行依存、時間条件を区別する。
+- [x] AC-04: 更新は新版とし旧版を保持する。越境read/write・未許可変更を拒否し、同時改訂の競合を検出する。
 
 ## 対象外
 
@@ -57,4 +57,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は実装中。共有Ontology契約と、AC-03の貢献・実行依存・時間条件の関係種別を実装した。完了判定は共有契約の統合、残りの受入条件、実体テストの確認後に行う。
+共有Ontology契約と、AC-03の貢献・実行依存・時間条件の関係種別を実装し、受入条件を確認済み。PR #522（[merge 0cdf0da](https://github.com/Unson-LLC/brainbase/commit/0cdf0da31ce422f34b48cbfebf08971c8625770d)）、[CI 35834690071](https://github.com/Unson-LLC/brainbase/actions/runs/35834690071) pass、focused 17 testsとreview pass。

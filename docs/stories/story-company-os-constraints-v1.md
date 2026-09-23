@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-constraints-v1
 title: 判断に適用する制約とその採用根拠を確認できる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -46,10 +46,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: Constraintを条件・対象範囲・有効期間・版とともに保存し、採用したDecisionの版へ接続する。
-- [ ] AC-02: 状態情報や予測を禁止方針と混同せず、指定した所有範囲・対象・時点に適用する制約だけを解決する。
-- [ ] AC-03: 例外は承認者・範囲・期限・根拠付きで扱い、ObjectiveやConstraintの登録から実行権限を発生させない。
-- [ ] AC-04: 競合・不明な適用範囲は理由付きで未解決にし、許可とせず、越境参照と無権限の緩和を拒否する。
+- [x] AC-01: Constraintを条件・対象範囲・有効期間・版とともに保存し、採用したDecisionの版へ接続する。
+- [x] AC-02: 状態情報や予測を禁止方針と混同せず、指定した所有範囲・対象・時点に適用する制約だけを解決する。
+- [x] AC-03: 例外は承認者・範囲・期限・根拠付きで扱い、ObjectiveやConstraintの登録から実行権限を発生させない。
+- [x] AC-04: 競合・不明な適用範囲は理由付きで未解決にし、許可とせず、越境参照と無権限の緩和を拒否する。
 
 ## 対象外
 
@@ -59,12 +59,10 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-実装を開始し、共有Ontology契約とObjective StoryのFoundationRevisionStore、SSOT sidecarへ接続するSpec・adapter・テストを整備中。今回の実装で、Constraintの版更新・Decision版参照・対象／期間解決、評価providerのunknown／conflict、例外の永続readback、actorとownerの認可境界、実行権限を発生させないことを対象テストで確認した。
+共有Ontology契約とObjective StoryのFoundationRevisionStore、SSOT sidecarへ接続するSpec・adapter・テストを整備し、Constraintの版更新・Decision版参照・対象／期間解決、評価providerのunknown／conflict、例外の永続readback、actorとownerの認可境界、実行権限を発生させないことを確認済み。PR #527（[merge faaa517](https://github.com/Unson-LLC/brainbase/commit/faaa517822c8ed4006a93449ea329962550798d1)）、[CI 35838360642](https://github.com/Unson-LLC/brainbase/actions/runs/35838360642) pass、focused 20 testsとreview pass。
 
 今回の検証証跡:
 
 - `npm run build`：成功。
-- `npx vitest run tests/constraint-resolution.test.ts tests/foundation-constraint-store.test.ts tests/constraint-exception-store.test.ts tests/ssot-atomic.test.ts tests/ontology-foundation.test.ts`：5 files / 53 tests 成功。SSOT失敗復旧fixture由来のcleanup warningは出力されたが、テスト失敗はない。
-- Graphify lookup：対象6ファイルすべて `freshness: unknown` / `impact: unknown` / `status: unmatched`。依存影響は未確認のため、影響なしとは扱わない。
-
-ACの最終完了、レビュー、PR、CI、mergeは未完了であり、VibeProのactiveは完了を意味しない。
+- `npx vitest run tests/constraint-resolution.test.ts tests/foundation-constraint-store.test.ts tests/constraint-exception-store.test.ts tests/ssot-atomic.test.ts tests/ontology-foundation.test.ts`：5 files / 53 tests 成功。
+- Graphify lookup：対象6ファイルは `freshness: unknown` / `impact: unknown` / `status: unmatched`。依存影響は未確認のため、影響なしとは扱わない。

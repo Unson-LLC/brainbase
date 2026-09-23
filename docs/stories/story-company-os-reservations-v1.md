@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-reservations-v1
 title: 並行した判断でも同じ資源を二重に確約しない
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -64,4 +64,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-対象検証は `npm run build` と `npx vitest run tests/resource-reservations.test.ts`（9 tests）を実行済み。Problem snapshot portは、永続JSONを読むローダーを接続した同テストで、principalを渡して固定snapshotとscopeを照合するところまで確認した。sidecarの初回作成・rollbackは依存Storyの `tests/ssot-atomic.test.ts`、Problem snapshotの保存・参照は依存Storyの `tests/judgment-problem-snapshot.test.ts` が提供する契約として扱う。PR・レビュー・mergeは未完了のため、Storyは `in_progress` のままとする。
+対象検証は `npm run build` と `npx vitest run tests/resource-reservations.test.ts`（9 tests）を実行済み。Problem snapshot portは、永続JSONを読むローダーを接続した同テストで、principalを渡して固定snapshotとscopeを照合するところまで確認した。sidecarの初回作成・rollbackは依存Storyの `tests/ssot-atomic.test.ts`、Problem snapshotの保存・参照は依存Storyの `tests/judgment-problem-snapshot.test.ts` が提供する契約として扱う。PR #528（[merge 25e97fb](https://github.com/Unson-LLC/brainbase/commit/25e97fb1e2778f60d9749f75611fcd0ecff0c78e)）、[CI 35837800344](https://github.com/Unson-LLC/brainbase/actions/runs/35837800344) pass、9 testsとreview pass。

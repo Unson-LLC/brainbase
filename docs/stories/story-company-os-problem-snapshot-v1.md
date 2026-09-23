@@ -1,7 +1,7 @@
 ---
 story_id: story-company-os-problem-snapshot-v1
 title: 判断時の目的・前提・権限を固定して再確認できる
-status: in_progress
+status: done
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
@@ -59,4 +59,4 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-対象実装と受入条件は、`npm run build` と `npx vitest run tests/judgment-problem-snapshot.test.ts`（11 tests）で検証済み。テストにはhistorical readのcurrent ACL失効拒否、記録時点の用途・適用期間を再評価しない読戻し、embedded copyによるACL迂回拒否を含む。PR作成・CI・レビューは未完了のため、statusは `in_progress` のままレビュー待ちとする。VibeProのactiveは登録が有効である意味であり、PR/CI完了を意味しない。
+対象実装と受入条件は、`npm run build` と `npx vitest run tests/judgment-problem-snapshot.test.ts`（focused 11 tests）で検証済み。テストにはhistorical readのcurrent ACL失効拒否、記録時点の用途・適用期間を再評価しない読戻し、embedded copyによるACL迂回拒否を含む。PR #524（[merge 138adf9](https://github.com/Unson-LLC/brainbase/commit/138adf9f66aa43b40299bb357efc7102d0d85283)）、[CI 35837108500](https://github.com/Unson-LLC/brainbase/actions/runs/35837108500) pass、snapshot／SubDAG 26 testsのdelta review pass。
