@@ -23,9 +23,9 @@
 
 ## 第二batchの機能範囲と証跡（2026-09-23時点）
 
-既存の8件は、元26 StoryのOSS 7件と、別枠のsidecar補助1件で構成する。今回、元26 Storyの `story-company-os-evaluation-v1`（07）、`story-company-os-problem-candidates-v1`（08）、`story-company-os-problem-selection-v1`（09）、`story-company-os-execution-authority-v1`（11）、`story-company-os-effect-reconciliation-v1`（12）、`story-company-os-durable-waits-v1`（13）、`story-company-os-learning-adoption-v1`（14）、`story-company-os-impact-review-v1`（15）、`story-company-os-objective-editor-v1`（16）、`story-company-os-judgment-view-v1`（17）、`story-company-os-decision-adapter-v1`（19）、`story-company-os-knowledge-adapter-v1`（20）、`story-company-os-receipt-adapter-v1`（21）がmerge済みとなり、元26 Storyの完了数は20件（01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21）になった。sidecar補助は元26 Storyの件数に含めない。
+既存の8件は、元26 StoryのOSS 7件と、別枠のsidecar補助1件で構成する。今回、元26 Storyの `story-company-os-evaluation-v1`（07）、`story-company-os-problem-candidates-v1`（08）、`story-company-os-problem-selection-v1`（09）、`story-company-os-execution-authority-v1`（11）、`story-company-os-effect-reconciliation-v1`（12）、`story-company-os-durable-waits-v1`（13）、`story-company-os-learning-adoption-v1`（14）、`story-company-os-impact-review-v1`（15）、`story-company-os-objective-editor-v1`（16）、`story-company-os-judgment-view-v1`（17）、`story-company-os-decision-adapter-v1`（19）、`story-company-os-knowledge-adapter-v1`（20）、`story-company-os-receipt-adapter-v1`（21）、`story-company-os-hotel-pilot-v1`（22）がmerge済みとなり、元26 Storyの完了数は21件（01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22）になった。sidecar補助は元26 Storyの件数に含めない。
 
-完了済みのOSS基盤は、目的・制約・問題候補・選択・評価・待機・学習採用・前提変更の影響レビュー・目的編集・判断表示・知識採用・実行記録／成果記録の判断参照・Decision参照を版付きの共通契約で扱い、SSOT sidecarとHTTP実行権限portを介して接続する。下表は各機能の実装、レビュー、CI、mergeの状態を集約し、未mergeの実装は完了数へ算入しない。
+完了済みのOSS基盤は、目的・制約・問題候補・選択・評価・待機・学習採用・前提変更の影響レビュー・目的編集・判断表示・知識採用・実行記録／成果記録の判断参照・Decision参照・匿名ホテルfixtureを版付きの共通契約で扱い、SSOT sidecarとHTTP実行権限portを介して接続する。下表は各機能の実装、レビュー、CI、mergeの状態を集約し、未mergeの実装は完了数へ算入しない。
 
 | 区分 | 対象 | 証跡・状態 |
 | --- | --- | --- |
@@ -43,7 +43,7 @@
 | 元26 Story・実装済み・未完了 | `story-company-os-mana-resume-v1`（18、owner: `mana-runtime`）「Manaがイベントと期限から共通判断を重複なく再開する」 | 実装・review修正中。PR・CI・merge証跡は未確認で、完了件数へは算入しない |
 | 元26 Story・完了 | `story-company-os-knowledge-adapter-v1`（20） | [Story本文](stories/story-company-os-knowledge-adapter-v1.md) / [PR #544](https://github.com/Unson-LLC/brainbase/pull/544) / merge [`3af12f6b`](https://github.com/Unson-LLC/brainbase/commit/3af12f6b3c2c7bf17869f45ae4883e44fd51cc7e) / head [`5e1b7a1`](https://github.com/Unson-LLC/brainbase/commit/5e1b7a1360e905d5ace25d6569549f5cd5aad109) / [CI 35863091278](https://github.com/Unson-LLC/brainbase/actions/runs/35863091278) success、foundation store review pass、13 tests・build pass |
 | 元26 Story・完了 | `story-company-os-receipt-adapter-v1`（21） | [Story本文](stories/story-company-os-receipt-adapter-v1.md) / [PR #539](https://github.com/Unson-LLC/brainbase/pull/539) / merge [`298cf302`](https://github.com/Unson-LLC/brainbase/commit/298cf30275355beac0b7fe2694817573831158c6) / [CI 35862370066](https://github.com/Unson-LLC/brainbase/actions/runs/35862370066) success、review pass、15 tests |
-| 元26 Story・実装済み・未完了 | `story-company-os-hotel-pilot-v1`（22、owner: `brainbase`）「匿名ホテル例で判断・評価・学習の共通契約を一周できる」 | 実装・review修正中。PR・CI・merge証跡は未確認で、完了件数へは算入しない |
+| 元26 Story・完了 | `story-company-os-hotel-pilot-v1`（22） | [Story本文](stories/story-company-os-hotel-pilot-v1.md) / [PR #548](https://github.com/Unson-LLC/brainbase/pull/548) / merge [`3e63823e`](https://github.com/Unson-LLC/brainbase/commit/3e63823e9e9597e9c16880426818a174bfa72955) / head [`31bc902d`](https://github.com/Unson-LLC/brainbase/commit/31bc902dbed555bbb5ac08dfb16484eb278b8694) / [CI 35873855880](https://github.com/Unson-LLC/brainbase/actions/runs/35873855880) success、review pass（旧run拒否・正本refs修正 [`6736b1c`](https://github.com/Unson-LLC/brainbase/commit/6736b1cab423533dd97f37817edf077f472c98d9)）、58 affected tests・strict TS、本番外fixture |
 | 元26 Story・実装済み・未完了 | `story-company-os-org-reservations-v1`（23、owner: `brainbase-organization`）「組織の資源を権限と承認範囲内で予約できる」 | [PR #105](https://github.com/Unson-LLC/brainbase-organization/pull/105) のfix [`71cbd27`](https://github.com/Unson-LLC/brainbase-organization/commit/71cbd279d34fa53ccc2249a268619cb5c3886b01) / Linux CI 35853221730・35853221538 success / Windows CI [35853221631](https://github.com/Unson-LLC/brainbase-organization/actions/runs/35853221631) queued/offline。未mergeのため完了件数へは算入しない |
 | 元26 Story・実装済み・未完了 | `story-company-os-org-execution-authority-v1`（24、owner: `brainbase-organization`）「組織の承認取消を実行開始時の許可へ反映できる」 | [PR #108](https://github.com/Unson-LLC/brainbase-organization/pull/108) head `42ec555`、review pass、Linux CI 35859433685 success・Windows CI 35859433506 queued/offline。未mergeのため完了件数へは算入しない |
 | 元26 Story・実装済み・未完了 | `story-company-os-org-ui-composition-v1`（25、owner: `brainbase-organization`）「共通の目的・判断画面を組織の権限で利用できる」 | [PR #110](https://github.com/Unson-LLC/brainbase-organization/pull/110) head [`de0b9ba`](https://github.com/Unson-LLC/brainbase-organization/commit/de0b9ba)、review pass、[Linux CI 35866592832](https://github.com/Unson-LLC/brainbase-organization/actions/runs/35866592832) success、[Windows CI 35866592827](https://github.com/Unson-LLC/brainbase-organization/actions/runs/35866592827) queued/offline、177 tests・実UI fixture確認（本番UIではない）。未mergeのため完了件数へは算入しない |
@@ -63,7 +63,7 @@ Story16/17のローカルUIは確認済み。deployと組織UI／組織runtime�
 
 ## 未完了の境界
 
-組織固有・Mana側の未完了Storyや予定を完了へ変更していない。元26 Storyは20/26件がmerge済みで、残り6件は表の状態を維持する。当初計画全体の残り6件へ、今回追加したレビュー追補5件は算入せず、別のplanned登録として扱う。OSS共通基盤の完了は、npm公開、配布repoへの取り込み、組織runtime／Manaへの本番組込みを含まない。
+組織固有・Mana側の未完了Storyや予定を完了へ変更していない。元26 Storyは21/26件がmerge済みで、残り5件は表の状態を維持する。当初計画全体の残り5件へ、今回追加したレビュー追補5件は算入せず、別のplanned登録として扱う。OSS共通基盤の完了は、npm公開、配布repoへの取り込み、組織runtime／Manaへの本番組込みを含まない。
 
 ## 追補Story
 
