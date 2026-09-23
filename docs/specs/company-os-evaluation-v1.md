@@ -31,7 +31,7 @@ storage_boundary: canonical_graph_plus_evaluation_sidecar
 
 - `OutcomeCasePort.read(reference, actor)`：OutcomeCaseのcanonical referenceと現在アクセス情報を返す。失敗時はfail closed。
 - `FoundationDefinitionLoadPort.readExact(reference, context)`：指定したFoundation revisionをdigest照合して返す。latestへ差し替えない。
-- `createCompanyOsEvaluationStore(options)`：`evaluate`、`read`、`list` を持つ単独ownerの評価storeを作る。
+- `createCompanyOsEvaluationStore(options)`：`evaluate`、`read`、`list` を持つ単独ownerの評価storeを作る。`options.snapshotReferenceProvider` は、保存済みProblem snapshotを読取時にも `historical_read` で再解決する信頼済みportである。
 
 `EvaluationMeasurementInput` は `variableRef`、測定descriptor、`observed`／`missing`／`not_arrived`、任意の値と証拠参照を持つ。定義の異なる入力は、source/targetのexact refと、空でない変換provenanceを持つ明示的なconversionがある場合だけ受け入れる。
 
@@ -55,11 +55,12 @@ storage_boundary: canonical_graph_plus_evaluation_sidecar
 6. prediction／actualを正規化する。定義不一致、重複、型不一致、期間不一致は拒否する。欠損・未到来は成功値へ丸めない。
 7. criterion達成、prediction comparison、judgment validityをそれぞれ計算する。実測期間の終了前、欠損、未到来を含むcriterionは `indeterminate` とする。
 8. canonical lock内でGraph v2のexact Foundation revision、最新revisionの現在ACL、scope、digestを再確認し、同じ評価idがない場合だけsidecarへatomic commitする。
-9. commit後に同じidをreadし、exact ref、現在ACL、測定、派生結果を再検証して返す。
+9. commit後に同じidをreadし、保存済みのsnapshot id・problem id・revisionをcanonical locatorへ渡して `historical` readする。snapshotの内容からdigestを再計算し、sidecarの4項目、Objective ref、criteriaのVariable refsと一致しなければ拒否する。続けてexact ref、現在ACL、測定、派生結果を再検証して返す。
 
 ## 不変条件
 
 - 同じ評価idの異なる内容は `revision_conflict`。既存recordを上書きしない。
+- 評価sidecarに保存したProblem snapshotのlocatorとdigestは、canonical snapshotの再読込で検証する。problem id、revision、snapshot id、digestのいずれかが改ざんされても、別snapshotやlatestへフォールバックせず `integrity_mismatch` で拒否する。
 - sidecarのJSONが構文的に正しくても、Objective・Variable・OutcomeCaseの参照、測定descriptor、criterion、prediction comparison、achievementの再計算結果が一致しなければ読取を拒否する。
 - 過去revisionを要求したrecordでも、現在のACLを再評価する。過去revisionのACLだけで失効したprincipalに公開しない。
 - 現在のtrusted scopeと対象のscopeに共通subjectがなければ `scope_violation`。
@@ -80,6 +81,7 @@ storage_boundary: canonical_graph_plus_evaluation_sidecar
 - 欠損・未到来・未来期間が `indeterminate` になる。
 - Variable revision変更を暗黙比較せず、明示conversion provenanceがある場合だけ通す。
 - OutcomeCaseの現在ACL失効、trusted scope越境、sidecar JSON破損、派生結果改ざんを拒否する。
+- 保存済みProblem snapshotのproblem id、revision、digestの改ざんをcanonical readbackで拒否する。
 - 同一idの再評価を拒否し、commit後にimmutable recordを読み戻す。
 
 検証コマンドは次のとおり。

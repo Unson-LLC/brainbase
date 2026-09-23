@@ -19,6 +19,7 @@ import type { FoundationRevisionStore, FoundationStoreContext } from './foundati
 import type { FoundationCatalogRecord, PersonalOs } from './types.js';
 import {
   computeJudgmentProblemSnapshotId,
+  JudgmentProblemSnapshotError,
   loadJudgmentProblemSnapshot,
   type JudgmentProblemReference,
   type JudgmentProblemReferenceProvider,
@@ -218,6 +219,12 @@ export interface CompanyOsEvaluationStoreOptions {
   readonly dataDir: string;
   readonly foundation: FoundationDefinitionLoadPort;
   readonly outcomeCase: OutcomeCasePort;
+  /**
+   * Resolver used when a stored evaluation is read back.  The evaluation
+   * record only stores a snapshot reference, so reads must resolve that exact
+   * snapshot again under the provider's current ACL/digest checks.
+   */
+  readonly snapshotReferenceProvider: JudgmentProblemReferenceProvider;
 }
 
 export type CompanyOsEvaluationErrorCode =
@@ -280,6 +287,9 @@ export function createCompanyOsEvaluationStore(
   }
   if (!options.outcomeCase || typeof options.outcomeCase.read !== 'function') {
     throw new CompanyOsEvaluationError('invalid_input', 'outcomeCase.read is required');
+  }
+  if (!options.snapshotReferenceProvider || typeof options.snapshotReferenceProvider.resolve !== 'function') {
+    throw new CompanyOsEvaluationError('invalid_input', 'snapshotReferenceProvider.resolve is required');
   }
   return new GraphCompanyOsEvaluationStore(options);
 }
@@ -349,6 +359,8 @@ class GraphCompanyOsEvaluationStore implements CompanyOsEvaluationStore {
     const catalog = await this.loadCatalog();
     const record = catalog.records.find((item) => item.id === id);
     if (!record) return null;
+    const snapshot = await loadEvaluationSnapshot(this.options, record, context);
+    assertSnapshotMatchesEvaluation(record, snapshot);
     const resolved = await this.options.foundation.readExact(record.objectiveRef, context);
     if (!resolved || resolved.definition.type !== 'objective') {
       throw new CompanyOsEvaluationError('corrupt_record', `Objective for evaluation ${id} is missing or has the wrong type`);
@@ -474,6 +486,86 @@ async function resolveDefinitions(
     variables.push({ criterionIndex, criterion, reference, definition: record.definition, record });
   }
   return { snapshot, snapshotId, objectiveRef, objective, objectiveRecord, variables };
+}
+
+/**
+ * A stored evaluation is only meaningful with the exact Problem snapshot that
+ * produced it. Re-resolve the canonical locator on every read instead of
+ * trusting the four fields copied into the evaluation sidecar. The resolver
+ * also rechecks current ACLs and exact reference digests for historical reads.
+ */
+async function loadEvaluationSnapshot(
+  options: CompanyOsEvaluationStoreOptions,
+  record: CompanyOsEvaluationRecord,
+  access: EvaluationAccessContext
+): Promise<JudgmentProblemSnapshot> {
+  let snapshot: JudgmentProblemSnapshot;
+  try {
+    snapshot = await loadJudgmentProblemSnapshot({
+      root: options.dataDir,
+      snapshot_id: record.snapshot.snapshotId,
+      problem_id: record.snapshot.problemId,
+      revision: record.snapshot.revision,
+      access,
+      reference_resolution: 'historical',
+      referenceProvider: options.snapshotReferenceProvider
+    });
+  } catch (error) {
+    throw mapEvaluationSnapshotLoadError(error);
+  }
+
+  const canonicalDigest = computeJudgmentProblemSnapshotId(snapshot);
+  if (snapshot.problem_id !== record.snapshot.problemId
+    || snapshot.revision !== record.snapshot.revision
+    || canonicalDigest !== record.snapshot.snapshotId
+    || canonicalDigest !== record.snapshot.digest) {
+    throw new CompanyOsEvaluationError(
+      'integrity_mismatch',
+      'Evaluation snapshot locator or digest does not match the canonical Problem snapshot'
+    );
+  }
+  return snapshot;
+}
+
+function mapEvaluationSnapshotLoadError(error: unknown): CompanyOsEvaluationError {
+  if (error instanceof CompanyOsEvaluationError) return error;
+  if (error instanceof JudgmentProblemSnapshotError) {
+    if (error.code === 'unauthorized') {
+      return new CompanyOsEvaluationError('authorization_denied', error.message);
+    }
+    if (error.code === 'not_found' || error.code === 'integrity_mismatch' || error.code === 'conflict') {
+      return new CompanyOsEvaluationError('integrity_mismatch', error.message);
+    }
+    return new CompanyOsEvaluationError('corrupt_record', error.message);
+  }
+  return new CompanyOsEvaluationError('corrupt_record', formatError(error));
+}
+
+function assertSnapshotMatchesEvaluation(
+  record: CompanyOsEvaluationRecord,
+  snapshot: JudgmentProblemSnapshot
+): void {
+  const objectiveReferences = snapshot.references.filter((reference) => reference.kind === 'objective');
+  if (objectiveReferences.length !== 1) {
+    throw new CompanyOsEvaluationError('integrity_mismatch', 'Evaluation snapshot must contain exactly one Objective reference');
+  }
+  if (!sameFoundationRef(record.objectiveRef, foundationReference(objectiveReferences[0]))) {
+    throw new CompanyOsEvaluationError('integrity_mismatch', 'Evaluation Objective reference does not match its Problem snapshot');
+  }
+
+  const variableKeys = new Set(
+    snapshot.references
+      .filter((reference) => reference.kind === 'variable')
+      .map((reference) => foundationReferenceKey(foundationReference(reference)))
+  );
+  for (const criterion of record.criteria) {
+    if (!variableKeys.has(foundationReferenceKey(criterion.variableRef))) {
+      throw new CompanyOsEvaluationError(
+        'integrity_mismatch',
+        `Evaluation criterion ${criterion.criterionIndex} is not pinned by its Problem snapshot`
+      );
+    }
+  }
 }
 
 async function resolveMeasurements(
@@ -1327,8 +1419,11 @@ function assertEvaluationCatalog(value: unknown): asserts value is EvaluationRec
     }
     assertFoundationRef(record.objectiveRef, 'record.objectiveRef');
     assertOutcomeCaseCanonicalReference(record.outcomeCaseRef, 'record.outcomeCaseRef');
-    if (!isDigest(record.snapshot.snapshotId) || record.snapshot.digest !== record.snapshot.snapshotId) {
-      throw new CompanyOsEvaluationError('corrupt_record', 'Evaluation snapshot digest must equal its snapshot id');
+    if (!isDigest(record.snapshot.snapshotId) || !isDigest(record.snapshot.digest)) {
+      throw new CompanyOsEvaluationError('corrupt_record', 'Evaluation snapshot ids must be sha256 digests');
+    }
+    if (record.snapshot.digest !== record.snapshot.snapshotId) {
+      throw new CompanyOsEvaluationError('integrity_mismatch', 'Evaluation snapshot digest must equal its snapshot id');
     }
     if (record.criteria.length === 0 || record.criteria.length !== record.predictionComparisons.length) {
       throw new CompanyOsEvaluationError('corrupt_record', 'Evaluation criteria and prediction comparisons are inconsistent');

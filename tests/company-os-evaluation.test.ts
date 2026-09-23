@@ -255,7 +255,8 @@ async function makeHarness() {
   const evaluation = createCompanyOsEvaluationStore({
     dataDir,
     foundation: createFoundationDefinitionLoadPort(foundationStore),
-    outcomeCase: outcome.port
+    outcomeCase: outcome.port,
+    snapshotReferenceProvider: referenceProvider
   });
   return {
     dataDir,
@@ -404,6 +405,38 @@ describe('Company OS evaluation contract', () => {
     const raw = await readFile(join(harness.dataDir, COMPANY_OS_EVALUATION_SIDECAR), 'utf8');
     await writeFile(join(harness.dataDir, COMPANY_OS_EVALUATION_SIDECAR), '{not-json}\n', 'utf8');
     await expect(harness.evaluation.read(record.id, { principal: 'owner-1', scope })).rejects.toMatchObject({ code: 'corrupt_record' });
+    await writeFile(join(harness.dataDir, COMPANY_OS_EVALUATION_SIDECAR), raw, 'utf8');
+
+    const snapshotTampering = [
+      {
+        snapshotId: record.snapshot.snapshotId,
+        problemId: `${record.snapshot.problemId}-tampered`,
+        revision: record.snapshot.revision,
+        digest: record.snapshot.digest
+      },
+      {
+        snapshotId: record.snapshot.snapshotId,
+        problemId: record.snapshot.problemId,
+        revision: '2',
+        digest: record.snapshot.digest
+      },
+      {
+        snapshotId: record.snapshot.snapshotId,
+        problemId: record.snapshot.problemId,
+        revision: record.snapshot.revision,
+        digest: digest(['tampered-snapshot'])
+      }
+    ];
+    for (const snapshot of snapshotTampering) {
+      const tampered = JSON.parse(raw) as { records: Array<Record<string, unknown>> };
+      tampered.records[0] = {
+        ...tampered.records[0],
+        snapshot
+      };
+      await writeFile(join(harness.dataDir, COMPANY_OS_EVALUATION_SIDECAR), JSON.stringify(tampered), 'utf8');
+      await expect(harness.evaluation.read(record.id, { principal: 'owner-1', scope }))
+        .rejects.toMatchObject({ code: 'integrity_mismatch' });
+    }
     await writeFile(join(harness.dataDir, COMPANY_OS_EVALUATION_SIDECAR), raw, 'utf8');
 
     const tampered = JSON.parse(raw) as { records: Array<Record<string, unknown>> };
