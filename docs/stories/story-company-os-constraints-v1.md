@@ -5,7 +5,7 @@ status: in_progress
 created_at: 2026-09-23
 implementation_started: true
 owner_repository: brainbase
-depends_on: ["story-company-os-ontology-v1"]
+depends_on: ["story-company-os-ontology-v1", "story-company-os-objectives-v1", "story-company-os-sidecar-v1"]
 external_dependencies: []
 ---
 
@@ -39,6 +39,8 @@ external_dependencies: []
 ## 依存するストーリー
 
 - `brainbase / story-company-os-ontology-v1`
+- `brainbase / story-company-os-objectives-v1`
+- `brainbase / story-company-os-sidecar-v1`
 
 依存は提供契約の先行条件。目的への貢献・期限とは異なる。外部依存を含め、着手時に採用版と提供範囲を最小Specで固定する。
 
@@ -57,4 +59,12 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-実装を開始し、共有Ontology契約とFoundationRevisionStoreへ接続するSpec・adapter・テストを整備中。受入条件、対象build、レビュー、PR、CIは未完了であり、VibeProのactiveは完了を意味しない。
+実装を開始し、共有Ontology契約とObjective StoryのFoundationRevisionStore、SSOT sidecarへ接続するSpec・adapter・テストを整備中。今回の実装で、Constraintの版更新・Decision版参照・対象／期間解決、評価providerのunknown／conflict、例外の永続readback、actorとownerの認可境界、実行権限を発生させないことを対象テストで確認した。
+
+今回の検証証跡:
+
+- `npm run build`：成功。
+- `npx vitest run tests/constraint-resolution.test.ts tests/foundation-constraint-store.test.ts tests/constraint-exception-store.test.ts tests/ssot-atomic.test.ts tests/ontology-foundation.test.ts`：5 files / 53 tests 成功。SSOT失敗復旧fixture由来のcleanup warningは出力されたが、テスト失敗はない。
+- Graphify lookup：対象6ファイルすべて `freshness: unknown` / `impact: unknown` / `status: unmatched`。依存影響は未確認のため、影響なしとは扱わない。
+
+ACの最終完了、レビュー、PR、CI、mergeは未完了であり、VibeProのactiveは完了を意味しない。
