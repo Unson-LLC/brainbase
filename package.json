@@ -63,6 +63,10 @@
       "types": "./dist/company-os-evaluation.d.ts",
       "import": "./dist/company-os-evaluation.js"
     },
+    "./company-os-receipt-adapter": {
+      "types": "./dist/company-os-receipt-adapter.d.ts",
+      "import": "./dist/company-os-receipt-adapter.js"
+    },
     "./company-os-learning-adoption": {
       "types": "./dist/company-os-learning-adoption.d.ts",
       "import": "./dist/company-os-learning-adoption.js"
@@ -130,6 +134,10 @@
     "./execution-authority-http": {
       "types": "./dist/execution-authority-http.d.ts",
       "import": "./dist/execution-authority-http.js"
+    },
+    "./company-os-impact-review": {
+      "types": "./dist/company-os-impact-review.d.ts",
+      "import": "./dist/company-os-impact-review.js"
     },
     "./streamable-http": {
       "types": "./dist/streamable-http.d.ts",

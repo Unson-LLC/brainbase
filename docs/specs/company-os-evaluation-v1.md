@@ -19,7 +19,7 @@ storage_boundary: canonical_graph_plus_evaluation_sidecar
 ## 所有境界と依存
 
 - 実装は `Unson-LLC/brainbase` の OSS が所有する。
-- OSS が提供する `OutcomeCasePort` は、正本の `id`・`revision`・`digest`・現在ACL・scopeを読み取るだけのportである。OutcomeCaseの閉鎖・承認・更新・組織RACIは所有しない。
+- OSS が提供する `OutcomeCasePort` は、正本の `id`・`revision`・`digest`、source所有の現在 `state`・`owner_refs`・`conditions`、現在ACL・scopeを読み取るだけのportである。OutcomeCaseの閉鎖・承認・更新・組織RACIは所有しない。source projectionの欠落・不正は `integrity_mismatch` としてfail closedする。
 - 組織側の既存OutcomeCase実装の提供候補は `brainbase-unson` の commit `40d3d8f57d463e2f22a98423d74af3b7ed1aba93`。OSS `origin/develop` の `770655c4cdb56195fa1e441455372830840f03c1` にはOutcomeCase APIは存在しない。組織APIをOSSへコピーせず、将来adapterがこのportを実装する。
 - Objective・Variableの定義は canonical Graph v2 の Foundation catalogが正本である。評価sidecarに本文を複製しない。
 - Problem snapshotは refsのみを保持する既存 `judgment-problem-snapshot` を使う。snapshotの `historical` readでも、現在のACLとexact revision/digestを再検証する。
@@ -29,7 +29,7 @@ storage_boundary: canonical_graph_plus_evaluation_sidecar
 
 `src/company-os-evaluation.ts` が次を公開する。
 
-- `OutcomeCasePort.read(reference, actor)`：OutcomeCaseのcanonical referenceと現在アクセス情報を返す。失敗時はfail closed。
+- `OutcomeCasePort.read(reference, actor)`：OutcomeCaseのcanonical reference、source所有のcanonical projection（`state`・`owner_refs`・`conditions`）、現在アクセス情報を返す。失敗時はfail closed。callerが渡したsource metadataをcanonical値として返してはならない。
 - `FoundationDefinitionLoadPort.readExact(reference, context)`：指定したFoundation revisionをdigest照合して返す。latestへ差し替えない。
 - `createCompanyOsEvaluationStore(options)`：`evaluate`、`read`、`list` を持つ単独ownerの評価storeを作る。`options.snapshotReferenceProvider` は、保存済みProblem snapshotを読取時にも `historical_read` で再解決する信頼済みportである。
 
@@ -51,7 +51,7 @@ storage_boundary: canonical_graph_plus_evaluation_sidecar
 2. Problem snapshotを `historical` で読み、snapshot idを再計算する。必須参照のprovider、現在ACL、exact digestを通す。
 3. snapshotのObjectiveをFoundation catalogからexact revision/digestで読み、Objectiveのcriteriaとsnapshotのcriterion/Variable refsを照合する。
 4. 各Variableの定義、valueKind、unit、aggregation、granularity、scope、evaluation periodを検証する。`at_least`／`at_most` は有限number targetとnumeric Variable、`equals` はVariableのvalueKindと一致するtargetだけを許可する。
-5. OutcomeCaseをportから読み、要求されたrevision/digest、現在ACL、trusted scopeを検証する。
+5. OutcomeCaseをportから読み、要求されたrevision/digest、source所有のcanonical projection、現在ACL、trusted scopeを検証する。`state`・`owner_refs`・`conditions`はcallerの入力ではなく、providerのprojectionだけを信頼する。
 6. prediction／actualを正規化する。定義不一致、重複、型不一致、期間不一致は拒否する。欠損・未到来は成功値へ丸めない。
 7. criterion達成、prediction comparison、judgment validityをそれぞれ計算する。実測期間の終了前、欠損、未到来を含むcriterionは `indeterminate` とする。
 8. canonical lock内でGraph v2のexact Foundation revision、最新revisionの現在ACL、scope、digestを再確認し、同じ評価idがない場合だけsidecarへatomic commitする。
@@ -68,6 +68,7 @@ storage_boundary: canonical_graph_plus_evaluation_sidecar
 - 変換なしに異なるVariable定義を比較しない。変換を使う場合はsource ref、target ref、変換根拠を保存する。
 - `indeterminate` は欠測・未到来・評価期間未完了を意味し、達成または失敗へ丸めない。
 - Foundation定義の登録状態や採用状態を、評価の計算だけで「真実」へ昇格させない。
+- OutcomeCaseのsource projection（`state`・`owner_refs`・`conditions`）が欠落・不正なreadは受け入れない。評価やreceipt adapterがcaller値を補完して正本扱いしてはならない。
 
 ## エラー境界
 
@@ -81,6 +82,7 @@ storage_boundary: canonical_graph_plus_evaluation_sidecar
 - 欠損・未到来・未来期間が `indeterminate` になる。
 - Variable revision変更を暗黙比較せず、明示conversion provenanceがある場合だけ通す。
 - OutcomeCaseの現在ACL失効、trusted scope越境、sidecar JSON破損、派生結果改ざんを拒否する。
+- OutcomeCase providerが返すsource projectionを評価へ引き継ぎ、欠落・不正なprojectionを拒否する。
 - 保存済みProblem snapshotのproblem id、revision、digestの改ざんをcanonical readbackで拒否する。
 - 同一idの再評価を拒否し、commit後にimmutable recordを読み戻す。
 
