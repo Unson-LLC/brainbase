@@ -1,5 +1,16 @@
-import { describe, expect, it, vi } from 'vitest';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as publicJudgmentDAG from '../src/judgment-dag.js';
+import {
+  JUDGMENT_PROBLEM_SNAPSHOT_VERSION,
+  loadJudgmentProblemSnapshot,
+  type ProblemRef,
+  saveJudgmentProblemSnapshot,
+  type JudgmentProblemReferenceProvider,
+  type JudgmentProblemSnapshot
+} from '../src/judgment-problem-snapshot.js';
 import {
   JudgmentDAGCompositionError,
   createJudgmentDAGCompositionDefinition,
@@ -7,11 +18,19 @@ import {
   validateJudgmentDAGComposition,
   type JudgmentDAGCompositionDefinition,
   type JudgmentDAGCompositionRunRequest,
+  type JudgmentDAGJSONValue,
+  type JudgmentDAGProblemSnapshotReader,
   type JudgmentDAGSubDAGDefinition,
   type JudgmentDAGSubDAGEvaluationPort,
   type JudgmentDAGSubDAGResult,
   type JudgmentDAGSubDAGStatus
 } from '../src/judgment-dag-composition.js';
+
+const snapshotRoots: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(snapshotRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
 
 function composition(
   overrides: Partial<JudgmentDAGCompositionDefinition> = {}
@@ -156,6 +175,46 @@ function request(
   };
 }
 
+function persistedProblemSnapshot(): JudgmentProblemSnapshot {
+  const kinds: readonly ProblemRef['kind'][] = [
+    'objective',
+    'criterion',
+    'observation',
+    'model',
+    'constraint',
+    'authority',
+    'resource',
+    'deadline'
+  ];
+  return {
+    snapshot_version: JUDGMENT_PROBLEM_SNAPSHOT_VERSION,
+    problem_id: 'hotel-choice-problem',
+    revision: '1',
+    question: 'Which introduction path should be selected?',
+    owner_scope: { type: 'project', id: 'project-subdag' },
+    references: kinds.map((kind, index) => ({
+      kind,
+      id: `${kind}-1`,
+      revision: '1',
+      digest: `sha256:${index.toString(16).padStart(2, '0').repeat(32)}`,
+      scope: { type: 'project', id: 'project-subdag' },
+      valid_from: '2026-01-01T00:00:00.000Z'
+    })),
+    read_policy: {
+      ownerId: 'alice',
+      visibility: 'private',
+      readerIds: [],
+      writerIds: ['alice']
+    },
+    execution_permission: 'none',
+    created_at: '2026-01-01T00:00:00.000Z'
+  };
+}
+
+const resolvedReferenceProvider: JudgmentProblemReferenceProvider = {
+  resolve: ({ reference }) => ({ status: 'resolved', digest: reference.digest })
+};
+
 describe('Judgment DAG composition contract', () => {
   it('is available from the side-effect-free public DAG entrypoint', () => {
     expect(publicJudgmentDAG.executeJudgmentDAGComposition)
@@ -286,6 +345,54 @@ describe('Judgment DAG composition contract', () => {
       code: 'snapshot_unavailable'
     });
     expect(port.execute).not.toHaveBeenCalled();
+  });
+
+  it('adapts the persisted Story05 snapshot loader to the composition reader port', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-subdag-snapshot-'));
+    snapshotRoots.push(root);
+    const saved = await saveJudgmentProblemSnapshot({
+      root,
+      snapshot: persistedProblemSnapshot(),
+      access: { principal: 'alice' },
+      referenceProvider: resolvedReferenceProvider
+    });
+    const definition = composition();
+    const port: JudgmentDAGSubDAGEvaluationPort = {
+      execute: vi.fn(async (childRequest) => resultFor(definition, childRequest.invocation_id))
+    };
+    const snapshotReader: JudgmentDAGProblemSnapshotReader = {
+      read: async ({ reference }) => {
+        const snapshot = await loadJudgmentProblemSnapshot({
+          root,
+          snapshot_id: reference.snapshot_id,
+          access: { principal: 'alice' },
+          reference_resolution: 'historical'
+        });
+        return {
+          status: 'resolved',
+          reference,
+          snapshot: snapshot as unknown as JudgmentDAGJSONValue
+        };
+      }
+    };
+    const runRequest = request(definition, port, undefined, {
+      problem_snapshot: {
+        snapshot_id: saved.snapshot_id,
+        problem_id: saved.problem_id,
+        revision: saved.revision
+      },
+      snapshot_reader: snapshotReader
+    });
+
+    const record = await executeJudgmentDAGComposition(runRequest);
+
+    expect(record.status).toBe('completed');
+    expect(record.problem_snapshot).toEqual({
+      snapshot_id: saved.snapshot_id,
+      problem_id: saved.problem_id,
+      revision: saved.revision
+    });
+    expect(port.execute).toHaveBeenCalledTimes(3);
   });
 
   it('resolves exact DAG versions and rejects a resolver mismatch before evaluation', async () => {
