@@ -1,9 +1,9 @@
 ---
 story_id: story-company-os-judgment-view-v1
 title: 共通画面で判断の目的・根拠・結果を版ごとに追える
-status: planned
+status: done
 created_at: 2026-09-23
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-company-os-subdag-v1", "story-company-os-evaluation-v1"]
 external_dependencies: []
@@ -26,7 +26,9 @@ external_dependencies: []
 
 実装開始時に既存APIの提供版と責務を確認する。既存Storyの登録や本文状態だけで提供済みと扱わない。
 
-- なし。既存実装との重複は着手時に確認する。
+- `src/judgment-view.ts` がComposition／Problem snapshot／Foundation／artifact／Evaluationの読み取りportを合成する。
+- `src/judgment-view-http.ts` が組織側のlocal serverへcomposeできるGET routeを提供する。
+- `ui/judgment-view.js` と `ui/judgment-view.css` がOSS単独のread-only表示を提供する。
 
 ## 設計参照
 
@@ -45,10 +47,10 @@ external_dependencies: []
 
 ## 受入条件
 
-- [ ] AC-01: Problem・定義版・構成版・run・親子runを正本APIから読取り、現在版と当時版を区別する。
-- [ ] AC-02: 仮説の検証状態と採用状態、出荷・利用・価値、結果評価と判断妥当性を別表示する。
-- [ ] AC-03: 参照未解決・権限不足・判定不能を空や成功にせず、表示経由で許可外の情報を漏らさない。
-- [ ] AC-04: 結論から根拠へ辿る実画面のreadbackを検証し、内部思考全文の保存・表示を要求しない。
+- [x] AC-01: Problem・定義版・構成版・run・親子runを正本APIから読取り、現在版と当時版を区別する。
+- [x] AC-02: 仮説の検証状態と採用状態、出荷・利用・価値、結果評価と判断妥当性を別表示する。
+- [x] AC-03: 参照未解決・権限不足・判定不能を空や成功にせず、表示経由で許可外の情報を漏らさない。
+- [x] AC-04: 結論から根拠へ辿る実画面のreadbackを検証し、内部思考全文の保存・表示を要求しない。
 
 ## 対象外
 
@@ -58,4 +60,8 @@ external_dependencies: []
 
 受入条件と反例を最小Specで固定する。変更した保存内容は同じID・版で読戻す。純粋な契約はfixture、永続化は実際のstore、UIは実操作で確認する。共通機能はOSS単独、組織境界は組織adapter、外部作用はManaで検証する。
 
-現在は計画済み・未着手。VibeProのactiveは登録が有効である意味であり、実装開始・完了ではない。
+## 実装状況
+
+- `tests/judgment-view.test.ts`、`tests/judgment-view-http.test.ts`、`tests/judgment-view-http.integration.test.ts`、`tests/ui/judgment-view.test.mjs` で、版付き参照、失敗時のfail-closed、HTTP route、read-only UIを検証した。
+- AC-01〜04は実装・review・CIで確認済み。[PR #542](https://github.com/Unson-LLC/brainbase/pull/542) はmerge [`653ad398e11834bb9dbef277033ce8c18486d58a`](https://github.com/Unson-LLC/brainbase/commit/653ad398e11834bb9dbef277033ce8c18486d58a)、最終head [`8b83b1818f8b29d7988042ff06ca3270a835ec38`](https://github.com/Unson-LLC/brainbase/commit/8b83b1818f8b29d7988042ff06ca3270a835ec38)、[CI 35860181294](https://github.com/Unson-LLC/brainbase/actions/runs/35860181294) success、review passである。ローカルUIも確認済み。
+- 組織UI／組織runtimeの本番org接続、npm公開、配布repoへの取り込みは完了条件に含めない。VibeProの `active` は登録状態を示し、完了状態とは別である。
