@@ -91,6 +91,10 @@
       "types": "./dist/resource-reservations.d.ts",
       "import": "./dist/resource-reservations.js"
     },
+    "./resource-reservation-http": {
+      "types": "./dist/resource-reservation-http.d.ts",
+      "import": "./dist/resource-reservation-http.js"
+    },
     "./execution-authority": {
       "types": "./dist/execution-authority.d.ts",
       "import": "./dist/execution-authority.js"
