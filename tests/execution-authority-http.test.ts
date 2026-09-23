@@ -255,6 +255,28 @@ describe('execution authority canonical HTTP adapter', () => {
     expect(serviceFactory).not.toHaveBeenCalled();
   });
 
+  it('requires the host mutation verifier to return the literal boolean true', async () => {
+    const serviceFactory = vi.fn(() => {
+      throw new Error('factory must not be called');
+    });
+    const handler = createExecutionAuthorityHttpHandler({
+      serviceFactory,
+      verifyMutationRequest: vi.fn(() => 'false' as unknown as boolean),
+    });
+    const baseUrl = await start(handler, {
+      default: context({ verifiedMutationOrigin: undefined }),
+    });
+
+    const response = await request(baseUrl, '/execution-authority/start', {
+      method: 'POST',
+      body: JSON.stringify(requestBody('strict-verifier')),
+    });
+
+    expect(response.response.status).toBe(403);
+    expect(response.body?.error?.code).toBe('mutation_origin_unverified');
+    expect(serviceFactory).not.toHaveBeenCalled();
+  });
+
   it('rejects revoked and unknown current authority without crossing reservation or effect boundaries', async () => {
     const dataDir = await tempDir();
     const state: HarnessState = { authorityStatus: 'revoked', tenantBReadStatus: 'approved', effectCalls: [] };

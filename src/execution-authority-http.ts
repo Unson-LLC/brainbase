@@ -328,7 +328,7 @@ async function verifyMutationRequest(
   if (typeof context.verifiedMutationOrigin === 'string' && context.verifiedMutationOrigin.trim().length > 0) return true;
   if (!options.verifyMutationRequest) return false;
   try {
-    return Boolean(await options.verifyMutationRequest({ request, context }));
+    return (await options.verifyMutationRequest({ request, context })) === true;
   } catch {
     return false;
   }
