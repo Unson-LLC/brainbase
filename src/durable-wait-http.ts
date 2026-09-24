@@ -27,7 +27,7 @@ export interface TrustedDurableWaitRequestContext {
   readonly tenantId: string;
   readonly principal: string;
   readonly scopeId: string;
-  /** Required for due discovery; resolved by the host, never from the query. */
+  /** Required for tenant-tagged waits and due discovery; resolved by the host, never from the request. */
   readonly scopeType?: DurableWaitDueCandidatesInput['owner_scope_type'];
   /** A non-empty value means that the host already verified the mutation origin. */
   readonly verifiedMutationOrigin?: string;
@@ -383,8 +383,9 @@ function bindTrustedIdentity(
 function assertOwnerScope(result: unknown, context: TrustedDurableWaitRequestContext): void {
   if (!isRecord(result) || !isRecord(result.owner_scope)
     || result.owner_scope.id !== context.scopeId
-    || (result.tenant_id !== undefined && result.tenant_id !== context.tenantId)) {
-    throw new DurableWaitError('unauthorized', 'Durable wait tenant or scope does not match the trusted request context');
+    || (result.tenant_id !== undefined
+      && (result.tenant_id !== context.tenantId || result.owner_scope.type !== context.scopeType))) {
+    throw new DurableWaitError('unauthorized', 'Durable wait tenant or scope type and ID do not match the trusted request context');
   }
 }
 
@@ -493,7 +494,8 @@ function parseBody(operation: Exclude<RouteOperation, 'read' | 'due'>, body: unk
   })();
   if (!parsed.success) throw new HttpInputError(parsed.error.issues[0]?.message ?? 'Request body is invalid');
   const value = parsed.data as Record<string, unknown>;
-  if ('owner_scope' in value && isRecord(value.owner_scope) && value.owner_scope.id !== context.scopeId) {
+  if ('owner_scope' in value && isRecord(value.owner_scope)
+    && (value.owner_scope.id !== context.scopeId || value.owner_scope.type !== context.scopeType)) {
     throw new HttpInputError('owner_scope does not match the trusted request context');
   }
   const { tenantId: _tenantId, scopeId: _scopeId, ...storeInput } = value;
