@@ -190,7 +190,10 @@ export function assertPublishedMetadata(metadata, packageName, version, expected
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-async function retry(operation, attempts = 6, delay = wait) {
+const NPM_REGISTRY_CONVERGENCE_ATTEMPTS = 8;
+const NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS = 30_000;
+
+async function retry(operation, attempts = NPM_REGISTRY_CONVERGENCE_ATTEMPTS, delay = wait) {
   let lastError;
   for (let index = 0; index < attempts; index += 1) {
     try {
@@ -199,7 +202,9 @@ async function retry(operation, attempts = 6, delay = wait) {
     } catch (error) {
       lastError = error;
     }
-    if (index < attempts - 1) await delay(2 ** index * 1000);
+    if (index < attempts - 1) {
+      await delay(Math.min(2 ** index * 1000, NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS));
+    }
   }
   if (lastError) throw lastError;
   throw new Error(`npm registry did not converge after ${attempts} attempts`);
@@ -454,7 +459,7 @@ export async function reconcileNpmRelease({
       if (!candidate) return null;
       assertPublishedMetadata(candidate, packageName, version, expectedSha, validationProof.tarballIntegrity);
       return candidate;
-    }, 6, delay);
+    }, NPM_REGISTRY_CONVERGENCE_ATTEMPTS, delay);
   }
   const distTag = await reconcileTag(packageName, version, root, execute);
   const stagingTagCleanup = await cleanupStagingTag(packageName, version, expectedSha, root, execute);
