@@ -5,6 +5,7 @@ import {
   DurableWaitError,
   type DurableWaitClaimInput,
   type DurableWaitCreateInput,
+  type DurableWaitDueCandidatesInput,
   type DurableWaitEffectUnknownInput,
   type DurableWaitHandoffInput,
   type DurableWaitPremiseChangedInput,
@@ -26,6 +27,8 @@ export interface TrustedDurableWaitRequestContext {
   readonly tenantId: string;
   readonly principal: string;
   readonly scopeId: string;
+  /** Required for due discovery; resolved by the host, never from the query. */
+  readonly scopeType?: DurableWaitDueCandidatesInput['owner_scope_type'];
   /** A non-empty value means that the host already verified the mutation origin. */
   readonly verifiedMutationOrigin?: string;
 }
@@ -310,11 +313,11 @@ function normalizePath(path: string): string {
 
 function matchRoute(path: string, basePath: string): RouteMatch | null {
   const normalized = normalizePath(path);
+  if (normalized === `${basePath}:due`) return { operation: 'due' };
   if (normalized === basePath) return { operation: null };
   const prefix = `${basePath}/`;
   if (!normalized.startsWith(prefix)) return null;
   const suffix = normalized.slice(prefix.length);
-  if (suffix === 'due') return { operation: 'due' };
   const operationNames: readonly RouteOperation[] = [
     'create', 'claim', 'resume', 'handoff', 'premise-changed', 'effect-unknown',
   ];
@@ -550,11 +553,15 @@ export function createDurableWaitHttpHandler(options: DurableWaitHttpOptions): D
 
     if (route.operation === 'due') {
       try {
+        if (!context.scopeType || !['personal', 'project', 'organization'].includes(context.scopeType)) {
+          throw new HttpInputError('Trusted scope type is required for due discovery');
+        }
         const query = parseDueQuery(request);
         const store = await options.storeFactory(context);
         const result = await store.listDueCandidates({
           tenant_id: context.tenantId,
           principal: context.principal,
+          owner_scope_type: context.scopeType,
           owner_scope_id: context.scopeId,
           ...query,
         });

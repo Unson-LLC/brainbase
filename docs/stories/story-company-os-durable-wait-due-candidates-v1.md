@@ -16,9 +16,9 @@ depends_on: ["story-company-os-durable-wait-http-v1"]
 
 ## 受入条件
 
-- 認証済みhost contextからtenant・principal・scopeを受け、GET `/api/v1/durable-waits/due` は記録のtenantとscopeが一致するwaiting状態で期限が来た候補だけを返す。request queryから主体やscopeを採用しない。tenant未記録の旧データは推測で所属を補わず、候補から除外する。
+- 認証済みhost contextからtenant・principal・scope型とIDを受け、GET `/api/v1/durable-waits:due` は記録のtenantとscope型・IDが一致するwaiting状態で期限が来た候補だけを返す。request queryから主体やscopeを採用しない。tenant未記録の旧データは推測で所属を補わず、候補から除外する。
 - 候補ごとに現在のclaim ACLとProblem snapshotを確認し、権限のない候補を漏らさない。provider異常を空リストへ変換しない。
-- 応答を上限100件とcursorでページ化し、候補IDと期限だけを返す。cursorを他のtenant・主体・scopeへ流用できない。
+- 応答を上限100件と改変検出付きcursorでページ化し、候補IDと期限だけを返す。cursorを他のtenant・主体・scopeへ流用できない。
 - 取得後の変更・失効は既存claimが再検証する。取得結果を権限や再開成功として扱わない。
 
 ## 対象外
