@@ -4,12 +4,13 @@
 
 ## Unreleased — develop
 
-- 公開サイトのrelease表記をpackage versionと同期し、固定versionの検証を廃止
+- 公開サイトのrelease表記を、検証済み公開版とnpm配布候補版に分けて表示
 - 狭いデスクトップとモバイルで、heroの本文・画像・CTAが重ならない表示へ調整
 - Organization先行案内に、公開OSS版との違い、非公開検証中、未完成の範囲を追加
 
-## 0.7.0
+## 0.7.0 candidate — npm公開前
 
+- npm registry readbackが完了するまで公開済みと扱わないCompany OS配布候補
 - Company OSのObjective、Variable、Model、Constraintを扱うversioned ontology foundationを追加
 - 判断時の目的・前提・権限を固定するProblem Snapshotと、下位判断を組み合わせるDAG compositionを追加
 - problem candidateの選択、evaluation、learning adoption、前提変更のimpact reviewを追加

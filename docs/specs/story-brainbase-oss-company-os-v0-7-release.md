@@ -15,6 +15,7 @@
 - `npm run build`後、manifestの公開subpathが対応する型定義とESM実装を解決できる。
 - `npm pack --dry-run`で`dist`、`contracts`、`ui`、README、LICENSE、SECURITYを含む配布内容を確認できる。
 - version bumpはこの候補PRの変更として保持し、release CLIがpackage manifestを自動変更しない。
+- 公開サイトの`Released`はregistry readback済みのversionだけを示し、未公開のpackage versionは`Candidate`として表示する。
 
 ## 検証マトリクス
 
@@ -26,6 +27,7 @@
 | Company OS回帰 | affected testsを実行 | 対象テストが成功する |
 | consumer境界 | `npm run test:consumer-smoke` | fresh package形態の公開importが成功する |
 | 公開文書 | `npm run docs:check` | package versionと状態・履歴の参照が整合する |
+| 公開サイト状態 | `npm run docs:build && npm run docs:smoke` | `Released — v0.6.0`と`Candidate — v0.7.0`をbuilt HTMLでも確認できる |
 | tarball内容 | `npm pack --dry-run` | 公開対象のmanifest・成果物が確認できる |
 
 ## 境界と未確認

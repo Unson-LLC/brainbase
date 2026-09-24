@@ -2,6 +2,7 @@
 import { access, readFile } from 'node:fs/promises';
 import { dirname, extname, join, resolve } from 'node:path';
 import { syncPublicMessage, validatePublicMessage } from './lib/public-message.mjs';
+import { parsePublicReleaseState } from './lib/public-release-state.mjs';
 
 const root = resolve(process.cwd());
 
@@ -86,6 +87,7 @@ const candidateSchema = JSON.parse(await read('contracts/public-message-candidat
 const docsWorkflow = await read('.github/workflows/docs-cloudflare-pages.yml');
 const promotionWorkflow = await read('.github/workflows/public-message-promotion.yml');
 const publicVerifier = await read('scripts/verify-public-site.mjs');
+const releaseState = parsePublicReleaseState(status, packageJson.version);
 
 for (const [path, text] of [
   ['README.md', readme],
@@ -122,7 +124,10 @@ requireText(ontology, 'オントロジー、Graph、Judgment DAGの違い', 'doc
 requireText(judgmentSystem, 'オントロジーとGraphとの関係', 'docs/manual/guide/judgment-system.md');
 requireText(judgmentSystem, 'Context / Observation', 'docs/manual/guide/judgment-system.md');
 requireText(judgmentSystem, '重要なのは反証できること', 'docs/manual/guide/judgment-system.md');
-requireText(status, `Released — v${packageJson.version}`, 'docs/manual/guide/status.md');
+requireText(status, `Released — v${releaseState.releasedVersion}`, 'docs/manual/guide/status.md');
+if (releaseState.state === 'candidate') {
+  requireText(status, `Candidate — v${packageJson.version}`, 'docs/manual/guide/status.md');
+}
 requireText(status, 'Develop — release前', 'docs/manual/guide/status.md');
 requireText(status, 'Planned — 未実装または未完成', 'docs/manual/guide/status.md');
 requireText(status, 'Graphを直接Webへ表示しません', 'docs/manual/guide/status.md');
@@ -132,7 +137,11 @@ requireText(organizationPage, '未完成の範囲', 'docs/manual/organization.md
 requireText(mcpTools, 'Ontology 2.0.0', 'docs/manual/reference/mcp-tools.md');
 requireText(mcpTools, 'Graph v2', 'docs/manual/reference/mcp-tools.md');
 requireText(mcpTools, 'resolve_entity', 'docs/manual/reference/mcp-tools.md');
-requireText(versionHistory, `## ${packageJson.version}`, 'docs/manual/reference/version-history.md');
+if (releaseState.state === 'candidate') {
+  requireText(versionHistory, `## ${packageJson.version} candidate — npm公開前`, 'docs/manual/reference/version-history.md');
+} else {
+  requireText(versionHistory, `## ${packageJson.version}`, 'docs/manual/reference/version-history.md');
+}
 requireText(versionHistory, 'content-addressedなJudgment DAG run artifact', 'docs/manual/reference/version-history.md');
 requireText(versionHistory, '## Unreleased — develop', 'docs/manual/reference/version-history.md');
 requireText(cloudflare, 'CLOUDFLARE_ACCOUNT_ID', 'docs/manual/reference/cloudflare-pages.md');

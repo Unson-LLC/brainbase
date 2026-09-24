@@ -24,8 +24,9 @@ Brainbase OSSの利用者として、目的・世界モデル・制約・判断�
 - [x] 公開済み`@unson/brainbase-mcp@0.6.0`との比較で、既存exportの削除・参照先変更・package名変更がない。Company OS実装の公開subpathは追加として扱う。
 - [x] build後のCompany OS公開subpathが対応する`dist/*.js`と`dist/*.d.ts`を解決でき、UI・contract artifactを含むtarballを作成できる。
 - [x] 0.7.0のrelease対象、互換性判断、検証コマンド、未確認のnpm公開状態がStory/Specから追跡できる。
+- [x] 公開サイトは検証済みの`Released — v0.6.0`を維持し、npm registry readback前の`0.7.0`を`Candidate`として表示する。
 - [x] 公開registry、GitHub PR、merge、GitHub Release、Organization/Manaの本番組込みをこの候補作成の完了とは扱わない。
 
 ## 完了証拠
 
-同一HEADで、manifest整合、`npm run build`、Company OSのaffected tests、consumer smoke、docs check、およびdry-run tarballの検証結果を記録する。npm registryの0.7.0 metadata、dist-tag、GitHub Releaseは配布後の別readbackで確認する。
+同一HEADで、manifest整合、`npm run build`、Company OSのaffected tests、consumer smoke、docs check、built docs smoke、およびdry-run tarballの検証結果を記録する。公開サイトの`Released`表示は0.6.0に固定し、npm registryの0.7.0 metadata、dist-tag、GitHub Releaseをreadbackした後に候補を公開版へ昇格する。

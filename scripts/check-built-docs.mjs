@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { parsePublicReleaseState } from './lib/public-release-state.mjs';
 
 const root = resolve(process.cwd());
 const dist = join(root, 'docs/.vitepress/dist');
 const packageJson = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const sourceStatus = await readFile(join(root, 'docs/manual/guide/status.md'), 'utf8');
+const releaseState = parsePublicReleaseState(sourceStatus, packageJson.version);
 
 async function read(relativePath) {
   return readFile(join(dist, relativePath), 'utf8');
@@ -38,7 +41,10 @@ requireText(ontology, 'オントロジー、Graph、Judgment DAGの違い', 'gui
 requireText(ontology, '/assets/brainbase-ontology.svg', 'guide/ontology.html');
 requireText(judgmentSystem, 'オントロジーとGraphとの関係', 'guide/judgment-system.html');
 requireText(judgmentSystem, '重要なのは反証できること', 'guide/judgment-system.html');
-requireText(status, `Released — v${packageJson.version}`, 'guide/status.html');
+requireText(status, `Released — v${releaseState.releasedVersion}`, 'guide/status.html');
+if (releaseState.state === 'candidate') {
+  requireText(status, `Candidate — v${packageJson.version}`, 'guide/status.html');
+}
 requireText(status, 'Planned — 未実装または未完成', 'guide/status.html');
 requireText(mcpTools, 'Ontology 2.0.0', 'reference/mcp-tools.html');
 requireText(mcpTools, 'resolve_entity', 'reference/mcp-tools.html');
