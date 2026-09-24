@@ -4,19 +4,20 @@
 
 ## Unreleased — develop
 
-- 公開サイトのrelease表記を、検証済み公開版とnpm配布候補版に分けて表示
-- 狭いデスクトップとモバイルで、heroの本文・画像・CTAが重ならない表示へ調整
-- Organization先行案内に、公開OSS版との違い、非公開検証中、未完成の範囲を追加
+- 0.7.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
-## 0.7.0 candidate — npm公開前
+## 0.7.0
 
-- npm registry readbackが完了するまで公開済みと扱わないCompany OS配布候補
+- npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackを完了したCompany OS公開版
 - Company OSのObjective、Variable、Model、Constraintを扱うversioned ontology foundationを追加
 - 判断時の目的・前提・権限を固定するProblem Snapshotと、下位判断を組み合わせるDAG compositionを追加
 - problem candidateの選択、evaluation、learning adoption、前提変更のimpact reviewを追加
 - resource reservation、execution authority、durable wait、historical judgment viewと既存記録adapterを追加
 - 匿名ホテルfixtureでCompany OSの目的・世界モデル・判断・評価を一周する共通契約を追加
-- 0.6.0公開subpathを維持し、追加subpathを同一tarballから利用できる公開候補へ更新
+- 0.6.0公開subpathを維持し、追加subpathを同一tarballから利用できる公開版へ更新
+- 公開manualで、npm packageとGitHub Releaseの0.7.0配布証跡を表示
+- 狭いデスクトップとモバイルで、heroの本文・画像・CTAが重ならない表示へ調整
+- Organization先行案内に、公開OSS版との違い、非公開検証中、未完成の範囲を追加
 
 ## 0.6.0
 

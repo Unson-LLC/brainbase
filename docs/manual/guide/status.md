@@ -4,9 +4,16 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Released — v0.6.0
+## Released — v0.7.0
 
-0.6.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
+0.7.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
+
+公開確認済みの配布証跡は次のとおりです。
+
+- npm package [`@unson/brainbase-mcp@0.7.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.7.0)
+- npmの`latest`は`0.7.0`を指し、registryの`gitHead`は`38ce235f75694101c64bb32c0ea830f187ae5d1e`
+- GitHub Release [`v0.7.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.7.0)
+- 公開workflowの検証済みrun [`35942948959` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/35942948959/attempts/2)
 
 - ローカル優先のPersonal Onboarding Kit
 - MCPによる`get_context`、`search`、`resolve_entity`などの文脈参照
@@ -26,18 +33,16 @@
 - OSSとOrganizationで共用するoutcome knowledge / Mana UIとicon assets
 - Organization版が共通UIを再実装せず、OSS packageから利用するための公開subpath
 
-## Candidate — v0.7.0（npm公開前）
-
-`package.json`の0.7.0は配布候補のversionです。npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackが完了するまで、公開済みのversionとして扱いません。
-
 - Company OSのObjective、Variable、Model、Constraintを扱うversioned ontology foundation
 - 判断問題のsnapshot、下位DAG composition、problem candidateの選択、evaluation、learning adoption
 - resource reservation、execution authority、durable wait、historical judgment viewと既存記録adapter
 - Company OSの目的・世界モデル・判断・評価を一周する匿名ホテルfixture
 
+ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
+
 ## Develop — release前
 
-`develop`には存在するが、v0.7.0の公開候補にもまだ含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
+`develop`には存在するが、v0.7.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
 
