@@ -72,6 +72,7 @@ describe('DurableWaitStore', () => {
     await createWait(store, { wait_id: 'c-future', deadline: { due_at: '2026-09-24T00:00:00.000Z' } });
     await createWait(store, { wait_id: 'd-other', owner_scope: { type: 'organization', id: 'org-2' } });
     await createWait(store, { wait_id: 'd-other-tenant-same-scope', tenant_id: 'tenant-b' });
+    await createWait(store, { wait_id: 'd-other-type-same-id', owner_scope: { type: 'project', id: 'org-1' } });
     await createWait(store, { wait_id: 'e-legacy-without-tenant', tenant_id: undefined });
     await createWait(store, { wait_id: 'e-private', read_policy: { ownerId: 'owner', visibility: 'private', readerIds: [], writerIds: [] } });
     await createWait(store, { wait_id: 'f-claimed' });
@@ -79,19 +80,24 @@ describe('DurableWaitStore', () => {
     await store.claim({ wait_id: 'f-claimed', principal: 'worker-1', request_id: 'claim-before-list', trigger: 'manual' });
     await store.markEffectUnknown({ wait_id: 'g-reconciliation', principal: 'worker-1', reason: 'external status unknown' });
     clock.advance(100);
-    const first = await store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_id: 'org-1', limit: 1 });
+    const first = await store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1', limit: 1 });
     expect(first.candidates).toEqual([{ wait_id: 'a-due', due_at: '2026-09-23T00:00:00.050Z' }]);
     expect(first.next_cursor).toBeTruthy();
-    const second = await store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_id: 'org-1', limit: 1, cursor: first.next_cursor });
+    const second = await store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1', limit: 1, cursor: first.next_cursor });
     expect(second.candidates.map((candidate) => candidate.wait_id)).toEqual(['b-due']);
     expect(second.next_cursor).toBeUndefined();
-    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'owner', owner_scope_id: 'org-1', cursor: first.next_cursor }))
+    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'owner', owner_scope_type: 'organization', owner_scope_id: 'org-1', cursor: first.next_cursor }))
       .rejects.toMatchObject({ code: 'invalid_request' });
-    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_id: 'org-2', cursor: first.next_cursor }))
+    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-2', cursor: first.next_cursor }))
       .rejects.toMatchObject({ code: 'invalid_request' });
-    await expect(store.listDueCandidates({ tenant_id: 'tenant-b', principal: 'worker-1', owner_scope_id: 'org-1', cursor: first.next_cursor }))
+    await expect(store.listDueCandidates({ tenant_id: 'tenant-b', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1', cursor: first.next_cursor }))
       .rejects.toMatchObject({ code: 'invalid_request' });
-    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_id: 'org-1', limit: 101 }))
+    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'project', owner_scope_id: 'org-1', cursor: first.next_cursor }))
+      .rejects.toMatchObject({ code: 'invalid_request' });
+    const tamperedCursor = `${first.next_cursor!.startsWith('A') ? 'B' : 'A'}${first.next_cursor!.slice(1)}`;
+    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1', cursor: tamperedCursor }))
+      .rejects.toMatchObject({ code: 'invalid_request' });
+    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1', limit: 101 }))
       .rejects.toMatchObject({ code: 'invalid_request' });
   });
 
@@ -107,13 +113,37 @@ describe('DurableWaitStore', () => {
     });
     await createWait(store, { wait_id: 'due-revalidate' });
     clock.advance(100);
-    expect((await store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_id: 'org-1' })).candidates)
+    expect((await store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1' })).candidates)
       .toHaveLength(1);
     valid = false;
-    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_id: 'org-1' }))
+    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1' }))
       .rejects.toMatchObject({ code: 'problem_snapshot_invalid' });
     await expect(store.claim({ wait_id: 'due-revalidate', principal: 'worker-1', request_id: 'later', trigger: 'timer' }))
       .rejects.toMatchObject({ code: 'problem_snapshot_invalid' });
+  });
+
+  it('distinguishes explicit ACL denial from an unavailable ACL provider during due discovery', async () => {
+    const clock = nowClock();
+    const root = await mkdtemp(join(tmpdir(), 'brainbase-durable-due-acl-'));
+    roots.push(root);
+    let claimAccess: 'allow' | 'deny' | 'error' = 'allow';
+    const store = new DurableWaitStore({
+      dataDir: root,
+      clock: clock.now,
+      problemSnapshot: { verify: () => true },
+      access: { authorize: ({ action }) => {
+        if (action !== 'claim' || claimAccess === 'allow') return true;
+        if (claimAccess === 'deny') return false;
+        throw new Error('ACL backend unavailable');
+      } },
+    });
+    await createWait(store, { wait_id: 'due-acl' });
+    clock.advance(100);
+    claimAccess = 'deny';
+    expect((await store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1' })).candidates).toEqual([]);
+    claimAccess = 'error';
+    await expect(store.listDueCandidates({ tenant_id: 'tenant-a', principal: 'worker-1', owner_scope_type: 'organization', owner_scope_id: 'org-1' }))
+      .rejects.toMatchObject({ code: 'authorization_provider_failed' });
   });
 
   it('persists the wait contract in the Personal OS sidecar and reads it after restart', async () => {

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import {
   defaultJudgmentProblemSnapshotAccessProvider,
   type JudgmentProblemScope,
@@ -164,6 +164,7 @@ export interface DurableWaitReadInput {
 export interface DurableWaitDueCandidatesInput {
   readonly tenant_id: string;
   readonly principal: string;
+  readonly owner_scope_type: JudgmentProblemScope['type'];
   readonly owner_scope_id: string;
   readonly limit?: number;
   readonly cursor?: string;
@@ -265,6 +266,7 @@ export type DurableWaitErrorCode =
   | 'invalid_request'
   | 'not_found'
   | 'unauthorized'
+  | 'authorization_provider_failed'
   | 'ledger_invalid'
   | 'problem_snapshot_invalid'
   | 'condition_unmet'
@@ -322,26 +324,34 @@ const FAILURE_POLICIES: readonly DurableWaitFailurePolicy[] = [
   'handoff', 'new_problem', 'reconciliation_wait', 'fail'
 ];
 const TRIGGERS: readonly DurableWaitTrigger[] = ['event', 'timer', 'manual'];
+const DUE_CURSOR_KEY = randomBytes(32);
 
 function earliestDueAt(deadline: DurableWaitDeadline | undefined): string | undefined {
   const values = [deadline?.due_at, deadline?.next_review_at].filter((value): value is string => value !== undefined);
   return values.sort((a, b) => Date.parse(a) - Date.parse(b))[0];
 }
 
-function encodeDueCursor(after: string, tenantId: string, principal: string, scopeId: string): string {
-  return Buffer.from(JSON.stringify({ v: 1, after, tenantId, principal, scopeId }), 'utf8').toString('base64url');
+function encodeDueCursor(after: string, tenantId: string, principal: string, scopeType: string, scopeId: string): string {
+  const payload = Buffer.from(JSON.stringify({ v: 1, after, tenantId, principal, scopeType, scopeId }), 'utf8').toString('base64url');
+  const signature = createHmac('sha256', DUE_CURSOR_KEY).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
 }
 
-function decodeDueCursor(cursor: string | undefined, tenantId: string, principal: string, scopeId: string): string {
+function decodeDueCursor(cursor: string | undefined, tenantId: string, principal: string, scopeType: string, scopeId: string): string {
   if (cursor === undefined) return '';
-  if (typeof cursor !== 'string' || cursor.length === 0 || cursor.length > 4096 || !/^[A-Za-z0-9_-]+$/u.test(cursor)) {
+  if (typeof cursor !== 'string' || cursor.length === 0 || cursor.length > 4096 || !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/u.test(cursor)) {
     throw new DurableWaitError('invalid_request', 'cursor is invalid');
   }
   try {
-    const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
+    const [payload, signature] = cursor.split('.');
+    const expected = createHmac('sha256', DUE_CURSOR_KEY).update(payload).digest();
+    const received = Buffer.from(signature, 'base64url');
+    if (expected.length !== received.length || !timingSafeEqual(expected, received)) throw new Error('cursor signature is invalid');
+    const decoded: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
     if (decoded === null || typeof decoded !== 'object' || Array.isArray(decoded)) throw new Error('cursor is not an object');
     const value = decoded as Record<string, unknown>;
-    if (value.v !== 1 || value.tenantId !== tenantId || value.principal !== principal || value.scopeId !== scopeId
+    if (value.v !== 1 || value.tenantId !== tenantId || value.principal !== principal
+      || value.scopeType !== scopeType || value.scopeId !== scopeId
       || typeof value.after !== 'string' || value.after.length === 0 || value.after.length > 512) {
       throw new Error('cursor binding is invalid');
     }
@@ -467,12 +477,15 @@ export class DurableWaitStore {
   async listDueCandidates(input: DurableWaitDueCandidatesInput): Promise<DurableWaitDueCandidatesPage> {
     assertText(input?.tenant_id, 'tenant_id');
     assertText(input?.principal, 'principal');
+    if (!['personal', 'project', 'organization'].includes(input?.owner_scope_type)) {
+      throw new DurableWaitError('invalid_request', 'owner_scope_type is invalid');
+    }
     assertText(input?.owner_scope_id, 'owner_scope_id');
     const limit = input.limit ?? 50;
     if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
       throw new DurableWaitError('invalid_request', 'limit must be an integer from 1 to 100');
     }
-    const after = decodeDueCursor(input.cursor, input.tenant_id, input.principal, input.owner_scope_id);
+    const after = decodeDueCursor(input.cursor, input.tenant_id, input.principal, input.owner_scope_type, input.owner_scope_id);
     const nowMs = this.now().getTime();
     await this.initialize();
     const ledger = parseLedger(await readPersonalOsSidecar(this.dataDir, this.sidecarPath));
@@ -480,15 +493,17 @@ export class DurableWaitStore {
     let hasMore = false;
     for (const record of [...ledger.waits].sort((a, b) => a.wait_id < b.wait_id ? -1 : a.wait_id > b.wait_id ? 1 : 0)) {
       if (record.wait_id <= after || record.tenant_id !== input.tenant_id
+        || record.owner_scope.type !== input.owner_scope_type
         || record.owner_scope.id !== input.owner_scope_id || record.state !== 'waiting') continue;
       const dueAt = earliestDueAt(record.deadline);
       if (dueAt === undefined || Date.parse(dueAt) > nowMs) continue;
+      let allowed: void | boolean;
       try {
-        await this.authorize('claim', input.principal, record.read_policy, record);
-      } catch (error) {
-        if (error instanceof DurableWaitError && error.code === 'unauthorized') continue;
-        throw error;
+        allowed = await this.access.authorize({ action: 'claim', principal: input.principal, acl: record.read_policy, wait: record });
+      } catch {
+        throw new DurableWaitError('authorization_provider_failed', 'Claim access could not be verified');
       }
+      if (allowed === false) continue;
       await this.verifyProblem(input.principal, record.problem_snapshot);
       if (candidates.length === limit) {
         hasMore = true;
@@ -500,7 +515,7 @@ export class DurableWaitStore {
     return {
       candidates,
       ...(hasMore && last !== undefined
-        ? { next_cursor: encodeDueCursor(last.wait_id, input.tenant_id, input.principal, input.owner_scope_id) }
+        ? { next_cursor: encodeDueCursor(last.wait_id, input.tenant_id, input.principal, input.owner_scope_type, input.owner_scope_id) }
         : {})
     };
   }
