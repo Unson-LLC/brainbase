@@ -31,6 +31,10 @@
       "types": "./dist/judgment-value-proof.d.ts",
       "import": "./dist/judgment-value-proof.js"
     },
+    "./judgment-value-proof-review": {
+      "types": "./dist/judgment-value-proof-review.d.ts",
+      "import": "./dist/judgment-value-proof-review.js"
+    },
     "./portable-graph": {
       "types": "./dist/portable-graph.d.ts",
       "import": "./dist/portable-graph.js"

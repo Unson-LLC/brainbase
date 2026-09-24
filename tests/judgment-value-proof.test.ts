@@ -141,7 +141,7 @@ describe('judgment value proof placement', () => {
 
     expect(renderJudgmentHumanDecisionRequest(proof)).toContain('AIで決めない理由');
     expect(projectJudgmentValueProofAttention(proof)?.kind).toBe('human_decision');
-    expect(placeJudgmentValueProof(proof).web_surface).toBe('none');
+    expect(placeJudgmentValueProof(proof).web_surface).toBe('review');
   });
 
   it('does not turn unavailable weekly evidence into zero', () => {

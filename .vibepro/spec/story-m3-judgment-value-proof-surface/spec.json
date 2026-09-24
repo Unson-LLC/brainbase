@@ -20,7 +20,7 @@
     {
       "id": "AC-004",
       "type": "boundary",
-      "text": "Companion receives only human-required, blocked, unconfirmed-outcome, or feedback attention; Web receives none."
+      "text": "Companion receives only human-required, blocked, unconfirmed-outcome, or feedback attention; the local owner review Web lists only proofs included in the weekly digest (amended by story-personal-value-proof-review-v1)."
     },
     {
       "id": "AC-005",

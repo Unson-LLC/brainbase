@@ -501,6 +501,18 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-personal-value-proof-review-v1",
+        "title": "判断価値記録を一覧し、本人の評価を追記して読み戻せる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-company-os-shared-dist-build-pack-isolation-v1"
