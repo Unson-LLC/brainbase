@@ -1,9 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createHash } from 'node:crypto';
 import { canonicalEdgeId } from '../src/canonical-graph.js';
+import { canonicalPortableJson } from '../src/portable-graph.js';
 import {
   createJudgmentProblemGraphReferenceResolver,
   graphRevisionDigest,
   type GraphRevisionReadRequest,
+  type GraphRevisionDigest,
   type GraphRevisionRecord,
   type GraphRevisionReference,
   type GraphRevisionScope
@@ -75,6 +78,10 @@ function resolveInput(record: GraphRevisionRecord, principal = 'alice') {
     phase: 'historical_read' as const,
     context: { principal }
   };
+}
+
+function forgedDigest(input: unknown): GraphRevisionDigest {
+  return `sha256:${createHash('sha256').update(canonicalPortableJson(input), 'utf8').digest('hex')}`;
 }
 
 afterEach(() => {
@@ -159,6 +166,27 @@ describe('Graph revision reader contract', () => {
       ...record,
       payload: { ...record.payload, validFrom: '2026-02-30T00:00:00Z' }
     })).toThrow(/validFrom is invalid/u);
+  });
+
+  it('fails closed for a malformed calendar payload even with a matching digest', async () => {
+    const record = entityRecord();
+    const payload = { ...record.payload, validFrom: '2026-02-30T00:00:00Z' } as CanonicalEntity;
+    const identity = { kind: 'entity' as const, id: record.id, revision: record.revision, payload };
+    const digest = forgedDigest(identity);
+    expect(digest).not.toBe(record.digest);
+    const resolver = createJudgmentProblemGraphReferenceResolver({
+      reader: {
+        read: async () => ({
+          status: 'resolved' as const,
+          record: { ...record, payload, digest }
+        })
+      }
+    });
+
+    await expect(resolver({
+      ...resolveInput(record),
+      reference: { ...referenceFor(record), digest }
+    })).resolves.toMatchObject({ status: 'unresolved' });
   });
 
   it('rechecks current ACL and scope for a historical read', async () => {
