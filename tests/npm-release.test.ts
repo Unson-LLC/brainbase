@@ -445,6 +445,38 @@ describe('npm release CLI', () => {
     expect(reconcileTag).toHaveBeenCalledTimes(1);
   });
 
+  it('waits through delayed registry availability and publishes once', async () => {
+    const { root, sha } = await releaseRoot();
+    const proof = await releaseProof(sha);
+    const metadata = vi.fn();
+    for (let index = 0; index < 8; index += 1) metadata.mockResolvedValueOnce(null);
+    metadata.mockResolvedValueOnce({ version: '0.1.0', gitHead: sha, 'dist.integrity': proof.tarballIntegrity });
+    const delays: number[] = [];
+    const execute = vi.fn((command: string, args: string[]) => command === 'git' && (args[0] === 'merge-base' || args[0] === 'status') ? '' : '');
+    const reconcileTag = vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' });
+    const cleanupStagingTag = vi.fn().mockResolvedValue(undefined);
+
+    await reconcileNpmRelease({
+      root,
+      packageName: '@unson/brainbase-mcp',
+      version: '0.1.0',
+      expectedSha: sha,
+      trustedRef: 'trusted/develop',
+      metadata,
+      execute,
+      delay: async (milliseconds) => { delays.push(milliseconds); },
+      validationProof: proof,
+      reconcileTag,
+      cleanupStagingTag
+    });
+
+    expect(metadata).toHaveBeenCalledTimes(9);
+    expect(delays).toEqual([1000, 2000, 4000, 8000, 16000, 30000, 30000]);
+    expect(execute.mock.calls.filter(([, args]) => args[0] === 'publish')).toHaveLength(1);
+    expect(reconcileTag).toHaveBeenCalledTimes(1);
+    expect(cleanupStagingTag).toHaveBeenCalledTimes(1);
+  });
+
   it('does not reconcile a dist-tag when registry metadata never converges', async () => {
     const { root, sha } = await releaseRoot();
     const proof = await releaseProof(sha);
@@ -468,7 +500,7 @@ describe('npm release CLI', () => {
       cleanupStagingTag
     })).rejects.toThrow(/registry integrity does not match/u);
 
-    expect(metadata).toHaveBeenCalledTimes(7);
+    expect(metadata).toHaveBeenCalledTimes(9);
     expect(reconcileTag).not.toHaveBeenCalled();
     expect(cleanupStagingTag).not.toHaveBeenCalled();
   });
