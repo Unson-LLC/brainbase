@@ -185,6 +185,7 @@ const effectUnknownSchema = identitySchema.extend({
 type RouteOperation =
   | 'create'
   | 'read'
+  | 'due'
   | 'claim'
   | 'resume'
   | 'handoff'
@@ -313,6 +314,7 @@ function matchRoute(path: string, basePath: string): RouteMatch | null {
   const prefix = `${basePath}/`;
   if (!normalized.startsWith(prefix)) return null;
   const suffix = normalized.slice(prefix.length);
+  if (suffix === 'due') return { operation: 'due' };
   const operationNames: readonly RouteOperation[] = [
     'create', 'claim', 'resume', 'handoff', 'premise-changed', 'effect-unknown',
   ];
@@ -376,8 +378,10 @@ function bindTrustedIdentity(
 }
 
 function assertOwnerScope(result: unknown, context: TrustedDurableWaitRequestContext): void {
-  if (!isRecord(result) || !isRecord(result.owner_scope) || result.owner_scope.id !== context.scopeId) {
-    throw new DurableWaitError('unauthorized', 'Durable wait scope does not match the trusted request context');
+  if (!isRecord(result) || !isRecord(result.owner_scope)
+    || result.owner_scope.id !== context.scopeId
+    || (result.tenant_id !== undefined && result.tenant_id !== context.tenantId)) {
+    throw new DurableWaitError('unauthorized', 'Durable wait tenant or scope does not match the trusted request context');
   }
 }
 
@@ -411,7 +415,30 @@ function writeError(response: ServerResponse, status: number, code: string, mess
 }
 
 function methodAllowed(operation: RouteOperation | null, method: string): boolean {
-  return operation === 'read' ? method === 'GET' : operation !== null && method === 'POST';
+  return operation === 'read' || operation === 'due' ? method === 'GET' : operation !== null && method === 'POST';
+}
+
+function parseDueQuery(request: IncomingMessage): { limit?: number; cursor?: string } {
+  let url: URL;
+  try {
+    url = new URL(request.url ?? '/', 'http://localhost');
+  } catch {
+    throw new HttpInputError('Request URL is invalid');
+  }
+  for (const key of url.searchParams.keys()) {
+    if ((key !== 'limit' && key !== 'cursor') || url.searchParams.getAll(key).length !== 1) {
+      throw new HttpInputError('Due candidate query is invalid');
+    }
+  }
+  const rawLimit = url.searchParams.get('limit');
+  if (rawLimit !== null && !/^(?:[1-9]|[1-9][0-9]|100)$/u.test(rawLimit)) {
+    throw new HttpInputError('limit must be an integer from 1 to 100');
+  }
+  const cursor = url.searchParams.get('cursor');
+  return {
+    ...(rawLimit === null ? {} : { limit: Number(rawLimit) }),
+    ...(cursor === null ? {} : { cursor })
+  };
 }
 
 async function verifyMutationRequest(
@@ -443,7 +470,7 @@ function success(
   };
 }
 
-function parseBody(operation: Exclude<RouteOperation, 'read'>, body: unknown, context: TrustedDurableWaitRequestContext):
+function parseBody(operation: Exclude<RouteOperation, 'read' | 'due'>, body: unknown, context: TrustedDurableWaitRequestContext):
   | DurableWaitCreateInput
   | DurableWaitClaimInput
   | DurableWaitResumeInput
@@ -521,6 +548,27 @@ export function createDurableWaitHttpHandler(options: DurableWaitHttpOptions): D
       return true;
     }
 
+    if (route.operation === 'due') {
+      try {
+        const query = parseDueQuery(request);
+        const store = await options.storeFactory(context);
+        const result = await store.listDueCandidates({
+          tenant_id: context.tenantId,
+          principal: context.principal,
+          owner_scope_id: context.scopeId,
+          ...query,
+        });
+        writeJson(response, 200, success(context, route.operation, result));
+      } catch (error) {
+        if (error instanceof HttpInputError) writeError(response, 400, 'invalid_request', error.message);
+        else {
+          const failure = serviceError(error);
+          writeError(response, failure.status, failure.code, failure.message);
+        }
+      }
+      return true;
+    }
+
     let body: unknown;
     try {
       body = await readJsonBody(request, bodyLimitBytes);
@@ -562,7 +610,7 @@ export function createDurableWaitHttpHandler(options: DurableWaitHttpOptions): D
       let result: unknown;
       switch (route.operation) {
         case 'create':
-          result = await store.create(parsed as DurableWaitCreateInput);
+          result = await store.create({ ...(parsed as DurableWaitCreateInput), tenant_id: context.tenantId });
           assertOwnerScope(result, context);
           break;
         case 'claim': {
