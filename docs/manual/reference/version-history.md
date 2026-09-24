@@ -8,6 +8,15 @@
 - 狭いデスクトップとモバイルで、heroの本文・画像・CTAが重ならない表示へ調整
 - Organization先行案内に、公開OSS版との違い、非公開検証中、未完成の範囲を追加
 
+## 0.7.0
+
+- Company OSのObjective、Variable、Model、Constraintを扱うversioned ontology foundationを追加
+- 判断時の目的・前提・権限を固定するProblem Snapshotと、下位判断を組み合わせるDAG compositionを追加
+- problem candidateの選択、evaluation、learning adoption、前提変更のimpact reviewを追加
+- resource reservation、execution authority、durable wait、historical judgment viewと既存記録adapterを追加
+- 匿名ホテルfixtureでCompany OSの目的・世界モデル・判断・評価を一周する共通契約を追加
+- 0.6.0公開subpathを維持し、追加subpathを同一tarballから利用できる公開候補へ更新
+
 ## 0.6.0
 
 - outcome knowledgeとManaの共通UIをOSS packageへ移し、Organization版が公開subpathから利用できる境界を追加
