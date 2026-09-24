@@ -1,0 +1,31 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-value-proof-review-web-v1",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "security",
+      "text": "The review host binds to 127.0.0.1 and serves only the shell, the bootstrap script, the two packaged UI files and the review API; the journal root resolves from --journal, then BRAINBASE_JUDGMENT_JOURNAL_DIR, then the default."
+    },
+    {
+      "id": "AC-002",
+      "type": "invariant",
+      "text": "An unavailable journal or a malformed response is never rendered as zero items; the home shows three sections and the recording coverage including a possible stall."
+    },
+    {
+      "id": "AC-003",
+      "type": "behavior",
+      "text": "The judgment card shows handling, decision, work impact, basis, prior learning reuse, execution, outcome and feedback in that order, and internal IDs appear only in the audit details."
+    },
+    {
+      "id": "AC-004",
+      "type": "security",
+      "text": "Saving feedback requires the per-process token and same origin, rejects decisions absent from the journal, requires a reason for corrected and reverted, confirms the saved value by reloading, and keeps the draft on failure."
+    },
+    {
+      "id": "AC-005",
+      "type": "behavior",
+      "text": "The consult action copies a request text that includes the decision attempt ID."
+    }
+  ]
+}

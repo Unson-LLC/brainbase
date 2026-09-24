@@ -35,6 +35,10 @@
       "types": "./dist/judgment-value-proof-review.d.ts",
       "import": "./dist/judgment-value-proof-review.js"
     },
+    "./value-proof-review-http": {
+      "types": "./dist/value-proof-review-http.d.ts",
+      "import": "./dist/value-proof-review-http.js"
+    },
     "./portable-graph": {
       "types": "./dist/portable-graph.d.ts",
       "import": "./dist/portable-graph.js"
@@ -163,6 +167,8 @@
     "./ui/judgment-view.css": "./ui/judgment-view.css",
     "./ui/objective-editor": "./ui/objective-editor.js",
     "./ui/objective-editor.css": "./ui/objective-editor.css",
+    "./ui/value-proof-review": "./ui/value-proof-review.js",
+    "./ui/value-proof-review.css": "./ui/value-proof-review.css",
     "./ui/icons/*": "./ui/icons/*",
     "./dist/*": "./dist/*",
     "./contracts/judgment-dag/schema.json": "./contracts/judgment-dag/schema.json",

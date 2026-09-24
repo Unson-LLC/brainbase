@@ -513,6 +513,18 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-personal-value-proof-review-web-v1",
+        "title": "ローカルWebで判断を見返し、評価を付けられる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-company-os-shared-dist-build-pack-isolation-v1"

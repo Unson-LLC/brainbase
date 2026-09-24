@@ -22,6 +22,8 @@ describe('OSS共通UIの公開契約', () => {
       './ui/judgment-view.css': './ui/judgment-view.css',
       './ui/objective-editor': './ui/objective-editor.js',
       './ui/objective-editor.css': './ui/objective-editor.css',
+      './ui/value-proof-review': './ui/value-proof-review.js',
+      './ui/value-proof-review.css': './ui/value-proof-review.css',
       './ui/icons/*': './ui/icons/*',
     });
   });
@@ -36,6 +38,8 @@ describe('OSS共通UIの公開契約', () => {
       'judgment-view.css',
       'objective-editor.js',
       'objective-editor.css',
+      'value-proof-review.js',
+      'value-proof-review.css',
     ].map((file) => readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8')));
 
     for (const source of sources) {

@@ -51,6 +51,8 @@ import {
 import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js';
 import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, type JudgmentHookPayload } from './judgment-host.js';
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
+import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
+import { createValueProofReviewHost } from './value-proof-review-http.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -133,6 +135,8 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await judgmentInstall(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
+      case 'review:serve':
+        return await reviewServe(parsed, io);
       case 'mcp':
         await import('./index.js');
         return 0;
@@ -1077,6 +1081,37 @@ function graphDiagnosisExitCode(status: GraphDiagnosis['status']): number {
   return status === 'invalid' || status === 'unavailable' || status === 'migration_required' ? 1 : 0;
 }
 
+async function reviewServe(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const dataDir = resolveDataDir(first(parsed, 'dir'));
+  const journalRoot = first(parsed, 'journal')
+    ?? process.env.BRAINBASE_JUDGMENT_JOURNAL_DIR
+    ?? defaultJudgmentJournalRoot(dataDir);
+  const port = Number(first(parsed, 'port') ?? '31080');
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new Error('review:serve requires --port to be an integer between 0 and 65535');
+  }
+  const { server } = createValueProofReviewHost({ journalRoot, dataDir });
+  await new Promise<void>((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(port, '127.0.0.1', () => resolveListen());
+  });
+  const address = server.address();
+  const actualPort = typeof address === 'object' && address ? address.port : port;
+  write(io, [
+    `判断の見返し: http://127.0.0.1:${actualPort}/`,
+    `判断journal: ${journalRoot}`,
+    `評価の保存先: ${dataDir}`,
+    '終了: Ctrl+C',
+    ''
+  ].join('\n'));
+  await new Promise<void>((resolveClose) => {
+    const stop = () => server.close(() => resolveClose());
+    process.once('SIGINT', stop);
+    process.once('SIGTERM', stop);
+  });
+  return 0;
+}
+
 function parseArgs(argv: string[]): ParsedArgs {
   const [firstToken, ...remaining] = argv;
   const command = firstToken?.startsWith('--') ? undefined : firstToken;
@@ -1224,6 +1259,7 @@ function usage(): string {
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
+  brainbase review:serve [--dir path] [--journal path] [--port n]
 `;
 }
 
