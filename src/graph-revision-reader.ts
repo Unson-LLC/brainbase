@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { canonicalEdgeId } from './canonical-graph.js';
+import { canonicalEdgeId, isActiveAt } from './canonical-graph.js';
 import { canonicalPortableJson } from './portable-graph.js';
 import type { FoundationAcl } from './ontology-foundation.js';
 import type {
@@ -329,7 +329,13 @@ function assertOptionalValidity(from: unknown, to: unknown): void {
 }
 
 function isRfc3339(value: unknown): value is string {
-  return typeof value === 'string' &&
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/u.test(value) &&
-    Number.isFinite(Date.parse(value));
+  if (typeof value !== 'string') return false;
+  try {
+    // Reuse the canonical Graph calendar validation so historical revision
+    // payloads and current Graph reads reject the same malformed timestamps.
+    isActiveAt({ validFrom: value }, value);
+    return true;
+  } catch {
+    return false;
+  }
 }

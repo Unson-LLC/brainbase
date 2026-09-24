@@ -153,6 +153,14 @@ describe('Graph revision reader contract', () => {
     await expect(resolver(resolveInput(record))).resolves.toMatchObject({ status: 'unresolved' });
   });
 
+  it('rejects calendar dates that Date.parse would normalize', () => {
+    const record = entityRecord();
+    expect(() => graphRevisionDigest({
+      ...record,
+      payload: { ...record.payload, validFrom: '2026-02-30T00:00:00Z' }
+    })).toThrow(/validFrom is invalid/u);
+  });
+
   it('rechecks current ACL and scope for a historical read', async () => {
     const record = entityRecord();
     const resolver = createJudgmentProblemGraphReferenceResolver({
