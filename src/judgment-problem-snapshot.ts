@@ -20,6 +20,8 @@ export const JUDGMENT_PROBLEM_SNAPSHOT_VERSION = 'judgment-problem-snapshot.v1' 
 export type JudgmentProblemSnapshotId = `sha256:${string}`;
 
 export type JudgmentProblemReferenceKind =
+  | 'entity'
+  | 'edge'
   | 'objective'
   | 'criterion'
   | 'variable'
@@ -223,6 +225,8 @@ const SNAPSHOT_ID_PATTERN = /^sha256:([0-9a-f]{64})$/u;
 const POSITIVE_REVISION_PATTERN = /^[1-9]\d*$/u;
 const SCOPE_TYPES: readonly JudgmentProblemScopeType[] = ['personal', 'project', 'organization'];
 const REFERENCE_KINDS: readonly JudgmentProblemReferenceKind[] = [
+  'entity',
+  'edge',
   'objective',
   'criterion',
   'variable',

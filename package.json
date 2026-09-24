@@ -35,6 +35,10 @@
       "types": "./dist/portable-graph.d.ts",
       "import": "./dist/portable-graph.js"
     },
+    "./graph-revision-reader": {
+      "types": "./dist/graph-revision-reader.d.ts",
+      "import": "./dist/graph-revision-reader.js"
+    },
     "./canonical-task-principal": {
       "types": "./dist/canonical-task-principal.d.ts",
       "import": "./dist/canonical-task-principal.js"
