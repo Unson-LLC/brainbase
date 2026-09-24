@@ -42,7 +42,7 @@ Weekly digest renderer
 
 ### 2. 標準提供面
 
-Agent-first方針に従い、標準面はCodex / Claude Codeとする。日常業務用Webダッシュボードは作らない。
+Agent-first方針に従い、標準面はCodex / Claude Codeとする。KPI型の業務ダッシュボードや削減時間の表示は作らない。所有者が判断価値記録を見返して評価を付ける面だけは、ローカルWebに置く（`story-personal-value-proof-review-v1`）。
 
 | Timing | Surface | Display |
 |---|---|---|
@@ -53,7 +53,8 @@ Agent-first方針に従い、標準面はCodex / Claude Codeとする。日常�
 | blocked / unconfirmed / correction pending | Mac Companion | 要介入項目だけを投影 |
 | 定期振り返り | Codex / ClaudeまたはCompanionのダイジェスト | 代理判断、成果確認、人間判断、訂正、未確認を分離集計 |
 | 監査・診断 | Codex / Claude via MCP | Receipt、Entity ID、digest、Tool Eventを明示取得 |
-| ブラウザ必須操作 | Brainbase Web | login、OAuth、consent、pairing、break-glassのみ |
+| 所有者の見返し | ローカルの所有者向けWeb | 週次ダイジェスト対象の判断価値記録の一覧と、本人の評価（採用・訂正・次回は聞く・取り消し） |
+| ブラウザ必須操作 | Brainbase Web | login、OAuth、consent、pairing、break-glass |
 
 成功runをMac Companionへ常時通知しない。Companionは人間の注意が必要な項目に限定する。
 

@@ -1,0 +1,36 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-personal-value-proof-review-v1",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "invariant",
+      "text": "A missing or unreadable judgment journal returns unavailable, never an empty list; schema-invalid proofs are returned as rejected with reasons."
+    },
+    {
+      "id": "AC-002",
+      "type": "behavior",
+      "text": "Each proof falls into exactly one section in the order waiting_human, blocked, continued_without_human, other; proofs whose placement web_surface is none are other."
+    },
+    {
+      "id": "AC-003",
+      "type": "invariant",
+      "text": "Feedback is appended to a separate JSONL file under the personal data directory, is idempotent for the same attempt, status and summary, requires a summary for corrected and reverted, and is read back before success is returned; journal files are never modified."
+    },
+    {
+      "id": "AC-004",
+      "type": "behavior",
+      "text": "Listed proofs carry the latest feedback with a verified human_feedback evidence reference, and the full feedback history is returned separately."
+    },
+    {
+      "id": "AC-005",
+      "type": "boundary",
+      "text": "Placement web_surface is review exactly when the proof is included in the weekly digest, and none otherwise."
+    },
+    {
+      "id": "AC-006",
+      "type": "invariant",
+      "text": "A malformed feedback record fails loudly instead of being skipped."
+    }
+  ]
+}

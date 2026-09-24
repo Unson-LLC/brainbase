@@ -93,7 +93,8 @@ export interface JudgmentValueProofPlacement {
     | 'blocked'
     | 'outcome_unconfirmed'
     | 'feedback_requested';
-  web_surface: 'none';
+  /** `review`: listed on the local owner review surface (same scope as the weekly digest). */
+  web_surface: 'none' | 'review';
   weekly_digest: 'exclude' | 'include';
 }
 
@@ -201,18 +202,19 @@ export function placeJudgmentValueProof(proof: JudgmentValueProof): JudgmentValu
 
   const behaviorChanged = proof.interruption.resolution === 'continued_without_human';
   const completed = proof.execution.status === 'completed';
+  const weeklyDigest = proof.interruption.resolution === 'not_applicable'
+    && proof.feedback.status === 'none'
+    && proof.state !== 'blocked'
+    && proof.outcome.status === 'not_applicable'
+    ? 'exclude'
+    : 'include';
 
   return {
     agent_progress: behaviorChanged && proof.execution.status === 'executing' ? 'show' : 'silent',
     agent_completion: behaviorChanged && completed ? 'show' : 'silent',
     companion_attention: companionAttention,
-    web_surface: 'none',
-    weekly_digest: proof.interruption.resolution === 'not_applicable'
-      && proof.feedback.status === 'none'
-      && proof.state !== 'blocked'
-      && proof.outcome.status === 'not_applicable'
-      ? 'exclude'
-      : 'include'
+    web_surface: weeklyDigest === 'include' ? 'review' : 'none',
+    weekly_digest: weeklyDigest
   };
 }
 
