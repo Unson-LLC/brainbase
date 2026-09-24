@@ -144,8 +144,22 @@ describe('durable wait canonical HTTP adapter', () => {
     expect(crossScope.body?.result?.candidates).toEqual([]);
     const crossType = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'otherType' } });
     expect(crossType.body?.result?.candidates).toEqual([]);
+    const crossTypeRead = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET', headers: { 'x-test-context': 'otherType' } });
+    expect(crossTypeRead.response.status).toBe(403);
+    const crossTypeClaim = await request(baseUrl, '/api/v1/durable-waits/claim', {
+      method: 'POST', headers: { 'x-test-context': 'otherType' },
+      body: { wait_id: 'due-a', request_id: 'cross-scope-type', trigger: 'manual' },
+    });
+    expect(crossTypeClaim.response.status).toBe(403);
     const missingType = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'missingType' } });
     expect(missingType.response.status).toBe(400);
+    const missingTypeRead = await request(baseUrl, '/api/v1/durable-waits/due-a', { method: 'GET', headers: { 'x-test-context': 'missingType' } });
+    expect(missingTypeRead.response.status).toBe(403);
+    const wrongTypeCreate = await request(baseUrl, '/api/v1/durable-waits/create', {
+      method: 'POST', headers: { 'x-test-context': 'otherType' }, body: createBody('wrong-scope-type'),
+    });
+    expect(wrongTypeCreate.response.status).toBe(400);
+    await expect(store.read({ wait_id: 'wrong-scope-type', principal: 'owner' })).rejects.toMatchObject({ code: 'not_found' });
     const crossTenant = await request(baseUrl, '/api/v1/durable-waits:due', { method: 'GET', headers: { 'x-test-context': 'otherTenant' } });
     expect(crossTenant.body?.result?.candidates.map((candidate: { wait_id: string }) => candidate.wait_id)).toEqual(['due-other-tenant']);
     const reusedCursor = await request(baseUrl, `/api/v1/durable-waits:due?cursor=${first.body?.result?.next_cursor}`, {
