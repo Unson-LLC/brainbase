@@ -6,7 +6,7 @@
 
 ## Released — v0.6.0
 
-npm packageとGitHub Releaseとして公開済みの範囲です。
+0.6.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
 
 - ローカル優先のPersonal Onboarding Kit
 - MCPによる`get_context`、`search`、`resolve_entity`などの文脈参照
@@ -26,11 +26,18 @@ npm packageとGitHub Releaseとして公開済みの範囲です。
 - OSSとOrganizationで共用するoutcome knowledge / Mana UIとicon assets
 - Organization版が共通UIを再実装せず、OSS packageから利用するための公開subpath
 
-公開releaseのversion、`gitHead`、integrity、dist-tag、fresh install、GitHub Releaseを照合して公開完了を判断します。
+## Candidate — v0.7.0（npm公開前）
+
+`package.json`の0.7.0は配布候補のversionです。npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackが完了するまで、公開済みのversionとして扱いません。
+
+- Company OSのObjective、Variable、Model、Constraintを扱うversioned ontology foundation
+- 判断問題のsnapshot、下位DAG composition、problem candidateの選択、evaluation、learning adoption
+- resource reservation、execution authority、durable wait、historical judgment viewと既存記録adapter
+- Company OSの目的・世界モデル・判断・評価を一周する匿名ホテルfixture
 
 ## Develop — release前
 
-`develop`には存在するが、v0.6.0へは含まれていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
+`develop`には存在するが、v0.7.0の公開候補にもまだ含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
 

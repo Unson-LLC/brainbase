@@ -9,9 +9,10 @@
 
 ## 現在地の契約
 
-1. release見出しは`Released — v${package.json.version}`と一致する。
-2. source、built HTML、公開readbackの検証は同じversion正本を参照する。
-3. Organizationは、公開OSS、非公開で検証中の組織版、未完成の範囲を混同しない。
+1. `Released — vX`はregistry readbackとGitHub Releaseで確認済みの公開版を表す。
+2. package versionが次の配布候補である間は、`Candidate — vY`を表示し、`Released — vX`を候補versionへ先行更新しない。
+3. source、built HTML、公開readbackの検証は、検証済み公開版と配布候補版を区別した正本を参照する。
+4. Organizationは、公開OSS、非公開で検証中の組織版、未完成の範囲を混同しない。
 
 ## Verification
 
