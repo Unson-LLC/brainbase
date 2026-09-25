@@ -97,6 +97,12 @@ describe('value proof review host', () => {
     expect(body.coverage.saved).toBe(1);
     expect(body.sections.continued).toHaveLength(1);
     expect(body.sections.continued[0]).not.toHaveProperty('file');
+    expect(body.delegation_map.rows).toHaveLength(1);
+    expect(body.delegation_map.rows[0].items).toEqual([expect.objectContaining({
+      intent_id: body.sections.continued[0].proof.intent_id,
+      decision_attempt_id: body.sections.continued[0].proof.decision_attempt_id,
+    })]);
+    expect(JSON.stringify(body.delegation_map)).not.toContain(directory);
   });
 
   it('rejects feedback without the token, from another origin, or for an unknown decision', async () => {
