@@ -206,6 +206,33 @@ describe('value proof review UI contract', () => {
     expect(ui.state.save.message).toContain('読み戻し済み');
   });
 
+  it('asks what a correction changes and sends it with the correction', async () => {
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const requests = [];
+    let current = home();
+    const fetcher = async (path, init) => {
+      requests.push({ path, init });
+      if (path.endsWith('/home')) return jsonResponse(200, current);
+      current = home([proof({ feedback: { status: 'corrected', summary: '目的が実証だった', evidence_ref: { kind: 'human_feedback', ref: 'x', status: 'verified' } } })]);
+      return jsonResponse(201, { created: true });
+    };
+    const ui = createValueProofReviewUI({ root, document: doc, fetcher, token: 'token-123', autoLoad: false });
+    await ui.load();
+    const item = ui.state.home.sections.continued[0];
+
+    ui.callbacks.onDraft({ status: 'corrected', summary: '目的が実証だった' });
+    await ui.callbacks.onSubmit(item);
+    expect(ui.state.save.message).toContain('何を直すか');
+    expect(requests.filter((entry) => entry.init?.method === 'POST')).toHaveLength(0);
+
+    ui.callbacks.onDraft({ targetLayer: 'objective' });
+    await ui.callbacks.onSubmit(item);
+    const post = requests.find((entry) => entry.init?.method === 'POST');
+    expect(JSON.parse(post.init.body)).toMatchObject({ status: 'corrected', target_layer: 'objective' });
+    expect(ui.state.save.state).toBe('saved');
+  });
+
   it('keeps the draft and reports the reason when saving fails', async () => {
     const doc = new FakeDocument();
     const root = doc.createElement('main');

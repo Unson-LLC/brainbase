@@ -10,7 +10,8 @@ import {
   classifyJudgmentValueProof,
   readJudgmentValueProofFeedback,
   readJudgmentValueProofJournal,
-  recordJudgmentValueProofFeedback
+  recordJudgmentValueProofFeedback,
+  summarizeJudgmentValueProofFeedback
 } from '../src/judgment-value-proof-review.js';
 
 function continuedProof(id: string, recordedAt: string): JudgmentValueProof {
@@ -216,7 +217,8 @@ describe('judgment value proof feedback', () => {
       intent_id: proof.intent_id,
       decision_attempt_id: proof.decision_attempt_id,
       status: 'corrected',
-      summary: '反映前に差分を確認するべきだった'
+      summary: '反映前に差分を確認するべきだった',
+      target_layer: 'method'
     });
 
     const records = await readJudgmentValueProofFeedback({ dataDir });
@@ -234,5 +236,47 @@ describe('judgment value proof feedback', () => {
     await mkdir(dataDir, { recursive: true });
     await writeFile(join(dataDir, JUDGMENT_VALUE_PROOF_FEEDBACK_FILE), '{"schema_version":"x"}\nnot-json\n', 'utf8');
     await expect(readJudgmentValueProofFeedback({ dataDir })).rejects.toThrow('judgment_value_proof_feedback_invalid:line_1');
+  });
+});
+
+describe('judgment value proof feedback layer', () => {
+  it('records next_time_ask as a delegation correction and requires a layer for corrections', async () => {
+    const asked = await recordJudgmentValueProofFeedback({
+      dataDir, intent_id: 'intent-1', decision_attempt_id: 'attempt-1', status: 'next_time_ask'
+    });
+    expect(asked.record.target_layer).toBe('delegation');
+
+    await expect(recordJudgmentValueProofFeedback({
+      dataDir, intent_id: 'intent-1', decision_attempt_id: 'attempt-1', status: 'corrected', summary: '目的が違う'
+    })).rejects.toThrow('corrected feedback requires target_layer');
+    await expect(recordJudgmentValueProofFeedback({
+      dataDir, intent_id: 'intent-1', decision_attempt_id: 'attempt-1', status: 'accepted', target_layer: 'method'
+    })).rejects.toThrow('accepted feedback does not take target_layer');
+    await expect(recordJudgmentValueProofFeedback({
+      dataDir, intent_id: 'intent-1', decision_attempt_id: 'attempt-1', status: 'next_time_ask', target_layer: 'objective'
+    })).rejects.toThrow('next_time_ask feedback targets delegation');
+  });
+
+  it('reads feedback written before the layer existed and counts the latest feedback per decision by layer', async () => {
+    await mkdir(dataDir, { recursive: true });
+    await writeFile(join(dataDir, JUDGMENT_VALUE_PROOF_FEEDBACK_FILE), `${JSON.stringify({
+      schema_version: 'brainbase-judgment-value-proof-feedback-v1',
+      feedback_id: 'sha256:old',
+      intent_id: 'intent-old',
+      decision_attempt_id: 'attempt-old',
+      status: 'corrected',
+      summary: '古い訂正',
+      recorded_at: '2026-09-24T00:00:00.000Z'
+    })}\n`, 'utf8');
+    await recordJudgmentValueProofFeedback({ dataDir, intent_id: 'intent-1', decision_attempt_id: 'attempt-1', status: 'accepted' });
+    await recordJudgmentValueProofFeedback({
+      dataDir, intent_id: 'intent-1', decision_attempt_id: 'attempt-1', status: 'corrected', summary: '目的が違う', target_layer: 'objective'
+    });
+    await recordJudgmentValueProofFeedback({ dataDir, intent_id: 'intent-2', decision_attempt_id: 'attempt-2', status: 'next_time_ask' });
+
+    const summary = summarizeJudgmentValueProofFeedback(await readJudgmentValueProofFeedback({ dataDir }));
+    expect(summary.rated).toBe(3);
+    expect(summary.by_status).toEqual({ accepted: 0, corrected: 2, next_time_ask: 1, reverted: 0 });
+    expect(summary.by_layer).toMatchObject({ objective: 1, delegation: 1, unrecorded: 1 });
   });
 });

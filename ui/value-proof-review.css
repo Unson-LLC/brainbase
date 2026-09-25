@@ -319,6 +319,22 @@ body:has(.vpr) {
   background: var(--vpr-accent-soft);
 }
 
+.vpr-layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.vpr-layers[hidden] {
+  display: none;
+}
+
+.vpr-layers .vpr-hint {
+  flex-basis: 100%;
+  margin-bottom: 0;
+}
+
 .vpr-feedback textarea {
   width: 100%;
   padding: 8px 10px;

@@ -1,0 +1,26 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-value-proof-feedback-layer-v1",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "invariant",
+      "text": "next_time_ask feedback always records the delegation layer, corrected feedback requires a target layer, and accepted or reverted feedback carries none."
+    },
+    {
+      "id": "AC-002",
+      "type": "invariant",
+      "text": "Feedback records written before target_layer existed remain readable."
+    },
+    {
+      "id": "AC-003",
+      "type": "behavior",
+      "text": "The feedback summary counts each decision once by its latest feedback, by status and by target layer, counting corrections without a layer as unrecorded."
+    },
+    {
+      "id": "AC-004",
+      "type": "behavior",
+      "text": "The review form asks what a correction changes only for corrections and refuses to save a correction without it; the card and history show the layer."
+    }
+  ]
+}
