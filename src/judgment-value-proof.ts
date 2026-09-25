@@ -32,9 +32,43 @@ export interface JudgmentValueProofArtifactRef {
   label?: string;
 }
 
+/** Which part of the organization's judgment a basis came from. Absent means not recorded. */
+export type JudgmentValueProofBasisLayer =
+  | 'philosophy'
+  | 'objective'
+  | 'world_model'
+  | 'method'
+  | 'constraint'
+  | 'other';
+
 export interface JudgmentValueProofBasis {
   entity_id: string;
   application: string;
+  layer?: JudgmentValueProofBasisLayer;
+  /** Version of the referenced entity used for this judgment. */
+  version?: string | null;
+}
+
+export interface JudgmentValueProofInheritanceSource {
+  kind: 'judgment' | 'method' | 'decision' | 'other';
+  ref: string;
+  version: string | null;
+  label: string;
+}
+
+/** Earlier experience carried into this judgment, recorded at judgment time. */
+export interface JudgmentValueProofInheritance {
+  sources: JudgmentValueProofInheritanceSource[];
+  /** Conditions judged to be the same as the source, so the source could be reused. */
+  same_conditions: string[];
+  /** Conditions that differed and were checked again for this judgment. */
+  rechecked_conditions: string[];
+}
+
+/** Stable grouping for delegation scope, e.g. `production_release`. */
+export interface JudgmentValueProofKind {
+  key: string;
+  label: string;
 }
 
 export interface JudgmentValueProofHumanOption {
@@ -61,6 +95,8 @@ export interface JudgmentValueProof {
     work_impact: string | null;
     basis: JudgmentValueProofBasis[];
     prior_learning_reused: boolean | 'unconfirmed';
+    judgment_kind?: JudgmentValueProofKind | null;
+    inheritance?: JudgmentValueProofInheritance | null;
   };
   execution: {
     status: 'not_started' | 'executing' | 'completed' | 'blocked';
@@ -133,6 +169,27 @@ function outcomeStatusLabel(status: JudgmentValueProof['outcome']['status']): st
   return '成果確認の対象外';
 }
 
+const BASIS_LAYER_LABELS: Readonly<Record<JudgmentValueProofBasisLayer, string>> = {
+  philosophy: '大切にすること',
+  objective: '目的',
+  world_model: '現状と見通し',
+  method: '判断方法',
+  constraint: '守る条件',
+  other: 'その他'
+};
+
+function basisLabel(entry: JudgmentValueProofBasis): string {
+  return entry.layer ? `[${BASIS_LAYER_LABELS[entry.layer]}] ${entry.application}` : entry.application;
+}
+
+function inheritanceLine(inheritance: JudgmentValueProofInheritance | null | undefined): string | null {
+  if (!inheritance || inheritance.sources.length === 0) return null;
+  const sources = inheritance.sources.map((source) => source.label.trim()).join(' / ');
+  const same = inheritance.same_conditions.length > 0 ? `。今回も同じ: ${inheritance.same_conditions.join('、')}` : '';
+  const rechecked = inheritance.rechecked_conditions.length > 0 ? `。今回だけ確認: ${inheritance.rechecked_conditions.join('、')}` : '';
+  return `引き継ぎ: ${sources}${same}${rechecked}`;
+}
+
 function evidenceLabel(evidence: JudgmentValueProofEvidenceRef): string {
   const label = evidence.label?.trim() || evidence.kind;
   return `${label} (${evidence.status === 'verified' ? '確認済み' : '未確認'})`;
@@ -175,6 +232,32 @@ export function validateJudgmentValueProof(proof: JudgmentValueProof): JudgmentV
     }
     if (!proof.outcome.evidence_refs.some((entry) => entry.status === 'verified')) {
       throw new TypeError('outcome_verified requires verified evidence');
+    }
+  }
+
+  const layers: readonly JudgmentValueProofBasisLayer[] = ['philosophy', 'objective', 'world_model', 'method', 'constraint', 'other'];
+  for (const entry of proof.decision.basis) {
+    if (entry.layer !== undefined && !layers.includes(entry.layer)) {
+      throw new TypeError(`unsupported decision.basis[].layer: ${String(entry.layer)}`);
+    }
+  }
+
+  const kind = proof.decision.judgment_kind;
+  if (kind !== undefined && kind !== null) {
+    if (!/^[a-z0-9_]{1,64}$/u.test(kind.key ?? '')) {
+      throw new TypeError('decision.judgment_kind.key must be 1-64 lowercase letters, digits or underscores');
+    }
+    requiredText(kind.label, 'decision.judgment_kind.label');
+  }
+
+  const inheritance = proof.decision.inheritance;
+  if (inheritance !== undefined && inheritance !== null) {
+    for (const source of inheritance.sources) {
+      requiredText(source.ref, 'decision.inheritance.sources[].ref');
+      requiredText(source.label, 'decision.inheritance.sources[].label');
+    }
+    if (inheritance.sources.length > 0 && proof.decision.prior_learning_reused === false) {
+      throw new TypeError('decision.inheritance.sources contradicts prior_learning_reused=false');
     }
   }
 
@@ -237,8 +320,9 @@ export function renderJudgmentValueProofCompletion(proof: JudgmentValueProof): s
   const decision = requiredText(proof.decision.summary ?? '', 'decision.summary');
   const impact = optionalText(proof.decision.work_impact) ?? '確認による中断を避けて作業を継続';
   const basis = proof.decision.basis.length > 0
-    ? proof.decision.basis.map((entry) => entry.application).join(' / ')
+    ? proof.decision.basis.map(basisLabel).join(' / ')
     : '適用根拠は未確認';
+  const inheritance = inheritanceLine(proof.decision.inheritance);
   const evidence = proof.outcome.evidence_refs.length > 0
     ? proof.outcome.evidence_refs.map(evidenceLabel).join(' / ')
     : '成果証跡なし';
@@ -249,6 +333,7 @@ export function renderJudgmentValueProofCompletion(proof: JudgmentValueProof): s
     `判断: ${decision}`,
     `仕事への影響: ${impact}`,
     `根拠: ${basis}`,
+    ...(inheritance ? [inheritance] : []),
     `状態: ${outcomeStatusLabel(proof.outcome.status)}`,
     `証拠: ${evidence}`,
     '修正する場合: 「判断を修正: …」または「次回は確認」と返信'

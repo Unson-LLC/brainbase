@@ -6,6 +6,7 @@ import {
   renderJudgmentValueProofCompletion,
   renderJudgmentValueProofProgress,
   renderJudgmentValueProofWeeklyDigest,
+  validateJudgmentValueProof,
   type JudgmentValueProof
 } from '../src/judgment-value-proof.js';
 
@@ -183,5 +184,54 @@ describe('judgment value proof placement', () => {
     expect(digest).toContain('確認せず続行した判断: 1件');
     expect(digest).toContain('成果確認まで完了: 1件');
     expect(digest).toContain('人間判断が必要: 1件');
+  });
+});
+
+describe('judgment value proof inheritance', () => {
+  it('keeps records without inheritance, layered basis or kind valid', () => {
+    const proof = verifiedProof();
+    expect(proof.decision.inheritance).toBeUndefined();
+    expect(() => validateJudgmentValueProof(proof)).not.toThrow();
+  });
+
+  it('shows layered basis and the inherited experience in the completion receipt', () => {
+    const proof = verifiedProof();
+    proof.decision.basis = [{
+      entity_id: 'philosophy-field-load',
+      application: '自動化のために現場へ別の負担を押し付けない',
+      layer: 'philosophy',
+      version: '3'
+    }];
+    proof.decision.judgment_kind = { key: 'evaluation_design', label: '実証の評価設計' };
+    proof.decision.inheritance = {
+      sources: [{ kind: 'method', ref: 'method-total-load', version: '2', label: 'ホテルAの総負荷の評価方法' }],
+      same_conditions: ['問い合わせ自動化の実証である'],
+      rechecked_conditions: ['ホテルBの作業記録の方法']
+    };
+
+    const receipt = renderJudgmentValueProofCompletion(proof);
+    expect(receipt).toContain('根拠: [大切にすること] 自動化のために現場へ別の負担を押し付けない');
+    expect(receipt).toContain('引き継ぎ: ホテルAの総負荷の評価方法。今回も同じ: 問い合わせ自動化の実証である。今回だけ確認: ホテルBの作業記録の方法');
+  });
+
+  it('rejects inheritance that contradicts prior_learning_reused=false', () => {
+    const proof = verifiedProof();
+    proof.decision.prior_learning_reused = false;
+    proof.decision.inheritance = {
+      sources: [{ kind: 'judgment', ref: 'attempt-earlier', version: null, label: '前回の判断' }],
+      same_conditions: [],
+      rechecked_conditions: []
+    };
+    expect(() => validateJudgmentValueProof(proof)).toThrow('contradicts prior_learning_reused=false');
+  });
+
+  it('rejects an unknown basis layer and a malformed judgment kind', () => {
+    const layered = verifiedProof();
+    layered.decision.basis = [{ entity_id: 'x', application: 'y', layer: 'mood' as never }];
+    expect(() => validateJudgmentValueProof(layered)).toThrow('unsupported decision.basis[].layer');
+
+    const kind = verifiedProof();
+    kind.decision.judgment_kind = { key: 'Production Release', label: '本番への反映' };
+    expect(() => validateJudgmentValueProof(kind)).toThrow('decision.judgment_kind.key');
   });
 });

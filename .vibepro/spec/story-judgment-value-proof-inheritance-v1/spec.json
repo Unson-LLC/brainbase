@@ -1,0 +1,31 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-judgment-value-proof-inheritance-v1",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "invariant",
+      "text": "Inheritance, basis layer and version, and judgment kind are optional; proofs without them validate exactly as before."
+    },
+    {
+      "id": "AC-002",
+      "type": "invariant",
+      "text": "Validation rejects inheritance sources with prior_learning_reused=false, unknown basis layers, and malformed judgment kinds."
+    },
+    {
+      "id": "AC-003",
+      "type": "behavior",
+      "text": "The completion receipt labels layered basis entries and shows an inheritance line only when inheritance sources exist; receipts for proofs without the new fields are unchanged."
+    },
+    {
+      "id": "AC-004",
+      "type": "behavior",
+      "text": "The review card shows an inheritance row that reads as unrecorded when no inheritance was recorded, and never invents one."
+    },
+    {
+      "id": "AC-005",
+      "type": "boundary",
+      "text": "The public JSON schema contract declares the same optional fields."
+    }
+  ]
+}

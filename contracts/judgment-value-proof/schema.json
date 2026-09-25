@@ -53,6 +53,35 @@
             { "type": "boolean" },
             { "const": "unconfirmed" }
           ]
+        },
+        "judgment_kind": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["key", "label"],
+              "properties": {
+                "key": { "type": "string", "pattern": "^[a-z0-9_]{1,64}$" },
+                "label": { "type": "string", "minLength": 1 }
+              }
+            }
+          ]
+        },
+        "inheritance": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["sources", "same_conditions", "rechecked_conditions"],
+              "properties": {
+                "sources": { "type": "array", "items": { "$ref": "#/$defs/inheritance_source" } },
+                "same_conditions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                "rechecked_conditions": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+              }
+            }
+          ]
         }
       }
     },
@@ -123,7 +152,20 @@
       "required": ["entity_id", "application"],
       "properties": {
         "entity_id": { "type": "string", "minLength": 1 },
-        "application": { "type": "string", "minLength": 1 }
+        "application": { "type": "string", "minLength": 1 },
+        "layer": { "enum": ["philosophy", "objective", "world_model", "method", "constraint", "other"] },
+        "version": { "type": ["string", "null"] }
+      }
+    },
+    "inheritance_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "ref", "version", "label"],
+      "properties": {
+        "kind": { "enum": ["judgment", "method", "decision", "other"] },
+        "ref": { "type": "string", "minLength": 1 },
+        "version": { "type": ["string", "null"] },
+        "label": { "type": "string", "minLength": 1 }
       }
     },
     "artifact_ref": {
