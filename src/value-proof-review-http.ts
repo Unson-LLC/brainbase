@@ -8,6 +8,7 @@ import {
   readJudgmentValueProofFeedback,
   readJudgmentValueProofJournal,
   recordJudgmentValueProofFeedback,
+  type JudgmentValueProofFeedbackLayer,
   type JudgmentValueProofFeedbackStatus,
   type JudgmentValueProofReviewHome,
   type JudgmentValueProofReviewItem
@@ -158,6 +159,7 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
         decision_attempt_id: attemptId,
         status: body.status as JudgmentValueProofFeedbackStatus,
         summary: typeof body.summary === 'string' ? body.summary : null,
+        target_layer: typeof body.target_layer === 'string' ? body.target_layer as JudgmentValueProofFeedbackLayer : null,
         now: now()
       });
       return { statusCode: result.created ? 201 : 200, body: result };

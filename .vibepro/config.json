@@ -537,6 +537,18 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-judgment-value-proof-feedback-layer-v1",
+        "title": "判断への評価に、何を直すかを残せる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-company-os-shared-dist-build-pack-isolation-v1"

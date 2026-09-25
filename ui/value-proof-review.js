@@ -48,10 +48,20 @@ const FEEDBACK_LABELS = Object.freeze({
   next_time_ask: '次回は聞く',
   reverted: '取り消し',
 });
+const FEEDBACK_LAYER_LABELS = Object.freeze({
+  delegation: '任せる範囲',
+  method: '判断方法',
+  objective: '目的',
+  world_model: '現状と見通し',
+  philosophy: '大切にすること',
+  other: 'その他',
+});
+/** Layers the owner can pick for a correction. `delegation` comes from 「次回は聞く」. */
+export const VALUE_PROOF_CORRECTION_LAYERS = Object.freeze(['method', 'objective', 'world_model', 'philosophy', 'other']);
 export const VALUE_PROOF_FEEDBACK_OPTIONS = Object.freeze([
   Object.freeze({ value: 'accepted', label: '採用', hint: '聞かずに進めてよかった', summary: 'none', placeholder: '' }),
   Object.freeze({ value: 'corrected', label: '訂正', hint: '判断の中身が違った', summary: 'required', placeholder: '何が違ったか（必須）' }),
-  Object.freeze({ value: 'next_time_ask', label: '次回は聞く', hint: 'この種の判断は、次は聞いてほしい', summary: 'optional', placeholder: 'どの条件なら聞くべきか（任意）' }),
+  Object.freeze({ value: 'next_time_ask', label: '次回は聞く', hint: 'この種の判断は、次は聞いてほしい。任せる範囲の訂正として記録します', summary: 'optional', placeholder: 'どの条件なら聞くべきか（任意）' }),
   Object.freeze({ value: 'reverted', label: '取り消し', hint: 'この判断を元に戻した（記録のみ。外部の操作は戻さない）', summary: 'required', placeholder: '何を戻したか（必須）' }),
 ]);
 
@@ -302,11 +312,30 @@ function renderFeedbackForm(doc, item, state, callbacks) {
     radio.addEventListener('change', () => {
       callbacks.onDraft?.({ status: option.value });
       syncSummary(option.value);
+      syncLayers(option.value);
     });
     label.append(radio, makeElement(doc, 'span', { text: option.label }));
     options.append(label);
   }
+  const layerGroup = makeElement(doc, 'div', { className: 'vpr-layers', attrs: { role: 'radiogroup', 'aria-label': '何を直すか' } });
+  layerGroup.append(makeElement(doc, 'p', { className: 'vpr-hint', text: '何を直すか（必須）' }));
+  for (const layer of VALUE_PROOF_CORRECTION_LAYERS) {
+    const label = makeElement(doc, 'label', { className: 'vpr-option' });
+    const radio = makeElement(doc, 'input', { attrs: { type: 'radio', name: 'vpr-feedback-layer', value: layer } });
+    radio.checked = draft.targetLayer === layer;
+    radio.addEventListener('change', () => callbacks.onDraft?.({ targetLayer: layer }));
+    label.append(radio, makeElement(doc, 'span', { text: FEEDBACK_LAYER_LABELS[layer] }));
+    layerGroup.append(label);
+  }
+  const syncLayers = (value) => {
+    if (value === 'corrected') {
+      if (typeof layerGroup.removeAttribute === 'function') layerGroup.removeAttribute('hidden');
+    } else {
+      layerGroup.setAttribute('hidden', '');
+    }
+  };
   syncSummary(draft.status);
+  syncLayers(draft.status);
   summary.addEventListener('input', () => callbacks.onDraft?.({ summary: summary.value }));
   const submit = makeElement(doc, 'button', {
     className: 'vpr-submit',
@@ -317,7 +346,7 @@ function renderFeedbackForm(doc, item, state, callbacks) {
     event?.preventDefault?.();
     void callbacks.onSubmit?.(item);
   });
-  fieldset.append(options, summaryHint, summary);
+  fieldset.append(options, summaryHint, layerGroup, summary);
   form.append(fieldset, submit);
   if (state.save.state === 'saved') form.append(notice(doc, 'is-success', state.save.message));
   if (state.save.state === 'error') form.append(notice(doc, 'is-danger', state.save.message, 'alert'));
@@ -362,7 +391,8 @@ function renderCard(doc, item, state, callbacks) {
     ? `（証拠: ${evidence.map((entry) => `${text(entry.label) ?? entry.kind} ${entry.status === 'verified' ? '確認済み' : '未確認'}`).join(' / ')}）`
     : '';
   row(doc, facts, '成果の確認', `${OUTCOME_LABELS[proof.outcome.status] ?? '不明'}${text(proof.outcome.summary) ? `: ${text(proof.outcome.summary)}` : ''}${evidenceText}`, `is-outcome-${proof.outcome.status}`);
-  row(doc, facts, '評価', `${FEEDBACK_LABELS[proof.feedback.status] ?? '不明'}${text(proof.feedback.summary) ? `: ${text(proof.feedback.summary)}` : ''}`);
+  const latestLayer = FEEDBACK_LAYER_LABELS[item.feedbackHistory.at(-1)?.target_layer];
+  row(doc, facts, '評価', `${FEEDBACK_LABELS[proof.feedback.status] ?? '不明'}${latestLayer ? `（${latestLayer}）` : ''}${text(proof.feedback.summary) ? `: ${text(proof.feedback.summary)}` : ''}`);
   card.append(facts);
 
   if (proof.human_decision) {
@@ -387,7 +417,8 @@ function renderCard(doc, item, state, callbacks) {
     history.append(makeElement(doc, 'summary', { text: `評価の履歴 ${item.feedbackHistory.length}件` }));
     const list = makeElement(doc, 'ol');
     for (const entry of item.feedbackHistory) {
-      list.append(makeElement(doc, 'li', { text: `${formatDate(entry.recorded_at)} ${FEEDBACK_LABELS[entry.status] ?? entry.status}${text(entry.summary) ? `: ${text(entry.summary)}` : ''}` }));
+      const layer = FEEDBACK_LAYER_LABELS[entry.target_layer];
+      list.append(makeElement(doc, 'li', { text: `${formatDate(entry.recorded_at)} ${FEEDBACK_LABELS[entry.status] ?? entry.status}${layer ? `（${layer}）` : ''}${text(entry.summary) ? `: ${text(entry.summary)}` : ''}` }));
     }
     history.append(list);
     card.append(history);
@@ -504,7 +535,7 @@ export function createValueProofReviewUI({
     error: null,
     selectedKey: null,
     unratedOnly: false,
-    draft: { status: '', summary: '' },
+    draft: { status: '', summary: '', targetLayer: '' },
     save: { state: 'idle', message: '' },
     focusCard: false,
     consultMessage: '',
@@ -521,7 +552,7 @@ export function createValueProofReviewUI({
     },
     onSelect(key) {
       if (key !== state.selectedKey) {
-        state.draft = { status: '', summary: '' };
+        state.draft = { status: '', summary: '', targetLayer: '' };
         state.save = { state: 'idle', message: '' };
         state.consultMessage = '';
       }
@@ -537,6 +568,11 @@ export function createValueProofReviewUI({
       const option = VALUE_PROOF_FEEDBACK_OPTIONS.find((entry) => entry.value === state.draft.status);
       if (!option) {
         state.save = { state: 'error', message: '評価を選んでください。' };
+        controller.render();
+        return;
+      }
+      if (option.value === 'corrected' && !VALUE_PROOF_CORRECTION_LAYERS.includes(state.draft.targetLayer)) {
+        state.save = { state: 'error', message: '「訂正」では、何を直すかを選んでください。' };
         controller.render();
         return;
       }
@@ -561,13 +597,14 @@ export function createValueProofReviewUI({
             decision_attempt_id: item.proof.decision_attempt_id,
             status: option.value,
             summary: text(state.draft.summary),
+            target_layer: option.value === 'corrected' ? state.draft.targetLayer : null,
           }),
         });
         if (!response.ok) throw new Error(await readErrorMessage(response));
         await controller.load();
         const saved = findItem(state, itemKey(item.proof));
         if (saved?.proof.feedback.status !== option.value) throw new Error('保存後の読み戻しで評価を確認できません');
-        state.draft = { status: '', summary: '' };
+        state.draft = { status: '', summary: '', targetLayer: '' };
         state.save = { state: 'saved', message: `「${option.label}」を保存しました（読み戻し済み）。` };
       } catch (error) {
         state.save = { state: 'error', message: `保存できませんでした: ${error instanceof Error ? error.message : 'request_failed'}。入力は残しています。` };

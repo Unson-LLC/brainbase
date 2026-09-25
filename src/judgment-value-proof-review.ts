@@ -17,6 +17,14 @@ const DEFAULT_STALE_AFTER_MS = 48 * 60 * 60 * 1000;
 
 export type JudgmentValueProofReviewSection = 'needs_human' | 'blocked' | 'continued' | 'other';
 export type JudgmentValueProofFeedbackStatus = 'accepted' | 'corrected' | 'next_time_ask' | 'reverted';
+/** What the owner's feedback asks to change. `delegation` is the ask/continue boundary. */
+export type JudgmentValueProofFeedbackLayer =
+  | 'delegation'
+  | 'method'
+  | 'objective'
+  | 'world_model'
+  | 'philosophy'
+  | 'other';
 
 const FEEDBACK_STATUSES: readonly JudgmentValueProofFeedbackStatus[] = [
   'accepted',
@@ -25,6 +33,14 @@ const FEEDBACK_STATUSES: readonly JudgmentValueProofFeedbackStatus[] = [
   'reverted'
 ];
 const SUMMARY_REQUIRED: readonly JudgmentValueProofFeedbackStatus[] = ['corrected', 'reverted'];
+export const JUDGMENT_VALUE_PROOF_FEEDBACK_LAYERS: readonly JudgmentValueProofFeedbackLayer[] = [
+  'delegation',
+  'method',
+  'objective',
+  'world_model',
+  'philosophy',
+  'other'
+];
 
 export interface JudgmentValueProofJournalEntry {
   readonly file: string;
@@ -53,6 +69,8 @@ export interface JudgmentValueProofFeedbackRecord {
   readonly decision_attempt_id: string;
   readonly status: JudgmentValueProofFeedbackStatus;
   readonly summary: string | null;
+  /** Absent on records written before the layer was introduced. */
+  readonly target_layer?: JudgmentValueProofFeedbackLayer | null;
   readonly recorded_at: string;
 }
 
@@ -62,6 +80,7 @@ export interface JudgmentValueProofFeedbackInput {
   readonly decision_attempt_id: string;
   readonly status: JudgmentValueProofFeedbackStatus;
   readonly summary?: string | null;
+  readonly target_layer?: JudgmentValueProofFeedbackLayer | null;
   readonly now?: Date;
 }
 
@@ -195,8 +214,36 @@ function normalizeSummary(status: JudgmentValueProofFeedbackStatus, summary: str
   return normalized || null;
 }
 
-function feedbackId(decisionAttemptId: string, status: JudgmentValueProofFeedbackStatus, summary: string | null): string {
-  return `sha256:${createHash('sha256').update(`${decisionAttemptId}\n${status}\n${summary ?? ''}`).digest('hex')}`;
+/**
+ * `next_time_ask` always targets the delegation boundary; `corrected` must say what it corrects;
+ * `accepted` and `reverted` carry no layer.
+ */
+function normalizeTargetLayer(
+  status: JudgmentValueProofFeedbackStatus,
+  layer: JudgmentValueProofFeedbackLayer | null | undefined
+): JudgmentValueProofFeedbackLayer | null {
+  if (layer !== undefined && layer !== null && !JUDGMENT_VALUE_PROOF_FEEDBACK_LAYERS.includes(layer)) {
+    throw new TypeError(`unsupported feedback target_layer: ${String(layer)}`);
+  }
+  if (status === 'next_time_ask') {
+    if (layer && layer !== 'delegation') throw new TypeError('next_time_ask feedback targets delegation');
+    return 'delegation';
+  }
+  if (status === 'corrected') {
+    if (!layer) throw new TypeError('corrected feedback requires target_layer');
+    return layer;
+  }
+  if (layer) throw new TypeError(`${status} feedback does not take target_layer`);
+  return null;
+}
+
+function feedbackId(
+  decisionAttemptId: string,
+  status: JudgmentValueProofFeedbackStatus,
+  layer: JudgmentValueProofFeedbackLayer | null,
+  summary: string | null
+): string {
+  return `sha256:${createHash('sha256').update(`${decisionAttemptId}\n${status}\n${layer ?? ''}\n${summary ?? ''}`).digest('hex')}`;
 }
 
 function parseFeedbackRecord(line: string, lineNumber: number): JudgmentValueProofFeedbackRecord {
@@ -212,7 +259,9 @@ function parseFeedbackRecord(line: string, lineNumber: number): JudgmentValuePro
     || typeof value.intent_id !== 'string'
     || typeof value.decision_attempt_id !== 'string'
     || typeof value.recorded_at !== 'string'
-    || !(value.summary === null || typeof value.summary === 'string')) {
+    || !(value.summary === null || typeof value.summary === 'string')
+    || !(value.target_layer === undefined || value.target_layer === null
+      || JUDGMENT_VALUE_PROOF_FEEDBACK_LAYERS.includes(value.target_layer))) {
     throw new Error(`judgment_value_proof_feedback_invalid:line_${lineNumber}`);
   }
   return value as JudgmentValueProofFeedbackRecord;
@@ -248,7 +297,8 @@ export async function recordJudgmentValueProofFeedback(
     throw new TypeError(`unsupported feedback status: ${String(input.status)}`);
   }
   const summary = normalizeSummary(input.status, input.summary);
-  const id = feedbackId(decisionAttemptId, input.status, summary);
+  const targetLayer = normalizeTargetLayer(input.status, input.target_layer);
+  const id = feedbackId(decisionAttemptId, input.status, targetLayer, summary);
 
   const existing = (await readJudgmentValueProofFeedback({ dataDir: input.dataDir }))
     .find((record) => record.feedback_id === id);
@@ -261,6 +311,7 @@ export async function recordJudgmentValueProofFeedback(
     decision_attempt_id: decisionAttemptId,
     status: input.status,
     summary,
+    target_layer: targetLayer,
     recorded_at: (input.now ?? new Date()).toISOString()
   };
   const file = feedbackFile(input.dataDir);
@@ -334,4 +385,32 @@ export function buildJudgmentValueProofReviewHome(
     sections,
     rejected: journal.rejected
   };
+}
+
+export interface JudgmentValueProofFeedbackSummary {
+  /** Decisions with at least one feedback record; each counts once, by its latest feedback. */
+  readonly rated: number;
+  readonly by_status: Readonly<Record<JudgmentValueProofFeedbackStatus, number>>;
+  /** Latest `corrected` and `next_time_ask` feedback by the layer they ask to change. */
+  readonly by_layer: Readonly<Record<JudgmentValueProofFeedbackLayer | 'unrecorded', number>>;
+}
+
+/** Counts the latest feedback per decision, for deciding where revisions should live. */
+export function summarizeJudgmentValueProofFeedback(
+  records: readonly JudgmentValueProofFeedbackRecord[]
+): JudgmentValueProofFeedbackSummary {
+  const latest = new Map<string, JudgmentValueProofFeedbackRecord>();
+  for (const record of records) latest.set(`${record.intent_id}\u0000${record.decision_attempt_id}`, record);
+
+  const byStatus: Record<JudgmentValueProofFeedbackStatus, number> = { accepted: 0, corrected: 0, next_time_ask: 0, reverted: 0 };
+  const byLayer: Record<JudgmentValueProofFeedbackLayer | 'unrecorded', number> = {
+    delegation: 0, method: 0, objective: 0, world_model: 0, philosophy: 0, other: 0, unrecorded: 0
+  };
+  for (const record of latest.values()) {
+    byStatus[record.status] += 1;
+    if (record.status === 'corrected' || record.status === 'next_time_ask') {
+      byLayer[record.target_layer ?? (record.status === 'next_time_ask' ? 'delegation' : 'unrecorded')] += 1;
+    }
+  }
+  return { rated: latest.size, by_status: byStatus, by_layer: byLayer };
 }
