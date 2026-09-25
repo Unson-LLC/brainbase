@@ -7,6 +7,9 @@ import {
   JUDGMENT_VALUE_PROOF_FEEDBACK_FILE,
   applyJudgmentValueProofFeedback,
   buildJudgmentValueProofReviewHome,
+  type JudgmentValueProofFeedbackLayer,
+  type JudgmentValueProofFeedbackRecord,
+  type JudgmentValueProofFeedbackStatus,
   classifyJudgmentValueProof,
   readJudgmentValueProofFeedback,
   readJudgmentValueProofJournal,
@@ -278,5 +281,162 @@ describe('judgment value proof feedback layer', () => {
     expect(summary.rated).toBe(3);
     expect(summary.by_status).toEqual({ accepted: 0, corrected: 2, next_time_ask: 1, reverted: 0 });
     expect(summary.by_layer).toMatchObject({ objective: 1, delegation: 1, unrecorded: 1 });
+  });
+});
+
+describe('delegation map', () => {
+  function kinded(proof: JudgmentValueProof, key: string | null, label = key ?? ''): JudgmentValueProof {
+    return key ? { ...proof, decision: { ...proof.decision, judgment_kind: { key, label } } } : proof;
+  }
+
+  function feedbackRecord(
+    id: string,
+    status: JudgmentValueProofFeedbackStatus,
+    recordedAt: string,
+    targetLayer: JudgmentValueProofFeedbackLayer | null = null
+  ): JudgmentValueProofFeedbackRecord {
+    return {
+      schema_version: 'brainbase-judgment-value-proof-feedback-v1',
+      feedback_id: `sha256:${id}-${status}-${recordedAt}`,
+      intent_id: `intent-${id}`,
+      decision_attempt_id: `attempt-${id}`,
+      status,
+      summary: status === 'corrected' || status === 'reverted' ? '合成の理由' : null,
+      target_layer: targetLayer ?? (status === 'next_time_ask' ? 'delegation' : null),
+      recorded_at: recordedAt
+    };
+  }
+
+  function mapOf(proofs: JudgmentValueProof[], feedback: JudgmentValueProofFeedbackRecord[]) {
+    const entries = proofs
+      .map((proof, index) => ({ file: `/journal/${index}.value-proof.json`, proof }))
+      .sort((left, right) => right.proof.recorded_at.localeCompare(left.proof.recorded_at));
+    const home = buildJudgmentValueProofReviewHome({
+      status: 'available',
+      root: '/journal',
+      entries,
+      rejected: [],
+      latest_recorded_at: entries[0]?.proof.recorded_at ?? null
+    }, feedback, { now: new Date('2026-09-30T00:00:00.000Z') });
+    if (home.status !== 'available') throw new Error('home unavailable');
+    return home.delegation_map;
+  }
+
+  const row = (map: ReturnType<typeof mapOf>, key: string) => map.rows.find((entry) => entry.key === key);
+
+  it('puts kind rows first and keeps judgments without a kind apart, by reason code', () => {
+    const map = mapOf([
+      kinded(continuedProof('1', '2026-09-29T01:00:00.000Z'), 'production_release', '本番への反映'),
+      { ...continuedProof('2', '2026-09-29T03:00:00.000Z'), interruption: { ...continuedProof('2', '').interruption, reason_code: null } },
+      continuedProof('3', '2026-09-29T02:00:00.000Z'),
+      ordinaryProof('4', '2026-09-29T04:00:00.000Z')
+    ], []);
+
+    expect(map.rows.map((entry) => [entry.key, entry.source, entry.label])).toEqual([
+      ['kind:production_release', 'judgment_kind', '本番への反映'],
+      ['reason:routine_reversible_work', 'reason_code', 'routine_reversible_work'],
+      ['unrecorded', 'unrecorded', null]
+    ]);
+    expect(map).toMatchObject({ judged: 3, kind_recorded: 1, rated: 0 });
+  });
+
+  it('decides each row state from the newest judgment and the newest owner feedback', () => {
+    const map = mapOf([
+      kinded(continuedProof('a', '2026-09-29T01:00:00.000Z'), 'delegated_kind'),
+      kinded(continuedProof('b1', '2026-09-29T01:00:00.000Z'), 'returned_by_judgment'),
+      kinded(waitingProof('b2', '2026-09-29T02:00:00.000Z'), 'returned_by_judgment'),
+      kinded(continuedProof('c', '2026-09-29T01:00:00.000Z'), 'returned_by_ask'),
+      kinded(continuedProof('d', '2026-09-29T01:00:00.000Z'), 'returned_by_delegation_correction'),
+      kinded(continuedProof('e1', '2026-09-29T01:00:00.000Z'), 'method_corrected'),
+      kinded(continuedProof('e2', '2026-09-29T02:00:00.000Z'), 'method_corrected'),
+      kinded(continuedProof('f', '2026-09-29T01:00:00.000Z'), 'unrated')
+    ], [
+      feedbackRecord('a', 'accepted', '2026-09-29T05:00:00.000Z'),
+      feedbackRecord('b1', 'accepted', '2026-09-29T05:00:00.000Z'),
+      feedbackRecord('c', 'next_time_ask', '2026-09-29T05:00:00.000Z'),
+      feedbackRecord('d', 'corrected', '2026-09-29T05:00:00.000Z', 'delegation'),
+      feedbackRecord('e2', 'accepted', '2026-09-29T05:00:00.000Z'),
+      feedbackRecord('e1', 'corrected', '2026-09-29T06:00:00.000Z', 'method')
+    ]);
+
+    expect(row(map, 'kind:delegated_kind')).toMatchObject({
+      state: 'delegated', state_basis: { reason: 'latest_feedback', status: 'accepted' }
+    });
+    expect(row(map, 'kind:returned_by_judgment')).toMatchObject({
+      state: 'returned', state_basis: { reason: 'latest_judgment_returned', at: '2026-09-29T02:00:00.000Z' },
+      counts: { continued: 1, returned: 1 }
+    });
+    expect(row(map, 'kind:returned_by_ask')).toMatchObject({
+      state: 'returned', state_basis: { reason: 'latest_feedback', status: 'next_time_ask', target_layer: 'delegation' }
+    });
+    expect(row(map, 'kind:returned_by_delegation_correction')?.state).toBe('returned');
+    // A method correction does not change what may proceed without asking.
+    expect(row(map, 'kind:method_corrected')).toMatchObject({
+      state: 'verifying',
+      state_basis: { reason: 'latest_feedback', status: 'corrected', target_layer: 'method' },
+      counts: { rated: 2, corrected_or_reverted: 1, by_feedback: { accepted: 1, corrected: 1 } }
+    });
+    expect(row(map, 'kind:unrated')).toMatchObject({ state: 'verifying', state_basis: { reason: 'no_feedback' } });
+  });
+
+  it('highlights judgments that continued without asking and were corrected or reverted', () => {
+    const map = mapOf([
+      kinded(continuedProof('1', '2026-09-29T01:00:00.000Z'), 'production_release'),
+      kinded(continuedProof('2', '2026-09-29T02:00:00.000Z'), 'external_send'),
+      kinded(waitingProof('3', '2026-09-29T03:00:00.000Z'), 'payment'),
+      kinded(continuedProof('4', '2026-09-29T04:00:00.000Z'), 'daily_routine')
+    ], [
+      feedbackRecord('1', 'corrected', '2026-09-29T05:00:00.000Z', 'world_model'),
+      feedbackRecord('2', 'reverted', '2026-09-29T05:00:00.000Z'),
+      feedbackRecord('3', 'corrected', '2026-09-29T05:00:00.000Z', 'method'),
+      feedbackRecord('4', 'corrected', '2026-09-29T05:00:00.000Z', 'method'),
+      feedbackRecord('4', 'accepted', '2026-09-29T06:00:00.000Z')
+    ]);
+
+    expect(map.corrected_after_continue.map((entry) => entry.decision_attempt_id)).toEqual(['attempt-2', 'attempt-1']);
+    expect(row(map, 'kind:external_send')?.counts.corrected_or_reverted).toBe(1);
+  });
+
+  it('shows judgments that still continued without asking after the owner asked to be asked', () => {
+    const map = mapOf([
+      kinded(continuedProof('1', '2026-09-29T01:00:00.000Z'), 'production_release'),
+      kinded(continuedProof('2', '2026-09-29T08:00:00.000Z'), 'production_release'),
+      kinded(continuedProof('3', '2026-09-29T09:00:00.000Z'), 'production_release'),
+      kinded(continuedProof('4', '2026-09-29T09:00:00.000Z'), 'daily_routine')
+    ], [
+      feedbackRecord('1', 'next_time_ask', '2026-09-29T05:00:00.000Z'),
+      feedbackRecord('3', 'accepted', '2026-09-29T10:00:00.000Z')
+    ]);
+
+    expect(map.continued_after_ask).toEqual([
+      { intent_id: 'intent-2', decision_attempt_id: 'attempt-2', row_key: 'kind:production_release' }
+    ]);
+  });
+
+  it('keeps judgments that ignored an earlier ask when the owner asks again later', () => {
+    const map = mapOf([
+      kinded(continuedProof('1', '2026-09-29T01:00:00.000Z'), 'production_release'),
+      kinded(continuedProof('2', '2026-09-29T08:00:00.000Z'), 'production_release'),
+      kinded(continuedProof('3', '2026-09-29T09:00:00.000Z'), 'production_release')
+    ], [
+      feedbackRecord('1', 'next_time_ask', '2026-09-29T05:00:00.000Z'),
+      feedbackRecord('2', 'next_time_ask', '2026-09-29T10:00:00.000Z')
+    ]);
+
+    expect(map.continued_after_ask.map((entry) => entry.decision_attempt_id)).toEqual(['attempt-3', 'attempt-2']);
+  });
+
+  it('counts judgments that recorded an inherited experience', () => {
+    const inherited = kinded(continuedProof('1', '2026-09-29T01:00:00.000Z'), 'daily_routine');
+    const map = mapOf([
+      { ...inherited, decision: { ...inherited.decision, prior_learning_reused: true, inheritance: {
+        sources: [{ kind: 'judgment', ref: 'decision-earlier', version: null, label: '前回の合成判断' }],
+        same_conditions: ['同じ手順'],
+        rechecked_conditions: []
+      } } },
+      kinded(continuedProof('2', '2026-09-29T02:00:00.000Z'), 'daily_routine')
+    ], []);
+
+    expect(row(map, 'kind:daily_routine')?.counts.inherited).toBe(1);
   });
 });

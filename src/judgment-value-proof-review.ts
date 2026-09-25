@@ -103,8 +103,62 @@ export type JudgmentValueProofReviewHome =
       readonly possibly_stalled: boolean;
     };
     readonly sections: Readonly<Record<JudgmentValueProofReviewSection, readonly JudgmentValueProofReviewItem[]>>;
+    readonly delegation_map: JudgmentDelegationMap;
     readonly rejected: readonly JudgmentValueProofJournalRejection[];
   };
+
+/** Whether Brainbase currently proceeds on a kind of judgment, is being checked, or asks the owner. */
+export type JudgmentDelegationState = 'delegated' | 'verifying' | 'returned';
+/** Rows are kinds when recorded; otherwise the reason code, which is not a kind and is shown apart. */
+export type JudgmentDelegationRowSource = 'judgment_kind' | 'reason_code' | 'unrecorded';
+
+export type JudgmentDelegationStateBasis =
+  | { readonly reason: 'latest_judgment_returned'; readonly at: string }
+  | {
+    readonly reason: 'latest_feedback';
+    readonly status: JudgmentValueProofFeedbackStatus;
+    readonly target_layer: JudgmentValueProofFeedbackLayer | null;
+    readonly at: string;
+  }
+  | { readonly reason: 'no_feedback' };
+
+export interface JudgmentDelegationItemRef {
+  readonly intent_id: string;
+  readonly decision_attempt_id: string;
+  readonly row_key: string;
+}
+
+export interface JudgmentDelegationRow {
+  readonly key: string;
+  readonly source: JudgmentDelegationRowSource;
+  /** Kind label or reason code; null for judgments that recorded neither. */
+  readonly label: string | null;
+  readonly state: JudgmentDelegationState;
+  readonly state_basis: JudgmentDelegationStateBasis;
+  readonly counts: {
+    readonly continued: number;
+    readonly returned: number;
+    readonly rated: number;
+    readonly by_feedback: Readonly<Record<JudgmentValueProofFeedbackStatus, number>>;
+    readonly corrected_or_reverted: number;
+    readonly inherited: number;
+  };
+  readonly latest_recorded_at: string;
+  /** Newest first. */
+  readonly items: readonly JudgmentDelegationItemRef[];
+}
+
+export interface JudgmentDelegationMap {
+  readonly judged: number;
+  readonly kind_recorded: number;
+  readonly rated: number;
+  /** Kind rows first, then reason-code rows, then the unrecorded row. */
+  readonly rows: readonly JudgmentDelegationRow[];
+  /** Continued without asking, then corrected or reverted by the owner (P14). */
+  readonly corrected_after_continue: readonly JudgmentDelegationItemRef[];
+  /** Continued without asking after the owner asked to be asked for that row. */
+  readonly continued_after_ask: readonly JudgmentDelegationItemRef[];
+}
 
 export function defaultJudgmentJournalRoot(dataDir: string = defaultDataDir()): string {
   return join(resolve(dataDir), 'judgment-journal');
@@ -368,6 +422,11 @@ export function buildJudgmentValueProofReviewHome(
     sections[section].push({ file: entry.file, section, proof, feedback_history: history });
   }
 
+  const delegationMap = buildJudgmentDelegationMap(
+    [...sections.needs_human, ...sections.blocked, ...sections.continued],
+    feedback
+  );
+
   const now = (options.now ?? new Date()).getTime();
   const staleAfterMs = options.staleAfterMs ?? DEFAULT_STALE_AFTER_MS;
   const latest = journal.latest_recorded_at === null ? null : Date.parse(journal.latest_recorded_at);
@@ -383,7 +442,160 @@ export function buildJudgmentValueProofReviewHome(
       possibly_stalled: possiblyStalled
     },
     sections,
+    delegation_map: delegationMap,
     rejected: journal.rejected
+  };
+}
+
+function delegationRowIdentity(proof: JudgmentValueProof): {
+  readonly key: string;
+  readonly source: JudgmentDelegationRowSource;
+  readonly label: string | null;
+} {
+  const kind = proof.decision.judgment_kind;
+  if (kind) return { key: `kind:${kind.key}`, source: 'judgment_kind', label: kind.label };
+  const reason = proof.interruption.reason_code?.trim();
+  if (reason) return { key: `reason:${reason}`, source: 'reason_code', label: reason };
+  return { key: 'unrecorded', source: 'unrecorded', label: null };
+}
+
+function laterFeedback(
+  left: { readonly record: JudgmentValueProofFeedbackRecord; readonly order: number } | null,
+  right: { readonly record: JudgmentValueProofFeedbackRecord; readonly order: number }
+): boolean {
+  return !left || right.record.recorded_at > left.record.recorded_at
+    || (right.record.recorded_at === left.record.recorded_at && right.order > left.order);
+}
+
+function returnsDelegation(record: JudgmentValueProofFeedbackRecord): boolean {
+  return record.status === 'next_time_ask' || record.status === 'reverted'
+    || (record.status === 'corrected' && record.target_layer === 'delegation');
+}
+
+function newestFirst(entries: readonly { readonly ref: JudgmentDelegationItemRef; readonly at: string }[]): JudgmentDelegationItemRef[] {
+  return [...entries].sort((left, right) => compareRecordedAtDesc(left.at, right.at)).map((entry) => entry.ref);
+}
+
+function itemRef(item: JudgmentValueProofReviewItem, rowKey: string): JudgmentDelegationItemRef {
+  return { intent_id: item.proof.intent_id, decision_attempt_id: item.proof.decision_attempt_id, row_key: rowKey };
+}
+
+/**
+ * Groups reviewable judgments by kind and decides, per kind, whether Brainbase is trusted to
+ * proceed, is still being checked, or returns the judgment to the owner. Deterministic: the state
+ * follows only the newest judgment and the newest owner feedback in the row.
+ */
+export function buildJudgmentDelegationMap(
+  items: readonly JudgmentValueProofReviewItem[],
+  feedback: readonly JudgmentValueProofFeedbackRecord[]
+): JudgmentDelegationMap {
+  const order = new Map(feedback.map((record, index) => [record, index]));
+  const sorted = [...items].sort((left, right) => compareRecordedAtDesc(left.proof.recorded_at, right.proof.recorded_at)
+    || left.file.localeCompare(right.file));
+  const groups = new Map<string, { identity: ReturnType<typeof delegationRowIdentity>; items: JudgmentValueProofReviewItem[] }>();
+  for (const item of sorted) {
+    const identity = delegationRowIdentity(item.proof);
+    const group = groups.get(identity.key) ?? { identity, items: [] };
+    group.items.push(item);
+    groups.set(identity.key, group);
+  }
+
+  const correctedAfterContinue: { ref: JudgmentDelegationItemRef; at: string }[] = [];
+  const continuedAfterAsk: { ref: JudgmentDelegationItemRef; at: string }[] = [];
+  const rows: JudgmentDelegationRow[] = [];
+  for (const { identity, items: rowItems } of groups.values()) {
+    const byFeedback: Record<JudgmentValueProofFeedbackStatus, number> = { accepted: 0, corrected: 0, next_time_ask: 0, reverted: 0 };
+    let latestFeedback: { record: JudgmentValueProofFeedbackRecord; order: number } | null = null;
+    // The first ask is the cutoff: every later judgment that still proceeded without asking ignored it.
+    let firstAsk: JudgmentValueProofFeedbackRecord | null = null;
+    let continued = 0;
+    let returned = 0;
+    let rated = 0;
+    let inherited = 0;
+    for (const item of rowItems) {
+      const resolution = item.proof.interruption.resolution;
+      if (resolution === 'continued_without_human') continued += 1;
+      if (resolution === 'human_required') returned += 1;
+      if ((item.proof.decision.inheritance?.sources.length ?? 0) > 0) inherited += 1;
+      const latest = item.feedback_history.at(-1);
+      if (latest) {
+        rated += 1;
+        byFeedback[latest.status] += 1;
+        if (resolution === 'continued_without_human' && (latest.status === 'corrected' || latest.status === 'reverted')) {
+          correctedAfterContinue.push({ ref: itemRef(item, identity.key), at: item.proof.recorded_at });
+        }
+      }
+      for (const record of item.feedback_history) {
+        const candidate = { record, order: order.get(record) ?? -1 };
+        if (laterFeedback(latestFeedback, candidate)) latestFeedback = candidate;
+        if (record.status === 'next_time_ask' && (!firstAsk || record.recorded_at < firstAsk.recorded_at)) firstAsk = record;
+      }
+    }
+    if (firstAsk) {
+      for (const item of rowItems) {
+        if (item.proof.interruption.resolution === 'continued_without_human'
+          && item.proof.recorded_at > firstAsk.recorded_at
+          && item.feedback_history.at(-1)?.status !== 'accepted') {
+          continuedAfterAsk.push({ ref: itemRef(item, identity.key), at: item.proof.recorded_at });
+        }
+      }
+    }
+
+    const newest = rowItems[0].proof;
+    let state: JudgmentDelegationState;
+    let basis: JudgmentDelegationStateBasis;
+    const feedbackBasis = (record: JudgmentValueProofFeedbackRecord): JudgmentDelegationStateBasis => ({
+      reason: 'latest_feedback',
+      status: record.status,
+      target_layer: record.target_layer ?? (record.status === 'next_time_ask' ? 'delegation' : null),
+      at: record.recorded_at
+    });
+    if (newest.interruption.resolution === 'human_required') {
+      state = 'returned';
+      basis = { reason: 'latest_judgment_returned', at: newest.recorded_at };
+    } else if (latestFeedback && returnsDelegation(latestFeedback.record)) {
+      state = 'returned';
+      basis = feedbackBasis(latestFeedback.record);
+    } else if (newest.interruption.resolution === 'continued_without_human' && latestFeedback?.record.status === 'accepted') {
+      state = 'delegated';
+      basis = feedbackBasis(latestFeedback.record);
+    } else {
+      state = 'verifying';
+      basis = latestFeedback ? feedbackBasis(latestFeedback.record) : { reason: 'no_feedback' };
+    }
+
+    rows.push({
+      key: identity.key,
+      source: identity.source,
+      // The newest judgment names a kind row, so a relabelled kind shows its current label.
+      label: identity.source === 'judgment_kind' ? newest.decision.judgment_kind?.label ?? identity.label : identity.label,
+      state,
+      state_basis: basis,
+      counts: {
+        continued,
+        returned,
+        rated,
+        by_feedback: byFeedback,
+        corrected_or_reverted: byFeedback.corrected + byFeedback.reverted,
+        inherited
+      },
+      latest_recorded_at: newest.recorded_at,
+      items: rowItems.map((item) => itemRef(item, identity.key))
+    });
+  }
+
+  const sourceRank: Record<JudgmentDelegationRowSource, number> = { judgment_kind: 0, reason_code: 1, unrecorded: 2 };
+  rows.sort((left, right) => sourceRank[left.source] - sourceRank[right.source]
+    || compareRecordedAtDesc(left.latest_recorded_at, right.latest_recorded_at)
+    || left.key.localeCompare(right.key));
+
+  return {
+    judged: sorted.length,
+    kind_recorded: sorted.filter((item) => item.proof.decision.judgment_kind).length,
+    rated: rows.reduce((total, row) => total + row.counts.rated, 0),
+    rows,
+    corrected_after_continue: newestFirst(correctedAfterContinue),
+    continued_after_ask: newestFirst(continuedAfterAsk)
   };
 }
 

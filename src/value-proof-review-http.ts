@@ -116,6 +116,8 @@ function publicHome(home: JudgmentValueProofReviewHome): unknown {
     root: home.root,
     coverage: home.coverage,
     sections: strip(home.sections),
+    // Holds only decision IDs, counts and states; no local paths.
+    delegation_map: home.delegation_map,
     rejected: home.rejected.map((entry) => ({ file: relative(home.root, entry.file), reason: entry.reason }))
   };
 }
