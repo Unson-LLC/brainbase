@@ -31,6 +31,14 @@ const OUTCOME_LABELS = Object.freeze({
   unconfirmed: '成果未確認',
   not_applicable: '成果確認の対象外',
 });
+const BASIS_LAYER_LABELS = Object.freeze({
+  philosophy: '大切にすること',
+  objective: '目的',
+  world_model: '現状と見通し',
+  method: '判断方法',
+  constraint: '守る条件',
+  other: 'その他',
+});
 const EXECUTION_LABELS = Object.freeze({ not_started: '未着手', executing: '実行中', completed: '完了', blocked: '停止' });
 const FEEDBACK_LABELS = Object.freeze({
   none: '未評価',
@@ -234,7 +242,7 @@ function renderSection(doc, state, section, callbacks) {
       makeElement(doc, 'span', { className: 'vpr-item-summary', text: text(item.proof.decision.summary) ?? text(item.proof.human_decision?.why_human) ?? '判断の記録なし' }),
       makeElement(doc, 'span', {
         className: 'vpr-item-meta',
-        text: `${formatDate(item.proof.recorded_at)} · ${OUTCOME_LABELS[item.proof.outcome.status] ?? '成果不明'} · ${FEEDBACK_LABELS[item.proof.feedback.status] ?? '評価不明'}`,
+        text: [kindLabel(item.proof), formatDate(item.proof.recorded_at), OUTCOME_LABELS[item.proof.outcome.status] ?? '成果不明', FEEDBACK_LABELS[item.proof.feedback.status] ?? '評価不明'].filter(Boolean).join(' · '),
       }),
     );
     button.addEventListener('click', () => callbacks.onSelect?.(key));
@@ -244,6 +252,27 @@ function renderSection(doc, state, section, callbacks) {
   }
   block.append(list);
   return block;
+}
+
+function basisText(entry) {
+  const application = text(entry.application) ?? '適用内容なし';
+  const layer = BASIS_LAYER_LABELS[entry.layer];
+  return layer ? `[${layer}] ${application}` : application;
+}
+
+function inheritanceText(inheritance) {
+  const sources = Array.isArray(inheritance?.sources) ? inheritance.sources : [];
+  if (sources.length === 0) return '引き継ぎの記録なし';
+  const parts = [sources.map((source) => text(source.label) ?? text(source.ref) ?? '不明').join(' / ')];
+  const same = Array.isArray(inheritance.same_conditions) ? inheritance.same_conditions.filter(text) : [];
+  const rechecked = Array.isArray(inheritance.rechecked_conditions) ? inheritance.rechecked_conditions.filter(text) : [];
+  if (same.length > 0) parts.push(`今回も同じ: ${same.join('、')}`);
+  if (rechecked.length > 0) parts.push(`今回だけ確認: ${rechecked.join('、')}`);
+  return parts.join('。');
+}
+
+function kindLabel(proof) {
+  return text(proof.decision?.judgment_kind?.label);
 }
 
 function row(doc, list, label, value, className) {
@@ -316,15 +345,17 @@ function renderCard(doc, item, state, callbacks) {
     makeElement(doc, 'div', { className: `vpr-badge is-${item.section}`, text: SECTION_LABELS[item.section] }),
     heading,
   );
+  if (kindLabel(proof)) card.append(makeElement(doc, 'p', { className: 'vpr-hint', text: `判断の種類: ${kindLabel(proof)}` }));
   const facts = makeElement(doc, 'dl', { className: 'vpr-facts' });
   const reason = text(proof.interruption.human_reason) ?? text(proof.interruption.reason_code) ?? '理由の記録なし';
   row(doc, facts, '扱い', `${RESOLUTION_LABELS[proof.interruption.resolution] ?? '不明'}（${reason}）`);
   row(doc, facts, '判断', text(proof.decision.summary) ?? '判断の記録なし');
   row(doc, facts, '仕事への影響', text(proof.decision.work_impact) ?? '影響の記録なし');
   const basis = Array.isArray(proof.decision.basis) ? proof.decision.basis : [];
-  row(doc, facts, '根拠', basis.length > 0 ? basis.map((entry) => text(entry.application) ?? '適用内容なし').join(' / ') : '根拠の記録なし');
+  row(doc, facts, '根拠', basis.length > 0 ? basis.map(basisText).join(' / ') : '根拠の記録なし');
   const reuse = proof.decision.prior_learning_reused;
   row(doc, facts, '過去の学習の再利用', reuse === true ? 'あり' : reuse === false ? 'なし' : '未確認');
+  row(doc, facts, '引き継ぎ', inheritanceText(proof.decision.inheritance));
   row(doc, facts, '実行', `${EXECUTION_LABELS[proof.execution.status] ?? '不明'}${text(proof.execution.summary) ? `: ${text(proof.execution.summary)}` : ''}`);
   const evidence = Array.isArray(proof.outcome.evidence_refs) ? proof.outcome.evidence_refs : [];
   const evidenceText = evidence.length > 0

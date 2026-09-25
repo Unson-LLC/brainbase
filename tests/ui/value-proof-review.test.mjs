@@ -136,12 +136,45 @@ describe('value proof review UI contract', () => {
     const card = findAll(root, (element) => element?.className === 'vpr-card')[0];
     const facts = findAll(card, (element) => element?.className === 'vpr-facts')[0];
     expect(byTag(facts, 'dt').map((element) => element.textContent)).toEqual([
-      '扱い', '判断', '仕事への影響', '根拠', '過去の学習の再利用', '実行', '成果の確認', '評価',
+      '扱い', '判断', '仕事への影響', '根拠', '過去の学習の再利用', '引き継ぎ', '実行', '成果の確認', '評価',
     ]);
     expect(collectText(facts)).not.toContain('attempt-1');
     const audit = findAll(card, (element) => element?.className === 'vpr-audit')[0];
     expect(collectText(audit)).toContain('attempt-1');
     expect(collectText(root)).toContain('記録が止まっている可能性があります');
+  });
+
+  it('says the inheritance is unrecorded instead of inventing it, and shows it when recorded', () => {
+    const doc = new FakeDocument();
+    const render = (entry) => {
+      const root = doc.createElement('main');
+      renderValueProofReview(root, {
+        phase: 'ready',
+        home: normalizeValueProofReviewHome(home([entry])),
+        selectedKey: 'intent-1\u0000attempt-1',
+        unratedOnly: false,
+        draft: { status: '', summary: '' },
+        save: { state: 'idle', message: '' },
+      }, {}, { document: doc });
+      return collectText(findAll(root, (element) => element?.className === 'vpr-facts')[0]);
+    };
+
+    expect(render(proof())).toContain('引き継ぎの記録なし');
+
+    const recorded = proof();
+    recorded.decision = {
+      ...recorded.decision,
+      basis: [{ entity_id: 'objective-1', application: 'フロントの総対応負荷を減らす', layer: 'objective' }],
+      judgment_kind: { key: 'evaluation_design', label: '実証の評価設計' },
+      inheritance: {
+        sources: [{ kind: 'method', ref: 'method-total-load', version: '2', label: 'ホテルAの総負荷の評価方法' }],
+        same_conditions: ['問い合わせ自動化の実証である'],
+        rechecked_conditions: ['ホテルBの作業記録の方法'],
+      },
+    };
+    const text = render(recorded);
+    expect(text).toContain('[目的] フロントの総対応負荷を減らす');
+    expect(text).toContain('ホテルAの総負荷の評価方法。今回も同じ: 問い合わせ自動化の実証である。今回だけ確認: ホテルBの作業記録の方法');
   });
 
   it('requires a reason for corrections, posts with the review token and confirms the saved feedback by reloading', async () => {
