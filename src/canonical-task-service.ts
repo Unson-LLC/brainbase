@@ -432,6 +432,14 @@ function projectTaskResult(result: unknown): unknown {
   return result;
 }
 
+// Repositories report warnings as `{ code, message }` objects or legacy strings.
+// The page contract is string[], so keep the code rather than "[object Object]".
+function warningCode(warning: unknown): string {
+  if (typeof warning === 'string') return warning;
+  const code = (warning as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && code ? code : JSON.stringify(warning);
+}
+
 function normalizePage(page: CanonicalTaskPage, normalize: (task: CanonicalTaskRecord) => CanonicalTaskRecord): CanonicalTaskPage {
   const items = Array.isArray(page.items) ? page.items.map(normalize) : [];
   // An explicit null means that the backend did not request or cannot provide
@@ -454,7 +462,7 @@ function normalizePage(page: CanonicalTaskPage, normalize: (task: CanonicalTaskR
     count_status: countStatus,
     next_cursor: nextCursor,
     read_status: readStatus,
-    warnings: items.flatMap((task) => Array.isArray(task.normalization_warnings) ? task.normalization_warnings.map(String) : []),
+    warnings: items.flatMap((task) => Array.isArray(task.normalization_warnings) ? task.normalization_warnings.map(warningCode) : []),
   };
 }
 

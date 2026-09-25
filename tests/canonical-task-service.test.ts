@@ -58,6 +58,17 @@ describe('CanonicalTaskService', () => {
       .rejects.toMatchObject({ code: 'validation_error', status: 400 });
   });
 
+  it('reports task normalization warnings by code instead of an unreadable object string', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Legacy task' }, fixture.context('warning-create'));
+    (fixture.tasks.get(created.id) as Record<string, unknown>).normalization_warnings = [
+      { code: 'assignee_unresolved', message: 'Legacy assignee has no Graph person ID' },
+      'legacy_warning',
+    ];
+    const page = await fixture.service.listTasks({}, fixture.context());
+    expect(page.warnings).toEqual(['assignee_unresolved', 'legacy_warning']);
+  });
+
   it('replays the same idempotent create and rejects a changed payload', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const first = await fixture.service.createTask({ title: 'One task' }, fixture.context('same-key'));
