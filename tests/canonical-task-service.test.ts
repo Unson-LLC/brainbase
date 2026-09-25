@@ -41,6 +41,34 @@ describe('CanonicalTaskService', () => {
     expect(fixture.actions).toEqual(['create', 'list', 'search', 'read']);
   });
 
+  it('keeps line breaks and tabs in the description but rejects other control characters', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({
+      title: 'Multi-line purpose',
+      description: '目的\r\n\n完了条件:\t確認済み  ',
+    }, fixture.context('multiline-create'));
+    expect(created.description).toBe('目的\n\n完了条件:\t確認済み');
+
+    const updated = await fixture.service.updateTask(created.id, { description: '1行目\n2行目' }, created.version, fixture.context());
+    expect(updated.description).toBe('1行目\n2行目');
+
+    await expect(fixture.service.createTask({ title: 'Bell', description: 'ring\u0007' }, fixture.context('bell')))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.createTask({ title: 'Line\nbreak' }, fixture.context('title-newline')))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+  });
+
+  it('reports task normalization warnings by code instead of an unreadable object string', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Legacy task' }, fixture.context('warning-create'));
+    (fixture.tasks.get(created.id) as Record<string, unknown>).normalization_warnings = [
+      { code: 'assignee_unresolved', message: 'Legacy assignee has no Graph person ID' },
+      'legacy_warning',
+    ];
+    const page = await fixture.service.listTasks({}, fixture.context());
+    expect(page.warnings).toEqual(['assignee_unresolved', 'legacy_warning']);
+  });
+
   it('replays the same idempotent create and rejects a changed payload', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const first = await fixture.service.createTask({ title: 'One task' }, fixture.context('same-key'));

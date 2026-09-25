@@ -316,13 +316,20 @@ function failValidation(fieldErrors: Record<string, string[]>): never {
   );
 }
 
-function normalizeString(value: unknown, field: string, options: { required?: boolean; max?: number } = {}): string | null {
-  const normalized = value == null ? '' : String(value).normalize('NFKC').trim();
+function normalizeString(
+  value: unknown,
+  field: string,
+  options: { required?: boolean; max?: number; multiline?: boolean } = {},
+): string | null {
+  const text = value == null ? '' : String(value).normalize('NFKC');
+  // Multi-line fields keep line breaks and tabs; CRLF/CR are stored as LF.
+  const normalized = (options.multiline ? text.replace(/\r\n?/gu, '\n') : text).trim();
   if (!normalized) {
     if (options.required) fail('validation_error', `${field} is required`, 400, { field });
     return null;
   }
-  if (/[\u0000-\u001f\u007f]/u.test(normalized)) {
+  const controlCharacters = options.multiline ? /[\u0000-\u0008\u000b-\u001f\u007f]/u : /[\u0000-\u001f\u007f]/u;
+  if (controlCharacters.test(normalized)) {
     fail('validation_error', `${field} contains control characters`, 400, { field });
   }
   if (options.max && normalized.length > options.max) {
@@ -425,6 +432,14 @@ function projectTaskResult(result: unknown): unknown {
   return result;
 }
 
+// Repositories report warnings as `{ code, message }` objects or legacy strings.
+// The page contract is string[], so keep the code rather than "[object Object]".
+function warningCode(warning: unknown): string {
+  if (typeof warning === 'string') return warning;
+  const code = (warning as { code?: unknown } | null)?.code;
+  return typeof code === 'string' && code ? code : JSON.stringify(warning);
+}
+
 function normalizePage(page: CanonicalTaskPage, normalize: (task: CanonicalTaskRecord) => CanonicalTaskRecord): CanonicalTaskPage {
   const items = Array.isArray(page.items) ? page.items.map(normalize) : [];
   // An explicit null means that the backend did not request or cannot provide
@@ -447,7 +462,7 @@ function normalizePage(page: CanonicalTaskPage, normalize: (task: CanonicalTaskR
     count_status: countStatus,
     next_cursor: nextCursor,
     read_status: readStatus,
-    warnings: items.flatMap((task) => Array.isArray(task.normalization_warnings) ? task.normalization_warnings.map(String) : []),
+    warnings: items.flatMap((task) => Array.isArray(task.normalization_warnings) ? task.normalization_warnings.map(warningCode) : []),
   };
 }
 
@@ -899,7 +914,7 @@ export class CanonicalTaskService {
     if (!isCanonicalTaskPriority(priority)) fail('validation_error', 'priority is invalid', 400, { field: 'priority' });
     return {
       title,
-      description: normalizeString(input.description, 'description', { max: 10000 }),
+      description: normalizeString(input.description, 'description', { max: 10000, multiline: true }),
       priority,
       assignee_person_id: normalizeString(input.assignee_person_id, 'assignee_person_id', { max: 200 }),
       due_at: normalizeIsoDate(input.due_at, 'due_at'),
@@ -916,7 +931,7 @@ export class CanonicalTaskService {
     if (unknownFields.length > 0) fail('validation_error', 'Task update contains unsupported fields', 400, { fields: unknownFields });
     const patch: JsonRecord = {};
     if ('title' in input) patch.title = normalizeString(input.title, 'title', { required: true, max: MAX_TITLE_LENGTH });
-    if ('description' in input) patch.description = normalizeString(input.description, 'description', { max: 10000 });
+    if ('description' in input) patch.description = normalizeString(input.description, 'description', { max: 10000, multiline: true });
     if ('priority' in input) {
       const priority = input.priority == null || input.priority === '' ? null : String(input.priority);
       if (priority != null && !isCanonicalTaskPriority(priority)) fail('validation_error', 'priority is invalid', 400, { field: 'priority' });
