@@ -413,6 +413,19 @@ describe('delegation map', () => {
     ]);
   });
 
+  it('keeps judgments that ignored an earlier ask when the owner asks again later', () => {
+    const map = mapOf([
+      kinded(continuedProof('1', '2026-09-29T01:00:00.000Z'), 'production_release'),
+      kinded(continuedProof('2', '2026-09-29T08:00:00.000Z'), 'production_release'),
+      kinded(continuedProof('3', '2026-09-29T09:00:00.000Z'), 'production_release')
+    ], [
+      feedbackRecord('1', 'next_time_ask', '2026-09-29T05:00:00.000Z'),
+      feedbackRecord('2', 'next_time_ask', '2026-09-29T10:00:00.000Z')
+    ]);
+
+    expect(map.continued_after_ask.map((entry) => entry.decision_attempt_id)).toEqual(['attempt-3', 'attempt-2']);
+  });
+
   it('counts judgments that recorded an inherited experience', () => {
     const inherited = kinded(continuedProof('1', '2026-09-29T01:00:00.000Z'), 'daily_routine');
     const map = mapOf([

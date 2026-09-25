@@ -263,6 +263,13 @@ function firstVisibleKey(state) {
   return null;
 }
 
+/** Keep the card on a visible judgment and open the row that lists it. */
+function revealSelection(state) {
+  if (!itemVisible(state, findItem(state, state.selectedKey))) state.selectedKey = firstVisibleKey(state);
+  const row = rowOfItem(state, state.selectedKey);
+  if (row) state.expandedRows.add(row.key);
+}
+
 function notice(doc, className, message, role = 'status') {
   return makeElement(doc, 'p', { className: `vpr-notice ${className}`, text: message, attrs: { role } });
 }
@@ -422,7 +429,7 @@ function renderRow(doc, state, row, callbacks) {
   if (open) {
     const items = rowItems(state, row);
     if (items.length === 0) {
-      block.append(makeElement(doc, 'p', { className: 'vpr-empty', text: '未評価の判断はありません。' }));
+      block.append(makeElement(doc, 'p', { className: 'vpr-empty', text: state.unratedOnly ? '未評価の判断はありません。' : 'この行に表示できる判断はありません。' }));
     } else {
       const list = makeElement(doc, 'ul', { className: 'vpr-list' });
       for (const item of items) list.append(renderItemButton(doc, state, item, callbacks));
@@ -760,12 +767,12 @@ export function createValueProofReviewUI({
     onReload: () => controller.load(),
     onToggleUnrated(value) {
       state.unratedOnly = value;
-      if (!itemVisible(state, findItem(state, state.selectedKey))) state.selectedKey = firstVisibleKey(state);
+      revealSelection(state);
       controller.render();
     },
     onToggleNeedsHuman(value) {
       state.needsHumanOnly = value;
-      if (!itemVisible(state, findItem(state, state.selectedKey))) state.selectedKey = firstVisibleKey(state);
+      revealSelection(state);
       controller.render();
     },
     onToggleRow(key) {
@@ -869,9 +876,7 @@ export function createValueProofReviewUI({
         state.home = normalizeValueProofReviewHome(await response.json());
         state.phase = 'ready';
         state.error = null;
-        if (!findItem(state, state.selectedKey)) state.selectedKey = firstVisibleKey(state);
-        const selectedRow = rowOfItem(state, state.selectedKey);
-        if (selectedRow) state.expandedRows.add(selectedRow.key);
+        revealSelection(state);
       } catch (error) {
         state.phase = 'error';
         state.error = error instanceof Error ? error.message : 'request_failed';

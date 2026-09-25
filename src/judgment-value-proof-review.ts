@@ -506,7 +506,8 @@ export function buildJudgmentDelegationMap(
   for (const { identity, items: rowItems } of groups.values()) {
     const byFeedback: Record<JudgmentValueProofFeedbackStatus, number> = { accepted: 0, corrected: 0, next_time_ask: 0, reverted: 0 };
     let latestFeedback: { record: JudgmentValueProofFeedbackRecord; order: number } | null = null;
-    let latestAsk: { record: JudgmentValueProofFeedbackRecord; order: number } | null = null;
+    // The first ask is the cutoff: every later judgment that still proceeded without asking ignored it.
+    let firstAsk: JudgmentValueProofFeedbackRecord | null = null;
     let continued = 0;
     let returned = 0;
     let rated = 0;
@@ -527,13 +528,13 @@ export function buildJudgmentDelegationMap(
       for (const record of item.feedback_history) {
         const candidate = { record, order: order.get(record) ?? -1 };
         if (laterFeedback(latestFeedback, candidate)) latestFeedback = candidate;
-        if (record.status === 'next_time_ask' && laterFeedback(latestAsk, candidate)) latestAsk = candidate;
+        if (record.status === 'next_time_ask' && (!firstAsk || record.recorded_at < firstAsk.recorded_at)) firstAsk = record;
       }
     }
-    if (latestAsk) {
+    if (firstAsk) {
       for (const item of rowItems) {
         if (item.proof.interruption.resolution === 'continued_without_human'
-          && item.proof.recorded_at > latestAsk.record.recorded_at
+          && item.proof.recorded_at > firstAsk.recorded_at
           && item.feedback_history.at(-1)?.status !== 'accepted') {
           continuedAfterAsk.push({ ref: itemRef(item, identity.key), at: item.proof.recorded_at });
         }

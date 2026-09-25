@@ -384,4 +384,21 @@ describe('value proof review UI contract', () => {
     expect(map).not.toContain('routine_reversible_work');
     expect(ui.state.selectedKey).toBe('intent-w\u0000attempt-w');
   });
+
+  it('opens the row of the judgment the card moves to when a filter hides the selected one', async () => {
+    const rated = proof({ feedback: { status: 'accepted', summary: null, evidence_ref: { kind: 'human_feedback', ref: 'x', status: 'verified' } } });
+    const unrated = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });
+    const payload = home([rated, unrated], delegationMap([mapRow('kind:k1', [rated]), mapRow('kind:k2', [unrated])]));
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const ui = createValueProofReviewUI({ root, document: doc, fetcher: async () => jsonResponse(200, payload), autoLoad: false });
+    await ui.load();
+    expect(ui.state.selectedKey).toBe('intent-1\u0000attempt-1');
+
+    ui.callbacks.onToggleUnrated(true);
+    expect(ui.state.selectedKey).toBe('intent-2\u0000attempt-2');
+    expect(ui.state.expandedRows.has('kind:k2')).toBe(true);
+    const rows = findAll(root, (element) => element?.className?.startsWith?.('vpr-row is-'));
+    expect(collectText(rows[1])).toContain('稼働中の設定へ反映してよいですか？');
+  });
 });
