@@ -50,6 +50,13 @@ function collectText(node) {
   return `${node?.textContent ?? ''}${(node?.children ?? []).map(collectText).join('')}`;
 }
 
+function findButtons(node, result = []) {
+  if (!node) return result;
+  if (node.tagName === 'BUTTON') result.push(node);
+  for (const child of node.children ?? []) findButtons(child, result);
+  return result;
+}
+
 function objectiveRecord(overrides = {}) {
   return {
     definition: {
@@ -220,4 +227,54 @@ describe('Objective editor common UI contract', () => {
     expect(result.reference.revision).toBe('1');
     expect(updates).toBe(1);
   });
+
+  it('shows constraints read-only and hides the Story tab only when the host asks', async () => {
+    globalThis.document = new FakeDocument();
+    const buttons = (node) => findButtons(node).map((button) => button.textContent);
+    const port = {
+      readObjective: async () => objectiveRecord(),
+      checkObjectiveReadiness: async () => ({ ready: true, issues: [] }),
+      listObjectiveConstraintRefs: async () => ({ refs: [{ id: 'constraint-1', type: 'constraint', revision: '1', meaning: '夜は働かない' }], absence_confirmed: true }),
+    };
+
+    const defaultRoot = new FakeElement('div');
+    const defaults = createObjectiveEditorController({ root: defaultRoot, port, context: {}, canEdit: true, autoLoad: false });
+    await defaults.selectObjective({ id: 'objective-load', type: 'objective', revision: '1' });
+    expect(buttons(defaultRoot)).toEqual(expect.arrayContaining(['Story参照', '外す', '参照を追加']));
+
+    const root = new FakeElement('div');
+    const readOnly = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false, constraintsEditable: false, storyLinks: false });
+    await readOnly.selectObjective({ id: 'objective-load', type: 'objective', revision: '1' });
+    expect(collectText(root)).toContain('constraint-1@1');
+    expect(collectText(root)).toContain('制約の参照はここでは表示だけです。');
+    expect(buttons(root)).not.toContain('外す');
+    expect(buttons(root)).not.toContain('参照を追加');
+    expect(buttons(root)).not.toContain('Story参照');
+    readOnly.addConstraintRef({ id: 'constraint-2', type: 'constraint', revision: '1' });
+    readOnly.removeConstraintRef({ id: 'constraint-1', type: 'constraint', revision: '1' });
+    expect(readOnly.state.editor.constraintRefs.map((ref) => ref.id)).toEqual(['constraint-1']);
+    expect(readOnly.state.editor.constraintRefsChanged).toBe(false);
+  });
+
+  it('lists each Objective with its desired state, evaluation period, accountable person and criteria', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    // Noon UTC keeps the local calendar date stable in every common time zone.
+    const record = objectiveRecord({ definition: {
+      ...objectiveRecord().definition,
+      accountableId: 'self',
+      evaluationPeriod: { from: '2026-01-15T12:00:00.000Z', until: '2026-03-15T12:00:00.000Z' },
+    } });
+    const controller = createObjectiveEditorController({
+      root, port: { listObjectives: async () => ({ records: [record], absence_confirmed: true }) }, context: {}, autoLoad: false,
+    });
+    await controller.loadObjectives();
+    const text = collectText(root);
+    expect(text).toContain('実現したい状態: 引き継ぎと修正を含めた総負荷が減る');
+    expect(text).toContain('評価期間 2026-01-15〜2026-03-15');
+    expect(text).toContain('責任者 self');
+    expect(text).toContain('評価基準 1件');
+    expect(text).toContain('承認済み');
+  });
 });
+

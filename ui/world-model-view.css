@@ -1,0 +1,155 @@
+/* Read-only World Model view. Uses only the shared tokens in brainbase-tokens.css. */
+.bb-wm {
+  display: grid;
+  gap: var(--bb-space-5);
+  min-width: 0;
+  color: var(--bb-color-ink);
+  font-family: var(--bb-font-sans);
+  line-height: 1.6;
+}
+
+.bb-wm *,
+.bb-wm *::before,
+.bb-wm *::after {
+  box-sizing: border-box;
+}
+
+.bb-wm h2,
+.bb-wm h3,
+.bb-wm h4,
+.bb-wm p {
+  margin: 0;
+}
+
+.bb-wm-header {
+  display: grid;
+  gap: var(--bb-space-1);
+}
+
+.bb-wm-header h2 {
+  font-size: 20px;
+}
+
+.bb-wm-lead {
+  color: var(--bb-color-muted);
+  font-size: 13px;
+}
+
+.bb-wm-block {
+  display: grid;
+  gap: var(--bb-space-3);
+  min-width: 0;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md);
+  padding: var(--bb-space-4);
+  background: var(--bb-color-panel);
+}
+
+.bb-wm-heading {
+  font-size: 16px;
+}
+
+.bb-wm-subheading {
+  margin-top: var(--bb-space-2);
+  font-size: 14px;
+}
+
+.bb-wm-list {
+  display: grid;
+  gap: var(--bb-space-2);
+  min-width: 0;
+}
+
+.bb-wm-item {
+  display: grid;
+  gap: var(--bb-space-2);
+  min-width: 0;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-3);
+  background: var(--bb-color-panel);
+}
+
+.bb-wm-item.is-superseded {
+  background: var(--bb-color-surface);
+}
+
+.bb-wm-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  align-items: baseline;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.bb-wm-item-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-wm-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-1);
+}
+
+.bb-wm-badge {
+  border: 1px solid var(--bb-color-border);
+  border-radius: 999px;
+  padding: 0 var(--bb-space-2);
+  color: var(--bb-color-muted);
+  background: var(--bb-color-surface);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.bb-wm-badge.is-success { color: var(--bb-color-success); background: var(--bb-color-success-soft); }
+.bb-wm-badge.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
+.bb-wm-badge.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
+.bb-wm-badge.is-accent { color: var(--bb-color-accent); background: var(--bb-color-accent-soft); }
+
+.bb-wm-facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--bb-space-1) var(--bb-space-3);
+  margin: 0;
+  font-size: 13px;
+}
+
+.bb-wm-facts dt {
+  color: var(--bb-color-muted);
+}
+
+.bb-wm-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-wm-notice {
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-2) var(--bb-space-3);
+  font-size: 13px;
+}
+
+.bb-wm-notice.is-muted { color: var(--bb-color-muted); background: var(--bb-color-surface); }
+.bb-wm-notice.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
+.bb-wm-notice.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
+
+.bb-wm-retry {
+  justify-self: start;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-1) var(--bb-space-3);
+  color: var(--bb-color-ink);
+  background: var(--bb-color-panel);
+  font: inherit;
+  cursor: pointer;
+}
+
+@media (max-width: 480px) {
+  .bb-wm-block { padding: var(--bb-space-3); }
+  .bb-wm-facts { grid-template-columns: minmax(0, 1fr); }
+  .bb-wm-facts dd { margin-bottom: var(--bb-space-1); }
+}

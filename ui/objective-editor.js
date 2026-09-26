@@ -29,6 +29,9 @@ const STATUS_LABELS = Object.freeze({
   ready: '取得済み',
   empty: '登録なし',
   draft: '下書き',
+  proposed: '提案中',
+  approved: '承認済み',
+  retired: '終了',
   judgment_available: '判断に利用可能',
   judgment_unknown: '判断利用可否 未確認',
   permission_denied: '権限不足',
@@ -523,6 +526,26 @@ function editorDraftFromObjective(objective, options = {}) {
   };
 }
 
+function shortDate(value) {
+  const input = nonEmptyText(value);
+  if (!input) return null;
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return input;
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+/** One line per Objective: desired state, evaluation period, accountable person and criteria count. */
+function objectiveSummary(objective) {
+  const from = shortDate(objective.evaluationPeriod?.from);
+  const until = shortDate(objective.evaluationPeriod?.until);
+  return [
+    `評価期間 ${from || until ? `${from ?? '未設定'}〜${until ?? '未設定'}` : '未設定'}`,
+    `責任者 ${objective.accountableId ?? '未設定'}`,
+    `評価基準 ${objective.criteria ? `${objective.criteria.length}件` : '未確認'}`,
+  ].join(' ・ ');
+}
+
 function renderObjectiveList(root, state, callbacks) {
   const section = makeElement('section', { className: 'objective-editor-panel', attrs: { 'aria-label': '目的一覧' } });
   append(section,
@@ -548,6 +571,8 @@ function renderObjectiveList(root, state, callbacks) {
     const copy = makeElement('span', { className: 'objective-editor-list-copy' });
     append(copy,
       makeElement('strong', { text: text(objective.meaning, objective.id) }),
+      objective.desiredState ? makeElement('span', { className: 'objective-editor-muted', text: `実現したい状態: ${objective.desiredState}` }) : null,
+      makeElement('small', { text: objectiveSummary(objective) }),
       makeElement('small', { text: `${objective.id}@${objective.revision}` }),
     );
     const badges = makeElement('span', { className: 'objective-editor-list-badges' });
@@ -596,11 +621,13 @@ function renderConstraintRefs(root, state, callbacks) {
     const item = makeElement('li', { className: 'objective-editor-reference-item' });
     item.append(makeElement('span', { text: `${ref.id}@${ref.revision}` }));
     if (ref.meaning) item.append(makeElement('small', { text: ref.meaning }));
-    if (callbacks.canEdit && callbacks.onRemoveConstraintRef) item.append(makeButton('外す', () => callbacks.onRemoveConstraintRef(ref), 'objective-editor-button-danger'));
+    if (callbacks.canEdit && callbacks.constraintsEditable !== false && callbacks.onRemoveConstraintRef) item.append(makeButton('外す', () => callbacks.onRemoveConstraintRef(ref), 'objective-editor-button-danger'));
     list.append(item);
   }
   section.append(list);
-  if (callbacks.canEdit && callbacks.onAddConstraintRef) {
+  if (callbacks.constraintsEditable === false) {
+    section.append(makeElement('p', { className: 'objective-editor-muted', text: '制約の参照はここでは表示だけです。' }));
+  } else if (callbacks.canEdit && callbacks.onAddConstraintRef) {
     const addForm = makeElement('form', { className: 'objective-editor-inline-form' });
     const idField = field('制約ID', 'constraint_id', '', { attrs: { placeholder: 'constraint-id' } });
     const revisionField = field('版', 'constraint_revision', '', { attrs: { placeholder: '1' } });
@@ -775,7 +802,7 @@ export function renderObjectiveEditor(root, state, callbacks = {}) {
   const tabs = [
     ['list', '目的一覧'],
     ['editor', '目的を編集'],
-    ['story', 'Story参照'],
+    ...(callbacks.storyLinks === false ? [] : [['story', 'Story参照']]),
   ];
   for (const [id, label] of tabs) toolbar.append(makeButton(label, () => callbacks.onView?.(id), `objective-editor-tab${state.view === id ? ' is-active' : ''}`));
   toolbar.append(makeButton('再読込', callbacks.onReload, 'objective-editor-button-secondary'));
@@ -784,7 +811,9 @@ export function renderObjectiveEditor(root, state, callbacks = {}) {
   const connectionState = state.connection;
   if (connectionState && connectionState !== 'ready') wrapper.append(statusNotice({ state: connectionState, message: state.connectionMessage }, { onRetry: callbacks.onReload }));
   const content = makeElement('main', { className: 'objective-editor-content' });
-  const renderer = state.view === 'editor' ? renderObjectiveForm : state.view === 'story' ? renderStoryLinks : renderObjectiveList;
+  const renderer = state.view === 'editor' ? renderObjectiveForm
+    : state.view === 'story' && callbacks.storyLinks !== false ? renderStoryLinks
+      : renderObjectiveList;
   content.append(renderer(content, state, callbacks));
   wrapper.append(content);
   root.append(wrapper);
@@ -826,6 +855,10 @@ export function createObjectiveEditorController(options = {}) {
   const port = options.port ?? null;
   const context = options.context ?? {};
   const canEdit = options.canEdit === true;
+  // Hosts without a constraint-link writer show constraints read-only.
+  const constraintsEditable = options.constraintsEditable !== false;
+  // Hosts without a Story provider hide the Story tab instead of showing an unavailable API.
+  const storyLinks = options.storyLinks !== false;
   const createDefaults = options.createDefaults ?? {};
   const state = {
     view: options.initialView ?? 'list',
@@ -844,6 +877,8 @@ export function createObjectiveEditorController(options = {}) {
     if (!root) return null;
     return renderObjectiveEditor(root, state, {
       canEdit,
+      constraintsEditable,
+      storyLinks,
       onView: (view) => { state.view = view; render(); },
       onReload: loadObjectives,
       onCreate: beginCreate,
@@ -1001,6 +1036,7 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function addConstraintRef(reference) {
+    if (!constraintsEditable) return;
     const normalized = normalizeReference(reference, 'constraint');
     if (!normalized || normalized.type !== 'constraint') return;
     const refs = state.editor.constraintRefs ?? [];
@@ -1011,6 +1047,7 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function removeConstraintRef(reference) {
+    if (!constraintsEditable) return;
     state.editor.constraintRefs = (state.editor.constraintRefs ?? []).filter((item) => !(item.id === reference.id && item.revision === reference.revision));
     state.editor.constraintRefsChanged = true;
     render();
