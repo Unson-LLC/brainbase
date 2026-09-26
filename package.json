@@ -189,6 +189,14 @@
     "./execution-authority": {
       "types": "./dist/execution-authority.d.ts",
       "import": "./dist/execution-authority.js"
+    },
+    "./knowledge-continuation": {
+      "types": "./dist/knowledge-continuation.d.ts",
+      "import": "./dist/knowledge-continuation.js"
+    },
+    "./knowledge-lookup": {
+      "types": "./dist/knowledge-lookup.d.ts",
+      "import": "./dist/knowledge-lookup.js"
     }
   },
   "bin": {
