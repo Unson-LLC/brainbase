@@ -603,8 +603,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-foundation-draft-write-v1",
+        "title": "Foundationの草案を認証済みGraph更新境界へ安全に渡せる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-knowledge-lookup-field-contract-v1"
+    "current_story_id": "story-foundation-draft-write-v1"
   }
 }
