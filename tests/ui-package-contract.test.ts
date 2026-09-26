@@ -14,6 +14,18 @@ describe('OSS共通UIの公開契約', () => {
         types: './dist/foundation-http.d.ts',
         import: './dist/foundation-http.js',
       },
+      './graph-web-http': {
+        types: './dist/graph-web-http.d.ts',
+        import: './dist/graph-web-http.js',
+      },
+      './graph-web': {
+        types: './dist/graph-web.d.ts',
+        import: './dist/graph-web.js',
+      },
+      './graph-corrections': {
+        types: './dist/graph-corrections.d.ts',
+        import: './dist/graph-corrections.js',
+      },
       './ui/outcome-knowledge': './ui/outcome-knowledge.js',
       './ui/outcome-knowledge.css': './ui/outcome-knowledge.css',
       './ui/outcome-mana': './ui/outcome-mana.js',

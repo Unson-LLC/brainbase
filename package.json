@@ -43,6 +43,18 @@
       "types": "./dist/local-web-host.d.ts",
       "import": "./dist/local-web-host.js"
     },
+    "./graph-corrections": {
+      "types": "./dist/graph-corrections.d.ts",
+      "import": "./dist/graph-corrections.js"
+    },
+    "./graph-web": {
+      "types": "./dist/graph-web.d.ts",
+      "import": "./dist/graph-web.js"
+    },
+    "./graph-web-http": {
+      "types": "./dist/graph-web-http.d.ts",
+      "import": "./dist/graph-web-http.js"
+    },
     "./portable-graph": {
       "types": "./dist/portable-graph.d.ts",
       "import": "./dist/portable-graph.js"
