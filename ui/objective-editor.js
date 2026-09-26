@@ -600,7 +600,7 @@ function renderReadiness(root, readiness) {
   const normalized = normalizeReadiness(readiness);
   section.append(makeElement('div', { className: 'objective-editor-subheading', text: '判断への利用' }));
   if (normalized.state !== 'ready') {
-    section.append(statusBadge('judgment_unknown'), makeElement('p', { className: 'objective-editor-muted', text: 'readinessを正本APIから確認できていません。' }));
+    section.append(statusBadge('judgment_unknown'), makeElement('p', { className: 'objective-editor-muted', text: '判断に使える状態かどうかを、保存先から確認できていません。' }));
     return section;
   }
   section.append(normalized.ready ? statusBadge('judgment_available') : statusBadge('draft', '判断に使えない'));
@@ -657,12 +657,12 @@ function renderCriteria(root, draft, callbacks) {
   const fieldset = makeElement('fieldset', { className: 'objective-editor-criteria' });
   fieldset.append(makeElement('legend', { text: '評価基準' }));
   const criteria = Array.isArray(draft.criteria) ? draft.criteria : [];
-  if (!criteria.length) fieldset.append(makeElement('p', { className: 'objective-editor-muted', text: '評価基準はまだありません。判断利用にはVariable参照が必要です。' }));
+  if (!criteria.length) fieldset.append(makeElement('p', { className: 'objective-editor-muted', text: '評価基準はまだありません。判断に使うには、測る変数の参照が必要です。' }));
   criteria.forEach((criterion, index) => {
     const row = makeElement('div', { className: 'objective-editor-criterion-row' });
     const variableRef = criterion?.variableRef ?? {};
-    const variableId = field('Variable ID', `criteria.${index}.variable_id`, variableRef.id ?? '', { attrs: { required: true } });
-    const variableRevision = field('Variable版', `criteria.${index}.variable_revision`, variableRef.revision ?? '', { attrs: { required: true } });
+    const variableId = field('変数ID', `criteria.${index}.variable_id`, variableRef.id ?? '', { attrs: { required: true } });
+    const variableRevision = field('変数の版', `criteria.${index}.variable_revision`, variableRef.revision ?? '', { attrs: { required: true } });
     const operator = field('比較', `criteria.${index}.operator`, criterion?.operator ?? 'equals', { options: [
       { value: 'at_least', label: '以上' },
       { value: 'at_most', label: '以下' },
@@ -719,7 +719,7 @@ function renderObjectiveForm(root, state, callbacks) {
   const title = state.editor.mode === 'create' ? '目的を作成' : '目的を編集';
   append(section,
     makeElement('div', { className: 'objective-editor-panel-heading', text: title }),
-    makeElement('p', { className: 'objective-editor-muted', text: '入力はFoundationRevisionStoreへ渡す定義の編集です。組織の権限判定はホストのportが担当します。' }),
+    makeElement('p', { className: 'objective-editor-muted', text: '保存すると新しい版になり、保存した版を読み戻して表示します。' }),
   );
   if (state.save.state !== 'idle' && state.save.state !== 'saving') section.append(statusNotice(state.save, { onRetry: callbacks.onRetrySave }));
   const form = makeElement('form', { className: 'objective-editor-form' });
@@ -762,19 +762,19 @@ function renderObjectiveForm(root, state, callbacks) {
 }
 
 function renderStoryLinks(root, state, callbacks) {
-  const section = makeElement('section', { className: 'objective-editor-panel', attrs: { 'aria-label': 'StoryからObjectiveを参照' } });
+  const section = makeElement('section', { className: 'objective-editor-panel', attrs: { 'aria-label': 'ストーリーから参照される目的' } });
   append(section,
-    makeElement('div', { className: 'objective-editor-panel-heading', text: 'StoryからObjectiveを参照' }),
-    makeElement('p', { className: 'objective-editor-muted', text: 'Story本文を複製せず、既存のtyped relationとObjectiveの版を表示します。' }),
+    makeElement('div', { className: 'objective-editor-panel-heading', text: 'ストーリーから参照される目的' }),
+    makeElement('p', { className: 'objective-editor-muted', text: 'ストーリーの本文は複製せず、ストーリーが参照する目的とその版を表示します。' }),
   );
   const form = makeElement('form', { className: 'objective-editor-inline-form' });
-  const storyField = field('Story ID', 'story_id', state.story.storyId ?? '', { attrs: { required: true, placeholder: 'story-...' } });
+  const storyField = field('ストーリーID', 'story_id', state.story.storyId ?? '', { attrs: { required: true, placeholder: 'story-...' } });
   form.append(storyField.label, makeElement('button', { className: 'objective-editor-button-secondary', text: '参照を取得', attrs: { type: 'submit' } }));
   form.addEventListener('submit', (event) => { event.preventDefault(); callbacks.onLoadStoryLinks?.(storyField.input.value.trim()); });
   section.append(form);
-  if (state.story.state === 'loading') section.append(makeElement('p', { className: 'objective-editor-muted', text: 'Storyの関係を読み込んでいます。' }));
+  if (state.story.state === 'loading') section.append(makeElement('p', { className: 'objective-editor-muted', text: 'ストーリーとの関係を読み込んでいます。' }));
   else if (['permission_denied', 'api_unavailable', 'error_retryable', 'unknown'].includes(state.story.state)) section.append(statusNotice(state.story, { onRetry: callbacks.onRetryStory }));
-  else if (state.story.state === 'empty') section.append(makeElement('p', { className: 'objective-editor-empty', text: 'このStoryから参照されるObjectiveはありません。' }));
+  else if (state.story.state === 'empty') section.append(makeElement('p', { className: 'objective-editor-empty', text: 'このストーリーから参照される目的はありません。' }));
   else if (state.story.links) {
     const list = makeElement('ul', { className: 'objective-editor-link-list' });
     for (const link of state.story.links) {
@@ -782,7 +782,7 @@ function renderStoryLinks(root, state, callbacks) {
       append(item,
         statusBadge(link.relation, link.relationLabel),
         makeElement('strong', { text: `${link.objective.id}@${link.objective.revision}` }),
-        makeElement('span', { text: text(link.objective.meaning, 'Objectiveの意味 未確認') }),
+        makeElement('span', { text: text(link.objective.meaning, '目的の意味 未確認') }),
       );
       if (link.timeCondition) item.append(makeElement('small', { text: `時間条件: ${JSON.stringify(link.timeCondition)}` }));
       list.append(item);
@@ -802,9 +802,9 @@ export function renderObjectiveEditor(root, state, callbacks = {}) {
   const header = makeElement('header', { className: 'objective-editor-header' });
   const copy = makeElement('div', { className: 'objective-editor-header-copy' });
   append(copy,
-    makeElement('div', { className: 'objective-editor-eyebrow', text: 'BRAINBASE / COMPANY OS' }),
+    makeElement('div', { className: 'objective-editor-eyebrow', text: 'BRAINBASE / OBJECTIVES' }),
     makeElement('h1', { text: '目的と評価基準' }),
-    makeElement('p', { text: '世界の認識やStoryとは分けたObjectiveの正本を、版付きで編集・確認します。' }),
+    makeElement('p', { text: '目指す状態と評価基準を、版つきで編集・確認します。現状の理解（観測や仮説）とは分けて扱います。' }),
   );
   const headerStatus = state.save.state !== 'idle' ? state.save.state : state.objectives.state;
   header.append(copy, statusBadge(headerStatus));
@@ -874,7 +874,7 @@ export function createObjectiveEditorController(options = {}) {
   const state = {
     view: options.initialView ?? 'list',
     connection: port ? 'ready' : 'api_unavailable',
-    connectionMessage: port ? null : 'ObjectiveEditorPortが提供されていません。組織サービスやDBへ直接接続しません。',
+    connectionMessage: port ? null : '目的を読み書きする経路が、この画面に渡されていません。',
     objectives: { state: 'idle', records: null, absence_confirmed: false },
     selected: null,
     readiness: { state: 'unknown', ready: null, issues: null },
@@ -922,7 +922,7 @@ export function createObjectiveEditorController(options = {}) {
     render();
     const method = portMethod(port, 'listObjectives');
     if (!method) {
-      state.objectives = { state: 'api_unavailable', records: null, absence_confirmed: false, message: '目的一覧APIが未提供です。' };
+      state.objectives = { state: 'api_unavailable', records: null, absence_confirmed: false, message: '目的の一覧を読む経路がありません。' };
       state.connection = 'api_unavailable';
       render();
       return state.objectives;
@@ -942,13 +942,13 @@ export function createObjectiveEditorController(options = {}) {
     state.constraints = { state: 'loading', refs: null, absence_confirmed: false };
     render();
     if (!objective) {
-      state.constraints = { state: 'unknown', refs: null, absence_confirmed: false, message: 'Objectiveが未選択です。' };
+      state.constraints = { state: 'unknown', refs: null, absence_confirmed: false, message: '目的が選ばれていません。' };
       render();
       return state.constraints;
     }
     const method = portMethod(port, 'listObjectiveConstraintRefs') ?? portMethod(port, 'listConstraintReferences');
     if (!method) {
-      state.constraints = { state: 'api_unavailable', refs: null, absence_confirmed: false, message: 'ObjectiveとConstraintの参照APIが未提供です。' };
+      state.constraints = { state: 'api_unavailable', refs: null, absence_confirmed: false, message: '目的と制約の参照を読む経路がありません。' };
       state.editor.constraintRefs = null;
       render();
       return state.constraints;
@@ -972,7 +972,7 @@ export function createObjectiveEditorController(options = {}) {
     if (!objective) return state.readiness;
     const method = portMethod(port, 'checkObjectiveReadiness');
     if (!method) {
-      state.readiness = { state: 'unknown', ready: null, issues: null, message: 'readiness APIが未提供です。' };
+      state.readiness = { state: 'unknown', ready: null, issues: null, message: '判断に使える状態を確かめる経路がありません。' };
       render();
       return state.readiness;
     }
@@ -998,7 +998,7 @@ export function createObjectiveEditorController(options = {}) {
     render();
     const method = portMethod(port, 'readObjective');
     if (!method) {
-      state.editor = { ...state.editor, state: 'api_unavailable', message: 'Objective読取APIが未提供です。' };
+      state.editor = { ...state.editor, state: 'api_unavailable', message: '目的を読む経路がありません。' };
       state.connection = 'api_unavailable';
       render();
       return null;
@@ -1007,7 +1007,7 @@ export function createObjectiveEditorController(options = {}) {
       const payload = await method(id, context, revision);
       const objective = normalizeObjectiveRecord(payload);
       if (!objective) {
-        state.editor = { ...state.editor, state: 'missing', message: '指定したObjectiveを正本から確認できません。' };
+        state.editor = { ...state.editor, state: 'missing', message: '指定した目的を保存先から確認できません。' };
         state.connection = 'missing';
         render();
         return null;
@@ -1070,12 +1070,12 @@ export function createObjectiveEditorController(options = {}) {
     const updateMethod = mode === 'create' ? null : portMethod(port, 'updateObjective');
     const createMethod = mode === 'create' ? portMethod(port, 'createObjective') : null;
     if ((mode === 'create' && !createMethod) || (mode !== 'create' && !updateMethod)) {
-      state.save = { state: 'api_unavailable', message: 'Objectiveの保存APIが未提供です。' };
+      state.save = { state: 'api_unavailable', message: '目的を保存する経路がありません。' };
       render();
       return state.save;
     }
     if (state.editor.constraintRefsChanged && !portMethod(port, 'replaceObjectiveConstraintRefs')) {
-      state.save = { state: 'api_unavailable', message: 'Constraint参照の保存APIが未提供のため、目的本文も保存していません。' };
+      state.save = { state: 'api_unavailable', message: '制約の参照を保存する経路が無いため、目的の本文も保存していません。' };
       render();
       return state.save;
     }
@@ -1088,7 +1088,7 @@ export function createObjectiveEditorController(options = {}) {
         : await updateMethod(definition.id, state.editor.expectedRevision, definition, context);
       const savedRef = extractMutationRef(mutation);
       if (!savedRef || savedRef.id !== definition.id || savedRef.type !== 'objective' || !savedRef.revision) {
-        state.save = { state: 'saved_unverified', message: '保存応答にObjectiveの同じID・新版が含まれていません。', mutation };
+        state.save = { state: 'saved_unverified', message: '保存の応答に、同じ目的の新しい版が含まれていません。', mutation };
         render();
         return state.save;
       }
@@ -1109,7 +1109,7 @@ export function createObjectiveEditorController(options = {}) {
       const returnedDefinition = readback ? { id: readback.id, type: readback.type, revision: readback.revision, digest: readback.digest } : null;
       const referenceMatches = definitionsEqual(savedRef, returnedDefinition);
       if (!referenceMatches || !readback || (mode !== 'create' && (!expectedRevision || readback.revision === expectedRevision))) {
-        state.save = { state: 'saved_unverified', message: '保存応答後の同じID・新版のreadbackを確認できません。', mutation, readback };
+        state.save = { state: 'saved_unverified', message: '保存した新しい版を読み戻して確かめられません。', mutation, readback };
         render();
         return state.save;
       }
@@ -1122,7 +1122,7 @@ export function createObjectiveEditorController(options = {}) {
           : null;
         const verifiedRefs = normalizeReferenceCollection(constraintPayload).refs;
         if (!verifiedRefs || !referencesEqual(verifiedRefs, state.editor.constraintRefs)) {
-          state.save = { state: 'saved_unverified', message: 'Objectiveは保存されましたが、Constraint参照のreadbackが一致しません。', mutation, readback, constraintRefs: verifiedRefs };
+          state.save = { state: 'saved_unverified', message: '目的は保存されましたが、制約の参照を読み戻した内容が一致しません。', mutation, readback, constraintRefs: verifiedRefs };
           render();
           return state.save;
         }
@@ -1154,7 +1154,7 @@ export function createObjectiveEditorController(options = {}) {
     render();
     const method = portMethod(port, 'listStoryObjectiveLinks');
     if (!method) {
-      state.story = { state: 'api_unavailable', storyId, links: null, absence_confirmed: false, message: 'Story→Objective relation APIが未提供です。' };
+      state.story = { state: 'api_unavailable', storyId, links: null, absence_confirmed: false, message: 'ストーリーと目的の関係を読む経路がありません。' };
       render();
       return state.story;
     }

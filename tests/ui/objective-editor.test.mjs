@@ -98,6 +98,18 @@ afterEach(() => {
 });
 
 describe('Objective editor common UI contract', () => {
+  it('shows plain wording to the owner instead of internal type, store, or API names', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile(new URL('../../ui/objective-editor.js', import.meta.url), 'utf8');
+    // Visible copy: element text, messages, labels, and field captions.
+    const visible = [...source.matchAll(/(?:text|message|'aria-label'|placeholder):\s*'([^']*)'|field\('([^']*)'/g)]
+      .map((match) => match[1] ?? match[2]);
+    expect(visible.length).toBeGreaterThan(20);
+    for (const copy of visible) {
+      expect(copy).not.toMatch(/Objective|Variable|Constraint|readiness|readback|FoundationRevisionStore|COMPANY OS|\bport\b|\bAPI\b|typed relation|Story/);
+    }
+  });
+
   it('keeps unknown, draft, and judgment-ready states distinct', () => {
     expect(normalizeObjectiveCollection({ records: [] })).toMatchObject({ state: 'unknown', records: null, absence_confirmed: false });
     expect(normalizeObjectiveCollection({ records: [], state: 'empty', absence_confirmed: true })).toMatchObject({ state: 'empty', records: [], absence_confirmed: true });
