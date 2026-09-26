@@ -1043,10 +1043,24 @@ function defaultCandidateBody(values, context = {}) {
   };
 }
 
+/**
+ * Creates the knowledge outcome workspace.
+ *
+ * @param {object} options
+ * @param {(session: object|null, projectCode: string|null) => boolean} [options.canEditDestination]
+ *   Decides whether the current user may register this project's knowledge
+ *   document destination. It receives the resolved session value and the
+ *   project code; only a `true` result shows the registration form. Without
+ *   it, the form follows `canManageKnowledge(session)`. Revision,
+ *   supersession, and retirement always follow `canManageKnowledge`.
+ */
 export function createKnowledgeOutcomeController(options = {}) {
   const { root, api, apiMutation, project, session, onStateChange, onCommitted, onRetired, resolveDecisionDomain, serializeDraftInput, serializeCandidate, serializeRevision, serializeRetire, serializePreview } = options;
   if (!root || typeof root.replaceChildren !== 'function') throw new Error('knowledge_root_unavailable');
   const code = projectCodeOf(project);
+  const canEditDestination = () => (typeof options.canEditDestination === 'function'
+    ? options.canEditDestination((typeof session === 'function' ? session() : session) ?? null, code ?? null) === true
+    : canManageKnowledge(session));
   const projectValue = typeof project === 'function' ? project() : project;
   const ownerCandidates = [];
   for (const candidate of [projectValue?.owner, ...(projectValue?.members?.items ?? [])]) {
@@ -1154,7 +1168,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     destination.append(destinationHeading);
     const destinationContent = makeElement('div', { className: 'knowledge-destination-content' });
     renderKnowledgeDestination(destinationContent, state.destination, {
-      canEdit: canManageKnowledge(session),
+      canEdit: canEditDestination(),
       onReload: loadDestination,
       onSave: saveDestination,
     });

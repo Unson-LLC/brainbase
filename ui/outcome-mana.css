@@ -74,7 +74,7 @@ button.outcome-mana-connection-row:focus-visible { position: relative; z-index: 
 .outcome-mana-connection-header { color: var(--mana-muted); background: var(--mana-surface-soft); font-size: .7rem; font-weight: 720; letter-spacing: .02em; }
 .outcome-mana-connector-identity { display: flex; min-width: 0; align-items: center; gap: 10px; }
 .outcome-mana-connector-icon-frame { display: grid; width: 30px; height: 30px; flex: 0 0 30px; place-items: center; border: 1px solid rgba(31,42,35,.08); border-radius: 8px; background: #f1f4f1; }
-.outcome-mana-connector-icon { display: block; width: 20px; height: 20px; opacity: .9; }
+.outcome-mana-connector-icon { display: block; width: 20px; height: 20px; object-fit: contain; opacity: .9; }
 .outcome-mana-connector-copy { display: grid; min-width: 0; gap: 2px; }
 .outcome-mana-connector-copy strong { overflow: hidden; font-size: .79rem; font-weight: 740; text-overflow: ellipsis; white-space: nowrap; }
 .outcome-mana-connector-copy h3 { margin: 0; font-size: 1.05rem; }
@@ -91,6 +91,9 @@ button.outcome-mana-connection-row:focus-visible { position: relative; z-index: 
 .outcome-mana-connection-inspector, .outcome-mana-resource-panel { position: sticky; top: 18px; margin: 0; }
 .outcome-mana-connection-inspector { min-height: 210px; padding: 18px; border: 1px solid var(--mana-border); border-radius: 12px; background: var(--mana-surface); box-shadow: var(--mana-shadow); }
 .outcome-mana-connection-inspector h3 { font-size: 1.05rem; }
+.outcome-mana-resource-section { margin-top: 24px; }
+.outcome-mana-project-resource-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; margin-top: 12px; }
+.outcome-mana-project-resource-card { min-width: 0; padding: 14px; border: 1px solid var(--mana-border); border-radius: 11px; background: var(--mana-surface); }
 .outcome-mana-resource-panel { min-height: 210px; }
 .outcome-mana-detail-tabs { display: flex; gap: 5px; margin: 16px 0 14px; padding: 4px; overflow-x: auto; border-bottom: 1px solid var(--mana-border); }
 .outcome-mana-detail-tab { min-height: 34px; padding: 7px 12px; border: 0; border-bottom: 2px solid transparent; color: var(--mana-muted); background: transparent; font: inherit; font-size: .78rem; font-weight: 720; white-space: nowrap; cursor: pointer; }
@@ -198,6 +201,35 @@ textarea.outcome-mana-input { min-height: 92px; resize: vertical; }
 .outcome-mana-authority-row { display: grid; grid-template-columns: 1.1fr 1.2fr 1fr 1fr 1.1fr; min-width: 720px; align-items: center; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--mana-border); font-size: 0.8rem; }
 .outcome-mana-authority-row:first-child { border-top: 0; }
 .outcome-mana-authority-header { color: var(--mana-muted); background: var(--mana-surface-soft); font-size: 0.73rem; font-weight: 700; }
+.outcome-mana-resource-picker { display: grid; grid-column: 1 / -1; gap: 9px; min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--mana-border); border-radius: 9px; }
+.outcome-mana-resource-picker legend { padding: 0 5px; color: var(--mana-ink); font-size: .79rem; font-weight: 700; }
+.outcome-mana-resource-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.outcome-mana-resource-choice { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 8px; align-items: center; padding: 10px; border: 1px solid var(--mana-border); border-radius: 8px; background: #fff; cursor: pointer; }
+.outcome-mana-resource-choice:has(input:checked) { border-color: var(--mana-accent); background: #edf8f1; }
+.outcome-mana-resource-choice input { grid-row: 1 / 3; accent-color: var(--mana-accent); }
+.outcome-mana-resource-choice span { overflow: hidden; font-size: .8rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.outcome-mana-resource-choice small { overflow-wrap: anywhere; color: var(--mana-muted); font-size: .68rem; }
+.outcome-mana-resource-choice .outcome-mana-resource-version { grid-column: 2; grid-row: auto; width: 100%; min-width: 0; margin-top: 5px; padding: 7px 9px; border: 1px solid var(--mana-border); border-radius: 7px; background: #fff; color: var(--mana-ink); font: .72rem ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+.outcome-mana-resource-preserved { margin: 0; padding: 8px 10px; border-radius: 7px; color: var(--mana-warning); background: #fff9e9; font-size: .74rem; }
+.outcome-mana-resource-picker-value[hidden] { display: none; }
+.outcome-mana-profile-picker { display: grid; gap: 10px; margin: 0; padding: 14px; border: 1px solid var(--mana-border); border-radius: 10px; background: #fbfdfb; }
+.outcome-mana-profile-picker legend { padding: 0 5px; color: var(--mana-ink); font-size: .85rem; font-weight: 760; }
+.outcome-mana-profile-picker > .outcome-mana-muted { margin: 0; font-size: .76rem; }
+.outcome-mana-profile-card { display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: start; gap: 10px; padding: 12px; border: 1px solid var(--mana-border); border-radius: 9px; background: #fff; cursor: pointer; }
+.outcome-mana-profile-card.is-selected { border-color: var(--mana-accent); background: #edf8f1; box-shadow: 0 0 0 1px rgba(8,125,98,.12); }
+.outcome-mana-profile-card > input { margin-top: 3px; accent-color: var(--mana-accent); }
+.outcome-mana-profile-copy, .outcome-mana-profile-statuses { display: grid; gap: 5px; min-width: 0; }
+.outcome-mana-profile-copy strong { font-size: .83rem; }
+.outcome-mana-profile-copy small, .outcome-mana-profile-statuses small { color: var(--mana-muted); font-size: .72rem; line-height: 1.45; }
+.outcome-mana-profile-statuses { justify-items: end; white-space: nowrap; }
+.outcome-mana-profile-statuses [data-readiness="available"] { color: var(--mana-accent-dark); font-weight: 750; }
+.outcome-mana-profile-statuses [data-readiness="unavailable"] { color: var(--mana-danger); font-weight: 750; }
+.outcome-mana-profile-statuses [data-readiness="unknown"] { color: var(--mana-warning); }
+.outcome-mana-resource-choice[hidden] { display: none; }
+.outcome-mana-preflight-list { display: grid; gap: 9px; margin: 0 0 16px; }
+.outcome-mana-preflight-item { padding: 12px; border: 1px solid var(--mana-border); border-radius: 9px; background: #fbfdfb; }
+.outcome-mana-preflight-item > strong { display: inline-block; margin: 0 8px 8px 0; font-size: .82rem; }
+.outcome-mana-preflight-item .outcome-mana-definition { margin-bottom: 0; }
 .outcome-mana-trigger-options { display: flex; flex-wrap: wrap; gap: 9px; margin: 0; padding: 0; border: 0; }
 .outcome-mana-trigger-options legend { width: 100%; margin-bottom: 1px; font-size: 0.8rem; font-weight: 700; }
 .outcome-mana-choice { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border: 1px solid var(--mana-border); border-radius: 8px; font-size: 0.82rem; cursor: pointer; }
@@ -219,8 +251,11 @@ textarea.outcome-mana-input { min-height: 92px; resize: vertical; }
 }
 @media (max-width: 920px) {
   .outcome-mana-overview-layout, .outcome-mana-connection-detail-layout, .outcome-mana-delegation-layout, .outcome-mana-settings-layout { grid-template-columns: minmax(0, 1fr); }
+  .outcome-mana-project-resource-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .outcome-mana-inspector, .outcome-mana-connection-inspector, .outcome-mana-resource-panel, .outcome-mana-settings-rail { position: static; }
   .outcome-mana-empty-steps { grid-template-columns: 1fr; }
+  .outcome-mana-profile-card { grid-template-columns: auto minmax(0,1fr); }
+  .outcome-mana-profile-statuses { grid-column: 2; justify-items: start; white-space: normal; }
 }
 @media (max-width: 1100px) {
   .outcome-mana-view-heading { display: grid; }
@@ -232,6 +267,7 @@ textarea.outcome-mana-input { min-height: 92px; resize: vertical; }
   .outcome-mana-section-heading, .outcome-mana-section-content { padding: 16px; }
   .outcome-mana-section-heading { display: grid; gap: 10px; }
   .outcome-mana-form { display: grid; grid-template-columns: 1fr; }
+  .outcome-mana-resource-choices { grid-template-columns: 1fr; }
   .outcome-mana-form > .outcome-mana-field, .outcome-mana-form > .outcome-mana-inline-fields, .outcome-mana-form > .outcome-mana-actions, .outcome-mana-form > .outcome-mana-inline-error { grid-column: auto; }
   .outcome-mana-inline-fields { grid-template-columns: 1fr; }
   .outcome-mana-actions .outcome-mana-button, .outcome-mana-toolbar .outcome-mana-button { flex: 1 1 150px; }
@@ -241,6 +277,7 @@ textarea.outcome-mana-input { min-height: 92px; resize: vertical; }
   .outcome-mana-view-heading { display: grid; }
   .outcome-mana-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .outcome-mana-overview-layout, .outcome-mana-connection-grid, .outcome-mana-settings-grid { grid-template-columns: 1fr; }
+  .outcome-mana-project-resource-grid { grid-template-columns: 1fr; }
   .outcome-mana-inspector, .outcome-mana-connection-inspector, .outcome-mana-resource-panel, .outcome-mana-settings-rail { position: static; }
   .outcome-mana-connection-detail-layout, .outcome-mana-delegation-layout, .outcome-mana-settings-layout { grid-template-columns: 1fr; }
   .outcome-mana-settings-fieldset { grid-template-columns: 1fr; }

@@ -17,6 +17,55 @@ export const MANA_STORY_IDS = Object.freeze([
   'story-brainbase-outcome-mana-run-control',
 ]);
 
+// These identifiers are accepted by the Mana contract API. The runtime
+// preflight remains the authority for whether either profile can run.
+// The contract form offers them only when the host passes them (or its own
+// list with the same shape) as `executionProfiles`.
+export const MANA_EXECUTION_PROFILES = Object.freeze([
+  Object.freeze({
+    id: 'meeting_minutes_github_v1',
+    label: '会議録を作成してGitHubへ保存',
+    input: 'この委任で選んだ会議資料',
+    output: '決定事項・担当・期限をまとめた会議録',
+    destination: 'この契約で選ぶGitHubリポジトリ',
+    inputConnectorIds: ['github'],
+    destinationConnectorId: 'github',
+    inputConnectorLabel: 'GitHub',
+    destinationConnectorLabel: 'GitHub',
+  }),
+  Object.freeze({
+    id: 'project_report_google_drive_v1',
+    label: 'プロジェクト報告を作成してGoogle Driveへ保存',
+    input: 'GitHubの確定コミットにあるプロジェクト資料',
+    output: '出典・版・取得証跡を保持したプロジェクト報告',
+    destination: 'この契約で選ぶGoogle Driveフォルダ',
+    inputConnectorIds: ['github'],
+    destinationConnectorId: 'drive',
+    inputConnectorLabel: 'GitHub',
+    destinationConnectorLabel: 'Google Drive',
+  }),
+]);
+
+export function profileInputValidationReasons(profile, inputReferences = [], selectableResources = []) {
+  if (!profile) return ['委任する仕事を選んでください。'];
+  const references = Array.isArray(inputReferences) ? inputReferences : [];
+  const resources = Array.isArray(selectableResources) ? selectableResources : [];
+  const usable = references.filter((reference) => resources.some((resource) => resource.id === reference.id
+    && profile.inputConnectorIds.includes(resource.connectorId)));
+  const reasons = [];
+  if (usable.length === 0) reasons.push(`${profile.inputConnectorLabel}の接続確認済み入力資料を1つ以上選んでください。`);
+  if (usable.length !== references.length) reasons.push('選んだ仕事で利用できない入力資料が含まれています。入力資料を選び直してください。');
+  if (profile.id === 'project_report_google_drive_v1'
+    && references.some((reference) => !/^[0-9a-f]{40}$/u.test(reference.version ?? ''))) {
+    reasons.push('プロジェクト報告のGitHub資料は40文字のコミットSHAで版を固定してください。');
+  }
+  if (profile.id === 'meeting_minutes_github_v1'
+    && references.some((reference) => reference.id?.startsWith('github:repo:'))) {
+    reasons.push('会議録には文字起こしファイルを選んでください。リポジトリ全体の整理には「プロジェクト報告」を選んでください。');
+  }
+  return reasons;
+}
+
 const UNKNOWN = '未確認';
 const EMPTY = 'empty';
 const STOPPED_RUN_RESTART_UNAVAILABLE = '停止した実行は再開できません。';
@@ -47,6 +96,37 @@ const STATUS_LABELS = Object.freeze({
   stale: '再試験が必要',
   permission_denied: '権限不足',
   error_retryable: '再試行可能なエラー',
+  available: '利用可能',
+  unavailable: '利用不可',
+  not_evaluated: '未評価',
+});
+
+const PREFLIGHT_ACTION_LABELS = Object.freeze({
+  review_contract: '成果契約を確認',
+  add_input_reference: '入力資料を追加',
+  connect_input_provider: '入力元アプリを接続',
+  configure_destination: '保存先を設定',
+  define_completion_criteria: '完了条件を設定',
+  connect_artifact_provider: '保存先アプリを接続',
+  verify_artifact_destination: '保存先を確認',
+  configure_generator: '生成機能を設定',
+  configure_trigger: '起動条件を設定',
+  connect_knowledge_provider: '知識基盤を接続',
+  configure_authority: '権限を設定',
+});
+
+const PREFLIGHT_REASON_LABELS = Object.freeze({
+  contract_invalid: '成果契約に不足があります',
+  input_missing: '入力資料が指定されていません',
+  input_adapter_missing: '入力元アプリが接続されていません',
+  destination_missing: '保存先が指定されていません',
+  completion_criteria_missing: '完了条件が定義されていません',
+  artifact_adapter_missing: '保存先アプリが接続されていません',
+  artifact_destination_unverified: '保存先を確認できていません',
+  generator_missing: '成果を生成する機能が設定されていません',
+  trigger_missing: '起動条件が設定されていません',
+  knowledge_adapter_missing: '知識基盤が接続されていません',
+  authority_missing: '実行権限が設定されていません',
 });
 
 const AUTHORITY_LABELS = Object.freeze({
@@ -101,6 +181,8 @@ const MANA_VIEWS = Object.freeze([
   { id: 'settings', label: 'Mana設定', description: 'runtime既定値と監査' },
 ]);
 
+// The default connector catalog. A host may replace it with `connectors`
+// (for example to add services or use its own brand assets).
 const CONNECTOR_DEFINITIONS = Object.freeze([
   { id: 'github', label: 'GitHub', description: 'コード・ドキュメントの参照', icon: '/icons/mana/brand-github.svg' },
   { id: 'drive', label: 'Google Drive', description: '資料・成果物の保存', icon: '/icons/mana/brand-google-drive.svg' },
@@ -115,6 +197,17 @@ const CONNECTOR_FOUNDATION_KINDS = Object.freeze({
   slack: 'slack',
   brainbase: 'knowledge',
   mana: 'mana',
+});
+
+// Neutral wording for a host-managed connection catalog. A host replaces any
+// of these through `connectionCatalog.copy`.
+const CONNECTION_CATALOG_COPY = Object.freeze({
+  connectionsTitle: '1. 接続',
+  connectionsDescription: '認証済みの外部サービスです。プロジェクトごとに認証し直す必要はありません。',
+  resourcesDescription: '接続から選んだリポジトリ、フォルダ、チャンネルと、Brainbase内部基盤です。',
+  manageNote: '認証と接続の変更は接続の管理画面で行います。プロジェクトで使う資源は下の資源一覧で確認します。',
+  manageAction: '接続を管理',
+  noSelectableResources: '選択できる接続済み資源がありません。先に「接続状態」で接続とプロジェクト資源を確認してください。',
 });
 
 function hasOwn(value, key) {
@@ -198,6 +291,20 @@ export function normalizeConnector(value, fallbackId = '') {
     resources,
     checkedAt: firstPresent(source.checkedAt, source.checked_at, source.updatedAt, source.updated_at) ?? null,
     reason: firstPresent(source.reason, source.error, source.connectionReason, source.connection_reason) ?? null,
+  };
+}
+
+function withConnectorDefinition(value, fallbackId = '', definitions = CONNECTOR_DEFINITIONS) {
+  const connector = normalizeConnector(value, fallbackId);
+  const definition = definitions.find((item) => item.id === connector.id);
+  if (!definition) return connector;
+  return {
+    ...connector,
+    label: connector.label || definition.label,
+    description: connector.description || definition.description,
+    // Brand assets are selected by Brainbase, rather than accepted from an
+    // API response. This keeps every connection surface visually consistent.
+    icon: definition.icon,
   };
 }
 
@@ -329,8 +436,9 @@ function contractMatchesExpected(contract, { id, version = null, fields = null, 
   const expected = normalizeContract(fields);
   const source = objectValue(fields);
   const comparisons = [
-    ['project', 'project_code', 'projectCode'], ['outcome'], ['scope'],
+    ['project', 'project_code', 'projectCode'], ['profileId', 'profile_id'], ['outcome'], ['scope'],
     ['inputRefs', 'input_refs'], ['knowledgeRefs', 'knowledge_refs'], ['judgmentRefs', 'judgment_refs'],
+    ['allowedResources', 'allowed_resources'],
     ['artifactDestination', 'artifact_destination'], ['completionCriteria', 'completion_criteria'],
     ['owner'], ['limits'], ['trigger'],
   ];
@@ -383,6 +491,7 @@ export function normalizeContract(value) {
     return Array.isArray(refs) ? refs.map(normalizeReference) : [];
   };
   const criteria = source.completionCriteria ?? source.completion_criteria;
+  const allowedResources = source.allowedResources ?? source.allowed_resources;
   return {
     raw: value,
     schemaVersion: stringValue(firstPresent(source.schemaVersion, source.schema_version), OUTCOME_DELEGATION_CONTRACT_VERSION),
@@ -392,11 +501,13 @@ export function normalizeContract(value) {
     project: stringValue(firstPresent(source.project, source.project_code, source.projectCode), ''),
     status: normalizeStatus(source.status),
     nextAction: stringValue(firstPresent(source.nextAction, source.next_action), ''),
+    profileId: stringValue(firstPresent(source.profileId, source.profile_id), ''),
     outcome: stringValue(source.outcome, ''),
     scope: stringValue(source.scope, ''),
     inputRefs: references('inputRefs', 'input_refs'),
     knowledgeRefs: references('knowledgeRefs', 'knowledge_refs'),
     judgmentRefs: references('judgmentRefs', 'judgment_refs'),
+    allowedResources: Array.isArray(allowedResources) ? allowedResources : [],
     artifactDestination: {
       adapterId: stringValue(firstPresent(destination.adapterId, destination.adapter_id), ''),
       location: stringValue(destination.location, ''),
@@ -450,9 +561,11 @@ export function normalizeAuthority(value) {
 
 export function normalizeRun(value) {
   const raw = objectValue(value);
-  const source = objectValue(raw.run ?? raw);
+  const source = objectValue(raw.run ?? raw.execution ?? raw.testRun ?? raw.test_run ?? raw);
   const completion = objectValue(source.completion ?? source.completion_result ?? source.completionResult);
-  const artifacts = source.artifacts ?? source.artifact_refs ?? source.artifactRefs;
+  const artifact = objectValue(source.artifact);
+  const artifacts = source.artifacts ?? source.artifact_refs ?? source.artifactRefs
+    ?? (artifact.saveReceipt ? [artifact.saveReceipt] : []);
   const evidence = source.evidence ?? source.references ?? [];
   const stages = Array.isArray(source.stages) ? source.stages : [];
   const status = normalizeStatus(source.status ?? source.state);
@@ -465,19 +578,24 @@ export function normalizeRun(value) {
   const trigger = typeof triggerSource === 'string'
     ? triggerSource
     : firstPresent(objectValue(triggerSource).type, objectValue(triggerSource).triggerType, objectValue(triggerSource).trigger_type, source.triggerType, source.trigger_type, source.triggerReason, source.trigger_reason, source.reason) ?? null;
-  const artifactReadback = source.artifactReadback ?? source.artifact_readback ?? source.readback;
+  const artifactReadback = source.artifactReadback ?? source.artifact_readback ?? source.readback ?? artifact.readback;
   const judgment = source.judgment ?? source.judgment_result ?? source.judgmentResult;
   const judgmentReason = firstPresent(
     source.judgmentReason, source.judgment_reason,
     objectValue(judgment).reason, source.reason_detail,
   ) ?? null;
+  const preflightSource = objectValue(source.preflight ?? raw.preflight);
+  const preflightChecks = Array.isArray(preflightSource.checks) ? preflightSource.checks : [];
   return {
     raw: value,
     id: stringValue(firstPresent(source.runId, source.run_id, source.id), ''),
     contractId: stringValue(firstPresent(source.contractId, source.contract_id), ''),
     contractVersion: integerValue(source.contractVersion ?? source.contract_version, null),
+    profileId: stringValue(firstPresent(source.profileId, source.profile_id), ''),
     mode: normalizeStatus(source.mode),
     status: RUN_STATUSES.has(status) ? status : status ?? null,
+    errorCode: stringValue(firstPresent(source.errorCode, source.error_code), ''),
+    errorMessage: stringValue(firstPresent(source.errorMessage, source.error_message), ''),
     safeTest: {
       configSnapshot: safeTestSource.configSnapshot ?? safeTestSource.config_snapshot ?? null,
       configHash: stringValue(firstPresent(safeTestSource.configHash, safeTestSource.config_hash), ''),
@@ -491,6 +609,19 @@ export function normalizeRun(value) {
     artifactReadback: artifactReadback === undefined ? null : artifactReadback,
     judgment: judgment === undefined ? null : judgment,
     judgmentReason,
+    preflight: {
+      available: typeof preflightSource.available === 'boolean' ? preflightSource.available : null,
+      checks: preflightChecks.map((value, index) => {
+        const check = objectValue(value);
+        return {
+          id: stringValue(firstPresent(check.id, check.checkId, check.check_id), `check-${index + 1}`),
+          status: normalizeStatus(check.status ?? check.state),
+          reason: stringValue(firstPresent(check.reason, check.reason_code), ''),
+          action: stringValue(firstPresent(check.action, check.required_action), ''),
+          resumeFrom: stringValue(firstPresent(check.resumeFrom, check.resume_from), ''),
+        };
+      }),
+    },
     stage: stringValue(firstPresent(source.stage, source.step, source.phase), ''),
     stages: stages.map((value) => {
       const stage = objectValue(value);
@@ -509,13 +640,37 @@ export function normalizeRun(value) {
     artifacts: Array.isArray(artifacts) ? artifacts : [],
     completion: {
       state: normalizeStatus(firstPresent(completion.state, completion.status, source.completion_state)),
-      criteria: Array.isArray(completion.criteria) ? completion.criteria : [],
+      criteria: Array.isArray(completion.criteria) ? completion.criteria : Array.isArray(source.criteria) ? source.criteria : [],
       reason: stringValue(firstPresent(completion.reason, completion.error), ''),
     },
     pendingApproval: normalizeApprovalTarget(source.pendingApproval ?? source.pending_approval, integerValue(source.contractVersion ?? source.contract_version, null)),
     startedAt: source.startedAt ?? source.started_at ?? source.createdAt ?? source.created_at ?? null,
     updatedAt: source.updatedAt ?? source.updated_at ?? null,
   };
+}
+
+/**
+ * Readiness is only known from a preflight bound to this exact saved profile version.
+ * `profiles` is the list offered by the host (defaults to MANA_EXECUTION_PROFILES).
+ */
+export function executionProfileReadiness(profileId, contractValue, runValues = [], profiles = MANA_EXECUTION_PROFILES) {
+  const profile = (Array.isArray(profiles) ? profiles : []).find((item) => item.id === profileId);
+  const contract = normalizeContract(contractValue);
+  if (!profile || !contract.contractId || !Number.isInteger(contract.version) || contract.profileId !== profileId) {
+    return { status: 'unknown', label: '事前確認: 未確認', checks: [] };
+  }
+  for (const value of runValues) {
+    if (!value) continue;
+    const run = normalizeRun(value);
+    if (run.contractId !== contract.contractId || run.contractVersion !== contract.version || run.profileId !== profileId) continue;
+    if (typeof run.preflight.available !== 'boolean') continue;
+    return {
+      status: run.preflight.available ? 'available' : 'unavailable',
+      label: run.preflight.available ? '事前確認: 実行可能' : '事前確認: 実行不可',
+      checks: run.preflight.checks,
+    };
+  }
+  return { status: 'unknown', label: '事前確認: 未確認', checks: [] };
 }
 
 function safeTestStatus(value, contract) {
@@ -584,12 +739,16 @@ function parseCriteriaLines(value) {
 
 function contractDraftFromForm(fields) {
   const criterionText = fields.completionCriteria.value;
+  // The profile and resource pickers exist only when the host offers
+  // execution profiles. The free-text form keeps its original request body.
   const body = {
+    ...(fields.profileId ? { profileId: fields.profileId.value } : {}),
     outcome: fields.outcome.value,
     scope: fields.scope.value,
     inputRefs: parseReferenceLines(fields.inputRefs.value),
     knowledgeRefs: parseReferenceLines(fields.knowledgeRefs.value),
     judgmentRefs: parseReferenceLines(fields.judgmentRefs.value),
+    ...(fields.allowedResources ? { allowedResources: stringValue(fields.allowedResources.value).split(/\r?\n/).map((line) => line.trim()).filter(Boolean) } : {}),
     artifactDestination: {
       adapterId: fields.adapterId.value,
       location: fields.location.value,
@@ -699,7 +858,7 @@ function stateMessage(document, status, options = {}) {
     const item = createElement(document, 'div', { className: `outcome-mana-state outcome-mana-error outcome-mana-error-${state}`, attrs: { role: 'alert' } });
     item.append(createElement(document, 'strong', { text: state === 'unknown' ? '状態を確認できません' : state === 'conflict' ? '別の更新を確認しました' : '読み込みを確認できません' }));
     if (options.message) item.append(createElement(document, 'p', { text: options.message }));
-    if (options.retry) item.append(button(document, '再試行', options.retry, { className: 'outcome-mana-button outcome-mana-button-secondary' }));
+    if (options.retry) item.append(button(document, options.retryLabel ?? '再試行', options.retry, { className: 'outcome-mana-button outcome-mana-button-secondary' }));
     return item;
   }
   return null;
@@ -751,6 +910,21 @@ function evidenceList(document, title, values) {
   values.forEach((value) => list.append(createElement(document, 'li', { text: textOf(value) })));
   section.append(list);
   return section;
+}
+
+function criterionSummaries(criteria) {
+  return (Array.isArray(criteria) ? criteria : []).map((value) => {
+    const criterion = objectValue(value);
+    return [stringValue(criterion.id, UNKNOWN), statusLabel(criterion.status), stringValue(criterion.reason, '')]
+      .filter(Boolean).join(' / ');
+  });
+}
+
+function artifactReadbackSummary(value) {
+  const readback = objectValue(value);
+  if (!Object.keys(readback).length) return UNKNOWN;
+  return readback.verified === true ? '検証済み'
+    : readback.verified === false ? '検証失敗' : '検証状態は未確認';
 }
 
 function stageList(document, stages) {
@@ -827,11 +1001,13 @@ function canManage(session) {
 function contractFormValues(contract, draft) {
   const source = draft ?? contract ?? normalizeContract({});
   return {
+    profileId: source.profileId ?? '',
     outcome: source.outcome ?? '',
     scope: source.scope ?? '',
     inputRefs: (source.inputRefs ?? []).map((item) => `${item.id}${item.version ? `@${item.version}` : ''}`).join('\n'),
     knowledgeRefs: (source.knowledgeRefs ?? []).map((item) => `${item.id}${item.version ? `@${item.version}` : ''}`).join('\n'),
     judgmentRefs: (source.judgmentRefs ?? []).map((item) => `${item.id}${item.version ? `@${item.version}` : ''}`).join('\n'),
+    allowedResources: (source.allowedResources ?? []).map((item) => typeof item === 'string' ? item : firstPresent(item.id, item.resourceId, item.resource_id)).filter(Boolean).join('\n'),
     adapterId: source.artifactDestination?.adapterId ?? '',
     location: source.artifactDestination?.location ?? '',
     environment: source.artifactDestination?.environment ?? 'isolated',
@@ -845,11 +1021,13 @@ function contractFormValues(contract, draft) {
 
 function contractInput(contract, overrides = {}) {
   return {
+    profileId: contract.profileId ?? '',
     outcome: contract.outcome,
     scope: contract.scope,
     inputRefs: contract.inputRefs,
     knowledgeRefs: contract.knowledgeRefs,
     judgmentRefs: contract.judgmentRefs,
+    allowedResources: contract.allowedResources ?? [],
     artifactDestination: contract.artifactDestination,
     completionCriteria: contract.completionCriteria,
     owner: contract.owner,
@@ -867,6 +1045,74 @@ function triggerFromContract(contract, draft) {
   return normalizeTrigger(draft?.trigger ?? contract?.trigger);
 }
 
+/**
+ * @typedef {object} ManaConnectorDefinition
+ * @property {string} id Stable connector id used by contracts and profiles.
+ * @property {string} label Display name.
+ * @property {string} description One-line purpose.
+ * @property {string} icon Icon URL. The UI always takes the icon from here,
+ *   never from an API response.
+ */
+
+/**
+ * @typedef {object} ManaConnectionStatus
+ * @property {string} id Connector id.
+ * @property {string} [status] e.g. `connected`, `unconfirmed`, `failed`,
+ *   `permission_denied`, `authorization_required`. Missing means `unconfirmed`.
+ * @property {string|null} [account] Account that authenticated the connection.
+ * @property {string|null} [checkedAt] Time the host last verified it.
+ * @property {string|null} [reason] Reason code shown when not connected.
+ */
+
+/**
+ * @typedef {object} ManaConnectionCatalog
+ * @property {string[]} ids Connector ids whose authentication the host
+ *   manages. They are listed in `connectors` order. Project resources and
+ *   Brainbase/Mana foundations stay in the separate project-resource list.
+ * @property {(context: { project: object, session: object }) => Promise<ManaConnectionStatus[]|{ connections: ManaConnectionStatus[] }>} load
+ *   Reads the host's current connection status. A rejection keeps every
+ *   connection unconfirmed with the error code as its reason.
+ * @property {Record<string, string>} [labels] Display name per connector id
+ *   in the connection list (e.g. the installed app name).
+ * @property {(connectorId: string) => string} [sourceLabel] Where the
+ *   project resources of a connector come from. Defaults to the connector label.
+ * @property {Record<string, string>} [reasonLabels] Labels for host-specific
+ *   reason codes. They take precedence over the built-in labels.
+ * @property {Partial<typeof CONNECTION_CATALOG_COPY>} [copy] Replaces the
+ *   neutral wording of the connection view and the resource picker.
+ */
+
+/**
+ * Creates the Mana outcome-delegation workspace.
+ *
+ * Besides `document`, `root`, `api`, `apiMutation`, `project`, `session`,
+ * `paths`, `pathFor`, `basePath`, `confirm`, `onChange`, and `autoLoad`, the
+ * host may pass these options. Without them the workspace behaves as the
+ * single-owner default: the built-in connector list, foundation checks
+ * through `paths.foundationCheck`, and a free-text contract form.
+ *
+ * @param {object} options
+ * @param {ManaConnectorDefinition[]} [options.connectors] Replaces the
+ *   default connector list (GitHub, Google Drive, Slack, Brainbase Graph,
+ *   Mana runtime) and its order.
+ * @param {ManaConnectionCatalog} [options.connectionCatalog] Reads connection
+ *   status from the host instead of foundation checks, and shows connections,
+ *   project resources, and the delegation's allowed range as three sections.
+ * @param {(connectorId: string) => void} [options.onManageConnection] Opens
+ *   the host's connection management for the selected connector. The button
+ *   appears only with `connectionCatalog`.
+ * @param {Array<typeof MANA_EXECUTION_PROFILES[number]>} [options.executionProfiles]
+ *   Execution profiles offered by the contract form. When non-empty, the form
+ *   asks for a profile and picks input references, allowed resources, and the
+ *   artifact destination from loaded connection resources, and it loads
+ *   connections before a delegation is edited. Pass MANA_EXECUTION_PROFILES
+ *   for the Mana runtime profiles.
+ * @param {Storage|null} [options.sessionStorage] Keeps the accepted safe-test
+ *   run ID per actor, project, and contract. Defaults to the browser's
+ *   sessionStorage; `null` disables it.
+ * @param {typeof setTimeout} [options.setTimeout] Scheduler for safe-test readback.
+ * @param {typeof clearTimeout} [options.clearTimeout] Cancels a scheduled readback.
+ */
 export function createManaOutcomeUI(options = {}) {
   const document = options.document ?? globalThis.document;
   if (!document) throw new Error('outcome_mana_document_unavailable');
@@ -877,6 +1123,16 @@ export function createManaOutcomeUI(options = {}) {
   const pathBuilder = typeof options.pathFor === 'function' ? options.pathFor : null;
   const projectInput = options.project;
   const sessionInput = options.session;
+  const connectorDefinitions = Array.isArray(options.connectors) && options.connectors.length
+    ? options.connectors
+    : CONNECTOR_DEFINITIONS;
+  const connectionCatalog = options.connectionCatalog && typeof options.connectionCatalog.load === 'function'
+    ? options.connectionCatalog
+    : null;
+  const catalogIds = Array.isArray(connectionCatalog?.ids) ? connectionCatalog.ids : [];
+  const catalogCopy = { ...CONNECTION_CATALOG_COPY, ...objectValue(connectionCatalog?.copy) };
+  const executionProfiles = Array.isArray(options.executionProfiles) ? options.executionProfiles : [];
+  const profilePicker = executionProfiles.length > 0;
   const state = {
     // null means no user choice has been made yet. render() derives a useful
     // first step from the state so existing deep links/readbacks land on the
@@ -887,13 +1143,56 @@ export function createManaOutcomeUI(options = {}) {
     contract: { status: 'loading', records: [], selectedId: null, detail: null, error: null, formDraft: null, pendingSave: null },
     authority: { status: 'idle', matrix: [], raw: null, error: null, draft: null },
     triggers: { status: 'idle', trigger: null, error: null, draft: null, catalogStatus: 'idle', schedules: [], subscriptions: [], catalogError: null },
-    safeTest: { status: 'idle', result: null, error: null, formDraft: null },
+    safeTest: { status: 'idle', result: null, runId: null, contractId: null, error: null, formDraft: null },
     activation: { status: 'idle', error: null, message: '' },
     runs: { status: 'idle', records: [], selectedId: null, detail: null, error: null },
     runAction: { status: 'idle', error: null, draft: null },
     connections: { status: 'unknown', records: [], selectedId: null, detail: null, error: null },
     manaSettings: { status: 'unknown', data: null, error: null, draft: null, saveStatus: 'idle', saveError: null },
   };
+  let contractDetailRequestGeneration = 0;
+  let authorityRequestGeneration = 0;
+  let safeTestTimer = null;
+  let safeTestReadCount = 0;
+  const safeTestReadLimit = 450;
+  const scheduleTimeout = options.setTimeout ?? globalThis.setTimeout;
+  const cancelTimeout = options.clearTimeout ?? globalThis.clearTimeout;
+  let tabStorage = options.sessionStorage;
+  if (tabStorage === undefined) {
+    try { tabStorage = globalThis.sessionStorage; } catch { /* storage is optional */ }
+  }
+
+  function safeTestStorageKey(id) {
+    const projectCode = currentProject().code;
+    const actorId = currentSession().actorId;
+    return projectCode && actorId && id ? `mana-safe-test-run:${actorId}:${projectCode}:${id}` : null;
+  }
+
+  function rememberSafeTestRun(id, runId) {
+    const key = safeTestStorageKey(id);
+    if (!key || !runId) return;
+    try { tabStorage?.setItem(key, runId); } catch { /* storage is optional */ }
+  }
+
+  function stopSafeTestReadback() {
+    if (safeTestTimer !== null) cancelTimeout(safeTestTimer);
+    safeTestTimer = null;
+  }
+
+  function scheduleSafeTestReadback(runId) {
+    stopSafeTestReadback();
+    if (safeTestReadCount >= safeTestReadLimit) {
+      state.safeTest.status = 'unknown';
+      return;
+    }
+    safeTestTimer = scheduleTimeout(async () => {
+      safeTestTimer = null;
+      if (state.safeTest.runId !== runId) return;
+      safeTestReadCount += 1;
+      await refreshSafeTestReadback();
+    }, 2000);
+    safeTestTimer?.unref?.();
+  }
 
   const viewIds = new Set([...MANA_VIEWS.map((view) => view.id), 'delegation_settings']);
 
@@ -956,9 +1255,12 @@ export function createManaOutcomeUI(options = {}) {
   function currentProject() { return projectValue(projectInput); }
   function currentSession() { return sessionValue(sessionInput); }
   function currentContract() {
-    return state.contract.detail ?? state.contract.records.find((record) => record.contractId === state.contract.selectedId) ?? null;
+    const selectedId = state.contract.selectedId;
+    if (selectedId && state.contract.detail?.contractId === selectedId) return state.contract.detail;
+    if (selectedId) return state.contract.records.find((record) => record.contractId === selectedId) ?? null;
+    return state.contract.detail ?? null;
   }
-  function contractId() { return currentContract()?.contractId || null; }
+  function contractId() { return state.contract.selectedId || currentContract()?.contractId || null; }
   function currentPaths() {
     const generated = defaultPathMap(options.basePath ?? '/api/outcome-delegations', currentProject().code);
     return { ...generated, ...paths };
@@ -972,6 +1274,10 @@ export function createManaOutcomeUI(options = {}) {
   function connectorSource(project, id) {
     const foundations = objectValue(project.foundation_values);
     const resources = objectValue(project.resources);
+    // Drive has a primary project folder and an optional artifact destination.
+    // The resource collection is authoritative for contract choices, while
+    // foundation_values.drive remains the single primary-folder edit value.
+    if (id === 'drive' && hasOwn(resources, 'drive')) return resources.drive;
     const aliases = {
       brainbase: ['brainbase', 'knowledge'],
       drive: ['drive', 'google_drive', 'googleDrive'],
@@ -987,15 +1293,64 @@ export function createManaOutcomeUI(options = {}) {
     return null;
   }
 
+  function projectResourceId(connectorId, value) {
+    const source = objectValue(value);
+    const explicit = firstPresent(source.id, source.resourceId, source.resource_id);
+    if (explicit) return stringValue(explicit).trim();
+    const identifier = firstPresent(
+      source.identifier,
+      source.folder_id,
+      source.folderId,
+      source.channel_id,
+      source.channelId,
+      typeof value === 'string' || typeof value === 'number' ? value : null,
+    );
+    if (!identifier) return '';
+    const identifierText = stringValue(identifier).trim();
+    if (identifierText.startsWith(`${connectorId}:`)) return identifierText;
+    const prefixes = {
+      github: 'github:repo:',
+      drive: 'drive:folder:',
+      slack: 'slack:channel:',
+      brainbase: 'brainbase:knowledge:',
+      mana: 'mana:runtime:',
+    };
+    return `${prefixes[connectorId] ?? `${connectorId}:resource:`}${identifierText}`;
+  }
+
+  function projectResources(connectorId, source) {
+    if (source === null || source === undefined) return [];
+    const record = objectValue(source);
+    const values = Array.isArray(source)
+      ? source
+      : Array.isArray(record.items) ? record.items : [source];
+    return values.map((value) => {
+      const resource = objectValue(value);
+      const id = projectResourceId(connectorId, value);
+      if (!id) return null;
+      return {
+        ...resource,
+        id,
+        label: firstPresent(
+          resource.label,
+          resource.name,
+          resource.title,
+          resource.identifier,
+          typeof value === 'string' || typeof value === 'number' ? value : null,
+          id,
+        ),
+      };
+    }).filter(Boolean);
+  }
+
   function connectorRecordsFromProject() {
     const project = currentProject();
-    return CONNECTOR_DEFINITIONS.map((definition) => {
+    return connectorDefinitions.map((definition) => {
       const source = connectorSource(project, definition.id);
-      // GitHub foundations can be an array of repositories.  Keep every item
-      // as a permitted resource while leaving the connection state unknown.
-      const value = Array.isArray(source)
-        ? { resources: source }
-        : (source !== null && source !== undefined && typeof source !== 'object' ? { account: source } : source);
+      // Project registration and connection authentication are distinct.
+      // Normalize the former into stable contract resource IDs without
+      // inventing a connector status or account from the project payload.
+      const value = { resources: projectResources(definition.id, source) };
       const normalized = normalizeConnector(value, definition.id);
       return {
         ...normalized,
@@ -1009,14 +1364,24 @@ export function createManaOutcomeUI(options = {}) {
   function connectionStatusLabel(status) {
     const normalized = normalizeStatus(status);
     if (['connected', 'verified', 'readback_verified'].includes(normalized)) return '接続確認済み';
-    if (['active', 'enabled', 'ready', 'available'].includes(normalized)) return '利用可能';
+    if (['active', 'enabled', 'ready', 'available'].includes(normalized)) return '登録済み（接続未確認）';
     if (['failed', 'error', 'unavailable'].includes(normalized)) return '確認失敗';
     if (['unregistered', 'not_registered'].includes(normalized)) return '未登録';
     if (['unconfigured', 'misconfigured'].includes(normalized)) return '確認設定なし';
     if (['permission_denied', 'forbidden', 'unauthorized'].includes(normalized)) return '権限不足';
+    if (['authorization_required', 'required_scope_missing'].includes(normalized)) return '追加権限が必要';
     if (['timeout', 'timed_out'].includes(normalized)) return 'タイムアウト';
     if (['rejected', 'unconfirmed', 'readback_mismatch'].includes(normalized)) return '確認できません';
     return UNKNOWN;
+  }
+
+  function projectResourceStatusLabel(connector) {
+    return connector.resources?.length || connector.account ? '登録済み' : '未登録';
+  }
+
+  function connectionSourceLabel(id) {
+    const hosted = typeof connectionCatalog?.sourceLabel === 'function' ? connectionCatalog.sourceLabel(id) : null;
+    return firstPresent(hosted, connectorDefinitions.find((item) => item.id === id)?.label, id);
   }
 
   function connectionReasonLabel(reason) {
@@ -1040,7 +1405,12 @@ export function createManaOutcomeUI(options = {}) {
       provider_rejected: '接続先が確認要求を拒否しました',
       provider_readback_mismatch: '登録内容と確認結果が一致しません',
       local_preview_only: 'ローカルプレビューでは実接続を確認できません',
+      not_implemented: 'このアプリの接続は準備中です',
     };
+    const hosted = objectValue(connectionCatalog?.reasonLabels);
+    if (hasOwn(hosted, value)) return stringValue(hosted[value]);
+    if (normalized && hasOwn(hosted, normalized)) return stringValue(hosted[normalized]);
+    if (/^upstream_http_\d+$/u.test(normalized)) return `接続状態APIが応答しました（HTTP ${normalized.slice(-3)}）`;
     return labels[normalized] ?? (value || UNKNOWN);
   }
 
@@ -1061,7 +1431,7 @@ export function createManaOutcomeUI(options = {}) {
   function normalizeConnectorPayload(payload) {
     const records = collectionFrom(payload, ['connectors', 'connections', 'items', 'records']);
     if (!records) return { state: 'unknown', records: [], raw: payload };
-    return { state: records.length ? 'ready' : 'empty', records: records.map((item) => normalizeConnector(item)), raw: payload };
+    return { state: records.length ? 'ready' : 'empty', records: records.map((item) => withConnectorDefinition(item, '', connectorDefinitions)), raw: payload };
   }
 
   function connectorFromFoundationCheck(definition, payload, error, attemptedAt) {
@@ -1084,10 +1454,10 @@ export function createManaOutcomeUI(options = {}) {
     }, definition.id);
   }
 
-  async function checkConnections() {
+  async function checkFoundationConnections() {
     const attemptedAt = new Date().toISOString();
-    return Promise.all(CONNECTOR_DEFINITIONS.map(async (definition) => {
-      const kind = CONNECTOR_FOUNDATION_KINDS[definition.id];
+    return Promise.all(connectorDefinitions.map(async (definition) => {
+      const kind = CONNECTOR_FOUNDATION_KINDS[definition.id] ?? definition.id;
       const target = path('foundationCheck', { kind });
       if (!target || typeof apiMutation !== 'function') return connectorFromFoundationCheck(definition, {}, null, null);
       try {
@@ -1103,13 +1473,60 @@ export function createManaOutcomeUI(options = {}) {
     }));
   }
 
+  function catalogDefinitions() {
+    return connectorDefinitions.filter((item) => catalogIds.includes(item.id));
+  }
+
+  function catalogLabel(definition) {
+    return firstPresent(objectValue(connectionCatalog?.labels)[definition.id], definition.label);
+  }
+
+  // Host-managed authentication and project registration stay separate:
+  // the host reports only connection status, and the resources come from the
+  // project payload.
+  async function checkCatalogConnections() {
+    const payload = await connectionCatalog.load({ project: currentProject(), session: currentSession() });
+    const loaded = collectionFrom(payload, ['connections', 'connectors', 'items', 'records']) ?? [];
+    const byId = new Map(loaded.map((item) => normalizeConnector(item)).map((item) => [item.id, item]));
+    const projectRecords = new Map(connectorRecordsFromProject().map((item) => [item.id, item]));
+    return catalogDefinitions().map((definition) => {
+      const hosted = byId.get(definition.id);
+      return withConnectorDefinition({
+        id: definition.id,
+        label: catalogLabel(definition),
+        description: definition.description,
+        status: hosted?.status ?? 'unconfirmed',
+        account: hosted?.account ?? null,
+        resources: projectRecords.get(definition.id)?.resources ?? [],
+        checkedAt: hosted?.checkedAt ?? null,
+        reason: hosted?.reason ?? null,
+      }, definition.id, connectorDefinitions);
+    });
+  }
+
+  function catalogPlaceholders(error = null) {
+    const normalizedError = error ? normalizeError(error) : null;
+    return catalogDefinitions().map((definition) => withConnectorDefinition({
+      id: definition.id,
+      label: catalogLabel(definition),
+      description: definition.description,
+      status: error ? (normalizedError.status === 403 ? 'permission_denied' : 'failed') : 'unconfirmed',
+      account: null,
+      checkedAt: null,
+      reason: normalizedError?.code ?? null,
+    }, definition.id, connectorDefinitions));
+  }
+
   async function loadConnections() {
     const checkTarget = path('foundationCheck', { kind: 'github' });
     const target = path('connectors') ?? path('connections');
     state.connections.status = 'loading'; state.connections.error = null; render();
     try {
-      if (checkTarget && typeof apiMutation === 'function') {
-        const records = await checkConnections();
+      if (connectionCatalog) {
+        const records = await checkCatalogConnections();
+        state.connections = { ...state.connections, status: 'ready', records, error: null };
+      } else if (checkTarget && typeof apiMutation === 'function') {
+        const records = await checkFoundationConnections();
         state.connections = { ...state.connections, status: 'ready', records, error: null };
       } else if (!target) {
         const records = projectConnectors();
@@ -1120,8 +1537,28 @@ export function createManaOutcomeUI(options = {}) {
       }
       if (!state.connections.selectedId && state.connections.records.length) state.connections.selectedId = state.connections.records[0].id;
       state.connections.detail = state.connections.records.find((item) => item.id === state.connections.selectedId) ?? null;
-    } catch (error) { setError(state.connections, error); }
+    } catch (error) {
+      if (connectionCatalog) {
+        // Keep every host connection visible as unconfirmed rather than
+        // hiding the list or inventing a verification time.
+        state.connections = {
+          ...state.connections,
+          status: 'error',
+          records: catalogPlaceholders(error),
+          error: normalizeError(error),
+        };
+        if (!state.connections.selectedId) state.connections.selectedId = state.connections.records[0]?.id ?? null;
+        state.connections.detail = state.connections.records.find((item) => item.id === state.connections.selectedId) ?? null;
+      } else setError(state.connections, error);
+    }
     render(); notifyChange(); return state.connections;
+  }
+
+  // The profile pickers choose from loaded connection resources, so load
+  // them once before a delegation is edited. The free-text form needs none.
+  async function ensureConnectionsForDelegation() {
+    if (!profilePicker || state.connections.status !== 'unknown') return state.connections;
+    return loadConnections();
   }
 
   async function loadManaSettings() {
@@ -1270,21 +1707,47 @@ export function createManaOutcomeUI(options = {}) {
 
   async function loadContractDetail(id = contractId(), { renderAfter = true } = {}) {
     if (!id) return null;
+    const requestedId = id;
+    const requestGeneration = ++contractDetailRequestGeneration;
+    // A contract refresh changes the version-bound authority context even when
+    // the user returns to the same contract before an older request settles.
+    authorityRequestGeneration += 1;
+    // Authority is version-bound. A detail refresh may return a newer version
+    // for the same contract id, so never carry the previous version's matrix
+    // across that boundary. An embedded authority payload below can replace
+    // this idle state; otherwise the authority stage reloads it explicitly.
+    state.authority = { status: 'idle', matrix: [], error: null, draft: null };
+    state.contract.selectedId = requestedId;
     state.contract.status = 'loading'; state.contract.error = null;
     if (renderAfter) render();
     try {
-      const payload = await callApi(path('contractDetail', { contractId: id }));
+      const payload = await callApi(path('contractDetail', { contractId: requestedId }));
+      if (state.contract.selectedId !== requestedId || contractDetailRequestGeneration !== requestGeneration) return null;
       const contract = normalizeContract(payload);
-      state.contract.detail = contract.contractId ? contract : { ...contract, contractId: id };
-      state.contract.selectedId = id;
+      state.contract.detail = contract.contractId ? contract : { ...contract, contractId: requestedId };
       state.contract.status = 'ready';
+      if (state.safeTest.contractId && state.safeTest.contractId !== requestedId) {
+        stopSafeTestReadback();
+        state.safeTest = { status: 'idle', result: null, runId: null, contractId: null, error: null, formDraft: null };
+      }
+      if (!state.safeTest.runId) {
+        let storedRunId = null;
+        const key = safeTestStorageKey(requestedId);
+        try { storedRunId = key ? tabStorage?.getItem(key) : null; } catch { /* storage is optional */ }
+        if (storedRunId) {
+          state.safeTest.runId = storedRunId;
+          state.safeTest.contractId = requestedId;
+          state.safeTest.result = { runId: storedRunId, status: 'queued' };
+          await refreshSafeTestReadback();
+        }
+      }
       const authorityPayload = objectValue(payload).authority ?? objectValue(payload).authorityMatrix;
       if (authorityPayload !== undefined) state.authority = { ...normalizeAuthority(authorityPayload), error: null };
       const triggerPayload = objectValue(payload).trigger ?? objectValue(payload).triggers;
       if (triggerPayload !== undefined) state.triggers = { ...state.triggers, status: 'ready', trigger: normalizeTrigger(triggerPayload), error: null, draft: null };
       await loadTriggerCatalog(state.contract.detail.trigger?.type ?? 'manual', { renderAfter: false, enterDetail: false });
     } catch (error) {
-      setError(state.contract, error);
+      if (state.contract.selectedId === requestedId && contractDetailRequestGeneration === requestGeneration) setError(state.contract, error);
     }
     if (renderAfter) { render(); notifyChange(); }
     return state.contract.detail;
@@ -1439,11 +1902,21 @@ export function createManaOutcomeUI(options = {}) {
   async function loadAuthority(id = contractId()) {
     setActiveStage('authority');
     if (!id) { state.authority.status = 'unknown'; render(); return state.authority; }
+    const requestedId = id;
+    if (state.contract.status === 'loading' || state.contract.selectedId !== requestedId || currentContract()?.contractId !== requestedId) {
+      render();
+      return state.authority;
+    }
+    const requestedVersion = currentContract()?.version;
+    const requestGeneration = ++authorityRequestGeneration;
     state.authority.status = 'loading'; state.authority.error = null; render();
     try {
-      const payload = await callApi(path('authority', { contractId: id, contractVersion: currentContract()?.version }));
+      const payload = await callApi(path('authority', { contractId: requestedId, contractVersion: requestedVersion }));
+      if (state.contract.selectedId !== requestedId || authorityRequestGeneration !== requestGeneration || currentContract()?.version !== requestedVersion) return state.authority;
       state.authority = { ...state.authority, ...normalizeAuthority(payload), error: null };
-    } catch (error) { setError(state.authority, error); }
+    } catch (error) {
+      if (state.contract.selectedId === requestedId && authorityRequestGeneration === requestGeneration && currentContract()?.version === requestedVersion) setError(state.authority, error);
+    }
     render(); notifyChange(); return state.authority;
   }
 
@@ -1509,33 +1982,43 @@ export function createManaOutcomeUI(options = {}) {
       external_send: false,
       production_writes: false,
     };
+    stopSafeTestReadback();
+    safeTestReadCount = 0;
+    state.safeTest.runId = null;
+    state.safeTest.contractId = id;
     state.safeTest.formDraft = body; state.safeTest.status = 'loading'; state.safeTest.error = null; render();
     try {
       const payload = await callMutation(path('tests', { contractId: id }), { body, key: idempotencyKey('mana-safe-test') });
       const accepted = normalizeRun(payload);
-      let readback = null;
-      if (accepted.id) {
-        try { readback = normalizeRun(await callApi(path('runDetail', { runId: accepted.id }))); } catch { /* accepted is not completion */ }
-      }
-      const result = readback?.id ? readback : payload;
-      state.safeTest.result = result;
+      const acceptedId = accepted.id;
+      state.safeTest.runId = acceptedId || null;
+      state.safeTest.result = payload;
+      rememberSafeTestRun(id, acceptedId);
       state.safeTest.formDraft = null;
-      state.safeTest.status = safeTestStatus(result, currentContract());
+      state.safeTest.status = safeTestStatus(payload, currentContract());
+      if (acceptedId) await refreshSafeTestReadback();
     } catch (error) { setError(state.safeTest, error); }
     render(); notifyChange(); return state.safeTest;
   }
 
   async function refreshSafeTestReadback() {
-    const runId = normalizeRun(state.safeTest.result).id;
+    const runId = state.safeTest.runId ?? normalizeRun(state.safeTest.result).id;
     if (!runId) return state.safeTest;
+    stopSafeTestReadback();
     try {
       const result = normalizeRun(await callApi(path('runDetail', { runId })));
+      if (state.safeTest.runId !== runId) return state.safeTest;
+      if (result.id !== runId || (result.contractId && result.contractId !== contractId())) throw new Error('safe_test_readback_identity_mismatch');
       state.safeTest.result = result;
       state.safeTest.status = safeTestStatus(result, currentContract());
       state.safeTest.error = null;
-    } catch {
+      if (result.status === 'queued' || result.status === 'running') scheduleSafeTestReadback(runId);
+    } catch (error) {
+      if (state.safeTest.runId !== runId) return state.safeTest;
+      state.safeTest.error = normalizeError(error);
       state.safeTest.status = 'unknown';
     }
+    render(); notifyChange();
     return state.safeTest;
   }
 
@@ -1588,12 +2071,25 @@ export function createManaOutcomeUI(options = {}) {
     state.runs.status = 'loading'; state.runs.error = null; render();
     try {
       const normalized = normalizeRuns(await callApi(path('runList', { contractId: id })));
+      // The runtime defines run-list recency by creation time. A long-running old
+      // run may be updated after a newer run and must not become "latest" again.
+      normalized.records.sort((left, right) => new Date(right.startedAt ?? 0).getTime() - new Date(left.startedAt ?? 0).getTime());
       state.runs = { ...state.runs, ...normalized, status: normalized.state, error: null };
       const latestSafeTest = normalized.records.find((run) => run.mode === 'safe_test' && run.contractId === id);
       if (latestSafeTest) {
+        stopSafeTestReadback();
+        state.safeTest.runId = latestSafeTest.id;
+        state.safeTest.contractId = id;
+        rememberSafeTestRun(id, latestSafeTest.id);
         state.safeTest.result = latestSafeTest;
         state.safeTest.status = safeTestStatus(latestSafeTest, currentContract());
         state.safeTest.error = null;
+        if (latestSafeTest.status === 'queued' || latestSafeTest.status === 'running') scheduleSafeTestReadback(latestSafeTest.id);
+      }
+      const latestRun = normalized.records[0];
+      if (latestRun?.id) {
+        state.runs.selectedId = latestRun.id;
+        await loadRunDetail(latestRun.id, { renderAfter: false });
       }
     }
     catch (error) { setError(state.runs, error); }
@@ -1643,6 +2139,280 @@ export function createManaOutcomeUI(options = {}) {
     render(); notifyChange(); return state.runAction;
   }
 
+  // Profile, input, allowed-resource, and destination pickers. They exist
+  // only when the host offers execution profiles; choices come from the
+  // loaded connection resources, and references that are not listed now are
+  // preserved instead of dropped.
+  function contractProfilePickers(values, contract, fields) {
+    const profileInput = createElement(document, 'input', { attrs: { name: 'profileId', type: 'hidden' } });
+    profileInput.value = values.profileId;
+    fields.profileId = profileInput;
+    const knownProfile = (profileId) => executionProfiles.find((profile) => profile.id === profileId) ?? null;
+    let selectedProfileId = values.profileId;
+    const connectorById = (connectorId) => state.connections.records.find((item) => item.id === connectorId) ?? null;
+    const resourceIsRegistered = (value) => {
+      const resource = objectValue(value);
+      const id = stringValue(firstPresent(resource.id, resource.resourceId, resource.resource_id, typeof value === 'string' ? value : null)).trim();
+      const status = normalizeStatus(firstPresent(resource.status, resource.state, resource.connectionStatus, resource.connection_status));
+      return Boolean(id) && !['failed', 'error', 'unavailable', 'permission_denied', 'forbidden', 'unauthorized'].includes(status);
+    };
+    const connectorHasRegisteredResource = (connector) => (connector?.resources ?? []).some(resourceIsRegistered);
+    const profileConnectionLabel = (connector) => {
+      if (['connected', 'verified', 'readback_verified'].includes(normalizeStatus(connector?.status))) return '接続確認済み';
+      if (connectorHasRegisteredResource(connector)) return 'プロジェクト資源登録済み・接続未確認';
+      if (!connector || ['unregistered', 'not_registered'].includes(normalizeStatus(connector.status))) return '未登録のため利用不可';
+      return '接続未確認のため利用不可';
+    };
+    const currentReadiness = (profileId) => executionProfileReadiness(profileId, contract, [
+      state.safeTest.result, state.runs.detail, ...state.runs.records,
+    ], executionProfiles);
+    const profileField = createElement(document, 'fieldset', { className: 'outcome-mana-profile-picker' });
+    profileField.append(createElement(document, 'legend', { text: '委任する仕事' }));
+    profileField.append(createElement(document, 'p', { className: 'outcome-mana-muted', text: '仕事の種類を選ぶと、入力資料・生成内容・保存先が決まります。アプリの接続状態と、実行できるかの事前確認は別に表示します。' }));
+    const profileRadios = [];
+    executionProfiles.forEach((profile) => {
+      const inputConnectors = profile.inputConnectorIds.map(connectorById);
+      const destinationConnector = connectorById(profile.destinationConnectorId);
+      const readiness = currentReadiness(profile.id);
+      const card = createElement(document, 'label', { className: `outcome-mana-profile-card${selectedProfileId === profile.id ? ' is-selected' : ''}` });
+      const radio = createElement(document, 'input', { attrs: { type: 'radio', name: 'manaExecutionProfile', value: profile.id, 'data-profile-id': profile.id } });
+      radio.checked = selectedProfileId === profile.id;
+      const copy = createElement(document, 'span', { className: 'outcome-mana-profile-copy' });
+      copy.append(
+        createElement(document, 'strong', { text: profile.label }),
+        createElement(document, 'small', { text: `入力: ${profile.input} → Manaが生成: ${profile.output} → 保存先: ${profile.destination}` }),
+      );
+      const statuses = createElement(document, 'span', { className: 'outcome-mana-profile-statuses' });
+      statuses.append(
+        createElement(document, 'small', { text: `入力 ${profile.inputConnectorLabel}: ${inputConnectors.map(profileConnectionLabel).join('、')}`, attrs: { 'data-profile-input-connection': profile.id } }),
+        createElement(document, 'small', { text: `保存先 ${profile.destinationConnectorLabel}: ${profileConnectionLabel(destinationConnector)}`, attrs: { 'data-profile-destination-connection': profile.id } }),
+        createElement(document, 'small', { text: readiness.label, attrs: { 'data-profile-readiness': profile.id, 'data-readiness': readiness.status } }),
+      );
+      card.append(radio, copy, statuses);
+      listen(radio, 'change', () => {
+        if (!radio.checked) return;
+        selectedProfileId = profile.id;
+        profileInput.value = profile.id;
+        profileRadios.forEach(({ card: candidate, radio: candidateRadio }) => {
+          candidate.className = `outcome-mana-profile-card${candidateRadio === radio ? ' is-selected' : ''}`;
+        });
+        inputChoiceLabels.forEach(({ choice, resource, input }) => {
+          choice.hidden = !profile.inputConnectorIds.includes(resource.connectorId);
+          if (!profile.inputConnectorIds.includes(resource.connectorId)) input.checked = false;
+        });
+        inputRefsInput.value = inputChoiceLabels
+          .filter(({ resource, input }) => input.checked && profile.inputConnectorIds.includes(resource.connectorId))
+          .map(({ resource }) => `${resource.id}${resource.version ? `@${resource.version}` : ''}`)
+          .join('\n');
+        const allowedIds = [];
+        allowedChoiceLabels.forEach(({ choice, resource, input }) => {
+          const usable = profile.inputConnectorIds.includes(resource.connectorId) || resource.connectorId === profile.destinationConnectorId;
+          choice.hidden = !usable;
+          if (!usable) input.checked = false;
+          else if (input.checked) allowedIds.push(resource.id);
+        });
+        allowedResourcesInput.value = [...new Set([...allowedIds, ...preservedUnknownIds])].join('\n');
+        destinationChoiceLabels.forEach(({ choice, resource, input }) => {
+          choice.hidden = resource.connectorId !== profile.destinationConnectorId;
+          if (resource.connectorId !== profile.destinationConnectorId) input.checked = false;
+        });
+        if (destinationResource?.connectorId !== profile.destinationConnectorId) {
+          destinationResource = null;
+          adapterIdInput.value = '';
+          locationInput.value = '';
+        }
+      });
+      profileRadios.push({ card, radio });
+      profileField.append(card);
+    });
+    const resourceIsSelectable = (value) => {
+      const resource = objectValue(value);
+      const status = normalizeStatus(firstPresent(resource.status, resource.state, resource.connectionStatus, resource.connection_status));
+      return !['failed', 'error', 'unavailable', 'permission_denied', 'forbidden', 'unauthorized'].includes(status);
+    };
+    const selectableResources = state.connections.records
+      .flatMap((connector) => (connector.resources ?? []).map((value) => {
+        const resource = objectValue(value);
+        const id = stringValue(firstPresent(resource.id, resource.resourceId, resource.resource_id, typeof value === 'string' ? value : null)).trim();
+        const connectorVerified = ['connected', 'verified'].includes(normalizeStatus(connector.status));
+        if (!id || !resourceIsSelectable(value) || (!connectorVerified && !resourceIsRegistered(value))) return null;
+        return {
+          id,
+          label: resourceLabel(value),
+          connectorId: connector.id,
+          connector: connector.label,
+          adapterId: stringValue(firstPresent(resource.adapterId, resource.adapter_id, connector.id)).trim(),
+          version: stringValue(firstPresent(resource.version, resource.commit, resource.sha, resource.revision)).trim() || null,
+        };
+      }).filter(Boolean));
+    const selectableIds = new Set(selectableResources.map((resource) => resource.id));
+    const inputReferenceValues = parseReferenceLines(values.inputRefs);
+    const inputReferenceIds = inputReferenceValues.map((reference) => reference.id);
+    const preservedInputReferences = inputReferenceValues.filter((reference) => !selectableIds.has(reference.id));
+    const inputField = createElement(document, 'fieldset', { className: 'outcome-mana-resource-picker' });
+    inputField.append(createElement(document, 'legend', { text: '入力資料' }));
+    const inputRefsInput = createElement(document, 'textarea', {
+      className: 'outcome-mana-resource-picker-value',
+      attrs: { name: 'inputRefs', hidden: 'hidden', 'aria-hidden': 'true' },
+    });
+    inputRefsInput.value = values.inputRefs;
+    fields.inputRefs = inputRefsInput;
+    inputField.append(inputRefsInput);
+    const inputChoiceLabels = [];
+    if (selectableResources.length) {
+      const choices = createElement(document, 'div', { className: 'outcome-mana-resource-choices' });
+      const syncInputReferences = () => {
+        const selectedProfile = knownProfile(selectedProfileId);
+        const selected = selectableResources.filter((candidate) => candidate.inputRef?.checked
+          && selectedProfile?.inputConnectorIds.includes(candidate.connectorId));
+        inputRefsInput.value = [
+          ...selected.map((candidate) => {
+            const version = stringValue(candidate.versionInput?.value ?? candidate.version).trim();
+            return `${candidate.id}${version ? `@${version}` : ''}`;
+          }),
+          ...preservedInputReferences.map((reference) => `${reference.id}${reference.version ? `@${reference.version}` : ''}`),
+        ].join('\n');
+      };
+      selectableResources.forEach((resource) => {
+        const input = createElement(document, 'input', { attrs: { type: 'checkbox', value: resource.id, 'data-picker': 'input-reference' } });
+        input.checked = inputReferenceIds.includes(resource.id);
+        listen(input, 'change', syncInputReferences);
+        resource.inputRef = input;
+        const choice = createElement(document, 'label', { className: 'outcome-mana-resource-choice' });
+        choice.hidden = !knownProfile(selectedProfileId)?.inputConnectorIds.includes(resource.connectorId);
+        inputChoiceLabels.push({ choice, resource, input });
+        choice.append(input, createElement(document, 'span', { text: resource.label }), createElement(document, 'small', { text: `${resource.connector} · ${resource.id}${resource.version ? ` @ ${resource.version}` : ' · 版未確認'}` }));
+        if (resource.connectorId === 'github') {
+          const existingVersion = inputReferenceValues.find((reference) => reference.id === resource.id)?.version ?? resource.version ?? '';
+          const versionInput = createElement(document, 'input', {
+            className: 'outcome-mana-resource-version',
+            attrs: {
+              type: 'text',
+              value: existingVersion,
+              placeholder: '40文字のコミットSHA',
+              maxlength: '40',
+              'aria-label': `${resource.label}のコミットSHA`,
+            },
+          });
+          versionInput.value = existingVersion;
+          resource.versionInput = versionInput;
+          listen(versionInput, 'input', syncInputReferences);
+          listen(versionInput, 'change', syncInputReferences);
+          choice.append(versionInput);
+        }
+        choices.append(choice);
+      });
+      inputField.append(choices);
+    } else {
+      inputField.append(createElement(document, 'p', { className: 'outcome-mana-muted', text: '入力に使える接続済み資源がありません。' }));
+    }
+    if (preservedInputReferences.length) inputField.append(createElement(document, 'p', { className: 'outcome-mana-resource-preserved', text: `既存の入力参照を保持（現在は未確認）: ${preservedInputReferences.map((reference) => reference.id).join('、')}` }));
+    const allowedResourceIds = values.allowedResources.split(/\r?\n/).map((value) => value.trim()).filter(Boolean);
+    const preservedUnknownIds = allowedResourceIds.filter((id) => !selectableIds.has(id));
+    const resourceField = createElement(document, 'fieldset', { className: 'outcome-mana-resource-picker' });
+    resourceField.append(createElement(document, 'legend', { text: 'この委任で使う接続資源' }));
+    const allowedResourcesInput = createElement(document, 'textarea', {
+      className: 'outcome-mana-resource-picker-value',
+      attrs: { name: 'allowedResources', hidden: 'hidden', 'aria-hidden': 'true' },
+    });
+    allowedResourcesInput.value = allowedResourceIds.join('\n');
+    fields.allowedResources = allowedResourcesInput;
+    resourceField.append(allowedResourcesInput);
+    const allowedChoiceLabels = [];
+    if (selectableResources.length) {
+      const choices = createElement(document, 'div', { className: 'outcome-mana-resource-choices' });
+      selectableResources.forEach((resource) => {
+        const input = createElement(document, 'input', { attrs: { type: 'checkbox', value: resource.id, 'data-picker': 'allowed-resource' } });
+        input.checked = allowedResourceIds.includes(resource.id);
+        listen(input, 'change', () => {
+          const selectedProfile = knownProfile(selectedProfileId);
+          const selected = selectableResources.filter((candidate) => candidate.input.checked
+            && (selectedProfile?.inputConnectorIds.includes(candidate.connectorId) || candidate.connectorId === selectedProfile?.destinationConnectorId)).map((candidate) => candidate.id);
+          allowedResourcesInput.value = [...new Set([...selected, ...preservedUnknownIds])].join('\n');
+          if (!input.checked && destinationResource?.id === resource.id) {
+            destinationResource = null;
+            adapterIdInput.value = '';
+            locationInput.value = '';
+            const destinationRadio = destinationChoiceLabels.find((item) => item.resource.id === resource.id)?.input;
+            if (destinationRadio) destinationRadio.checked = false;
+          }
+        });
+        resource.input = input;
+        const choice = createElement(document, 'label', { className: 'outcome-mana-resource-choice' });
+        choice.hidden = !(knownProfile(selectedProfileId)?.inputConnectorIds.includes(resource.connectorId)
+          || resource.connectorId === knownProfile(selectedProfileId)?.destinationConnectorId);
+        allowedChoiceLabels.push({ choice, resource, input });
+        choice.append(input, createElement(document, 'span', { text: resource.label }), createElement(document, 'small', { text: `${resource.connector} · ${resource.id}` }));
+        choices.append(choice);
+      });
+      resourceField.append(choices);
+    } else {
+      resourceField.append(createElement(document, 'p', { className: 'outcome-mana-muted', text: catalogCopy.noSelectableResources }));
+    }
+    if (preservedUnknownIds.length) {
+      resourceField.append(createElement(document, 'p', { className: 'outcome-mana-resource-preserved', text: `既存参照を保持（現在は未確認）: ${preservedUnknownIds.join('、')}` }));
+    }
+    const destinationField = createElement(document, 'fieldset', { className: 'outcome-mana-resource-picker' });
+    destinationField.append(createElement(document, 'legend', { text: '成果物の保存先' }));
+    const adapterIdInput = createElement(document, 'input', { attrs: { name: 'adapterId', type: 'hidden' } });
+    const locationInput = createElement(document, 'input', { attrs: { name: 'location', type: 'hidden' } });
+    adapterIdInput.value = values.adapterId;
+    locationInput.value = values.location;
+    let destinationResource = selectableResources.find((resource) => resource.id === values.location && resource.adapterId === values.adapterId) ?? null;
+    fields.adapterId = adapterIdInput;
+    fields.location = locationInput;
+    destinationField.append(adapterIdInput, locationInput);
+    const destinationChoiceLabels = [];
+    if (selectableResources.length) {
+      const choices = createElement(document, 'div', { className: 'outcome-mana-resource-choices' });
+      selectableResources.forEach((resource) => {
+        const input = createElement(document, 'input', { attrs: { type: 'radio', name: 'artifactDestinationChoice', value: resource.id, 'data-picker': 'artifact-destination' } });
+        input.checked = values.location === resource.id && values.adapterId === resource.adapterId;
+        const choice = createElement(document, 'label', { className: 'outcome-mana-resource-choice' });
+        choice.hidden = resource.connectorId !== knownProfile(selectedProfileId)?.destinationConnectorId;
+        listen(input, 'change', () => {
+          if (!input.checked) return;
+          destinationResource = resource;
+          adapterIdInput.value = resource.adapterId;
+          locationInput.value = resource.id;
+          const allowedInput = allowedChoiceLabels.find((item) => item.resource.id === resource.id)?.input;
+          if (allowedInput) allowedInput.checked = true;
+          const selectedProfile = knownProfile(selectedProfileId);
+          const selected = allowedChoiceLabels.filter((item) => item.input.checked
+            && (selectedProfile?.inputConnectorIds.includes(item.resource.connectorId)
+              || item.resource.connectorId === selectedProfile?.destinationConnectorId)).map((item) => item.resource.id);
+          allowedResourcesInput.value = [...new Set([...selected, ...preservedUnknownIds])].join('\n');
+        });
+        destinationChoiceLabels.push({ choice, resource, input });
+        choice.append(input, createElement(document, 'span', { text: resource.label }), createElement(document, 'small', { text: `${resource.connector} · ${resource.id}` }));
+        choices.append(choice);
+      });
+      destinationField.append(choices);
+    } else {
+      destinationField.append(createElement(document, 'p', { className: 'outcome-mana-muted', text: '保存先に使える接続済み資源がありません。' }));
+    }
+    if (values.location && !selectableIds.has(values.location)) destinationField.append(createElement(document, 'p', { className: 'outcome-mana-resource-preserved', text: `既存の保存先を保持（現在は未確認）: ${values.location}` }));
+    function validate(isExisting) {
+      const selected = knownProfile(profileInput.value);
+      const inputReferences = parseReferenceLines(inputRefsInput.value);
+      const allowedIds = allowedResourcesInput.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+      const reasons = profileInputValidationReasons(selected, inputReferences, selectableResources);
+      const originalDestination = contract.artifactDestination;
+      const preservingUnlistedDestination = isExisting && !destinationResource
+        && Boolean(originalDestination?.adapterId && originalDestination?.location)
+        && adapterIdInput.value === originalDestination.adapterId
+        && locationInput.value === originalDestination.location
+        && fields.environment.value === originalDestination.environment
+        && profileInput.value === contract.profileId;
+      if (selected && !destinationResource && !preservingUnlistedDestination) reasons.push(`${selected.destinationConnectorLabel}の保存先を選んでください。`);
+      if (destinationResource && destinationResource.connectorId !== selected?.destinationConnectorId) reasons.push('保存先アプリが選んだ仕事と一致していません。');
+      if (destinationResource && !allowedIds.includes(destinationResource.id)) reasons.push('保存先を「この委任で使う接続資源」に含めてください。');
+      if (!allowedIds.some((id) => selectableIds.has(id))) reasons.push('この委任で使う接続資源を1つ以上選んでください。');
+      return reasons;
+    }
+    return { profileInput, profileField, inputField, resourceField, destinationField, validate };
+  }
+
   function renderContractSection() {
     const section = createElement(document, 'section', { className: 'outcome-mana-section outcome-mana-contract', attrs: { 'aria-labelledby': 'outcome-mana-contract-heading' } });
     section.append(sectionHeading(document, '成果契約', state.contract.status, '期待する成果、対象範囲、根拠、保存先、完了条件を版付きで管理します。保存と有効化は別操作です。', 'outcome-mana-contract-heading'));
@@ -1667,13 +2437,18 @@ export function createManaOutcomeUI(options = {}) {
     const form = createElement(document, 'form', { className: 'outcome-mana-form', attrs: { 'aria-label': '成果契約の編集' } });
     const fields = {};
     const addField = (name, label, type, options = {}) => { const result = field(document, label, type, name, values[name], options); fields[name] = result.input; form.append(result.label); };
+    const pickers = profilePicker ? contractProfilePickers(values, contract, fields) : null;
+    if (pickers) form.append(pickers.profileInput, pickers.profileField);
     addField('outcome', '期待する成果', 'textarea', { attrs: { rows: '4', required: 'required', maxlength: '2000' }, helper: '手順ではなく、受け取りたい状態を具体的に書きます。' });
     addField('scope', '対象範囲', 'textarea', { attrs: { rows: '3', required: 'required', maxlength: '2000' }, helper: '対象プロジェクトや資料の範囲。サーバーでも検証します。' });
-    addField('inputRefs', '入力資料（ID@版、1行1件）', 'textarea', { attrs: { rows: '3', required: 'required', maxlength: '4000' } });
+    if (!pickers) addField('inputRefs', '入力資料（ID@版、1行1件）', 'textarea', { attrs: { rows: '3', required: 'required', maxlength: '4000' } });
     addField('knowledgeRefs', '参照する知識（ID@版、1行1件）', 'textarea', { attrs: { rows: '3', maxlength: '4000' } });
     addField('judgmentRefs', '参照する判断（ID@版、1行1件）', 'textarea', { attrs: { rows: '3', maxlength: '4000' } });
-    addField('adapterId', '成果物アダプター', 'input', { attrs: { required: 'required', maxlength: '128' } });
-    addField('location', '成果物の保存先', 'input', { attrs: { required: 'required', maxlength: '2000' } });
+    if (pickers) form.append(pickers.inputField, pickers.resourceField, pickers.destinationField);
+    else {
+      addField('adapterId', '成果物アダプター', 'input', { attrs: { required: 'required', maxlength: '128' } });
+      addField('location', '成果物の保存先', 'input', { attrs: { required: 'required', maxlength: '2000' } });
+    }
     addField('environment', '保存環境', 'select', { options: [{ value: 'isolated', label: '隔離保存先' }, { value: 'production', label: '本番保存先' }], helper: '隔離試験は本番保存先へ書き込みません。' });
     addField('completionCriteria', '完了条件（id・説明・kind・expected、タブ区切り）', 'textarea', { attrs: { rows: '5', required: 'required', maxlength: '8000' }, helper: '例: criteria-1［Tab］本文を含む［Tab］content_includes［Tab］報告' });
     addField('ownerActorId', '責任者の主体ID', 'input', { attrs: { required: 'required', maxlength: '128' }, helper: '主体はサーバーで現在の組織権限と照合します。' });
@@ -1693,6 +2468,13 @@ export function createManaOutcomeUI(options = {}) {
     const isExisting = Boolean(contract.contractId);
     const save = button(document, isExisting ? '下書きを保存' : '下書きを作成', async () => {
       if (typeof form.reportValidity === 'function' && !form.reportValidity()) return;
+      const reasons = pickers ? pickers.validate(isExisting) : [];
+      if (reasons.length) {
+        let error = Array.from(form.children).find((child) => child.hasAttribute?.('data-profile-form-error'));
+        if (!error) { error = createElement(document, 'p', { className: 'outcome-mana-inline-error', attrs: { role: 'alert', 'data-profile-form-error': 'true' } }); form.append(error); }
+        error.textContent = reasons.join(' ');
+        return;
+      }
       await saveContractDraft(contractDraftFromForm(fields), { create: !isExisting });
     }, { className: 'outcome-mana-button outcome-mana-button-primary', disabled: !manage || state.contract.status === 'saving', attrs: { 'aria-label': isExisting ? '成果契約の下書きを保存' : '成果契約の下書きを作成' } });
     actions.append(save);
@@ -1713,6 +2495,19 @@ export function createManaOutcomeUI(options = {}) {
     else if (['loading', 'empty', 'permission_denied', 'error_retryable', 'conflict', 'unknown'].includes(state.authority.status)) {
       const message = stateMessage(document, state.authority.status, { emptyTitle: '権限設定は未登録です', emptyText: '上流の権限設定を確認してから追加します。', message: state.authority.error?.message, retry: () => loadAuthority() });
       if (message) content.append(message);
+      if (state.authority.status === 'empty' && canManage(currentSession())) {
+        const form = createElement(document, 'form', { className: 'outcome-mana-form', attrs: { 'aria-label': '最初の権限設定を追加' } });
+        const operation = field(document, '許可する操作', 'input', 'authorityOperation', '', { attrs: { required: 'required', maxlength: '128' }, helper: '例: github.contents.read。実行時の操作IDと一致させます。' });
+        const resource = field(document, '対象資源ID', 'input', 'authorityResource', '', { attrs: { required: 'required', maxlength: '256' }, helper: '接続資源の安定IDを指定します。表示名やURLでは判定しません。' });
+        const policy = field(document, '実行方針', 'select', 'authorityPolicy', 'approval', { options: Object.entries(AUTHORITY_LABELS).map(([value, label]) => ({ value, label })) });
+        form.append(operation.label, resource.label, policy.label);
+        form.append(button(document, '最初の権限を追加', () => {
+          if (typeof form.reportValidity === 'function' && !form.reportValidity()) return;
+          saveAuthority([{ operation: operation.input.value.trim(), resource: resource.input.value.trim(), policy: policy.input.value }]);
+        }, { className: 'outcome-mana-button outcome-mana-button-primary' }));
+        listen(form, 'submit', (event) => event.preventDefault?.());
+        content.append(form);
+      }
     } else {
       const matrix = state.authority.draft ?? state.authority.matrix;
       const table = createElement(document, 'div', { className: 'outcome-mana-authority-table', attrs: { role: 'table', 'aria-label': '操作権限マトリクス' } });
@@ -1787,9 +2582,30 @@ export function createManaOutcomeUI(options = {}) {
     form.append(actions); listen(form, 'submit', (event) => event.preventDefault?.()); content.append(form); section.append(content); return section;
   }
 
+  function renderPreflightChecks(preflight) {
+    if (!preflight?.checks?.length) return null;
+    const section = createElement(document, 'section');
+    section.append(createElement(document, 'h4', { text: '実行前チェック' }));
+    const checks = createElement(document, 'div', { className: 'outcome-mana-preflight-list', attrs: { role: 'list', 'aria-label': '実行前チェック' } });
+    preflight.checks.forEach((check) => {
+      const item = createElement(document, 'article', { className: 'outcome-mana-preflight-item', attrs: { role: 'listitem' } });
+      item.append(createElement(document, 'strong', { text: check.id }), statusBadge(document, check.status));
+      item.append(definitionList(document, [
+        ['不足理由', PREFLIGHT_REASON_LABELS[check.reason] ?? check.reason],
+        ['必要な対応', PREFLIGHT_ACTION_LABELS[check.action] ?? check.action],
+        ['対応後の再開地点', STAGE_LABELS[check.resumeFrom] ?? check.resumeFrom],
+      ]));
+      checks.append(item);
+    });
+    section.append(checks);
+    return section;
+  }
+
   function renderSafeTestSection() {
     const section = createElement(document, 'section', { className: 'outcome-mana-section', attrs: { 'aria-labelledby': 'outcome-mana-safe-test-heading' } });
     const contract = currentContract();
+    const inFlight = Boolean(state.safeTest.runId && state.safeTest.status !== 'unknown'
+      && ['queued', 'running'].includes(normalizeRun(state.safeTest.result).status));
     const effectiveTestStatus = state.safeTest.status === 'loading' ? 'loading' : state.safeTest.result
       ? safeTestStatus(state.safeTest.result, contract) : state.safeTest.status;
     section.append(sectionHeading(document, '隔離試験', effectiveTestStatus, '契約版とサンプル入力で試験します。外部送信と本番書き込みはリクエストでも遮断し、未実行の操作を成功とは表示しません。', 'outcome-mana-safe-test-heading'));
@@ -1802,25 +2618,50 @@ export function createManaOutcomeUI(options = {}) {
     form.append(version.label, sample.label);
     const safety = createElement(document, 'p', { className: 'outcome-mana-safe-note', text: '隔離モード: 外部送信なし / 本番書き込みなし / 成果物は隔離保存先のみ' }); form.append(safety);
     const actions = createElement(document, 'div', { className: 'outcome-mana-actions' });
-    actions.append(button(document, '隔離試験を実行', () => runSafeTest({ contractVersion: Number(version.input.value), sampleInput: sample.input.value }), { className: 'outcome-mana-button outcome-mana-button-primary', disabled: !canManage(currentSession()) || state.safeTest.status === 'loading' }));
+    actions.append(button(document, inFlight ? '隔離試験を実行中' : '新しい隔離試験を実行', () => runSafeTest({ contractVersion: Number(version.input.value), sampleInput: sample.input.value }), { className: 'outcome-mana-button outcome-mana-button-primary', disabled: !canManage(currentSession()) || state.safeTest.status === 'loading' || inFlight }));
     form.append(actions); listen(form, 'submit', (event) => event.preventDefault?.()); content.append(form);
-    if (effectiveTestStatus === 'unexecuted') content.append(stateMessage(document, 'unknown', { message: '試験要求は受理されましたが、実行結果を確認できていません。成功とは扱いません。', retry: () => runSafeTest({ contractVersion: Number(version.input.value), sampleInput: sample.input.value }) }));
-    if (effectiveTestStatus === 'executed') content.append(stateMessage(document, 'unknown', { message: '試験は実行済みですが、完了条件の検証済み結果を確認できていません。', retry: () => runSafeTest({ contractVersion: Number(version.input.value), sampleInput: sample.input.value }) }));
+    if (inFlight) {
+      content.append(createElement(document, 'p', { text: '隔離試験を実行中です。同じ試験IDの結果を追跡しています。', attrs: { role: 'status' } }));
+      content.append(button(document, '結果を再取得', refreshSafeTestReadback, { className: 'outcome-mana-button outcome-mana-button-secondary' }));
+    }
+    if (!inFlight && effectiveTestStatus === 'unexecuted') content.append(stateMessage(document, 'unknown', { message: '試験要求は受理されましたが、実行結果を確認できていません。成功とは扱いません。', retry: state.safeTest.runId ? refreshSafeTestReadback : null, retryLabel: '結果を再取得' }));
+    if (!inFlight && state.safeTest.status === 'unknown' && state.safeTest.runId) content.append(stateMessage(document, 'unknown', { message: '結果の取得を確認できません。同じ試験IDを再取得してください。', retry: refreshSafeTestReadback, retryLabel: '結果を再取得' }));
     if (effectiveTestStatus === 'verified') content.append(createElement(document, 'p', { className: 'outcome-mana-inline-success', text: 'この設定で試験済み', attrs: { role: 'status' } }));
     if (effectiveTestStatus === 'stale') content.append(createElement(document, 'p', { className: 'outcome-mana-inline-error', text: '設定変更のため再試験が必要', attrs: { role: 'status' } }));
-    if (effectiveTestStatus === 'completion_unverified') content.append(createElement(document, 'p', { className: 'outcome-mana-inline-error', text: '試験は実行済みですが、完了条件の検証結果を確認できていません。', attrs: { role: 'status' } }));
+    if (!inFlight && state.safeTest.status !== 'unknown' && effectiveTestStatus === 'completion_unverified') content.append(createElement(document, 'p', { className: 'outcome-mana-inline-error', text: '試験は実行済みですが、完了条件の検証結果を確認できていません。', attrs: { role: 'status' } }));
     if (effectiveTestStatus === 'configuration_snapshot_missing') content.append(createElement(document, 'p', { className: 'outcome-mana-inline-error', text: '試験時の設定記録が不足しているため、現在の設定と一致するか確認できません。再試験が必要です。', attrs: { role: 'status' } }));
-    if (effectiveTestStatus === 'failed') content.append(createElement(document, 'p', { className: 'outcome-mana-inline-error', text: '隔離試験が失敗しました。外部への副作用は成功扱いにしていません。', attrs: { role: 'alert' } }));
-    if (state.safeTest.error) content.append(createElement(document, 'p', { className: 'outcome-mana-inline-error', text: state.safeTest.error.message, attrs: { role: 'alert' } }));
+    if (effectiveTestStatus === 'failed') {
+      content.append(createElement(document, 'p', { className: 'outcome-mana-inline-error', text: '隔離試験が失敗しました。外部への副作用は成功扱いにしていません。', attrs: { role: 'alert' } }));
+    }
+    if (state.safeTest.error) {
+      const error = state.safeTest.error;
+      content.append(definitionList(document, [
+        ['エラーコード', error.code || UNKNOWN],
+        ['HTTP状態', error.status == null ? UNKNOWN : String(error.status)],
+        ['理由', error.message || UNKNOWN],
+      ]));
+    }
     if (state.safeTest.result) {
       const result = objectValue(state.safeTest.result);
       const execution = objectValue(result.execution ?? result.testRun ?? result.run);
-      content.append(definitionList(document, [['実行状態', statusLabel(completionState(state.safeTest.result))], ['試験ID', firstPresent(result.test_id, result.testId, result.id, execution.id)], ['対象版', firstPresent(result.contract_version, result.contractVersion, contract.version)]]));
+      const run = normalizeRun(state.safeTest.result);
+      content.append(definitionList(document, [
+        ['完了判定', statusLabel(completionState(state.safeTest.result))],
+        ['Mana実行状態', statusLabel(run.status)],
+        ['試験ID', firstPresent(state.safeTest.runId, run.id, result.test_id, result.testId, result.id, execution.id)],
+        ['対象版', firstPresent(run.contractVersion, result.contract_version, result.contractVersion, contract.version)],
+        ...(run.stage ? [['現在の段階', STAGE_LABELS[run.stage] ?? run.stage]] : []),
+        ...(run.errorCode ? [['エラーコード', run.errorCode]] : []),
+        ...(run.errorMessage ? [['理由', run.errorMessage]] : []),
+        ['隔離成果物の読戻し', artifactReadbackSummary(run.artifactReadback)],
+      ]));
+      const preflight = renderPreflightChecks(run.preflight);
+      if (preflight) content.append(preflight);
       content.append(evidenceList(document, '予定した操作', result.operations ?? execution.operations));
       content.append(evidenceList(document, '必要な承認', result.approvals ?? execution.approvals));
       content.append(evidenceList(document, '参照した根拠', result.evidence ?? execution.evidence));
-      content.append(evidenceList(document, '隔離成果物', result.artifacts ?? execution.artifacts));
-      content.append(evidenceList(document, '完了条件の評価', result.completion?.criteria ?? result.completion ?? execution.completion?.criteria ?? execution.completion));
+      content.append(evidenceList(document, '隔離成果物', run.artifacts));
+      content.append(evidenceList(document, '完了条件の評価', criterionSummaries(run.completion.criteria)));
     }
     section.append(content); return section;
   }
@@ -1844,6 +2685,8 @@ export function createManaOutcomeUI(options = {}) {
       ['更新', dateLabel(detail.updatedAt)],
     ]));
     section.append(stageList(document, detail.stages));
+    const preflight = renderPreflightChecks(detail.preflight);
+    if (preflight) section.append(preflight);
     section.append(evidenceList(document, '参照した根拠', detail.evidence), evidenceList(document, '成果物', detail.artifacts), evidenceList(document, '完了条件', detail.completion.criteria));
     if (detail.completion.reason) section.append(createElement(document, 'p', { className: 'outcome-mana-inline-error', text: detail.completion.reason, attrs: { role: 'alert' } }));
     const actions = createElement(document, 'div', { className: 'outcome-mana-actions' });
@@ -1919,12 +2762,13 @@ export function createManaOutcomeUI(options = {}) {
 
   function renderOverviewView() {
     const view = createElement(document, 'section', { className: 'outcome-mana-overview', attrs: { 'aria-labelledby': 'outcome-mana-overview-heading' } });
-    function startNewDelegation() {
+    async function startNewDelegation() {
       state.contract.detail = null;
       state.contract.selectedId = null;
       state.contract.formDraft = {};
       setActiveStage('contract');
       render();
+      await ensureConnectionsForDelegation();
     }
     const heading = createElement(document, 'div', { className: 'outcome-mana-view-heading' });
     heading.append(group(document, 'div', {}, [
@@ -2019,7 +2863,11 @@ export function createManaOutcomeUI(options = {}) {
         ['責任者', present(selected.owner?.actorId)], ['対象範囲', present(selected.scope)], ['起動条件', triggerLabel(selected.trigger?.type)],
         ['契約版', selected.version === null ? UNKNOWN : `v${selected.version}`], ['最終実行', state.runs.records[0] ? dateLabel(state.runs.records[0].updatedAt ?? state.runs.records[0].startedAt) : UNKNOWN],
       ]));
-      inspector.append(button(document, '委任設定を開く', () => { setActiveView('delegation_settings'); render(); }, { className: 'outcome-mana-button outcome-mana-button-primary' }));
+      inspector.append(button(document, '委任設定を開く', async () => {
+        setActiveView('delegation_settings');
+        render();
+        await ensureConnectionsForDelegation();
+      }, { className: 'outcome-mana-button outcome-mana-button-primary' }));
     }
     layout.append(list, inspector); view.append(layout); return view;
   }
@@ -2030,8 +2878,10 @@ export function createManaOutcomeUI(options = {}) {
     const values = Array.isArray(source) ? source : Object.entries(objectValue(source)).map(([id, value]) => ({ id, ...objectValue(value) }));
     const byId = new Map(values.map((item) => [normalizeConnector(item).id.toLowerCase(), normalizeConnector(item)]));
     const registeredById = new Map(connectorRecordsFromProject().map((item) => [item.id.toLowerCase(), item]));
-    const loadedById = new Map(state.connections.records.map((item) => [item.id.toLowerCase(), item]));
-    return CONNECTOR_DEFINITIONS.map((definition) => ({
+    // With a host connection catalog this is the project-resource list only;
+    // host connection status never makes a project resource look registered.
+    const loadedById = new Map(connectionCatalog ? [] : state.connections.records.map((item) => [item.id.toLowerCase(), item]));
+    return connectorDefinitions.map((definition) => ({
       ...definition,
       ...(registeredById.get(definition.id) ?? {}),
       ...(byId.get(definition.id) ?? {}),
@@ -2047,12 +2897,21 @@ export function createManaOutcomeUI(options = {}) {
     const headingActions = createElement(document, 'div', { className: 'outcome-mana-toolbar' });
     headingActions.append(button(document, state.connections.status === 'loading' ? '確認中…' : '接続を再確認', () => loadConnections(), { className: 'outcome-mana-button outcome-mana-button-secondary', disabled: state.connections.status === 'loading' }));
     view.append(group(document, 'div', { className: 'outcome-mana-view-heading' }, [headingCopy, headingActions]));
-    const connectors = projectConnectors();
+    // A host connection catalog separates host-authenticated connections,
+    // this project's registered resources, and the delegation's allowed range.
+    const catalogMode = Boolean(connectionCatalog);
+    const connectors = !catalogMode
+      ? projectConnectors()
+      : state.connections.records.length ? state.connections.records : catalogPlaceholders();
     if (!state.connections.selectedId && connectors.length) state.connections.selectedId = connectors[0].id;
     const selectedConnector = connectors.find((item) => item.id === state.connections.selectedId) ?? null;
+    if (catalogMode) {
+      view.append(createElement(document, 'span', { className: 'outcome-mana-eyebrow', text: catalogCopy.connectionsTitle }));
+      view.append(createElement(document, 'p', { className: 'outcome-mana-muted', text: catalogCopy.connectionsDescription }));
+    }
     const table = createElement(document, 'div', { className: 'outcome-mana-connection-table', attrs: { role: 'table', 'aria-label': 'Mana組織接続一覧' } });
     const header = createElement(document, 'div', { className: 'outcome-mana-connection-row outcome-mana-connection-header', attrs: { role: 'row' } });
-    ['接続', '状態', 'アカウント', '登録資源', '最終確認'].forEach((label) => header.append(createElement(document, 'span', { text: label, attrs: { role: 'columnheader' } })));
+    ['接続', '状態', 'アカウント', catalogMode ? 'このプロジェクトで利用' : '登録資源', '最終確認'].forEach((label) => header.append(createElement(document, 'span', { text: label, attrs: { role: 'columnheader' } })));
     table.append(header);
     for (const connector of connectors) {
       const selected = connector.id === state.connections.selectedId;
@@ -2065,10 +2924,34 @@ export function createManaOutcomeUI(options = {}) {
         connectorIdentity(document, connector, { attrs: { role: 'cell' } }),
         group(document, 'span', { attrs: { role: 'cell' } }, [statusBadge(document, connector.status ?? 'unknown', connectionStatusLabel(connector.status))]),
         createElement(document, 'span', { text: present(connector.account), attrs: { role: 'cell' } }),
-        createElement(document, 'span', { text: connector.resources?.length ? connector.resources.map(resourceLabel).join('、') : UNKNOWN, attrs: { role: 'cell' } }),
+        createElement(document, 'span', {
+          text: catalogMode
+            ? projectResourceStatusLabel(projectConnectors().find((item) => item.id === connector.id) ?? {})
+            : connector.resources?.length ? connector.resources.map(resourceLabel).join('、') : UNKNOWN,
+          attrs: { role: 'cell' },
+        }),
         createElement(document, 'span', { text: dateLabel(connector.checkedAt), attrs: { role: 'cell' } }),
       );
       table.append(row);
+    }
+    if (catalogMode) {
+      view.append(table);
+      const resourcesSection = createElement(document, 'section', { className: 'outcome-mana-resource-section', attrs: { 'aria-label': 'プロジェクト資源' } });
+      resourcesSection.append(createElement(document, 'span', { className: 'outcome-mana-eyebrow', text: '2. このプロジェクトで使う資源' }));
+      resourcesSection.append(createElement(document, 'p', { className: 'outcome-mana-muted', text: catalogCopy.resourcesDescription }));
+      const resourceGrid = createElement(document, 'div', { className: 'outcome-mana-project-resource-grid' });
+      for (const connector of projectConnectors()) {
+        const card = createElement(document, 'article', { className: 'outcome-mana-project-resource-card' });
+        card.append(connectorIdentity(document, connector));
+        card.append(definitionList(document, [
+          ['状態', projectResourceStatusLabel(connector)],
+          ['接続元', connectionSourceLabel(connector.id)],
+        ]));
+        card.append(evidenceList(document, '登録資源', connector.resources?.length ? connector.resources : (connector.account ? [connector.account] : [])));
+        resourceGrid.append(card);
+      }
+      resourcesSection.append(resourceGrid);
+      view.append(resourcesSection);
     }
     const contract = currentContract();
     const inspector = createElement(document, 'aside', { className: 'outcome-mana-connection-inspector', attrs: { 'aria-label': '選択した接続の詳細' } });
@@ -2076,17 +2959,23 @@ export function createManaOutcomeUI(options = {}) {
     if (selectedConnector) {
       inspector.append(connectorIdentity(document, selectedConnector, { large: true }));
       inspector.append(definitionList(document, [['接続状態', connectionStatusLabel(selectedConnector.status)], ['接続先', selectedConnector.account], ['確認日時', dateLabel(selectedConnector.checkedAt)], ['確認理由', connectionReasonLabel(selectedConnector.reason)]]));
-      inspector.append(evidenceList(document, '登録資源', selectedConnector.resources));
+      if (catalogMode) {
+        inspector.append(createElement(document, 'p', { className: 'outcome-mana-muted', text: catalogCopy.manageNote }));
+        if (typeof options.onManageConnection === 'function') {
+          inspector.append(button(document, catalogCopy.manageAction, () => options.onManageConnection(selectedConnector.id), { className: 'outcome-mana-button outcome-mana-button-primary' }));
+        }
+      } else inspector.append(evidenceList(document, '登録資源', selectedConnector.resources));
     } else inspector.append(stateMessage(document, 'unknown', { message: '接続を選ぶと登録資源と確認状態を表示します。' }));
     const allowed = createElement(document, 'aside', { className: 'outcome-mana-resource-panel' });
-    allowed.append(createElement(document, 'span', { className: 'outcome-mana-eyebrow', text: '委任単位の許可範囲' }), createElement(document, 'h3', { text: 'この委任が利用できる資源' }));
+    allowed.append(createElement(document, 'span', { className: 'outcome-mana-eyebrow', text: catalogMode ? '3. 委任単位の許可範囲' : '委任単位の許可範囲' }), createElement(document, 'h3', { text: 'この委任が利用できる資源' }));
     if (!contract) allowed.append(stateMessage(document, 'unknown', { message: '委任を選ぶと、契約版に固定された参照先と保存先を確認できます。' }));
     else {
       const permitted = permittedResources(contract);
       allowed.append(evidenceList(document, '許可リソース', permitted));
       allowed.append(evidenceList(document, '入力', contract.inputRefs), evidenceList(document, '知識', contract.knowledgeRefs), evidenceList(document, '判断', contract.judgmentRefs), definitionList(document, [['保存先', present(contract.artifactDestination?.location)], ['接続ID', present(contract.artifactDestination?.adapterId)], ['環境', present(contract.artifactDestination?.environment)]]));
     }
-    view.append(table, group(document, 'div', { className: 'outcome-mana-connection-detail-layout' }, [inspector, allowed])); return view;
+    if (!catalogMode) view.append(table);
+    view.append(group(document, 'div', { className: 'outcome-mana-connection-detail-layout' }, [inspector, allowed])); return view;
   }
 
   function renderDelegationSettings() {
@@ -2214,7 +3103,14 @@ export function createManaOutcomeUI(options = {}) {
     for (const [index, stage] of WORKFLOW_STAGES.entries()) {
       const item = createElement(document, 'li', { className: `outcome-mana-stage-item${activeStage === stage.id ? ' is-active' : ''}` });
       const status = stageStatus(stage.id);
-      const stageButton = button(document, '', () => { setActiveStage(stage.id); render(); }, {
+      const stageButton = button(document, '', () => {
+        if (stage.id === 'authority' && state.authority.status === 'idle' && state.contract.status === 'ready' && currentContract()?.contractId === state.contract.selectedId) {
+          void loadAuthority();
+          return;
+        }
+        setActiveStage(stage.id);
+        render();
+      }, {
         className: 'outcome-mana-stage-button',
         attrs: {
           'aria-current': activeStage === stage.id ? 'step' : 'false',
@@ -2297,6 +3193,7 @@ export function createManaOutcomeUI(options = {}) {
     saveAuthority,
     saveTriggers,
     runSafeTest,
+    refreshSafeTestReadback,
     activate,
     stopActivation,
     loadRuns,
