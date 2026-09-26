@@ -628,6 +628,10 @@ function requiredKinds(references: readonly JudgmentProblemReference[]): Set<Jud
 
 function validateRequiredReferences(snapshot: JudgmentProblemSnapshot): void {
   const kinds = requiredKinds(snapshot.references);
+  const objectiveCount = snapshot.references.filter((reference) => reference.kind === 'objective').length;
+  if (objectiveCount !== 1) {
+    fail('invalid_request', `snapshot must contain exactly one objective reference; found ${objectiveCount}`);
+  }
   const required: readonly JudgmentProblemReferenceKind[] = [
     'objective',
     'criterion',

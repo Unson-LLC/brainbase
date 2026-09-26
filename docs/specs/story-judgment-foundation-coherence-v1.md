@@ -12,6 +12,7 @@
 4. `historical_read`は要求版のdigestとstoreが強制する現在ACLを確認し、依存Variableも同じexact revisionでreadする。記録時点のauthorized useやapplicabilityを再評価しない。
 5. Observation referenceに測定descriptorがある場合、Objective評価期間とVariableのunit／aggregation／granularity／scope／periodを`validateEvaluationCompatibility`と同じ条件で検証する。descriptorがない既存snapshotは`historical_read`に限り読み取れる。新規save／current readではdescriptorまたはcanonical measurement metadataが不足していれば未解決として扱う。
 6. `philosophy`はsnapshotの任意参照種別であり、必須種別ではない。標準Foundation storeは哲学の正本を推測せず、専用resolverが解決する。
+7. JudgmentProblem snapshotはObjective referenceをちょうど一つだけ含む。Objectiveがない、または複数あるsnapshotは、依存参照を解決済みにせず拒否する。
 
 ## 変更境界
 

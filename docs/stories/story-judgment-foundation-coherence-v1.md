@@ -21,10 +21,11 @@ depends_on: ["story-company-os-objectives-v1", "story-company-os-world-model-v1"
 - [x] AC-04: historical readは、要求版のdigestと依存Foundationの現在read ACLを再確認する。記録時点の用途・適用範囲は再判定せず、現在のlatestへ置換しない。
 - [x] AC-05: Objectiveの評価期間、Variableの測定単位・集計・粒度・scope・periodを、既存の評価互換性契約と同じ条件で確認できる。descriptorがない既存Observationは`historical_read`に限り読めるが、新規save／current readではcanonical measurement metadataとdescriptorが揃わない限り解決済みにしない。
 - [x] AC-06: `philosophy`は任意のsnapshot参照種別として受け付けるが、必須参照にはせず、正本解決は専用resolverへ委譲する。
+- [x] AC-07: JudgmentProblem snapshotはObjective referenceをちょうど一つだけ含み、Objectiveがない、または複数あるsnapshotを依存参照の解決前に拒否する。
 
 ## 完了証拠
 
 - `src/company-os-objectives.ts`にObjective readinessの共通関数を抽出し、標準Foundation providerから同じ経路を呼び出している。
-- `src/judgment-problem-snapshot.ts`でObjective／Model依存のexact revision・型・digest・現在ACL・用途・適用範囲を検証し、read-only `validateJudgmentProblemSnapshot`をsave/readと同じ参照解決経路へ接続している。
-- `tests/judgment-problem-snapshot.test.ts`でObjective／Model依存不足、current ACL、historical read、測定descriptorとcanonical metadataの不整合、descriptorなし既存Observationのhistorical read、任意philosophy参照を確認している。
-- 検証結果: `npx vitest run tests/judgment-problem-snapshot.test.ts --testTimeout=30000`（14 passed）、`npx vitest run tests/foundation-public-provider.test.ts --testTimeout=30000`（7 passed）、`npx vitest run tests/ontology-foundation.test.ts --testTimeout=30000`（8 passed）、`npx vitest run tests/foundation-store.test.ts --testTimeout=30000`（17 passed）、`npx tsc -p tsconfig.json --noEmit`（success）。
+- `src/judgment-problem-snapshot.ts`でObjective referenceを一つに制限し、Objective／Model依存のexact revision・型・digest・現在ACL・用途・適用範囲を検証し、read-only `validateJudgmentProblemSnapshot`をsave/readと同じ参照解決経路へ接続している。
+- `tests/judgment-problem-snapshot.test.ts`でObjective／Model依存不足、Objectiveの重複、current ACL、historical read、測定descriptorとcanonical metadataの不整合、descriptorなし既存Observationのhistorical read、任意philosophy参照を確認している。
+- 検証結果: `npx vitest run tests/judgment-problem-snapshot.test.ts --testTimeout=30000`（15 passed）、`npx vitest run tests/foundation-public-provider.test.ts --testTimeout=30000`（7 passed）、`npx vitest run tests/ontology-foundation.test.ts --testTimeout=30000`（8 passed）、`npx vitest run tests/foundation-store.test.ts --testTimeout=30000`（17 passed）、`npx tsc -p tsconfig.json --noEmit`（success）。

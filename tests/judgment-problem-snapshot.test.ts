@@ -241,6 +241,29 @@ describe('JudgmentProblem snapshot contract', () => {
     expect(calls.every((call) => call.phase === 'read')).toBe(true);
   });
 
+  it('rejects snapshots with multiple Objective references before resolving dependencies', async () => {
+    const calls: Array<{ phase: JudgmentProblemReferenceResolutionPhase; reference: JudgmentProblemReference }> = [];
+    const original = snapshot();
+    const duplicateObjective: JudgmentProblemReference = {
+      ...reference('objective', 99),
+      id: 'objective-2'
+    };
+    const ambiguous = {
+      ...original,
+      references: [...original.references, duplicateObjective]
+    } satisfies JudgmentProblemSnapshot;
+
+    await expect(validateJudgmentProblemSnapshot({
+      snapshot: ambiguous,
+      access: { principal: 'alice' },
+      referenceProvider: provider(calls)
+    })).rejects.toMatchObject({
+      code: 'invalid_request',
+      message: 'snapshot must contain exactly one objective reference; found 2'
+    });
+    expect(calls).toHaveLength(0);
+  });
+
   it('separates historical snapshot replay from current reference ACL resolution', async () => {
     const root = await temporaryRoot();
     const original = snapshot();
