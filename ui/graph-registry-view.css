@@ -1,0 +1,32 @@
+/*
+ * 「情報と関係」. Load with graph-view-shared.css.
+ * Uses only the shared tokens in brainbase-tokens.css.
+ */
+.bb-gr-search-fields {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+}
+
+.bb-gr-types td:first-child,
+.bb-gr-relations td:first-child {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bb-gr-types td:last-child,
+.bb-gr-relations td:last-child {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .bb-gr-search-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bb-gr-types td:first-child,
+  .bb-gr-relations td:first-child,
+  .bb-gr-types td:last-child,
+  .bb-gr-relations td:last-child {
+    white-space: normal;
+  }
+}
