@@ -23,6 +23,7 @@ Graph writerの実装者として、Objective・Variable・Model・Constraintの
 - [x] AC-03: 新規はrevision 1かつ所有者が認証済み主体、更新は現在定義から連続する次revisionを必須にする。旧版の保持はcanonical writerのPostgreSQL row version/history trigger境界で担保し、純粋validatorへGraph aggregate versionを要求しない。Objective・Modelの不完全な草案はdraft境界では保存可能にする。
 - [x] AC-04: 更新は現在ACLのownerまたはwriterだけに許可し、失効済み・無権限主体を拒否する。ownerIdの変更やACLを使った所有権移転は拒否する。
 - [x] AC-05: 成功結果はcanonical writerへ渡せる正規化済み草案だけを返し、I/O・Graph mutation・テナント推測を行わない。
+- [x] AC-06: canonical Graph history captureは、AC-01のDraft（`adoptionState=draft`、`storage=candidate`、`authorizedUses=[draft]`）について、4型の未確定な型固有項目の欠落を保持可能にし、存在する項目のコンテナまたは値のJSON型だけを検証する。配列要素や列挙値などの詳細形状はcanonical validatorで検証し、非Draftでは各型の判断利用に必要な項目を引き続き必須とする。欠落値や仮値を推測・補完しない。
 
 ## 対象外
 
@@ -32,6 +33,10 @@ Graph writerの実装者として、Objective・Variable・Model・Constraintの
 
 純粋なvalidatorのunit testで、4型の正常系、draft限定、id/type/revision/scopeの不一致、current ACL、owner transfer、次revision、不完全Objective/Modelを確認する。TypeScript buildも実行する。
 
+Graph historyのPGlite integration testで、4型の不完全なDraftを保存できること、Draftに存在する型固有項目の不正な型を拒否すること、非Draftの必須項目欠落を拒否することを確認する。
+
 ## 検証結果
 
 Node 22で影響する22テストとTypeScript buildが通過。レビューで見つかった不正ACLの例外とproject scope拡張を修正済み。Host永続化と本番公開は別Storyで検証する。
+
+Graph history parity修正: Node 22で影響する3ファイル28テストが成功。追加境界を含むPGlite 6テストも再検証成功。独立レビューのblocking指摘なし。Graphifyはテストを解決したがSQLは未解決のため影響範囲はunknown。

@@ -167,6 +167,7 @@ SET search_path = pg_catalog, public
 AS $assert_graph_foundation_payload$
 DECLARE
   foundation jsonb;
+  draft_candidate boolean;
   required_key text;
   required_keys text[];
 BEGIN
@@ -248,8 +249,26 @@ BEGIN
       USING ERRCODE = 'check_violation';
   END IF;
 
+  /*
+   * Keep history capture aligned with the canonical draft writer.  A draft
+   * is relaxed only for the exact candidate contract; an approved/proposed
+   * row must continue through the strict type-specific checks below.
+   */
+  draft_candidate := foundation ->> 'adoptionState' = 'draft'
+    AND foundation ->> 'storage' = 'candidate'
+    AND (foundation -> 'authorizedUses') = '["draft"]'::jsonb;
+
   IF p_entity_type = 'objective' THEN
-    IF NOT (foundation ? 'beneficiaryIds')
+    IF draft_candidate THEN
+      IF ((foundation ? 'beneficiaryIds') AND jsonb_typeof(foundation -> 'beneficiaryIds') IS DISTINCT FROM 'array')
+         OR ((foundation ? 'desiredState') AND jsonb_typeof(foundation -> 'desiredState') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'criteria') AND jsonb_typeof(foundation -> 'criteria') IS DISTINCT FROM 'array')
+         OR ((foundation ? 'evaluationPeriod') AND jsonb_typeof(foundation -> 'evaluationPeriod') IS DISTINCT FROM 'object')
+         OR ((foundation ? 'accountableId') AND jsonb_typeof(foundation -> 'accountableId') IS DISTINCT FROM 'string') THEN
+        RAISE EXCEPTION 'GRAPH_FOUNDATION_HISTORY_OBJECTIVE_FIELDS_INVALID: %/%', p_entity_type, p_entity_id
+          USING ERRCODE = 'check_violation';
+      END IF;
+    ELSIF NOT (foundation ? 'beneficiaryIds')
        OR NOT (foundation ? 'desiredState')
        OR NOT (foundation ? 'criteria')
        OR NOT (foundation ? 'evaluationPeriod')
@@ -261,7 +280,17 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
   ELSIF p_entity_type = 'variable' THEN
-    IF NOT (foundation ? 'subject')
+    IF draft_candidate THEN
+      IF ((foundation ? 'subject') AND jsonb_typeof(foundation -> 'subject') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'valueKind') AND jsonb_typeof(foundation -> 'valueKind') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'unit') AND jsonb_typeof(foundation -> 'unit') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'aggregation') AND jsonb_typeof(foundation -> 'aggregation') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'granularity') AND jsonb_typeof(foundation -> 'granularity') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'measurementMethod') AND jsonb_typeof(foundation -> 'measurementMethod') IS DISTINCT FROM 'string') THEN
+        RAISE EXCEPTION 'GRAPH_FOUNDATION_HISTORY_VARIABLE_FIELDS_INVALID: %/%', p_entity_type, p_entity_id
+          USING ERRCODE = 'check_violation';
+      END IF;
+    ELSIF NOT (foundation ? 'subject')
        OR NOT (foundation ? 'valueKind')
        OR NOT (foundation ? 'aggregation')
        OR NOT (foundation ? 'granularity')
@@ -275,7 +304,19 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
   ELSIF p_entity_type = 'model' THEN
-    IF NOT (foundation ? 'epistemicState')
+    IF draft_candidate THEN
+      IF NOT (foundation ? 'epistemicState')
+         OR jsonb_typeof(foundation -> 'epistemicState') IS DISTINCT FROM 'string'
+         OR ((foundation ? 'inputVariableRefs') AND jsonb_typeof(foundation -> 'inputVariableRefs') IS DISTINCT FROM 'array')
+         OR ((foundation ? 'outputVariableRefs') AND jsonb_typeof(foundation -> 'outputVariableRefs') IS DISTINCT FROM 'array')
+         OR ((foundation ? 'applicability') AND jsonb_typeof(foundation -> 'applicability') IS DISTINCT FROM 'object')
+         OR ((foundation ? 'relationship') AND jsonb_typeof(foundation -> 'relationship') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'uncertainty') AND jsonb_typeof(foundation -> 'uncertainty') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'validationState') AND jsonb_typeof(foundation -> 'validationState') IS DISTINCT FROM 'string') THEN
+        RAISE EXCEPTION 'GRAPH_FOUNDATION_HISTORY_MODEL_FIELDS_INVALID: %/%', p_entity_type, p_entity_id
+          USING ERRCODE = 'check_violation';
+      END IF;
+    ELSIF NOT (foundation ? 'epistemicState')
        OR NOT (foundation ? 'inputVariableRefs')
        OR NOT (foundation ? 'outputVariableRefs')
        OR NOT (foundation ? 'applicability')
@@ -293,7 +334,15 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
   ELSIF p_entity_type = 'constraint' THEN
-    IF NOT (foundation ? 'condition')
+    IF draft_candidate THEN
+      IF ((foundation ? 'condition') AND jsonb_typeof(foundation -> 'condition') IS DISTINCT FROM 'string')
+         OR ((foundation ? 'appliesTo') AND jsonb_typeof(foundation -> 'appliesTo') IS DISTINCT FROM 'array')
+         OR ((foundation ? 'exceptions') AND jsonb_typeof(foundation -> 'exceptions') IS DISTINCT FROM 'array')
+         OR ((foundation ? 'adoptionBasis') AND jsonb_typeof(foundation -> 'adoptionBasis') IS DISTINCT FROM 'array') THEN
+        RAISE EXCEPTION 'GRAPH_FOUNDATION_HISTORY_CONSTRAINT_FIELDS_INVALID: %/%', p_entity_type, p_entity_id
+          USING ERRCODE = 'check_violation';
+      END IF;
+    ELSIF NOT (foundation ? 'condition')
        OR NOT (foundation ? 'appliesTo')
        OR NOT (foundation ? 'exceptions')
        OR NOT (foundation ? 'adoptionBasis')

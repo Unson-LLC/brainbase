@@ -74,6 +74,9 @@ const foundation = (
   };
 };
 
+const withoutFields = (value: object, fields: readonly string[]): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(value).filter(([key]) => !fields.includes(key)));
+
 const philosophy = (id: string, projectId: string, meaning = 'philosophy') => ({
   meaning,
   judgmentApplicability: {
@@ -399,6 +402,188 @@ describe('canonical Graph Foundation history SQL', () => {
        WHERE entity_id = 'philosophy-1'`
     );
     expect(corrupted.rows[0]?.count).toBe('1');
+  });
+
+  it('captures incomplete drafts for every Foundation type while validating present field types', { timeout: TEST_TIMEOUT_MS }, async () => {
+    await createDatabase();
+    await setOwner();
+
+    const incompleteDrafts: Array<{
+      id: string;
+      type: 'objective' | 'variable' | 'model' | 'constraint';
+      definition: Record<string, unknown>;
+    }> = [
+      {
+        id: 'objective-draft',
+        type: 'objective',
+        definition: withoutFields(foundation('objective', 'objective-draft', '1', 'project-a'), [
+          'beneficiaryIds', 'desiredState', 'criteria', 'evaluationPeriod'
+        ])
+      },
+      {
+        id: 'variable-draft',
+        type: 'variable',
+        definition: withoutFields(foundation('variable', 'variable-draft', '1', 'project-a'), [
+          'subject', 'valueKind', 'aggregation', 'granularity', 'measurementMethod'
+        ])
+      },
+      {
+        id: 'model-draft',
+        type: 'model',
+        definition: withoutFields(foundation('model', 'model-draft', '1', 'project-a'), [
+          'inputVariableRefs', 'outputVariableRefs', 'applicability', 'relationship', 'uncertainty', 'validationState'
+        ])
+      },
+      {
+        id: 'constraint-draft',
+        type: 'constraint',
+        definition: withoutFields(foundation('constraint', 'constraint-draft', '1', 'project-a'), [
+          'condition', 'appliesTo', 'exceptions', 'adoptionBasis'
+        ])
+      }
+    ];
+
+    for (const draft of incompleteDrafts) {
+      await query(
+        `INSERT INTO public.graph_entities
+          (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+         VALUES ($1, $2, $3, $4::jsonb, 'reader', 'normal', 'active', 1)`,
+        [draft.id, draft.type, 'project-a', JSON.stringify({ foundation: draft.definition })]
+      );
+    }
+
+    const savedDrafts = await query<{ entity_id: string; entity_type: string; revision: string }>(
+      `SELECT entity_id, entity_type, revision
+       FROM public.graph_foundation_revisions
+       WHERE entity_id IN ('objective-draft', 'variable-draft', 'model-draft', 'constraint-draft')
+       ORDER BY entity_type`
+    );
+    expect(savedDrafts.rows).toEqual([
+      { entity_id: 'constraint-draft', entity_type: 'constraint', revision: '1' },
+      { entity_id: 'model-draft', entity_type: 'model', revision: '1' },
+      { entity_id: 'objective-draft', entity_type: 'objective', revision: '1' },
+      { entity_id: 'variable-draft', entity_type: 'variable', revision: '1' }
+    ]);
+
+    const invalidDrafts: Array<{
+      id: string;
+      type: 'objective' | 'variable' | 'model' | 'constraint';
+      definition: Record<string, unknown>;
+    }> = [
+      {
+        id: 'objective-invalid-draft',
+        type: 'objective',
+        definition: foundation('objective', 'objective-invalid-draft', '1', 'project-a', { beneficiaryIds: {} })
+      },
+      {
+        id: 'objective-invalid-period-draft',
+        type: 'objective',
+        definition: foundation('objective', 'objective-invalid-period-draft', '1', 'project-a', { evaluationPeriod: 'period' })
+      },
+      {
+        id: 'objective-null-period-draft',
+        type: 'objective',
+        definition: foundation('objective', 'objective-null-period-draft', '1', 'project-a', { evaluationPeriod: null })
+      },
+      {
+        id: 'variable-invalid-draft',
+        type: 'variable',
+        definition: foundation('variable', 'variable-invalid-draft', '1', 'project-a', { subject: [] })
+      },
+      {
+        id: 'model-invalid-draft',
+        type: 'model',
+        definition: foundation('model', 'model-invalid-draft', '1', 'project-a', { inputVariableRefs: {} })
+      },
+      {
+        id: 'constraint-invalid-draft',
+        type: 'constraint',
+        definition: foundation('constraint', 'constraint-invalid-draft', '1', 'project-a', { condition: [] })
+      }
+    ];
+
+    for (const draft of invalidDrafts) {
+      await expect(
+        query(
+          `INSERT INTO public.graph_entities
+            (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+           VALUES ($1, $2, $3, $4::jsonb, 'reader', 'normal', 'active', 1)`,
+          [draft.id, draft.type, 'project-a', JSON.stringify({ foundation: draft.definition })]
+        )
+      ).rejects.toThrow(new RegExp(`GRAPH_FOUNDATION_HISTORY_${draft.type.toUpperCase()}_FIELDS_INVALID`, 'u'));
+    }
+  });
+
+  it('keeps non-draft Foundation history captures strict when type-specific fields are missing', { timeout: TEST_TIMEOUT_MS }, async () => {
+    await createDatabase();
+    await setOwner();
+
+    const nonDraftMissingFields: Array<{
+      id: string;
+      type: 'objective' | 'variable' | 'model' | 'constraint';
+      definition: Record<string, unknown>;
+    }> = [
+      {
+        id: 'objective-adoption-state-boundary',
+        type: 'objective',
+        definition: withoutFields(foundation('objective', 'objective-adoption-state-boundary', '1', 'project-a', {
+          adoptionState: 'approved', storage: 'candidate', authorizedUses: ['draft']
+        }), ['evaluationPeriod'])
+      },
+      {
+        id: 'objective-storage-boundary',
+        type: 'objective',
+        definition: withoutFields(foundation('objective', 'objective-storage-boundary', '1', 'project-a', {
+          adoptionState: 'draft', storage: 'ontology', authorizedUses: ['draft']
+        }), ['evaluationPeriod'])
+      },
+      {
+        id: 'objective-authorized-use-boundary',
+        type: 'objective',
+        definition: withoutFields(foundation('objective', 'objective-authorized-use-boundary', '1', 'project-a', {
+          adoptionState: 'draft', storage: 'candidate', authorizedUses: ['judgment']
+        }), ['evaluationPeriod'])
+      },
+      {
+        id: 'objective-approved-missing',
+        type: 'objective',
+        definition: withoutFields(foundation('objective', 'objective-approved-missing', '1', 'project-a', {
+          adoptionState: 'approved', storage: 'ontology', authorizedUses: ['judgment']
+        }), ['evaluationPeriod'])
+      },
+      {
+        id: 'variable-approved-missing',
+        type: 'variable',
+        definition: withoutFields(foundation('variable', 'variable-approved-missing', '1', 'project-a', {
+          adoptionState: 'approved', storage: 'ontology', authorizedUses: ['judgment']
+        }), ['subject'])
+      },
+      {
+        id: 'model-approved-missing',
+        type: 'model',
+        definition: withoutFields(foundation('model', 'model-approved-missing', '1', 'project-a', {
+          adoptionState: 'approved', storage: 'ontology', authorizedUses: ['judgment']
+        }), ['inputVariableRefs'])
+      },
+      {
+        id: 'constraint-approved-missing',
+        type: 'constraint',
+        definition: withoutFields(foundation('constraint', 'constraint-approved-missing', '1', 'project-a', {
+          adoptionState: 'approved', storage: 'ontology', authorizedUses: ['judgment']
+        }), ['condition'])
+      }
+    ];
+
+    for (const draft of nonDraftMissingFields) {
+      await expect(
+        query(
+          `INSERT INTO public.graph_entities
+            (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+           VALUES ($1, $2, $3, $4::jsonb, 'reader', 'normal', 'active', 1)`,
+          [draft.id, draft.type, 'project-a', JSON.stringify({ foundation: draft.definition })]
+        )
+      ).rejects.toThrow(new RegExp(`GRAPH_FOUNDATION_HISTORY_${draft.type.toUpperCase()}_FIELDS_INVALID`, 'u'));
+    }
   });
 
   it('rejects direct history writes and rejects incomplete or mismatched Foundation payloads', { timeout: TEST_TIMEOUT_MS }, async () => {
