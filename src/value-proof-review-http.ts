@@ -229,6 +229,16 @@ export interface ValueProofReviewHostOptions extends Omit<ValueProofReviewHttpOp
   readonly uiDir?: string;
 }
 
+const LOOPBACK_HOSTNAMES = ['127.0.0.1', 'localhost', '[::1]'] as const;
+
+/** Rejects rebound DNS names: the Host must be a loopback name for the port this connection arrived on. */
+function isLoopbackHost(request: IncomingMessage): boolean {
+  const host = request.headers.host?.toLowerCase();
+  const port = request.socket.localPort;
+  if (host === undefined || port === undefined) return false;
+  return LOOPBACK_HOSTNAMES.some((name) => host === `${name}:${port}` || (port === 80 && host === name));
+}
+
 /** Local single-owner host. The caller owns `listen()` and must bind to a loopback address. */
 export function createValueProofReviewHost(options: ValueProofReviewHostOptions = {}): { readonly server: Server; readonly token: string } {
   const token = options.token ?? randomBytes(24).toString('base64url');
@@ -238,6 +248,10 @@ export function createValueProofReviewHost(options: ValueProofReviewHostOptions 
 
   const server = createServer((request, response) => {
     void (async () => {
+      if (!isLoopbackHost(request)) {
+        writeJson(response, 403, { error: { code: 'host_rejected', message: 'Host must be a loopback address for this server' } });
+        return;
+      }
       if (await handler(request, response)) return;
       const path = requestUrl(request).pathname;
       if (request.method !== 'GET') {
