@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-local-graph-web-service-v1",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "behavior",
+      "text": "Project list and detail, entity search by name or alias with type and as_of filters, entity detail with incoming and outgoing relations, and relation type counts are read from the host-chosen data directory, and every entity and relation carries the SHA-256 digest of its canonical JSON."
+    },
+    {
+      "id": "AC-002",
+      "type": "invariant",
+      "text": "A Graph v1 file is reported as migration_required with its entity count and the preview and write migration commands on every read and is never migrated automatically; a directory without canonical files is reported as not_initialized without creating it; a read failure is an error, never an empty list."
+    },
+    {
+      "id": "AC-003",
+      "type": "behavior",
+      "text": "A provenance sourceId that names a local extracted candidate, a connected onboarding run candidate or a saved correction resolves to a reference to that record; any other sourceId stays an unresolved id, and unreadable reference files are reported separately from the readable records."
+    },
+    {
+      "id": "AC-004",
+      "type": "security",
+      "text": "Corrections accept only entity name, aliases, summary and validity, project goal and status, relation role, context and end date, and new participates_in, accountable_for or member_of relations with user_approved provenance; deletes, id, type, relation type or endpoint changes and any other field are refused with a specific code."
+    },
+    {
+      "id": "AC-005",
+      "type": "invariant",
+      "text": "A correction requires the digest of the record that was read and a one-line reason; a digest that no longer matches is refused with the current record and digest and nothing is written."
+    },
+    {
+      "id": "AC-006",
+      "type": "invariant",
+      "text": "Each correction appends before and after digests, time, reason and changed fields with their values to evidence/graph-corrections.jsonl in the same SSOT transaction as the Graph and relationships.json change, rolls all of them back on failure, and verifies the digest of the record read back after saving."
+    },
+    {
+      "id": "AC-007",
+      "type": "behavior",
+      "text": "Adding or correcting a participates_in or accountable_for relation keeps its relationships.json projection in the project registration shape; ending the relation removes its projection and keeps the removed record in the history line; a projection shared by several relations is left unchanged."
+    },
+    {
+      "id": "AC-008",
+      "type": "security",
+      "text": "The HTTP handler calls the host assertWriteAllowed before reading a write body and refuses writes when it is absent, limits bodies to 16 KB, answers uncached JSON with 409 for conflicts and 400 for invalid corrections, and leaves paths it does not own to the host."
+    }
+  ]
+}
