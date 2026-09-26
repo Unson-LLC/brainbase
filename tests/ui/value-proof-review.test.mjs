@@ -177,6 +177,26 @@ describe('value proof review UI contract', () => {
     expect(text).not.toContain('聞かずに進めた');
   });
 
+  it('lets a host that cannot read a local journal replace the unavailable notice, still not as zero items', async () => {
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const ui = createValueProofReviewUI({
+      root,
+      document: doc,
+      fetcher: async () => jsonResponse(200, { status: 'unavailable', reason: 'value_proof_source_not_connected' }),
+      unavailableNotice: { title: '判断の記録の出典が接続されていません', guidance: '記録は各自のMacにあり、このホストからは読めません。' },
+      autoLoad: false,
+    });
+    await ui.load();
+    const text = collectText(root);
+    expect(text).toContain('判断の記録の出典が接続されていません');
+    expect(text).toContain('記録は各自のMacにあり、このホストからは読めません。');
+    expect(text).toContain('value_proof_source_not_connected');
+    expect(text).toContain('0件としては扱いません');
+    expect(text).not.toContain('--journal');
+    expect(text).not.toContain('場所: 不明');
+  });
+
   it('shows the card in the contract order and keeps internal IDs in the audit details', () => {
     const doc = new FakeDocument();
     const root = doc.createElement('main');
