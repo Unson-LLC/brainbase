@@ -1,28 +1,52 @@
 /*
- * Brainbase shared visual tokens (color, type, radius, spacing).
+ * Brainbase shared visual tokens (color, type, radius, spacing, rail).
  * Common UI parts and hosts read only these names so that the personal and
- * organization editions look the same. Values are the value-proof palette.
+ * organization editions look the same. The values are the organization
+ * edition's design (brainbase-organization apps/web/public/styles.css, final
+ * :root layer and the outcome workspace rules), which is the visual source of
+ * truth for every Brainbase Web surface.
  */
 :root {
-  --bb-color-ink: #172033;
-  --bb-color-muted: #667085;
-  --bb-color-border: #d8dee9;
-  --bb-color-border-strong: #b7c1d1;
+  --bb-color-ink: #1e2822;
+  --bb-color-muted: #69746d;
+  --bb-color-quiet: #929b95;
+  --bb-color-border: #dce3dd;
+  --bb-color-border-strong: #b7c3ba;
+  --bb-color-control-border: #cbd8d0;
+  --bb-color-paper: #fbfcfa;
+  --bb-color-canvas: #f1f3f0;
   --bb-color-panel: #ffffff;
-  --bb-color-surface: #f5f7fb;
-  --bb-color-accent: #3157d5;
-  --bb-color-accent-soft: #eef2fd;
-  --bb-color-accent-strong: #2544b0;
-  --bb-color-success: #18794e;
-  --bb-color-success-soft: #e7f5ee;
-  --bb-color-warning: #9a6700;
-  --bb-color-warning-soft: #fff8e6;
-  --bb-color-danger: #b42318;
-  --bb-color-danger-soft: #fef3f2;
-  --bb-font-sans: "Noto Sans JP", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --bb-color-surface: #f5f8f5;
+  --bb-color-header-start: #f7faf8;
+  --bb-color-header-end: #eef5f0;
+  --bb-color-eyebrow: #47715a;
+  --bb-color-accent: #087d62;
+  --bb-color-accent-soft: #e6f2ec;
+  --bb-color-accent-strong: #176448;
+  --bb-color-action: #35684c;
+  --bb-color-action-hover: #2a5540;
+  --bb-color-action-text: #ffffff;
+  --bb-color-focus: #20a37e;
+  --bb-color-success: #087d62;
+  --bb-color-success-soft: #e6f2ec;
+  --bb-color-warning: #8a631d;
+  --bb-color-warning-soft: #fff0c7;
+  --bb-color-danger: #d92335;
+  --bb-color-danger-soft: #fde9eb;
+  --bb-color-rail: #171c19;
+  --bb-color-rail-border: #2c332e;
+  --bb-color-rail-text: #d5ded8;
+  --bb-color-rail-muted: #89938c;
+  --bb-color-rail-hover: #232c26;
+  --bb-color-rail-active: #203e33;
+  --bb-color-rail-strong: #ffffff;
+  --bb-color-overlay: rgb(8 15 11 / 40%);
+  --bb-shadow: 0 16px 42px rgb(13 24 17 / 12%);
+  --bb-font-sans: Geist, "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif;
   --bb-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
-  --bb-radius-sm: 6px;
-  --bb-radius-md: 10px;
+  --bb-radius-sm: 7px;
+  --bb-radius-md: 14px;
+  --bb-radius-lg: 16px;
   --bb-space-1: 4px;
   --bb-space-2: 8px;
   --bb-space-3: 12px;
