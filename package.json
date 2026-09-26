@@ -95,6 +95,10 @@
       "types": "./dist/foundation-http.d.ts",
       "import": "./dist/foundation-http.js"
     },
+    "./foundation-graph-http": {
+      "types": "./dist/foundation-graph-http.d.ts",
+      "import": "./dist/foundation-graph-http.js"
+    },
     "./constraint-exception-store": {
       "types": "./dist/constraint-exception-store.d.ts",
       "import": "./dist/constraint-exception-store.js"
@@ -201,6 +205,10 @@
     "./foundation-public-provider": {
       "types": "./dist/foundation-public-provider.d.ts",
       "import": "./dist/foundation-public-provider.js"
+    },
+    "./foundation-authenticated-tools": {
+      "types": "./dist/foundation-authenticated-tools.d.ts",
+      "import": "./dist/foundation-authenticated-tools.js"
     },
     "./philosophy-revision-reader": {
       "types": "./dist/philosophy-revision-reader.d.ts",

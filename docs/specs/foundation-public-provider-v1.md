@@ -21,3 +21,4 @@ Graphifyはmissing_graphで影響未確認。コードの対象境界とテス�
 - HTTP Hostは`createFoundationHttpRouter`のroutesへ`createFoundationPublicRoute(provider)`を追加する。
 - `GET /api/foundation/contract`、`GET /api/foundation/definitions/:type/:id?revision=...`、`POST /api/foundation/judgment-references/validate`、`POST /api/foundation/judgment-problems/validate`を提供する。
 - 個別参照のresolvedは一式の判断開始承認ではない。一式の検証は`foundation_validate_problem`とHTTPのjudgment-problems/validateがsnapshot保存と同じ共通検証を実行する。観測の測定条件はHostの正本resolverの返却値を使い、入力の自己申告だけでは解決しない。実行許可は付与しない。
+- 認証済みHost向けのMCP adapterは`@unson/brainbase-mcp/foundation-authenticated-tools`として公開する。adapterは型付きの認証・HTTP portだけを受け取り、全4ツールに`scope_id`を要求する。選択scopeだけをGraphへ転送し、POSTは同一sessionのCSRF tokenを使う。未接続、404、異常な200、digest・identity不一致は成功にしない。
