@@ -87,6 +87,22 @@ brainbase doctor --dir ~/.brainbase/personal-os --judgment-hooks ~/.codex/hooks.
 
 `judgment:install` は既存の `~/.codex/hooks.json` へ自動マージしません。出力を確認し、Brainbaseの3項目だけを既存設定へ統合します。`--output` は未作成のファイルだけを受け付けます。導入後は新しいCodex taskを開いて確認します。
 
+## ローカルWeb
+
+| コマンド | 役割 | 正本への書き込み |
+| --- | --- | --- |
+| `web:serve` | 自分だけが使うローカルWebを開く（今日、目的と現状） | 画面で評価や目的を保存した時だけする |
+| `review:serve` | `web:serve`の別名 | 同上 |
+
+```bash
+brainbase web:serve --dir ~/.brainbase/personal-os
+brainbase web:serve --dir /path/to/personal-os --journal /path/to/judgment-journal --port 31080
+```
+
+`127.0.0.1`だけで待ち受け、既定のポートは`31080`です。宛先がループバックの名前と待ち受け中のポートの組でない要求は断ります。保存には、起動ごとのトークンと同一オリジンが必要です。
+
+「目的と現状」は、目的の編集（版つきで保存し、古い版からの保存は今の版を示して断る）と、World Model（変数とモデル、観測、モデルの採用）の表示です。World Modelと、目的に関係する制約は表示だけです。Graph v1のデータでは「Graphの移行が必要です」と移行のコマンドを表示し、ホストは自動で移行しません。
+
 ## Ontology
 
 | コマンド | 役割 | 正本への書き込み |

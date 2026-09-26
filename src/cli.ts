@@ -52,13 +52,15 @@ import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js'
 import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, type JudgmentHookPayload } from './judgment-host.js';
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
-import { createValueProofReviewHost } from './value-proof-review-http.js';
+import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
   stdin?: AsyncIterable<string | Uint8Array>;
   stdout?: { write(chunk: string): unknown };
   stderr?: { write(chunk: string): unknown };
+  /** Stops a long-running command such as web:serve (besides SIGINT/SIGTERM). */
+  signal?: AbortSignal;
 }
 
 interface ParsedArgs {
@@ -135,8 +137,10 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
         return await judgmentInstall(parsed, io);
       case 'doctor':
         return await doctor(parsed, io);
+      case 'web:serve':
       case 'review:serve':
-        return await reviewServe(parsed, io);
+        // review:serve is kept as an alias of the same local Web host.
+        return await webServe(parsed, io, parsed.command);
       case 'mcp':
         await import('./index.js');
         return 0;
@@ -1081,33 +1085,43 @@ function graphDiagnosisExitCode(status: GraphDiagnosis['status']): number {
   return status === 'invalid' || status === 'unavailable' || status === 'migration_required' ? 1 : 0;
 }
 
-async function reviewServe(parsed: ParsedArgs, io: CliIo): Promise<number> {
+async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise<number> {
   const dataDir = resolveDataDir(first(parsed, 'dir'));
   const journalRoot = first(parsed, 'journal')
     ?? process.env.BRAINBASE_JUDGMENT_JOURNAL_DIR
     ?? defaultJudgmentJournalRoot(dataDir);
-  const port = Number(first(parsed, 'port') ?? '31080');
+  const port = Number(first(parsed, 'port') ?? String(LOCAL_WEB_DEFAULT_PORT));
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
-    throw new Error('review:serve requires --port to be an integer between 0 and 65535');
+    throw new Error(`${command} requires --port to be an integer between 0 and 65535`);
   }
-  const { server } = createValueProofReviewHost({ journalRoot, dataDir });
+  const { server } = createLocalWebHost({ dataDir, journalRoot });
   await new Promise<void>((resolveListen, rejectListen) => {
     server.once('error', rejectListen);
     server.listen(port, '127.0.0.1', () => resolveListen());
   });
   const address = server.address();
   const actualPort = typeof address === 'object' && address ? address.port : port;
+  const origin = `http://127.0.0.1:${actualPort}`;
   write(io, [
-    `判断の見返し: http://127.0.0.1:${actualPort}/`,
+    `Brainbase: ${origin}/`,
+    `- 今日（判断の見返し）: ${origin}/#today`,
+    `- 目的と現状: ${origin}/#objectives`,
+    `データ: ${dataDir}`,
     `判断journal: ${journalRoot}`,
-    `評価の保存先: ${dataDir}`,
     '終了: Ctrl+C',
     ''
   ].join('\n'));
   await new Promise<void>((resolveClose) => {
-    const stop = () => server.close(() => resolveClose());
+    const stop = () => {
+      process.off('SIGINT', stop);
+      process.off('SIGTERM', stop);
+      io.signal?.removeEventListener('abort', stop);
+      server.close(() => resolveClose());
+    };
     process.once('SIGINT', stop);
     process.once('SIGTERM', stop);
+    if (io.signal?.aborted) stop();
+    else io.signal?.addEventListener('abort', stop, { once: true });
   });
   return 0;
 }
@@ -1259,7 +1273,8 @@ function usage(): string {
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
-  brainbase review:serve [--dir path] [--journal path] [--port n]
+  brainbase web:serve [--dir path] [--journal path] [--port n]
+  brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
 `;
 }
 

@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-local-web-host-objectives-v1",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "behavior",
+      "text": "brainbase web:serve binds only to 127.0.0.1 (default port 31080), review:serve opens the same host, and the navigation lists only the screens that exist: today and objectives."
+    },
+    {
+      "id": "AC-002",
+      "type": "invariant",
+      "text": "Every request whose Host is not a loopback name for the listening port is refused before any page, UI file or API is served; every non-GET request requires the launch token and the same origin; the shell carries a strict CSP and only allowlisted UI files are served. The value-proof review host behaves as before."
+    },
+    {
+      "id": "AC-003",
+      "type": "invariant",
+      "text": "Objective reads and writes use the Foundation routes with the Graph owner id (or self) as principal, never a browser value; ACL, scope, storage, provenance and authorized uses are set by the host and rejected when sent; a stale update returns the current revision without saving; a save is verified by reading the new revision back."
+    },
+    {
+      "id": "AC-004",
+      "type": "behavior",
+      "text": "Constraint references of an objective revision are shown read-only from applies_to relations to that exact revision; the Web never replaces them and hides the Story tab."
+    },
+    {
+      "id": "AC-005",
+      "type": "behavior",
+      "text": "The World Model is read-only and shows variables and models with epistemic state and revision apart from observations with subject, value, occurrence, period, recording time, source and correction relation; without an approval reader only the adoptions section is reported as unverifiable."
+    },
+    {
+      "id": "AC-006",
+      "type": "invariant",
+      "text": "Each screen shows the data directory, the Graph format and that no organization Graph is read; a Graph v1 data directory shows the migration commands instead of objectives or the world model, and the host never migrates or creates the data directory."
+    },
+    {
+      "id": "AC-007",
+      "type": "invariant",
+      "text": "An empty list is shown only when absence is confirmed; failed, unconfirmed or partially unreadable collections are never shown as zero items, and unreadable records are counted with their reasons beside the readable ones."
+    },
+    {
+      "id": "AC-008",
+      "type": "invariant",
+      "text": "The new UI parts and the shell take colors, fonts, radii and spacing only from the shared --bb-* tokens in ui/brainbase-tokens.css."
+    }
+  ]
+}
