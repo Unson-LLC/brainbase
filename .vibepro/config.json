@@ -591,8 +591,20 @@
         "title": "組織Graphの判断定義を過去版と現在の権限で参照する",
         "ssot": "local",
         "status": "active"
+      },
+      {
+        "story_id": "story-knowledge-lookup-field-contract-v1",
+        "title": "知識取得の入力誤りを修正して本文取得を継続できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-company-os-philosophy-revision-read-v1"
+    "current_story_id": "story-knowledge-lookup-field-contract-v1"
   }
 }
