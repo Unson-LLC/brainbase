@@ -285,6 +285,7 @@ export function createGraphProjectsView({
       });
       const header = makeElement(doc, 'header', { className: 'bb-graph-header' });
       header.append(
+        makeElement(doc, 'p', { className: 'bb-graph-eyebrow', text: 'BRAINBASE / PROJECTS' }),
         makeElement(doc, 'h2', { text: 'プロジェクトと関係者' }),
         makeElement(doc, 'p', { className: 'bb-graph-lead', text: 'どのプロジェクトに誰がどう関わっているかを確かめ、誤りを直します。関係者は、参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。' }),
       );

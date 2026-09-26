@@ -38,6 +38,15 @@
   background: linear-gradient(135deg, var(--bb-color-header-start), var(--bb-color-header-end));
 }
 
+.bb-graph-eyebrow {
+  margin: 0;
+  color: var(--bb-color-eyebrow);
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
 .bb-graph-header h2 {
   font-size: clamp(1.45rem, 3vw, 2rem);
   line-height: 1.25;
