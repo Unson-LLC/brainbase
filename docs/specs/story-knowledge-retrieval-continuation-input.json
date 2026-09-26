@@ -1,0 +1,121 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-knowledge-retrieval-continuation",
+  "clauses": [
+    {
+      "id": "C-1",
+      "type": "contract",
+      "statement": "対象名のヒントを認可範囲として使わず、検索・本文取得・関係探索をadapter経由で実行する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 0,
+            "text_snippet": "対象名のヒントを認可範囲として使わず、検索・本文取得・関係探索をadapter経由で実行する。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/knowledge-retrieval-continuation.md"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-2",
+      "type": "contract",
+      "statement": "空振り・内容不足・通信障害・権限不足を区別し、失敗を不存在にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 1,
+            "text_snippet": "空振り・内容不足・通信障害・権限不足を区別し、失敗を不存在にしない。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/knowledge-retrieval-continuation.md"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-3",
+      "type": "contract",
+      "statement": "AIが別の切り口を提案し、Hostが実取得、重複、世代番号、消費量を検査できる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 2,
+            "text_snippet": "AIが別の切り口を提案し、Hostが実取得、重複、世代番号、消費量を検査できる。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/knowledge-retrieval-continuation.md"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-4",
+      "type": "contract",
+      "statement": "検索候補だけで完了せず、必要項目を実取得した本文の出典と照合する。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 3,
+            "text_snippet": "検索候補だけで完了せず、必要項目を実取得した本文の出典と照合する。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/knowledge-retrieval-continuation.md"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-5",
+      "type": "contract",
+      "statement": "再開しても予算を戻さず、同じ検索と通信再試行を有限にする。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 4,
+            "text_snippet": "再開しても予算を戻さず、同じ検索と通信再試行を有限にする。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/knowledge-retrieval-continuation.md"
+          }
+        ]
+      }
+    },
+    {
+      "id": "C-6",
+      "type": "contract",
+      "statement": "公開パッケージのexportから利用でき、特定の組織・サービス・常駐Hostを必須にしない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "index": 5,
+            "text_snippet": "公開パッケージのexportから利用でき、特定の組織・サービス・常駐Hostを必須にしない。"
+          }
+        ],
+        "architecture_refs": [
+          {
+            "file": "docs/architecture/knowledge-retrieval-continuation.md"
+          }
+        ]
+      }
+    }
+  ],
+  "open_questions": []
+}
