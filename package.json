@@ -197,6 +197,18 @@
     "./knowledge-lookup": {
       "types": "./dist/knowledge-lookup.d.ts",
       "import": "./dist/knowledge-lookup.js"
+    },
+    "./foundation-public-provider": {
+      "types": "./dist/foundation-public-provider.d.ts",
+      "import": "./dist/foundation-public-provider.js"
+    },
+    "./philosophy-revision-reader": {
+      "types": "./dist/philosophy-revision-reader.d.ts",
+      "import": "./dist/philosophy-revision-reader.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js"
     }
   },
   "bin": {
