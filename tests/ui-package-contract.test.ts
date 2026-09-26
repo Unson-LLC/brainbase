@@ -85,12 +85,16 @@ describe('OSS共通UIの公開契約', () => {
 
   it('新しい部品とホストの外枠は共通の見た目の定義だけで色・文字・余白を決める', async () => {
     const tokens = await readFile(new URL('../ui/brainbase-tokens.css', import.meta.url), 'utf8');
+    // The values are the organization edition's design (the visual source of truth).
     for (const [name, value] of Object.entries({
-      '--bb-color-ink': '#172033', '--bb-color-muted': '#667085', '--bb-color-border': '#d8dee9', '--bb-color-panel': '#ffffff',
-      '--bb-color-surface': '#f5f7fb', '--bb-color-accent': '#3157d5', '--bb-color-accent-soft': '#eef2fd',
-      '--bb-color-success': '#18794e', '--bb-color-success-soft': '#e7f5ee', '--bb-color-warning': '#9a6700',
-      '--bb-color-warning-soft': '#fff8e6', '--bb-color-danger': '#b42318', '--bb-color-danger-soft': '#fef3f2',
-      '--bb-radius-sm': '6px', '--bb-radius-md': '10px', '--bb-space-1': '4px', '--bb-space-2': '8px', '--bb-space-3': '12px',
+      '--bb-color-ink': '#1e2822', '--bb-color-muted': '#69746d', '--bb-color-border': '#dce3dd', '--bb-color-panel': '#ffffff',
+      '--bb-color-paper': '#fbfcfa', '--bb-color-canvas': '#f1f3f0', '--bb-color-surface': '#f5f8f5',
+      '--bb-color-accent': '#087d62', '--bb-color-accent-soft': '#e6f2ec', '--bb-color-action': '#35684c',
+      '--bb-color-success': '#087d62', '--bb-color-success-soft': '#e6f2ec', '--bb-color-warning': '#8a631d',
+      '--bb-color-warning-soft': '#fff0c7', '--bb-color-danger': '#d92335', '--bb-color-danger-soft': '#fde9eb',
+      '--bb-color-rail': '#171c19', '--bb-color-rail-active': '#203e33',
+      '--bb-font-sans': 'Geist, "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif',
+      '--bb-radius-sm': '7px', '--bb-radius-md': '14px', '--bb-radius-lg': '16px', '--bb-space-1': '4px', '--bb-space-2': '8px', '--bb-space-3': '12px',
       '--bb-space-4': '16px', '--bb-space-5': '24px', '--bb-space-6': '32px',
     })) {
       expect(tokens).toContain(`${name}: ${value};`);

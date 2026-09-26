@@ -1,8 +1,10 @@
 /*
  * Shell of the local single-owner Web host (`brainbase web:serve`).
  *
- * It renders the top navigation and the source bar (data directory, Graph
- * format, organization Graph) and mounts one screen per nav item.  Only
+ * It renders the organization edition's layout — a dark left rail with the
+ * brand, the navigation and the source (data directory, Graph format,
+ * organization Graph), and a paper workspace — and mounts one screen per nav
+ * item.  Only
  * screens that exist are listed.  A screen that reads the Graph is not
  * mounted until the host reports Graph v2; a v1 Graph shows the migration
  * commands instead of zero items, and the host never migrates by itself.
@@ -32,6 +34,30 @@ const UNREADABLE_LABELS = Object.freeze({
   authorization_denied: '読む権限がない',
   scope_violation: '扱える範囲の外',
 });
+
+// Stroke icons from the organization edition's sprite (apps/web/public/index.html).
+const NAV_ICON_PATHS = Object.freeze({
+  today: ['M5 20V10m7 10V4m7 16v-7'],
+  objectives: ['M12 4 3 20h18z', 'M12 9v5m0 3h.01'],
+  projects: ['M3 6.5h7l2 2h9v10H3z', 'M3 6.5v-2h7l2 2'],
+  graph: ['M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2', 'M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2'],
+});
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+function makeIcon(doc, id) {
+  const paths = NAV_ICON_PATHS[id] ?? NAV_ICON_PATHS.today;
+  const create = (tag) => (typeof doc.createElementNS === 'function' ? doc.createElementNS(SVG_NS, tag) : doc.createElement(tag));
+  const svg = create('svg');
+  svg.setAttribute('class', 'bb-shell-icon');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of paths) {
+    const path = create('path');
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
 
 function makeElement(doc, tag, { className, text, attrs = {} } = {}) {
   const element = doc.createElement(tag);
@@ -209,17 +235,38 @@ export function createLocalWebShell({
   let active = null;
 
   const shell = makeElement(doc, 'div', { className: 'bb-shell', attrs: { 'data-contract-version': LOCAL_WEB_SHELL_CONTRACT_VERSION } });
-  const top = makeElement(doc, 'header', { className: 'bb-shell-top' });
-  const brand = makeElement(doc, 'span', { className: 'bb-shell-brand', text: 'Brainbase' });
+  const sidebar = makeElement(doc, 'aside', { className: 'bb-shell-sidebar', attrs: { id: 'bb-shell-sidebar', 'aria-label': '主ナビゲーション' } });
+  const brand = makeElement(doc, 'div', { className: 'bb-shell-brand', text: 'Brainbase' });
   const nav = makeElement(doc, 'nav', { className: 'bb-shell-nav', attrs: { 'aria-label': '画面' } });
+  const menuButton = makeElement(doc, 'button', {
+    className: 'bb-shell-menu-button',
+    text: 'メニュー',
+    attrs: { type: 'button', 'aria-controls': 'bb-shell-sidebar', 'aria-expanded': 'false' },
+  });
+  const backdrop = makeElement(doc, 'button', { className: 'bb-shell-backdrop', attrs: { type: 'button', 'aria-label': 'メニューを閉じる', tabindex: '-1' } });
+  const setMenuOpen = (open) => {
+    sidebar.className = open ? 'bb-shell-sidebar is-open' : 'bb-shell-sidebar';
+    backdrop.className = open ? 'bb-shell-backdrop is-open' : 'bb-shell-backdrop';
+    menuButton.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  menuButton.addEventListener('click', () => setMenuOpen(!sidebar.className.includes('is-open')));
+  backdrop.addEventListener('click', () => setMenuOpen(false));
   for (const screen of screens) {
     const link = makeElement(doc, 'a', { className: 'bb-shell-nav-link', text: screen.label, attrs: { href: `#${screen.id}` } });
-    link.addEventListener('click', () => controller.show(screen.id));
+    // The label stays the link's own text; the icon goes in front where the DOM allows it.
+    if (typeof link.prepend === 'function') link.prepend(makeIcon(doc, screen.id));
+    link.addEventListener('click', () => {
+      setMenuOpen(false);
+      controller.show(screen.id);
+    });
     links.set(screen.id, link);
     nav.append(link);
   }
-  top.append(brand, nav);
   const source = makeElement(doc, 'section', { className: 'bb-shell-source', attrs: { 'aria-label': '出典' } });
+  sidebar.append(brand, nav, source);
+  const workspace = makeElement(doc, 'div', { className: 'bb-shell-workspace' });
+  const mobileBar = makeElement(doc, 'div', { className: 'bb-shell-mobile-bar' });
+  mobileBar.append(makeElement(doc, 'strong', { text: 'Brainbase' }), menuButton);
   const main = makeElement(doc, 'main', { className: 'bb-shell-main' });
   for (const screen of screens) {
     const slot = makeElement(doc, 'section', { className: 'bb-shell-screen', attrs: { 'data-screen': screen.id, 'aria-label': screen.label } });
@@ -227,7 +274,8 @@ export function createLocalWebShell({
     slots.set(screen.id, slot);
     main.append(slot);
   }
-  shell.append(top, source, main);
+  workspace.append(mobileBar, main);
+  shell.append(sidebar, backdrop, workspace);
   root.replaceChildren(shell);
 
   function ensureMounted(screen) {

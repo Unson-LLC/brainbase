@@ -1,3 +1,39 @@
+/*
+ * Organization edition look (moved from brainbase-organization apps/web/public/styles.css,
+ * where it was loaded before this file). Kept first so the cascade is the same as in the
+ * organization edition. Colors read the shared tokens, with the organization values as fallbacks.
+ */
+.knowledge-outcome { display: grid; gap: 20px; color: var(--bb-color-ink, #17221c); }
+.knowledge-outcome-head { padding: 24px; border: 1px solid var(--bb-color-border, #dce5df); border-radius: 16px; background: linear-gradient(135deg, var(--bb-color-header-start, #f7faf8), var(--bb-color-header-end, #eef5f0)); }
+.knowledge-outcome-head h2 { margin: 4px 0 8px; font-size: clamp(1.45rem, 3vw, 2rem); }
+.knowledge-eyebrow { color: var(--bb-color-eyebrow, #47715a); font-size: .72rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.knowledge-outcome-nav,
+.knowledge-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.knowledge-tab,
+.knowledge-button { min-height: 40px; border: 1px solid var(--bb-color-control-border, #cbd8d0); border-radius: 9px; background: var(--bb-color-panel, #fff); color: inherit; padding: 8px 12px; font: inherit; cursor: pointer; }
+.knowledge-tab.active,
+.knowledge-button-primary { border-color: var(--bb-color-action, #35684c); background: var(--bb-color-action, #35684c); color: var(--bb-color-action-text, #fff); }
+.knowledge-outcome-body { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(260px, .8fr); gap: 18px; }
+.knowledge-outcome-primary,
+.knowledge-outcome-detail { min-width: 0; padding: 18px; border: 1px solid var(--bb-color-border, #dce5df); border-radius: 14px; background: var(--bb-color-panel, #fff); }
+.knowledge-unknown-copy { color: var(--bb-color-muted, #66736b); }
+.knowledge-filter-region form,
+.knowledge-form { display: grid; gap: 12px; }
+.knowledge-outcome input,
+.knowledge-outcome select,
+.knowledge-outcome textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--bb-color-border-strong, #bdcbc2); border-radius: 8px; background: var(--bb-color-panel, #fff); padding: 9px 10px; font: inherit; }
+.knowledge-outcome button:focus-visible,
+.knowledge-outcome input:focus-visible { outline: 3px solid #9fc9ad; outline-offset: 2px; }
+.knowledge-state,
+.knowledge-warning-copy { padding: 11px 12px; border-radius: 9px; background: #fff7e8; color: #694d18; }
+.knowledge-list { display: grid; gap: 8px; }
+@media (max-width: 1340px) {
+  .knowledge-outcome-body { grid-template-columns: 1fr; }
+  .knowledge-outcome-head,
+  .knowledge-outcome-primary,
+  .knowledge-outcome-detail { padding: 14px; }
+}
+
 /* Knowledge outcome workspace. The component owns its layout so the shared
    shell cannot turn an operational master/detail surface into stacked cards. */
 .knowledge-outcome {

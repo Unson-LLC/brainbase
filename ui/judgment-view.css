@@ -1,20 +1,38 @@
+/*
+ * 判断の追跡. Looks like the organization edition's outcome parts: the header
+ * sits in a gradient box, each section is a white box and state notices are
+ * soft colored boxes.  Every color comes from brainbase-tokens.css; the
+ * fallbacks keep the previous palette for hosts that do not load the tokens.
+ */
 .judgment-view {
   --judgment-ink: var(--bb-color-ink, #172033);
   --judgment-muted: var(--bb-color-muted, #667085);
   --judgment-border: var(--bb-color-border, #d8dee9);
+  --judgment-border-strong: var(--bb-color-border-strong, #d8dee9);
   --judgment-panel: var(--bb-color-panel, #ffffff);
   --judgment-surface: var(--bb-color-surface, #f5f7fb);
+  --judgment-header-start: var(--bb-color-header-start, #ffffff);
+  --judgment-header-end: var(--bb-color-header-end, #f5f7fb);
+  --judgment-eyebrow: var(--bb-color-eyebrow, #3157d5);
   --judgment-accent: var(--bb-color-accent, #3157d5);
+  --judgment-accent-soft: var(--bb-color-accent-soft, #eef2ff);
+  --judgment-accent-strong: var(--bb-color-accent-strong, #1d2d68);
+  --judgment-focus: var(--bb-color-focus, #3157d5);
   --judgment-success: var(--bb-color-success, #18794e);
+  --judgment-success-soft: var(--bb-color-success-soft, #f8fafc);
   --judgment-warning: var(--bb-color-warning, #9a6700);
+  --judgment-warning-soft: var(--bb-color-warning-soft, #f8fafc);
+  --judgment-unavailable: var(--bb-color-warning, #995c00);
   --judgment-danger: var(--bb-color-danger, #b42318);
+  --judgment-danger-soft: var(--bb-color-danger-soft, #f8fafc);
+  --judgment-invalid: var(--bb-color-danger, #8e2a2a);
   box-sizing: border-box;
   max-width: 920px;
   margin: 0 auto;
-  padding: 28px;
   color: var(--judgment-ink);
-  background: var(--judgment-surface);
-  font: 15px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--bb-font-sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 .judgment-view *,
@@ -23,17 +41,23 @@
   box-sizing: inherit;
 }
 
+/* Part header: eyebrow, title, lead and status inside the gradient box. */
 .judgment-view-header {
   display: grid;
-  gap: 8px;
-  margin-bottom: 20px;
+  gap: 0;
+  margin-bottom: 14px;
+  padding: 24px;
+  border: 1px solid var(--judgment-border);
+  border-radius: var(--bb-radius-lg, 16px);
+  background: linear-gradient(135deg, var(--judgment-header-start), var(--judgment-header-end));
 }
 
 .judgment-view-kicker {
-  color: var(--judgment-accent);
-  font-size: 11px;
-  font-weight: 700;
+  color: var(--judgment-eyebrow);
+  font-size: .72rem;
+  font-weight: 750;
   letter-spacing: .12em;
+  text-transform: uppercase;
 }
 
 .judgment-view h1,
@@ -44,14 +68,15 @@
 }
 
 .judgment-view h1 {
-  margin-bottom: 0;
-  font-size: clamp(24px, 4vw, 34px);
+  margin: 4px 0 8px;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1.25;
   letter-spacing: -.02em;
 }
 
 .judgment-view h2 {
   margin-bottom: 14px;
-  font-size: 18px;
+  font-size: 1.1rem;
 }
 
 .judgment-view h3 {
@@ -65,7 +90,7 @@
 }
 
 .judgment-view-mode {
-  margin-bottom: 0;
+  margin-bottom: 12px;
 }
 
 .judgment-view-status {
@@ -73,30 +98,32 @@
   border: 1px solid currentColor;
   border-radius: 999px;
   padding: 2px 10px;
+  background: var(--judgment-panel);
   font-size: 12px;
   font-weight: 700;
 }
 
 .judgment-view-panel {
   margin-top: 14px;
-  padding: 20px;
+  padding: 18px;
   border: 1px solid var(--judgment-border);
-  border-radius: 12px;
+  border-radius: var(--bb-radius-md, 14px);
   background: var(--judgment-panel);
-  box-shadow: 0 2px 10px rgb(22 32 55 / 4%);
 }
 
 .judgment-view-conclusion {
-  border-color: color-mix(in srgb, var(--judgment-accent) 45%, var(--judgment-border));
+  box-shadow: inset 3px 0 var(--judgment-accent);
 }
 
 .judgment-view-conclusion-value {
   overflow: auto;
   margin: 0;
-  padding: 14px;
-  border-radius: 8px;
-  background: #eef2ff;
-  color: #1d2d68;
+  padding: 12px 14px;
+  border-radius: var(--bb-radius-sm, 7px);
+  background: var(--judgment-accent-soft);
+  color: var(--judgment-accent-strong);
+  font-family: var(--bb-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 13px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -106,16 +133,21 @@
 }
 
 .judgment-view a {
-  color: var(--judgment-accent);
-  font-weight: 600;
+  color: var(--judgment-accent-strong);
+  font-weight: 650;
 }
 
+.judgment-view a:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--judgment-focus) 45%, var(--judgment-panel));
+  outline-offset: 2px;
+}
+
+/* State boxes: soft background and text in the state's color. */
 .judgment-view-notice {
   margin: 0;
-  padding: 10px 12px;
-  border-left: 3px solid currentColor;
-  border-radius: 4px;
-  background: #f8fafc;
+  padding: 11px 12px;
+  border-radius: var(--bb-radius-sm, 7px);
+  background: var(--judgment-surface);
 }
 
 .judgment-view-notice.is-unknown,
@@ -124,24 +156,45 @@
   color: var(--judgment-warning);
 }
 
+.judgment-view-notice.is-unknown {
+  background: var(--judgment-warning-soft);
+}
+
 .judgment-view-notice.is-permission_denied,
 .judgment-view-status.is-permission_denied {
   color: var(--judgment-danger);
 }
 
+.judgment-view-notice.is-permission_denied {
+  background: var(--judgment-danger-soft);
+}
+
 .judgment-view-notice.is-unavailable,
 .judgment-view-status.is-unavailable {
-  color: #995c00;
+  color: var(--judgment-unavailable);
+}
+
+.judgment-view-notice.is-unavailable {
+  background: var(--judgment-warning-soft);
 }
 
 .judgment-view-notice.is-invalid,
 .judgment-view-status.is-invalid {
-  color: #8e2a2a;
+  color: var(--judgment-invalid);
+}
+
+.judgment-view-notice.is-invalid {
+  background: var(--judgment-danger-soft);
 }
 
 .judgment-view-notice.is-resolved,
 .judgment-view-status.is-resolved {
   color: var(--judgment-success);
+}
+
+.judgment-view-notice.is-resolved {
+  color: var(--judgment-accent-strong);
+  background: var(--judgment-success-soft);
 }
 
 .judgment-view-run-meta,
@@ -150,8 +203,18 @@
   margin-bottom: 10px;
 }
 
+.judgment-view > .judgment-view-notice,
+.judgment-view-run-meta {
+  margin-top: 14px;
+}
+
+.judgment-view-run-meta {
+  color: var(--judgment-muted);
+  font-size: 13px;
+}
+
 .judgment-view-objective-state {
-  font-size: 18px;
+  font-size: 1.1rem;
   font-weight: 700;
 }
 
@@ -184,6 +247,12 @@
   padding-left: 20px;
 }
 
+.judgment-view-child-list {
+  gap: 8px;
+  padding-left: 0;
+  list-style: none;
+}
+
 .judgment-view-reference-list li,
 .judgment-view-evidence-list li,
 .judgment-view-criteria li {
@@ -193,10 +262,12 @@
 .judgment-view-child {
   display: grid;
   gap: 2px;
-  padding: 9px 11px;
-  border-left: 3px solid var(--judgment-border);
-  border-radius: 4px;
-  background: #f8fafc;
+  padding: 10px 12px;
+  border: 1px solid var(--judgment-border);
+  border-left: 3px solid var(--judgment-border-strong);
+  border-radius: var(--bb-radius-sm, 7px);
+  background: var(--judgment-panel);
+  overflow-wrap: anywhere;
 }
 
 .judgment-view-child.is-completed {
@@ -206,6 +277,7 @@
 .judgment-view-child.is-failed,
 .judgment-view-child.is-held {
   border-left-color: var(--judgment-warning);
+  background: var(--judgment-warning-soft);
 }
 
 .judgment-view-evaluation-block + .judgment-view-evaluation-block {
@@ -218,15 +290,17 @@
   margin-top: 0;
 }
 
-@media (max-width: 640px) {
-  .judgment-view {
+@media (max-width: 760px) {
+  .judgment-view-header {
     padding: 18px;
   }
 
   .judgment-view-panel {
-    padding: 16px;
+    padding: 14px;
   }
+}
 
+@media (max-width: 640px) {
   .judgment-view-meta {
     grid-template-columns: 1fr;
   }

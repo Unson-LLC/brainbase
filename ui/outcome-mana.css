@@ -1,3 +1,43 @@
+/*
+ * Organization edition look (moved from brainbase-organization apps/web/public/styles.css,
+ * where it was loaded before this file). Kept first so the cascade is the same as in the
+ * organization edition. Colors read the shared tokens, with the organization values as fallbacks.
+ */
+.outcome-mana-root { display: grid; gap: 20px; color: var(--bb-color-ink, #17221c); }
+.outcome-mana-header { padding: 24px; border: 1px solid var(--bb-color-border, #dce5df); border-radius: 16px; background: linear-gradient(135deg, var(--bb-color-header-start, #f7faf8), var(--bb-color-header-end, #eef5f0)); }
+.outcome-mana-header h1 { margin: 4px 0 8px; font-size: clamp(1.45rem, 3vw, 2rem); }
+.outcome-mana-eyebrow { color: var(--bb-color-eyebrow, #47715a); font-size: .72rem; font-weight: 750; letter-spacing: .12em; text-transform: uppercase; }
+.outcome-mana-actions,
+.outcome-mana-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.outcome-mana-button,
+.outcome-mana-list-select { min-height: 40px; border: 1px solid var(--bb-color-control-border, #cbd8d0); border-radius: 9px; background: var(--bb-color-panel, #fff); color: inherit; padding: 8px 12px; font: inherit; cursor: pointer; }
+.outcome-mana-button-primary { border-color: var(--bb-color-action, #35684c); background: var(--bb-color-action, #35684c); color: var(--bb-color-action-text, #fff); }
+.outcome-mana-section { min-width: 0; padding: 18px; border: 1px solid var(--bb-color-border, #dce5df); border-radius: 14px; background: var(--bb-color-panel, #fff); }
+.outcome-mana-section { display: grid; gap: 14px; }
+.outcome-mana-section-heading { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+.outcome-mana-section-heading h2 { margin: 0; font-size: 1.1rem; }
+.outcome-mana-section-description,
+.outcome-mana-muted { color: var(--bb-color-muted, #66736b); }
+.outcome-mana-section form { display: grid; gap: 12px; }
+.outcome-mana-trigger-options { display: flex; flex-wrap: wrap; gap: 10px 18px; min-width: 0; margin: 0; padding: 12px; border: 1px solid var(--bb-color-border, #dce5df); border-radius: 9px; }
+.outcome-mana-trigger-options legend { padding-inline: 5px; }
+.outcome-mana-choice { display: inline-flex; align-items: center; gap: 7px; min-width: max-content; }
+.outcome-mana-root .outcome-mana-choice input { width: auto; margin: 0; }
+.outcome-mana-root input,
+.outcome-mana-root select,
+.outcome-mana-root textarea { box-sizing: border-box; width: 100%; border: 1px solid var(--bb-color-border-strong, #bdcbc2); border-radius: 8px; background: var(--bb-color-panel, #fff); padding: 9px 10px; font: inherit; }
+.outcome-mana-root button:focus-visible,
+.outcome-mana-root input:focus-visible { outline: 3px solid #9fc9ad; outline-offset: 2px; }
+.outcome-mana-state,
+.outcome-mana-inline-error { padding: 11px 12px; border-radius: 9px; background: #fff7e8; color: #694d18; }
+.outcome-mana-inline-success { padding: 11px 12px; border-radius: 9px; background: #edf8f1; color: #28573b; }
+.outcome-mana-run-list { display: grid; gap: 8px; }
+.outcome-mana-run-item { display: flex; gap: 8px; align-items: center; }
+@media (max-width: 1340px) {
+  .outcome-mana-header,
+  .outcome-mana-section { padding: 14px; }
+}
+
 .outcome-mana-root {
   --mana-bg: var(--bb-color-surface, #f6f8f6);
   --mana-surface: var(--bb-color-panel, #ffffff);
