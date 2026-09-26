@@ -1,14 +1,17 @@
 /*
  * Shared look of the local Graph screens (プロジェクトと関係者・情報と関係).
  * Uses only the shared tokens in brainbase-tokens.css.
+ * Looks like the organization edition's outcome parts: the header sits in a
+ * gradient box, each block is a white section, buttons share one shape and
+ * the primary action uses the action color.
  */
 .bb-graph {
   display: grid;
-  gap: var(--bb-space-5);
+  gap: 20px;
   min-width: 0;
   color: var(--bb-color-ink);
   font-family: var(--bb-font-sans);
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .bb-graph *,
@@ -24,13 +27,21 @@
   margin: 0;
 }
 
+/* Part header: title and lead inside the gradient box. */
 .bb-graph-header {
   display: grid;
-  gap: var(--bb-space-1);
+  gap: var(--bb-space-2);
+  min-width: 0;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-lg);
+  padding: var(--bb-space-5);
+  background: linear-gradient(135deg, var(--bb-color-header-start), var(--bb-color-header-end));
 }
 
 .bb-graph-header h2 {
-  font-size: 20px;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1.25;
+  letter-spacing: -.02em;
 }
 
 .bb-graph-lead,
@@ -40,18 +51,23 @@
   font-size: 13px;
 }
 
+.bb-graph-header .bb-graph-lead {
+  font-size: 14px;
+}
+
 .bb-graph-help {
   display: block;
   overflow-wrap: anywhere;
 }
 
+/* Sections. */
 .bb-graph-block {
   display: grid;
   gap: var(--bb-space-3);
   min-width: 0;
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md);
-  padding: var(--bb-space-4);
+  padding: 18px;
   background: var(--bb-color-panel);
 }
 
@@ -70,7 +86,7 @@
 }
 
 .bb-graph-heading {
-  font-size: 16px;
+  font-size: 1.1rem;
 }
 
 .bb-graph-subheading {
@@ -88,18 +104,19 @@
 
 .bb-graph-title {
   min-width: 0;
-  font-size: 18px;
+  font-size: 1.2rem;
   overflow-wrap: anywhere;
 }
 
 .bb-graph-strong {
-  font-weight: 600;
+  font-weight: 650;
   overflow-wrap: anywhere;
 }
 
+/* State boxes. */
 .bb-graph-notice {
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-2) var(--bb-space-3);
+  padding: 11px var(--bb-space-3);
   font-size: 13px;
   overflow-wrap: anywhere;
 }
@@ -107,37 +124,44 @@
 .bb-graph-notice.is-muted { color: var(--bb-color-muted); background: var(--bb-color-surface); }
 .bb-graph-notice.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
 .bb-graph-notice.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-graph-notice.is-success { color: var(--bb-color-success); background: var(--bb-color-success-soft); }
-.bb-graph-notice.is-accent { color: var(--bb-color-accent); background: var(--bb-color-accent-soft); }
+.bb-graph-notice.is-success { color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
+.bb-graph-notice.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
 
 .bb-graph-state {
   display: grid;
   gap: var(--bb-space-2);
+  justify-items: start;
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3);
+  padding: var(--bb-space-3) 14px;
   font-size: 14px;
 }
 
-.bb-graph-state.is-muted { background: var(--bb-color-surface); }
-.bb-graph-state.is-warning { background: var(--bb-color-warning-soft); }
+.bb-graph-state > * {
+  max-width: 100%;
+}
+
+.bb-graph-state.is-muted { color: var(--bb-color-muted); background: var(--bb-color-surface); }
+.bb-graph-state.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
 .bb-graph-state.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
 
 .bb-graph-commands {
   display: grid;
   gap: var(--bb-space-2);
+  width: 100%;
   margin: 0;
   padding-left: var(--bb-space-5);
 }
 
 .bb-graph-commands code {
   display: block;
+  border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
   padding: var(--bb-space-2) var(--bb-space-3);
+  color: var(--bb-color-ink);
   background: var(--bb-color-panel);
   font-family: var(--bb-font-mono);
-  font-size: 13px;
+  font-size: 12px;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -163,33 +187,50 @@
   display: inline-block;
   border: 1px solid var(--bb-color-border);
   border-radius: 999px;
-  padding: 0 var(--bb-space-2);
+  padding: 1px var(--bb-space-2);
   color: var(--bb-color-muted);
   background: var(--bb-color-surface);
   font-size: 12px;
+  font-weight: 650;
   white-space: nowrap;
 }
 
-.bb-graph-badge.is-success { color: var(--bb-color-success); background: var(--bb-color-success-soft); }
-.bb-graph-badge.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
-.bb-graph-badge.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-graph-badge.is-accent { color: var(--bb-color-accent); background: var(--bb-color-accent-soft); }
+.bb-graph-badge.is-success { border-color: color-mix(in srgb, var(--bb-color-success) 35%, var(--bb-color-border)); color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
+.bb-graph-badge.is-warning { border-color: color-mix(in srgb, var(--bb-color-warning) 35%, var(--bb-color-border)); color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
+.bb-graph-badge.is-danger { border-color: color-mix(in srgb, var(--bb-color-danger) 35%, var(--bb-color-border)); color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
+.bb-graph-badge.is-accent { border-color: color-mix(in srgb, var(--bb-color-accent) 35%, var(--bb-color-border)); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
 
+/* Buttons: one shape; the primary action uses the action color. */
 .bb-graph-button {
-  border: 1px solid var(--bb-color-border);
+  min-height: 40px;
+  border: 1px solid var(--bb-color-control-border);
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-1) var(--bb-space-3);
+  padding: var(--bb-space-2) var(--bb-space-3);
   color: var(--bb-color-ink);
   background: var(--bb-color-panel);
   font: inherit;
-  font-size: 14px;
+  font-weight: 680;
   cursor: pointer;
 }
 
+/* Hosts often reset button fonts with `button { font: inherit }`; keep the weight. */
+.bb-graph .bb-graph-button {
+  font-weight: 680;
+}
+
+.bb-graph-button:hover:not([disabled]) {
+  border-color: var(--bb-color-border-strong);
+}
+
 .bb-graph-button.is-primary {
-  border-color: var(--bb-color-accent);
-  color: var(--bb-color-panel);
-  background: var(--bb-color-accent);
+  border-color: var(--bb-color-action);
+  color: var(--bb-color-action-text);
+  background: var(--bb-color-action);
+}
+
+.bb-graph-button.is-primary:hover:not([disabled]) {
+  border-color: var(--bb-color-action-hover);
+  background: var(--bb-color-action-hover);
 }
 
 .bb-graph-button[disabled] {
@@ -201,13 +242,23 @@
 .bb-graph-back {
   border: 0;
   padding: 0;
-  color: var(--bb-color-accent);
+  color: var(--bb-color-accent-strong);
   background: none;
   font: inherit;
-  font-weight: 600;
+  font-weight: 650;
   text-align: left;
   cursor: pointer;
   overflow-wrap: anywhere;
+}
+
+.bb-graph .bb-graph-link,
+.bb-graph .bb-graph-back {
+  font-weight: 650;
+}
+
+/* The name that opens a record reads as the card's title. */
+.bb-graph .bb-graph-item-head > .bb-graph-link {
+  font-weight: 700;
 }
 
 .bb-graph-link:hover,
@@ -228,7 +279,7 @@
 .bb-graph-field textarea:focus-visible,
 .bb-graph-field select:focus-visible,
 .bb-graph summary:focus-visible {
-  outline: 2px solid var(--bb-color-accent);
+  outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 45%, var(--bb-color-panel));
   outline-offset: 2px;
 }
 
@@ -275,7 +326,7 @@
 .bb-graph-history {
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md);
-  padding: var(--bb-space-3) var(--bb-space-4);
+  padding: 14px 18px;
   background: var(--bb-color-panel);
   font-size: 13px;
 }
@@ -295,7 +346,7 @@
   min-width: 0;
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3);
+  padding: var(--bb-space-3) 14px;
   background: var(--bb-color-panel);
 }
 
@@ -326,6 +377,13 @@
   gap: var(--bb-space-2);
 }
 
+/* Buttons inside a dense row keep the shape but take less height. */
+.bb-graph-row-actions .bb-graph-button {
+  min-height: 32px;
+  padding: var(--bb-space-1) 10px;
+  font-size: 13px;
+}
+
 .bb-graph-source {
   display: inline-flex;
   flex-wrap: wrap;
@@ -344,24 +402,27 @@
   color: var(--bb-color-warning);
 }
 
+/* Tables read like the organization's ledger. */
 .bb-graph-table {
   width: 100%;
+  border-top: 1px solid var(--bb-color-border-strong);
   border-collapse: collapse;
   font-size: 13px;
 }
 
 .bb-graph-table th {
   border-bottom: 1px solid var(--bb-color-border);
-  padding: var(--bb-space-2);
+  padding: 10px var(--bb-space-2);
   color: var(--bb-color-muted);
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 650;
   text-align: left;
   white-space: nowrap;
 }
 
 .bb-graph-table td {
   border-bottom: 1px solid var(--bb-color-border);
-  padding: var(--bb-space-2);
+  padding: 10px var(--bb-space-2);
   min-width: 0;
   vertical-align: top;
   overflow-wrap: anywhere;
@@ -371,24 +432,28 @@
   background: var(--bb-color-surface);
 }
 
+/* Correction panel. */
 .bb-graph-correction {
   display: grid;
   gap: var(--bb-space-3);
   min-width: 0;
-  border: 1px solid var(--bb-color-accent);
+  border: 1px solid color-mix(in srgb, var(--bb-color-accent) 35%, var(--bb-color-border));
   border-radius: var(--bb-radius-md);
-  padding: var(--bb-space-4);
+  padding: 18px;
   background: var(--bb-color-accent-soft);
+  box-shadow: inset 3px 0 var(--bb-color-accent);
 }
 
 .bb-graph-correction.is-conflict {
-  border-color: var(--bb-color-warning);
+  border-color: color-mix(in srgb, var(--bb-color-warning) 35%, var(--bb-color-border));
   background: var(--bb-color-warning-soft);
+  box-shadow: inset 3px 0 var(--bb-color-warning);
 }
 
 .bb-graph-correction.is-saved {
-  border-color: var(--bb-color-success);
+  border-color: color-mix(in srgb, var(--bb-color-success) 35%, var(--bb-color-border));
   background: var(--bb-color-success-soft);
+  box-shadow: inset 3px 0 var(--bb-color-success);
 }
 
 .bb-graph-correction > .bb-graph-button {
@@ -401,7 +466,7 @@
 }
 
 .bb-graph-correction-head h3 {
-  font-size: 16px;
+  font-size: 1.1rem;
 }
 
 .bb-graph-readback,
@@ -411,7 +476,7 @@
   min-width: 0;
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3);
+  padding: var(--bb-space-3) 14px;
   background: var(--bb-color-panel);
 }
 
@@ -430,11 +495,11 @@
 
 .bb-graph-field label {
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .bb-graph-field.is-reason label {
-  color: var(--bb-color-accent);
+  color: var(--bb-color-accent-strong);
 }
 
 .bb-graph-field input,
@@ -442,9 +507,10 @@
 .bb-graph-field select {
   width: 100%;
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
+  min-height: 40px;
+  border: 1px solid var(--bb-color-border-strong);
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-2);
+  padding: 9px 10px;
   color: var(--bb-color-ink);
   background: var(--bb-color-panel);
   font: inherit;
@@ -476,7 +542,22 @@
   gap: var(--bb-space-2);
 }
 
+@media (max-width: 760px) {
+  .bb-graph-header {
+    padding: 18px;
+  }
+
+  .bb-graph-block,
+  .bb-graph-correction {
+    padding: 14px;
+  }
+}
+
 @media (max-width: 720px) {
+  .bb-graph-table {
+    border-top: 0;
+  }
+
   .bb-graph-table thead {
     position: absolute;
     width: 1px;
@@ -498,7 +579,7 @@
     border: 1px solid var(--bb-color-border);
     border-radius: var(--bb-radius-sm);
     margin-bottom: var(--bb-space-2);
-    padding: var(--bb-space-2);
+    padding: var(--bb-space-2) var(--bb-space-3);
   }
 
   .bb-graph-table td {
@@ -512,7 +593,7 @@
   .bb-graph-table td::before {
     content: attr(data-label);
     color: var(--bb-color-muted);
-    font-weight: 600;
+    font-weight: 650;
   }
 
   .bb-graph-table td > * {
@@ -531,11 +612,6 @@
 }
 
 @media (max-width: 480px) {
-  .bb-graph-block,
-  .bb-graph-correction {
-    padding: var(--bb-space-3);
-  }
-
   .bb-graph-facts {
     grid-template-columns: minmax(0, 1fr);
   }
