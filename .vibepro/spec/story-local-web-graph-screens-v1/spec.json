@@ -1,0 +1,51 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-local-web-graph-screens-v1",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "behavior",
+      "text": "The navigation lists 今日, 目的と現状, プロジェクトと関係者 and 情報と関係 in that order; the two Graph screens mount only when the host reports Graph v2 and otherwise show the migration commands with the screen name; web:serve prints both screen URLs."
+    },
+    {
+      "id": "AC-002",
+      "type": "invariant",
+      "text": "The host serves the /api/graph read and correction routes for its own data directory; a non-loopback Host is refused; a correction requires the launch token and the same origin, checked by the host and again inside the Graph module, and nothing is written when either is missing."
+    },
+    {
+      "id": "AC-003",
+      "type": "behavior",
+      "text": "プロジェクトと関係者 lists projects with name, status, goal, 関係者 counts and validity, and a project detail with goal, status, decision principles and every participation (person, participates_in or accountable_for shown as 参加 or 責任, free-text role, validity, provenance kind in plain Japanese); the copy says 関係者, never access rights, and shows no RACI type."
+    },
+    {
+      "id": "AC-004",
+      "type": "behavior",
+      "text": "The owner can add a 関係者 (participates_in or accountable_for with optional role and start date), correct role and context, end a participation with an end date defaulting to today, and correct a project's name, goal and status; nothing is deleted."
+    },
+    {
+      "id": "AC-005",
+      "type": "behavior",
+      "text": "情報と関係 searches by name or alias filtered by type and as-of date, and an entity detail shows type, name, aliases, summary, validity and outgoing and incoming relations with meaning, role, validity, provenance kind and a resolved local source (extracted candidate, onboarding run candidate or correction) or the raw source id marked 未解決; a counterpart opens its own record."
+    },
+    {
+      "id": "AC-006",
+      "type": "invariant",
+      "text": "Every correction requires a one-line reason, sends the digest of the record shown and only the fields the owner changed; a 409 shows the current values, keeps the draft and bases the next save on the current record; a save shows the read-back values and that MCP search, get_context and resolve_entity use them next."
+    },
+    {
+      "id": "AC-007",
+      "type": "behavior",
+      "text": "The ontology panel is read-only and lists relation kinds with from and to types, meaning, count and active count, and entity types with counts; there is no change proposal."
+    },
+    {
+      "id": "AC-008",
+      "type": "invariant",
+      "text": "Graph v1 is shown as migration required with both commands, a missing data set with how to start, a read failure with the reason and a retry, and unreadable reference or history lines apart from the readable records; empty is shown only when absence is confirmed; ids and digests appear only inside the details disclosure."
+    },
+    {
+      "id": "AC-009",
+      "type": "invariant",
+      "text": "The new parts take colors, fonts, radii and spacing only from --bb-* tokens defined in ui/brainbase-tokens.css and do not scroll horizontally at 375px width."
+    }
+  ]
+}
