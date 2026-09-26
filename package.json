@@ -67,6 +67,10 @@
       "types": "./dist/foundation-store.d.ts",
       "import": "./dist/foundation-store.js"
     },
+    "./foundation-graph-write": {
+      "types": "./dist/foundation-graph-write.d.ts",
+      "import": "./dist/foundation-graph-write.js"
+    },
     "./company-os-objectives": {
       "types": "./dist/company-os-objectives.d.ts",
       "import": "./dist/company-os-objectives.js"
