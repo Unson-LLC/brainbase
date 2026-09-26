@@ -21,6 +21,7 @@ export type DurableWaitState =
   | 'resumed'
   | 'handoff_required'
   | 'reconciliation_wait'
+  | 'effect_confirmed'
   | 'failed'
   | 'cancelled';
 
@@ -95,6 +96,7 @@ export type DurableWaitHistoryAction =
   | 'handoff'
   | 'premise_changed'
   | 'effect_unknown'
+  | 'effect_reconciled'
   | 'resume';
 
 export interface DurableWaitHistoryEntry {
@@ -111,6 +113,24 @@ export interface DurableWaitReconciliation {
   readonly reason: string;
   readonly recorded_at: string;
   readonly responsible: DurableWaitResponsible;
+  /** Absent only in legacy records, which cannot be released by reconciliation. */
+  readonly external_operation_id?: string;
+  readonly claim_id?: string;
+  /** Only a trusted execution-intent lookup can set this to verified. */
+  readonly binding_status?: 'verified' | 'unverified';
+}
+
+export type DurableWaitExternalEffectOutcome = 'performed' | 'not_performed' | 'unknown';
+
+export interface DurableWaitReconciliationReceipt {
+  readonly request_id: string;
+  readonly external_operation_id: string;
+  readonly evidence_ref: string;
+  readonly outcome: DurableWaitExternalEffectOutcome;
+  readonly principal: string;
+  readonly recorded_at: string;
+  readonly previous_claim_request_id?: string;
+  readonly claim_id?: string;
 }
 
 export interface DurableWaitRecord {
@@ -132,6 +152,7 @@ export interface DurableWaitRecord {
   readonly resume_receipt?: DurableWaitResumeReceipt;
   readonly next_problem?: DurableWaitProblemReference;
   readonly reconciliation?: DurableWaitReconciliation;
+  readonly reconciliation_receipts?: readonly DurableWaitReconciliationReceipt[];
   readonly history: readonly DurableWaitHistoryEntry[];
 }
 
@@ -194,7 +215,51 @@ export interface DurableWaitPremiseChangedInput extends DurableWaitReadInput {
 
 export interface DurableWaitEffectUnknownInput extends DurableWaitReadInput {
   readonly reason: string;
+  readonly external_operation_id: string;
   readonly responsible?: DurableWaitResponsible;
+}
+
+export interface DurableWaitReconcileExternalEffectInput extends DurableWaitReadInput {
+  readonly request_id: string;
+  readonly external_operation_id: string;
+  readonly evidence_ref: string;
+}
+
+/** A host-owned verifier must look up authoritative effect evidence, not trust a body verdict. */
+export interface DurableWaitExternalEffectPort {
+  verify(input: {
+    readonly principal: string;
+    readonly wait: DurableWaitRecord;
+    readonly claim_id: string;
+    readonly external_operation_id: string;
+    readonly evidence_ref: string;
+  }): DurableWaitExternalEffectVerification | Promise<DurableWaitExternalEffectVerification>;
+}
+
+export interface DurableWaitExternalEffectVerification {
+  readonly wait_id: string;
+  readonly claim_id: string;
+  readonly external_operation_id: string;
+  readonly evidence_ref: string;
+  readonly outcome: DurableWaitExternalEffectOutcome;
+}
+
+/** A host must bind the uncertain operation to its persisted execution intent. */
+export interface DurableWaitUnknownEffectPort {
+  verify(input: {
+    readonly principal: string;
+    readonly wait: DurableWaitRecord;
+    readonly claim_id: string;
+    readonly external_operation_id: string;
+  }): DurableWaitUnknownEffectVerification | Promise<DurableWaitUnknownEffectVerification>;
+}
+
+export interface DurableWaitUnknownEffectVerification {
+  readonly wait_id: string;
+  readonly claim_id: string;
+  readonly run_id: string;
+  readonly external_operation_id: string;
+  readonly status: 'unknown';
 }
 
 export interface DurableWaitResumeInput extends DurableWaitReadInput {
@@ -234,6 +299,8 @@ export interface DurableWaitStoreOptions {
   readonly dataDir: string;
   readonly problemSnapshot: DurableWaitProblemSnapshotPort;
   readonly access?: DurableWaitAccessPort;
+  readonly externalEffect?: DurableWaitExternalEffectPort;
+  readonly unknownEffect?: DurableWaitUnknownEffectPort;
   readonly clock?: () => Date;
   readonly sidecarPath?: string;
   readonly defaultLeaseMs?: number;
@@ -291,7 +358,7 @@ interface DurableWaitMutationPreflight {
 const SNAPSHOT_ID_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const DEFAULT_LEASE_MS = 5 * 60 * 1000;
 const WAIT_STATES: readonly DurableWaitState[] = [
-  'waiting', 'claimed', 'resumed', 'handoff_required', 'reconciliation_wait', 'failed', 'cancelled'
+  'waiting', 'claimed', 'resumed', 'handoff_required', 'reconciliation_wait', 'effect_confirmed', 'failed', 'cancelled'
 ];
 const RESUME_METHODS: readonly DurableWaitResumeMethod[] = [
   'resume_run', 'new_problem', 'reconcile_external_effect', 'manual_review'
@@ -315,6 +382,8 @@ export class DurableWaitStore {
   private readonly dataDir: string;
   private readonly problemSnapshot: DurableWaitProblemSnapshotPort;
   private readonly access: DurableWaitAccessPort;
+  private readonly externalEffect?: DurableWaitExternalEffectPort;
+  private readonly unknownEffect?: DurableWaitUnknownEffectPort;
   private readonly clock: () => Date;
   private readonly sidecarPath: string;
   private readonly defaultLeaseMs: number;
@@ -327,6 +396,8 @@ export class DurableWaitStore {
     this.dataDir = options.dataDir;
     this.problemSnapshot = options.problemSnapshot;
     this.access = options.access ?? defaultDurableWaitAccessProvider;
+    this.externalEffect = options.externalEffect;
+    this.unknownEffect = options.unknownEffect;
     this.clock = options.clock ?? (() => new Date());
     this.sidecarPath = options.sidecarPath ?? DURABLE_WAIT_SIDECAR_PATH;
     assertSidecarPath(this.sidecarPath);
@@ -426,8 +497,11 @@ export class DurableWaitStore {
         if (record.state === 'reconciliation_wait') {
           throw new DurableWaitError('reconciliation_required', `Wait ${record.wait_id} requires external-effect reconciliation`, record.wait_id);
         }
-        if (record.state === 'handoff_required' || record.state === 'resumed' || record.state === 'failed' || record.state === 'cancelled') {
+        if (record.state === 'handoff_required' || record.state === 'resumed' || record.state === 'effect_confirmed' || record.state === 'failed' || record.state === 'cancelled') {
           throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
+        }
+        if (record.reconciliation_receipts?.some((receipt) => receipt.previous_claim_request_id === normalized.request_id)) {
+          throw new DurableWaitError('state_conflict', 'A reconciled effect requires a fresh claim request_id', record.wait_id);
         }
         // Validate the incoming event/timer before treating an existing claim as
         // a duplicate. A different, not-yet-ready trigger must not receive a
@@ -592,7 +666,10 @@ export class DurableWaitStore {
     return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
       const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
       const record = findWait(ledger, normalized.wait_id);
-      if (record.state === 'resumed' || record.state === 'cancelled' || record.state === 'failed') {
+      if (record.state === 'reconciliation_wait') {
+        throw new DurableWaitError('reconciliation_required', `Wait ${record.wait_id} requires external-effect reconciliation`, record.wait_id);
+      }
+      if (record.state === 'resumed' || record.state === 'effect_confirmed' || record.state === 'cancelled' || record.state === 'failed') {
         throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
       }
       const now = this.now().toISOString();
@@ -621,20 +698,43 @@ export class DurableWaitStore {
     await this.initialize();
     const preflight = await this.captureMutationPreflight(normalized.wait_id);
     const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
-    await this.authorize('claim', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    await this.authorize('write', normalized.principal, preflightRecord.read_policy, preflightRecord);
     await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
+    if ((preflightRecord.state !== 'claimed' && preflightRecord.state !== 'handoff_required') || preflightRecord.claim === undefined) {
+      throw new DurableWaitError('state_conflict', `Wait ${normalized.wait_id} has no claim to bind the uncertain effect`, normalized.wait_id);
+    }
+    let bindingVerification: DurableWaitUnknownEffectVerification | undefined;
+    if (this.unknownEffect && typeof this.unknownEffect.verify === 'function') {
+      try {
+        bindingVerification = await this.unknownEffect.verify({
+          principal: normalized.principal,
+          wait: freezeClone(preflightRecord),
+          claim_id: preflightRecord.claim.claim_id,
+          external_operation_id: normalized.external_operation_id
+        });
+      } catch {
+        // The effect is still uncertain. Persist a quarantine rather than
+        // leaving a claimed lease eligible for handoff and duplicate execution.
+      }
+    }
+    const bindingVerified = !!bindingVerification && bindingVerification.wait_id === normalized.wait_id
+      && bindingVerification.claim_id === preflightRecord.claim.claim_id
+      && bindingVerification.run_id === preflightRecord.run_ref.run_id
+      && bindingVerification.external_operation_id === normalized.external_operation_id
+      && bindingVerification.status === 'unknown';
+    await this.authorize('write', normalized.principal, preflightRecord.read_policy, preflightRecord);
     return mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
       const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
       const record = findWait(ledger, normalized.wait_id);
-      if (record.state === 'resumed' || record.state === 'cancelled' || record.state === 'failed') {
-        throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
+      if ((record.state !== 'claimed' && record.state !== 'handoff_required') || record.claim === undefined) {
+        throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} has no claim to bind the uncertain effect`, record.wait_id);
       }
       const now = this.now().toISOString();
       const responsible = normalized.responsible ?? record.responsible;
       const updated = updateRecord(record, {
         state: 'reconciliation_wait',
         responsible,
-        reconciliation: { reason: normalized.reason, recorded_at: now, responsible },
+        reconciliation: { reason: normalized.reason, recorded_at: now, responsible, external_operation_id: normalized.external_operation_id, claim_id: record.claim.claim_id, binding_status: bindingVerified ? 'verified' : 'unverified' },
         updated_at: now,
         history: appendHistory(record, {
           action: 'effect_unknown',
@@ -642,13 +742,106 @@ export class DurableWaitStore {
           principal: normalized.principal,
           from_state: record.state,
           to_state: 'reconciliation_wait',
-          detail: normalized.reason,
+          detail: `${normalized.reason}:${normalized.external_operation_id}`,
           responsible
         })
       });
       replaceWait(ledger, updated);
       return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(updated) };
     });
+  }
+
+  async reconcileExternalEffect(input: DurableWaitReconcileExternalEffectInput): Promise<DurableWaitRecord> {
+    const normalized = normalizeReconcileExternalEffectInput(input);
+    await this.initialize();
+    const preflight = await this.captureMutationPreflight(normalized.wait_id);
+    const preflightRecord = requireMutationRecord(preflight, normalized.wait_id);
+    await this.authorize('write', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    await this.verifyProblem(normalized.principal, preflightRecord.problem_snapshot);
+    const prior = preflightRecord.reconciliation_receipts?.find((receipt) => receipt.request_id === normalized.request_id);
+    if (prior !== undefined) {
+      assertReconciliationReplay(prior, normalized);
+      return freezeClone(preflightRecord);
+    }
+    if (preflightRecord.state !== 'reconciliation_wait') {
+      throw new DurableWaitError('state_conflict', `Wait ${normalized.wait_id} is ${preflightRecord.state}`, normalized.wait_id);
+    }
+    const binding = preflightRecord.reconciliation;
+    if (!binding?.external_operation_id || !binding.claim_id || binding.binding_status !== 'verified' || !preflightRecord.claim || binding.claim_id !== preflightRecord.claim.claim_id) {
+      throw new DurableWaitError('reconciliation_required', 'The uncertain effect has no bound operation and claim identity', normalized.wait_id);
+    }
+    if (normalized.external_operation_id !== binding.external_operation_id) {
+      throw new DurableWaitError('state_conflict', 'Evidence targets a different external operation', normalized.wait_id);
+    }
+    if (!this.externalEffect || typeof this.externalEffect.verify !== 'function') {
+      throw new DurableWaitError('reconciliation_required', 'An authoritative external-effect verifier is required', normalized.wait_id);
+    }
+    let verification: DurableWaitExternalEffectVerification;
+    try {
+      verification = await this.externalEffect.verify({
+        principal: normalized.principal,
+        wait: freezeClone(preflightRecord),
+        claim_id: binding.claim_id,
+        external_operation_id: normalized.external_operation_id,
+        evidence_ref: normalized.evidence_ref
+      });
+    } catch {
+      throw new DurableWaitError('reconciliation_required', 'External-effect evidence could not be verified', normalized.wait_id);
+    }
+    if (!verification || verification.wait_id !== normalized.wait_id
+      || verification.claim_id !== binding.claim_id
+      || verification.external_operation_id !== binding.external_operation_id
+      || verification.evidence_ref !== normalized.evidence_ref
+      || !['performed', 'not_performed', 'unknown'].includes(verification.outcome)) {
+      throw new DurableWaitError('reconciliation_required', 'External-effect verifier returned mismatched evidence', normalized.wait_id);
+    }
+    const outcome = verification.outcome;
+    // The evidence lookup may be slow; do not commit under permission that
+    // disappeared while it was running. The ledger CAS covers SSOT changes.
+    await this.authorize('write', normalized.principal, preflightRecord.read_policy, preflightRecord);
+    try {
+      return await mutatePersonalOsWithSidecar(this.dataDir, this.sidecarPath, (current, content) => {
+      const ledger = this.assertMutationPreflight(current, content, preflight, normalized.wait_id);
+      const record = findWait(ledger, normalized.wait_id);
+      if (record.state !== 'reconciliation_wait') {
+        throw new DurableWaitError('state_conflict', `Wait ${record.wait_id} is ${record.state}`, record.wait_id);
+      }
+      const now = this.now().toISOString();
+      const receipt: DurableWaitReconciliationReceipt = {
+        request_id: normalized.request_id,
+        external_operation_id: normalized.external_operation_id,
+        evidence_ref: normalized.evidence_ref,
+        outcome,
+        principal: normalized.principal,
+        recorded_at: now,
+        previous_claim_request_id: record.claim!.request_id,
+        claim_id: binding.claim_id
+      };
+      const state: DurableWaitState = outcome === 'performed' ? 'effect_confirmed' : outcome === 'not_performed' ? 'waiting' : 'reconciliation_wait';
+      const updated = updateRecord(record, {
+        state,
+        updated_at: now,
+        reconciliation_receipts: [...(record.reconciliation_receipts ?? []), receipt],
+        history: appendHistory(record, {
+          action: 'effect_reconciled', occurred_at: now, principal: normalized.principal,
+          from_state: 'reconciliation_wait', to_state: state, detail: `${outcome}:${normalized.external_operation_id}`
+        })
+      });
+      // A proven non-effect can be claimed again, but never with the old lease.
+      if (outcome === 'not_performed') delete (updated as { claim?: DurableWaitClaim }).claim;
+      replaceWait(ledger, updated);
+      return { next: current, sidecarContent: serializeLedger(ledger), result: freezeClone(updated) };
+      });
+    } catch (error) {
+      if (!(error instanceof DurableWaitPreflightConflict)) throw error;
+      const current = await this.readStored(normalized.wait_id);
+      await this.authorize('write', normalized.principal, current.read_policy, current);
+      await this.verifyProblem(normalized.principal, current.problem_snapshot);
+      const winner = current.reconciliation_receipts?.find((receipt) => receipt.request_id === normalized.request_id);
+      if (winner === undefined) throw error;
+      assertReconciliationReplay(winner, normalized);
+      return freezeClone(current);
+    }
   }
 
   private async captureMutationPreflight(waitId?: string): Promise<DurableWaitMutationPreflight> {
@@ -866,7 +1059,28 @@ function normalizeEffectUnknownInput(input: DurableWaitEffectUnknownInput): Dura
   const base = normalizeReadInput(input);
   assertText(input.reason, 'reason');
   const responsible = input.responsible === undefined ? undefined : normalizeResponsible(input.responsible, 'responsible');
-  return { ...base, reason: input.reason, ...(responsible === undefined ? {} : { responsible }) };
+  return { ...base, reason: input.reason, external_operation_id: boundedText(input.external_operation_id, 'external_operation_id'), ...(responsible === undefined ? {} : { responsible }) };
+}
+
+function normalizeReconcileExternalEffectInput(input: DurableWaitReconcileExternalEffectInput): DurableWaitReconcileExternalEffectInput {
+  const base = normalizeReadInput(input);
+  return {
+    ...base,
+    request_id: boundedText(input.request_id, 'request_id'),
+    external_operation_id: boundedText(input.external_operation_id, 'external_operation_id'),
+    evidence_ref: boundedText(input.evidence_ref, 'evidence_ref')
+  };
+}
+
+function assertReconciliationReplay(
+  receipt: DurableWaitReconciliationReceipt,
+  input: DurableWaitReconcileExternalEffectInput
+): void {
+  if (receipt.principal !== input.principal
+    || receipt.external_operation_id !== input.external_operation_id
+    || receipt.evidence_ref !== input.evidence_ref) {
+    throw new DurableWaitError('state_conflict', 'Reconciliation request_id was already used with different evidence', input.wait_id);
+  }
 }
 
 function normalizeCondition(value: DurableWaitCondition): DurableWaitCondition {
@@ -1053,6 +1267,7 @@ function validateStoredRecord(value: unknown): DurableWaitRecord {
   const resumeReceipt = value.resume_receipt === undefined ? undefined : validateResumeReceipt(value.resume_receipt);
   const nextProblem = value.next_problem === undefined ? undefined : normalizeProblemReference(value.next_problem as DurableWaitProblemReference, 'wait.next_problem');
   const reconciliation = value.reconciliation === undefined ? undefined : validateReconciliation(value.reconciliation);
+  const reconciliationReceipts = value.reconciliation_receipts === undefined ? undefined : validateReconciliationReceipts(value.reconciliation_receipts);
   return {
     wait_id: value.wait_id,
     version: DURABLE_WAIT_VERSION,
@@ -1072,6 +1287,7 @@ function validateStoredRecord(value: unknown): DurableWaitRecord {
     ...(resumeReceipt === undefined ? {} : { resume_receipt: resumeReceipt }),
     ...(nextProblem === undefined ? {} : { next_problem: nextProblem }),
     ...(reconciliation === undefined ? {} : { reconciliation }),
+    ...(reconciliationReceipts === undefined ? {} : { reconciliation_receipts: reconciliationReceipts }),
     history
   };
 }
@@ -1119,7 +1335,7 @@ function validateResumeReceipt(value: unknown): DurableWaitResumeReceipt {
 
 function validateHistory(value: unknown): DurableWaitHistoryEntry {
   if (!isRecord(value)) throw new Error('wait.history entry must be an object');
-  const action = enumValue(value.action, ['create', 'claim', 'handoff', 'premise_changed', 'effect_unknown', 'resume'] as const, 'wait.history.action');
+  const action = enumValue(value.action, ['create', 'claim', 'handoff', 'premise_changed', 'effect_unknown', 'effect_reconciled', 'resume'] as const, 'wait.history.action');
   assertTimestamp(value.occurred_at as string, 'wait.history.occurred_at');
   assertText(value.principal, 'wait.history.principal');
   const toState = enumValue(value.to_state, WAIT_STATES, 'wait.history.to_state');
@@ -1135,7 +1351,30 @@ function validateReconciliation(value: unknown): DurableWaitReconciliation {
   const recordedAt = boundedText(value.recorded_at, 'wait.reconciliation.recorded_at');
   assertTimestamp(recordedAt, 'wait.reconciliation.recorded_at');
   const responsible = normalizeResponsible(value.responsible as DurableWaitResponsible, 'wait.reconciliation.responsible');
-  return { reason, recorded_at: recordedAt, responsible };
+  const externalOperationId = value.external_operation_id === undefined ? undefined : boundedText(value.external_operation_id, 'wait.reconciliation.external_operation_id');
+  const claimId = value.claim_id === undefined ? undefined : boundedText(value.claim_id, 'wait.reconciliation.claim_id');
+  const bindingStatus = value.binding_status === undefined ? undefined : enumValue(value.binding_status, ['verified', 'unverified'] as const, 'wait.reconciliation.binding_status');
+  if ((externalOperationId === undefined) !== (claimId === undefined)) throw new Error('wait.reconciliation binding is incomplete');
+  if (bindingStatus !== undefined && externalOperationId === undefined) throw new Error('wait.reconciliation binding status has no operation');
+  return { reason, recorded_at: recordedAt, responsible, ...(externalOperationId === undefined ? {} : { external_operation_id: externalOperationId, claim_id: claimId }), ...(bindingStatus === undefined ? {} : { binding_status: bindingStatus }) };
+}
+
+function validateReconciliationReceipts(value: unknown): readonly DurableWaitReconciliationReceipt[] {
+  if (!Array.isArray(value)) throw new Error('wait.reconciliation_receipts must be an array');
+  const receipts = value.map((item: unknown): DurableWaitReconciliationReceipt => {
+    if (!isRecord(item)) throw new Error('wait.reconciliation_receipt must be an object');
+    const requestId = boundedText(item.request_id, 'wait.reconciliation_receipt.request_id');
+    const externalOperationId = boundedText(item.external_operation_id, 'wait.reconciliation_receipt.external_operation_id');
+    const evidenceRef = boundedText(item.evidence_ref, 'wait.reconciliation_receipt.evidence_ref');
+    const outcome = enumValue(item.outcome, ['performed', 'not_performed', 'unknown'] as const, 'wait.reconciliation_receipt.outcome');
+    const principal = boundedText(item.principal, 'wait.reconciliation_receipt.principal');
+    assertTimestamp(item.recorded_at, 'wait.reconciliation_receipt.recorded_at');
+    const previousClaimRequestId = item.previous_claim_request_id === undefined ? undefined : boundedText(item.previous_claim_request_id, 'wait.reconciliation_receipt.previous_claim_request_id');
+    const claimId = item.claim_id === undefined ? undefined : boundedText(item.claim_id, 'wait.reconciliation_receipt.claim_id');
+    return { request_id: requestId, external_operation_id: externalOperationId, evidence_ref: evidenceRef, outcome, principal, recorded_at: item.recorded_at, ...(previousClaimRequestId === undefined ? {} : { previous_claim_request_id: previousClaimRequestId }), ...(claimId === undefined ? {} : { claim_id: claimId }) };
+  });
+  if (new Set(receipts.map((receipt) => receipt.request_id)).size !== receipts.length) throw new Error('duplicate reconciliation request_id');
+  return receipts;
 }
 
 function serializeLedger(ledger: DurableWaitLedger): string {

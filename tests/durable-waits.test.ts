@@ -1,10 +1,11 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   DurableWaitError,
   DurableWaitStore,
+  type DurableWaitExternalEffectPort,
   type DurableWaitProblemSnapshotPort,
   type DurableWaitRecord
 } from '../src/durable-waits.js';
@@ -20,6 +21,20 @@ const problemSnapshot: DurableWaitProblemSnapshotPort = {
   verify: () => true
 };
 
+function verifiedEffect(outcome: 'performed' | 'not_performed' | 'unknown', input: Parameters<DurableWaitExternalEffectPort['verify']>[0]) {
+  return { wait_id: input.wait.wait_id, claim_id: input.claim_id, external_operation_id: input.external_operation_id, evidence_ref: input.evidence_ref, outcome };
+}
+
+const unknownEffect = {
+  verify: ({ wait, claim_id, external_operation_id }: { wait: DurableWaitRecord; claim_id: string; external_operation_id: string }) => ({
+    wait_id: wait.wait_id, claim_id, run_id: wait.run_ref.run_id, external_operation_id, status: 'unknown' as const
+  })
+};
+
+async function claimForEffect(store: DurableWaitStore): Promise<void> {
+  await store.claim({ wait_id: 'wait-1', principal: 'owner', request_id: 'effect-claim', trigger: 'event', event_type: 'evidence.received', event_id: 'event-1' });
+}
+
 function nowClock(initial = '2026-09-23T00:00:00.000Z'): { now: () => Date; advance: (milliseconds: number) => void } {
   let current = Date.parse(initial);
   return {
@@ -33,7 +48,7 @@ async function makeStore(clock = nowClock()): Promise<{ root: string; store: Dur
   roots.push(root);
   return {
     root,
-    store: new DurableWaitStore({ dataDir: root, problemSnapshot, clock: clock.now, defaultLeaseMs: 100 }),
+    store: new DurableWaitStore({ dataDir: root, problemSnapshot, unknownEffect, clock: clock.now, defaultLeaseMs: 100 }),
     clock
   };
 }
@@ -233,10 +248,195 @@ describe('DurableWaitStore', () => {
   it('moves unknown external effects to reconciliation_wait without retrying them', async () => {
     const { store } = await makeStore();
     await createWait(store);
-    const unknown = await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'external call outcome was lost' });
+    await claimForEffect(store);
+    const unknown = await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'external call outcome was lost', external_operation_id: 'effect-1' });
     expect(unknown.state).toBe('reconciliation_wait');
     expect(unknown.reconciliation?.reason).toBe('external call outcome was lost');
+    expect(unknown.reconciliation).toMatchObject({ external_operation_id: 'effect-1', claim_id: unknown.claim?.claim_id });
     await expect(store.resume({ wait_id: 'wait-1', principal: 'owner', request_id: 'request-owner', claim_id: 'claim-1', lease_id: 'lease-1', lease_token: 'token-1' })).rejects.toMatchObject({ code: 'reconciliation_required' });
+    await expect(store.markPremiseChanged({ wait_id: 'wait-1', principal: 'owner', reason: 'new premise', new_problem_snapshot: { snapshot_id: nextSnapshotId, problem_id: 'problem-1', revision: '2' } })).rejects.toMatchObject({ code: 'reconciliation_required' });
+  });
+
+  it('quarantines an unknown effect even when execution-intent binding fails and forbids lease handoff', async () => {
+    const { root, store, clock } = await makeStore();
+    await createWait(store);
+    await claimForEffect(store);
+    const input = { wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' };
+    const withoutBinder = new DurableWaitStore({ dataDir: root, problemSnapshot });
+    const quarantined = await withoutBinder.markEffectUnknown(input);
+    expect(quarantined).toMatchObject({ state: 'reconciliation_wait', reconciliation: { external_operation_id: 'effect-1', claim_id: quarantined.claim?.claim_id, binding_status: 'unverified' } });
+    clock.advance(1_000);
+    await expect(store.handoff({ wait_id: 'wait-1', principal: 'owner', request_id: 'retry', responsible: { principal: 'worker-2' }, now: clock.now().toISOString() })).rejects.toMatchObject({ code: 'state_conflict' });
+    await expect(store.claim({ wait_id: 'wait-1', principal: 'owner', request_id: 'retry', trigger: 'manual' })).rejects.toMatchObject({ code: 'reconciliation_required' });
+    const apparentReceipt = new DurableWaitStore({ dataDir: root, problemSnapshot, externalEffect: { verify: (request) => verifiedEffect('not_performed', request) } });
+    await expect(apparentReceipt.reconcileExternalEffect({ wait_id: 'wait-1', principal: 'owner', request_id: 'check', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' })).rejects.toMatchObject({ code: 'reconciliation_required' });
+    expect((await store.get({ wait_id: 'wait-1', principal: 'owner' })).state).toBe('reconciliation_wait');
+  });
+
+  it('quarantines an unknown effect when the binding verifier returns a different operation', async () => {
+    const { root, store } = await makeStore();
+    await createWait(store);
+    await claimForEffect(store);
+    const input = { wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' };
+    const wrongOperation = new DurableWaitStore({ dataDir: root, problemSnapshot, unknownEffect: {
+      verify: ({ wait, claim_id }) => ({ wait_id: wait.wait_id, claim_id, run_id: wait.run_ref.run_id, external_operation_id: 'other-effect', status: 'unknown' })
+    } });
+    const quarantined = await wrongOperation.markEffectUnknown(input);
+    expect(quarantined).toMatchObject({ state: 'reconciliation_wait', reconciliation: { binding_status: 'unverified' } });
+  });
+
+  it('quarantines an unknown effect when the binding verifier throws', async () => {
+    const { root, store } = await makeStore();
+    await createWait(store);
+    await claimForEffect(store);
+    const failedLookup = new DurableWaitStore({ dataDir: root, problemSnapshot, unknownEffect: {
+      verify: () => { throw new Error('execution-intent store unavailable'); }
+    } });
+    const quarantined = await failedLookup.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' });
+    expect(quarantined).toMatchObject({ state: 'reconciliation_wait', reconciliation: { binding_status: 'unverified' } });
+  });
+
+  it('cannot release a wait using evidence for another operation, claim, or evidence reference', async () => {
+    const { root, store } = await makeStore();
+    await createWait(store);
+    await claimForEffect(store);
+    await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' });
+    const input = { wait_id: 'wait-1', principal: 'owner', request_id: 'check-1', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' };
+    const wrongRequest = new DurableWaitStore({ dataDir: root, problemSnapshot, externalEffect: { verify: (request) => verifiedEffect('not_performed', request) } });
+    await expect(wrongRequest.reconcileExternalEffect({ ...input, external_operation_id: 'other-effect' })).rejects.toMatchObject({ code: 'state_conflict' });
+    for (const mismatch of [{ external_operation_id: 'other-effect' }, { claim_id: 'other-claim' }, { evidence_ref: 'other-receipt' }]) {
+      const verifier = new DurableWaitStore({ dataDir: root, problemSnapshot, externalEffect: {
+        verify: (request) => ({ ...verifiedEffect('not_performed', request), ...mismatch })
+      } });
+      await expect(verifier.reconcileExternalEffect(input)).rejects.toMatchObject({ code: 'reconciliation_required' });
+    }
+    const current = await store.get({ wait_id: 'wait-1', principal: 'owner' });
+    expect(current.state).toBe('reconciliation_wait');
+    expect(current.reconciliation_receipts).toBeUndefined();
+  });
+
+  it('does not release a legacy unknown-effect wait without an operation and claim binding', async () => {
+    const { root, store } = await makeStore();
+    await createWait(store);
+    await claimForEffect(store);
+    await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' });
+    const path = join(root, 'durable-waits/ledger.json');
+    const ledger = JSON.parse(await readFile(path, 'utf8')) as { waits: Array<{ reconciliation: Record<string, unknown> }> };
+    delete ledger.waits[0].reconciliation.external_operation_id;
+    delete ledger.waits[0].reconciliation.claim_id;
+    delete ledger.waits[0].reconciliation.binding_status;
+    await writeFile(path, `${JSON.stringify(ledger, null, 2)}\n`);
+    const restarted = new DurableWaitStore({ dataDir: root, problemSnapshot, externalEffect: { verify: (request) => verifiedEffect('not_performed', request) } });
+    await expect(restarted.reconcileExternalEffect({ wait_id: 'wait-1', principal: 'owner', request_id: 'check-1', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' })).rejects.toMatchObject({ code: 'reconciliation_required' });
+    expect((await restarted.get({ wait_id: 'wait-1', principal: 'owner' })).state).toBe('reconciliation_wait');
+  });
+
+  it('records a verified performed effect as terminal across restart and deduplicates the receipt', async () => {
+    const { root, store } = await makeStore();
+    await createWait(store);
+    await claimForEffect(store);
+    await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' });
+    const input = { wait_id: 'wait-1', principal: 'owner', request_id: 'reconcile-1', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' };
+    await expect(store.reconcileExternalEffect(input)).rejects.toMatchObject({ code: 'reconciliation_required' });
+    const restarted = new DurableWaitStore({ dataDir: root, problemSnapshot, externalEffect: { verify: (input) => verifiedEffect('performed', input) } });
+    await expect(restarted.reconcileExternalEffect({ ...input, principal: 'reader' })).rejects.toMatchObject({ code: 'unauthorized' });
+    const confirmed = await restarted.reconcileExternalEffect(input);
+    expect(confirmed.state).toBe('effect_confirmed');
+    expect(confirmed.reconciliation_receipts).toHaveLength(1);
+    await expect(restarted.reconcileExternalEffect(input)).resolves.toEqual(confirmed);
+    await expect(restarted.reconcileExternalEffect({ ...input, evidence_ref: 'different' })).rejects.toMatchObject({ code: 'state_conflict' });
+    const next = new DurableWaitStore({ dataDir: root, problemSnapshot });
+    await expect(next.get({ wait_id: 'wait-1', principal: 'owner' })).resolves.toMatchObject({ state: 'effect_confirmed', reconciliation_receipts: [{ outcome: 'performed' }] });
+    await expect(next.claim({ wait_id: 'wait-1', principal: 'owner', request_id: 'claim-new', trigger: 'manual' })).rejects.toMatchObject({ code: 'state_conflict' });
+    await expect(next.resume({ wait_id: 'wait-1', principal: 'owner', request_id: 'claim-new', claim_id: 'claim-new', lease_id: 'lease-new', lease_token: 'token-new' })).rejects.toMatchObject({ code: 'state_conflict' });
+    await expect(next.markPremiseChanged({ wait_id: 'wait-1', principal: 'owner', reason: 'new premise', new_problem_snapshot: { snapshot_id: nextSnapshotId, problem_id: 'problem-1', revision: '2' } })).rejects.toMatchObject({ code: 'state_conflict' });
+  });
+
+  it('converges simultaneous retries of one reconciliation request on one receipt', async () => {
+    const { root, store } = await makeStore();
+    await createWait(store);
+    await claimForEffect(store);
+    await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' });
+    let entered = 0;
+    let release!: () => void;
+    const bothEntered = new Promise<void>((resolve) => { release = resolve; });
+    const externalEffect: DurableWaitExternalEffectPort = { verify: async (input) => {
+      entered += 1;
+      if (entered === 2) release();
+      await bothEntered;
+      return verifiedEffect('performed', input);
+    } };
+    const left = new DurableWaitStore({ dataDir: root, problemSnapshot, externalEffect });
+    const right = new DurableWaitStore({ dataDir: root, problemSnapshot, externalEffect });
+    const input = { wait_id: 'wait-1', principal: 'owner', request_id: 'same-request', external_operation_id: 'effect-1', evidence_ref: 'receipt-1' };
+    const results = await Promise.all([left.reconcileExternalEffect(input), right.reconcileExternalEffect(input)]);
+    expect(results[0]).toEqual(results[1]);
+    expect(results[0].reconciliation_receipts).toHaveLength(1);
+    expect(results[0].state).toBe('effect_confirmed');
+  });
+
+  it('keeps unknown evidence blocked and permits a new claim only after verified non-effect', async () => {
+    const { root, store, clock } = await makeStore();
+    await createWait(store);
+    const oldClaim = await store.claim({ wait_id: 'wait-1', principal: 'owner', request_id: 'old-claim', trigger: 'event', event_type: 'evidence.received', event_id: 'event-1' });
+    await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' });
+    let outcome: 'unknown' | 'not_performed' = 'unknown';
+    const access = { authorize: () => true };
+    const verifier = new DurableWaitStore({ dataDir: root, clock: clock.now, problemSnapshot, access, externalEffect: { verify: (input) => verifiedEffect(outcome, input) } });
+    const base = { wait_id: 'wait-1', principal: 'owner', external_operation_id: 'effect-1' };
+    const pending = await verifier.reconcileExternalEffect({ ...base, request_id: 'check-1', evidence_ref: 'evidence-pending' });
+    expect(pending.state).toBe('reconciliation_wait');
+    await expect(verifier.claim({ wait_id: 'wait-1', principal: 'owner', request_id: 'new-claim', trigger: 'manual' })).rejects.toMatchObject({ code: 'reconciliation_required' });
+    outcome = 'not_performed';
+    const cleared = await verifier.reconcileExternalEffect({ ...base, request_id: 'check-2', evidence_ref: 'evidence-final' });
+    expect(cleared.state).toBe('waiting');
+    expect(cleared.claim).toBeUndefined();
+    expect(cleared.reconciliation_receipts?.map((item) => item.outcome)).toEqual(['unknown', 'not_performed']);
+    await expect(verifier.claim({ wait_id: 'wait-1', principal: 'owner', request_id: 'old-claim', trigger: 'manual' })).rejects.toMatchObject({ code: 'state_conflict' });
+    const fresh = await verifier.claim({ wait_id: 'wait-1', principal: 'owner', request_id: 'fresh-claim', trigger: 'event', event_type: 'evidence.received', event_id: 'event-1' });
+    expect(fresh.claim.claim_id).not.toBe(oldClaim.claim.claim_id);
+    await expect(verifier.resume({ wait_id: 'wait-1', principal: 'owner', request_id: 'old-claim', claim_id: oldClaim.claim.claim_id, lease_id: oldClaim.claim.lease.lease_id, lease_token: oldClaim.claim.lease.token })).rejects.toMatchObject({ code: 'unauthorized' });
+  });
+
+  it('fails closed on changed ACL and concurrent reconciliation CAS', async () => {
+    const { root, store } = await makeStore();
+    await createWait(store);
+    await claimForEffect(store);
+    await store.markEffectUnknown({ wait_id: 'wait-1', principal: 'owner', reason: 'response lost', external_operation_id: 'effect-1' });
+    let allowed = false;
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let entered!: () => void;
+    const reachedVerifier = new Promise<void>((resolve) => { entered = resolve; });
+    const verifier = new DurableWaitStore({
+      dataDir: root, problemSnapshot,
+      access: { authorize: () => allowed },
+      externalEffect: { verify: async (input) => { entered(); await gate; return verifiedEffect('not_performed', input); } }
+    });
+    const input = { wait_id: 'wait-1', principal: 'owner', request_id: 'check-1', external_operation_id: 'effect-1', evidence_ref: 'evidence-1' };
+    await expect(verifier.reconcileExternalEffect(input)).rejects.toMatchObject({ code: 'unauthorized' });
+    allowed = true;
+    const pending = verifier.reconcileExternalEffect(input);
+    await reachedVerifier;
+    allowed = false;
+    release();
+    await expect(pending).rejects.toMatchObject({ code: 'unauthorized' });
+    allowed = true;
+    let releaseSecond!: () => void;
+    let secondEntered!: () => void;
+    const reachedSecondVerifier = new Promise<void>((resolve) => { secondEntered = resolve; });
+    const secondGate = new Promise<void>((resolve) => { releaseSecond = resolve; });
+    const casVerifier = new DurableWaitStore({
+      dataDir: root, problemSnapshot,
+      access: { authorize: () => true },
+      externalEffect: { verify: async (input) => { secondEntered(); await secondGate; return verifiedEffect('not_performed', input); } }
+    });
+    const casPending = casVerifier.reconcileExternalEffect(input);
+    await reachedSecondVerifier;
+    await mutatePersonalOs(root, (current) => ({ ...current, personalKg: [...current.personalKg, { id: 'reconciliation-cas-change', type: 'judgment', text: 'changed during evidence lookup' }] }));
+    releaseSecond();
+    await expect(casPending).rejects.toMatchObject({ code: 'state_conflict' });
+    expect((await store.get({ wait_id: 'wait-1', principal: 'owner' })).state).toBe('reconciliation_wait');
   });
 
   it('rechecks current ACL on reads and mutations after a restart', async () => {
