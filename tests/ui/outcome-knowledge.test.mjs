@@ -268,6 +268,63 @@ describe('outcome knowledge UI contract', () => {
     expect(findAll(root, 'input').find((node) => node.attributes.name === 'path_scope').value).toBe('docs');
   });
 
+  // A host whose destination API accepts a different set of users injects its
+  // own rule. This one mirrors a host that accepts only project members with
+  // specific roles, and never treats a wildcard grant as the project itself.
+  const hostDestinationRule = (session, projectCode) => ['member', 'gm', 'ceo'].includes(String(session?.role ?? '').toLowerCase())
+    && Array.isArray(session?.project_codes) && session.project_codes.includes(projectCode);
+  const hasDestinationForm = (root) => {
+    const destination = findAll(root, 'section').find((node) => node.className.includes('knowledge-destination-view'));
+    return findAll(destination, 'form').some((node) => node.className.includes('knowledge-destination-form'));
+  };
+
+  it.each([
+    ['member with the project', { role: 'member', project_codes: ['proj-1'] }, true],
+    ['gm with the project', { role: 'GM', project_codes: ['proj-1'] }, true],
+    ['ceo with the project', { role: 'ceo', project_codes: ['other', 'proj-1'] }, true],
+    ['owner, which the host rule rejects', { role: 'owner', project_codes: ['proj-1'] }, false],
+    ['admin, which the host rule rejects', { role: 'admin', project_codes: ['proj-1'] }, false],
+    ['member without the project', { role: 'member', project_codes: ['other'] }, false],
+    ['ceo without the project', { role: 'ceo', project_codes: ['other'] }, false],
+    ['member with only a wildcard grant', { role: 'member', project_codes: ['*'] }, false],
+    ['missing session', null, false],
+  ])('offers destination registration through the host-injected rule: %s', (_label, session, expected) => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    createKnowledgeOutcomeController({ project: { code: 'proj-1' }, root, session: () => session, autoLoad: false, canEditDestination: hostDestinationRule });
+
+    expect(hasDestinationForm(root)).toBe(expected);
+  });
+
+  it('passes the resolved session and project code to the destination rule', () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const calls = [];
+    const session = { role: 'viewer', project_codes: ['proj-1'] };
+    createKnowledgeOutcomeController({
+      project: { code: 'proj-1' }, root, session: () => session, autoLoad: false,
+      canEditDestination: (value, projectCode) => { calls.push([value, projectCode]); return 'yes'; },
+    });
+
+    expect(calls.length).toBeGreaterThan(0);
+    expect(calls[0]).toEqual([session, 'proj-1']);
+    // Only an explicit true grants the form; a truthy non-boolean does not.
+    expect(hasDestinationForm(root)).toBe(false);
+  });
+
+  it('keeps the knowledge manager rule for the destination form when no host rule is injected', () => {
+    for (const [session, expected] of [
+      [{ role: 'owner' }, true],
+      [{ role: 'admin' }, true],
+      [{ role: 'member', project_codes: ['proj-1'] }, false],
+    ]) {
+      globalThis.document = new FakeDocument();
+      const root = new FakeElement('div');
+      createKnowledgeOutcomeController({ project: { code: 'proj-1' }, root, session: () => session, autoLoad: false });
+      expect(hasDestinationForm(root)).toBe(expected);
+    }
+  });
+
   it('renders discovery as a master-detail workspace and keeps the inspector across focused modes', () => {
     globalThis.document = new FakeDocument();
     const root = new FakeElement('div');

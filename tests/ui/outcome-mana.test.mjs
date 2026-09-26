@@ -3,13 +3,16 @@ import { readFileSync } from 'node:fs';
 import { test } from 'vitest';
 
 import {
+  MANA_EXECUTION_PROFILES,
   OUTCOME_DELEGATION_CONTRACT_VERSION,
   completionState,
   createManaOutcomeUI,
   createManaPaths,
+  executionProfileReadiness,
   normalizeApprovalTarget,
   normalizeContract,
   normalizeRun,
+  profileInputValidationReasons,
   statusLabel,
   triggerLabel,
 } from '../../ui/outcome-mana.js';
@@ -47,6 +50,10 @@ class FakeElement {
 
   setAttribute(name, value) {
     this.attributes[name] = String(value);
+  }
+
+  hasAttribute(name) {
+    return Object.hasOwn(this.attributes, name);
   }
 
   addEventListener(type, handler) {
@@ -108,6 +115,579 @@ test('normalizes the versioned contract and keeps unknown completion unverified'
   assert.equal(completionState({ run_id: 'run-1', status: 'completed_verified' }), 'completed_verified');
   assert.equal(completionState({ run_id: 'run-1', status: 'running', readback_verified: true }), 'completion_unverified');
   assert.equal(completionState({ run_id: 'run-1', status: 'failed', readback_verified: true }), 'failed');
+});
+
+test('uses only exact contract-version and profile preflight to determine execution readiness', () => {
+  const profileId = 'meeting_minutes_github_v1';
+  const saved = { ...contract(), version: 5, profileId };
+  const matching = { run: {
+    run_id: 'run-ready', contract_id: 'contract-1', contract_version: 5, profile_id: profileId,
+    preflight: { available: true, checks: [] },
+  } };
+  const notMatching = { run: {
+    run_id: 'run-stale', contract_id: 'contract-1', contract_version: 4, profile_id: profileId,
+    preflight: { available: true, checks: [] },
+  } };
+  assert.equal(executionProfileReadiness(profileId, saved, [notMatching]).status, 'unknown');
+  assert.equal(executionProfileReadiness('project_report_google_drive_v1', saved, [matching]).status, 'unknown');
+  assert.equal(executionProfileReadiness(profileId, saved, [matching]).status, 'available');
+  assert.equal(executionProfileReadiness(profileId, saved, [{ run: { ...matching.run, preflight: { available: false } } }]).status, 'unavailable');
+  assert.equal(executionProfileReadiness(profileId, { ...saved, profileId: '' }, [matching]).status, 'unknown');
+  // A profile the host does not offer has no readiness.
+  assert.equal(executionProfileReadiness(profileId, saved, [matching], []).status, 'unknown');
+});
+
+test('rejects hidden incompatible resources and requires an exact GitHub commit for project reports', () => {
+  const profile = MANA_EXECUTION_PROFILES.find((item) => item.id === 'project_report_google_drive_v1');
+  const resources = [
+    { id: 'github:repo:one', connectorId: 'github' },
+    { id: 'drive:folder:one', connectorId: 'drive' },
+  ];
+  assert.deepEqual(
+    profileInputValidationReasons(profile, [{ id: 'drive:folder:one', version: 'a'.repeat(40) }], resources),
+    [
+      'GitHubの接続確認済み入力資料を1つ以上選んでください。',
+      '選んだ仕事で利用できない入力資料が含まれています。入力資料を選び直してください。',
+    ],
+  );
+  assert.deepEqual(
+    profileInputValidationReasons(profile, [{ id: 'github:repo:one' }], resources),
+    ['プロジェクト報告のGitHub資料は40文字のコミットSHAで版を固定してください。'],
+  );
+  assert.deepEqual(
+    profileInputValidationReasons(profile, [{ id: 'github:repo:one', version: 'a'.repeat(40) }], resources),
+    [],
+  );
+});
+
+test('rejects a whole repository as meeting-minutes input and directs the user to project reporting', () => {
+  const profile = MANA_EXECUTION_PROFILES.find((item) => item.id === 'meeting_minutes_github_v1');
+  const resources = [{ id: 'github:repo:example/meeting-notes', connectorId: 'github' }];
+  assert.deepEqual(
+    profileInputValidationReasons(profile, [{ id: resources[0].id, version: 'a'.repeat(40) }], resources),
+    ['会議録には文字起こしファイルを選んでください。リポジトリ全体の整理には「プロジェクト報告」を選んでください。'],
+  );
+});
+
+test('keeps the free-text contract form and loads no connections when no execution profiles are offered', async () => {
+  const root = new FakeElement('main');
+  const calls = [];
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    paths: { connectors: '/connectors' },
+    api: async (path) => { calls.push(path); return { connectors: [] }; },
+  });
+  ui.state.contract.status = 'ready';
+  ui.render();
+  elements(root, (node) => node.textContent === '新しい委任を作成')[0].click();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls, []);
+  const named = (name) => elements(root, (node) => node.attributes?.name === name);
+  assert.equal(named('inputRefs')[0].tagName, 'TEXTAREA');
+  assert.equal(named('adapterId')[0].attributes.type, undefined);
+  assert.equal(named('location').length, 1);
+  assert.equal(named('profileId').length, 0);
+  assert.equal(named('allowedResources').length, 0);
+  assert.equal(elements(root, (node) => node.attributes?.['data-picker']).length, 0);
+  assert.doesNotMatch(root.textContent, /委任する仕事/);
+});
+
+test('saves the free-text contract form without profile or allowed-resource fields', async () => {
+  const bodies = [];
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    api: async () => ({ contract: { ...contract(), version: 4 } }),
+    apiMutation: async (_path, request) => { bodies.push(request.body); return { contract: { ...contract(), version: 4 } }; },
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.render();
+  elements(root, (node) => node.attributes?.['aria-label'] === '成果契約の下書きを保存')[0].click();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(bodies.length, 1);
+  assert.equal(Object.hasOwn(bodies[0], 'profileId'), false);
+  assert.equal(Object.hasOwn(bodies[0], 'allowedResources'), false);
+  assert.deepEqual(bodies[0].artifactDestination, contract().artifactDestination);
+});
+
+test('keeps a registered project resource selectable while host authentication remains unconfirmed', () => {
+  const root = new FakeElement('main');
+  const githubProfile = MANA_EXECUTION_PROFILES[0];
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    executionProfiles: MANA_EXECUTION_PROFILES,
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: { ...contract(), profileId: githubProfile.id } });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.state.connections.records = [
+    { id: 'github', label: 'GitHub', status: 'connected', resources: [{ id: 'github:repo:one', name: 'repo-one', status: 'verified' }] },
+    { id: 'drive', label: 'Google Drive', status: 'unconfirmed', resources: [{ id: 'drive:folder:one', name: 'reports' }] },
+  ];
+  ui.state.runs.records = [normalizeRun({ run: {
+    contract_id: 'contract-1', contract_version: 3, profile_id: githubProfile.id,
+    preflight: { available: true, checks: [] },
+  } })];
+  ui.render();
+
+  assert.match(root.textContent, /入力: この委任で選んだ会議資料 → Manaが生成: 決定事項・担当・期限をまとめた会議録 → 保存先: この契約で選ぶGitHubリポジトリ/);
+  assert.match(root.textContent, /GitHub: 接続確認済み/);
+  assert.match(root.textContent, /Google Drive: プロジェクト資源登録済み・接続未確認/);
+  assert.match(root.textContent, /事前確認: 実行可能/);
+  assert.match(root.textContent, /事前確認: 未確認/);
+  const destinationRadios = elements(root, (node) => node.attributes?.['data-picker'] === 'artifact-destination');
+  assert.deepEqual(destinationRadios.map((node) => node.attributes.value), ['github:repo:one', 'drive:folder:one']);
+});
+
+test('offers only the execution profiles the host passes', () => {
+  const root = new FakeElement('main');
+  const [onlyProfile] = MANA_EXECUTION_PROFILES;
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    executionProfiles: [onlyProfile],
+  });
+  ui.state.contract.status = 'ready';
+  ui.setActiveStage('contract');
+
+  const radios = elements(root, (node) => node.attributes?.name === 'manaExecutionProfile');
+  assert.deepEqual(radios.map((node) => node.attributes.value), [onlyProfile.id]);
+});
+
+test('project report uses GitHub only for input and Google Drive only for destination', () => {
+  const root = new FakeElement('main');
+  const profile = MANA_EXECUTION_PROFILES.find((item) => item.id === 'project_report_google_drive_v1');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    executionProfiles: MANA_EXECUTION_PROFILES,
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: { ...contract(), profileId: profile.id } });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.state.connections.records = [
+    { id: 'github', label: 'GitHub', status: 'connected', resources: [{ id: 'github://example/project/docs/report.md', name: 'report.md', status: 'verified', version: '0123456789abcdef0123456789abcdef01234567' }] },
+    { id: 'drive', label: 'Google Drive', status: 'connected', resources: [{ id: 'drive:folder:reports', name: 'reports', status: 'verified' }] },
+  ];
+  ui.render();
+
+  const visibleChoices = elements(root, (node) => node.className === 'outcome-mana-resource-choice' && node.hidden !== true);
+  const visibleInputs = visibleChoices.flatMap((choice) => choice.children.filter((node) => node.attributes?.['data-picker'] === 'input-reference'));
+  const visibleDestinations = visibleChoices.flatMap((choice) => choice.children.filter((node) => node.attributes?.['data-picker'] === 'artifact-destination'));
+  assert.deepEqual(visibleInputs.map((node) => node.attributes.value), ['github://example/project/docs/report.md']);
+  assert.deepEqual(visibleDestinations.map((node) => node.attributes.value), ['drive:folder:reports']);
+  assert.match(root.textContent, /0123456789abcdef0123456789abcdef01234567/);
+  assert.match(root.textContent, /入力 GitHub: 接続確認済み/);
+  assert.match(root.textContent, /保存先 Google Drive: 接続確認済み/);
+});
+
+test('keeps the stable resource ids from the runtime contract', () => {
+  const normalized = normalizeContract({ contract: {
+    ...contract(),
+    allowed_resources: ['github:repo:example/project', { resource_id: 'drive:folder:reports' }],
+  } });
+  assert.deepEqual(normalized.allowedResources, [
+    'github:repo:example/project',
+    { resource_id: 'drive:folder:reports' },
+  ]);
+});
+
+test('normalizes structured preflight recovery without losing reason, action, or resume point', () => {
+  const normalized = normalizeRun({ run: {
+    run_id: 'run-preflight', status: 'failed',
+    preflight: { available: false, checks: [{
+      check_id: 'artifact_adapter', status: 'failed', reason_code: 'adapter_missing',
+      required_action: 'register_artifact_adapter', resume_from: 'preflight',
+    }] },
+  } });
+  assert.deepEqual(normalized.preflight, {
+    available: false,
+    checks: [{
+      id: 'artifact_adapter', status: 'failed', reason: 'adapter_missing',
+      action: 'register_artifact_adapter', resumeFrom: 'preflight',
+    }],
+  });
+});
+
+test('preserves the runtime failure code and message for safe-test diagnosis', () => {
+  const normalized = normalizeRun({ run: {
+    run_id: 'run-failed', status: 'failed',
+    error_code: 'artifact_save_failed', error_message: 'github_destination_unavailable',
+  } });
+  assert.equal(normalized.errorCode, 'artifact_save_failed');
+  assert.equal(normalized.errorMessage, 'github_destination_unavailable');
+});
+
+test('preserves runtime failure details from the safe-test execution envelope', () => {
+  const normalized = normalizeRun({
+    test_id: 'test-failed', status: 'failed',
+    execution: {
+      runId: 'run-failed', status: 'failed',
+      errorCode: 'generation_failed', errorMessage: 'invalid_profile_input',
+    },
+  });
+  assert.equal(normalized.id, 'run-failed');
+  assert.equal(normalized.errorCode, 'generation_failed');
+  assert.equal(normalized.errorMessage, 'invalid_profile_input');
+});
+
+test('renders the runtime failure reason in the safe-test result', () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.safeTest.status = 'failed';
+  ui.state.safeTest.result = { run: {
+    run_id: 'run-failed', status: 'failed', contract_version: 2,
+    error_code: 'artifact_save_failed', error_message: 'github_destination_unavailable',
+  } };
+  ui.render();
+  assert.match(root.textContent, /artifact_save_failed/);
+  assert.match(root.textContent, /github_destination_unavailable/);
+});
+
+test('renders preflight recovery as user-facing Japanese guidance', () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+  });
+  ui.setActiveView('runs');
+  ui.state.runs.status = 'ready';
+  ui.state.runs.selectedId = 'run-preflight';
+  ui.state.runs.detail = normalizeRun({ run: {
+    run_id: 'run-preflight', status: 'failed',
+    preflight: { available: false, checks: [{
+      check_id: 'generator', status: 'unavailable', reason_code: 'generator_missing',
+      required_action: 'configure_generator', resume_from: 'generate',
+    }] },
+  } });
+  ui.render();
+  assert.match(root.textContent, /利用不可/);
+  assert.match(root.textContent, /成果を生成する機能が設定されていません/);
+  assert.match(root.textContent, /生成機能を設定/);
+  assert.match(root.textContent, /成果生成/);
+  assert.doesNotMatch(root.textContent, /configure_generator/);
+});
+
+test('shows failed preflight checks for the same isolated test run without a new submission', () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+  });
+  ui.setActiveView('safe_test');
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.safeTest.status = 'failed';
+  ui.state.safeTest.runId = 'run-preflight-safe';
+  ui.state.safeTest.result = { run: {
+    run_id: 'run-preflight-safe', status: 'failed', mode: 'safe_test', contract_version: 2,
+    error_code: 'configuration_incomplete', error_message: 'preflight_failed',
+    preflight: { available: false, checks: [{
+      check_id: 'artifact_destination', status: 'unavailable', reason_code: 'google_drive_mcp_not_configured',
+    }] },
+  } };
+  ui.render();
+  assert.match(root.textContent, /run-preflight-safe/);
+  assert.match(root.textContent, /実行前チェック/);
+  assert.match(root.textContent, /artifact_destination/);
+  assert.match(root.textContent, /google_drive_mcp_not_configured/);
+});
+
+test('lets a contract select only connected resources and preserves existing unknown references', () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    executionProfiles: MANA_EXECUTION_PROFILES,
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: {
+    ...contract(),
+    input_refs: [{ id: 'legacy:input:keep', version: 'v2' }],
+    allowed_resources: ['legacy:resource:keep'],
+  } });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.state.connections.records = [
+    { id: 'github', label: 'GitHub', status: 'connected', resources: [
+      { id: 'github:repo:one', name: 'repo-one', status: 'verified' },
+      { id: 'github:repo:hidden', name: 'repo-hidden', status: 'failed' },
+    ] },
+    { id: 'drive', label: 'Google Drive', status: 'unconfirmed', resources: [{ id: 'drive:folder:hidden', name: 'hidden', status: 'failed' }] },
+  ];
+  ui.render();
+
+  const choices = elements(root, (node) => node.attributes['data-picker'] === 'allowed-resource');
+  assert.deepEqual(choices.map((node) => node.attributes.value), ['github:repo:one']);
+  const inputChoices = elements(root, (node) => node.attributes['data-picker'] === 'input-reference');
+  assert.deepEqual(inputChoices.map((node) => node.attributes.value), ['github:repo:one']);
+  const destinations = elements(root, (node) => node.attributes['data-picker'] === 'artifact-destination');
+  assert.deepEqual(destinations.map((node) => node.attributes.value), ['github:repo:one']);
+  assert.match(root.textContent, /既存の入力参照を保持（現在は未確認）: legacy:input:keep/);
+  assert.match(root.textContent, /既存参照を保持（現在は未確認）: legacy:resource:keep/);
+  assert.doesNotMatch(root.textContent, /drive:folder:hidden/);
+  assert.doesNotMatch(root.textContent, /github:repo:hidden/);
+});
+
+test('saves an existing contract with its unlisted destination unchanged', async () => {
+  const root = new FakeElement('main');
+  const original = {
+    ...contract(),
+    profileId: 'meeting_minutes_github_v1',
+    inputRefs: [{ id: 'github://example/repo/transcript.txt', version: null }],
+    allowedResources: ['github:repo:example/repo'],
+    artifactDestination: { adapterId: 'github', location: 'github://example/repo/meetings', environment: 'isolated' },
+  };
+  const mutations = [];
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    executionProfiles: MANA_EXECUTION_PROFILES,
+    api: async () => ({ contract: { ...original, ...mutations[0], version: 4 } }),
+    apiMutation: async (_path, request) => {
+      mutations.push(request.body);
+      return { contract: { ...original, ...request.body, version: 4 } };
+    },
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: original });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.state.connections.records = [{ id: 'github', label: 'GitHub', status: 'connected', resources: [
+    { id: 'github://example/repo/transcript.txt', adapterId: 'github', status: 'verified' },
+    { id: 'github:repo:example/repo', adapterId: 'github', status: 'verified' },
+  ] }];
+  ui.render();
+
+  const environment = elements(root, (node) => node.attributes?.name === 'environment')[0];
+  const form = elements(root, (node) => node.attributes?.['aria-label'] === '成果契約の編集')[0];
+  form.children.find = undefined; // HTMLCollection in a browser has no find method.
+  environment.value = 'production';
+  elements(root, (node) => node.attributes?.['aria-label'] === '成果契約の下書きを保存')[0].click();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(mutations.length, 0, 'changing an unlisted destination environment must require reselecting a destination');
+  assert.match(root.textContent, /GitHubの保存先を選んでください/);
+  elements(root, (node) => node.attributes?.['aria-label'] === '成果契約の下書きを保存')[0].click();
+  assert.equal(elements(root, (node) => node.attributes?.['data-profile-form-error'] === 'true').length, 1);
+  environment.value = 'isolated';
+  const timeout = elements(root, (node) => node.attributes?.name === 'timeoutMs')[0];
+  timeout.value = '300000';
+  elements(root, (node) => node.attributes?.['aria-label'] === '成果契約の下書きを保存')[0].click();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(mutations.length, 1);
+  assert.deepEqual(mutations[0].artifactDestination, original.artifactDestination);
+  assert.equal(mutations[0].profileId, 'meeting_minutes_github_v1');
+  assert.deepEqual(mutations[0].allowedResources, ['github:repo:example/repo']);
+  assert.equal(mutations[0].limits.timeoutMs, 300000);
+  assert.equal(ui.state.contract.status, 'ready');
+  assert.deepEqual(ui.state.contract.detail.artifactDestination, original.artifactDestination);
+});
+
+test('offers first authority creation only after the server confirms an explicit empty matrix', () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.state.authority = { status: 'empty', matrix: [] };
+  ui.setActiveStage('authority');
+  assert.match(root.textContent, /最初の権限を追加/);
+
+  ui.state.authority = { status: 'unknown', matrix: [] };
+  ui.render();
+  assert.doesNotMatch(root.textContent, /最初の権限を追加/);
+});
+
+test('loads authority when the authority workflow stage is opened for the first time', async () => {
+  const root = new FakeElement('main');
+  const calls = [];
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: { code: 'project-1' },
+    session: { role: 'owner' },
+    autoLoad: false,
+    api: async (path) => {
+      calls.push(path);
+      return { authorities: [] };
+    },
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.setActiveStage('triggers');
+
+  const authorityStage = elements(root, (node) => node.tagName === 'BUTTON' && node.attributes['aria-label'] === '権限 / 待機中')[0];
+  authorityStage.click();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls, ['/api/outcome-delegations/contract-1/authority?project_code=project-1&contractVersion=3']);
+  assert.equal(ui.state.authority.status, 'empty');
+  assert.match(root.textContent, /最初の権限を追加/);
+});
+
+test('clears authority on contract changes and ignores a late response for the previous contract', async () => {
+  const root = new FakeElement('main');
+  let resolveAuthority;
+  const authorityResponse = new Promise((resolve) => { resolveAuthority = resolve; });
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: { code: 'project-1' },
+    session: { role: 'owner' },
+    autoLoad: false,
+    api: async (path) => {
+      if (path.includes('/authority')) return authorityResponse;
+      const id = path.includes('contract-2') ? 'contract-2' : 'contract-1';
+      return { contract: { ...contract(), contract_id: id } };
+    },
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.state.authority = { status: 'ready', matrix: [{ operation: 'old-operation' }] };
+
+  const pending = ui.loadAuthority('contract-1');
+  await ui.loadContractDetail('contract-2');
+  assert.equal(ui.state.authority.status, 'idle');
+  assert.deepEqual(ui.state.authority.matrix, []);
+
+  resolveAuthority({ authorities: [{ operation: 'late-operation' }] });
+  await pending;
+  assert.equal(ui.state.authority.status, 'idle');
+  assert.deepEqual(ui.state.authority.matrix, []);
+});
+
+test('clears cached authority when the same contract id refreshes to a new version', async () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: { code: 'project-1' },
+    session: { role: 'owner' },
+    autoLoad: false,
+    api: async () => ({ contract: { ...contract(), version: 4 } }),
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: { ...contract(), version: 3 } });
+  ui.state.contract.selectedId = 'contract-1';
+  ui.state.authority = { status: 'ready', matrix: [{ operation: 'stale-operation' }] };
+
+  await ui.loadContractDetail('contract-1');
+
+  assert.equal(ui.state.contract.detail.version, 4);
+  assert.equal(ui.state.authority.status, 'idle');
+  assert.deepEqual(ui.state.authority.matrix, []);
+});
+
+test('does not reload or accept old authority while the selected contract detail is loading', async () => {
+  const root = new FakeElement('main');
+  let resolveDetail;
+  let resolveAuthority;
+  const detailResponse = new Promise((resolve) => { resolveDetail = resolve; });
+  const authorityResponse = new Promise((resolve) => { resolveAuthority = resolve; });
+  const calls = [];
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: { code: 'project-1' },
+    session: { role: 'owner' },
+    autoLoad: false,
+    api: async (path) => {
+      calls.push(path);
+      if (path.includes('/authority')) return authorityResponse;
+      if (path.includes('contract-2')) return detailResponse;
+      return { contract: contract() };
+    },
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.records = [normalizeContract({ contract: contract() }), normalizeContract({ contract: { ...contract(), contract_id: 'contract-2' } })];
+  ui.state.contract.selectedId = 'contract-1';
+
+  const oldAuthority = ui.loadAuthority('contract-1');
+  const newDetail = ui.loadContractDetail('contract-2');
+  ui.setActiveStage('triggers');
+  const authorityStage = elements(root, (node) => node.tagName === 'BUTTON' && node.attributes['aria-label'] === '権限 / 待機中')[0];
+  authorityStage.click();
+  assert.equal(calls.filter((path) => path.includes('/authority')).length, 1);
+
+  resolveAuthority({ authorities: [{ operation: 'late-operation' }] });
+  await oldAuthority;
+  assert.equal(ui.state.authority.status, 'idle');
+  assert.deepEqual(ui.state.authority.matrix, []);
+
+  resolveDetail({ contract: { ...contract(), contract_id: 'contract-2' } });
+  await newDetail;
+  assert.equal(ui.state.contract.detail.contractId, 'contract-2');
+  assert.equal(ui.state.authority.status, 'idle');
+});
+
+test('ignores a late contract-detail error after a newer contract has loaded', async () => {
+  const root = new FakeElement('main');
+  let rejectOldDetail;
+  const oldDetail = new Promise((resolve, reject) => { rejectOldDetail = reject; });
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: { code: 'project-1' },
+    session: { role: 'owner' },
+    autoLoad: false,
+    api: async (path) => path.includes('contract-1')
+      ? oldDetail
+      : { contract: { ...contract(), contract_id: 'contract-2' } },
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+
+  const staleRequest = ui.loadContractDetail('contract-1');
+  await ui.loadContractDetail('contract-2');
+  rejectOldDetail(new Error('late contract failure'));
+  await staleRequest;
+
+  assert.equal(ui.state.contract.status, 'ready');
+  assert.equal(ui.state.contract.detail.contractId, 'contract-2');
+  assert.equal(ui.state.contract.error, null);
+});
+
+test('ignores the first authority response after switching away and back to the same contract', async () => {
+  const root = new FakeElement('main');
+  let resolveFirstAuthority;
+  const firstAuthority = new Promise((resolve) => { resolveFirstAuthority = resolve; });
+  let authorityCalls = 0;
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: { code: 'project-1' },
+    session: { role: 'owner' },
+    autoLoad: false,
+    api: async (path) => {
+      if (path.includes('/authority')) {
+        authorityCalls += 1;
+        if (authorityCalls === 1) return firstAuthority;
+        return { authorities: [{ operation: 'current-operation' }] };
+      }
+      const id = path.includes('contract-2') ? 'contract-2' : 'contract-1';
+      return { contract: { ...contract(), contract_id: id } };
+    },
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+
+  const staleAuthority = ui.loadAuthority('contract-1');
+  await ui.loadContractDetail('contract-2');
+  await ui.loadContractDetail('contract-1');
+  await ui.loadAuthority('contract-1');
+  resolveFirstAuthority({ authorities: [{ operation: 'stale-operation' }] });
+  await staleAuthority;
+
+  assert.equal(ui.state.authority.status, 'ready');
+  assert.deepEqual(ui.state.authority.matrix.map((entry) => entry.operation), ['current-operation']);
 });
 
 test('explains budget units as external provider calls rather than money', () => {
@@ -415,6 +995,245 @@ test('explains that local preview results are not live connection evidence', asy
   await ui.loadConnections();
 
   assert.match(root.textContent, /ローカルプレビューでは実接続を確認できません/);
+});
+
+test('reads both the primary Drive folder and an additional artifact destination as project resources', () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root,
+    project: {
+      code: 'project-1', name: 'Project',
+      foundation_values: { drive: { identifier: 'project-root' }, drive_destination: { identifier: 'mana-output' } },
+      resources: { drive: { items: [{ identifier: 'project-root', label: '共有フォルダ' }, { identifier: 'mana-output', label: 'Mana成果物' }] } },
+    },
+    session: { role: 'owner', actorId: 'actor-1' }, autoLoad: false,
+  });
+  ui.setActiveView('connections');
+  assert.match(root.textContent, /共有フォルダ/);
+  assert.match(root.textContent, /Mana成果物/);
+});
+
+// A host that manages connection authentication itself. It passes its own
+// connector list and brand icons, reports only connection status, and names
+// the source of each project resource.
+const HOST_CONNECTORS = [
+  { id: 'github', label: 'GitHub', description: 'コード・ドキュメントの参照', icon: '/host-icons/github.png' },
+  { id: 'gmail', label: 'Gmail', description: 'メールの下書き作成', icon: '/host-icons/gmail.png' },
+  { id: 'calendar', label: 'Google Calendar', description: '予定の参照', icon: '/host-icons/calendar.png' },
+  { id: 'drive', label: 'Google Drive', description: 'ファイルの参照', icon: '/host-icons/drive.png' },
+  { id: 'slack', label: 'Slack', description: '通知・承認・文書イベント', icon: '/host-icons/slack.png' },
+  { id: 'brainbase', label: 'Brainbase Graph', description: '知識・判断の参照', icon: '/icons/mana/affiliate.svg' },
+  { id: 'mana', label: 'Mana runtime', description: '委任の実行基盤', icon: '/icons/mana/cpu.svg' },
+];
+const HOST_CONNECTION_IDS = ['github', 'gmail', 'calendar', 'drive', 'slack'];
+const HOST_CONNECTION_STATUS = [
+  { id: 'github', status: 'connected', account: 'example-org' },
+  { id: 'gmail', status: 'connected', account: 'owner@example.com' },
+  { id: 'calendar', status: 'connected', account: 'owner@example.com' },
+  { id: 'drive', status: 'connected', account: 'owner@example.com' },
+  { id: 'slack', status: 'unconfirmed', reason: 'host_connection_pending' },
+];
+
+function hostCatalog(load, overrides = {}) {
+  return {
+    ids: HOST_CONNECTION_IDS,
+    load,
+    labels: { slack: 'Slack App' },
+    sourceLabel: (id) => ({ github: 'GitHub App', slack: 'Slack App' })[id] ?? (HOST_CONNECTION_IDS.includes(id) ? HOST_CONNECTORS.find((item) => item.id === id).label : 'ホスト内部基盤'),
+    reasonLabels: { host_connection_pending: 'ホストで接続を準備中です' },
+    copy: {
+      connectionsTitle: '1. チームの接続',
+      connectionsDescription: 'チーム管理者が認証した外部サービスです。',
+      resourcesDescription: 'チームの接続から選んだ資源です。',
+      manageNote: '認証の変更はチームのアプリ管理で行います。',
+      manageAction: 'アプリで接続・管理',
+      noSelectableResources: 'チームの接続を先に確認してください。',
+    },
+    ...overrides,
+  };
+}
+
+test('reads host connections separately from registered project resources', async () => {
+  const root = new FakeElement('main');
+  const calls = [];
+  const loadContexts = [];
+  let openedConnection = null;
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: {
+      code: 'project-1',
+      foundation_values: { github: [{ identifier: 'example/project' }], google_drive: 'drive-folder-1' },
+    },
+    session: { role: 'owner', actorId: 'actor-1' },
+    connectors: HOST_CONNECTORS,
+    connectionCatalog: hostCatalog(async (context) => {
+      loadContexts.push(context);
+      calls.push('host-status');
+      return HOST_CONNECTION_STATUS;
+    }),
+    paths: { foundationCheck: () => '/must-not-be-called' },
+    apiMutation: async (path) => { calls.push(path); return {}; },
+    onManageConnection: (connectorId) => { openedConnection = connectorId; },
+    autoLoad: false,
+  });
+
+  ui.setActiveView('connections');
+  await ui.loadConnections();
+
+  assert.deepEqual(calls, ['host-status']);
+  assert.equal(loadContexts[0].project.code, 'project-1');
+  assert.equal(loadContexts[0].session.actorId, 'actor-1');
+  assert.equal(ui.state.connections.status, 'ready');
+  assert.deepEqual(ui.state.connections.records.map((item) => item.id), HOST_CONNECTION_IDS);
+  assert.deepEqual(ui.state.connections.records.map((item) => item.status), [
+    'connected', 'connected', 'connected', 'connected', 'unconfirmed',
+  ]);
+  assert.deepEqual(ui.state.connections.records.map((item) => item.account), [
+    'example-org', 'owner@example.com', 'owner@example.com', 'owner@example.com', null,
+  ]);
+  assert.deepEqual(ui.state.connections.records.map((item) => item.resources.map((resource) => resource.id)), [
+    ['github:repo:example/project'], [], [], ['drive:folder:drive-folder-1'], [],
+  ]);
+  assert.equal(ui.state.connections.records[4].label, 'Slack App');
+  assert.match(root.textContent, /接続確認済み/);
+  assert.match(root.textContent, /Gmail/);
+  assert.match(root.textContent, /Google Calendar/);
+  assert.match(root.textContent, /1\. チームの接続/);
+  assert.match(root.textContent, /チーム管理者が認証した外部サービスです。/);
+  assert.match(root.textContent, /2\. このプロジェクトで使う資源/);
+  assert.match(root.textContent, /チームの接続から選んだ資源です。/);
+  assert.match(root.textContent, /3\. 委任単位の許可範囲/);
+  assert.match(root.textContent, /このプロジェクトで利用/);
+  assert.match(root.textContent, /接続元GitHub App/);
+  assert.match(root.textContent, /接続元ホスト内部基盤/);
+  assert.match(root.textContent, /example\/project/);
+  assert.match(root.textContent, /drive-folder-1/);
+  assert.match(root.textContent, /owner@example\.com/);
+  assert.match(root.textContent, /認証の変更はチームのアプリ管理で行います。/);
+  assert.doesNotMatch(root.textContent, /1\. 接続/);
+  assert.doesNotMatch(root.textContent, /確認設定なし/);
+  const icons = elements(root, (node) => node.tagName === 'IMG' && node.className === 'outcome-mana-connector-icon');
+  assert.deepEqual([...new Set(icons.map((node) => node.attributes.src))], HOST_CONNECTORS.map((item) => item.icon));
+
+  elements(root, (node) => node.textContent === 'アプリで接続・管理')[0].click();
+  assert.equal(openedConnection, 'github');
+
+  const connectionRows = elements(root, (node) => node.attributes.role === 'row' && node.tagName === 'BUTTON');
+  connectionRows.find((node) => node.textContent.includes('Slack App')).click();
+  assert.match(root.textContent, /ホストで接続を準備中です/);
+  assert.doesNotMatch(root.textContent, /host_connection_pending/);
+});
+
+test('keeps the default connection view and foundation checks without a host connection catalog', async () => {
+  const root = new FakeElement('main');
+  const calls = [];
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' },
+    paths: { foundationCheck: (_unused, params = {}) => `/foundations/${params.kind}/check` },
+    apiMutation: async (path) => { calls.push(path); return { status: 'verified' }; },
+    onManageConnection: () => { throw new Error('must not be offered'); },
+    autoLoad: false,
+  });
+
+  ui.setActiveView('connections');
+  await ui.loadConnections();
+
+  assert.equal(calls.length, 5);
+  assert.match(root.textContent, /登録資源/);
+  assert.doesNotMatch(root.textContent, /このプロジェクトで利用/);
+  assert.doesNotMatch(root.textContent, /2\. このプロジェクトで使う資源/);
+  assert.equal(elements(root, (node) => node.tagName === 'BUTTON' && node.textContent === '接続を管理').length, 0);
+});
+
+test('loads host connections before showing profile availability in a new delegation', async () => {
+  const root = new FakeElement('main');
+  const calls = [];
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: {
+      code: 'project-1',
+      foundation_values: { github: [{ identifier: 'example/project' }], google_drive: 'drive-folder-1' },
+    },
+    session: { role: 'owner', actorId: 'actor-1' },
+    connectors: HOST_CONNECTORS,
+    connectionCatalog: hostCatalog(async () => { calls.push('host-status'); return { connections: HOST_CONNECTION_STATUS }; }),
+    executionProfiles: MANA_EXECUTION_PROFILES,
+    autoLoad: false,
+  });
+  ui.state.contract.status = 'ready';
+  ui.render();
+
+  const createButton = elements(root, (node) => node.textContent === '新しい委任を作成')[0];
+  createButton.click();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.deepEqual(calls, ['host-status']);
+  assert.equal(ui.state.connections.status, 'ready');
+  assert.match(root.textContent, /入力 GitHub: 接続確認済み/);
+  assert.match(root.textContent, /保存先 Google Drive: 接続確認済み/);
+  assert.doesNotMatch(root.textContent, /未登録のため利用不可/);
+  const projectResources = elements(root, (node) => node.tagName === 'INPUT'
+    && node.attributes.type === 'checkbox'
+    && ['github:repo:example/project', 'drive:folder:drive-folder-1'].includes(node.attributes.value));
+  assert.deepEqual([...new Set(projectResources.map((node) => node.attributes.value))].sort(), [
+    'drive:folder:drive-folder-1',
+    'github:repo:example/project',
+  ]);
+  assert.doesNotMatch(root.textContent, /接続済み資源がありません/);
+});
+
+test('uses the host wording when a profile form has no selectable connection resources', () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    connectionCatalog: hostCatalog(async () => []),
+    executionProfiles: MANA_EXECUTION_PROFILES,
+  });
+  ui.state.contract.status = 'ready';
+  ui.setActiveStage('contract');
+  assert.match(root.textContent, /チームの接続を先に確認してください。/);
+  assert.doesNotMatch(root.textContent, /先に「接続状態」で接続とプロジェクト資源を確認してください。/);
+});
+
+test('keeps host connection failures unknown without inventing a verification time', async () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root,
+    project: { code: 'project-1' },
+    connectors: HOST_CONNECTORS,
+    connectionCatalog: hostCatalog(async () => {
+      throw Object.assign(new Error('upstream unavailable'), { code: 'upstream_unavailable', status: 503 });
+    }),
+    autoLoad: false,
+  });
+
+  ui.setActiveView('connections');
+  await ui.loadConnections();
+
+  assert.equal(ui.state.connections.status, 'error');
+  assert.deepEqual(ui.state.connections.records.map((item) => item.id), HOST_CONNECTION_IDS);
+  assert.ok(ui.state.connections.records.every((item) => item.checkedAt === null && item.status === 'failed'));
+  assert.equal(ui.state.connections.records[0].reason, 'upstream_unavailable');
+  assert.match(root.textContent, /確認失敗/);
+  assert.match(root.textContent, /未確認/);
+  assert.match(root.textContent, /接続先へ到達できませんでした/);
+});
+
+test('shows host connections as unconfirmed before their status is loaded', () => {
+  const root = new FakeElement('main');
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, autoLoad: false,
+    connectors: HOST_CONNECTORS,
+    connectionCatalog: hostCatalog(async () => HOST_CONNECTION_STATUS),
+  });
+  ui.setActiveView('connections');
+  const rows = elements(root, (node) => node.attributes.role === 'row' && node.tagName === 'BUTTON');
+  assert.equal(rows.length, HOST_CONNECTION_IDS.length);
+  assert.match(root.textContent, /Slack App/);
+  assert.doesNotMatch(root.textContent, /接続確認済み/);
 });
 
 test('builds the BFF-safe endpoint prefix with project query context', () => {
@@ -898,6 +1717,9 @@ test('reads authority and runs from the selected contract and verifies an exact 
     apiMutation: async (path, request) => { calls.push(['PUT', path, request.body]); return { ok: true }; },
     autoLoad: false,
   });
+  // Authority is version-bound, so it is read only for a contract detail that
+  // has finished loading.
+  controller.state.contract.status = 'ready';
   controller.state.contract.detail = normalizeContract({ contract: contract() });
   controller.state.contract.selectedId = 'contract-1';
   const authorityReadback = await controller.loadAuthority();
@@ -955,6 +1777,104 @@ test('uses injected API callbacks and never treats an unexecuted safe test as su
   assert.equal(decisionCall.request.body.decision, 'approve');
   assert.equal(decisionCall.request.body.approvalId, 'approval-1');
   assert.equal(decisionCall.request.body.expected_version, undefined);
+});
+
+test('safe test follows one accepted run to a terminal result without another POST', async () => {
+  const timers = [];
+  const calls = [];
+  let status = 'running';
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root: new FakeElement('main'), project: { code: 'project-1' },
+    session: { role: 'owner' }, autoLoad: false,
+    setTimeout: (callback) => { timers.push(callback); return timers.length; },
+    clearTimeout: () => {},
+    api: async (path) => {
+      calls.push(['GET', path]);
+      return { run: { runId: 'run-safe-1', contractId: 'contract-1', mode: 'safe_test', status,
+        safeTest: { configHash: 'sha256:same', currentConfigHash: 'sha256:same' } } };
+    },
+    apiMutation: async (path) => { calls.push(['POST', path]); return { run: { runId: 'run-safe-1', status: 'queued' } }; },
+  });
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+  await ui.runSafeTest({ contractVersion: 3, sampleInput: 'sample' });
+  assert.equal(ui.state.safeTest.status, 'completion_unverified');
+  assert.equal(timers.length, 1);
+  status = 'completed_verified';
+  await timers.shift()();
+  assert.equal(ui.state.safeTest.status, 'verified');
+  assert.equal(timers.length, 0);
+  assert.equal(calls.filter(([method]) => method === 'POST').length, 1);
+  assert.deepEqual(calls.filter(([method]) => method === 'GET').map(([, path]) => path),
+    ['/api/outcome-delegations/runs/run-safe-1?project_code=project-1', '/api/outcome-delegations/runs/run-safe-1?project_code=project-1']);
+});
+
+test('safe test restores its scoped run ID and readback never creates a second test', async () => {
+  const saved = new Map();
+  const storage = {
+    getItem: (key) => saved.get(key) ?? null,
+    setItem: (key, value) => saved.set(key, value),
+  };
+  let posts = 0;
+  const options = {
+    document: fakeDocument, root: new FakeElement('main'), project: { code: 'project-1' },
+    session: { role: 'owner', actorId: 'actor-1' }, autoLoad: false, sessionStorage: storage,
+    setTimeout: () => 1, clearTimeout: () => {},
+    api: async (path) => path.includes('/runs/run-safe-1')
+      ? { run: { runId: 'run-safe-1', contractId: 'contract-1', mode: 'safe_test', status: 'failed', errorCode: 'test_failed' } }
+      : { contract: contract() },
+    apiMutation: async () => { posts += 1; return { run: { runId: 'run-safe-1', status: 'queued' } }; },
+  };
+  const first = createManaOutcomeUI(options);
+  first.state.contract.detail = normalizeContract({ contract: contract() });
+  first.state.contract.selectedId = 'contract-1';
+  await first.runSafeTest({ contractVersion: 3, sampleInput: 'sample' });
+  const second = createManaOutcomeUI(options);
+  await second.loadContractDetail('contract-1');
+  assert.equal(second.state.safeTest.status, 'failed');
+  await second.refreshSafeTestReadback();
+  second.setActiveStage('safe_test');
+  assert.equal(posts, 1);
+  assert.match(options.root.textContent, /test_failed/);
+
+  const otherProject = createManaOutcomeUI({ ...options, project: { code: 'project-2' } });
+  await otherProject.loadContractDetail('contract-1');
+  assert.equal(otherProject.state.safeTest.runId, null);
+  const otherActor = createManaOutcomeUI({ ...options, session: { role: 'owner', actorId: 'actor-2' } });
+  await otherActor.loadContractDetail('contract-1');
+  assert.equal(otherActor.state.safeTest.runId, null);
+});
+
+test('safe test keeps the accepted ID but stops automatic readback on a GET failure', async () => {
+  let posts = 0;
+  const timers = [];
+  const root = new FakeElement('main');
+  let failReadback = true;
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' },
+    session: { role: 'owner' }, autoLoad: false,
+    setTimeout: (callback) => { timers.push(callback); return timers.length; }, clearTimeout: () => {},
+    api: async () => {
+      if (failReadback) throw Object.assign(new Error('readback unavailable'), { code: 'upstream_unavailable', status: 503 });
+      return { run: { runId: 'run-safe-1', contractId: 'contract-1', mode: 'safe_test', status: 'failed', errorCode: 'test_failed' } };
+    },
+    apiMutation: async () => { posts += 1; return { run: { runId: 'run-safe-1', status: 'queued' } }; },
+  });
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+  await ui.runSafeTest({ contractVersion: 3, sampleInput: 'sample' });
+  assert.equal(ui.state.safeTest.runId, 'run-safe-1');
+  assert.equal(ui.state.safeTest.status, 'unknown');
+  assert.equal(timers.length, 0);
+  assert.match(root.textContent, /upstream_unavailable/);
+  assert.match(root.textContent, /503/);
+  assert.match(root.textContent, /readback unavailable/);
+  failReadback = false;
+  await ui.refreshSafeTestReadback();
+  assert.equal(posts, 1);
+  assert.equal(ui.state.safeTest.status, 'failed');
+  assert.equal(ui.state.safeTest.error, null);
+  assert.match(root.textContent, /test_failed/);
 });
 
 test('binds the safe-test success label and activation gate to the server configuration hash', async () => {
@@ -1041,6 +1961,63 @@ test('explains a safe-test whose completion is still unverified', async () => {
   assert.match(root.textContent, /完了条件の検証結果を確認できていません/);
 });
 
+test('shows the raw safe-test state and diagnostic fields without another POST', async () => {
+  const root = new FakeElement('main');
+  let posts = 0;
+  let readbackState = 'running';
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    setTimeout: () => 1, clearTimeout: () => {},
+    api: async () => ({ run: {
+      runId: 'run-safe-diagnostic', contractId: 'contract-1', contractVersion: 3,
+      mode: 'safe_test', status: readbackState, stage: 'generate',
+      errorCode: readbackState === 'completion_unverified' ? 'completion_not_verified' : '',
+      errorMessage: readbackState === 'completion_unverified' ? 'artifact_readback_missing' : '',
+    } }),
+    apiMutation: async () => { posts += 1; return { run: { runId: 'run-safe-diagnostic', status: 'queued' } }; },
+  });
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+
+  await ui.runSafeTest({ contractVersion: 3, sampleInput: 'sample' }, 'contract-1');
+  assert.match(root.textContent, /Mana実行状態実行中/);
+  assert.match(root.textContent, /現在の段階成果生成/);
+  readbackState = 'completion_unverified';
+  await ui.refreshSafeTestReadback();
+  assert.match(root.textContent, /Mana実行状態完了未確認/);
+  assert.match(root.textContent, /completion_not_verified/);
+  assert.match(root.textContent, /artifact_readback_missing/);
+  assert.equal(posts, 1);
+});
+
+test('shows Mana criteria and artifact readback without exposing observed content', async () => {
+  const root = new FakeElement('main');
+  let posts = 0;
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    api: async () => ({ run: {
+      runId: 'run-safe-criteria', contractId: 'contract-1', contractVersion: 3,
+      mode: 'safe_test', status: 'completion_unverified',
+      artifact: {
+        saveReceipt: { artifactId: 'isolated-artifact-1' },
+        readback: { artifactId: 'isolated-artifact-1', verified: true, content: 'private generated report' },
+      },
+      criteria: [{ id: 'required-heading', status: 'failed', reason: 'expected_content_not_found', observed: 'private generated report' }],
+    } }),
+    apiMutation: async () => { posts += 1; return { run: { runId: 'run-safe-criteria', status: 'queued' } }; },
+  });
+  ui.state.contract.detail = normalizeContract({ contract: contract() });
+  ui.state.contract.selectedId = 'contract-1';
+
+  await ui.runSafeTest({ contractVersion: 3, sampleInput: 'sample' }, 'contract-1');
+  assert.match(root.textContent, /隔離成果物の読戻し検証済み/);
+  assert.match(root.textContent, /isolated-artifact-1/);
+  assert.match(root.textContent, /required-heading/);
+  assert.match(root.textContent, /expected_content_not_found/);
+  assert.doesNotMatch(root.textContent, /private generated report/);
+  assert.equal(posts, 1);
+});
+
 test('restores the latest server safe-test state when run history is loaded', async () => {
   const root = new FakeElement('main');
   const ui = createManaOutcomeUI({
@@ -1060,6 +2037,23 @@ test('restores the latest server safe-test state when run history is loaded', as
 
   ui.setActiveStage('safe_test');
   assert.match(root.textContent, /この設定で試験済み/);
+});
+
+test('selects the latest run by creation time even when an older run was updated later', async () => {
+  const root = new FakeElement('main');
+  const runs = [
+    { runId: 'run-old', contractId: 'contract-1', status: 'running', createdAt: '2026-09-20T01:00:00Z', updatedAt: '2026-09-20T03:00:00Z' },
+    { runId: 'run-new', contractId: 'contract-1', status: 'queued', createdAt: '2026-09-20T02:00:00Z', updatedAt: '2026-09-20T02:00:00Z' },
+  ];
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root, project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    api: async (path) => path.includes('/contract-1/runs') ? { runs } : { run: runs.find((run) => path.includes(run.runId)) },
+    apiMutation: async () => ({}),
+  });
+
+  await ui.loadRuns('contract-1');
+  assert.equal(ui.state.runs.selectedId, 'run-new');
+  assert.equal(ui.state.runs.detail.id, 'run-new');
 });
 
 test('normalizes the exact approval target without substituting missing values', () => {
@@ -1267,6 +2261,28 @@ test('does not turn an unconfirmed contract list into an empty-state creation fl
   assert.doesNotMatch(root.textContent, /委任はありません|成果契約を入力する/);
 });
 
+test('styles the profile, resource, preflight, and project-resource markup', () => {
+  const css = readFileSync(new URL('../../ui/outcome-mana.css', import.meta.url), 'utf8');
+  for (const selector of [
+    '.outcome-mana-profile-picker',
+    '.outcome-mana-profile-card',
+    '.outcome-mana-profile-statuses',
+    '.outcome-mana-resource-picker',
+    '.outcome-mana-resource-choices',
+    '.outcome-mana-resource-choice',
+    '.outcome-mana-resource-version',
+    '.outcome-mana-resource-preserved',
+    '.outcome-mana-resource-picker-value[hidden]',
+    '.outcome-mana-preflight-list',
+    '.outcome-mana-preflight-item',
+    '.outcome-mana-resource-section',
+    '.outcome-mana-project-resource-grid',
+    '.outcome-mana-project-resource-card',
+  ]) {
+    assert.ok(css.includes(`${selector} {`) || css.includes(`${selector},`), `${selector} should be styled`);
+  }
+});
+
 test('stacks Mana detail rails below 920px so medium-width screens retain access', () => {
   const css = readFileSync(new URL('../../ui/outcome-mana.css', import.meta.url), 'utf8');
   const responsive = css.match(/@media \(max-width: 920px\) \{([\s\S]*?)\n\}/)?.[1];
@@ -1305,6 +2321,68 @@ test('keeps a saved contract unverified when exact readback identity, version, o
     const result = await controller.saveContractDraft(contract(), { create: true });
     assert.equal(result.status, 'saved_unverified', name);
   }
+});
+
+test('keeps a saved contract unverified when allowed resource readback differs', async () => {
+  const requested = { ...contract(), allowed_resources: ['github:repo:expected'] };
+  const saved = { ...requested, version: 4 };
+  const readback = { ...saved, allowed_resources: ['github:repo:different'] };
+  const controller = createManaOutcomeUI({
+    document: fakeDocument,
+    root: new FakeElement('div'),
+    project: { code: 'project-1', name: 'Project' },
+    session: { actorId: 'actor-1', role: 'owner' },
+    api: async () => ({ contract: readback }),
+    apiMutation: async () => ({ contract: saved }),
+    autoLoad: false,
+  });
+  const result = await controller.saveContractDraft(requested, { create: true });
+  assert.equal(result.status, 'saved_unverified');
+});
+
+test('persists profileId and verifies that the same profile returns on contract readback', async () => {
+  const profileId = 'meeting_minutes_github_v1';
+  const requested = {
+    ...contract(),
+    profileId,
+    inputRefs: [{ id: 'github:repo:meeting-notes', version: null }],
+    allowedResources: ['github:repo:meeting-notes'],
+    artifactDestination: { adapterId: 'github', location: 'github:repo:meeting-notes', environment: 'isolated' },
+  };
+  const saved = { ...requested, version: 4 };
+  let mutationBody;
+  const ui = createManaOutcomeUI({
+    document: fakeDocument,
+    root: new FakeElement('div'),
+    project: { code: 'project-1', name: 'Project' },
+    session: { actorId: 'actor-1', role: 'owner' },
+    api: async () => ({ contract: saved }),
+    apiMutation: async (_path, request) => {
+      mutationBody = request.body;
+      return { contract: saved, readback_verified: true };
+    },
+    autoLoad: false,
+  });
+  const result = await ui.saveContractDraft(requested, { create: true });
+  assert.equal(result.status, 'ready');
+  assert.equal(mutationBody.profileId, profileId);
+  assert.equal(ui.state.contract.detail.profileId, profileId);
+});
+
+test('keeps the profile and allowed resources when a trigger save sends the whole contract', async () => {
+  let body;
+  const current = { ...contract(), profileId: 'meeting_minutes_github_v1', allowedResources: ['github:repo:example/project'] };
+  const ui = createManaOutcomeUI({
+    document: fakeDocument, root: new FakeElement('div'), project: { code: 'project-1' }, session: { role: 'owner' }, autoLoad: false,
+    api: async () => ({ schedules: [], subscriptions: [] }),
+    apiMutation: async (_path, request) => { body = request.body; return { contract: { ...current, version: 4 }, readback_verified: true }; },
+  });
+  ui.state.contract.status = 'ready';
+  ui.state.contract.detail = normalizeContract({ contract: current });
+  ui.state.contract.selectedId = 'contract-1';
+  await ui.saveTriggers({ type: 'manual' });
+  assert.equal(body.contract.profileId, 'meeting_minutes_github_v1');
+  assert.deepEqual(body.contract.allowedResources, ['github:repo:example/project']);
 });
 
 test('reuses the same idempotency key after a contract create response is lost', async () => {

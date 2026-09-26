@@ -1,0 +1,46 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-organization-outcome-ui-upstream-v1",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "behavior",
+      "text": "The knowledge controller shows the destination registration form only when an injected canEditDestination(session, projectCode) returns true; without it the form follows canManageKnowledge, and revision, supersession, and retirement always follow canManageKnowledge."
+    },
+    {
+      "id": "AC-002",
+      "type": "behavior",
+      "text": "The Mana UI accepts a connectors list that replaces the default connector list, order, and icons; icons always come from that list and never from an API response."
+    },
+    {
+      "id": "AC-003",
+      "type": "behavior",
+      "text": "With a connectionCatalog (ids, load, labels, sourceLabel, reasonLabels, copy) the Mana UI reads connection status from the host load, shows connections, project resources, and the delegation's allowed range as separate sections, takes resources only from the project registration, keeps every connection unconfirmed without a verification time before loading and on failure, and offers the manage action only with onManageConnection; without it the foundation checks and the connection list are unchanged."
+    },
+    {
+      "id": "AC-004",
+      "type": "behavior",
+      "text": "With executionProfiles the contract form asks for a profile and picks input references, allowed resources, and the artifact destination from loaded connection resources, preserves unlisted existing references and destinations, lets an existing contract keep an unchanged unlisted destination, and derives readiness only from a run bound to the saved contract version and profile; without it the free-text form and its request body are unchanged."
+    },
+    {
+      "id": "AC-005",
+      "type": "invariant",
+      "text": "A safe test follows the accepted run ID without creating another test on readback, restores that ID per actor, project, and contract from tab storage, stops automatic readback on a GET failure while showing its code, HTTP status, and reason, and shows the raw run state, stage, failure code and reason, criteria results, and artifact readback without observed content."
+    },
+    {
+      "id": "AC-006",
+      "type": "behavior",
+      "text": "Preflight checks with reason, required action, and resume point are shown in Japanese for safe tests and run details; run history is ordered by creation time and opens the latest run."
+    },
+    {
+      "id": "AC-007",
+      "type": "invariant",
+      "text": "Authority is bound to the contract version: a response that arrives while the contract detail is loading or after switching to another contract or version is discarded, the authority stage loads on first open, and the first-authority form appears only after the server confirms an empty matrix."
+    },
+    {
+      "id": "AC-008",
+      "type": "boundary",
+      "text": "The shared UI adds no organization, tenant, role-name, or organization-specific reason-code logic; the new options have neutral names and JSDoc."
+    }
+  ]
+}
