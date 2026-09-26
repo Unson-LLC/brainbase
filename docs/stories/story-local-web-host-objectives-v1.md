@@ -33,6 +33,7 @@ external_dependencies: []
 - [ ] AC-06: 各画面の上に、データの場所、Graphの形式、組織のGraphを読んでいないことを出す。Graph v1のときは「目的と現状」に「Graphの移行が必要です」と移行のコマンドを出し、目的とWorld Modelを読みにいかない。ホストは自動で移行も、データの場所の作成もしない。
 - [ ] AC-07: 一覧が空と表示するのは、正本に記録が無いと確認できたときだけとする。読み取りの失敗、未確認、一部の記録が読めない場合は0件とせず、読めた記録と読めない件数・理由を分けて示す。
 - [ ] AC-08: 新しい部品と外枠は、共通の見た目の定義（`ui/brainbase-tokens.css`の`--bb-*`）だけで色・文字・余白を決める。
+- [ ] AC-09: 目的の編集部品の見える文言は、情報設計v5の表示語（目的、評価基準、変数、制約、版、保存先、ストーリー）で書き、内部の型名・保存層・API名（Objective、Variable、Constraint、readiness、readback、FoundationRevisionStore、port、COMPANY OS）を出さない。
 
 ## 対象外
 

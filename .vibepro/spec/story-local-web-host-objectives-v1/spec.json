@@ -41,6 +41,11 @@
       "id": "AC-008",
       "type": "invariant",
       "text": "The new UI parts and the shell take colors, fonts, radii and spacing only from the shared --bb-* tokens in ui/brainbase-tokens.css."
+    },
+    {
+      "id": "AC-009",
+      "type": "behavior",
+      "text": "The objective editor's visible copy uses the information-architecture display words (目的, 評価基準, 変数, 制約, 版, 保存先, ストーリー) and never shows internal type, store, or API names such as Objective, Variable, Constraint, readiness, readback, FoundationRevisionStore, port, or COMPANY OS."
     }
   ]
 }
