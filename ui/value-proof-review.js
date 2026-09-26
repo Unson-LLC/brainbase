@@ -1,7 +1,8 @@
 /*
  * Local owner review surface for judgment value proofs.
  *
- * The host supplies a same-origin request function and a review token. This
+ * The host supplies a same-origin request function and a review token. A host
+ * that cannot read a local journal may replace the unavailable notice. This
  * module owns presentation only: it never treats an unavailable journal as an
  * empty list, never edits the judgment journal, and keeps internal IDs inside
  * the audit details.
@@ -684,11 +685,14 @@ export function renderValueProofReview(root, state, callbacks = {}, options = {}
     return surface;
   }
   if (home.status === 'unavailable') {
+    const hostNotice = options.unavailableNotice;
     const box = makeElement(doc, 'section', { className: 'vpr-unavailable', attrs: { role: 'alert' } });
     box.append(
-      makeElement(doc, 'h2', { text: '判断journalに接続できません' }),
-      makeElement(doc, 'p', { text: `場所: ${home.root ?? '不明'}（${home.reason}）` }),
-      makeElement(doc, 'p', { text: '記録の場所は、起動時の --journal か環境変数 BRAINBASE_JUDGMENT_JOURNAL_DIR で指定できます。0件としては扱いません。' }),
+      makeElement(doc, 'h2', { text: text(hostNotice?.title) ?? '判断journalに接続できません' }),
+      makeElement(doc, 'p', { text: home.root ? `場所: ${home.root}（${home.reason}）` : `理由: ${home.reason}` }),
+      makeElement(doc, 'p', {
+        text: `${text(hostNotice?.guidance) ?? '記録の場所は、起動時の --journal か環境変数 BRAINBASE_JUDGMENT_JOURNAL_DIR で指定できます。'}0件としては扱いません。`,
+      }),
     );
     surface.append(box);
     root.append(surface);
@@ -739,6 +743,8 @@ export function createValueProofReviewUI({
   basePath = '/api/value-proofs',
   token,
   clipboard,
+  /** Optional `{ title, guidance }` for hosts where the local journal hint does not apply. */
+  unavailableNotice,
   autoLoad = true,
 } = {}) {
   if (!root) throw new TypeError('root is required');
@@ -859,7 +865,7 @@ export function createValueProofReviewUI({
   const controller = {
     get state() { return state; },
     render() {
-      renderValueProofReview(root, state, callbacks, { document: doc });
+      renderValueProofReview(root, state, callbacks, { document: doc, unavailableNotice });
       return controller;
     },
     async load() {

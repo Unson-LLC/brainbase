@@ -31,6 +31,11 @@
       "id": "AC-006",
       "type": "security",
       "text": "The review host rejects every request, including the shell, the review API and feedback, unless the Host header is 127.0.0.1, localhost or [::1] with the port the connection arrived on, so a rebound DNS name cannot read the token or judgments or write feedback."
+    },
+    {
+      "id": "AC-007",
+      "type": "behavior",
+      "text": "The value-proof-review UI part lets a host that cannot read a local journal replace the unavailable notice title and guidance; the notice still shows the reason and never renders as zero items, and the default guidance stays the local --journal and environment variable hint."
     }
   ]
 }
