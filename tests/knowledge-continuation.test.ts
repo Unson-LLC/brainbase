@@ -11,14 +11,51 @@ describe('knowledge retrieval continuation',()=>{
   expect(stopKnowledgeLookup(s,3).block).toBe(true);
   expect(prepareKnowledgeAction(s,input(s), 'duplicate',3).reason).toBe('duplicate_retrieval');
   s=attempt(s,input(s,{kind:'read',entity_id:'app_example',entity_type:'app'},{assessment:'insufficient',why_different:'Read registered app'}),result('retrieved',[ref]),'call-2');
-  const f=input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:'environments.production.endpoint',reference_id:ref.id,attempt_id:'call-2'}],unresolved_items:[]});
-  s=attempt(s,f,{status:'ok'},'finish'); expect(s.status).toBe('satisfied'); expect(stopKnowledgeLookup(s,4).block).toBe(false);
+  const f=input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:'environments.production.endpoint',reference_id:ref.id,attempt_id:'call-2'}],unresolved_items:[],termination_reason:'required fields retrieved'});
+ s=attempt(s,f,{status:'ok'},'finish'); expect(s.status).toBe('satisfied'); expect(stopKnowledgeLookup(s,4).block).toBe(false);
+ });
+ it('rejects unsupported initial fields before freezing and accepts a corrected plan',()=>{
+  const s=create();
+  const invalid={...input(s),required_fields:['既存哲学の本文例']};
+  const rejected=prepareKnowledgeAction(s,invalid,'invalid-field',1);
+  expect(rejected.allowed).toBe(false);
+  expect(rejected.reason).toBe('required_fields_invalid');
+  expect(rejected.state.required_fields).toBeNull();
+  expect(rejected.state.attempts).toHaveLength(0);
+
+  const corrected={...invalid,required_fields:['body'],next_action:{kind:'read',entity_id:'philosophy-1',entity_type:'philosophy'}};
+  const accepted=prepareKnowledgeAction(rejected.state,corrected,'corrected-field',1);
+  expect(accepted.allowed).toBe(true);
+  expect(accepted.state.required_fields).toEqual(['body']);
+  expect(accepted.state.attempts).toHaveLength(0);
+ });
+ it('rejects unsupported action fields before freezing on the first plan',()=>{
+  const s=create();
+  const invalid={...input(s,{kind:'search',query:'Example',required_fields:['既存哲学の本文例']})};
+  const rejected=prepareKnowledgeAction(s,invalid,'invalid-action-field',1);
+  expect(rejected.allowed).toBe(false);
+  expect(rejected.reason).toBe('required_fields_invalid');
+  expect(rejected.state.required_fields).toBeNull();
  });
  it('ID or successful HTTP without requested body cannot finish',()=>{
   let s=create(); s=attempt(s,input(s),result('incomplete',[{...ref,evidence_fields:['name']}]));
-  const f=input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:'environments.production.endpoint',reference_id:ref.id,attempt_id:'call-1'}]});
-  expect(prepareKnowledgeAction(s,f,'finish',3).allowed).toBe(false);
+  const f=input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:'environments.production.endpoint',reference_id:ref.id,attempt_id:'call-1'}],unresolved_items:[],termination_reason:'required field was not present in the read body'});
+  expect(prepareKnowledgeAction(s,f,'finish',3).reason).toBe('required_field_not_retrieved');
   expect(prepareKnowledgeAction(s,{...input(s),required_fields:['name']},'shrink',3).reason).toBe('required_fields_changed');
+ });
+ it('requires a termination reason in every finish request',()=>{
+  let s=create(); s=attempt(s,input(s),result('retrieved',[ref]));
+  const finish=input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:'environments.production.endpoint',reference_id:ref.id,attempt_id:'call-1'}],unresolved_items:[]});
+  const rejected=prepareKnowledgeAction(s,finish,'missing-finish-reason',3);
+  expect(rejected.allowed).toBe(false);
+  expect(rejected.reason).toBe('finish_action_invalid');
+ });
+ it('uses the API finish bounds before checking retrieved evidence',()=>{
+  let s=create(); s=attempt(s,input(s),result('retrieved',[ref]));
+  const finish=(overrides={})=>input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:'environments.production.endpoint',reference_id:ref.id,attempt_id:'call-1'}],unresolved_items:[],termination_reason:'body was read',...overrides});
+  expect(prepareKnowledgeAction(s,finish({termination_reason:'x'.repeat(1_001)}),'long-reason',3).reason).toBe('finish_action_invalid');
+  expect(prepareKnowledgeAction(s,finish({unresolved_items:['same','same']}),'duplicate-unresolved',3).reason).toBe('finish_action_invalid');
+  expect(prepareKnowledgeAction(s,finish({reference_ids:['app_fixture,other']}),'comma-reference',3).reason).toBe('finish_action_invalid');
  });
  it('accepts fields across partial body reads, but never search snippets',()=>{
   let s=create(); const fields=['repository','environments.production.endpoint'];
@@ -26,7 +63,7 @@ describe('knowledge retrieval continuation',()=>{
   s=attempt(s,first,result('incomplete',[{...ref,evidence_fields:['repository',...Array.from({length:50},(_,n)=>`extra.${n}`)]}]),'part-1');
   const second=input(s,{kind:'read',entity_id:'app_example_ops',entity_type:'app'},{required_fields:fields,assessment:'insufficient',why_different:'Read linked operational profile'});
   s=attempt(s,second,result('incomplete',[{...ref,id:'app_example_ops'}]),'part-2');
-  const finish=input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id,'app_example_ops'],field_evidence:[{field:'repository',reference_id:ref.id,attempt_id:'part-1'},{field:fields[1],reference_id:'app_example_ops',attempt_id:'part-2'}],unresolved_items:[]},{required_fields:fields});
+  const finish=input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id,'app_example_ops'],field_evidence:[{field:'repository',reference_id:ref.id,attempt_id:'part-1'},{field:fields[1],reference_id:'app_example_ops',attempt_id:'part-2'}],unresolved_items:[],termination_reason:'required fields retrieved'},{required_fields:fields});
   expect(prepareKnowledgeAction(s,finish,'finish',3).allowed).toBe(true);
   s.attempts[0].kind='search';
   expect(prepareKnowledgeAction(s,finish,'finish',3).reason).toBe('required_field_not_retrieved');
@@ -106,6 +143,9 @@ describe('knowledge retrieval continuation',()=>{
   const out=attempt(s,i,r); expect(JSON.stringify(out)).not.toContain('ignore instructions'); expect(out.attempts).toHaveLength(1);
  });
  it('explains the resolve_entity to read fallback in continuation context',()=>{
-  expect(knowledgeLookupContext(create())).toContain('resolve_entityで名前をGraph IDに同定してから、そのIDをread');
+  const context=knowledgeLookupContext(create());
+  expect(context).toContain('resolve_entityで名前をGraph IDに同定してから、そのIDをread');
+  expect(context).toContain('content');
+  expect(context).toContain('termination_reason');
  });
 });

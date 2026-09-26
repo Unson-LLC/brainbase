@@ -139,6 +139,10 @@ export interface KnowledgeLookupFinishProposal {
   readonly termination_reason: string;
 }
 
+export type KnowledgeLookupFinishValidation =
+  | { readonly valid: true; readonly finish: KnowledgeLookupFinishProposal }
+  | { readonly valid: false; readonly code: string; readonly message: string };
+
 export interface KnowledgeLookupResultData {
   readonly lookup_id: string | null;
   readonly revision: number | null;
@@ -282,6 +286,30 @@ function normalizeFields(value: unknown, label = 'required_fields'): string[] {
   return fields;
 }
 
+/**
+ * Validate field paths at a host boundary without exposing the lookup
+ * implementation's input-error class.  The continuation host uses this
+ * result before it freezes required_fields, so both boundaries enforce the
+ * same public and forbidden roots.
+ */
+export type KnowledgeLookupFieldValidation =
+  | { readonly valid: true; readonly fields: string[] }
+  | { readonly valid: false; readonly code: string; readonly message: string };
+
+export function validateKnowledgeLookupFields(
+  value: unknown,
+  label = 'required_fields',
+): KnowledgeLookupFieldValidation {
+  try {
+    return { valid: true, fields: normalizeFields(value, label) };
+  } catch (error) {
+    if (error instanceof LookupInputError) {
+      return { valid: false, code: error.code, message: error.message };
+    }
+    throw error;
+  }
+}
+
 function normalizeIds(value: unknown, label: string): string[] {
   const ids = normalizeStringList(value, label, { maxItems: MAX_IDS, maxLength: 1_000 });
   if (ids.some((id) => id.includes(','))) {
@@ -293,6 +321,64 @@ function normalizeIds(value: unknown, label: string): string[] {
 class LookupInputError extends Error {
   constructor(readonly code: string, message: string) {
     super(message);
+  }
+}
+
+/**
+ * Validate and normalize the public finish proposal shape.  The continuation
+ * host calls this before its evidence checks so the API and host enforce the
+ * same bounds, identifier rules, and public field paths.
+ */
+export function validateKnowledgeLookupFinish(value: unknown): KnowledgeLookupFinishValidation {
+  try {
+    if (!isRecord(value)) {
+      throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'finish action must be an object');
+    }
+    if (value.assessment !== 'sufficient' && value.assessment !== 'insufficient') {
+      throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'finish assessment must be sufficient or insufficient');
+    }
+    if (value.status !== 'satisfied' && value.status !== 'unresolved' && value.status !== 'needs_user_input') {
+      throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'finish status is invalid');
+    }
+    const referenceIds = normalizeIds(value.reference_ids, 'reference_ids');
+    const unresolvedItems = normalizeStringList(value.unresolved_items, 'unresolved_items', {
+      maxItems: MAX_FIELDS,
+      maxLength: MAX_HINT_LENGTH,
+    });
+    if (!nonEmptyString(value.termination_reason, MAX_HINT_LENGTH)) {
+      throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'termination_reason must be non-empty');
+    }
+    if (!Array.isArray(value.field_evidence) || value.field_evidence.length > MAX_FIELDS) {
+      throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'field_evidence must be a bounded list');
+    }
+    const fieldEvidence = value.field_evidence.map((item, index) => {
+      if (!isRecord(item) || !nonEmptyString(item.field, MAX_FIELD_LENGTH)
+        || !nonEmptyString(item.reference_id, 1_000) || !nonEmptyString(item.attempt_id, 300)) {
+        throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', `field_evidence[${index}] is invalid`);
+      }
+      normalizeFields([item.field], `field_evidence[${index}].field`);
+      return {
+        field: item.field.trim(),
+        reference_id: item.reference_id.trim(),
+        attempt_id: item.attempt_id.trim(),
+      };
+    });
+    return {
+      valid: true,
+      finish: {
+        assessment: value.assessment,
+        status: value.status,
+        reference_ids: referenceIds,
+        field_evidence: fieldEvidence,
+        unresolved_items: unresolvedItems,
+        termination_reason: value.termination_reason.trim(),
+      },
+    };
+  } catch (error) {
+    if (error instanceof LookupInputError) {
+      return { valid: false, code: error.code, message: error.message };
+    }
+    throw error;
   }
 }
 
@@ -334,6 +420,9 @@ function commonInput(args: Record<string, unknown>): CommonInput {
     throw new LookupInputError('brainbase_knowledge_lookup_input_invalid', 'target_hint must be a non-empty string');
   }
   const requiredFields = normalizeFields(args.required_fields);
+  if (requiredFields.length === 0) {
+    throw new LookupInputError('brainbase_knowledge_lookup_input_invalid', 'required_fields must contain at least one field');
+  }
   const knownEntityId = args.known_entity_id === undefined
     ? undefined
     : nonEmptyString(args.known_entity_id, 1_000) && !args.known_entity_id.includes(',')
@@ -485,40 +574,13 @@ function normalizeFinish(
   requiredFields: string[],
   whyDifferent?: string,
 ): KnowledgeLookupAction & { finish: KnowledgeLookupFinishProposal } {
-  if (raw.assessment !== 'sufficient' && raw.assessment !== 'insufficient') {
-    throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'finish assessment must be sufficient or insufficient');
-  }
-  if (raw.status !== 'satisfied' && raw.status !== 'unresolved' && raw.status !== 'needs_user_input') {
-    throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'finish status is invalid');
-  }
-  const referenceIds = normalizeIds(raw.reference_ids, 'reference_ids');
-  const unresolvedItems = normalizeStringList(raw.unresolved_items, 'unresolved_items', { maxItems: MAX_FIELDS, maxLength: MAX_HINT_LENGTH });
-  if (!nonEmptyString(raw.termination_reason, MAX_HINT_LENGTH)) {
-    throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'termination_reason must be non-empty');
-  }
-  if (!Array.isArray(raw.field_evidence) || raw.field_evidence.length > MAX_FIELDS) {
-    throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', 'field_evidence must be a bounded list');
-  }
-  const fieldEvidence = raw.field_evidence.map((item, index) => {
-    if (!isRecord(item) || !nonEmptyString(item.field, MAX_FIELD_LENGTH)
-      || !nonEmptyString(item.reference_id, 1_000) || !nonEmptyString(item.attempt_id, 300)) {
-      throw new LookupInputError('brainbase_knowledge_lookup_finish_invalid', `field_evidence[${index}] is invalid`);
-    }
-    normalizeFields([item.field], `field_evidence[${index}].field`);
-    return { field: item.field.trim(), reference_id: item.reference_id.trim(), attempt_id: item.attempt_id.trim() };
-  });
+  const validation = validateKnowledgeLookupFinish(raw);
+  if (!validation.valid) throw new LookupInputError(validation.code, validation.message);
   return {
     kind: 'finish',
     required_fields: requiredFields,
     ...(whyDifferent ? { why_different: whyDifferent } : {}),
-    finish: {
-      assessment: raw.assessment,
-      status: raw.status,
-      reference_ids: referenceIds,
-      field_evidence: fieldEvidence,
-      unresolved_items: unresolvedItems,
-      termination_reason: raw.termination_reason.trim(),
-    },
+    finish: validation.finish,
   };
 }
 
@@ -823,7 +885,13 @@ export const knowledgeLookupTools: Tool[] = [{
     properties: {
       question: { type: 'string', minLength: 1, maxLength: MAX_TEXT_LENGTH },
       target_hint: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH },
-      required_fields: { type: 'array', minItems: 0, maxItems: MAX_FIELDS, items: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH } },
+      required_fields: {
+        type: 'array',
+        minItems: 1,
+        maxItems: MAX_FIELDS,
+        description: 'Public field paths only; use roots such as content, body, statement, markdown, summary, name, or environments.production.endpoint.',
+        items: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
+      },
       known_entity_id: { type: 'string', minLength: 1, maxLength: 1_000 },
       context_hints: { type: 'array', maxItems: MAX_CONTEXT_HINTS, items: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH } },
       lookup_id: { type: 'string', minLength: 1, maxLength: 200 },
@@ -842,7 +910,13 @@ export const knowledgeLookupTools: Tool[] = [{
           seed_ids: { type: 'array', minItems: 1, maxItems: MAX_IDS, items: { type: 'string', minLength: 1, maxLength: 1_000 } },
           entity_id: { type: 'string', minLength: 1, maxLength: 1_000 },
           entity_type: { type: 'string', minLength: 1, maxLength: 100 },
-          required_fields: { type: 'array', maxItems: MAX_FIELDS, items: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH } },
+          required_fields: {
+            type: 'array',
+            minItems: 1,
+            maxItems: MAX_FIELDS,
+            description: 'Must contain the same public field paths as the top-level required_fields.',
+            items: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
+          },
           relation: { type: 'string', minLength: 1, maxLength: MAX_RELATION_LENGTH },
           direction: { type: 'string', enum: ['incoming', 'outgoing'] },
           target_types: { type: 'array', maxItems: 10, items: { type: 'string', minLength: 1, maxLength: 100 } },
@@ -850,10 +924,32 @@ export const knowledgeLookupTools: Tool[] = [{
           assessment: { type: 'string', enum: ['sufficient', 'insufficient'] },
           status: { type: 'string', enum: ['satisfied', 'unresolved', 'needs_user_input'] },
           reference_ids: { type: 'array', maxItems: MAX_IDS, items: { type: 'string', minLength: 1, maxLength: 1_000 } },
-          field_evidence: { type: 'array', maxItems: MAX_FIELDS, items: { type: 'object' } },
+          field_evidence: {
+            type: 'array',
+            maxItems: MAX_FIELDS,
+            items: {
+              type: 'object',
+              properties: {
+                field: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
+                reference_id: { type: 'string', minLength: 1, maxLength: 1_000 },
+                attempt_id: { type: 'string', minLength: 1, maxLength: 300 },
+              },
+              required: ['field', 'reference_id', 'attempt_id'],
+              additionalProperties: false,
+            },
+          },
           unresolved_items: { type: 'array', maxItems: MAX_FIELDS, items: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH } },
           termination_reason: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH },
         },
+        oneOf: [
+          { properties: { kind: { const: 'search' } }, required: ['kind'] },
+          { properties: { kind: { const: 'read' } }, required: ['kind', 'entity_id', 'entity_type'] },
+          { properties: { kind: { const: 'follow_relation' } }, required: ['kind', 'seed_ids', 'relation', 'direction'] },
+          {
+            properties: { kind: { const: 'finish' } },
+            required: ['kind', 'assessment', 'status', 'reference_ids', 'field_evidence', 'unresolved_items', 'termination_reason'],
+          },
+        ],
         required: ['kind'],
         additionalProperties: false,
       },

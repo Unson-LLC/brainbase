@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   handleKnowledgeLookupToolCall,
   knowledgeLookupTools,
+  validateKnowledgeLookupFields,
+  validateKnowledgeLookupFinish,
   type KnowledgeLookupDependencies,
   type KnowledgeLookupDependencyResult,
 } from '../src/knowledge-lookup.js';
@@ -44,7 +46,44 @@ describe('purpose based knowledge lookup', () => {
     const tool = knowledgeLookupTools.find((candidate) => candidate.name === 'brainbase_knowledge_lookup');
     expect(tool).toBeDefined();
     expect(tool?.inputSchema.required).toEqual(['question', 'target_hint', 'required_fields']);
-    expect((tool?.inputSchema.properties as Record<string, unknown>).project_code).toBeUndefined();
+    const properties = tool?.inputSchema.properties as Record<string, unknown>;
+    expect(properties.project_code).toBeUndefined();
+    expect((properties.required_fields as Record<string, unknown>).minItems).toBe(1);
+    const nextAction = properties.next_action as Record<string, unknown>;
+    const finishVariant = (nextAction.oneOf as Array<Record<string, unknown>>).find((variant) => {
+      const variantProperties = variant.properties as Record<string, unknown>;
+      return (variantProperties.kind as Record<string, unknown>).const === 'finish';
+    });
+    expect(finishVariant?.required).toEqual([
+      'kind',
+      'assessment',
+      'status',
+      'reference_ids',
+      'field_evidence',
+      'unresolved_items',
+      'termination_reason',
+    ]);
+  });
+
+  it('shares public field validation with the continuation host', () => {
+    expect(validateKnowledgeLookupFields(['body'])).toEqual({ valid: true, fields: ['body'] });
+    expect(validateKnowledgeLookupFields(['既存哲学の本文例']).valid).toBe(false);
+    expect(validateKnowledgeLookupFields(['payload.secret']).valid).toBe(false);
+  });
+
+  it('shares finish shape bounds with the continuation host', () => {
+    const valid = {
+      assessment: 'sufficient',
+      status: 'satisfied',
+      reference_ids: ['app_fixture'],
+      field_evidence: [{ field: 'body', reference_id: 'app_fixture', attempt_id: 'read-1' }],
+      unresolved_items: [],
+      termination_reason: 'body was read',
+    };
+    expect(validateKnowledgeLookupFinish(valid).valid).toBe(true);
+    expect(validateKnowledgeLookupFinish({ ...valid, termination_reason: 'x'.repeat(1_001) }).valid).toBe(false);
+    expect(validateKnowledgeLookupFinish({ ...valid, unresolved_items: ['same', 'same'] }).valid).toBe(false);
+    expect(validateKnowledgeLookupFinish({ ...valid, reference_ids: ['app_fixture,other'] }).valid).toBe(false);
   });
 
   it('passes hints as search context while the host owns the scope', async () => {
@@ -224,6 +263,13 @@ describe('purpose based knowledge lookup', () => {
     }, deps);
     expect(fieldResult?.status).toBe('error');
     expect(fieldResult?.error?.code).toBe('brainbase_knowledge_lookup_field_invalid');
+
+    const emptyFieldsResult = await handleKnowledgeLookupToolCall('brainbase_knowledge_lookup', {
+      ...input(),
+      required_fields: [],
+    }, deps);
+    expect(emptyFieldsResult?.status).toBe('error');
+    expect(emptyFieldsResult?.error?.code).toBe('brainbase_knowledge_lookup_input_invalid');
     expect(deps.search).not.toHaveBeenCalled();
   });
 });
