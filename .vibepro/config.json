@@ -549,8 +549,50 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-judgment-foundation-coherence-v1",
+        "title": "判断に使う目的と世界モデルの参照整合を共通経路で確認する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-foundation-public-provider-v1",
+        "title": "同じ判断契約を公開GraphとMCPから確認できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-company-os-philosophy-revision-read-v1",
+        "title": "判断に使った哲学の正本と版を固定して検証する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-canonical-graph-foundation-history-v1",
+        "title": "組織Graphの判断定義を過去版と現在の権限で参照する",
+        "ssot": "local",
+        "status": "active"
       }
     ],
-    "current_story_id": "story-company-os-shared-dist-build-pack-isolation-v1"
+    "current_story_id": "story-company-os-philosophy-revision-read-v1"
   }
 }

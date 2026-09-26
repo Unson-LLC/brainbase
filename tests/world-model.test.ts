@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -39,7 +39,17 @@ async function createCanonicalStore(): Promise<{
   dataDirs.push(dataDir);
   await initializePersonalOs(dataDir);
   const foundationStore = createFoundationRevisionStore({ dataDir });
-  const store = createWorldModelStore({ dataDir, foundationStore });
+  const store = createWorldModelStore({
+    dataDir,
+    foundationStore,
+    approvalReader: {
+      isApproved: async ({ approvalRef, modelRef }) => approvalRef.id === 'decision-approval-1'
+        && approvalRef.revision === '3'
+        && modelRef.id === model.id
+        && modelRef.type === 'model'
+        && modelRef.revision === model.revision
+    }
+  });
   return { dataDir, context: { principal: 'org-1' }, foundationStore, store };
 }
 
@@ -230,6 +240,23 @@ describe('world-model model adoption contract', () => {
     expect(() => retainCandidateModel(candidate, { ...model, relationship: '' }, adoption)).toThrow(/MODEL_CONTRACT_INVALID/);
     expect(() => retainCandidateModel(candidate, { ...model, epistemicState: 'verified' }, adoption)).toThrow(/verified/);
   });
+
+  it('requires an approval reference when an adoption is marked approved', () => {
+    const candidate: CandidateModelSnapshot = {
+      candidateId: 'candidate-model-1',
+      hypothesis: 'hypothesis',
+      evidenceIds: ['evidence-model-1'],
+      acl: { ownerId: 'person-1', visibility: 'project', readerIds: [], writerIds: [] },
+      epistemicState: 'hypothesis'
+    };
+
+    expect(() => retainCandidateModel(candidate, model, {
+      adoptionId: 'adoption-approved-without-ref',
+      adoptionState: 'approved',
+      authorizedUse: 'judgment',
+      adoptedAt: '2026-06-15T01:00:00.000Z'
+    })).toThrow(/MISSING_APPROVAL_REFERENCE/);
+  });
 });
 
 describe('world-model canonical record store', () => {
@@ -246,7 +273,14 @@ describe('world-model canonical record store', () => {
 
     const secondStore = createWorldModelStore({
       dataDir,
-      foundationStore: createFoundationRevisionStore({ dataDir })
+      foundationStore: createFoundationRevisionStore({ dataDir }),
+      approvalReader: {
+        isApproved: async ({ approvalRef, modelRef }) => approvalRef.id === 'decision-approval-1'
+          && approvalRef.revision === '3'
+          && modelRef.id === model.id
+          && modelRef.type === 'model'
+          && modelRef.revision === model.revision
+      }
     });
     await expect(secondStore.readObservation(saved.id, context)).resolves.toEqual(saved);
     const loaded = await loadPersonalOs(dataDir);
@@ -304,7 +338,14 @@ describe('world-model canonical record store', () => {
     expect(adoption.adoptionState).toBe('approved');
     const secondStore = createWorldModelStore({
       dataDir,
-      foundationStore: createFoundationRevisionStore({ dataDir })
+      foundationStore: createFoundationRevisionStore({ dataDir }),
+      approvalReader: {
+        isApproved: async ({ approvalRef, modelRef }) => approvalRef.id === 'decision-approval-1'
+          && approvalRef.revision === '3'
+          && modelRef.id === model.id
+          && modelRef.type === 'model'
+          && modelRef.revision === model.revision
+      }
     });
     await expect(secondStore.readModelAdoption(adoption.adoptionId, context)).resolves.toEqual(adoption);
     const aggregate = await loadPersonalOs(dataDir);
@@ -317,6 +358,152 @@ describe('world-model canonical record store', () => {
     expect(evidence.adoptions[0]?.candidate.evidenceIds).toEqual(['evidence-model-1', 'evidence-model-2']);
     expect(evidenceText).not.toContain('restricted-evidence-body');
     expect(JSON.stringify(aggregate.graph)).not.toContain('restricted-evidence-body');
+  });
+
+  it('requires a provider that verifies the approval binding before saving an approved adoption', async () => {
+    const { dataDir, context, foundationStore, store } = await createCanonicalStore();
+    const modelRef = await foundationStore.create(model, context);
+    const candidate: CandidateModelSnapshot = {
+      candidateId: 'candidate-model-1',
+      hypothesis: 'hypothesis',
+      evidenceIds: ['evidence-model-1'],
+      acl: { ownerId: 'org-1', visibility: 'organization', readerIds: [], writerIds: ['org-1'] },
+      epistemicState: 'hypothesis'
+    };
+
+    await expect(store.saveModelAdoption(candidate, modelRef, {
+      adoptionId: 'adoption-without-ref',
+      adoptionState: 'approved',
+      authorizedUse: 'judgment',
+      adoptedAt: '2026-06-15T01:00:00.000Z'
+    }, context)).rejects.toMatchObject({ code: 'approval_reference_unresolved' });
+
+    const storeWithoutReader = createWorldModelStore({ dataDir, foundationStore });
+
+    await expect(storeWithoutReader.saveModelAdoption(candidate, modelRef, {
+      adoptionId: 'adoption-without-provider',
+      adoptionState: 'approved',
+      authorizedUse: 'judgment',
+      adoptedAt: '2026-06-15T01:00:00.000Z',
+      approvalRef: { id: 'decision-approval-1', type: 'decision', revision: '3' }
+    }, context)).rejects.toMatchObject({ code: 'approval_reference_unresolved' });
+
+    const rejectingStore = createWorldModelStore({
+      dataDir,
+      foundationStore,
+      approvalReader: { isApproved: async () => false }
+    });
+    await expect(rejectingStore.saveModelAdoption(candidate, modelRef, {
+      adoptionId: 'adoption-with-wrong-binding',
+      adoptionState: 'approved',
+      authorizedUse: 'judgment',
+      adoptedAt: '2026-06-15T01:00:00.000Z',
+      approvalRef: { id: 'decision-approval-1', type: 'decision', revision: '3' }
+    }, context)).rejects.toMatchObject({ code: 'approval_reference_unresolved' });
+
+    await expect(readFile(join(dataDir, WORLD_MODEL_EVIDENCE_SIDECAR), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('checks approval before the atomic append without a post-commit reader failure', async () => {
+    const { dataDir, context, foundationStore } = await createCanonicalStore();
+    const modelRef = await foundationStore.create(model, context);
+    const candidate: CandidateModelSnapshot = {
+      candidateId: 'candidate-model-1',
+      hypothesis: 'hypothesis',
+      evidenceIds: ['evidence-model-1'],
+      acl: { ownerId: 'org-1', visibility: 'organization', readerIds: [], writerIds: ['org-1'] },
+      epistemicState: 'hypothesis'
+    };
+    let approvalCalls = 0;
+    const store = createWorldModelStore({
+      dataDir,
+      foundationStore,
+      approvalReader: {
+        isApproved: async () => {
+          approvalCalls += 1;
+          if (approvalCalls === 1) return true;
+          throw new Error('approval reader became unavailable after commit');
+        }
+      }
+    });
+
+    await expect(store.saveModelAdoption(candidate, modelRef, {
+      adoptionId: 'adoption-atomic-approval',
+      adoptionState: 'approved',
+      authorizedUse: 'judgment',
+      adoptedAt: '2026-06-15T01:00:00.000Z',
+      approvalRef: { id: 'decision-approval-1', type: 'decision', revision: '3' }
+    }, context)).resolves.toMatchObject({
+      adoptionId: 'adoption-atomic-approval',
+      adoptionState: 'approved'
+    });
+    expect(approvalCalls).toBe(1);
+
+    const evidence = JSON.parse(await readFile(join(dataDir, WORLD_MODEL_EVIDENCE_SIDECAR), 'utf8')) as {
+      adoptions: readonly { adoptionId: string }[];
+    };
+    expect(evidence.adoptions).toHaveLength(1);
+    expect(evidence.adoptions[0]?.adoptionId).toBe('adoption-atomic-approval');
+  });
+
+  it('revalidates the approval binding on adoption readback', async () => {
+    const { dataDir, context, store, foundationStore } = await createCanonicalStore();
+    const modelRef = await store.createModel(model, context);
+    const adoption = await store.saveModelAdoption({
+      candidateId: 'candidate-model-1',
+      hypothesis: 'hypothesis',
+      evidenceIds: ['evidence-model-1'],
+      acl: { ownerId: 'org-1', visibility: 'organization', readerIds: [], writerIds: ['org-1'] },
+      epistemicState: 'hypothesis'
+    }, modelRef, {
+      adoptionId: 'adoption-approval-readback',
+      adoptionState: 'approved',
+      authorizedUse: 'judgment',
+      adoptedAt: '2026-06-15T01:00:00.000Z',
+      approvalRef: { id: 'decision-approval-1', type: 'decision', revision: '3' }
+    }, context);
+    const rejectingStore = createWorldModelStore({
+      dataDir,
+      foundationStore,
+      approvalReader: { isApproved: async () => false }
+    });
+
+    await expect(rejectingStore.readModelAdoption(adoption.adoptionId, context)).rejects.toMatchObject({
+      code: 'approval_reference_unresolved'
+    } satisfies Partial<WorldModelStoreError>);
+  });
+
+  it('persists and verifies the exact Model digest on adoption readback', async () => {
+    const { dataDir, context, store, foundationStore } = await createCanonicalStore();
+    const modelRef = await store.createModel(model, context);
+    const adoption = await store.saveModelAdoption({
+      candidateId: 'candidate-model-1',
+      hypothesis: 'hypothesis',
+      evidenceIds: ['evidence-model-1'],
+      acl: { ownerId: 'org-1', visibility: 'organization', readerIds: [], writerIds: ['org-1'] },
+      epistemicState: 'hypothesis'
+    }, modelRef, {
+      adoptionId: 'adoption-digest',
+      adoptionState: 'proposed',
+      authorizedUse: 'judgment',
+      adoptedAt: '2026-06-15T01:00:00.000Z'
+    }, context);
+
+    expect(adoption.modelDigest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    const sidecarPath = join(dataDir, WORLD_MODEL_EVIDENCE_SIDECAR);
+    const sidecar = JSON.parse(await readFile(sidecarPath, 'utf8')) as {
+      observations: readonly unknown[];
+      adoptions: Array<Record<string, unknown>>;
+    };
+    sidecar.adoptions[0]!.modelDigest = `sha256:${'0'.repeat(64)}`;
+    await writeFile(sidecarPath, `${JSON.stringify(sidecar, null, 2)}\n`);
+
+    await expect(store.readModelAdoption(adoption.adoptionId, context)).rejects.toMatchObject({
+      code: 'readback_mismatch'
+    } satisfies Partial<WorldModelStoreError>);
+
+    const reloaded = await foundationStore.read(modelRef, context);
+    expect(reloaded?.digest).toBeDefined();
   });
 
   it('enforces the current definition and candidate ACL on evidence readback', async () => {

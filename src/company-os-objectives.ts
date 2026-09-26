@@ -28,6 +28,19 @@ export interface ObjectiveReadiness {
   issues: readonly ObjectiveReadinessIssue[];
 }
 
+/** The canonical read surface needed to check an Objective and its criteria. */
+export interface ObjectiveReadinessReader {
+  read(
+    reference: FoundationRevision,
+    context: FoundationStoreContext
+  ): Promise<FoundationCatalogRecord | null>;
+  readLatest?(
+    type: 'objective' | 'variable',
+    id: string,
+    context: FoundationStoreContext
+  ): Promise<FoundationCatalogRecord | null>;
+}
+
 export type StoryObjectiveLinkKind = 'contribution' | 'execution_dependency' | 'time_condition';
 
 export interface StoryObjectiveLinkInput {
@@ -80,54 +93,7 @@ export class CompanyOsObjectives {
     context: FoundationStoreContext,
     revision?: string
   ): Promise<ObjectiveReadiness> {
-    const record = await this.readObjective(id, context, revision);
-    if (!record) {
-      return {
-        ready: false,
-        issues: [{ code: 'NOT_FOUND', path: 'id', message: `Objective ${id} was not found.` }]
-      };
-    }
-
-    const objective = record.definition as ObjectiveDefinition;
-    const issues = validationIssues(objective, 'judgment');
-    const criteria = Array.isArray(objective.criteria) ? objective.criteria : [];
-    for (const [index, criterion] of criteria.entries()) {
-      if (!criterion || typeof criterion !== 'object' || !criterion.variableRef) continue;
-      if (!isVariableRevisionReference(criterion.variableRef)) {
-        issues.push({
-          code: 'INVALID_VARIABLE_REFERENCE',
-          path: `criteria[${index}].variableRef`,
-          message: 'Criterion must reference a Variable with a positive revision.'
-        });
-        continue;
-      }
-      const variable = await this.store.read(criterion.variableRef, context);
-      if (!variable) {
-        issues.push({
-          code: 'MISSING_VARIABLE_REVISION',
-          path: `criteria[${index}].variableRef`,
-          message: `Variable ${criterion.variableRef.id}@${criterion.variableRef.revision} was not found.`
-        });
-        continue;
-      }
-      if (variable.definition.type !== 'variable') {
-        issues.push({
-          code: 'INVALID_VARIABLE_REFERENCE',
-          path: `criteria[${index}].variableRef`,
-          message: `Criterion ${criterion.variableRef.id}@${criterion.variableRef.revision} is not a Variable.`
-        });
-        continue;
-      }
-      for (const issue of validationIssues(variable.definition, 'judgment')) {
-        issues.push({
-          ...issue,
-          path: `criteria[${index}].variableRef.${issue.path}`
-        });
-      }
-      issues.push(...criterionCompatibilityIssues(criterion, variable.definition, index));
-    }
-
-    return { ready: issues.length === 0, issues };
+    return checkObjectiveReadiness(this.store, id, context, revision);
   }
 
   createVariable(definition: VariableDefinition, context: FoundationStoreContext): Promise<FoundationRef> {
@@ -205,6 +171,76 @@ export class CompanyOsObjectives {
   }
 }
 
+/**
+ * Check an Objective and every Variable revision named by its criteria.
+ * Both the Objective service and judgment snapshot providers call this
+ * function so readiness cannot vary by caller.
+ */
+export async function checkObjectiveReadiness(
+  reader: ObjectiveReadinessReader,
+  id: string,
+  context: FoundationStoreContext,
+  revision?: string
+): Promise<ObjectiveReadiness> {
+  const record = revision === undefined
+    ? reader.readLatest === undefined ? null : await reader.readLatest('objective', id, context)
+    : await reader.read({ id, type: 'objective', revision }, context);
+  if (!record) {
+    return {
+      ready: false,
+      issues: [{ code: 'NOT_FOUND', path: 'id', message: `Objective ${id} was not found.` }]
+    };
+  }
+
+  if (record.definition.type !== 'objective') {
+    return {
+      ready: false,
+      issues: [{ code: 'INVALID_OBJECTIVE_REFERENCE', path: 'type', message: `Foundation ${id} is not an Objective.` }]
+    };
+  }
+  const objective = record.definition;
+  const issues = validationIssues(objective, 'judgment');
+  const criteria = Array.isArray(objective.criteria) ? objective.criteria : [];
+  for (const [index, criterion] of criteria.entries()) {
+    if (!criterion || typeof criterion !== 'object' || !criterion.variableRef) continue;
+    if (!isVariableRevisionReference(criterion.variableRef)) {
+      issues.push({
+        code: 'INVALID_VARIABLE_REFERENCE',
+        path: `criteria[${index}].variableRef`,
+        message: 'Criterion must reference a Variable with a positive revision.'
+      });
+      continue;
+    }
+    const variable = await reader.read(criterion.variableRef, context);
+    if (!variable) {
+      issues.push({
+        code: 'MISSING_VARIABLE_REVISION',
+        path: `criteria[${index}].variableRef`,
+        message: `Variable ${criterion.variableRef.id}@${criterion.variableRef.revision} was not found.`
+      });
+      continue;
+    }
+    if (variable.definition.type !== 'variable') {
+      issues.push({
+        code: 'INVALID_VARIABLE_REFERENCE',
+        path: `criteria[${index}].variableRef`,
+        message: `Criterion ${criterion.variableRef.id}@${criterion.variableRef.revision} is not a Variable.`
+      });
+      continue;
+    }
+    for (const issue of validationIssues(variable.definition, 'judgment')) {
+      issues.push({
+        ...issue,
+        path: `criteria[${index}].variableRef.${issue.path}`
+      });
+    }
+    issues.push(...criterionCompatibilityIssues(criterion, variable.definition, index));
+    issues.push(...criterionPeriodIssues(objective, variable.definition, index));
+  }
+
+  return { ready: issues.length === 0, issues };
+}
+
 export function createCompanyOsObjectives(store: FoundationRevisionStore): CompanyOsObjectives {
   return new CompanyOsObjectives(store);
 }
@@ -276,4 +312,28 @@ function criterionCompatibilityIssues(
     }];
   }
   return [];
+}
+
+function criterionPeriodIssues(
+  objective: ObjectiveDefinition,
+  variable: VariableDefinition,
+  index: number
+): ObjectiveReadinessIssue[] {
+  const objectiveFrom = Date.parse(objective.evaluationPeriod?.from ?? '');
+  const objectiveUntil = Date.parse(objective.evaluationPeriod?.until ?? '');
+  const variableFrom = Date.parse(variable.scope?.validFrom ?? '');
+  const variableUntil = variable.scope?.validUntil === undefined
+    ? Number.POSITIVE_INFINITY
+    : Date.parse(variable.scope.validUntil);
+  if (!Number.isFinite(objectiveFrom) || !Number.isFinite(objectiveUntil)
+    || !Number.isFinite(variableFrom)
+    || (variable.scope?.validUntil !== undefined && !Number.isFinite(variableUntil))) {
+    return [];
+  }
+  if (variableFrom <= objectiveFrom && variableUntil >= objectiveUntil) return [];
+  return [{
+    code: 'CRITERION_PERIOD_MISMATCH',
+    path: `criteria[${index}].variableRef`,
+    message: `Variable ${variable.id}@${variable.revision} does not cover the Objective evaluation period.`
+  }];
 }

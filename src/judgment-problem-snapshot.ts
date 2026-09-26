@@ -3,11 +3,22 @@ import { link, open, lstat, mkdir, readdir, readFile, unlink } from 'node:fs/pro
 import path from 'node:path';
 import {
   validateFoundationDefinition,
+  validateEvaluationCompatibility,
   type FoundationDefinition,
   type FoundationAcl,
+  type FoundationAggregation,
+  type FoundationEvaluationDescriptor,
   type FoundationRevision,
-  type FoundationScope
+  type FoundationScope,
+  type ModelDefinition,
+  type ObjectiveDefinition,
+  type VariableDefinition
 } from './ontology-foundation.js';
+import {
+  checkObjectiveReadiness,
+  type ObjectiveReadinessReader
+} from './company-os-objectives.js';
+import type { FoundationCatalogRecord } from './types.js';
 
 /**
  * An immutable input bundle for one judgment.
@@ -28,6 +39,7 @@ export type JudgmentProblemReferenceKind =
   | 'observation'
   | 'model'
   | 'constraint'
+  | 'philosophy'
   | 'authority'
   | 'resource'
   | 'deadline'
@@ -68,8 +80,16 @@ export interface JudgmentProblemReference {
   readonly scope: JudgmentProblemScope;
   readonly valid_from: string;
   readonly valid_to?: string | null;
+  /**
+   * Source-owned measurement conditions for an Observation reference.  The
+   * descriptor is checked against the canonical Variable and Objective
+   * before a current judgment can use the observation.
+   */
+  readonly measurement?: JudgmentProblemObservationMeasurementDescriptor;
   readonly evidence?: JudgmentProblemEvidenceBinding;
 }
+
+export type JudgmentProblemObservationMeasurementDescriptor = FoundationEvaluationDescriptor;
 
 /**
  * Stable name shared by sub-DAG and reservation consumers.  A ProblemRef is
@@ -137,6 +157,10 @@ export interface JudgmentProblemReferenceResolution {
   /** The provider must return the digest of the exact revision it resolved. */
   readonly digest?: JudgmentProblemSnapshotId;
   readonly message?: string;
+  /** Canonical Observation metadata returned by the source-owned resolver. */
+  readonly canonical?: {
+    readonly measurement?: JudgmentProblemObservationMeasurementDescriptor;
+  };
 }
 
 /**
@@ -152,6 +176,8 @@ export interface JudgmentProblemReferenceProvider {
     readonly reference: JudgmentProblemReference;
     readonly phase: JudgmentProblemReferenceResolutionPhase;
     readonly context: JudgmentProblemSnapshotAccessContext;
+    /** The full bundle enables cross-reference coherence checks. */
+    readonly snapshot?: JudgmentProblemSnapshot;
   }): JudgmentProblemReferenceResolution | Promise<JudgmentProblemReferenceResolution>;
 }
 
@@ -173,6 +199,20 @@ export interface LoadJudgmentProblemSnapshotRequest {
   /** Defaults to `current`; historical reads still require the provider for current ACL/digest checks. */
   readonly reference_resolution?: JudgmentProblemReferenceResolutionMode;
   readonly referenceProvider?: JudgmentProblemReferenceProvider;
+}
+
+/**
+ * Validate a not-yet-persisted snapshot through the same read and reference
+ * boundaries used by load.  This is intentionally read-only: callers cannot
+ * turn validation into publication by passing an artifact root.
+ */
+export interface ValidateJudgmentProblemSnapshotRequest {
+  readonly snapshot: JudgmentProblemSnapshot;
+  readonly access: JudgmentProblemSnapshotAccessContext;
+  readonly accessProvider?: JudgmentProblemSnapshotAccessProvider;
+  /** Defaults to `current`; historical validation only rechecks ACL/digest. */
+  readonly reference_resolution?: JudgmentProblemReferenceResolutionMode;
+  readonly referenceProvider: JudgmentProblemReferenceProvider;
 }
 
 export interface JudgmentProblemSnapshotReceipt {
@@ -233,6 +273,7 @@ const REFERENCE_KINDS: readonly JudgmentProblemReferenceKind[] = [
   'observation',
   'model',
   'constraint',
+  'philosophy',
   'authority',
   'resource',
   'deadline',
@@ -251,7 +292,7 @@ const SNAPSHOT_KEYS = [
   'snapshot_version'
 ];
 const ENVELOPE_KEYS = ['snapshot', 'snapshot_id', 'snapshot_version'];
-const REFERENCE_KEYS = ['digest', 'evidence', 'id', 'kind', 'revision', 'scope', 'valid_from', 'valid_to'];
+const REFERENCE_KEYS = ['digest', 'evidence', 'id', 'kind', 'measurement', 'revision', 'scope', 'valid_from', 'valid_to'];
 const EVIDENCE_KEYS = ['access', 'content', 'digest', 'mode', 'reference_id', 'reference_revision'];
 const SCOPE_KEYS = ['id', 'type'];
 const ACL_KEYS = ['ownerId', 'readerIds', 'visibility', 'writerIds'];
@@ -468,6 +509,9 @@ function validateReference(value: unknown, index: number): JudgmentProblemRefere
   if (validTo !== undefined && Date.parse(validTo) < Date.parse(validFrom)) {
     fail('invalid_request', `${label}.valid_to precedes valid_from`);
   }
+  const measurement = value.measurement === undefined
+    ? undefined
+    : validateMeasurementDescriptor(value.measurement, `${label}.measurement`);
   const evidence = value.evidence === undefined ? undefined : validateEvidence(value.evidence, `${label}.evidence`);
   return deepFreeze({
     kind: value.kind as JudgmentProblemReferenceKind,
@@ -477,7 +521,75 @@ function validateReference(value: unknown, index: number): JudgmentProblemRefere
     scope: { type: value.scope.type, id: value.scope.id },
     valid_from: validFrom,
     ...(validTo === undefined ? {} : { valid_to: validTo }),
+    ...(measurement === undefined ? {} : { measurement }),
     ...(evidence === undefined ? {} : { evidence })
+  });
+}
+
+function validateMeasurementDescriptor(
+  value: unknown,
+  label: string
+): JudgmentProblemObservationMeasurementDescriptor {
+  const aggregations: readonly FoundationAggregation[] = [
+    'none',
+    'sum',
+    'average',
+    'count',
+    'min',
+    'max',
+    'last',
+    'custom'
+  ];
+  const keys = ['aggregation', 'granularity', 'period', 'scope', 'unit', 'variableRef'];
+  if (!isPlainRecord(value) || !hasOnlyKeys(value, keys)
+    || !Object.prototype.hasOwnProperty.call(value, 'variableRef')
+    || !Object.prototype.hasOwnProperty.call(value, 'aggregation')
+    || !Object.prototype.hasOwnProperty.call(value, 'granularity')
+    || !Object.prototype.hasOwnProperty.call(value, 'scope')
+    || !Object.prototype.hasOwnProperty.call(value, 'period')) {
+    fail('invalid_request', `${label} is invalid`);
+  }
+  if (!isPlainRecord(value.variableRef)
+    || !hasExactKeys(value.variableRef, ['id', 'revision', 'type'])
+    || value.variableRef.type !== 'variable') {
+    fail('invalid_request', `${label}.variableRef must reference a Variable revision`);
+  }
+  const variableId = requireString(value.variableRef.id, `${label}.variableRef.id`);
+  const variableRevision = requireRevision(value.variableRef.revision, `${label}.variableRef.revision`);
+  if (typeof value.aggregation !== 'string' || !aggregations.includes(value.aggregation as FoundationAggregation)) {
+    fail('invalid_request', `${label}.aggregation is invalid`);
+  }
+  const granularity = requireString(value.granularity, `${label}.granularity`);
+  if (value.unit !== undefined && typeof value.unit !== 'string') {
+    fail('invalid_request', `${label}.unit must be a string when provided`);
+  }
+  if (!isPlainRecord(value.scope)
+    || !Array.isArray(value.scope.subjectIds)
+    || value.scope.subjectIds.some((subjectId) => typeof subjectId !== 'string' || subjectId.trim().length === 0)
+    || typeof value.scope.validFrom !== 'string'
+    || Number.isNaN(Date.parse(value.scope.validFrom))
+    || (value.scope.validUntil !== undefined && (typeof value.scope.validUntil !== 'string' || Number.isNaN(Date.parse(value.scope.validUntil))))) {
+    fail('invalid_request', `${label}.scope is invalid`);
+  }
+  if (!isPlainRecord(value.period)
+    || typeof value.period.from !== 'string'
+    || typeof value.period.until !== 'string'
+    || Number.isNaN(Date.parse(value.period.from))
+    || Number.isNaN(Date.parse(value.period.until))
+    || Date.parse(value.period.until) < Date.parse(value.period.from)) {
+    fail('invalid_request', `${label}.period is invalid`);
+  }
+  return deepFreeze({
+    variableRef: { id: variableId, type: 'variable', revision: variableRevision },
+    ...(value.unit === undefined ? {} : { unit: value.unit }),
+    aggregation: value.aggregation as FoundationAggregation,
+    granularity,
+    scope: {
+      subjectIds: [...value.scope.subjectIds],
+      validFrom: value.scope.validFrom,
+      ...(value.scope.validUntil === undefined ? {} : { validUntil: value.scope.validUntil })
+    },
+    period: { from: value.period.from, until: value.period.until }
   });
 }
 
@@ -516,6 +628,10 @@ function requiredKinds(references: readonly JudgmentProblemReference[]): Set<Jud
 
 function validateRequiredReferences(snapshot: JudgmentProblemSnapshot): void {
   const kinds = requiredKinds(snapshot.references);
+  const objectiveCount = snapshot.references.filter((reference) => reference.kind === 'objective').length;
+  if (objectiveCount !== 1) {
+    fail('invalid_request', `snapshot must contain exactly one objective reference; found ${objectiveCount}`);
+  }
   const required: readonly JudgmentProblemReferenceKind[] = [
     'objective',
     'criterion',
@@ -585,11 +701,12 @@ async function resolveOneReference(
   phase: JudgmentProblemReferenceResolutionPhase,
   context: JudgmentProblemSnapshotAccessContext,
   provider: JudgmentProblemReferenceProvider,
+  snapshot: JudgmentProblemSnapshot,
   errorReference: JudgmentProblemReference = reference
 ): Promise<void> {
   let result: JudgmentProblemReferenceResolution;
   try {
-    result = await provider.resolve({ reference, phase, context });
+    result = await provider.resolve({ reference, phase, context, snapshot });
   } catch (error) {
     if (error instanceof JudgmentProblemSnapshotError) throw error;
     const code = error && typeof error === 'object' && 'code' in error
@@ -627,9 +744,9 @@ async function resolveReferences(
   provider: JudgmentProblemReferenceProvider
 ): Promise<void> {
   for (const reference of snapshot.references) {
-    await resolveOneReference(reference, phase, context, provider);
+    await resolveOneReference(reference, phase, context, provider, snapshot);
     if (reference.evidence?.mode === 'immutable_reference') {
-      await resolveOneReference(evidenceReference(reference, reference.evidence), phase, context, provider, reference);
+      await resolveOneReference(evidenceReference(reference, reference.evidence), phase, context, provider, snapshot, reference);
     }
   }
 }
@@ -924,6 +1041,46 @@ export async function loadJudgmentProblemSnapshot(
   return envelope.snapshot;
 }
 
+export async function validateJudgmentProblemSnapshot(
+  request: ValidateJudgmentProblemSnapshotRequest
+): Promise<void> {
+  if (!isPlainRecord(request)) fail('invalid_request', 'validation request must be a plain object');
+  const snapshot = validateSnapshot(request.snapshot);
+  validateRequiredReferences(snapshot);
+  const context = validateAccessContext(request.access);
+  const referenceResolution = request.reference_resolution ?? 'current';
+  if (referenceResolution !== 'current' && referenceResolution !== 'historical') {
+    fail('invalid_request', 'reference_resolution must be current or historical');
+  }
+  if (!request.referenceProvider || typeof request.referenceProvider.resolve !== 'function') {
+    fail('invalid_request', `referenceProvider.resolve is required for ${referenceResolution} reference resolution`);
+  }
+  const accessProvider = request.accessProvider ?? defaultJudgmentProblemSnapshotAccessProvider;
+  await authorize('read', snapshot, context, accessProvider);
+  for (const reference of snapshot.references) {
+    if (reference.evidence === undefined) continue;
+    try {
+      const allowed = await accessProvider.authorize({
+        action: 'read',
+        context,
+        acl: reference.evidence.access,
+        snapshot,
+        reference
+      });
+      if (allowed === false) fail('unauthorized', `evidence access was denied for ${reference.kind}/${reference.id}@${reference.revision}`, reference);
+    } catch (error) {
+      if (error instanceof JudgmentProblemSnapshotError) throw error;
+      fail('unauthorized', `evidence access was denied for ${reference.kind}/${reference.id}@${reference.revision}`, reference);
+    }
+  }
+  await resolveReferences(
+    snapshot,
+    referenceResolution === 'current' ? 'read' : 'historical_read',
+    context,
+    request.referenceProvider
+  );
+}
+
 function validateAccessContext(value: unknown): JudgmentProblemSnapshotAccessContext {
   if (!isPlainRecord(value) || typeof value.principal !== 'string' || value.principal.trim().length === 0 || value.principal.includes('\0')) {
     fail('unauthorized', 'a trusted principal is required');
@@ -964,10 +1121,19 @@ export function createJudgmentProblemFoundationReferenceProvider(options: {
     readonly reference: JudgmentProblemReference;
     readonly phase: JudgmentProblemReferenceResolutionPhase;
     readonly context: JudgmentProblemSnapshotAccessContext;
+    readonly snapshot?: JudgmentProblemSnapshot;
   }) => JudgmentProblemReferenceResolution | Promise<JudgmentProblemReferenceResolution>;
 }): JudgmentProblemReferenceProvider {
+  const objectiveReader: ObjectiveReadinessReader = {
+    async read(reference, context) {
+      return await options.store.read(reference, { principal: context.principal }) as FoundationCatalogRecord | null;
+    }
+  };
   return {
     async resolve(input) {
+      if (input.reference.kind === 'observation') {
+        return resolveObservationReference(input, options, objectiveReader);
+      }
       if (!['objective', 'variable', 'model', 'constraint'].includes(input.reference.kind)) {
         if (options.resolveOther) return options.resolveOther(input);
         return { status: 'unresolved', message: `No provider is registered for ${input.reference.kind}` };
@@ -1002,6 +1168,34 @@ export function createJudgmentProblemFoundationReferenceProvider(options: {
           return { status: 'not_applicable', message: applicability.message };
         }
       }
+      if (definition.type === 'objective') {
+        if (input.phase === 'historical_read') {
+          const dependencyResult = await validateObjectiveDependencies(
+            definition,
+            input,
+            options
+          );
+          if (dependencyResult) return dependencyResult;
+        } else {
+          const readiness = await checkObjectiveReadiness(
+            objectiveReader,
+            input.reference.id,
+            { principal: input.context.principal },
+            input.reference.revision
+          );
+          if (!readiness.ready) return objectiveReadinessResult(readiness.issues);
+          const dependencyResult = await validateObjectiveDependencies(
+            definition,
+            input,
+            options
+          );
+          if (dependencyResult) return dependencyResult;
+        }
+      }
+      if (definition.type === 'model') {
+        const dependencyResult = await validateModelDependencies(definition, input, options);
+        if (dependencyResult) return dependencyResult;
+      }
       if (options.validate) {
         return options.validate({
           ...input,
@@ -1011,6 +1205,200 @@ export function createJudgmentProblemFoundationReferenceProvider(options: {
       return { status: 'resolved', digest: resolved.digest as JudgmentProblemSnapshotId };
     }
   };
+}
+
+function objectiveReadinessResult(
+  issues: readonly { readonly code: string; readonly message: string }[]
+): JudgmentProblemReferenceResolution {
+  const notApplicable = issues.some((issue) => (
+    issue.code === 'UNAUTHORIZED_USE' || issue.code === 'CRITERION_PERIOD_MISMATCH'
+  ));
+  return {
+    status: notApplicable ? 'not_applicable' : 'unresolved',
+    message: issues.map((issue) => issue.message).join('; ')
+  };
+}
+
+async function validateObjectiveDependencies(
+  definition: ObjectiveDefinition,
+  input: Parameters<JudgmentProblemReferenceProvider['resolve']>[0],
+  options: Parameters<typeof createJudgmentProblemFoundationReferenceProvider>[0]
+): Promise<JudgmentProblemReferenceResolution | undefined> {
+  for (const criterion of definition.criteria) {
+    const dependency = criterion?.variableRef;
+    if (!isVariableRevision(dependency)) {
+      return { status: 'unresolved', message: 'Objective criterion does not reference a valid Variable revision' };
+    }
+    const resolved = await options.store.read(dependency, { principal: input.context.principal });
+    if (!resolved) return { status: 'missing', message: `Objective Variable ${dependency.id}@${dependency.revision} was not found` };
+    if (!matchingFoundationRecord(resolved, dependency, 'variable')) {
+      return { status: 'unresolved', message: `Objective Variable ${dependency.id}@${dependency.revision} is not the requested revision` };
+    }
+    const pinned = findSnapshotReference(input.snapshot, dependency);
+    if (pinned && pinned.digest !== resolved.digest) {
+      return { status: 'unresolved', message: `Objective Variable ${dependency.id}@${dependency.revision} digest changed` };
+    }
+  }
+  return undefined;
+}
+
+async function validateModelDependencies(
+  definition: ModelDefinition,
+  input: Parameters<JudgmentProblemReferenceProvider['resolve']>[0],
+  options: Parameters<typeof createJudgmentProblemFoundationReferenceProvider>[0]
+): Promise<JudgmentProblemReferenceResolution | undefined> {
+  const dependencies = [...definition.inputVariableRefs, ...definition.outputVariableRefs];
+  const seen = new Set<string>();
+  for (const dependency of dependencies) {
+    if (!isVariableRevision(dependency)) {
+      return { status: 'unresolved', message: 'Model input/output must reference a valid Variable revision' };
+    }
+    const key = `${dependency.id}@${dependency.revision}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const resolved = await options.store.read(dependency, { principal: input.context.principal });
+    if (!resolved) return { status: 'missing', message: `Model Variable ${dependency.id}@${dependency.revision} was not found` };
+    if (!matchingFoundationRecord(resolved, dependency, 'variable')) {
+      return { status: 'unresolved', message: `Model Variable ${dependency.id}@${dependency.revision} is not the requested revision` };
+    }
+    const pinned = findSnapshotReference(input.snapshot, dependency);
+    if (pinned && pinned.digest !== resolved.digest) {
+      return { status: 'unresolved', message: `Model Variable ${dependency.id}@${dependency.revision} digest changed` };
+    }
+    if (input.phase === 'historical_read') continue;
+    const definitionResult = validateFoundationDefinition(resolved.definition, { use: 'judgment' });
+    if (!definitionResult.valid) {
+      const notApplicable = definitionResult.issues.some((issue) => issue.code === 'UNAUTHORIZED_USE');
+      return {
+        status: notApplicable ? 'not_applicable' : 'unresolved',
+        message: definitionResult.issues.map((issue) => issue.message).join('; ')
+      };
+    }
+    const applicability = validateFoundationReferenceApplicability(input.reference, resolved.definition);
+    if (!applicability.valid) return { status: 'not_applicable', message: applicability.message };
+  }
+  return undefined;
+}
+
+function isVariableRevision(value: unknown): value is FoundationRevision {
+  return isPlainRecord(value)
+    && value.type === 'variable'
+    && typeof value.id === 'string'
+    && value.id.length > 0
+    && typeof value.revision === 'string'
+    && /^[1-9]\d*$/u.test(value.revision);
+}
+
+function matchingFoundationRecord(
+  record: { readonly definition?: unknown; readonly digest?: unknown },
+  reference: FoundationRevision,
+  type: FoundationRevision['type']
+): record is { readonly definition: FoundationDefinition; readonly digest: string } {
+  return typeof record.digest === 'string'
+    && isPlainRecord(record.definition)
+    && record.definition.type === type
+    && record.definition.id === reference.id
+    && record.definition.revision === reference.revision;
+}
+
+function findSnapshotReference(
+  snapshot: JudgmentProblemSnapshot | undefined,
+  reference: FoundationRevision
+): JudgmentProblemReference | undefined {
+  return snapshot?.references.find((candidate) => (
+    candidate.kind === reference.type
+    && candidate.id === reference.id
+    && candidate.revision === reference.revision
+  ));
+}
+
+async function resolveObservationReference(
+  input: Parameters<JudgmentProblemReferenceProvider['resolve']>[0],
+  options: Parameters<typeof createJudgmentProblemFoundationReferenceProvider>[0],
+  objectiveReader: ObjectiveReadinessReader
+): Promise<JudgmentProblemReferenceResolution> {
+  if (!options.resolveOther) return { status: 'unresolved', message: 'No canonical Observation provider is registered' };
+  const resolved = await options.resolveOther(input);
+  if (resolved.status !== 'resolved') return resolved;
+  const descriptor = input.reference.measurement;
+  const canonical = resolved.canonical?.measurement;
+  if (input.phase === 'historical_read') {
+    if (descriptor !== undefined && canonical !== undefined && !sameMeasurementDescriptor(descriptor, canonical)) {
+      return { status: 'unresolved', message: 'Historical Observation measurement metadata changed' };
+    }
+    return resolved;
+  }
+  if (descriptor === undefined || canonical === undefined) {
+    return { status: 'unresolved', message: 'Current Observation requires canonical measurement metadata and a pinned descriptor' };
+  }
+  if (!sameMeasurementDescriptor(descriptor, canonical)) {
+    return { status: 'unresolved', message: 'Observation measurement descriptor does not match canonical metadata' };
+  }
+  const snapshot = input.snapshot;
+  if (!snapshot) return { status: 'unresolved', message: 'Current Observation validation requires the complete snapshot bundle' };
+  const objectiveReference = snapshot.references.find((candidate) => candidate.kind === 'objective');
+  if (!objectiveReference) return { status: 'unresolved', message: 'Current Observation requires an Objective reference' };
+  const objectiveRecord = await options.store.read(
+    { id: objectiveReference.id, type: 'objective', revision: objectiveReference.revision },
+    { principal: input.context.principal }
+  );
+  if (!objectiveRecord) return { status: 'missing', message: 'Objective for Observation measurement was not found' };
+  const objectiveRevision: FoundationRevision = {
+    id: objectiveReference.id,
+    type: 'objective',
+    revision: objectiveReference.revision
+  };
+  if (!matchingFoundationRecord(objectiveRecord, objectiveRevision, 'objective')) {
+    return { status: 'unresolved', message: 'Objective for Observation measurement is not the requested revision' };
+  }
+  if (objectiveRecord.digest !== objectiveReference.digest) {
+    return { status: 'unresolved', message: 'Objective for Observation measurement digest changed' };
+  }
+  const objectiveDefinition = objectiveRecord.definition as ObjectiveDefinition;
+  const objectiveApplicability = validateFoundationReferenceApplicability(objectiveReference, objectiveDefinition);
+  if (!objectiveApplicability.valid) return { status: 'not_applicable', message: objectiveApplicability.message };
+  const readiness = await checkObjectiveReadiness(
+    objectiveReader,
+    objectiveReference.id,
+    { principal: input.context.principal },
+    objectiveReference.revision
+  );
+  if (!readiness.ready) return objectiveReadinessResult(readiness.issues);
+  const variableRecord = await options.store.read(
+    descriptor.variableRef,
+    { principal: input.context.principal }
+  );
+  if (!variableRecord) return { status: 'missing', message: 'Observation measurement Variable was not found' };
+  if (!matchingFoundationRecord(variableRecord, descriptor.variableRef, 'variable')) {
+    return { status: 'unresolved', message: 'Observation measurement Variable is not the requested revision' };
+  }
+  const pinnedVariable = findSnapshotReference(snapshot, descriptor.variableRef);
+  if (pinnedVariable && pinnedVariable.digest !== variableRecord.digest) {
+    return { status: 'unresolved', message: 'Observation measurement Variable digest changed' };
+  }
+  const compatibility = validateEvaluationCompatibility(
+    variableRecord.definition as VariableDefinition,
+    descriptor,
+    { period: objectiveDefinition.evaluationPeriod }
+  );
+  if (!compatibility.valid) {
+    const notApplicable = compatibility.issues.some((issue) => issue.code === 'UNAUTHORIZED_USE');
+    return {
+      status: notApplicable ? 'not_applicable' : 'unresolved',
+      message: compatibility.issues.map((issue) => issue.message).join('; ')
+    };
+  }
+  if (!scopeContainsReference(descriptor.scope, input.reference)) {
+    return { status: 'not_applicable', message: 'Observation measurement scope does not cover the Observation reference' };
+  }
+  return resolved;
+}
+
+function sameMeasurementDescriptor(
+  left: JudgmentProblemObservationMeasurementDescriptor,
+  right: JudgmentProblemObservationMeasurementDescriptor
+): boolean {
+  return canonicalJson(left) === canonicalJson(right);
 }
 
 interface ApplicabilityResult {

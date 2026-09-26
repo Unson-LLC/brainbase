@@ -8,6 +8,7 @@ import {
   createJudgmentProblemFoundationReferenceProvider,
   loadJudgmentProblemSnapshot,
   saveJudgmentProblemSnapshot,
+  validateJudgmentProblemSnapshot,
   type JudgmentProblemReference,
   type JudgmentProblemReferenceResolutionPhase,
   type JudgmentProblemReferenceProvider,
@@ -16,7 +17,13 @@ import {
 } from '../src/judgment-problem-snapshot.js';
 import { createFoundationRevisionStore } from '../src/foundation-store.js';
 import { initializePersonalOs } from '../src/ssot.js';
-import type { FoundationScope, ModelDefinition, VariableDefinition } from '../src/ontology-foundation.js';
+import type {
+  FoundationEvaluationDescriptor,
+  FoundationScope,
+  ModelDefinition,
+  ObjectiveDefinition,
+  VariableDefinition
+} from '../src/ontology-foundation.js';
 
 const roots: string[] = [];
 
@@ -151,6 +158,46 @@ function foundationModel(variableId: string): ModelDefinition {
   };
 }
 
+function foundationObjective(variableId: string): ObjectiveDefinition {
+  return {
+    id: 'reduce-front-desk-load',
+    type: 'objective',
+    revision: '1',
+    meaning: 'Reduce the total front desk handling load during the rollout.',
+    adoptionState: 'approved',
+    authorizedUses: ['draft', 'judgment', 'evaluation'],
+    acl: foundationAcl(),
+    storage: 'ontology',
+    provenance: foundationProvenance(),
+    scope: foundationScope,
+    beneficiaryIds: ['hotel-alpha'],
+    desiredState: 'Weekly handling load stays at or below the target.',
+    criteria: [{
+      variableRef: { id: variableId, type: 'variable', revision: '1' },
+      operator: 'at_most',
+      target: 60
+    }],
+    evaluationPeriod: {
+      from: '2026-01-01T00:00:00.000Z',
+      until: '2026-12-31T00:00:00.000Z'
+    }
+  };
+}
+
+function measurementDescriptor(variableId: string): FoundationEvaluationDescriptor {
+  return {
+    variableRef: { id: variableId, type: 'variable', revision: '1' },
+    unit: 'minute',
+    aggregation: 'sum',
+    granularity: 'week',
+    scope: foundationScope,
+    period: {
+      from: '2026-01-01T00:00:00.000Z',
+      until: '2026-12-31T00:00:00.000Z'
+    }
+  };
+}
+
 describe('JudgmentProblem snapshot contract', () => {
   it('captures required references, preserves optional omission, and reloads immutably', async () => {
     const root = await temporaryRoot();
@@ -179,6 +226,42 @@ describe('JudgmentProblem snapshot contract', () => {
     expect(calls).toHaveLength(16);
     expect(calls.slice(0, 8).every((call) => call.phase === 'save')).toBe(true);
     expect(calls.slice(8).every((call) => call.phase === 'read')).toBe(true);
+  });
+
+  it('exposes read-only validation through the same reference resolution path', async () => {
+    const calls: Array<{ phase: JudgmentProblemReferenceResolutionPhase; reference: JudgmentProblemReference }> = [];
+
+    await expect(validateJudgmentProblemSnapshot({
+      snapshot: snapshot(),
+      access: { principal: 'alice' },
+      referenceProvider: provider(calls)
+    })).resolves.toBeUndefined();
+
+    expect(calls).toHaveLength(8);
+    expect(calls.every((call) => call.phase === 'read')).toBe(true);
+  });
+
+  it('rejects snapshots with multiple Objective references before resolving dependencies', async () => {
+    const calls: Array<{ phase: JudgmentProblemReferenceResolutionPhase; reference: JudgmentProblemReference }> = [];
+    const original = snapshot();
+    const duplicateObjective: JudgmentProblemReference = {
+      ...reference('objective', 99),
+      id: 'objective-2'
+    };
+    const ambiguous = {
+      ...original,
+      references: [...original.references, duplicateObjective]
+    } satisfies JudgmentProblemSnapshot;
+
+    await expect(validateJudgmentProblemSnapshot({
+      snapshot: ambiguous,
+      access: { principal: 'alice' },
+      referenceProvider: provider(calls)
+    })).rejects.toMatchObject({
+      code: 'invalid_request',
+      message: 'snapshot must contain exactly one objective reference; found 2'
+    });
+    expect(calls).toHaveLength(0);
   });
 
   it('separates historical snapshot replay from current reference ACL resolution', async () => {
@@ -387,6 +470,137 @@ describe('JudgmentProblem snapshot contract', () => {
       revision: item.revision,
       principal: 'alice'
     }]);
+  });
+
+  it('fails closed when Objective or Model dependencies are missing', async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'brainbase-jp-missing-foundation-'));
+    roots.push(dataDir);
+    await initializePersonalOs(dataDir);
+    const store = createFoundationRevisionStore({ dataDir });
+    const foundationProvider = createJudgmentProblemFoundationReferenceProvider({ store });
+
+    const objectiveRef = await store.create(
+      foundationObjective('missing-objective-variable'),
+      { principal: 'alice' }
+    );
+    const objectiveReference: JudgmentProblemReference = {
+      ...reference('objective', 31),
+      id: objectiveRef.id,
+      revision: objectiveRef.revision,
+      digest: objectiveRef.digest as `sha256:${string}`,
+      valid_to: '2026-12-31T00:00:00.000Z'
+    };
+    await expect(foundationProvider.resolve({
+      reference: objectiveReference,
+      phase: 'read',
+      context: { principal: 'alice' }
+    })).resolves.toMatchObject({
+      status: 'unresolved',
+      message: 'Variable missing-objective-variable@1 was not found.'
+    });
+
+    const modelRef = await store.create(
+      foundationModel('missing-model-variable'),
+      { principal: 'alice' }
+    );
+    const modelReference: JudgmentProblemReference = {
+      ...reference('model', 32),
+      id: modelRef.id,
+      revision: modelRef.revision,
+      digest: modelRef.digest as `sha256:${string}`,
+      valid_to: '2026-12-31T00:00:00.000Z'
+    };
+    await expect(foundationProvider.resolve({
+      reference: modelReference,
+      phase: 'read',
+      context: { principal: 'alice' }
+    })).resolves.toMatchObject({
+      status: 'missing',
+      message: expect.stringContaining('Model Variable missing-model-variable@1')
+    });
+  });
+
+  it('requires canonical Observation measurement metadata for current reads', async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), 'brainbase-jp-observation-'));
+    roots.push(dataDir);
+    await initializePersonalOs(dataDir);
+    const store = createFoundationRevisionStore({ dataDir });
+    const variableRef = await store.create(foundationVariable(), { principal: 'alice' });
+    const objectiveRef = await store.create(
+      foundationObjective(variableRef.id),
+      { principal: 'alice' }
+    );
+    const measurement = measurementDescriptor(variableRef.id);
+    const objectiveReference: JudgmentProblemReference = {
+      ...reference('objective', 41),
+      id: objectiveRef.id,
+      revision: objectiveRef.revision,
+      digest: objectiveRef.digest as `sha256:${string}`,
+      valid_to: '2026-12-31T00:00:00.000Z'
+    };
+    const observationReference: JudgmentProblemReference = {
+      ...reference('observation', 42),
+      valid_to: '2026-12-31T00:00:00.000Z',
+      measurement
+    };
+    const baseSnapshot = snapshot();
+    const bundle: JudgmentProblemSnapshot = {
+      ...baseSnapshot,
+      references: baseSnapshot.references.map((item) => (
+        item.kind === 'objective' ? objectiveReference
+          : item.kind === 'observation' ? observationReference
+            : item
+      ))
+    };
+    const canonicalProvider = createJudgmentProblemFoundationReferenceProvider({
+      store,
+      resolveOther: ({ reference: item }) => ({
+        status: 'resolved',
+        digest: item.digest,
+        canonical: { measurement }
+      })
+    });
+
+    await expect(canonicalProvider.resolve({
+      reference: observationReference,
+      phase: 'read',
+      context: { principal: 'alice' },
+      snapshot: bundle
+    })).resolves.toEqual({
+      status: 'resolved',
+      digest: observationReference.digest,
+      canonical: { measurement }
+    });
+
+    const mismatched = {
+      ...measurement,
+      period: { ...measurement.period, until: '2026-11-30T00:00:00.000Z' }
+    } satisfies FoundationEvaluationDescriptor;
+    const mismatchedProvider = createJudgmentProblemFoundationReferenceProvider({
+      store,
+      resolveOther: ({ reference: item }) => ({
+        status: 'resolved',
+        digest: item.digest,
+        canonical: { measurement: mismatched }
+      })
+    });
+    await expect(mismatchedProvider.resolve({
+      reference: observationReference,
+      phase: 'read',
+      context: { principal: 'alice' },
+      snapshot: bundle
+    })).resolves.toMatchObject({
+      status: 'unresolved',
+      message: 'Observation measurement descriptor does not match canonical metadata'
+    });
+
+    const descriptorlessHistorical = { ...observationReference, measurement: undefined };
+    await expect(canonicalProvider.resolve({
+      reference: descriptorlessHistorical,
+      phase: 'historical_read',
+      context: { principal: 'alice' },
+      snapshot: bundle
+    })).resolves.toMatchObject({ status: 'resolved', digest: observationReference.digest });
   });
 
   it('requires a provider to prove the exact revision digest', async () => {

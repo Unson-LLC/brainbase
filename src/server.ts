@@ -1,3 +1,4 @@
+import { callFoundationPublicTool, foundationPublicToolDefinitions, type FoundationPublicConnection } from './foundation-public-provider.js';
 import { createOrganizationGraphConfig, createOrganizationGraphClient } from './organization-graph.js';
 import { createHash } from 'node:crypto';
 import { retrieveGraph } from './graph-retrieval.js';
@@ -473,11 +474,11 @@ function configuredPersonalKnowledgeMode(): 'local' | 'managed_cloud' {
   throw new Error(`Unsupported Personal Knowledge mode: ${configuredMode}.`);
 }
 
-function configuredToolDefinitions() {
+function configuredToolDefinitions(foundation?: FoundationPublicConnection) {
   if (configuredPersonalKnowledgeMode() === 'managed_cloud') {
     return toolDefinitions.filter((tool) => isPersonalKnowledgeTool(tool.name));
   }
-  return [...toolDefinitions];
+  return [...toolDefinitions, ...(foundation ? foundationPublicToolDefinitions : [])];
 }
 
 let embeddingProvider: EmbeddingProvider | undefined;
@@ -563,11 +564,12 @@ async function callPersonalKnowledgeTool(name: string, rawArgs: unknown): Promis
   throw new Error(`Unknown Personal Knowledge tool: ${name}`);
 }
 
-export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Promise<unknown> {
+export async function callBrainbaseTool(name: string, rawArgs: unknown = {}, options: { foundation?: FoundationPublicConnection } = {}): Promise<unknown> {
   const mode = configuredPersonalKnowledgeMode();
   if (mode === 'managed_cloud' && !isPersonalKnowledgeTool(name)) {
     throw new Error('managed_cloud Personal Knowledge MCP only permits personal_knowledge_context, personal_knowledge_register, and personal_knowledge_search.');
   }
+  if (name.startsWith('foundation_')) return callFoundationPublicTool(name, rawArgs, options.foundation);
   if (isPersonalKnowledgeTool(name)) {
     return callPersonalKnowledgeTool(name, rawArgs);
   }
@@ -927,7 +929,7 @@ function onboardingGuide(state: ConnectedOnboardingRun['state']): { current: str
   return guides[state];
 }
 
-export function createServer(): Server {
+export function createServer(options: { foundation?: FoundationPublicConnection } = {}): Server {
   const server = new Server(
     {
       name: 'brainbase-mcp',
@@ -941,11 +943,11 @@ export function createServer(): Server {
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: configuredToolDefinitions()
+    tools: configuredToolDefinitions(options.foundation)
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const result = await callBrainbaseTool(request.params.name, request.params.arguments);
+    const result = await callBrainbaseTool(request.params.name, request.params.arguments, options);
     return {
       content: [
         {
