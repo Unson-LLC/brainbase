@@ -7,20 +7,6 @@ body {
 }
 
 .bb-shell {
-  /* Host variables read by the Objective editor, mapped to the shared tokens. */
-  --paper: var(--bb-color-panel);
-  --canvas: var(--bb-color-surface);
-  --ink: var(--bb-color-ink);
-  --muted: var(--bb-color-muted);
-  --quiet: var(--bb-color-muted);
-  --line: var(--bb-color-border);
-  --line-dark: var(--bb-color-border);
-  --green: var(--bb-color-success);
-  --green-soft: var(--bb-color-success-soft);
-  --amber: var(--bb-color-warning);
-  --amber-soft: var(--bb-color-warning-soft);
-  --red: var(--bb-color-danger);
-  --red-soft: var(--bb-color-danger-soft);
   min-width: 0;
   font-size: 15px;
   line-height: 1.6;
