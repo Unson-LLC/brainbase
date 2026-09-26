@@ -450,7 +450,8 @@ function statusBadge(state, label = null) {
 function field(labelText, name, value, options = {}) {
   const label = makeElement('label', { className: 'objective-editor-field' });
   label.append(makeElement('span', { className: 'objective-editor-label', text: labelText }));
-  const input = makeElement(options.tag ?? 'input', {
+  // A field with choices is a select; an input cannot hold option elements.
+  const input = makeElement(options.tag ?? (options.options ? 'select' : 'input'), {
     className: 'objective-editor-input',
     value: value ?? '',
     attrs: { name, ...(options.attrs ?? {}) },
@@ -535,6 +536,16 @@ function shortDate(value) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+/** Readiness in the list: known readiness is named as such, not as the adoption state. */
+function readinessBadge(objective) {
+  const readiness = objective.readiness;
+  if (readiness?.state === 'ready' && readiness.ready === false) {
+    const count = readiness.issues?.length ?? 0;
+    return statusBadge('draft', count > 0 ? `判断に使えない（不足${count}件）` : '判断に使えない');
+  }
+  return statusBadge(objectiveJudgmentState(objective), objectiveJudgmentLabel(objective));
+}
+
 /** One line per Objective: desired state, evaluation period, accountable person and criteria count. */
 function objectiveSummary(objective) {
   const from = shortDate(objective.evaluationPeriod?.from);
@@ -576,7 +587,7 @@ function renderObjectiveList(root, state, callbacks) {
       makeElement('small', { text: `${objective.id}@${objective.revision}` }),
     );
     const badges = makeElement('span', { className: 'objective-editor-list-badges' });
-    badges.append(statusBadge(objective.adoptionState ?? 'unknown'), statusBadge(objectiveJudgmentState(objective), objectiveJudgmentLabel(objective)));
+    badges.append(statusBadge(objective.adoptionState ?? 'unknown'), readinessBadge(objective));
     row.append(copy, badges);
     list.append(row);
   }
@@ -1123,7 +1134,10 @@ export function createObjectiveEditorController(options = {}) {
       };
       state.save = { state: 'verified', action: mode, reference: savedRef, readback };
       state.connection = 'ready';
+      // Readiness belongs to a revision; re-read it for the one just saved.
+      state.readiness = { state: 'unknown', ready: null, issues: null };
       render();
+      await loadReadiness(readback);
       await loadObjectives();
       return state.save;
     } catch (error) {
