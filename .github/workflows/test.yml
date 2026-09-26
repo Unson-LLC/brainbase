@@ -1,0 +1,38 @@
+name: Build and test pull request
+
+on:
+  pull_request:
+    branches:
+      - develop
+
+concurrency:
+  group: brainbase-pr-test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and typecheck package
+        run: npm run build
+
+      - name: Run package tests
+        run: npm test
