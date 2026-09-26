@@ -585,6 +585,12 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-canonical-graph-foundation-history-v1",
+        "title": "組織Graphの判断定義を過去版と現在の権限で参照する",
+        "ssot": "local",
+        "status": "active"
       }
     ],
     "current_story_id": "story-company-os-philosophy-revision-read-v1"

@@ -9,6 +9,7 @@ import type {
   JudgmentProblemScope,
   JudgmentProblemSnapshotAccessContext
 } from './judgment-problem-snapshot.js';
+import type { FoundationStoreContext } from './foundation-store.js';
 import type { FoundationAcl } from './ontology-foundation.js';
 
 /** The host owns the canonical philosophy source; this package owns only the read port. */
@@ -73,6 +74,8 @@ export type PhilosophyRevisionReadResult =
 
 /** The organization-specific adapter reads this port from its existing philosophy SSOT. */
 export interface PhilosophyRevisionReader {
+  /** Resolve a canonical pin before its digest is known; current authorization still applies. */
+  readCanonical?(input: { readonly id: string; readonly revision: string; readonly context: FoundationStoreContext }): PhilosophyRevisionReadResult | Promise<PhilosophyRevisionReadResult>;
   read(input: PhilosophyRevisionReadRequest): PhilosophyRevisionReadResult | Promise<PhilosophyRevisionReadResult>;
 }
 

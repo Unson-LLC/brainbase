@@ -92,12 +92,15 @@ it('uses the canonical philosophy resolver and trusted scope through the public 
   const base = { kind: 'philosophy' as const, id: 'continuous-use', revision: '2', payload: { statement: '継続利用を導入件数より優先する' }, applicability: { scope: { type: 'project' as const, id: 'project-a' }, validFrom: context.scope.validFrom } };
   let record: PhilosophyRevisionRecord = { ...base, digest: philosophyRevisionDigest(base), currentAcl: variable().acl, currentScope: base.applicability.scope };
   const read = vi.fn(async () => ({ status: 'resolved' as const, record }));
-  const provider = createFoundationPublicProvider({ store: { read: vi.fn() }, philosophyReader: { read } });
+  const provider = createFoundationPublicProvider({ store: { read: vi.fn() }, philosophyReader: { read, readCanonical: async () => ({ status: 'resolved', record }) } });
   const reference = { kind: 'philosophy', id: record.id, revision: record.revision, digest: record.digest, scope: record.currentScope, valid_from: context.scope.validFrom };
+  expect(await provider.read({ type: 'philosophy', id: record.id, revision: record.revision }, context)).toMatchObject({ digest: record.digest, payload: record.payload });
+  await expect(provider.read({ type: 'philosophy', id: record.id, revision: record.revision, digest: 'sha256:' + '0'.repeat(64) }, context)).rejects.toThrow('foundation_digest_or_identity_mismatch');
   expect(await provider.validate({ reference }, context)).toMatchObject({ status: 'resolved', digest: record.digest });
   expect(await provider.validate({ reference: { ...reference, scope: { type: 'project', id: 'other-project' } } }, context)).toMatchObject({ status: 'unauthorized' });
   expect(read).toHaveBeenCalledTimes(1);
   record = { ...record, currentAcl: { ownerId: 'other', visibility: 'private', readerIds: [], writerIds: [] } };
+  await expect(provider.read({ type: 'philosophy', id: record.id, revision: record.revision }, context)).rejects.toThrow('authorization_denied');
   expect(await provider.validate({ reference, phase: 'historical_read' }, context)).toMatchObject({ status: 'unauthorized' });
 });
 

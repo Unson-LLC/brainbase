@@ -209,7 +209,12 @@
     "./server": {
       "types": "./dist/server.d.ts",
       "import": "./dist/server.js"
-    }
+    },
+    "./graph-foundation-reader": {
+      "types": "./dist/graph-foundation-reader.d.ts",
+      "import": "./dist/graph-foundation-reader.js"
+    },
+    "./contracts/foundation/graph-history.sql": "./contracts/foundation/graph-history.sql"
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
@@ -266,6 +271,7 @@
     "ip-address": "^10.4.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.15.29",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",

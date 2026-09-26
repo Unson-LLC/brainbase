@@ -16,7 +16,7 @@ export const FOUNDATION_PUBLIC_CONTRACT_VERSION = 'foundation-public.v1' as cons
 const revision = z.string().regex(/^[1-9]\d*$/u);
 const digest = z.string().regex(/^sha256:[0-9a-f]{64}$/u).transform((value) => value as `sha256:${string}`);
 const readSchema = z.object({
-  type: z.enum(['objective', 'variable', 'model', 'constraint']),
+  type: z.enum(['objective', 'variable', 'model', 'constraint', 'philosophy']),
   id: z.string().min(1), revision, digest: digest.optional()
 }).strict();
 const referenceSchema = z.object({
@@ -76,6 +76,26 @@ export function createFoundationPublicProvider(options: {
     async read(raw: unknown, context: FoundationStoreContext) {
       assertContext(context);
       const args = readSchema.parse(raw);
+      if (args.type === 'philosophy') {
+        if (!options.philosophyReader?.readCanonical) throw new Error('foundation_provider_unconfigured');
+        const result = await options.philosophyReader.readCanonical({ id: args.id, revision: args.revision, context });
+        if (result.status !== 'resolved') {
+          throw new Error(result.status === 'unauthorized' ? 'authorization_denied' : result.status === 'missing' ? 'foundation_revision_missing' : 'foundation_digest_or_identity_mismatch');
+        }
+        const record = result.record;
+        if (record.id !== args.id || record.revision !== args.revision || (args.digest && args.digest !== record.digest)) {
+          throw new Error('foundation_digest_or_identity_mismatch');
+        }
+        if (context.scope && !context.scope.subjectIds.includes(record.applicability.scope.id)) throw new Error('scope_violation');
+        const resolved = await createJudgmentProblemPhilosophyReferenceResolver({ reader: { read: () => result } })({
+          reference: { kind: 'philosophy', id: record.id, revision: record.revision, digest: record.digest,
+            scope: record.applicability.scope, valid_from: record.applicability.validFrom,
+            ...(record.applicability.validUntil ? { valid_to: record.applicability.validUntil } : {}) },
+          phase: 'historical_read', context
+        });
+        if (resolved.status !== 'resolved') throw new Error(resolved.status === 'unauthorized' ? 'authorization_denied' : 'foundation_digest_or_identity_mismatch');
+        return record;
+      }
       const record = await options.store.read({ type: args.type, id: args.id, revision: args.revision }, context);
       if (!record) throw new Error('foundation_revision_missing');
       if (record.definition.id !== args.id || record.definition.type !== args.type || record.definition.revision !== args.revision
@@ -115,7 +135,7 @@ export const foundationPublicToolDefinitions = [
   { name: 'foundation_describe', description: 'Describe the connected versioned judgment foundation contract.', inputSchema: { type: 'object', properties: {}, additionalProperties: false } },
   { name: 'foundation_read', description: 'Read an exact canonical foundation revision under current access rights.', inputSchema: {
     type: 'object', required: ['type', 'id', 'revision'], additionalProperties: false,
-    properties: { type: { type: 'string', enum: ['objective', 'variable', 'model', 'constraint'] }, id: { type: 'string' }, revision: { type: 'string' }, digest: { type: 'string' } }
+    properties: { type: { type: 'string', enum: ['objective', 'variable', 'model', 'constraint', 'philosophy'] }, id: { type: 'string' }, revision: { type: 'string' }, digest: { type: 'string' } }
   } },
   { name: 'foundation_validate_reference', description: 'Validate an exact foundation or philosophy reference for judgment, including its dependencies.', inputSchema: {
     type: 'object', required: ['reference'], additionalProperties: false,
@@ -166,9 +186,9 @@ export function createFoundationPublicRoute(provider: FoundationPublicProvider):
         return json(405, { error: { code: 'method_not_allowed' } });
       } catch (error) {
         const rawCode = error instanceof Error && 'code' in error ? String(error.code) : error instanceof Error ? error.message : '';
-        const knownCodes = ['authorization_denied', 'scope_violation', 'foundation_revision_missing', 'foundation_digest_or_identity_mismatch', 'foundation_trusted_context_required', 'corrupt_catalog', 'unauthorized', 'invalid_request', 'unresolved_constraint', 'integrity_mismatch', 'missing_reference', 'not_applicable'];
+        const knownCodes = ['foundation_provider_unconfigured', 'authorization_denied', 'scope_violation', 'foundation_revision_missing', 'foundation_digest_or_identity_mismatch', 'foundation_trusted_context_required', 'corrupt_catalog', 'unauthorized', 'invalid_request', 'unresolved_constraint', 'integrity_mismatch', 'missing_reference', 'not_applicable'];
         const code = knownCodes.includes(rawCode) ? rawCode : 'foundation_read_failed';
-        const status = ['authorization_denied', 'scope_violation', 'unauthorized'].includes(code) ? 403 : code === 'foundation_revision_missing' ? 404 : code === 'invalid_request' || error instanceof z.ZodError || error instanceof SyntaxError || error instanceof URIError ? 400 : 422;
+        const status = code === 'foundation_provider_unconfigured' ? 503 : ['authorization_denied', 'scope_violation', 'unauthorized'].includes(code) ? 403 : code === 'foundation_revision_missing' ? 404 : code === 'invalid_request' || error instanceof z.ZodError || error instanceof SyntaxError || error instanceof URIError ? 400 : 422;
         return json(status, { error: { code: status === 400 ? 'invalid_request' : code, ...(error instanceof JudgmentProblemSnapshotError && error.reference ? { reference: { kind: error.reference.kind, id: error.reference.id, revision: error.reference.revision } } : {}) } });
       }
     }
