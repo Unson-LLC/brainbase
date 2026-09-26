@@ -39,6 +39,10 @@
       "types": "./dist/value-proof-review-http.d.ts",
       "import": "./dist/value-proof-review-http.js"
     },
+    "./local-web-host": {
+      "types": "./dist/local-web-host.d.ts",
+      "import": "./dist/local-web-host.js"
+    },
     "./portable-graph": {
       "types": "./dist/portable-graph.d.ts",
       "import": "./dist/portable-graph.js"
