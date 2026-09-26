@@ -9,7 +9,11 @@ import {
   type GraphFoundationQuery
 } from '../src/graph-foundation-reader.js';
 import { createFoundationHttpRouter } from '../src/foundation-http.js';
-import { createFoundationPublicProvider, createFoundationPublicRoute } from '../src/foundation-public-provider.js';
+import {
+  callFoundationPublicTool,
+  createFoundationPublicProvider,
+  createFoundationPublicRoute
+} from '../src/foundation-public-provider.js';
 import { digestFoundationDefinition } from '../src/foundation-catalog.js';
 import { philosophyRevisionDigest } from '../src/philosophy-revision-reader.js';
 import type { FoundationStoreContext } from '../src/foundation-store.js';
@@ -233,7 +237,11 @@ describe('Graph foundation history through the public provider and HTTP boundary
     ]);
 
     await setRuntimeProject('project-a');
-    const { router } = createPublicRouter();
+    const { router, provider } = createPublicRouter();
+    const publicConnection = {
+      provider,
+      resolveContext: () => CONTEXT
+    };
     const variableV1 = variable('1');
     const objectiveV1 = objective();
     const philosophyV1 = philosophyPayload('Prefer sustainable continued use');
@@ -295,6 +303,31 @@ describe('Graph foundation history through the public provider and HTTP boundary
       currentScope: philosophyApplicability.scope
     });
 
+    const mcpPhilosophy = await callFoundationPublicTool(
+      'foundation_read',
+      { type: 'philosophy', id: 'principle', revision: '1' },
+      publicConnection
+    );
+    expect(mcpPhilosophy).toEqual(exactPhilosophy.body);
+
+    const mcpPhilosophyValidation = await callFoundationPublicTool(
+      'foundation_validate_reference',
+      {
+        reference: {
+          kind: 'philosophy',
+          id: 'principle',
+          revision: '1',
+          digest: philosophyDigest,
+          scope: philosophyApplicability.scope,
+          valid_from: philosophyApplicability.validFrom,
+          valid_to: philosophyApplicability.validUntil
+        },
+        phase: 'historical_read'
+      },
+      publicConnection
+    );
+    expect(mcpPhilosophyValidation).toEqual({ status: 'resolved', digest: philosophyDigest });
+
     const historyDigest = await sql<{ storage_digest_valid: boolean }>(
       `SELECT storage_digest_valid
        FROM (
@@ -346,6 +379,28 @@ describe('Graph foundation history through the public provider and HTTP boundary
     expect(revokedVariable.response.status).toBe(403);
     expect(revokedVariable.body.error.code).toBe('authorization_denied');
 
+    await expect(callFoundationPublicTool(
+      'foundation_read',
+      { type: 'variable', id: 'load', revision: '1', digest: variableDigest },
+      publicConnection
+    )).rejects.toMatchObject({ code: 'authorization_denied' });
+    await expect(callFoundationPublicTool(
+      'foundation_validate_reference',
+      {
+        reference: {
+          kind: 'variable',
+          id: 'load',
+          revision: '1',
+          digest: variableDigest,
+          scope: { type: 'project', id: 'project-a' },
+          valid_from: VALID_FROM,
+          valid_to: VALID_UNTIL
+        },
+        phase: 'historical_read'
+      },
+      publicConnection
+    )).rejects.toMatchObject({ code: 'authorization_denied' });
+
     await setOwner();
     await sql(
       `UPDATE public.graph_entities
@@ -374,5 +429,28 @@ describe('Graph foundation history through the public provider and HTTP boundary
     const scopeDeniedPhilosophy = await getDefinition(router, 'philosophy', 'principle', '1');
     expect(scopeDeniedPhilosophy.response.status).toBe(403);
     expect(scopeDeniedPhilosophy.body.error.code).toBe('authorization_denied');
+
+    await expect(callFoundationPublicTool(
+      'foundation_read',
+      { type: 'philosophy', id: 'principle', revision: '1' },
+      publicConnection
+    )).rejects.toThrow('authorization_denied');
+    const scopeDeniedPhilosophyValidation = await callFoundationPublicTool(
+      'foundation_validate_reference',
+      {
+        reference: {
+          kind: 'philosophy',
+          id: 'principle',
+          revision: '1',
+          digest: philosophyDigest,
+          scope: philosophyApplicability.scope,
+          valid_from: philosophyApplicability.validFrom,
+          valid_to: philosophyApplicability.validUntil
+        },
+        phase: 'historical_read'
+      },
+      publicConnection
+    );
+    expect(scopeDeniedPhilosophyValidation.status).toBe('unauthorized');
   }, 30_000);
 });
