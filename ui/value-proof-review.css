@@ -1,22 +1,44 @@
+/*
+ * 判断の見返し. Looks like the organization edition's outcome parts: the header
+ * sits in a gradient box, sections and cards are white boxes, buttons share one
+ * shape and the primary action uses the action color.  Every color comes from
+ * brainbase-tokens.css; the fallbacks keep the previous palette for hosts that
+ * do not load the tokens.
+ */
 .vpr {
   --vpr-ink: var(--bb-color-ink, #172033);
   --vpr-muted: var(--bb-color-muted, #667085);
   --vpr-border: var(--bb-color-border, #d8dee9);
+  --vpr-border-strong: var(--bb-color-border-strong, #d8dee9);
+  --vpr-control-border: var(--bb-color-control-border, #d8dee9);
   --vpr-panel: var(--bb-color-panel, #ffffff);
   --vpr-surface: var(--bb-color-surface, #f5f7fb);
+  --vpr-header-start: var(--bb-color-header-start, #ffffff);
+  --vpr-header-end: var(--bb-color-header-end, #f5f7fb);
+  --vpr-eyebrow: var(--bb-color-eyebrow, #3157d5);
   --vpr-accent: var(--bb-color-accent, #3157d5);
   --vpr-accent-soft: var(--bb-color-accent-soft, #eef2fd);
+  --vpr-accent-strong: var(--bb-color-accent-strong, #3157d5);
+  --vpr-action: var(--bb-color-action, #3157d5);
+  --vpr-action-hover: var(--bb-color-action-hover, #3157d5);
+  --vpr-action-text: var(--bb-color-action-text, #ffffff);
+  --vpr-focus: var(--bb-color-focus, #3157d5);
   --vpr-success: var(--bb-color-success, #18794e);
+  --vpr-success-soft: var(--bb-color-success-soft, #ecfdf3);
   --vpr-warning: var(--bb-color-warning, #9a6700);
   --vpr-warning-soft: var(--bb-color-warning-soft, #fff8e6);
   --vpr-danger: var(--bb-color-danger, #b42318);
   --vpr-danger-soft: var(--bb-color-danger-soft, #fef3f2);
   box-sizing: border-box;
+  display: grid;
+  gap: 20px;
   max-width: 1200px;
   margin: 0 auto;
   padding: 28px 16px 48px;
   color: var(--vpr-ink);
-  font: 15px/1.6 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--bb-font-sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 body:has(.vpr) {
@@ -37,22 +59,28 @@ body:has(.vpr) {
   margin-top: 0;
 }
 
+/* Part header: eyebrow, title and lead inside the gradient box. */
 .vpr-header {
   display: grid;
-  gap: 6px;
-  margin-bottom: 20px;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid var(--vpr-border);
+  border-radius: var(--bb-radius-lg, 16px);
+  background: linear-gradient(135deg, var(--vpr-header-start), var(--vpr-header-end));
 }
 
 .vpr-kicker {
-  color: var(--vpr-accent);
-  font-size: 11px;
-  font-weight: 700;
+  color: var(--vpr-eyebrow);
+  font-size: .72rem;
+  font-weight: 750;
   letter-spacing: .12em;
+  text-transform: uppercase;
 }
 
 .vpr h1 {
-  margin-bottom: 0;
-  font-size: clamp(24px, 4vw, 32px);
+  margin: 4px 0 8px;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1.25;
   letter-spacing: -.02em;
 }
 
@@ -64,10 +92,10 @@ body:has(.vpr) {
 .vpr-coverage {
   display: grid;
   gap: 12px;
-  margin-bottom: 20px;
-  padding: 16px;
+  min-width: 0;
+  padding: 18px;
   border: 1px solid var(--vpr-border);
-  border-radius: 12px;
+  border-radius: var(--bb-radius-md, 14px);
   background: var(--vpr-panel);
 }
 
@@ -86,20 +114,23 @@ body:has(.vpr) {
 .vpr-coverage-facts dd {
   margin: 0 0 4px;
   overflow-wrap: anywhere;
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .vpr-filter {
   display: inline-flex;
   gap: 8px;
   align-items: center;
-  font-size: 14px;
+}
+
+.vpr-filter input {
+  accent-color: var(--vpr-action);
 }
 
 .vpr-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 20px;
+  gap: 18px;
   align-items: start;
 }
 
@@ -116,25 +147,42 @@ body:has(.vpr) {
 
 .vpr-lists {
   display: grid;
-  gap: 16px;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* Buttons: one shape; the primary action and the pressed filter use the action color. */
+.vpr-needs-human,
+.vpr-submit,
+.vpr-secondary {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--vpr-control-border);
+  border-radius: var(--bb-radius-sm, 7px);
+  color: var(--vpr-ink);
+  background: var(--vpr-panel);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Hosts often reset button fonts with `button { font: inherit }`; keep the weight. */
+.vpr .vpr-needs-human,
+.vpr .vpr-submit,
+.vpr .vpr-secondary {
+  font-weight: 680;
 }
 
 .vpr-needs-human {
   justify-self: start;
-  padding: 6px 12px;
-  border: 1px solid var(--vpr-warning);
-  border-radius: 999px;
+  border-color: color-mix(in srgb, var(--vpr-warning) 40%, var(--vpr-control-border));
   color: var(--vpr-warning);
   background: var(--vpr-warning-soft);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
 }
 
 .vpr-needs-human.is-active {
-  color: #fff;
-  background: var(--vpr-warning);
+  border-color: var(--vpr-action);
+  color: var(--vpr-action-text);
+  background: var(--vpr-action);
 }
 
 .vpr-needs-human[disabled] {
@@ -142,26 +190,54 @@ body:has(.vpr) {
   opacity: .55;
 }
 
+.vpr-submit {
+  border-color: var(--vpr-action);
+  color: var(--vpr-action-text);
+  background: var(--vpr-action);
+}
+
+.vpr-submit:hover:not([disabled]) {
+  border-color: var(--vpr-action-hover);
+  background: var(--vpr-action-hover);
+}
+
+.vpr-submit[disabled] {
+  opacity: .6;
+  cursor: progress;
+}
+
+.vpr-secondary {
+  justify-self: start;
+}
+
+.vpr-secondary:hover {
+  border-color: var(--vpr-border-strong);
+}
+
+/* Sections: white boxes; the two highlights carry their state as a left bar. */
 .vpr-highlight,
 .vpr-map {
   display: grid;
   gap: 8px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--vpr-border);
+  border-radius: var(--bb-radius-md, 14px);
+  background: var(--vpr-panel);
 }
 
 .vpr-highlight h2,
 .vpr-map h2 {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: baseline;
   margin-bottom: 0;
-  font-size: 16px;
+  font-size: 1.1rem;
 }
 
 .vpr-highlight {
-  padding: 12px;
-  border: 1px solid var(--vpr-danger);
-  border-radius: 12px;
-  background: var(--vpr-danger-soft);
+  box-shadow: inset 3px 0 var(--vpr-danger);
 }
 
 .vpr-highlight.is-corrected h2 {
@@ -169,8 +245,7 @@ body:has(.vpr) {
 }
 
 .vpr-highlight.is-after-ask {
-  border-color: var(--vpr-warning);
-  background: var(--vpr-warning-soft);
+  box-shadow: inset 3px 0 var(--vpr-warning);
 }
 
 .vpr-highlight.is-after-ask h2 {
@@ -193,8 +268,8 @@ body:has(.vpr) {
 
 .vpr-row {
   border: 1px solid var(--vpr-border);
-  border-left-width: 4px;
-  border-radius: 10px;
+  border-left-width: 3px;
+  border-radius: var(--bb-radius-sm, 7px);
   background: var(--vpr-panel);
 }
 
@@ -203,7 +278,7 @@ body:has(.vpr) {
 }
 
 .vpr-row.is-verifying {
-  border-left-color: var(--vpr-accent);
+  border-left-color: var(--vpr-border-strong);
 }
 
 .vpr-row.is-returned {
@@ -216,20 +291,25 @@ body:has(.vpr) {
 
 .vpr-row > .vpr-list,
 .vpr-row > .vpr-empty {
-  margin: 0 10px 10px;
+  margin: 0 12px 12px;
 }
 
 .vpr-row-head {
   display: grid;
   gap: 4px;
   width: 100%;
-  padding: 10px 12px;
+  padding: 12px 14px;
   border: 0;
+  border-radius: var(--bb-radius-sm, 7px);
   color: inherit;
   background: transparent;
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.vpr-row-head:hover {
+  background: var(--vpr-surface);
 }
 
 .vpr-row-title {
@@ -246,28 +326,32 @@ body:has(.vpr) {
 
 .vpr-state {
   padding: 1px 8px;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
 }
 
 .vpr-state.is-delegated {
-  color: var(--vpr-success);
-  background: #ecfdf3;
+  border-color: color-mix(in srgb, var(--vpr-success) 35%, var(--vpr-border));
+  color: var(--vpr-accent-strong);
+  background: var(--vpr-success-soft);
 }
 
 .vpr-state.is-verifying {
-  color: var(--vpr-accent);
-  background: var(--vpr-accent-soft);
+  border-color: var(--vpr-border-strong);
+  color: var(--vpr-ink);
+  background: var(--vpr-surface);
 }
 
 .vpr-state.is-returned {
+  border-color: color-mix(in srgb, var(--vpr-warning) 35%, var(--vpr-border));
   color: var(--vpr-warning);
   background: var(--vpr-warning-soft);
 }
 
 .vpr-row-basis {
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .vpr-row-alert {
@@ -297,8 +381,8 @@ body:has(.vpr) {
 .vpr-empty {
   margin: 0;
   padding: 12px;
-  border: 1px dashed var(--vpr-border);
-  border-radius: 10px;
+  border: 1px dashed var(--vpr-border-strong);
+  border-radius: var(--bb-radius-sm, 7px);
   color: var(--vpr-muted);
   font-size: 13px;
 }
@@ -317,7 +401,7 @@ body:has(.vpr) {
   width: 100%;
   padding: 12px 14px;
   border: 1px solid var(--vpr-border);
-  border-radius: 10px;
+  border-radius: var(--bb-radius-sm, 7px);
   color: inherit;
   background: var(--vpr-panel);
   font: inherit;
@@ -326,21 +410,22 @@ body:has(.vpr) {
 }
 
 .vpr-item:hover {
-  border-color: var(--vpr-accent);
+  border-color: var(--vpr-border-strong);
 }
 
 .vpr-item.is-selected {
   border-color: var(--vpr-accent);
   background: var(--vpr-accent-soft);
+  box-shadow: inset 3px 0 var(--vpr-accent);
 }
 
 .vpr-item-title {
-  font-weight: 600;
+  font-weight: 650;
   overflow-wrap: anywhere;
 }
 
 .vpr-item-summary {
-  font-size: 14px;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
@@ -349,18 +434,21 @@ body:has(.vpr) {
   font-size: 12px;
 }
 
+/* The selected judgment, like the organization's inspector card. */
 .vpr-card {
   display: grid;
-  gap: 16px;
-  padding: 20px;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px;
   border: 1px solid var(--vpr-border);
-  border-radius: 12px;
+  border-radius: var(--bb-radius-md, 14px);
   background: var(--vpr-panel);
 }
 
 .vpr-card > h2 {
   margin-bottom: 0;
-  font-size: 20px;
+  font-size: 1.2rem;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
@@ -371,19 +459,22 @@ body:has(.vpr) {
 .vpr-badge {
   justify-self: start;
   padding: 2px 10px;
+  border: 1px solid color-mix(in srgb, var(--vpr-accent) 35%, var(--vpr-border));
   border-radius: 999px;
-  color: var(--vpr-accent);
+  color: var(--vpr-accent-strong);
   background: var(--vpr-accent-soft);
   font-size: 12px;
   font-weight: 700;
 }
 
 .vpr-badge.is-needs_human {
+  border-color: color-mix(in srgb, var(--vpr-warning) 35%, var(--vpr-border));
   color: var(--vpr-warning);
   background: var(--vpr-warning-soft);
 }
 
 .vpr-badge.is-blocked {
+  border-color: color-mix(in srgb, var(--vpr-danger) 35%, var(--vpr-border));
   color: var(--vpr-danger);
   background: var(--vpr-danger-soft);
 }
@@ -393,12 +484,6 @@ body:has(.vpr) {
   grid-template-columns: minmax(0, 1fr);
   gap: 2px 16px;
   margin: 0;
-}
-
-@media (min-width: 640px) {
-  .vpr-facts {
-    grid-template-columns: 9em minmax(0, 1fr);
-  }
 }
 
 .vpr-facts dt {
@@ -411,6 +496,21 @@ body:has(.vpr) {
   overflow-wrap: anywhere;
 }
 
+@media (min-width: 640px) {
+  .vpr-facts {
+    grid-template-columns: 9em minmax(0, 1fr);
+    gap: 0 16px;
+    border-top: 1px solid var(--vpr-border);
+  }
+
+  .vpr-facts dt,
+  .vpr-facts dd {
+    margin: 0;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--vpr-border);
+  }
+}
+
 .vpr-facts dd.is-outcome-outcome_verified {
   color: var(--vpr-success);
 }
@@ -421,27 +521,29 @@ body:has(.vpr) {
 }
 
 .vpr-human-decision {
-  padding: 14px;
-  border-radius: 10px;
+  padding: 12px 14px;
+  border-radius: var(--bb-radius-sm, 7px);
   background: var(--vpr-warning-soft);
 }
 
 .vpr-human-decision h3 {
   margin-bottom: 4px;
+  color: var(--vpr-warning);
   font-size: 14px;
 }
 
 .vpr-feedback fieldset {
   display: grid;
   gap: 10px;
+  min-width: 0;
   margin: 0 0 12px;
-  padding: 14px;
+  padding: 12px;
   border: 1px solid var(--vpr-border);
-  border-radius: 10px;
+  border-radius: var(--bb-radius-sm, 7px);
 }
 
 .vpr-feedback legend {
-  padding: 0 4px;
+  padding: 0 5px;
   font-weight: 700;
 }
 
@@ -453,16 +555,24 @@ body:has(.vpr) {
 
 .vpr-option {
   display: inline-flex;
-  gap: 6px;
+  gap: 7px;
   align-items: center;
-  padding: 6px 12px;
-  border: 1px solid var(--vpr-border);
-  border-radius: 999px;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--vpr-control-border);
+  border-radius: var(--bb-radius-sm, 7px);
+  background: var(--vpr-panel);
   cursor: pointer;
 }
 
+.vpr-option input {
+  margin: 0;
+  accent-color: var(--vpr-action);
+}
+
 .vpr-option:has(input:checked) {
-  border-color: var(--vpr-accent);
+  border-color: var(--vpr-action);
+  color: var(--vpr-accent-strong);
   background: var(--vpr-accent-soft);
 }
 
@@ -484,54 +594,30 @@ body:has(.vpr) {
 
 .vpr-feedback textarea {
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--vpr-border);
-  border-radius: 8px;
-  font: inherit;
-  resize: vertical;
-}
-
-.vpr-submit,
-.vpr-secondary {
-  padding: 8px 16px;
-  border-radius: 8px;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.vpr-submit {
-  border: 1px solid var(--vpr-accent);
-  color: #ffffff;
-  background: var(--vpr-accent);
-}
-
-.vpr-submit[disabled] {
-  opacity: .6;
-  cursor: progress;
-}
-
-.vpr-secondary {
-  justify-self: start;
-  border: 1px solid var(--vpr-border);
+  padding: 9px 10px;
+  border: 1px solid var(--vpr-border-strong);
+  border-radius: var(--bb-radius-sm, 7px);
   color: var(--vpr-ink);
   background: var(--vpr-panel);
+  font: inherit;
+  resize: vertical;
 }
 
 .vpr button:focus-visible,
 .vpr input:focus-visible,
 .vpr textarea:focus-visible,
 .vpr summary:focus-visible {
-  outline: 2px solid var(--vpr-accent);
+  outline: 3px solid color-mix(in srgb, var(--vpr-focus) 45%, var(--vpr-panel));
   outline-offset: 2px;
 }
 
+/* State boxes. */
 .vpr-notice {
   margin: 0;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 11px 12px;
+  border-radius: var(--bb-radius-sm, 7px);
   white-space: pre-line;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .vpr-notice.is-warning {
@@ -545,8 +631,8 @@ body:has(.vpr) {
 }
 
 .vpr-notice.is-success {
-  color: var(--vpr-success);
-  background: #ecfdf3;
+  color: var(--vpr-accent-strong);
+  background: var(--vpr-success-soft);
 }
 
 .vpr-notice.is-muted {
@@ -555,14 +641,32 @@ body:has(.vpr) {
 }
 
 .vpr-unavailable {
-  padding: 20px;
-  border: 1px solid var(--vpr-danger);
-  border-radius: 12px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--vpr-danger) 35%, var(--vpr-border));
+  border-radius: var(--bb-radius-md, 14px);
   background: var(--vpr-danger-soft);
+}
+
+.vpr-unavailable h2 {
+  color: var(--vpr-danger);
+  font-size: 1.1rem;
 }
 
 .vpr details summary {
   cursor: pointer;
   color: var(--vpr-muted);
   font-size: 13px;
+}
+
+@media (max-width: 760px) {
+  .vpr-header {
+    padding: 18px;
+  }
+
+  .vpr-coverage,
+  .vpr-highlight,
+  .vpr-map,
+  .vpr-card {
+    padding: 14px;
+  }
 }

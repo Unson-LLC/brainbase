@@ -1,11 +1,15 @@
-/* Read-only World Model view. Uses only the shared tokens in brainbase-tokens.css. */
+/*
+ * Read-only World Model view. Uses only the shared tokens in brainbase-tokens.css.
+ * Looks like the organization edition's outcome parts: the header sits in a
+ * gradient box and each block is a white section.
+ */
 .bb-wm {
   display: grid;
-  gap: var(--bb-space-5);
+  gap: 20px;
   min-width: 0;
   color: var(--bb-color-ink);
   font-family: var(--bb-font-sans);
-  line-height: 1.6;
+  line-height: 1.5;
 }
 
 .bb-wm *,
@@ -21,13 +25,21 @@
   margin: 0;
 }
 
+/* Part header: title and lead inside the gradient box. */
 .bb-wm-header {
   display: grid;
-  gap: var(--bb-space-1);
+  gap: var(--bb-space-2);
+  min-width: 0;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-lg);
+  padding: var(--bb-space-5);
+  background: linear-gradient(135deg, var(--bb-color-header-start), var(--bb-color-header-end));
 }
 
 .bb-wm-header h2 {
-  font-size: 20px;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  line-height: 1.25;
+  letter-spacing: -.02em;
 }
 
 .bb-wm-lead {
@@ -35,18 +47,23 @@
   font-size: 13px;
 }
 
+.bb-wm-header .bb-wm-lead {
+  font-size: 14px;
+}
+
+/* Sections. */
 .bb-wm-block {
   display: grid;
   gap: var(--bb-space-3);
   min-width: 0;
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md);
-  padding: var(--bb-space-4);
+  padding: 18px;
   background: var(--bb-color-panel);
 }
 
 .bb-wm-heading {
-  font-size: 16px;
+  font-size: 1.1rem;
 }
 
 .bb-wm-subheading {
@@ -66,7 +83,7 @@
   min-width: 0;
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3);
+  padding: var(--bb-space-3) 14px;
   background: var(--bb-color-panel);
 }
 
@@ -97,17 +114,18 @@
 .bb-wm-badge {
   border: 1px solid var(--bb-color-border);
   border-radius: 999px;
-  padding: 0 var(--bb-space-2);
+  padding: 1px var(--bb-space-2);
   color: var(--bb-color-muted);
   background: var(--bb-color-surface);
   font-size: 12px;
+  font-weight: 650;
   white-space: nowrap;
 }
 
-.bb-wm-badge.is-success { color: var(--bb-color-success); background: var(--bb-color-success-soft); }
-.bb-wm-badge.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
-.bb-wm-badge.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-wm-badge.is-accent { color: var(--bb-color-accent); background: var(--bb-color-accent-soft); }
+.bb-wm-badge.is-success { border-color: color-mix(in srgb, var(--bb-color-success) 35%, var(--bb-color-border)); color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
+.bb-wm-badge.is-warning { border-color: color-mix(in srgb, var(--bb-color-warning) 35%, var(--bb-color-border)); color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
+.bb-wm-badge.is-danger { border-color: color-mix(in srgb, var(--bb-color-danger) 35%, var(--bb-color-border)); color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
+.bb-wm-badge.is-accent { border-color: color-mix(in srgb, var(--bb-color-accent) 35%, var(--bb-color-border)); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
 
 .bb-wm-facts {
   display: grid;
@@ -127,9 +145,10 @@
   overflow-wrap: anywhere;
 }
 
+/* State boxes. */
 .bb-wm-notice {
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-2) var(--bb-space-3);
+  padding: 11px var(--bb-space-3);
   font-size: 13px;
 }
 
@@ -139,17 +158,42 @@
 
 .bb-wm-retry {
   justify-self: start;
-  border: 1px solid var(--bb-color-border);
+  min-height: 40px;
+  border: 1px solid var(--bb-color-control-border);
   border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-1) var(--bb-space-3);
+  padding: var(--bb-space-2) var(--bb-space-3);
   color: var(--bb-color-ink);
   background: var(--bb-color-panel);
   font: inherit;
+  font-weight: 680;
   cursor: pointer;
 }
 
+/* Hosts often reset button fonts with `button { font: inherit }`; keep the weight. */
+.bb-wm .bb-wm-retry {
+  font-weight: 680;
+}
+
+.bb-wm-retry:hover {
+  border-color: var(--bb-color-border-strong);
+}
+
+.bb-wm-retry:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 45%, var(--bb-color-panel));
+  outline-offset: 2px;
+}
+
+@media (max-width: 760px) {
+  .bb-wm-header {
+    padding: 18px;
+  }
+
+  .bb-wm-block {
+    padding: 14px;
+  }
+}
+
 @media (max-width: 480px) {
-  .bb-wm-block { padding: var(--bb-space-3); }
   .bb-wm-facts { grid-template-columns: minmax(0, 1fr); }
   .bb-wm-facts dd { margin-bottom: var(--bb-space-1); }
 }
