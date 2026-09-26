@@ -1,13 +1,13 @@
 .judgment-view {
-  --judgment-ink: #172033;
-  --judgment-muted: #667085;
-  --judgment-border: #d8dee9;
-  --judgment-panel: #ffffff;
-  --judgment-surface: #f5f7fb;
-  --judgment-accent: #3157d5;
-  --judgment-success: #18794e;
-  --judgment-warning: #9a6700;
-  --judgment-danger: #b42318;
+  --judgment-ink: var(--bb-color-ink, #172033);
+  --judgment-muted: var(--bb-color-muted, #667085);
+  --judgment-border: var(--bb-color-border, #d8dee9);
+  --judgment-panel: var(--bb-color-panel, #ffffff);
+  --judgment-surface: var(--bb-color-surface, #f5f7fb);
+  --judgment-accent: var(--bb-color-accent, #3157d5);
+  --judgment-success: var(--bb-color-success, #18794e);
+  --judgment-warning: var(--bb-color-warning, #9a6700);
+  --judgment-danger: var(--bb-color-danger, #b42318);
   box-sizing: border-box;
   max-width: 920px;
   margin: 0 auto;
