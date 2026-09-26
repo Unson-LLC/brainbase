@@ -14,6 +14,7 @@ import {
   type VariableDefinition
 } from './ontology-foundation.js';
 import {
+  digestFoundationDefinition,
   findFoundationRecord,
   findLatestFoundationRecord,
   foundationCatalogOrEmpty
@@ -80,7 +81,10 @@ export type WorldModelValidationIssueCode =
   | 'RECORDED_BEFORE_OCCURRED'
   | 'INVALID_CORRECTION_REFERENCE'
   | 'MISSING_SOURCE'
-  | 'MODEL_CONTRACT_INVALID';
+  | 'MODEL_CONTRACT_INVALID'
+  | 'MISSING_APPROVAL_REFERENCE'
+  | 'INVALID_APPROVAL_REFERENCE'
+  | 'MODEL_DIGEST_MISMATCH';
 
 export interface WorldModelValidationIssue {
   readonly code: WorldModelValidationIssueCode;
@@ -114,15 +118,18 @@ export interface ModelAdoptionInput {
   readonly adoptionState: Extract<FoundationAdoptionState, 'proposed' | 'approved'>;
   readonly authorizedUse: FoundationUse;
   readonly adoptedAt: string;
+  /** Digest of the exact Model definition used for this adoption. */
+  readonly modelDigest?: string;
   readonly approvalRef?: DecisionRevision;
 }
 
-export interface ModelAdoptionRecord extends ModelAdoptionInput {
+export interface ModelAdoptionRecord extends Omit<ModelAdoptionInput, 'modelDigest'> {
   readonly modelRef: FoundationRevision;
   readonly candidate: CandidateModelSnapshot;
   readonly adoptionState: Extract<FoundationAdoptionState, 'proposed' | 'approved'>;
   readonly authorizedUse: FoundationUse;
   readonly adoptedAt: string;
+  readonly modelDigest: string;
   readonly approvalRef?: DecisionRevision;
 }
 
@@ -167,6 +174,21 @@ export interface WorldModelFoundationStore {
   ): Promise<WorldModelFoundationRecord | null>;
 }
 
+/**
+ * Approval resolution is the world-model adapter for the existing
+ * constraint-resolution DecisionRevisionReader contract. The adapter must
+ * resolve the exact decision revision, verify that it actually approves the
+ * exact Model revision, and enforce the current authorization boundary. A
+ * mere decision-existence check is not sufficient to return true here.
+ */
+export interface WorldModelApprovalReader {
+  isApproved(request: {
+    readonly approvalRef: DecisionRevision;
+    readonly modelRef: FoundationRevision;
+    readonly context: WorldModelStoreContext;
+  }): Promise<boolean>;
+}
+
 export interface WorldModelObservationQuery {
   readonly variableRef?: FoundationRevision;
   readonly subjectId?: string;
@@ -182,7 +204,8 @@ export type WorldModelStoreErrorCode =
   | 'authorization_denied'
   | 'unsupported_graph'
   | 'corrupt_record'
-  | 'readback_mismatch';
+  | 'readback_mismatch'
+  | 'approval_reference_unresolved';
 
 export class WorldModelStoreError extends Error {
   readonly code: WorldModelStoreErrorCode;
@@ -349,6 +372,14 @@ export function retainCandidateModel(
   adoption: Omit<ModelAdoptionInput, 'candidate' | 'modelRef'> & { modelRef?: FoundationRevision }
 ): ModelAdoptionRecord {
   const issues: WorldModelValidationIssue[] = [];
+  if (!isNonEmptyString(adoption.adoptionId)) issues.push(missing('adoptionId'));
+  if (!['proposed', 'approved'].includes(String(adoption.adoptionState))) {
+    issues.push({ code: 'INVALID_FIELD', path: 'adoptionState', message: 'Adoption state must be proposed or approved.' });
+  }
+  if (!isFoundationUse(adoption.authorizedUse)) {
+    issues.push({ code: 'INVALID_FIELD', path: 'authorizedUse', message: 'Adoption authorizedUse must be a valid Foundation use.' });
+  }
+  if (!isIsoTimestamp(adoption.adoptedAt)) issues.push(invalidTimestamp('adoptedAt'));
   if (!candidate.candidateId.trim()) issues.push(missing('candidate.candidateId'));
   if (!candidate.hypothesis.trim()) issues.push(missing('candidate.hypothesis'));
   if (!Array.isArray(candidate.evidenceIds) || candidate.evidenceIds.length === 0) {
@@ -390,6 +421,29 @@ export function retainCandidateModel(
       message: `Adoption modelRef must match ${model.id}@${model.revision}.`
     });
   }
+  if (adoption.approvalRef !== undefined && !isDecisionRevision(adoption.approvalRef)) {
+    issues.push({
+      code: 'INVALID_APPROVAL_REFERENCE',
+      path: 'approvalRef',
+      message: 'approvalRef must contain a decision id and positive revision.'
+    });
+  }
+  if (adoption.adoptionState === 'approved' && !isDecisionRevision(adoption.approvalRef)) {
+    issues.push({
+      code: adoption.approvalRef === undefined ? 'MISSING_APPROVAL_REFERENCE' : 'INVALID_APPROVAL_REFERENCE',
+      path: 'approvalRef',
+      message: 'Approved adoption requires a valid approvalRef decision revision.'
+    });
+  }
+  const canonicalModelDigest = digestFoundationDefinition(model);
+  if (adoption.modelDigest !== undefined
+    && (!isDigest(adoption.modelDigest) || adoption.modelDigest !== canonicalModelDigest)) {
+    issues.push({
+      code: 'MODEL_DIGEST_MISMATCH',
+      path: 'modelDigest',
+      message: 'modelDigest must match the canonical digest of the adopted Model definition.'
+    });
+  }
   if (issues.length > 0) throw new WorldModelValidationError(issues);
 
   const modelRef: FoundationRevision = freezeCloneRevision(adoption.modelRef ?? {
@@ -411,10 +465,9 @@ export function retainCandidateModel(
     adoptionState: adoption.adoptionState,
     authorizedUse: adoption.authorizedUse,
     adoptedAt: adoption.adoptedAt,
+    modelDigest: canonicalModelDigest,
     ...(adoption.approvalRef === undefined ? {} : { approvalRef: freezeCloneDecisionRevision(adoption.approvalRef) })
   };
-  if (!record.adoptionId) throw new WorldModelValidationError([missing('adoptionId')]);
-  if (!parseIsoTimestamp(record.adoptedAt)) throw new WorldModelValidationError([invalidTimestamp('adoptedAt')]);
   return deepFreeze(record);
 }
 
@@ -427,6 +480,7 @@ export function retainCandidateModel(
 export function createWorldModelStore(options: {
   dataDir: string;
   foundationStore: WorldModelFoundationStore;
+  approvalReader?: WorldModelApprovalReader;
 }): WorldModelRecordStore {
   if (!options || !isNonEmptyString(options.dataDir)) {
     throw new WorldModelStoreError('invalid_input', 'dataDir is required');
@@ -435,13 +489,17 @@ export function createWorldModelStore(options: {
     || typeof options.foundationStore.create !== 'function') {
     throw new WorldModelStoreError('invalid_input', 'foundationStore with create/read is required');
   }
-  return new GraphWorldModelRecordStore(options.dataDir, options.foundationStore);
+  if (options.approvalReader !== undefined && typeof options.approvalReader.isApproved !== 'function') {
+    throw new WorldModelStoreError('invalid_input', 'approvalReader.isApproved is required when approvalReader is provided');
+  }
+  return new GraphWorldModelRecordStore(options.dataDir, options.foundationStore, options.approvalReader);
 }
 
 class GraphWorldModelRecordStore implements WorldModelRecordStore {
   constructor(
     private readonly dataDir: string,
-    private readonly foundationStore: WorldModelFoundationStore
+    private readonly foundationStore: WorldModelFoundationStore,
+    private readonly approvalReader?: WorldModelApprovalReader
   ) {}
 
   async createVariable(
@@ -591,7 +649,7 @@ class GraphWorldModelRecordStore implements WorldModelRecordStore {
     assertFoundationAclWrite(modelRecord.definition, context.principal);
     assertCandidateAclWrite(candidate, context.principal);
     let record: ModelAdoptionRecord | undefined;
-    await this.mutateCatalog((catalog, current) => {
+    await this.mutateCatalog(async (catalog, current) => {
       const currentModel = resolveFoundationAtAggregate(
         current,
         modelRef,
@@ -604,11 +662,15 @@ class GraphWorldModelRecordStore implements WorldModelRecordStore {
       }
       assertFoundationAclWrite(currentModel.definition, context.principal);
       assertCandidateAclWrite(candidate, context.principal);
+      if (catalog.adoptions.some((existing) => existing.adoptionId === adoption.adoptionId)) {
+        throw new WorldModelStoreError('revision_conflict', `Model adoption ${adoption.adoptionId} already exists`);
+      }
+      // Resolve approval while the SSOT mutation lock is held and before the
+      // sidecar is returned for commit. A post-commit approval read could
+      // fail after the approved record was already persisted.
+      await this.assertApprovalReference(modelRef, adoption, context);
       const retained = retainCandidateModel(candidate, currentModel.definition, { ...adoption, modelRef });
       record = retained;
-      if (catalog.adoptions.some((existing) => existing.adoptionId === retained.adoptionId)) {
-        throw new WorldModelStoreError('revision_conflict', `Model adoption ${retained.adoptionId} already exists`);
-      }
       return {
         ...catalog,
         adoptions: [...catalog.adoptions, retained]
@@ -616,7 +678,10 @@ class GraphWorldModelRecordStore implements WorldModelRecordStore {
     });
 
     if (!record) throw new WorldModelStoreError('readback_mismatch', 'Model adoption commit did not produce a record');
-    const readback = await this.readModelAdoption(record.adoptionId, context);
+    // Approval was checked before the atomic append. This structural readback
+    // deliberately avoids a second provider call that could report failure
+    // while leaving the successful commit in place.
+    const readback = await this.readModelAdoptionRecord(record.adoptionId, context, { verifyApproval: false });
     if (!readback) throw new WorldModelStoreError('readback_mismatch', `Model adoption ${record.adoptionId} was not readable after commit`);
     return readback;
   }
@@ -624,6 +689,14 @@ class GraphWorldModelRecordStore implements WorldModelRecordStore {
   async readModelAdoption(
     adoptionId: string,
     context: WorldModelStoreContext
+  ): Promise<ModelAdoptionRecord | null> {
+    return this.readModelAdoptionRecord(adoptionId, context, { verifyApproval: true });
+  }
+
+  private async readModelAdoptionRecord(
+    adoptionId: string,
+    context: WorldModelStoreContext,
+    options: { readonly verifyApproval: boolean }
   ): Promise<ModelAdoptionRecord | null> {
     assertStoreContext(context);
     if (!isNonEmptyString(adoptionId)) throw new WorldModelStoreError('invalid_input', 'adoptionId is required');
@@ -636,12 +709,20 @@ class GraphWorldModelRecordStore implements WorldModelRecordStore {
       throw new WorldModelStoreError('corrupt_record', `Model for adoption ${adoptionId} is missing`);
     }
     assertFoundationAclRead(modelRecord.definition, context.principal);
+    if (options.verifyApproval) await this.assertApprovalReference(record.modelRef, record, context);
+    if (record.modelDigest !== modelRecord.digest) {
+      throw new WorldModelStoreError(
+        'readback_mismatch',
+        `Model adoption ${adoptionId} digest does not match ${record.modelRef.id}@${record.modelRef.revision}`
+      );
+    }
     const verified = retainCandidateModel(record.candidate, modelRecord.definition, {
       adoptionId: record.adoptionId,
       adoptionState: record.adoptionState,
       authorizedUse: record.authorizedUse,
       adoptedAt: record.adoptedAt,
       modelRef: record.modelRef,
+      modelDigest: record.modelDigest,
       ...(record.approvalRef === undefined ? {} : { approvalRef: record.approvalRef })
     });
     return verified;
@@ -671,6 +752,42 @@ class GraphWorldModelRecordStore implements WorldModelRecordStore {
     } catch (error) {
       if (error instanceof WorldModelStoreError) throw error;
       throw new WorldModelStoreError('corrupt_record', formatError(error));
+    }
+  }
+
+  private async assertApprovalReference(
+    modelRef: FoundationRevision,
+    adoption: Pick<ModelAdoptionInput, 'adoptionState' | 'approvalRef'>,
+    context: WorldModelStoreContext
+  ): Promise<void> {
+    if (adoption.adoptionState !== 'approved') return;
+    if (!isDecisionRevision(adoption.approvalRef)) {
+      throw new WorldModelStoreError(
+        'approval_reference_unresolved',
+        'Approved model adoption requires a valid approvalRef decision revision'
+      );
+    }
+    if (!this.approvalReader) {
+      throw new WorldModelStoreError(
+        'approval_reference_unresolved',
+        'Approved model adoption requires an approval reader that verifies the decision binding'
+      );
+    }
+    let approved = false;
+    try {
+      approved = await this.approvalReader.isApproved({
+        approvalRef: adoption.approvalRef,
+        modelRef,
+        context
+      });
+    } catch {
+      approved = false;
+    }
+    if (!approved) {
+      throw new WorldModelStoreError(
+        'approval_reference_unresolved',
+        `Approval ${adoption.approvalRef.id}@${adoption.approvalRef.revision} does not approve Model ${modelRef.id}@${modelRef.revision}`
+      );
     }
   }
 
@@ -897,6 +1014,7 @@ function normalizeStoredAdoption(value: unknown): ModelAdoptionRecord {
   if (!isRecord(value)
     || !isNonEmptyString(value.adoptionId)
     || !isVariableOrModelRevision(value.modelRef, 'model')
+    || !isDigest(value.modelDigest)
     || !isRecord(value.candidate)
     || !isNonEmptyString(value.candidate.candidateId)
     || !isNonEmptyString(value.candidate.hypothesis)
@@ -908,6 +1026,7 @@ function normalizeStoredAdoption(value: unknown): ModelAdoptionRecord {
     || !['proposed', 'approved'].includes(String(value.adoptionState))
     || !isFoundationUse(String(value.authorizedUse))
     || !isIsoTimestamp(value.adoptedAt)
+    || (value.adoptionState === 'approved' && !isDecisionRevision(value.approvalRef))
     || (value.approvalRef !== undefined && !isDecisionRevision(value.approvalRef))) {
     throw new WorldModelStoreError('corrupt_record', 'world-model adoption record is malformed');
   }
@@ -925,6 +1044,7 @@ function normalizeStoredAdoption(value: unknown): ModelAdoptionRecord {
     adoptionState: value.adoptionState as ModelAdoptionRecord['adoptionState'],
     authorizedUse: value.authorizedUse as FoundationUse,
     adoptedAt: String(value.adoptedAt),
+    modelDigest: String(value.modelDigest),
     ...(value.approvalRef === undefined ? {} : { approvalRef: freezeCloneDecisionRevision(value.approvalRef) })
   });
 }
@@ -938,6 +1058,10 @@ function isDecisionRevision(value: unknown): value is DecisionRevision {
     && value.type === 'decision'
     && isNonEmptyString(value.id)
     && /^[1-9]\d*$/.test(String(value.revision));
+}
+
+function isDigest(value: unknown): value is string {
+  return typeof value === 'string' && /^sha256:[0-9a-f]{64}$/.test(value);
 }
 
 function isCandidateAcl(value: unknown): value is FoundationAcl {
@@ -978,6 +1102,7 @@ function freezeAdoption(adoption: ModelAdoptionRecord): ModelAdoptionRecord {
     adoptionState: adoption.adoptionState,
     authorizedUse: adoption.authorizedUse,
     adoptedAt: adoption.adoptedAt,
+    modelDigest: adoption.modelDigest,
     ...(adoption.approvalRef === undefined ? {} : { approvalRef: freezeCloneDecisionRevision(adoption.approvalRef) })
   });
 }
