@@ -1,23 +1,23 @@
 /* Shared Objective editor surface. The host owns shell, identity and policy. */
 .objective-editor-root {
-  --objective-paper: var(--paper, #fbfbf8);
-  --objective-canvas: var(--canvas, #f2f3ef);
-  --objective-ink: var(--ink, #141714);
-  --objective-muted: var(--muted, #626a64);
-  --objective-quiet: var(--quiet, #8b938c);
-  --objective-line: var(--line, #d9ded9);
-  --objective-line-strong: var(--line-dark, #b8c0b9);
-  --objective-green: var(--green, #087d62);
-  --objective-green-soft: var(--green-soft, #e5f1ec);
-  --objective-amber: var(--amber, #a56d05);
-  --objective-amber-soft: var(--amber-soft, #fff2ce);
-  --objective-red: var(--red, #c82a39);
-  --objective-red-soft: var(--red-soft, #fdebed);
+  --objective-paper: var(--bb-color-panel, var(--paper, #fbfbf8));
+  --objective-canvas: var(--bb-color-surface, var(--canvas, #f2f3ef));
+  --objective-ink: var(--bb-color-ink, var(--ink, #141714));
+  --objective-muted: var(--bb-color-muted, var(--muted, #626a64));
+  --objective-quiet: var(--bb-color-muted, var(--quiet, #8b938c));
+  --objective-line: var(--bb-color-border, var(--line, #d9ded9));
+  --objective-line-strong: var(--bb-color-border-strong, var(--line-dark, #b8c0b9));
+  --objective-green: var(--bb-color-accent, var(--green, #087d62));
+  --objective-green-soft: var(--bb-color-accent-soft, var(--green-soft, #e5f1ec));
+  --objective-amber: var(--bb-color-warning, var(--amber, #a56d05));
+  --objective-amber-soft: var(--bb-color-warning-soft, var(--amber-soft, #fff2ce));
+  --objective-red: var(--bb-color-danger, var(--red, #c82a39));
+  --objective-red-soft: var(--bb-color-danger-soft, var(--red-soft, #fdebed));
   display: grid;
   gap: 1rem;
   min-width: 0;
   color: var(--objective-ink);
-  font-family: Geist, "Noto Sans JP", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--bb-font-sans, Geist, "Noto Sans JP", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   line-height: 1.5;
 }
 

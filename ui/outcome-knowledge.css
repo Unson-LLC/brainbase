@@ -1,25 +1,25 @@
 /* Knowledge outcome workspace. The component owns its layout so the shared
    shell cannot turn an operational master/detail surface into stacked cards. */
 .knowledge-outcome {
-  --knowledge-paper: var(--paper, #fbfbf8);
-  --knowledge-canvas: var(--canvas, #f2f3ef);
-  --knowledge-ink: var(--ink, #111412);
-  --knowledge-muted: var(--muted, #656b67);
-  --knowledge-quiet: var(--quiet, #929894);
-  --knowledge-line: var(--line, #d9ddd8);
-  --knowledge-line-strong: var(--line-dark, #bfc5c0);
-  --knowledge-green: var(--green, #087d62);
-  --knowledge-green-soft: var(--green-soft, #e5f1ec);
-  --knowledge-amber: var(--amber, #c9870c);
-  --knowledge-amber-soft: var(--amber-soft, #fff0c7);
-  --knowledge-red: var(--red, #d92335);
-  --knowledge-red-soft: var(--red-soft, #fde9eb);
+  --knowledge-paper: var(--bb-color-panel, var(--paper, #fbfbf8));
+  --knowledge-canvas: var(--bb-color-surface, var(--canvas, #f2f3ef));
+  --knowledge-ink: var(--bb-color-ink, var(--ink, #111412));
+  --knowledge-muted: var(--bb-color-muted, var(--muted, #656b67));
+  --knowledge-quiet: var(--bb-color-muted, var(--quiet, #929894));
+  --knowledge-line: var(--bb-color-border, var(--line, #d9ddd8));
+  --knowledge-line-strong: var(--bb-color-border-strong, var(--line-dark, #bfc5c0));
+  --knowledge-green: var(--bb-color-accent, var(--green, #087d62));
+  --knowledge-green-soft: var(--bb-color-accent-soft, var(--green-soft, #e5f1ec));
+  --knowledge-amber: var(--bb-color-warning, var(--amber, #c9870c));
+  --knowledge-amber-soft: var(--bb-color-warning-soft, var(--amber-soft, #fff0c7));
+  --knowledge-red: var(--bb-color-danger, var(--red, #d92335));
+  --knowledge-red-soft: var(--bb-color-danger-soft, var(--red-soft, #fde9eb));
   display: grid;
   gap: 0;
   min-width: 0;
   color: var(--knowledge-ink);
   background: transparent;
-  font-family: Geist, "Noto Sans JP", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family: var(--bb-font-sans, Geist, "Noto Sans JP", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   line-height: 1.5;
 }
 

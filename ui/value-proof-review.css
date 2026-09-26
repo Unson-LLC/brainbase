@@ -1,16 +1,16 @@
 .vpr {
-  --vpr-ink: #172033;
-  --vpr-muted: #667085;
-  --vpr-border: #d8dee9;
-  --vpr-panel: #ffffff;
-  --vpr-surface: #f5f7fb;
-  --vpr-accent: #3157d5;
-  --vpr-accent-soft: #eef2fd;
-  --vpr-success: #18794e;
-  --vpr-warning: #9a6700;
-  --vpr-warning-soft: #fff8e6;
-  --vpr-danger: #b42318;
-  --vpr-danger-soft: #fef3f2;
+  --vpr-ink: var(--bb-color-ink, #172033);
+  --vpr-muted: var(--bb-color-muted, #667085);
+  --vpr-border: var(--bb-color-border, #d8dee9);
+  --vpr-panel: var(--bb-color-panel, #ffffff);
+  --vpr-surface: var(--bb-color-surface, #f5f7fb);
+  --vpr-accent: var(--bb-color-accent, #3157d5);
+  --vpr-accent-soft: var(--bb-color-accent-soft, #eef2fd);
+  --vpr-success: var(--bb-color-success, #18794e);
+  --vpr-warning: var(--bb-color-warning, #9a6700);
+  --vpr-warning-soft: var(--bb-color-warning-soft, #fff8e6);
+  --vpr-danger: var(--bb-color-danger, #b42318);
+  --vpr-danger-soft: var(--bb-color-danger-soft, #fef3f2);
   box-sizing: border-box;
   max-width: 1200px;
   margin: 0 auto;
@@ -416,7 +416,7 @@ body:has(.vpr) {
 }
 
 .vpr-facts.is-audit dd {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--bb-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 12px;
 }
 

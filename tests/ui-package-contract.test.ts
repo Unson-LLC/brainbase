@@ -109,5 +109,30 @@ describe('OSS共通UIの公開契約', () => {
       expect(used.filter((name) => !defined.has(name)), file).toEqual([]);
     }
   });
+
+  it('既存の部品も、色と文字の変数を共通の見た目の定義から決め、定義が無いホストでは今の見た目を保つ', async () => {
+    const tokens = await readFile(new URL('../ui/brainbase-tokens.css', import.meta.url), 'utf8');
+    expect(tokens).toMatch(/--bb-color-border-strong: #[0-9a-f]{6};/);
+    expect(tokens).toMatch(/--bb-color-accent-strong: #[0-9a-f]{6};/);
+    const parts: Record<string, string> = {
+      'value-proof-review.css': 'vpr',
+      'judgment-view.css': 'judgment',
+      'objective-editor.css': 'objective',
+      'outcome-knowledge.css': 'knowledge',
+      'outcome-mana.css': 'mana',
+    };
+    for (const [file, prefix] of Object.entries(parts)) {
+      const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
+      const definitions = [...css.matchAll(new RegExp(`--${prefix}-([a-z0-9-]+):\\s*([^;]+);`, 'g'))];
+      expect(definitions.length, file).toBeGreaterThan(8);
+      for (const [, name, value] of definitions) {
+        if (name === 'shadow') continue;
+        // Shared token first, then the part's previous value so hosts without the tokens keep their look.
+        expect(value.trim(), `${file} --${prefix}-${name}`).toMatch(/^var\(--bb-color-[a-z-]+, .*(#[0-9a-f]{3,8}|\))\)$/);
+      }
+      expect(css, file).not.toMatch(/font-family:(?!\s*var\(--bb-font-)/);
+      expect(css, file).not.toMatch(/var\(--bb-font-[a-z]+,\s*var\(--bb-font-/);
+    }
+  });
 });
 
