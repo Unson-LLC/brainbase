@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import type { Server } from 'node:http';
+import { request as httpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -54,6 +54,31 @@ function postFeedback(base: string, body: unknown, headers: Record<string, strin
     method: 'POST',
     headers: { 'Content-Type': 'application/json', [VALUE_PROOF_REVIEW_TOKEN_HEADER]: TOKEN, ...headers },
     body: JSON.stringify(body)
+  });
+}
+
+// fetch() cannot override Host, so a rebound DNS name is simulated with a raw request.
+function rawRequest(
+  base: string,
+  path: string,
+  options: { host: string | null; method?: string; headers?: Record<string, string>; body?: string }
+): Promise<{ status: number; body: string }> {
+  const url = new URL(path, base);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({
+      hostname: url.hostname,
+      port: url.port,
+      path: url.pathname,
+      method: options.method ?? 'GET',
+      setHost: options.host !== null,
+      headers: { ...(options.host === null ? {} : { Host: options.host }), ...options.headers }
+    }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: Buffer.concat(chunks).toString('utf8') }));
+    });
+    req.on('error', reject);
+    req.end(options.body);
   });
 }
 
@@ -112,6 +137,39 @@ describe('value proof review host', () => {
     expect((await postFeedback(base, valid, { Origin: 'http://evil.example' })).status).toBe(403);
     expect((await postFeedback(base, { ...valid, decision_attempt_id: 'attempt-x' })).status).toBe(404);
     expect((await postFeedback(base, { ...valid, status: 'corrected' })).status).toBe(400);
+  });
+
+  it('refuses a rebound DNS name so another site cannot read the token, the home or write feedback', async () => {
+    const base = await start();
+    const rebound = `evil.example:${new URL(base).port}`;
+
+    const shell = await rawRequest(base, '/', { host: rebound });
+    expect(shell.status).toBe(403);
+    expect(shell.body).not.toContain(TOKEN);
+    expect((await rawRequest(base, '/api/value-proofs/home', { host: rebound })).status).toBe(403);
+
+    const feedback = await rawRequest(base, '/api/value-proofs/feedback', {
+      host: rebound,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: `http://${rebound}`, [VALUE_PROOF_REVIEW_TOKEN_HEADER]: TOKEN },
+      body: JSON.stringify({ intent_id: 'intent-1', decision_attempt_id: 'attempt-1', status: 'accepted' })
+    });
+    expect(feedback.status).toBe(403);
+    const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
+    expect(home.sections.continued[0].proof.feedback.status).toBe('none');
+
+    expect((await rawRequest(base, '/', { host: '127.0.0.1:1' })).status).toBe(403);
+    const missing = await rawRequest(base, '/', { host: null });
+    expect(missing.status).toBeGreaterThanOrEqual(400);
+    expect(missing.body).not.toContain(TOKEN);
+  });
+
+  it('accepts the loopback names a browser sends for this port', async () => {
+    const base = await start();
+    const port = new URL(base).port;
+    for (const host of [`127.0.0.1:${port}`, `localhost:${port}`, `LOCALHOST:${port}`, `[::1]:${port}`]) {
+      expect((await rawRequest(base, '/', { host })).status).toBe(200);
+    }
   });
 
   it('records feedback once, reflects it on reload and leaves the journal untouched', async () => {

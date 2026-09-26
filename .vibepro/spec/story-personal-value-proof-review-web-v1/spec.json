@@ -26,6 +26,11 @@
       "id": "AC-005",
       "type": "behavior",
       "text": "The consult action copies a request text that includes the decision attempt ID."
+    },
+    {
+      "id": "AC-006",
+      "type": "security",
+      "text": "The review host rejects every request, including the shell, the review API and feedback, unless the Host header is 127.0.0.1, localhost or [::1] with the port the connection arrived on, so a rebound DNS name cannot read the token or judgments or write feedback."
     }
   ]
 }
