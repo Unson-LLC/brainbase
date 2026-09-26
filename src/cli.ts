@@ -1106,6 +1106,8 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
     `Brainbase: ${origin}/`,
     `- 今日（判断の見返し）: ${origin}/#today`,
     `- 目的と現状: ${origin}/#objectives`,
+    `- プロジェクトと関係者: ${origin}/#projects`,
+    `- 情報と関係: ${origin}/#graph`,
     `データ: ${dataDir}`,
     `判断journal: ${journalRoot}`,
     '終了: Ctrl+C',

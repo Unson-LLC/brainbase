@@ -39,7 +39,7 @@ async function waitFor(check: () => boolean, timeoutMs = 5000): Promise<void> {
 
 describe('brainbase web:serve', () => {
   for (const command of ['web:serve', 'review:serve']) {
-    it(`${command} opens the local Web host with 今日 and 目的と現状 on a loopback port`, async () => {
+    it(`${command} opens the local Web host with every screen on a loopback port`, async () => {
       const dataDir = join(directory, 'personal-os');
       await initializePersonalOs(dataDir);
       const controller = new AbortController();
@@ -51,6 +51,10 @@ describe('brainbase web:serve', () => {
         expect(origin).toBeDefined();
         expect(output.stdout()).toContain(`- 今日（判断の見返し）: ${origin}/#today`);
         expect(output.stdout()).toContain(`- 目的と現状: ${origin}/#objectives`);
+        expect(output.stdout()).toContain(`- プロジェクトと関係者: ${origin}/#projects`);
+        expect(output.stdout()).toContain(`- 情報と関係: ${origin}/#graph`);
+        const projects = await (await fetch(`${origin}/api/graph/projects`)).json();
+        expect(projects).toMatchObject({ status: 'ok', projects: [], absenceConfirmed: true });
         const shell = await (await fetch(`${origin}/`)).text();
         expect(shell).toContain('<meta name="brainbase-web-token"');
         expect(shell).toContain('/ui/local-web-shell.css');

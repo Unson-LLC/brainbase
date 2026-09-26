@@ -19,6 +19,7 @@ import {
   type FoundationRevisionStore,
   type FoundationStoreContext
 } from './foundation-store.js';
+import { createGraphWebHttpHandler } from './graph-web-http.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { nodeRequestToFetch, writeFetchResponse } from './local-web-fetch-bridge.js';
 import {
@@ -61,6 +62,7 @@ export const LOCAL_WEB_DEFAULT_PORT = 31080;
 export const LOCAL_WEB_DEFAULT_OWNER_ID = 'self';
 export const LOCAL_WEB_STATUS_PATH = '/api/local/status';
 export const LOCAL_WEB_WORLD_MODEL_PREFIX = '/api/world-model';
+export const LOCAL_WEB_GRAPH_PREFIX = '/api/graph';
 /**
  * An Objective is a few KB of text and criteria.  64 KiB leaves room for long
  * Japanese text (about 20k characters) while keeping a loopback request that
@@ -628,13 +630,47 @@ export function createWorldModelReadModule(context: LocalWebModuleContext): Loca
   };
 }
 
-/** The screens of this PR: 今日 (value proofs) and 目的と現状 (objectives + world model). */
+/**
+ * 「プロジェクトと関係者」 and 「情報と関係」: the local Graph read and correction
+ * routes under `/api/graph`.  Graph v1 and a missing data set are answered by
+ * the handler itself (`migration_required` / `not_initialized`), never as zero
+ * items.  The host has already required the launch token and the same origin
+ * for every write; the handler checks both again before it reads a body, so a
+ * correction is never saved through a path that skipped the host check.
+ */
+export function createGraphWebModule(context: LocalWebModuleContext): LocalWebModule {
+  const handler = createGraphWebHttpHandler({
+    dataDir: context.dataDir,
+    basePath: LOCAL_WEB_GRAPH_PREFIX,
+    now: context.now,
+    assertWriteAllowed(request) {
+      if (isTrustedLocalWrite(request, context.token)) return;
+      throw rejectUntrustedWrite(request, context.token)
+        ?? new LocalWebHttpError(403, 'web_token_required', 'A valid launch token is required');
+    }
+  });
+  return {
+    id: 'graph',
+    uiFiles: [
+      'graph-view-shared.js',
+      'graph-view-shared.css',
+      'graph-projects-view.js',
+      'graph-projects-view.css',
+      'graph-registry-view.js',
+      'graph-registry-view.css'
+    ],
+    handle: handler
+  };
+}
+
+/** 今日 (value proofs), 目的と現状 (objectives + world model), プロジェクトと関係者 and 情報と関係 (Graph). */
 export function defaultLocalWebModules(context: LocalWebModuleContext): LocalWebModule[] {
   return [
     createLocalStatusModule(context),
     createValueProofModule(context),
     createObjectiveFoundationModule(context),
-    createWorldModelReadModule(context)
+    createWorldModelReadModule(context),
+    createGraphWebModule(context)
   ];
 }
 

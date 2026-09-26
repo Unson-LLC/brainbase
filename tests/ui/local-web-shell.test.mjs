@@ -113,8 +113,12 @@ describe('local Web shell', () => {
     const { root, shell } = mount(fetcher);
     await flush();
     const links = findAll(root, (node) => node.tagName === 'A');
-    expect(links.map((link) => [link.textContent, link.attributes.href])).toEqual([['今日', '#today'], ['目的と現状', '#objectives']]);
-    expect(LOCAL_WEB_SCREENS.map((entry) => entry.id)).toEqual(['today', 'objectives']);
+    expect(links.map((link) => [link.textContent, link.attributes.href])).toEqual([
+      ['今日', '#today'], ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['情報と関係', '#graph'],
+    ]);
+    expect(LOCAL_WEB_SCREENS.map((entry) => [entry.id, entry.usesGraph])).toEqual([
+      ['today', false], ['objectives', true], ['projects', true], ['graph', true],
+    ]);
     expect(links[0].attributes['aria-current']).toBe('page');
     expect(shell.state.active).toBe('today');
 
@@ -172,6 +176,50 @@ describe('local Web shell', () => {
     recheck.listeners.get('click')();
     await flush();
     expect(collectText(screen(root, 'objectives'))).toContain('目的はまだ登録されていません。');
+  });
+
+  it('mounts プロジェクトと関係者 and 情報と関係 on Graph v2', async () => {
+    const graphEmpty = { status: 'ok', source: { dataDir: '/home/owner/.brainbase/personal-os', graphFormat: 2, authority: 'local_graph' } };
+    const { fetcher, calls } = hostFetcher(V2, {
+      '/api/graph/projects': () => jsonResponse(200, { ...graphEmpty, asOf: '2026-09-26T00:00:00.000Z', projects: [], absenceConfirmed: true }),
+      '/api/graph/search?limit=50': () => jsonResponse(200, { ...graphEmpty, query: { q: '', type: null, asOf: null }, results: [], total: 0, truncated: false, absenceConfirmed: true, graphEmpty: true }),
+      '/api/graph/ontology': () => jsonResponse(200, {
+        ...graphEmpty,
+        asOf: '2026-09-26T00:00:00.000Z',
+        ontology: { id: 'o', version: '1', releaseDigest: 'sha256:x', currentVersion: '1', upToDate: true },
+        entityTypes: [{ id: 'person', meaning: 'x', count: 0 }],
+        relations: [{ id: 'participates_in', from: 'person', to: 'project', meaning: 'x', count: 0, activeCount: 0 }],
+      }),
+    });
+    const { root, shell } = mount(fetcher, 'projects');
+    await flush();
+    expect(shell.state.active).toBe('projects');
+    const projects = collectText(screen(root, 'projects'));
+    expect(projects).toContain('プロジェクトの一覧');
+    expect(projects).toContain('まだ登録がありません');
+    expect(shell.state.mounted).toContain('projects');
+
+    shell.show('graph');
+    await flush();
+    const graph = collectText(screen(root, 'graph'));
+    expect(graph).toContain('情報の種類とつながり方');
+    expect(graph).toContain('まだ登録がありません');
+    expect(calls).toEqual(expect.arrayContaining(['/api/graph/projects', '/api/graph/search?limit=50', '/api/graph/ontology']));
+  });
+
+  it('shows the migration commands on the Graph screens for Graph v1 and never reads the Graph', async () => {
+    for (const [id, label] of [['projects', 'プロジェクトと関係者'], ['graph', '情報と関係']]) {
+      const { fetcher, calls } = hostFetcher(V1);
+      const { root } = mount(fetcher, id);
+      await flush();
+      const text = collectText(screen(root, id));
+      expect(text, id).toContain('Graphの移行が必要です');
+      expect(text, id).toContain(`「${label}」を読み書きできません`);
+      expect(text, id).toContain('0件ではありません');
+      expect(text, id).toContain('--write --expected-input-digest');
+      expect(text, id).not.toContain('まだ登録がありません');
+      expect(calls.some((path) => path.startsWith('/api/graph')), id).toBe(false);
+    }
   });
 
   it('says how many objectives could not be read beside the readable ones', async () => {

@@ -12,6 +12,8 @@
  * `defaultLocalWebModules()` in `src/local-web-host.ts`.
  */
 
+import { createGraphProjectsView } from './graph-projects-view.js';
+import { createGraphRegistryView } from './graph-registry-view.js';
 import { createObjectiveEditorController } from './objective-editor.js';
 import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
 import { createValueProofReviewUI } from './value-proof-review.js';
@@ -94,12 +96,24 @@ function mountObjectives(container, context) {
   return { editor, worldModel };
 }
 
+function mountGraphScreen(createView) {
+  return (container, context) => {
+    const page = makeElement(context.document, 'div', { className: 'bb-shell-page' });
+    const viewRoot = makeElement(context.document, 'div');
+    page.append(viewRoot);
+    container.append(page);
+    return createView({ root: viewRoot, document: context.document, fetcher: context.fetcher, token: context.token });
+  };
+}
+
 export const LOCAL_WEB_SCREENS = Object.freeze([
   Object.freeze({ id: 'today', label: '今日', usesGraph: false, mount: mountToday }),
   Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, mount: mountObjectives }),
+  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, mount: mountGraphScreen(createGraphProjectsView) }),
+  Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, mount: mountGraphScreen(createGraphRegistryView) }),
 ]);
 
-function renderGraphGate(doc, slot, status, onRecheck) {
+function renderGraphGate(doc, slot, status, onRecheck, label) {
   slot.replaceChildren();
   const box = makeElement(doc, 'section', { className: 'bb-shell-gate', attrs: { role: 'alert' } });
   if (status.phase !== 'ready') {
@@ -113,7 +127,7 @@ function renderGraphGate(doc, slot, status, onRecheck) {
       : graph.status === 'not_initialized' ? 'Brainbaseのデータがまだありません'
         : 'データを読み取れません';
     const lead = graph.status === 'migration_required'
-      ? 'このデータはGraph v1のため、目的と現状を読み書きできません。0件ではありません。ホストは自動で移行しません。次のコマンドで、内容を確かめてから移行してください。'
+      ? `このデータはGraph v1のため、「${label}」を読み書きできません。0件ではありません。ホストは自動で移行しません。次のコマンドで、内容を確かめてから移行してください。`
       : graph.status === 'not_initialized'
         ? `データの場所（${status.data.data_dir}）に正本のファイルがありません。次のコマンドで作成できます。`
         : `理由: ${graph.message ?? '不明'}。0件ではありません。`;
@@ -220,7 +234,7 @@ export function createLocalWebShell({
     if (mounted.has(screen.id)) return;
     const slot = slots.get(screen.id);
     if (screen.usesGraph && !(status.phase === 'ready' && status.data.graph.status === 'ready')) {
-      renderGraphGate(doc, slot, status, controller.refreshStatus);
+      renderGraphGate(doc, slot, status, controller.refreshStatus, screen.label);
       return;
     }
     slot.replaceChildren();
