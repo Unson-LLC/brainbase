@@ -92,6 +92,10 @@ export function createFoundationPublicProvider(options: {
     async validateProblem(raw: unknown, context: FoundationStoreContext) {
       assertContext(context);
       const args = problemSchema.parse(raw);
+      const owner = (args.snapshot as Partial<JudgmentProblemSnapshot> | null)?.owner_scope;
+      if (context.scope && owner && !context.scope.subjectIds.includes(owner.id)) {
+        throw new JudgmentProblemSnapshotError('unauthorized', 'Snapshot owner is outside the trusted scope');
+      }
       await validateJudgmentProblemSnapshot({
         snapshot: args.snapshot as JudgmentProblemSnapshot,
         access: context,

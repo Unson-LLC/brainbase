@@ -123,6 +123,7 @@ it('validates the complete bundle over HTTP using canonical observation conditio
   const router = createFoundationHttpRouter({ routes: [createFoundationPublicRoute(provider)], resolveContext: () => context, csrf: { verify: () => true } });
   const request = () => new Request('https://local/api/foundation/judgment-problems/validate', { method: 'POST', body: JSON.stringify({ snapshot: pinnedSnapshot }) });
   expect(await callFoundationPublicTool('foundation_validate_problem', { snapshot: pinnedSnapshot }, { provider, resolveContext: () => context })).toEqual({ status: 'resolved', executionPermission: 'none' });
+  await expect(provider.validateProblem({ snapshot: { ...pinnedSnapshot, owner_scope: { type: 'project', id: 'other-project' } } }, context)).rejects.toMatchObject({ code: 'unauthorized' });
   const valid = await router.handle(request());
   expect(valid.status).toBe(200);
   expect(await valid.json()).toEqual({ status: 'resolved', executionPermission: 'none' });
