@@ -114,6 +114,13 @@ describe('OSS共通UIの公開契約', () => {
     }
   });
 
+  it('「目的と現状」の見出しの枠は目的の編集の一つだけで、World Modelは区画の見出しにする', async () => {
+    const css = await readFile(new URL('../ui/world-model-view.css', import.meta.url), 'utf8');
+    const header = css.match(/\.bb-wm-header\s*\{([^}]*)\}/u)?.[1] ?? '';
+    expect(header).not.toMatch(/linear-gradient|--bb-radius-lg/u);
+    expect(header).toMatch(/border-top/u);
+  });
+
   it('既存の部品も、色と文字の変数を共通の見た目の定義から決め、定義が無いホストでは今の見た目を保つ', async () => {
     const tokens = await readFile(new URL('../ui/brainbase-tokens.css', import.meta.url), 'utf8');
     expect(tokens).toMatch(/--bb-color-border-strong: #[0-9a-f]{6};/);

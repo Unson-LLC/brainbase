@@ -26,19 +26,18 @@
 }
 
 /* Part header: title and lead inside the gradient box. */
+/* A section heading under the page's one header box (the objective editor on 目的と現状). */
 .bb-wm-header {
   display: grid;
-  gap: var(--bb-space-2);
+  gap: var(--bb-space-1);
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-lg);
-  padding: var(--bb-space-5);
-  background: linear-gradient(135deg, var(--bb-color-header-start), var(--bb-color-header-end));
+  border-top: 1px solid var(--bb-color-border);
+  padding: var(--bb-space-5) 0 0;
 }
 
 .bb-wm-header h2 {
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  line-height: 1.25;
+  font-size: 1.35rem;
+  line-height: 1.3;
   letter-spacing: -.02em;
 }
 

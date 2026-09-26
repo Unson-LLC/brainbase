@@ -63,6 +63,9 @@ describe('情報と関係: search', () => {
   it('lists every record when the query is empty and searches by name or alias, type and as-of date', async () => {
     await writeGraphV2(dataDir);
     const { root } = await mountView();
+    const header = findAll(root, (node) => node.className === 'bb-graph-header')[0];
+    expect(header.children[0].className).toBe('bb-graph-eyebrow');
+    expect(header.children[0].textContent).toBe('BRAINBASE / GRAPH');
     expect(collectText(section(root, '検索結果'))).toContain('8件');
     expect(resultNames(root)).toHaveLength(8);
 

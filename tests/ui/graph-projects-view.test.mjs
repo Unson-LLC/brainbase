@@ -75,6 +75,9 @@ describe('プロジェクトと関係者: list and detail', () => {
   it('lists each project with its status, goal, 関係者 count and validity', async () => {
     await writeGraphV2(dataDir);
     const { root } = await mountView();
+    const header = findAll(root, (node) => node.className === 'bb-graph-header')[0];
+    expect(header.children[0].className).toBe('bb-graph-eyebrow');
+    expect(header.children[0].textContent).toBe('BRAINBASE / PROJECTS');
     const list = section(root, 'プロジェクトの一覧');
     const items = findAll(list, (node) => node.tagName === 'LI');
     expect(items).toHaveLength(2);

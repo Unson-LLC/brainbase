@@ -395,6 +395,7 @@ export function createGraphRegistryView({
       });
       const header = makeElement(doc, 'header', { className: 'bb-graph-header' });
       header.append(
+        makeElement(doc, 'p', { className: 'bb-graph-eyebrow', text: 'BRAINBASE / GRAPH' }),
         makeElement(doc, 'h2', { text: '情報と関係' }),
         makeElement(doc, 'p', { className: 'bb-graph-lead', text: 'Graphに何がどう登録されているかを確かめます。ここで直した内容は、同じGraphを読むMCPの search・get_context・resolve_entity で次から使われます。' }),
       );
