@@ -304,6 +304,7 @@ describe('Objective editor common UI contract', () => {
     };
     const controller = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false });
     await controller.selectObjective({ id: 'objective-load', type: 'objective', revision: '1' });
+    expect(collectText(root)).toContain('判断に使えない');
     const adoption = findAll(root, (node) => nodeName(node) === 'adoption_state')[0];
     expect(adoption.tagName).toBe('SELECT');
     expect(findAll(root, (node) => nodeName(node) === 'criteria.0.operator')[0].tagName).toBe('SELECT');
@@ -312,6 +313,7 @@ describe('Objective editor common UI contract', () => {
     expect(result.state).toBe('verified');
     expect(readinessCalls).toEqual(['1', '2']);
     expect(controller.state.readiness).toMatchObject({ state: 'ready', ready: true });
+    expect(collectText(root)).toContain('判断に利用可能');
 
     controller.state.view = 'list';
     await controller.loadObjectives();

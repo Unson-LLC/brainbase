@@ -603,7 +603,7 @@ function renderReadiness(root, readiness) {
     section.append(statusBadge('judgment_unknown'), makeElement('p', { className: 'objective-editor-muted', text: 'readinessを正本APIから確認できていません。' }));
     return section;
   }
-  section.append(statusBadge(normalized.ready ? 'judgment_available' : 'draft'));
+  section.append(normalized.ready ? statusBadge('judgment_available') : statusBadge('draft', '判断に使えない'));
   if (!normalized.ready && normalized.issues?.length) {
     const list = makeElement('ul', { className: 'objective-editor-issue-list' });
     for (const issue of normalized.issues) list.append(makeElement('li', { text: `${issue.path}: ${issue.message}` }));
