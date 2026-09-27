@@ -117,6 +117,7 @@ export const GRAPH_CORRECTION_ERROR_MESSAGES = Object.freeze({
   correction_endpoint_type_invalid: 'この組み合わせの関係は加えられません。',
   correction_field_not_allowed: 'この項目は、ここでは直せません。',
   correction_changes_required: '変更がありません。直したい項目を書き換えてください。',
+  correction_scope_not_allowed: 'この画面では、この記録や関係は直せません。',
   entity_not_found: '対象の記録が見つかりません。読み直してください。',
   edge_not_found: '対象の関係が見つかりません。読み直してください。',
   entity_id_ambiguous: '同じIDの記録が複数あるため直せません。CLIで確かめてください。',
@@ -416,6 +417,44 @@ export function readOnlyGraphClient(client) {
       return { state: 'error', code: 'write_protection_missing', message: GRAPH_CORRECTION_ERROR_MESSAGES.write_protection_missing };
     },
   });
+}
+
+/**
+ * The corrections a host accepts (`correctionScope` of both screens).  Without
+ * a scope every correction is accepted, as on the local host.
+ *
+ * - `entityTypes`: the kinds whose record may be corrected (default: every kind).
+ * - `fields`: the record fields that may be corrected, keys of
+ *   `GRAPH_CORRECTION_FIELDS` such as `name` or `goal` (default: every field).
+ * - `edges: false`: relations cannot be corrected or ended.
+ * - `createEdges: false`: relations cannot be added.
+ */
+export function graphCorrectionScope(scope) {
+  const given = isRecord(scope) ? scope : {};
+  const listed = (value) => (Array.isArray(value) ? new Set(value.filter((item) => typeof item === 'string')) : null);
+  const types = listed(given.entityTypes);
+  const fields = listed(given.fields);
+  return Object.freeze({
+    edges: given.edges !== false,
+    createEdges: given.createEdges !== false,
+    /** Whether a record of this kind may be corrected. */
+    entity: (type) => types === null || types.has(type),
+    /** The given record fields that may be corrected, in their order. */
+    fields: (names) => names.filter((name) => fields === null || fields.has(name)),
+  });
+}
+
+/** The record fields the correction form offers for an entity of this kind. */
+export function graphEntityCorrectionFields(type) {
+  return ['name', 'aliases', 'summary', 'validFrom', 'validTo', ...(type === 'project' ? ['goal', 'status'] : [])];
+}
+
+/** Whether a built correction request stays inside the scope (`recordType` is the corrected entity's kind). */
+function withinCorrectionScope(scope, body, recordType) {
+  if (body.kind === 'create_edge') return scope.createEdges;
+  if (body.kind === 'update_edge') return scope.edges;
+  const changed = Object.keys(body.changes ?? {});
+  return scope.entity(recordType) && scope.fields(changed).length === changed.length;
 }
 
 /** A host's note that corrections are not available here, or null when it passed none. */
@@ -966,10 +1005,14 @@ export function renderCorrectionPanel(doc, form, callbacks) {
 /**
  * Holds one open correction at a time.  `rerender` redraws the owning view;
  * `onSaved(payload, form)` lets it read the saved record back into its lists;
- * `onConflict(form)` lets it refresh what it shows.
+ * `onConflict(form)` lets it refresh what it shows.  `scope` is the host's
+ * `correctionScope` (see `graphCorrectionScope`): a correction outside it is
+ * not opened, a field outside it is left out of the form, and a request
+ * outside it is refused before anything is sent.
  */
-export function createGraphCorrection({ client, rerender, onSaved, onConflict, now = () => new Date() } = {}) {
+export function createGraphCorrection({ client, rerender, onSaved, onConflict, now = () => new Date(), scope } = {}) {
   if (!client) throw new TypeError('client is required');
+  const allowed = graphCorrectionScope(scope);
   let form = null;
   let focusPending = false;
   let sequence = 0;
@@ -1044,14 +1087,16 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
   const controller = {
     get form() { return form; },
     get callbacks() { return callbacks; },
-    /** Correct an entity.  `fields` limits what the form shows. */
+    /** Correct an entity.  `fields` limits what the form shows.  Null when the scope allows no field of it. */
     openEntity(record, { fields, title = '記録を直す', subject } = {}) {
+      const shown = allowed.entity(record.type) ? allowed.fields(fields ?? graphEntityCorrectionFields(record.type)) : [];
+      if (shown.length === 0) return null;
       const values = graphRecordValues(record);
-      const shown = (fields ?? ['name', 'aliases', 'summary', 'validFrom', 'validTo', ...(record.type === 'project' ? ['goal', 'status'] : [])]);
       const original = Object.fromEntries(shown.map((field) => [field, values[field]]));
       form = baseForm('update_entity', {
         title,
         subject: subject ?? `${typeLabel(record.type)}「${record.name}」`,
+        recordType: record.type,
         targetId: record.id,
         expectedDigest: record.digest,
         fields: shown,
@@ -1061,8 +1106,9 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
       redraw();
       return form;
     },
-    /** Correct a relation.  `mode`: 'role' (role and context), 'end' (end date, today by default) or 'edit' (all). */
+    /** Correct a relation.  `mode`: 'role' (role and context), 'end' (end date, today by default) or 'edit' (all).  Null outside the scope. */
     openEdge(edge, { mode = 'edit', title, subject } = {}) {
+      if (!allowed.edges) return null;
       const values = graphRecordValues(edge);
       const fields = mode === 'role' ? ['role', 'context'] : mode === 'end' ? ['validTo'] : ['role', 'context', 'validTo'];
       const original = Object.fromEntries(fields.map((field) => [field, values[field]]));
@@ -1080,9 +1126,9 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
       redraw();
       return form;
     },
-    /** Add a relation to or from `anchor`. */
+    /** Add a relation to or from `anchor`.  Null outside the scope or when no relation fits. */
     openCreate(anchor, { relations, relationNames = {}, relationLabel: label = '関係の種類', title = '関係を加える', subject } = {}) {
-      const relationOptions = newRelationOptions(anchor.type, relations);
+      const relationOptions = allowed.createEdges ? newRelationOptions(anchor.type, relations) : [];
       if (relationOptions.length === 0) return null;
       form = baseForm('create_edge', {
         title,
@@ -1110,6 +1156,12 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
       if (!built.ok) {
         target.message = { tone: 'danger', text: built.message };
         if (target.phase !== 'conflict') target.phase = 'editing';
+        redraw();
+        return target;
+      }
+      if (!withinCorrectionScope(allowed, built.body, target.recordType)) {
+        target.phase = 'error';
+        target.message = { tone: 'danger', text: GRAPH_CORRECTION_ERROR_MESSAGES.correction_scope_not_allowed };
         redraw();
         return target;
       }

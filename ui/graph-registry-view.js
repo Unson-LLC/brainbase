@@ -29,6 +29,8 @@ import {
   focusLedgerRow,
   getDocument,
   graphCommandList,
+  graphCorrectionScope,
+  graphEntityCorrectionFields,
   graphPageContext,
   graphStateNotice,
   hostReadOnlyNote,
@@ -163,8 +165,14 @@ function textCell(value, fallback) {
  * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
  *   (この記録を直す, 関係を加える, この関係を直す, and この画面で直せること under the kinds of
  *   information), and the client refuses every correction before sending it.
- * @param {string} [options.readOnlyNote] With `canCorrect: false`, a note shown in the rail where the
- *   correction buttons would be.  Without it the rail says nothing about corrections.
+ * @param {{ entityTypes?: string[], fields?: string[], edges?: boolean, createEdges?: boolean }} [options.correctionScope]
+ *   With corrections allowed, only these (see `graphCorrectionScope`): `entityTypes` lists the kinds that
+ *   offer この記録を直す, `fields` limits its form, `edges: false` withholds この関係を直す and
+ *   `createEdges: false` withholds 関係を加える.  A withheld control is not drawn and the client refuses
+ *   such a correction before sending it.  Without it every correction is allowed.
+ * @param {string} [options.readOnlyNote] With `canCorrect: false`, or where `correctionScope` withholds a
+ *   control of the selected record, a note shown in the rail where the correction buttons would be.
+ *   Without it the rail says nothing about corrections.
  * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
  *   and its `brainbase onboard:*` commands when the host's Graph has nothing registered.
  * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典 notice.
@@ -188,6 +196,7 @@ export function createGraphRegistryView({
   autoLoad = true,
   now = () => new Date(),
   canCorrect = true,
+  correctionScope,
   readOnlyNote,
   sourceNotice,
   emptyNotice,
@@ -197,6 +206,8 @@ export function createGraphRegistryView({
   const graphClient = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
   const writable = canCorrect !== false;
   const client = writable ? graphClient : readOnlyGraphClient(graphClient);
+  const scope = graphCorrectionScope(correctionScope);
+  const edgesWritable = writable && scope.edges;
   const context = graphPageContext(page);
   const layout = createGraphLayout(doc, {
     root,
@@ -223,6 +234,7 @@ export function createGraphRegistryView({
   const correction = createGraphCorrection({
     client,
     now,
+    scope: correctionScope,
     rerender: () => controller.render(),
     onSaved: async () => {
       await Promise.all([
@@ -462,7 +474,7 @@ export function createGraphRegistryView({
     const subject = edge.direction === 'outgoing'
       ? `${entity.name} → ${relationLabel(edge.relation)} → ${edge.counterpart.name}`
       : `${edge.counterpart.name} → ${relationLabel(edge.relation)} → ${entity.name}`;
-    if (writable) {
+    if (edgesWritable) {
       item.append(workspaceActions(doc, [
         workspaceButton(doc, { text: 'この関係を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'edit', subject })) }),
       ]));
@@ -475,7 +487,7 @@ export function createGraphRegistryView({
       ['出典ID', edge.provenance.sourceId],
       ['digest', edge.digest],
     ]));
-    if (writable && state.panelAt === edge.id) {
+    if (edgesWritable && state.panelAt === edge.id) {
       const panel = correction.render(doc);
       if (panel) item.append(panel);
     }
@@ -545,15 +557,21 @@ export function createGraphRegistryView({
       ],
     }));
     if (writable) {
-      children.push(workspaceActions(doc, [
-        workspaceButton(doc, { text: 'この記録を直す', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を直す' })) }),
-        newRelationOptions(entity.type).length > 0
+      const canFix = scope.entity(entity.type) && scope.fields(graphEntityCorrectionFields(entity.type)).length > 0;
+      const relatable = newRelationOptions(entity.type).length > 0;
+      const related = loaded.outgoing.length + loaded.incoming.length > 0;
+      const actions = [
+        canFix ? workspaceButton(doc, { text: 'この記録を直す', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を直す' })) }) : null,
+        relatable && scope.createEdges
           ? workspaceButton(doc, { text: '関係を加える', onClick: () => openCorrection('entity', () => correction.openCreate(entity, { title: '関係を加える' })) })
           : null,
-      ]));
+      ].filter(Boolean);
+      if (actions.length > 0) children.push(workspaceActions(doc, actions));
       // A correction opened on a relation shows inside that relation; any other shows here.
       const inRelation = [...loaded.outgoing, ...loaded.incoming].some((edge) => edge.id === state.panelAt);
       if (!inRelation) children.push(correction.render(doc));
+      // The host's reason for a control it withholds, where that control would be.
+      if (!canFix || (relatable && !scope.createEdges) || (related && !scope.edges)) children.push(hostReadOnlyNote(doc, readOnlyNote));
     } else {
       children.push(hostReadOnlyNote(doc, readOnlyNote));
     }
