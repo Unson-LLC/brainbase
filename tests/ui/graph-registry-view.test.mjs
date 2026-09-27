@@ -391,6 +391,55 @@ describe('情報と関係: kinds of information', () => {
   });
 });
 
+describe('情報と関係: counts another host could not finish', () => {
+  // A host whose Graph is larger than one read (the organization Graph) sends
+  // null counts with a status instead of a number it cannot vouch for.
+  async function mountPartial() {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const fetcher = async (url, init) => {
+      const response = await api.fetcher(url, init);
+      const path = String(url);
+      if (!path.includes('/ontology') && !path.includes('/search')) return response;
+      const payload = await response.json();
+      if (path.includes('/ontology')) {
+        payload.entityTypes = payload.entityTypes.map((item, index) => (index === 0
+          ? { ...item, count: null, countStatus: 'at_least', atLeast: 500 }
+          : { ...item, count: null, countStatus: 'unknown' }));
+        payload.relations = payload.relations.map((item) => ({ ...item, count: null, activeCount: null, countStatus: 'unknown' }));
+      } else {
+        Object.assign(payload, { total: null, totalStatus: 'unknown', truncated: true, absenceConfirmed: false });
+      }
+      return jsonResponse(200, payload);
+    };
+    const root = new FakeElement('div');
+    const view = createGraphRegistryView({ root, rail: new FakeElement('div'), page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false });
+    await view.load();
+    return root;
+  }
+
+  it('shows an unfinished count as unconfirmed or as a lower bound, never as null or zero', async () => {
+    const root = await mountPartial();
+    const panel = section(root, '情報の種類とつながり方');
+    const text = collectText(panel);
+    expect(text).not.toContain('読み取れませんでした');
+    expect(collectText(ledgerIn(panel, 'bb-graph-entity-type-ledger'))).toContain('500件以上');
+    expect(collectText(ledgerIn(panel, 'bb-graph-entity-type-ledger'))).toContain('件数は未確認');
+    expect(collectText(ledgerIn(panel, 'bb-graph-relation-type-ledger'))).toContain('件数は未確認');
+    expect(text).not.toContain('null');
+    expect(text).not.toMatch(/(^|[^0-9])0件/);
+  });
+
+  it('shows how many results are on screen when the host cannot give the search total', async () => {
+    const root = await mountPartial();
+    const results = collectText(section(root, '検索結果'));
+    expect(results).toContain('検索結果 8件を表示（全体の件数は未確認）');
+    expect(results).toContain('ほかにもある可能性があります。条件を絞って探してください。');
+    expect(results).not.toContain('null');
+    expect(results).not.toContain('NaN');
+  });
+});
+
 describe('情報と関係: host extensions', () => {
   const CORRECTION_BUTTONS = ['この記録を直す', '関係を加える', 'この関係を直す'];
   const correctionButtons = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && CORRECTION_BUTTONS.includes(item.textContent));
