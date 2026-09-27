@@ -16,8 +16,9 @@
  *
  * Another host composes this part unchanged and adds only its own controls
  * through the options of `createGraphProjectsView` (read-only or partial
- * corrections, its source notice, page-head buttons, extra metrics, rail blocks and
- * selection sync).  Every option defaults to the behaviour above.
+ * corrections, its source notice, page-head buttons, extra metrics, rail blocks,
+ * selection sync, and the owner's own share in a separate section; see
+ * `graph-own-share.js`).  Every option defaults to the behaviour above.
  */
 
 import {
@@ -52,6 +53,7 @@ import {
   GRAPH_RELATION_LABELS,
   graphHostEmptyNotice,
 } from './graph-view-shared.js';
+import { graphOwnShareSource, ownProjectDetail, ownShareSection, ownShareStateNotice } from './graph-own-share.js';
 import {
   workspaceActions,
   workspaceButton,
@@ -188,8 +190,15 @@ function failureText(error) {
  *   list, the first project is selected, as by default.
  * @param {(id: string) => void} [options.onSelect] Called when the view changes the selection itself
  *   (a ledger row, or the automatic first project).  Not called for `select(id)`.
+ * @param {{ basePath: string, fetcher?: Function, label?: string }} [options.ownShare]
+ *   The owner's own snapshot the host keeps for them (`graph-own-share.js`): its projects are read
+ *   from `{basePath}/projects` and shown read-only in a separate section after the host's content,
+ *   labelled 「引き継いだ自分の分（組織には未反映）」 unless `label` says otherwise.  They are never
+ *   added to the ledger, the metrics or the rail, and a failed read shows only in that section.
+ *   Without it nothing of the kind is drawn or read.
  * @returns The controller: `state`, `correction`, `render()`, `load()`, `loadDetail(id)`,
- *   `selectProject(id)`, `openProject(id)`, and `select(id)` for the host's own navigation.
+ *   `selectProject(id)`, `openProject(id)`, `select(id)` for the host's own navigation, and with
+ *   `ownShare` `loadOwn()` and `selectOwnProject(id)`.
  */
 export function createGraphProjectsView({
   root,
@@ -212,10 +221,12 @@ export function createGraphProjectsView({
   renderRailExtensions,
   selectedId: initialSelectedId,
   onSelect,
+  ownShare,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
   const graphClient = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
+  const own = graphOwnShareSource(ownShare, { fetcher });
   const writable = canCorrect !== false;
   const client = writable ? graphClient : readOnlyGraphClient(graphClient);
   const scope = graphCorrectionScope(correctionScope);
@@ -231,7 +242,14 @@ export function createGraphProjectsView({
   });
   // `panelAt` is where the open correction shows: a relation id (inside that
   // 関係者) or anything else (below the project actions).
-  const state = { list: { state: 'loading' }, selectedId: textOrNull(initialSelectedId), detail: null, panelAt: null };
+  const state = {
+    list: { state: 'loading' },
+    selectedId: textOrNull(initialSelectedId),
+    detail: null,
+    panelAt: null,
+    // The owner's own share: its own list and selection, apart from the host's.
+    own: own ? { list: { state: 'loading' }, selectedId: null, detail: null } : null,
+  };
   let focusRow = null;
 
   const correction = createGraphCorrection({
@@ -302,7 +320,52 @@ export function createGraphProjectsView({
   // -------------------------------------------------------------------------
   // Workspace
 
+  /** The owner's own share, after everything of the host's (whatever state the host's list is in). */
   function renderWorkspace() {
+    const children = renderHostWorkspace();
+    if (own) children.push(renderOwnShare());
+    return children;
+  }
+
+  function renderOwnShare() {
+    const ownState = state.own;
+    const notice = ownShareStateNotice(doc, ownState.list, { onRetry: () => controller.loadOwn(), loadingText: '引き継いだ自分の分を読み込んでいます。' });
+    if (notice) return ownShareSection(doc, { label: own.label, children: [notice] });
+    const { payload } = ownState.list;
+    const children = [];
+    if (payload.projects.length === 0) {
+      children.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'この束には、プロジェクトの記録がありません。' }));
+    } else {
+      children.push(workspaceLedger(doc, {
+        className: 'bb-graph-project-ledger bb-graph-own-ledger',
+        ariaLabel: `${own.label}のプロジェクト`,
+        columns: GRAPH_PROJECT_LEDGER_COLUMNS,
+        rows: payload.projects.map((project) => ({
+          key: project.id,
+          selected: project.id === ownState.selectedId,
+          className: project.active ? '' : 'is-ended',
+          onSelect: (id) => { void controller.selectOwnProject(id); },
+          cells: [
+            { primary: project.name, secondary: project.id },
+            textCell(project.goal, '目的未記入'),
+            accountableCell(project),
+            textCell(project.status, '未記入'),
+            `${project.participantCount}人`,
+            validityLabel(project, payload.asOf),
+          ],
+        })),
+      }));
+    }
+    if (ownState.selectedId) {
+      children.push(ownProjectDetail(doc, ownState.detail?.id === ownState.selectedId ? ownState.detail : { id: ownState.selectedId, state: 'loading' }, {
+        onClose: () => controller.selectOwnProject(null),
+        onRetry: () => controller.selectOwnProject(ownState.selectedId),
+      }));
+    }
+    return ownShareSection(doc, { label: own.label, handover: payload.handover, children });
+  }
+
+  function renderHostWorkspace() {
     const children = [workspacePageHeader(doc, {
       crumbs: context.crumbs,
       title: 'プロジェクトと関係者',
@@ -535,6 +598,39 @@ export function createGraphProjectsView({
     return children;
   }
 
+  /** Reads the host's project list (see `load`). */
+  async function loadHostList({ keep = false } = {}) {
+    if (!(keep && state.list.state === 'ok')) {
+      state.list = { state: 'loading' };
+      controller.render();
+    }
+    state.list = normalizeProjectList(await client.read('/projects'));
+    if (state.list.state !== 'ok') {
+      if (!keep) state.selectedId = null;
+      controller.render();
+      return state.list;
+    }
+    const { projects } = state.list.payload;
+    if (!state.selectedId || !projects.some((project) => project.id === state.selectedId)) {
+      if (correction.form) correction.close();
+      state.panelAt = null;
+      state.detail = null;
+      state.selectedId = projects[0]?.id ?? null;
+      if (state.selectedId) {
+        const reading = controller.loadDetail(state.selectedId);
+        notifySelect(state.selectedId);
+        await reading;
+        return state.list;
+      }
+    } else if (state.detail?.id !== state.selectedId) {
+      // The project the host asked for is listed; read it for the rail.
+      await controller.loadDetail(state.selectedId);
+      return state.list;
+    }
+    controller.render();
+    return state.list;
+  }
+
   const controller = {
     get state() { return state; },
     get correction() { return correction; },
@@ -546,37 +642,49 @@ export function createGraphProjectsView({
       }
       return controller;
     },
-    /** Reads the list; the first project is selected when none is.  `keep` shows the current list until the new one has been read. */
+    /**
+     * Reads the list; the first project is selected when none is.  `keep` shows the current list until
+     * the new one has been read.  The owner's own share is read alongside, unless `keep` finds it read.
+     */
     async load({ keep = false } = {}) {
-      if (!(keep && state.list.state === 'ok')) {
-        state.list = { state: 'loading' };
-        controller.render();
-      }
-      state.list = normalizeProjectList(await client.read('/projects'));
-      if (state.list.state !== 'ok') {
-        if (!keep) state.selectedId = null;
-        controller.render();
-        return state.list;
-      }
-      const { projects } = state.list.payload;
-      if (!state.selectedId || !projects.some((project) => project.id === state.selectedId)) {
-        if (correction.form) correction.close();
-        state.panelAt = null;
-        state.detail = null;
-        state.selectedId = projects[0]?.id ?? null;
-        if (state.selectedId) {
-          const reading = controller.loadDetail(state.selectedId);
-          notifySelect(state.selectedId);
-          await reading;
-          return state.list;
-        }
-      } else if (state.detail?.id !== state.selectedId) {
-        // The project the host asked for is listed; read it for the rail.
-        await controller.loadDetail(state.selectedId);
-        return state.list;
+      const owning = own && !(keep && state.own.list.state === 'ok') ? controller.loadOwn() : null;
+      const [list] = await Promise.all([loadHostList({ keep }), owning]);
+      return list;
+    },
+    /** Reads the owner's own projects (with `ownShare`); a failure stays in that section. */
+    async loadOwn() {
+      if (!own) return null;
+      state.own.list = { state: 'loading' };
+      controller.render();
+      const result = normalizeProjectList(await own.client.read('/projects'));
+      // `not_handed_over` passes through as its own state.
+      state.own.list = result;
+      if (result.state !== 'ok' || !result.payload.projects.some((project) => project.id === state.own.selectedId)) {
+        state.own.selectedId = null;
+        state.own.detail = null;
       }
       controller.render();
-      return state.list;
+      return state.own.list;
+    },
+    /** Opens (or with null closes) a project of the owner's own share below its ledger. */
+    async selectOwnProject(id) {
+      if (!own) return null;
+      const target = textOrNull(id);
+      state.own.selectedId = target;
+      if (!target) {
+        state.own.detail = null;
+        controller.render();
+        return null;
+      }
+      state.own.detail = { id: target, state: 'loading' };
+      controller.render();
+      const result = await own.client.read(`/projects/${encodeURIComponent(target)}`);
+      if (state.own.selectedId !== target) return state.own.detail;
+      state.own.detail = result.state === 'error' && result.status === 404
+        ? { id: target, state: 'not_found', reason: 'このプロジェクトは束の中に見つかりません。' }
+        : { id: target, ...normalizeProjectDetail(result) };
+      controller.render();
+      return state.own.detail;
     },
     /** `keep` shows the current detail until the new one has been read. */
     async loadDetail(id, { keep = false } = {}) {

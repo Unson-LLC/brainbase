@@ -15,7 +15,8 @@
  * at its base path (the local Graph on the OSS host).  The host injects the
  * fetcher, base path, launch token, right rail and page context; this module
  * keeps no global state.  Another host composes it unchanged and adds only its
- * own controls through the options of `createGraphRegistryView`.
+ * own controls through the options of `createGraphRegistryView`, including the
+ * owner's own share in a separate section (`graph-own-share.js`).
  */
 
 import {
@@ -57,6 +58,7 @@ import {
   GRAPH_RELATION_LABELS,
   graphHostEmptyNotice,
 } from './graph-view-shared.js';
+import { graphOwnShareSource, ownEntityDetail, ownShareSection, ownShareStateNotice } from './graph-own-share.js';
 import {
   workspaceActions,
   workspaceButton,
@@ -176,13 +178,21 @@ function textCell(value, fallback) {
  * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
  *   and its `brainbase onboard:*` commands when the host's Graph has nothing registered.
  * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典 notice.
+ * @param {{ basePath: string, fetcher?: Function, label?: string }} [options.ownShare]
+ *   The owner's own snapshot the host keeps for them (`graph-own-share.js`): the same search runs on
+ *   `{basePath}/search` and its results are shown read-only in a separate section after the host's
+ *   results, labelled 「引き継いだ自分の分（組織には未反映）」 unless `label` says otherwise; a record
+ *   opens below them from `{basePath}/entities/:id`, with a decision's judgment record.  They never
+ *   enter the host's results or rail, and a failed read shows only in that section.  The host's
+ *   results are then captioned as the organization's.  Without it nothing of the kind is drawn or read.
  *
  * The type filter lists the entity types of the `/ontology` answer once it has
  * been read (the four local kinds until then).  A type without a plain label
  * shows its raw id in the filter, the results ledger and the rail.
  *
  * @returns The controller: `state`, `correction`, `render()`, `load()`, `search()`,
- *   `refreshResults()`, `loadEntity(id)`, `openEntity(id)`, `back()`, `loadOntology()`.
+ *   `refreshResults()`, `loadEntity(id)`, `openEntity(id)`, `back()`, `loadOntology()`, and with
+ *   `ownShare` `searchOwn()` and `openOwnEntity(id)`.
  */
 export function createGraphRegistryView({
   root,
@@ -200,10 +210,12 @@ export function createGraphRegistryView({
   readOnlyNote,
   sourceNotice,
   emptyNotice,
+  ownShare,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
   const graphClient = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
+  const own = graphOwnShareSource(ownShare, { fetcher });
   const writable = canCorrect !== false;
   const client = writable ? graphClient : readOnlyGraphClient(graphClient);
   const scope = graphCorrectionScope(correctionScope);
@@ -228,6 +240,8 @@ export function createGraphRegistryView({
     ontology: { state: 'loading' },
     // Where the open correction shows: a relation id (inside that relation) or anything else (below the record actions).
     panelAt: null,
+    // The owner's own share: the same search on its own routes, and its own open record.
+    own: own ? { search: { state: 'loading' }, detail: null } : null,
   };
   let focusRow = null;
 
@@ -333,7 +347,8 @@ export function createGraphRegistryView({
     const asOfDay = asOf ? state.applied.asOfDay || String(asOf).slice(0, 10) : null;
     section.append(makeElement(doc, 'p', {
       className: 'bb-gr-caption',
-      text: `${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の時点で有効なもの）` : ''}`,
+      // Next to the owner's own share, these results are named as the organization's.
+      text: `${own ? '組織のGraphの' : ''}${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の時点で有効なもの）` : ''}`,
     }));
     section.append(workspaceLedger(doc, {
       className: 'bb-graph-entity-ledger',
@@ -442,8 +457,50 @@ export function createGraphRegistryView({
       state.detail?.state === 'ok' ? renderGraphIssues(doc, state.detail.payload.issues) : null,
       renderSearchForm(),
       renderResults(),
+      own ? renderOwnShare() : null,
       renderOntology(),
     ];
+  }
+
+  /** The owner's own share: the same search on its own routes, never among the host's results. */
+  function renderOwnShare() {
+    const ownState = state.own;
+    const notice = ownShareStateNotice(doc, ownState.search, { onRetry: () => controller.searchOwn(), loadingText: '引き継いだ自分の分を探しています。' });
+    if (notice) return ownShareSection(doc, { label: own.label, children: [notice] });
+    const { payload } = ownState.search;
+    const asOf = payload.query?.asOf ?? null;
+    const children = [makeElement(doc, 'p', {
+      className: 'bb-gr-caption',
+      text: `${payload.graphEmpty === true ? '束に記録がありません' : `検索結果 ${payload.total}件`}${payload.truncated ? `（うち${payload.results.length}件を表示）` : ''}`,
+    })];
+    if (payload.graphEmpty !== true) {
+      children.push(workspaceLedger(doc, {
+        className: 'bb-graph-entity-ledger bb-graph-own-ledger',
+        ariaLabel: `${own.label}の検索結果`,
+        columns: GRAPH_ENTITY_LEDGER_COLUMNS,
+        empty: '条件に合う記録は、この束にはありません。',
+        rows: payload.results.map((entity) => ({
+          key: entity.id,
+          selected: entity.id === ownState.detail?.id,
+          className: entity.active ? '' : 'is-ended',
+          onSelect: (id) => { void controller.openOwnEntity(id); },
+          cells: [
+            { primary: entity.name, secondary: entity.id },
+            typeLabel(entity.type),
+            textCell(entity.summary, '要約なし'),
+            validityLabel(entity, asOf ?? now().toISOString()),
+          ],
+        })),
+      }));
+    }
+    if (ownState.detail) {
+      children.push(ownEntityDetail(doc, ownState.detail, {
+        onClose: () => controller.openOwnEntity(null),
+        onRetry: () => controller.openOwnEntity(ownState.detail.id),
+        onOpen: (id) => controller.openOwnEntity(id),
+      }));
+    }
+    return ownShareSection(doc, { label: own.label, handover: payload.handover, children });
   }
 
   // -------------------------------------------------------------------------
@@ -585,13 +642,12 @@ export function createGraphRegistryView({
     state.panelAt = null;
   }
 
+  function searchParams(query) {
+    return { q: query.q.trim(), type: query.type, as_of: asOfParam(query.asOfDay), limit: GRAPH_SEARCH_LIMIT };
+  }
+
   async function readSearch(query) {
-    return normalizeSearch(await client.read('/search', {
-      q: query.q.trim(),
-      type: query.type,
-      as_of: asOfParam(query.asOfDay),
-      limit: GRAPH_SEARCH_LIMIT,
-    }));
+    return normalizeSearch(await client.read('/search', searchParams(query)));
   }
 
   /** Keeps the record in the rail only when it is among the new results. */
@@ -631,12 +687,56 @@ export function createGraphRegistryView({
       state.search = { state: 'loading' };
       controller.render();
       const applied = state.applied;
+      // The owner's own share answers the same search on its own; neither waits on the other's failure.
+      const owning = own ? controller.searchOwn() : null;
       const result = await readSearch(applied);
-      if (state.applied !== applied) return state.search;
+      if (state.applied !== applied) {
+        await owning;
+        return state.search;
+      }
       state.search = result;
       await followResults();
       controller.render();
+      await owning;
       return state.search;
+    },
+    /** Runs the applied search on the owner's own share (with `ownShare`); a failure stays in that section. */
+    async searchOwn() {
+      if (!own) return null;
+      const applied = state.applied;
+      state.own.search = { state: 'loading' };
+      controller.render();
+      const result = await own.client.read('/search', searchParams(applied));
+      if (state.applied !== applied) return state.own.search;
+      // An empty answer is an answer here: the host confirms the whole snapshot was searched.
+      state.own.search = result.state === 'ok' && !(Array.isArray(result.payload.results) && result.payload.results.every(isEntityView)) ? INVALID : result;
+      const openId = state.own.detail?.id;
+      if (openId && !(state.own.search.state === 'ok' && state.own.search.payload.results.some((entity) => entity.id === openId))) state.own.detail = null;
+      controller.render();
+      return state.own.search;
+    },
+    /** Opens (or with null closes) a record of the owner's own share below its results. */
+    async openOwnEntity(id) {
+      if (!own) return null;
+      const target = textOrNull(id);
+      if (!target) {
+        state.own.detail = null;
+        controller.render();
+        return null;
+      }
+      const listed = state.own.search.state === 'ok' ? state.own.search.payload.results.find((entity) => entity.id === target) : null;
+      const pending = listed ?? (state.own.detail?.state === 'ok' ? [...state.own.detail.payload.outgoing, ...state.own.detail.payload.incoming]
+        .map((edge) => edge.counterpart).find((counterpart) => counterpart.id === target) : null) ?? null;
+      state.own.detail = { id: target, state: 'loading', pending: pending ? { id: target, name: pending.name, type: pending.type } : null };
+      controller.render();
+      const result = await own.client.read(`/entities/${encodeURIComponent(target)}`, { as_of: asOfParam() });
+      if (state.own.detail?.id !== target) return state.own.detail;
+      const base = { id: target, pending: state.own.detail.pending };
+      state.own.detail = result.state === 'error' && result.status === 404
+        ? { ...base, state: 'not_found', reason: 'この記録は束の中に見つかりません。' }
+        : { ...base, ...normalizeEntityDetail(result) };
+      controller.render();
+      return state.own.detail;
     },
     /** Reads the last search again without showing it as loading (after a correction). */
     async refreshResults() {
