@@ -181,7 +181,7 @@ describe('local web host protections', () => {
     expect(html.indexOf('/ui/brainbase-tokens.css')).toBeLessThan(html.indexOf('/ui/local-web-shell.css'));
 
     for (const file of [
-      'brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'value-proof-review.js', 'value-proof-review.css',
+      'brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css', 'value-proof-review.js', 'value-proof-review.css',
       'objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'world-model-view.js', 'world-model-view.css'
     ]) {
       const response = await fetch(`${base}/ui/${file}`);

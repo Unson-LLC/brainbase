@@ -72,7 +72,7 @@ export const LOCAL_WEB_FOUNDATION_BODY_LIMIT_BYTES = 64 * 1024;
 export const LOCAL_WEB_PROVENANCE_SOURCE_ID = 'brainbase-local-web';
 
 const CANONICAL_FILES = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'] as const;
-const BASE_UI_FILES = ['brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css'] as const;
+const BASE_UI_FILES = ['brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css'] as const;
 const CONTENT_TYPES: Readonly<Record<string, string>> = Object.freeze({
   '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8'

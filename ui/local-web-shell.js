@@ -3,8 +3,10 @@
  *
  * It renders the organization edition's layout — a dark left rail with the
  * brand, the navigation and the source (data directory, Graph format,
- * organization Graph), and a paper workspace — and mounts one screen per nav
- * item.  Only
+ * organization Graph), a paper workspace, and a right detail rail for the
+ * selected item — and mounts one screen per nav item. Each screen gets its own
+ * rail slot and the page context (breadcrumb and source label) to put in its
+ * page head, as the organization edition's screens do.  Only
  * screens that exist are listed.  A screen that reads the Graph is not
  * mounted until the host reports Graph v2; a v1 Graph shows the migration
  * commands instead of zero items, and the host never migrates by itself.
@@ -74,9 +76,17 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function makePage(container, context) {
+  const page = makeElement(context.document, 'div', { className: 'bb-shell-page' });
+  container.append(page);
+  return page;
+}
+
 function mountToday(container, context) {
   return createValueProofReviewUI({
-    root: container,
+    root: makePage(container, context),
+    rail: context.rail,
+    page: context.page,
     document: context.document,
     fetcher: context.fetcher,
     token: context.token,
@@ -98,12 +108,11 @@ function renderUnreadableObjectives(doc, slot, payload) {
 
 function mountObjectives(container, context) {
   const doc = context.document;
-  const page = makeElement(doc, 'div', { className: 'bb-shell-page' });
+  const page = makePage(container, context);
   const unreadable = makeElement(doc, 'div', { className: 'bb-shell-slot' });
   const editorRoot = makeElement(doc, 'div', { className: 'bb-shell-objectives' });
   const worldRoot = makeElement(doc, 'div', { className: 'bb-shell-world-model' });
   page.append(unreadable, editorRoot, worldRoot);
-  container.append(page);
   const port = createObjectiveEditorHttpPort({
     fetcher: context.fetcher,
     token: context.token,
@@ -111,6 +120,8 @@ function mountObjectives(container, context) {
   });
   const editor = createObjectiveEditorController({
     root: editorRoot,
+    rail: context.rail,
+    page: context.page,
     port,
     // The principal is decided by the host from the local Graph owner.
     context: {},
@@ -118,25 +129,30 @@ function mountObjectives(container, context) {
     constraintsEditable: false,
     storyLinks: false,
   });
-  const worldModel = createWorldModelView({ root: worldRoot, document: doc, fetcher: context.fetcher });
+  const worldModel = createWorldModelView({ root: worldRoot, rail: context.rail, document: doc, fetcher: context.fetcher });
   return { editor, worldModel };
 }
 
 function mountGraphScreen(createView) {
   return (container, context) => {
-    const page = makeElement(context.document, 'div', { className: 'bb-shell-page' });
     const viewRoot = makeElement(context.document, 'div');
-    page.append(viewRoot);
-    container.append(page);
-    return createView({ root: viewRoot, document: context.document, fetcher: context.fetcher, token: context.token });
+    makePage(container, context).append(viewRoot);
+    return createView({
+      root: viewRoot,
+      rail: context.rail,
+      page: context.page,
+      document: context.document,
+      fetcher: context.fetcher,
+      token: context.token,
+    });
   };
 }
 
 export const LOCAL_WEB_SCREENS = Object.freeze([
-  Object.freeze({ id: 'today', label: '今日', usesGraph: false, mount: mountToday }),
-  Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, mount: mountObjectives }),
-  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, mount: mountGraphScreen(createGraphProjectsView) }),
-  Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, mount: mountGraphScreen(createGraphRegistryView) }),
+  Object.freeze({ id: 'today', label: '今日', usesGraph: false, rail: true, source: '判断journal', mount: mountToday }),
+  Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
+  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen(createGraphProjectsView) }),
+  Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen(createGraphRegistryView) }),
 ]);
 
 function renderGraphGate(doc, slot, status, onRecheck, label) {
@@ -275,8 +291,25 @@ export function createLocalWebShell({
     main.append(slot);
   }
   workspace.append(mobileBar, main);
-  shell.append(sidebar, backdrop, workspace);
+  const railAside = makeElement(doc, 'aside', { className: 'bb-shell-rail', attrs: { 'aria-label': '選択中の項目' } });
+  const rails = new Map();
+  for (const screen of screens) {
+    if (!screen.rail) continue;
+    const railSlot = makeElement(doc, 'div', { className: 'bb-shell-rail-slot', attrs: { 'data-rail': screen.id } });
+    railSlot.hidden = true;
+    rails.set(screen.id, railSlot);
+    railAside.append(railSlot);
+  }
+  shell.append(sidebar, backdrop, workspace, railAside);
   root.replaceChildren(shell);
+
+  // The rail column shows only while the active screen is mounted and has one.
+  function updateRail() {
+    const showRail = rails.has(active) && mounted.has(active);
+    shell.className = showRail ? 'bb-shell has-rail' : 'bb-shell';
+    railAside.hidden = !showRail;
+    for (const [screenId, railSlot] of rails) railSlot.hidden = !(showRail && screenId === active);
+  }
 
   function ensureMounted(screen) {
     if (mounted.has(screen.id)) return;
@@ -286,7 +319,11 @@ export function createLocalWebShell({
       return;
     }
     slot.replaceChildren();
-    mounted.set(screen.id, screen.mount(slot, context) ?? true);
+    const rail = rails.get(screen.id) ?? null;
+    rail?.replaceChildren();
+    const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: screen.source ?? null });
+    mounted.set(screen.id, screen.mount(slot, Object.freeze({ ...context, rail, page })) ?? true);
+    updateRail();
   }
 
   const controller = {
@@ -302,6 +339,7 @@ export function createLocalWebShell({
         else link.removeAttribute('aria-current');
       }
       ensureMounted(screen);
+      updateRail();
       return controller;
     },
     async refreshStatus() {

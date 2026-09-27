@@ -41,6 +41,8 @@ describe('OSS共通UIの公開契約', () => {
       './ui/world-model-view.css': './ui/world-model-view.css',
       './ui/local-web-shell': './ui/local-web-shell.js',
       './ui/local-web-shell.css': './ui/local-web-shell.css',
+      './ui/workspace-kit': './ui/workspace-kit.js',
+      './ui/workspace-kit.css': './ui/workspace-kit.css',
       './ui/graph-view-shared': './ui/graph-view-shared.js',
       './ui/graph-view-shared.css': './ui/graph-view-shared.css',
       './ui/graph-projects-view': './ui/graph-projects-view.js',
@@ -69,6 +71,8 @@ describe('OSS共通UIの公開契約', () => {
       'world-model-view.css',
       'local-web-shell.js',
       'local-web-shell.css',
+      'workspace-kit.js',
+      'workspace-kit.css',
       'brainbase-tokens.css',
       'graph-view-shared.js',
       'graph-view-shared.css',
@@ -99,7 +103,7 @@ describe('OSS共通UIの公開契約', () => {
     })) {
       expect(tokens).toContain(`${name}: ${value};`);
     }
-    for (const file of ['world-model-view.css', 'local-web-shell.css', 'graph-view-shared.css', 'graph-projects-view.css', 'graph-registry-view.css']) {
+    for (const file of ['world-model-view.css', 'local-web-shell.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'graph-registry-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       // Colors and font families come only from the shared tokens.
       expect(css, file).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);

@@ -108,6 +108,38 @@ function mount(fetcher, initialScreen) {
 }
 
 describe('local Web shell', () => {
+  it('gives each screen its own right rail and the page context, and shows the rail column only for the mounted screen', async () => {
+    const received = [];
+    const screens = [
+      { id: 'one', label: '一つ目', usesGraph: false, rail: true, source: '手元のGraph', mount: (container, context) => { received.push(context); context.rail.append(new FakeElement('p')); return true; } },
+      { id: 'two', label: '二つ目', usesGraph: false, mount: () => true },
+    ];
+    const { fetcher } = hostFetcher(V2);
+    const doc = new FakeDocument();
+    globalThis.document = doc;
+    const root = new FakeElement('div');
+    const shell = createLocalWebShell({ root, document: doc, fetcher, token: 'launch-token-0123456789', screens, initialScreen: 'one' });
+    await flush();
+    const shellElement = root.children[0];
+    const rail = findAll(root, (node) => node.attributes?.['aria-label'] === '選択中の項目')[0];
+    expect(received[0].page).toEqual({ crumbs: ['あなたのBrainbase', '一つ目'], source: '手元のGraph' });
+    expect(received[0].rail.attributes['data-rail']).toBe('one');
+    expect(shellElement.className).toBe('bb-shell has-rail');
+    expect(rail.hidden).toBe(false);
+
+    shell.show('two');
+    expect(shellElement.className).toBe('bb-shell');
+    expect(rail.hidden).toBe(true);
+  });
+
+  it('keeps the rail column hidden while a Graph screen waits behind the migration notice', async () => {
+    const { fetcher } = hostFetcher(V1);
+    const { root } = mount(fetcher, 'projects');
+    await flush();
+    expect(root.children[0].className).toBe('bb-shell');
+    expect(findAll(root, (node) => node.attributes?.['aria-label'] === '選択中の項目')[0].hidden).toBe(true);
+  });
+
   it('lists only the screens that exist and shows where the data comes from', async () => {
     const { fetcher } = hostFetcher(V2);
     const { root, shell } = mount(fetcher);
