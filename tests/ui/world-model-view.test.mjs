@@ -51,6 +51,17 @@ function section(root, label) {
   return findAll(root, (node) => node.tagName === 'SECTION' && node.attributes['aria-label'] === label)[0];
 }
 
+function byClass(node, className) {
+  return findAll(node, (element) => String(element?.className ?? '').split(' ').includes(className));
+}
+
+/** Rows of the block's ledger as cell texts, the header row first. */
+function ledgerTable(block) {
+  const ledger = byClass(block, 'bb-ws-ledger')[0];
+  if (!ledger) return null;
+  return byClass(ledger, 'bb-ws-ledger-row').map((row) => row.children.map(collectText));
+}
+
 const acl = { ownerId: 'self', visibility: 'private', readerIds: [], writerIds: [] };
 
 const variablesPayload = {
@@ -119,45 +130,57 @@ function fetcherFor(routes) {
 
 async function mount(routes) {
   const root = new FakeElement('div');
+  const rail = new FakeElement('aside');
   const { fetcher, calls } = fetcherFor(routes);
-  const view = createWorldModelView({ root, document: new FakeDocument(), fetcher, autoLoad: false });
+  const view = createWorldModelView({ root, rail, document: new FakeDocument(), fetcher, autoLoad: false });
   await view.load();
-  return { root, view, calls };
+  return { root, rail, view, calls };
 }
 
 describe('World Model view', () => {
-  it('keeps the view (variables and models) apart from recorded observations', async () => {
-    const { root } = await mount({
+  it('keeps the view (variables and models) apart from recorded observations, as read-only ledgers', async () => {
+    const { root, rail } = await mount({
       '/api/world-model/variables': jsonResponse(200, variablesPayload),
       '/api/world-model/models': jsonResponse(200, modelsPayload),
       '/api/world-model/observations': jsonResponse(200, observationsPayload),
       '/api/world-model/adoptions': jsonResponse(200, { state: 'empty', adoptions: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
     });
+    // A section title under the page head, not a second page head.
+    const title = byClass(root, 'bb-ws-section-title')[0];
+    expect(findAll(title, (node) => node.tagName === 'H2')[0].textContent).toBe('現状と見通し');
+    expect(findAll(root, (node) => node.tagName === 'H1')).toHaveLength(0);
     const text = collectText(root);
     expect(text.indexOf('見方：変数とモデル')).toBeGreaterThan(-1);
     expect(text.indexOf('見方：変数とモデル')).toBeLessThan(text.indexOf('観測：記録された値'));
 
-    const view = collectText(section(root, '変数とモデル'));
-    expect(view).toContain('中断されない作業時間');
-    expect(view).toContain('認識: 支持');
-    expect(view).toContain('focus.hours@1');
-    expect(view).toContain('会議が増えると深い仕事が減る');
-    expect(view).toContain('認識: 仮説');
-    expect(view).toContain('検証: 検証中');
-    expect(view).toContain('中断されない作業時間（focus.hours@1）');
-    expect(view).not.toContain('observation-1');
+    const view = ledgerTable(section(root, '変数とモデル'));
+    expect(view[0]).toEqual(['名前', '種類', '認識の状態', '版']);
+    expect(view[1]).toEqual(['中断されない作業時間対象: 自分の作業時間単位: 時間測り方: カレンダーから集計', '変数承認済み', '支持', 'focus.hours@1']);
+    expect(view[2][0]).toContain('会議が増えると深い仕事が減る');
+    expect(view[2][0]).toContain('出力: 中断されない作業時間（focus.hours@1）');
+    expect(view[2].slice(1)).toEqual(['モデル検証: 検証中', '仮説', 'model.meetings@2']);
+    expect(collectText(section(root, '変数とモデル'))).not.toContain('observation-1');
 
-    const observed = collectText(section(root, '観測'));
-    expect(observed).toContain('home：6 時間');
-    expect(observed).toContain('発生');
-    expect(observed).toContain('記録');
-    expect(observed).toContain('観測（calendar-week-24）');
-    expect(observed).toContain('観測「observation-1」を訂正');
-    expect(observed).toContain('観測「observation-2」で訂正済み');
-    // Observations never carry an epistemic label; that belongs to the view.
-    expect(observed).not.toContain('認識:');
+    const observed = ledgerTable(section(root, '観測'));
+    expect(observed[0]).toEqual(['対象', '値', '期間', '記録', '出典']);
+    expect(observed[1][0]).toBe('home中断されない作業時間（focus.hours@1）');
+    expect(observed[1][1]).toBe('6 時間観測「observation-2」で訂正済み');
+    expect(observed[1][2]).toContain('発生 ');
+    expect(observed[1][4]).toBe('観測（calendar-week-24）観測ID observation-1');
+    expect(observed[2][1]).toBe('7 時間観測「observation-1」を訂正');
+    // The corrected observation stays, marked as superseded.
+    const rows = byClass(byClass(section(root, '観測'), 'bb-ws-ledger')[0], 'bb-ws-ledger-row');
+    expect(rows[1].className).toContain('is-superseded');
+    expect(rows[2].className).not.toContain('is-superseded');
+    // Observations never carry an epistemic state; that belongs to the view.
+    const observedText = collectText(section(root, '観測'));
+    expect(observedText).not.toContain('認識');
+    expect(observedText).not.toContain('支持');
 
     expect(collectText(section(root, 'モデルの採用'))).toContain('モデルの採用はまだありません。');
+    // Rows are not selectable and the view never writes to the host's rail.
+    expect(findAll(root, (node) => node.tagName === 'BUTTON')).toHaveLength(0);
+    expect(rail.children).toHaveLength(0);
   });
 
   it('marks only the adoptions as unverifiable when approval cannot be checked', async () => {
@@ -167,9 +190,12 @@ describe('World Model view', () => {
       '/api/world-model/observations': jsonResponse(200, observationsPayload),
       '/api/world-model/adoptions': jsonResponse(503, { error: { code: 'approval_reference_unresolved', message: 'no reader' } }),
     });
-    expect(collectText(section(root, 'モデルの採用'))).toContain('承認を確かめられないため表示できません');
-    expect(collectText(section(root, '観測'))).toContain('home：6 時間');
-    expect(collectText(section(root, '変数とモデル'))).toContain('認識: 支持');
+    const adoptions = section(root, 'モデルの採用');
+    expect(collectText(adoptions)).toContain('承認を確かめられないため表示できません');
+    expect(byClass(adoptions, 'bb-ws-notice')[0].className).toContain('is-warning');
+    expect(ledgerTable(adoptions)).toBeNull();
+    expect(ledgerTable(section(root, '観測'))[1][1]).toContain('6 時間');
+    expect(ledgerTable(section(root, '変数とモデル'))[1][2]).toBe('支持');
   });
 
   it('shows adoptions with their state and basis', async () => {
@@ -189,12 +215,15 @@ describe('World Model view', () => {
       '/api/world-model/observations': jsonResponse(200, observationsPayload),
       '/api/world-model/adoptions': jsonResponse(200, { state: 'ready', adoptions: [adoption], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
     });
-    const text = collectText(section(root, 'モデルの採用'));
-    expect(text).toContain('会議が増えると深い仕事が減る（model.meetings@2）');
-    expect(text).toContain('承認済み');
-    expect(text).toContain('会議が週5件を超えると深い仕事が減る');
-    expect(text).toContain('2件');
-    expect(text).toContain('decision-1@1');
+    const table = ledgerTable(section(root, 'モデルの採用'));
+    expect(table[0]).toEqual(['モデル', '状態', '根拠', '用途', '承認', '日時']);
+    expect(table[1].slice(0, 5)).toEqual([
+      '会議が増えると深い仕事が減る（model.meetings@2）',
+      '承認済み',
+      '会議が週5件を超えると深い仕事が減る候補の認識: 仮説証拠 2件',
+      '判断',
+      'decision-1@1',
+    ]);
   });
 
   it('never shows a failed, unconfirmed or partial section as zero items', async () => {
@@ -224,7 +253,7 @@ describe('World Model view', () => {
     expect(calls.filter((path) => path === '/api/world-model/observations')).toHaveLength(2);
     expect(view.state.observations.state).toBe('ready');
     // Without a readable Variable the unit is unknown, so only the value is shown.
-    expect(collectText(root)).toContain('home：6訂正済み');
+    expect(ledgerTable(section(root, '観測'))[1][1]).toBe('6観測「observation-2」で訂正済み');
   });
 
   it('treats a missing array or malformed record as invalid, not empty', () => {

@@ -2,51 +2,75 @@
  * 「プロジェクトと関係者」: which projects exist, who takes part in or is
  * accountable for each one, and whether that record is right.
  *
+ * Built on the organization edition's screen pattern (workspace kit): the
+ * workspace has the page head, the source notice, summary metrics and the
+ * project ledger; the right rail has the selected project — its outline, each
+ * 関係者 and the corrections.  The first project is selected on load.
+ *
  * Reads `GET {base}/projects` and `GET {base}/projects/:id` and corrects
  * through `POST {base}/corrections` (see `graph-view-shared.js`).  「関係者」
  * are the people recorded as taking part in or being accountable for a
  * project; they are not logins or sharing settings.  Participation ends with
- * an end date and is never deleted.  The host injects the fetcher, base path
- * and launch token; this module keeps no global state.
+ * an end date and is never deleted.  The host injects the fetcher, base path,
+ * launch token, right rail and page context; this module keeps no global state.
  */
 
 import {
   activityBadge,
   badge,
-  button,
   createGraphClient,
   createGraphCorrection,
-  facts,
+  createGraphLayout,
+  focusLedgerRow,
   getDocument,
+  graphCommandList,
+  graphPageContext,
+  graphStateNotice,
   isEdgeView,
   isEntityView,
+  isRecord,
   makeElement,
-  notice,
   recordDetails,
   relationLabel,
   renderCorrectionHistory,
   renderGraphIssues,
-  renderGraphReadState,
   renderProvenance,
+  shellArg,
   textOrNull,
+  validityLabel,
   validityText,
   GRAPH_RELATION_LABELS,
 } from './graph-view-shared.js';
+import {
+  workspaceActions,
+  workspaceButton,
+  workspaceDefinition,
+  workspaceDetailEmpty,
+  workspaceLedger,
+  workspaceMetrics,
+  workspaceNotice,
+  workspacePageHeader,
+  workspaceRailBlock,
+  workspaceRailHead,
+} from './workspace-kit.js';
 
-export const GRAPH_PROJECTS_VIEW_CONTRACT_VERSION = 'brainbase.graph-projects-view.v1';
+export const GRAPH_PROJECTS_VIEW_CONTRACT_VERSION = 'brainbase.graph-projects-view.v2';
 
 /** The two ways a person is related to a project in the OSS Graph. */
 export const PARTICIPATION_LABELS = Object.freeze({ participates_in: '参加', accountable_for: '責任' });
 
+export const GRAPH_PROJECT_LEDGER_COLUMNS = Object.freeze(['プロジェクト', '目的', '責任を持つ人', '状態', '関係者', '有効期間']);
+
 const INVALID = Object.freeze({ state: 'invalid', reason: '応答の形式が不正です' });
+
+function isProjectPerson(value) {
+  return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.accountable === 'boolean';
+}
 
 function isProjectItem(value) {
   return isEntityView(value) && value.type === 'project'
-    && Number.isInteger(value.participantCount) && Number.isInteger(value.accountableCount);
-}
-
-function shellArg(value) {
-  return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value) ? value : JSON.stringify(value);
+    && Number.isInteger(value.participantCount) && Number.isInteger(value.accountableCount)
+    && (value.people === undefined || (Array.isArray(value.people) && value.people.every(isProjectPerson)));
 }
 
 /**
@@ -72,21 +96,37 @@ export function normalizeProjectDetail(result) {
   return { state: 'ok', payload };
 }
 
-function block(doc, label, heading, lead) {
-  const section = makeElement(doc, 'section', { className: 'bb-graph-block', attrs: { 'aria-label': label } });
-  const head = makeElement(doc, 'div', { className: 'bb-graph-block-head' });
-  head.append(makeElement(doc, 'h3', { className: 'bb-graph-heading', text: heading }));
-  if (lead) head.append(makeElement(doc, 'p', { className: 'bb-graph-lead', text: lead }));
-  section.append(head);
-  return section;
+/**
+ * The summary metrics.  関係者 counts each person once across projects and is
+ * `null` (未確認, never zero) when the host did not name the people.
+ */
+export function summarizeProjects(projects) {
+  const active = projects.filter((project) => project.active === true);
+  const named = projects.every((project) => Array.isArray(project.people));
+  return {
+    total: projects.length,
+    active: active.length,
+    inProgress: active.filter((project) => textOrNull(project.status) === '進行中').length,
+    people: named ? new Set(projects.flatMap((project) => project.people.map((person) => person.id))).size : null,
+  };
 }
 
-function participantCountText(project) {
-  return `${project.participantCount}人（うち責任を持つ人 ${project.accountableCount}人）`;
+function accountableCell(project) {
+  if (Array.isArray(project.people)) {
+    const names = project.people.filter((person) => person.accountable).map((person) => person.name);
+    return names.length > 0 ? names.join('、') : { text: '未登録', className: 'is-unresolved' };
+  }
+  return project.accountableCount > 0 ? `${project.accountableCount}人` : { text: '未登録', className: 'is-unresolved' };
+}
+
+function textCell(value, fallback) {
+  return textOrNull(value) ?? { text: fallback, className: 'is-unresolved' };
 }
 
 export function createGraphProjectsView({
   root,
+  rail,
+  page,
   document: explicitDocument,
   fetcher,
   basePath = '/api/graph',
@@ -98,208 +138,282 @@ export function createGraphProjectsView({
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
   const client = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
-  const state = { list: { state: 'loading' }, listStale: false, detail: null };
+  const context = graphPageContext(page);
+  const layout = createGraphLayout(doc, {
+    root,
+    rail,
+    label: 'プロジェクトと関係者',
+    className: 'bb-gp',
+    contractVersion: GRAPH_PROJECTS_VIEW_CONTRACT_VERSION,
+  });
+  // `panelAt` is where the open correction shows: a relation id (inside that
+  // 関係者) or anything else (below the project actions).
+  const state = { list: { state: 'loading' }, selectedId: null, detail: null, panelAt: null };
+  let focusRow = null;
 
   const correction = createGraphCorrection({
     client,
     now,
     rerender: () => controller.render(),
     onSaved: async () => {
-      state.listStale = true;
-      if (state.detail) await controller.loadDetail(state.detail.id, { keep: true });
+      await Promise.all([
+        state.detail ? controller.loadDetail(state.detail.id, { keep: true }) : null,
+        controller.load({ keep: true }),
+      ]);
     },
     onConflict: async () => {
       if (state.detail) await controller.loadDetail(state.detail.id, { keep: true });
     },
   });
 
-  function renderList(surface) {
-    const section = block(doc, 'プロジェクトの一覧', 'プロジェクトの一覧');
-    surface.append(section);
-    if (!renderGraphReadState(doc, section, state.list, { onRetry: () => controller.load() })) return;
+  function listItem(id) {
+    return state.list.state === 'ok' ? state.list.payload.projects.find((project) => project.id === id) ?? null : null;
+  }
+
+  function openCorrection(at, open) {
+    state.panelAt = at;
+    open();
+  }
+
+  // -------------------------------------------------------------------------
+  // Workspace
+
+  function renderWorkspace() {
+    const children = [workspacePageHeader(doc, {
+      crumbs: context.crumbs,
+      title: 'プロジェクトと関係者',
+      lead: 'どのプロジェクトに誰がどう関わっているかを確かめ、誤りを直します。',
+      source: context.source,
+    })];
+    const dir = state.list.state === 'ok' ? textOrNull(state.list.payload.source?.dataDir) : null;
+    children.push(workspaceNotice(doc, {
+      label: '出典',
+      text: `このMacのGraph${dir ? `（${dir}）` : ''}から読み、ここで直した内容もそこへ保存します。関係者は、プロジェクトに参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。`,
+    }));
+    if (state.detail?.state === 'ok') children.push(renderGraphIssues(doc, state.detail.payload.issues));
+
+    const stateNotice = graphStateNotice(doc, state.list, { onRetry: () => controller.load(), loadingText: 'プロジェクトを読み込んでいます。' });
+    if (stateNotice) {
+      children.push(stateNotice);
+      return children;
+    }
     const { payload } = state.list;
+    const summary = summarizeProjects(payload.projects);
+    children.push(workspaceMetrics(doc, [
+      { label: 'プロジェクト', value: summary.active, note: `有効なもの（全${summary.total}件）` },
+      { label: '進行中', value: summary.inProgress, note: '状態が「進行中」の有効なもの' },
+      { label: '関係者', value: summary.people, note: summary.people === null ? '人数を確かめられません' : '有効な関わりがある人（重複なし）' },
+    ], { ariaLabel: 'プロジェクトの集計' }));
+
     if (payload.projects.length === 0) {
-      const box = makeElement(doc, 'div', { className: 'bb-graph-state is-muted', attrs: { role: 'status' } });
-      const dir = textOrNull(payload.source?.dataDir);
-      box.append(
-        makeElement(doc, 'strong', { text: 'まだ登録がありません' }),
-        makeElement(doc, 'p', { text: 'このGraphには、プロジェクトがまだ登録されていません。次のコマンドで登録できます。CodexやClaude Codeからは、MCPのオンボーディング（brainbase_onboarding_start）で資料から候補を作り、確かめてから登録できます。' }),
+      const body = makeElement(doc, 'div', { className: 'bb-graph-notice-body' });
+      body.append(
+        makeElement(doc, 'p', { text: 'まだ登録がありません。このGraphには、プロジェクトがまだ登録されていません。次のコマンドで登録できます。CodexやClaude Codeからは、MCPのオンボーディング（brainbase_onboarding_start）で資料から候補を作り、確かめてから登録できます。' }),
+        graphCommandList(doc, [`brainbase onboard:projects --name <名前> --goal <目的> --write${dir ? ` --dir ${shellArg(dir)}` : ''}`]),
       );
-      const commands = makeElement(doc, 'ol', { className: 'bb-graph-commands' });
-      const item = makeElement(doc, 'li');
-      item.append(makeElement(doc, 'code', { text: `brainbase onboard:projects --name <名前> --goal <目的> --write${dir ? ` --dir ${shellArg(dir)}` : ''}` }));
-      commands.append(item);
-      box.append(commands);
-      section.append(box);
-      return;
+      children.push(workspaceNotice(doc, { label: '未登録', text: body, tone: 'info', role: 'status' }));
+      return children;
     }
-    const list = makeElement(doc, 'ul', { className: 'bb-graph-list bb-gp-list' });
-    for (const project of payload.projects) {
-      const item = makeElement(doc, 'li', { className: `bb-graph-item${project.active ? '' : ' is-ended'}` });
-      const head = makeElement(doc, 'div', { className: 'bb-graph-item-head' });
-      head.append(button(doc, project.name, () => controller.openProject(project.id), { className: 'bb-graph-link' }));
-      const badges = makeElement(doc, 'span', { className: 'bb-graph-badges' });
-      if (textOrNull(project.status)) badges.append(badge(doc, project.status, 'accent'));
-      badges.append(activityBadge(doc, project, payload.asOf));
-      head.append(badges);
-      item.append(head, facts(doc, [
-        ['目的', textOrNull(project.goal) ?? '未記入'],
-        ['関係者', participantCountText(project)],
-        ['有効期間', validityText(project.validFrom, project.validTo)],
-      ]));
-      list.append(item);
-    }
-    section.append(list);
+
+    children.push(workspaceLedger(doc, {
+      className: 'bb-graph-project-ledger',
+      ariaLabel: 'プロジェクトの一覧',
+      columns: GRAPH_PROJECT_LEDGER_COLUMNS,
+      rows: payload.projects.map((project) => ({
+        key: project.id,
+        selected: project.id === state.selectedId,
+        className: project.active ? '' : 'is-ended',
+        onSelect: (id) => {
+          focusRow = id;
+          void controller.selectProject(id);
+        },
+        cells: [
+          { primary: project.name, secondary: project.id },
+          textCell(project.goal, '目的未記入'),
+          accountableCell(project),
+          textCell(project.status, '未記入'),
+          `${project.participantCount}人`,
+          validityLabel(project, payload.asOf),
+        ],
+      })),
+    }));
+    return children;
   }
 
-  function participantRow(edge, project, asOf) {
-    const row = makeElement(doc, 'tr', { className: edge.active ? '' : 'is-ended' });
-    const cell = (label, ...children) => {
-      const td = makeElement(doc, 'td', { attrs: { 'data-label': label } });
-      td.append(...children);
-      row.append(td);
-      return td;
-    };
-    const person = makeElement(doc, 'span', { className: 'bb-graph-strong', text: edge.counterpart.name });
-    cell('人物', person, ...(edge.counterpart.active === false ? [makeElement(doc, 'small', { className: 'bb-graph-help', text: '人物の記録は終了しています' })] : []));
-    cell('関わり方', badge(doc, PARTICIPATION_LABELS[edge.relation] ?? relationLabel(edge.relation), edge.relation === 'accountable_for' ? 'accent' : ''));
-    const role = makeElement(doc, 'span', { text: textOrNull(edge.role) ?? '未記入', className: textOrNull(edge.role) ? '' : 'bb-graph-muted' });
-    cell('役割', role, ...(textOrNull(edge.context) ? [makeElement(doc, 'small', { className: 'bb-graph-help', text: edge.context })] : []));
-    cell('有効期間', makeElement(doc, 'span', { text: validityText(edge.validFrom, edge.validTo) }), activityBadge(doc, edge, asOf));
-    cell('出典', renderProvenance(doc, edge.provenance), recordDetails(doc, [['関係ID', edge.id], ['人物ID', edge.counterpart.id], ['digest', edge.digest]]));
-    const subject = `${edge.counterpart.name}（${PARTICIPATION_LABELS[edge.relation] ?? relationLabel(edge.relation)}、${project.name}）`;
-    const actions = makeElement(doc, 'div', { className: 'bb-graph-row-actions' });
-    actions.append(button(doc, '役割を直す', () => correction.openEdge(edge, { mode: 'role', subject })));
-    actions.append(edge.active
-      ? button(doc, '関わりを終える', () => correction.openEdge(edge, { mode: 'end', subject }))
-      : button(doc, '終了日を直す', () => correction.openEdge(edge, { mode: 'end', title: '終了日を直す', subject })));
-    cell('直す', actions);
-    return row;
+  // -------------------------------------------------------------------------
+  // Right rail
+
+  function participantItem(edge, project, asOf) {
+    const item = makeElement(doc, 'li', { className: `bb-graph-compact${edge.active ? '' : ' is-ended'}` });
+    const head = makeElement(doc, 'div', { className: 'bb-graph-compact-head' });
+    const how = PARTICIPATION_LABELS[edge.relation] ?? relationLabel(edge.relation);
+    head.append(
+      makeElement(doc, 'strong', { className: 'bb-graph-compact-title', text: edge.counterpart.name }),
+      badge(doc, how, edge.relation === 'accountable_for' ? 'accent' : ''),
+      activityBadge(doc, edge, asOf),
+    );
+    item.append(head);
+    if (edge.counterpart.active === false) item.append(makeElement(doc, 'small', { className: 'bb-graph-help', text: '人物の記録は終了しています' }));
+    item.append(workspaceDefinition(doc, [
+      ['役割', textOrNull(edge.role)],
+      ...(textOrNull(edge.context) ? [['文脈', edge.context]] : []),
+      ['有効期間', validityText(edge.validFrom, edge.validTo)],
+      ['出典', renderProvenance(doc, edge.provenance)],
+    ]));
+    const subject = `${edge.counterpart.name}（${how}、${project.name}）`;
+    item.append(workspaceActions(doc, [
+      workspaceButton(doc, { text: '役割を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'role', subject })) }),
+      edge.active
+        ? workspaceButton(doc, { text: '関わりを終える', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', subject })) })
+        : workspaceButton(doc, { text: '終了日を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', title: '終了日を直す', subject })) }),
+    ]));
+    item.append(recordDetails(doc, [['関係ID', edge.id], ['人物ID', edge.counterpart.id], ['digest', edge.digest]]));
+    if (state.panelAt === edge.id) {
+      const panel = correction.render(doc);
+      if (panel) item.append(panel);
+    }
+    return item;
   }
 
-  function renderParticipants(surface, payload) {
+  function renderParticipants(payload) {
     const { project } = payload;
-    const section = block(doc, '関係者', '関係者', '参加している人と、責任を持つ人です。終わった関わりも、終了日つきで残ります。');
-    const head = section.children[0];
-    head.append(button(doc, '関係者を加える', () => correction.openCreate(project, {
-      relations: ['participates_in', 'accountable_for'],
-      relationNames: PARTICIPATION_LABELS,
-      relationLabel: '関わり方',
-      title: '関係者を加える',
-      subject: `プロジェクト「${project.name}」`,
-    }), { className: 'bb-graph-button is-primary' }));
+    const content = [makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '参加している人と、責任を持つ人です。終わった関わりも、終了日つきで残ります。' })];
     if (payload.participants.length === 0) {
-      section.append(notice(doc, 'muted', 'このプロジェクトには、まだ関係者の登録がありません。'));
+      content.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'このプロジェクトには、まだ関係者の登録がありません。' }));
     } else {
-      const table = makeElement(doc, 'table', { className: 'bb-graph-table bb-gp-participants' });
-      const thead = makeElement(doc, 'thead');
-      const headRow = makeElement(doc, 'tr');
-      for (const label of ['人物', '関わり方', '役割', '有効期間', '出典', '直す']) headRow.append(makeElement(doc, 'th', { text: label, attrs: { scope: 'col' } }));
-      thead.append(headRow);
-      const tbody = makeElement(doc, 'tbody');
-      for (const edge of payload.participants) tbody.append(participantRow(edge, project, payload.asOf));
-      table.append(thead, tbody);
-      section.append(table);
+      const list = makeElement(doc, 'ul', { className: 'bb-graph-compact-list' });
+      for (const edge of payload.participants) list.append(participantItem(edge, project, payload.asOf));
+      content.push(list);
     }
-    surface.append(section);
+    return workspaceRailBlock(doc, { title: '関係者', content });
   }
 
-  function renderOtherRelations(surface, payload) {
+  function renderOtherRelations(payload) {
     const relations = Array.isArray(payload.relations) ? payload.relations : [];
-    if (relations.length === 0) return;
-    const section = block(doc, 'そのほかの関係', 'そのほかの関係', '所有する組織や、進め方を決める判断などです。直すときは「情報と関係」を使います。');
+    if (relations.length === 0) return null;
     const list = makeElement(doc, 'ul', { className: 'bb-graph-plain-list' });
     for (const edge of relations) {
       const labels = GRAPH_RELATION_LABELS[edge.relation];
       const phrase = labels ? (edge.direction === 'outgoing' ? labels.outgoing : labels.incoming) : '';
       const item = makeElement(doc, 'li');
-      item.append(badge(doc, relationLabel(edge.relation), 'muted'), makeElement(doc, 'span', { text: ` ${edge.counterpart.name}${phrase}` }), activityBadge(doc, edge, payload.asOf));
+      item.append(badge(doc, relationLabel(edge.relation), 'muted'), makeElement(doc, 'span', { text: ` ${edge.counterpart.name}${phrase} ` }), activityBadge(doc, edge, payload.asOf));
       list.append(item);
     }
-    section.append(list);
-    surface.append(section);
+    return workspaceRailBlock(doc, {
+      title: 'そのほかの関係',
+      content: [makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '所有する組織や、進め方を決める判断などです。直すときは「情報と関係」を使います。' }), list],
+    });
   }
 
-  function renderDetail(surface) {
-    const detail = state.detail;
-    surface.append(button(doc, '← プロジェクトの一覧に戻る', () => controller.showList(), { className: 'bb-graph-back' }));
-    if (detail.state !== 'ok') {
-      const section = block(doc, 'プロジェクトの詳細', 'プロジェクトの詳細');
-      renderGraphReadState(doc, section, detail, { onRetry: () => controller.loadDetail(detail.id) });
-      surface.append(section);
-      return;
-    }
-    const { payload } = detail;
-    const { project } = payload;
-    const issues = renderGraphIssues(doc, payload.issues);
-    if (issues) surface.append(issues);
+  function statusValue(project, asOf) {
+    const wrap = makeElement(doc, 'span', { className: 'bb-graph-inline-value' });
+    wrap.append(makeElement(doc, 'span', { text: textOrNull(project.status) ?? '未記入' }), activityBadge(doc, project, asOf));
+    return wrap;
+  }
 
-    const summary = makeElement(doc, 'section', { className: 'bb-graph-block', attrs: { 'aria-label': 'プロジェクトの詳細' } });
-    const head = makeElement(doc, 'div', { className: 'bb-graph-block-head' });
-    const title = makeElement(doc, 'div', { className: 'bb-graph-title-row' });
-    title.append(makeElement(doc, 'h3', { className: 'bb-graph-title', text: project.name }));
-    const badges = makeElement(doc, 'span', { className: 'bb-graph-badges' });
-    if (textOrNull(project.status)) badges.append(badge(doc, project.status, 'accent'));
-    badges.append(activityBadge(doc, project, payload.asOf));
-    title.append(badges);
-    head.append(title, button(doc, 'プロジェクトを直す', () => correction.openEntity(project, {
-      fields: ['name', 'goal', 'status'],
-      title: 'プロジェクトを直す',
-      subject: `プロジェクト「${project.name}」の名前・目的・状態`,
-    })));
-    summary.append(head);
+  function renderRail() {
+    // The first project is selected once the list is read; until then the rail stays empty.
+    if (!state.selectedId && state.list.state === 'loading') return [];
+    if (!state.selectedId) {
+      return [workspaceDetailEmpty(doc, {
+        mark: 'P',
+        title: 'プロジェクトを選択',
+        text: '一覧から選ぶと、目的・判断の原則と、関係者の役割・有効期間・出典を表示します。',
+      })];
+    }
+    const detail = state.detail;
+    const loaded = detail?.id === state.selectedId && detail.state === 'ok' ? detail.payload : null;
+    const project = loaded?.project ?? listItem(state.selectedId) ?? { id: state.selectedId, name: state.selectedId };
+    const children = [workspaceRailHead(doc, { kicker: 'プロジェクト', title: project.name, sub: project.id })];
+    if (!loaded) {
+      children.push(graphStateNotice(doc, detail?.id === state.selectedId ? detail : { state: 'loading' }, {
+        onRetry: () => controller.loadDetail(state.selectedId),
+        loadingText: 'このプロジェクトの関係者を読み込んでいます。',
+      }));
+      return children;
+    }
     const principles = Array.isArray(project.decisionPrinciples) ? project.decisionPrinciples.filter((item) => typeof item === 'string' && item.trim()) : [];
     let principleList = null;
     if (principles.length > 0) {
       principleList = makeElement(doc, 'ul', { className: 'bb-graph-plain-list' });
       for (const principle of principles) principleList.append(makeElement(doc, 'li', { text: principle }));
     }
-    summary.append(facts(doc, [
-      ['目的', textOrNull(project.goal) ?? '未記入'],
-      ['状態', textOrNull(project.status) ?? '未記入'],
-      ['判断の原則', principleList ?? 'まだ登録がありません'],
-      ['要約', textOrNull(project.summary)],
-      ['別名', project.aliases.length > 0 ? project.aliases.join('、') : null],
-      ['有効期間', validityText(project.validFrom, project.validTo)],
+    children.push(workspaceRailBlock(doc, {
+      title: '概要',
+      content: [
+        workspaceDefinition(doc, [
+          ['状態', statusValue(project, loaded.asOf)],
+          ['目的', textOrNull(project.goal)],
+          ['判断の原則', principleList ?? { text: 'まだ登録がありません', className: 'is-unrecorded' }],
+          ['有効期間', validityText(project.validFrom, project.validTo)],
+          ['出典', 'このMacのGraph（graph.json）'],
+        ]),
+        recordDetails(doc, [['プロジェクトID', project.id], ['digest', project.digest], ['読み取った時点', loaded.asOf]]),
+      ],
+    }));
+    children.push(renderParticipants(loaded));
+    children.push(workspaceActions(doc, [
+      workspaceButton(doc, {
+        text: '関係者を加える',
+        variant: 'primary',
+        onClick: () => openCorrection('project', () => correction.openCreate(project, {
+          relations: ['participates_in', 'accountable_for'],
+          relationNames: PARTICIPATION_LABELS,
+          relationLabel: '関わり方',
+          title: '関係者を加える',
+          subject: `プロジェクト「${project.name}」`,
+        })),
+      }),
+      workspaceButton(doc, {
+        text: 'プロジェクトを直す',
+        onClick: () => openCorrection('project', () => correction.openEntity(project, {
+          fields: ['name', 'goal', 'status'],
+          title: 'プロジェクトを直す',
+          subject: `プロジェクト「${project.name}」の名前・目的・状態`,
+        })),
+      }),
     ]));
-    summary.append(recordDetails(doc, [['プロジェクトID', project.id], ['digest', project.digest], ['読み取った時点', payload.asOf]]));
-    surface.append(summary);
-
-    const panel = correction.render(doc);
-    if (panel) surface.append(panel);
-
-    renderParticipants(surface, payload);
-    renderOtherRelations(surface, payload);
-    const history = renderCorrectionHistory(doc, payload.history);
-    if (history) surface.append(history);
+    // A correction opened on a 関係者 shows inside that item; any other shows here.
+    if (!loaded.participants.some((edge) => edge.id === state.panelAt)) children.push(correction.render(doc));
+    children.push(renderOtherRelations(loaded));
+    children.push(renderCorrectionHistory(doc, loaded.history));
+    return children;
   }
 
   const controller = {
     get state() { return state; },
     get correction() { return correction; },
     render() {
-      root.replaceChildren();
-      const surface = makeElement(doc, 'section', {
-        className: 'bb-graph bb-gp',
-        attrs: { 'data-contract-version': GRAPH_PROJECTS_VIEW_CONTRACT_VERSION, 'aria-label': 'プロジェクトと関係者' },
-      });
-      const header = makeElement(doc, 'header', { className: 'bb-graph-header' });
-      header.append(
-        makeElement(doc, 'p', { className: 'bb-graph-eyebrow', text: 'BRAINBASE / PROJECTS' }),
-        makeElement(doc, 'h2', { text: 'プロジェクトと関係者' }),
-        makeElement(doc, 'p', { className: 'bb-graph-lead', text: 'どのプロジェクトに誰がどう関わっているかを確かめ、誤りを直します。関係者は、参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。' }),
-      );
-      surface.append(header);
-      if (state.detail) renderDetail(surface);
-      else renderList(surface);
-      root.append(surface);
+      layout.render(renderWorkspace(), renderRail());
+      if (focusRow) {
+        focusLedgerRow(root, focusRow);
+        focusRow = null;
+      }
       return controller;
     },
-    async load() {
-      state.list = { state: 'loading' };
-      state.listStale = false;
-      controller.render();
+    /** Reads the list; the first project is selected when none is.  `keep` shows the current list until the new one has been read. */
+    async load({ keep = false } = {}) {
+      if (!(keep && state.list.state === 'ok')) {
+        state.list = { state: 'loading' };
+        controller.render();
+      }
       state.list = normalizeProjectList(await client.read('/projects'));
+      if (state.list.state !== 'ok') {
+        if (!keep) state.selectedId = null;
+        controller.render();
+        return state.list;
+      }
+      const { projects } = state.list.payload;
+      if (!state.selectedId || !projects.some((project) => project.id === state.selectedId)) {
+        if (correction.form) correction.close();
+        state.panelAt = null;
+        state.detail = null;
+        state.selectedId = projects[0]?.id ?? null;
+        if (state.selectedId) {
+          await controller.loadDetail(state.selectedId);
+          return state.list;
+        }
+      }
       controller.render();
       return state.list;
     },
@@ -311,23 +425,23 @@ export function createGraphProjectsView({
         controller.render();
       }
       const result = await client.read(`/projects/${encodeURIComponent(id)}`);
-      if (state.detail?.id !== id) return state.detail;
+      if (state.selectedId !== id) return state.detail;
       state.detail = result.state === 'error' && result.status === 404
-        ? { id, state: 'not_found', reason: 'このプロジェクトは見つかりません。一覧に戻って読み直してください。' }
+        ? { id, state: 'not_found', reason: 'このプロジェクトは見つかりません。一覧を読み直してください。' }
         : { id, ...normalizeProjectDetail(result) };
       controller.render();
       return state.detail;
     },
-    async openProject(id) {
+    /** Selects a row: the rail shows that project, and an open correction is closed. */
+    async selectProject(id) {
       if (correction.form) correction.close();
-      return controller.loadDetail(id);
+      state.panelAt = null;
+      state.selectedId = id;
+      return controller.loadDetail(id, { keep: true });
     },
-    async showList() {
-      state.detail = null;
-      if (correction.form) correction.close();
-      if (state.listStale || state.list.state !== 'ok') return controller.load();
-      controller.render();
-      return state.list;
+    /** The same as selecting the project's row. */
+    async openProject(id) {
+      return controller.selectProject(id);
     },
   };
   controller.render();

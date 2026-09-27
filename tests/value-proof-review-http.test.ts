@@ -102,9 +102,20 @@ describe('value proof review host', () => {
     const base = await start();
     const shell = await fetch(`${base}/`);
     expect(shell.headers.get('content-security-policy')).toContain("script-src 'self'");
-    expect(await shell.text()).toContain(`content="${TOKEN}"`);
-    expect((await fetch(`${base}/ui/value-proof-review.js`)).status).toBe(200);
+    const html = await shell.text();
+    expect(html).toContain(`content="${TOKEN}"`);
+    // The part is drawn with the shared screen pattern, which reads the shared tokens.
+    expect(html.indexOf('/ui/brainbase-tokens.css')).toBeGreaterThan(-1);
+    expect(html.indexOf('/ui/brainbase-tokens.css')).toBeLessThan(html.indexOf('/ui/workspace-kit.css'));
+    expect(html.indexOf('/ui/workspace-kit.css')).toBeLessThan(html.indexOf('/ui/value-proof-review.css'));
+    const part = await fetch(`${base}/ui/value-proof-review.js`);
+    expect(part.status).toBe(200);
     expect((await fetch(`${base}/ui/value-proof-review.css`)).status).toBe(200);
+    // Every module the part imports must be served, or the page cannot start.
+    const imports = [...(await part.text()).matchAll(/from '\.\/([^']+)'/gu)].map((match) => match[1]);
+    expect(imports).toContain('workspace-kit.js');
+    for (const file of imports) expect((await fetch(`${base}/ui/${file}`)).status, file).toBe(200);
+    expect((await fetch(`${base}/ui/workspace-kit.css`)).status).toBe(200);
     expect((await fetch(`${base}/ui/judgment-view.js`)).status).toBe(404);
     expect((await fetch(`${base}/../package.json`)).status).toBe(404);
   });

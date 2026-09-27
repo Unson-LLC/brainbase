@@ -1,32 +1,101 @@
 /*
- * 「情報と関係」. Load with graph-view-shared.css.
+ * 「情報と関係」. Load after workspace-kit.css and graph-view-shared.css.
+ * Column templates of the results and the two kinds-of-information ledgers,
+ * with a 760px variant that keeps two or three columns.
  * Uses only the shared tokens in brainbase-tokens.css.
  */
-.bb-gr-search-fields {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
-  align-items: start;
+.bb-gr-search-section {
+  margin-bottom: 30px;
 }
 
-.bb-gr-types td:first-child,
-.bb-gr-relations td:first-child {
-  font-weight: 600;
-  white-space: nowrap;
+.bb-gr-search {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: end;
 }
 
-.bb-gr-types td:last-child,
-.bb-gr-relations td:last-child {
-  white-space: nowrap;
+.bb-gr-search-submit {
+  min-height: 40px;
 }
 
-@media (max-width: 720px) {
-  .bb-gr-search-fields {
+.bb-graph .bb-gr-caption {
+  margin: 0 0 10px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-gr-results .bb-ws-notice:last-child {
+  margin-bottom: 0;
+}
+
+.bb-graph .bb-gr-subheading {
+  margin: 30px 0 10px;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
+.bb-gr-ontology > .bb-graph-plain-list {
+  color: var(--bb-color-muted);
+}
+
+.bb-gr-ontology > .bb-graph-audit {
+  margin-top: 14px;
+}
+
+.bb-graph-entity-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.2fr) 112px minmax(0, 1.6fr) minmax(0, 1fr);
+}
+
+.bb-graph-relation-type-ledger .bb-ws-ledger-row {
+  grid-template-columns: 88px minmax(0, 1fr) minmax(0, 2fr) minmax(0, .9fr);
+}
+
+.bb-graph-entity-type-ledger .bb-ws-ledger-row {
+  grid-template-columns: 120px minmax(0, 1fr) 96px;
+}
+
+.bb-graph-relation-type-ledger .bb-ws-ledger-row,
+.bb-graph-entity-type-ledger .bb-ws-ledger-row {
+  min-height: 48px;
+}
+
+/* The meaning of a kind is read, not scanned: let it wrap. */
+.bb-graph-relation-type-ledger .bb-ws-ledger-row > span,
+.bb-graph-entity-type-ledger .bb-ws-ledger-row > span {
+  white-space: normal;
+}
+
+.bb-graph-relation-type-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) > :first-child,
+.bb-graph-entity-type-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) > :first-child {
+  color: var(--bb-color-ink);
+  font-weight: 690;
+}
+
+@media (max-width: 760px) {
+  .bb-gr-search {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .bb-gr-types td:first-child,
-  .bb-gr-relations td:first-child,
-  .bb-gr-types td:last-child,
-  .bb-gr-relations td:last-child {
-    white-space: normal;
+  .bb-gr-search-submit {
+    justify-self: start;
+  }
+
+  .bb-graph-entity-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 96px minmax(0, .9fr);
+  }
+
+  .bb-graph-entity-ledger .bb-ws-ledger-row > :nth-child(3) {
+    display: none;
+  }
+
+  .bb-graph-relation-type-ledger .bb-ws-ledger-row {
+    grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .bb-graph-relation-type-ledger .bb-ws-ledger-row > :nth-child(3) {
+    display: none;
+  }
+
+  .bb-graph-entity-type-ledger .bb-ws-ledger-row {
+    grid-template-columns: 84px minmax(0, 1fr) 60px;
   }
 }

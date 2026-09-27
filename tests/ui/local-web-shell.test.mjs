@@ -108,6 +108,38 @@ function mount(fetcher, initialScreen) {
 }
 
 describe('local Web shell', () => {
+  it('gives each screen its own right rail and the page context, and shows the rail column only for the mounted screen', async () => {
+    const received = [];
+    const screens = [
+      { id: 'one', label: '一つ目', usesGraph: false, rail: true, source: '手元のGraph', mount: (container, context) => { received.push(context); context.rail.append(new FakeElement('p')); return true; } },
+      { id: 'two', label: '二つ目', usesGraph: false, mount: () => true },
+    ];
+    const { fetcher } = hostFetcher(V2);
+    const doc = new FakeDocument();
+    globalThis.document = doc;
+    const root = new FakeElement('div');
+    const shell = createLocalWebShell({ root, document: doc, fetcher, token: 'launch-token-0123456789', screens, initialScreen: 'one' });
+    await flush();
+    const shellElement = root.children[0];
+    const rail = findAll(root, (node) => node.attributes?.['aria-label'] === '選択中の項目')[0];
+    expect(received[0].page).toEqual({ crumbs: ['あなたのBrainbase', '一つ目'], source: '手元のGraph' });
+    expect(received[0].rail.attributes['data-rail']).toBe('one');
+    expect(shellElement.className).toBe('bb-shell has-rail');
+    expect(rail.hidden).toBe(false);
+
+    shell.show('two');
+    expect(shellElement.className).toBe('bb-shell');
+    expect(rail.hidden).toBe(true);
+  });
+
+  it('keeps the rail column hidden while a Graph screen waits behind the migration notice', async () => {
+    const { fetcher } = hostFetcher(V1);
+    const { root } = mount(fetcher, 'projects');
+    await flush();
+    expect(root.children[0].className).toBe('bb-shell');
+    expect(findAll(root, (node) => node.attributes?.['aria-label'] === '選択中の項目')[0].hidden).toBe(true);
+  });
+
   it('lists only the screens that exist and shows where the data comes from', async () => {
     const { fetcher } = hostFetcher(V2);
     const { root, shell } = mount(fetcher);
@@ -195,7 +227,7 @@ describe('local Web shell', () => {
     await flush();
     expect(shell.state.active).toBe('projects');
     const projects = collectText(screen(root, 'projects'));
-    expect(projects).toContain('プロジェクトの一覧');
+    expect(projects).toContain('あなたのBrainbase/プロジェクトと関係者');
     expect(projects).toContain('まだ登録がありません');
     expect(shell.state.mounted).toContain('projects');
 
@@ -222,6 +254,51 @@ describe('local Web shell', () => {
     }
   });
 
+  it('puts the selected judgment kind of 今日 and the selected objective of 目的と現状 in each screen\'s rail', async () => {
+    const proof = {
+      schema_version: 'brainbase-judgment-value-proof-v1', intent_id: 'intent-1', decision_attempt_id: 'attempt-1',
+      recorded_at: '2026-09-20T00:00:00.000Z', state: 'unconfirmed',
+      interruption: { resolution: 'continued_without_human', question_display_text: '合成の反映ですか？', reason_code: 'routine' },
+      decision: { summary: '反映する', basis: [], judgment_kind: { key: 'release', label: '反映の判断' } },
+      execution: { status: 'completed' }, outcome: { status: 'unconfirmed', evidence_refs: [] }, feedback: { status: 'none' },
+    };
+    const home = {
+      status: 'available', root: '/journal',
+      coverage: { saved: 1, rejected: 0, latest_recorded_at: proof.recorded_at, possibly_stalled: false },
+      sections: { needs_human: [], blocked: [], continued: [{ proof, feedback_history: [] }], other: [] },
+      delegation_map: {
+        judged: 1, kind_recorded: 1, rated: 0, corrected_after_continue: [], continued_after_ask: [],
+        rows: [{ key: 'kind:release', source: 'judgment_kind', label: '反映の判断', state: 'verifying', items: [{ intent_id: 'intent-1', decision_attempt_id: 'attempt-1' }], counts: { continued: 1 } }],
+      },
+      rejected: [],
+    };
+    const record = {
+      digest: 'sha256:1',
+      definition: { id: 'objective-focus', type: 'objective', revision: '1', meaning: '深い仕事の時間を確保する', criteria: [], adoptionState: 'draft', acl: { ownerId: 'self' } },
+    };
+    const { fetcher } = hostFetcher(V2, {
+      '/api/value-proofs/home': () => jsonResponse(200, home),
+      '/api/foundation/objectives': () => jsonResponse(200, { state: 'ready', records: [record], absence_confirmed: true }),
+    });
+    const originalFetcher = fetcher;
+    const routed = async (path, init) => (path.startsWith('/api/foundation/objectives/objective-focus') ? jsonResponse(200, record) : originalFetcher(path, init));
+    const { root, shell } = mount(routed, 'today');
+    await flush();
+    const rail = (id) => findAll(root, (node) => node.attributes?.['data-rail'] === id)[0];
+    expect(collectText(rail('today'))).toContain('反映の判断');
+    expect(collectText(rail('today'))).toContain('合成の反映ですか？');
+    expect(collectText(screen(root, 'today'))).not.toContain('合成の反映ですか？');
+
+    shell.show('objectives');
+    await flush();
+    expect(rail('today').hidden).toBe(true);
+    expect(rail('objectives').hidden).toBe(false);
+    expect(collectText(rail('objectives'))).toContain('深い仕事の時間を確保する');
+    expect(collectText(rail('objectives'))).toContain('objective-focus@1');
+    // The World Model view leaves the rail to the objective.
+    expect(collectText(rail('objectives'))).not.toContain('現状と見通し');
+  });
+
   it('says how many objectives could not be read beside the readable ones', async () => {
     const record = {
       digest: 'sha256:1',
@@ -238,5 +315,8 @@ describe('local Web shell', () => {
     const text = collectText(screen(root, 'objectives'));
     expect(text).toContain('深い仕事の時間を確保する');
     expect(text).toContain('読めない目的が2件あります（読む権限がない）');
+    // The notice sits under the objectives, after the page head, not above the breadcrumb.
+    expect(text.indexOf('読めない目的が2件')).toBeGreaterThan(text.indexOf('あなたのBrainbase'));
+    expect(text.indexOf('読めない目的が2件')).toBeLessThan(text.indexOf('見方：変数とモデル'));
   });
 });

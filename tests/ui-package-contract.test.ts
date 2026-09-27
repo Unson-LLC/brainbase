@@ -41,6 +41,8 @@ describe('OSS共通UIの公開契約', () => {
       './ui/world-model-view.css': './ui/world-model-view.css',
       './ui/local-web-shell': './ui/local-web-shell.js',
       './ui/local-web-shell.css': './ui/local-web-shell.css',
+      './ui/workspace-kit': './ui/workspace-kit.js',
+      './ui/workspace-kit.css': './ui/workspace-kit.css',
       './ui/graph-view-shared': './ui/graph-view-shared.js',
       './ui/graph-view-shared.css': './ui/graph-view-shared.css',
       './ui/graph-projects-view': './ui/graph-projects-view.js',
@@ -69,6 +71,8 @@ describe('OSS共通UIの公開契約', () => {
       'world-model-view.css',
       'local-web-shell.js',
       'local-web-shell.css',
+      'workspace-kit.js',
+      'workspace-kit.css',
       'brainbase-tokens.css',
       'graph-view-shared.js',
       'graph-view-shared.css',
@@ -99,7 +103,7 @@ describe('OSS共通UIの公開契約', () => {
     })) {
       expect(tokens).toContain(`${name}: ${value};`);
     }
-    for (const file of ['world-model-view.css', 'local-web-shell.css', 'graph-view-shared.css', 'graph-projects-view.css', 'graph-registry-view.css']) {
+    for (const file of ['world-model-view.css', 'local-web-shell.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'graph-registry-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       // Colors and font families come only from the shared tokens.
       expect(css, file).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
@@ -114,11 +118,29 @@ describe('OSS共通UIの公開契約', () => {
     }
   });
 
+  it('外枠のフォーム部品の文字の指定は、部品や共通の部品のボタンの指定より弱い', async () => {
+    const css = await readFile(new URL('../ui/local-web-shell.css', import.meta.url), 'utf8');
+    expect(css).not.toMatch(/^\.bb-shell button,/mu);
+    expect(css).toMatch(/:where\(\.bb-shell\) :where\(button, select, input, textarea\)\s*\{\s*font: inherit;/u);
+  });
+
   it('「目的と現状」の見出しの枠は目的の編集の一つだけで、World Modelは区画の見出しにする', async () => {
     const css = await readFile(new URL('../ui/world-model-view.css', import.meta.url), 'utf8');
-    const header = css.match(/\.bb-wm-header\s*\{([^}]*)\}/u)?.[1] ?? '';
-    expect(header).not.toMatch(/linear-gradient|--bb-radius-lg/u);
-    expect(header).toMatch(/border-top/u);
+    // No second page-head box: the World Model draws no gradient box of its own.
+    expect(css).not.toMatch(/linear-gradient|--bb-radius-lg/u);
+    const source = await readFile(new URL('../ui/world-model-view.js', import.meta.url), 'utf8');
+    expect(source).toMatch(/workspaceSectionTitle\(doc, \{\s*title: '現状と見通し'/u);
+    expect(source).not.toMatch(/workspacePageHeader/u);
+  });
+
+  it('画面の型を使う部品は、共通の見た目の定義にある名前だけを読む', async () => {
+    const tokens = await readFile(new URL('../ui/brainbase-tokens.css', import.meta.url), 'utf8');
+    const defined = new Set([...tokens.matchAll(/(--bb-[a-z0-9-]+):/g)].map((match) => match[1]));
+    for (const file of ['value-proof-review.css', 'objective-editor.css', 'world-model-view.css']) {
+      const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
+      const used = [...css.matchAll(/var\((--bb-[a-z0-9-]+)/g)].map((match) => match[1]);
+      expect(used.filter((name) => !defined.has(name)), file).toEqual([]);
+    }
   });
 
   it('既存の部品も、色と文字の変数を共通の見た目の定義から決め、定義が無いホストでは今の見た目を保つ', async () => {

@@ -181,7 +181,7 @@ describe('local web host protections', () => {
     expect(html.indexOf('/ui/brainbase-tokens.css')).toBeLessThan(html.indexOf('/ui/local-web-shell.css'));
 
     for (const file of [
-      'brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'value-proof-review.js', 'value-proof-review.css',
+      'brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css', 'value-proof-review.js', 'value-proof-review.css',
       'objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'world-model-view.js', 'world-model-view.css'
     ]) {
       const response = await fetch(`${base}/ui/${file}`);
@@ -189,6 +189,13 @@ describe('local web host protections', () => {
       expect(response.headers.get('content-type')).toMatch(file.endsWith('.js') ? /text\/javascript/ : /text\/css/);
     }
     expect((await fetch(`${base}/app.js`)).status).toBe(200);
+    // Every module a served part imports is served too, or the page cannot start.
+    for (const file of ['local-web-shell.js', 'value-proof-review.js', 'objective-editor.js', 'world-model-view.js']) {
+      const source = await (await fetch(`${base}/ui/${file}`)).text();
+      for (const [, imported] of source.matchAll(/from '\.\/([^']+)'/gu)) {
+        expect((await fetch(`${base}/ui/${imported}`)).status, `${file} -> ${imported}`).toBe(200);
+      }
+    }
     for (const path of ['/ui/outcome-mana.js', '/ui/judgment-view.js', '/ui/', '/../package.json', '/ui/%2e%2e/package.json', '/ui/..%2Fpackage.json']) {
       expect((await fetch(`${base}${path}`)).status, path).toBe(404);
     }

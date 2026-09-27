@@ -28,10 +28,8 @@ body {
   box-sizing: border-box;
 }
 
-.bb-shell button,
-.bb-shell select,
-.bb-shell input,
-.bb-shell textarea {
+/* Zero specificity, so the parts' and the workspace kit's own type sizes win. */
+:where(.bb-shell) :where(button, select, input, textarea) {
   font: inherit;
 }
 
@@ -150,6 +148,27 @@ body {
   background: transparent;
 }
 
+/* Right detail rail (the organization edition's decision rail) */
+.bb-shell.has-rail {
+  grid-template-columns: 240px minmax(0, 1fr) 380px;
+}
+
+.bb-shell-rail {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  min-width: 0;
+  overflow: auto;
+  border-left: 1px solid var(--bb-color-border);
+  padding: 44px 30px 48px;
+  background: var(--bb-color-surface);
+}
+
+.bb-shell-rail[hidden],
+.bb-shell-rail-slot[hidden] {
+  display: none;
+}
+
 /* Workspace */
 .bb-shell-workspace {
   min-width: 0;
@@ -174,12 +193,6 @@ body {
   gap: var(--bb-space-6);
   max-width: 1440px;
   min-width: 0;
-  margin: 0 auto;
-  padding: 40px 48px 72px;
-}
-
-.bb-shell-screen > .vpr {
-  max-width: 1440px;
   margin: 0 auto;
   padding: 40px 48px 72px;
 }
@@ -276,9 +289,34 @@ body {
     grid-template-columns: 216px minmax(0, 1fr);
   }
 
-  .bb-shell-page,
-  .bb-shell-screen > .vpr {
+  .bb-shell.has-rail {
+    grid-template-columns: 216px minmax(0, 1fr) 340px;
+  }
+
+  .bb-shell-page {
     padding-inline: 32px;
+  }
+
+  .bb-shell-rail {
+    padding-inline: 24px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .bb-shell.has-rail {
+    grid-template-columns: 216px minmax(0, 1fr);
+  }
+
+  .bb-shell.has-rail .bb-shell-sidebar {
+    grid-row: 1 / span 2;
+  }
+
+  .bb-shell-rail {
+    grid-column: 2;
+    position: static;
+    height: auto;
+    border-top: 1px solid var(--bb-color-border);
+    border-left: 0;
   }
 }
 
@@ -332,8 +370,16 @@ body {
     cursor: pointer;
   }
 
-  .bb-shell-page,
-  .bb-shell-screen > .vpr {
+  .bb-shell.has-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bb-shell-rail {
+    grid-column: 1;
+    padding: 30px 18px 44px;
+  }
+
+  .bb-shell-page {
     padding: 24px 18px 52px;
   }
 

@@ -30,7 +30,11 @@ export const VALUE_PROOF_REVIEW_TOKEN_HEADER = 'x-brainbase-review-token';
 
 const DEFAULT_BASE_PATH = '/api/value-proofs';
 const MAX_BODY_BYTES = 16 * 1024;
+// The review part imports the shared screen pattern (workspace-kit), which reads the shared tokens.
 const UI_FILES: Readonly<Record<string, { readonly file: string; readonly type: string }>> = Object.freeze({
+  '/ui/brainbase-tokens.css': { file: 'brainbase-tokens.css', type: 'text/css; charset=utf-8' },
+  '/ui/workspace-kit.js': { file: 'workspace-kit.js', type: 'text/javascript; charset=utf-8' },
+  '/ui/workspace-kit.css': { file: 'workspace-kit.css', type: 'text/css; charset=utf-8' },
   '/ui/value-proof-review.js': { file: 'value-proof-review.js', type: 'text/javascript; charset=utf-8' },
   '/ui/value-proof-review.css': { file: 'value-proof-review.css', type: 'text/css; charset=utf-8' }
 });
@@ -148,6 +152,8 @@ function shellHtml(token: string, basePath: string): string {
 <meta name="brainbase-review-token" content="${escapeAttribute(token)}">
 <meta name="brainbase-review-base-path" content="${escapeAttribute(basePath)}">
 <title>Brainbase 判断の見返し</title>
+<link rel="stylesheet" href="/ui/brainbase-tokens.css">
+<link rel="stylesheet" href="/ui/workspace-kit.css">
 <link rel="stylesheet" href="/ui/value-proof-review.css">
 </head>
 <body>
