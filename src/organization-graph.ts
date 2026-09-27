@@ -53,6 +53,20 @@ export interface PortableGraphReadback {
   readonly digest: string;
 }
 
+/** One snapshot the organization stored for the token's owner. */
+export interface PortableGraphListEntry {
+  readonly graphId: string;
+  readonly projectCode: string;
+  readonly digest: string;
+  readonly createdAt: string;
+}
+
+export interface PortableGraphList {
+  readonly bundles: readonly PortableGraphListEntry[];
+  /** The organization returned only its newest page. */
+  readonly truncated: boolean;
+}
+
 export interface PortableGraphImportResult {
   readonly status: 'imported' | 'unchanged';
   readonly digest: string;
@@ -124,7 +138,8 @@ export function createOrganizationGraphClient(config: OrganizationGraphConfig): 
   return {
     search: (input) => searchOrganizationGraph(normalized, input),
     importPortableGraph: (bundle) => importPortableGraph(normalized, bundle),
-    readPortableGraph: () => readPortableGraph(normalized)
+    readPortableGraph: () => readPortableGraph(normalized),
+    listPortableGraphs: () => listPortableGraphs(normalized)
   };
 }
 
@@ -132,6 +147,7 @@ export interface OrganizationGraphClient {
   search(input: GraphRetrievalInput): Promise<GraphRetrievalResponse>;
   importPortableGraph(bundle: unknown): Promise<PortableGraphImportResult>;
   readPortableGraph(): Promise<PortableGraphReadback>;
+  listPortableGraphs(): Promise<PortableGraphList>;
 }
 
 /** Forward the existing Graph retrieval input unchanged inside the request envelope. */
@@ -176,6 +192,22 @@ export async function readPortableGraph(
     throw new OrganizationGraphError('organization_graph_readback_mismatch', 'organization service returned a bundle whose digest does not match its contents');
   }
   return readback;
+}
+
+/** List the token owner's snapshots. The organization decides the owner; no project or Graph ID is sent. */
+export async function listPortableGraphs(config: OrganizationGraphConfig): Promise<PortableGraphList> {
+  const value = await requestJson(config, 'GET', route(config, 'list'));
+  const fields = ['graph_id', 'project_code', 'digest', 'created_at'];
+  if (!isRecord(value) || typeof value.truncated !== 'boolean' || !Array.isArray(value.bundles)
+    || value.bundles.some((entry) => !isRecord(entry) || fields.some((field) => typeof entry[field] !== 'string' || entry[field].trim() === ''))) {
+    throw new OrganizationGraphError('organization_graph_response_invalid', 'organization service returned an invalid bundle list');
+  }
+  return {
+    truncated: value.truncated,
+    bundles: value.bundles.map((entry: Record<string, string>) => ({
+      graphId: entry.graph_id, projectCode: entry.project_code, digest: entry.digest, createdAt: entry.created_at
+    }))
+  };
 }
 
 /** Validate the privacy boundary before any upload leaves the local process. */
@@ -356,12 +388,13 @@ async function withTimeout<T>(operation: Promise<T>, controller: AbortController
 
 function route(
   config: OrganizationGraphConfig,
-  suffix: 'search' | 'import' | undefined,
+  suffix: 'search' | 'import' | 'list' | undefined,
   query?: Record<string, string>
 ): string {
   const base = new URL(config.url);
   const prefix = base.pathname.replace(/\/+$/u, '');
-  const routePath = `${prefix}/api/info/graph/portable/${encodeURIComponent(config.graphId)}${suffix ? `/${suffix}` : ''}`;
+  const graphPath = suffix === 'list' ? '' : `/${encodeURIComponent(config.graphId)}${suffix ? `/${suffix}` : ''}`;
+  const routePath = `${prefix}/api/info/graph/portable${graphPath}`;
   const endpoint = new URL(routePath || '/', base.origin);
   for (const [key, value] of Object.entries(query ?? {})) endpoint.searchParams.set(key, value);
   return endpoint.href;

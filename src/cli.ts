@@ -92,6 +92,18 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
           sourceFilesUnchanged: true, graphId: config.graphId }) + '\n');
         return 0;
       }
+      case 'graph:bundles': {
+        const config = createOrganizationGraphConfig();
+        if (!config) throw new Error('graph:bundles requires all BRAINBASE_ORGANIZATION_* settings');
+        const format = first(parsed, 'format') ?? 'text';
+        if (format !== 'text' && format !== 'json') throw new Error('graph:bundles --format must be text or json');
+        const list = await createOrganizationGraphClient(config).listPortableGraphs();
+        if (format === 'json') write(io, `${JSON.stringify(list, null, 2)}\n`);
+        else if (list.bundles.length === 0) write(io, 'No Graph bundles have been uploaded to this organization yet.\n');
+        else write(io, list.bundles.map((entry) => `${entry.createdAt}  ${entry.projectCode}  ${entry.graphId}  ${entry.digest}\n`).join('')
+          + (list.truncated ? `Only the newest ${list.bundles.length} bundle(s) are shown.\n` : ''));
+        return 0;
+      }
       case 'onboard:init':
         return await onboardInit(parsed, io);
       case 'onboard:seed':
@@ -1271,6 +1283,7 @@ function usage(): string {
   brainbase ontology:show
   brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0|2.0.0]
   brainbase graph:upgrade [--dir path]
+  brainbase graph:bundles [--format text|json]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
