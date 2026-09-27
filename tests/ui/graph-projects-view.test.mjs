@@ -575,6 +575,81 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(buttonsNamed(writable.rail, '関係者を加える')).toHaveLength(1);
   });
 
+  const PROJECT_ONLY = { entityTypes: ['project'], fields: ['name', 'goal'], edges: false, createEdges: false };
+  const SCOPE_NOTE = '人物と関係者の訂正は、この画面ではまだできません。';
+
+  it('draws only the corrections the host scope allows and shows the host note where the others would be', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail } = await mountView({ correctionScope: PROJECT_ONLY, readOnlyNote: SCOPE_NOTE });
+    expect(collectText(root)).toContain('誤りを直します');
+    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['プロジェクトを直す']);
+    // Relations cannot be corrected anywhere under this scope, so the rail does not point to them.
+    expect(visibleText(section(rail, 'そのほかの関係'))).not.toContain('直すときは');
+    expect(byClass(rail, 'bb-ws-notice').map((node) => collectText(node))).toEqual([SCOPE_NOTE]);
+    const order = railBlocks(rail);
+    expect(order.indexOf(SCOPE_NOTE)).toBeGreaterThan(order.indexOf('関係者'));
+    expect(order.indexOf(SCOPE_NOTE)).toBeLessThan(order.indexOf('そのほかの関係'));
+
+    // The ended participation of the second project offers no 終了日を直す either.
+    ledgerRow(root, 'project-beta').dispatch('click');
+    await waitFor(() => railHead(rail).includes('Beta検証') && section(rail, '関係者'));
+    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['プロジェクトを直す']);
+
+    // The project form shows only the fields in the scope and sends only those.
+    ledgerRow(root, 'project-atlas').dispatch('click');
+    await waitFor(() => railHead(rail).includes('Atlas導入') && section(rail, '関係者'));
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    expect(control(rail, 'name').value).toBe('Atlas導入');
+    expect(control(rail, 'goal').value).toBe('導入を完了する');
+    expect(control(rail, 'status')).toBeUndefined();
+    type(rail, 'goal', '本番で使える状態にする');
+    type(rail, 'reason', '目的を言い直す。');
+    await submit(rail);
+    const [post] = api.posts();
+    expect(post.body).toEqual({
+      kind: 'update_entity',
+      entityId: 'project-atlas',
+      expectedDigest: graphRecordDigest(ENTITIES.atlas),
+      reason: '目的を言い直す。',
+      changes: { goal: '本番で使える状態にする' },
+    });
+    await waitFor(() => collectText(ledgerRow(root, 'project-atlas')).includes('本番で使える状態にする'));
+  });
+
+  it('refuses a correction outside the host scope before sending it', async () => {
+    await writeGraphV2(dataDir);
+    const { rail, view } = await mountView({ correctionScope: PROJECT_ONLY, readOnlyNote: SCOPE_NOTE });
+    const { project, participants } = view.state.detail.payload;
+    // Opened by code, a relation or a person is not opened at all.
+    expect(view.correction.openEdge(participants[0], { mode: 'role' })).toBeNull();
+    expect(view.correction.openCreate(project, { relations: ['participates_in'] })).toBeNull();
+    expect(view.correction.openEntity({ ...ENTITIES.tanaka, aliases: ['Tanaka'], digest: graphRecordDigest(ENTITIES.tanaka) })).toBeNull();
+    expect(view.correction.form).toBeNull();
+    expect(section(rail, '記録を直す')).toBeUndefined();
+
+    // A field outside the scope is left out of the form, and never sent even if the form is changed by code.
+    const form = view.correction.openEntity(project, { fields: ['status', 'name'] });
+    expect(form.fields).toEqual(['name']);
+    form.fields.push('status');
+    view.correction.callbacks.onInput('status', '保留');
+    view.correction.callbacks.onReason('状態を直す。');
+    const refused = await view.correction.submit();
+    expect(refused.phase).toBe('error');
+    expect(refused.message.text).toBe('この画面では、この記録や関係は直せません。');
+    expect(api.posts()).toEqual([]);
+    expect(await history()).toEqual([]);
+  });
+
+  it('keeps every correction when the scope allows everything, and canCorrect: false still wins over a scope', async () => {
+    await writeGraphV2(dataDir);
+    const open = await mountView({ correctionScope: {}, readOnlyNote: SCOPE_NOTE });
+    expect(correctionButtons(open.rail).map((node) => node.textContent).sort()).toEqual(['プロジェクトを直す', '関係者を加える', '関わりを終える', '関わりを終える', '役割を直す', '役割を直す'].sort());
+    expect(collectText(open.rail)).not.toContain(SCOPE_NOTE);
+    await api.close();
+    const closed = await mountView({ canCorrect: false, correctionScope: { entityTypes: ['project'] } });
+    expect(correctionButtons(closed.rail)).toEqual([]);
+  });
+
   it('replaces the 出典 notice with the host notice and drops the rail row that names this Mac', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView({ sourceNotice: { label: '読み取り元', text: '別のGraphを表示だけしています。' } });

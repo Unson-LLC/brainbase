@@ -510,6 +510,55 @@ describe('情報と関係: host extensions', () => {
     expect(collectText(plain.rail)).not.toContain('この画面からは直せません。');
   });
 
+  const PROJECT_ONLY = { entityTypes: ['project'], fields: ['name', 'aliases', 'summary', 'validFrom', 'validTo', 'goal'], edges: false, createEdges: false };
+  const SCOPE_NOTE = '人物と関係の訂正は、この画面ではまだできません。';
+
+  it('draws only the corrections the host scope allows and shows the host note where the others would be', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountWith({ correctionScope: PROJECT_ONLY, readOnlyNote: SCOPE_NOTE });
+    expect(collectText(root)).toContain('誤りを直します');
+
+    // A person: nothing can be corrected here, and the note says why.
+    await view.openEntity('person-tanaka');
+    expect(section(rail, '出る関係')).toBeDefined();
+    expect(correctionButtons(rail)).toEqual([]);
+    expect(byClass(rail, 'bb-ws-notice').map((node) => collectText(node))).toEqual([SCOPE_NOTE]);
+
+    // A project: only the record itself, with the fields in the scope.
+    await view.openEntity('project-atlas');
+    expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['この記録を直す']);
+    expect(byClass(rail, 'bb-ws-notice').map((node) => collectText(node))).toEqual([SCOPE_NOTE]);
+    buttonsNamed(rail, 'この記録を直す')[0].dispatch('click');
+    expect(['name', 'aliases', 'summary', 'validFrom', 'validTo', 'goal', 'status'].filter((name) => control(rail, name))).toEqual(
+      ['name', 'aliases', 'summary', 'validFrom', 'validTo', 'goal'],
+    );
+    type(rail, 'aliases', 'Atlas');
+    type(rail, 'reason', '略称を別名に加える。');
+    await submit(rail);
+    const [post] = api.posts();
+    expect(post.body).toEqual({
+      kind: 'update_entity',
+      entityId: 'project-atlas',
+      expectedDigest: graphRecordDigest(ENTITIES.atlas),
+      reason: '略称を別名に加える。',
+      changes: { aliases: ['Atlas'] },
+    });
+    await waitFor(() => visibleText(section(rail, '概要')).includes('別名Atlas'));
+  });
+
+  it('refuses a correction outside the host scope before sending it', async () => {
+    await writeGraphV2(dataDir);
+    const { rail, view } = await mountWith({ correctionScope: PROJECT_ONLY, readOnlyNote: SCOPE_NOTE });
+    await view.openEntity('person-tanaka');
+    const { entity, outgoing } = view.state.detail.payload;
+    expect(view.correction.openEntity(entity)).toBeNull();
+    expect(view.correction.openCreate(entity)).toBeNull();
+    expect(view.correction.openEdge(outgoing[0], { mode: 'edit' })).toBeNull();
+    expect(view.correction.form).toBeNull();
+    expect(correctionButtons(rail)).toEqual([]);
+    expect(api.posts()).toEqual([]);
+  });
+
   it('lists the kinds of the Graph in the type filter, the local four by default', async () => {
     await writeGraphV2(dataDir);
     const { root } = await mountView();

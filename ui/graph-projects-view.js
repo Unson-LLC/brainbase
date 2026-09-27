@@ -15,8 +15,8 @@
  * launch token, right rail and page context; this module keeps no global state.
  *
  * Another host composes this part unchanged and adds only its own controls
- * through the options of `createGraphProjectsView` (read-only corrections,
- * its source notice, page-head buttons, extra metrics, rail blocks and
+ * through the options of `createGraphProjectsView` (read-only or partial
+ * corrections, its source notice, page-head buttons, extra metrics, rail blocks and
  * selection sync).  Every option defaults to the behaviour above.
  */
 
@@ -29,6 +29,7 @@ import {
   focusLedgerRow,
   getDocument,
   graphCommandList,
+  graphCorrectionScope,
   graphPageContext,
   graphStateNotice,
   hostReadOnlyNote,
@@ -47,6 +48,7 @@ import {
   textOrNull,
   validityLabel,
   validityText,
+  GRAPH_CORRECTION_FIELDS,
   GRAPH_RELATION_LABELS,
   graphHostEmptyNotice,
 } from './graph-view-shared.js';
@@ -159,8 +161,14 @@ function failureText(error) {
  * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
  *   (関係者を加える, 役割を直す, 関わりを終える / 終了日を直す, プロジェクトを直す, and the pointer to
  *   corrections under そのほかの関係), and the client refuses every correction before sending it.
- * @param {string} [options.readOnlyNote] With `canCorrect: false`, a note shown in the rail where the
- *   correction buttons would be.  Without it the rail says nothing about corrections.
+ * @param {{ entityTypes?: string[], fields?: string[], edges?: boolean, createEdges?: boolean }} [options.correctionScope]
+ *   With corrections allowed, only these (see `graphCorrectionScope`): `entityTypes: ['project']` keeps
+ *   プロジェクトを直す, `fields` limits its form, `edges: false` withholds 役割を直す and 関わりを終える /
+ *   終了日を直す, and `createEdges: false` withholds 関係者を加える.  A withheld control is not drawn and the
+ *   client refuses such a correction before sending it.  Without it every correction is allowed.
+ * @param {string} [options.readOnlyNote] With `canCorrect: false`, or where `correctionScope` withholds a
+ *   control of the selected project, a note shown in the rail where the correction buttons would be.
+ *   Without it the rail says nothing about corrections.
  * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
  *   and its `brainbase onboard:*` commands when the host's Graph has nothing registered.
  * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典
@@ -195,6 +203,7 @@ export function createGraphProjectsView({
   autoLoad = true,
   now = () => new Date(),
   canCorrect = true,
+  correctionScope,
   readOnlyNote,
   sourceNotice,
   emptyNotice,
@@ -209,6 +218,9 @@ export function createGraphProjectsView({
   const graphClient = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
   const writable = canCorrect !== false;
   const client = writable ? graphClient : readOnlyGraphClient(graphClient);
+  const scope = graphCorrectionScope(correctionScope);
+  // Relations are corrected only when the host allows it (here and under そのほかの関係).
+  const edgesWritable = writable && scope.edges;
   const context = graphPageContext(page);
   const layout = createGraphLayout(doc, {
     root,
@@ -225,6 +237,7 @@ export function createGraphProjectsView({
   const correction = createGraphCorrection({
     client,
     now,
+    scope: correctionScope,
     rerender: () => controller.render(),
     onSaved: async () => {
       await Promise.all([
@@ -384,7 +397,7 @@ export function createGraphProjectsView({
       ['出典', renderProvenance(doc, edge.provenance)],
     ]));
     const subject = `${edge.counterpart.name}（${how}、${project.name}）`;
-    if (writable) {
+    if (edgesWritable) {
       item.append(workspaceActions(doc, [
         workspaceButton(doc, { text: '役割を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'role', subject })) }),
         edge.active
@@ -393,7 +406,7 @@ export function createGraphProjectsView({
       ]));
     }
     item.append(recordDetails(doc, [['関係ID', edge.id], ['人物ID', edge.counterpart.id], ['digest', edge.digest]]));
-    if (writable && state.panelAt === edge.id) {
+    if (edgesWritable && state.panelAt === edge.id) {
       const panel = correction.render(doc);
       if (panel) item.append(panel);
     }
@@ -428,7 +441,7 @@ export function createGraphProjectsView({
       title: 'そのほかの関係',
       content: [makeElement(doc, 'p', {
         className: 'bb-graph-block-lead',
-        text: writable ? '所有する組織や、進め方を決める判断などです。直すときは「情報と関係」を使います。' : '所有する組織や、進め方を決める判断などです。',
+        text: edgesWritable ? '所有する組織や、進め方を決める判断などです。直すときは「情報と関係」を使います。' : '所有する組織や、進め方を決める判断などです。',
       }), list],
     });
   }
@@ -484,8 +497,10 @@ export function createGraphProjectsView({
     }));
     children.push(renderParticipants(loaded));
     if (writable) {
-      children.push(workspaceActions(doc, [
-        workspaceButton(doc, {
+      const canAdd = scope.createEdges;
+      const projectFields = scope.entity('project') ? scope.fields(['name', 'goal', 'status']) : [];
+      const actions = [
+        canAdd ? workspaceButton(doc, {
           text: '関係者を加える',
           variant: 'primary',
           onClick: () => openCorrection('project', () => correction.openCreate(project, {
@@ -495,18 +510,22 @@ export function createGraphProjectsView({
             title: '関係者を加える',
             subject: `プロジェクト「${project.name}」`,
           })),
-        }),
-        workspaceButton(doc, {
+        }) : null,
+        projectFields.length > 0 ? workspaceButton(doc, {
           text: 'プロジェクトを直す',
           onClick: () => openCorrection('project', () => correction.openEntity(project, {
-            fields: ['name', 'goal', 'status'],
+            fields: projectFields,
             title: 'プロジェクトを直す',
-            subject: `プロジェクト「${project.name}」の名前・目的・状態`,
+            subject: `プロジェクト「${project.name}」の${projectFields.map((field) => GRAPH_CORRECTION_FIELDS[field].label).join('・')}`,
           })),
-        }),
-      ]));
+        }) : null,
+      ].filter(Boolean);
+      if (actions.length > 0) children.push(workspaceActions(doc, actions));
       // A correction opened on a 関係者 shows inside that item; any other shows here.
       if (!loaded.participants.some((edge) => edge.id === state.panelAt)) children.push(correction.render(doc));
+      // The host's reason for a control it withholds, where that control would be.
+      const withheld = !canAdd || projectFields.length === 0 || (!scope.edges && loaded.participants.length > 0);
+      if (withheld) children.push(hostReadOnlyNote(doc, readOnlyNote));
     } else {
       children.push(hostReadOnlyNote(doc, readOnlyNote));
     }
