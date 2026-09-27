@@ -128,11 +128,11 @@ function fetcherFor(routes) {
   return { fetcher, calls };
 }
 
-async function mount(routes) {
+async function mount(routes, options = {}) {
   const root = new FakeElement('div');
   const rail = new FakeElement('aside');
   const { fetcher, calls } = fetcherFor(routes);
-  const view = createWorldModelView({ root, rail, document: new FakeDocument(), fetcher, autoLoad: false });
+  const view = createWorldModelView({ root, rail, document: new FakeDocument(), fetcher, autoLoad: false, ...options });
   await view.load();
   return { root, rail, view, calls };
 }
@@ -262,5 +262,54 @@ describe('World Model view', () => {
     expect(normalizeWorldModelSection('models', { records: [{ definition: { id: 'v', type: 'variable', revision: '1' } }] })).toMatchObject({ state: 'invalid' });
     expect(normalizeWorldModelSection('adoptions', { adoptions: [], absence_confirmed: true })).toMatchObject({ state: 'empty', items: [] });
     expect(normalizeWorldModelSection('adoptions', { adoptions: [] })).toMatchObject({ state: 'unknown', items: null });
+  });
+
+  describe('a host without a World Model source', () => {
+    const unavailable = (reason) => jsonResponse(200, { status: 'unavailable', reason });
+    const allUnavailable = {
+      '/api/world-model/variables': unavailable('World Modelの読み取り元がありません'),
+      '/api/world-model/models': unavailable('World Modelの読み取り元がありません'),
+      '/api/world-model/observations': unavailable('World Modelの読み取り元がありません'),
+      '/api/world-model/adoptions': unavailable('World Modelの読み取り元がありません'),
+    };
+    const HOST_COPY = { title: '未接続', guidance: 'この画面の現状と見通しは、まだどこにもつながっていません。' };
+
+    it('treats a section answered as unavailable (HTTP 200) as unavailable, never as empty or malformed', async () => {
+      expect(normalizeWorldModelSection('observations', { status: 'unavailable', reason: '読み取り元がありません' }))
+        .toEqual({ state: 'unavailable', items: null, reason: '読み取り元がありません' });
+      expect(normalizeWorldModelSection('models', { status: 'unavailable' })).toEqual({ state: 'unavailable', items: null, reason: null });
+      const { root, view } = await mount({ ...allUnavailable, '/api/world-model/variables': jsonResponse(200, variablesPayload) });
+      expect(view.state.models.state).toBe('unavailable');
+      const models = collectText(section(root, '変数とモデル'));
+      expect(models).toContain('このホストでは読めません（World Modelの読み取り元がありません）。0件ではありません。');
+      expect(ledgerTable(section(root, '変数とモデル'))[1][0]).toContain('中断されない作業時間');
+      const text = collectText(root);
+      for (const wrong of ['まだ登録がありません', 'まだ記録がありません', 'まだありません', '形式が不正', '再試行']) expect(text).not.toContain(wrong);
+      expect(byClass(section(root, '観測'), 'bb-ws-notice')[0].className).toContain('is-warning');
+    });
+
+    it('shows one notice with the host copy and the reason when every section is unavailable', async () => {
+      const { root } = await mount(allUnavailable, { unavailableNotice: HOST_COPY });
+      const notices = byClass(root, 'bb-ws-notice');
+      expect(notices).toHaveLength(1);
+      expect(notices[0].children[0].textContent).toBe('未接続');
+      expect(collectText(notices[0])).toBe('未接続この画面の現状と見通しは、まだどこにもつながっていません。理由: World Modelの読み取り元がありません。0件ではありません。');
+      for (const label of ['変数とモデル', '観測', 'モデルの採用']) expect(section(root, label)).toBeUndefined();
+      expect(byClass(root, 'bb-ws-ledger')).toHaveLength(0);
+      // The section title stays; nothing reads as zero items.
+      expect(findAll(byClass(root, 'bb-ws-section-title')[0], (node) => node.tagName === 'H2')[0].textContent).toBe('現状と見通し');
+      for (const empty of ['まだ登録がありません', 'まだ記録がありません', 'まだありません']) expect(collectText(root)).not.toContain(empty);
+    });
+
+    it('keeps reporting each block when only some sections are unavailable, or when the host passed no copy', async () => {
+      const partial = await mount({ ...allUnavailable, '/api/world-model/adoptions': jsonResponse(500, { error: { code: 'boom', message: '読めません' } }) }, { unavailableNotice: HOST_COPY });
+      expect(collectText(partial.root)).not.toContain('未接続');
+      expect(collectText(section(partial.root, 'モデルの採用'))).toContain('読み取れませんでした（読めません）。0件ではありません。');
+      expect(collectText(section(partial.root, '観測'))).toContain('このホストでは読めません');
+
+      const plain = await mount(allUnavailable);
+      expect(byClass(plain.root, 'bb-ws-notice')).toHaveLength(4);
+      for (const label of ['変数とモデル', '観測', 'モデルの採用']) expect(section(plain.root, label)).toBeDefined();
+    });
   });
 });

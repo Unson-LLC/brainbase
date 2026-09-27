@@ -378,12 +378,14 @@ describe('Objective editor common UI contract', () => {
       const root = new FakeElement('div');
       const rail = new FakeElement('aside');
       const { port, calls, stored } = workspacePort(options.port);
-      const controller = createObjectiveEditorController({
+      const controllerOptions = {
         root, rail, page: { crumbs: ['あなたのBrainbase', '目的と現状'], source: '手元のGraph' },
         port, context: {}, canEdit: options.canEdit ?? true, constraintsEditable: false, storyLinks: false, autoLoad: false,
-      });
+        ...options.host,
+      };
+      const controller = createObjectiveEditorController(controllerOptions);
       await controller.loadObjectives();
-      return { root, rail, controller, calls, stored };
+      return { root, rail, controller, calls, stored, controllerOptions };
     }
 
     it('builds the page head, metrics and the objectives ledger, and opens with the first objective in the rail', async () => {
@@ -508,6 +510,75 @@ describe('Objective editor common UI contract', () => {
       expect(notice.className).toContain('is-danger');
       expect(collectText(notice)).toContain('読めません');
       expect(collectText(root)).not.toContain('目的はまだ登録されていません。');
+    });
+
+    it('takes the host title, lead, notice and buttons in the page head', async () => {
+      const clicks = [];
+      const host = {
+        title: '目的',
+        lead: '選んだプロジェクトの目的です。',
+        sourceNotice: { label: '対象', text: 'Atlas導入（一覧で切り替え）' },
+        pageActions: [{ text: '書き出す', onClick: () => clicks.push('export') }, { text: '止める', variant: 'danger', disabled: true }],
+      };
+      const { root, controller, controllerOptions } = await mountWorkspace({ host });
+      const wrapper = byClass(root, 'bb-objective-workspace')[0];
+      expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('目的');
+      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('選んだプロジェクトの目的です。');
+      // The notice comes right after the page head, before the metrics.
+      expect(wrapper.children.map((node) => node.className.split(' ')[0])).toEqual(['bb-ws-page', 'bb-ws-notice', 'bb-ws-summary', 'bb-ws-ledger']);
+      expect(collectText(wrapper.children[1])).toBe('対象Atlas導入（一覧で切り替え）');
+      const buttons = findButtons(byClass(root, 'bb-ws-page-head')[0]);
+      expect(buttons.map((button) => [button.textContent, button.className, button.attributes.disabled ?? null])).toEqual([
+        ['再読込', 'bb-ws-button', null],
+        ['新しい目的', 'bb-ws-button is-primary', null],
+        ['書き出す', 'bb-ws-button', null],
+        ['止める', 'bb-ws-button is-danger', ''],
+      ]);
+      buttons[2].dispatch('click');
+      expect(clicks).toEqual(['export']);
+      // A host may change its copy in the options it passed and draw again.
+      controllerOptions.sourceNotice = { label: '対象', text: 'Beta検証（一覧で切り替え）' };
+      controller.render();
+      expect(collectText(byClass(root, 'bb-objective-workspace')[0].children[1])).toBe('対象Beta検証（一覧で切り替え）');
+    });
+
+    it('keeps today\'s page head without host options', async () => {
+      const { root } = await mountWorkspace();
+      const wrapper = byClass(root, 'bb-objective-workspace')[0];
+      expect(wrapper.children.map((node) => node.className.split(' ')[0])).toEqual(['bb-ws-page', 'bb-ws-summary', 'bb-ws-ledger']);
+      expect(collectText(byClass(root, 'bb-ws-lead')[0])).toBe('目指す状態と評価基準を、版つきで確かめて直します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。');
+    });
+
+    it('without a rail ignores the host options and draws the same tabs layout', async () => {
+      // The tree as a plain value: tags, classes, attributes, text and children (not listeners).
+      const shape = (node) => ({
+        tag: node.tagName,
+        className: node.className,
+        attributes: node.attributes,
+        text: node.textContent,
+        value: node.value,
+        disabled: node.disabled,
+        hidden: node.hidden,
+        children: node.children.map(shape),
+      });
+      const draw = async (host) => {
+        globalThis.document = new FakeDocument();
+        const root = new FakeElement('div');
+        const { port } = workspacePort();
+        const controller = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false, ...host });
+        await controller.loadObjectives();
+        return JSON.stringify(shape(root));
+      };
+      const plain = await draw({});
+      const withHost = await draw({
+        title: '目的',
+        lead: '別の説明',
+        sourceNotice: { label: '対象', text: 'Atlas導入' },
+        pageActions: [{ text: '書き出す', onClick: () => {} }],
+      });
+      expect(withHost).toBe(plain);
+      expect(plain).not.toContain('書き出す');
+      expect(plain).toContain('目的と評価基準');
     });
 
     it('without a rail keeps the tabs layout and never draws the workspace pattern', async () => {

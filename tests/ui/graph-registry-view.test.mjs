@@ -390,3 +390,128 @@ describe('情報と関係: kinds of information', () => {
     expect(collectText(root)).not.toContain('組織のGraph');
   });
 });
+
+describe('情報と関係: host extensions', () => {
+  const CORRECTION_BUTTONS = ['この記録を直す', '関係を加える', 'この関係を直す'];
+  const correctionButtons = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && CORRECTION_BUTTONS.includes(item.textContent));
+  const typeOptions = (root) => findAll(control(root, 'type'), (node) => node.tagName === 'OPTION').map((node) => [node.attributes.value, node.textContent]);
+
+  async function mountWith(options) {
+    api = await startGraphApi(dataDir);
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false, ...options });
+    await view.load();
+    return { root, rail, view };
+  }
+
+  it('draws no correction control and never posts when the host cannot correct', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountWith({ canCorrect: false });
+    await view.openEntity('person-tanaka');
+    expect(section(rail, '出る関係')).toBeDefined();
+    expect(correctionButtons(rail)).toEqual([]);
+    expect(byClass(rail, 'bb-ws-notice')).toEqual([]);
+    // What this screen can correct is not listed either; the kinds stay.
+    const kinds = collectText(section(root, '情報の種類とつながり方'));
+    expect(kinds).not.toContain('この画面で直せること');
+    expect(kinds).toContain('人物Graphに登録された人4件');
+    // A person can normally gain a relation; here even a correction opened by code is refused before sending.
+    view.correction.openCreate(view.state.detail.payload.entity);
+    await waitFor(() => view.correction.form?.candidates?.state === 'ok');
+    view.correction.callbacks.onInput('counterpartId', 'project-beta');
+    view.correction.callbacks.onReason('参加を加える。');
+    const form = await view.correction.submit();
+    expect(form.message.text).toBe('このホストでは保存できません。');
+    expect(api.posts()).toEqual([]);
+    expect(correctionButtons(rail)).toEqual([]);
+  });
+
+  it('shows the host note in the rail only when the host passes one, and replaces the 出典 notice', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountWith({
+      canCorrect: false,
+      readOnlyNote: 'この画面からは直せません。',
+      sourceNotice: { label: '読み取り元', text: '別のGraphを表示だけしています。' },
+    });
+    const [first] = byClass(root, 'bb-ws-notice');
+    expect(collectText(first)).toBe('読み取り元別のGraphを表示だけしています。');
+    expect(collectText(root)).not.toContain('このMacのGraph');
+    expect(collectText(root)).not.toContain('MCPの search');
+    await view.openEntity('org-acme');
+    expect(byClass(rail, 'bb-ws-notice').map((node) => collectText(node))).toEqual(['この画面からは直せません。']);
+    // The default keeps the 出典 notice and the buttons.
+    await api.close();
+    const plain = await mountView();
+    expect(collectText(byClass(plain.root, 'bb-ws-notice')[0])).toContain('このMacのGraph');
+    await plain.view.openEntity('org-acme');
+    expect(buttonsNamed(plain.rail, 'この記録を直す')).toHaveLength(1);
+    expect(collectText(plain.rail)).not.toContain('この画面からは直せません。');
+  });
+
+  it('lists the kinds of the Graph in the type filter, the local four by default', async () => {
+    await writeGraphV2(dataDir);
+    const { root } = await mountView();
+    expect(typeOptions(root)).toEqual([['', 'すべての種類'], ['person', '人物'], ['org', '組織'], ['project', 'プロジェクト'], ['decision', '判断']]);
+    // The answer was read from the host, not assumed.
+    expect(api.requests.some((request) => request.path === '/api/graph/ontology')).toBe(true);
+  });
+
+  it('takes the type filter from the ontology answer and shows unknown kinds by their raw id everywhere', async () => {
+    const entity = (id, type, name) => ({ id, type, name, aliases: [], summary: null, tags: [], validFrom: null, validTo: null, active: true, digest: `sha256:${id}` });
+    const results = [entity('person-a', 'person', 'A さん'), entity('task-1', 'task', '見積もり'), entity('odd-1', 'constructor', '変わった記録')];
+    const routes = {
+      '/search': () => ({ status: 'ok', source: { dataDir: '/data' }, query: { q: '', type: null, asOf: null }, results, total: 3, truncated: false, absenceConfirmed: false, graphEmpty: false }),
+      '/ontology': () => ({
+        status: 'ok',
+        source: { dataDir: '/data' },
+        asOf: '2026-09-26T00:00:00Z',
+        ontology: { id: 'graph', version: '2', releaseDigest: 'sha256:r', currentVersion: '2', upToDate: true },
+        entityTypes: [
+          { id: 'person', meaning: 'A human.', count: 1 },
+          { id: 'task', meaning: '仕事の単位', count: 1 },
+          { id: 'constructor', meaning: '', count: 1 },
+        ],
+        relations: [{ id: 'assigned_to', from: 'task', to: 'person', meaning: '担当している', count: 0, activeCount: 0 }],
+      }),
+      '/entities/task-1': () => ({ status: 'ok', source: { dataDir: '/data' }, asOf: '2026-09-26T00:00:00Z', entity: { ...entity('task-1', 'task', '見積もり'), metadata: {} }, outgoing: [], incoming: [], history: [], issues: [] }),
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    let ontologyReady = false;
+    const view = createGraphRegistryView({
+      root,
+      rail,
+      document: new FakeDocument(),
+      autoLoad: false,
+      canCorrect: false,
+      fetcher: async (path) => {
+        const route = routes[new URL(path, 'http://localhost').pathname.replace('/api/graph', '')];
+        if (path.includes('/ontology') && !ontologyReady) return jsonResponse(500, { error: { code: 'boom', message: 'まだ読めません' } });
+        return route ? jsonResponse(200, route()) : jsonResponse(404, { error: { code: 'not_found', message: 'Not found' } });
+      },
+    });
+    await view.load();
+    // Until the kinds are read, the local four are offered.
+    expect(typeOptions(root).map(([value]) => value)).toEqual(['', 'person', 'org', 'project', 'decision']);
+    ontologyReady = true;
+    await view.loadOntology();
+    expect(typeOptions(root)).toEqual([['', 'すべての種類'], ['person', '人物'], ['task', 'task'], ['constructor', 'constructor']]);
+
+    const typeCells = resultRows(root).map((row) => collectText(row.children[1]));
+    expect(typeCells).toEqual(['人物', 'task', 'constructor']);
+    const kinds = collectText(ledgerIn(section(root, '情報の種類とつながり方'), 'bb-graph-entity-type-ledger'));
+    // A local kind keeps its plain meaning; another kind shows the host's.
+    expect(kinds).toContain('人物Graphに登録された人1件');
+    expect(kinds).toContain('task仕事の単位1件');
+    expect(kinds).toContain('constructor1件');
+    expect(collectText(ledgerIn(section(root, '情報の種類とつながり方'), 'bb-graph-relation-type-ledger'))).toContain('assigned_totask → 人物担当している');
+
+    await view.openEntity('task-1');
+    expect(railHead(rail)).toBe('task見積もりtask-1');
+    expect(collectText(section(rail, '出る関係'))).toContain('このtaskが起点になっている関係です。');
+    const text = `${collectText(root)}${collectText(rail)}`;
+    expect(text).not.toContain('undefined');
+    expect(text).not.toContain('function');
+  });
+});

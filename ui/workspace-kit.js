@@ -74,6 +74,25 @@ export function workspaceNotice(doc, { label, text, tone = 'info', role } = {}) 
   return notice;
 }
 
+/**
+ * The notice a host passes to a part in place of (or in addition to) the
+ * part's own: `{ label, text }`, where `text` is a string or an element.  Null
+ * when the host passed none.
+ */
+export function workspaceHostNotice(doc, notice) {
+  if (!notice || typeof notice !== 'object' || Array.isArray(notice)) return null;
+  const label = typeof notice.label === 'string' && notice.label.trim() ? notice.label.trim() : undefined;
+  return workspaceNotice(doc, { label, text: notice.text });
+}
+
+/** A host's extra page-head buttons, `[{ text, variant, onClick, disabled }]`, as `workspaceActions` items. */
+export function workspaceHostActions(actions) {
+  if (!Array.isArray(actions)) return [];
+  return actions
+    .filter((action) => action && typeof action === 'object' && typeof action.text === 'string' && action.text.trim())
+    .map(({ text, variant, onClick, disabled }) => ({ text, variant, onClick, disabled: disabled === true }));
+}
+
 export function workspaceButton(doc, { text, variant = 'default', onClick, disabled = false, attrs = {} } = {}) {
   const button = el(doc, 'button', {
     className: `bb-ws-button${variant === 'primary' ? ' is-primary' : variant === 'danger' ? ' is-danger' : variant === 'quiet' ? ' is-quiet' : ''}`,
