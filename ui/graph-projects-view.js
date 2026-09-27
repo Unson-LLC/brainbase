@@ -13,6 +13,11 @@
  * project; they are not logins or sharing settings.  Participation ends with
  * an end date and is never deleted.  The host injects the fetcher, base path,
  * launch token, right rail and page context; this module keeps no global state.
+ *
+ * Another host composes this part unchanged and adds only its own controls
+ * through the options of `createGraphProjectsView` (read-only corrections,
+ * its source notice, page-head buttons, extra metrics, rail blocks and
+ * selection sync).  Every option defaults to the behaviour above.
  */
 
 import {
@@ -26,10 +31,13 @@ import {
   graphCommandList,
   graphPageContext,
   graphStateNotice,
+  hostReadOnlyNote,
   isEdgeView,
   isEntityView,
   isRecord,
   makeElement,
+  ownLabel,
+  readOnlyGraphClient,
   recordDetails,
   relationLabel,
   renderCorrectionHistory,
@@ -46,6 +54,8 @@ import {
   workspaceButton,
   workspaceDefinition,
   workspaceDetailEmpty,
+  workspaceHostActions,
+  workspaceHostNotice,
   workspaceLedger,
   workspaceMetrics,
   workspaceNotice,
@@ -123,6 +133,53 @@ function textCell(value, fallback) {
   return textOrNull(value) ?? { text: fallback, className: 'is-unresolved' };
 }
 
+function isNode(value) {
+  return value !== null && typeof value === 'object' && (typeof value.tagName === 'string' || typeof value.nodeType === 'number');
+}
+
+function failureText(error) {
+  return textOrNull(error instanceof Error ? error.message : typeof error === 'string' ? error : null) ?? '理由不明';
+}
+
+/**
+ * Mounts 「プロジェクトと関係者」.
+ *
+ * @param {object} options
+ * @param {Element} options.root Where the workspace is drawn.
+ * @param {Element} [options.rail] The host's right rail; without it the rail content follows the workspace inside `root`.
+ * @param {{ crumbs?: string[], source?: string }} [options.page] Breadcrumb and source label of the page head.
+ * @param {Document} [options.document] The document to build elements with (default: the global one).
+ * @param {Function} [options.fetcher] `fetch`-compatible function for the Graph routes.
+ * @param {string} [options.basePath='/api/graph'] Where the Graph routes are served.
+ * @param {string} [options.token] Launch token sent with a correction.
+ * @param {string} [options.tokenHeader] Header name for the token.
+ * @param {boolean} [options.autoLoad=true] Reads the list on mount.
+ * @param {() => Date} [options.now] The owner's clock (end-date default).
+ * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
+ *   (関係者を加える, 役割を直す, 関わりを終える / 終了日を直す, プロジェクトを直す, and the pointer to
+ *   corrections under そのほかの関係), and the client refuses every correction before sending it.
+ * @param {string} [options.readOnlyNote] With `canCorrect: false`, a note shown in the rail where the
+ *   correction buttons would be.  Without it the rail says nothing about corrections.
+ * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典
+ *   notice.  The rail's 概要 then drops its default 出典 row, which names this Mac's Graph.
+ * @param {Array<{ text: string, variant?: 'default' | 'primary' | 'danger' | 'quiet', onClick?: Function, disabled?: boolean }>} [options.pageActions]
+ *   Extra buttons in the page head, owned by the host.  Read on every render, so a host may change
+ *   an item and call `render()`.
+ * @param {(listPayload: object) => Array<{ label: string, value: string | number | null, note?: string }>} [options.extraMetrics]
+ *   Metrics appended after the built-in ones while the list is shown; `value: null` shows 未確認.
+ *   A throw is shown as a notice instead of breaking the workspace.
+ * @param {(projectId: string, detailPayload: object | null, helpers: { document: Document }) => Node | Node[] | null} [options.renderRailExtensions]
+ *   Host-owned blocks appended in the rail after 関係者 (before そのほかの関係 and the corrections
+ *   history).  Called synchronously on every rail render while a project is selected, with the read
+ *   project detail, or null while it loads or when it could not be read.  A throw or a value that is
+ *   not a node is shown as a small danger notice instead of breaking the rail.
+ * @param {string} [options.selectedId] The project to select first.  When absent or not in the
+ *   list, the first project is selected, as by default.
+ * @param {(id: string) => void} [options.onSelect] Called when the view changes the selection itself
+ *   (a ledger row, or the automatic first project).  Not called for `select(id)`.
+ * @returns The controller: `state`, `correction`, `render()`, `load()`, `loadDetail(id)`,
+ *   `selectProject(id)`, `openProject(id)`, and `select(id)` for the host's own navigation.
+ */
 export function createGraphProjectsView({
   root,
   rail,
@@ -134,10 +191,20 @@ export function createGraphProjectsView({
   tokenHeader,
   autoLoad = true,
   now = () => new Date(),
+  canCorrect = true,
+  readOnlyNote,
+  sourceNotice,
+  pageActions,
+  extraMetrics,
+  renderRailExtensions,
+  selectedId: initialSelectedId,
+  onSelect,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
-  const client = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
+  const graphClient = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
+  const writable = canCorrect !== false;
+  const client = writable ? graphClient : readOnlyGraphClient(graphClient);
   const context = graphPageContext(page);
   const layout = createGraphLayout(doc, {
     root,
@@ -148,7 +215,7 @@ export function createGraphProjectsView({
   });
   // `panelAt` is where the open correction shows: a relation id (inside that
   // 関係者) or anything else (below the project actions).
-  const state = { list: { state: 'loading' }, selectedId: null, detail: null, panelAt: null };
+  const state = { list: { state: 'loading' }, selectedId: textOrNull(initialSelectedId), detail: null, panelAt: null };
   let focusRow = null;
 
   const correction = createGraphCorrection({
@@ -175,6 +242,46 @@ export function createGraphProjectsView({
     open();
   }
 
+  function notifySelect(id) {
+    if (typeof onSelect === 'function' && id) onSelect(id);
+  }
+
+  // -------------------------------------------------------------------------
+  // Host extensions
+
+  /** The host's extra metrics; a throw or a malformed answer becomes a notice. */
+  function hostMetrics(payload) {
+    if (typeof extraMetrics !== 'function') return { metrics: [], failure: null };
+    try {
+      const metrics = extraMetrics(payload);
+      if (!Array.isArray(metrics) || !metrics.every((item) => isRecord(item) && textOrNull(item.label))) {
+        throw new Error('集計の形式が正しくありません');
+      }
+      return {
+        metrics: metrics.map((item) => ({ label: item.label, value: item.value ?? null, note: textOrNull(item.note) ?? undefined })),
+        failure: null,
+      };
+    } catch (error) {
+      return {
+        metrics: [],
+        failure: workspaceNotice(doc, { label: '表示できません', text: `ホストが加えた集計を表示できませんでした（${failureText(error)}）。`, tone: 'danger' }),
+      };
+    }
+  }
+
+  /** The host's rail blocks for the selected project; a throw or a value that is not a node becomes a notice. */
+  function railExtensions(projectId, payload) {
+    if (typeof renderRailExtensions !== 'function') return [];
+    try {
+      const result = renderRailExtensions(projectId, payload, { document: doc });
+      const nodes = (Array.isArray(result) ? result : [result]).filter((node) => node !== null && node !== undefined && node !== false);
+      if (!nodes.every(isNode)) throw new Error('欄の形式が正しくありません');
+      return nodes;
+    } catch (error) {
+      return [workspaceNotice(doc, { label: '表示できません', text: `ホストが加えた欄を表示できませんでした（${failureText(error)}）。`, tone: 'danger' })];
+    }
+  }
+
   // -------------------------------------------------------------------------
   // Workspace
 
@@ -184,9 +291,10 @@ export function createGraphProjectsView({
       title: 'プロジェクトと関係者',
       lead: 'どのプロジェクトに誰がどう関わっているかを確かめ、誤りを直します。',
       source: context.source,
+      actions: workspaceHostActions(pageActions),
     })];
     const dir = state.list.state === 'ok' ? textOrNull(state.list.payload.source?.dataDir) : null;
-    children.push(workspaceNotice(doc, {
+    children.push(workspaceHostNotice(doc, sourceNotice) ?? workspaceNotice(doc, {
       label: '出典',
       text: `このMacのGraph${dir ? `（${dir}）` : ''}から読み、ここで直した内容もそこへ保存します。関係者は、プロジェクトに参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。`,
     }));
@@ -199,11 +307,14 @@ export function createGraphProjectsView({
     }
     const { payload } = state.list;
     const summary = summarizeProjects(payload.projects);
+    const extras = hostMetrics(payload);
     children.push(workspaceMetrics(doc, [
       { label: 'プロジェクト', value: summary.active, note: `有効なもの（全${summary.total}件）` },
       { label: '進行中', value: summary.inProgress, note: '状態が「進行中」の有効なもの' },
       { label: '関係者', value: summary.people, note: summary.people === null ? '人数を確かめられません' : '有効な関わりがある人（重複なし）' },
+      ...extras.metrics,
     ], { ariaLabel: 'プロジェクトの集計' }));
+    if (extras.failure) children.push(extras.failure);
 
     if (payload.projects.length === 0) {
       const body = makeElement(doc, 'div', { className: 'bb-graph-notice-body' });
@@ -225,7 +336,10 @@ export function createGraphProjectsView({
         className: project.active ? '' : 'is-ended',
         onSelect: (id) => {
           focusRow = id;
-          void controller.selectProject(id);
+          const changed = id !== state.selectedId;
+          const reading = controller.selectProject(id);
+          if (changed) notifySelect(id);
+          void reading;
         },
         cells: [
           { primary: project.name, secondary: project.id },
@@ -246,7 +360,7 @@ export function createGraphProjectsView({
   function participantItem(edge, project, asOf) {
     const item = makeElement(doc, 'li', { className: `bb-graph-compact${edge.active ? '' : ' is-ended'}` });
     const head = makeElement(doc, 'div', { className: 'bb-graph-compact-head' });
-    const how = PARTICIPATION_LABELS[edge.relation] ?? relationLabel(edge.relation);
+    const how = ownLabel(PARTICIPATION_LABELS, edge.relation) ?? relationLabel(edge.relation);
     head.append(
       makeElement(doc, 'strong', { className: 'bb-graph-compact-title', text: edge.counterpart.name }),
       badge(doc, how, edge.relation === 'accountable_for' ? 'accent' : ''),
@@ -261,14 +375,16 @@ export function createGraphProjectsView({
       ['出典', renderProvenance(doc, edge.provenance)],
     ]));
     const subject = `${edge.counterpart.name}（${how}、${project.name}）`;
-    item.append(workspaceActions(doc, [
-      workspaceButton(doc, { text: '役割を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'role', subject })) }),
-      edge.active
-        ? workspaceButton(doc, { text: '関わりを終える', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', subject })) })
-        : workspaceButton(doc, { text: '終了日を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', title: '終了日を直す', subject })) }),
-    ]));
+    if (writable) {
+      item.append(workspaceActions(doc, [
+        workspaceButton(doc, { text: '役割を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'role', subject })) }),
+        edge.active
+          ? workspaceButton(doc, { text: '関わりを終える', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', subject })) })
+          : workspaceButton(doc, { text: '終了日を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'end', title: '終了日を直す', subject })) }),
+      ]));
+    }
     item.append(recordDetails(doc, [['関係ID', edge.id], ['人物ID', edge.counterpart.id], ['digest', edge.digest]]));
-    if (state.panelAt === edge.id) {
+    if (writable && state.panelAt === edge.id) {
       const panel = correction.render(doc);
       if (panel) item.append(panel);
     }
@@ -293,7 +409,7 @@ export function createGraphProjectsView({
     if (relations.length === 0) return null;
     const list = makeElement(doc, 'ul', { className: 'bb-graph-plain-list' });
     for (const edge of relations) {
-      const labels = GRAPH_RELATION_LABELS[edge.relation];
+      const labels = ownLabel(GRAPH_RELATION_LABELS, edge.relation);
       const phrase = labels ? (edge.direction === 'outgoing' ? labels.outgoing : labels.incoming) : '';
       const item = makeElement(doc, 'li');
       item.append(badge(doc, relationLabel(edge.relation), 'muted'), makeElement(doc, 'span', { text: ` ${edge.counterpart.name}${phrase} ` }), activityBadge(doc, edge, payload.asOf));
@@ -301,7 +417,10 @@ export function createGraphProjectsView({
     }
     return workspaceRailBlock(doc, {
       title: 'そのほかの関係',
-      content: [makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '所有する組織や、進め方を決める判断などです。直すときは「情報と関係」を使います。' }), list],
+      content: [makeElement(doc, 'p', {
+        className: 'bb-graph-block-lead',
+        text: writable ? '所有する組織や、進め方を決める判断などです。直すときは「情報と関係」を使います。' : '所有する組織や、進め方を決める判断などです。',
+      }), list],
     });
   }
 
@@ -312,8 +431,9 @@ export function createGraphProjectsView({
   }
 
   function renderRail() {
-    // The first project is selected once the list is read; until then the rail stays empty.
-    if (!state.selectedId && state.list.state === 'loading') return [];
+    // The first project is selected once the list is read; until then the rail stays empty
+    // (a project the host asked for is shown only once its detail is being read).
+    if (state.list.state === 'loading' && state.detail?.id !== state.selectedId) return [];
     if (!state.selectedId) {
       return [workspaceDetailEmpty(doc, {
         mark: 'P',
@@ -330,6 +450,7 @@ export function createGraphProjectsView({
         onRetry: () => controller.loadDetail(state.selectedId),
         loadingText: 'このプロジェクトの関係者を読み込んでいます。',
       }));
+      children.push(...railExtensions(state.selectedId, null));
       return children;
     }
     const principles = Array.isArray(project.decisionPrinciples) ? project.decisionPrinciples.filter((item) => typeof item === 'string' && item.trim()) : [];
@@ -346,35 +467,41 @@ export function createGraphProjectsView({
           ['目的', textOrNull(project.goal)],
           ['判断の原則', principleList ?? { text: 'まだ登録がありません', className: 'is-unrecorded' }],
           ['有効期間', validityText(project.validFrom, project.validTo)],
-          ['出典', 'このMacのGraph（graph.json）'],
+          // A host with its own source names it in its notice; this row names only this Mac's Graph.
+          ...(isRecord(sourceNotice) ? [] : [['出典', 'このMacのGraph（graph.json）']]),
         ]),
         recordDetails(doc, [['プロジェクトID', project.id], ['digest', project.digest], ['読み取った時点', loaded.asOf]]),
       ],
     }));
     children.push(renderParticipants(loaded));
-    children.push(workspaceActions(doc, [
-      workspaceButton(doc, {
-        text: '関係者を加える',
-        variant: 'primary',
-        onClick: () => openCorrection('project', () => correction.openCreate(project, {
-          relations: ['participates_in', 'accountable_for'],
-          relationNames: PARTICIPATION_LABELS,
-          relationLabel: '関わり方',
-          title: '関係者を加える',
-          subject: `プロジェクト「${project.name}」`,
-        })),
-      }),
-      workspaceButton(doc, {
-        text: 'プロジェクトを直す',
-        onClick: () => openCorrection('project', () => correction.openEntity(project, {
-          fields: ['name', 'goal', 'status'],
-          title: 'プロジェクトを直す',
-          subject: `プロジェクト「${project.name}」の名前・目的・状態`,
-        })),
-      }),
-    ]));
-    // A correction opened on a 関係者 shows inside that item; any other shows here.
-    if (!loaded.participants.some((edge) => edge.id === state.panelAt)) children.push(correction.render(doc));
+    if (writable) {
+      children.push(workspaceActions(doc, [
+        workspaceButton(doc, {
+          text: '関係者を加える',
+          variant: 'primary',
+          onClick: () => openCorrection('project', () => correction.openCreate(project, {
+            relations: ['participates_in', 'accountable_for'],
+            relationNames: PARTICIPATION_LABELS,
+            relationLabel: '関わり方',
+            title: '関係者を加える',
+            subject: `プロジェクト「${project.name}」`,
+          })),
+        }),
+        workspaceButton(doc, {
+          text: 'プロジェクトを直す',
+          onClick: () => openCorrection('project', () => correction.openEntity(project, {
+            fields: ['name', 'goal', 'status'],
+            title: 'プロジェクトを直す',
+            subject: `プロジェクト「${project.name}」の名前・目的・状態`,
+          })),
+        }),
+      ]));
+      // A correction opened on a 関係者 shows inside that item; any other shows here.
+      if (!loaded.participants.some((edge) => edge.id === state.panelAt)) children.push(correction.render(doc));
+    } else {
+      children.push(hostReadOnlyNote(doc, readOnlyNote));
+    }
+    children.push(...railExtensions(state.selectedId, loaded));
     children.push(renderOtherRelations(loaded));
     children.push(renderCorrectionHistory(doc, loaded.history));
     return children;
@@ -410,9 +537,15 @@ export function createGraphProjectsView({
         state.detail = null;
         state.selectedId = projects[0]?.id ?? null;
         if (state.selectedId) {
-          await controller.loadDetail(state.selectedId);
+          const reading = controller.loadDetail(state.selectedId);
+          notifySelect(state.selectedId);
+          await reading;
           return state.list;
         }
+      } else if (state.detail?.id !== state.selectedId) {
+        // The project the host asked for is listed; read it for the rail.
+        await controller.loadDetail(state.selectedId);
+        return state.list;
       }
       controller.render();
       return state.list;
@@ -442,6 +575,15 @@ export function createGraphProjectsView({
     /** The same as selecting the project's row. */
     async openProject(id) {
       return controller.selectProject(id);
+    },
+    /**
+     * Selects a project from the host's own navigation without calling `onSelect`.
+     * Selecting the project already selected changes nothing (an open correction stays).
+     */
+    async select(id) {
+      const target = textOrNull(id);
+      if (!target || target === state.selectedId) return state.detail;
+      return controller.selectProject(target);
     },
   };
   controller.render();

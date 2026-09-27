@@ -19,6 +19,8 @@ import {
   workspaceButton,
   workspaceDefinition,
   workspaceDetailEmpty,
+  workspaceHostActions,
+  workspaceHostNotice,
   workspaceLedger,
   workspaceMetrics,
   workspaceNotice,
@@ -969,8 +971,12 @@ function renderObjectiveLedger(doc, state, callbacks) {
   });
 }
 
-/** Render the workspace (page head, metrics, ledger) and the rail. */
-export function renderObjectiveWorkspace(root, rail, state, callbacks = {}, page = {}) {
+/**
+ * Render the workspace (page head, metrics, ledger) and the rail.  `host` is
+ * what the host adds to the page head: `{ title, lead, sourceNotice, pageActions }`
+ * (see `createObjectiveEditorController`).
+ */
+export function renderObjectiveWorkspace(root, rail, state, callbacks = {}, page = {}, host = {}) {
   const doc = getDocument();
   clear(root);
   const wrapper = makeElement('div', {
@@ -979,13 +985,16 @@ export function renderObjectiveWorkspace(root, rail, state, callbacks = {}, page
   });
   const actions = [{ text: '再読込', onClick: callbacks.onReload }];
   if (callbacks.canEdit) actions.push({ text: '新しい目的', variant: 'primary', onClick: callbacks.onCreate });
+  actions.push(...workspaceHostActions(host?.pageActions));
   wrapper.append(workspacePageHeader(doc, {
     crumbs: Array.isArray(page?.crumbs) ? page.crumbs : [],
-    title: '目的と現状',
-    lead: '目指す状態と評価基準を、版つきで確かめて直します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。',
+    title: nonEmptyText(host?.title) ?? '目的と現状',
+    lead: nonEmptyText(host?.lead) ?? '目指す状態と評価基準を、版つきで確かめて直します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。',
     source: nonEmptyText(page?.source),
     actions,
   }));
+  const notice = workspaceHostNotice(doc, host?.sourceNotice);
+  if (notice) wrapper.append(notice);
   wrapper.append(renderObjectiveMetrics(doc, state), renderObjectiveLedger(doc, state, callbacks));
   if (callbacks.storyLinks !== false) {
     const story = makeElement('div', { className: 'bb-objective-story' });
@@ -1168,6 +1177,16 @@ function portMethod(port, name) {
  * CompanyOsObjectives where possible.  The host owns FoundationStore,
  * authentication and Story/Constraint adapters; the UI only supplies the
  * trusted context it was given and never accepts owner/scope from form data.
+ *
+ * Host options used only in the workspace layout (when `rail` is given); the
+ * tabs layout without `rail` ignores them:
+ * - `title` / `lead`: replace the page head's 目的と現状 and its lead.
+ * - `sourceNotice: { label, text }`: a notice right after the page head
+ *   (`text` is a string or an element).  Default: none.
+ * - `pageActions: [{ text, variant, onClick, disabled }]`: host-owned buttons in
+ *   the page head after 再読込 / 新しい目的.
+ * All four are read from `options` on every render, so a host may change them
+ * and call `render()`.
  */
 export function createObjectiveEditorController(options = {}) {
   const root = options.root ?? null;
@@ -1224,7 +1243,7 @@ export function createObjectiveEditorController(options = {}) {
       onEdit: beginEdit,
       onCancelEdit: cancelEdit,
     };
-    return rail ? renderObjectiveWorkspace(root, rail, state, callbacks, page) : renderObjectiveEditor(root, state, callbacks);
+    return rail ? renderObjectiveWorkspace(root, rail, state, callbacks, page, options) : renderObjectiveEditor(root, state, callbacks);
   }
 
   function setPortState(error, target, fallbackMessage = null) {

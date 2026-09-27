@@ -11,9 +11,11 @@
  * Reads `GET {base}/search`, `GET {base}/entities/:id` and `GET {base}/ontology`
  * and corrects through `POST {base}/corrections` (see `graph-view-shared.js`).
  * The kinds of information and relations are shown read-only; there is no
- * change proposal here.  Only the local Graph is shown: an organization Graph
- * is not read by this part.  The host injects the fetcher, base path, launch
- * token, right rail and page context; this module keeps no global state.
+ * change proposal here.  The part reads only the Graph routes the host serves
+ * at its base path (the local Graph on the OSS host).  The host injects the
+ * fetcher, base path, launch token, right rail and page context; this module
+ * keeps no global state.  Another host composes it unchanged and adds only its
+ * own controls through the options of `createGraphRegistryView`.
  */
 
 import {
@@ -29,11 +31,14 @@ import {
   graphCommandList,
   graphPageContext,
   graphStateNotice,
+  hostReadOnlyNote,
   isEdgeView,
   isEntityView,
   isRecord,
   makeElement,
   newRelationOptions,
+  ownLabel,
+  readOnlyGraphClient,
   recordDetails,
   relationLabel,
   renderCorrectionHistory,
@@ -54,6 +59,7 @@ import {
   workspaceButton,
   workspaceDefinition,
   workspaceDetailEmpty,
+  workspaceHostNotice,
   workspaceLedger,
   workspaceNotice,
   workspacePageHeader,
@@ -69,7 +75,24 @@ export const GRAPH_RELATION_TYPE_LEDGER_COLUMNS = Object.freeze(['関係', '起�
 export const GRAPH_ENTITY_TYPE_LEDGER_COLUMNS = Object.freeze(['種類', '意味', '件数']);
 
 const INVALID = Object.freeze({ state: 'invalid', reason: '応答の形式が不正です' });
-const TYPE_FILTERS = Object.freeze([['', 'すべての種類'], ...Object.entries(GRAPH_ENTITY_TYPE_LABELS)]);
+const ALL_TYPES = Object.freeze(['', 'すべての種類']);
+const TYPE_FILTERS = Object.freeze([ALL_TYPES, ...Object.entries(GRAPH_ENTITY_TYPE_LABELS)]);
+
+/**
+ * The kinds the search can filter by: the entity types the host's `/ontology`
+ * answer lists (an unknown type shows its raw id), or the local Graph's four
+ * kinds until that answer has been read.
+ */
+function graphTypeFilters(ontologyState) {
+  const types = ontologyState?.state === 'ok' && Array.isArray(ontologyState.payload?.entityTypes) ? ontologyState.payload.entityTypes : [];
+  if (types.length === 0) return TYPE_FILTERS;
+  return [ALL_TYPES, ...types.map((item) => [item.id, typeLabel(item.id)])];
+}
+
+/** A type's meaning: the plain Japanese one for a local kind, otherwise what the host's answer says. */
+function typeMeaning(item) {
+  return ownLabel(GRAPH_ENTITY_TYPE_MEANINGS, item.id) ?? textOrNull(item.meaning) ?? '';
+}
 
 /** Results are `ok` when well formed; no match is shown only when the whole Graph was searched. */
 export function normalizeSearch(result) {
@@ -110,6 +133,34 @@ function textCell(value, fallback) {
   return textOrNull(value) ?? { text: fallback, className: 'is-unresolved' };
 }
 
+/**
+ * Mounts 「情報と関係」.
+ *
+ * @param {object} options
+ * @param {Element} options.root Where the workspace is drawn.
+ * @param {Element} [options.rail] The host's right rail; without it the rail content follows the workspace inside `root`.
+ * @param {{ crumbs?: string[], source?: string }} [options.page] Breadcrumb and source label of the page head.
+ * @param {Document} [options.document] The document to build elements with (default: the global one).
+ * @param {Function} [options.fetcher] `fetch`-compatible function for the Graph routes.
+ * @param {string} [options.basePath='/api/graph'] Where the Graph routes are served.
+ * @param {string} [options.token] Launch token sent with a correction.
+ * @param {string} [options.tokenHeader] Header name for the token.
+ * @param {boolean} [options.autoLoad=true] Runs the empty search and reads the kinds on mount.
+ * @param {() => Date} [options.now] The owner's clock.
+ * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
+ *   (この記録を直す, 関係を加える, この関係を直す, and この画面で直せること under the kinds of
+ *   information), and the client refuses every correction before sending it.
+ * @param {string} [options.readOnlyNote] With `canCorrect: false`, a note shown in the rail where the
+ *   correction buttons would be.  Without it the rail says nothing about corrections.
+ * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典 notice.
+ *
+ * The type filter lists the entity types of the `/ontology` answer once it has
+ * been read (the four local kinds until then).  A type without a plain label
+ * shows its raw id in the filter, the results ledger and the rail.
+ *
+ * @returns The controller: `state`, `correction`, `render()`, `load()`, `search()`,
+ *   `refreshResults()`, `loadEntity(id)`, `openEntity(id)`, `back()`, `loadOntology()`.
+ */
 export function createGraphRegistryView({
   root,
   rail,
@@ -121,10 +172,15 @@ export function createGraphRegistryView({
   tokenHeader,
   autoLoad = true,
   now = () => new Date(),
+  canCorrect = true,
+  readOnlyNote,
+  sourceNotice,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
-  const client = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
+  const graphClient = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
+  const writable = canCorrect !== false;
+  const client = writable ? graphClient : readOnlyGraphClient(graphClient);
   const context = graphPageContext(page);
   const layout = createGraphLayout(doc, {
     root,
@@ -197,7 +253,7 @@ export function createGraphRegistryView({
     q.value = state.query.q;
     bind(q, 'q');
     const type = makeElement(doc, 'select', { attrs: { id: 'bb-gr-type', name: 'type' } });
-    for (const [value, label] of TYPE_FILTERS) {
+    for (const [value, label] of graphTypeFilters(state.ontology)) {
       const option = makeElement(doc, 'option', { text: label, attrs: { value } });
       if (value === state.query.type) {
         option.setAttribute('selected', 'selected');
@@ -302,7 +358,7 @@ export function createGraphRegistryView({
         cells: [
           relationLabel(item.id),
           `${typeLabel(item.from)} → ${typeLabel(item.to)}`,
-          GRAPH_RELATION_LABELS[item.id]?.meaning ?? '',
+          ownLabel(GRAPH_RELATION_LABELS, item.id)?.meaning ?? textOrNull(item.meaning) ?? '',
           `${item.count}件（うち有効 ${item.activeCount}件）`,
         ],
       })),
@@ -314,10 +370,10 @@ export function createGraphRegistryView({
       columns: GRAPH_ENTITY_TYPE_LEDGER_COLUMNS,
       rows: payload.entityTypes.map((item) => ({
         key: item.id,
-        cells: [typeLabel(item.id), GRAPH_ENTITY_TYPE_MEANINGS[item.id] ?? '', `${item.count}件`],
+        cells: [typeLabel(item.id), typeMeaning(item), `${item.count}件`],
       })),
     }));
-    const corrections = isRecord(payload.corrections) ? payload.corrections : null;
+    const corrections = writable && isRecord(payload.corrections) ? payload.corrections : null;
     if (corrections) {
       section.append(makeElement(doc, 'h3', { className: 'bb-gr-subheading', text: 'この画面で直せること' }));
       const list = makeElement(doc, 'ul', { className: 'bb-graph-plain-list' });
@@ -342,7 +398,7 @@ export function createGraphRegistryView({
         lead: 'Graphに何がどう登録されているかを確かめ、誤りを直します。',
         source: context.source,
       }),
-      workspaceNotice(doc, {
+      workspaceHostNotice(doc, sourceNotice) ?? workspaceNotice(doc, {
         label: '出典',
         text: `このMacのGraph${dir ? `（${dir}）` : ''}だけを表示します。ここで直した内容は、同じGraphを読むMCPの search・get_context・resolve_entity で次から使われます。`,
       }),
@@ -357,7 +413,7 @@ export function createGraphRegistryView({
   // Right rail
 
   function relationItem(edge, entity, asOf) {
-    const labels = GRAPH_RELATION_LABELS[edge.relation];
+    const labels = ownLabel(GRAPH_RELATION_LABELS, edge.relation);
     const item = makeElement(doc, 'li', { className: `bb-graph-compact${edge.active ? '' : ' is-ended'}` });
     const head = makeElement(doc, 'div', { className: 'bb-graph-compact-head' });
     const phrase = makeElement(doc, 'span', { className: 'bb-graph-relation' });
@@ -381,9 +437,11 @@ export function createGraphRegistryView({
     const subject = edge.direction === 'outgoing'
       ? `${entity.name} → ${relationLabel(edge.relation)} → ${edge.counterpart.name}`
       : `${edge.counterpart.name} → ${relationLabel(edge.relation)} → ${entity.name}`;
-    item.append(workspaceActions(doc, [
-      workspaceButton(doc, { text: 'この関係を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'edit', subject })) }),
-    ]));
+    if (writable) {
+      item.append(workspaceActions(doc, [
+        workspaceButton(doc, { text: 'この関係を直す', variant: 'quiet', onClick: () => openCorrection(edge.id, () => correction.openEdge(edge, { mode: 'edit', subject })) }),
+      ]));
+    }
     item.append(recordDetails(doc, [
       ['関係ID', edge.id],
       ['関係の種類ID', edge.relation],
@@ -392,7 +450,7 @@ export function createGraphRegistryView({
       ['出典ID', edge.provenance.sourceId],
       ['digest', edge.digest],
     ]));
-    if (state.panelAt === edge.id) {
+    if (writable && state.panelAt === edge.id) {
       const panel = correction.render(doc);
       if (panel) item.append(panel);
     }
@@ -461,15 +519,19 @@ export function createGraphRegistryView({
         recordDetails(doc, [['記録ID', entity.id], ['種類ID', entity.type], ['digest', entity.digest], ['読み取った時点', loaded.asOf]]),
       ],
     }));
-    children.push(workspaceActions(doc, [
-      workspaceButton(doc, { text: 'この記録を直す', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を直す' })) }),
-      newRelationOptions(entity.type).length > 0
-        ? workspaceButton(doc, { text: '関係を加える', onClick: () => openCorrection('entity', () => correction.openCreate(entity, { title: '関係を加える' })) })
-        : null,
-    ]));
-    // A correction opened on a relation shows inside that relation; any other shows here.
-    const inRelation = [...loaded.outgoing, ...loaded.incoming].some((edge) => edge.id === state.panelAt);
-    if (!inRelation) children.push(correction.render(doc));
+    if (writable) {
+      children.push(workspaceActions(doc, [
+        workspaceButton(doc, { text: 'この記録を直す', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を直す' })) }),
+        newRelationOptions(entity.type).length > 0
+          ? workspaceButton(doc, { text: '関係を加える', onClick: () => openCorrection('entity', () => correction.openCreate(entity, { title: '関係を加える' })) })
+          : null,
+      ]));
+      // A correction opened on a relation shows inside that relation; any other shows here.
+      const inRelation = [...loaded.outgoing, ...loaded.incoming].some((edge) => edge.id === state.panelAt);
+      if (!inRelation) children.push(correction.render(doc));
+    } else {
+      children.push(hostReadOnlyNote(doc, readOnlyNote));
+    }
     children.push(renderRelations(loaded, 'outgoing'), renderRelations(loaded, 'incoming'));
     children.push(renderCorrectionHistory(doc, loaded.history));
     return children;

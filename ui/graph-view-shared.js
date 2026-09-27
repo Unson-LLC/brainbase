@@ -63,6 +63,7 @@ export const GRAPH_SOURCE_KIND_LABELS = Object.freeze({
   migration: '移行',
   import: '取り込み',
   onboarding: 'オンボーディング',
+  organization_graph: '組織のGraph',
 });
 
 const REVIEW_STATUS_LABELS = Object.freeze({ approved: '承認済み', pending: '確認待ち', rejected: '却下', edited: '修正して承認', merged: '統合' });
@@ -283,12 +284,19 @@ export function isEdgeView(value) {
     && isRecord(value.provenance) && isRecord(value.provenance.reference);
 }
 
-export function relationLabel(relation) {
-  return GRAPH_RELATION_LABELS[relation]?.label ?? relation;
+/** A value of a label table by its own key only, so a type or relation id such as `constructor` is never read from the prototype. */
+export function ownLabel(table, key) {
+  return typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : undefined;
 }
 
+/** A relation's plain label; an unknown relation shows its raw id. */
+export function relationLabel(relation) {
+  return ownLabel(GRAPH_RELATION_LABELS, relation)?.label ?? relation;
+}
+
+/** A type's plain label; an unknown type (from another host's Graph) shows its raw id. */
 export function typeLabel(type) {
-  return GRAPH_ENTITY_TYPE_LABELS[type] ?? type;
+  return ownLabel(GRAPH_ENTITY_TYPE_LABELS, type) ?? type;
 }
 
 // ---------------------------------------------------------------------------
@@ -395,6 +403,25 @@ export function createGraphClient({ fetcher, basePath = '/api/graph', token, tok
       return { state: 'error', code: failure.code, message: failure.message };
     },
   });
+}
+
+/**
+ * The same client with every correction refused before anything is sent, for
+ * a host that shows its Graph read-only (`canCorrect: false`).
+ */
+export function readOnlyGraphClient(client) {
+  return Object.freeze({
+    ...client,
+    async correct() {
+      return { state: 'error', code: 'write_protection_missing', message: GRAPH_CORRECTION_ERROR_MESSAGES.write_protection_missing };
+    },
+  });
+}
+
+/** A host's note that corrections are not available here, or null when it passed none. */
+export function hostReadOnlyNote(doc, readOnlyNote) {
+  const text = textOrNull(readOnlyNote);
+  return text ? workspaceNotice(doc, { text, tone: 'info' }) : null;
 }
 
 // ---------------------------------------------------------------------------

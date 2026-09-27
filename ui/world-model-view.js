@@ -10,6 +10,11 @@
  * Drawn with the organization edition's screen pattern (workspace-kit): a
  * section title under the page head, then one read-only ledger per block.
  * Rows are not selectable, so the view never writes to the host's rail.
+ *
+ * A section the host cannot serve answers `{ status: 'unavailable', reason }`
+ * (HTTP 200).  It is shown as unavailable, never as zero items; a host with no
+ * World Model source at all can pass `unavailableNotice` to show one notice
+ * with its own copy instead of four.
  */
 
 import { workspaceButton, workspaceLedger, workspaceNotice, workspaceSectionTitle } from './workspace-kit.js';
@@ -111,6 +116,9 @@ const ITEM_CHECKS = Object.freeze({
  */
 export function normalizeWorldModelSection(section, payload) {
   const key = SECTION_KEYS[section];
+  if (key && isRecord(payload) && (payload.status === 'unavailable' || payload.state === 'unavailable')) {
+    return { state: 'unavailable', items: null, reason: text(payload.reason) };
+  }
   if (!key || !isRecord(payload) || !Array.isArray(payload[key])) {
     return { state: 'invalid', items: null, reason: '応答の形式が不正です' };
   }
@@ -176,6 +184,12 @@ function sectionStatus(doc, label, section, sectionState, callbacks, emptyText) 
     const retry = workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: () => void callbacks.onRetry?.(section) });
     return {
       notice: workspaceNotice(doc, { label, tone: 'danger', text: noticeBody(doc, `読み取れませんでした（${sectionState.reason ?? '理由不明'}）。0件ではありません。`, retry) }),
+      rows: false,
+    };
+  }
+  if (state === 'unavailable') {
+    return {
+      notice: workspaceNotice(doc, { label, tone: 'warning', text: `このホストでは読めません（${sectionState.reason ?? '理由不明'}）。0件ではありません。` }),
       rows: false,
     };
   }
@@ -301,7 +315,26 @@ function block(doc, label, heading, lead) {
   return section;
 }
 
-/** Render the whole view into a host-owned root: a section title and read-only ledgers. */
+/**
+ * The host's single notice when no section can be served: its title and
+ * guidance, then the reasons the sections gave.  Null when the host passed no
+ * copy or when any section is readable, loading or failed in another way.
+ */
+function unavailableSummary(doc, state, unavailableNotice) {
+  if (!isRecord(unavailableNotice) || !text(unavailableNotice.title)) return null;
+  if (!WORLD_MODEL_SECTIONS.every((section) => state[section]?.state === 'unavailable')) return null;
+  const reasons = [...new Set(WORLD_MODEL_SECTIONS.map((section) => state[section].reason).filter(Boolean))];
+  const body = makeElement(doc, 'div', { className: 'bb-wm-notice-body' });
+  if (text(unavailableNotice.guidance)) body.append(makeElement(doc, 'p', { text: text(unavailableNotice.guidance) }));
+  body.append(makeElement(doc, 'p', { text: `理由: ${reasons.length > 0 ? reasons.join('、') : '理由不明'}。0件ではありません。` }));
+  return workspaceNotice(doc, { label: text(unavailableNotice.title), text: body, tone: 'info' });
+}
+
+/**
+ * Render the whole view into a host-owned root: a section title and read-only ledgers.
+ * `options.unavailableNotice` is the host's `{ title, guidance }` shown once
+ * when every section is unavailable.
+ */
 export function renderWorldModelView(root, state, callbacks = {}, options = {}) {
   const doc = getDocument(options.document);
   root.replaceChildren();
@@ -310,6 +343,12 @@ export function renderWorldModelView(root, state, callbacks = {}, options = {}) 
     title: '現状と見通し',
     lead: '見方（変数とモデル。仮説を含みます）と、記録された観測を分けて表示します。この欄は表示だけです。',
   }));
+  const unavailable = unavailableSummary(doc, state, options.unavailableNotice);
+  if (unavailable) {
+    surface.append(unavailable);
+    root.append(surface);
+    return surface;
+  }
 
   const variables = namesOf(state.variables);
   const models = namesOf(state.models);
@@ -365,6 +404,22 @@ async function readError(response) {
   }
 }
 
+/**
+ * Mounts the read-only World Model view.
+ *
+ * @param {object} options
+ * @param {Element} options.root Where the view is drawn.
+ * @param {Element} [options.rail] Accepted for the host's screen contract; the view never writes to it.
+ * @param {Document} [options.document] The document to build elements with (default: the global one).
+ * @param {Function} [options.fetcher] `fetch`-compatible function for the sections.
+ * @param {string} [options.basePath='/api/world-model'] Where `{variables,models,observations,adoptions}` are served.
+ * @param {boolean} [options.autoLoad=true] Reads every section on mount.
+ * @param {{ title: string, guidance?: string }} [options.unavailableNotice] When every section is
+ *   unavailable (for example the host has no World Model source), one notice with this title
+ *   (the notice's short label) and guidance, plus the reasons, replaces the blocks.  Without
+ *   it each block reports its own state, as by default.
+ * @returns The controller: `state`, `render()`, `load()`, `loadSection(section)`.
+ */
 export function createWorldModelView({
   root,
   /** Accepted for the host's screen contract; the read-only view keeps the rail to the screen's editor. */
@@ -373,6 +428,7 @@ export function createWorldModelView({
   fetcher,
   basePath = '/api/world-model',
   autoLoad = true,
+  unavailableNotice,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
@@ -387,7 +443,7 @@ export function createWorldModelView({
   const controller = {
     get state() { return state; },
     render() {
-      renderWorldModelView(root, state, callbacks, { document: doc });
+      renderWorldModelView(root, state, callbacks, { document: doc, unavailableNotice });
       return controller;
     },
     async loadSection(section) {

@@ -510,3 +510,198 @@ describe('プロジェクトと関係者: write errors', () => {
     expect(await history()).toEqual([]);
   });
 });
+
+describe('プロジェクトと関係者: host extensions', () => {
+  const CORRECTION_BUTTONS = ['関係者を加える', 'プロジェクトを直す', '役割を直す', '関わりを終える', '終了日を直す'];
+  const correctionButtons = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && CORRECTION_BUTTONS.includes(item.textContent));
+  const railBlocks = (rail) => findAll(rail, (node) => node.tagName === 'SECTION' || String(node.className).split(' ').includes('bb-ws-notice') || node.tagName === 'DETAILS')
+    .filter((node) => node.parentNode?.className === 'bb-graph-rail bb-gp-rail')
+    .map((node) => node.attributes['aria-label'] ?? (node.tagName === 'DETAILS' ? 'history' : collectText(node)));
+
+  it('draws no correction control and never posts when the host cannot correct', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView({ canCorrect: false });
+    expect(correctionButtons(rail)).toEqual([]);
+    expect(visibleText(section(rail, 'そのほかの関係'))).not.toContain('直すときは');
+    // Without a note the rail says nothing about corrections.
+    expect(byClass(rail, 'bb-ws-notice')).toEqual([]);
+    // The ended participation of the second project offers no 終了日を直す either.
+    ledgerRow(root, 'project-beta').dispatch('click');
+    await waitFor(() => railHead(rail).includes('Beta検証') && section(rail, '関係者'));
+    expect(correctionButtons(rail)).toEqual([]);
+    expect(correctionButtons(root)).toEqual([]);
+
+    // Even a correction opened by code is refused before anything is sent.
+    const project = view.state.detail.payload.project;
+    view.correction.openEntity(project, { fields: ['status'] });
+    view.correction.callbacks.onInput('status', '進行中');
+    view.correction.callbacks.onReason('状態を戻す。');
+    const form = await view.correction.submit();
+    expect(form.phase).toBe('error');
+    expect(form.message.text).toBe('このホストでは保存できません。');
+    // The refused form is not drawn in the rail either.
+    expect(section(rail, '記録を直す')).toBeUndefined();
+    expect(api.posts()).toEqual([]);
+    expect(await history()).toEqual([]);
+  });
+
+  it('shows the host note where the correction buttons would be, only when the host passes one', async () => {
+    await writeGraphV2(dataDir);
+    const { rail } = await mountView({ canCorrect: false, readOnlyNote: 'この画面からは直せません。' });
+    const notes = byClass(rail, 'bb-ws-notice');
+    expect(notes.map((node) => collectText(node))).toEqual(['この画面からは直せません。']);
+    const order = railBlocks(rail);
+    expect(order.indexOf('この画面からは直せません。')).toBe(order.indexOf('関係者') + 1);
+    // With corrections allowed the note is not shown.
+    await api.close();
+    const writable = await mountView({ readOnlyNote: 'この画面からは直せません。' });
+    expect(collectText(writable.rail)).not.toContain('この画面からは直せません。');
+    expect(buttonsNamed(writable.rail, '関係者を加える')).toHaveLength(1);
+  });
+
+  it('replaces the 出典 notice with the host notice and drops the rail row that names this Mac', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail } = await mountView({ sourceNotice: { label: '読み取り元', text: '別のGraphを表示だけしています。' } });
+    const [first] = byClass(root, 'bb-ws-notice');
+    expect(first.children[0].textContent).toBe('読み取り元');
+    expect(collectText(first)).toBe('読み取り元別のGraphを表示だけしています。');
+    expect(collectText(root)).not.toContain('このMacのGraph');
+    expect(visibleText(section(rail, '概要'))).not.toContain('このMacのGraph');
+    expect(visibleText(section(rail, '概要'))).toContain('目的導入を完了する');
+  });
+
+  it('adds the host buttons to the page head and calls them on click', async () => {
+    await writeGraphV2(dataDir);
+    const clicks = [];
+    const { root } = await mountView({
+      pageActions: [
+        { text: '＋追加', variant: 'primary', onClick: () => clicks.push('add') },
+        { text: '書き出す', disabled: true, onClick: () => clicks.push('export') },
+        { variant: 'primary' },
+      ],
+    });
+    const head = byClass(root, 'bb-ws-page-head')[0];
+    const buttons = findAll(head, (node) => node.tagName === 'BUTTON');
+    expect(buttons.map((button) => [button.textContent, button.className, button.attributes.disabled ?? null])).toEqual([
+      ['＋追加', 'bb-ws-button is-primary', null],
+      ['書き出す', 'bb-ws-button', ''],
+    ]);
+    buttons[0].dispatch('click');
+    expect(clicks).toEqual(['add']);
+    // Without host buttons the page head has none.
+    await api.close();
+    const plain = await mountView();
+    expect(findAll(byClass(plain.root, 'bb-ws-page-head')[0], (node) => node.tagName === 'BUTTON')).toEqual([]);
+  });
+
+  it('appends the host metrics after the built-in ones, with a null value as 未確認, and reports a failing one', async () => {
+    await writeGraphV2(dataDir);
+    const seen = [];
+    const { root } = await mountView({
+      extraMetrics: (payload) => {
+        seen.push(payload.projects.map((project) => project.id));
+        return [{ label: '仕事', value: 7, note: '開いているもの' }, { label: '基盤', value: null }];
+      },
+    });
+    expect(metricValues(root)).toEqual(['1', '1', '2', '7', '未確認']);
+    expect(collectText(byClass(root, 'bb-ws-summary')[0])).toContain('仕事7開いているもの');
+    expect(seen.at(-1)).toEqual(['project-atlas', 'project-beta']);
+    expect(byClass(root, 'bb-ws-notice').some((node) => node.className.includes('is-danger'))).toBe(false);
+
+    await api.close();
+    const failing = await mountView({ extraMetrics: () => { throw new Error('集計できません'); } });
+    expect(metricValues(failing.root)).toEqual(['1', '1', '2']);
+    const notice = byClass(failing.root, 'bb-ws-notice').find((node) => node.className.includes('is-danger'));
+    expect(collectText(notice)).toContain('ホストが加えた集計を表示できませんでした（集計できません）。');
+    expect(ledgerRows(failing.root)).toHaveLength(2);
+  });
+
+  it('draws the host rail blocks after 関係者 for the selected project, again on every selection', async () => {
+    await writeGraphV2(dataDir);
+    const calls = [];
+    const { root, rail } = await mountView({
+      renderRailExtensions: (projectId, detail, { document }) => {
+        calls.push([projectId, detail ? detail.project.id : null]);
+        const block = document.createElement('section');
+        block.setAttribute('aria-label', '追加の欄');
+        block.textContent = `追加: ${projectId}`;
+        return [block, null];
+      },
+    });
+    expect(collectText(section(rail, '追加の欄'))).toBe('追加: project-atlas');
+    // After 関係者 and its buttons, before そのほかの関係 (and the history, when there is one).
+    expect(railBlocks(rail)).toEqual(['概要', '関係者', '追加の欄', 'そのほかの関係']);
+    // Called with the loaded detail of the selected project (and with null while it was read).
+    expect(calls.filter(([, detail]) => detail !== null)).toEqual([['project-atlas', 'project-atlas']]);
+    expect(calls.every(([id]) => id === 'project-atlas')).toBe(true);
+
+    ledgerRow(root, 'project-beta').dispatch('click');
+    await waitFor(() => collectText(section(rail, '追加の欄') ?? new FakeElement('div')) === '追加: project-beta' && section(rail, '関係者'));
+    expect(calls.at(-1)).toEqual(['project-beta', 'project-beta']);
+    expect(calls.filter(([id]) => id === 'project-beta').some(([, detail]) => detail === null)).toBe(true);
+  });
+
+  it('keeps the host rail blocks before the corrections history, also when the host cannot correct', async () => {
+    await writeGraphV2(dataDir);
+    await applyGraphCorrection(dataDir, {
+      kind: 'update_entity', entityId: 'project-atlas', expectedDigest: graphRecordDigest(ENTITIES.atlas), reason: '状態を最新にした。', changes: { status: '保留' },
+    }, { now: FIXTURE_NOW });
+    const block = (document) => {
+      const element = document.createElement('section');
+      element.setAttribute('aria-label', '追加の欄');
+      return element;
+    };
+    const writable = await mountView({ renderRailExtensions: (_id, _detail, { document }) => block(document) });
+    expect(railBlocks(writable.rail)).toEqual(['概要', '関係者', '追加の欄', 'そのほかの関係', 'history']);
+    await api.close();
+    const readOnly = await mountView({ canCorrect: false, readOnlyNote: '表示だけです。', renderRailExtensions: (_id, _detail, { document }) => block(document) });
+    expect(railBlocks(readOnly.rail)).toEqual(['概要', '関係者', '表示だけです。', '追加の欄', 'そのほかの関係', 'history']);
+  });
+
+  it('shows a failing host rail block as a small notice and keeps the rail', async () => {
+    await writeGraphV2(dataDir);
+    const { rail } = await mountView({ renderRailExtensions: () => { throw new Error('欄が壊れています'); } });
+    const notice = byClass(rail, 'bb-ws-notice').find((node) => node.className.includes('is-danger'));
+    expect(collectText(notice)).toBe('表示できませんホストが加えた欄を表示できませんでした（欄が壊れています）。');
+    expect(section(rail, '概要')).toBeDefined();
+    expect(participantItem(rail, '田中 太郎')).toBeDefined();
+    await api.close();
+    const malformed = await mountView({ renderRailExtensions: () => '文字だけ' });
+    expect(collectText(malformed.rail)).toContain('ホストが加えた欄を表示できませんでした（欄の形式が正しくありません）。');
+    expect(collectText(malformed.rail)).not.toContain('文字だけ');
+  });
+
+  it('starts at the project the host asks for, tells the host about its own selections, and follows select()', async () => {
+    await writeGraphV2(dataDir);
+    const selected = [];
+    const { root, rail, view } = await mountView({ selectedId: 'project-beta', onSelect: (id) => selected.push(id) });
+    expect(railHead(rail)).toBe('プロジェクトBeta検証project-beta');
+    expect(ledgerRow(root, 'project-beta').className).toContain('is-selected');
+    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-beta']);
+    expect(selected).toEqual([]);
+
+    ledgerRow(root, 'project-atlas').dispatch('click');
+    expect(selected).toEqual(['project-atlas']);
+    await waitFor(() => railHead(rail).includes('Atlas導入') && section(rail, '関係者'));
+
+    await view.select('project-beta');
+    expect(railHead(rail)).toBe('プロジェクトBeta検証project-beta');
+    expect(ledgerRow(root, 'project-beta').className).toContain('is-selected');
+    expect(selected).toEqual(['project-atlas']);
+    // Selecting the project already selected reads nothing and keeps an open correction.
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    const before = api.requests.length;
+    await view.select('project-beta');
+    expect(api.requests).toHaveLength(before);
+    expect(section(rail, 'プロジェクトを直す')).toBeDefined();
+  });
+
+  it('selects the first project when the host asks for one that is not listed, and says so', async () => {
+    await writeGraphV2(dataDir);
+    const selected = [];
+    const { rail } = await mountView({ selectedId: 'project-gone', onSelect: (id) => selected.push(id) });
+    expect(railHead(rail)).toBe('プロジェクトAtlas導入project-atlas');
+    expect(selected).toEqual(['project-atlas']);
+    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-atlas']);
+  });
+});
