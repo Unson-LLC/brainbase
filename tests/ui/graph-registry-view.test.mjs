@@ -454,6 +454,18 @@ describe('情報と関係: host extensions', () => {
     return { root, rail, view };
   }
 
+  it('says the screen only checks when the host cannot correct, and uses the host guidance for an empty Graph', async () => {
+    await writeGraphV2(dataDir, { entities: [], edges: [] });
+    const { root } = await mountWith({ canCorrect: false, emptyNotice: { text: '組織のGraphにはまだ記録がありません。' } });
+    const text = collectText(root);
+    expect(text).toContain('Graphに何がどう登録されているかを確かめます。');
+    expect(text).not.toContain('誤りを直します');
+    const results = collectText(section(root, '検索結果'));
+    expect(results).toContain('未登録');
+    expect(results).toContain('組織のGraphにはまだ記録がありません。');
+    expect(results).not.toContain('brainbase onboard');
+  });
+
   it('draws no correction control and never posts when the host cannot correct', async () => {
     await writeGraphV2(dataDir);
     const { root, rail, view } = await mountWith({ canCorrect: false });

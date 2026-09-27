@@ -549,6 +549,16 @@ export function focusLedgerRow(root, key) {
 }
 
 /** The page context the host passes: breadcrumb and source label. */
+/**
+ * The host's own guidance for a Graph with nothing registered, `{ label?, text }`, in place of the
+ * local `brainbase onboard:*` commands (another host's Graph is not filled by this Mac's CLI).
+ */
+export function graphHostEmptyNotice(doc, notice) {
+  if (!notice || typeof notice !== 'object' || Array.isArray(notice) || !notice.text) return null;
+  const label = typeof notice.label === 'string' && notice.label.trim() ? notice.label.trim() : '未登録';
+  return workspaceNotice(doc, { label, text: notice.text, tone: 'info', role: 'status' });
+}
+
 export function graphPageContext(page) {
   const crumbs = Array.isArray(page?.crumbs) ? page.crumbs.filter((crumb) => typeof crumb === 'string' && crumb) : [];
   return { crumbs, source: textOrNull(page?.source) };

@@ -53,6 +53,7 @@ import {
   GRAPH_ENTITY_TYPE_LABELS,
   GRAPH_ENTITY_TYPE_MEANINGS,
   GRAPH_RELATION_LABELS,
+  graphHostEmptyNotice,
 } from './graph-view-shared.js';
 import {
   workspaceActions,
@@ -164,6 +165,8 @@ function textCell(value, fallback) {
  *   information), and the client refuses every correction before sending it.
  * @param {string} [options.readOnlyNote] With `canCorrect: false`, a note shown in the rail where the
  *   correction buttons would be.  Without it the rail says nothing about corrections.
+ * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
+ *   and its `brainbase onboard:*` commands when the host's Graph has nothing registered.
  * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典 notice.
  *
  * The type filter lists the entity types of the `/ontology` answer once it has
@@ -187,6 +190,7 @@ export function createGraphRegistryView({
   canCorrect = true,
   readOnlyNote,
   sourceNotice,
+  emptyNotice,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
@@ -298,6 +302,11 @@ export function createGraphRegistryView({
     }
     const { payload } = state.search;
     if (payload.graphEmpty === true) {
+      const hostEmpty = graphHostEmptyNotice(doc, emptyNotice);
+      if (hostEmpty) {
+        section.append(hostEmpty);
+        return section;
+      }
       const dir = textOrNull(payload.source?.dataDir);
       const body = makeElement(doc, 'div', { className: 'bb-graph-notice-body' });
       body.append(
@@ -411,7 +420,7 @@ export function createGraphRegistryView({
       workspacePageHeader(doc, {
         crumbs: context.crumbs,
         title: '情報と関係',
-        lead: 'Graphに何がどう登録されているかを確かめ、誤りを直します。',
+        lead: writable ? 'Graphに何がどう登録されているかを確かめ、誤りを直します。' : 'Graphに何がどう登録されているかを確かめます。',
         source: context.source,
       }),
       workspaceHostNotice(doc, sourceNotice) ?? workspaceNotice(doc, {

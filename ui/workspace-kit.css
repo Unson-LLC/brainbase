@@ -187,6 +187,8 @@
 .bb-ws-summary.is-1 { grid-template-columns: minmax(0, 1fr); }
 .bb-ws-summary.is-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .bb-ws-summary.is-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.bb-ws-summary.is-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.bb-ws-summary.is-6 { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 
 .bb-ws-metric {
   min-width: 0;
@@ -456,7 +458,9 @@
 
   .bb-ws-summary,
   .bb-ws-summary.is-2,
-  .bb-ws-summary.is-4 {
+  .bb-ws-summary.is-4,
+  .bb-ws-summary.is-5,
+  .bb-ws-summary.is-6 {
     grid-template-columns: minmax(0, 1fr);
   }
 

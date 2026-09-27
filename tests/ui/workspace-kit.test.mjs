@@ -59,6 +59,13 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     expect(values).toEqual(['5', '未確認']);
   });
 
+  it('keeps up to six metrics in one row', () => {
+    const items = (n) => Array.from({ length: n }, (_, index) => ({ label: `項目${index}`, value: index }));
+    expect(workspaceMetrics(doc, items(5)).className).toContain('is-5');
+    expect(workspaceMetrics(doc, items(6)).className).toContain('is-6');
+    expect(workspaceMetrics(doc, items(8)).className).toContain('is-6');
+  });
+
   it('renders ledger rows the owner selects, with the selection marked and the column template left to the caller', () => {
     const selected = [];
     const ledger = workspaceLedger(doc, {
