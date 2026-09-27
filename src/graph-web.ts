@@ -1,6 +1,7 @@
 import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { isActiveAt } from './canonical-graph.js';
+import { assertFoundationCatalog, findFoundationRecord } from './foundation-catalog.js';
 import {
   GRAPH_CORRECTION_EDGE_FIELDS,
   GRAPH_CORRECTION_ENTITY_FIELDS,
@@ -14,7 +15,9 @@ import {
 import { ONTOLOGY_VERSION, portableOntology } from './ontology.js';
 import { canonicalRelationRegistry, getCanonicalRelation } from './relation-registry.js';
 import { loadPersonalOs } from './ssot.js';
-import type { CanonicalEdge, CanonicalEntity, CanonicalEntityKind, CoreRelation, GraphFileV2, PersonalOs } from './types.js';
+import { bindPortableGraphOwner, validatePortableGraph, type PortableGraphBundle, type PortableGraphOwner } from './portable-graph.js';
+import type { FoundationAdoptionState, FoundationOperator, ObjectiveDefinition, VariableDefinition } from './ontology-foundation.js';
+import type { CanonicalEdge, CanonicalEntity, CanonicalEntityKind, CoreRelation, DecisionRecord, GraphFileV2, PersonalOs } from './types.js';
 
 /**
  * Read views of the canonical local Graph for the local Web screens
@@ -24,6 +27,9 @@ import type { CanonicalEdge, CanonicalEntity, CanonicalEntityKind, CoreRelation,
  * the browser. A Graph v1 file is reported as `migration_required` and a
  * missing data set as `not_initialized`; neither is presented as zero items,
  * and a read failure is thrown instead of being returned as an empty list.
+ *
+ * `openOwnerPrivateGraph` gives the same read views over a portable bundle a
+ * host keeps for its owner (the owner-private area), without a data directory.
  */
 
 export const GRAPH_WEB_VERSION = 'graph-web.v1' as const;
@@ -32,6 +38,8 @@ export const GRAPH_WEB_SEARCH_MAX_LIMIT = 100;
 
 const CANONICAL_FILES = ['graph.json', 'relationships.json', 'personal-kg.jsonl', 'decisions.jsonl'] as const;
 const ENTITY_KINDS: readonly CanonicalEntityKind[] = ['person', 'org', 'project', 'decision'];
+/** The kinds of record a Graph v2 can hold; any other kind is absent from it. */
+export const GRAPH_WEB_ENTITY_KINDS: readonly CanonicalEntityKind[] = ENTITY_KINDS;
 const PARTICIPATION: ReadonlySet<CoreRelation> = new Set(['participates_in', 'accountable_for']);
 const EXTRACTED_CANDIDATE_FILE = /^extracted-[^/\\]+\.json$/u;
 const ONBOARDING_LEDGER_FILE = 'runs/connected-onboarding.json';
@@ -42,6 +50,18 @@ export interface GraphWebSource {
   graphFormat: 1 | 2 | null;
   authority: 'local_graph';
 }
+
+/**
+ * A portable bundle a host keeps for its owner: the owner's own records, not
+ * the host's shared Graph.  There is no data directory.
+ */
+export interface GraphWebOwnerPrivateSource {
+  dataDir: null;
+  graphFormat: 2;
+  authority: 'owner_private';
+}
+
+export type GraphWebAnySource = GraphWebSource | GraphWebOwnerPrivateSource;
 
 export interface GraphMigrationRequired {
   status: 'migration_required';
@@ -175,18 +195,18 @@ export interface GraphProjectListItem extends GraphEntityView {
   people: GraphProjectPersonView[];
 }
 
-export interface GraphProjectList {
+export interface GraphProjectList<S extends GraphWebAnySource = GraphWebSource> {
   status: 'ok';
-  source: GraphWebSource;
+  source: S;
   asOf: string;
   projects: GraphProjectListItem[];
   /** True only when the readable Graph v2 holds no project at all. */
   absenceConfirmed: boolean;
 }
 
-export interface GraphProjectDetail {
+export interface GraphProjectDetail<S extends GraphWebAnySource = GraphWebSource> {
   status: 'ok';
-  source: GraphWebSource;
+  source: S;
   asOf: string;
   project: GraphEntityView & { type: 'project'; goal: string | null; status: string | null; decisionPrinciples: string[]; metadata: Record<string, unknown> };
   /** Incoming participates_in / accountable_for relations, including ended ones. */
@@ -206,9 +226,9 @@ export interface GraphEntitySearchInput {
   now?: Date;
 }
 
-export interface GraphEntitySearchResult {
+export interface GraphEntitySearchResult<S extends GraphWebAnySource = GraphWebSource> {
   status: 'ok';
-  source: GraphWebSource;
+  source: S;
   query: { q: string; type: CanonicalEntityKind | null; asOf: string | null };
   results: GraphEntityView[];
   total: number;
@@ -222,15 +242,63 @@ export interface GraphEntitySearchResult {
   graphEmpty: boolean;
 }
 
-export interface GraphEntityDetail {
+export interface GraphEntityDetail<S extends GraphWebAnySource = GraphWebSource> {
   status: 'ok';
-  source: GraphWebSource;
+  source: S;
   asOf: string;
   entity: GraphEntityView & { metadata: Record<string, unknown> };
   outgoing: GraphEdgeView[];
   incoming: GraphEdgeView[];
   history: GraphCorrectionRecord[];
   issues: GraphReadIssue[];
+  /**
+   * For a decision of a portable bundle: its judgment record (判断根拠) from
+   * the bundle's decisions, or null when the bundle has none for it.
+   */
+  decisionRecord?: GraphDecisionRecordView | null;
+}
+
+export interface GraphDecisionRecordView {
+  title: string;
+  decision: string;
+  rationale: string | null;
+  topic: string | null;
+  effectiveAt: string | null;
+  supersedes: string[];
+}
+
+/** A person named by an objective, with the name of their record in the same Graph (null when it has none). */
+export interface GraphObjectivePersonView {
+  id: string;
+  name: string | null;
+}
+
+/** The latest revision of an objective defined in a Graph's foundation. */
+export interface GraphObjectiveView {
+  id: string;
+  revision: string;
+  meaning: string;
+  desiredState: string;
+  adoptionState: FoundationAdoptionState;
+  evaluationPeriod: { from: string; until: string };
+  criteria: Array<{
+    variable: { id: string; revision: string; meaning: string | null; unit: string | null };
+    operator: FoundationOperator;
+    target: string | number | boolean | null;
+  }>;
+  accountable: GraphObjectivePersonView | null;
+  beneficiaries: GraphObjectivePersonView[];
+  visibility: string;
+}
+
+export interface GraphObjectiveList<S extends GraphWebAnySource = GraphWebSource> {
+  status: 'ok';
+  source: S;
+  objectives: GraphObjectiveView[];
+  /** `none` when the Graph has no foundation at all. */
+  foundation: 'none' | 'ok';
+  /** True when the foundation was read and holds no objective. */
+  absenceConfirmed: boolean;
 }
 
 export interface GraphOntologySummary {
@@ -290,8 +358,10 @@ export async function readGraphWebStatus(dataDir: string, options: GraphWebReadO
 export async function listGraphProjects(dataDir: string, options: GraphWebReadOptions = {}): Promise<GraphProjectList | GraphWebUnavailable> {
   const loaded = await loadForRead(dataDir);
   if ('status' in loaded) return loaded;
-  const asOf = resolveAsOf(options);
-  const { graph } = loaded;
+  return projectListOf(loaded.graph, loaded.source, resolveAsOf(options));
+}
+
+function projectListOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, asOf: string): GraphProjectList<S> {
   const entities = entityIndex(graph);
   const projects = graph.entities.filter((entity) => entity.type === 'project').map((project) => {
     const participation = graph.edges.filter((edge) => edge.toId === project.id && PARTICIPATION.has(edge.relation)
@@ -312,17 +382,22 @@ export async function listGraphProjects(dataDir: string, options: GraphWebReadOp
       people
     } satisfies GraphProjectListItem;
   }).sort(byActiveThenName);
-  return { status: 'ok', source: loaded.source, asOf, projects, absenceConfirmed: projects.length === 0 };
+  return { status: 'ok', source, asOf, projects, absenceConfirmed: projects.length === 0 };
 }
 
 export async function readGraphProject(dataDir: string, projectId: string, options: GraphWebReadOptions = {}): Promise<GraphProjectDetail | GraphWebUnavailable> {
   const loaded = await loadForRead(dataDir);
   if ('status' in loaded) return loaded;
   const asOf = resolveAsOf(options);
-  const { graph } = loaded;
+  if (!loaded.graph.entities.some((entity) => entity.id === projectId && entity.type === 'project')) {
+    throw new GraphWebError('not_found', 'project_not_found', `No project ${projectId}`);
+  }
+  return projectDetailOf(loaded.graph, loaded.source, projectId, asOf, await loadReferences(dataDir));
+}
+
+function projectDetailOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, projectId: string, asOf: string, references: ReferenceIndex): GraphProjectDetail<S> {
   const project = graph.entities.find((entity) => entity.id === projectId && entity.type === 'project');
   if (!project) throw new GraphWebError('not_found', 'project_not_found', `No project ${projectId}`);
-  const references = await loadReferences(dataDir);
   const entities = entityIndex(graph);
   const edges = incidentEdges(graph, project.id, asOf, entities, references);
   const participants = edges.filter((edge) => edge.direction === 'incoming' && PARTICIPATION.has(edge.relation)).sort(byParticipation);
@@ -330,7 +405,7 @@ export async function readGraphProject(dataDir: string, projectId: string, optio
   const touched = new Set([project.id, ...edges.map((edge) => edge.id)]);
   return {
     status: 'ok',
-    source: loaded.source,
+    source,
     asOf,
     project: {
       ...projectView(project, asOf),
@@ -345,6 +420,21 @@ export async function readGraphProject(dataDir: string, projectId: string, optio
 }
 
 export async function searchGraphEntities(dataDir: string, input: GraphEntitySearchInput = {}): Promise<GraphEntitySearchResult | GraphWebUnavailable> {
+  const query = parseSearchInput(input);
+  const loaded = await loadForRead(dataDir);
+  if ('status' in loaded) return loaded;
+  return entitySearchOf(loaded.graph, loaded.source, query);
+}
+
+interface ParsedSearchInput {
+  q: string;
+  type: CanonicalEntityKind | null;
+  asOf: string | null;
+  limit: number;
+  now?: Date;
+}
+
+function parseSearchInput(input: GraphEntitySearchInput): ParsedSearchInput {
   const q = typeof input.q === 'string' ? input.q.trim() : '';
   if (q.length > 200) throw new GraphWebError('invalid', 'invalid_query', 'q must be at most 200 characters');
   const type = parseEntityType(input.type);
@@ -353,9 +443,10 @@ export async function searchGraphEntities(dataDir: string, input: GraphEntitySea
   if (!Number.isInteger(limit) || limit < 1 || limit > GRAPH_WEB_SEARCH_MAX_LIMIT) {
     throw new GraphWebError('invalid', 'invalid_query', `limit must be an integer from 1 to ${GRAPH_WEB_SEARCH_MAX_LIMIT}`);
   }
-  const loaded = await loadForRead(dataDir);
-  if ('status' in loaded) return loaded;
-  const { graph } = loaded;
+  return { q, type, asOf, limit, now: input.now };
+}
+
+function entitySearchOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, { q, type, asOf, limit, now }: ParsedSearchInput): GraphEntitySearchResult<S> {
   const needle = normalize(q);
   const scored = graph.entities.flatMap((entity) => {
     if (type && entity.type !== type) return [];
@@ -366,11 +457,11 @@ export async function searchGraphEntities(dataDir: string, input: GraphEntitySea
     || left.entity.type.localeCompare(right.entity.type, 'en')
     || left.entity.name.localeCompare(right.entity.name, 'ja')
     || left.entity.id.localeCompare(right.entity.id, 'en'));
-  const viewAsOf = asOf ?? (input.now ?? new Date()).toISOString();
+  const viewAsOf = asOf ?? (now ?? new Date()).toISOString();
   const results = scored.slice(0, limit).map(({ entity }) => entityView(entity, viewAsOf));
   return {
     status: 'ok',
-    source: loaded.source,
+    source,
     query: { q, type, asOf },
     results,
     total: scored.length,
@@ -384,17 +475,24 @@ export async function readGraphEntity(dataDir: string, entityId: string, options
   const loaded = await loadForRead(dataDir);
   if ('status' in loaded) return loaded;
   const asOf = resolveAsOf(options);
-  const { graph } = loaded;
+  uniqueEntity(loaded.graph, entityId, 'graph.json');
+  return entityDetailOf(loaded.graph, loaded.source, entityId, asOf, await loadReferences(dataDir));
+}
+
+function uniqueEntity(graph: GraphFileV2, entityId: string, where: string): CanonicalEntity {
   const matches = graph.entities.filter((candidate) => candidate.id === entityId);
   if (matches.length === 0) throw new GraphWebError('not_found', 'entity_not_found', `No entity ${entityId}`);
-  if (matches.length > 1) throw new GraphWebError('unavailable', 'entity_id_ambiguous', `Entity id ${entityId} is duplicated in graph.json`);
-  const entity = matches[0]!;
-  const references = await loadReferences(dataDir);
+  if (matches.length > 1) throw new GraphWebError('unavailable', 'entity_id_ambiguous', `Entity id ${entityId} is duplicated in ${where}`);
+  return matches[0]!;
+}
+
+function entityDetailOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, entityId: string, asOf: string, references: ReferenceIndex): GraphEntityDetail<S> {
+  const entity = uniqueEntity(graph, entityId, 'the Graph');
   const edges = incidentEdges(graph, entity.id, asOf, entityIndex(graph), references);
   const touched = new Set([entity.id, ...edges.map((edge) => edge.id)]);
   return {
     status: 'ok',
-    source: loaded.source,
+    source,
     asOf,
     entity: { ...entityView(entity, asOf), metadata: entity.metadata ?? {} },
     outgoing: edges.filter((edge) => edge.direction === 'outgoing'),
@@ -438,6 +536,126 @@ export async function readGraphOntology(dataDir: string, options: GraphWebReadOp
       newEdgeRelations: GRAPH_CORRECTION_NEW_EDGE_RELATIONS
     }
   };
+}
+
+// ---------------------------------------------------------------------------
+// Owner-private snapshots
+
+/** The source of every read view of an owner-private snapshot. */
+export const GRAPH_WEB_OWNER_PRIVATE_SOURCE: Readonly<GraphWebOwnerPrivateSource> = Object.freeze({ dataDir: null, graphFormat: 2, authority: 'owner_private' });
+
+/** Read views of one owner-private snapshot, the same shapes as the local Graph routes. */
+export interface OwnerPrivateGraph {
+  readonly source: GraphWebOwnerPrivateSource;
+  listProjects(options?: GraphWebReadOptions): GraphProjectList<GraphWebOwnerPrivateSource>;
+  readProject(projectId: string, options?: GraphWebReadOptions): GraphProjectDetail<GraphWebOwnerPrivateSource>;
+  search(input?: GraphEntitySearchInput): GraphEntitySearchResult<GraphWebOwnerPrivateSource>;
+  readEntity(entityId: string, options?: GraphWebReadOptions): GraphEntityDetail<GraphWebOwnerPrivateSource>;
+  /** Throws `foundation_invalid` when the bundle's foundation does not pass the catalog check. */
+  listObjectives(options?: GraphWebReadOptions): GraphObjectiveList<GraphWebOwnerPrivateSource>;
+}
+
+const NO_REFERENCES: ReferenceIndex = Object.freeze({
+  extracted: new Map(),
+  onboarding: new Map(),
+  history: [],
+  corrections: new Map(),
+  issues: []
+}) as unknown as ReferenceIndex;
+
+/**
+ * Opens a portable bundle a host keeps for its owner, read as that owner
+ * (`bindPortableGraphOwner`: `self` becomes the owner's person ID and name).
+ *
+ * The bundle is checked with `validatePortableGraph` first
+ * (`portable_graph_invalid` otherwise).  Its foundation is checked on its own
+ * (the Graph check ignores it): a foundation that does not pass fails only the
+ * objectives view.  Nothing is written anywhere, and relation sources
+ * (candidate files, the onboarding ledger, corrections) stayed on the owner's
+ * machine, so a relation's source ID is shown unresolved.
+ */
+export function openOwnerPrivateGraph(bundle: unknown, owner: PortableGraphOwner): OwnerPrivateGraph {
+  try {
+    validatePortableGraph(bundle);
+  } catch (error) {
+    throw new GraphWebError('unavailable', 'portable_graph_invalid', errorMessage(error));
+  }
+  let foundationError: string | null = null;
+  try {
+    assertFoundationCatalog(bundle.graph.foundation);
+  } catch (error) {
+    foundationError = errorMessage(error);
+  }
+  let bound: PortableGraphBundle;
+  try {
+    bound = bindPortableGraphOwner(bundle, owner);
+  } catch (error) {
+    throw new GraphWebError('unavailable', 'portable_graph_owner_conflict', errorMessage(error));
+  }
+  const graph = bound.graph;
+  const source = GRAPH_WEB_OWNER_PRIVATE_SOURCE as GraphWebOwnerPrivateSource;
+  const decisions = new Map<string, DecisionRecord>(bound.decisions.map((record) => [record.id, record]));
+  return Object.freeze({
+    source,
+    listProjects: (options: GraphWebReadOptions = {}) => projectListOf(graph, source, resolveAsOf(options)),
+    readProject: (projectId: string, options: GraphWebReadOptions = {}) => projectDetailOf(graph, source, projectId, resolveAsOf(options), NO_REFERENCES),
+    search: (input: GraphEntitySearchInput = {}) => entitySearchOf(graph, source, parseSearchInput(input)),
+    readEntity: (entityId: string, options: GraphWebReadOptions = {}) => {
+      const detail = entityDetailOf(graph, source, entityId, resolveAsOf(options), NO_REFERENCES);
+      if (detail.entity.type !== 'decision') return detail;
+      const record = decisions.get(entityId);
+      return { ...detail, decisionRecord: record ? decisionRecordView(record) : null };
+    },
+    listObjectives: () => {
+      if (foundationError !== null) throw new GraphWebError('unavailable', 'foundation_invalid', foundationError);
+      return objectiveListOf(graph, source);
+    }
+  });
+}
+
+function decisionRecordView(record: DecisionRecord): GraphDecisionRecordView {
+  return {
+    title: record.title,
+    decision: record.decision,
+    rationale: record.rationale ?? null,
+    topic: record.topic ?? null,
+    effectiveAt: record.effectiveAt ?? null,
+    supersedes: record.supersedes ?? []
+  };
+}
+
+function objectiveListOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S): GraphObjectiveList<S> {
+  const catalog = graph.foundation;
+  if (!catalog) return { status: 'ok', source, objectives: [], foundation: 'none', absenceConfirmed: true };
+  const entities = entityIndex(graph);
+  const person = (id: string): GraphObjectivePersonView => ({ id, name: entities.get(id)?.name ?? null });
+  const objectives = Object.values(catalog.latest)
+    .filter((pointer) => pointer.type === 'objective')
+    .flatMap((pointer) => {
+      const definition = findFoundationRecord(catalog, pointer)?.definition as ObjectiveDefinition | undefined;
+      if (!definition) return [];
+      return [{
+        id: definition.id,
+        revision: definition.revision,
+        meaning: definition.meaning,
+        desiredState: definition.desiredState,
+        adoptionState: definition.adoptionState,
+        evaluationPeriod: { from: definition.evaluationPeriod.from, until: definition.evaluationPeriod.until },
+        criteria: definition.criteria.map((criterion) => {
+          const variable = findFoundationRecord(catalog, criterion.variableRef)?.definition as VariableDefinition | undefined;
+          return {
+            variable: { id: criterion.variableRef.id, revision: criterion.variableRef.revision, meaning: variable?.meaning ?? null, unit: variable?.unit ?? null },
+            operator: criterion.operator,
+            target: criterion.target ?? null
+          };
+        }),
+        accountable: definition.accountableId ? person(definition.accountableId) : null,
+        beneficiaries: definition.beneficiaryIds.map(person),
+        visibility: definition.acl.visibility
+      } satisfies GraphObjectiveView];
+    })
+    .sort((left, right) => left.meaning.localeCompare(right.meaning, 'ja') || left.id.localeCompare(right.id, 'en'));
+  return { status: 'ok', source, objectives, foundation: 'ok', absenceConfirmed: objectives.length === 0 };
 }
 
 async function loadForRead(dataDir: string): Promise<LoadedGraph | GraphWebUnavailable> {

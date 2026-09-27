@@ -119,6 +119,82 @@ export function hydratePortableGraph(bundle: PortableGraphBundle): PersonalOs {
   };
 }
 
+/** The ID an OSS Personal OS gives its owner; a host replaces it with the owner's own ID when reading a bundle. */
+export const PORTABLE_GRAPH_OWNER_PLACEHOLDER = 'self';
+
+export interface PortableGraphOwner {
+  /** The owner's person ID in the host that stores the bundle (never `self`). */
+  personId: string;
+  /** The owner's name in that host, shown in place of the bundle's name for `self`. */
+  name?: string | null;
+}
+
+/**
+ * Read a bundle as its owner: every `self` becomes the owner's person ID in
+ * the host, and the owner's record carries the host's name for them (the
+ * bundle's own name stays as an alias).  Replaced: `graph.owner.id`, the
+ * entity `self`, relation endpoints, and in the foundation definitions
+ * `acl.ownerId` / `readerIds` / `writerIds`, `beneficiaryIds`,
+ * `accountableId` and the `subjectIds` of every scope (`scope`,
+ * `applicability`, constraint exception scopes).
+ *
+ * The result is a read projection, not a bundle to store or send: the input
+ * is not changed, relation IDs stay those of the stored bundle (they name the
+ * relation there) and foundation digests are not recomputed.  A bundle that
+ * already has another record with the owner's person ID is refused rather
+ * than merged.
+ */
+export function bindPortableGraphOwner(bundle: PortableGraphBundle, owner: PortableGraphOwner): PortableGraphBundle {
+  validatePortableGraph(bundle);
+  const personId = typeof owner?.personId === 'string' ? owner.personId.trim() : '';
+  if (!personId || personId === PORTABLE_GRAPH_OWNER_PLACEHOLDER) {
+    throw new Error('PORTABLE-GRAPH-OWNER: the owner person ID is required and cannot be self');
+  }
+  if (bundle.graph.entities.some((entity) => entity.id === personId)) {
+    throw new Error(`PORTABLE-GRAPH-OWNER-CONFLICT: the bundle already has a record ${personId}`);
+  }
+  const name = typeof owner.name === 'string' && owner.name.trim() ? owner.name.trim() : null;
+  const bound = structuredClone(bundle);
+  const swap = (id: string): string => (id === PORTABLE_GRAPH_OWNER_PLACEHOLDER ? personId : id);
+  const swapAll = (ids: unknown): void => {
+    if (!Array.isArray(ids)) return;
+    for (let index = 0; index < ids.length; index += 1) if (typeof ids[index] === 'string') ids[index] = swap(ids[index]);
+  };
+  const graph = bound.graph;
+  if (graph.owner) {
+    if (graph.owner.id === PORTABLE_GRAPH_OWNER_PLACEHOLDER) graph.owner.id = personId;
+    if (name) graph.owner.name = name;
+  }
+  for (const entity of graph.entities) {
+    if (entity.id !== PORTABLE_GRAPH_OWNER_PLACEHOLDER) continue;
+    entity.id = personId;
+    if (name && name !== entity.name) {
+      const aliases = entity.aliases ?? [];
+      if (entity.name.trim() && !aliases.includes(entity.name)) aliases.push(entity.name);
+      entity.aliases = aliases;
+      entity.name = name;
+    }
+  }
+  for (const edge of graph.edges) {
+    edge.fromId = swap(edge.fromId);
+    edge.toId = swap(edge.toId);
+  }
+  for (const record of graph.foundation?.records ?? []) {
+    const definition = record.definition as unknown as Record<string, any>;
+    if (isPlainRecord(definition.acl)) {
+      if (typeof definition.acl.ownerId === 'string') definition.acl.ownerId = swap(definition.acl.ownerId);
+      swapAll(definition.acl.readerIds);
+      swapAll(definition.acl.writerIds);
+    }
+    swapAll(definition.beneficiaryIds);
+    if (typeof definition.accountableId === 'string') definition.accountableId = swap(definition.accountableId);
+    for (const scope of [definition.scope, definition.applicability, ...(Array.isArray(definition.exceptions) ? definition.exceptions.map((item: any) => item?.scope) : [])]) {
+      if (isPlainRecord(scope)) swapAll(scope.subjectIds);
+    }
+  }
+  return bound;
+}
+
 /** Use exactly the OSS retrieval implementation against a portable bundle. */
 export function retrievePortableGraph(
   bundle: PortableGraphBundle,
