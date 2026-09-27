@@ -64,6 +64,38 @@ describe('optional organization backend',()=>{
       expect(await Promise.all(files.map(file=>readFile(join(dir,file),'utf8')))).toEqual(before);
     } finally {await rm(dir,{recursive:true,force:true});}
   });
+  it('lists the caller\'s own bundles without sending a project or Graph ID',async()=>{
+    const listed={bundles:[{graph_id:'snapshot',project_code:'authorized-project',digest:portableGraphDigest(bundle),created_at:'2026-09-27T01:02:03.000Z'}],truncated:true};
+    const fetch=vi.fn(async()=>new Response(JSON.stringify(listed)));
+    expect(await createOrganizationGraphClient({...config,url:'https://example.test/base/',fetch}).listPortableGraphs()).toEqual({truncated:true,
+      bundles:[{graphId:'snapshot',projectCode:'authorized-project',digest:portableGraphDigest(bundle),createdAt:'2026-09-27T01:02:03.000Z'}]});
+    const [url,request]=fetch.mock.calls[0] as unknown as [string,RequestInit];
+    expect(url).toBe('https://example.test/base/api/info/graph/portable');
+    expect(request).toMatchObject({method:'GET',redirect:'error',headers:{authorization:'Bearer private-test-token'}});
+    expect(request.body).toBeUndefined();
+    for(const invalid of [{bundles:[]},{bundles:[{...listed.bundles[0],digest:''}],truncated:false},{bundles:{},truncated:false}]) {
+      await expect(createOrganizationGraphClient({...config,fetch:async()=>new Response(JSON.stringify(invalid))}).listPortableGraphs()).rejects.toThrow('response_invalid');
+    }
+  });
+  it('prints the bundle list as text or JSON through the CLI',async()=>{
+    vi.stubEnv('BRAINBASE_ORGANIZATION_URL',config.url);vi.stubEnv('BRAINBASE_ORGANIZATION_TOKEN',config.token);
+    vi.stubEnv('BRAINBASE_ORGANIZATION_PROJECT',config.projectCode);vi.stubEnv('BRAINBASE_ORGANIZATION_GRAPH_ID',config.graphId);
+    const digest=portableGraphDigest(bundle);
+    const fetch=vi.fn(async()=>new Response(JSON.stringify({bundles:[{graph_id:'snapshot',project_code:'authorized-project',digest,created_at:'2026-09-27T01:02:03.000Z'}],truncated:false})));
+    vi.stubGlobal('fetch',fetch);
+    const run=async(args:string[])=>{let output='';const io={stdout:{write:(t:string)=>{output+=t;return true;}},stderr:{write:(t:string)=>{output+=t;return true;}}};
+      return {code:await runCli(args,io),output};};
+    expect(await run(['graph:bundles'])).toEqual({code:0,output:`2026-09-27T01:02:03.000Z  authorized-project  snapshot  ${digest}\n`});
+    expect(JSON.parse((await run(['graph:bundles','--format','json'])).output)).toEqual({truncated:false,
+      bundles:[{graphId:'snapshot',projectCode:'authorized-project',digest,createdAt:'2026-09-27T01:02:03.000Z'}]});
+    fetch.mockClear();
+    expect((await run(['graph:bundles','--format','xml'])).code).not.toBe(0);
+    expect(fetch).not.toHaveBeenCalled();
+    fetch.mockResolvedValueOnce(new Response(JSON.stringify({bundles:[],truncated:false})));
+    expect((await run(['graph:bundles'])).output).toBe('No Graph bundles have been uploaded to this organization yet.\n');
+    fetch.mockResolvedValueOnce(new Response(JSON.stringify({bundles:[{graph_id:'snapshot',project_code:'authorized-project',digest,created_at:'2026-09-27T01:02:03.000Z'}],truncated:true})));
+    expect((await run(['graph:bundles'])).output).toMatch(/Only the newest 1 bundle\(s\) are shown\.\n$/);
+  });
   it('rejects authorization failures, redirects, malformed responses and deadlines',async()=>{
     for(const status of [401,403,302,500]) {
       await expect(createOrganizationGraphClient({...config,fetch:async()=>new Response('{}',{status})}).search(input)).rejects.toThrow(/organization_graph_/);
