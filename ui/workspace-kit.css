@@ -35,6 +35,7 @@
 /* The title is never broken inside a word: when it and the actions do not fit
    on one line, the actions move below it. */
 .bb-ws-page-copy {
+  flex: 1 1 0;
   min-width: min-content;
   max-width: 100%;
 }
