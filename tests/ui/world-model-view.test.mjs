@@ -301,6 +301,18 @@ describe('World Model view', () => {
       for (const empty of ['まだ登録がありません', 'まだ記録がありません', 'まだありません']) expect(collectText(root)).not.toContain(empty);
     });
 
+    it('says a reason code in the host words when the host names it, and keeps an unnamed code as it is', async () => {
+      const code = 'organization_world_model_source_not_connected';
+      const coded = Object.fromEntries(Object.keys(allUnavailable).map((path) => [path, unavailable(code)]));
+      const named = await mount(coded, { unavailableNotice: { ...HOST_COPY, reasonLabels: { [code]: '組織版に現状と見通しの記録元がまだありません' } } });
+      const namedText = collectText(byClass(named.root, 'bb-ws-notice')[0]);
+      expect(namedText).toContain('理由: 組織版に現状と見通しの記録元がまだありません。0件ではありません。');
+      expect(namedText).not.toContain(code);
+      // An own label only: a code that happens to name an Object method stays as it is.
+      const unnamed = await mount(coded, { unavailableNotice: { ...HOST_COPY, reasonLabels: { toString: 'x' } } });
+      expect(collectText(byClass(unnamed.root, 'bb-ws-notice')[0])).toContain(`理由: ${code}。`);
+    });
+
     it('keeps reporting each block when only some sections are unavailable, or when the host passed no copy', async () => {
       const partial = await mount({ ...allUnavailable, '/api/world-model/adoptions': jsonResponse(500, { error: { code: 'boom', message: '読めません' } }) }, { unavailableNotice: HOST_COPY });
       expect(collectText(partial.root)).not.toContain('未接続');

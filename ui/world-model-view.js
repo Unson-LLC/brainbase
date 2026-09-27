@@ -323,7 +323,9 @@ function block(doc, label, heading, lead) {
 function unavailableSummary(doc, state, unavailableNotice) {
   if (!isRecord(unavailableNotice) || !text(unavailableNotice.title)) return null;
   if (!WORLD_MODEL_SECTIONS.every((section) => state[section]?.state === 'unavailable')) return null;
-  const reasons = [...new Set(WORLD_MODEL_SECTIONS.map((section) => state[section].reason).filter(Boolean))];
+  const labels = isRecord(unavailableNotice.reasonLabels) ? unavailableNotice.reasonLabels : {};
+  const reasonText = (reason) => (Object.hasOwn(labels, reason) && text(labels[reason])) || reason;
+  const reasons = [...new Set(WORLD_MODEL_SECTIONS.map((section) => state[section].reason).filter(Boolean).map(reasonText))];
   const body = makeElement(doc, 'div', { className: 'bb-wm-notice-body' });
   if (text(unavailableNotice.guidance)) body.append(makeElement(doc, 'p', { text: text(unavailableNotice.guidance) }));
   body.append(makeElement(doc, 'p', { text: `理由: ${reasons.length > 0 ? reasons.join('、') : '理由不明'}。0件ではありません。` }));
@@ -414,10 +416,11 @@ async function readError(response) {
  * @param {Function} [options.fetcher] `fetch`-compatible function for the sections.
  * @param {string} [options.basePath='/api/world-model'] Where `{variables,models,observations,adoptions}` are served.
  * @param {boolean} [options.autoLoad=true] Reads every section on mount.
- * @param {{ title: string, guidance?: string }} [options.unavailableNotice] When every section is
- *   unavailable (for example the host has no World Model source), one notice with this title
- *   (the notice's short label) and guidance, plus the reasons, replaces the blocks.  Without
- *   it each block reports its own state, as by default.
+ * @param {{ title: string, guidance?: string, reasonLabels?: Record<string, string> }} [options.unavailableNotice]
+ *   When every section is unavailable (for example the host has no World Model source), one notice
+ *   with this title (the notice's short label) and guidance, plus the reasons, replaces the blocks.
+ *   `reasonLabels` says a reason code in the host's words.  Without it each block reports its own
+ *   state, as by default.
  * @returns The controller: `state`, `render()`, `load()`, `loadSection(section)`.
  */
 export function createWorldModelView({
