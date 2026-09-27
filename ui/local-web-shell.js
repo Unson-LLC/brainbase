@@ -112,7 +112,8 @@ function mountObjectives(container, context) {
   const unreadable = makeElement(doc, 'div', { className: 'bb-shell-slot' });
   const editorRoot = makeElement(doc, 'div', { className: 'bb-shell-objectives' });
   const worldRoot = makeElement(doc, 'div', { className: 'bb-shell-world-model' });
-  page.append(unreadable, editorRoot, worldRoot);
+  // The unreadable-objectives notice belongs under the objectives, not above the page head.
+  page.append(editorRoot, unreadable, worldRoot);
   const port = createObjectiveEditorHttpPort({
     fetcher: context.fetcher,
     token: context.token,

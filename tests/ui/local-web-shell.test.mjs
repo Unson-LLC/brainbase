@@ -315,5 +315,8 @@ describe('local Web shell', () => {
     const text = collectText(screen(root, 'objectives'));
     expect(text).toContain('深い仕事の時間を確保する');
     expect(text).toContain('読めない目的が2件あります（読む権限がない）');
+    // The notice sits under the objectives, after the page head, not above the breadcrumb.
+    expect(text.indexOf('読めない目的が2件')).toBeGreaterThan(text.indexOf('あなたのBrainbase'));
+    expect(text.indexOf('読めない目的が2件')).toBeLessThan(text.indexOf('見方：変数とモデル'));
   });
 });

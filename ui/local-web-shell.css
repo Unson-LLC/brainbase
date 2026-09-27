@@ -28,10 +28,8 @@ body {
   box-sizing: border-box;
 }
 
-.bb-shell button,
-.bb-shell select,
-.bb-shell input,
-.bb-shell textarea {
+/* Zero specificity, so the parts' and the workspace kit's own type sizes win. */
+:where(.bb-shell) :where(button, select, input, textarea) {
   font: inherit;
 }
 

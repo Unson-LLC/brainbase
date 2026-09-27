@@ -118,6 +118,12 @@ describe('OSS共通UIの公開契約', () => {
     }
   });
 
+  it('外枠のフォーム部品の文字の指定は、部品や共通の部品のボタンの指定より弱い', async () => {
+    const css = await readFile(new URL('../ui/local-web-shell.css', import.meta.url), 'utf8');
+    expect(css).not.toMatch(/^\.bb-shell button,/mu);
+    expect(css).toMatch(/:where\(\.bb-shell\) :where\(button, select, input, textarea\)\s*\{\s*font: inherit;/u);
+  });
+
   it('「目的と現状」の見出しの枠は目的の編集の一つだけで、World Modelは区画の見出しにする', async () => {
     const css = await readFile(new URL('../ui/world-model-view.css', import.meta.url), 'utf8');
     // No second page-head box: the World Model draws no gradient box of its own.
