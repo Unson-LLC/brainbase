@@ -11,11 +11,18 @@
  *   read back after a save.  Records are never deleted; an entity or relation
  *   ends with an end date.
  *
+ * - The layout both screens share: a workspace (page head, notices, ledgers)
+ *   and the right rail with the selected item.  The look is the workspace kit
+ *   (`workspace-kit.js`/`.css`), the organization edition's screen pattern.
+ *
  * The host injects the fetcher, base path and launch token.  Nothing here
- * keeps global state.  Pages load `graph-view-shared.css` with the screen CSS.
+ * keeps global state.  Pages load `workspace-kit.css` and
+ * `graph-view-shared.css` with the screen CSS.
  */
 
-export const GRAPH_VIEW_SHARED_CONTRACT_VERSION = 'brainbase.graph-view-shared.v1';
+import { workspaceButton, workspaceNotice } from './workspace-kit.js';
+
+export const GRAPH_VIEW_SHARED_CONTRACT_VERSION = 'brainbase.graph-view-shared.v2';
 
 export const GRAPH_ENTITY_TYPE_LABELS = Object.freeze({
   person: '人物',
@@ -164,7 +171,8 @@ export function badge(doc, label, tone = '') {
   return makeElement(doc, 'span', { className: `bb-graph-badge${tone ? ` is-${tone}` : ''}`, text: label });
 }
 
-export function button(doc, label, onClick, { className = 'bb-graph-button', attrs = {} } = {}) {
+/** A button in the workspace kit's shape; `bb-graph-link` makes a name that opens a record. */
+export function button(doc, label, onClick, { className = 'bb-ws-button', attrs = {} } = {}) {
   const element = makeElement(doc, 'button', { className, text: label, attrs: { type: 'button', ...attrs } });
   element.addEventListener('click', (event) => {
     event?.preventDefault?.();
@@ -236,13 +244,28 @@ export function validityText(validFrom, validTo) {
   return '期限なし';
 }
 
-/** Badge for a record's validity at the response time. */
-export function activityBadge(doc, record, asOf) {
-  if (record.active === true) return badge(doc, '有効', 'success');
+/** '有効', '開始前' or '終了' for a record at the response time. */
+export function activityText(record, asOf) {
+  if (record.active === true) return '有効';
   const starts = typeof record.validFrom === 'string' ? Date.parse(record.validFrom) : Number.NaN;
   const at = typeof asOf === 'string' ? Date.parse(asOf) : Number.NaN;
-  if (!Number.isNaN(starts) && !Number.isNaN(at) && starts > at) return badge(doc, '開始前', 'muted');
-  return badge(doc, '終了', 'muted');
+  if (!Number.isNaN(starts) && !Number.isNaN(at) && starts > at) return '開始前';
+  return '終了';
+}
+
+/** Badge for a record's validity at the response time. */
+export function activityBadge(doc, record, asOf) {
+  const text = activityText(record, asOf);
+  return badge(doc, text, text === '有効' ? 'success' : 'muted');
+}
+
+/** Validity in one line for a ledger cell: the period, and why a record is not in effect. */
+export function validityLabel(record, asOf) {
+  const period = validityText(record.validFrom, record.validTo);
+  const activity = activityText(record, asOf);
+  if (activity === '有効') return period;
+  if (activity === '開始前') return `開始前（${period}）`;
+  return period.includes('終了') ? period : `終了（${period}）`;
 }
 
 // ---------------------------------------------------------------------------
@@ -271,7 +294,8 @@ export function typeLabel(type) {
 // ---------------------------------------------------------------------------
 // Client
 
-function shellArg(value) {
+/** A value quoted for a shell command line only when it needs quoting. */
+export function shellArg(value) {
   return /^[A-Za-z0-9_./:@%+=,-]+$/u.test(value) ? value : JSON.stringify(value);
 }
 
@@ -386,62 +410,87 @@ function commandList(doc, commands) {
   return list;
 }
 
+/** Commands to register data, as a numbered list (used by the empty states). */
+export function graphCommandList(doc, commands) {
+  return commandList(doc, commands);
+}
+
+function noticeBody(doc, ...children) {
+  const body = makeElement(doc, 'div', { className: 'bb-graph-notice-body' });
+  body.append(...children.filter(Boolean));
+  return body;
+}
+
+function retryButton(doc, onRetry) {
+  return typeof onRetry === 'function' ? workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: () => onRetry() }) : null;
+}
+
+/**
+ * A read state as a workspace-kit notice, or null when the caller should
+ * render the payload.  Graph v1, a missing data set, an unconfirmed absence
+ * and a failure are never shown as zero items.
+ */
+export function graphStateNotice(doc, readState, { onRetry, loadingText = '読み込んでいます。' } = {}) {
+  const state = readState?.state ?? 'loading';
+  if (state === 'ok') return null;
+  if (state === 'loading' || state === 'idle') {
+    return workspaceNotice(doc, { label: '読み込み中', text: loadingText, tone: 'info', role: 'status' });
+  }
+  if (state === 'migration_required') {
+    const payload = readState.payload ?? {};
+    const commands = [payload.command, payload.writeCommand].filter((command) => typeof command === 'string' && command);
+    return workspaceNotice(doc, {
+      label: '移行が必要',
+      tone: 'warning',
+      text: noticeBody(
+        doc,
+        makeElement(doc, 'p', {
+          text: 'Graphの移行が必要です。このデータはGraph v1のため、表示も訂正もできません。0件ではありません。ホストは自動で移行しません。次のコマンドで、内容を確かめてから移行してください。',
+        }),
+        Number.isInteger(payload.legacyEntityCount) ? makeElement(doc, 'p', { text: `Graph v1には${payload.legacyEntityCount}件の記録があります。` }) : null,
+        commands.length > 0 ? commandList(doc, commands) : null,
+      ),
+    });
+  }
+  if (state === 'not_initialized') {
+    const payload = readState.payload ?? {};
+    const dir = textOrNull(payload.source?.dataDir);
+    const command = textOrNull(payload.command) ?? 'brainbase onboard:start';
+    return workspaceNotice(doc, {
+      label: '未登録',
+      tone: 'info',
+      role: 'status',
+      text: noticeBody(
+        doc,
+        makeElement(doc, 'p', { text: 'まだ登録がありません。このデータの場所には、Brainbaseのデータがまだありません。次のコマンドで始められます。CodexやClaude Codeからは、MCPのオンボーディング（brainbase_onboarding_start）でも始められます。' }),
+        commandList(doc, [dir ? `${command} --dir ${shellArg(dir)}` : command]),
+      ),
+    });
+  }
+  if (state === 'not_found') {
+    return workspaceNotice(doc, { label: '見つかりません', tone: 'warning', text: readState.reason ?? '見つかりません。読み直してください。' });
+  }
+  if (state === 'unknown') {
+    return workspaceNotice(doc, {
+      label: '未確認',
+      tone: 'warning',
+      text: noticeBody(doc, makeElement(doc, 'p', { text: '記録の有無を確かめられません。0件ではありません。' }), retryButton(doc, onRetry)),
+    });
+  }
+  return workspaceNotice(doc, {
+    label: '読み取り失敗',
+    tone: 'danger',
+    text: noticeBody(doc, makeElement(doc, 'p', { text: `読み取れませんでした（${readState.reason ?? '理由不明'}）。0件ではありません。` }), retryButton(doc, onRetry)),
+  });
+}
+
 /**
  * Renders a read state and returns true only when the caller should render
  * the payload.  Graph v1, a missing data set and a failure are never zero items.
  */
-export function renderGraphReadState(doc, container, readState, { onRetry, loadingText = '読み込んでいます。' } = {}) {
-  const state = readState?.state ?? 'loading';
-  if (state === 'ok') return true;
-  if (state === 'loading' || state === 'idle') {
-    container.append(notice(doc, 'muted', loadingText));
-    return false;
-  }
-  if (state === 'migration_required') {
-    const payload = readState.payload ?? {};
-    const box = makeElement(doc, 'div', { className: 'bb-graph-state is-warning', attrs: { role: 'alert' } });
-    box.append(
-      makeElement(doc, 'strong', { text: 'Graphの移行が必要です' }),
-      makeElement(doc, 'p', {
-        text: 'このデータはGraph v1のため、表示も訂正もできません。0件ではありません。ホストは自動で移行しません。次のコマンドで、内容を確かめてから移行してください。',
-      }),
-    );
-    if (Number.isInteger(payload.legacyEntityCount)) {
-      box.append(makeElement(doc, 'p', { text: `Graph v1には${payload.legacyEntityCount}件の記録があります。` }));
-    }
-    const commands = [payload.command, payload.writeCommand].filter((command) => typeof command === 'string' && command);
-    if (commands.length > 0) box.append(commandList(doc, commands));
-    container.append(box);
-    return false;
-  }
-  if (state === 'not_initialized') {
-    const payload = readState.payload ?? {};
-    const box = makeElement(doc, 'div', { className: 'bb-graph-state is-muted', attrs: { role: 'status' } });
-    box.append(
-      makeElement(doc, 'strong', { text: 'まだ登録がありません' }),
-      makeElement(doc, 'p', { text: 'このデータの場所には、Brainbaseのデータがまだありません。次のコマンドで始められます。CodexやClaude Codeからは、MCPのオンボーディング（brainbase_onboarding_start）でも始められます。' }),
-    );
-    const dir = textOrNull(payload.source?.dataDir);
-    const command = textOrNull(payload.command) ?? 'brainbase onboard:start';
-    box.append(commandList(doc, [dir ? `${command} --dir ${shellArg(dir)}` : command]));
-    container.append(box);
-    return false;
-  }
-  if (state === 'not_found') {
-    container.append(notice(doc, 'warning', readState.reason ?? '見つかりません。読み直してください。', 'alert'));
-    return false;
-  }
-  if (state === 'unknown') {
-    const box = makeElement(doc, 'div', { className: 'bb-graph-state is-warning', attrs: { role: 'alert' } });
-    box.append(makeElement(doc, 'p', { text: '記録の有無を確かめられません。0件ではありません。' }));
-    if (typeof onRetry === 'function') box.append(button(doc, '再試行', onRetry));
-    container.append(box);
-    return false;
-  }
-  const reason = readState.reason ?? '理由不明';
-  const box = makeElement(doc, 'div', { className: 'bb-graph-state is-danger', attrs: { role: 'alert' } });
-  box.append(makeElement(doc, 'p', { text: `読み取れませんでした（${reason}）。0件ではありません。` }));
-  if (typeof onRetry === 'function') box.append(button(doc, '再試行', onRetry));
+export function renderGraphReadState(doc, container, readState, options = {}) {
+  const box = graphStateNotice(doc, readState, options);
+  if (!box) return true;
   container.append(box);
   return false;
 }
@@ -449,16 +498,61 @@ export function renderGraphReadState(doc, container, readState, { onRetry, loadi
 /** Records that could not be read are counted apart from the readable ones. */
 export function renderGraphIssues(doc, issues) {
   if (!Array.isArray(issues) || issues.length === 0) return null;
-  const box = makeElement(doc, 'div', { className: 'bb-graph-state is-warning', attrs: { role: 'alert' } });
-  box.append(makeElement(doc, 'p', { text: `出典や訂正の履歴のうち、読めない記録が${issues.length}件あります。読めた記録だけを表示しています。` }));
   const list = makeElement(doc, 'ul', { className: 'bb-graph-issue-list' });
   for (const issue of issues) {
     if (!isRecord(issue)) continue;
     const where = `${String(issue.file ?? '不明')}${Number.isInteger(issue.line) ? `（${issue.line}行目）` : ''}`;
     list.append(makeElement(doc, 'li', { text: `${where}: ${String(issue.reason ?? '理由不明')}` }));
   }
-  box.append(list);
-  return box;
+  return workspaceNotice(doc, {
+    label: '一部読めません',
+    tone: 'warning',
+    text: noticeBody(doc, makeElement(doc, 'p', { text: `出典や訂正の履歴のうち、読めない記録が${issues.length}件あります。読めた記録だけを表示しています。` }), list),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Layout
+
+/** Moves focus back to a ledger row after the ledger was drawn again (a browser DOM only). */
+export function focusLedgerRow(root, key) {
+  if (typeof root?.querySelectorAll !== 'function') return;
+  const row = [...root.querySelectorAll('.bb-ws-ledger-row[data-key]')].find((candidate) => candidate.getAttribute('data-key') === key);
+  row?.focus?.({ preventScroll: true });
+}
+
+/** The page context the host passes: breadcrumb and source label. */
+export function graphPageContext(page) {
+  const crumbs = Array.isArray(page?.crumbs) ? page.crumbs.filter((crumb) => typeof crumb === 'string' && crumb) : [];
+  return { crumbs, source: textOrNull(page?.source) };
+}
+
+/**
+ * Puts a screen's workspace in `root` and its selected item in `rail`.  A host
+ * without a right rail (no `rail`) gets the rail content after the workspace,
+ * inside `root`, so the screen still works there.
+ */
+export function createGraphLayout(doc, { root, rail, label, className, contractVersion }) {
+  return Object.freeze({
+    inline: !rail,
+    render(workspaceChildren, railChildren) {
+      const surface = makeElement(doc, 'section', {
+        className: `bb-graph ${className}`,
+        attrs: { 'data-contract-version': contractVersion, 'aria-label': label },
+      });
+      surface.append(...workspaceChildren.filter(Boolean));
+      const detail = makeElement(doc, 'div', { className: `bb-graph-rail ${className}-rail` });
+      detail.append(...railChildren.filter(Boolean));
+      if (rail) {
+        root.replaceChildren(surface);
+        rail.replaceChildren(detail);
+        return;
+      }
+      const inline = makeElement(doc, 'aside', { className: 'bb-graph-rail-inline', attrs: { 'aria-label': '選択中の項目' } });
+      inline.append(detail);
+      root.replaceChildren(surface, inline);
+    },
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -788,7 +882,7 @@ export function renderCorrectionPanel(doc, form, callbacks) {
     );
     panel.append(readBack, notice(doc, 'accent', mcpNote(payload)));
     panel.append(recordDetails(doc, [['記録ID', payload.record?.id], ['保存した内容のdigest', payload.digest], ['訂正ID', payload.correction?.id]]));
-    panel.append(button(doc, '閉じる', callbacks.onClose));
+    panel.append(button(doc, '閉じる', callbacks.onClose, { className: 'bb-ws-button is-quiet' }));
     return panel;
   }
 
@@ -824,7 +918,7 @@ export function renderCorrectionPanel(doc, form, callbacks) {
   const saving = form.phase === 'saving';
   const submitLabel = saving ? '保存しています' : form.phase === 'conflict' && form.conflictCode === 'digest_conflict' ? '今の内容に対して保存する' : '保存する';
   actions.append(
-    makeElement(doc, 'button', { className: 'bb-graph-button is-primary', text: submitLabel, attrs: { type: 'submit', disabled: saving } }),
+    makeElement(doc, 'button', { className: 'bb-ws-button is-primary', text: submitLabel, attrs: { type: 'submit', disabled: saving } }),
     button(doc, '取り消す', callbacks.onClose, { attrs: { disabled: saving } }),
   );
   formElement.append(actions);

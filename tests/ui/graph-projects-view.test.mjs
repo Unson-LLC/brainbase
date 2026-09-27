@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { applyGraphCorrection, graphRecordDigest } from '../../src/graph-corrections.js';
-import { createGraphProjectsView, normalizeProjectList } from '../../ui/graph-projects-view.js';
+import { createGraphProjectsView, GRAPH_PROJECT_LEDGER_COLUMNS, normalizeProjectList } from '../../ui/graph-projects-view.js';
 import { EDGES, ENTITIES, FIXTURE_NOW, writeGraphV1, writeGraphV2 } from '../graph-web-fixture.js';
 import {
   buttonsNamed,
@@ -39,23 +39,26 @@ afterEach(async () => {
 
 /** The owner's clock for the end-date default: a day before the fixture time in every time zone. */
 const OWNER_NOW = () => new Date(2026, 8, 20, 12, 0, 0);
+const PAGE = { crumbs: ['あなたのBrainbase', 'プロジェクトと関係者'], source: '手元のGraph' };
 
+/** Mounts the screen with its own right rail, as the local Web shell does. */
 async function mountView(options = {}) {
   api = await startGraphApi(dataDir);
   const root = new FakeElement('div');
-  const view = createGraphProjectsView({ root, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false, now: OWNER_NOW, ...options });
+  const rail = new FakeElement('div');
+  const view = createGraphProjectsView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false, now: OWNER_NOW, ...options });
   await view.load();
-  return { root, view };
+  return { root, rail, view };
 }
 
-async function openAtlas() {
-  const mounted = await mountView();
-  await mounted.view.openProject('project-atlas');
-  return mounted;
-}
+const byClass = (node, className) => findAll(node, (item) => String(item.className).split(' ').includes(className));
+const ledgerRows = (root) => findAll(root, (node) => node.tagName === 'BUTTON' && String(node.className).includes('bb-ws-ledger-row'));
+const ledgerRow = (root, key) => ledgerRows(root).find((node) => node.attributes['data-key'] === key);
+const railHead = (rail) => collectText(byClass(rail, 'bb-ws-rail-head')[0]);
+const metricValues = (root) => findAll(byClass(root, 'bb-ws-summary')[0], (node) => node.tagName === 'STRONG').map((node) => node.textContent);
 
-function participantRow(root, name) {
-  return findAll(section(root, '関係者'), (node) => node.tagName === 'TR' && collectText(node).includes(name))[0];
+function participantItem(rail, name) {
+  return findAll(section(rail, '関係者'), (node) => node.tagName === 'LI' && String(node.className).includes('bb-graph-compact') && collectText(node).includes(name))[0];
 }
 
 async function history() {
@@ -71,71 +74,120 @@ async function storedEdge(id) {
   return graph.edges.find((edge) => edge.id === id);
 }
 
-describe('プロジェクトと関係者: list and detail', () => {
-  it('lists each project with its status, goal, 関係者 count and validity', async () => {
+describe('プロジェクトと関係者: workspace', () => {
+  it('follows the organization screen pattern: breadcrumb and head, the source notice, metrics and the project ledger', async () => {
     await writeGraphV2(dataDir);
     const { root } = await mountView();
-    const header = findAll(root, (node) => node.className === 'bb-graph-header')[0];
-    expect(header.children[0].className).toBe('bb-graph-eyebrow');
-    expect(header.children[0].textContent).toBe('BRAINBASE / PROJECTS');
-    const list = section(root, 'プロジェクトの一覧');
-    const items = findAll(list, (node) => node.tagName === 'LI');
-    expect(items).toHaveLength(2);
-    const atlas = collectText(items[0]);
-    expect(atlas).toContain('Atlas導入');
-    expect(atlas).toContain('進行中');
-    expect(atlas).toContain('導入を完了する');
-    expect(atlas).toContain('2人（うち責任を持つ人 1人）');
-    expect(atlas).toContain('期限なし');
-    expect(atlas).toContain('有効');
-    const beta = collectText(items[1]);
-    expect(beta).toContain('Beta検証');
-    expect(beta).toContain('完了');
-    expect(beta).toContain('目的未記入');
-    // The ended participation is not counted as a current 関係者.
-    expect(beta).toContain('0人（うち責任を持つ人 0人）');
-    expect(beta).toContain('2026-03-01 に終了');
-    expect(beta).toContain('終了');
+    expect(collectText(byClass(root, 'bb-ws-breadcrumb')[0])).toBe('あなたのBrainbase/プロジェクトと関係者');
+    expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('プロジェクトと関係者');
+    expect(byClass(root, 'bb-ws-source')[0].textContent).toBe('手元のGraph');
+    const [source] = byClass(root, 'bb-ws-notice');
+    expect(source.children[0].textContent).toBe('出典');
+    expect(collectText(source)).toContain(dataDir);
+    expect(collectText(source)).toContain('ログインや共有の設定ではありません');
+
+    // Active projects, those 進行中, and each person with an active participation once.
+    expect(metricValues(root)).toEqual(['1', '1', '2']);
+    expect(collectText(byClass(root, 'bb-ws-summary')[0])).toContain('有効なもの（全2件）');
+
+    const [ledger] = byClass(root, 'bb-ws-ledger');
+    expect(ledger.className).toBe('bb-ws-ledger bb-graph-project-ledger');
+    expect(findAll(ledger, (node) => node.attributes?.role === 'columnheader').map((node) => node.textContent)).toEqual([...GRAPH_PROJECT_LEDGER_COLUMNS]);
+    expect(GRAPH_PROJECT_LEDGER_COLUMNS).toEqual(['プロジェクト', '目的', '責任を持つ人', '状態', '関係者', '有効期間']);
+    const rows = ledgerRows(root);
+    expect(rows).toHaveLength(2);
+    expect(collectText(rows[0])).toBe('Atlas導入project-atlas導入を完了する佐藤 花子進行中2人期限なし');
+    // The ended participation is not counted, and an unknown goal or accountable person is marked, not blank.
+    expect(collectText(rows[1])).toBe('Beta検証project-beta目的未記入未登録完了0人2026-03-01 に終了');
+    expect(rows[1].className).toContain('is-ended');
+    expect(byClass(rows[1], 'is-unresolved').map((node) => node.textContent)).toEqual(['目的未記入', '未登録']);
+    expect(visibleText(root)).not.toContain('BRAINBASE /');
+  });
+
+  it('selects the first project on load, shows it in the rail, and moves the rail with the selected row', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail } = await mountView();
+    expect(ledgerRow(root, 'project-atlas').className).toContain('is-selected');
+    expect(ledgerRow(root, 'project-atlas').attributes['aria-pressed']).toBe('true');
+    expect(railHead(rail)).toBe('プロジェクトAtlas導入project-atlas');
+    // The detail stays in the rail, not in the workspace.
+    expect(collectText(root)).not.toContain('判断の原則');
+
+    ledgerRow(root, 'project-beta').dispatch('click');
+    await waitFor(() => collectText(section(rail, '関係者') ?? new FakeElement('div')).includes('佐藤 花子'));
+    expect(railHead(rail)).toBe('プロジェクトBeta検証project-beta');
+    expect(ledgerRow(root, 'project-beta').className).toContain('is-selected');
+    expect(ledgerRow(root, 'project-atlas').className).not.toContain('is-selected');
+    expect(ledgerRow(root, 'project-atlas').attributes['aria-pressed']).toBe('false');
+    const summary = visibleText(section(rail, '概要'));
+    expect(summary).toContain('完了');
+    expect(summary).toContain('2026-03-01 に終了');
+    expect(summary).not.toContain('小さく始める');
+    const sato = participantItem(rail, '佐藤 花子');
+    expect(visibleText(sato)).toContain('2026-02-01 に終了');
+    expect(buttonsNamed(sato, '終了日を直す')).toHaveLength(1);
+    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-atlas', '/api/graph/projects/project-beta']);
   });
 
   it('shows the goal, principles and every participation with how, role, validity and source in plain Japanese', async () => {
     await writeGraphV2(dataDir);
-    const { root } = await openAtlas();
-    const summary = collectText(section(root, 'プロジェクトの詳細'));
-    expect(summary).toContain('導入を完了する');
-    expect(summary).toContain('進行中');
-    expect(summary).toContain('小さく始める');
+    const { root, rail } = await mountView();
+    const summary = visibleText(section(rail, '概要'));
+    expect(summary).toContain('状態進行中有効');
+    expect(summary).toContain('目的導入を完了する');
+    expect(summary).toContain('判断の原則小さく始める');
+    expect(summary).toContain('有効期間期限なし');
+    expect(summary).toContain('出典このMacのGraph（graph.json）');
 
-    const sato = participantRow(root, '佐藤 花子');
-    const satoText = visibleText(sato);
-    expect(satoText).toContain('責任');
-    expect(satoText).toContain('PM');
-    expect(satoText).toContain('2026-01-01 から');
-    expect(satoText).toContain('取り込み');
-    expect(satoText).toContain('取り込み候補「佐藤 花子」（candidates/extracted-abc.json）');
+    const sato = visibleText(participantItem(rail, '佐藤 花子'));
+    expect(sato).toContain('責任');
+    expect(sato).toContain('役割PM');
+    expect(sato).toContain('2026-01-01 から');
+    expect(sato).toContain('取り込み');
+    expect(sato).toContain('取り込み候補「佐藤 花子」（candidates/extracted-abc.json）');
 
-    const tanaka = participantRow(root, '田中 太郎');
-    const tanakaText = visibleText(tanaka);
-    expect(tanakaText).toContain('参加');
-    expect(tanakaText).toContain('責任者');
-    expect(tanakaText).toContain('最終判断を担当');
-    expect(tanakaText).toContain('オンボーディング');
+    const tanakaItem = participantItem(rail, '田中 太郎');
+    const tanaka = visibleText(tanakaItem);
+    expect(tanaka).toContain('参加');
+    expect(tanaka).toContain('役割責任者');
+    expect(tanaka).toContain('文脈最終判断を担当');
+    expect(tanaka).toContain('オンボーディング');
     // A source id that points to no local record is shown raw and marked.
-    expect(tanakaText).toContain('出典 relationship-reg1（未解決）');
+    expect(tanaka).toContain('出典 relationship-reg1（未解決）');
+    expect(byClass(tanakaItem, 'is-unresolved')[0].textContent).toBe('出典 relationship-reg1（未解決）');
 
     // Accountable first, then participants; ended participations stay listed.
-    const rows = findAll(section(root, '関係者'), (node) => node.tagName === 'TR').slice(1);
-    expect(rows.map((row) => row.children[0].children[0].textContent)).toEqual(['佐藤 花子', '田中 太郎']);
-    expect(collectText(section(root, 'そのほかの関係'))).toContain('スコープが進め方を決める');
+    const items = findAll(section(rail, '関係者'), (node) => node.tagName === 'LI');
+    expect(items.map((item) => byClass(item, 'bb-graph-compact-title')[0].textContent)).toEqual(['佐藤 花子', '田中 太郎']);
+    expect(collectText(section(rail, 'そのほかの関係'))).toContain('スコープが進め方を決める');
+    expect(buttonsNamed(rail, '関係者を加える')[0].className).toBe('bb-ws-button is-primary');
+    expect(buttonsNamed(rail, 'プロジェクトを直す')).toHaveLength(1);
 
-    const visible = visibleText(root);
+    const visible = `${visibleText(root)}${visibleText(rail)}`;
     for (const internal of ['edge-', 'sha256:', 'digest', 'Canonical', 'RACI', '権限', 'メンバー', 'アクセス']) {
       expect(visible, internal).not.toContain(internal);
     }
     // Ids and digests stay available inside the details disclosure.
-    expect(collectText(tanaka)).toContain(EDGES.tanakaAtlas.id);
+    expect(collectText(tanakaItem)).toContain(EDGES.tanakaAtlas.id);
     // Nothing is ever deleted here.
-    expect(findAll(root, (node) => node.tagName === 'BUTTON' && /削除/u.test(node.textContent))).toEqual([]);
+    expect(findAll(rail, (node) => node.tagName === 'BUTTON' && /削除/u.test(node.textContent))).toEqual([]);
+  });
+
+  it('puts the rail content after the workspace when the host has no right rail', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const root = new FakeElement('div');
+    const view = createGraphProjectsView({ root, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false, now: OWNER_NOW });
+    await view.load();
+    expect(root.children.map((node) => [node.tagName, node.className])).toEqual([
+      ['SECTION', 'bb-graph bb-gp'],
+      ['ASIDE', 'bb-graph-rail-inline'],
+    ]);
+    // Without a page context there is no breadcrumb or source label, and the screen still works.
+    expect(byClass(root, 'bb-ws-breadcrumb')).toEqual([]);
+    expect(railHead(root.children[1])).toBe('プロジェクトAtlas導入project-atlas');
+    buttonsNamed(participantItem(root, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    expect(control(root.children[1], 'role').value).toBe('責任者');
   });
 
   it('reads the history of corrections beside the project and counts unreadable history lines apart', async () => {
@@ -144,20 +196,22 @@ describe('プロジェクトと関係者: list and detail', () => {
       kind: 'update_entity', entityId: 'project-atlas', expectedDigest: graphRecordDigest(ENTITIES.atlas), reason: '状態を最新にした。', changes: { status: '保留' },
     }, { now: FIXTURE_NOW });
     await writeFile(join(dataDir, 'evidence', 'graph-corrections.jsonl'), `${await readFile(join(dataDir, 'evidence', 'graph-corrections.jsonl'), 'utf8')}{ broken\n`);
-    const { root } = await openAtlas();
-    const text = collectText(root);
-    expect(text).toContain('読めない記録が1件あります');
-    expect(text).toContain('evidence/graph-corrections.jsonl（2行目）');
+    const { root, rail } = await mountView();
+    const issues = byClass(root, 'bb-ws-notice').find((node) => collectText(node).includes('読めない記録'));
+    expect(issues.className).toBe('bb-ws-notice is-warning');
+    expect(collectText(issues)).toContain('読めない記録が1件あります');
+    expect(collectText(issues)).toContain('evidence/graph-corrections.jsonl（2行目）');
+    const text = collectText(rail);
     expect(text).toContain('訂正の履歴（1件）');
     expect(text).toContain('記録を直した（状態）。理由: 状態を最新にした。');
-    expect(collectText(section(root, 'プロジェクトの詳細'))).toContain('保留');
+    expect(collectText(section(rail, '概要'))).toContain('保留');
   });
 });
 
 describe('プロジェクトと関係者: states', () => {
   it('shows Graph v1 as a migration with both commands, never as zero projects', async () => {
     await writeGraphV1(dataDir);
-    const { root } = await mountView();
+    const { root, rail } = await mountView();
     const text = collectText(root);
     expect(text).toContain('Graphの移行が必要です');
     expect(text).toContain('0件ではありません');
@@ -165,33 +219,43 @@ describe('プロジェクトと関係者: states', () => {
     expect(text).toContain('--write --expected-input-digest');
     expect(text).toContain('Graph v1には2件の記録があります');
     expect(text).not.toContain('まだ登録がありません');
+    expect(byClass(root, 'bb-ws-notice').some((node) => node.className === 'bb-ws-notice is-warning')).toBe(true);
+    expect(byClass(root, 'bb-ws-ledger')).toEqual([]);
+    expect(byClass(root, 'bb-ws-summary')).toEqual([]);
+    expect(collectText(rail)).toContain('プロジェクトを選択');
   });
 
   it('shows how to start when no Brainbase data exists, and when the Graph confirms no project', async () => {
     const empty = await mountView();
     expect(collectText(empty.root)).toContain('まだ登録がありません');
     expect(collectText(empty.root)).toContain(`brainbase onboard:start --dir ${dataDir}`);
+    expect(byClass(empty.root, 'bb-ws-ledger')).toEqual([]);
     await api.close();
 
     await writeGraphV2(dataDir, { entities: [ENTITIES.self], edges: [] });
-    const { root } = await mountView();
+    const { root, rail } = await mountView();
     const text = collectText(root);
     expect(text).toContain('まだ登録がありません');
     expect(text).toContain('brainbase onboard:projects --name <名前> --goal <目的> --write');
+    // A confirmed absence is zero.
+    expect(metricValues(root)).toEqual(['0', '0', '0']);
+    expect(collectText(rail)).toContain('プロジェクトを選択');
   });
 
   it('reports a read failure with a retry instead of zero projects', async () => {
     await writeGraphV2(dataDir);
     const good = await readFile(join(dataDir, 'graph.json'), 'utf8');
     await writeFile(join(dataDir, 'graph.json'), '{ broken');
-    const { root } = await mountView();
+    const { root, rail } = await mountView();
     const text = collectText(root);
     expect(text).toContain('読み取れませんでした');
     expect(text).toContain('0件ではありません');
     expect(text).not.toContain('まだ登録がありません');
+    expect(byClass(root, 'bb-ws-notice').some((node) => node.className === 'bb-ws-notice is-danger')).toBe(true);
+    expect(byClass(root, 'bb-ws-ledger')).toEqual([]);
     await writeFile(join(dataDir, 'graph.json'), good);
     buttonsNamed(root, '再試行')[0].dispatch('click');
-    await waitFor(() => collectText(root).includes('Atlas導入'));
+    await waitFor(() => collectText(root).includes('Atlas導入') && railHead(rail).includes('Atlas導入'));
   });
 
   it('never shows an unconfirmed or malformed list as zero projects', async () => {
@@ -202,36 +266,59 @@ describe('プロジェクトと関係者: states', () => {
       [{ status: 'broken' }, '応答の形式が不正です'],
     ]) {
       const root = new FakeElement('div');
-      const view = createGraphProjectsView({ root, document: new FakeDocument(), fetcher: async () => jsonResponse(200, payload), autoLoad: false });
+      const view = createGraphProjectsView({ root, rail: new FakeElement('div'), document: new FakeDocument(), fetcher: async () => jsonResponse(200, payload), autoLoad: false });
       await view.load();
       const text = collectText(root);
       expect(text).toContain(expected);
       expect(text).not.toContain('まだ登録がありません');
+      expect(byClass(root, 'bb-ws-summary')).toEqual([]);
     }
     expect(normalizeProjectList({ state: 'ok', payload: { projects: [], absenceConfirmed: true } })).toMatchObject({ state: 'ok' });
   });
+
+  it('shows the 関係者 count as 未確認, not zero, when the host does not name the people', async () => {
+    const project = {
+      id: 'project-x', type: 'project', name: 'X', aliases: [], summary: null, tags: [], validFrom: null, validTo: null,
+      active: true, digest: 'sha256:x', goal: 'g', status: '進行中', participantCount: 3, accountableCount: 1,
+    };
+    const root = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail: new FakeElement('div'),
+      document: new FakeDocument(),
+      fetcher: async (path) => (path.endsWith('/projects')
+        ? jsonResponse(200, { status: 'ok', source: { dataDir: '/data' }, asOf: '2026-09-26T00:00:00Z', projects: [project], absenceConfirmed: false })
+        : jsonResponse(500, { error: { code: 'boom', message: 'boom' } })),
+      autoLoad: false,
+    });
+    await view.load();
+    expect(metricValues(root)).toEqual(['1', '1', '未確認']);
+    expect(collectText(ledgerRow(root, 'project-x'))).toBe('Xproject-xg1人進行中3人期限なし');
+  });
 });
 
-describe('プロジェクトと関係者: corrections', () => {
+describe('プロジェクトと関係者: corrections in the rail', () => {
   it('requires a one-sentence reason before sending anything', async () => {
     await writeGraphV2(dataDir);
-    const { root } = await openAtlas();
-    buttonsNamed(participantRow(root, '田中 太郎'), '役割を直す')[0].dispatch('click');
-    type(root, 'role', '技術顧問');
-    await submit(root);
-    expect(collectText(root)).toContain('理由を1文で書いてください。');
+    const { rail } = await mountView();
+    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    type(rail, 'role', '技術顧問');
+    await submit(rail);
+    expect(collectText(rail)).toContain('理由を1文で書いてください。');
     expect(api.posts()).toEqual([]);
     expect(await history()).toEqual([]);
   });
 
   it('fixes a role with the digest of the shown relation and shows the read-back values and where they are used next', async () => {
     await writeGraphV2(dataDir);
-    const { root } = await openAtlas();
-    buttonsNamed(participantRow(root, '田中 太郎'), '役割を直す')[0].dispatch('click');
-    expect(control(root, 'role').value).toBe('責任者');
-    type(root, 'role', '技術顧問');
-    type(root, 'reason', '役割は技術顧問だった。');
-    await submit(root);
+    const { rail } = await mountView();
+    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    // The form opens inside that 関係者's item.
+    expect(section(participantItem(rail, '田中 太郎'), '役割を直す')).toBeDefined();
+    expect(control(rail, 'role').value).toBe('責任者');
+    type(rail, 'role', '技術顧問');
+    type(rail, 'reason', '役割は技術顧問だった。');
+    await submit(rail);
 
     const [post] = api.posts();
     expect(post.body).toEqual({
@@ -243,123 +330,127 @@ describe('プロジェクトと関係者: corrections', () => {
     });
     expect(post.headers['X-Brainbase-Review-Token']).toBe(TOKEN);
 
-    const panel = section(root, '役割を直す');
-    const text = collectText(panel);
+    const text = collectText(section(rail, '役割を直す'));
     expect(text).toContain('保存後に読み直し、保存した内容と一致することを確かめました');
     expect(text).toContain('読み直した内容役割技術顧問');
     expect(text).toContain('次にMCPの search・get_context・resolve_entity を使うときから、この内容が使われます。');
-    await waitFor(() => visibleText(participantRow(root, '田中 太郎')).includes('技術顧問'));
+    await waitFor(() => visibleText(participantItem(rail, '田中 太郎')).includes('役割技術顧問'));
     const [line] = await history();
     expect(line).toMatchObject({ kind: 'update_edge', reason: '役割は技術顧問だった。', changedFields: ['role'] });
   });
 
   it('keeps the draft on a conflict, shows the current values, and saves only the owner\'s change on top of them', async () => {
     await writeGraphV2(dataDir);
-    const { root } = await openAtlas();
-    buttonsNamed(participantRow(root, '田中 太郎'), '役割を直す')[0].dispatch('click');
-    type(root, 'role', '顧問');
-    type(root, 'reason', '役割を顧問に直す。');
+    const { rail } = await mountView();
+    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    type(rail, 'role', '顧問');
+    type(rail, 'reason', '役割を顧問に直す。');
     // Another save changes the same relation after it was shown.
     const other = await applyGraphCorrection(dataDir, {
       kind: 'update_edge', edgeId: EDGES.tanakaAtlas.id, expectedDigest: graphRecordDigest(EDGES.tanakaAtlas), reason: '文脈を狭めた。', changes: { context: '導入判断だけを担当' },
     }, { now: FIXTURE_NOW });
-    await submit(root);
+    await submit(rail);
 
-    const panel = section(root, '役割を直す');
-    const text = collectText(panel);
+    const text = collectText(section(rail, '役割を直す'));
     expect(text).toContain('ほかの保存で内容が変わっていたため、保存しませんでした');
     expect(text).toContain('今の内容');
     expect(text).toContain('導入判断だけを担当');
-    expect(control(root, 'role').value).toBe('顧問');
-    expect(control(root, 'reason').value).toBe('役割を顧問に直す。');
+    expect(control(rail, 'role').value).toBe('顧問');
+    expect(control(rail, 'reason').value).toBe('役割を顧問に直す。');
     // The field the owner did not touch now shows the current value.
-    expect(control(root, 'context').value).toBe('導入判断だけを担当');
-    expect(buttonsNamed(root, '今の内容に対して保存する')).toHaveLength(1);
+    expect(control(rail, 'context').value).toBe('導入判断だけを担当');
+    expect(buttonsNamed(rail, '今の内容に対して保存する')).toHaveLength(1);
     expect((await storedEdge(EDGES.tanakaAtlas.id)).role).toBe('責任者');
 
-    await submit(root);
+    await submit(rail);
     const posts = api.posts();
     expect(posts).toHaveLength(2);
     expect(posts[1].body.expectedDigest).toBe(other.digest);
     expect(posts[1].body.changes).toEqual({ role: '顧問' });
-    expect(collectText(section(root, '役割を直す'))).toContain('読み直した内容');
+    expect(collectText(section(rail, '役割を直す'))).toContain('読み直した内容');
     expect(await storedEdge(EDGES.tanakaAtlas.id)).toMatchObject({ role: '顧問', context: '導入判断だけを担当' });
   });
 
-  it('adds a 関係者 chosen from the registered people, with role and start date', async () => {
+  it('adds a 関係者 chosen from the registered people, with role and start date, and counts them in the ledger', async () => {
     await writeGraphV2(dataDir);
-    const { root } = await openAtlas();
-    buttonsNamed(root, '関係者を加える')[0].dispatch('click');
-    await waitFor(() => control(root, 'counterpartId'));
-    const options = findAll(control(root, 'counterpartId'), (node) => node.tagName === 'OPTION').map((node) => node.textContent);
+    const { root, rail } = await mountView();
+    buttonsNamed(rail, '関係者を加える')[0].dispatch('click');
+    await waitFor(() => control(rail, 'counterpartId'));
+    const options = findAll(control(rail, 'counterpartId'), (node) => node.tagName === 'OPTION').map((node) => node.textContent);
     expect(options).toEqual(['人物を選んでください', 'Owner', '佐藤 花子', '田中 太郎（Tanaka）', '鈴木 一郎（終了）']);
     expect(api.requests.some((request) => request.path === '/api/graph/search?type=person&limit=100')).toBe(true);
-    type(root, 'relation', 'accountable_for');
-    type(root, 'counterpartId', 'self');
-    type(root, 'role', '承認');
-    type(root, 'validFrom', '2026-10-01');
-    type(root, 'reason', '10月から承認を担当する。');
-    await submit(root);
+    type(rail, 'relation', 'accountable_for');
+    type(rail, 'counterpartId', 'self');
+    type(rail, 'role', '承認');
+    type(rail, 'validFrom', '2026-10-01');
+    type(rail, 'reason', '10月から承認を担当する。');
+    await submit(rail);
 
     const [post] = api.posts();
     expect(post.body).toMatchObject({ kind: 'create_edge', reason: '10月から承認を担当する。', edge: { fromId: 'self', relation: 'accountable_for', toId: 'project-atlas', role: '承認' } });
     expect(post.body.edge.validFrom).toMatch(/^2026-10-01T00:00:00(?:Z|[+-]\d{2}:\d{2})$/u);
-    const panel = collectText(section(root, '関係者を加える'));
+    const panel = collectText(section(rail, '関係者を加える'));
     expect(panel).toContain('関わり方責任');
     expect(panel).toContain('相手Owner');
     expect(panel).toContain('次にMCPの search・get_context・resolve_entity');
-    await waitFor(() => participantRow(root, 'Owner'));
-    const row = visibleText(participantRow(root, 'Owner'));
-    expect(row).toContain('2026-10-01 から');
-    expect(row).toContain('開始前');
-    expect(row).toContain('利用者が承認');
-    expect(row).toContain('訂正 2026-09-26「10月から承認を担当する。」');
+    await waitFor(() => participantItem(rail, 'Owner'));
+    const item = visibleText(participantItem(rail, 'Owner'));
+    expect(item).toContain('2026-10-01 から');
+    expect(item).toContain('開始前');
+    expect(item).toContain('利用者が承認');
+    expect(item).toContain('訂正 2026-09-26「10月から承認を担当する。」');
+    // It starts later, so the ledger and the metrics do not count it yet, and the list was read again.
+    expect(api.requests.filter((request) => request.path === '/api/graph/projects')).toHaveLength(2);
+    expect(collectText(ledgerRow(root, 'project-atlas'))).toContain('佐藤 花子進行中2人');
   });
 
   it('refuses to add an existing participation again and shows the current one', async () => {
     await writeGraphV2(dataDir);
-    const { root } = await openAtlas();
-    buttonsNamed(root, '関係者を加える')[0].dispatch('click');
-    await waitFor(() => control(root, 'counterpartId'));
-    type(root, 'counterpartId', 'person-tanaka');
-    type(root, 'reason', '参加を登録する。');
-    await submit(root);
-    const text = collectText(section(root, '関係者を加える'));
+    const { rail } = await mountView();
+    buttonsNamed(rail, '関係者を加える')[0].dispatch('click');
+    await waitFor(() => control(rail, 'counterpartId'));
+    type(rail, 'counterpartId', 'person-tanaka');
+    type(rail, 'reason', '参加を登録する。');
+    await submit(rail);
+    const text = collectText(section(rail, '関係者を加える'));
     expect(text).toContain('この関わりはすでに登録されているため、加えませんでした');
     expect(text).toContain('責任者');
-    expect(control(root, 'reason').value).toBe('参加を登録する。');
+    expect(control(rail, 'reason').value).toBe('参加を登録する。');
     expect(await history()).toEqual([]);
   });
 
-  it('ends a participation with an end date (today by default) instead of deleting it', async () => {
+  it('ends a participation with an end date (today by default) instead of deleting it, and the ledger stops counting it', async () => {
     await writeGraphV2(dataDir);
-    const { root } = await openAtlas();
-    buttonsNamed(participantRow(root, '田中 太郎'), '関わりを終える')[0].dispatch('click');
-    expect(control(root, 'validTo').value).toBe('2026-09-20');
-    type(root, 'reason', '導入が終わったため。');
-    await submit(root);
+    const { root, rail } = await mountView();
+    buttonsNamed(participantItem(rail, '田中 太郎'), '関わりを終える')[0].dispatch('click');
+    expect(control(rail, 'validTo').value).toBe('2026-09-20');
+    type(rail, 'reason', '導入が終わったため。');
+    await submit(rail);
     const [post] = api.posts();
     expect(post.body).toMatchObject({ kind: 'update_edge', edgeId: EDGES.tanakaAtlas.id, expectedDigest: graphRecordDigest(EDGES.tanakaAtlas) });
     expect(Object.keys(post.body.changes)).toEqual(['validTo']);
     expect(post.body.changes.validTo).toMatch(/^2026-09-20T00:00:00(?:Z|[+-]\d{2}:\d{2})$/u);
-    await waitFor(() => visibleText(participantRow(root, '田中 太郎')).includes('2026-09-20 に終了'));
-    const row = participantRow(root, '田中 太郎');
-    expect(visibleText(row)).toContain('終了');
-    expect(buttonsNamed(row, '終了日を直す')).toHaveLength(1);
+    await waitFor(() => visibleText(participantItem(rail, '田中 太郎')).includes('2026-09-20 に終了'));
+    const item = participantItem(rail, '田中 太郎');
+    expect(item.className).toContain('is-ended');
+    expect(visibleText(item)).toContain('終了');
+    expect(buttonsNamed(item, '終了日を直す')).toHaveLength(1);
     expect(await storedEdge(EDGES.tanakaAtlas.id)).toBeDefined();
+    await waitFor(() => collectText(ledgerRow(root, 'project-atlas')).includes('1人'));
+    expect(metricValues(root)).toEqual(['1', '1', '1']);
   });
 
-  it('fixes the project goal and status, sending only the changed fields', async () => {
+  it('fixes the project goal and status, sending only the changed fields, and the ledger shows the new values', async () => {
     await writeGraphV2(dataDir);
-    const { root, view } = await openAtlas();
-    buttonsNamed(root, 'プロジェクトを直す')[0].dispatch('click');
-    expect(control(root, 'name').value).toBe('Atlas導入');
-    expect(control(root, 'goal').value).toBe('導入を完了する');
-    expect(control(root, 'aliases')).toBeUndefined();
-    type(root, 'goal', '本番で使える状態にする');
-    type(root, 'status', '保留');
-    type(root, 'reason', '優先度が下がったため。');
-    await submit(root);
+    const { root, rail } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    expect(control(rail, 'name').value).toBe('Atlas導入');
+    expect(control(rail, 'goal').value).toBe('導入を完了する');
+    expect(control(rail, 'aliases')).toBeUndefined();
+    type(rail, 'goal', '本番で使える状態にする');
+    type(rail, 'status', '保留');
+    type(rail, 'reason', '優先度が下がったため。');
+    await submit(rail);
     const [post] = api.posts();
     expect(post.body).toEqual({
       kind: 'update_entity',
@@ -368,21 +459,35 @@ describe('プロジェクトと関係者: corrections', () => {
       reason: '優先度が下がったため。',
       changes: { goal: '本番で使える状態にする', status: '保留' },
     });
-    const panel = collectText(section(root, 'プロジェクトを直す'));
+    const panel = collectText(section(rail, 'プロジェクトを直す'));
     expect(panel).toContain('目的本番で使える状態にする');
     expect(panel).toContain('状態保留');
-    await view.showList();
-    expect(collectText(section(root, 'プロジェクトの一覧'))).toContain('本番で使える状態にする');
+    await waitFor(() => collectText(ledgerRow(root, 'project-atlas')).includes('本番で使える状態にする'));
+    expect(collectText(ledgerRow(root, 'project-atlas'))).toContain('保留');
+    // No longer 進行中.
+    expect(metricValues(root)).toEqual(['1', '0', '2']);
+    expect(ledgerRow(root, 'project-atlas').className).toContain('is-selected');
   });
 
   it('says there is nothing to save when nothing changed', async () => {
     await writeGraphV2(dataDir);
-    const { root } = await openAtlas();
-    buttonsNamed(root, 'プロジェクトを直す')[0].dispatch('click');
-    type(root, 'reason', '確認のため。');
-    await submit(root);
-    expect(collectText(root)).toContain('変更がありません');
+    const { rail } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    type(rail, 'reason', '確認のため。');
+    await submit(rail);
+    expect(collectText(rail)).toContain('変更がありません');
     expect(api.posts()).toEqual([]);
+  });
+
+  it('closes an open correction when another project is selected', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    expect(section(rail, 'プロジェクトを直す')).toBeDefined();
+    ledgerRow(root, 'project-beta').dispatch('click');
+    await waitFor(() => railHead(rail).includes('Beta検証') && section(rail, '概要'));
+    expect(view.correction.form).toBeNull();
+    expect(section(rail, 'プロジェクトを直す')).toBeUndefined();
   });
 });
 
@@ -392,16 +497,16 @@ describe('プロジェクトと関係者: write errors', () => {
     await writeGraphV2(dataDir);
     api = await startGraphApi(dataDir);
     const root = new FakeElement('div');
+    const rail = new FakeElement('div');
     // No launch token: the host refuses the write.
-    const view = createGraphProjectsView({ root, document: new FakeDocument(), fetcher: api.fetcher, autoLoad: false, now: OWNER_NOW });
+    const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: api.fetcher, autoLoad: false, now: OWNER_NOW });
     await view.load();
-    await view.openProject('project-atlas');
-    buttonsNamed(participantRow(root, '田中 太郎'), '役割を直す')[0].dispatch('click');
-    type(root, 'role', '技術顧問');
-    type(root, 'reason', '役割を直す。');
-    await submit(root);
-    expect(collectText(root)).toContain('起動時のトークンを確かめられません。ページを開き直してください。');
-    expect(control(root, 'role').value).toBe('技術顧問');
+    buttonsNamed(participantItem(rail, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    type(rail, 'role', '技術顧問');
+    type(rail, 'reason', '役割を直す。');
+    await submit(rail);
+    expect(collectText(rail)).toContain('起動時のトークンを確かめられません。ページを開き直してください。');
+    expect(control(rail, 'role').value).toBe('技術顧問');
     expect(await history()).toEqual([]);
   });
 });
