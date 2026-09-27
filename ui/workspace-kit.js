@@ -113,7 +113,7 @@ export function workspaceActions(doc, buttons = []) {
 
 /** Summary metrics in one ruled row. `value` null means 未確認, never zero. */
 export function workspaceMetrics(doc, items = [], { ariaLabel = '集計' } = {}) {
-  const summary = el(doc, 'section', { className: `bb-ws-summary is-${Math.min(Math.max(items.length, 1), 4)}`, attrs: { 'aria-label': ariaLabel } });
+  const summary = el(doc, 'section', { className: `bb-ws-summary is-${Math.min(Math.max(items.length, 1), 6)}`, attrs: { 'aria-label': ariaLabel } });
   for (const item of items) {
     const card = el(doc, 'div', { className: 'bb-ws-metric' });
     card.append(

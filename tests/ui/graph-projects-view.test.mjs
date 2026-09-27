@@ -518,6 +518,22 @@ describe('プロジェクトと関係者: host extensions', () => {
     .filter((node) => node.parentNode?.className === 'bb-graph-rail bb-gp-rail')
     .map((node) => node.attributes['aria-label'] ?? (node.tagName === 'DETAILS' ? 'history' : collectText(node)));
 
+  it('says the screen only checks when the host cannot correct, and uses the host guidance when no project is registered', async () => {
+    await writeGraphV2(dataDir, { entities: [ENTITIES.self], edges: [] });
+    const { root } = await mountView({
+      canCorrect: false,
+      emptyNotice: { label: '未登録', text: 'このプロジェクトはまだ組織のGraphにありません。管理者に登録を頼んでください。' },
+      extraMetrics: () => [{ label: '未完了', value: 3 }, { label: '確認待ち', value: 1 }],
+    });
+    const text = collectText(root);
+    expect(text).toContain('どのプロジェクトに誰がどう関わっているかを確かめます。');
+    expect(text).not.toContain('誤りを直します');
+    expect(text).toContain('このプロジェクトはまだ組織のGraphにありません。');
+    expect(text).not.toContain('brainbase onboard');
+    // Five metrics stay in one row.
+    expect(byClass(root, 'bb-ws-summary')[0].className).toContain('is-5');
+  });
+
   it('draws no correction control and never posts when the host cannot correct', async () => {
     await writeGraphV2(dataDir);
     const { root, rail, view } = await mountView({ canCorrect: false });

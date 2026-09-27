@@ -48,6 +48,7 @@ import {
   validityLabel,
   validityText,
   GRAPH_RELATION_LABELS,
+  graphHostEmptyNotice,
 } from './graph-view-shared.js';
 import {
   workspaceActions,
@@ -160,6 +161,8 @@ function failureText(error) {
  *   corrections under そのほかの関係), and the client refuses every correction before sending it.
  * @param {string} [options.readOnlyNote] With `canCorrect: false`, a note shown in the rail where the
  *   correction buttons would be.  Without it the rail says nothing about corrections.
+ * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
+ *   and its `brainbase onboard:*` commands when the host's Graph has nothing registered.
  * @param {{ label?: string, text: string | Element }} [options.sourceNotice] Replaces the default 出典
  *   notice.  The rail's 概要 then drops its default 出典 row, which names this Mac's Graph.
  * @param {Array<{ text: string, variant?: 'default' | 'primary' | 'danger' | 'quiet', onClick?: Function, disabled?: boolean }>} [options.pageActions]
@@ -194,6 +197,7 @@ export function createGraphProjectsView({
   canCorrect = true,
   readOnlyNote,
   sourceNotice,
+  emptyNotice,
   pageActions,
   extraMetrics,
   renderRailExtensions,
@@ -289,7 +293,7 @@ export function createGraphProjectsView({
     const children = [workspacePageHeader(doc, {
       crumbs: context.crumbs,
       title: 'プロジェクトと関係者',
-      lead: 'どのプロジェクトに誰がどう関わっているかを確かめ、誤りを直します。',
+      lead: writable ? 'どのプロジェクトに誰がどう関わっているかを確かめ、誤りを直します。' : 'どのプロジェクトに誰がどう関わっているかを確かめます。',
       source: context.source,
       actions: workspaceHostActions(pageActions),
     })];
@@ -317,6 +321,11 @@ export function createGraphProjectsView({
     if (extras.failure) children.push(extras.failure);
 
     if (payload.projects.length === 0) {
+      const hostEmpty = graphHostEmptyNotice(doc, emptyNotice);
+      if (hostEmpty) {
+        children.push(hostEmpty);
+        return children;
+      }
       const body = makeElement(doc, 'div', { className: 'bb-graph-notice-body' });
       body.append(
         makeElement(doc, 'p', { text: 'まだ登録がありません。このGraphには、プロジェクトがまだ登録されていません。次のコマンドで登録できます。CodexやClaude Codeからは、MCPのオンボーディング（brainbase_onboarding_start）で資料から候補を作り、確かめてから登録できます。' }),
