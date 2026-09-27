@@ -72,6 +72,30 @@ npm run start
 
 通常のSSOT診断では、`doctor`は`graphDiagnosis`を返し、Graphを`healthy`、`issues`、`migration_required`、`invalid`、`unavailable`に分けます。`healthy`と`issues`は終了コード0ですが、`issues`は問題なしという意味ではないため件数と内訳を確認してください。`migration_required`、`invalid`、`unavailable`は非0で終了します。legacy投影は、名前が一意に正規IDへ対応する場合だけ`projection`として数え、同名候補が複数ある場合は`unresolved`として残します。`--judgment-hooks`で指定したファイルの欠落・不正JSON・必須Hook不足など、Graph診断より前の入力エラーでは`graphDiagnosis`を返さず非0で終了します。
 
+## 個人の記憶を組織へ登録し直す
+
+組織環境へ移っても、手元の記憶は自動では移りません。本人が選んだものだけを、組織の個人KG（本人だけが読める領域）へ登録し直します。Graphと判断根拠の持ち込みは[検索の仕組み](/guide/search)の`graph:upgrade`を使います。
+
+| コマンド | 役割 | 組織への送信 |
+| --- | --- | --- |
+| `memory:list` | 手元の記憶（`personal-knowledge-v1/`と`personal-kg.jsonl`）を、選ぶためのID・保存場所・種類・冒頭・登録状態とともに一覧する | しない |
+| `memory:register` | `--id`で選んだ記憶の送信内容を確認する | `--write`の時だけ、選んだ記憶だけ送る |
+
+```bash
+node dist/cli.js memory:list
+node dist/cli.js memory:list --format json
+node dist/cli.js memory:register --id v1:<イベントID> --id legacy:<ID>
+node dist/cli.js memory:register --id v1:<イベントID> --id legacy:<ID> --write
+```
+
+IDは、個人KG v1の記憶が`v1:<イベントID>`、旧個人KGの記憶が`legacy:<ID>`です。登録状態は`unregistered`（未登録）、`registered`（登録済み）、`changed`（登録後に手元の記憶が変わった）のいずれかです。一覧と確認はネットワークを使わず、何も送りません。
+
+`--write`には`graph:upgrade`と同じ`BRAINBASE_ORGANIZATION_*`の4項目が必要です。トークンは本人の署名つきBearerで、所有者と組織は組織側がトークンから決めます。送るのは記憶の本文・種類・タグ・日時と、どの手元の記憶かを示すIDだけです。元ファイル、ローカルのパス、手元のメタデータは送りません。
+
+組織側のイベントIDは、記憶の内容と出どころ、送り先の本人と組織から決まります。同じ記憶を送り直しても同じイベントになり、重複しません。手元で内容が変わった記憶を送ると新しいイベントとして登録され、前のイベントは残ります。
+
+組織が受け付けた記憶ごとに、`<データディレクトリ>/handover/personal-memory-registrations.jsonl`へ受領記録を残します。受け付けられなかった記憶の受領記録は残さず、その時点で止まって後の記憶は送りません。未登録の記憶は、組織では検索されません。
+
 ## Judgment Host
 
 | コマンド | 役割 | ライブ設定への書き込み |

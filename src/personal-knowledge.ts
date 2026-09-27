@@ -516,6 +516,38 @@ export function createLocalPersonalKnowledgeStore(options: PersonalKnowledgeStor
 
 export const createPersonalKnowledgeStore = createLocalPersonalKnowledgeStore;
 
+export interface LocalPersonalKnowledgeSnapshot extends PersonalKnowledgeContextEnvelope {
+  events: PersonalKnowledgeEvent[];
+}
+
+/**
+ * Read the local v1 store without creating it. Returns undefined when the
+ * store has never been created; a half-created store is an error.
+ */
+export async function readLocalPersonalKnowledgeEvents(options: { dataDir?: string } = {}): Promise<LocalPersonalKnowledgeSnapshot | undefined> {
+  const directory = join(resolveDataDir(options.dataDir), PERSONAL_KNOWLEDGE_LOCAL_DIRECTORY);
+  const contextPath = join(directory, LOCAL_CONTEXT_FILE);
+  const eventsPath = join(directory, LOCAL_EVENTS_FILE);
+  const [contextExists, eventsExists] = await Promise.all([exists(contextPath), exists(eventsPath)]);
+  if (!contextExists && !eventsExists) return undefined;
+  if (contextExists !== eventsExists) throw new Error(`Partial Personal Knowledge v1 store in ${directory}.`);
+  const context = validatePersonalKnowledgeContext(JSON.parse(await readFile(contextPath, 'utf8')));
+  if (context.scope !== 'personal_owned') {
+    throw new Error('OSS local Personal Knowledge storage requires a personal_owned context.');
+  }
+  return { context, events: await readEventsFile(eventsPath) };
+}
+
+/** True when the value is a timestamp the v1 event contract accepts. */
+export function isPersonalKnowledgeTimestamp(value: unknown): value is string {
+  try {
+    validateTimestamp(value, 'timestamp');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function readEventsFile(path: string): Promise<PersonalKnowledgeEvent[]> {
   const serialized = await readFile(path, 'utf8');
   const events: PersonalKnowledgeEvent[] = [];
