@@ -113,14 +113,26 @@ export function normalizeEntityDetail(result) {
   return { state: 'ok', payload };
 }
 
+// A host that could not finish counting sends null (with countStatus
+// 'unknown', or 'at_least' plus atLeast) rather than a number it cannot vouch for.
+function isCount(value) {
+  return value === null || Number.isInteger(value);
+}
+
+function countText(item, key = 'count') {
+  if (Number.isInteger(item[key])) return `${item[key]}件`;
+  if (key === 'count' && item.countStatus === 'at_least' && Number.isInteger(item.atLeast)) return `${item.atLeast}件以上`;
+  return '件数は未確認';
+}
+
 export function normalizeOntology(result) {
   if (result?.state !== 'ok') return result ?? INVALID;
   const payload = result.payload;
   const entityTypesOk = Array.isArray(payload.entityTypes) && payload.entityTypes.every((item) => isRecord(item)
-    && typeof item.id === 'string' && Number.isInteger(item.count));
+    && typeof item.id === 'string' && isCount(item.count));
   const relationsOk = Array.isArray(payload.relations) && payload.relations.every((item) => isRecord(item)
     && typeof item.id === 'string' && typeof item.from === 'string' && typeof item.to === 'string'
-    && Number.isInteger(item.count) && Number.isInteger(item.activeCount));
+    && isCount(item.count) && isCount(item.activeCount));
   if (!entityTypesOk || !relationsOk || !isRecord(payload.ontology)) return INVALID;
   return { state: 'ok', payload };
 }
@@ -300,7 +312,7 @@ export function createGraphRegistryView({
     const asOfDay = asOf ? state.applied.asOfDay || String(asOf).slice(0, 10) : null;
     section.append(makeElement(doc, 'p', {
       className: 'bb-gr-caption',
-      text: `検索結果 ${payload.total}件${asOfDay ? `（${asOfDay} の時点で有効なもの）` : ''}`,
+      text: `${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の時点で有効なもの）` : ''}`,
     }));
     section.append(workspaceLedger(doc, {
       className: 'bb-graph-entity-ledger',
@@ -324,7 +336,9 @@ export function createGraphRegistryView({
       })),
     }));
     if (payload.truncated) {
-      section.append(workspaceNotice(doc, { label: '一部だけ', text: `ほかに${payload.total - payload.results.length}件あります。条件を絞って探してください。`, tone: 'info', role: 'status' }));
+      section.append(workspaceNotice(doc, { label: '一部だけ', text: Number.isInteger(payload.total)
+        ? `ほかに${payload.total - payload.results.length}件あります。条件を絞って探してください。`
+        : 'ほかにもある可能性があります。条件を絞って探してください。', tone: 'info', role: 'status' }));
     }
     return section;
   }
@@ -359,7 +373,9 @@ export function createGraphRegistryView({
           relationLabel(item.id),
           `${typeLabel(item.from)} → ${typeLabel(item.to)}`,
           ownLabel(GRAPH_RELATION_LABELS, item.id)?.meaning ?? textOrNull(item.meaning) ?? '',
-          `${item.count}件（うち有効 ${item.activeCount}件）`,
+          Number.isInteger(item.count) && Number.isInteger(item.activeCount)
+            ? `${item.count}件（うち有効 ${item.activeCount}件）`
+            : countText(item),
         ],
       })),
     }));
@@ -370,7 +386,7 @@ export function createGraphRegistryView({
       columns: GRAPH_ENTITY_TYPE_LEDGER_COLUMNS,
       rows: payload.entityTypes.map((item) => ({
         key: item.id,
-        cells: [typeLabel(item.id), typeMeaning(item), `${item.count}件`],
+        cells: [typeLabel(item.id), typeMeaning(item), countText(item)],
       })),
     }));
     const corrections = writable && isRecord(payload.corrections) ? payload.corrections : null;
