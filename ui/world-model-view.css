@@ -1,11 +1,11 @@
 /*
- * Read-only World Model view. Uses only the shared tokens in brainbase-tokens.css.
- * Looks like the organization edition's outcome parts: the header sits in a
- * gradient box and each block is a white section.
+ * Read-only World Model view (現状と見通し), on the organization edition's
+ * screen pattern: a section title under the page head (workspace-kit.css),
+ * then one read-only ledger per block.  Uses only the shared tokens in
+ * brainbase-tokens.css.
  */
 .bb-wm {
-  display: grid;
-  gap: 20px;
+  display: block;
   min-width: 0;
   color: var(--bb-color-ink);
   font-family: var(--bb-font-sans);
@@ -18,181 +18,171 @@
   box-sizing: border-box;
 }
 
-.bb-wm h2,
 .bb-wm h3,
-.bb-wm h4,
 .bb-wm p {
   margin: 0;
 }
 
-/* Part header: title and lead inside the gradient box. */
-/* A section heading under the page's one header box (the objective editor on 目的と現状). */
-.bb-wm-header {
-  display: grid;
-  gap: var(--bb-space-1);
-  min-width: 0;
-  border-top: 1px solid var(--bb-color-border);
-  padding: var(--bb-space-5) 0 0;
+.bb-wm > .bb-ws-section-title {
+  margin-top: var(--bb-space-4);
 }
 
-.bb-wm-header h2 {
-  font-size: 1.35rem;
-  line-height: 1.3;
-  letter-spacing: -.02em;
-}
-
-.bb-wm-lead {
-  color: var(--bb-color-muted);
-  font-size: 13px;
-}
-
-.bb-wm-header .bb-wm-lead {
-  font-size: 14px;
-}
-
-/* Sections. */
+/* Blocks: a heading, a lead, state notices and the ledger. */
 .bb-wm-block {
   display: grid;
-  gap: var(--bb-space-3);
+  gap: var(--bb-space-2);
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-md);
-  padding: 18px;
-  background: var(--bb-color-panel);
+  margin-top: var(--bb-space-6);
 }
 
 .bb-wm-heading {
-  font-size: 1.1rem;
-}
-
-.bb-wm-subheading {
-  margin-top: var(--bb-space-2);
-  font-size: 14px;
-}
-
-.bb-wm-list {
-  display: grid;
-  gap: var(--bb-space-2);
-  min-width: 0;
-}
-
-.bb-wm-item {
-  display: grid;
-  gap: var(--bb-space-2);
-  min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3) 14px;
-  background: var(--bb-color-panel);
-}
-
-.bb-wm-item.is-superseded {
-  background: var(--bb-color-surface);
-}
-
-.bb-wm-item-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-2);
-  align-items: baseline;
-  justify-content: space-between;
-  min-width: 0;
-}
-
-.bb-wm-item-title {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.bb-wm-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-1);
-}
-
-.bb-wm-badge {
-  border: 1px solid var(--bb-color-border);
-  border-radius: 999px;
-  padding: 1px var(--bb-space-2);
-  color: var(--bb-color-muted);
-  background: var(--bb-color-surface);
-  font-size: 12px;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.bb-wm-badge.is-success { border-color: color-mix(in srgb, var(--bb-color-success) 35%, var(--bb-color-border)); color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
-.bb-wm-badge.is-warning { border-color: color-mix(in srgb, var(--bb-color-warning) 35%, var(--bb-color-border)); color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
-.bb-wm-badge.is-danger { border-color: color-mix(in srgb, var(--bb-color-danger) 35%, var(--bb-color-border)); color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-wm-badge.is-accent { border-color: color-mix(in srgb, var(--bb-color-accent) 35%, var(--bb-color-border)); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
-
-.bb-wm-facts {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: var(--bb-space-1) var(--bb-space-3);
-  margin: 0;
-  font-size: 13px;
-}
-
-.bb-wm-facts dt {
-  color: var(--bb-color-muted);
-}
-
-.bb-wm-facts dd {
-  margin: 0;
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-/* State boxes. */
-.bb-wm-notice {
-  border-radius: var(--bb-radius-sm);
-  padding: 11px var(--bb-space-3);
-  font-size: 13px;
-}
-
-.bb-wm-notice.is-muted { color: var(--bb-color-muted); background: var(--bb-color-surface); }
-.bb-wm-notice.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
-.bb-wm-notice.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-
-.bb-wm-retry {
-  justify-self: start;
-  min-height: 40px;
-  border: 1px solid var(--bb-color-control-border);
-  border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-2) var(--bb-space-3);
   color: var(--bb-color-ink);
-  background: var(--bb-color-panel);
-  font: inherit;
+  font-size: 15px;
+}
+
+.bb-wm-lead {
+  margin-bottom: var(--bb-space-2);
+  color: var(--bb-color-muted);
+  font-size: 13px;
+}
+
+.bb-wm-block > .bb-ws-notice {
+  margin: 0;
+}
+
+.bb-wm-notice-body {
+  display: grid;
+  gap: var(--bb-space-2);
+  min-width: 0;
+}
+
+.bb-wm-notice-body .bb-ws-button {
+  justify-self: start;
+}
+
+/* The local shell resets `.bb-shell button { font: inherit }`, which outranks the kit's button type. */
+.bb-wm .bb-ws-button {
+  font-size: 12px;
   font-weight: 680;
-  cursor: pointer;
 }
 
-/* Hosts often reset button fonts with `button { font: inherit }`; keep the weight. */
-.bb-wm .bb-wm-retry {
-  font-weight: 680;
+/* Rows wrap: a reference view keeps its details readable instead of cutting them. */
+.bb-wm .bb-ws-ledger-row:not(.bb-ws-ledger-head) {
+  align-items: start;
 }
 
-.bb-wm-retry:hover {
-  border-color: var(--bb-color-border-strong);
+.bb-wm .bb-ws-ledger-row > span {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
-.bb-wm-retry:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 45%, var(--bb-color-panel));
-  outline-offset: 2px;
+.bb-wm-cell {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bb-wm-main {
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
+.bb-wm-cell small {
+  color: var(--bb-color-muted);
+  font-size: 11px;
+}
+
+.bb-wm-cell small.is-warning {
+  color: var(--bb-color-warning);
+  font-weight: 650;
+}
+
+.bb-wm-cell small.is-accent {
+  color: var(--bb-color-accent-strong);
+  font-weight: 650;
+}
+
+.bb-wm-cell.is-value .bb-wm-main,
+.bb-wm-view-ledger .bb-ws-ledger-row > span:first-child .bb-wm-main {
+  font-weight: 690;
+}
+
+.bb-wm-cell.is-verified .bb-wm-main,
+.bb-wm-cell.is-supported .bb-wm-main,
+.bb-wm-cell.is-approved .bb-wm-main {
+  color: var(--bb-color-accent-strong);
+  font-weight: 690;
+}
+
+.bb-wm-cell.is-hypothesis .bb-wm-main,
+.bb-wm-cell.is-unverified .bb-wm-main,
+.bb-wm-cell.is-pending .bb-wm-main {
+  color: var(--bb-color-warning);
+  font-weight: 690;
+}
+
+.bb-wm-cell.is-refuted .bb-wm-main {
+  color: var(--bb-color-danger);
+  font-weight: 690;
+}
+
+.bb-wm-cell.is-unresolved .bb-wm-main {
+  color: var(--bb-color-quiet);
+}
+
+.bb-wm-code {
+  color: var(--bb-color-muted);
+  font-family: var(--bb-font-mono);
+  font-size: 11px;
+}
+
+.bb-wm .bb-ws-ledger-row.is-superseded {
+  background: var(--bb-color-surface);
+}
+
+.bb-wm .bb-ws-ledger-row.is-superseded .bb-wm-cell.is-value .bb-wm-main {
+  color: var(--bb-color-muted);
+  text-decoration: line-through;
+}
+
+/* Column templates. */
+.bb-wm-view-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(180px, 2.2fr) minmax(84px, .8fr) 84px minmax(96px, .9fr);
+}
+
+.bb-wm-observation-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(120px, 1.3fr) minmax(96px, 1fr) minmax(128px, 1.3fr) 104px minmax(110px, 1.1fr);
+}
+
+.bb-wm-adoption-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(140px, 1.4fr) 72px minmax(140px, 1.6fr) 56px minmax(84px, .8fr) 104px;
 }
 
 @media (max-width: 760px) {
-  .bb-wm-header {
-    padding: 18px;
+  .bb-wm-view-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 72px;
   }
 
-  .bb-wm-block {
-    padding: 14px;
+  .bb-wm-view-ledger .bb-ws-ledger-row > span:nth-child(2),
+  .bb-wm-view-ledger .bb-ws-ledger-row > span:nth-child(4) {
+    display: none;
   }
-}
 
-@media (max-width: 480px) {
-  .bb-wm-facts { grid-template-columns: minmax(0, 1fr); }
-  .bb-wm-facts dd { margin-bottom: var(--bb-space-1); }
+  .bb-wm-observation-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .bb-wm-observation-ledger .bb-ws-ledger-row > span:nth-child(3),
+  .bb-wm-observation-ledger .bb-ws-ledger-row > span:nth-child(4),
+  .bb-wm-observation-ledger .bb-ws-ledger-row > span:nth-child(5) {
+    display: none;
+  }
+
+  .bb-wm-adoption-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+
+  .bb-wm-adoption-ledger .bb-ws-ledger-row > span:nth-child(n + 3) {
+    display: none;
+  }
 }

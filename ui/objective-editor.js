@@ -6,7 +6,26 @@
  * opens a database, or decides organization membership/RACI.  An organization
  * application can compose the same screen by adapting its authenticated
  * FoundationRevisionStore boundary to the port.
+ *
+ * Two layouts: without `rail` the screen keeps its tabs (list, editor, Story
+ * links) as the organization edition composes it.  With a `rail` element the
+ * screen follows the organization edition's pattern (workspace-kit): page
+ * head, metrics and a ledger of objectives in the workspace, and the selected
+ * objective (or its edit form) in the rail.
  */
+
+import {
+  workspaceActions,
+  workspaceButton,
+  workspaceDefinition,
+  workspaceDetailEmpty,
+  workspaceLedger,
+  workspaceMetrics,
+  workspaceNotice,
+  workspacePageHeader,
+  workspaceRailBlock,
+  workspaceRailHead,
+} from './workspace-kit.js';
 
 export const OBJECTIVE_EDITOR_CONTRACT_VERSION = 'brainbase.objective-editor.v1';
 
@@ -722,6 +741,16 @@ function renderObjectiveForm(root, state, callbacks) {
     makeElement('p', { className: 'objective-editor-muted', text: '保存すると新しい版になり、保存した版を読み戻して表示します。' }),
   );
   if (state.save.state !== 'idle' && state.save.state !== 'saving') section.append(statusNotice(state.save, { onRetry: callbacks.onRetrySave }));
+  section.append(buildObjectiveForm(state, callbacks));
+  return section;
+}
+
+/**
+ * The edit form.  The tabs layout ends it with 保存 and 一覧へ戻る; the
+ * workspace layout (in the rail) ends it with 保存 and キャンセル.
+ */
+function buildObjectiveForm(state, callbacks, { workspace = false } = {}) {
+  const draft = state.editor.draft;
   const form = makeElement('form', { className: 'objective-editor-form' });
   const identity = makeElement('div', { className: 'objective-editor-identity' });
   const idField = field('目的ID', 'id', draft.id, { disabled: state.editor.mode !== 'create', attrs: { required: true } });
@@ -745,20 +774,21 @@ function renderObjectiveForm(root, state, callbacks) {
     { value: 'retired', label: '終了' },
   ] }).label);
   form.append(governance);
-  form.append(renderCriteria(root, draft, callbacks));
-  form.append(renderReadiness(root, state.readiness));
-  form.append(renderConstraintRefs(root, state, callbacks));
+  form.append(renderCriteria(form, draft, callbacks));
+  form.append(renderReadiness(form, state.readiness));
+  form.append(renderConstraintRefs(form, state, callbacks));
   const actions = makeElement('div', { className: 'objective-editor-actions' });
   actions.append(makeElement('span', { className: 'objective-editor-muted', text: callbacks.canEdit ? '保存後に同じID・新版を再取得して確認します。' : '読み取り専用です。書込み権限はホストから提供してください。' }));
-  if (callbacks.canEdit) actions.append(makeElement('button', { className: 'objective-editor-button-primary', text: state.save.state === 'saving' ? '保存中…' : '保存', attrs: { type: 'submit' }, disabled: state.save.state === 'saving' }));
-  actions.append(makeButton('一覧へ戻る', callbacks.onBack, 'objective-editor-button-secondary'));
+  const saving = state.save.state === 'saving';
+  if (callbacks.canEdit) actions.append(makeElement('button', { className: workspace ? 'bb-ws-button is-primary' : 'objective-editor-button-primary', text: saving ? '保存中…' : '保存', attrs: { type: 'submit' }, disabled: saving }));
+  if (workspace) actions.append(makeButton('キャンセル', callbacks.onCancelEdit, 'bb-ws-button'));
+  else actions.append(makeButton('一覧へ戻る', callbacks.onBack, 'objective-editor-button-secondary'));
   form.append(actions);
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     callbacks.onSubmit?.(collectDefinition(form, draft));
   });
-  section.append(form);
-  return section;
+  return form;
 }
 
 function renderStoryLinks(root, state, callbacks) {
@@ -831,6 +861,284 @@ export function renderObjectiveEditor(root, state, callbacks = {}) {
   return wrapper;
 }
 
+/* ---- Workspace layout (the organization edition's pattern; used when the host gives a rail) ---- */
+
+const OPERATOR_LABELS = Object.freeze({ at_least: '以上', at_most: '以下', equals: '一致' });
+const FAILED_STATES = Object.freeze(['permission_denied', 'api_unavailable', 'missing', 'conflict', 'error_retryable', 'unknown']);
+
+/** `2026/7/1`, or `7/1` when the year is `sameYearAs`'s; text that is not a date stays as it is. */
+function ledgerDate(value, sameYearAs = null) {
+  const input = nonEmptyText(value);
+  if (!input) return null;
+  const date = new Date(input);
+  if (Number.isNaN(date.getTime())) return input;
+  const day = `${date.getMonth() + 1}/${date.getDate()}`;
+  return sameYearAs !== null && sameYearAs === date.getFullYear() ? day : `${date.getFullYear()}/${day}`;
+}
+
+function periodText(period, { compact = false } = {}) {
+  const from = shortDate(period?.from);
+  const until = shortDate(period?.until);
+  if (!from && !until) return null;
+  if (!compact) return `${from ?? '未設定'}〜${until ?? '未設定'}`;
+  // In the ledger the dates are short and the end drops its year when it is the start's year.
+  const start = new Date(nonEmptyText(period?.from) ?? '');
+  const startYear = Number.isNaN(start.getTime()) ? null : start.getFullYear();
+  return `${ledgerDate(period?.from) ?? '未設定'}〜${ledgerDate(period?.until, startYear) ?? '未設定'}`;
+}
+
+/** A state as a kit notice: failures are alerts, and never read as zero items. */
+function workspaceStatusNotice(doc, value, { label, onRetry, retryLabel = '再試行' } = {}) {
+  const normalized = typeof value === 'string' ? { state: value } : value ?? {};
+  const status = normalizeState(normalized.state);
+  const tone = status === 'verified' ? 'info'
+    : ['unknown', 'saved_unverified'].includes(status) ? 'warning'
+      : 'danger';
+  const body = makeElement('div', { className: 'bb-objective-notice-body' });
+  body.append(makeElement('p', { text: `${STATUS_LABELS[status] ?? STATUS_LABELS.unknown}：${normalized.message ?? STATUS_LABELS[status] ?? '状態を確認できません。'}` }));
+  if (status === 'conflict' && normalized.currentRevision) {
+    body.append(makeElement('p', { text: `現在の版: ${normalized.currentRevision}。入力は残しています。現在の版を確かめてから直してください。` }));
+  }
+  if (onRetry) body.append(workspaceButton(doc, { text: retryLabel, variant: 'quiet', onClick: onRetry }));
+  return workspaceNotice(doc, { label, text: body, tone });
+}
+
+function objectiveReadinessCell(objective) {
+  const readiness = objective.readiness;
+  if (readiness?.state === 'ready' && readiness.ready === false) {
+    const count = readiness.issues?.length ?? 0;
+    return { text: count > 0 ? `使えない・不足${count}件` : '使えない', className: 'bb-objective-judgment is-draft' };
+  }
+  const state = objectiveJudgmentState(objective);
+  if (state === 'judgment_available') return { text: '使える', className: 'bb-objective-judgment is-available' };
+  if (state === 'draft') return { text: '使えない・下書き', className: 'bb-objective-judgment is-draft' };
+  return { text: '未確認', className: 'bb-objective-judgment is-unresolved' };
+}
+
+function renderObjectiveMetrics(doc, state) {
+  const records = ['ready', 'empty'].includes(state.objectives.state) && Array.isArray(state.objectives.records) ? state.objectives.records : null;
+  const judged = records ? records.map((objective) => objectiveJudgmentState(objective)) : [];
+  const unknown = judged.filter((value) => value === 'judgment_unknown').length;
+  return workspaceMetrics(doc, [
+    { label: '目的', value: records ? records.length : null, note: '読めた目的' },
+    {
+      label: '判断に使える',
+      value: records ? judged.filter((value) => value === 'judgment_available').length : null,
+      note: unknown > 0 ? `使えるか未確認 ${unknown}件` : '評価基準と参照が揃った目的',
+    },
+    {
+      label: '下書き',
+      value: records ? records.filter((objective) => ['draft', 'proposed'].includes(objective.adoptionState)).length : null,
+      note: '下書き・提案中',
+    },
+  ], { ariaLabel: '目的の集計' });
+}
+
+const OBJECTIVE_COLUMNS = Object.freeze(['目的', '望ましい状態', '状態', '判断に使えるか', '評価期間']);
+
+function renderObjectiveLedger(doc, state, callbacks) {
+  const objectives = state.objectives;
+  if (objectives.state === 'idle' && state.connection !== 'ready') {
+    return workspaceStatusNotice(doc, { state: state.connection, message: state.connectionMessage }, { label: '目的', onRetry: callbacks.onReload, retryLabel: '再読込' });
+  }
+  if (FAILED_STATES.includes(objectives.state)) {
+    return workspaceStatusNotice(doc, objectives, { label: '目的', onRetry: callbacks.onReload, retryLabel: '再読込' });
+  }
+  const loading = objectives.state === 'loading' || objectives.state === 'idle';
+  const records = loading ? [] : objectives.records ?? [];
+  return workspaceLedger(doc, {
+    className: 'bb-objective-ledger',
+    ariaLabel: '目的の一覧',
+    columns: OBJECTIVE_COLUMNS,
+    empty: loading ? '目的を読み込んでいます。' : '目的はまだ登録されていません。',
+    rows: records.map((objective) => {
+      const period = periodText(objective.evaluationPeriod, { compact: true });
+      return {
+        key: objective.id,
+        selected: objective.id === state.selectedId,
+        onSelect: () => callbacks.onSelect?.(objective),
+        cells: [
+          { primary: text(objective.meaning, objective.id), secondary: `${objective.id}@${objective.revision}` },
+          objective.desiredState ?? { text: '未設定', className: 'is-unresolved' },
+          objective.adoptionState ? (STATUS_LABELS[objective.adoptionState] ?? objective.adoptionState) : { text: '未記録', className: 'is-unresolved' },
+          objectiveReadinessCell(objective),
+          period ?? { text: '未設定', className: 'is-unresolved' },
+        ],
+      };
+    }),
+  });
+}
+
+/** Render the workspace (page head, metrics, ledger) and the rail. */
+export function renderObjectiveWorkspace(root, rail, state, callbacks = {}, page = {}) {
+  const doc = getDocument();
+  clear(root);
+  const wrapper = makeElement('div', {
+    className: 'bb-objective-workspace',
+    attrs: { 'data-contract-version': OBJECTIVE_EDITOR_CONTRACT_VERSION, 'data-layout': 'workspace' },
+  });
+  const actions = [{ text: '再読込', onClick: callbacks.onReload }];
+  if (callbacks.canEdit) actions.push({ text: '新しい目的', variant: 'primary', onClick: callbacks.onCreate });
+  wrapper.append(workspacePageHeader(doc, {
+    crumbs: Array.isArray(page?.crumbs) ? page.crumbs : [],
+    title: '目的と現状',
+    lead: '目指す状態と評価基準を、版つきで確かめて直します。下の「現状と見通し」は、目的とは分けた、いまの理解（観測と仮説）です。',
+    source: nonEmptyText(page?.source),
+    actions,
+  }));
+  wrapper.append(renderObjectiveMetrics(doc, state), renderObjectiveLedger(doc, state, callbacks));
+  if (callbacks.storyLinks !== false) {
+    const story = makeElement('div', { className: 'bb-objective-story' });
+    story.append(renderStoryLinks(story, state, callbacks));
+    wrapper.append(story);
+  }
+  root.append(wrapper);
+  if (rail) renderObjectiveRail(doc, rail, state, callbacks);
+  return wrapper;
+}
+
+function criteriaContent(doc, criteria) {
+  if (criteria === null || criteria === undefined) return makeElement('p', { className: 'is-unrecorded', text: '評価基準を確認できません。' });
+  if (!criteria.length) return makeElement('p', { text: '評価基準はまだありません。判断に使うには、測る変数の参照が必要です。' });
+  const list = makeElement('ul', { className: 'bb-objective-list' });
+  for (const criterion of criteria) {
+    const item = makeElement('li');
+    const operator = OPERATOR_LABELS[criterion.operator] ?? criterion.operator;
+    const target = criterion.target === undefined ? null : optionalText(criterion.target);
+    item.append(
+      makeElement('code', { text: `${criterion.variableRef.id}@${criterion.variableRef.revision}` }),
+      makeElement('span', { text: target === null ? `基準値なし（${operator}）` : criterion.operator === 'equals' ? `${target} と一致` : `${target} ${operator}` }),
+    );
+    list.append(item);
+  }
+  return list;
+}
+
+function constraintContent(doc, state, callbacks) {
+  if (state.constraints.state === 'loading') return makeElement('p', { text: '制約の参照を読み込んでいます。' });
+  if (['permission_denied', 'api_unavailable', 'error_retryable', 'unknown'].includes(state.constraints.state)) {
+    return workspaceStatusNotice(doc, state.constraints, { label: '制約', onRetry: callbacks.onReloadConstraints, retryLabel: '再読込' });
+  }
+  const refs = state.editor.constraintRefs ?? state.constraints.refs ?? [];
+  const content = [];
+  if (!refs.length) content.push(makeElement('p', { text: 'この目的に紐づく制約の参照はありません。' }));
+  else {
+    const list = makeElement('ul', { className: 'bb-objective-list' });
+    for (const ref of refs) {
+      const item = makeElement('li');
+      item.append(makeElement('code', { text: `${ref.id}@${ref.revision}` }));
+      if (ref.meaning) item.append(makeElement('span', { text: ref.meaning }));
+      list.append(item);
+    }
+    content.push(list);
+  }
+  content.push(makeElement('p', {
+    className: 'bb-objective-note',
+    text: callbacks.constraintsEditable === false || !callbacks.canEdit
+      ? '制約の参照はここでは表示だけです。'
+      : '参照の追加と外しは「目的を直す」から行えます。',
+  }));
+  return content;
+}
+
+function readinessContent(doc, readiness) {
+  const normalized = normalizeReadiness(readiness);
+  if (normalized.state !== 'ready') {
+    return [statusBadge('judgment_unknown'), makeElement('p', { text: '判断に使える状態かどうかを、保存先から確認できていません。' })];
+  }
+  if (normalized.ready) {
+    return [statusBadge('judgment_available'), makeElement('p', { text: '必要な定義・基準・参照が揃っています。観測値の存在は別途確認します。' })];
+  }
+  const content = [statusBadge('draft', '判断に使えない')];
+  if (normalized.issues?.length) {
+    const list = makeElement('ul', { className: 'bb-objective-issues' });
+    for (const issue of normalized.issues) list.append(makeElement('li', { text: `${issue.path}: ${issue.message}` }));
+    content.push(list);
+  }
+  return content;
+}
+
+function renderObjectiveDetail(doc, state, callbacks) {
+  const objective = state.selected;
+  const parts = [workspaceRailHead(doc, { kicker: '目的', title: text(objective.meaning, objective.id), sub: `${objective.id}@${objective.revision}` })];
+  if (state.save.state === 'verified' && state.save.reference?.id === objective.id) {
+    parts.push(workspaceNotice(doc, {
+      label: '保存',
+      text: `${STATUS_LABELS.verified}：保存した版（${state.save.reference.id}@${state.save.reference.revision}）を読み戻して確かめました。`,
+    }));
+  }
+  parts.push(workspaceRailBlock(doc, {
+    title: '概要',
+    content: workspaceDefinition(doc, [
+      ['望ましい状態', objective.desiredState],
+      ['対象者', objective.beneficiaryIds?.length ? objective.beneficiaryIds.join('、') : null],
+      ['責任者', objective.accountableId],
+      ['採用状態', objective.adoptionState ? (STATUS_LABELS[objective.adoptionState] ?? objective.adoptionState) : null],
+      ['評価期間', periodText(objective.evaluationPeriod)],
+    ]),
+  }));
+  parts.push(workspaceRailBlock(doc, { title: `評価基準${objective.criteria ? ` ${objective.criteria.length}件` : ''}`, className: 'bb-objective-criteria-block', content: criteriaContent(doc, objective.criteria) }));
+  parts.push(workspaceRailBlock(doc, { title: '制約の参照', className: 'bb-objective-constraints-block', content: constraintContent(doc, state, callbacks) }));
+  parts.push(workspaceRailBlock(doc, { title: '判断に使えるか', className: 'bb-objective-readiness-block', content: readinessContent(doc, state.readiness) }));
+  if (callbacks.canEdit) {
+    parts.push(workspaceActions(doc, [{ text: '目的を直す', variant: 'primary', onClick: callbacks.onEdit }]));
+  }
+  return parts;
+}
+
+function renderObjectiveFormRail(doc, state, callbacks) {
+  const creating = state.editor.mode === 'create';
+  const draft = state.editor.draft;
+  const parts = [workspaceRailHead(doc, {
+    kicker: '目的',
+    title: creating ? '新しい目的' : '目的を直す',
+    sub: creating ? '保存すると版1になります。' : `${draft.id}@${state.editor.expectedRevision ?? draft.revision} を元に新しい版を作ります。`,
+  })];
+  if (state.save.state !== 'idle' && state.save.state !== 'saving') {
+    // A conflict keeps the input; saving again with the same revision would fail again, so no retry there.
+    parts.push(workspaceStatusNotice(doc, state.save, {
+      label: '保存',
+      onRetry: state.save.state === 'conflict' ? null : callbacks.onRetrySave,
+      retryLabel: 'もう一度保存',
+    }));
+  }
+  parts.push(buildObjectiveForm(state, callbacks, { workspace: true }));
+  return parts;
+}
+
+function renderObjectiveRail(doc, rail, state, callbacks) {
+  const panel = makeElement('div', { className: 'bb-objective-rail', attrs: { 'aria-label': '選択中の目的' } });
+  const pending = state.selectedId ? (state.objectives.records ?? []).find((objective) => objective.id === state.selectedId) : null;
+  if (state.railMode === 'form' && state.editor.draft) {
+    panel.setAttribute('data-rail-mode', 'form');
+    panel.append(...renderObjectiveFormRail(doc, state, callbacks));
+  } else if (state.editor.state === 'loading') {
+    panel.setAttribute('data-rail-mode', 'loading');
+    panel.append(
+      workspaceRailHead(doc, { kicker: '目的', title: pending ? text(pending.meaning, pending.id) : '目的', sub: pending ? `${pending.id}@${pending.revision}` : null }),
+      workspaceNotice(doc, { label: '目的', text: '目的を読み込んでいます。' }),
+    );
+  } else if (FAILED_STATES.includes(state.editor.state)) {
+    panel.setAttribute('data-rail-mode', 'error');
+    panel.append(
+      workspaceRailHead(doc, { kicker: '目的', title: pending ? text(pending.meaning, pending.id) : '目的', sub: pending ? `${pending.id}@${pending.revision}` : null }),
+      workspaceStatusNotice(doc, state.editor, { label: '目的', onRetry: pending ? () => callbacks.onSelect?.(pending) : null, retryLabel: '再読込' }),
+    );
+  } else if (state.selected) {
+    panel.setAttribute('data-rail-mode', 'detail');
+    panel.append(...renderObjectiveDetail(doc, state, callbacks));
+  } else {
+    panel.setAttribute('data-rail-mode', 'empty');
+    panel.append(workspaceDetailEmpty(doc, {
+      mark: '目',
+      title: '目的を選択',
+      text: '一覧から選ぶと、評価基準・制約の参照・判断に使えるかを表示します。',
+    }));
+  }
+  rail.replaceChildren(panel);
+  return panel;
+}
+
 function extractMutationRef(payload) {
   const object = objectValue(payload);
   if (!object) return null;
@@ -863,6 +1171,9 @@ function portMethod(port, name) {
  */
 export function createObjectiveEditorController(options = {}) {
   const root = options.root ?? null;
+  // With a rail the screen uses the workspace layout; without one it keeps its tabs.
+  const rail = options.rail ?? null;
+  const page = options.page ?? {};
   const port = options.port ?? null;
   const context = options.context ?? {};
   const canEdit = options.canEdit === true;
@@ -882,11 +1193,17 @@ export function createObjectiveEditorController(options = {}) {
     story: { state: 'idle', storyId: '', links: null, absence_confirmed: false },
     editor: { state: 'idle', mode: 'edit', draft: null, expectedRevision: null, constraintRefs: null, originalConstraintRefs: null, constraintRefsChanged: false },
     save: { state: 'idle' },
+    /** The objective the owner picked (workspace layout: the selected ledger row). */
+    selectedId: null,
+    /** What the rail shows in the workspace layout: the selected objective, or the edit form. */
+    railMode: 'detail',
   };
+  // The objective shown before 新しい目的, to return to when the owner cancels.
+  let beforeCreate = null;
 
   function render() {
     if (!root) return null;
-    return renderObjectiveEditor(root, state, {
+    const callbacks = {
       canEdit,
       constraintsEditable,
       storyLinks,
@@ -904,7 +1221,10 @@ export function createObjectiveEditorController(options = {}) {
       onReloadConstraints: () => loadConstraintRefs(state.selected),
       onLoadStoryLinks: loadStoryLinks,
       onRetryStory: () => loadStoryLinks(state.story.storyId),
-    });
+      onEdit: beginEdit,
+      onCancelEdit: cancelEdit,
+    };
+    return rail ? renderObjectiveWorkspace(root, rail, state, callbacks, page) : renderObjectiveEditor(root, state, callbacks);
   }
 
   function setPortState(error, target, fallbackMessage = null) {
@@ -935,6 +1255,9 @@ export function createObjectiveEditorController(options = {}) {
       state.connection = state.objectives.state;
     }
     render();
+    // As on the organization screens, the workspace opens with the first row selected.
+    const first = state.objectives.records?.[0];
+    if (rail && first && !state.selectedId && state.railMode !== 'form') await selectObjective(first);
     return state.objectives;
   }
 
@@ -991,6 +1314,12 @@ export function createObjectiveEditorController(options = {}) {
     const id = reference?.id;
     const revision = reference?.revision;
     if (!id) return null;
+    state.selectedId = id;
+    if (rail) {
+      state.railMode = 'detail';
+      state.save = { state: 'idle' };
+      beforeCreate = null;
+    }
     state.view = 'editor';
     state.editor = { state: 'loading', mode: 'edit', draft: null, expectedRevision: revision ?? null, constraintRefs: null, originalConstraintRefs: null, constraintRefsChanged: false };
     state.readiness = { state: 'unknown', ready: null, issues: null };
@@ -1031,6 +1360,8 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function beginCreate() {
+    if (rail && state.railMode !== 'form') beforeCreate = state.selected;
+    state.railMode = 'form';
     state.view = 'editor';
     state.selected = null;
     state.readiness = { state: 'unknown', ready: null, issues: null };
@@ -1043,6 +1374,47 @@ export function createObjectiveEditorController(options = {}) {
       }), expectedRevision: null, constraintRefs: [], originalConstraintRefs: [], constraintRefsChanged: false,
     };
     state.save = { state: 'idle' };
+    render();
+  }
+
+  /** Workspace layout: open the edit form for the selected objective in the rail. */
+  function beginEdit() {
+    if (!state.selected) return;
+    state.editor = {
+      ...state.editor,
+      state: 'ready', mode: 'edit', draft: editorDraftFromObjective(state.selected), expectedRevision: state.selected.revision,
+      constraintRefs: state.constraints.refs ?? state.editor.constraintRefs ?? null,
+      originalConstraintRefs: state.constraints.refs ? JSON.parse(JSON.stringify(state.constraints.refs)) : state.editor.originalConstraintRefs,
+      constraintRefsChanged: false,
+    };
+    state.save = { state: 'idle' };
+    state.railMode = 'form';
+    render();
+  }
+
+  /** Workspace layout: leave the form without saving and show the objective again. */
+  function cancelEdit() {
+    const creating = state.editor.mode === 'create';
+    state.railMode = 'detail';
+    state.save = { state: 'idle' };
+    if (creating) {
+      const previous = beforeCreate;
+      beforeCreate = null;
+      state.editor = { state: 'idle', mode: 'edit', draft: null, expectedRevision: null, constraintRefs: null, originalConstraintRefs: null, constraintRefsChanged: false };
+      state.selectedId = null;
+      if (previous) {
+        void selectObjective(previous);
+        return;
+      }
+      render();
+      return;
+    }
+    if (state.selected) {
+      state.editor = {
+        state: 'ready', mode: 'edit', draft: editorDraftFromObjective(state.selected), expectedRevision: state.selected.revision,
+        constraintRefs: state.constraints.refs ?? null, originalConstraintRefs: state.constraints.refs ?? null, constraintRefsChanged: false,
+      };
+    }
     render();
   }
 
@@ -1128,6 +1500,9 @@ export function createObjectiveEditorController(options = {}) {
         }
       }
       state.selected = readback;
+      state.selectedId = readback.id;
+      state.railMode = 'detail';
+      beforeCreate = null;
       state.editor = {
         state: 'ready', mode: 'edit', draft: editorDraftFromObjective(readback), expectedRevision: readback.revision,
         constraintRefs: state.editor.constraintRefs ?? [], originalConstraintRefs: state.editor.constraintRefs ?? [], constraintRefsChanged: false,
@@ -1179,6 +1554,8 @@ export function createObjectiveEditorController(options = {}) {
     loadStoryLinks,
     addConstraintRef,
     removeConstraintRef,
+    beginEdit,
+    cancelEdit,
     contractVersion: OBJECTIVE_EDITOR_CONTRACT_VERSION,
   };
   render();

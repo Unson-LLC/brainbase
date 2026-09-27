@@ -1,11 +1,13 @@
 /*
- * 判断の見返し. Looks like the organization edition's outcome parts: the header
- * sits in a gradient box, sections and cards are white boxes, buttons share one
- * shape and the primary action uses the action color.  Every color comes from
- * brainbase-tokens.css; the fallbacks keep the previous palette for hosts that
- * do not load the tokens.
+ * 判断の見返し, on the organization edition's screen pattern (workspace-kit.css):
+ * page head, notices, filters, metrics and the 委任の地図 ledger in the
+ * workspace, the selected row or judgment in the right rail (or after the
+ * workspace when the host has no rail).  Layout rules read the shared tokens
+ * (brainbase-tokens.css) directly.  The part variables below keep the feedback
+ * form's previous palette for hosts that do not load the tokens.
  */
-.vpr {
+.vpr,
+.bb-vpr-detail {
   --vpr-ink: var(--bb-color-ink, #172033);
   --vpr-muted: var(--bb-color-muted, #667085);
   --vpr-border: var(--bb-color-border, #d8dee9);
@@ -13,538 +15,373 @@
   --vpr-control-border: var(--bb-color-control-border, #d8dee9);
   --vpr-panel: var(--bb-color-panel, #ffffff);
   --vpr-surface: var(--bb-color-surface, #f5f7fb);
-  --vpr-header-start: var(--bb-color-header-start, #ffffff);
-  --vpr-header-end: var(--bb-color-header-end, #f5f7fb);
-  --vpr-eyebrow: var(--bb-color-eyebrow, #3157d5);
   --vpr-accent: var(--bb-color-accent, #3157d5);
   --vpr-accent-soft: var(--bb-color-accent-soft, #eef2fd);
   --vpr-accent-strong: var(--bb-color-accent-strong, #3157d5);
   --vpr-action: var(--bb-color-action, #3157d5);
-  --vpr-action-hover: var(--bb-color-action-hover, #3157d5);
-  --vpr-action-text: var(--bb-color-action-text, #ffffff);
   --vpr-focus: var(--bb-color-focus, #3157d5);
-  --vpr-success: var(--bb-color-success, #18794e);
   --vpr-success-soft: var(--bb-color-success-soft, #ecfdf3);
   --vpr-warning: var(--bb-color-warning, #9a6700);
   --vpr-warning-soft: var(--bb-color-warning-soft, #fff8e6);
   --vpr-danger: var(--bb-color-danger, #b42318);
   --vpr-danger-soft: var(--bb-color-danger-soft, #fef3f2);
   box-sizing: border-box;
-  display: grid;
-  gap: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 28px 16px 48px;
+  display: block;
+  min-width: 0;
   color: var(--vpr-ink);
   font-family: var(--bb-font-sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-size: 14px;
   line-height: 1.5;
 }
 
-body:has(.vpr) {
-  margin: 0;
-  background: var(--vpr-surface, #f5f7fb);
-}
-
 .vpr *,
 .vpr *::before,
 .vpr *::after {
-  box-sizing: inherit;
+  box-sizing: border-box;
 }
 
-.vpr h1,
-.vpr h2,
-.vpr h3,
-.vpr p {
-  margin-top: 0;
-}
-
-/* Part header: eyebrow, title and lead inside the gradient box. */
-.vpr-header {
-  display: grid;
-  min-width: 0;
-  padding: 24px;
-  border: 1px solid var(--vpr-border);
-  border-radius: var(--bb-radius-lg, 16px);
-  background: linear-gradient(135deg, var(--vpr-header-start), var(--vpr-header-end));
-}
-
-.vpr-kicker {
-  color: var(--vpr-eyebrow);
-  font-size: .72rem;
-  font-weight: 750;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-
-.vpr h1 {
-  margin: 4px 0 8px;
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  line-height: 1.25;
-  letter-spacing: -.02em;
-}
-
-.vpr-lead {
-  margin-bottom: 0;
-  color: var(--vpr-muted);
-}
-
-.vpr-coverage {
-  display: grid;
-  gap: 12px;
-  min-width: 0;
-  padding: 18px;
-  border: 1px solid var(--vpr-border);
-  border-radius: var(--bb-radius-md, 14px);
-  background: var(--vpr-panel);
-}
-
-.vpr-coverage-facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 24px;
+/* The standalone review host (value-proof:serve) has no shell around the part. */
+body:has(#brainbase-value-proof-review) {
   margin: 0;
+  background: var(--bb-color-paper, #ffffff);
 }
 
-.vpr-coverage-facts dt {
-  color: var(--vpr-muted);
-  font-size: 12px;
+#brainbase-value-proof-review {
+  display: block;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 40px 48px 72px;
 }
 
-.vpr-coverage-facts dd {
-  margin: 0 0 4px;
-  overflow-wrap: anywhere;
-  font-weight: 650;
-}
-
-.vpr-filter {
-  display: inline-flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.vpr-filter input {
-  accent-color: var(--vpr-action);
-}
-
-.vpr-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 18px;
-  align-items: start;
-}
-
-@media (min-width: 960px) {
-  .vpr-layout {
-    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
-  }
-
-  .vpr-card {
-    position: sticky;
-    top: 16px;
-  }
-}
-
-.vpr-lists {
-  display: grid;
-  gap: 18px;
-  min-width: 0;
-}
-
-/* Buttons: one shape; the primary action and the pressed filter use the action color. */
-.vpr-needs-human,
-.vpr-submit,
-.vpr-secondary {
-  min-height: 40px;
-  padding: 8px 12px;
-  border: 1px solid var(--vpr-control-border);
-  border-radius: var(--bb-radius-sm, 7px);
-  color: var(--vpr-ink);
-  background: var(--vpr-panel);
-  font: inherit;
-  cursor: pointer;
-}
-
-/* Hosts often reset button fonts with `button { font: inherit }`; keep the weight. */
-.vpr .vpr-needs-human,
-.vpr .vpr-submit,
-.vpr .vpr-secondary {
+/*
+ * The local shell resets `.bb-shell button { font: inherit }`, which outranks the
+ * kit's button and row type; keep the kit's sizes and weight on this screen.
+ */
+.vpr .bb-ws-button,
+.bb-vpr-detail .bb-ws-button {
+  font-size: 13px;
   font-weight: 680;
 }
 
-.vpr-needs-human {
-  justify-self: start;
-  border-color: color-mix(in srgb, var(--vpr-warning) 40%, var(--vpr-control-border));
-  color: var(--vpr-warning);
-  background: var(--vpr-warning-soft);
+.vpr .bb-ws-button.is-quiet,
+.bb-vpr-detail .bb-ws-button.is-quiet {
+  font-size: 12px;
 }
 
-.vpr-needs-human.is-active {
-  border-color: var(--vpr-action);
-  color: var(--vpr-action-text);
-  background: var(--vpr-action);
+.vpr button.bb-ws-ledger-row {
+  font-size: 12px;
 }
 
-.vpr-needs-human[disabled] {
-  cursor: default;
-  opacity: .55;
-}
-
-.vpr-submit {
-  border-color: var(--vpr-action);
-  color: var(--vpr-action-text);
-  background: var(--vpr-action);
-}
-
-.vpr-submit:hover:not([disabled]) {
-  border-color: var(--vpr-action-hover);
-  background: var(--vpr-action-hover);
-}
-
-.vpr-submit[disabled] {
-  opacity: .6;
-  cursor: progress;
-}
-
-.vpr-secondary {
-  justify-self: start;
-}
-
-.vpr-secondary:hover {
-  border-color: var(--vpr-border-strong);
-}
-
-/* Sections: white boxes; the two highlights carry their state as a left bar. */
-.vpr-highlight,
-.vpr-map {
+/* Notices: one body element beside the kit's label. */
+.bb-vpr-notice-body {
   display: grid;
-  gap: 8px;
+  gap: var(--bb-space-2);
   min-width: 0;
-  padding: 18px;
-  border: 1px solid var(--vpr-border);
-  border-radius: var(--bb-radius-md, 14px);
-  background: var(--vpr-panel);
 }
 
-.vpr-highlight h2,
-.vpr-map h2 {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: baseline;
-  margin-bottom: 0;
-  font-size: 1.1rem;
-}
-
-.vpr-highlight {
-  box-shadow: inset 3px 0 var(--vpr-danger);
-}
-
-.vpr-highlight.is-corrected h2 {
-  color: var(--vpr-danger);
-}
-
-.vpr-highlight.is-after-ask {
-  box-shadow: inset 3px 0 var(--vpr-warning);
-}
-
-.vpr-highlight.is-after-ask h2 {
-  color: var(--vpr-warning);
-}
-
-.vpr-subheading {
-  margin: 8px 0 0;
-  color: var(--vpr-muted);
-  font-size: 14px;
-}
-
-.vpr-rows {
-  display: grid;
-  gap: 8px;
+.bb-vpr-notice-body p {
   margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.vpr-row {
-  border: 1px solid var(--vpr-border);
-  border-left-width: 3px;
-  border-radius: var(--bb-radius-sm, 7px);
-  background: var(--vpr-panel);
-}
-
-.vpr-row.is-delegated {
-  border-left-color: var(--vpr-success);
-}
-
-.vpr-row.is-verifying {
-  border-left-color: var(--vpr-border-strong);
-}
-
-.vpr-row.is-returned {
-  border-left-color: var(--vpr-warning);
-}
-
-.vpr-rows.is-unrecorded .vpr-row {
-  background: var(--vpr-surface);
-}
-
-.vpr-row > .vpr-list,
-.vpr-row > .vpr-empty {
-  margin: 0 12px 12px;
-}
-
-.vpr-row-head {
-  display: grid;
-  gap: 4px;
-  width: 100%;
-  padding: 12px 14px;
-  border: 0;
-  border-radius: var(--bb-radius-sm, 7px);
-  color: inherit;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.vpr-row-head:hover {
-  background: var(--vpr-surface);
-}
-
-.vpr-row-title {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-}
-
-.vpr-row-name {
-  font-weight: 700;
   overflow-wrap: anywhere;
 }
 
-.vpr-state {
-  padding: 1px 8px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.vpr-state.is-delegated {
-  border-color: color-mix(in srgb, var(--vpr-success) 35%, var(--vpr-border));
-  color: var(--vpr-accent-strong);
-  background: var(--vpr-success-soft);
-}
-
-.vpr-state.is-verifying {
-  border-color: var(--vpr-border-strong);
-  color: var(--vpr-ink);
-  background: var(--vpr-surface);
-}
-
-.vpr-state.is-returned {
-  border-color: color-mix(in srgb, var(--vpr-warning) 35%, var(--vpr-border));
-  color: var(--vpr-warning);
-  background: var(--vpr-warning-soft);
-}
-
-.vpr-row-basis {
-  font-size: 13px;
-}
-
-.vpr-row-alert {
+.bb-vpr-notice-body .bb-ws-button {
   justify-self: start;
-  color: var(--vpr-danger);
-  font-size: 13px;
+}
+
+.bb-vpr-notice-title {
+  color: var(--bb-color-ink);
   font-weight: 700;
 }
 
-.vpr-row-counts {
-  color: var(--vpr-muted);
-  font-size: 12px;
+.bb-vpr-rejected summary {
+  cursor: pointer;
 }
 
-.vpr-count {
-  color: var(--vpr-muted);
+.bb-vpr-rejected ul {
+  margin: var(--bb-space-1) 0 0;
+  padding-left: var(--bb-space-5);
+}
+
+/* Filters: toggles in the head actions row, the pressed one marked like a selected row. */
+.bb-vpr-filters {
+  margin-bottom: var(--bb-space-5);
+}
+
+.bb-ws-button.bb-vpr-toggle.is-pressed {
+  border-color: var(--bb-color-accent);
+  background: var(--bb-color-accent-soft);
+  color: var(--bb-color-accent-strong);
+  box-shadow: inset 3px 0 var(--bb-color-accent);
+}
+
+/* Text inside the ledgers. */
+.bb-vpr-primary {
+  color: var(--bb-color-ink);
+  font-size: 13px;
+  font-weight: 690;
+}
+
+.bb-vpr-state {
+  font-weight: 690;
+}
+
+.bb-vpr-state.is-delegated {
+  color: var(--bb-color-accent-strong);
+}
+
+.bb-vpr-state.is-verifying {
+  color: var(--bb-color-muted);
+}
+
+.bb-vpr-state.is-returned {
+  color: var(--bb-color-warning);
+}
+
+.bb-vpr-alert {
+  color: var(--bb-color-danger);
+  font-weight: 690;
+}
+
+/* 委任の地図: six columns; the kind name keeps the most room. */
+.bb-vpr-map-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(130px, 1.3fr) 92px minmax(120px, 1.1fr) minmax(84px, .9fr) 96px 60px;
+}
+
+.bb-vpr-map-ledger.is-unrecorded .bb-ws-ledger-row:not(.bb-ws-ledger-head) {
+  background: var(--bb-color-surface);
+}
+
+.bb-vpr-map-ledger.is-unrecorded .bb-ws-ledger-row.is-selected {
+  background: var(--bb-color-accent-soft);
+}
+
+/* Highlights: compact ledgers of judgments, above the map. */
+.bb-vpr-judgment-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(150px, 1.7fr) minmax(100px, 1fr) minmax(110px, 1.2fr) 52px;
+}
+
+.bb-vpr-highlight {
+  display: grid;
+  gap: var(--bb-space-2);
+  min-width: 0;
+  margin-bottom: var(--bb-space-6);
+}
+
+.bb-vpr-highlight h2 {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  align-items: baseline;
+  margin: 0;
+  font-size: 16px;
+  letter-spacing: -.02em;
+}
+
+.bb-vpr-highlight.is-corrected h2 {
+  color: var(--bb-color-danger);
+}
+
+.bb-vpr-highlight.is-after-ask h2 {
+  color: var(--bb-color-warning);
+}
+
+.bb-vpr-highlight.is-corrected .bb-ws-ledger {
+  border-top-color: var(--bb-color-danger);
+}
+
+.bb-vpr-highlight.is-after-ask .bb-ws-ledger {
+  border-top-color: var(--bb-color-warning);
+}
+
+.bb-vpr-count {
+  color: var(--bb-color-muted);
   font-size: 13px;
   font-weight: 500;
 }
 
-.vpr-hint {
-  margin-bottom: 8px;
-  color: var(--vpr-muted);
+.bb-vpr-hint {
+  margin: 0 0 var(--bb-space-2);
+  color: var(--bb-color-muted);
   font-size: 13px;
 }
 
-.vpr-empty {
+.bb-vpr-map > .bb-ws-section-title {
+  margin-top: 0;
+}
+
+.bb-vpr-map > .bb-ws-notice {
+  margin-block: 0 var(--bb-space-5);
+}
+
+.bb-vpr-subheading {
+  margin: var(--bb-space-6) 0 var(--bb-space-1);
+  color: var(--bb-color-ink);
+  font-size: 15px;
+}
+
+.bb-vpr-empty {
   margin: 0;
-  padding: 12px;
-  border: 1px dashed var(--vpr-border-strong);
-  border-radius: var(--bb-radius-sm, 7px);
-  color: var(--vpr-muted);
+  color: var(--bb-color-muted);
   font-size: 13px;
 }
 
-.vpr-list {
+/* Detail: in the rail, or after the workspace when the host has none. */
+.bb-vpr-inline-detail {
+  max-width: 760px;
+  margin-top: 48px;
+  border-top: 1px solid var(--bb-color-border-strong);
+  padding-top: var(--bb-space-5);
+}
+
+.bb-vpr-detail > .bb-vpr-back {
+  margin-bottom: var(--bb-space-4);
+}
+
+.bb-vpr-detail .bb-ws-rail-head h2:focus {
+  outline: none;
+}
+
+.bb-vpr-detail h4 {
+  margin: var(--bb-space-3) 0 var(--bb-space-1);
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
+.bb-vpr-list,
+.bb-vpr-options-list {
   display: grid;
-  gap: 8px;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.vpr-item {
+.bb-vpr-options-list {
+  gap: var(--bb-space-1);
+  padding-left: var(--bb-space-5);
+  list-style: disc;
+  color: var(--bb-color-muted);
+  font-size: 13px;
+}
+
+.bb-vpr-item {
+  width: 100%;
   display: grid;
   gap: 2px;
-  width: 100%;
-  padding: 12px 14px;
-  border: 1px solid var(--vpr-border);
-  border-radius: var(--bb-radius-sm, 7px);
-  color: inherit;
-  background: var(--vpr-panel);
+  border: 0;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding: var(--bb-space-3) var(--bb-space-2);
+  background: transparent;
+  color: var(--bb-color-muted);
   font: inherit;
   text-align: left;
   cursor: pointer;
 }
 
-.vpr-item:hover {
-  border-color: var(--vpr-border-strong);
+.bb-vpr-list > li:first-child .bb-vpr-item {
+  border-top: 1px solid var(--bb-color-border-strong);
 }
 
-.vpr-item.is-selected {
-  border-color: var(--vpr-accent);
-  background: var(--vpr-accent-soft);
-  box-shadow: inset 3px 0 var(--vpr-accent);
+.bb-vpr-item:hover {
+  background: var(--bb-color-panel);
 }
 
-.vpr-item-title {
-  font-weight: 650;
-  overflow-wrap: anywhere;
+.bb-vpr-item.is-selected {
+  background: var(--bb-color-accent-soft);
+  box-shadow: inset 3px 0 var(--bb-color-accent);
 }
 
-.vpr-item-summary {
+.bb-vpr-item-title {
+  color: var(--bb-color-ink);
   font-size: 13px;
+  font-weight: 690;
   overflow-wrap: anywhere;
 }
 
-.vpr-item-meta {
-  color: var(--vpr-muted);
+.bb-vpr-item-summary {
   font-size: 12px;
-}
-
-/* The selected judgment, like the organization's inspector card. */
-.vpr-card {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-  padding: 18px;
-  border: 1px solid var(--vpr-border);
-  border-radius: var(--bb-radius-md, 14px);
-  background: var(--vpr-panel);
-}
-
-.vpr-card > h2 {
-  margin-bottom: 0;
-  font-size: 1.2rem;
-  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 
-.vpr-card > h2:focus {
-  outline: none;
+.bb-vpr-item-meta {
+  color: var(--bb-color-quiet);
+  font-size: 11px;
 }
 
-.vpr-badge {
+.bb-vpr-outcome.is-outcome_verified {
+  color: var(--bb-color-success);
+}
+
+.bb-vpr-human-decision h3 {
+  color: var(--bb-color-warning);
+}
+
+.bb-vpr-history,
+.bb-vpr-audit {
+  font-size: 13px;
+}
+
+.bb-vpr-history {
+  margin-top: var(--bb-space-3);
+}
+
+.bb-vpr-history summary,
+.bb-vpr-audit summary {
+  color: var(--bb-color-muted);
+  cursor: pointer;
+}
+
+.bb-vpr-history ol {
+  margin: var(--bb-space-2) 0 0;
+  padding-left: var(--bb-space-5);
+  color: var(--bb-color-muted);
+}
+
+.bb-vpr-audit .bb-ws-definition {
+  margin-top: var(--bb-space-3);
+}
+
+.bb-vpr-audit dt,
+.bb-vpr-audit dd {
+  font-family: var(--bb-font-mono);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.bb-vpr-detail .bb-ws-rail-block > .bb-ws-button {
   justify-self: start;
-  padding: 2px 10px;
-  border: 1px solid color-mix(in srgb, var(--vpr-accent) 35%, var(--vpr-border));
-  border-radius: 999px;
-  color: var(--vpr-accent-strong);
-  background: var(--vpr-accent-soft);
-  font-size: 12px;
-  font-weight: 700;
 }
 
-.vpr-badge.is-needs_human {
-  border-color: color-mix(in srgb, var(--vpr-warning) 35%, var(--vpr-border));
-  color: var(--vpr-warning);
-  background: var(--vpr-warning-soft);
+.bb-vpr-detail .bb-ws-rail-block > .vpr-notice {
+  margin-top: var(--bb-space-3);
 }
 
-.vpr-badge.is-blocked {
-  border-color: color-mix(in srgb, var(--vpr-danger) 35%, var(--vpr-border));
-  color: var(--vpr-danger);
-  background: var(--vpr-danger-soft);
-}
-
-.vpr-facts {
+/* Feedback form (kept from the previous part; the part variables fall back to the old palette). */
+.vpr-feedback {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 2px 16px;
-  margin: 0;
-}
-
-.vpr-facts dt {
-  color: var(--vpr-muted);
-  font-size: 13px;
-}
-
-.vpr-facts dd {
-  margin: 0 0 10px;
-  overflow-wrap: anywhere;
-}
-
-@media (min-width: 640px) {
-  .vpr-facts {
-    grid-template-columns: 9em minmax(0, 1fr);
-    gap: 0 16px;
-    border-top: 1px solid var(--vpr-border);
-  }
-
-  .vpr-facts dt,
-  .vpr-facts dd {
-    margin: 0;
-    padding: 8px 0;
-    border-bottom: 1px solid var(--vpr-border);
-  }
-}
-
-.vpr-facts dd.is-outcome-outcome_verified {
-  color: var(--vpr-success);
-}
-
-.vpr-facts.is-audit dd {
-  font-family: var(--bb-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 12px;
-}
-
-.vpr-human-decision {
-  padding: 12px 14px;
-  border-radius: var(--bb-radius-sm, 7px);
-  background: var(--vpr-warning-soft);
-}
-
-.vpr-human-decision h3 {
-  margin-bottom: 4px;
-  color: var(--vpr-warning);
-  font-size: 14px;
+  gap: var(--bb-space-3);
 }
 
 .vpr-feedback fieldset {
   display: grid;
   gap: 10px;
   min-width: 0;
-  margin: 0 0 12px;
-  padding: 12px;
-  border: 1px solid var(--vpr-border);
-  border-radius: var(--bb-radius-sm, 7px);
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .vpr-feedback legend {
-  padding: 0 5px;
-  font-weight: 700;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.vpr-feedback .vpr-submit {
+  justify-self: start;
 }
 
 .vpr-options {
@@ -557,11 +394,12 @@ body:has(.vpr) {
   display: inline-flex;
   gap: 7px;
   align-items: center;
-  min-height: 40px;
-  padding: 8px 12px;
+  min-height: 38px;
+  padding: 7px 11px;
   border: 1px solid var(--vpr-control-border);
   border-radius: var(--bb-radius-sm, 7px);
   background: var(--vpr-panel);
+  font-size: 13px;
   cursor: pointer;
 }
 
@@ -571,7 +409,7 @@ body:has(.vpr) {
 }
 
 .vpr-option:has(input:checked) {
-  border-color: var(--vpr-action);
+  border-color: var(--vpr-accent);
   color: var(--vpr-accent-strong);
   background: var(--vpr-accent-soft);
 }
@@ -587,7 +425,7 @@ body:has(.vpr) {
   display: none;
 }
 
-.vpr-layers .vpr-hint {
+.vpr-layers .bb-vpr-hint {
   flex-basis: 100%;
   margin-bottom: 0;
 }
@@ -611,18 +449,13 @@ body:has(.vpr) {
   outline-offset: 2px;
 }
 
-/* State boxes. */
+/* Messages under the form and the consult button. */
 .vpr-notice {
   margin: 0;
   padding: 11px 12px;
   border-radius: var(--bb-radius-sm, 7px);
   white-space: pre-line;
   font-size: 13px;
-}
-
-.vpr-notice.is-warning {
-  color: var(--vpr-warning);
-  background: var(--vpr-warning-soft);
 }
 
 .vpr-notice.is-danger {
@@ -640,33 +473,32 @@ body:has(.vpr) {
   background: var(--vpr-surface);
 }
 
-.vpr-unavailable {
-  padding: 18px;
-  border: 1px solid color-mix(in srgb, var(--vpr-danger) 35%, var(--vpr-border));
-  border-radius: var(--bb-radius-md, 14px);
-  background: var(--vpr-danger-soft);
-}
-
-.vpr-unavailable h2 {
-  color: var(--vpr-danger);
-  font-size: 1.1rem;
-}
-
-.vpr details summary {
-  cursor: pointer;
-  color: var(--vpr-muted);
-  font-size: 13px;
-}
-
 @media (max-width: 760px) {
-  .vpr-header {
-    padding: 18px;
+  #brainbase-value-proof-review {
+    padding: 24px 18px 52px;
   }
 
-  .vpr-coverage,
-  .vpr-highlight,
-  .vpr-map,
-  .vpr-card {
-    padding: 14px;
+  .bb-vpr-map-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 88px 60px;
+  }
+
+  .bb-vpr-map-ledger .bb-ws-ledger-row > span:nth-child(3),
+  .bb-vpr-map-ledger .bb-ws-ledger-row > span:nth-child(4),
+  .bb-vpr-map-ledger .bb-ws-ledger-row > span:nth-child(6) {
+    display: none;
+  }
+
+  .bb-vpr-judgment-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  }
+
+  .bb-vpr-judgment-ledger .bb-ws-ledger-row > span:nth-child(2),
+  .bb-vpr-judgment-ledger .bb-ws-ledger-row > span:nth-child(4) {
+    display: none;
+  }
+
+  .bb-vpr-filters {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

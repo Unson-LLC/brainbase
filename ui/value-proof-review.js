@@ -6,7 +6,27 @@
  * module owns presentation only: it never treats an unavailable journal as an
  * empty list, never edits the judgment journal, and keeps internal IDs inside
  * the audit details.
+ *
+ * The screen follows the organization edition's pattern (workspace-kit): page
+ * head, the 記録の範囲 notice, filters, metrics, and the 委任の地図 as a ledger
+ * of rows the owner selects.  A host that gives a `rail` element gets the
+ * selected row or judgment there; without one (the organization edition, the
+ * standalone review host) the same detail follows the workspace content.
  */
+
+import {
+  workspaceActions,
+  workspaceButton,
+  workspaceDefinition,
+  workspaceDetailEmpty,
+  workspaceLedger,
+  workspaceMetrics,
+  workspaceNotice,
+  workspacePageHeader,
+  workspaceRailBlock,
+  workspaceRailHead,
+  workspaceSectionTitle,
+} from './workspace-kit.js';
 
 export const VALUE_PROOF_REVIEW_UI_CONTRACT_VERSION = 'value-proof-review-ui.v2';
 
@@ -256,6 +276,7 @@ function findItem(state, key) {
   return null;
 }
 
+
 function firstVisibleKey(state) {
   for (const row of visibleRows(state)) {
     const item = rowItems(state, row)[0];
@@ -264,96 +285,123 @@ function firstVisibleKey(state) {
   return null;
 }
 
-/** Keep the card on a visible judgment and open the row that lists it. */
+/**
+ * Keep the selection on something the filters still show: a hidden judgment
+ * moves to the first visible one (in the selected row when it has one), and
+ * the selected row follows it; a hidden row falls back to the first visible row.
+ */
 function revealSelection(state) {
-  if (!itemVisible(state, findItem(state, state.selectedKey))) state.selectedKey = firstVisibleKey(state);
-  const row = rowOfItem(state, state.selectedKey);
-  if (row) state.expandedRows.add(row.key);
+  if (state.home?.status !== 'available') return;
+  if (!itemVisible(state, findItem(state, state.selectedKey))) {
+    const selectedRow = visibleRows(state).find((row) => row.key === state.selectedRowKey);
+    const inRow = selectedRow ? rowItems(state, selectedRow)[0] : null;
+    state.selectedKey = inRow ? itemKey(inRow.proof) : firstVisibleKey(state);
+    const row = rowOfItem(state, state.selectedKey);
+    if (row) state.selectedRowKey = row.key;
+  }
+  const rows = visibleRows(state);
+  if (!rows.some((row) => row.key === state.selectedRowKey)) {
+    state.selectedRowKey = rowOfItem(state, state.selectedKey)?.key ?? rows[0]?.key ?? null;
+  }
+  if (state.railView === 'judgment' && !findItem(state, state.selectedKey)) state.railView = 'row';
 }
 
 function notice(doc, className, message, role = 'status') {
   return makeElement(doc, 'p', { className: `vpr-notice ${className}`, text: message, attrs: { role } });
 }
 
-function renderHeader(doc) {
-  const header = makeElement(doc, 'header', { className: 'vpr-header' });
-  header.append(
-    makeElement(doc, 'div', { className: 'vpr-kicker', text: 'BRAINBASE / REVIEW' }),
-    makeElement(doc, 'h1', { text: '判断の見返し' }),
-    makeElement(doc, 'p', { className: 'vpr-lead', text: 'Brainbaseに、どの種類の判断をどこまで任せていて、そのうち何をあなたが直したか。' }),
-  );
-  return header;
+const PAGE_LEAD = 'Brainbaseに、どの種類の判断をどこまで任せていて、そのうち何をあなたが直したか。';
+
+function shortDate(value) {
+  const time = typeof value === 'string' ? Date.parse(value) : Number.NaN;
+  if (Number.isNaN(time)) return '日時不明';
+  const date = new Date(time);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
-function renderCoverage(doc, home, state, callbacks) {
-  const coverage = makeElement(doc, 'section', { className: 'vpr-coverage', attrs: { 'aria-label': '記録の範囲' } });
-  const facts = makeElement(doc, 'dl', { className: 'vpr-coverage-facts' });
-  const fact = (label, value) => facts.append(makeElement(doc, 'dt', { text: label }), makeElement(doc, 'dd', { text: value }));
-  fact('対象', home.root ?? '不明');
-  fact('保存済み', home.coverage.saved === null ? '不明' : `${home.coverage.saved}件`);
-  fact('最終記録', home.coverage.latestRecordedAt ? formatDate(home.coverage.latestRecordedAt) : '記録なし');
-  coverage.append(facts);
-  const needsHuman = home.sections.needs_human.length;
-  const needsHumanButton = makeElement(doc, 'button', {
-    className: `vpr-needs-human${state.needsHumanOnly ? ' is-active' : ''}`,
-    text: state.needsHumanOnly ? `あなたの判断が必要 ${needsHuman}件（絞り込み中・解除）` : `あなたの判断が必要 ${needsHuman}件`,
-    attrs: { type: 'button', 'aria-pressed': state.needsHumanOnly ? 'true' : 'false', disabled: needsHuman === 0 && !state.needsHumanOnly },
+function renderPageHead(doc, page) {
+  return workspacePageHeader(doc, {
+    crumbs: Array.isArray(page?.crumbs) ? page.crumbs : [],
+    title: '判断の見返し',
+    lead: PAGE_LEAD,
+    source: text(page?.source),
   });
-  needsHumanButton.addEventListener('click', () => callbacks.onToggleNeedsHuman?.(!state.needsHumanOnly));
-  coverage.append(needsHumanButton);
-  if (home.coverage.possiblyStalled) {
-    coverage.append(notice(doc, 'is-warning', 'しばらく新しい記録がありません。記録が止まっている可能性があります。0件を「何も無かった」とは扱いません。'));
+}
+
+/** One element for a notice body, so the kit's label column stays on the left. */
+function noticeBody(doc, ...parts) {
+  const body = makeElement(doc, 'div', { className: 'bb-vpr-notice-body' });
+  for (const part of parts) {
+    if (part === null || part === undefined || part === false) continue;
+    body.append(typeof part === 'string' ? makeElement(doc, 'p', { text: part }) : part);
   }
+  return body;
+}
+
+function renderCoverageNotice(doc, home) {
+  const saved = home.coverage.saved === null ? '保存済み 未確認' : `保存済み ${home.coverage.saved}件`;
+  const latest = home.coverage.latestRecordedAt ? `最終記録 ${formatDate(home.coverage.latestRecordedAt)}` : '最終記録 なし';
+  let rejected = null;
   if (home.coverage.rejected) {
-    const details = makeElement(doc, 'details', { className: 'vpr-rejected' });
-    details.append(makeElement(doc, 'summary', { text: `読めない記録 ${home.coverage.rejected}件` }));
+    rejected = makeElement(doc, 'details', { className: 'bb-vpr-rejected' });
+    rejected.append(makeElement(doc, 'summary', { text: `読めない記録 ${home.coverage.rejected}件` }));
     const list = makeElement(doc, 'ul');
     for (const entry of home.rejected) {
       list.append(makeElement(doc, 'li', { text: `${text(entry.file) ?? '不明なファイル'}: ${text(entry.reason) ?? '理由不明'}` }));
     }
-    details.append(list);
-    coverage.append(details);
+    rejected.append(list);
   }
-  const filter = makeElement(doc, 'label', { className: 'vpr-filter' });
-  const checkbox = makeElement(doc, 'input', { attrs: { type: 'checkbox' } });
-  checkbox.checked = state.unratedOnly;
-  checkbox.addEventListener('change', () => callbacks.onToggleUnrated?.(Boolean(checkbox.checked)));
-  filter.append(checkbox, makeElement(doc, 'span', { text: '未評価のみ表示' }));
-  coverage.append(filter);
-  return coverage;
+  return workspaceNotice(doc, {
+    label: '記録の範囲',
+    text: noticeBody(doc, `判断journal（${home.root ?? '場所不明'}）を読んでいます。${saved}・${latest}。`, rejected),
+  });
+}
+
+function toggleButton(doc, { label, pressed, disabled = false, onClick }) {
+  const button = workspaceButton(doc, {
+    text: label,
+    onClick,
+    disabled,
+    attrs: { 'aria-pressed': pressed ? 'true' : 'false' },
+  });
+  button.className = `${button.className} bb-vpr-toggle${pressed ? ' is-pressed' : ''}`;
+  return button;
+}
+
+function renderFilters(doc, home, state, callbacks) {
+  const needsHuman = home.sections.needs_human.length;
+  const actions = workspaceActions(doc, [
+    toggleButton(doc, {
+      label: state.needsHumanOnly ? `あなたの判断が必要 ${needsHuman}件（絞り込み中・解除）` : `あなたの判断が必要 ${needsHuman}件`,
+      pressed: state.needsHumanOnly,
+      disabled: needsHuman === 0 && !state.needsHumanOnly,
+      onClick: () => callbacks.onToggleNeedsHuman?.(!state.needsHumanOnly),
+    }),
+    toggleButton(doc, {
+      label: state.unratedOnly ? '未評価のみ（絞り込み中・解除）' : '未評価のみ',
+      pressed: state.unratedOnly,
+      onClick: () => callbacks.onToggleUnrated?.(!state.unratedOnly),
+    }),
+  ]);
+  actions.className = `${actions.className} bb-vpr-filters`;
+  actions.setAttribute('aria-label', '絞り込み');
+  return actions;
+}
+
+function renderMetrics(doc, home) {
+  const map = home.delegationMap;
+  return workspaceMetrics(doc, [
+    { label: '保存済み', value: home.coverage.saved, note: '判断journalの記録' },
+    { label: 'あなたの判断が必要', value: home.sections.needs_human.length, note: 'あなたに戻した判断' },
+    { label: '聞かずに進めた', value: home.sections.continued.length, note: '聞かずに続行した判断' },
+    { label: '評価済み', value: map.rated, note: `判断 ${map.judged}件のうち` },
+  ], { ariaLabel: '判断の集計' });
 }
 
 function itemTitle(proof) {
   return text(proof.interruption.question_display_text)
     ?? text(proof.human_decision?.question)
     ?? '質問の記録なし';
-}
-
-function renderItemButton(doc, state, item, callbacks, extraMeta = []) {
-  const key = itemKey(item.proof);
-  const selected = key === state.selectedKey;
-  const button = makeElement(doc, 'button', {
-    className: `vpr-item${selected ? ' is-selected' : ''}`,
-    attrs: { type: 'button', 'aria-pressed': selected ? 'true' : 'false' },
-  });
-  button.append(
-    makeElement(doc, 'span', { className: 'vpr-item-title', text: itemTitle(item.proof) }),
-    makeElement(doc, 'span', { className: 'vpr-item-summary', text: text(item.proof.decision.summary) ?? text(item.proof.human_decision?.why_human) ?? '判断の記録なし' }),
-    makeElement(doc, 'span', {
-      className: 'vpr-item-meta',
-      text: [
-        ...extraMeta,
-        SECTION_LABELS[item.section],
-        formatDate(item.proof.recorded_at),
-        OUTCOME_LABELS[item.proof.outcome.status] ?? '成果不明',
-        FEEDBACK_LABELS[item.proof.feedback.status] ?? '評価不明',
-      ].filter(Boolean).join(' · '),
-    }),
-  );
-  button.addEventListener('click', () => callbacks.onSelect?.(key));
-  const entry = makeElement(doc, 'li');
-  entry.append(button);
-  return entry;
 }
 
 function rowName(row) {
@@ -371,26 +419,40 @@ function stateBasisText(basis) {
   return 'まだ評価がありません';
 }
 
-function rowCountsText(row) {
+function ratedText(row) {
   const { counts } = row;
+  if (counts.rated === 0) return '未評価';
   const byFeedback = ['accepted', 'corrected', 'next_time_ask', 'reverted']
     .filter((status) => counts.byFeedback[status] > 0)
     .map((status) => `${FEEDBACK_LABELS[status]} ${counts.byFeedback[status]}`);
-  return [
-    `聞かずに続行 ${counts.continued}件・あなたに戻した ${counts.returned}件`,
-    `評価済み ${counts.rated}件${byFeedback.length > 0 ? `（${byFeedback.join('・')}）` : ''}`,
-    `引き継ぎあり ${counts.inherited}件`,
-    `最新 ${row.latestRecordedAt ? formatDate(row.latestRecordedAt) : '日時不明'}`,
-  ].join(' / ');
+  return `${counts.rated}件${byFeedback.length > 0 ? `（${byFeedback.join('・')}）` : ''}`;
 }
 
-function highlightMeta(entry, item) {
+function feedbackText(status, layerKey, summary) {
+  const layer = FEEDBACK_LAYER_LABELS[layerKey];
+  return `${FEEDBACK_LABELS[status] ?? status ?? '評価不明'}${layer ? `（${layer}）` : ''}${text(summary) ? `: ${text(summary)}` : ''}`;
+}
+
+/** The latest feedback of a judgment: the history entry when there is one, else the proof's own. */
+function latestFeedbackText(item) {
   const latest = item.feedbackHistory.at(-1);
-  const layer = FEEDBACK_LAYER_LABELS[latest?.target_layer];
-  return [
-    entry.row ? rowName(entry.row) : null,
-    latest ? `${FEEDBACK_LABELS[latest.status] ?? latest.status}${layer ? `（${layer}）` : ''}${text(latest.summary) ? `: ${text(latest.summary)}` : ''}` : null,
-  ];
+  if (latest) return feedbackText(latest.status, latest.target_layer, latest.summary);
+  return feedbackText(item.proof.feedback.status, null, item.proof.feedback.summary);
+}
+
+function judgmentLedgerRow(state, item, row, callbacks) {
+  const key = itemKey(item.proof);
+  return {
+    key,
+    selected: key === state.selectedKey && state.railView === 'judgment',
+    onSelect: (selected) => callbacks.onSelect?.(selected),
+    cells: [
+      { text: itemTitle(item.proof), className: 'bb-vpr-primary' },
+      row ? rowName(row) : { text: '種類の記録なし', className: 'is-unresolved' },
+      latestFeedbackText(item),
+      shortDate(item.proof.recorded_at),
+    ],
+  };
 }
 
 function renderHighlight(doc, state, entries, { className, title, hint }, callbacks) {
@@ -398,78 +460,88 @@ function renderHighlight(doc, state, entries, { className, title, hint }, callba
     .map((entry) => ({ entry, item: state.home.itemsByKey.get(entry.key) }))
     .filter(({ item }) => itemVisible(state, item));
   if (visible.length === 0) return null;
-  const block = makeElement(doc, 'section', { className: `vpr-highlight ${className}`, attrs: { 'aria-label': title } });
+  const block = makeElement(doc, 'section', { className: `bb-vpr-highlight ${className}`, attrs: { 'aria-label': title } });
   const heading = makeElement(doc, 'h2');
-  heading.append(makeElement(doc, 'span', { text: title }), makeElement(doc, 'span', { className: 'vpr-count', text: `${visible.length}件` }));
-  block.append(heading, makeElement(doc, 'p', { className: 'vpr-hint', text: hint }));
-  const list = makeElement(doc, 'ul', { className: 'vpr-list' });
-  for (const { entry, item } of visible) list.append(renderItemButton(doc, state, item, callbacks, highlightMeta(entry, item)));
-  block.append(list);
+  heading.append(makeElement(doc, 'span', { text: title }), makeElement(doc, 'span', { className: 'bb-vpr-count', text: `${visible.length}件` }));
+  block.append(heading, makeElement(doc, 'p', { className: 'bb-vpr-hint', text: hint }));
+  block.append(workspaceLedger(doc, {
+    className: 'bb-vpr-judgment-ledger',
+    ariaLabel: title,
+    columns: ['判断', '判断の種類', '評価', '記録'],
+    rows: visible.map(({ entry, item }) => judgmentLedgerRow(state, item, entry.row, callbacks)),
+  }));
   return block;
 }
 
-function renderRow(doc, state, row, callbacks) {
-  const open = state.needsHumanOnly || state.expandedRows.has(row.key);
-  const block = makeElement(doc, 'li', { className: `vpr-row is-${row.state}${open ? ' is-open' : ''}` });
-  const head = makeElement(doc, 'button', {
-    className: 'vpr-row-head',
-    attrs: { type: 'button', 'aria-expanded': open ? 'true' : 'false' },
-  });
-  const title = makeElement(doc, 'span', { className: 'vpr-row-title' });
-  title.append(
-    makeElement(doc, 'span', { className: `vpr-state is-${row.state}`, text: DELEGATION_STATE_LABELS[row.state] }),
-    makeElement(doc, 'span', { className: 'vpr-row-name', text: rowName(row) }),
-  );
-  head.append(title, makeElement(doc, 'span', { className: 'vpr-row-basis', text: stateBasisText(row.stateBasis) }));
-  if (row.counts.correctedOrReverted > 0) {
-    head.append(makeElement(doc, 'span', { className: 'vpr-row-alert', text: `訂正・取り消し ${row.counts.correctedOrReverted}件` }));
-  }
-  head.append(makeElement(doc, 'span', { className: 'vpr-row-counts', text: rowCountsText(row) }));
-  head.addEventListener('click', () => callbacks.onToggleRow?.(row.key));
-  block.append(head);
-  if (open) {
-    const items = rowItems(state, row);
-    if (items.length === 0) {
-      block.append(makeElement(doc, 'p', { className: 'vpr-empty', text: state.unratedOnly ? '未評価の判断はありません。' : 'この行に表示できる判断はありません。' }));
-    } else {
-      const list = makeElement(doc, 'ul', { className: 'vpr-list' });
-      for (const item of items) list.append(renderItemButton(doc, state, item, callbacks));
-      block.append(list);
-    }
-  }
-  return block;
+/** The name in the map ledger: rows without a kind sit under their own heading, so the reason code is enough. */
+function ledgerRowName(row) {
+  if (row.source === 'reason_code') return `理由: ${row.label ?? '不明'}`;
+  if (row.source === 'unrecorded') return '理由の記録もなし';
+  return rowName(row);
 }
+
+function mapLedgerRow(state, row, callbacks) {
+  const corrected = row.counts.correctedOrReverted;
+  return {
+    key: row.key,
+    selected: row.key === state.selectedRowKey,
+    onSelect: (key) => callbacks.onSelectRow?.(key),
+    className: `is-${row.state}`,
+    cells: [
+      { primary: ledgerRowName(row) },
+      { text: DELEGATION_STATE_LABELS[row.state], className: `bb-vpr-state is-${row.state}` },
+      `続行 ${row.counts.continued}・戻した ${row.counts.returned}`,
+      ratedText(row),
+      { text: `${corrected}件`, className: corrected > 0 ? 'bb-vpr-alert' : 'is-unresolved' },
+      row.latestRecordedAt ? shortDate(row.latestRecordedAt) : { text: '日時不明', className: 'is-unresolved' },
+    ],
+  };
+}
+
+const MAP_COLUMNS = Object.freeze(['判断の種類', '状態', '判断', '評価', '訂正・取り消し', '最新']);
 
 function renderDelegationMap(doc, state, callbacks) {
   const map = state.home.delegationMap;
-  const block = makeElement(doc, 'section', { className: 'vpr-map', attrs: { 'aria-label': '委任の地図' } });
-  block.append(
-    makeElement(doc, 'h2', { text: '委任の地図' }),
-    makeElement(doc, 'p', { className: 'vpr-hint', text: '判断の種類ごとに、任せている・確かめ中・戻しているを、最新の判断と最新の評価から示します。' }),
-  );
+  const block = makeElement(doc, 'section', { className: 'bb-vpr-map', attrs: { 'aria-label': '委任の地図' } });
+  block.append(workspaceSectionTitle(doc, {
+    title: '委任の地図',
+    lead: '判断の種類ごとに、任せている・確かめ中・戻しているを、最新の判断と最新の評価から示します。行を選ぶと、その種類の判断が出ます。',
+  }));
   if (map.judged > 0 && map.kindRecorded === 0) {
-    block.append(notice(doc, 'is-muted', '判断の種類はまだ記録されていません。理由コードで分けています。'));
+    block.append(workspaceNotice(doc, { label: '判断の種類', text: '判断の種類はまだ記録されていません。理由コードで分けています。' }));
   }
   const rows = visibleRows(state);
   if (rows.length === 0) {
-    block.append(makeElement(doc, 'p', { className: 'vpr-empty', text: state.needsHumanOnly ? 'あなたの判断が必要な記録はありません。' : '判断の記録はありません。' }));
+    block.append(workspaceLedger(doc, {
+      className: 'bb-vpr-map-ledger',
+      ariaLabel: '委任の地図',
+      columns: MAP_COLUMNS,
+      rows: [],
+      empty: state.needsHumanOnly ? 'あなたの判断が必要な記録はありません。' : '判断の記録はありません。',
+    }));
     return block;
   }
   const kinds = rows.filter((row) => row.source === 'judgment_kind');
   const unrecorded = rows.filter((row) => row.source !== 'judgment_kind');
   if (kinds.length > 0) {
-    const list = makeElement(doc, 'ul', { className: 'vpr-rows' });
-    for (const row of kinds) list.append(renderRow(doc, state, row, callbacks));
-    block.append(list);
+    block.append(workspaceLedger(doc, {
+      className: 'bb-vpr-map-ledger',
+      ariaLabel: '判断の種類ごとの委任',
+      columns: MAP_COLUMNS,
+      rows: kinds.map((row) => mapLedgerRow(state, row, callbacks)),
+    }));
   }
   if (unrecorded.length > 0) {
     block.append(
-      makeElement(doc, 'h3', { className: 'vpr-subheading', text: '判断の種類が記録されていない判断' }),
-      makeElement(doc, 'p', { className: 'vpr-hint', text: '理由コードは、聞いた・聞かなかった理由であって、判断の種類ではありません。' }),
+      makeElement(doc, 'h3', { className: 'bb-vpr-subheading', text: '判断の種類が記録されていない判断' }),
+      makeElement(doc, 'p', { className: 'bb-vpr-hint', text: '理由コードは、聞いた・聞かなかった理由であって、判断の種類ではありません。' }),
+      workspaceLedger(doc, {
+        className: 'bb-vpr-map-ledger is-unrecorded',
+        ariaLabel: '判断の種類が記録されていない判断',
+        columns: MAP_COLUMNS,
+        rows: unrecorded.map((row) => mapLedgerRow(state, row, callbacks)),
+      }),
     );
-    const list = makeElement(doc, 'ul', { className: 'vpr-rows is-unrecorded' });
-    for (const row of unrecorded) list.append(renderRow(doc, state, row, callbacks));
-    block.append(list);
   }
   return block;
 }
@@ -495,8 +567,57 @@ function kindLabel(proof) {
   return text(proof.decision?.judgment_kind?.label);
 }
 
-function row(doc, list, label, value, className) {
-  list.append(makeElement(doc, 'dt', { text: label }), makeElement(doc, 'dd', { className, text: value }));
+function renderItemButton(doc, state, item, callbacks) {
+  const key = itemKey(item.proof);
+  const selected = key === state.selectedKey;
+  const button = makeElement(doc, 'button', {
+    className: `bb-vpr-item${selected ? ' is-selected' : ''}`,
+    attrs: { type: 'button', 'aria-pressed': selected ? 'true' : 'false' },
+  });
+  button.append(
+    makeElement(doc, 'span', { className: 'bb-vpr-item-title', text: itemTitle(item.proof) }),
+    makeElement(doc, 'span', { className: 'bb-vpr-item-summary', text: text(item.proof.decision.summary) ?? text(item.proof.human_decision?.why_human) ?? '判断の記録なし' }),
+    makeElement(doc, 'span', {
+      className: 'bb-vpr-item-meta',
+      text: [
+        SECTION_LABELS[item.section],
+        formatDate(item.proof.recorded_at),
+        OUTCOME_LABELS[item.proof.outcome.status] ?? '成果不明',
+        FEEDBACK_LABELS[item.proof.feedback.status] ?? '評価不明',
+      ].join(' · '),
+    }),
+  );
+  button.addEventListener('click', () => callbacks.onSelect?.(key));
+  const entry = makeElement(doc, 'li');
+  entry.append(button);
+  return entry;
+}
+
+/** The selected map row: its state and reason, its counts and its judgments. */
+function renderRowDetail(doc, state, row, callbacks) {
+  const detail = [workspaceRailHead(doc, {
+    kicker: '判断の種類',
+    title: rowName(row),
+    sub: `${DELEGATION_STATE_LABELS[row.state]}：${stateBasisText(row.stateBasis)}`,
+  })];
+  detail.push(workspaceRailBlock(doc, {
+    title: '記録と評価',
+    content: workspaceDefinition(doc, [
+      ['聞かずに続行', `${row.counts.continued}件`],
+      ['あなたに戻した', `${row.counts.returned}件`],
+      ['評価', ratedText(row)],
+      ['訂正・取り消し', `${row.counts.correctedOrReverted}件`],
+      ['引き継ぎあり', `${row.counts.inherited}件`],
+      ['最新', row.latestRecordedAt ? formatDate(row.latestRecordedAt) : '日時不明'],
+    ]),
+  }));
+  const items = rowItems(state, row);
+  const list = items.length === 0
+    ? makeElement(doc, 'p', { className: 'bb-vpr-empty', text: state.unratedOnly ? '未評価の判断はありません。' : 'この行に表示できる判断はありません。' })
+    : makeElement(doc, 'ul', { className: 'bb-vpr-list' });
+  for (const item of items) list.append(renderItemButton(doc, state, item, callbacks));
+  detail.push(workspaceRailBlock(doc, { title: `判断 ${items.length}件`, className: 'bb-vpr-row-judgments', content: list }));
+  return detail;
 }
 
 function renderFeedbackForm(doc, item, state, callbacks) {
@@ -506,7 +627,7 @@ function renderFeedbackForm(doc, item, state, callbacks) {
   const draft = state.draft;
   const summary = makeElement(doc, 'textarea', { attrs: { rows: '3', maxlength: '500', 'aria-label': '評価の理由' } });
   summary.value = draft.summary;
-  const summaryHint = makeElement(doc, 'p', { className: 'vpr-hint' });
+  const summaryHint = makeElement(doc, 'p', { className: 'bb-vpr-hint' });
   const syncSummary = (value) => {
     const option = VALUE_PROOF_FEEDBACK_OPTIONS.find((entry) => entry.value === value);
     summary.setAttribute('placeholder', option?.placeholder || '理由（任意）');
@@ -528,7 +649,7 @@ function renderFeedbackForm(doc, item, state, callbacks) {
     options.append(label);
   }
   const layerGroup = makeElement(doc, 'div', { className: 'vpr-layers', attrs: { role: 'radiogroup', 'aria-label': '何を直すか' } });
-  layerGroup.append(makeElement(doc, 'p', { className: 'vpr-hint', text: '何を直すか（必須）' }));
+  layerGroup.append(makeElement(doc, 'p', { className: 'bb-vpr-hint', text: '何を直すか（必須）' }));
   for (const layer of VALUE_PROOF_CORRECTION_LAYERS) {
     const label = makeElement(doc, 'label', { className: 'vpr-option' });
     const radio = makeElement(doc, 'input', { attrs: { type: 'radio', name: 'vpr-feedback-layer', value: layer } });
@@ -548,7 +669,7 @@ function renderFeedbackForm(doc, item, state, callbacks) {
   syncLayers(draft.status);
   summary.addEventListener('input', () => callbacks.onDraft?.({ summary: summary.value }));
   const submit = makeElement(doc, 'button', {
-    className: 'vpr-submit',
+    className: 'bb-ws-button is-primary vpr-submit',
     text: state.save.state === 'saving' ? '保存中…' : '評価を保存',
     attrs: { type: 'submit', disabled: state.save.state === 'saving' },
   });
@@ -572,138 +693,196 @@ function consultText(proof) {
   ].join('\n');
 }
 
-function renderCard(doc, item, state, callbacks) {
-  const card = makeElement(doc, 'article', { className: 'vpr-card', attrs: { 'aria-label': '判断カード' } });
-  if (!item) {
-    card.append(makeElement(doc, 'p', { className: 'vpr-empty', text: '一覧から判断を選ぶと、ここに詳細が出ます。' }));
-    return card;
-  }
+function facts(doc, pairs) {
+  const list = workspaceDefinition(doc, pairs);
+  list.className = `${list.className} bb-vpr-facts`;
+  return list;
+}
+
+/** The selected judgment as rail blocks, in the contract order. */
+function renderJudgmentDetail(doc, state, item, callbacks) {
   const { proof } = item;
-  const heading = makeElement(doc, 'h2', { text: itemTitle(proof), attrs: { tabindex: '-1' } });
-  card.append(
-    makeElement(doc, 'div', { className: `vpr-badge is-${item.section}`, text: SECTION_LABELS[item.section] }),
-    heading,
-  );
-  if (kindLabel(proof)) card.append(makeElement(doc, 'p', { className: 'vpr-hint', text: `判断の種類: ${kindLabel(proof)}` }));
-  const facts = makeElement(doc, 'dl', { className: 'vpr-facts' });
+  const detail = [];
+  const row = rowOfItem(state, itemKey(proof));
+  if (row) {
+    const back = workspaceButton(doc, { text: `← ${rowName(row)}`, variant: 'quiet', onClick: () => callbacks.onShowRow?.() });
+    back.className = `${back.className} bb-vpr-back`;
+    detail.push(back);
+  }
+  const head = workspaceRailHead(doc, {
+    kicker: SECTION_LABELS[item.section],
+    title: itemTitle(proof),
+    sub: kindLabel(proof) ? `判断の種類: ${kindLabel(proof)}` : row ? rowName(row) : null,
+  });
+  const heading = Array.from(head.children ?? []).find((child) => child.tagName === 'H2');
+  heading?.setAttribute('tabindex', '-1');
+  detail.push(head);
+
   const reason = text(proof.interruption.human_reason) ?? text(proof.interruption.reason_code) ?? '理由の記録なし';
-  row(doc, facts, '扱い', `${RESOLUTION_LABELS[proof.interruption.resolution] ?? '不明'}（${reason}）`);
-  row(doc, facts, '判断', text(proof.decision.summary) ?? '判断の記録なし');
-  row(doc, facts, '仕事への影響', text(proof.decision.work_impact) ?? '影響の記録なし');
+  detail.push(workspaceRailBlock(doc, {
+    title: '判断',
+    content: facts(doc, [
+      ['扱い', `${RESOLUTION_LABELS[proof.interruption.resolution] ?? '不明'}（${reason}）`],
+      ['判断', text(proof.decision.summary) ?? '判断の記録なし'],
+      ['仕事への影響', text(proof.decision.work_impact) ?? '影響の記録なし'],
+    ]),
+  }));
   const basis = Array.isArray(proof.decision.basis) ? proof.decision.basis : [];
-  row(doc, facts, '根拠', basis.length > 0 ? basis.map(basisText).join(' / ') : '根拠の記録なし');
   const reuse = proof.decision.prior_learning_reused;
-  row(doc, facts, '過去の学習の再利用', reuse === true ? 'あり' : reuse === false ? 'なし' : '未確認');
-  row(doc, facts, '引き継ぎ', inheritanceText(proof.decision.inheritance));
-  row(doc, facts, '実行', `${EXECUTION_LABELS[proof.execution.status] ?? '不明'}${text(proof.execution.summary) ? `: ${text(proof.execution.summary)}` : ''}`);
+  detail.push(workspaceRailBlock(doc, {
+    title: '根拠と引き継ぎ',
+    content: facts(doc, [
+      ['根拠', basis.length > 0 ? basis.map(basisText).join(' / ') : '根拠の記録なし'],
+      ['過去の学習の再利用', reuse === true ? 'あり' : reuse === false ? 'なし' : '未確認'],
+      ['引き継ぎ', inheritanceText(proof.decision.inheritance)],
+    ]),
+  }));
   const evidence = Array.isArray(proof.outcome.evidence_refs) ? proof.outcome.evidence_refs : [];
   const evidenceText = evidence.length > 0
     ? `（証拠: ${evidence.map((entry) => `${text(entry.label) ?? entry.kind} ${entry.status === 'verified' ? '確認済み' : '未確認'}`).join(' / ')}）`
     : '';
-  row(doc, facts, '成果の確認', `${OUTCOME_LABELS[proof.outcome.status] ?? '不明'}${text(proof.outcome.summary) ? `: ${text(proof.outcome.summary)}` : ''}${evidenceText}`, `is-outcome-${proof.outcome.status}`);
-  const latestLayer = FEEDBACK_LAYER_LABELS[item.feedbackHistory.at(-1)?.target_layer];
-  row(doc, facts, '評価', `${FEEDBACK_LABELS[proof.feedback.status] ?? '不明'}${latestLayer ? `（${latestLayer}）` : ''}${text(proof.feedback.summary) ? `: ${text(proof.feedback.summary)}` : ''}`);
-  card.append(facts);
+  const latestLayer = item.feedbackHistory.at(-1)?.target_layer;
+  detail.push(workspaceRailBlock(doc, {
+    title: '実行と成果',
+    content: facts(doc, [
+      ['実行', `${EXECUTION_LABELS[proof.execution.status] ?? '不明'}${text(proof.execution.summary) ? `: ${text(proof.execution.summary)}` : ''}`],
+      ['成果の確認', {
+        text: `${OUTCOME_LABELS[proof.outcome.status] ?? '不明'}${text(proof.outcome.summary) ? `: ${text(proof.outcome.summary)}` : ''}${evidenceText}`,
+        className: `bb-vpr-outcome is-${proof.outcome.status}`,
+      }],
+      ['評価', feedbackText(proof.feedback.status, latestLayer, proof.feedback.summary)],
+    ]),
+  }));
 
   if (proof.human_decision) {
-    const decision = makeElement(doc, 'section', { className: 'vpr-human-decision', attrs: { 'aria-label': 'あなたに戻した理由と選択肢' } });
-    decision.append(
-      makeElement(doc, 'h3', { text: 'あなたに戻した理由' }),
-      makeElement(doc, 'p', { text: text(proof.human_decision.why_human) ?? '理由の記録なし' }),
-    );
+    const content = [makeElement(doc, 'p', { text: text(proof.human_decision.why_human) ?? '理由の記録なし' })];
     const options = Array.isArray(proof.human_decision.options) ? proof.human_decision.options : [];
     if (options.length > 0) {
-      const list = makeElement(doc, 'ul');
+      const list = makeElement(doc, 'ul', { className: 'bb-vpr-options-list' });
       for (const option of options) list.append(makeElement(doc, 'li', { text: `${text(option.label) ?? option.id}: ${text(option.impact) ?? '影響の記録なし'}` }));
-      decision.append(makeElement(doc, 'h3', { text: '選択肢と影響' }), list);
+      content.push(makeElement(doc, 'h4', { text: '選択肢と影響' }), list);
     }
-    card.append(decision);
+    detail.push(workspaceRailBlock(doc, { title: 'あなたに戻した理由', className: 'bb-vpr-human-decision', content }));
   }
 
-  card.append(renderFeedbackForm(doc, item, state, callbacks));
-
+  const feedback = [renderFeedbackForm(doc, item, state, callbacks)];
   if (item.feedbackHistory.length > 1) {
-    const history = makeElement(doc, 'details', { className: 'vpr-history' });
+    const history = makeElement(doc, 'details', { className: 'bb-vpr-history' });
     history.append(makeElement(doc, 'summary', { text: `評価の履歴 ${item.feedbackHistory.length}件` }));
     const list = makeElement(doc, 'ol');
     for (const entry of item.feedbackHistory) {
-      const layer = FEEDBACK_LAYER_LABELS[entry.target_layer];
-      list.append(makeElement(doc, 'li', { text: `${formatDate(entry.recorded_at)} ${FEEDBACK_LABELS[entry.status] ?? entry.status}${layer ? `（${layer}）` : ''}${text(entry.summary) ? `: ${text(entry.summary)}` : ''}` }));
+      list.append(makeElement(doc, 'li', { text: `${formatDate(entry.recorded_at)} ${feedbackText(entry.status, entry.target_layer, entry.summary)}` }));
     }
     history.append(list);
-    card.append(history);
+    feedback.push(history);
   }
+  detail.push(workspaceRailBlock(doc, { title: '評価', className: 'bb-vpr-feedback-block', content: feedback }));
 
-  const consult = makeElement(doc, 'button', { className: 'vpr-secondary', text: 'Codexで相談する（依頼文をコピー）', attrs: { type: 'button' } });
-  consult.addEventListener('click', () => callbacks.onConsult?.(consultText(proof)));
-  card.append(consult);
-  if (state.consultMessage) card.append(notice(doc, 'is-muted', state.consultMessage));
+  const consult = [workspaceButton(doc, { text: 'Codexで相談する（依頼文をコピー）', onClick: () => callbacks.onConsult?.(consultText(proof)) })];
+  if (state.consultMessage) consult.push(notice(doc, 'is-muted', state.consultMessage));
+  detail.push(workspaceRailBlock(doc, { title: 'Codexで相談', content: consult }));
 
-  const audit = makeElement(doc, 'details', { className: 'vpr-audit' });
+  const audit = makeElement(doc, 'details', { className: 'bb-vpr-audit' });
   audit.append(makeElement(doc, 'summary', { text: '監査詳細' }));
-  const auditFacts = makeElement(doc, 'dl', { className: 'vpr-facts is-audit' });
-  row(doc, auditFacts, 'intent_id', proof.intent_id);
-  row(doc, auditFacts, 'decision_attempt_id', proof.decision_attempt_id);
-  row(doc, auditFacts, '記録日時', proof.recorded_at);
-  row(doc, auditFacts, '状態', String(proof.state));
-  if (text(proof.interruption.question_digest)) row(doc, auditFacts, 'question_digest', proof.interruption.question_digest);
-  if (basis.length > 0) row(doc, auditFacts, '根拠の対象ID', basis.map((entry) => entry.entity_id).join(', '));
-  if (evidence.length > 0) row(doc, auditFacts, '証拠参照', evidence.map((entry) => `${entry.kind}:${entry.ref}`).join(', '));
+  const auditPairs = [
+    ['intent_id', proof.intent_id],
+    ['decision_attempt_id', proof.decision_attempt_id],
+    ['記録日時', proof.recorded_at],
+    ['状態', String(proof.state)],
+  ];
+  if (text(proof.interruption.question_digest)) auditPairs.push(['question_digest', proof.interruption.question_digest]);
+  if (basis.length > 0) auditPairs.push(['根拠の対象ID', basis.map((entry) => entry.entity_id).join(', ')]);
+  if (evidence.length > 0) auditPairs.push(['証拠参照', evidence.map((entry) => `${entry.kind}:${entry.ref}`).join(', ')]);
   const artifacts = Array.isArray(proof.execution.artifact_refs) ? proof.execution.artifact_refs : [];
-  if (artifacts.length > 0) row(doc, auditFacts, '成果物参照', artifacts.map((entry) => `${entry.kind}:${entry.ref}`).join(', '));
-  audit.append(auditFacts);
-  card.append(audit);
+  if (artifacts.length > 0) auditPairs.push(['成果物参照', artifacts.map((entry) => `${entry.kind}:${entry.ref}`).join(', ')]);
+  audit.append(workspaceDefinition(doc, auditPairs));
+  detail.push(workspaceRailBlock(doc, { className: 'bb-vpr-audit-block', content: audit }));
 
-  if (state.focusCard && typeof heading.focus === 'function') queueMicrotask(() => heading.focus());
-  return card;
+  if (state.focusCard && heading && typeof heading.focus === 'function') queueMicrotask(() => heading.focus());
+  return detail;
 }
 
-/** Render the whole surface into a host-owned root. */
+/** The detail for the rail (or inline): the selected judgment, else the selected row. Null when nothing can be shown. */
+function renderDetail(doc, state, callbacks) {
+  if (state.home?.status !== 'available') return null;
+  const item = state.railView === 'judgment' ? findItem(state, state.selectedKey) : null;
+  const row = item ? null : visibleRows(state).find((entry) => entry.key === state.selectedRowKey) ?? null;
+  if (!item && !row) return null;
+  const detail = makeElement(doc, 'div', {
+    className: `vpr bb-vpr-detail${item ? ' is-judgment' : ' is-row'}`,
+    attrs: { 'data-detail': item ? 'judgment' : 'row' },
+  });
+  detail.append(...(item ? renderJudgmentDetail(doc, state, item, callbacks) : renderRowDetail(doc, state, row, callbacks)));
+  return detail;
+}
+
+/** Render the whole surface into a host-owned root, and the detail into `options.rail` when given. */
 export function renderValueProofReview(root, state, callbacks = {}, options = {}) {
   const doc = getDocument(options.document);
+  const rail = options.rail ?? null;
   root.replaceChildren();
-  const surface = makeElement(doc, 'div', { className: 'vpr', attrs: { 'data-contract-version': VALUE_PROOF_REVIEW_UI_CONTRACT_VERSION } });
-  surface.append(renderHeader(doc));
+  const surface = makeElement(doc, 'div', {
+    className: 'vpr',
+    attrs: { 'data-contract-version': VALUE_PROOF_REVIEW_UI_CONTRACT_VERSION, 'data-layout': rail ? 'rail' : 'inline' },
+  });
+  surface.append(renderPageHead(doc, options.page));
+  const finish = (detail, empty) => {
+    if (rail) {
+      if (detail) rail.replaceChildren(detail);
+      else rail.replaceChildren(workspaceDetailEmpty(doc, empty));
+    } else if (detail) {
+      const inline = makeElement(doc, 'section', { className: 'bb-vpr-inline-detail', attrs: { 'aria-label': '選択中の項目' } });
+      inline.append(detail);
+      surface.append(inline);
+    }
+    root.append(surface);
+    return surface;
+  };
+  const unreadable = { mark: '!', title: '判断を表示できません', text: '記録の範囲の注記を確かめてください。' };
 
   if (state.phase === 'loading' && !state.home) {
-    surface.append(notice(doc, 'is-muted', '判断の記録を読み込んでいます。'));
-    root.append(surface);
-    return surface;
+    surface.append(workspaceNotice(doc, { label: '記録の範囲', text: '判断の記録を読み込んでいます。' }));
+    return finish(null, { mark: '…', title: '読み込んでいます', text: '判断の記録を読み込んでいます。' });
   }
   if (state.phase === 'error') {
-    surface.append(notice(doc, 'is-danger', `判断の記録を取得できません（${state.error ?? 'request_failed'}）。0件ではありません。`, 'alert'));
-    const retry = makeElement(doc, 'button', { className: 'vpr-secondary', text: '再試行', attrs: { type: 'button' } });
-    retry.addEventListener('click', () => void callbacks.onReload?.());
-    surface.append(retry);
-    root.append(surface);
-    return surface;
+    const retry = workspaceButton(doc, { text: '再試行', onClick: () => void callbacks.onReload?.() });
+    surface.append(workspaceNotice(doc, {
+      label: '記録の範囲',
+      tone: 'danger',
+      text: noticeBody(doc, `判断の記録を取得できません（${state.error ?? 'request_failed'}）。0件ではありません。`, retry),
+    }));
+    return finish(null, unreadable);
   }
   const home = state.home;
   if (!home || home.status === 'invalid') {
-    surface.append(notice(doc, 'is-danger', `判断の記録を表示できません（${home?.reason ?? '応答なし'}）。0件ではありません。`, 'alert'));
-    root.append(surface);
-    return surface;
+    surface.append(workspaceNotice(doc, { label: '記録の範囲', tone: 'danger', text: `判断の記録を表示できません（${home?.reason ?? '応答なし'}）。0件ではありません。` }));
+    return finish(null, unreadable);
   }
   if (home.status === 'unavailable') {
     const hostNotice = options.unavailableNotice;
-    const box = makeElement(doc, 'section', { className: 'vpr-unavailable', attrs: { role: 'alert' } });
-    box.append(
-      makeElement(doc, 'h2', { text: text(hostNotice?.title) ?? '判断journalに接続できません' }),
-      makeElement(doc, 'p', { text: home.root ? `場所: ${home.root}（${home.reason}）` : `理由: ${home.reason}` }),
-      makeElement(doc, 'p', {
-        text: `${text(hostNotice?.guidance) ?? '記録の場所は、起動時の --journal か環境変数 BRAINBASE_JUDGMENT_JOURNAL_DIR で指定できます。'}0件としては扱いません。`,
-      }),
-    );
-    surface.append(box);
-    root.append(surface);
-    return surface;
+    const title = makeElement(doc, 'p', { className: 'bb-vpr-notice-title', text: text(hostNotice?.title) ?? '判断journalに接続できません' });
+    surface.append(workspaceNotice(doc, {
+      label: '記録の範囲',
+      tone: 'danger',
+      text: noticeBody(doc,
+        title,
+        home.root ? `場所: ${home.root}（${home.reason}）` : `理由: ${home.reason}`,
+        `${text(hostNotice?.guidance) ?? '記録の場所は、起動時の --journal か環境変数 BRAINBASE_JUDGMENT_JOURNAL_DIR で指定できます。'}0件としては扱いません。`),
+    }));
+    return finish(null, unreadable);
   }
 
-  surface.append(renderCoverage(doc, home, state, callbacks));
-  const layout = makeElement(doc, 'div', { className: 'vpr-layout' });
-  const lists = makeElement(doc, 'div', { className: 'vpr-lists' });
+  surface.append(renderCoverageNotice(doc, home));
+  if (home.coverage.possiblyStalled) {
+    surface.append(workspaceNotice(doc, {
+      label: '記録の停止',
+      tone: 'warning',
+      text: 'しばらく新しい記録がありません。記録が止まっている可能性があります。0件を「何も無かった」とは扱いません。',
+    }));
+  }
+  surface.append(renderFilters(doc, home, state, callbacks), renderMetrics(doc, home));
   if (home.delegationMap.rated === 0 && home.delegationMap.judged > 0) {
-    lists.append(notice(doc, 'is-muted', 'まだ評価がありません。任せている・戻しているは評価から決まります。'));
+    surface.append(workspaceNotice(doc, { label: '評価', text: 'まだ評価がありません。任せている・戻しているは評価から決まります。' }));
   }
   for (const highlight of [
     renderHighlight(doc, state, home.delegationMap.correctedAfterContinue, {
@@ -712,15 +891,16 @@ export function renderValueProofReview(root, state, callbacks = {}, options = {}
     renderHighlight(doc, state, home.delegationMap.continuedAfterAsk, {
       className: 'is-after-ask', title: '評価の後も聞かずに進めた判断', hint: '「次回は聞く」と評価した種類で、その後も聞かずに進めた判断。評価がまだ次の判断に効いていません',
     }, callbacks),
-  ]) if (highlight) lists.append(highlight);
-  lists.append(renderDelegationMap(doc, state, callbacks));
+  ]) if (highlight) surface.append(highlight);
+  surface.append(renderDelegationMap(doc, state, callbacks));
   if (home.sections.other.length > 0) {
-    lists.append(makeElement(doc, 'p', { className: 'vpr-hint', text: `その他 ${home.sections.other.length}件（判断の代行が無い記録）` }));
+    surface.append(makeElement(doc, 'p', { className: 'bb-vpr-hint', text: `その他 ${home.sections.other.length}件（判断の代行が無い記録）` }));
   }
-  layout.append(lists, renderCard(doc, findItem(state, state.selectedKey), state, callbacks));
-  surface.append(layout);
-  root.append(surface);
-  return surface;
+  return finish(renderDetail(doc, state, callbacks), {
+    mark: '判',
+    title: '判断の種類を選択',
+    text: '委任の地図から行を選ぶと、その種類の判断が出ます。判断を選ぶと、根拠と評価の欄が出ます。',
+  });
 }
 
 function joinPath(basePath, suffix) {
@@ -738,6 +918,10 @@ async function readErrorMessage(response) {
 
 export function createValueProofReviewUI({
   root,
+  /** The host's right-rail element for the selected row or judgment. Without it, the detail follows the workspace content. */
+  rail,
+  /** Page context from the host: `{ crumbs, source }` for the page head. */
+  page,
   document: explicitDocument,
   fetcher,
   basePath = '/api/value-proofs',
@@ -760,39 +944,54 @@ export function createValueProofReviewUI({
     home: null,
     error: null,
     selectedKey: null,
+    selectedRowKey: null,
+    /** What the detail shows: the selected map row, or the selected judgment. */
+    railView: 'row',
     unratedOnly: false,
     needsHumanOnly: false,
-    expandedRows: new Set(),
     draft: { status: '', summary: '', targetLayer: '' },
     save: { state: 'idle', message: '' },
     focusCard: false,
     consultMessage: '',
   };
 
+  const resetJudgmentInput = () => {
+    state.draft = { status: '', summary: '', targetLayer: '' };
+    state.save = { state: 'idle', message: '' };
+    state.consultMessage = '';
+  };
+
+  const applyFilter = () => {
+    const previous = state.selectedKey;
+    revealSelection(state);
+    if (state.selectedKey !== previous) resetJudgmentInput();
+    controller.render();
+  };
+
   const callbacks = {
     onReload: () => controller.load(),
     onToggleUnrated(value) {
       state.unratedOnly = value;
-      revealSelection(state);
-      controller.render();
+      applyFilter();
     },
     onToggleNeedsHuman(value) {
       state.needsHumanOnly = value;
-      revealSelection(state);
+      applyFilter();
+    },
+    onSelectRow(key) {
+      state.selectedRowKey = key;
+      state.railView = 'row';
       controller.render();
     },
-    onToggleRow(key) {
-      if (state.expandedRows.has(key)) state.expandedRows.delete(key);
-      else state.expandedRows.add(key);
+    onShowRow() {
+      state.railView = 'row';
       controller.render();
     },
     onSelect(key) {
-      if (key !== state.selectedKey) {
-        state.draft = { status: '', summary: '', targetLayer: '' };
-        state.save = { state: 'idle', message: '' };
-        state.consultMessage = '';
-      }
+      if (key !== state.selectedKey) resetJudgmentInput();
       state.selectedKey = key;
+      state.selectedRowKey = rowOfItem(state, key)?.key ?? state.selectedRowKey;
+      state.railView = 'judgment';
       state.focusCard = true;
       controller.render();
       state.focusCard = false;
@@ -838,8 +1037,13 @@ export function createValueProofReviewUI({
         });
         if (!response.ok) throw new Error(await readErrorMessage(response));
         await controller.load();
-        const saved = findItem(state, itemKey(item.proof));
+        const key = itemKey(item.proof);
+        const saved = findItem(state, key);
         if (saved?.proof.feedback.status !== option.value) throw new Error('保存後の読み戻しで評価を確認できません');
+        // Keep the read-back on the judgment just rated, even when a filter now hides it from the lists.
+        state.selectedKey = key;
+        state.selectedRowKey = rowOfItem(state, key)?.key ?? state.selectedRowKey;
+        state.railView = 'judgment';
         state.draft = { status: '', summary: '', targetLayer: '' };
         state.save = { state: 'saved', message: `「${option.label}」を保存しました（読み戻し済み）。` };
       } catch (error) {
@@ -865,7 +1069,7 @@ export function createValueProofReviewUI({
   const controller = {
     get state() { return state; },
     render() {
-      renderValueProofReview(root, state, callbacks, { document: doc, unavailableNotice });
+      renderValueProofReview(root, state, callbacks, { document: doc, unavailableNotice, rail, page });
       return controller;
     },
     async load() {

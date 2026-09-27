@@ -1,10 +1,14 @@
 /*
  * Shared Objective editor surface. The host owns shell, identity and policy.
- * Looks like the organization edition's outcome parts: the header sits in a
- * gradient box, each view is a white section, tabs and buttons share one shape
- * and the active tab and the primary action use the action color.
+ * Tabs layout (no rail, as the organization edition composes it): the header
+ * sits in a gradient box, each view is a white section, tabs and buttons share
+ * one shape and the active tab and the primary action use the action color.
+ * Workspace layout (the host gives a rail): the organization edition's screen
+ * pattern from workspace-kit.css; its rules below read the shared tokens.
  */
-.objective-editor-root {
+.objective-editor-root,
+.bb-objective-workspace,
+.bb-objective-rail {
   --objective-paper: var(--bb-color-panel, var(--paper, #fbfbf8));
   --objective-canvas: var(--bb-color-surface, var(--canvas, #f2f3ef));
   --objective-ink: var(--bb-color-ink, var(--ink, #141714));
@@ -27,12 +31,15 @@
   --objective-amber-soft: var(--bb-color-warning-soft, var(--amber-soft, #fff2ce));
   --objective-red: var(--bb-color-danger, var(--red, #c82a39));
   --objective-red-soft: var(--bb-color-danger-soft, var(--red-soft, #fdebed));
-  display: grid;
-  gap: 20px;
   min-width: 0;
   color: var(--objective-ink);
   font-family: var(--bb-font-sans, Geist, "Noto Sans JP", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   line-height: 1.5;
+}
+
+.objective-editor-root {
+  display: grid;
+  gap: 20px;
 }
 
 .objective-editor-root *,
@@ -45,7 +52,8 @@
 .objective-editor-root h1,
 .objective-editor-root p { margin: 0; }
 .objective-editor-root h1 { margin: 4px 0 8px; font-size: clamp(1.45rem, 3vw, 2rem); letter-spacing: -.02em; line-height: 1.25; }
-.objective-editor-root [hidden] { display: none !important; }
+.objective-editor-root [hidden],
+.bb-objective-rail [hidden] { display: none !important; }
 
 /* Part header: eyebrow, title and lead inside the gradient box, state at the right. */
 .objective-editor-header {
@@ -84,7 +92,9 @@
 .objective-editor-root .objective-editor-button,
 .objective-editor-root .objective-editor-button-primary,
 .objective-editor-root .objective-editor-button-secondary,
-.objective-editor-root .objective-editor-button-danger { font-weight: 680; }
+.objective-editor-root .objective-editor-button-danger,
+.bb-objective-rail .objective-editor-button-secondary,
+.bb-objective-rail .objective-editor-button-danger { font-weight: 680; }
 .objective-editor-tab:hover,
 .objective-editor-button:hover,
 .objective-editor-button-secondary:hover { border-color: var(--objective-line-strong); }
@@ -100,6 +110,7 @@
 .objective-editor-button-secondary:disabled,
 .objective-editor-button-danger:disabled { cursor: wait; opacity: .55; }
 .objective-editor-root button:focus-visible,
+.bb-objective-rail button:focus-visible,
 .objective-editor-input:focus-visible { outline: 3px solid color-mix(in srgb, var(--objective-focus) 45%, var(--objective-paper)); outline-offset: 2px; }
 
 /* Each view is a white section. */
@@ -209,9 +220,56 @@ textarea.objective-editor-input { min-height: 5.4rem; resize: vertical; }
 .objective-editor-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; padding-top: .3rem; }
 .objective-editor-actions .objective-editor-muted { margin-right: auto; }
 
+/* Workspace layout: page head, metrics and the objectives ledger; the rail holds the selection. */
+.bb-objective-workspace { display: block; }
+.bb-objective-workspace > .bb-ws-summary { margin-top: 30px; }
+.bb-objective-workspace > .bb-ws-notice { margin-top: 0; }
+/* The local shell resets `.bb-shell button { font: inherit }`, which outranks the kit's button and row type. */
+.bb-objective-workspace .bb-ws-button,
+.bb-objective-rail .bb-ws-button { font-size: 13px; font-weight: 680; }
+.bb-objective-workspace .bb-ws-button.is-quiet,
+.bb-objective-rail .bb-ws-button.is-quiet { font-size: 12px; }
+.bb-objective-workspace button.bb-ws-ledger-row { font-size: 12px; }
+.bb-objective-ledger .bb-ws-ledger-row { grid-template-columns: minmax(140px, 1.4fr) minmax(110px, 1fr) 72px 136px minmax(152px, 1fr); }
+.bb-objective-judgment { font-weight: 690; }
+.bb-objective-judgment.is-available { color: var(--bb-color-accent-strong); }
+.bb-objective-judgment.is-draft { color: var(--bb-color-warning); }
+.bb-objective-judgment.is-unresolved { color: var(--bb-color-quiet); font-weight: 500; }
+.bb-objective-story { margin-top: var(--bb-space-6); }
+.bb-objective-notice-body { display: grid; gap: var(--bb-space-2); min-width: 0; }
+.bb-objective-notice-body p { margin: 0; overflow-wrap: anywhere; }
+.bb-objective-notice-body .bb-ws-button { justify-self: start; }
+
+.bb-objective-rail { display: block; }
+.bb-objective-rail > .bb-ws-notice { margin: var(--bb-space-4) 0 0; }
+.bb-objective-rail > .bb-ws-actions { padding-top: 22px; }
+.bb-objective-rail .bb-ws-rail-block > p + p,
+.bb-objective-rail .bb-objective-note { margin-top: var(--bb-space-2); }
+.bb-objective-rail .bb-objective-note { color: var(--bb-color-muted); font-size: 12px; }
+.bb-objective-rail .bb-ws-rail-block .is-unrecorded { color: var(--bb-color-quiet); }
+.bb-objective-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.bb-objective-list li { display: grid; gap: 2px; border-bottom: 1px solid var(--bb-color-border); padding: var(--bb-space-2) 0; font-size: 13px; }
+.bb-objective-list li:first-child { border-top: 1px solid var(--bb-color-border); }
+.bb-objective-list code { color: var(--bb-color-ink); font-family: var(--bb-font-mono); font-size: 11px; overflow-wrap: anywhere; }
+.bb-objective-list span { color: var(--bb-color-muted); }
+.bb-objective-issues { display: grid; gap: var(--bb-space-1); margin: var(--bb-space-2) 0 0; padding-left: var(--bb-space-5); color: var(--bb-color-danger); font-size: 13px; }
+.bb-objective-readiness-block .objective-editor-badge { margin-bottom: var(--bb-space-2); }
+/* The edit form in the rail: one column. */
+.bb-objective-rail .objective-editor-form { max-width: none; margin-top: 22px; }
+.bb-objective-rail .objective-editor-form p { margin: 0; }
+.bb-objective-rail .objective-editor-identity,
+.bb-objective-rail .objective-editor-inline-fields,
+.bb-objective-rail .objective-editor-inline-form { grid-template-columns: minmax(0, 1fr); }
+.bb-objective-rail .objective-editor-criterion-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.bb-objective-rail .objective-editor-criterion-row .objective-editor-button-danger { grid-column: 1 / -1; justify-self: start; }
+.bb-objective-rail .objective-editor-actions .objective-editor-muted { flex-basis: 100%; }
+
 @media (max-width: 760px) {
   .objective-editor-header { padding: 18px; }
   .objective-editor-panel { padding: 14px; }
+  .bb-objective-ledger .bb-ws-ledger-row { grid-template-columns: minmax(0, 1fr) 60px 132px; }
+  .bb-objective-ledger .bb-ws-ledger-row > span:nth-child(2),
+  .bb-objective-ledger .bb-ws-ledger-row > span:nth-child(5) { display: none; }
 }
 
 @media (max-width: 720px) {

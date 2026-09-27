@@ -6,7 +6,13 @@
  * adoptions.  The host injects the fetcher and base path; this module keeps
  * no global state and never writes.  Each section loads on its own: a failed
  * or unverifiable section is reported in place and never shown as zero items.
+ *
+ * Drawn with the organization edition's screen pattern (workspace-kit): a
+ * section title under the page head, then one read-only ledger per block.
+ * Rows are not selectable, so the view never writes to the host's rail.
  */
+
+import { workspaceButton, workspaceLedger, workspaceNotice, workspaceSectionTitle } from './workspace-kit.js';
 
 export const WORLD_MODEL_VIEW_CONTRACT_VERSION = 'brainbase.world-model-view.v1';
 
@@ -121,43 +127,6 @@ export function normalizeWorldModelSection(section, payload) {
   return { state: unreadableCount > 0 ? 'partial' : 'ready', items, unreadable };
 }
 
-function notice(doc, className, message, role = 'status') {
-  return makeElement(doc, 'p', { className: `bb-wm-notice ${className}`, text: message, attrs: { role } });
-}
-
-function badge(doc, label, tone = '') {
-  return makeElement(doc, 'span', { className: `bb-wm-badge${tone ? ` is-${tone}` : ''}`, text: label });
-}
-
-function facts(doc, rows) {
-  const list = makeElement(doc, 'dl', { className: 'bb-wm-facts' });
-  for (const [label, value] of rows) {
-    if (value === null || value === undefined || value === '') continue;
-    list.append(makeElement(doc, 'dt', { text: label }), makeElement(doc, 'dd', { text: value }));
-  }
-  return list;
-}
-
-function item(doc, title, badges, rows, className = '') {
-  const article = makeElement(doc, 'article', { className: `bb-wm-item${className ? ` ${className}` : ''}` });
-  const head = makeElement(doc, 'div', { className: 'bb-wm-item-head' });
-  head.append(makeElement(doc, 'strong', { className: 'bb-wm-item-title', text: title }));
-  if (badges.length > 0) {
-    const group = makeElement(doc, 'span', { className: 'bb-wm-badges' });
-    group.append(...badges);
-    head.append(group);
-  }
-  article.append(head, facts(doc, rows));
-  return article;
-}
-
-function epistemicBadge(doc, state) {
-  const label = EPISTEMIC_STATE_LABELS[state];
-  if (!label) return badge(doc, '認識の状態 未記録', 'muted');
-  const tone = state === 'verified' || state === 'supported' ? 'success' : state === 'refuted' ? 'danger' : 'warning';
-  return badge(doc, `認識: ${label}`, tone);
-}
-
 function unreadableMessage(unreadable) {
   const reasons = unreadable.codes.map((code) => UNREADABLE_LABELS[code] ?? code).join('、');
   return `読めない記録が${unreadable.count}件あります${reasons ? `（${reasons}）` : ''}。読めた記録だけを表示しています。`;
@@ -168,125 +137,151 @@ function refLabel(ref, names) {
   return name ? `${name}（${ref.id}@${ref.revision}）` : `${ref.id}@${ref.revision}`;
 }
 
-/** Renders a section's status; returns true when the caller should render its items. */
-function renderSectionState(doc, container, section, sectionState, callbacks, emptyText) {
+/** A ledger cell with a main line and quieter detail lines (the World Model rows wrap instead of cutting text). */
+function stack(doc, main, details = [], className = '') {
+  const cell = makeElement(doc, 'span', { className: `bb-wm-cell${className ? ` ${className}` : ''}` });
+  cell.append(makeElement(doc, 'span', { className: 'bb-wm-main', text: main }));
+  for (const detail of details) {
+    if (!detail) continue;
+    const [value, tone] = Array.isArray(detail) ? detail : [detail, ''];
+    cell.append(makeElement(doc, 'small', { className: tone ? `is-${tone}` : undefined, text: value }));
+  }
+  return cell;
+}
+
+/** One element for a notice body, so the kit's label column stays on the left. */
+function noticeBody(doc, message, action) {
+  const body = makeElement(doc, 'div', { className: 'bb-wm-notice-body' });
+  body.append(makeElement(doc, 'p', { text: message }));
+  if (action) body.append(action);
+  return body;
+}
+
+/**
+ * A section's state as a notice, or nothing when its rows can be shown.
+ * Returns `{ notice, rows }`: rows is false when the section has none to show.
+ */
+function sectionStatus(doc, label, section, sectionState, callbacks, emptyText) {
   const { state } = sectionState;
   if (state === 'loading' || state === 'idle') {
-    container.append(notice(doc, 'is-muted', '読み込んでいます。'));
-    return false;
+    return { notice: workspaceNotice(doc, { label, text: '読み込んでいます。' }), rows: false };
   }
   if (state === 'approval_unverifiable') {
-    container.append(notice(doc, 'is-warning', '承認を確かめられないため表示できません。承認済みの採用を確かめる仕組みがこのホストにありません。ほかの欄はそのまま使えます。', 'alert'));
-    return false;
+    return {
+      notice: workspaceNotice(doc, { label, tone: 'warning', text: '承認を確かめられないため表示できません。承認済みの採用を確かめる仕組みがこのホストにありません。ほかの欄はそのまま使えます。' }),
+      rows: false,
+    };
   }
   if (state === 'error' || state === 'invalid') {
-    container.append(notice(doc, 'is-danger', `読み取れませんでした（${sectionState.reason ?? '理由不明'}）。0件ではありません。`, 'alert'));
-    const retry = makeElement(doc, 'button', { className: 'bb-wm-retry', text: '再試行', attrs: { type: 'button' } });
-    retry.addEventListener('click', () => void callbacks.onRetry?.(section));
-    container.append(retry);
-    return false;
+    const retry = workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: () => void callbacks.onRetry?.(section) });
+    return {
+      notice: workspaceNotice(doc, { label, tone: 'danger', text: noticeBody(doc, `読み取れませんでした（${sectionState.reason ?? '理由不明'}）。0件ではありません。`, retry) }),
+      rows: false,
+    };
   }
   if (state === 'unknown') {
     const message = sectionState.unreadable?.count
       ? unreadableMessage(sectionState.unreadable)
       : '記録の有無を確かめられません。0件ではありません。';
-    container.append(notice(doc, 'is-warning', message, 'alert'));
-    return false;
+    return { notice: workspaceNotice(doc, { label, tone: 'warning', text: message }), rows: false };
   }
-  if (state === 'empty') {
-    container.append(notice(doc, 'is-muted', emptyText));
-    return false;
-  }
-  if (state === 'partial') container.append(notice(doc, 'is-warning', unreadableMessage(sectionState.unreadable), 'alert'));
-  return true;
+  if (state === 'empty') return { notice: workspaceNotice(doc, { label, text: emptyText }), rows: false };
+  if (state === 'partial') return { notice: workspaceNotice(doc, { label, tone: 'warning', text: unreadableMessage(sectionState.unreadable) }), rows: true };
+  return { notice: null, rows: true };
 }
 
-function renderVariables(doc, container, state, callbacks) {
-  container.append(makeElement(doc, 'h4', { className: 'bb-wm-subheading', text: '変数（何を測るか）' }));
-  if (!renderSectionState(doc, container, 'variables', state.variables, callbacks, '変数はまだ登録がありません。')) return;
-  const list = makeElement(doc, 'div', { className: 'bb-wm-list' });
-  for (const record of state.variables.items) {
-    const definition = record.definition;
-    list.append(item(doc, text(definition.meaning) ?? definition.id, [
-      epistemicBadge(doc, definition.epistemicState),
-      badge(doc, ADOPTION_LABELS[definition.adoptionState] ?? String(definition.adoptionState ?? '採用 未記録'), 'muted'),
-    ], [
-      ['対象', text(definition.subject)],
-      ['単位', text(definition.unit)],
-      ['測り方', text(definition.measurementMethod)],
-      ['版', `${definition.id}@${definition.revision}`],
-    ]));
-  }
-  container.append(list);
+function epistemicText(state) {
+  return EPISTEMIC_STATE_LABELS[state] ?? null;
 }
 
-function renderModels(doc, container, state, callbacks, names) {
-  container.append(makeElement(doc, 'h4', { className: 'bb-wm-subheading', text: 'モデル（どう関係すると考えているか）' }));
-  if (!renderSectionState(doc, container, 'models', state.models, callbacks, 'モデルはまだ登録がありません。')) return;
-  const list = makeElement(doc, 'div', { className: 'bb-wm-list' });
-  for (const record of state.models.items) {
-    const definition = record.definition;
-    const refs = (value) => (Array.isArray(value) && value.length > 0 ? value.filter(isRevisionRef).map((ref) => refLabel(ref, names)).join('、') : null);
-    list.append(item(doc, text(definition.meaning) ?? definition.id, [
-      epistemicBadge(doc, definition.epistemicState),
-      badge(doc, `検証: ${VALIDATION_LABELS[definition.validationState] ?? '未記録'}`, 'muted'),
-    ], [
-      ['関係', text(definition.relationship)],
-      ['不確かさ', text(definition.uncertainty)],
-      ['入力', refs(definition.inputVariableRefs)],
-      ['出力', refs(definition.outputVariableRefs)],
-      ['版', `${definition.id}@${definition.revision}`],
-    ]));
+function viewRows(doc, state, statuses, variableNames) {
+  const rows = [];
+  if (statuses.variables.rows) {
+    for (const record of state.variables.items) {
+      const definition = record.definition;
+      const epistemic = epistemicText(definition.epistemicState);
+      rows.push({
+        key: `variable:${definition.id}`,
+        cells: [
+          stack(doc, text(definition.meaning) ?? definition.id, [
+            text(definition.subject) ? `対象: ${text(definition.subject)}` : null,
+            text(definition.unit) ? `単位: ${text(definition.unit)}` : null,
+            text(definition.measurementMethod) ? `測り方: ${text(definition.measurementMethod)}` : null,
+          ]),
+          stack(doc, '変数', [ADOPTION_LABELS[definition.adoptionState] ?? (definition.adoptionState ? String(definition.adoptionState) : '採用 未記録')]),
+          stack(doc, epistemic ?? '未記録', [], epistemic ? `is-${definition.epistemicState}` : 'is-unresolved'),
+          { text: `${definition.id}@${definition.revision}`, className: 'bb-wm-code' },
+        ],
+      });
+    }
   }
-  container.append(list);
+  if (statuses.models.rows) {
+    for (const record of state.models.items) {
+      const definition = record.definition;
+      const refs = (value) => (Array.isArray(value) && value.length > 0 ? value.filter(isRevisionRef).map((ref) => refLabel(ref, variableNames)).join('、') : null);
+      const epistemic = epistemicText(definition.epistemicState);
+      rows.push({
+        key: `model:${definition.id}`,
+        cells: [
+          stack(doc, text(definition.meaning) ?? definition.id, [
+            text(definition.relationship) ? `関係: ${text(definition.relationship)}` : null,
+            text(definition.uncertainty) ? `不確かさ: ${text(definition.uncertainty)}` : null,
+            refs(definition.inputVariableRefs) ? `入力: ${refs(definition.inputVariableRefs)}` : null,
+            refs(definition.outputVariableRefs) ? `出力: ${refs(definition.outputVariableRefs)}` : null,
+          ]),
+          stack(doc, 'モデル', [`検証: ${VALIDATION_LABELS[definition.validationState] ?? '未記録'}`]),
+          stack(doc, epistemic ?? '未記録', [], epistemic ? `is-${definition.epistemicState}` : 'is-unresolved'),
+          { text: `${definition.id}@${definition.revision}`, className: 'bb-wm-code' },
+        ],
+      });
+    }
+  }
+  return rows;
 }
 
-function renderObservations(doc, container, state, callbacks, names, units) {
-  if (!renderSectionState(doc, container, 'observations', state.observations, callbacks, '観測はまだ記録がありません。')) return;
+function observationRows(doc, state, names, units) {
   const correctedBy = new Map();
   for (const observation of state.observations.items) {
     if (typeof observation.supersedes === 'string') correctedBy.set(observation.supersedes, observation.id);
   }
-  const list = makeElement(doc, 'div', { className: 'bb-wm-list' });
-  for (const observation of state.observations.items) {
+  return state.observations.items.map((observation) => {
     const newer = correctedBy.get(observation.id);
     const source = observation.sourceRef;
-    const badges = [];
-    if (newer) badges.push(badge(doc, '訂正済み', 'warning'));
-    if (typeof observation.supersedes === 'string') badges.push(badge(doc, '訂正', 'accent'));
-    list.append(item(doc, `${observation.subjectId}：${formatValue(observation.value, units.get(observation.variableRef.id))}`, badges, [
-      ['変数', refLabel(observation.variableRef, names)],
-      ['発生', formatDateTime(observation.occurredAt)],
-      ['期間', `${formatDateTime(observation.period.from)} 〜 ${formatDateTime(observation.period.until)}`],
-      ['記録', formatDateTime(observation.recordedAt)],
-      ['出典', `${SOURCE_KIND_LABELS[source.sourceKind] ?? String(source.sourceKind)}（${String(source.sourceId)}）`],
-      ['訂正の関係', [
-        typeof observation.supersedes === 'string' ? `観測「${observation.supersedes}」を訂正` : null,
-        newer ? `観測「${newer}」で訂正済み` : null,
-      ].filter(Boolean).join('／') || null],
-      ['観測ID', observation.id],
-    ], newer ? 'is-superseded' : ''));
-  }
-  container.append(list);
+    const chain = [];
+    if (typeof observation.supersedes === 'string') chain.push([`観測「${observation.supersedes}」を訂正`, 'accent']);
+    if (newer) chain.push([`観測「${newer}」で訂正済み`, 'warning']);
+    return {
+      key: observation.id,
+      className: newer ? 'is-superseded' : '',
+      cells: [
+        stack(doc, observation.subjectId, [refLabel(observation.variableRef, names)]),
+        stack(doc, formatValue(observation.value, units.get(observation.variableRef.id)), chain, 'is-value'),
+        stack(doc, `${formatDateTime(observation.period.from)} 〜 ${formatDateTime(observation.period.until)}`, [`発生 ${formatDateTime(observation.occurredAt)}`]),
+        stack(doc, formatDateTime(observation.recordedAt)),
+        stack(doc, `${SOURCE_KIND_LABELS[source.sourceKind] ?? String(source.sourceKind)}（${String(source.sourceId)}）`, [`観測ID ${observation.id}`]),
+      ],
+    };
+  });
 }
 
-function renderAdoptions(doc, container, state, callbacks, modelNames) {
-  if (!renderSectionState(doc, container, 'adoptions', state.adoptions, callbacks, 'モデルの採用はまだありません。')) return;
-  const list = makeElement(doc, 'div', { className: 'bb-wm-list' });
-  for (const adoption of state.adoptions.items) {
+function adoptionRows(doc, state, modelNames) {
+  return state.adoptions.items.map((adoption) => {
     const candidate = adoption.candidate;
-    list.append(item(doc, refLabel(adoption.modelRef, modelNames), [
-      badge(doc, ADOPTION_LABELS[adoption.adoptionState] ?? String(adoption.adoptionState), adoption.adoptionState === 'approved' ? 'success' : 'warning'),
-    ], [
-      ['根拠（候補の仮説）', text(candidate.hypothesis)],
-      ['候補の認識', EPISTEMIC_STATE_LABELS[candidate.epistemicState] ?? null],
-      ['証拠', Array.isArray(candidate.evidenceIds) ? `${candidate.evidenceIds.length}件` : null],
-      ['用途', USE_LABELS[adoption.authorizedUse] ?? text(adoption.authorizedUse)],
-      ['承認', isRevisionRef(adoption.approvalRef) ? `${adoption.approvalRef.id}@${adoption.approvalRef.revision}` : 'なし'],
-      ['日時', formatDateTime(adoption.adoptedAt)],
-    ]));
-  }
-  container.append(list);
+    return {
+      key: adoption.adoptionId,
+      cells: [
+        stack(doc, refLabel(adoption.modelRef, modelNames)),
+        stack(doc, ADOPTION_LABELS[adoption.adoptionState] ?? String(adoption.adoptionState), [], adoption.adoptionState === 'approved' ? 'is-approved' : 'is-pending'),
+        stack(doc, text(candidate.hypothesis) ?? '仮説の記録なし', [
+          EPISTEMIC_STATE_LABELS[candidate.epistemicState] ? `候補の認識: ${EPISTEMIC_STATE_LABELS[candidate.epistemicState]}` : null,
+          Array.isArray(candidate.evidenceIds) ? `証拠 ${candidate.evidenceIds.length}件` : null,
+        ]),
+        stack(doc, USE_LABELS[adoption.authorizedUse] ?? text(adoption.authorizedUse) ?? '未記録'),
+        stack(doc, isRevisionRef(adoption.approvalRef) ? `${adoption.approvalRef.id}@${adoption.approvalRef.revision}` : 'なし'),
+        stack(doc, formatDateTime(adoption.adoptedAt)),
+      ],
+    };
+  });
 }
 
 function namesOf(section) {
@@ -306,32 +301,55 @@ function block(doc, label, heading, lead) {
   return section;
 }
 
-/** Render the whole view into a host-owned root. */
+/** Render the whole view into a host-owned root: a section title and read-only ledgers. */
 export function renderWorldModelView(root, state, callbacks = {}, options = {}) {
   const doc = getDocument(options.document);
   root.replaceChildren();
   const surface = makeElement(doc, 'section', { className: 'bb-wm', attrs: { 'data-contract-version': WORLD_MODEL_VIEW_CONTRACT_VERSION, 'aria-label': '現状と見通し' } });
-  const header = makeElement(doc, 'header', { className: 'bb-wm-header' });
-  header.append(
-    makeElement(doc, 'h2', { text: '現状と見通し' }),
-    makeElement(doc, 'p', { className: 'bb-wm-lead', text: '見方（変数とモデル。仮説を含みます）と、記録された観測を分けて表示します。この欄は表示だけです。' }),
-  );
-  surface.append(header);
+  surface.append(workspaceSectionTitle(doc, {
+    title: '現状と見通し',
+    lead: '見方（変数とモデル。仮説を含みます）と、記録された観測を分けて表示します。この欄は表示だけです。',
+  }));
 
   const variables = namesOf(state.variables);
   const models = namesOf(state.models);
 
   const view = block(doc, '変数とモデル', '見方：変数とモデル', '何を測り、どう関係すると考えているか。認識の状態は、確かめた度合いです。観測ではありません。');
-  renderVariables(doc, view, state, callbacks);
-  renderModels(doc, view, state, callbacks, variables.names);
+  const statuses = {
+    variables: sectionStatus(doc, '変数', 'variables', state.variables, callbacks, '変数はまだ登録がありません。'),
+    models: sectionStatus(doc, 'モデル', 'models', state.models, callbacks, 'モデルはまだ登録がありません。'),
+  };
+  for (const status of Object.values(statuses)) if (status.notice) view.append(status.notice);
+  const rows = viewRows(doc, state, statuses, variables.names);
+  if (rows.length > 0) {
+    view.append(workspaceLedger(doc, { className: 'bb-wm-view-ledger', ariaLabel: '変数とモデル', columns: ['名前', '種類', '認識の状態', '版'], rows }));
+  }
   surface.append(view);
 
   const observed = block(doc, '観測', '観測：記録された値', '実際に記録された値です。推定や予測は含みません。訂正は新しい観測として残り、元の観測との関係を示します。');
-  renderObservations(doc, observed, state, callbacks, variables.names, variables.units);
+  const observedStatus = sectionStatus(doc, '観測', 'observations', state.observations, callbacks, '観測はまだ記録がありません。');
+  if (observedStatus.notice) observed.append(observedStatus.notice);
+  if (observedStatus.rows) {
+    observed.append(workspaceLedger(doc, {
+      className: 'bb-wm-observation-ledger',
+      ariaLabel: '観測',
+      columns: ['対象', '値', '期間', '記録', '出典'],
+      rows: observationRows(doc, state, variables.names, variables.units),
+    }));
+  }
   surface.append(observed);
 
   const adopted = block(doc, 'モデルの採用', 'モデルの採用', 'どのモデルを、どの根拠で判断などに使うことにしたか。');
-  renderAdoptions(doc, adopted, state, callbacks, models.names);
+  const adoptedStatus = sectionStatus(doc, '採用', 'adoptions', state.adoptions, callbacks, 'モデルの採用はまだありません。');
+  if (adoptedStatus.notice) adopted.append(adoptedStatus.notice);
+  if (adoptedStatus.rows) {
+    adopted.append(workspaceLedger(doc, {
+      className: 'bb-wm-adoption-ledger',
+      ariaLabel: 'モデルの採用',
+      columns: ['モデル', '状態', '根拠', '用途', '承認', '日時'],
+      rows: adoptionRows(doc, state, models.names),
+    }));
+  }
   surface.append(adopted);
 
   root.append(surface);
@@ -349,6 +367,8 @@ async function readError(response) {
 
 export function createWorldModelView({
   root,
+  /** Accepted for the host's screen contract; the read-only view keeps the rail to the screen's editor. */
+  rail: _rail,
   document: explicitDocument,
   fetcher,
   basePath = '/api/world-model',

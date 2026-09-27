@@ -141,21 +141,47 @@ function home(items = [proof()], map = delegationMap([mapRow('reason:routine_rev
   };
 }
 
-function renderHome(payload, overrides = {}) {
-  const doc = new FakeDocument();
-  const root = doc.createElement('main');
-  renderValueProofReview(root, {
+function byClass(node, className) {
+  return findAll(node, (element) => String(element?.className ?? '').split(' ').includes(className));
+}
+
+function baseState(payload, overrides = {}) {
+  return {
     phase: 'ready',
     home: normalizeValueProofReviewHome(payload),
     selectedKey: null,
+    selectedRowKey: null,
+    railView: 'row',
     unratedOnly: false,
     needsHumanOnly: false,
-    expandedRows: new Set(),
-    draft: { status: '', summary: '' },
+    draft: { status: '', summary: '', targetLayer: '' },
     save: { state: 'idle', message: '' },
     ...overrides,
-  }, {}, { document: doc });
-  return root;
+  };
+}
+
+/** Renders into a root and a rail, as the local shell mounts the screen. */
+function renderHome(payload, overrides = {}, options = {}) {
+  const doc = new FakeDocument();
+  const root = doc.createElement('main');
+  const rail = doc.createElement('aside');
+  renderValueProofReview(root, baseState(payload, overrides), {}, { document: doc, rail, ...options });
+  return { root, rail };
+}
+
+/** Rows of a ledger (the header row excluded). */
+function ledgerRows(ledger) {
+  return byClass(ledger, 'bb-ws-ledger-row').filter((row) => !String(row.className).includes('bb-ws-ledger-head'));
+}
+
+function click(node) {
+  node.listeners.get('click')();
+}
+
+/** The ledger's short date, in the runner's time zone like the UI. */
+function md(iso) {
+  const date = new Date(iso);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 function jsonResponse(status, body) {
@@ -168,13 +194,15 @@ describe('value proof review UI contract', () => {
       .toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
     expect(normalizeValueProofReviewHome({ status: 'available', coverage: {}, sections: { continued: [{}] } }).status).toBe('invalid');
 
-    const doc = new FakeDocument();
-    const root = doc.createElement('main');
-    renderValueProofReview(root, { phase: 'ready', home: normalizeValueProofReviewHome({ status: 'unavailable', root: '/x', reason: 'judgment_journal_not_found' }) }, {}, { document: doc });
+    const { root, rail } = renderHome({ status: 'unavailable', root: '/x', reason: 'judgment_journal_not_found' });
     const text = collectText(root);
     expect(text).toContain('判断journalに接続できません');
     expect(text).toContain('0件としては扱いません');
     expect(text).not.toContain('聞かずに進めた');
+    // No metrics at all: an unreadable journal is never shown as zero judgments.
+    expect(byClass(root, 'bb-ws-summary')).toHaveLength(0);
+    expect(byClass(root, 'bb-ws-notice')[0].className).toContain('is-danger');
+    expect(collectText(rail)).toContain('判断を表示できません');
   });
 
   it('lets a host that cannot read a local journal replace the unavailable notice, still not as zero items', async () => {
@@ -197,45 +225,66 @@ describe('value proof review UI contract', () => {
     expect(text).not.toContain('場所: 不明');
   });
 
-  it('shows the card in the contract order and keeps internal IDs in the audit details', () => {
+  it('reports a failed request as an error with a retry, never as zero', async () => {
     const doc = new FakeDocument();
     const root = doc.createElement('main');
-    const state = {
-      phase: 'ready',
-      home: normalizeValueProofReviewHome(home()),
-      selectedKey: 'intent-1\u0000attempt-1',
-      unratedOnly: false,
-      expandedRows: new Set(),
-      draft: { status: '', summary: '' },
-      save: { state: 'idle', message: '' },
-    };
-    renderValueProofReview(root, state, {}, { document: doc });
+    let fail = true;
+    const ui = createValueProofReviewUI({
+      root,
+      document: doc,
+      fetcher: async () => (fail ? jsonResponse(500, { error: { message: '読めません' } }) : jsonResponse(200, home())),
+      autoLoad: false,
+    });
+    await ui.load();
+    expect(collectText(root)).toContain('判断の記録を取得できません（読めません）。0件ではありません。');
+    expect(byClass(root, 'bb-ws-summary')).toHaveLength(0);
+    fail = false;
+    const retry = findAll(root, (element) => element.tagName === 'BUTTON' && element.textContent === '再試行')[0];
+    click(retry);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(ui.state.phase).toBe('ready');
+    expect(collectText(root)).toContain('委任の地図');
+  });
 
-    const card = findAll(root, (element) => element?.className === 'vpr-card')[0];
-    const facts = findAll(card, (element) => element?.className === 'vpr-facts')[0];
-    expect(byTag(facts, 'dt').map((element) => element.textContent)).toEqual([
+  it('builds the page head from the host page context, the 記録の範囲 notice and the metrics', () => {
+    const payload = home();
+    payload.coverage.saved = null;
+    const { root } = renderHome(payload, {}, { page: { crumbs: ['あなたのBrainbase', '今日'], source: '判断journal' } });
+    expect(collectText(byClass(root, 'bb-ws-breadcrumb')[0])).toBe('あなたのBrainbase/今日');
+    expect(findAll(root, (element) => element.tagName === 'H1')[0].textContent).toBe('判断の見返し');
+    expect(byClass(root, 'bb-ws-source')[0].textContent).toBe('判断journal');
+    const notices = byClass(root, 'bb-ws-notice');
+    expect(collectText(notices[0])).toContain('記録の範囲');
+    expect(collectText(notices[0])).toContain('/tmp/journal');
+    // The stalled-record warning is its own warning notice.
+    const stalled = notices.find((element) => collectText(element).includes('記録が止まっている可能性があります'));
+    expect(stalled.className).toContain('is-warning');
+    const metrics = byClass(root, 'bb-ws-metric').map((element) => [element.children[0].textContent, element.children[1].textContent]);
+    // An unknown saved count is 未確認, never zero.
+    expect(metrics).toEqual([['保存済み', '未確認'], ['あなたの判断が必要', '0'], ['聞かずに進めた', '1'], ['評価済み', '0']]);
+  });
+
+  it('shows the card in the contract order in the rail and keeps internal IDs in the audit details', () => {
+    const { root, rail } = renderHome(home(), { selectedKey: 'intent-1\u0000attempt-1', selectedRowKey: 'reason:routine_reversible_work', railView: 'judgment' });
+    const detail = byClass(rail, 'bb-vpr-detail')[0];
+    expect(detail.attributes['data-detail']).toBe('judgment');
+    const facts = byClass(detail, 'bb-vpr-facts');
+    expect(facts.flatMap((list) => byTag(list, 'dt').map((element) => element.textContent))).toEqual([
       '扱い', '判断', '仕事への影響', '根拠', '過去の学習の再利用', '引き継ぎ', '実行', '成果の確認', '評価',
     ]);
-    expect(collectText(facts)).not.toContain('attempt-1');
-    const audit = findAll(card, (element) => element?.className === 'vpr-audit')[0];
-    expect(collectText(audit)).toContain('attempt-1');
-    expect(collectText(root)).toContain('記録が止まっている可能性があります');
+    // After the facts: the evaluation form, the consult action and the audit details, in that order.
+    const titles = byClass(detail, 'bb-ws-rail-block').map((block) => block.attributes['aria-label'] ?? '');
+    expect(titles).toEqual(['判断', '根拠と引き継ぎ', '実行と成果', '評価', 'Codexで相談', '']);
+    expect(facts.map(collectText).join('')).not.toContain('attempt-1');
+    expect(collectText(byClass(detail, 'bb-vpr-audit')[0])).toContain('attempt-1');
+    // The workspace keeps only the ledgers; the card lives in the rail.
+    expect(byClass(root, 'bb-vpr-detail')).toHaveLength(0);
   });
 
   it('says the inheritance is unrecorded instead of inventing it, and shows it when recorded', () => {
-    const doc = new FakeDocument();
     const render = (entry) => {
-      const root = doc.createElement('main');
-      renderValueProofReview(root, {
-        phase: 'ready',
-        home: normalizeValueProofReviewHome(home([entry])),
-        selectedKey: 'intent-1\u0000attempt-1',
-        unratedOnly: false,
-        expandedRows: new Set(),
-        draft: { status: '', summary: '' },
-        save: { state: 'idle', message: '' },
-      }, {}, { document: doc });
-      return collectText(findAll(root, (element) => element?.className === 'vpr-facts')[0]);
+      const { rail } = renderHome(home([entry]), { selectedKey: 'intent-1\u0000attempt-1', railView: 'judgment' });
+      return byClass(rail, 'bb-vpr-facts').map(collectText).join('');
     };
 
     expect(render(proof())).toContain('引き継ぎの記録なし');
@@ -259,6 +308,7 @@ describe('value proof review UI contract', () => {
   it('requires a reason for corrections, posts with the review token and confirms the saved feedback by reloading', async () => {
     const doc = new FakeDocument();
     const root = doc.createElement('main');
+    const rail = doc.createElement('aside');
     const requests = [];
     let current = home();
     const fetcher = async (path, init) => {
@@ -267,7 +317,7 @@ describe('value proof review UI contract', () => {
       current = home([proof({ feedback: { status: 'next_time_ask', summary: '本番は次回は聞く', evidence_ref: { kind: 'human_feedback', ref: 'x', status: 'verified' } } })]);
       return jsonResponse(201, { created: true });
     };
-    const ui = createValueProofReviewUI({ root, document: doc, fetcher, token: 'token-123', autoLoad: false });
+    const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher, token: 'token-123', autoLoad: false });
     await ui.load();
     const item = ui.state.home.sections.continued[0];
 
@@ -283,6 +333,31 @@ describe('value proof review UI contract', () => {
     expect(JSON.parse(post.init.body)).toMatchObject({ decision_attempt_id: 'attempt-1', status: 'next_time_ask' });
     expect(ui.state.save.state).toBe('saved');
     expect(ui.state.save.message).toContain('読み戻し済み');
+    // The read-back is shown on the rated judgment's card in the rail.
+    expect(ui.state.railView).toBe('judgment');
+    expect(collectText(rail)).toContain('「次回は聞く」を保存しました（読み戻し済み）。');
+  });
+
+  it('keeps the read-back on the rated judgment even when the unrated filter now hides it', async () => {
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const rail = doc.createElement('aside');
+    const second = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });
+    let current = home([proof(), second], delegationMap([mapRow('kind:k1', [proof(), second])]));
+    const fetcher = async (path) => {
+      if (path.endsWith('/home')) return jsonResponse(200, current);
+      const rated = proof({ feedback: { status: 'accepted', summary: null, evidence_ref: { kind: 'human_feedback', ref: 'x', status: 'verified' } } });
+      current = home([rated, second], delegationMap([mapRow('kind:k1', [rated, second])]));
+      return jsonResponse(201, { created: true });
+    };
+    const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher, token: 't', autoLoad: false });
+    await ui.load();
+    ui.callbacks.onToggleUnrated(true);
+    ui.callbacks.onSelect('intent-1\u0000attempt-1');
+    ui.callbacks.onDraft({ status: 'accepted' });
+    await ui.callbacks.onSubmit(ui.state.home.sections.continued[0]);
+    expect(ui.state.selectedKey).toBe('intent-1\u0000attempt-1');
+    expect(collectText(rail)).toContain('「採用」を保存しました（読み戻し済み）。');
   });
 
   it('asks what a correction changes and sends it with the correction', async () => {
@@ -333,39 +408,108 @@ describe('value proof review UI contract', () => {
     expect(normalizeValueProofReviewHome(payload)).toMatchObject({ status: 'invalid', reason: '委任の地図の形式が不正です' });
   });
 
-  it('shows kind rows first with their state and reason, and keeps judgments without a kind apart', () => {
+  it('shows kind rows first in the map ledger with their state, and keeps judgments without a kind apart', () => {
     const kinded = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2', recorded_at: '2026-09-21T00:00:00.000Z' });
     kinded.decision = { ...kinded.decision, judgment_kind: { key: 'production_release', label: '本番への反映' } };
     const unkinded = proof();
-    const root = renderHome(home([kinded, unkinded], delegationMap([
+    const { root, rail } = renderHome(home([kinded, unkinded], delegationMap([
       mapRow('kind:production_release', [kinded], {
         label: '本番への反映', state: 'delegated',
         state_basis: { reason: 'latest_feedback', status: 'accepted', target_layer: null, at: '2026-09-22T00:00:00.000Z' },
+        counts: {
+          continued: 1, returned: 0, rated: 1,
+          by_feedback: { accepted: 1, corrected: 0, next_time_ask: 0, reverted: 0 },
+          corrected_or_reverted: 0, inherited: 0,
+        },
       }),
       mapRow('reason:routine_reversible_work', [unkinded]),
-    ])), { expandedRows: new Set(['kind:production_release']) });
-    const map = findAll(root, (element) => element?.className === 'vpr-map')[0];
+    ])), { selectedRowKey: 'kind:production_release' });
+    const map = byClass(root, 'bb-vpr-map')[0];
     const text = collectText(map);
 
     expect(text.indexOf('本番への反映')).toBeLessThan(text.indexOf('判断の種類が記録されていない判断'));
-    expect(text).toContain('任せている');
-    expect(text).toContain('最新の評価が採用');
-    expect(text).toContain('種類の記録なし・理由: routine_reversible_work');
+    // Rows without a kind sit under their own heading and name only the reason code.
+    expect(text).toContain('理由: routine_reversible_work');
     expect(text).not.toContain('判断の種類はまだ記録されていません');
-    // Only the opened row lists its judgments.
-    const rows = findAll(map, (element) => element?.className?.startsWith?.('vpr-row is-'));
-    expect(byTag(rows[0], 'ul')).toHaveLength(1);
-    expect(byTag(rows[1], 'ul')).toHaveLength(0);
+    const ledgers = byClass(map, 'bb-vpr-map-ledger');
+    expect(ledgers.map((ledger) => ledger.className)).toEqual(['bb-ws-ledger bb-vpr-map-ledger', 'bb-ws-ledger bb-vpr-map-ledger is-unrecorded']);
+    expect(byClass(ledgers[0], 'bb-ws-ledger-head')[0].children.map((cell) => cell.textContent))
+      .toEqual(['判断の種類', '状態', '判断', '評価', '訂正・取り消し', '最新']);
+    const [kindRow] = ledgerRows(ledgers[0]);
+    expect(kindRow.children.map(collectText)).toEqual(['本番への反映', '任せている', '続行 1・戻した 0', '1件（採用 1）', '0件', md('2026-09-21T00:00:00.000Z')]);
+    // The selected row is marked, and only its judgments are listed, in the rail.
+    expect(kindRow.className).toContain('is-selected');
+    expect(ledgerRows(ledgers[1])[0].className).not.toContain('is-selected');
+    const detail = collectText(rail);
+    expect(detail).toContain('判断の種類');
+    expect(detail).toContain('任せている：最新の評価が採用');
+    expect(byClass(rail, 'bb-vpr-item')).toHaveLength(1);
+    expect(detail).toContain('稼働中の設定へ反映してよいですか？');
+  });
+
+  it('gives the rail the row the owner selects, then the judgment picked from it, and goes back to the row', async () => {
+    const first = proof();
+    const second = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });
+    second.interruption = { ...second.interruption, question_display_text: '合成の2件目ですか？' };
+    const payload = home([first, second], delegationMap([
+      mapRow('kind:k1', [first], { label: '一つ目の種類' }),
+      mapRow('kind:k2', [second], { label: '二つ目の種類', state: 'returned', state_basis: { reason: 'latest_judgment_returned', at: second.recorded_at } }),
+    ]));
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const rail = doc.createElement('aside');
+    const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher: async () => jsonResponse(200, payload), autoLoad: false });
+    await ui.load();
+    // The first row is selected when the screen opens.
+    expect(ui.state.selectedRowKey).toBe('kind:k1');
+    expect(byClass(rail, 'bb-ws-rail-head').map(collectText)[0]).toContain('一つ目の種類');
+
+    click(ledgerRows(byClass(root, 'bb-vpr-map-ledger')[0])[1]);
+    expect(ui.state.selectedRowKey).toBe('kind:k2');
+    const head = collectText(byClass(rail, 'bb-ws-rail-head')[0]);
+    expect(head).toContain('判断の種類');
+    expect(head).toContain('二つ目の種類');
+    expect(head).toContain('戻している：最新の判断をあなたに戻した');
+    expect(byClass(rail, 'bb-vpr-item').map((button) => collectText(button))).toEqual([expect.stringContaining('合成の2件目ですか？')]);
+
+    click(byClass(rail, 'bb-vpr-item')[0]);
+    expect(ui.state.selectedKey).toBe('intent-2\u0000attempt-2');
+    expect(byClass(rail, 'bb-vpr-detail')[0].attributes['data-detail']).toBe('judgment');
+    expect(collectText(byClass(rail, 'bb-ws-rail-head')[0])).toContain('合成の2件目ですか？');
+    expect(byClass(rail, 'vpr-feedback')).toHaveLength(1);
+
+    click(byClass(rail, 'bb-vpr-back')[0]);
+    expect(byClass(rail, 'bb-vpr-detail')[0].attributes['data-detail']).toBe('row');
+    expect(collectText(rail)).toContain('二つ目の種類');
+  });
+
+  it('without a rail, renders the same detail inline after the workspace content', () => {
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    renderValueProofReview(root, baseState(home(), { selectedKey: 'intent-1\u0000attempt-1', railView: 'judgment' }), {}, { document: doc });
+    const surface = root.children[0];
+    expect(surface.attributes['data-layout']).toBe('inline');
+    const last = surface.children.at(-1);
+    expect(last.className).toBe('bb-vpr-inline-detail');
+    const order = surface.children.map((child) => String(child.className));
+    expect(order.indexOf('bb-vpr-map')).toBeLessThan(order.indexOf('bb-vpr-inline-detail'));
+    expect(collectText(last)).toContain('扱い');
+    expect(byClass(last, 'vpr-feedback')).toHaveLength(1);
+    // No placeholder is added inline when nothing is selected.
+    const empty = doc.createElement('main');
+    renderValueProofReview(empty, baseState({ status: 'unavailable', reason: 'judgment_journal_not_found' }), {}, { document: doc });
+    expect(byClass(empty, 'bb-vpr-inline-detail')).toHaveLength(0);
+    expect(byClass(empty, 'bb-ws-detail-empty')).toHaveLength(0);
   });
 
   it('says that no kind and no evaluation are recorded yet instead of inventing them', () => {
-    const text = collectText(renderHome(home()));
+    const text = collectText(renderHome(home()).root);
     expect(text).toContain('判断の種類はまだ記録されていません');
     expect(text).toContain('まだ評価がありません');
     expect(text).not.toContain('聞かずに進めたが直した判断');
   });
 
-  it('puts corrected judgments and judgments that continued after an ask above the map', () => {
+  it('puts corrected judgments and judgments that continued after an ask above the map, as ledgers the owner selects', () => {
     const corrected = proof({ feedback: { status: 'corrected', summary: '合成の理由', evidence_ref: { kind: 'human_feedback', ref: 'x', status: 'verified' } } });
     const afterAsk = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });
     afterAsk.interruption = { ...afterAsk.interruption, question_display_text: '合成の2回目ですか？' };
@@ -375,15 +519,23 @@ describe('value proof review UI contract', () => {
       continued_after_ask: [ref(afterAsk, 'kind:daily_routine')],
     }));
     payload.sections.continued[0].feedback_history = [{ status: 'corrected', summary: '合成の理由', target_layer: 'method', recorded_at: '2026-09-21T00:00:00.000Z' }];
-    const root = renderHome(payload);
-    const highlights = findAll(root, (element) => element?.className?.startsWith?.('vpr-highlight'));
+    const selected = [];
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    renderValueProofReview(root, baseState(payload), { onSelect: (key) => selected.push(key) }, { document: doc, rail: doc.createElement('aside') });
+    const surface = root.children[0];
+    const highlights = byClass(root, 'bb-vpr-highlight');
 
-    expect(highlights.map((element) => element.className)).toEqual(['vpr-highlight is-corrected', 'vpr-highlight is-after-ask']);
-    expect(collectText(highlights[0])).toContain('朝夜のルーティン · 訂正（判断方法）: 合成の理由');
+    expect(highlights.map((element) => element.className)).toEqual(['bb-vpr-highlight is-corrected', 'bb-vpr-highlight is-after-ask']);
+    expect(surface.children.indexOf(highlights[1])).toBeLessThan(surface.children.indexOf(byClass(root, 'bb-vpr-map')[0]));
+    const [correctedRow] = ledgerRows(byClass(highlights[0], 'bb-vpr-judgment-ledger')[0]);
+    expect(correctedRow.children.map(collectText)).toEqual(['稼働中の設定へ反映してよいですか？', '朝夜のルーティン', '訂正（判断方法）: 合成の理由', md('2026-09-20T00:00:00.000Z')]);
     expect(collectText(highlights[1])).toContain('合成の2回目ですか？');
+    click(ledgerRows(byClass(highlights[1], 'bb-vpr-judgment-ledger')[0])[0]);
+    expect(selected).toEqual(['intent-2\u0000attempt-2']);
   });
 
-  it('narrows the map to judgments waiting for the owner from the coverage count', async () => {
+  it('narrows the map to judgments waiting for the owner with the head toggle', async () => {
     const waiting = proof({ intent_id: 'intent-w', decision_attempt_id: 'attempt-w', state: 'waiting_human' });
     waiting.interruption = { ...waiting.interruption, resolution: 'human_required', question_display_text: '合成の戻した確認ですか？' };
     const continued = proof();
@@ -393,32 +545,51 @@ describe('value proof review UI contract', () => {
     ]), [waiting]);
     const doc = new FakeDocument();
     const root = doc.createElement('main');
-    const ui = createValueProofReviewUI({ root, document: doc, fetcher: async () => jsonResponse(200, payload), autoLoad: false });
+    const rail = doc.createElement('aside');
+    const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher: async () => jsonResponse(200, payload), autoLoad: false });
     await ui.load();
-    expect(collectText(root)).toContain('あなたの判断が必要 1件');
+    const toggle = findAll(root, (element) => element.tagName === 'BUTTON' && element.textContent === 'あなたの判断が必要 1件')[0];
+    expect(toggle.attributes['aria-pressed']).toBe('false');
 
-    ui.callbacks.onToggleNeedsHuman(true);
-    const map = collectText(findAll(root, (element) => element?.className === 'vpr-map')[0]);
-    expect(map).toContain('合成の戻した確認ですか？');
-    expect(map).toContain('最新の判断をあなたに戻した');
+    click(toggle);
+    const map = collectText(byClass(root, 'bb-vpr-map')[0]);
+    expect(map).toContain('owner_value_choice');
     expect(map).not.toContain('routine_reversible_work');
     expect(ui.state.selectedKey).toBe('intent-w\u0000attempt-w');
+    expect(ui.state.selectedRowKey).toBe('reason:owner_value_choice');
+    expect(collectText(rail)).toContain('合成の戻した確認ですか？');
+    expect(collectText(rail)).toContain('最新の判断をあなたに戻した');
+    const pressed = findAll(root, (element) => element.tagName === 'BUTTON' && element.textContent.startsWith('あなたの判断が必要 1件（絞り込み中'))[0];
+    expect(pressed.attributes['aria-pressed']).toBe('true');
   });
 
-  it('opens the row of the judgment the card moves to when a filter hides the selected one', async () => {
+  it('disables the needs-owner toggle when nothing waits, instead of showing an empty filter', async () => {
+    const { root } = renderHome(home());
+    const toggle = findAll(root, (element) => element.tagName === 'BUTTON' && element.textContent === 'あなたの判断が必要 0件')[0];
+    expect(toggle.attributes.disabled).toBe('');
+  });
+
+  it('moves the selection to a visible judgment and selects its row when a filter hides the selected one', async () => {
     const rated = proof({ feedback: { status: 'accepted', summary: null, evidence_ref: { kind: 'human_feedback', ref: 'x', status: 'verified' } } });
     const unrated = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });
     const payload = home([rated, unrated], delegationMap([mapRow('kind:k1', [rated]), mapRow('kind:k2', [unrated])]));
     const doc = new FakeDocument();
     const root = doc.createElement('main');
-    const ui = createValueProofReviewUI({ root, document: doc, fetcher: async () => jsonResponse(200, payload), autoLoad: false });
+    const rail = doc.createElement('aside');
+    const ui = createValueProofReviewUI({ root, rail, document: doc, fetcher: async () => jsonResponse(200, payload), autoLoad: false });
     await ui.load();
     expect(ui.state.selectedKey).toBe('intent-1\u0000attempt-1');
+    expect(ui.state.selectedRowKey).toBe('kind:k1');
 
     ui.callbacks.onToggleUnrated(true);
     expect(ui.state.selectedKey).toBe('intent-2\u0000attempt-2');
-    expect(ui.state.expandedRows.has('kind:k2')).toBe(true);
-    const rows = findAll(root, (element) => element?.className?.startsWith?.('vpr-row is-'));
-    expect(collectText(rows[1])).toContain('稼働中の設定へ反映してよいですか？');
+    expect(ui.state.selectedRowKey).toBe('kind:k2');
+    const rows = ledgerRows(byClass(root, 'bb-vpr-map-ledger')[0]);
+    expect(rows[1].className).toContain('is-selected');
+    expect(collectText(rail)).toContain('稼働中の設定へ反映してよいですか？');
+
+    // A row whose judgments are all hidden says so instead of listing nothing.
+    click(rows[0]);
+    expect(collectText(rail)).toContain('未評価の判断はありません。');
   });
 });
