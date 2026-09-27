@@ -189,6 +189,13 @@ describe('local web host protections', () => {
       expect(response.headers.get('content-type')).toMatch(file.endsWith('.js') ? /text\/javascript/ : /text\/css/);
     }
     expect((await fetch(`${base}/app.js`)).status).toBe(200);
+    // Every module a served part imports is served too, or the page cannot start.
+    for (const file of ['local-web-shell.js', 'value-proof-review.js', 'objective-editor.js', 'world-model-view.js']) {
+      const source = await (await fetch(`${base}/ui/${file}`)).text();
+      for (const [, imported] of source.matchAll(/from '\.\/([^']+)'/gu)) {
+        expect((await fetch(`${base}/ui/${imported}`)).status, `${file} -> ${imported}`).toBe(200);
+      }
+    }
     for (const path of ['/ui/outcome-mana.js', '/ui/judgment-view.js', '/ui/', '/../package.json', '/ui/%2e%2e/package.json', '/ui/..%2Fpackage.json']) {
       expect((await fetch(`${base}${path}`)).status, path).toBe(404);
     }
