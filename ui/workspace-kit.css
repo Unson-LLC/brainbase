@@ -25,14 +25,18 @@
 
 .bb-ws-page-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 30px;
+  gap: 16px 30px;
   min-width: 0;
 }
 
+/* The title is never broken inside a word: when it and the actions do not fit
+   on one line, the actions move below it. */
 .bb-ws-page-copy {
-  min-width: 0;
+  min-width: min-content;
+  max-width: 100%;
 }
 
 .bb-ws-page-head h1 {
@@ -42,6 +46,8 @@
   font-weight: 760;
   line-height: 1.1;
   letter-spacing: -.055em;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .bb-ws-lead {
