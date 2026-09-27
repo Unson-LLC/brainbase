@@ -269,7 +269,8 @@
   background: var(--bb-color-surface);
 }
 
-.bb-ws-ledger-row.is-selected {
+.bb-ws-ledger-row.is-selected,
+.bb-ws-ledger-row.is-selectable.is-selected:hover {
   background: var(--bb-color-accent-soft);
   box-shadow: inset 3px 0 var(--bb-color-accent);
 }

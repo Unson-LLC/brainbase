@@ -75,6 +75,8 @@ describe('workspace kit (the organization edition screen pattern)', () => {
     expect(rows[1].tagName).toBe('BUTTON');
     expect(rows[1].className).toContain('is-selected');
     expect(rows[1].attributes['aria-pressed']).toBe('true');
+    expect(rows[1].attributes['aria-label']).toBe('Atlas導入');
+    expect(rows[2].attributes['aria-label']).toBe('Beta');
     expect(text(rows[1])).toBe('Atlas導入project-atlas進行中');
     rows[2].listeners.get('click')();
     expect(selected).toEqual(['b']);

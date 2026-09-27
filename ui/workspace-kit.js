@@ -107,6 +107,16 @@ export function workspaceMetrics(doc, items = [], { ariaLabel = '集計' } = {})
   return summary;
 }
 
+// A readable name for a row: its first cell's text (a button with role=row has no name of its own).
+function ledgerRowLabel(cells = []) {
+  const first = cells[0];
+  if (first === null || first === undefined) return undefined;
+  if (typeof first === 'object' && 'primary' in first) return String(first.primary);
+  if (typeof first === 'object' && 'text' in first) return String(first.text);
+  if (typeof first === 'object' && typeof first.tagName === 'string') return first.textContent || undefined;
+  return String(first);
+}
+
 /**
  * A ledger: a header row and selectable rows. `className` sets the column
  * template in the caller's CSS. A cell is text, an element, `{ text, className }`,
@@ -125,7 +135,13 @@ export function workspaceLedger(doc, { columns = [], rows = [], className = '', 
     const selectable = typeof row.onSelect === 'function';
     const item = el(doc, selectable ? 'button' : 'div', {
       className: `bb-ws-ledger-row${selectable ? ' is-selectable' : ''}${row.selected ? ' is-selected' : ''}${row.className ? ` ${row.className}` : ''}`,
-      attrs: { type: selectable ? 'button' : undefined, role: 'row', 'aria-pressed': selectable ? (row.selected ? 'true' : 'false') : undefined, 'data-key': row.key },
+      attrs: {
+        type: selectable ? 'button' : undefined,
+        role: 'row',
+        'aria-pressed': selectable ? (row.selected ? 'true' : 'false') : undefined,
+        'aria-label': row.label ?? ledgerRowLabel(row.cells),
+        'data-key': row.key,
+      },
     });
     for (const cell of row.cells ?? []) {
       if (cell && typeof cell === 'object' && 'primary' in cell) {
