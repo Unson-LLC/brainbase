@@ -1,13 +1,14 @@
 /*
  * Shared look of the local Graph screens (プロジェクトと関係者・情報と関係).
+ * Load after workspace-kit.css: the page head, notices, metrics, ledgers and
+ * the right rail come from the kit (the organization edition's screen
+ * pattern).  This file adds what the Graph screens need on top of it — the
+ * compact relation items in the rail, badges, provenance, the correction form
+ * and the fallback rail for hosts without one.
  * Uses only the shared tokens in brainbase-tokens.css.
- * Looks like the organization edition's outcome parts: the header sits in a
- * gradient box, each block is a white section, buttons share one shape and
- * the primary action uses the action color.
  */
-.bb-graph {
-  display: grid;
-  gap: 20px;
+.bb-graph,
+.bb-graph-rail {
   min-width: 0;
   color: var(--bb-color-ink);
   font-family: var(--bb-font-sans);
@@ -16,52 +17,72 @@
 
 .bb-graph *,
 .bb-graph *::before,
-.bb-graph *::after {
+.bb-graph *::after,
+.bb-graph-rail *,
+.bb-graph-rail *::before,
+.bb-graph-rail *::after {
   box-sizing: border-box;
 }
 
-.bb-graph h2,
-.bb-graph h3,
-.bb-graph h4,
-.bb-graph p {
+/* Only this file's own text blocks are reset; the kit's page head and rail keep their spacing. */
+.bb-graph-notice-body p,
+.bb-graph-correction p,
+.bb-graph-correction h3 {
   margin: 0;
 }
 
-/* Part header: title and lead inside the gradient box. */
-.bb-graph-header {
+/* A host without a right rail shows the selected item after the workspace. */
+.bb-graph-rail-inline {
+  min-width: 0;
+  margin-top: 48px;
+  border-top: 1px solid var(--bb-color-border-strong);
+  padding-top: 28px;
+}
+
+.bb-graph-rail-inline .bb-ws-detail-empty {
+  min-height: 0;
+  padding-block: 24px;
+}
+
+/* Notices inside the rail sit closer than the workspace's. */
+.bb-graph-rail .bb-ws-notice {
+  margin: 16px 0;
+}
+
+.bb-graph-notice-body {
   display: grid;
   gap: var(--bb-space-2);
+  justify-items: start;
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-lg);
-  padding: var(--bb-space-5);
-  background: linear-gradient(135deg, var(--bb-color-header-start), var(--bb-color-header-end));
 }
 
-.bb-graph-eyebrow {
-  margin: 0;
-  color: var(--bb-color-eyebrow);
-  font-size: .72rem;
-  font-weight: 750;
-  letter-spacing: .12em;
-  text-transform: uppercase;
+.bb-graph-notice-body > * {
+  max-width: 100%;
 }
 
-.bb-graph-header h2 {
-  font-size: clamp(1.45rem, 3vw, 2rem);
-  line-height: 1.25;
-  letter-spacing: -.02em;
+.bb-graph-rail .bb-ws-rail-head {
+  overflow-wrap: anywhere;
 }
 
-.bb-graph-lead,
+.bb-graph-rail > .bb-ws-actions {
+  border-bottom: 1px solid var(--bb-color-border);
+  padding-block: 18px;
+}
+
+.bb-graph-block-lead,
 .bb-graph-help,
-.bb-graph-muted {
+.bb-graph-empty {
   color: var(--bb-color-muted);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
-.bb-graph-header .bb-graph-lead {
-  font-size: 14px;
+.bb-graph-rail .bb-ws-rail-block > .bb-graph-block-lead {
+  margin-bottom: 12px;
+}
+
+.bb-graph-rail .bb-ws-rail-block > .bb-graph-empty {
+  font-size: 13px;
 }
 
 .bb-graph-help {
@@ -69,90 +90,73 @@
   overflow-wrap: anywhere;
 }
 
-/* Sections. */
-.bb-graph-block {
-  display: grid;
-  gap: var(--bb-space-3);
-  min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-md);
-  padding: 18px;
-  background: var(--bb-color-panel);
-}
-
-.bb-graph-block-head {
-  display: flex;
+.bb-graph-inline-value {
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: var(--bb-space-2) var(--bb-space-3);
-  align-items: flex-start;
-  justify-content: space-between;
-  min-width: 0;
-}
-
-.bb-graph-block-head > .bb-graph-heading,
-.bb-graph-block-head > .bb-graph-lead {
-  flex: 1 1 100%;
-}
-
-.bb-graph-heading {
-  font-size: 1.1rem;
-}
-
-.bb-graph-subheading {
-  margin-top: var(--bb-space-2);
-  font-size: 14px;
-}
-
-.bb-graph-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-2);
+  gap: var(--bb-space-1) var(--bb-space-2);
   align-items: baseline;
   min-width: 0;
 }
 
-.bb-graph-title {
-  min-width: 0;
-  font-size: 1.2rem;
-  overflow-wrap: anywhere;
-}
-
-.bb-graph-strong {
-  font-weight: 650;
-  overflow-wrap: anywhere;
-}
-
-/* State boxes. */
-.bb-graph-notice {
-  border-radius: var(--bb-radius-sm);
-  padding: 11px var(--bb-space-3);
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-
-.bb-graph-notice.is-muted { color: var(--bb-color-muted); background: var(--bb-color-surface); }
-.bb-graph-notice.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
-.bb-graph-notice.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-graph-notice.is-success { color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
-.bb-graph-notice.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
-
-.bb-graph-state {
+/* Compact items: each 関係者 or relation in the rail. */
+.bb-graph-compact-list {
   display: grid;
-  gap: var(--bb-space-2);
-  justify-items: start;
   min-width: 0;
-  border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3) 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-graph-compact {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  border-top: 1px solid var(--bb-color-border);
+  padding-block: 16px;
+}
+
+.bb-graph-compact:last-child {
+  padding-bottom: 0;
+}
+
+.bb-graph-compact.is-ended .bb-graph-compact-title,
+.bb-graph-compact.is-ended .bb-ws-definition dd {
+  color: var(--bb-color-muted);
+}
+
+.bb-graph-compact-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-1) var(--bb-space-2);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.bb-graph-compact-title {
+  min-width: 0;
+  color: var(--bb-color-ink);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.bb-graph-compact .bb-ws-definition {
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 6px 10px;
+  font-size: 12px;
+}
+
+.bb-graph-compact .bb-ws-actions {
+  gap: 6px;
+}
+
+.bb-graph-relation {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-1) var(--bb-space-2);
+  align-items: baseline;
+  min-width: 0;
   font-size: 14px;
 }
-
-.bb-graph-state > * {
-  max-width: 100%;
-}
-
-.bb-graph-state.is-muted { color: var(--bb-color-muted); background: var(--bb-color-surface); }
-.bb-graph-state.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
-.bb-graph-state.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
 
 .bb-graph-commands {
   display: grid;
@@ -186,110 +190,83 @@
   overflow-wrap: anywhere;
 }
 
-.bb-graph-badges {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-1);
-}
-
 .bb-graph-badge {
   display: inline-block;
-  border: 1px solid var(--bb-color-border);
   border-radius: 999px;
-  padding: 1px var(--bb-space-2);
+  padding: 2px 7px;
   color: var(--bb-color-muted);
-  background: var(--bb-color-surface);
-  font-size: 12px;
-  font-weight: 650;
+  background: var(--bb-color-canvas);
+  font-size: 10px;
+  font-weight: 720;
+  line-height: 1.5;
   white-space: nowrap;
 }
 
-.bb-graph-badge.is-success { border-color: color-mix(in srgb, var(--bb-color-success) 35%, var(--bb-color-border)); color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
-.bb-graph-badge.is-warning { border-color: color-mix(in srgb, var(--bb-color-warning) 35%, var(--bb-color-border)); color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
-.bb-graph-badge.is-danger { border-color: color-mix(in srgb, var(--bb-color-danger) 35%, var(--bb-color-border)); color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
-.bb-graph-badge.is-accent { border-color: color-mix(in srgb, var(--bb-color-accent) 35%, var(--bb-color-border)); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
+.bb-graph-badge.is-success { color: var(--bb-color-accent-strong); background: var(--bb-color-success-soft); }
+.bb-graph-badge.is-warning { color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
+.bb-graph-badge.is-danger { color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
+.bb-graph-badge.is-accent { color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
 
-/* Buttons: one shape; the primary action uses the action color. */
-.bb-graph-button {
-  min-height: 40px;
-  border: 1px solid var(--bb-color-control-border);
-  border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-2) var(--bb-space-3);
-  color: var(--bb-color-ink);
-  background: var(--bb-color-panel);
-  font: inherit;
-  font-weight: 680;
-  cursor: pointer;
+/* Inline messages inside the correction form. */
+.bb-graph-notice,
+.bb-graph-rail .bb-graph-notice {
+  border-left: 3px solid var(--bb-color-border-strong);
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
 
-/* Hosts often reset button fonts with `button { font: inherit }`; keep the weight. */
-.bb-graph .bb-graph-button {
-  font-weight: 680;
-}
+.bb-graph-notice.is-muted { border-left-color: var(--bb-color-border-strong); color: var(--bb-color-muted); background: var(--bb-color-surface); }
+.bb-graph-notice.is-warning { border-left-color: var(--bb-color-warning); color: var(--bb-color-warning); background: var(--bb-color-warning-soft); }
+.bb-graph-notice.is-danger { border-left-color: var(--bb-color-danger); color: var(--bb-color-danger); background: var(--bb-color-danger-soft); }
+.bb-graph-notice.is-success,
+.bb-graph-notice.is-accent { border-left-color: var(--bb-color-accent); color: var(--bb-color-accent-strong); background: var(--bb-color-accent-soft); }
 
-.bb-graph-button:hover:not([disabled]) {
-  border-color: var(--bb-color-border-strong);
-}
-
-.bb-graph-button.is-primary {
-  border-color: var(--bb-color-action);
-  color: var(--bb-color-action-text);
-  background: var(--bb-color-action);
-}
-
-.bb-graph-button.is-primary:hover:not([disabled]) {
-  border-color: var(--bb-color-action-hover);
-  background: var(--bb-color-action-hover);
-}
-
-.bb-graph-button[disabled] {
-  cursor: default;
-  opacity: .6;
-}
-
-.bb-graph-link,
-.bb-graph-back {
+/* A name that opens a record. */
+.bb-graph-link {
   border: 0;
   padding: 0;
   color: var(--bb-color-accent-strong);
   background: none;
   font: inherit;
-  font-weight: 650;
+  font-weight: 700;
   text-align: left;
   cursor: pointer;
   overflow-wrap: anywhere;
 }
 
-.bb-graph .bb-graph-link,
-.bb-graph .bb-graph-back {
-  font-weight: 650;
-}
-
-/* The name that opens a record reads as the card's title. */
-.bb-graph .bb-graph-item-head > .bb-graph-link {
-  font-weight: 700;
-}
-
-.bb-graph-link:hover,
-.bb-graph-back:hover {
+.bb-graph-link:hover {
   text-decoration: underline;
 }
 
 .bb-graph-back {
-  justify-self: start;
-  font-size: 14px;
+  display: block;
+  margin-bottom: 18px;
+  font-size: 12px;
+  font-weight: 650;
 }
 
-.bb-graph-button:focus-visible,
+.bb-graph .bb-ws-ledger-row.is-selectable:focus-visible,
 .bb-graph-link:focus-visible,
-.bb-graph-back:focus-visible,
 .bb-graph-correction:focus-visible,
 .bb-graph-field input:focus-visible,
 .bb-graph-field textarea:focus-visible,
 .bb-graph-field select:focus-visible,
+.bb-graph-rail summary:focus-visible,
 .bb-graph summary:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 45%, var(--bb-color-panel));
   outline-offset: 2px;
+}
+
+.bb-graph .bb-ws-ledger-row.is-ended > span,
+.bb-graph .bb-ws-ledger-row.is-ended .bb-ws-ledger-object strong {
+  color: var(--bb-color-muted);
+}
+
+/* The selected row keeps its soft green while the pointer is on it. */
+.bb-graph .bb-ws-ledger-row.is-selected:hover {
+  background: var(--bb-color-accent-soft);
 }
 
 .bb-graph-facts {
@@ -297,7 +274,7 @@
   grid-template-columns: max-content minmax(0, 1fr);
   gap: var(--bb-space-1) var(--bb-space-3);
   margin: 0;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .bb-graph-facts dt {
@@ -312,7 +289,7 @@
 
 .bb-graph-facts.is-mono dd {
   font-family: var(--bb-font-mono);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .bb-graph-audit,
@@ -323,7 +300,7 @@
 
 .bb-graph-audit summary,
 .bb-graph-history summary {
-  color: var(--bb-color-muted);
+  color: var(--bb-color-quiet);
   cursor: pointer;
 }
 
@@ -332,64 +309,13 @@
   margin-top: var(--bb-space-2);
 }
 
-.bb-graph-history {
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-md);
-  padding: 14px 18px;
-  background: var(--bb-color-panel);
-  font-size: 13px;
+.bb-ws-rail-block > .bb-graph-audit {
+  margin-top: 14px;
 }
 
-.bb-graph-list {
-  display: grid;
-  gap: var(--bb-space-2);
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.bb-graph-item {
-  display: grid;
-  gap: var(--bb-space-2);
-  min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3) 14px;
-  background: var(--bb-color-panel);
-}
-
-.bb-graph-item.is-ended {
-  background: var(--bb-color-surface);
-}
-
-.bb-graph-item-head {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-2);
-  align-items: baseline;
-  justify-content: space-between;
-  min-width: 0;
-}
-
-.bb-graph-relation {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-1) var(--bb-space-2);
-  align-items: baseline;
-  min-width: 0;
-}
-
-.bb-graph-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--bb-space-2);
-}
-
-/* Buttons inside a dense row keep the shape but take less height. */
-.bb-graph-row-actions .bb-graph-button {
-  min-height: 32px;
-  padding: var(--bb-space-1) 10px;
+.bb-graph-rail > .bb-graph-history {
+  border-bottom: 1px solid var(--bb-color-border);
+  padding-block: 18px;
   font-size: 13px;
 }
 
@@ -403,7 +329,6 @@
 
 .bb-graph-source-ref {
   min-width: 0;
-  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
@@ -411,61 +336,31 @@
   color: var(--bb-color-warning);
 }
 
-/* Tables read like the organization's ledger. */
-.bb-graph-table {
-  width: 100%;
-  border-top: 1px solid var(--bb-color-border-strong);
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.bb-graph-table th {
-  border-bottom: 1px solid var(--bb-color-border);
-  padding: 10px var(--bb-space-2);
-  color: var(--bb-color-muted);
-  font-size: 12px;
-  font-weight: 650;
-  text-align: left;
-  white-space: nowrap;
-}
-
-.bb-graph-table td {
-  border-bottom: 1px solid var(--bb-color-border);
-  padding: 10px var(--bb-space-2);
-  min-width: 0;
-  vertical-align: top;
-  overflow-wrap: anywhere;
-}
-
-.bb-graph-table tr.is-ended td {
-  background: var(--bb-color-surface);
-}
-
-/* Correction panel. */
+/* Correction form: a rail block with the accent bar the organization uses for the selection. */
 .bb-graph-correction {
   display: grid;
   gap: var(--bb-space-3);
   min-width: 0;
-  border: 1px solid color-mix(in srgb, var(--bb-color-accent) 35%, var(--bb-color-border));
-  border-radius: var(--bb-radius-md);
-  padding: 18px;
-  background: var(--bb-color-accent-soft);
-  box-shadow: inset 3px 0 var(--bb-color-accent);
+  border-bottom: 1px solid var(--bb-color-border);
+  border-left: 3px solid var(--bb-color-accent);
+  padding: 20px 0 22px 14px;
 }
 
 .bb-graph-correction.is-conflict {
-  border-color: color-mix(in srgb, var(--bb-color-warning) 35%, var(--bb-color-border));
-  background: var(--bb-color-warning-soft);
-  box-shadow: inset 3px 0 var(--bb-color-warning);
+  border-left-color: var(--bb-color-warning);
 }
 
 .bb-graph-correction.is-saved {
-  border-color: color-mix(in srgb, var(--bb-color-success) 35%, var(--bb-color-border));
-  background: var(--bb-color-success-soft);
-  box-shadow: inset 3px 0 var(--bb-color-success);
+  border-left-color: var(--bb-color-success);
 }
 
-.bb-graph-correction > .bb-graph-button {
+.bb-graph-compact .bb-graph-correction {
+  margin-top: 4px;
+  border-bottom: 0;
+  padding-block: 14px 4px;
+}
+
+.bb-graph-correction > .bb-ws-button {
   justify-self: start;
 }
 
@@ -475,7 +370,13 @@
 }
 
 .bb-graph-correction-head h3 {
-  font-size: 1.1rem;
+  font-size: 15px;
+}
+
+.bb-graph-correction-head .bb-graph-lead {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .bb-graph-readback,
@@ -483,10 +384,9 @@
   display: grid;
   gap: var(--bb-space-2);
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3) 14px;
-  background: var(--bb-color-panel);
+  border-top: 1px solid var(--bb-color-border);
+  padding-top: var(--bb-space-3);
+  font-size: 13px;
 }
 
 .bb-graph-form,
@@ -498,13 +398,14 @@
 
 .bb-graph-field {
   display: grid;
-  gap: var(--bb-space-1);
+  gap: 6px;
   min-width: 0;
 }
 
 .bb-graph-field label {
-  font-size: 13px;
-  font-weight: 650;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 680;
 }
 
 .bb-graph-field.is-reason label {
@@ -528,6 +429,7 @@
 
 .bb-graph-field textarea {
   resize: vertical;
+  line-height: 1.55;
 }
 
 .bb-graph-inline {
@@ -540,7 +442,7 @@
   flex: 1 1 auto;
 }
 
-.bb-graph-inline > .bb-graph-button {
+.bb-graph-inline > .bb-ws-button {
   flex: none;
   white-space: nowrap;
 }
@@ -549,75 +451,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--bb-space-2);
-}
-
-@media (max-width: 760px) {
-  .bb-graph-header {
-    padding: 18px;
-  }
-
-  .bb-graph-block,
-  .bb-graph-correction {
-    padding: 14px;
-  }
-}
-
-@media (max-width: 720px) {
-  .bb-graph-table {
-    border-top: 0;
-  }
-
-  .bb-graph-table thead {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-    white-space: nowrap;
-  }
-
-  .bb-graph-table,
-  .bb-graph-table tbody,
-  .bb-graph-table tr,
-  .bb-graph-table td {
-    display: block;
-    width: 100%;
-  }
-
-  .bb-graph-table tr {
-    border: 1px solid var(--bb-color-border);
-    border-radius: var(--bb-radius-sm);
-    margin-bottom: var(--bb-space-2);
-    padding: var(--bb-space-2) var(--bb-space-3);
-  }
-
-  .bb-graph-table td {
-    display: grid;
-    grid-template-columns: 6em minmax(0, 1fr);
-    gap: var(--bb-space-2);
-    border-bottom: 0;
-    padding: var(--bb-space-1) 0;
-  }
-
-  .bb-graph-table td::before {
-    content: attr(data-label);
-    color: var(--bb-color-muted);
-    font-weight: 650;
-  }
-
-  .bb-graph-table td > * {
-    grid-column: 2;
-    justify-self: start;
-    max-width: 100%;
-  }
-
-  .bb-graph-table tr.is-ended td {
-    background: none;
-  }
-
-  .bb-graph-table tr.is-ended {
-    background: var(--bb-color-surface);
-  }
 }
 
 @media (max-width: 480px) {

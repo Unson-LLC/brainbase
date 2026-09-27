@@ -157,6 +157,13 @@ export interface GraphWebStatus {
   issues: GraphReadIssue[];
 }
 
+export interface GraphProjectPersonView {
+  id: string;
+  name: string;
+  /** True when one of the person's active relations to the project is accountable_for. */
+  accountable: boolean;
+}
+
 export interface GraphProjectListItem extends GraphEntityView {
   type: 'project';
   goal: string | null;
@@ -164,6 +171,8 @@ export interface GraphProjectListItem extends GraphEntityView {
   /** Distinct people with an active participates_in or accountable_for relation. */
   participantCount: number;
   accountableCount: number;
+  /** The same people by name, accountable first, so a list can name them and count them across projects. */
+  people: GraphProjectPersonView[];
 }
 
 export interface GraphProjectList {
@@ -287,10 +296,20 @@ export async function listGraphProjects(dataDir: string, options: GraphWebReadOp
   const projects = graph.entities.filter((entity) => entity.type === 'project').map((project) => {
     const participation = graph.edges.filter((edge) => edge.toId === project.id && PARTICIPATION.has(edge.relation)
       && isActiveAt(edge, asOf) && isEntityActive(entities.get(edge.fromId), asOf));
+    const byPerson = new Map<string, GraphProjectPersonView>();
+    for (const edge of participation) {
+      const person = byPerson.get(edge.fromId) ?? { id: edge.fromId, name: entities.get(edge.fromId)?.name ?? edge.fromId, accountable: false };
+      if (edge.relation === 'accountable_for') person.accountable = true;
+      byPerson.set(edge.fromId, person);
+    }
+    const people = [...byPerson.values()].sort((left, right) => Number(right.accountable) - Number(left.accountable)
+      || left.name.localeCompare(right.name, 'ja')
+      || left.id.localeCompare(right.id, 'en'));
     return {
       ...projectView(project, asOf),
-      participantCount: new Set(participation.map((edge) => edge.fromId)).size,
-      accountableCount: new Set(participation.filter((edge) => edge.relation === 'accountable_for').map((edge) => edge.fromId)).size
+      participantCount: people.length,
+      accountableCount: people.filter((person) => person.accountable).length,
+      people
     } satisfies GraphProjectListItem;
   }).sort(byActiveThenName);
   return { status: 'ok', source: loaded.source, asOf, projects, absenceConfirmed: projects.length === 0 };

@@ -74,6 +74,12 @@ describe('local Graph web reads', () => {
     ]);
     expect(list.projects[0]).toMatchObject({ goal: '導入を完了する', status: '進行中', validTo: null });
     expect(list.projects[1]).toMatchObject({ goal: null, status: '完了', validTo: '2026-03-01T00:00:00Z' });
+    // The same people by name, accountable first; an ended participation names nobody.
+    expect(list.projects[0]!.people).toEqual([
+      { id: 'person-sato', name: '佐藤 花子', accountable: true },
+      { id: 'person-tanaka', name: '田中 太郎', accountable: false }
+    ]);
+    expect(list.projects[1]!.people).toEqual([]);
   });
 
   it('reads a project with each participant, relation, role, validity, provenance kind and record digest', async () => {

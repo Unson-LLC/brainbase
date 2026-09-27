@@ -227,7 +227,7 @@ describe('local Web shell', () => {
     await flush();
     expect(shell.state.active).toBe('projects');
     const projects = collectText(screen(root, 'projects'));
-    expect(projects).toContain('プロジェクトの一覧');
+    expect(projects).toContain('あなたのBrainbase/プロジェクトと関係者');
     expect(projects).toContain('まだ登録がありません');
     expect(shell.state.mounted).toContain('projects');
 
