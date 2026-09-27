@@ -68,7 +68,12 @@ export interface GraphRetrievalResponse {
   schemaVersion: 1 | 2;
   status: 'ok' | 'migration_required';
   migrationRequired: boolean;
-  authority: 'local_graph' | 'organization_graph';
+  /**
+   * `local_graph`: this Mac's Graph.  `owner_private`: the owner's own snapshot
+   * kept by an organization (not the organization's facts).
+   * `organization_graph`: the organization's shared Graph.
+   */
+  authority: 'local_graph' | 'owner_private' | 'organization_graph';
   query: string;
   asOf: string;
   project?: { id: string; name: string };

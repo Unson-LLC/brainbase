@@ -21,7 +21,7 @@ describe('optional organization backend',()=>{
     expect(()=>createOrganizationGraphClient({...config,url:'https://user:secret@example.test'})).toThrow();
   });
   it('forwards the same search input and preserves graph evidence',async()=>{
-    const expected={...await retrievePortableGraph(bundle,input),authority:'organization_graph' as const};
+    const expected={...await retrievePortableGraph(bundle,input),authority:'owner_private' as const};
     const fetch=vi.fn(async()=>new Response(JSON.stringify(expected),{status:200}));
     const result=await createOrganizationGraphClient({...config,fetch}).search(input);
     expect(result).toEqual(expected);
@@ -29,6 +29,16 @@ describe('optional organization backend',()=>{
     expect(url).toBe('https://example.test/api/info/graph/portable/snapshot/search');
     expect(JSON.parse(request.body as string)).toEqual({project_code:'authorized-project',input});
     expect(request.redirect).toBe('error');
+  });
+  it('labels the search of the owner-private area owner_private, never as the organization Graph',async()=>{
+    const local=await retrievePortableGraph(bundle,input);
+    const answer=(authority:string)=>vi.fn(async()=>new Response(JSON.stringify({...local,authority}),{status:200}));
+    expect((await createOrganizationGraphClient({...config,fetch:answer('owner_private')}).search(input)).authority).toBe('owner_private');
+    // A service from before the label (it answered organization_graph for the same owner-private area).
+    expect((await createOrganizationGraphClient({...config,fetch:answer('organization_graph')}).search(input)).authority).toBe('owner_private');
+    for(const authority of ['local_graph','shared','']) {
+      await expect(createOrganizationGraphClient({...config,fetch:answer(authority)}).search(input)).rejects.toThrow('organization_graph_response_invalid');
+    }
   });
   it('verifies the imported and returned bundle digests',async()=>{
     const digest=portableGraphDigest(bundle);

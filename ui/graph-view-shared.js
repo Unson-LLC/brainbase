@@ -329,7 +329,9 @@ function errorOf(status, payload) {
 
 /**
  * Graph routes client.  `read` resolves to one of
- * `{ state: 'ok' | 'migration_required' | 'not_initialized', payload }`,
+ * `{ state: 'ok' | 'migration_required' | 'not_initialized' | 'not_handed_over', payload }`
+ * (`not_handed_over`: a host's owner-private routes when the owner has sent
+ * nothing yet, see `graph-own-share.js`),
  * `{ state: 'error', code, reason, status }` or `{ state: 'invalid', reason }`.
  * `correct` resolves to `{ state: 'saved', payload }`,
  * `{ state: 'conflict', code, message, current }` or `{ state: 'error', code, message }`.
@@ -372,7 +374,7 @@ export function createGraphClient({ fetcher, basePath = '/api/graph', token, tok
         };
       }
       if (!isRecord(payload)) return { state: 'invalid', reason: '応答の形式が不正です' };
-      if (payload.status === 'migration_required' || payload.status === 'not_initialized' || payload.status === 'ok') {
+      if (['migration_required', 'not_initialized', 'not_handed_over', 'ok'].includes(payload.status)) {
         return { state: payload.status, payload };
       }
       return { state: 'invalid', reason: '応答の形式が不正です' };

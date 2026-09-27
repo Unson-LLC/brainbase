@@ -462,3 +462,61 @@
     margin-bottom: var(--bb-space-1);
   }
 }
+
+/*
+ * The owner's own share (graph-own-share.js): a separate, read-only section
+ * after the host's content, never inside its ledgers or rail.
+ */
+.bb-graph-own {
+  min-width: 0;
+  margin-top: 48px;
+  border-top: 1px solid var(--bb-color-border-strong);
+}
+
+.bb-graph-own .bb-ws-section-title {
+  margin-top: 28px;
+}
+
+.bb-graph-own-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  align-items: center;
+  margin: 0 0 var(--bb-space-4);
+  color: var(--bb-color-muted);
+  font-size: 13px;
+}
+
+.bb-graph-own-detail {
+  position: relative;
+  min-width: 0;
+  margin-top: var(--bb-space-5);
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md);
+  padding: var(--bb-space-4) var(--bb-space-5);
+  background: var(--bb-color-panel);
+}
+
+.bb-graph-own-close {
+  position: absolute;
+  top: var(--bb-space-4);
+  right: var(--bb-space-5);
+}
+
+.bb-graph-own-objective-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.6fr) 88px minmax(0, 1.2fr) minmax(0, .9fr) 64px;
+}
+
+@media (max-width: 760px) {
+  .bb-graph-own-detail {
+    padding: var(--bb-space-3) var(--bb-space-4);
+  }
+
+  .bb-graph-own-objective-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 88px;
+  }
+
+  .bb-graph-own-objective-ledger .bb-ws-ledger-row > :nth-child(n + 3) {
+    display: none;
+  }
+}
