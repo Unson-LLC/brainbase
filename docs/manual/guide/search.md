@@ -76,7 +76,7 @@ brainbase graph:bundles              # 保存日時・プロジェクトコー�
 brainbase graph:bundles --format json
 ```
 
-意味検索を使う場合、埋め込み生成先は組織サーバー側で設定します。端末側の設定は自動転送しません。生成先が未設定なら、意味検索の不足を明示します。返却される `authority` は、ローカルでは `local_graph`、組織側では `organization_graph` です。
+意味検索を使う場合、埋め込み生成先は組織サーバー側で設定します。端末側の設定は自動転送しません。生成先が未設定なら、意味検索の不足を明示します。返却される `authority` は、ローカルでは `local_graph`、組織側では `owner_private` です。`owner_private` は組織の中の本人専用領域の結果で、組織の共有Graphの事実ではありません。この値を返す前の組織サービスは同じ結果に `organization_graph` を返しますが、クライアントは `owner_private` として受け取ります。
 
 対象はGraphと検索の移行互換です。組織共有Graphへの昇格や、製品全機能の完全上位互換を保証するものではありません。
 

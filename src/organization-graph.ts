@@ -221,7 +221,7 @@ function parseGraphRetrievalResponse(value: unknown): GraphRetrievalResponse {
     || (value.schemaVersion !== 1 && value.schemaVersion !== 2)
     || (value.status !== 'ok' && value.status !== 'migration_required')
     || typeof value.migrationRequired !== 'boolean'
-    || value.authority !== 'organization_graph'
+    || (value.authority !== 'owner_private' && value.authority !== 'organization_graph')
     || typeof value.query !== 'string'
     || typeof value.asOf !== 'string'
     || !['semantic', 'lexical', 'seed'].includes(String(value.method))
@@ -246,7 +246,10 @@ function parseGraphRetrievalResponse(value: unknown): GraphRetrievalResponse {
     || value.absenceConfirmed !== false) {
     throw new OrganizationGraphError('organization_graph_response_invalid', 'organization service returned a response outside the OSS GraphRetrievalResponse contract');
   }
-  return value as unknown as GraphRetrievalResponse;
+  // This route searches only the token owner's own snapshot (the owner-private
+  // area), never the organization's shared Graph. A service from before the
+  // owner_private label answered organization_graph for the same area.
+  return { ...value, authority: 'owner_private' } as unknown as GraphRetrievalResponse;
 }
 
 function parseImportResult(value: unknown): PortableGraphImportResult {
