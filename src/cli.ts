@@ -1,6 +1,16 @@
 #!/usr/bin/env node
 import { createPortableGraph, portableGraphDigest } from './portable-graph.js';
 import { createOrganizationGraphConfig, createOrganizationGraphClient } from './organization-graph.js';
+import {
+  listLocalMemories,
+  memoryListJson,
+  registerSelectedMemories,
+  registrationPreviewJson,
+  renderMemoryList,
+  renderRegistrationPreview,
+  renderRegistrationResult,
+  selectLocalMemories
+} from './personal-memory-handover.js';
 import { constants, realpathSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { delimiter, dirname, isAbsolute, join } from 'node:path';
@@ -104,6 +114,10 @@ export async function runCli(argv = process.argv.slice(2), io: CliIo = process):
           + (list.truncated ? `Only the newest ${list.bundles.length} bundle(s) are shown.\n` : ''));
         return 0;
       }
+      case 'memory:list':
+        return await memoryList(parsed, io);
+      case 'memory:register':
+        return await memoryRegister(parsed, io);
       case 'onboard:init':
         return await onboardInit(parsed, io);
       case 'onboard:seed':
@@ -243,6 +257,36 @@ async function readHookStdin(input: AsyncIterable<string | Uint8Array>): Promise
   let text = '';
   for await (const chunk of input) text += typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
   return text;
+}
+
+function textOrJsonFormat(parsed: ParsedArgs, command: string): 'text' | 'json' {
+  const format = first(parsed, 'format') ?? 'text';
+  if (format !== 'text' && format !== 'json') throw new Error(`${command} --format must be text or json`);
+  return format;
+}
+
+async function memoryList(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = textOrJsonFormat(parsed, 'memory:list');
+  const memories = await listLocalMemories(first(parsed, 'dir'));
+  write(io, format === 'json' ? `${JSON.stringify(memoryListJson(memories), null, 2)}\n` : renderMemoryList(memories));
+  return 0;
+}
+
+async function memoryRegister(parsed: ParsedArgs, io: CliIo): Promise<number> {
+  const format = textOrJsonFormat(parsed, 'memory:register');
+  const ids = parsed.values.get('id') ?? [];
+  if (ids.length === 0) throw new Error('memory:register requires at least one --id <id> (see brainbase memory:list)');
+  const dataDir = first(parsed, 'dir');
+  if (!parsed.flags.has('write')) {
+    const selected = selectLocalMemories(await listLocalMemories(dataDir), ids);
+    write(io, format === 'json' ? `${JSON.stringify(registrationPreviewJson(selected), null, 2)}\n` : renderRegistrationPreview(selected));
+    return 0;
+  }
+  const config = createOrganizationGraphConfig();
+  if (!config) throw new Error('memory:register --write requires all BRAINBASE_ORGANIZATION_* settings; nothing was sent');
+  const result = await registerSelectedMemories({ dataDir, ids, organization: { url: config.url, token: config.token } });
+  write(io, format === 'json' ? `${JSON.stringify({ status: 'registered', ...result }, null, 2)}\n` : renderRegistrationResult(result));
+  return 0;
 }
 
 async function onboardInit(parsed: ParsedArgs, io: CliIo): Promise<number> {
@@ -1284,6 +1328,8 @@ function usage(): string {
   brainbase ontology:audit [--dir path] [--ontology-version 0.0.0|1.0.0|2.0.0]
   brainbase graph:upgrade [--dir path]
   brainbase graph:bundles [--format text|json]
+  brainbase memory:list [--dir path] [--format text|json]
+  brainbase memory:register --id id [--id id...] [--dir path] [--write] [--format text|json]
   brainbase ontology:migrate [--dir path] [--write --expected-input-digest digest]
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
