@@ -10,6 +10,55 @@
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, .8fr) minmax(0, .6fr) 64px minmax(0, 1.2fr);
 }
 
+/* The selected project's knowledge workspace is the reading surface. Keep the
+   registration context compact so the workspace tabs are not pushed below the
+   first viewport by the legacy ledger chrome. */
+.bb-gp > .bb-ws-page {
+  gap: 0;
+}
+
+.bb-gp > .bb-ws-page .bb-ws-breadcrumb {
+  margin-bottom: 10px;
+}
+
+.bb-gp > .bb-ws-page .bb-ws-page-head {
+  gap: 8px 20px;
+}
+
+.bb-gp > .bb-ws-page .bb-ws-page-head h1 {
+  font-size: clamp(28px, 3vw, 36px);
+}
+
+.bb-gp > .bb-ws-page .bb-ws-lead {
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+.bb-gp > .bb-ws-page .bb-ws-source {
+  min-height: 26px;
+  padding: 5px 8px;
+}
+
+.bb-gp > .bb-ws-notice {
+  gap: 8px;
+  margin-block: 12px;
+  padding: 9px 12px;
+  line-height: 1.45;
+}
+
+.bb-gp > .bb-ws-summary {
+  margin-bottom: 14px;
+}
+
+.bb-gp > .bb-ws-summary .bb-ws-metric {
+  padding-block: 10px;
+}
+
+.bb-gp > .bb-ws-summary .bb-ws-metric strong {
+  margin-block: 3px 2px;
+  font-size: 24px;
+}
+
 @media (max-width: 760px) {
   .bb-graph-project-ledger .bb-ws-ledger-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) 68px;
@@ -19,5 +68,22 @@
   .bb-graph-project-ledger .bb-ws-ledger-row > :nth-child(5),
   .bb-graph-project-ledger .bb-ws-ledger-row > :nth-child(6) {
     display: none;
+  }
+}
+
+/* Author display rules must not override the HTML hidden state. */
+.bb-gp [hidden] { display: none; }
+
+.bb-shell:has([data-project-graph-active="true"]) > .bb-shell-workspace {
+  grid-column: 2 / -1;
+}
+.bb-shell:has([data-project-graph-active="true"]) > .bb-shell-rail {
+  display: none;
+}
+[data-project-graph-active="true"] .bb-pkw { margin-top: 0; }
+
+@media (max-width: 760px) {
+  .bb-shell:has([data-project-graph-active="true"]) > .bb-shell-workspace {
+    grid-column: 1 / -1;
   }
 }

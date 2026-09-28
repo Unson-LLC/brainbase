@@ -655,7 +655,13 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
       'graph-view-shared.js',
       'graph-view-shared.css',
       'graph-projects-view.js',
+      'graph-own-share.js',
       'graph-projects-view.css',
+      'project-workspace.js',
+      'project-workspace.css',
+      'project-graph.js',
+      'project-graph-entry.js',
+      'project-graph-vendor.js',
       'graph-registry-view.js',
       'graph-registry-view.css'
     ],

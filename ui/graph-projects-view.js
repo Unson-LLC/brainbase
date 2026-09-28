@@ -54,6 +54,8 @@ import {
   graphHostEmptyNotice,
 } from './graph-view-shared.js';
 import { graphOwnShareSource, ownProjectDetail, ownShareSection, ownShareStateNotice } from './graph-own-share.js';
+import { createProjectKnowledgeWorkspace, normalizeProjectContext } from './project-workspace.js';
+import { mountProjectGraph as defaultMountProjectGraph } from './project-graph.js';
 import {
   workspaceActions,
   workspaceButton,
@@ -196,6 +198,13 @@ function failureText(error) {
  *   labelled 「引き継いだ自分の分（組織には未反映）」 unless `label` says otherwise.  They are never
  *   added to the ledger, the metrics or the rail, and a failed read shows only in that section.
  *   Without it nothing of the kind is drawn or read.
+ * @param {(projectId: string) => Promise<object>} [options.loadProjectContext]
+ *   Optional read-only supplementary sections (tasks/knowledge).  A failed
+ *   context read is kept separate from the Graph detail read.
+ * @param {(container: Element, options: object) => { destroy?: Function }} [options.mountProjectGraph]
+ *   Host-injected Sigma.js graph mount. When omitted, the shared browser
+ *   entry is used. The workspace keeps an accessible relation list when
+ *   mounting is unavailable or fails.
  * @returns The controller: `state`, `correction`, `render()`, `load()`, `loadDetail(id)`,
  *   `selectProject(id)`, `openProject(id)`, `select(id)` for the host's own navigation, and with
  *   `ownShare` `loadOwn()` and `selectOwnProject(id)`.
@@ -222,10 +231,13 @@ export function createGraphProjectsView({
   selectedId: initialSelectedId,
   onSelect,
   ownShare,
+  loadProjectContext,
+  mountProjectGraph,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
   const graphClient = createGraphClient({ fetcher, basePath, token, ...(tokenHeader ? { tokenHeader } : {}) });
+  const projectGraphMount = typeof mountProjectGraph === 'function' ? mountProjectGraph : defaultMountProjectGraph;
   const own = graphOwnShareSource(ownShare, { fetcher });
   const writable = canCorrect !== false;
   const client = writable ? graphClient : readOnlyGraphClient(graphClient);
@@ -246,11 +258,16 @@ export function createGraphProjectsView({
     list: { state: 'loading' },
     selectedId: textOrNull(initialSelectedId),
     detail: null,
+    context: null,
     panelAt: null,
     // The owner's own share: its own list and selection, apart from the host's.
     own: own ? { list: { state: 'loading' }, selectedId: null, detail: null } : null,
   };
   let focusRow = null;
+  let knowledgeWorkspace = null;
+  let contextRequest = 0;
+  let detailRequest = 0;
+  let viewDestroyed = false;
 
   const correction = createGraphCorrection({
     client,
@@ -317,6 +334,30 @@ export function createGraphProjectsView({
     }
   }
 
+  /** Reads supplementary sections independently of the Graph project detail. */
+  async function loadProjectContextFor(id, { keep = false } = {}) {
+    if (viewDestroyed) return state.context;
+    if (typeof loadProjectContext !== 'function') {
+      if (state.context?.projectId !== id) state.context = null;
+      return null;
+    }
+    if (keep && state.context?.projectId === id && ['ok', 'failed', 'unavailable'].includes(state.context.state)) return state.context;
+    const request = ++contextRequest;
+    state.context = normalizeProjectContext(id, { state: 'loading' });
+    controller.render();
+    let result;
+    try {
+      result = await loadProjectContext(id);
+    } catch (error) {
+      result = { state: 'failed', message: `補足情報を読み取れませんでした（${failureText(error)}）。` };
+    }
+    const normalized = normalizeProjectContext(id, result);
+    if (viewDestroyed || request !== contextRequest || state.selectedId !== id) return state.context;
+    state.context = normalized;
+    controller.render();
+    return state.context;
+  }
+
   // -------------------------------------------------------------------------
   // Workspace
 
@@ -366,19 +407,51 @@ export function createGraphProjectsView({
   }
 
   function renderHostWorkspace() {
-    const children = [workspacePageHeader(doc, {
+    const pageHeader = workspacePageHeader(doc, {
       crumbs: context.crumbs,
       title: 'プロジェクトと関係者',
-      lead: writable ? 'どのプロジェクトに誰がどう関わっているかを確かめ、誤りを直します。' : 'どのプロジェクトに誰がどう関わっているかを確かめます。',
+      lead: writable ? '目的・関係者・判断・根拠を、記録からたどり、必要な記録を直します。' : '目的・関係者・判断・根拠を、記録からたどります。',
       source: context.source,
       actions: workspaceHostActions(pageActions),
-    })];
+    });
+    // These blocks belong to the legacy registration surface. The knowledge
+    // workspace owns the first viewport while its graph tab is active, so the
+    // old framing must not keep pushing the graph below the fold.
+    const legacyChrome = [pageHeader];
+    const children = [pageHeader];
     const dir = state.list.state === 'ok' ? textOrNull(state.list.payload.source?.dataDir) : null;
-    children.push(workspaceHostNotice(doc, sourceNotice) ?? workspaceNotice(doc, {
+    const sourceBlock = workspaceHostNotice(doc, sourceNotice) ?? workspaceNotice(doc, {
       label: '出典',
       text: `このMacのGraph${dir ? `（${dir}）` : ''}から読み、ここで直した内容もそこへ保存します。関係者は、プロジェクトに参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。`,
-    }));
-    if (state.detail?.state === 'ok') children.push(renderGraphIssues(doc, state.detail.payload.issues));
+    });
+    children.push(sourceBlock);
+    legacyChrome.push(sourceBlock);
+    if (state.detail?.state === 'ok') {
+      const issues = renderGraphIssues(doc, state.detail.payload.issues);
+      if (issues) {
+        children.push(issues);
+        legacyChrome.push(issues);
+      }
+    }
+
+    const setKnowledgeTabChrome = (tab) => {
+      const graphActive = tab === 'graph';
+      root.setAttribute('data-project-graph-active', String(graphActive));
+      for (const node of legacyChrome) {
+        if (node) node.hidden = graphActive;
+      }
+      if (!rail) return;
+      rail.hidden = graphActive;
+      if (graphActive) rail.setAttribute('aria-hidden', 'true');
+      else rail.removeAttribute('aria-hidden');
+      // In the organization shell the slot's parent is the actual grid
+      // column. Hide that column as well; hiding only the slot leaves the
+      // empty 380px rail in the layout.
+      const parent = rail.parentElement;
+      const railColumn = rail.closest?.('.bb-shell-rail')
+        ?? (typeof parent?.className === 'string' && parent.className.split(/\s+/u).includes('bb-shell-rail') ? parent : null);
+      if (railColumn) railColumn.hidden = graphActive;
+    };
 
     const stateNotice = graphStateNotice(doc, state.list, { onRetry: () => controller.load(), loadingText: 'プロジェクトを読み込んでいます。' });
     if (stateNotice) {
@@ -388,13 +461,32 @@ export function createGraphProjectsView({
     const { payload } = state.list;
     const summary = summarizeProjects(payload.projects);
     const extras = hostMetrics(payload);
-    children.push(workspaceMetrics(doc, [
+    const summaryBlock = workspaceMetrics(doc, [
       { label: 'プロジェクト', value: summary.active, note: `有効なもの（全${summary.total}件）` },
       { label: '進行中', value: summary.inProgress, note: '状態が「進行中」の有効なもの' },
       { label: '関係者', value: summary.people, note: summary.people === null ? '人数を確かめられません' : '有効な関わりがある人（重複なし）' },
       ...extras.metrics,
-    ], { ariaLabel: 'プロジェクトの集計' }));
-    if (extras.failure) children.push(extras.failure);
+    ], { ariaLabel: 'プロジェクトの集計' });
+    children.push(summaryBlock);
+    legacyChrome.push(summaryBlock);
+    if (extras.failure) {
+      children.push(extras.failure);
+      legacyChrome.push(extras.failure);
+    }
+
+    // The selected project is the primary reading surface.  Keep the ledger
+    // below it as a switcher so a large project list cannot bury its context.
+    if (state.detail?.id === state.selectedId && state.detail.state === 'ok') {
+      knowledgeWorkspace = createProjectKnowledgeWorkspace({
+        document: doc,
+        detail: state.detail.payload,
+        context: state.context,
+        mountGraph: projectGraphMount,
+        readEntity: (id) => graphClient.read(`/entities/${encodeURIComponent(id)}`),
+        onTabChange: setKnowledgeTabChrome,
+      });
+      children.push(knowledgeWorkspace.element);
+    }
 
     if (payload.projects.length === 0) {
       const hostEmpty = graphHostEmptyNotice(doc, emptyNotice);
@@ -615,6 +707,8 @@ export function createGraphProjectsView({
       if (correction.form) correction.close();
       state.panelAt = null;
       state.detail = null;
+      state.context = null;
+      contextRequest += 1;
       state.selectedId = projects[0]?.id ?? null;
       if (state.selectedId) {
         const reading = controller.loadDetail(state.selectedId);
@@ -635,12 +729,26 @@ export function createGraphProjectsView({
     get state() { return state; },
     get correction() { return correction; },
     render() {
+      if (viewDestroyed) return controller;
+      if (knowledgeWorkspace) {
+        knowledgeWorkspace.destroy();
+        knowledgeWorkspace = null;
+      }
       layout.render(renderWorkspace(), renderRail());
       if (focusRow) {
         focusLedgerRow(root, focusRow);
         focusRow = null;
       }
       return controller;
+    },
+    destroy() {
+      if (viewDestroyed) return;
+      viewDestroyed = true;
+      detailRequest += 1;
+      contextRequest += 1;
+      knowledgeWorkspace?.destroy();
+      knowledgeWorkspace = null;
+      correction.close();
     },
     /**
      * Reads the list; the first project is selected when none is.  `keep` shows the current list until
@@ -688,17 +796,23 @@ export function createGraphProjectsView({
     },
     /** `keep` shows the current detail until the new one has been read. */
     async loadDetail(id, { keep = false } = {}) {
+      if (viewDestroyed) return state.detail;
+      const request = ++detailRequest;
       const previous = state.detail;
       if (!(keep && previous?.id === id && previous.state === 'ok')) {
         state.detail = { id, state: 'loading' };
         controller.render();
       }
+      const contextReading = loadProjectContextFor(id, { keep });
       const result = await client.read(`/projects/${encodeURIComponent(id)}`);
-      if (state.selectedId !== id) return state.detail;
+      if (viewDestroyed || request !== detailRequest || state.selectedId !== id) return state.detail;
       state.detail = result.state === 'error' && result.status === 404
         ? { id, state: 'not_found', reason: 'このプロジェクトは見つかりません。一覧を読み直してください。' }
         : { id, ...normalizeProjectDetail(result) };
       controller.render();
+      // The context is intentionally independent.  Its completion may trigger
+      // one more render, but never changes the Graph detail result.
+      void contextReading;
       return state.detail;
     },
     /** Selects a row: the rail shows that project, and an open correction is closed. */
@@ -706,6 +820,8 @@ export function createGraphProjectsView({
       if (correction.form) correction.close();
       state.panelAt = null;
       state.selectedId = id;
+      state.context = null;
+      contextRequest += 1;
       return controller.loadDetail(id, { keep: true });
     },
     /** The same as selecting the project's row. */

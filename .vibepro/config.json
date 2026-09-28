@@ -615,8 +615,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-project-knowledge-workspace",
+        "title": "プロジェクトの目的と関係する情報を根拠までたどれる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-foundation-draft-write-v1"
+    "current_story_id": "story-project-knowledge-workspace"
   }
 }

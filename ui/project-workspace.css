@@ -1,0 +1,491 @@
+/* Shared project knowledge workspace. Load after graph-view-shared.css. */
+
+.bb-pkw {
+  display: grid;
+  gap: var(--bb-space-4);
+  min-width: 0;
+  margin-top: var(--bb-space-6);
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md);
+  padding: var(--bb-space-5);
+  color: var(--bb-color-ink);
+  background: var(--bb-color-panel);
+  font-family: var(--bb-font-sans);
+}
+
+.bb-pkw *,
+.bb-pkw *::before,
+.bb-pkw *::after {
+  box-sizing: border-box;
+}
+
+.bb-pkw-kicker {
+  color: var(--bb-color-eyebrow);
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.bb-pkw-header {
+  display: grid;
+  gap: var(--bb-space-2);
+  min-width: 0;
+}
+
+.bb-pkw-header h2,
+.bb-pkw-section h3,
+.bb-pkw-section h4,
+.bb-pkw-selection h3,
+.bb-pkw-selection h4 {
+  margin: 0;
+  color: var(--bb-color-ink);
+}
+
+.bb-pkw-header h2 {
+  font-size: clamp(22px, 2.6vw, 32px);
+  letter-spacing: -.04em;
+  overflow-wrap: anywhere;
+}
+
+.bb-pkw-lead,
+.bb-pkw-muted {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.bb-pkw-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-1);
+}
+
+.bb-pkw-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-1);
+  border-bottom: 1px solid var(--bb-color-border-strong);
+}
+
+.bb-pkw-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 14px;
+  color: var(--bb-color-muted);
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 720;
+  cursor: pointer;
+}
+
+.bb-pkw-tab:hover,
+.bb-pkw-tab.is-active {
+  border-bottom-color: var(--bb-color-accent);
+  color: var(--bb-color-accent-strong);
+}
+
+.bb-pkw-tab:focus-visible,
+.bb-pkw-graph-item:focus-visible,
+.bb-pkw-record-link:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 45%, var(--bb-color-panel));
+  outline-offset: 2px;
+}
+
+.bb-pkw-panel {
+  display: grid;
+  gap: var(--bb-space-5);
+  min-width: 0;
+}
+
+.bb-pkw-panel[hidden] {
+  display: none;
+}
+
+.bb-pkw-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--bb-space-4);
+}
+
+.bb-pkw-section {
+  display: grid;
+  gap: var(--bb-space-3);
+  min-width: 0;
+  border-top: 1px solid var(--bb-color-border);
+  padding-top: var(--bb-space-4);
+}
+
+.bb-pkw-section h3,
+.bb-pkw-selection h3 {
+  font-size: 15px;
+  letter-spacing: -.02em;
+}
+
+.bb-pkw-section h4,
+.bb-pkw-selection h4 {
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.bb-pkw .bb-ws-definition {
+  grid-template-columns: minmax(80px, 112px) minmax(0, 1fr);
+  gap: 7px var(--bb-space-3);
+  margin: 0;
+  font-size: 12px;
+}
+
+.bb-pkw .bb-ws-definition dt {
+  color: var(--bb-color-muted);
+}
+
+.bb-pkw .bb-ws-definition dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-pkw-people-list,
+.bb-pkw-decision-list,
+.bb-pkw-context-list,
+.bb-pkw-detail-relations,
+.bb-pkw-evidence-list {
+  display: grid;
+  gap: var(--bb-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-pkw-people-list li,
+.bb-pkw-decision-list li,
+.bb-pkw-context-list li,
+.bb-pkw-detail-relations li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  align-items: baseline;
+  min-width: 0;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding-bottom: var(--bb-space-2);
+}
+
+.bb-pkw-people-list li:last-child,
+.bb-pkw-decision-list li:last-child,
+.bb-pkw-context-list li:last-child,
+.bb-pkw-detail-relations li:last-child {
+  border-bottom: 0;
+}
+
+.bb-pkw-people-list strong,
+.bb-pkw-decision-list strong,
+.bb-pkw-context-list strong,
+.bb-pkw-detail-relations strong {
+  overflow-wrap: anywhere;
+}
+
+.bb-pkw-record-link {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border: 0;
+  padding: 0;
+  color: var(--bb-color-accent-strong);
+  background: transparent;
+  font: inherit;
+  font-weight: 720;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--bb-color-accent) 35%, transparent);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.bb-pkw-record-link:hover {
+  color: var(--bb-color-accent);
+  text-decoration-color: currentColor;
+}
+
+.bb-pkw-people-list p,
+.bb-pkw-decision-list p,
+.bb-pkw-context-list p {
+  flex-basis: 100%;
+}
+
+.bb-pkw-info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: var(--bb-space-3);
+}
+
+.bb-pkw-object {
+  min-width: 0;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-3);
+  background: var(--bb-color-surface);
+}
+
+.bb-pkw-object h4 {
+  margin-bottom: var(--bb-space-2);
+  color: var(--bb-color-eyebrow);
+}
+
+.bb-pkw-object ul {
+  display: grid;
+  gap: var(--bb-space-1);
+  margin: 0;
+  padding-left: var(--bb-space-4);
+  font-size: 12px;
+}
+
+.bb-pkw-unknown {
+  border-radius: var(--bb-radius-sm);
+  border-top: 0;
+  padding: var(--bb-space-4);
+  background: var(--bb-color-warning-soft);
+}
+
+.bb-pkw-unknown h3 {
+  color: var(--bb-color-warning);
+}
+
+.bb-pkw-unknown ul {
+  display: grid;
+  gap: var(--bb-space-1);
+  margin: 0;
+  padding-left: var(--bb-space-5);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pkw-context-group {
+  display: grid;
+  gap: var(--bb-space-2);
+  border-top: 1px solid var(--bb-color-border);
+  padding-top: var(--bb-space-3);
+}
+
+.bb-pkw-context-heading,
+.bb-pkw-graph-intro,
+.bb-pkw-selected-head,
+.bb-pkw-evidence-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.bb-pkw-graph-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  align-items: center;
+}
+
+.bb-pkw-graph-search,
+.bb-pkw-graph-type {
+  min-height: 36px;
+  border: 1px solid var(--bb-color-border-strong);
+  border-radius: var(--bb-radius-sm);
+  padding: 7px 10px;
+  color: var(--bb-color-ink);
+  background: var(--bb-color-panel);
+  font: inherit;
+  font-size: 12px;
+}
+
+.bb-pkw-graph-search {
+  flex: 1 1 240px;
+  min-width: 180px;
+}
+
+.bb-pkw-graph-type {
+  flex: 0 1 210px;
+}
+
+.bb-pkw-graph-search:focus,
+.bb-pkw-graph-type:focus {
+  outline: 3px solid color-mix(in srgb, var(--bb-color-focus) 35%, var(--bb-color-panel));
+  outline-offset: 1px;
+  border-color: var(--bb-color-accent);
+}
+
+.bb-pkw-context-heading {
+  justify-content: space-between;
+}
+
+.bb-pkw-graph {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(260px, .85fr);
+  gap: var(--bb-space-4);
+  min-width: 0;
+  align-items: start;
+}
+
+.bb-pkw-graph-canvas {
+  grid-column: 1;
+  position: relative;
+  min-height: 320px;
+  overflow: hidden;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  background: var(--bb-color-canvas);
+}
+
+/* Sigma measures its mount target when it is constructed.  The graph entry
+   uses percentage heights so the renderer can fill this surface; give both
+   wrappers a concrete floor as well, otherwise an auto-height grid row makes
+   the percentage resolve to zero and Sigma falls back to a 1px viewport. */
+.bb-pkw-graph-canvas > .bb-project-graph {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 320px;
+}
+
+.bb-pkw-graph-canvas > .bb-project-graph .bb-project-graph-surface {
+  height: 100%;
+  min-height: 260px;
+}
+
+.bb-pkw-graph-list {
+  grid-column: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--bb-space-2);
+  max-height: 260px;
+  overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-pkw-graph > .bb-ws-notice {
+  grid-column: 1;
+  margin-block: 0;
+}
+
+.bb-pkw-graph-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  flex-wrap: wrap;
+  gap: var(--bb-space-2);
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-2) var(--bb-space-3);
+  color: var(--bb-color-ink);
+  background: var(--bb-color-panel);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.bb-pkw-graph-item:hover,
+.bb-pkw-graph-item.is-selected {
+  border-color: var(--bb-color-accent);
+  background: var(--bb-color-accent-soft);
+}
+
+.bb-pkw-graph-item strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-pkw-selection {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  display: grid;
+  gap: var(--bb-space-3);
+  min-width: 0;
+  border-top: 1px solid var(--bb-color-border-strong);
+  padding-top: var(--bb-space-4);
+}
+
+.bb-pkw-evidence-item {
+  display: grid;
+  gap: var(--bb-space-2);
+  min-width: 0;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-3);
+  background: var(--bb-color-surface);
+}
+
+.bb-pkw-evidence-head strong {
+  overflow-wrap: anywhere;
+}
+
+.bb-pkw .bb-graph-audit {
+  margin-top: var(--bb-space-1);
+}
+
+@media (max-width: 760px) {
+  .bb-pkw {
+    padding: var(--bb-space-4);
+  }
+
+  .bb-pkw-columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bb-pkw-graph-canvas {
+    min-height: 240px;
+  }
+
+  .bb-pkw-graph-canvas > .bb-project-graph {
+    min-height: 240px;
+  }
+
+  .bb-pkw-graph-canvas > .bb-project-graph .bb-project-graph-surface {
+    min-height: 190px;
+  }
+
+  .bb-pkw-graph {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bb-pkw-graph-canvas,
+  .bb-pkw-graph-list,
+  .bb-pkw-graph > .bb-ws-notice,
+  .bb-pkw-selection {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+.bb-project-graph-controls {
+  display: flex;
+  gap: var(--bb-space-1);
+  padding: var(--bb-space-2);
+}
+.bb-project-graph-control {
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  padding: 4px 10px;
+  color: var(--bb-color-ink);
+  background: var(--bb-color-panel);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.bb-project-graph-control:focus-visible {
+  outline: 2px solid var(--bb-color-focus);
+  outline-offset: 2px;
+}
+.bb-project-graph-status {
+  margin: 0;
+  padding: 0 var(--bb-space-3) var(--bb-space-2);
+  color: var(--bb-color-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
