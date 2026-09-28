@@ -54,6 +54,7 @@
 `develop`には存在するが、v0.8.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
+- Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。公開subpathを外す互換を壊す変更なので、次の公開はminorを上げる
 
 `develop`にあることは、npmへ公開済み、production ready、組織導入可能という意味ではありません。
 

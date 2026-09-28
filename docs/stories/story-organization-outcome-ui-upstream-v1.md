@@ -18,7 +18,7 @@ external_dependencies: []
 ## 所有と対象
 
 - 登録・実装repo: `Unson-LLC/brainbase`
-- 対象: 知識画面（`ui/outcome-knowledge.js`）、Mana委任画面（`ui/outcome-mana.js`、`ui/outcome-mana.css`）とそのテスト
+- 対象: 知識画面（`ui/outcome-knowledge.js`）、Mana委任画面（`ui/outcome-mana.js`、`ui/outcome-mana.css`）とそのテスト（Mana委任画面は2026-09-28に組織版の画面へ移した。末尾の改訂を参照）
 - 組織版は、この変更の公開後に自身のコピーを削除し、オプションを渡して読み込む（別の変更）。
 
 ## 受入条件
@@ -39,3 +39,7 @@ external_dependencies: []
 ## 検証と完了
 
 オプションを渡さない挙動は既存のUIテストで確認する（権限の読み込み条件を満たすよう契約の読み込み完了を明示した1件だけを直す）。組織版で直した挙動は移植したテストで、各オプションはそのオプションを無視すると失敗するテストで確認する。
+
+## 2026-09-28改訂: Mana委任画面は組織版の画面にした
+
+横断ADR（brainbase-project ADR-011 U2）で、Mana委任画面はUnsonの実行基盤（Mana）に結びつくため共通UIに含めず、組織版の画面として`brainbase-organization`が正本を持つことにした。組織版が同じ内容を自分の画面として持ってから、このrepoから`ui/outcome-mana.js`・`ui/outcome-mana.css`・`ui/icons/mana`、公開subpath、部品のテストと見た目の検査を外した。AC-02〜AC-07（Mana画面）の実装と検証は組織版へ移り、このrepoでの対象は知識画面（AC-01と、AC-08のうち知識画面の部分）だけになる。

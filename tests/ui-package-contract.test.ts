@@ -1,11 +1,11 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 
 import { describe, expect, it } from 'vitest';
 
 const manifestUrl = new URL('../package.json', import.meta.url);
 
 describe('OSS共通UIの公開契約', () => {
-  it('知識UIとMana委任UIを公開パッケージへ収録する', async () => {
+  it('共通UIの部品を公開パッケージへ収録する', async () => {
     const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'));
 
     expect(manifest.files).toContain('ui');
@@ -28,8 +28,6 @@ describe('OSS共通UIの公開契約', () => {
       },
       './ui/outcome-knowledge': './ui/outcome-knowledge.js',
       './ui/outcome-knowledge.css': './ui/outcome-knowledge.css',
-      './ui/outcome-mana': './ui/outcome-mana.js',
-      './ui/outcome-mana.css': './ui/outcome-mana.css',
       './ui/judgment-view': './ui/judgment-view.js',
       './ui/judgment-view.css': './ui/judgment-view.css',
       './ui/objective-editor': './ui/objective-editor.js',
@@ -51,16 +49,22 @@ describe('OSS共通UIの公開契約', () => {
       './ui/graph-registry-view': './ui/graph-registry-view.js',
       './ui/graph-registry-view.css': './ui/graph-registry-view.css',
       './ui/brainbase-tokens.css': './ui/brainbase-tokens.css',
-      './ui/icons/*': './ui/icons/*',
     });
+  });
+
+  it('Mana委任の画面は組織版の画面なので、部品もアイコンも出口も収録しない', async () => {
+    // The Mana delegation screen is tied to Unson's execution runtime (Mana), so
+    // the organization edition owns it; it left the common UI after 0.8.0.
+    const manifest = JSON.parse(await readFile(manifestUrl, 'utf8'));
+    expect(Object.keys(manifest.exports).filter((key) => /outcome-mana|\/ui\/icons/u.test(key))).toEqual([]);
+    const shipped = await readdir(new URL('../ui/', import.meta.url));
+    expect(shipped.filter((name) => /^outcome-mana\.|^icons$/u.test(name))).toEqual([]);
   });
 
   it('共通UIへ顧客固有識別子を持ち込まない', async () => {
     const sources = await Promise.all([
       'outcome-knowledge.js',
       'outcome-knowledge.css',
-      'outcome-mana.js',
-      'outcome-mana.css',
       'judgment-view.js',
       'judgment-view.css',
       'objective-editor.js',
@@ -154,7 +158,6 @@ describe('OSS共通UIの公開契約', () => {
       'judgment-view.css': 'judgment',
       'objective-editor.css': 'objective',
       'outcome-knowledge.css': 'knowledge',
-      'outcome-mana.css': 'mana',
     };
     for (const [file, prefix] of Object.entries(parts)) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');

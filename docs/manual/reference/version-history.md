@@ -5,6 +5,7 @@
 ## Unreleased — develop
 
 - 0.8.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+- Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を削除し、組織版の画面へ移した。公開subpathを外す互換を壊す変更のため、次の公開はminor
 
 ## 0.8.0
 
