@@ -55,7 +55,7 @@ Brainbaseの価値は、情報を多く保存することではありません�
 - 組織版はOSS UIを依存として組み込み、組織・メンバー・権限・承認・監査・tenant管理だけを追加します。
 - 顧客固有のbranding、feature flag、接続先設定は顧客設定リポジトリが所有し、共通UIを複製しません。
 
-共通UIの最初の公開単位として、知識UIとMana委任UIを `@unson/brainbase-mcp/ui/*` から利用できます。
+共通UIの最初の公開単位として、知識UIを `@unson/brainbase-mcp/ui/*` から利用できます。Mana委任UIはUnsonの実行基盤（Mana）に結びつくため組織版の画面とし、0.8.0の後に共通UIから外しました。
 
 実装済み・develop・計画中の境界は、[現在の状態](https://brainbase.pages.dev/guide/status)を参照してください。
 

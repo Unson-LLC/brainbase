@@ -196,7 +196,7 @@ describe('local web host protections', () => {
         expect((await fetch(`${base}/ui/${imported}`)).status, `${file} -> ${imported}`).toBe(200);
       }
     }
-    for (const path of ['/ui/outcome-mana.js', '/ui/judgment-view.js', '/ui/', '/../package.json', '/ui/%2e%2e/package.json', '/ui/..%2Fpackage.json']) {
+    for (const path of ['/ui/outcome-knowledge.js', '/ui/judgment-view.js', '/ui/', '/../package.json', '/ui/%2e%2e/package.json', '/ui/..%2Fpackage.json']) {
       expect((await fetch(`${base}${path}`)).status, path).toBe(404);
     }
   });
