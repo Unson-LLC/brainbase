@@ -1,0 +1,9 @@
+# プロジェクト知識画面の表示契約
+
+既存GraphProjectDetailのproject、participants、relations、source、asOfを読み、概要と情報探索を構成する。関連対象はIDで統合し、関係は方向と出典を維持する。未知の型・関係は元のラベルで表示する。decisionを未決と推測しない。goalの未記入を完了・目的なしと解釈しない。
+
+Sigma.jsとgraphologyをバンドルしてui配下で配信する。mountProjectGraphはnodes/edges/onSelectを受け、destroyでイベントとWebGL資源を解放する。選択時に隣接関係を強調し、図の外でも同じ情報を読める。存在しない端点から架空のノードを作らない。
+
+Graph APIは読み取り、訂正権限は既存createGraphProjectsViewで維持する。個人情報の組織送信・新たな正本・業務固有型の強制は行わない。
+
+検証対象: project-workspaceの投影と未知情報、Graph UIの既存訂正・読取権限、ローカルホストの静的資産配信、組織版の共通UIマウント、Sigma.js実ブラウザ表示。

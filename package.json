@@ -262,7 +262,11 @@
       "types": "./dist/graph-foundation-reader.d.ts",
       "import": "./dist/graph-foundation-reader.js"
     },
-    "./contracts/foundation/graph-history.sql": "./contracts/foundation/graph-history.sql"
+    "./contracts/foundation/graph-history.sql": "./contracts/foundation/graph-history.sql",
+    "./ui/project-workspace": "./ui/project-workspace.js",
+    "./ui/project-graph": "./ui/project-graph.js",
+    "./ui/project-workspace.css": "./ui/project-workspace.css",
+    "./ui/project-graph-vendor.js": "./ui/project-graph-vendor.js"
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
@@ -309,10 +313,13 @@
     "release:plan": "node scripts/npm-release.mjs plan",
     "release:validate": "node scripts/npm-release.mjs validate",
     "release:publish": "node scripts/npm-release.mjs publish",
-    "release:verify": "node scripts/npm-release.mjs verify"
+    "release:verify": "node scripts/npm-release.mjs verify",
+    "build:graph": "node scripts/build-project-graph.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
+    "graphology": "0.26.0",
+    "sigma": "3.0.3",
     "zod": "^3.25.56"
   },
   "overrides": {
@@ -321,6 +328,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.15.29",
+    "esbuild": "0.28.2",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitepress": "^1.6.4",

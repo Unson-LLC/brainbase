@@ -186,7 +186,7 @@ describe('プロジェクトと関係者: workspace', () => {
     // Without a page context there is no breadcrumb or source label, and the screen still works.
     expect(byClass(root, 'bb-ws-breadcrumb')).toEqual([]);
     expect(railHead(root.children[1])).toBe('プロジェクトAtlas導入project-atlas');
-    buttonsNamed(participantItem(root, '田中 太郎'), '役割を直す')[0].dispatch('click');
+    buttonsNamed(participantItem(root.children[1], '田中 太郎'), '役割を直す')[0].dispatch('click');
     expect(control(root.children[1], 'role').value).toBe('責任者');
   });
 
@@ -526,8 +526,8 @@ describe('プロジェクトと関係者: host extensions', () => {
       extraMetrics: () => [{ label: '未完了', value: 3 }, { label: '確認待ち', value: 1 }],
     });
     const text = collectText(root);
-    expect(text).toContain('どのプロジェクトに誰がどう関わっているかを確かめます。');
-    expect(text).not.toContain('誤りを直します');
+    expect(text).toContain('目的・関係者・判断・根拠を、記録からたどります。');
+    expect(text).not.toContain('必要な記録を直します');
     expect(text).toContain('このプロジェクトはまだ組織のGraphにありません。');
     expect(text).not.toContain('brainbase onboard');
     // Five metrics stay in one row.
@@ -581,7 +581,7 @@ describe('プロジェクトと関係者: host extensions', () => {
   it('draws only the corrections the host scope allows and shows the host note where the others would be', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView({ correctionScope: PROJECT_ONLY, readOnlyNote: SCOPE_NOTE });
-    expect(collectText(root)).toContain('誤りを直します');
+    expect(collectText(root)).toContain('必要な記録を直します');
     expect(correctionButtons(rail).map((node) => node.textContent)).toEqual(['プロジェクトを直す']);
     // Relations cannot be corrected anywhere under this scope, so the rail does not point to them.
     expect(visibleText(section(rail, 'そのほかの関係'))).not.toContain('直すときは');
@@ -794,5 +794,32 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(railHead(rail)).toBe('プロジェクトAtlas導入project-atlas');
     expect(selected).toEqual(['project-atlas']);
     expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-atlas']);
+  });
+
+  it('gives the knowledge graph the first viewport by collapsing legacy chrome and the rail', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail } = await mountView({ mountProjectGraph: () => ({ destroy() {} }) });
+    const pageHeader = byClass(root, 'bb-ws-page')[0];
+    const source = byClass(root, 'bb-ws-notice')[0];
+    const summary = byClass(root, 'bb-ws-summary')[0];
+    const graphTab = buttonsNamed(root, '情報を探す')[0];
+    expect(pageHeader.hidden).toBe(false);
+    expect(source.hidden).toBe(false);
+    expect(summary.hidden).toBe(false);
+    expect(rail.hidden).toBe(false);
+
+    graphTab.dispatch('click');
+    expect(pageHeader.hidden).toBe(true);
+    expect(source.hidden).toBe(true);
+    expect(summary.hidden).toBe(true);
+    expect(rail.hidden).toBe(true);
+    expect(rail.attributes['aria-hidden']).toBe('true');
+
+    buttonsNamed(root, '概要')[0].dispatch('click');
+    expect(pageHeader.hidden).toBe(false);
+    expect(source.hidden).toBe(false);
+    expect(summary.hidden).toBe(false);
+    expect(rail.hidden).toBe(false);
+    expect(rail.attributes['aria-hidden']).toBeUndefined();
   });
 });
