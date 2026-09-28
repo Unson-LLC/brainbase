@@ -4,16 +4,16 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Released — v0.8.0
+## Released — v0.9.0
 
-0.8.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
+0.9.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
 
 公開確認済みの配布証跡は次のとおりです。
 
-- npm package [`@unson/brainbase-mcp@0.8.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.8.0)
-- npmの`latest`は`0.8.0`を指し、registryの`gitHead`は`3313189aecafbc086d33dc1ef20a7fe9f70bb54e`
-- GitHub Release [`v0.8.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.8.0)
-- 公開workflowの検証済みrun [`36423492513` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/36423492513/attempts/2)
+- npm package [`@unson/brainbase-mcp@0.9.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.9.0)
+- npmの`latest`は`0.9.0`を指し、registryの`gitHead`は`323aa422437a796dc76c9f4d2da86a62e51141ce`
+- GitHub Release [`v0.9.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.9.0)
+- 公開workflowの検証済みrun [`36433485616` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/36433485616/attempts/2)
 
 - ローカル優先のPersonal Onboarding Kit
 - MCPによる`get_context`、`search`、`resolve_entity`などの文脈参照
@@ -30,7 +30,7 @@
 - 過去runのreplay、outcome attachment、version間evaluationのprimitive
 - 判断が生んだ変化を機械可読に表すvalue-proof contractとrenderer
 - npm consumer smokeと公開契約digest
-- OSSとOrganizationで共用するoutcome knowledge / Mana UIとicon assets
+- OSSとOrganizationで共用するoutcome knowledge UI（Mana委任UIとicon assetsは0.9.0で共通UIから外し、組織版の画面にした）
 - Organization版が共通UIを再実装せず、OSS packageから利用するための公開subpath
 
 - Company OSのObjective、Variable、Model、Constraintを扱うversioned ontology foundation
@@ -47,17 +47,13 @@
 - 組織へ送ったGraphの束の一覧（`brainbase graph:bundles`）と、手元の記憶を選んで登録し直す操作（`brainbase memory:list`、`brainbase memory:register`）
 - Graphの束の検証・検索に使う関係IDと埋め込みの生成の公開subpath（`canonical-graph`、`embedding-provider`）
 
+- Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。0.8.0の公開subpathのうちこの3件を削除する互換を壊す変更なので、0.8.0からのminorにした。そのほかの0.8.0公開subpathは削除・変更していない
+
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
-
-## Candidate — v0.9.0（npm公開前）
-
-`package.json`の0.9.0は配布候補のversionです。npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackが完了するまで、公開済みのversionとして扱いません。
-
-- Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。0.8.0の公開subpathのうちこの3件を削除する互換を壊す変更なので、0.8.0からのminorにする。そのほかの0.8.0公開subpathは削除・変更していない
 
 ## Develop — release前
 
-`develop`には存在するが、v0.9.0の公開候補にもまだ含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
+`develop`には存在するが、v0.9.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
 
