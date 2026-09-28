@@ -6,6 +6,14 @@
 
 - 0.9.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.10.0 — 公開候補
+
+- プロジェクトの目的、扱う対象、用語、関係者、タスク、判断、根拠をまとめてたどる共通UIを追加
+- Sigma.jsによる2Dグラフと、選んだ記録の詳細・関係・出典を表示。任意の型と関係を保持
+- 取得できない情報と確認済みの空状態を区別し、未決の判断や待ちをデータなしに作らない
+- 組織版が同じUIを利用するため、project-workspace、project-graphと関連assetsの公開subpathを追加
+- 0.9.0の公開subpathを維持した機能追加
+
 ## 0.9.0
 
 - npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackを完了した公開版
