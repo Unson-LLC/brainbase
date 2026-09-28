@@ -4,16 +4,16 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Released — v0.9.0
+## Released — v0.10.0
 
-0.9.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
+0.10.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
 
 公開確認済みの配布証跡は次のとおりです。
 
-- npm package [`@unson/brainbase-mcp@0.9.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.9.0)
-- npmの`latest`は`0.9.0`を指し、registryの`gitHead`は`323aa422437a796dc76c9f4d2da86a62e51141ce`
-- GitHub Release [`v0.9.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.9.0)
-- 公開workflowの検証済みrun [`36433485616` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/36433485616/attempts/2)
+- npm package [`@unson/brainbase-mcp@0.10.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.10.0)
+- npmの`latest`は`0.10.0`を指し、registryの`gitHead`は`56a13a2c780fb0390c804bddfb55f00c2d5a06ed`
+- GitHub Release [`v0.10.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.10.0)
+- 公開workflowの検証済みrun [`36442188359` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/36442188359/attempts/2)
 
 - ローカル優先のPersonal Onboarding Kit
 - MCPによる`get_context`、`search`、`resolve_entity`などの文脈参照
@@ -49,19 +49,22 @@
 
 - Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。0.8.0の公開subpathのうちこの3件を削除する互換を壊す変更なので、0.8.0からのminorにした。そのほかの0.8.0公開subpathは削除・変更していない
 
-ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
-
-## Candidate — v0.10.0（npm公開前）
-
-プロジェクトの情報をたどる共通UIを含む公開候補です。npm配布と外部照合が完了するまでは公開済みとして扱いません。
-
-## Develop — release前
-
-`develop`には存在するが、v0.9.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
-
 - プロジェクトの目的・対象・用語・関係者・タスク・判断・根拠をまとめる共通UI
 - Sigma.jsによる2Dグラフと、記録の詳細・関係・出典をたどる表示
 - 欠落・取得失敗・確認済みの空を区別する表示契約
+
+ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
+
+## Candidate — v0.10.1（npm公開前）
+
+密集グラフの可読性とプロジェクト概要の参照範囲を修正する公開候補です。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
+## Develop — release前
+
+`develop`には存在するが、v0.10.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
+
+- 密集したグラフのラベル重なりを抑制し、近傍を複数の輪に分散
+- 関係探索で取得した別プロジェクトの記録を概要へ混入させない
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
 
 `develop`にあることは、npmへ公開済み、production ready、組織導入可能という意味ではありません。
