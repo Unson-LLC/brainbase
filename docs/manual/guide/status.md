@@ -51,7 +51,11 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
-## Develop — v0.10.0公開候補
+## Candidate — v0.10.0（npm公開前）
+
+プロジェクトの情報をたどる共通UIを含む公開候補です。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
+## Develop — release前
 
 `develop`には存在するが、v0.9.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
