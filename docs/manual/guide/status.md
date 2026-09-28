@@ -49,12 +49,17 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.9.0（npm公開前）
+
+`package.json`の0.9.0は配布候補のversionです。npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackが完了するまで、公開済みのversionとして扱いません。
+
+- Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。0.8.0の公開subpathのうちこの3件を削除する互換を壊す変更なので、0.8.0からのminorにする。そのほかの0.8.0公開subpathは削除・変更していない
+
 ## Develop — release前
 
-`develop`には存在するが、v0.8.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
+`develop`には存在するが、v0.9.0の公開候補にもまだ含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
-- Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。公開subpathを外す互換を壊す変更なので、次の公開はminorを上げる
 
 `develop`にあることは、npmへ公開済み、production ready、組織導入可能という意味ではありません。
 
