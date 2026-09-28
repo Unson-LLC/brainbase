@@ -3,7 +3,9 @@ import {
   computeProjectGraphLayout,
   createProjectGraphModel,
   normalizeProjectGraph,
+  projectGraphEdgePresentation,
   projectGraphNeighborIds,
+  projectGraphNodePresentation,
 } from '../ui/project-graph.js';
 
 describe('project graph projection', () => {
@@ -86,5 +88,56 @@ describe('project graph projection', () => {
     expect(computeProjectGraphLayout(nodes, valid, { selectedId: 'a' }))
       .toEqual(computeProjectGraphLayout(nodes, invalid, { selectedId: 'a' }));
     expect(projectGraphNeighborIds(nodes, invalid, 'a')).toEqual(new Set(['b']));
+  });
+
+  it('keeps a dense selected neighborhood readable by forcing only the selected label', () => {
+    const neighborIds = new Set(Array.from({ length: 105 }, (_, index) => `person-${index}`));
+    const selected = projectGraphNodePresentation(
+      { id: 'project', size: 40 },
+      { selectedId: 'project', neighborIds },
+    );
+    const neighbor = projectGraphNodePresentation(
+      { id: 'person-0', size: 40 },
+      { selectedId: 'project', neighborIds },
+    );
+    const unrelated = projectGraphNodePresentation(
+      { id: 'decision', size: 40 },
+      { selectedId: 'project', neighborIds },
+    );
+    const relation = projectGraphEdgePresentation(
+      { source: 'project', target: 'person-0', label: '担当' },
+      { selectedId: 'project', neighborIds },
+    );
+    const sparseRelation = projectGraphEdgePresentation(
+      { source: 'project', target: 'person-0', label: '担当' },
+      { selectedId: 'project', neighborIds: new Set(['person-0']) },
+    );
+
+    expect(selected).toMatchObject({ state: 'selected', forceLabel: true, highlighted: true });
+    expect(selected.size).toBeLessThanOrEqual(18);
+    expect(neighbor).toMatchObject({ state: 'neighbor', forceLabel: false, highlighted: false });
+    expect(neighbor.size).toBeLessThanOrEqual(12);
+    expect(unrelated).toMatchObject({ state: 'unrelated', forceLabel: false, highlighted: false, label: null });
+    expect(relation).toEqual({ relevant: true, showLabel: false, forceLabel: false });
+    expect(sparseRelation).toEqual({ relevant: true, showLabel: true, forceLabel: false });
+
+    const denseNodes = [
+      { id: 'project', type: 'project', label: 'Project' },
+      ...Array.from({ length: 105 }, (_, index) => ({
+        id: `person-${index}`,
+        type: 'person',
+        label: `Person ${index}`,
+      })),
+    ];
+    const denseEdges = denseNodes.slice(1).map((node, index) => ({
+      id: `relation-${index}`,
+      source: 'project',
+      target: node.id,
+    }));
+    const denseLayout = computeProjectGraphLayout(denseNodes, denseEdges, { selectedId: 'project' });
+    const neighborRadii = new Set(
+      denseNodes.slice(1).map((node) => Math.round(Math.hypot(denseLayout[node.id].x, denseLayout[node.id].y) * 100) / 100),
+    );
+    expect(neighborRadii.size).toBeGreaterThan(1);
   });
 });

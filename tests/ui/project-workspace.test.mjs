@@ -205,6 +205,66 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('keeps fetched neighboring decisions out of the project overview', async () => {
+    const projectDetail = detail({
+      knowledge: {
+        entities: [{
+          id: 'decision-atlas',
+          type: 'decision',
+          name: 'Atlasの判断',
+          summary: 'このプロジェクトに結びついた判断',
+          digest: 'sha256:decision-atlas',
+        }],
+        edges: [{
+          id: 'edge-decision-atlas',
+          source: 'decision-atlas',
+          target: 'project-atlas',
+          relation: 'decides',
+          label: '方針を決める',
+        }],
+      },
+    });
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: projectDetail,
+      readEntity: async (id) => {
+        if (id !== 'person-a') return { state: 'failed', message: '詳細の読み取り失敗' };
+        return {
+          state: 'ok',
+          payload: {
+            entity: fullEntity({ summary: '人物の詳細' }),
+            incoming: [{
+              id: 'edge-unrelated-decision',
+              relation: 'owned_by',
+              direction: 'incoming',
+              digest: 'sha256:edge-unrelated-decision',
+              counterpart: {
+                id: 'decision-ncom',
+                type: 'decision',
+                name: 'NCOMの判断',
+                summary: '別プロジェクトの判断',
+                digest: 'sha256:decision-ncom',
+              },
+            }],
+            outgoing: [],
+            asOf: '2026-09-28T01:00:00.000Z',
+          },
+        };
+      },
+    });
+
+    const overviewPerson = findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '佐藤 花子')[0];
+    overviewPerson.dispatch('click');
+    await tick();
+    await tick();
+
+    workspace.setTab('overview');
+    const decisions = section(workspace.element, '記録された判断');
+    expect(collectText(decisions)).toContain('Atlasの判断');
+    expect(collectText(decisions)).not.toContain('NCOMの判断');
+    workspace.destroy();
+  });
+
   it('filters the graph record list by text and preserves custom entity types', () => {
     const workspace = createProjectKnowledgeWorkspace({
       document: new FakeDocument(),

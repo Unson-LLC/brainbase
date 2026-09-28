@@ -445,8 +445,13 @@ export function createProjectKnowledgeWorkspace({
   const payload = projectDetailPayload(detail);
   const project = payload?.project;
   if (!project) throw new TypeError('project detail is required');
-  const entities = graphEntityMap(payload);
-  const edges = graphEvidenceEdges(payload);
+  // Keep the project-bound projection separate from the mutable exploration
+  // graph.  Reading a related entity may reveal arbitrary neighboring records,
+  // but those records are not evidence that they belong to this project.
+  const overviewEntities = graphEntityMap(payload);
+  const overviewEdges = graphEvidenceEdges(payload);
+  const entities = new Map(overviewEntities);
+  const edges = [...overviewEdges];
   let destroyed = false;
   let selectedId = project.id;
   let activeTab = 'overview';
@@ -576,7 +581,7 @@ export function createProjectKnowledgeWorkspace({
       ['目的', textOrNull(selectedEntity.goal)],
       ['有効期間', validityText(selectedEntity.validFrom, selectedEntity.validTo)],
     ]));
-    panel.append(makeElement(doc, 'h4', { text: 'このプロジェクトとの関係' }), relationEvidence(doc, edges, selectedId, entities, payload.asOf, selectAndExplore));
+    panel.append(makeElement(doc, 'h4', { text: 'このプロジェクトとの関係' }), relationEvidence(doc, overviewEdges, selectedId, overviewEntities, payload.asOf, selectAndExplore));
     if (selectedId !== project.id && !fetched) {
       const failed = read?.state === 'failed';
       panel.append(workspaceNotice(doc, {
@@ -699,7 +704,7 @@ export function createProjectKnowledgeWorkspace({
     teardownGraph();
     tabs.replaceChildren(tabButton('概要', 'overview'), tabButton('情報を探す', 'graph'));
     panels.replaceChildren();
-    const overview = renderOverview(doc, payload, context, edges, entities, selectAndExplore);
+    const overview = renderOverview(doc, payload, context, overviewEdges, overviewEntities, selectAndExplore);
     overview.id = 'bb-pkw-panel-overview';
     overview.hidden = activeTab !== 'overview';
     panels.append(overview);
