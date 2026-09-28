@@ -10,7 +10,9 @@ import { MultiDirectedGraph, Sigma } from './project-graph-vendor.js';
 import {
   PROJECT_GRAPH_TYPE_COLORS,
   createProjectGraphModel,
+  projectGraphEdgePresentation,
   projectGraphNeighborIds,
+  projectGraphNodePresentation,
 } from './project-graph.js';
 
 const DEFAULT_EDGE_COLOR = '#cbd5e1';
@@ -85,12 +87,6 @@ function makeGraph(model) {
   return graph;
 }
 
-function edgeTouches(edge, nodeId, neighborIds) {
-  if (!nodeId) return false;
-  return edge.source === nodeId || edge.target === nodeId ||
-    (neighborIds.has(edge.source) && neighborIds.has(edge.target));
-}
-
 /**
  * Mounts one project graph and returns an idempotent resource handle.
  *
@@ -153,46 +149,53 @@ export function mountProjectGraph(container, options = {}) {
     const base = { ...data };
     const neighbors = getNeighbors();
     if (!selectedId) return base;
-    if (nodeId === selectedId) {
-      return {
-        ...base,
-        color: SELECTED_COLOR,
-        size: Math.max(11, (base.size || 9) + 4),
-        highlighted: true,
-        forceLabel: true,
-      };
-    }
-    if (neighbors.has(nodeId)) {
-      return {
-        ...base,
-        color: base.baseColor || PROJECT_GRAPH_TYPE_COLORS.unknown,
-        size: Math.max(9, (base.size || 9) + 1),
-        highlighted: true,
-        forceLabel: true,
-      };
-    }
+    const presentation = projectGraphNodePresentation(
+      { id: nodeId, size: base.size },
+      { selectedId, neighborIds: neighbors },
+    );
+    const { state, ...visuals } = presentation;
+    if (state === 'selected') return { ...base, ...visuals, color: SELECTED_COLOR };
+    if (state === 'neighbor') return {
+      ...base,
+      ...visuals,
+      color: base.baseColor || PROJECT_GRAPH_TYPE_COLORS.unknown,
+    };
     return {
       ...base,
+      ...visuals,
       color: UNRELATED_COLOR,
-      size: Math.max(5, (base.size || 9) * 0.72),
-      label: null,
-      forceLabel: false,
-      highlighted: false,
     };
   };
 
   const edgeReducer = (edgeId, data) => {
     const edge = edgeById.get(edgeId);
     const base = { ...data };
-    if (!selectedId || !edge) return { ...base, label: null, color: base.baseColor || DEFAULT_EDGE_COLOR };
+    if (!selectedId || !edge) {
+      return {
+        ...base,
+        label: null,
+        forceLabel: false,
+        color: base.baseColor || DEFAULT_EDGE_COLOR,
+      };
+    }
     const neighbors = getNeighbors();
-    if (!edgeTouches(edge, selectedId, neighbors)) {
-      return { ...base, label: null, color: UNRELATED_EDGE_COLOR, size: 0.5 };
+    const presentation = projectGraphEdgePresentation(edge, {
+      selectedId,
+      neighborIds: neighbors,
+    });
+    if (!presentation.relevant) {
+      return {
+        ...base,
+        label: null,
+        forceLabel: false,
+        color: UNRELATED_EDGE_COLOR,
+        size: 0.5,
+      };
     }
     return {
       ...base,
-      label: edge.label || null,
-      forceLabel: Boolean(edge.label),
+      label: presentation.showLabel ? edge.label : null,
+      forceLabel: presentation.forceLabel,
       color: edge.color || DEFAULT_EDGE_COLOR,
       size: 1.5,
     };
