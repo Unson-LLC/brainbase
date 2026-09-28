@@ -59,6 +59,14 @@
       "types": "./dist/portable-graph.d.ts",
       "import": "./dist/portable-graph.js"
     },
+    "./canonical-graph": {
+      "types": "./dist/canonical-graph.d.ts",
+      "import": "./dist/canonical-graph.js"
+    },
+    "./embedding-provider": {
+      "types": "./dist/embedding-provider.d.ts",
+      "import": "./dist/embedding-provider.js"
+    },
     "./graph-revision-reader": {
       "types": "./dist/graph-revision-reader.d.ts",
       "import": "./dist/graph-revision-reader.js"
