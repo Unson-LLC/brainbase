@@ -4,11 +4,11 @@
 
 ## Unreleased — develop
 
-- 0.7.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+- 0.8.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
-## 0.8.0 candidate — npm公開前
+## 0.8.0
 
-- npm registry readbackが完了するまで公開済みと扱わない配布候補
+- npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackを完了した公開版
 - `brainbase web:serve`で、今日、目的と現状、Graphの画面を1つのローカルWebホストに載せる
 - 手元のGraphを理由と履歴つきで訂正する処理と、変更されないGraphの版の読み取りを追加
 - 判断価値記録の一覧、本人の評価、引き継いだ経験・根拠の層、委任の地図を追加
@@ -18,6 +18,7 @@
 - `brainbase graph:bundles`、`brainbase memory:list`、`brainbase memory:register`を追加
 - Graphの束の関係IDと埋め込みの生成を公開subpath（`canonical-graph`、`embedding-provider`）へ追加
 - 0.7.0公開subpathを削除・変更せずに維持
+- 公開manualで、npm packageとGitHub Releaseの0.8.0配布証跡を表示
 
 ## 0.7.0
 
@@ -29,6 +30,7 @@
 - 匿名ホテルfixtureでCompany OSの目的・世界モデル・判断・評価を一周する共通契約を追加
 - 0.6.0公開subpathを維持し、追加subpathを同一tarballから利用できる公開版へ更新
 - 公開manualで、npm packageとGitHub Releaseの0.7.0配布証跡を表示
+- 0.7.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 - 狭いデスクトップとモバイルで、heroの本文・画像・CTAが重ならない表示へ調整
 - Organization先行案内に、公開OSS版との違い、非公開検証中、未完成の範囲を追加
 

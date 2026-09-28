@@ -4,16 +4,16 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
-## Released — v0.7.0
+## Released — v0.8.0
 
-0.7.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
+0.8.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
 
 公開確認済みの配布証跡は次のとおりです。
 
-- npm package [`@unson/brainbase-mcp@0.7.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.7.0)
-- npmの`latest`は`0.7.0`を指し、registryの`gitHead`は`38ce235f75694101c64bb32c0ea830f187ae5d1e`
-- GitHub Release [`v0.7.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.7.0)
-- 公開workflowの検証済みrun [`35942948959` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/35942948959/attempts/2)
+- npm package [`@unson/brainbase-mcp@0.8.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.8.0)
+- npmの`latest`は`0.8.0`を指し、registryの`gitHead`は`3313189aecafbc086d33dc1ef20a7fe9f70bb54e`
+- GitHub Release [`v0.8.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.8.0)
+- 公開workflowの検証済みrun [`36423492513` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/36423492513/attempts/2)
 
 - ローカル優先のPersonal Onboarding Kit
 - MCPによる`get_context`、`search`、`resolve_entity`などの文脈参照
@@ -38,12 +38,6 @@
 - resource reservation、execution authority、durable wait、historical judgment viewと既存記録adapter
 - Company OSの目的・世界モデル・判断・評価を一周する匿名ホテルfixture
 
-ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
-
-## Candidate — v0.8.0（npm公開前）
-
-`package.json`の0.8.0は配布候補のversionです。npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackが完了するまで、公開済みのversionとして扱いません。0.7.0の公開subpathは削除・変更せず、すべて残しています。
-
 - `brainbase web:serve`で、今日、目的と現状、プロジェクトと関係者、情報と関係を1つのローカルWebホストに載せる
 - 手元のGraphを理由と履歴つきで訂正する処理と、変更されないGraphの版の読み取り
 - 判断価値記録の一覧、本人の評価と直すこと、引き継いだ経験・根拠の層、判断の種類ごとの委任の地図
@@ -53,9 +47,11 @@
 - 組織へ送ったGraphの束の一覧（`brainbase graph:bundles`）と、手元の記憶を選んで登録し直す操作（`brainbase memory:list`、`brainbase memory:register`）
 - Graphの束の検証・検索に使う関係IDと埋め込みの生成の公開subpath（`canonical-graph`、`embedding-provider`）
 
+ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
+
 ## Develop — release前
 
-`develop`には存在するが、v0.8.0の公開候補にもまだ含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
+`develop`には存在するが、v0.8.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
 
