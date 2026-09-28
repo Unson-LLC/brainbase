@@ -4,13 +4,14 @@
 
 ## Unreleased — develop
 
-- 0.8.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+- 0.9.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
-## 0.9.0 candidate — npm公開前
+## 0.9.0
 
-- npm registry readbackが完了するまで公開済みと扱わない配布候補
+- npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackを完了した公開版
 - Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を削除し、組織版の画面へ移した。公開subpathを外す互換を壊す変更のため、0.8.0からのminor
 - そのほかの0.8.0公開subpathを削除・変更せずに維持
+- 公開manualで、npm packageとGitHub Releaseの0.9.0配布証跡を表示
 
 ## 0.8.0
 
@@ -25,6 +26,7 @@
 - Graphの束の関係IDと埋め込みの生成を公開subpath（`canonical-graph`、`embedding-provider`）へ追加
 - 0.7.0公開subpathを削除・変更せずに維持
 - 公開manualで、npm packageとGitHub Releaseの0.8.0配布証跡を表示
+- 0.8.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
 ## 0.7.0
 
