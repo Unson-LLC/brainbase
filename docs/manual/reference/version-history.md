@@ -6,6 +6,19 @@
 
 - 0.7.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.8.0 candidate — npm公開前
+
+- npm registry readbackが完了するまで公開済みと扱わない配布候補
+- `brainbase web:serve`で、今日、目的と現状、Graphの画面を1つのローカルWebホストに載せる
+- 手元のGraphを理由と履歴つきで訂正する処理と、変更されないGraphの版の読み取りを追加
+- 判断価値記録の一覧、本人の評価、引き継いだ経験・根拠の層、委任の地図を追加
+- 根拠を保ったまま知識の検索を続ける処理（knowledge continuation / knowledge lookup）を公開subpathへ追加
+- Foundation草案をGraphへ渡す共通の書込契約と履歴SQLを追加
+- 組織版と共用するUI部品、見た目の定義、ホストの拡張点を追加
+- `brainbase graph:bundles`、`brainbase memory:list`、`brainbase memory:register`を追加
+- Graphの束の関係IDと埋め込みの生成を公開subpath（`canonical-graph`、`embedding-provider`）へ追加
+- 0.7.0公開subpathを削除・変更せずに維持
+
 ## 0.7.0
 
 - npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackを完了したCompany OS公開版

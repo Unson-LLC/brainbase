@@ -40,9 +40,22 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.8.0（npm公開前）
+
+`package.json`の0.8.0は配布候補のversionです。npm registry、dist-tag、`gitHead`、integrity、fresh install、GitHub Releaseのreadbackが完了するまで、公開済みのversionとして扱いません。0.7.0の公開subpathは削除・変更せず、すべて残しています。
+
+- `brainbase web:serve`で、今日、目的と現状、プロジェクトと関係者、情報と関係を1つのローカルWebホストに載せる
+- 手元のGraphを理由と履歴つきで訂正する処理と、変更されないGraphの版の読み取り
+- 判断価値記録の一覧、本人の評価と直すこと、引き継いだ経験・根拠の層、判断の種類ごとの委任の地図
+- 根拠を保ったまま知識の検索を続ける処理（knowledge continuation / knowledge lookup）
+- Foundation草案をGraphへ渡す共通の書込契約と履歴SQL
+- 組織版と共用するUI部品、見た目の定義、別のホストが操作だけを足せる拡張点
+- 組織へ送ったGraphの束の一覧（`brainbase graph:bundles`）と、手元の記憶を選んで登録し直す操作（`brainbase memory:list`、`brainbase memory:register`）
+- Graphの束の検証・検索に使う関係IDと埋め込みの生成の公開subpath（`canonical-graph`、`embedding-provider`）
+
 ## Develop — release前
 
-`develop`には存在するが、v0.7.0の公開範囲に含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
+`develop`には存在するが、v0.8.0の公開候補にもまだ含めていない範囲です。公開サイトの説明更新はpackageの機能追加とは別に配信されます。
 
 - このページを含む公開サイトの現行化と、公開OSS版・組織版・未完成範囲の表示整理
 
