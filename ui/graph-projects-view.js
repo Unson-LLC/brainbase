@@ -284,6 +284,7 @@ export function createGraphProjectsView({
   let knowledgeWorkspace = null;
   let contextRequest = 0;
   let detailRequest = 0;
+  let hostListRequest = 0;
   let viewDestroyed = false;
 
   const correction = createGraphCorrection({
@@ -687,7 +688,10 @@ export function createGraphProjectsView({
     const project = loaded?.project ?? listItem(state.selectedId) ?? { id: state.selectedId, name: state.selectedId };
     const children = [workspaceRailHead(doc, { kicker: 'プロジェクト', title: project.name, sub: project.id })];
     if (!loaded) {
-      children.push(graphStateNotice(doc, detail?.id === state.selectedId ? detail : { state: 'loading' }, {
+      const readState = detail?.id === state.selectedId
+        ? detail
+        : state.list.state === 'ok' ? { state: 'loading' } : state.list;
+      children.push(graphStateNotice(doc, readState, {
         onRetry: () => controller.loadDetail(state.selectedId),
         loadingText: 'このプロジェクトの関係者を読み込んでいます。',
       }));
@@ -756,11 +760,15 @@ export function createGraphProjectsView({
 
   /** Reads the host's project list (see `load`). */
   async function loadHostList({ keep = false } = {}) {
+    const request = ++hostListRequest;
+    if (viewDestroyed) return state.list;
     if (!(keep && state.list.state === 'ok')) {
       state.list = { state: 'loading' };
       controller.render();
     }
-    state.list = normalizeProjectList(await client.read('/projects'));
+    const result = await client.read('/projects');
+    if (viewDestroyed || request !== hostListRequest) return state.list;
+    state.list = normalizeProjectList(result);
     if (state.list.state !== 'ok') {
       controller.render();
       return state.list;
@@ -774,16 +782,21 @@ export function createGraphProjectsView({
       contextRequest += 1;
       state.selectedId = projects[0]?.id ?? null;
       if (state.selectedId) {
+        if (viewDestroyed || request !== hostListRequest) return state.list;
         const reading = controller.loadDetail(state.selectedId);
         notifySelect(state.selectedId);
         await reading;
+        if (viewDestroyed || request !== hostListRequest) return state.list;
         return state.list;
       }
     } else if (state.detail?.id !== state.selectedId) {
       // The project the host asked for is listed; read it for the rail.
+      if (viewDestroyed || request !== hostListRequest) return state.list;
       await controller.loadDetail(state.selectedId);
+      if (viewDestroyed || request !== hostListRequest) return state.list;
       return state.list;
     }
+    if (viewDestroyed || request !== hostListRequest) return state.list;
     controller.render();
     return state.list;
   }
@@ -807,6 +820,7 @@ export function createGraphProjectsView({
     destroy() {
       if (viewDestroyed) return;
       viewDestroyed = true;
+      hostListRequest += 1;
       detailRequest += 1;
       contextRequest += 1;
       knowledgeWorkspace?.destroy();
