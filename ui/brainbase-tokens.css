@@ -27,6 +27,12 @@
   --bb-color-action-hover: #2a5540;
   --bb-color-action-text: #ffffff;
   --bb-color-focus: #20a37e;
+  --bb-color-project-ink: #172d4f;
+  --bb-color-project-muted: #566b87;
+  --bb-color-project-border: #dce4ee;
+  --bb-color-project-border-strong: #c8d4e2;
+  --bb-color-project-accent: #1261ad;
+  --bb-color-project-accent-strong: #194f8a;
   --bb-color-success: #087d62;
   --bb-color-success-soft: #e6f2ec;
   --bb-color-warning: #8a631d;

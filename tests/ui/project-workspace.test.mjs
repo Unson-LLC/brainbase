@@ -6,7 +6,7 @@ import {
   projectKnowledgeEntities,
   projectKnowledgeUnknowns,
 } from '../../ui/project-workspace.js';
-import { collectText, findAll, section, FakeDocument } from './graph-ui-harness.mjs';
+import { buttonsNamed, collectText, control, findAll, section, FakeDocument } from './graph-ui-harness.mjs';
 
 const project = {
   id: 'project-atlas',
@@ -102,6 +102,33 @@ describe('project knowledge projection', () => {
         { id: 'knowledge', title: '知識', state: 'loading', items: [] },
       ],
     })).toMatchObject({ projectId: 'project-atlas', state: 'loading' });
+  });
+
+  it('preserves detail identifiers and unknown state without inventing a zero', () => {
+    const result = normalizeProjectContext('project-atlas', {
+      state: 'ok',
+      sections: [{
+        id: 'tasks',
+        title: '仕事',
+        state: 'unknown',
+        total: 38,
+        items: [{
+          id: 'task-1',
+          title: '導入確認',
+          body: '関係者に確認する',
+          sourceRecordId: 'record-1',
+          unknowns: ['期限'],
+        }],
+      }],
+    });
+
+    expect(result.sections[0]).toMatchObject({ state: 'unknown', total: 38 });
+    expect(result.sections[0].items[0]).toMatchObject({
+      id: 'task-1',
+      body: '関係者に確認する',
+      sourceRecordId: 'record-1',
+      unknowns: ['期限'],
+    });
   });
 });
 
@@ -205,6 +232,138 @@ describe('project knowledge workspace lifecycle', () => {
     expect(contextBlock.parentNode).toBe(overview);
     expect(decisions.parentNode).toBe(overview);
     expect(overview.children.indexOf(contextBlock)).toBeLessThan(overview.children.indexOf(decisions));
+    workspace.destroy();
+  });
+
+  it('routes from the dense overview to work and record details by canonical IDs', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      context: {
+        projectId: 'project-atlas',
+        state: 'ok',
+        sections: [
+          {
+            id: 'tasks',
+            title: '仕事',
+            state: 'ok',
+            total: 38,
+            items: [{
+              id: 'task-1',
+              title: '導入確認',
+              status: '進行中',
+              owner: '佐藤 花子',
+              sourceRecordId: 'record-1',
+              summary: '最初に確認する作業',
+            }],
+          },
+          {
+            id: 'records',
+            title: '記録',
+            state: 'ok',
+            items: [{
+              id: 'record-1',
+              title: '導入会議メモ',
+              kind: 'record',
+              summary: '決まったこと',
+              updatedAt: '2026-09-28T01:00:00.000Z',
+            }],
+          },
+        ],
+      },
+    });
+
+    buttonsNamed(workspace.element, 'すべて見る')[0].dispatch('click');
+    expect(section(workspace.element, '仕事一覧')).toBeDefined();
+    expect(collectText(section(workspace.element, '仕事一覧'))).toContain('導入確認');
+
+    buttonsNamed(workspace.element, '導入確認')[0].dispatch('click');
+    const workDetail = section(workspace.element, '仕事詳細');
+    expect(workDetail).toBeDefined();
+    expect(collectText(workDetail)).toContain('関連記録');
+    expect(collectText(workDetail)).toContain('record-1');
+
+    buttonsNamed(workDetail, 'record-1')[0].dispatch('click');
+    const recordDetail = section(workspace.element, '記録詳細');
+    expect(recordDetail).toBeDefined();
+    expect(collectText(recordDetail)).toContain('導入会議メモ');
+    expect(collectText(recordDetail)).toContain('関連する仕事');
+
+    buttonsNamed(recordDetail, '導入確認')[0].dispatch('click');
+    expect(section(workspace.element, '仕事詳細')).toBeDefined();
+    workspace.destroy();
+  });
+
+  it('filters dense work rows by owner and due state, then caps the first page', () => {
+    const items = Array.from({ length: 18 }, (_, index) => ({
+      id: `task-${index + 1}`,
+      title: `導入確認 ${index + 1}`,
+      owner: index === 17 ? '鈴木 次郎' : '佐藤 花子',
+      dueAt: index % 2 === 0 ? '2026-09-30T00:00:00.000Z' : null,
+    }));
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      context: {
+        projectId: 'project-atlas',
+        state: 'ok',
+        sections: [{ id: 'tasks', title: '仕事', state: 'ok', total: 18, items }],
+      },
+    });
+    buttonsNamed(workspace.element, 'すべて見る')[0].dispatch('click');
+    const rows = () => findAll(workspace.element, (node) => node.tagName === 'DIV' && node.attributes.role === 'listitem' && String(node.className).includes('bb-pkw-work-row'));
+    expect(rows()).toHaveLength(16);
+
+    const owner = control(workspace.element, 'work-owner');
+    owner.value = '鈴木 次郎';
+    owner.dispatch('change');
+    expect(rows()).toHaveLength(1);
+
+    const due = control(workspace.element, 'work-due');
+    due.value = 'missing';
+    due.dispatch('change');
+    expect(rows()).toHaveLength(1);
+    expect(collectText(rows()[0])).toContain('導入確認 18');
+    workspace.destroy();
+  });
+
+  it('shows an unknown context state on the dense overview without treating it as zero', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      context: {
+        projectId: 'project-atlas',
+        state: 'unknown',
+        message: '補足データの取得時点を確認できません。',
+        sections: [],
+      },
+    });
+
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    const text = collectText(overview);
+    expect(text).toContain('未確認');
+    expect(text).toContain('補足データの取得時点を確認できません。');
+    expect(text).not.toContain('仕事0件');
+    workspace.destroy();
+  });
+
+  it('limits today actions to due or confirmation work', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      context: { projectId: 'project-atlas', state: 'ok', sections: [{
+        id: 'tasks', title: '仕事', state: 'ok', total: 3, items: [
+          { id: 'due', title: '期限超過の仕事', status: '進行中', dueAt: '2020-01-01' },
+          { id: 'waiting', title: '確認待ちの仕事', status: '確認待ち' },
+          { id: 'future', title: '将来の仕事', status: '未着手', dueAt: '2099-01-01' },
+        ],
+      }] },
+    });
+    const today = section(workspace.element, '今日判断・対応すること');
+    const text = collectText(today);
+    expect(text).toContain('期限超過の仕事');
+    expect(text).toContain('確認待ちの仕事');
+    expect(text).not.toContain('将来の仕事');
     workspace.destroy();
   });
 

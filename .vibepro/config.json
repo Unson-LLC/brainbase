@@ -651,8 +651,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-project-dense-workspace-v1",
+        "title": "プロジェクト個別画面の情報密度と遷移",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-foundation-graph-objective-read"
+    "current_story_id": "story-project-dense-workspace-v1"
   }
 }
