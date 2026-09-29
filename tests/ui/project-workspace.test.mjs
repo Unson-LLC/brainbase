@@ -159,11 +159,17 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.setContext({
       projectId: 'project-atlas',
       state: 'ok',
-      sections: [{ id: 'tasks', title: 'タスク', state: 'loading', items: [] }],
+      sections: [{ id: 'tasks', title: 'タスク', state: 'ok', items: [{ id: 'task-1', title: '導入確認' }] }],
     });
 
     expect(findAll(workspace.element, (node) => String(node.className).includes('bb-pkw-graph-canvas'))[0]).toBe(canvas);
     expect(findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '情報を探す')[0].attributes['aria-selected']).toBe('true');
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    const contextBlock = findAll(overview, (node) => String(node.className).split(' ').includes('bb-pkw-context'))[0];
+    const decisions = section(overview, '記録された判断');
+    expect(collectText(contextBlock)).toContain('導入確認');
+    expect(contextBlock.parentNode).toBe(overview);
+    expect(overview.children.indexOf(contextBlock)).toBeLessThan(overview.children.indexOf(decisions));
     workspace.destroy();
   });
 

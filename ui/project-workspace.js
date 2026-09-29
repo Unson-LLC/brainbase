@@ -358,6 +358,13 @@ function renderProjectContextGroup(doc, item) {
   return group;
 }
 
+function projectContextInsertionAnchor(doc) {
+  return makeElement(doc, 'span', {
+    className: 'bb-pkw-context-anchor',
+    attrs: { 'aria-hidden': 'true', hidden: 'true' },
+  });
+}
+
 /** Renders supplementary context while preserving each section's own state. */
 export function renderProjectContext(doc, context, {
   sections: selectedSections = null,
@@ -458,7 +465,11 @@ function renderOverview(doc, detail, context, edges, entities, onSelect, onConte
   const contextBlock = renderProjectContext(doc, context);
   if (contextBlock) {
     panel.append(contextBlock);
-    if (typeof onContext === 'function') onContext(contextBlock);
+    if (typeof onContext === 'function') onContext(contextBlock, null);
+  } else {
+    const contextAnchor = projectContextInsertionAnchor(doc);
+    panel.append(contextAnchor);
+    if (typeof onContext === 'function') onContext(null, contextAnchor);
   }
 
   const decisions = makeElement(doc, 'section', { className: 'bb-pkw-section', attrs: { 'aria-label': '記録された判断' } });
@@ -560,6 +571,7 @@ export function createProjectKnowledgeWorkspace({
   let selectedPanel = null;
   let overviewPanel = null;
   let contextBlock = null;
+  let contextAnchor = null;
 
   const root = makeElement(doc, 'section', { className: 'bb-pkw', attrs: { 'data-contract-version': PROJECT_WORKSPACE_CONTRACT_VERSION, 'aria-label': 'プロジェクトの知識' } });
   const body = makeElement(doc, 'div', { className: 'bb-pkw-body' });
@@ -796,8 +808,15 @@ export function createProjectKnowledgeWorkspace({
     if (destroyed) return;
     const nextBlock = renderProjectContext(doc, currentContext);
     if (!nextBlock) {
-      if (contextBlock?.parentNode?.removeChild) contextBlock.parentNode.removeChild(contextBlock);
-      contextBlock = null;
+      if (contextBlock?.parentNode && typeof contextBlock.parentNode.replaceChild === 'function') {
+        const nextAnchor = projectContextInsertionAnchor(doc);
+        contextBlock.parentNode.replaceChild(nextAnchor, contextBlock);
+        contextBlock = null;
+        contextAnchor = nextAnchor;
+      } else if (contextBlock?.parentNode?.removeChild) {
+        contextBlock.parentNode.removeChild(contextBlock);
+        contextBlock = null;
+      }
       return;
     }
     if (contextBlock?.parentNode && typeof contextBlock.parentNode.replaceChild === 'function') {
@@ -805,14 +824,16 @@ export function createProjectKnowledgeWorkspace({
       contextBlock = nextBlock;
       return;
     }
+    if (contextAnchor?.parentNode && typeof contextAnchor.parentNode.replaceChild === 'function') {
+      contextAnchor.parentNode.replaceChild(nextBlock, contextAnchor);
+      contextBlock = nextBlock;
+      contextAnchor = null;
+      return;
+    }
     if (contextBlock?.replaceWith) {
       contextBlock.replaceWith(nextBlock);
       contextBlock = nextBlock;
       return;
-    }
-    if (overviewPanel && !contextBlock) {
-      overviewPanel.append(nextBlock);
-      contextBlock = nextBlock;
     }
   }
 
@@ -823,7 +844,11 @@ export function createProjectKnowledgeWorkspace({
     tabs.replaceChildren(tabButton('概要', 'overview'), tabButton('情報を探す', 'graph'));
     panels.replaceChildren();
     contextBlock = null;
-    const overview = renderOverview(doc, payload, currentContext, overviewEdges, overviewEntities, selectAndExplore, (node) => { contextBlock = node; });
+    contextAnchor = null;
+    const overview = renderOverview(doc, payload, currentContext, overviewEdges, overviewEntities, selectAndExplore, (node, anchor) => {
+      contextBlock = node;
+      contextAnchor = anchor;
+    });
     overview.id = 'bb-pkw-panel-overview';
     overview.hidden = activeTab !== 'overview';
     overviewPanel = overview;
