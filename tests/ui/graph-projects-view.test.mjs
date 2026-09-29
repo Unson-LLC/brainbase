@@ -168,6 +168,15 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(collectText(root)).toContain('導入確認');
     expect(byClass(root, 'bb-pkw-skeleton-bar').length).toBeGreaterThan(0);
     expect(findAll(root, (node) => node.attributes['aria-busy'] === 'true').length).toBeGreaterThan(0);
+    const loadingPanel = byClass(root, 'bb-pkw-overview-loading')[0];
+    const firstSkeleton = byClass(loadingPanel, 'bb-pkw-skeleton-section')[0];
+    const resolvedTasks = findAll(loadingPanel, (node) => node.tagName === 'SECTION'
+      && String(node.className).includes('bb-pkw-context-group')
+      && collectText(node).includes('導入確認'))[0];
+    const pendingKnowledge = byClass(loadingPanel, 'bb-pkw-context-group-loading')[0];
+    expect(resolvedTasks).toBeDefined();
+    expect(loadingPanel.children.indexOf(resolvedTasks.parentNode)).toBeLessThan(loadingPanel.children.indexOf(firstSkeleton.parentNode));
+    expect(loadingPanel.children.indexOf(pendingKnowledge.parentNode)).toBeGreaterThan(loadingPanel.children.indexOf(firstSkeleton.parentNode));
 
     detailGate.resolve();
     await reading;

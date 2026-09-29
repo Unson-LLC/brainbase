@@ -167,6 +167,34 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('places resolved context immediately after the overview columns', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      context: {
+        projectId: 'project-atlas',
+        state: 'ok',
+        sections: [{
+          id: 'tasks',
+          title: 'タスク',
+          state: 'ok',
+          items: [{ id: 'task-1', title: '導入確認', summary: '最初に確認する作業' }],
+        }],
+      },
+    });
+
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    const contextBlock = findAll(overview, (node) => String(node.className).split(' ').includes('bb-pkw-context'))[0];
+    const decisions = section(overview, '記録された判断');
+
+    expect(contextBlock).toBeDefined();
+    expect(collectText(contextBlock)).toContain('導入確認');
+    expect(contextBlock.parentNode).toBe(overview);
+    expect(decisions.parentNode).toBe(overview);
+    expect(overview.children.indexOf(contextBlock)).toBeLessThan(overview.children.indexOf(decisions));
+    workspace.destroy();
+  });
+
   it('keeps loading and failed reads renderable, then shows the fetched entity summary and metadata', async () => {
     let resolveRead;
     const readEntity = vi.fn(() => new Promise((resolve) => { resolveRead = resolve; }));
