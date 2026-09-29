@@ -31,6 +31,14 @@ export class FakeElement {
   }
 
   replaceChildren(...children) { this.children = []; this.append(...children); }
+  replaceChild(nextChild, previousChild) {
+    const index = this.children.indexOf(previousChild);
+    if (index < 0) throw new Error('child_not_found');
+    nextChild.parentNode = this;
+    this.children[index] = nextChild;
+    previousChild.parentNode = null;
+    return previousChild;
+  }
   setAttribute(name, value) { this.attributes[name] = String(value); }
   removeAttribute(name) { delete this.attributes[name]; }
   addEventListener(name, callback) { this.listeners.set(name, callback); }

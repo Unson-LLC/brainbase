@@ -94,6 +94,15 @@ describe('project knowledge projection', () => {
       sections: [{ id: 'tasks', title: 'タスク', state: 'failed', message: '上流が停止中', items: [] }],
     });
   });
+
+  it('preserves a pending section in a bare progress snapshot', () => {
+    expect(normalizeProjectContext('project-atlas', {
+      sections: [
+        { id: 'tasks', title: 'タスク', state: 'ok', items: [{ id: 'task-1', title: '確認' }] },
+        { id: 'knowledge', title: '知識', state: 'loading', items: [] },
+      ],
+    })).toMatchObject({ projectId: 'project-atlas', state: 'loading' });
+  });
 });
 
 const fullEntity = (overrides = {}) => ({
@@ -132,6 +141,29 @@ describe('project knowledge workspace lifecycle', () => {
     resolveMount(lateHandle);
     await tick();
     expect(lateHandle.destroy).toHaveBeenCalledTimes(1);
+    workspace.destroy();
+  });
+
+  it('updates a partial context without resetting the active graph surface', async () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      mountGraph: (_container) => ({ destroy: vi.fn(), select: vi.fn() }),
+    });
+    workspace.setTab('graph');
+    await tick();
+    const canvas = findAll(workspace.element, (node) => String(node.className).includes('bb-pkw-graph-canvas'))[0];
+    const graphTab = findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '情報を探す')[0];
+    expect(graphTab.attributes['aria-selected']).toBe('true');
+
+    workspace.setContext({
+      projectId: 'project-atlas',
+      state: 'ok',
+      sections: [{ id: 'tasks', title: 'タスク', state: 'loading', items: [] }],
+    });
+
+    expect(findAll(workspace.element, (node) => String(node.className).includes('bb-pkw-graph-canvas'))[0]).toBe(canvas);
+    expect(findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '情報を探す')[0].attributes['aria-selected']).toBe('true');
     workspace.destroy();
   });
 
