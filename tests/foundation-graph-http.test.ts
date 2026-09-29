@@ -1,9 +1,16 @@
+import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
 import {
   createFoundationGraphHttpHandler,
   FOUNDATION_GRAPH_READY_SQL,
   type FoundationGraphTrustedIdentity
 } from '../src/foundation-graph-http.js';
+import {
+  GRAPH_FOUNDATION_LATEST_SQL,
+  GRAPH_FOUNDATION_LIST_SQL,
+  type GraphFoundationHistoryRow
+} from '../src/graph-foundation-reader.js';
+import type { FoundationDefinition } from '../src/ontology-foundation.js';
 
 const identity: FoundationGraphTrustedIdentity = {
   principal: 'alice',
@@ -18,12 +25,54 @@ function jsonRequest(path: string, init: RequestInit = {}): Request {
   });
 }
 
+function objectiveDefinition(): FoundationDefinition {
+  return {
+    id: 'objective-1',
+    type: 'objective',
+    revision: '1',
+    meaning: 'Keep the service useful to its operators',
+    adoptionState: 'draft',
+    authorizedUses: ['draft', 'judgment'],
+    acl: { ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: [] },
+    storage: 'candidate',
+    provenance: [{ sourceId: 'source-1', sourceKind: 'document', evidenceIds: [] }],
+    scope: { subjectIds: ['project-a'], validFrom: '2026-01-01T00:00:00.000Z' },
+    beneficiaryIds: ['team-1'],
+    desiredState: 'Operators can continue using the service',
+    criteria: [],
+    evaluationPeriod: { from: '2026-01-01T00:00:00.000Z', until: '2026-12-31T00:00:00.000Z' }
+  } as FoundationDefinition;
+}
+
+function objectiveRow(): GraphFoundationHistoryRow {
+  const definition = objectiveDefinition();
+  const payload = { foundation: definition };
+  return {
+    entity_id: definition.id,
+    entity_type: definition.type,
+    revision: definition.revision,
+    payload,
+    project_id: 'project-a',
+    storage_digest: `sha256:${createHash('sha256').update(JSON.stringify(payload), 'utf8').digest('hex')}`,
+    storage_digest_valid: true,
+    current_entity_id: definition.id,
+    current_entity_type: definition.type,
+    current_payload: payload,
+    current_project_id: 'project-a',
+    current_project_code: 'project-a',
+    current_lifecycle_status: 'active',
+    current_visible: true
+  };
+}
+
 function fixture(options: { ready?: boolean; csrfResult?: boolean } = {}) {
   const ready = options.ready ?? true;
   const csrf = vi.fn(async () => options.csrfResult ?? true);
   const query = vi.fn(async (text: string) => (
     text === FOUNDATION_GRAPH_READY_SQL
       ? { rows: [{ ready }] }
+      : text === GRAPH_FOUNDATION_LIST_SQL || text === GRAPH_FOUNDATION_LATEST_SQL
+        ? { rows: [objectiveRow()] }
       : { rows: [] }
   ));
   const withAccessContext = vi.fn(async (
@@ -144,5 +193,53 @@ describe('Graph Foundation public HTTP adapter', () => {
 
     expect(response.status).toBe(400);
     expect(f.withAccessContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('serves the Objective list, latest detail, and readiness from the Graph history reader', async () => {
+    const f = fixture();
+
+    const list = await f.handler.handle(jsonRequest('/api/foundation/objectives?scope_id=project-a'));
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({
+      state: 'ready',
+      absence_confirmed: true,
+      records: [{ definition: { id: 'objective-1', type: 'objective', revision: '1' } }]
+    });
+
+    const detail = await f.handler.handle(jsonRequest('/api/foundation/objectives/objective-1?scope_id=project-a'));
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({
+      state: 'ready',
+      objective: { definition: { id: 'objective-1', type: 'objective', revision: '1' } }
+    });
+
+    const readiness = await f.handler.handle(jsonRequest('/api/foundation/objectives/objective-1/readiness?scope_id=project-a'));
+    expect(readiness.status).toBe(200);
+    expect(await readiness.json()).toMatchObject({
+      state: 'ready',
+      ready: false,
+      issues: [{ code: 'MISSING_FIELD', path: 'criteria' }]
+    });
+    expect(f.query).toHaveBeenCalledWith(GRAPH_FOUNDATION_LIST_SQL, ['objective', 'project-a']);
+    expect(f.query).toHaveBeenCalledWith(GRAPH_FOUNDATION_LATEST_SQL, ['objective-1', 'objective']);
+  });
+
+  it('keeps Objective mutations and unconnected relations explicitly unavailable', async () => {
+    const f = fixture();
+
+    const create = await f.handler.handle(jsonRequest('/api/foundation/objectives?scope_id=project-a', {
+      method: 'POST',
+      body: JSON.stringify({ meaning: 'new objective' })
+    }));
+    expect(create.status).toBe(501);
+    expect((await create.json()).error.code).toBe('api_unavailable');
+
+    const storyLinks = await f.handler.handle(jsonRequest('/api/foundation/stories/story-1/objectives?scope_id=project-a'));
+    expect(storyLinks.status).toBe(501);
+    expect((await storyLinks.json()).error.code).toBe('api_unavailable');
+
+    const constraints = await f.handler.handle(jsonRequest('/api/foundation/objectives/objective-1/constraints?scope_id=project-a'));
+    expect(constraints.status).toBe(501);
+    expect((await constraints.json()).error.code).toBe('api_unavailable');
   });
 });

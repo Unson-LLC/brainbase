@@ -41,6 +41,7 @@ function foundationRow(options: {
   current?: FoundationDefinition;
   historyProjectId?: string;
   currentProjectId?: string;
+  currentProjectCode?: string;
   currentVisible?: boolean;
   active?: boolean;
   digestValid?: boolean;
@@ -60,6 +61,7 @@ function foundationRow(options: {
     current_entity_type: current.type,
     current_payload: { foundation: current },
     current_project_id: options.currentProjectId ?? 'project-1',
+    current_project_code: options.currentProjectCode ?? 'project-1',
     current_lifecycle_status: options.active === false ? 'retired' : 'active',
     current_visible: options.currentVisible ?? true
   };
@@ -163,6 +165,95 @@ describe('Graph foundation history reader', () => {
   it('returns null when history is absent instead of treating absence as a successful empty record', async () => {
     const { store } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(null) });
     await expect(store.read({ id: 'objective-1', type: 'objective', revision: '99' }, trustedContext())).resolves.toBeNull();
+  });
+
+  it('reads the newest revision through the current Graph row and selected project', async () => {
+    const calls: Array<{ text: string; values: readonly unknown[] }> = [];
+    const { store } = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(foundationRow({ currentProjectCode: 'project-1' }), calls)
+    });
+
+    await expect(store.readLatest('objective', 'objective-1', trustedContext())).resolves.toMatchObject({
+      definition: { id: 'objective-1', type: 'objective', revision: '1' }
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.values).toEqual(['objective-1', 'objective']);
+    expect(calls[0]!.text).toContain('LEFT JOIN LATERAL');
+    expect(calls[0]!.text).toContain('ORDER BY history.revision::numeric DESC NULLS LAST');
+  });
+
+  it('lists current Graph foundations in the selected project', async () => {
+    const calls: Array<{ text: string; values: readonly unknown[] }> = [];
+    const { store } = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(foundationRow({ currentProjectCode: 'project-1' }), calls)
+    });
+
+    await expect(store.list('objective', trustedContext())).resolves.toMatchObject([
+      { definition: { id: 'objective-1', type: 'objective', revision: '1' } }
+    ]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.values).toEqual(['objective', 'project-1']);
+    expect(calls[0]!.text).toContain('LEFT JOIN LATERAL');
+    expect(calls[0]!.text).toContain('projects.code = $2');
+  });
+
+  it('fails closed when a current Graph row has no immutable history', async () => {
+    const currentOnly: GraphFoundationHistoryRow = {
+      current_entity_id: 'objective-1',
+      current_entity_type: 'objective',
+      current_payload: { foundation: foundationDefinition() },
+      current_project_id: 'project-1',
+      current_project_code: 'project-1',
+      current_lifecycle_status: 'active',
+      current_visible: true
+    };
+    const { store } = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(currentOnly)
+    });
+
+    await expect(store.readLatest('objective', 'objective-1', trustedContext())).rejects.toMatchObject({
+      code: 'corrupt_catalog'
+    });
+    await expect(store.list('objective', trustedContext())).rejects.toMatchObject({
+      code: 'corrupt_catalog'
+    });
+  });
+
+  it('fails closed when latest history lags the current Graph revision', async () => {
+    const current = foundationDefinition({ revision: '2' });
+    const { store } = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(foundationRow({ current }))
+    });
+
+    await expect(store.readLatest('objective', 'objective-1', trustedContext())).rejects.toMatchObject({
+      code: 'corrupt_catalog'
+    });
+    await expect(store.list('objective', trustedContext())).rejects.toMatchObject({
+      code: 'corrupt_catalog'
+    });
+  });
+
+  it('rejects a current Graph row returned outside the selected project', async () => {
+    const { store } = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(foundationRow({ currentProjectCode: 'project-2' }))
+    });
+
+    await expect(store.readLatest('objective', 'objective-1', trustedContext())).rejects.toMatchObject({
+      code: 'scope_violation'
+    });
+    await expect(store.list('objective', trustedContext())).rejects.toMatchObject({
+      code: 'scope_violation'
+    });
   });
 });
 
