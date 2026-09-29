@@ -439,6 +439,16 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(collectText(rail)).not.toContain('このプロジェクトの関係者を読み込んでいます。');
   });
 
+  it('外部の選択欄がある場合は本文の一覧だけを省く', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView({ showProjectLedger: false });
+    expect(byClass(root, 'bb-graph-project-ledger')).toEqual([]);
+    expect(metricValues(root)).toEqual(['1', '1', '2']);
+    expect(railHead(rail)).toBe('プロジェクトAtlas導入project-atlas');
+    await view.select('project-beta');
+    expect(railHead(rail)).toBe('プロジェクトBeta検証project-beta');
+  });
+
   it('follows the organization screen pattern: breadcrumb and head, the source notice, metrics and the project ledger', async () => {
     await writeGraphV2(dataDir);
     const { root } = await mountView();
