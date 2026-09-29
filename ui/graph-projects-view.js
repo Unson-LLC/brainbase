@@ -250,6 +250,7 @@ export function createGraphProjectsView({
   emptyNotice,
   pageActions,
   extraMetrics,
+  showProjectLedger = true,
   renderRailExtensions,
   selectedId: initialSelectedId,
   onSelect,
@@ -595,7 +596,7 @@ export function createGraphProjectsView({
       return children;
     }
 
-    children.push(workspaceLedger(doc, {
+    if (showProjectLedger) children.push(workspaceLedger(doc, {
       className: 'bb-graph-project-ledger',
       ariaLabel: 'プロジェクトの一覧',
       columns: GRAPH_PROJECT_LEDGER_COLUMNS,
