@@ -61,6 +61,12 @@ function participantItem(rail, name) {
   return findAll(section(rail, '関係者'), (node) => node.tagName === 'LI' && String(node.className).includes('bb-graph-compact') && collectText(node).includes(name))[0];
 }
 
+function deferred() {
+  let resolve;
+  const promise = new Promise((settle) => { resolve = settle; });
+  return { promise, resolve };
+}
+
 async function history() {
   try {
     return (await readFile(join(dataDir, 'evidence', 'graph-corrections.jsonl'), 'utf8')).trim().split('\n').filter(Boolean).map((line) => JSON.parse(line));
@@ -75,6 +81,253 @@ async function storedEdge(id) {
 }
 
 describe('プロジェクトと関係者: workspace', () => {
+  it('shows the selected project shell before the list and detail reads settle', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const listGate = deferred();
+    const detailGate = deferred();
+    let detailReads = 0;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') await listGate.promise;
+      if (path === '/api/graph/projects/project-atlas') {
+        detailReads += 1;
+        await detailGate.promise;
+      }
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail,
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [{ id: 'project-atlas', name: 'Atlas導入' }],
+    });
+
+    const reading = view.load();
+    const shell = byClass(root, 'bb-pkw')[0];
+    expect(shell).toBeDefined();
+    expect(findAll(shell, (node) => node.tagName === 'H2')[0].textContent).toBe('Atlas導入');
+    expect(collectText(shell)).toContain('プロジェクトの記録を読み込んでいます。');
+    expect(detailReads).toBe(0);
+
+    listGate.resolve();
+    await waitFor(() => detailReads === 1);
+    expect(findAll(byClass(root, 'bb-pkw')[0], (node) => node.tagName === 'H2')[0].textContent).toBe('Atlas導入');
+
+    detailGate.resolve();
+    await reading;
+    expect(byClass(root, 'bb-pkw-loading')).toEqual([]);
+    expect(findAll(byClass(root, 'bb-pkw')[0], (node) => node.tagName === 'H2')[0].textContent).toBe('Atlas導入');
+    expect(collectText(root)).toContain('導入を完了する');
+  });
+
+  it('keeps a newer selection visible when an older detail read finishes later', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const atlasGate = deferred();
+    const betaGate = deferred();
+    const detailReads = [];
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects/project-atlas') {
+        detailReads.push('project-atlas');
+        await atlasGate.promise;
+      }
+      if (path === '/api/graph/projects/project-beta') {
+        detailReads.push('project-beta');
+        await betaGate.promise;
+      }
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail,
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [
+        { id: 'project-atlas', name: 'Atlas導入' },
+        { id: 'project-beta', name: 'Beta検証' },
+      ],
+    });
+
+    const initial = view.load();
+    await waitFor(() => detailReads.includes('project-atlas'));
+    const betaReading = view.select('project-beta');
+    await waitFor(() => detailReads.includes('project-beta'));
+    expect(findAll(byClass(root, 'bb-pkw')[0], (node) => node.tagName === 'H2')[0].textContent).toBe('Beta検証');
+
+    atlasGate.resolve();
+    await waitFor(() => view.state.selectedId === 'project-beta' && view.state.detail?.state === 'loading');
+    expect(collectText(root)).not.toContain('Atlas導入目的');
+    expect(findAll(byClass(root, 'bb-pkw')[0], (node) => node.tagName === 'H2')[0].textContent).toBe('Beta検証');
+
+    betaGate.resolve();
+    await Promise.all([initial, betaReading]);
+    expect(view.state.selectedId).toBe('project-beta');
+    const workspace = byClass(root, 'bb-pkw')[0];
+    expect(collectText(workspace)).toContain('Beta検証');
+    expect(collectText(workspace)).toContain('完了');
+    expect(collectText(workspace)).not.toContain('導入を完了する');
+  });
+
+  it('keeps the project shell on detail failure and replaces it after retry', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    let detailReads = 0;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects/project-atlas' && detailReads++ === 0) {
+        return jsonResponse(503, { error: { code: 'temporary_failure', message: '一時的な失敗' } });
+      }
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail,
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [{ id: 'project-atlas', name: 'Atlas導入' }],
+    });
+
+    await view.load();
+    const failed = byClass(root, 'bb-pkw')[0];
+    expect(failed.className).toContain('bb-pkw-loading');
+    expect(collectText(failed)).toContain('読み取れませんでした');
+    const retry = buttonsNamed(failed, '再試行')[0];
+    expect(retry).toBeDefined();
+    await retry.dispatch('click');
+    expect(byClass(root, 'bb-pkw-loading')).toEqual([]);
+    expect(collectText(byClass(root, 'bb-pkw')[0])).toContain('導入を完了する');
+    expect(detailReads).toBe(2);
+  });
+
+  it('ignores an older project-list response and keeps its selection notification stable', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const firstGate = deferred();
+    const secondGate = deferred();
+    let listReads = 0;
+    const selected = [];
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') {
+        listReads += 1;
+        if (listReads === 1) {
+          await firstGate.promise;
+          return jsonResponse(503, { error: { code: 'stale_failure', message: '古い読み取り' } });
+        }
+        await secondGate.promise;
+      }
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail: new FakeElement('div'),
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      onSelect: (id) => selected.push(id),
+    });
+
+    const first = view.load();
+    const second = view.load();
+    await waitFor(() => listReads === 2);
+    secondGate.resolve();
+    await second;
+    const currentList = view.state.list;
+    expect(currentList.state).toBe('ok');
+    expect(selected).toEqual(['project-atlas']);
+
+    firstGate.resolve();
+    await first;
+    expect(view.state.list).toBe(currentList);
+    expect(selected).toEqual(['project-atlas']);
+  });
+
+  it('does not apply a project-list response after the view is destroyed', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const listGate = deferred();
+    let listReads = 0;
+    const selected = [];
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') {
+        listReads += 1;
+        await listGate.promise;
+      }
+      return api.fetcher(path, init);
+    };
+    const view = createGraphProjectsView({
+      root: new FakeElement('div'),
+      rail: new FakeElement('div'),
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      onSelect: (id) => selected.push(id),
+    });
+
+    const reading = view.load();
+    await waitFor(() => listReads === 1);
+    const loadingState = view.state.list;
+    view.destroy();
+    listGate.resolve();
+    await reading;
+
+    expect(view.state.list).toBe(loadingState);
+    expect(view.state.selectedId).toBeNull();
+    expect(selected).toEqual([]);
+  });
+
+  it('shows the project-list failure in the right rail before reading project detail', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    let detailReads = 0;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') return jsonResponse(503, { error: { code: 'list_failure', message: '一覧が利用できません' } });
+      if (path === '/api/graph/projects/project-atlas') detailReads += 1;
+      return api.fetcher(path, init);
+    };
+    const rail = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root: new FakeElement('div'),
+      rail,
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [{ id: 'project-atlas', name: 'Atlas導入' }],
+    });
+
+    await view.load();
+    expect(detailReads).toBe(0);
+    expect(collectText(rail)).toContain('読み取り失敗');
+    expect(collectText(rail)).toContain('一覧が利用できません');
+    expect(collectText(rail)).not.toContain('読み込み中');
+    expect(collectText(rail)).not.toContain('このプロジェクトの関係者を読み込んでいます。');
+  });
+
   it('follows the organization screen pattern: breadcrumb and head, the source notice, metrics and the project ledger', async () => {
     await writeGraphV2(dataDir);
     const { root } = await mountView();
