@@ -531,7 +531,7 @@ function renderDenseItemRow(doc, item, { kind = 'task', onOpen, table = false } 
   if (typeof onOpen === 'function' && item.id) head.append(denseButton(doc, title, 'bb-pkw-dense-link', () => onOpen(item.id), { 'data-item-id': item.id }));
   else head.append(makeElement(doc, 'strong', { text: title }));
   if (item.status) head.append(badge(doc, item.status, 'muted'));
-  row.append(head, denseItemFacts(doc, item, { table }));
+  row.append(head, denseItemFacts(doc, item, { table, includeSummary: !table }));
   return row;
 }
 
