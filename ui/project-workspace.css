@@ -1,22 +1,13 @@
 /* Shared project knowledge workspace. Load after graph-view-shared.css. */
 
 .bb-pkw {
-  --bb-color-ink: var(--bb-color-project-ink);
-  --bb-color-muted: var(--bb-color-project-muted);
-  --bb-color-border: var(--bb-color-project-border);
-  --bb-color-border-strong: var(--bb-color-project-border-strong);
-  --bb-color-surface: var(--bb-color-panel);
-  --bb-color-accent: var(--bb-color-project-accent);
-  --bb-color-accent-strong: var(--bb-color-project-accent-strong);
   display: grid;
   gap: var(--bb-space-4);
   min-width: 0;
   margin-top: var(--bb-space-6);
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-md);
-  padding: var(--bb-space-5);
+  padding: 0;
   color: var(--bb-color-ink);
-  background: var(--bb-color-panel);
+  background: transparent;
   font-family: var(--bb-font-sans);
 }
 
@@ -36,7 +27,7 @@
 
 .bb-pkw-header {
   display: grid;
-  gap: var(--bb-space-2);
+  gap: 12px;
   min-width: 0;
 }
 
@@ -50,9 +41,12 @@
 }
 
 .bb-pkw-header h2 {
-  font-size: clamp(22px, 2.6vw, 32px);
-  letter-spacing: -.04em;
-  overflow-wrap: anywhere;
+  font-size: clamp(32px, 3.5vw, 44px);
+  font-weight: 760;
+  line-height: 1.1;
+  letter-spacing: -.055em;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .bb-pkw-lead,
@@ -61,6 +55,10 @@
   color: var(--bb-color-muted);
   font-size: 12px;
   line-height: 1.65;
+}
+
+.bb-pkw-lead {
+  max-width: 720px;
 }
 
 .bb-pkw-meta {
@@ -203,15 +201,15 @@
   font: inherit;
   font-weight: 720;
   text-align: left;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--bb-color-accent) 35%, transparent);
-  text-underline-offset: 3px;
+  text-decoration: none;
   cursor: pointer;
 }
 
 .bb-pkw-record-link:hover {
   color: var(--bb-color-accent);
+  text-decoration: underline;
   text-decoration-color: currentColor;
+  text-underline-offset: 3px;
 }
 
 .bb-pkw-people-list p,
@@ -228,10 +226,9 @@
 
 .bb-pkw-object {
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-sm);
-  padding: var(--bb-space-3);
-  background: var(--bb-color-surface);
+  border-top: 1px solid var(--bb-color-border);
+  padding: var(--bb-space-3) 0 0;
+  background: transparent;
 }
 
 .bb-pkw-object h4 {
@@ -474,7 +471,7 @@
 
 @media (max-width: 760px) {
   .bb-pkw {
-    padding: var(--bb-space-4);
+    padding: 0;
   }
 
   .bb-pkw-columns {
@@ -540,7 +537,7 @@
    entry point; rows and details carry the long form. */
 .bb-pkw-dense-overview {
   display: grid;
-  gap: var(--bb-space-4);
+  gap: 0;
 }
 
 .bb-pkw-dense-intro {
@@ -569,17 +566,25 @@
 .bb-pkw-dense-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--bb-space-2);
+  gap: 0;
+  margin: 0 0 var(--bb-space-5);
+  border-block: 1px solid var(--bb-color-border);
 }
 
 .bb-pkw-dense-metric {
   display: grid;
   gap: 3px;
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-sm);
-  padding: 8px 12px;
-  background: var(--bb-color-panel);
+  border-right: 1px solid var(--bb-color-border);
+  padding: 20px 24px;
+}
+
+.bb-pkw-dense-metric:first-child {
+  padding-left: 0;
+}
+
+.bb-pkw-dense-metric:last-child {
+  border-right: 0;
 }
 
 .bb-pkw-dense-metric-label {
@@ -589,31 +594,34 @@
 }
 
 .bb-pkw-dense-metric-value {
+  display: block;
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--bb-color-ink);
-  font-size: 20px;
+  font-size: 30px;
+  font-weight: 760;
+  line-height: 1.1;
   letter-spacing: -.03em;
 }
 
 .bb-pkw-dense-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--bb-space-3);
+  gap: 0;
 }
 
 .bb-pkw-dense-supporting-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--bb-space-5);
 }
 
 .bb-pkw-dense-card {
   display: grid;
-  gap: 6px;
+  gap: var(--bb-space-3);
   min-width: 0;
-  border: 1px solid var(--bb-color-border);
-  border-radius: var(--bb-radius-sm);
-  padding: 10px 14px;
-  background: var(--bb-color-panel);
+  border-top: 1px solid var(--bb-color-border-strong);
+  padding: var(--bb-space-4) 0 0;
+  background: transparent;
 }
 
 .bb-pkw-dense-card-wide {
@@ -660,7 +668,7 @@
 .bb-pkw-dense-list,
 .bb-pkw-dense-record-list {
   display: grid;
-  gap: var(--bb-space-2);
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -671,7 +679,11 @@
   gap: 4px;
   min-width: 0;
   border-bottom: 1px solid var(--bb-color-border);
-  padding-bottom: var(--bb-space-2);
+  padding: var(--bb-space-2) 0;
+}
+
+.bb-pkw-dense-item:first-child {
+  padding-top: 0;
 }
 
 .bb-pkw-dense-item:last-child {
@@ -693,15 +705,15 @@
   font: inherit;
   font-weight: 720;
   text-align: left;
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, var(--bb-color-accent) 35%, transparent);
-  text-underline-offset: 3px;
+  text-decoration: none;
   cursor: pointer;
 }
 
 .bb-pkw-dense-link:hover {
   color: var(--bb-color-accent);
+  text-decoration: underline;
   text-decoration-color: currentColor;
+  text-underline-offset: 3px;
 }
 
 .bb-pkw-dense-item-facts {
@@ -793,8 +805,12 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--bb-color-ink);
-  font-size: clamp(18px, 2vw, 26px);
-  letter-spacing: -.03em;
+  font-size: clamp(28px, 3vw, 36px);
+  font-weight: 760;
+  line-height: 1.1;
+  letter-spacing: -.05em;
+  word-break: keep-all;
+  overflow-wrap: break-word;
 }
 
 .bb-pkw-work-controls {
@@ -902,8 +918,38 @@
 }
 
 @media (max-width: 760px) {
+  .bb-pkw {
+    margin-top: var(--bb-space-5);
+  }
+
+  .bb-pkw-header h2 {
+    font-size: 34px;
+  }
+
   .bb-pkw-dense-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .bb-pkw-dense-metric,
+  .bb-pkw-dense-metric:first-child {
+    padding: 14px 12px;
+  }
+
+  .bb-pkw-dense-metric:nth-child(odd) {
+    padding-left: 0;
+  }
+
+  .bb-pkw-dense-metric:nth-child(even) {
+    border-right: 0;
+    padding-right: 0;
+  }
+
+  .bb-pkw-dense-metric:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--bb-color-border);
+  }
+
+  .bb-pkw-dense-metric:last-child {
+    border-bottom: 0;
   }
 
   .bb-pkw-dense-grid,
