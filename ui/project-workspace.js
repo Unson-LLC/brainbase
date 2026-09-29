@@ -325,16 +325,62 @@ function contextSectionSkeleton(doc, { title = null, message = null } = {}) {
   return group;
 }
 
+function renderProjectContextGroup(doc, item) {
+  const group = makeElement(doc, 'section', {
+    className: `bb-pkw-context-group${item.state === 'loading' ? ' bb-pkw-context-group-loading' : ''}`,
+    attrs: { 'aria-label': item.title, ...(item.state === 'loading' ? { 'aria-busy': 'true' } : {}) },
+  });
+  const heading = makeElement(doc, 'div', { className: 'bb-pkw-context-heading' });
+  heading.append(makeElement(doc, 'h4', { text: item.title }), badge(doc, item.state === 'ok' ? '利用可能' : item.state === 'loading' ? '読み込み中' : item.state === 'failed' ? '読み取り失敗' : '未接続', item.state === 'ok' ? 'success' : item.state === 'failed' ? 'danger' : 'muted'));
+  group.append(heading);
+  if (item.message && !['failed', 'unavailable'].includes(item.state)) group.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: item.message }));
+  if (item.asOf) group.append(makeElement(doc, 'small', { className: 'bb-pkw-muted', text: `読み取った時点: ${formatDateTime(item.asOf)}` }));
+  if (item.state === 'loading') {
+    group.append(skeletonBars(doc));
+  } else if (item.state === 'failed') {
+    group.append(workspaceNotice(doc, { label: '読み取り失敗', text: item.message ?? 'このセクションを読み取れませんでした。', tone: 'danger', role: 'alert' }));
+  } else if (item.state === 'unavailable') {
+    group.append(workspaceNotice(doc, { label: '未接続', text: item.message ?? 'このセクションは接続されていません。', tone: 'warning' }));
+  } else if (item.items.length > 0) {
+    const list = makeElement(doc, 'ul', { className: 'bb-pkw-context-list' });
+    for (const entry of item.items) {
+      const row = makeElement(doc, 'li');
+      row.append(makeElement(doc, 'strong', { text: entry.title }));
+      if (entry.status) row.append(badge(doc, entry.status, 'muted'));
+      const facts = [entry.summary, entry.owner ? `担当: ${entry.owner}` : null, entry.dueAt ? `期限: ${entry.dueAt}` : null, entry.updatedAt ? `更新: ${entry.updatedAt}` : null, entry.source ? `出典: ${entry.source}` : null].filter(Boolean);
+      if (facts.length > 0) row.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: facts.join(' · ') }));
+      list.append(row);
+    }
+    group.append(list);
+  } else if (item.state === 'ok') {
+    group.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: 'このセクションに表示できる記録はありません。' }));
+  }
+  return group;
+}
+
+function projectContextInsertionAnchor(doc) {
+  return makeElement(doc, 'span', {
+    className: 'bb-pkw-context-anchor',
+    attrs: { 'aria-hidden': 'true', hidden: 'true' },
+  });
+}
+
 /** Renders supplementary context while preserving each section's own state. */
-export function renderProjectContext(doc, context) {
+export function renderProjectContext(doc, context, {
+  sections: selectedSections = null,
+  includeStatus = true,
+  includeHeading = true,
+} = {}) {
   if (!context) return null;
-  const sections = Array.isArray(context.sections) ? context.sections : [];
+  const sections = Array.isArray(selectedSections)
+    ? selectedSections
+    : Array.isArray(context.sections) ? context.sections : [];
   const section = makeElement(doc, 'section', {
     className: 'bb-pkw-section bb-pkw-context',
     attrs: { 'aria-label': '補足情報' },
   });
-  section.append(makeElement(doc, 'h3', { text: '補足情報' }));
-  if (context.state !== 'ok') {
+  if (includeHeading) section.append(makeElement(doc, 'h3', { text: '補足情報' }));
+  if (includeStatus && context.state !== 'ok') {
     if (context.state === 'loading') {
       section.append(workspaceNotice(doc, { label: '読み込み中', text: context.message ?? '補足情報を読み込んでいます。', tone: 'info', role: 'status' }));
       if (sections.length === 0) section.append(contextSectionSkeleton(doc));
@@ -342,42 +388,11 @@ export function renderProjectContext(doc, context) {
       section.append(workspaceNotice(doc, { label: context.state === 'failed' ? '読み取り失敗' : '未接続', text: context.message ?? '補足情報を確認できません。', tone: context.state === 'failed' ? 'danger' : 'warning' }));
     }
   }
-  if (context.state === 'ok' && sections.length === 0) {
+  if (includeStatus && context.state === 'ok' && sections.length === 0) {
     section.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '補足情報のセクションはありません。' }));
     return section;
   }
-  for (const item of sections) {
-    const group = makeElement(doc, 'section', {
-      className: `bb-pkw-context-group${item.state === 'loading' ? ' bb-pkw-context-group-loading' : ''}`,
-      attrs: { 'aria-label': item.title, ...(item.state === 'loading' ? { 'aria-busy': 'true' } : {}) },
-    });
-    const heading = makeElement(doc, 'div', { className: 'bb-pkw-context-heading' });
-    heading.append(makeElement(doc, 'h4', { text: item.title }), badge(doc, item.state === 'ok' ? '利用可能' : item.state === 'loading' ? '読み込み中' : item.state === 'failed' ? '読み取り失敗' : '未接続', item.state === 'ok' ? 'success' : item.state === 'failed' ? 'danger' : 'muted'));
-    group.append(heading);
-    if (item.message && !['failed', 'unavailable'].includes(item.state)) group.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: item.message }));
-    if (item.asOf) group.append(makeElement(doc, 'small', { className: 'bb-pkw-muted', text: `読み取った時点: ${formatDateTime(item.asOf)}` }));
-    if (item.state === 'loading') {
-      group.append(skeletonBars(doc));
-    } else if (item.state === 'failed') {
-      group.append(workspaceNotice(doc, { label: '読み取り失敗', text: item.message ?? 'このセクションを読み取れませんでした。', tone: 'danger', role: 'alert' }));
-    } else if (item.state === 'unavailable') {
-      group.append(workspaceNotice(doc, { label: '未接続', text: item.message ?? 'このセクションは接続されていません。', tone: 'warning' }));
-    } else if (item.items.length > 0) {
-      const list = makeElement(doc, 'ul', { className: 'bb-pkw-context-list' });
-      for (const entry of item.items) {
-        const row = makeElement(doc, 'li');
-        row.append(makeElement(doc, 'strong', { text: entry.title }));
-        if (entry.status) row.append(badge(doc, entry.status, 'muted'));
-        const facts = [entry.summary, entry.owner ? `担当: ${entry.owner}` : null, entry.dueAt ? `期限: ${entry.dueAt}` : null, entry.updatedAt ? `更新: ${entry.updatedAt}` : null, entry.source ? `出典: ${entry.source}` : null].filter(Boolean);
-        if (facts.length > 0) row.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: facts.join(' · ') }));
-        list.append(row);
-      }
-      group.append(list);
-    } else if (item.state === 'ok') {
-      group.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: 'このセクションに表示できる記録はありません。' }));
-    }
-    section.append(group);
-  }
+  for (const item of sections) section.append(renderProjectContextGroup(doc, item));
   return section;
 }
 
@@ -387,6 +402,12 @@ export function renderProjectKnowledgeSkeleton(doc, { context = null } = {}) {
     className: 'bb-pkw-panel bb-pkw-overview bb-pkw-overview-loading',
     attrs: { 'aria-label': '概要' },
   });
+  const contextSections = Array.isArray(context?.sections) ? context.sections : [];
+  const readySections = contextSections.filter((item) => item?.state === 'ok' && Array.isArray(item.items) && item.items.length > 0);
+  const deferredSections = contextSections.filter((item) => !readySections.includes(item));
+  if (readySections.length > 0) {
+    panel.append(renderProjectContext(doc, context, { sections: readySections, includeStatus: false }));
+  }
   const columns = makeElement(doc, 'div', { className: 'bb-pkw-columns' });
   for (const title of ['目的と現在地', '関係者と役割']) {
     const item = makeElement(doc, 'section', { className: 'bb-pkw-section bb-pkw-skeleton-section', attrs: { 'aria-label': title, 'aria-busy': 'true' } });
@@ -399,7 +420,9 @@ export function renderProjectKnowledgeSkeleton(doc, { context = null } = {}) {
     item.append(makeElement(doc, 'h3', { text: title }), skeletonBars(doc, 2));
     panel.append(item);
   }
-  const contextBlock = renderProjectContext(doc, context ?? { state: 'loading', sections: [] });
+  const contextBlock = readySections.length > 0
+    ? (deferredSections.length > 0 ? renderProjectContext(doc, context, { sections: deferredSections, includeHeading: false }) : null)
+    : renderProjectContext(doc, context ?? { state: 'loading', sections: [] });
   if (contextBlock) panel.append(contextBlock);
   return panel;
 }
@@ -438,6 +461,16 @@ function renderOverview(doc, detail, context, edges, entities, onSelect, onConte
   }
   columns.append(people);
   panel.append(columns);
+
+  const contextBlock = renderProjectContext(doc, context);
+  if (contextBlock) {
+    panel.append(contextBlock);
+    if (typeof onContext === 'function') onContext(contextBlock, null);
+  } else {
+    const contextAnchor = projectContextInsertionAnchor(doc);
+    panel.append(contextAnchor);
+    if (typeof onContext === 'function') onContext(null, contextAnchor);
+  }
 
   const decisions = makeElement(doc, 'section', { className: 'bb-pkw-section', attrs: { 'aria-label': '記録された判断' } });
   decisions.append(makeElement(doc, 'h3', { text: '記録された判断' }));
@@ -493,11 +526,6 @@ function renderOverview(doc, detail, context, edges, entities, onSelect, onConte
     missing.append(list);
     panel.append(missing);
   }
-  const contextBlock = renderProjectContext(doc, context);
-  if (contextBlock) {
-    panel.append(contextBlock);
-    if (typeof onContext === 'function') onContext(contextBlock);
-  }
   return panel;
 }
 
@@ -543,8 +571,16 @@ export function createProjectKnowledgeWorkspace({
   let selectedPanel = null;
   let overviewPanel = null;
   let contextBlock = null;
+  let contextAnchor = null;
 
-  const root = makeElement(doc, 'section', { className: 'bb-pkw', attrs: { 'data-contract-version': PROJECT_WORKSPACE_CONTRACT_VERSION, 'aria-label': 'プロジェクトの知識' } });
+  const root = makeElement(doc, 'section', {
+    className: 'bb-pkw',
+    attrs: {
+      'data-contract-version': PROJECT_WORKSPACE_CONTRACT_VERSION,
+      'data-project-id': cleanId(project.id),
+      'aria-label': 'プロジェクトの知識',
+    },
+  });
   const body = makeElement(doc, 'div', { className: 'bb-pkw-body' });
   const tabs = makeElement(doc, 'div', { className: 'bb-pkw-tabs', attrs: { role: 'tablist', 'aria-label': 'プロジェクト情報の表示' } });
   const panels = makeElement(doc, 'div', { className: 'bb-pkw-panels' });
@@ -779,8 +815,15 @@ export function createProjectKnowledgeWorkspace({
     if (destroyed) return;
     const nextBlock = renderProjectContext(doc, currentContext);
     if (!nextBlock) {
-      if (contextBlock?.parentNode?.removeChild) contextBlock.parentNode.removeChild(contextBlock);
-      contextBlock = null;
+      if (contextBlock?.parentNode && typeof contextBlock.parentNode.replaceChild === 'function') {
+        const nextAnchor = projectContextInsertionAnchor(doc);
+        contextBlock.parentNode.replaceChild(nextAnchor, contextBlock);
+        contextBlock = null;
+        contextAnchor = nextAnchor;
+      } else if (contextBlock?.parentNode?.removeChild) {
+        contextBlock.parentNode.removeChild(contextBlock);
+        contextBlock = null;
+      }
       return;
     }
     if (contextBlock?.parentNode && typeof contextBlock.parentNode.replaceChild === 'function') {
@@ -788,14 +831,16 @@ export function createProjectKnowledgeWorkspace({
       contextBlock = nextBlock;
       return;
     }
+    if (contextAnchor?.parentNode && typeof contextAnchor.parentNode.replaceChild === 'function') {
+      contextAnchor.parentNode.replaceChild(nextBlock, contextAnchor);
+      contextBlock = nextBlock;
+      contextAnchor = null;
+      return;
+    }
     if (contextBlock?.replaceWith) {
       contextBlock.replaceWith(nextBlock);
       contextBlock = nextBlock;
       return;
-    }
-    if (overviewPanel && !contextBlock) {
-      overviewPanel.append(nextBlock);
-      contextBlock = nextBlock;
     }
   }
 
@@ -806,7 +851,11 @@ export function createProjectKnowledgeWorkspace({
     tabs.replaceChildren(tabButton('概要', 'overview'), tabButton('情報を探す', 'graph'));
     panels.replaceChildren();
     contextBlock = null;
-    const overview = renderOverview(doc, payload, currentContext, overviewEdges, overviewEntities, selectAndExplore, (node) => { contextBlock = node; });
+    contextAnchor = null;
+    const overview = renderOverview(doc, payload, currentContext, overviewEdges, overviewEntities, selectAndExplore, (node, anchor) => {
+      contextBlock = node;
+      contextAnchor = anchor;
+    });
     overview.id = 'bb-pkw-panel-overview';
     overview.hidden = activeTab !== 'overview';
     overviewPanel = overview;

@@ -119,6 +119,13 @@ const fullEntity = (overrides = {}) => ({
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('project knowledge workspace lifecycle', () => {
+  it('binds the loaded workspace to its project for first-data metrics', () => {
+    const workspace = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail() });
+
+    expect(workspace.element.attributes['data-project-id']).toBe('project-atlas');
+    workspace.destroy();
+  });
+
   it('does not mount Sigma while the overview is visible and destroys a late async mount', async () => {
     const mounts = [];
     let resolveMount;
@@ -159,11 +166,45 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.setContext({
       projectId: 'project-atlas',
       state: 'ok',
-      sections: [{ id: 'tasks', title: 'タスク', state: 'loading', items: [] }],
+      sections: [{ id: 'tasks', title: 'タスク', state: 'ok', items: [{ id: 'task-1', title: '導入確認' }] }],
     });
 
     expect(findAll(workspace.element, (node) => String(node.className).includes('bb-pkw-graph-canvas'))[0]).toBe(canvas);
     expect(findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '情報を探す')[0].attributes['aria-selected']).toBe('true');
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    const contextBlock = findAll(overview, (node) => String(node.className).split(' ').includes('bb-pkw-context'))[0];
+    const decisions = section(overview, '記録された判断');
+    expect(collectText(contextBlock)).toContain('導入確認');
+    expect(contextBlock.parentNode).toBe(overview);
+    expect(overview.children.indexOf(contextBlock)).toBeLessThan(overview.children.indexOf(decisions));
+    workspace.destroy();
+  });
+
+  it('places resolved context immediately after the overview columns', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      context: {
+        projectId: 'project-atlas',
+        state: 'ok',
+        sections: [{
+          id: 'tasks',
+          title: 'タスク',
+          state: 'ok',
+          items: [{ id: 'task-1', title: '導入確認', summary: '最初に確認する作業' }],
+        }],
+      },
+    });
+
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    const contextBlock = findAll(overview, (node) => String(node.className).split(' ').includes('bb-pkw-context'))[0];
+    const decisions = section(overview, '記録された判断');
+
+    expect(contextBlock).toBeDefined();
+    expect(collectText(contextBlock)).toContain('導入確認');
+    expect(contextBlock.parentNode).toBe(overview);
+    expect(decisions.parentNode).toBe(overview);
+    expect(overview.children.indexOf(contextBlock)).toBeLessThan(overview.children.indexOf(decisions));
     workspace.destroy();
   });
 
