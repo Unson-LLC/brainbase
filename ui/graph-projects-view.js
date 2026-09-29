@@ -54,7 +54,12 @@ import {
   graphHostEmptyNotice,
 } from './graph-view-shared.js';
 import { graphOwnShareSource, ownProjectDetail, ownShareSection, ownShareStateNotice } from './graph-own-share.js';
-import { createProjectKnowledgeWorkspace, normalizeProjectContext } from './project-workspace.js';
+import {
+  createProjectKnowledgeWorkspace,
+  normalizeProjectContext,
+  renderProjectContext,
+  renderProjectKnowledgeSkeleton,
+} from './project-workspace.js';
 import { mountProjectGraph as defaultMountProjectGraph } from './project-graph.js';
 import {
   workspaceActions,
@@ -211,9 +216,11 @@ function normalizeProjectSummary(value) {
  *   labelled 「引き継いだ自分の分（組織には未反映）」 unless `label` says otherwise.  They are never
  *   added to the ledger, the metrics or the rail, and a failed read shows only in that section.
  *   Without it nothing of the kind is drawn or read.
- * @param {(projectId: string) => Promise<object>} [options.loadProjectContext]
- *   Optional read-only supplementary sections (tasks/knowledge).  A failed
- *   context read is kept separate from the Graph detail read.
+ * @param {(projectId: string, options?: { onProgress?: (snapshot: object) => void }) => Promise<object>} [options.loadProjectContext]
+ *   Optional read-only supplementary sections (tasks/knowledge). The host may
+ *   call `onProgress` with a complete `{ sections: [...] }` snapshot as each
+ *   section resolves; a failed context read is kept separate from the Graph
+ *   detail read.
  * @param {Array<{ id: string, name?: string }> | (() => Array<{ id: string, name?: string }>)} [options.projectSummaries]
  *   Optional host-known project identities.  These are used only to draw the
  *   selected project's early loading shell before the Graph list is read.
@@ -330,7 +337,10 @@ export function createGraphProjectsView({
     const project = projectSummaryFor(target);
     const loading = makeElement(doc, 'section', {
       className: 'bb-pkw bb-pkw-loading',
-      attrs: { 'aria-label': 'プロジェクトの知識', 'data-project-id': target },
+      attrs: {
+        'aria-label': 'プロジェクトの知識',
+        'data-project-id': target,
+      },
     });
     loading.append(makeElement(doc, 'div', { className: 'bb-pkw-kicker', text: 'プロジェクトの記録' }));
     const header = makeElement(doc, 'header', { className: 'bb-pkw-header' });
@@ -344,6 +354,12 @@ export function createGraphProjectsView({
       loadingText: 'プロジェクトの記録を読み込んでいます。',
     });
     if (notice) loading.append(notice);
+    if (readState?.state === 'loading') {
+      loading.append(renderProjectKnowledgeSkeleton(doc, { context: state.context?.projectId === target ? state.context : null }));
+    } else if (state.context?.projectId === target) {
+      const contextBlock = renderProjectContext(doc, state.context);
+      if (contextBlock) loading.append(contextBlock);
+    }
     return loading;
   }
 
@@ -403,16 +419,27 @@ export function createGraphProjectsView({
     const request = ++contextRequest;
     state.context = normalizeProjectContext(id, { state: 'loading' });
     controller.render();
+    const applyContext = (snapshot) => {
+      const normalized = normalizeProjectContext(id, snapshot);
+      if (viewDestroyed || request !== contextRequest || state.selectedId !== id) return false;
+      state.context = normalized;
+      // Context progress must not rebuild the workspace: rebuilding destroys
+      // Sigma's viewport and resets the user's active tab/selection. Detail
+      // loading still uses the shell render so the project name is immediate.
+      if (knowledgeWorkspace && state.detail?.id === id && state.detail.state === 'ok') {
+        knowledgeWorkspace.setContext?.(normalized);
+      } else {
+        controller.render();
+      }
+      return true;
+    };
     let result;
     try {
-      result = await loadProjectContext(id);
+      result = await loadProjectContext(id, { onProgress: (snapshot) => { applyContext(snapshot); } });
     } catch (error) {
       result = { state: 'failed', message: `補足情報を読み取れませんでした（${failureText(error)}）。` };
     }
-    const normalized = normalizeProjectContext(id, result);
-    if (viewDestroyed || request !== contextRequest || state.selectedId !== id) return state.context;
-    state.context = normalized;
-    controller.render();
+    applyContext(result);
     return state.context;
   }
 

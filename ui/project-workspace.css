@@ -267,6 +267,44 @@
   padding-top: var(--bb-space-3);
 }
 
+.bb-pkw-skeleton-section {
+  min-height: 118px;
+}
+
+.bb-pkw-skeleton-stack {
+  display: grid;
+  gap: var(--bb-space-2);
+  width: min(100%, 360px);
+}
+
+.bb-pkw-skeleton-bar {
+  display: block;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bb-color-border-strong) 65%, var(--bb-color-panel));
+  animation: bb-pkw-skeleton-pulse 1.35s ease-in-out infinite;
+}
+
+.bb-pkw-skeleton-bar-1 { width: 92%; }
+.bb-pkw-skeleton-bar-2 { width: 68%; }
+.bb-pkw-skeleton-bar-3 { width: 82%; }
+
+.bb-pkw-context-group-loading {
+  min-height: 72px;
+}
+
+@keyframes bb-pkw-skeleton-pulse {
+  0%, 100% { opacity: .48; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bb-pkw-skeleton-bar {
+    animation: none;
+  }
+}
+
 .bb-pkw-context-heading,
 .bb-pkw-graph-intro,
 .bb-pkw-selected-head,

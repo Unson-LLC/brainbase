@@ -135,6 +135,29 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('updates a partial context without resetting the active graph surface', async () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      mountGraph: (_container) => ({ destroy: vi.fn(), select: vi.fn() }),
+    });
+    workspace.setTab('graph');
+    await tick();
+    const canvas = findAll(workspace.element, (node) => String(node.className).includes('bb-pkw-graph-canvas'))[0];
+    const graphTab = findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '情報を探す')[0];
+    expect(graphTab.attributes['aria-selected']).toBe('true');
+
+    workspace.setContext({
+      projectId: 'project-atlas',
+      state: 'ok',
+      sections: [{ id: 'tasks', title: 'タスク', state: 'loading', items: [] }],
+    });
+
+    expect(findAll(workspace.element, (node) => String(node.className).includes('bb-pkw-graph-canvas'))[0]).toBe(canvas);
+    expect(findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '情報を探す')[0].attributes['aria-selected']).toBe('true');
+    workspace.destroy();
+  });
+
   it('keeps loading and failed reads renderable, then shows the fetched entity summary and metadata', async () => {
     let resolveRead;
     const readEntity = vi.fn(() => new Promise((resolve) => { resolveRead = resolve; }));

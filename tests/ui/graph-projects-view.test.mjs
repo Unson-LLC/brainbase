@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyGraphCorrection, graphRecordDigest } from '../../src/graph-corrections.js';
 import { createGraphProjectsView, GRAPH_PROJECT_LEDGER_COLUMNS, normalizeProjectList } from '../../ui/graph-projects-view.js';
 import { EDGES, ENTITIES, FIXTURE_NOW, writeGraphV1, writeGraphV2 } from '../graph-web-fixture.js';
@@ -125,6 +125,108 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(byClass(root, 'bb-pkw-loading')).toEqual([]);
     expect(findAll(byClass(root, 'bb-pkw')[0], (node) => node.tagName === 'H2')[0].textContent).toBe('Atlas導入');
     expect(collectText(root)).toContain('導入を完了する');
+  });
+
+  it('shows resolved context sections while Graph detail is pending, then keeps the graph tab during final context arrival', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const detailGate = deferred();
+    const contextGate = deferred();
+    let progressContext;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects/project-atlas') await detailGate.promise;
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail: new FakeElement('div'),
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [{ id: 'project-atlas', name: 'Atlas導入' }],
+      loadProjectContext: async (_id, { onProgress }) => {
+        progressContext = onProgress;
+        onProgress({ sections: [
+          { id: 'tasks', title: 'タスク', state: 'ok', items: [{ id: 'task-1', title: '導入確認' }] },
+          { id: 'knowledge', title: '知識', state: 'loading', items: [] },
+        ] });
+        await contextGate.promise;
+        return { sections: [
+          { id: 'tasks', title: 'タスク', state: 'ok', items: [{ id: 'task-1', title: '導入確認' }] },
+          { id: 'knowledge', title: '知識', state: 'ok', items: [{ id: 'doc-1', title: '導入計画' }] },
+        ] };
+      },
+      mountProjectGraph: () => ({ destroy: vi.fn(), select: vi.fn() }),
+    });
+
+    const reading = view.load();
+    await waitFor(() => typeof progressContext === 'function');
+    expect(collectText(root)).toContain('導入確認');
+    expect(byClass(root, 'bb-pkw-skeleton-bar').length).toBeGreaterThan(0);
+    expect(findAll(root, (node) => node.attributes['aria-busy'] === 'true').length).toBeGreaterThan(0);
+
+    detailGate.resolve();
+    await reading;
+    const workspace = byClass(root, 'bb-pkw')[0];
+    const graphTab = buttonsNamed(workspace, '情報を探す')[0];
+    graphTab.dispatch('click');
+    await waitFor(() => byClass(workspace, 'bb-pkw-graph-canvas').length === 1);
+    const canvas = byClass(workspace, 'bb-pkw-graph-canvas')[0];
+    expect(collectText(workspace)).toContain('導入確認');
+
+    contextGate.resolve();
+    await waitFor(() => collectText(workspace).includes('導入計画'));
+    expect(byClass(root, 'bb-pkw-graph-canvas')[0]).toBe(canvas);
+    expect(buttonsNamed(workspace, '情報を探す')[0].attributes['aria-selected']).toBe('true');
+    expect(view.state.context.sections.find((section) => section.id === 'knowledge').state).toBe('ok');
+    view.destroy();
+  });
+
+  it('ignores a late context progress snapshot after the project selection changes', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const callbacks = new Map();
+    const gates = new Map();
+    const root = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail: new FakeElement('div'),
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher: api.fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [{ id: 'project-atlas', name: 'Atlas導入' }, { id: 'project-beta', name: 'Beta検証' }],
+      loadProjectContext: (id, { onProgress }) => {
+        callbacks.set(id, onProgress);
+        const gate = deferred();
+        gates.set(id, gate);
+        return gate.promise;
+      },
+    });
+
+    await view.load();
+    await waitFor(() => callbacks.has('project-atlas'));
+    const reading = view.select('project-beta');
+    await waitFor(() => callbacks.has('project-beta'));
+    callbacks.get('project-atlas')({ sections: [{ id: 'tasks', title: '古いタスク', state: 'ok', items: [{ id: 'old', title: '古い情報' }] }] });
+    expect(collectText(root)).not.toContain('古い情報');
+    expect(view.state.context?.projectId).toBe('project-beta');
+
+    callbacks.get('project-beta')({ sections: [{ id: 'tasks', title: '新しいタスク', state: 'ok', items: [{ id: 'new', title: '新しい情報' }] }] });
+    expect(collectText(root)).toContain('新しい情報');
+    expect(collectText(root)).not.toContain('古い情報');
+    gates.get('project-atlas').resolve({ sections: [] });
+    gates.get('project-beta').resolve({ sections: [{ id: 'tasks', title: '新しいタスク', state: 'ok', items: [{ id: 'new', title: '新しい情報' }] }] });
+    await reading;
+    expect(view.state.context.projectId).toBe('project-beta');
+    expect(collectText(root)).not.toContain('古い情報');
+    view.destroy();
   });
 
   it('keeps a newer selection visible when an older detail read finishes later', async () => {
