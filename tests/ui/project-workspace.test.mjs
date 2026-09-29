@@ -119,6 +119,13 @@ const fullEntity = (overrides = {}) => ({
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 describe('project knowledge workspace lifecycle', () => {
+  it('binds the loaded workspace to its project for first-data metrics', () => {
+    const workspace = createProjectKnowledgeWorkspace({ document: new FakeDocument(), detail: detail() });
+
+    expect(workspace.element.attributes['data-project-id']).toBe('project-atlas');
+    workspace.destroy();
+  });
+
   it('does not mount Sigma while the overview is visible and destroys a late async mount', async () => {
     const mounts = [];
     let resolveMount;

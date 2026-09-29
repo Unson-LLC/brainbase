@@ -573,7 +573,14 @@ export function createProjectKnowledgeWorkspace({
   let contextBlock = null;
   let contextAnchor = null;
 
-  const root = makeElement(doc, 'section', { className: 'bb-pkw', attrs: { 'data-contract-version': PROJECT_WORKSPACE_CONTRACT_VERSION, 'aria-label': 'プロジェクトの知識' } });
+  const root = makeElement(doc, 'section', {
+    className: 'bb-pkw',
+    attrs: {
+      'data-contract-version': PROJECT_WORKSPACE_CONTRACT_VERSION,
+      'data-project-id': cleanId(project.id),
+      'aria-label': 'プロジェクトの知識',
+    },
+  });
   const body = makeElement(doc, 'div', { className: 'bb-pkw-body' });
   const tabs = makeElement(doc, 'div', { className: 'bb-pkw-tabs', attrs: { role: 'tablist', 'aria-label': 'プロジェクト情報の表示' } });
   const panels = makeElement(doc, 'div', { className: 'bb-pkw-panels' });
