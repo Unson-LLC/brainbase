@@ -107,7 +107,7 @@ SELECT
   projects.code AS current_project_code,
   true AS current_visible
 FROM public.graph_entities AS current_entity
-JOIN public.projects AS projects
+LEFT JOIN public.projects AS projects
   ON projects.id = current_entity.project_id
 LEFT JOIN LATERAL (
   SELECT history.*
@@ -154,7 +154,7 @@ SELECT
   projects.code AS current_project_code,
   true AS current_visible
 FROM public.graph_entities AS current_entity
-JOIN public.projects AS projects
+LEFT JOIN public.projects AS projects
   ON projects.id = current_entity.project_id
 LEFT JOIN LATERAL (
   SELECT history.*
@@ -165,7 +165,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) AS history ON true
 WHERE ($1::text IS NULL OR current_entity.entity_type = $1)
-  AND ($2::text IS NULL OR projects.code = $2)
+  AND ($2::text IS NULL OR projects.code = $2 OR projects.id IS NULL)
   AND current_entity.entity_type IN ('objective', 'variable', 'model', 'constraint')
 ORDER BY current_entity.id, current_entity.entity_type
 `;
@@ -541,6 +541,9 @@ function validateFoundationRecord(
 ): FoundationCatalogRecord {
   const history = validateHistoryRow(row, reference.id, reference.type, reference.revision);
   const current = validateCurrentRow(row, reference.id, reference.type);
+  if (requireCurrentRevision && current.projectCode === undefined) {
+    throw corrupt('Current Graph project code is missing');
+  }
   authorizeCurrentFoundation(current, context, selectedProjectCode);
 
   // Latest reads must prove that the current Graph payload points at the

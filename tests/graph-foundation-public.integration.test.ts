@@ -552,4 +552,19 @@ describe('Graph foundation history through the public provider and HTTP boundary
       projectA.readers.store.list('objective', projectA.context)
     ).rejects.toMatchObject({ code: 'corrupt_catalog' });
   });
+
+  it('fails closed when a visible current Graph row has no project catalog row', async () => {
+    await createDatabase();
+    await setOwner();
+    await sql(`DELETE FROM public.projects WHERE id = 'project-a'`);
+
+    await setRuntimeProject('project-a');
+    const projectA = createReaderForProject('project-a');
+    await expect(
+      projectA.readers.store.readLatest('objective', 'goal', projectA.context)
+    ).rejects.toMatchObject({ code: 'corrupt_catalog' });
+    await expect(
+      projectA.readers.store.list('objective', projectA.context)
+    ).rejects.toMatchObject({ code: 'corrupt_catalog' });
+  });
 });
