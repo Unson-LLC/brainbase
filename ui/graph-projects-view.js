@@ -149,6 +149,19 @@ function failureText(error) {
 }
 
 /**
+ * A host may know the selected project's identity before its Graph list is
+ * available.  Keep this boundary deliberately small: the early shell only
+ * accepts an id and display name, and never treats a host summary as Graph
+ * data such as goal, status or participant counts.
+ */
+function normalizeProjectSummary(value) {
+  if (!isRecord(value)) return null;
+  const id = textOrNull(value.id ?? value.code);
+  if (!id) return null;
+  return { id, name: textOrNull(value.name) ?? id };
+}
+
+/**
  * Mounts 「プロジェクトと関係者」.
  *
  * @param {object} options
@@ -201,6 +214,9 @@ function failureText(error) {
  * @param {(projectId: string) => Promise<object>} [options.loadProjectContext]
  *   Optional read-only supplementary sections (tasks/knowledge).  A failed
  *   context read is kept separate from the Graph detail read.
+ * @param {Array<{ id: string, name?: string }> | (() => Array<{ id: string, name?: string }>)} [options.projectSummaries]
+ *   Optional host-known project identities.  These are used only to draw the
+ *   selected project's early loading shell before the Graph list is read.
  * @param {(container: Element, options: object) => { destroy?: Function }} [options.mountProjectGraph]
  *   Host-injected Sigma.js graph mount. When omitted, the shared browser
  *   entry is used. The workspace keeps an accessible relation list when
@@ -232,6 +248,7 @@ export function createGraphProjectsView({
   onSelect,
   ownShare,
   loadProjectContext,
+  projectSummaries,
   mountProjectGraph,
 } = {}) {
   if (!root) throw new TypeError('root is required');
@@ -287,6 +304,46 @@ export function createGraphProjectsView({
 
   function listItem(id) {
     return state.list.state === 'ok' ? state.list.payload.projects.find((project) => project.id === id) ?? null : null;
+  }
+
+  function projectSummaryFor(id) {
+    const target = textOrNull(id);
+    if (!target) return null;
+    let summaries = projectSummaries;
+    try {
+      if (typeof summaries === 'function') summaries = summaries();
+    } catch {
+      summaries = null;
+    }
+    if (Array.isArray(summaries)) {
+      const summary = summaries.map(normalizeProjectSummary).find((item) => item?.id === target);
+      if (summary) return summary;
+    }
+    const listed = listItem(target);
+    return listed ? { id: listed.id, name: listed.name } : { id: target, name: target };
+  }
+
+  function renderProjectKnowledgeLoading(id, readState, { onRetry } = {}) {
+    const target = textOrNull(id);
+    if (!target) return null;
+    const project = projectSummaryFor(target);
+    const loading = makeElement(doc, 'section', {
+      className: 'bb-pkw bb-pkw-loading',
+      attrs: { 'aria-label': 'プロジェクトの知識', 'data-project-id': target },
+    });
+    loading.append(makeElement(doc, 'div', { className: 'bb-pkw-kicker', text: 'プロジェクトの記録' }));
+    const header = makeElement(doc, 'header', { className: 'bb-pkw-header' });
+    header.append(
+      makeElement(doc, 'h2', { text: project.name }),
+      makeElement(doc, 'p', { className: 'bb-pkw-lead', text: '目的・関係・判断の根拠を、実際に記録された情報からたどれます。' }),
+    );
+    loading.append(header);
+    const notice = graphStateNotice(doc, readState, {
+      onRetry,
+      loadingText: 'プロジェクトの記録を読み込んでいます。',
+    });
+    if (notice) loading.append(notice);
+    return loading;
   }
 
   function openCorrection(at, open) {
@@ -456,6 +513,9 @@ export function createGraphProjectsView({
     const stateNotice = graphStateNotice(doc, state.list, { onRetry: () => controller.load(), loadingText: 'プロジェクトを読み込んでいます。' });
     if (stateNotice) {
       children.push(stateNotice);
+      if (state.selectedId) {
+        children.push(renderProjectKnowledgeLoading(state.selectedId, state.list, { onRetry: () => controller.load() }));
+      }
       return children;
     }
     const { payload } = state.list;
@@ -486,6 +546,10 @@ export function createGraphProjectsView({
         onTabChange: setKnowledgeTabChrome,
       });
       children.push(knowledgeWorkspace.element);
+    } else if (state.selectedId) {
+      children.push(renderProjectKnowledgeLoading(state.selectedId, state.detail ?? { state: 'loading' }, {
+        onRetry: () => controller.loadDetail(state.selectedId),
+      }));
     }
 
     if (payload.projects.length === 0) {
@@ -698,7 +762,6 @@ export function createGraphProjectsView({
     }
     state.list = normalizeProjectList(await client.read('/projects'));
     if (state.list.state !== 'ok') {
-      if (!keep) state.selectedId = null;
       controller.render();
       return state.list;
     }

@@ -627,8 +627,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-project-navigation-fast",
+        "title": "プロジェクトを1秒以内に開き情報を後から読み込む",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-project-knowledge-workspace"
+    "current_story_id": "story-project-navigation-fast"
   }
 }
