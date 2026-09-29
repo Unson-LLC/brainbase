@@ -66,7 +66,7 @@ function variable(
   };
 }
 
-function objective(): ObjectiveDefinition {
+function objective(overrides: Partial<ObjectiveDefinition> = {}): ObjectiveDefinition {
   return {
     id: 'goal',
     type: 'objective',
@@ -81,7 +81,8 @@ function objective(): ObjectiveDefinition {
     beneficiaryIds: ['project-a'],
     desiredState: 'Weekly operating load stays at or below the target',
     criteria: [{ variableRef: { id: 'load', type: 'variable', revision: '1' }, operator: 'at_most', target: 600 }],
-    evaluationPeriod: { from: VALID_FROM, until: VALID_UNTIL }
+    evaluationPeriod: { from: VALID_FROM, until: VALID_UNTIL },
+    ...overrides
   };
 }
 
@@ -204,6 +205,33 @@ function createPublicRouter() {
     csrf: { verify: () => true }
   });
   return { router, provider };
+}
+
+function projectContext(projectCode: string): FoundationStoreContext {
+  return {
+    ...CONTEXT,
+    scope: {
+      ...CONTEXT.scope!,
+      subjectIds: [projectCode]
+    }
+  };
+}
+
+function createReaderForProject(projectCode: string) {
+  if (!db) throw new Error('test database is not initialized');
+  const context = projectContext(projectCode);
+  const query: GraphFoundationQuery = async (text, values) => {
+    const result = await sql<GraphFoundationHistoryRow & Record<string, unknown>>(text, values);
+    return { rows: result.rows as readonly GraphFoundationHistoryRow[] };
+  };
+  return {
+    context,
+    readers: createGraphFoundationReaders({
+      context,
+      query,
+      selectedProjectCode: projectCode
+    })
+  };
 }
 
 async function getDefinition(
@@ -453,4 +481,90 @@ describe('Graph foundation history through the public provider and HTTP boundary
     );
     expect(scopeDeniedPhilosophyValidation.status).toBe('unauthorized');
   }, 30_000);
+
+  it('lists only the selected project and preserves a real empty result', async () => {
+    await createDatabase();
+
+    await setRuntimeProject('project-a');
+    const projectA = createReaderForProject('project-a');
+    const projectAObjectives = await projectA.readers.store.list('objective', projectA.context);
+    expect(projectAObjectives.map((record) => record.definition.id)).toEqual(['goal']);
+
+    await setRuntimeProject('project-b');
+    const projectB = createReaderForProject('project-b');
+    const projectBObjectives = await projectB.readers.store.list('objective', projectB.context);
+    expect(projectBObjectives).toEqual([]);
+  });
+
+  it('reads the newest history revision while retaining the current Graph authorization check', async () => {
+    await createDatabase();
+    await setRuntimeProject('project-a');
+    const projectA = createReaderForProject('project-a');
+
+    const first = await projectA.readers.store.readLatest('objective', 'goal', projectA.context);
+    expect(first?.definition).toEqual(objective());
+
+    const objectiveV2 = objective({
+      revision: '2',
+      meaning: 'Keep the weekly operating load within the revised sustainable range'
+    });
+    await setOwner();
+    await sql(
+      `UPDATE public.graph_entities
+       SET payload = $1::jsonb
+       WHERE id = 'goal' AND entity_type = 'objective'`,
+      [graphPayload({ foundation: objectiveV2 })]
+    );
+
+    await setRuntimeProject('project-a');
+    const latest = await projectA.readers.store.readLatest('objective', 'goal', projectA.context);
+    expect(latest).toEqual({
+      definition: objectiveV2,
+      digest: digestFoundationDefinition(objectiveV2)
+    });
+    const listed = await projectA.readers.store.list('objective', projectA.context);
+    expect(listed).toEqual([latest]);
+  });
+
+  it('fails closed when a current Graph row has no corresponding history row', async () => {
+    await createDatabase();
+    const orphan = objective({ id: 'orphan', revision: '1' });
+
+    await setOwner();
+    await sql('ALTER TABLE public.graph_entities DISABLE TRIGGER graph_entities_foundation_history_capture');
+    try {
+      await sql(
+        `INSERT INTO public.graph_entities
+          (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+         VALUES ($1, 'objective', 'project-a', $2::jsonb, 'reader', 'normal', 'active', 1)`,
+        [orphan.id, graphPayload({ foundation: orphan })]
+      );
+    } finally {
+      await sql('ALTER TABLE public.graph_entities ENABLE TRIGGER graph_entities_foundation_history_capture');
+    }
+
+    await setRuntimeProject('project-a');
+    const projectA = createReaderForProject('project-a');
+    await expect(
+      projectA.readers.store.readLatest('objective', 'orphan', projectA.context)
+    ).rejects.toMatchObject({ code: 'corrupt_catalog' });
+    await expect(
+      projectA.readers.store.list('objective', projectA.context)
+    ).rejects.toMatchObject({ code: 'corrupt_catalog' });
+  });
+
+  it('fails closed when a visible current Graph row has no project catalog row', async () => {
+    await createDatabase();
+    await setOwner();
+    await sql(`DELETE FROM public.projects WHERE id = 'project-a'`);
+
+    await setRuntimeProject('project-a');
+    const projectA = createReaderForProject('project-a');
+    await expect(
+      projectA.readers.store.readLatest('objective', 'goal', projectA.context)
+    ).rejects.toMatchObject({ code: 'corrupt_catalog' });
+    await expect(
+      projectA.readers.store.list('objective', projectA.context)
+    ).rejects.toMatchObject({ code: 'corrupt_catalog' });
+  });
 });

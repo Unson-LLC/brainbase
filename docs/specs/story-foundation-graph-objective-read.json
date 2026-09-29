@@ -1,0 +1,147 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-foundation-graph-objective-read",
+  "generated_by": { "caller": "codex", "stage": "ai_synthesis" },
+  "clauses": [
+    { "id": "S-001", "type": "scenario", "statement": "認証済みのGraph Foundation handlerで許可projectの目的一覧と詳細を既存UI契約として返し、IDと版を保持する。", "origin": { "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-1" }, { "kind": "acceptance_criteria", "ac_id": "AC-2" }] } },
+    { "id": "INV-001", "type": "invariant", "statement": "選択projectと現在の認証・ACLに束縛し、他scopeとowner-private束を返さず、authority上書きを拒否する。", "origin": { "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-3" }] } },
+    { "id": "INV-002", "type": "invariant", "statement": "Graph読み取り失敗・migration未反映・不正payloadをempty成功へ変換しない。正しい空集合のみemptyとする。", "origin": { "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-4" }] } },
+    { "id": "INV-003", "type": "invariant", "statement": "公開契約・参照検証を維持し、未実装の書込みは明示的に拒否する。", "origin": { "story_refs": [{ "kind": "acceptance_criteria", "ac_id": "AC-5" }] } }
+  ],
+  "multi_tenancy": {
+    "schema_version": "0.1.0",
+    "applicability": "applicable",
+    "tenancy_model": "self_hosted",
+    "tenant_identity": {
+      "canonical_key": "organization_id",
+      "resolved_from": [
+        "host.resolveTrustedIdentity(request).organizationId",
+        "host.resolveContext(request).scope",
+        "FoundationGraphTrustedIdentity.projectScopeIds"
+      ],
+      "resolution_point": "host authentication/tenant boundary before the Foundation route; Graph handler preflight before withAccessContext",
+      "missing_behavior": "deny",
+      "ambiguity_behavior": "deny"
+    },
+    "propagation": {
+      "required_surfaces": [
+        "trusted_identity.principal",
+        "trusted_identity.organizationId",
+        "trusted_identity.projectScopeIds",
+        "request.query.scope_id",
+        "FoundationStoreContext.principal",
+        "FoundationStoreContext.scope.subjectIds",
+        "authenticated_transaction"
+      ],
+      "verified_surfaces": [
+        "trusted_identity.principal",
+        "trusted_identity.organizationId",
+        "trusted_identity.projectScopeIds",
+        "request.query.scope_id",
+        "FoundationStoreContext.principal",
+        "FoundationStoreContext.scope.subjectIds",
+        "authenticated_transaction"
+      ]
+    },
+    "resources": [
+      {
+        "name": "Graph Foundation objective revisions and current Graph ACL projection",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_id",
+        "trust_zone": "host-authenticated transaction and Graph RLS/current ACL",
+        "residue_policy": "read-only; do not return owner-private bundle or cross-tenant data",
+        "data_owner": "canonical Graph/Foundation store",
+        "credential_scope": "authenticated principal with selected project scope"
+      },
+      {
+        "name": "Objective list/detail/readiness/constraint/story-link reads",
+        "sharing": "tenant_partitioned",
+        "tenant_key": "organization_id",
+        "partition_key": "organization_id/project_id",
+        "trust_zone": "FoundationStoreContext supplied by host",
+        "residue_policy": "no direct BFF storage; failed reads remain unavailable or denied",
+        "data_owner": "canonical Graph/Foundation store",
+        "credential_scope": "authenticated principal and current ACL"
+      }
+    ],
+    "credentials": {
+      "lookup_key": "organization_id",
+      "scope": "host-resolved principal, organization_id, and selected project scope in the authenticated transaction; request body cannot set authority or tenant",
+      "raw_secret_in_artifacts": "forbidden",
+      "cross_tenant_fallback": "forbidden"
+    },
+    "data": {
+      "canonical_owners": ["canonical Graph/Foundation store"],
+      "residency": "host-selected authenticated transaction; this OSS adapter has no independent organization database",
+      "migration": "graph_foundation_revisions RLS and immutable-history readiness are required; migration not ready is unavailable",
+      "rollback": "read-only Story; fail closed on unavailable, malformed, unauthorized, or integrity-invalid data, with no empty-success fallback"
+    },
+    "failure_semantics": {
+      "unknown_tenant": "deny",
+      "ambiguous_tenant": "deny",
+      "unavailable_connection": "unavailable",
+      "no_data": "empty",
+      "cross_tenant_candidate": "deny_and_audit",
+      "cross_project_candidate": "deny"
+    },
+    "deployment_modes": ["self_hosted"],
+    "negative_scenarios": [
+      "unknown_tenant",
+      "ambiguous_tenant",
+      "unavailable_connection",
+      "no_data",
+      "cross_tenant_candidate",
+      "cross_project_candidate",
+      "missing_trusted_identity",
+      "missing_or_duplicate_scope_id",
+      "project_scope_not_allowed",
+      "request_authority_or_scope_override",
+      "owner_private_bundle_in_public_foundation_response",
+      "foundation_migration_required",
+      "malformed_or_integrity_invalid_payload"
+    ],
+    "graph_metadata": {
+      "tenant_entities": [
+        {
+          "tenant_scope": "organization_id/project_id",
+          "tenant_key_source": "host-authenticated identity.organizationId plus selected scope_id",
+          "trust_zone": "trusted host identity and authenticated transaction",
+          "data_owner": "canonical Graph/Foundation store"
+        }
+      ],
+      "boundary_edges": [
+        {
+          "tenant_scope": "organization_id/project_id",
+          "tenant_key_source": "identity.organizationId + identity.projectScopeIds + query scope_id",
+          "sharing_mode": "tenant_partitioned",
+          "credential_scope": "principal and current ACL",
+          "connection_mode": "withAccessContext authenticated transaction",
+          "deployment_mode": "self_hosted"
+        }
+      ]
+    },
+    "boundary": {
+      "scope_equality": "selected scope_id must be in trusted projectScopeIds; current Graph project_id must remain equal to the requested project",
+      "cross_scope_authorization": "forbidden; request authority and scope fields are rejected or ignored",
+      "runner_authorization": "read-only Story; no execution permission or write authority is added"
+    },
+    "verification": {
+      "scanner_coverage": "unverified",
+      "status": "source_contract_review_only",
+      "source_refs": [
+        "src/foundation-graph-http.ts",
+        "src/foundation-http.ts",
+        "src/graph-foundation-reader.ts",
+        "src/foundation-public-provider.ts",
+        "tests/foundation-graph-http.test.ts"
+      ],
+      "unverified_surfaces": [
+        "organization deployment route and release SHA",
+        "live auth provider and tenant mapping",
+        "production Graph RLS and migration readiness",
+        "authenticated API and UI readback"
+      ]
+    }
+  }
+}

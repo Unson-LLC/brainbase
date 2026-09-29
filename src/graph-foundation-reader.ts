@@ -76,6 +76,100 @@ WHERE history.entity_id = $1
   AND history.revision = $3
 `;
 
+/**
+ * Read the newest immutable revision for one Foundation entity.  The current
+ * Graph row remains part of the query so RLS and the adapter's current-row
+ * checks apply identically to latest and historical reads.
+ */
+export const GRAPH_FOUNDATION_LATEST_SQL = `
+SELECT
+  history.entity_id,
+  history.entity_type,
+  history.revision,
+  history.payload,
+  history.project_id,
+  history.role_min,
+  history.sensitivity,
+  history.lifecycle_status,
+  history.storage_digest,
+  history.captured_at,
+  (
+    history.storage_digest = 'sha256:' ||
+      encode(sha256(convert_to(history.payload::text, 'UTF8')), 'hex')
+  ) AS storage_digest_valid,
+  current_entity.id AS current_entity_id,
+  current_entity.entity_type AS current_entity_type,
+  current_entity.payload AS current_payload,
+  current_entity.project_id AS current_project_id,
+  current_entity.role_min AS current_role_min,
+  current_entity.sensitivity AS current_sensitivity,
+  current_entity.lifecycle_status AS current_lifecycle_status,
+  projects.code AS current_project_code,
+  true AS current_visible
+FROM public.graph_entities AS current_entity
+LEFT JOIN public.projects AS projects
+  ON projects.id = current_entity.project_id
+LEFT JOIN LATERAL (
+  SELECT history.*
+  FROM public.graph_foundation_revisions AS history
+  WHERE history.entity_id = current_entity.id
+    AND history.entity_type = current_entity.entity_type
+  ORDER BY history.revision::numeric DESC
+  LIMIT 1
+) AS history ON true
+WHERE current_entity.id = $1
+  AND current_entity.entity_type = $2
+ORDER BY history.revision::numeric DESC NULLS LAST
+LIMIT 1
+`;
+
+/**
+ * List the newest revision of each Foundation entity visible in the selected
+ * project.  The project filter is by canonical project code, which is the
+ * scope identifier selected by the organization BFF.
+ */
+export const GRAPH_FOUNDATION_LIST_SQL = `
+SELECT
+  history.entity_id,
+  history.entity_type,
+  history.revision,
+  history.payload,
+  history.project_id,
+  history.role_min,
+  history.sensitivity,
+  history.lifecycle_status,
+  history.storage_digest,
+  history.captured_at,
+  (
+    history.storage_digest = 'sha256:' ||
+      encode(sha256(convert_to(history.payload::text, 'UTF8')), 'hex')
+  ) AS storage_digest_valid,
+  current_entity.id AS current_entity_id,
+  current_entity.entity_type AS current_entity_type,
+  current_entity.payload AS current_payload,
+  current_entity.project_id AS current_project_id,
+  current_entity.role_min AS current_role_min,
+  current_entity.sensitivity AS current_sensitivity,
+  current_entity.lifecycle_status AS current_lifecycle_status,
+  projects.code AS current_project_code,
+  true AS current_visible
+FROM public.graph_entities AS current_entity
+LEFT JOIN public.projects AS projects
+  ON projects.id = current_entity.project_id
+LEFT JOIN LATERAL (
+  SELECT history.*
+  FROM public.graph_foundation_revisions AS history
+  WHERE history.entity_id = current_entity.id
+    AND history.entity_type = current_entity.entity_type
+  ORDER BY history.revision::numeric DESC
+  LIMIT 1
+) AS history ON true
+WHERE ($1::text IS NULL OR current_entity.entity_type = $1)
+  AND ($2::text IS NULL OR projects.code = $2 OR projects.id IS NULL)
+  AND current_entity.entity_type IN ('objective', 'variable', 'model', 'constraint')
+ORDER BY current_entity.id, current_entity.entity_type
+`;
+
 /** Flat row shape returned by GRAPH_FOUNDATION_READ_SQL. */
 export interface GraphFoundationHistoryRow {
   readonly entity_id?: unknown;
@@ -115,10 +209,12 @@ export interface GraphFoundationReaderOptions {
   readonly context: FoundationStoreContext;
   /** Query callback bound to the host's already-authenticated transaction. */
   readonly query: GraphFoundationQuery;
+  /** Canonical project code selected by the organization boundary. */
+  readonly selectedProjectCode?: string;
 }
 
 export interface GraphFoundationReaders {
-  readonly store: Pick<FoundationRevisionStore, 'read'>;
+  readonly store: Pick<FoundationRevisionStore, 'read' | 'readLatest' | 'list'>;
   readonly philosophyReader: PhilosophyRevisionReader;
 }
 
@@ -138,8 +234,9 @@ export function createGraphFoundationReaders(options: GraphFoundationReaderOptio
   assertReaderOptions(options);
   const context = cloneContext(options.context);
   const query = options.query;
+  const selectedProjectCode = options.selectedProjectCode;
 
-  const store: Pick<FoundationRevisionStore, 'read'> = {
+  const store: Pick<FoundationRevisionStore, 'read' | 'readLatest' | 'list'> = {
     async read(reference, suppliedContext): Promise<FoundationCatalogRecord | null> {
       assertTrustedPrincipal(context, suppliedContext);
       assertFoundationReference(reference);
@@ -149,22 +246,43 @@ export function createGraphFoundationReaders(options: GraphFoundationReaderOptio
       if (rows.length !== 1) {
         throw corrupt('Graph foundation history returned multiple rows for one revision');
       }
+      return validateFoundationRecord(rows[0]!, reference, context, selectedProjectCode);
+    },
 
-      const row = rows[0]!;
-      const history = validateHistoryRow(row, reference.id, reference.type, reference.revision);
-      const current = validateCurrentRow(row, reference.id, reference.type);
-      authorizeCurrentFoundation(current, context);
+    async readLatest(type, id, suppliedContext): Promise<FoundationCatalogRecord | null> {
+      assertTrustedPrincipal(context, suppliedContext);
+      assertFoundationType(type);
+      assertEntityId(id);
 
-      // A history row remains readable only through the current Graph row,
-      // including its current project and current scope.  The old payload is
-      // returned unchanged after these current-row checks.
-      if (history.projectId !== current.projectId) {
-        throw scopeViolation('Historical foundation project differs from current Graph project');
+      const rows = await executeLatestRead(query, id, type);
+      if (rows.length === 0) return null;
+      if (rows.length !== 1) {
+        throw corrupt('Graph foundation latest query returned multiple rows');
       }
-      return {
-        definition: cloneFoundationDefinition(history.definition),
-        digest: digestFoundationDefinition(history.definition)
-      };
+      const row = rows[0]!;
+      const reference = rowReference(row);
+      if (reference.id !== id || reference.type !== type) {
+        throw corrupt('Graph foundation latest row identity does not match the request');
+      }
+      return validateFoundationRecord(row, reference, context, selectedProjectCode, true);
+    },
+
+    async list(type, suppliedContext): Promise<FoundationCatalogRecord[]> {
+      assertTrustedPrincipal(context, suppliedContext);
+      if (type !== undefined) assertFoundationType(type);
+
+      const rows = await executeList(query, type, selectedProjectCode);
+      const seen = new Set<string>();
+      return rows.map((row) => {
+        const reference = rowReference(row);
+        if (type !== undefined && reference.type !== type) {
+          throw corrupt('Graph foundation list returned an unexpected entity type');
+        }
+        const key = `${reference.type}:${reference.id}`;
+        if (seen.has(key)) throw corrupt('Graph foundation list returned duplicate entity rows');
+        seen.add(key);
+        return validateFoundationRecord(row, reference, context, selectedProjectCode, true);
+      });
     }
   };
 
@@ -357,6 +475,42 @@ async function executeRead(
   throw corrupt('Graph foundation history query returned an invalid result');
 }
 
+async function executeLatestRead(
+  query: GraphFoundationQuery,
+  id: string,
+  type: FoundationType
+): Promise<readonly GraphFoundationHistoryRow[]> {
+  let result: GraphFoundationQueryResult | readonly GraphFoundationHistoryRow[];
+  try {
+    result = await query(GRAPH_FOUNDATION_LATEST_SQL, [id, type]);
+  } catch {
+    throw corrupt('Graph foundation latest query failed');
+  }
+  if (Array.isArray(result)) return result;
+  if (!Array.isArray(result) && 'rows' in result && Array.isArray(result.rows)) {
+    return result.rows as readonly GraphFoundationHistoryRow[];
+  }
+  throw corrupt('Graph foundation latest query returned an invalid result');
+}
+
+async function executeList(
+  query: GraphFoundationQuery,
+  type: FoundationType | undefined,
+  selectedProjectCode: string | undefined
+): Promise<readonly GraphFoundationHistoryRow[]> {
+  let result: GraphFoundationQueryResult | readonly GraphFoundationHistoryRow[];
+  try {
+    result = await query(GRAPH_FOUNDATION_LIST_SQL, [type ?? null, selectedProjectCode ?? null]);
+  } catch {
+    throw corrupt('Graph foundation list query failed');
+  }
+  if (Array.isArray(result)) return result;
+  if (!Array.isArray(result) && 'rows' in result && Array.isArray(result.rows)) {
+    return result.rows as readonly GraphFoundationHistoryRow[];
+  }
+  throw corrupt('Graph foundation list query returned an invalid result');
+}
+
 interface ValidatedFoundationHistory {
   readonly definition: FoundationDefinition;
   readonly projectId: string;
@@ -371,10 +525,51 @@ interface ValidatedPhilosophyHistory {
 interface ValidatedCurrentRow {
   readonly payload: Record<string, unknown>;
   readonly projectId: string;
+  readonly projectCode?: string;
   readonly foundation?: FoundationDefinition;
   readonly philosophy?: {
     readonly applicability: PhilosophyRevisionApplicability;
   };
+}
+
+function validateFoundationRecord(
+  row: GraphFoundationHistoryRow,
+  reference: FoundationRevision,
+  context: FoundationStoreContext,
+  selectedProjectCode: string | undefined,
+  requireCurrentRevision = false
+): FoundationCatalogRecord {
+  const history = validateHistoryRow(row, reference.id, reference.type, reference.revision);
+  const current = validateCurrentRow(row, reference.id, reference.type);
+  if (requireCurrentRevision && current.projectCode === undefined) {
+    throw corrupt('Current Graph project code is missing');
+  }
+  authorizeCurrentFoundation(current, context, selectedProjectCode);
+
+  // Latest reads must prove that the current Graph payload points at the
+  // revision returned by the history query. Otherwise a missing newer history
+  // row could silently fall back to an older immutable revision.
+  if (requireCurrentRevision && current.foundation?.revision !== reference.revision) {
+    throw corrupt('Current Graph foundation revision does not match the latest history revision');
+  }
+
+  // A history row remains readable only through the current Graph row,
+  // including its current project and current scope. The old payload is
+  // returned unchanged after these current-row checks.
+  if (history.projectId !== current.projectId) {
+    throw scopeViolation('Historical foundation project differs from current Graph project');
+  }
+  return {
+    definition: cloneFoundationDefinition(history.definition),
+    digest: digestFoundationDefinition(history.definition)
+  };
+}
+
+function rowReference(row: GraphFoundationHistoryRow): FoundationRevision {
+  const id = requireString(row.entity_id, 'Foundation history entity_id');
+  const type = parseFoundationType(row.entity_type);
+  const revision = requireRevision(row.revision, 'Foundation history revision');
+  return { id, type, revision };
 }
 
 function validateHistoryRow(
@@ -436,21 +631,31 @@ function validateCurrentRow(row: GraphFoundationHistoryRow, id: string, type: st
     throw new FoundationStoreError('authorization_denied', 'The current Graph row is not active');
   }
   const projectId = requireString(row.current_project_id, 'Current Graph project_id');
+  const projectCode = typeof row.current_project_code === 'string' && row.current_project_code.length > 0
+    ? row.current_project_code
+    : undefined;
   const payload = requireObject(row.current_payload, 'Current Graph payload');
   if (type === 'philosophy') {
     const applicability = parseJudgmentApplicability(payload);
-    return { payload, projectId, philosophy: { applicability } };
+    return { payload, projectId, projectCode, philosophy: { applicability } };
   }
   const definition = requireObject(payload.foundation, 'Current Graph payload.foundation') as unknown as FoundationDefinition;
   const result = validateFoundationDefinition(definition, { use: 'draft' });
   if (!result.valid || definition.id !== id || definition.type !== type) {
     throw corrupt('Current Graph foundation definition is invalid');
   }
-  return { payload, projectId, foundation: definition };
+  return { payload, projectId, projectCode, foundation: definition };
 }
 
-function authorizeCurrentFoundation(current: ValidatedCurrentRow, context: FoundationStoreContext): void {
+function authorizeCurrentFoundation(
+  current: ValidatedCurrentRow,
+  context: FoundationStoreContext,
+  selectedProjectCode?: string
+): void {
   if (!current.foundation) throw corrupt('Current Graph foundation definition is missing');
+  if (selectedProjectCode !== undefined && current.projectCode !== selectedProjectCode) {
+    throw scopeViolation('The current Graph project is outside the selected project scope');
+  }
   const definition = current.foundation;
   if (!canRead(definition.acl, context.principal)) {
     throw new FoundationStoreError('authorization_denied', 'The current foundation ACL does not permit this principal');
@@ -469,6 +674,32 @@ function assertStorageDigest(row: GraphFoundationHistoryRow): void {
 function assertRowIdentity(row: GraphFoundationHistoryRow, id: string, type: string, revision: string): void {
   if (row.entity_id !== id || row.entity_type !== type || row.revision !== revision) {
     throw corrupt('Foundation history identity does not match the requested revision');
+  }
+}
+
+function parseFoundationType(value: unknown): FoundationType {
+  if (typeof value === 'string' && FOUNDATION_TYPES.includes(value as FoundationType)) {
+    return value as FoundationType;
+  }
+  throw corrupt('Foundation history entity_type is invalid');
+}
+
+function requireRevision(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !REVISION_PATTERN.test(value)) {
+    throw corrupt(`${label} must be a positive revision`);
+  }
+  return value;
+}
+
+function assertEntityId(value: string): void {
+  if (typeof value !== 'string' || value.trim().length === 0 || value.includes('\0')) {
+    throw new FoundationStoreError('invalid_input', 'A foundation entity id is required');
+  }
+}
+
+function assertFoundationType(value: FoundationType): void {
+  if (!FOUNDATION_TYPES.includes(value)) {
+    throw new FoundationStoreError('invalid_input', 'A supported foundation type is required');
   }
 }
 
@@ -503,6 +734,10 @@ function assertReaderOptions(options: GraphFoundationReaderOptions): void {
   if (options.context.scope !== undefined) {
     const scope = options.context.scope;
     if (!isValidFoundationScope(scope)) throw new TypeError('A trusted Graph foundation scope is invalid');
+  }
+  if (options.selectedProjectCode !== undefined
+    && (typeof options.selectedProjectCode !== 'string' || options.selectedProjectCode.trim().length === 0)) {
+    throw new TypeError('A selected Graph project code is invalid');
   }
 }
 

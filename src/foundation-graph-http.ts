@@ -1,12 +1,14 @@
 import {
   FOUNDATION_HTTP_CONTRACT_VERSION,
   createFoundationHttpRouter,
+  createObjectiveFoundationRoute,
   type FoundationHttpCsrfVerifier,
   type FoundationHttpRouter
 } from './foundation-http.js';
+import { checkObjectiveReadiness } from './company-os-objectives.js';
 import { createFoundationPublicProvider, createFoundationPublicRoute } from './foundation-public-provider.js';
 import { createGraphFoundationReaders, type GraphFoundationHistoryRow } from './graph-foundation-reader.js';
-import type { FoundationStoreContext } from './foundation-store.js';
+import { FoundationStoreError, type FoundationStoreContext } from './foundation-store.js';
 
 /**
  * Readiness probe for the Graph history contract used by the public adapter.
@@ -277,16 +279,36 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
 
           const readers = createGraphFoundationReaders({
             context,
+            selectedProjectCode: scopeId,
             query: async (text, values) => ({
               rows: (await client.query(text, values ?? [])).rows as readonly GraphFoundationHistoryRow[]
             })
           });
           const provider = createFoundationPublicProvider(readers);
           const route = createFoundationPublicRoute(provider);
+          const objectiveRoute = createObjectiveFoundationRoute({
+            objectives: {
+              async createObjective() {
+                throw new FoundationStoreError('unsupported_graph', 'Objective writes are not configured for the Graph read adapter');
+              },
+              async readObjective(id, objectiveContext, revision) {
+                return revision === undefined
+                  ? readers.store.readLatest('objective', id, objectiveContext)
+                  : readers.store.read({ id, type: 'objective', revision }, objectiveContext);
+              },
+              async updateObjective() {
+                throw new FoundationStoreError('unsupported_graph', 'Objective writes are not configured for the Graph read adapter');
+              },
+              async checkObjectiveReadiness(id, objectiveContext, revision) {
+                return checkObjectiveReadiness(readers.store, id, objectiveContext, revision);
+              },
+              list: (type, objectiveContext) => readers.store.list(type, objectiveContext)
+            }
+          });
           const handler = createFoundationHttpRouter({
             resolveContext: () => context,
             csrf: options.csrf,
-            routes: [route],
+            routes: [route, objectiveRoute],
             bodyLimitBytes
           });
           return handler.handle(request);
