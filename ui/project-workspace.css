@@ -1,13 +1,13 @@
 /* Shared project knowledge workspace. Load after graph-view-shared.css. */
 
 .bb-pkw {
-  --bb-color-ink: #172d4f;
-  --bb-color-muted: #566b87;
-  --bb-color-border: #dce4ee;
-  --bb-color-border-strong: #c8d4e2;
-  --bb-color-surface: #fff;
-  --bb-color-accent: #1261ad;
-  --bb-color-accent-strong: #194f8a;
+  --bb-color-ink: var(--bb-color-project-ink);
+  --bb-color-muted: var(--bb-color-project-muted);
+  --bb-color-border: var(--bb-color-project-border);
+  --bb-color-border-strong: var(--bb-color-project-border-strong);
+  --bb-color-surface: var(--bb-color-panel);
+  --bb-color-accent: var(--bb-color-project-accent);
+  --bb-color-accent-strong: var(--bb-color-project-accent-strong);
   display: grid;
   gap: var(--bb-space-4);
   min-width: 0;
@@ -579,7 +579,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
   padding: 8px 12px;
-  background: #fff;
+  background: var(--bb-color-panel);
 }
 
 .bb-pkw-dense-metric-label {
@@ -613,7 +613,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
   padding: 10px 14px;
-  background: #fff;
+  background: var(--bb-color-panel);
 }
 
 .bb-pkw-dense-card-wide {
