@@ -94,6 +94,15 @@ describe('project knowledge projection', () => {
       sections: [{ id: 'tasks', title: 'タスク', state: 'failed', message: '上流が停止中', items: [] }],
     });
   });
+
+  it('preserves a pending section in a bare progress snapshot', () => {
+    expect(normalizeProjectContext('project-atlas', {
+      sections: [
+        { id: 'tasks', title: 'タスク', state: 'ok', items: [{ id: 'task-1', title: '確認' }] },
+        { id: 'knowledge', title: '知識', state: 'loading', items: [] },
+      ],
+    })).toMatchObject({ projectId: 'project-atlas', state: 'loading' });
+  });
 });
 
 const fullEntity = (overrides = {}) => ({

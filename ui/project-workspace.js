@@ -118,7 +118,7 @@ export function normalizeProjectContext(projectId, result) {
   if (sections.length === 0 && payload.sections.length > 0) {
     return { projectId: id, state: 'unavailable', message: '補足情報の形式を確認できません。', sections: [] };
   }
-  return { projectId: id, state: 'ok', sections };
+  return { projectId: id, state: sections.some((section) => section.state === 'loading') ? 'loading' : 'ok', sections };
 }
 
 function addEntity(map, candidate) {
