@@ -62,7 +62,7 @@ function normalizeContextItem(item) {
   const title = cleanName(item.title, item.name);
   if (!id || !title) return null;
   const normalized = { id, title };
-  for (const key of ['kind', 'status', 'summary', 'owner', 'assignee', 'dueAt', 'updatedAt', 'eventAt', 'body', 'description', 'sourceRecordId', 'relatedRecordId', 'relatedTaskId', 'sourcePath', 'provenance']) {
+  for (const key of ['kind', 'status', 'priority', 'summary', 'owner', 'assignee', 'dueAt', 'updatedAt', 'eventAt', 'body', 'description', 'sourceRecordId', 'relatedRecordId', 'relatedTaskId', 'sourcePath', 'provenance']) {
     const value = textOrNull(item[key]);
     if (value) normalized[key] = value;
   }
@@ -549,6 +549,16 @@ function sortDenseItems(items) {
   });
 }
 
+function todayActionItems(items, now = new Date()) {
+  const endOfToday = new Date(now);
+  endOfToday.setHours(23, 59, 59, 999);
+  return sortDenseItems(items.filter((item) => {
+    if (/確認待ち|要確認|承認待ち|blocked|needs.review|waiting/i.test(item.status ?? '')) return true;
+    const due = Date.parse(item.dueAt ?? '');
+    return Number.isFinite(due) && due <= endOfToday.getTime() && !/完了|done|closed/i.test(item.status ?? '');
+  }));
+}
+
 function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   const payload = projectDetailPayload(detail);
   const taskSection = contextTaskSection(context);
@@ -564,7 +574,7 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
     .filter((item) => item.updatedAt || item.eventAt)
     .sort((left, right) => (Date.parse(right.updatedAt ?? right.eventAt) || 0) - (Date.parse(left.updatedAt ?? left.eventAt) || 0))
     .slice(0, 4);
-  const due = sortDenseItems(tasks).slice(0, 6);
+  const due = todayActionItems(tasks).slice(0, 6);
   const total = explicitSectionTotal(taskSection);
   const taskMetric = total === null ? '未確認' : `${total}件`;
   const taskNote = taskSection?.state === 'ok' ? (total === null ? `${tasks.length}件を表示` : '取得済みの総数') : '取得状態を確認中';

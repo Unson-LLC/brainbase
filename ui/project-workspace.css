@@ -1,6 +1,13 @@
 /* Shared project knowledge workspace. Load after graph-view-shared.css. */
 
 .bb-pkw {
+  --bb-color-ink: #172d4f;
+  --bb-color-muted: #566b87;
+  --bb-color-border: #dce4ee;
+  --bb-color-border-strong: #c8d4e2;
+  --bb-color-surface: #fff;
+  --bb-color-accent: #1261ad;
+  --bb-color-accent-strong: #194f8a;
   display: grid;
   gap: var(--bb-space-4);
   min-width: 0;
@@ -537,9 +544,7 @@
 }
 
 .bb-pkw-dense-intro {
-  display: grid;
-  gap: var(--bb-space-1);
-  min-width: 0;
+  display: none;
 }
 
 .bb-pkw-dense-eyebrow {
@@ -574,7 +579,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
   padding: var(--bb-space-3);
-  background: var(--bb-color-surface);
+  background: #fff;
 }
 
 .bb-pkw-dense-metric-label {
@@ -593,8 +598,12 @@
 
 .bb-pkw-dense-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--bb-space-3);
+}
+
+.bb-pkw-dense-supporting-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .bb-pkw-dense-card {
@@ -604,7 +613,7 @@
   border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-sm);
   padding: var(--bb-space-4);
-  background: var(--bb-color-surface);
+  background: #fff;
 }
 
 .bb-pkw-dense-card-wide {
@@ -714,7 +723,7 @@
   display: grid;
   grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(94px, 1fr));
   gap: var(--bb-space-2);
-  min-width: 680px;
+  min-width: 0;
   border-bottom: 1px solid var(--bb-color-border-strong);
   padding: 0 0 var(--bb-space-2);
   color: var(--bb-color-muted);
@@ -727,9 +736,9 @@
   grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(94px, 1fr));
   gap: var(--bb-space-2);
   align-items: center;
-  min-width: 680px;
+  min-width: 0;
   border-bottom: 1px solid var(--bb-color-border);
-  padding: var(--bb-space-3) 0;
+  padding: 6px 0;
 }
 
 .bb-pkw-dense-table .bb-pkw-dense-item-head {

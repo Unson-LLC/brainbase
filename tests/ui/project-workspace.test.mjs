@@ -347,6 +347,26 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('limits today actions to due or confirmation work', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      context: { projectId: 'project-atlas', state: 'ok', sections: [{
+        id: 'tasks', title: '仕事', state: 'ok', total: 3, items: [
+          { id: 'due', title: '期限超過の仕事', status: '進行中', dueAt: '2020-01-01' },
+          { id: 'waiting', title: '確認待ちの仕事', status: '確認待ち' },
+          { id: 'future', title: '将来の仕事', status: '未着手', dueAt: '2099-01-01' },
+        ],
+      }] },
+    });
+    const today = section(workspace.element, '今日判断・対応すること');
+    const text = collectText(today);
+    expect(text).toContain('期限超過の仕事');
+    expect(text).toContain('確認待ちの仕事');
+    expect(text).not.toContain('将来の仕事');
+    workspace.destroy();
+  });
+
   it('keeps loading and failed reads renderable, then shows the fetched entity summary and metadata', async () => {
     let resolveRead;
     const readEntity = vi.fn(() => new Promise((resolve) => { resolveRead = resolve; }));
