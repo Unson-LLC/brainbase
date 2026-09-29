@@ -639,8 +639,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-foundation-graph-objective-read",
+        "title": "組織の目的をGraph正本から読み取れる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-project-navigation-fast"
+    "current_story_id": "story-foundation-graph-objective-read"
   }
 }
