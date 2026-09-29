@@ -553,9 +553,10 @@ function todayActionItems(items, now = new Date()) {
   const endOfToday = new Date(now);
   endOfToday.setHours(23, 59, 59, 999);
   return sortDenseItems(items.filter((item) => {
+    if (/完了|取消|キャンセル|中止|取下げ|completed|cancell?ed|done|closed/i.test(item.status ?? '')) return false;
     if (/確認待ち|要確認|承認待ち|blocked|needs.review|waiting/i.test(item.status ?? '')) return true;
     const due = Date.parse(item.dueAt ?? '');
-    return Number.isFinite(due) && due <= endOfToday.getTime() && !/完了|done|closed/i.test(item.status ?? '');
+    return Number.isFinite(due) && due <= endOfToday.getTime();
   }));
 }
 
@@ -576,8 +577,8 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
     .slice(0, 4);
   const due = todayActionItems(tasks).slice(0, 6);
   const total = explicitSectionTotal(taskSection);
-  const taskMetric = total === null ? '未確認' : `${total}件`;
-  const taskNote = taskSection?.state === 'ok' ? (total === null ? `${tasks.length}件を表示` : '取得済みの総数') : '取得状態を確認中';
+  const taskMetric = total === null ? (taskSection?.state === 'ok' ? `${tasks.length}件表示` : '未確認') : `${total}件`;
+  const taskNote = taskSection?.state === 'ok' ? (total === null ? '総数は未確認' : '取得済みの総数') : '取得状態を確認中';
   const panel = makeElement(doc, 'section', { className: 'bb-pkw-dense-overview', attrs: { 'aria-label': 'プロジェクト概要' } });
   const intro = makeElement(doc, 'div', { className: 'bb-pkw-dense-intro' });
   intro.append(makeElement(doc, 'div', { className: 'bb-pkw-dense-eyebrow', text: '今日見る' }), makeElement(doc, 'h3', { text: cleanName(payload?.project?.name, 'プロジェクト') }), makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '量を把握して、必要な仕事と根拠へ進みます。' }));

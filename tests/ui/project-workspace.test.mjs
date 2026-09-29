@@ -352,10 +352,11 @@ describe('project knowledge workspace lifecycle', () => {
       document: new FakeDocument(),
       detail: detail(),
       context: { projectId: 'project-atlas', state: 'ok', sections: [{
-        id: 'tasks', title: '仕事', state: 'ok', total: 3, items: [
+        id: 'tasks', title: '仕事', state: 'ok', items: [
           { id: 'due', title: '期限超過の仕事', status: '進行中', dueAt: '2020-01-01' },
           { id: 'waiting', title: '確認待ちの仕事', status: '確認待ち' },
           { id: 'future', title: '将来の仕事', status: '未着手', dueAt: '2099-01-01' },
+          { id: 'cancelled', title: '取消済みの仕事', status: '取消済み', dueAt: '2020-01-01' },
         ],
       }] },
     });
@@ -364,6 +365,9 @@ describe('project knowledge workspace lifecycle', () => {
     expect(text).toContain('期限超過の仕事');
     expect(text).toContain('確認待ちの仕事');
     expect(text).not.toContain('将来の仕事');
+    expect(text).not.toContain('取消済みの仕事');
+    expect(collectText(workspace.element)).toContain('4件表示');
+    expect(collectText(workspace.element)).toContain('総数は未確認');
     workspace.destroy();
   });
 
