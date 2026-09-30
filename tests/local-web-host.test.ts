@@ -1,11 +1,11 @@
-import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFoundationRevisionStore } from '../src/foundation-store.js';
-import { createLocalWebHost, LOCAL_WEB_TOKEN_HEADER } from '../src/local-web-host.js';
+import { createLocalWebHost, LOCAL_WEB_TOKEN_HEADER, type LocalWebExtension } from '../src/local-web-host.js';
 import type { ConstraintDefinition, ModelDefinition, ObjectiveDefinition, VariableDefinition } from '../src/ontology-foundation.js';
 import { initializePersonalOs, mutatePersonalOs } from '../src/ssot.js';
 import { createWorldModelStore } from '../src/world-model.js';
@@ -17,12 +17,13 @@ let directory: string;
 let dataDir: string;
 let server: Server | null = null;
 
-async function start(options: { dataDir?: string } = {}): Promise<string> {
+async function start(options: { dataDir?: string; extensions?: readonly LocalWebExtension[] } = {}): Promise<string> {
   const host = createLocalWebHost({
     dataDir: options.dataDir ?? dataDir,
     journalRoot: join(directory, 'journal'),
     token: TOKEN,
-    now: () => new Date('2026-09-26T00:00:00.000Z')
+    now: () => new Date('2026-09-26T00:00:00.000Z'),
+    extensions: options.extensions
   });
   server = host.server;
   await new Promise<void>((resolve) => host.server.listen(0, '127.0.0.1', () => resolve()));
@@ -169,6 +170,51 @@ afterEach(async () => {
 });
 
 describe('local web host protections', () => {
+  it('mounts an allowlisted private screen and confines its API to its own prefix', async () => {
+    const uiDir = join(directory, 'extension-ui');
+    await mkdir(uiDir);
+    await writeFile(join(uiDir, 'screen.js'), 'export const screen = { id: "example" };');
+    await writeFile(join(uiDir, 'screen.css'), 'body { color: black; }');
+    let calls = 0;
+    const extension: LocalWebExtension = {
+      id: 'example', uiDir, uiFiles: ['screen.js', 'screen.css'], screenEntry: 'screen.js',
+      createModule: () => ({ id: 'example', uiFiles: [], async handle(_request, response) {
+        calls += 1;
+        response.end('example');
+        return true;
+      } })
+    };
+    const base = await start({ extensions: [extension] });
+    const html = await (await fetch(base)).text();
+    expect(html).toContain('/ui/extensions/example/screen.css');
+    expect((await (await fetch(`${base}/app.js`)).text())).toContain("/ui/extensions/example/screen.js");
+    expect((await (await fetch(`${base}/app.js`)).text())).toContain('screens: [...LOCAL_WEB_SCREENS, ...extensionScreens]');
+    expect((await (await fetch(`${base}/app.js`)).text())).toContain("throw new Error('Invalid extension screen id')");
+    expect((await fetch(`${base}/ui/extensions/example/screen.js`)).status).toBe(200);
+    expect((await fetch(`${base}/ui/extensions/example/private.js`)).status).toBe(404);
+    expect((await (await fetch(`${base}/api/extensions/example`)).text())).toBe('example');
+    expect(calls).toBe(1);
+    expect((await fetch(`${base}/api/local/status`)).status).toBe(200);
+    expect((await fetch(`${base}/api/extensions/example-other`)).status).toBe(404);
+    expect(calls).toBe(1);
+    const rebound = await rawRequest(base, '/api/extensions/example', { host: `evil.example:${new URL(base).port}` });
+    expect(rebound.status).toBe(403);
+    expect(calls).toBe(1);
+    expect((await fetch(`${base}/api/extensions/example`, { method: 'POST' })).status).toBe(403);
+    expect(calls).toBe(1);
+  });
+
+  it('rejects invalid extension names, paths and duplicate registrations', () => {
+    const extension: LocalWebExtension = {
+      id: 'example', uiDir: directory, uiFiles: ['screen.js'], screenEntry: 'screen.js',
+      createModule: () => ({ id: 'example', uiFiles: [], handle: async () => false })
+    };
+    expect(() => createLocalWebHost({ extensions: [{ ...extension, id: '../bad' }] })).toThrow(/Invalid/);
+    expect(() => createLocalWebHost({ extensions: [extension, extension] })).toThrow(/duplicate/);
+    expect(() => createLocalWebHost({ extensions: [{ ...extension, uiFiles: ['../private.js'] }] })).toThrow(/allowlisted/);
+    expect(() => createLocalWebHost({ extensions: [{ ...extension, screenEntry: 'other.js' }] })).toThrow(/allowlisted/);
+  });
+
   it('serves one shell with the token, a strict CSP and only allowlisted UI files', async () => {
     await v2DataDir();
     const base = await start();

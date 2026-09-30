@@ -57,6 +57,8 @@ Brainbaseの価値は、情報を多く保存することではありません�
 
 共通UIの最初の公開単位として、知識UIを `@unson/brainbase-mcp/ui/*` から利用できます。Mana委任UIはUnsonの実行基盤（Mana）に結びつくため組織版の画面とし、0.8.0の後に共通UIから外しました。
 
+私有版の画面は `createLocalWebHost({ extensions })` へ登録します。ホストが共通ナビ、静的ファイルの許可リスト、loopback Host検査、書込時の同一Origin・起動トークン検査を担います。拡張のAPIは `/api/extensions/<id>`、画面資産は `/ui/extensions/<id>` に限られ、私有コードはこの公開packageへ含めません。契約と受入条件は[拡張Story](docs/stories/story-local-web-private-extension-v1.md)に記録しています。
+
 実装済み・develop・計画中の境界は、[現在の状態](https://brainbase.pages.dev/guide/status)を参照してください。
 
 ## 10分で試す
