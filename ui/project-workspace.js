@@ -62,7 +62,7 @@ function normalizeContextItem(item) {
   const title = cleanName(item.title, item.name);
   if (!id || !title) return null;
   const normalized = { id, title };
-  for (const key of ['kind', 'status', 'priority', 'summary', 'owner', 'assignee', 'dueAt', 'updatedAt', 'eventAt', 'body', 'description', 'sourceRecordId', 'relatedRecordId', 'relatedTaskId', 'sourcePath', 'provenance']) {
+  for (const key of ['kind', 'status', 'statusKind', 'priority', 'summary', 'owner', 'assignee', 'dueAt', 'updatedAt', 'eventAt', 'body', 'description', 'sourceRecordId', 'relatedRecordId', 'relatedTaskId', 'sourcePath', 'provenance']) {
     const value = textOrNull(item[key]);
     if (value) normalized[key] = value;
   }
@@ -338,7 +338,46 @@ function contextSectionSkeleton(doc, { title = null, message = null } = {}) {
   return group;
 }
 
-function renderProjectContextGroup(doc, item) {
+function contextTaskDue(value) {
+  if (!value) return '未確認';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? value
+    : new Intl.DateTimeFormat('ja-JP', { month: 'numeric', day: 'numeric' }).format(date);
+}
+
+function contextTaskOverdue(value, statusKind) {
+  if (!value || ['ok', 'fail'].includes(statusKind)) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  date.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+  return date < today;
+}
+
+function renderProjectContextTaskRow(doc, entry, onTaskOpen) {
+  const status = entry.status ?? '未確認';
+  const kind = ['ok', 'wait', 'fail'].includes(entry.statusKind) ? entry.statusKind : '';
+  const row = makeElement(doc, 'li', { className: 'bb-pkw-context-task-row' });
+  row.append(makeElement(doc, 'span', {
+    className: `bb-pkw-context-task-state${kind ? ` bb-pkw-context-task-${kind}` : ''}`,
+    attrs: { 'aria-hidden': 'true' },
+  }));
+  row.append(typeof onTaskOpen === 'function'
+    ? denseButton(doc, entry.title, 'bb-pkw-context-task-title', () => onTaskOpen(entry.id), { title: entry.title, 'data-item-id': entry.id })
+    : makeElement(doc, 'strong', { className: 'bb-pkw-context-task-title', text: entry.title, attrs: { title: entry.title } }));
+  row.append(makeElement(doc, 'span', { className: 'bb-pkw-context-task-owner', text: entry.owner ?? entry.assignee ?? '担当者を確認できていない' }));
+  row.append(makeElement(doc, 'time', {
+    className: `bb-pkw-context-task-due${contextTaskOverdue(entry.dueAt, kind) ? ' bb-pkw-context-task-overdue' : ''}`,
+    text: contextTaskDue(entry.dueAt),
+    attrs: entry.dueAt ? { datetime: entry.dueAt } : {},
+  }));
+  row.append(makeElement(doc, 'span', { className: `bb-pkw-context-task-stage${kind ? ` bb-pkw-context-task-${kind}` : ''}`, text: status }));
+  return row;
+}
+
+function renderProjectContextGroup(doc, item, onTaskOpen) {
   const group = makeElement(doc, 'section', {
     className: `bb-pkw-context-group${item.state === 'loading' ? ' bb-pkw-context-group-loading' : ''}`,
     attrs: { 'aria-label': item.title, ...(item.state === 'loading' ? { 'aria-busy': 'true' } : {}) },
@@ -357,8 +396,13 @@ function renderProjectContextGroup(doc, item) {
   } else if (item.state === 'unknown') {
     group.append(workspaceNotice(doc, { label: '未確認', text: item.message ?? 'このセクションの取得状態は確認できません。', tone: 'warning' }));
   } else if (item.items.length > 0) {
-    const list = makeElement(doc, 'ul', { className: 'bb-pkw-context-list' });
+    const taskList = item.items.every((entry) => entry.kind === 'task');
+    const list = makeElement(doc, 'ul', { className: `bb-pkw-context-list${taskList ? ' bb-pkw-context-task-list' : ''}` });
     for (const entry of item.items) {
+      if (entry.kind === 'task') {
+        list.append(renderProjectContextTaskRow(doc, entry, onTaskOpen));
+        continue;
+      }
       const row = makeElement(doc, 'li');
       row.append(makeElement(doc, 'strong', { text: entry.title }));
       if (entry.status) row.append(badge(doc, entry.status, 'muted'));
@@ -385,6 +429,7 @@ export function renderProjectContext(doc, context, {
   sections: selectedSections = null,
   includeStatus = true,
   includeHeading = true,
+  onTaskOpen = null,
 } = {}) {
   if (!context) return null;
   const sections = Array.isArray(selectedSections)
@@ -407,7 +452,7 @@ export function renderProjectContext(doc, context, {
     section.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '補足情報のセクションはありません。' }));
     return section;
   }
-  for (const item of sections) section.append(renderProjectContextGroup(doc, item));
+  for (const item of sections) section.append(renderProjectContextGroup(doc, item, onTaskOpen));
   return section;
 }
 
@@ -850,7 +895,7 @@ function renderOverview(doc, detail, context, edges, entities, onSelect, onConte
   columns.append(people);
   panel.append(columns);
 
-  const contextBlock = renderProjectContext(doc, context);
+  const contextBlock = renderProjectContext(doc, context, { onTaskOpen: actions.openWorkDetail });
   if (contextBlock) {
     panel.append(contextBlock);
     if (typeof onContext === 'function') onContext(contextBlock, null);
@@ -1250,7 +1295,7 @@ export function createProjectKnowledgeWorkspace({
       render();
       return;
     }
-    const nextBlock = renderProjectContext(doc, currentContext);
+    const nextBlock = renderProjectContext(doc, currentContext, { onTaskOpen: openWorkDetail });
     if (!nextBlock) {
       if (contextBlock?.parentNode && typeof contextBlock.parentNode.replaceChild === 'function') {
         const nextAnchor = projectContextInsertionAnchor(doc);
