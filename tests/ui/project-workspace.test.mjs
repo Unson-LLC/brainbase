@@ -225,16 +225,14 @@ describe('project knowledge workspace lifecycle', () => {
 
     expect(findAll(workspace.element, (node) => String(node.className).includes('bb-pkw-graph-canvas'))[0]).toBe(canvas);
     expect(findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '情報を探す')[0].attributes['aria-selected']).toBe('true');
+    workspace.setTab('overview');
     const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
-    const contextBlock = findAll(overview, (node) => String(node.className).split(' ').includes('bb-pkw-context'))[0];
-    const decisions = section(overview, '記録された判断');
-    expect(collectText(contextBlock)).toContain('導入確認');
-    expect(contextBlock.parentNode).toBe(overview);
-    expect(overview.children.indexOf(contextBlock)).toBeLessThan(overview.children.indexOf(decisions));
+    expect(collectText(section(overview, '項目別の一覧'))).toContain('1件取得済み');
+    expect(collectText(overview)).not.toContain('導入確認');
     workspace.destroy();
   });
 
-  it('places resolved context immediately after the overview columns', () => {
+  it('shows category counts without expanding every record on the overview', () => {
     const workspace = createProjectKnowledgeWorkspace({
       document: new FakeDocument(),
       detail: detail(),
@@ -251,14 +249,12 @@ describe('project knowledge workspace lifecycle', () => {
     });
 
     const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
-    const contextBlock = findAll(overview, (node) => String(node.className).split(' ').includes('bb-pkw-context'))[0];
-    const decisions = section(overview, '記録された判断');
-
-    expect(contextBlock).toBeDefined();
-    expect(collectText(contextBlock)).toContain('導入確認');
-    expect(contextBlock.parentNode).toBe(overview);
-    expect(decisions.parentNode).toBe(overview);
-    expect(overview.children.indexOf(contextBlock)).toBeLessThan(overview.children.indexOf(decisions));
+    const directory = section(overview, '項目別の一覧');
+    expect(directory).toBeDefined();
+    expect(collectText(directory)).toContain('タスク1件取得済み');
+    expect(collectText(directory)).toContain('総数未確認');
+    expect(collectText(directory)).toContain('判断件数未確認未接続');
+    expect(collectText(overview)).not.toContain('最初に確認する作業');
     workspace.destroy();
   });
 
@@ -321,6 +317,49 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('opens separate category lists, pages through records, and returns from a detail', () => {
+    const records = Array.from({ length: 21 }, (_, index) => ({
+      id: `decision-${index + 1}`,
+      title: `判断 ${index + 1}`,
+      status: index === 20 ? '確定' : '検討中',
+      summary: `判断の要点 ${index + 1}`,
+    }));
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail(),
+      context: { projectId: 'project-atlas', state: 'ok', sections: [
+        { id: 'tasks', title: 'タスク', state: 'ok', total: 0, items: [] },
+        { id: 'decisions', title: '判断', state: 'ok', total: 30, items: records },
+        { id: 'knowledge', title: '知識', state: 'ok', items: [{ id: 'knowledge-1', title: '手順書' }] },
+        { id: 'glossary', title: '用語集', state: 'failed', message: '読取失敗', items: [] },
+      ] },
+    });
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    expect(collectText(section(overview, '項目別の一覧'))).toContain('30件 · 21件取得済み · 続き未取得');
+    expect(collectText(section(overview, '項目別の一覧'))).toContain('タスク0件 · 0件取得済み該当項目なし');
+    expect(collectText(section(overview, '項目別の一覧'))).toContain('用語集件数未確認読み取り失敗');
+    expect(collectText(overview)).not.toContain('判断 21');
+    buttonsNamed(overview, '一覧を見る')[1].dispatch('click');
+    const list = section(workspace.element, '判断一覧');
+    const rows = () => findAll(list, (node) => node.tagName === 'LI' && String(node.className).includes('bb-pkw-dense-item'));
+    expect(rows()).toHaveLength(16);
+    expect(collectText(list)).toContain('表示 1–16件');
+    expect(collectText(list)).toContain('総数 30件（続き未取得）');
+    expect(collectText(rows()[0])).not.toContain('判断の要点 1');
+    buttonsNamed(list, '次へ')[0].dispatch('click');
+    expect(rows()).toHaveLength(5);
+    expect(collectText(list)).toContain('表示 17–21件');
+    buttonsNamed(list, '判断 21')[0].dispatch('click');
+    const detailPanel = section(workspace.element, '記録詳細');
+    expect(collectText(detailPanel)).toContain('判断の要点 21');
+    buttonsNamed(detailPanel, '← 判断一覧')[0].dispatch('click');
+    const returnedList = section(workspace.element, '判断一覧');
+    expect(returnedList).toBeDefined();
+    expect(collectText(returnedList)).toContain('表示 17–21件');
+    expect(findAll(returnedList, (node) => node.tagName === 'LI' && String(node.className).includes('bb-pkw-dense-item'))).toHaveLength(5);
+    workspace.destroy();
+  });
+
   it('filters dense work rows by owner and due state, then caps the first page', () => {
     const items = Array.from({ length: 18 }, (_, index) => ({
       id: `task-${index + 1}`,
@@ -340,6 +379,11 @@ describe('project knowledge workspace lifecycle', () => {
     buttonsNamed(workspace.element, 'すべて見る')[0].dispatch('click');
     const rows = () => findAll(workspace.element, (node) => node.tagName === 'DIV' && node.attributes.role === 'listitem' && String(node.className).includes('bb-pkw-work-row'));
     expect(rows()).toHaveLength(16);
+    expect(collectText(workspace.element)).toContain('表示 1–16件');
+    buttonsNamed(workspace.element, '次へ')[0].dispatch('click');
+    expect(rows()).toHaveLength(2);
+    expect(collectText(workspace.element)).toContain('表示 17–18件');
+    expect(collectText(rows()[1])).toContain('導入確認 18');
 
     const owner = control(workspace.element, 'work-owner');
     owner.value = '鈴木 次郎';
@@ -351,6 +395,53 @@ describe('project knowledge workspace lifecycle', () => {
     due.dispatch('change');
     expect(rows()).toHaveLength(1);
     expect(collectText(rows()[0])).toContain('導入確認 18');
+    workspace.destroy();
+  });
+
+  it('keeps the search focused when more context arrives', () => {
+    class FocusDocument extends FakeDocument {
+      createElement(tagName) {
+        const element = super.createElement(tagName);
+        element.getAttribute = (name) => element.attributes[name] ?? null;
+        element.contains = (target) => findAll(element, (node) => node === target).length > 0;
+        element.closest = (selector) => {
+          for (let node = element; node; node = node.parentNode) {
+            if (selector === '.bb-pkw-work-controls' && String(node.className).split(' ').includes('bb-pkw-work-controls')) return node;
+          }
+          return null;
+        };
+        element.querySelector = (selector) => {
+          const name = /^\[name="([^"]+)"\]$/.exec(selector)?.[1];
+          return name ? findAll(element, (node) => node.attributes.name === name)[0] : null;
+        };
+        element.focus = () => { this.activeElement = element; };
+        element.setSelectionRange = (start, end) => { element.selectionStart = start; element.selectionEnd = end; };
+        return element;
+      }
+    }
+    const document = new FocusDocument();
+    const context = { projectId: 'project-atlas', state: 'ok', sections: [{
+      id: 'tasks', title: 'タスク', state: 'ok', items: [{ id: 'task-1', title: '導入確認' }],
+    }] };
+    const workspace = createProjectKnowledgeWorkspace({ document, detail: detail(), context });
+    buttonsNamed(workspace.element, 'すべて見る')[0].dispatch('click');
+    const search = control(workspace.element, 'work-search');
+    search.value = '導入';
+    search.dispatch('input');
+    search.focus();
+    search.setSelectionRange(2, 2);
+
+    workspace.setContext({ ...context, sections: [{ ...context.sections[0], items: [
+      ...context.sections[0].items,
+      { id: 'task-2', title: '導入準備' },
+    ] }] });
+
+    const nextSearch = control(workspace.element, 'work-search');
+    expect(nextSearch).not.toBe(search);
+    expect(nextSearch.value).toBe('導入');
+    expect(document.activeElement).toBe(nextSearch);
+    expect([nextSearch.selectionStart, nextSearch.selectionEnd]).toEqual([2, 2]);
+    expect(collectText(section(workspace.element, '仕事一覧'))).toContain('条件一致 2件');
     workspace.destroy();
   });
 
@@ -453,6 +544,8 @@ describe('project knowledge workspace lifecycle', () => {
 
     const overviewPerson = findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '佐藤 花子')[0];
     expect(overviewPerson).toBeDefined();
+    expect(collectText(section(workspace.element, '関係者'))).toContain('役割: 進行管理');
+    expect(collectText(section(workspace.element, '関係者'))).toContain('文脈: 週次の進行確認');
     overviewPerson.dispatch('click');
     await tick();
     await tick();
@@ -516,15 +609,16 @@ describe('project knowledge workspace lifecycle', () => {
       },
     });
 
-    const overviewPerson = findAll(workspace.element, (node) => node.tagName === 'BUTTON' && node.textContent === '佐藤 花子')[0];
-    overviewPerson.dispatch('click');
+    workspace.setTab('graph');
+    workspace.select('person-a');
     await tick();
     await tick();
 
     workspace.setTab('overview');
-    const decisions = section(workspace.element, '記録された判断');
-    expect(collectText(decisions)).toContain('Atlasの判断');
-    expect(collectText(decisions)).not.toContain('NCOMの判断');
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    expect(overview).toBeDefined();
+    expect(collectText(overview)).not.toContain('NCOMの判断');
+    expect(findAll(overview, (node) => String(node.className).includes('bb-pkw-dense-record-list'))[0].children).toHaveLength(2);
     workspace.destroy();
   });
 

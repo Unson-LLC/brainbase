@@ -417,13 +417,6 @@ function renderProjectContextGroup(doc, item, onTaskOpen) {
   return group;
 }
 
-function projectContextInsertionAnchor(doc) {
-  return makeElement(doc, 'span', {
-    className: 'bb-pkw-context-anchor',
-    attrs: { 'aria-hidden': 'true', hidden: 'true' },
-  });
-}
-
 /** Renders supplementary context while preserving each section's own state. */
 export function renderProjectContext(doc, context, {
   sections: selectedSections = null,
@@ -462,12 +455,7 @@ export function renderProjectKnowledgeSkeleton(doc, { context = null } = {}) {
     className: 'bb-pkw-panel bb-pkw-overview bb-pkw-overview-loading',
     attrs: { 'aria-label': '概要' },
   });
-  const contextSections = Array.isArray(context?.sections) ? context.sections : [];
-  const readySections = contextSections.filter((item) => item?.state === 'ok' && Array.isArray(item.items) && item.items.length > 0);
-  const deferredSections = contextSections.filter((item) => !readySections.includes(item));
-  if (readySections.length > 0) {
-    panel.append(renderProjectContext(doc, context, { sections: readySections, includeStatus: false }));
-  }
+  panel.append(renderContextDirectory(doc, context));
   const columns = makeElement(doc, 'div', { className: 'bb-pkw-columns' });
   for (const title of ['目的と現在地', '関係者と役割']) {
     const item = makeElement(doc, 'section', { className: 'bb-pkw-section bb-pkw-skeleton-section', attrs: { 'aria-label': title, 'aria-busy': 'true' } });
@@ -475,15 +463,6 @@ export function renderProjectKnowledgeSkeleton(doc, { context = null } = {}) {
     columns.append(item);
   }
   panel.append(columns);
-  for (const title of ['記録された判断', '関連する情報']) {
-    const item = makeElement(doc, 'section', { className: 'bb-pkw-section bb-pkw-skeleton-section', attrs: { 'aria-label': title, 'aria-busy': 'true' } });
-    item.append(makeElement(doc, 'h3', { text: title }), skeletonBars(doc, 2));
-    panel.append(item);
-  }
-  const contextBlock = readySections.length > 0
-    ? (deferredSections.length > 0 ? renderProjectContext(doc, context, { sections: deferredSections, includeHeading: false }) : null)
-    : renderProjectContext(doc, context ?? { state: 'loading', sections: [] });
-  if (contextBlock) panel.append(contextBlock);
   return panel;
 }
 
@@ -518,6 +497,51 @@ function explicitSectionTotal(section) {
     if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
   }
   return null;
+}
+
+const CONTEXT_CATEGORIES = [
+  ['tasks', 'タスク'], ['decisions', '判断'], ['knowledge', '知識'], ['glossary', '用語集'],
+];
+
+function contextSectionState(context, section) {
+  if (section) return section.state;
+  if (context?.state === 'failed') return 'failed';
+  if (context?.state === 'loading') return 'loading';
+  if (context?.state === 'unknown') return 'unknown';
+  return 'unavailable';
+}
+
+function contextCountLabel(context, section) {
+  if (contextSectionState(context, section) !== 'ok') return '件数未確認';
+  const total = explicitSectionTotal(section);
+  if (total === null) return `${section.items.length}件取得済み · 総数未確認`;
+  return `${total}件 · ${section.items.length}件取得済み${total > section.items.length ? ' · 続き未取得' : ''}`;
+}
+
+function renderContextDirectory(doc, context, actions = {}) {
+  const panel = makeElement(doc, 'section', { className: 'bb-pkw-section bb-pkw-context-directory', attrs: { 'aria-label': '項目別の一覧' } });
+  panel.append(makeElement(doc, 'h3', { text: '項目別に探す' }));
+  if (context?.state && context.state !== 'ok') panel.append(workspaceNotice(doc, {
+    label: context.state === 'loading' ? '読み込み中' : context.state === 'failed' ? '読み取り失敗' : '未確認',
+    text: context.message ?? '項目の取得状態を確認できません。',
+    tone: context.state === 'failed' ? 'danger' : 'info',
+  }));
+  const grid = makeElement(doc, 'div', { className: 'bb-pkw-directory-grid' });
+  for (const [id, title] of CONTEXT_CATEGORIES) {
+    const section = contextSectionById(context, [id]);
+    const state = contextSectionState(context, section);
+    const card = makeElement(doc, 'div', { className: 'bb-pkw-directory-card' });
+    card.append(makeElement(doc, 'h4', { text: title }));
+    card.append(makeElement(doc, 'p', { className: 'bb-pkw-directory-count', text: contextCountLabel(context, section) }));
+    const stateLabel = state === 'ok'
+      ? (explicitSectionTotal(section) === 0 && section.items.length === 0 ? '該当項目なし' : '取得済み')
+      : state === 'loading' ? '読み込み中' : state === 'failed' ? '読み取り失敗' : state === 'unavailable' ? '未接続' : '未確認';
+    card.append(makeElement(doc, 'small', { className: 'bb-pkw-muted', text: stateLabel }));
+    if (typeof actions.openSectionList === 'function') card.append(denseButton(doc, '一覧を見る', 'bb-pkw-dense-action', () => actions.openSectionList(id), { 'aria-label': `${title}の一覧を見る` }));
+    grid.append(card);
+  }
+  panel.append(grid);
+  return panel;
 }
 
 function denseDate(value) {
@@ -569,14 +593,14 @@ function denseContextStateNotice(doc, section, fallback = 'この情報はまだ
   return workspaceNotice(doc, { label, text: section.message ?? fallback, tone, role: section.state === 'failed' ? 'alert' : 'status' });
 }
 
-function renderDenseItemRow(doc, item, { kind = 'task', onOpen, table = false } = {}) {
+function renderDenseItemRow(doc, item, { kind = 'task', onOpen, table = false, includeSummary = true } = {}) {
   const row = makeElement(doc, 'li', { className: `bb-pkw-dense-item bb-pkw-dense-item-${kind}` });
   const head = makeElement(doc, 'div', { className: 'bb-pkw-dense-item-head' });
   const title = cleanName(item.title, item.name) ?? '名前不明';
   if (typeof onOpen === 'function' && item.id) head.append(denseButton(doc, title, 'bb-pkw-dense-link', () => onOpen(item.id), { 'data-item-id': item.id }));
   else head.append(makeElement(doc, 'strong', { text: title }));
   if (item.status) head.append(badge(doc, item.status, 'muted'));
-  row.append(head, denseItemFacts(doc, item, { table, includeSummary: !table }));
+  row.append(head, denseItemFacts(doc, item, { table, includeSummary: !table && includeSummary }));
   return row;
 }
 
@@ -611,10 +635,10 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   const tasks = contextTaskItems(context);
   const records = contextRecordItems(context);
   const graphRecords = [...(entities?.values?.() ?? [])].filter((entity) => !['project', 'person'].includes(entity.type));
-  const participants = [...new Map((payload?.participants ?? [])
-    .map((edge) => edge?.counterpart)
-    .filter((person) => person?.id && (person.name || person.title))
-    .map((person) => [person.id, person])).values()].slice(0, 6);
+  const participantEdges = [...new Map((payload?.participants ?? [])
+    .filter((edge) => edge?.counterpart?.id && (edge.counterpart.name || edge.counterpart.title))
+    .map((edge) => [edge.counterpart.id, edge])).values()];
+  const participants = participantEdges.slice(0, 6);
   const recentRecords = records.length > 0 ? sortDenseItems(records).slice(0, 4) : graphRecords.slice(0, 4);
   const updated = [...tasks, ...records]
     .filter((item) => item.updatedAt || item.eventAt)
@@ -633,7 +657,7 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
     denseMetric(doc, '仕事', taskMetric, taskNote),
     denseMetric(doc, '今日扱う仕事', taskSection?.state === 'ok' ? `${due.length}件` : '未確認', taskSection?.state === 'ok' ? '期限・更新が確認できる順' : 'タスクの状態を確認中'),
     denseMetric(doc, '前回からの変化', updated.length > 0 ? `${updated.length}件` : '未確認', updated.length > 0 ? '更新時点がある記録' : '更新時点が未確認'),
-    denseMetric(doc, '関係者', Array.isArray(payload?.participants) && payload.participants.length > 0 ? `${payload.participants.length}人` : '未確認', 'Graphに記録された参加関係'),
+    denseMetric(doc, '関係者', participantEdges.length > 0 ? `${participantEdges.length}人` : '未確認', 'Graphに記録された参加関係'),
   );
   panel.append(metrics);
 
@@ -688,10 +712,13 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   if (participants.length === 0) people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: 'Graphで確認できる関係者は未確認です。' }));
   else {
     const list = makeElement(doc, 'ul', { className: 'bb-pkw-dense-list' });
-    for (const person of participants) {
+    for (const edge of participants) {
+      const person = edge.counterpart;
       const row = makeElement(doc, 'li', { className: 'bb-pkw-dense-item' });
-      row.append(makeElement(doc, 'strong', { text: cleanName(person.name, person.title) }));
-      if (person.role) row.append(makeElement(doc, 'span', { className: 'bb-pkw-muted', text: person.role }));
+      row.append(recordLink(doc, cleanName(person.name, person.title), person.id, actions.openGraphEntity, 'bb-pkw-dense-link'));
+      row.append(badge(doc, relationLabel(edge.relation), edge.relation === 'accountable_for' ? 'accent' : 'muted'));
+      const facts = [textOrNull(edge.role) ? `役割: ${edge.role}` : null, textOrNull(edge.context) ? `文脈: ${edge.context}` : null].filter(Boolean);
+      if (facts.length > 0) row.append(makeElement(doc, 'span', { className: 'bb-pkw-muted', text: facts.join(' · ') }));
       list.append(row);
     }
     people.append(list);
@@ -701,7 +728,7 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   return panel;
 }
 
-function renderWorkList(doc, context, actions = {}) {
+function renderWorkList(doc, context, actions = {}, state = {}) {
   const section = contextTaskSection(context);
   const allItems = contextTaskItems(context);
   const panel = makeElement(doc, 'section', { className: 'bb-pkw-panel bb-pkw-route bb-pkw-work-list', attrs: { role: 'tabpanel', 'aria-label': '仕事一覧' } });
@@ -726,10 +753,19 @@ function renderWorkList(doc, context, actions = {}) {
     makeElement(doc, 'option', { text: '期限未確認', attrs: { value: 'missing' } }),
   );
   controls.append(search, status, owner, due);
+  search.value = state.query ?? '';
+  status.value = state.status ?? '';
+  owner.value = state.owner ?? '';
+  due.value = state.due ?? '';
   panel.append(controls);
   const count = makeElement(doc, 'p', { className: 'bb-pkw-work-count' });
   const rows = makeElement(doc, 'div', { className: 'bb-pkw-work-rows', attrs: { role: 'list', 'aria-label': '仕事の行' } });
-  panel.append(count, rows);
+  const pager = makeElement(doc, 'nav', { className: 'bb-pkw-list-pager', attrs: { 'aria-label': '仕事一覧のページ' } });
+  const previous = denseButton(doc, '前へ', 'bb-pkw-dense-action', () => { state.page -= 1; renderRows(); });
+  const next = denseButton(doc, '次へ', 'bb-pkw-dense-action', () => { state.page += 1; renderRows(); });
+  const pageLabel = makeElement(doc, 'span', { className: 'bb-pkw-muted' });
+  pager.append(previous, pageLabel, next);
+  panel.append(count, rows, pager);
   const renderRows = () => {
     const query = String(search.value ?? '').trim().toLocaleLowerCase();
     const selectedStatus = String(status.value ?? '');
@@ -744,8 +780,14 @@ function renderWorkList(doc, context, actions = {}) {
       return [item.title, item.summary, item.owner, item.assignee, item.status].filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(query));
     });
     const total = explicitSectionTotal(section);
-    const display = visible.slice(0, 16);
-    count.textContent = `表示 ${display.length}件${display.length < visible.length ? `（条件一致 ${visible.length}件の先頭）` : ''} / 総数 ${total === null ? '未確認' : `${total}件`}`;
+    state.page = Math.max(0, Math.min(state.page ?? 0, Math.max(0, Math.ceil(visible.length / 16) - 1)));
+    const display = visible.slice(state.page * 16, (state.page + 1) * 16);
+    const start = display.length > 0 ? state.page * 16 + 1 : 0;
+    const end = state.page * 16 + display.length;
+    count.textContent = `取得済み ${allItems.length}件 · 条件一致 ${visible.length}件 · 表示 ${start}–${end}件 · 総数 ${section?.state === 'ok' && total !== null ? `${total}件${total > allItems.length ? '（続き未取得）' : ''}` : '未確認'}`;
+    pageLabel.textContent = `${state.page + 1}ページ目`;
+    previous.disabled = state.page === 0;
+    next.disabled = (state.page + 1) * 16 >= visible.length;
     rows.replaceChildren();
     if (display.length === 0) {
       rows.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: section?.state === 'ok' ? '条件に一致する仕事はありません。' : '仕事の行は未確認です。' }));
@@ -760,10 +802,71 @@ function renderWorkList(doc, context, actions = {}) {
       rows.append(row);
     }
   };
-  search.addEventListener('input', renderRows);
-  status.addEventListener('change', renderRows);
-  owner.addEventListener('change', renderRows);
-  due.addEventListener('change', renderRows);
+  const resetRows = () => {
+    Object.assign(state, { query: search.value, status: status.value, owner: owner.value, due: due.value, page: 0 });
+    renderRows();
+  };
+  search.addEventListener('input', resetRows);
+  status.addEventListener('change', resetRows);
+  owner.addEventListener('change', resetRows);
+  due.addEventListener('change', resetRows);
+  renderRows();
+  return panel;
+}
+
+function renderRecordList(doc, context, sectionId, actions = {}, state = {}) {
+  const section = contextSectionById(context, [sectionId]);
+  const title = CONTEXT_CATEGORIES.find(([id]) => id === sectionId)?.[1] ?? section?.title ?? '記録';
+  const items = Array.isArray(section?.items) ? section.items : [];
+  const panel = makeElement(doc, 'section', { className: 'bb-pkw-panel bb-pkw-route bb-pkw-record-list', attrs: { role: 'tabpanel', 'aria-label': `${title}一覧` } });
+  const heading = makeElement(doc, 'div', { className: 'bb-pkw-route-heading' });
+  heading.append(denseButton(doc, '← 概要', 'bb-pkw-back', actions.openOverview), makeElement(doc, 'h3', { text: `${title}一覧` }));
+  panel.append(heading);
+  const notice = denseContextStateNotice(doc, section ?? (context?.state !== 'ok' ? context : { state: 'unknown' }), 'この区分を読み取れませんでした。');
+  if (notice) panel.append(notice);
+  const controls = makeElement(doc, 'div', { className: 'bb-pkw-work-controls', attrs: { 'aria-label': `${title}の絞り込み` } });
+  const search = makeElement(doc, 'input', { className: 'bb-pkw-work-search', attrs: { type: 'search', name: 'record-search', placeholder: `${title}を検索`, 'aria-label': `${title}を検索` } });
+  const status = makeElement(doc, 'select', { className: 'bb-pkw-work-status', attrs: { name: 'record-status', 'aria-label': '状態で絞り込む' } });
+  status.append(makeElement(doc, 'option', { text: 'すべての状態', attrs: { value: '' } }));
+  for (const value of new Set(items.map((item) => item.status).filter(Boolean))) status.append(makeElement(doc, 'option', { text: value, attrs: { value } }));
+  controls.append(search, status);
+  search.value = state.query ?? '';
+  status.value = state.status ?? '';
+  panel.append(controls);
+  const count = makeElement(doc, 'p', { className: 'bb-pkw-work-count' });
+  const rows = makeElement(doc, 'ul', { className: 'bb-pkw-dense-list', attrs: { 'aria-label': `${title}の行` } });
+  const pager = makeElement(doc, 'nav', { className: 'bb-pkw-list-pager', attrs: { 'aria-label': `${title}一覧のページ` } });
+  const previous = denseButton(doc, '前へ', 'bb-pkw-dense-action', () => { state.page -= 1; renderRows(); });
+  const next = denseButton(doc, '次へ', 'bb-pkw-dense-action', () => { state.page += 1; renderRows(); });
+  const pageLabel = makeElement(doc, 'span', { className: 'bb-pkw-muted' });
+  pager.append(previous, pageLabel, next);
+  panel.append(count, rows, pager);
+  const renderRows = () => {
+    const query = String(search.value ?? '').trim().toLocaleLowerCase();
+    const selectedStatus = String(status.value ?? '');
+    const visible = items.filter((item) => {
+      if (selectedStatus && item.status !== selectedStatus) return false;
+      return !query || [item.title, item.summary, item.status, item.owner, item.body].filter(Boolean).some((value) => String(value).toLocaleLowerCase().includes(query));
+    });
+    state.page = Math.max(0, Math.min(state.page ?? 0, Math.max(0, Math.ceil(visible.length / 16) - 1)));
+    const display = visible.slice(state.page * 16, (state.page + 1) * 16);
+    const start = display.length > 0 ? state.page * 16 + 1 : 0;
+    const end = state.page * 16 + display.length;
+    const total = explicitSectionTotal(section);
+    count.textContent = `取得済み ${items.length}件 · 条件一致 ${visible.length}件 · 表示 ${start}–${end}件 · 総数 ${section?.state === 'ok' && total !== null ? `${total}件${total > items.length ? '（続き未取得）' : ''}` : '未確認'}`;
+    pageLabel.textContent = `${state.page + 1}ページ目`;
+    previous.disabled = state.page === 0;
+    next.disabled = (state.page + 1) * 16 >= visible.length;
+    rows.replaceChildren();
+    if (visible.length === 0) {
+      rows.append(makeElement(doc, 'li', { className: 'bb-pkw-muted', text: section?.state === 'ok' ? '条件に一致する記録はありません。' : '記録の行は未確認です。' }));
+      return;
+    }
+    for (const item of display) rows.append(renderDenseItemRow(doc, item, { kind: 'record', onOpen: actions.openRecordDetail, includeSummary: false }));
+  };
+  const resetRows = () => { Object.assign(state, { query: search.value, status: status.value, page: 0 }); renderRows(); };
+  search.addEventListener('input', resetRows);
+  status.addEventListener('change', resetRows);
   renderRows();
   return panel;
 }
@@ -824,7 +927,7 @@ function renderWorkDetail(doc, item, context, actions = {}) {
 function renderRecordDetail(doc, record, context, actions = {}) {
   const panel = makeElement(doc, 'section', { className: 'bb-pkw-panel bb-pkw-route bb-pkw-detail', attrs: { role: 'tabpanel', 'aria-label': '記録詳細' } });
   const heading = makeElement(doc, 'div', { className: 'bb-pkw-route-heading' });
-  heading.append(denseButton(doc, '← 概要', 'bb-pkw-back', actions.openOverview), makeElement(doc, 'div', { className: 'bb-pkw-route-title' }));
+  heading.append(denseButton(doc, actions.recordSectionTitle ? `← ${actions.recordSectionTitle}一覧` : '← 概要', 'bb-pkw-back', actions.recordSectionTitle ? () => actions.openSectionList?.(actions.recordSectionId) : actions.openOverview), makeElement(doc, 'div', { className: 'bb-pkw-route-title' }));
   heading.children[1].append(makeElement(doc, 'h3', { text: cleanName(record?.title, record?.name) ?? '記録詳細' }), record?.kind || record?.type ? badge(doc, typeLabel(record.kind ?? record.type), 'accent') : null);
   panel.append(heading);
   if (!record) {
@@ -859,12 +962,12 @@ function renderRecordDetail(doc, record, context, actions = {}) {
   return panel;
 }
 
-function renderOverview(doc, detail, context, edges, entities, onSelect, onContext, actions = {}) {
+function renderOverview(doc, detail, context, entities, actions = {}) {
   const payload = projectDetailPayload(detail);
   const project = payload?.project;
   const panel = makeElement(doc, 'div', { className: 'bb-pkw-panel bb-pkw-overview', attrs: { role: 'tabpanel', 'aria-label': '概要' } });
   panel.append(renderDenseOverview(doc, detail, context, entities, actions));
-  const columns = makeElement(doc, 'div', { className: 'bb-pkw-columns' });
+  panel.append(renderContextDirectory(doc, context, actions));
   const summary = makeElement(doc, 'section', { className: 'bb-pkw-section', attrs: { 'aria-label': '目的と現在地' } });
   summary.append(makeElement(doc, 'h3', { text: '目的と現在地' }), workspaceDefinition(doc, [
     ['目的', textOrNull(project?.goal)],
@@ -873,83 +976,7 @@ function renderOverview(doc, detail, context, edges, entities, onSelect, onConte
     ['出典', sourceLabel(payload?.source)],
     ['読み取った時点', payload?.asOf ? formatDateTime(payload.asOf) : null],
   ]));
-  columns.append(summary);
-
-  const people = makeElement(doc, 'section', { className: 'bb-pkw-section', attrs: { 'aria-label': '関係者' } });
-  people.append(makeElement(doc, 'h3', { text: '関係者と役割' }));
-  const participantEdges = Array.isArray(payload?.participants) ? payload.participants : [];
-  if (participantEdges.length === 0) {
-    people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '関係者の記録はありません。' }));
-  } else {
-    const list = makeElement(doc, 'ul', { className: 'bb-pkw-people-list' });
-    for (const edge of participantEdges) {
-      const item = makeElement(doc, 'li');
-      const counterpart = edge.counterpart ?? {};
-      item.append(recordLink(doc, cleanName(counterpart.name, counterpart.id) ?? '名前不明', cleanId(counterpart.id), onSelect), badge(doc, relationLabel(edge.relation), edge.relation === 'accountable_for' ? 'accent' : 'muted'));
-      const facts = [textOrNull(edge.role) ? `役割: ${edge.role}` : null, textOrNull(edge.context) ? `文脈: ${edge.context}` : null].filter(Boolean);
-      if (facts.length > 0) item.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: facts.join(' · ') }));
-      list.append(item);
-    }
-    people.append(list);
-  }
-  columns.append(people);
-  panel.append(columns);
-
-  const contextBlock = renderProjectContext(doc, context, { onTaskOpen: actions.openWorkDetail });
-  if (contextBlock) {
-    panel.append(contextBlock);
-    if (typeof onContext === 'function') onContext(contextBlock, null);
-  } else {
-    const contextAnchor = projectContextInsertionAnchor(doc);
-    panel.append(contextAnchor);
-    if (typeof onContext === 'function') onContext(null, contextAnchor);
-  }
-
-  const decisions = makeElement(doc, 'section', { className: 'bb-pkw-section', attrs: { 'aria-label': '記録された判断' } });
-  decisions.append(makeElement(doc, 'h3', { text: '記録された判断' }));
-  const decisionEdges = edges.filter((edge) => entities.get(edge.source)?.type === 'decision' || entities.get(edge.target)?.type === 'decision');
-  if (decisionEdges.length === 0) decisions.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: 'このプロジェクトに結びつく判断の記録はありません。' }));
-  else {
-    const list = makeElement(doc, 'ul', { className: 'bb-pkw-decision-list' });
-    for (const edge of decisionEdges) {
-      const decisionId = entities.get(edge.source)?.type === 'decision' ? edge.source : edge.target;
-      const decision = entities.get(decisionId);
-      const item = makeElement(doc, 'li');
-      item.append(recordLink(doc, decision?.name ?? decisionId, decisionId, onSelect), badge(doc, relationLabel(edge.relation), 'muted'));
-      if (decision?.summary) item.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: decision.summary }));
-      list.append(item);
-    }
-    decisions.append(list);
-  }
-  panel.append(decisions);
-
-  const objects = makeElement(doc, 'section', { className: 'bb-pkw-section', attrs: { 'aria-label': '関連する情報' } });
-  objects.append(makeElement(doc, 'h3', { text: '関連する情報' }));
-  const groups = new Map();
-  for (const entity of entities.values()) {
-    if (entity.id === project?.id || entity.type === 'person' || entity.type === 'decision') continue;
-    if (!groups.has(entity.type)) groups.set(entity.type, []);
-    groups.get(entity.type).push(entity);
-  }
-  if (groups.size === 0) objects.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '関連する情報の記録はありません。' }));
-  else {
-    const grid = makeElement(doc, 'div', { className: 'bb-pkw-info-grid' });
-    for (const [type, records] of groups) {
-      const group = makeElement(doc, 'section', { className: 'bb-pkw-object', attrs: { 'aria-label': typeLabel(type) } });
-      group.append(makeElement(doc, 'h4', { text: typeLabel(type) }));
-      const list = makeElement(doc, 'ul');
-      for (const record of records) {
-        const item = makeElement(doc, 'li');
-        item.append(recordLink(doc, record.name, record.id, onSelect));
-        list.append(item);
-      }
-      group.append(list);
-      grid.append(group);
-    }
-    objects.append(grid);
-  }
-  panel.append(objects);
-
+  panel.append(summary);
   const unknowns = projectKnowledgeUnknowns(detail);
   if (unknowns.length > 0) {
     const missing = makeElement(doc, 'section', { className: 'bb-pkw-section bb-pkw-unknown', attrs: { 'aria-label': '未記録・未確認' } });
@@ -1000,13 +1027,16 @@ export function createProjectKnowledgeWorkspace({
   let currentContext = context;
   let activeView = 'overview';
   let selectedContextId = null;
+  let selectedSectionId = null;
+  const listViewStates = new Map();
+  const listViewState = (id) => {
+    if (!listViewStates.has(id)) listViewStates.set(id, {});
+    return listViewStates.get(id);
+  };
   // Keep direct references as well as the DOM lookup.  The local test harness
   // intentionally has no querySelector implementation, and a host can replace
   // the panel while a detail read is still in flight.
   let selectedPanel = null;
-  let overviewPanel = null;
-  let contextBlock = null;
-  let contextAnchor = null;
 
   const root = makeElement(doc, 'section', {
     className: 'bb-pkw',
@@ -1052,6 +1082,7 @@ export function createProjectKnowledgeWorkspace({
     activeTab = 'overview';
     activeView = 'overview';
     selectedContextId = null;
+    selectedSectionId = null;
     render();
   }
 
@@ -1059,6 +1090,17 @@ export function createProjectKnowledgeWorkspace({
     if (destroyed) return;
     activeTab = 'overview';
     activeView = 'work-list';
+    selectedContextId = null;
+    selectedSectionId = 'tasks';
+    render();
+  }
+
+  function openSectionList(id) {
+    if (destroyed) return;
+    if (id === 'tasks') return openWorkList();
+    activeTab = 'overview';
+    activeView = 'record-list';
+    selectedSectionId = id;
     selectedContextId = null;
     render();
   }
@@ -1076,6 +1118,8 @@ export function createProjectKnowledgeWorkspace({
     activeTab = 'overview';
     activeView = 'record-detail';
     selectedContextId = cleanId(id);
+    const sourceSection = currentContext?.sections?.find((section) => section.id !== contextTaskSection(currentContext)?.id && section.items?.some((item) => item.id === selectedContextId));
+    selectedSectionId = sourceSection?.id ?? null;
     render();
   }
 
@@ -1290,39 +1334,17 @@ export function createProjectKnowledgeWorkspace({
 
   function replaceContextBlock(nextContext) {
     currentContext = nextContext;
-    if (destroyed) return;
-    if (activeTab === 'overview' && activeView !== 'overview') {
-      render();
-      return;
-    }
-    const nextBlock = renderProjectContext(doc, currentContext, { onTaskOpen: openWorkDetail });
-    if (!nextBlock) {
-      if (contextBlock?.parentNode && typeof contextBlock.parentNode.replaceChild === 'function') {
-        const nextAnchor = projectContextInsertionAnchor(doc);
-        contextBlock.parentNode.replaceChild(nextAnchor, contextBlock);
-        contextBlock = null;
-        contextAnchor = nextAnchor;
-      } else if (contextBlock?.parentNode?.removeChild) {
-        contextBlock.parentNode.removeChild(contextBlock);
-        contextBlock = null;
-      }
-      return;
-    }
-    if (contextBlock?.parentNode && typeof contextBlock.parentNode.replaceChild === 'function') {
-      contextBlock.parentNode.replaceChild(nextBlock, contextBlock);
-      contextBlock = nextBlock;
-      return;
-    }
-    if (contextAnchor?.parentNode && typeof contextAnchor.parentNode.replaceChild === 'function') {
-      contextAnchor.parentNode.replaceChild(nextBlock, contextAnchor);
-      contextBlock = nextBlock;
-      contextAnchor = null;
-      return;
-    }
-    if (contextBlock?.replaceWith) {
-      contextBlock.replaceWith(nextBlock);
-      contextBlock = nextBlock;
-      return;
+    if (destroyed || activeTab !== 'overview') return;
+    const focused = doc.activeElement;
+    const controlName = root.contains?.(focused) && focused?.closest?.('.bb-pkw-work-controls') ? focused.getAttribute?.('name') : null;
+    const restoreFocus = ['work-search', 'work-status', 'work-owner', 'work-due', 'record-search', 'record-status'].includes(controlName);
+    const selectionStart = restoreFocus && focused?.tagName === 'INPUT' ? focused.selectionStart : null;
+    const selectionEnd = restoreFocus && focused?.tagName === 'INPUT' ? focused.selectionEnd : null;
+    render();
+    if (restoreFocus) {
+      const replacement = root.querySelector?.(`[name="${controlName}"]`);
+      replacement?.focus?.();
+      if (selectionStart !== null && selectionEnd !== null && typeof replacement?.setSelectionRange === 'function') replacement.setSelectionRange(selectionStart, selectionEnd);
     }
   }
 
@@ -1332,20 +1354,18 @@ export function createProjectKnowledgeWorkspace({
     teardownGraph();
     tabs.replaceChildren(tabButton('概要', 'overview'), tabButton('情報を探す', 'graph'));
     panels.replaceChildren();
-    contextBlock = null;
-    contextAnchor = null;
-    const actions = { openOverview, openWorkList, openWorkDetail, openRecordDetail };
+    const actions = { openOverview, openWorkList, openWorkDetail, openRecordDetail, openSectionList, openGraphEntity: selectAndExplore,
+      recordSectionId: selectedSectionId,
+      recordSectionTitle: CONTEXT_CATEGORIES.find(([id]) => id === selectedSectionId)?.[1] ?? contextSectionById(currentContext, [selectedSectionId])?.title,
+    };
     let overview;
-    if (activeView === 'work-list') overview = renderWorkList(doc, currentContext, actions);
+    if (activeView === 'work-list') overview = renderWorkList(doc, currentContext, actions, listViewState('tasks'));
+    else if (activeView === 'record-list') overview = renderRecordList(doc, currentContext, selectedSectionId, actions, listViewState(selectedSectionId));
     else if (activeView === 'work-detail') overview = renderWorkDetail(doc, findContextItem(selectedContextId, 'task'), currentContext, actions);
     else if (activeView === 'record-detail') overview = renderRecordDetail(doc, findContextItem(selectedContextId, 'record') ?? entities.get(selectedContextId), currentContext, actions);
-    else overview = renderOverview(doc, payload, currentContext, overviewEdges, overviewEntities, selectAndExplore, (node, anchor) => {
-      contextBlock = node;
-      contextAnchor = anchor;
-    }, actions);
+    else overview = renderOverview(doc, payload, currentContext, overviewEntities, actions);
     overview.id = 'bb-pkw-panel-overview';
     overview.hidden = activeTab !== 'overview';
-    overviewPanel = overview;
     panels.append(overview);
     const graph = renderGraphPanel();
     graph.hidden = activeTab !== 'graph';

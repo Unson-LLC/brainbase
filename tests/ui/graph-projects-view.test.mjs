@@ -165,18 +165,14 @@ describe('プロジェクトと関係者: workspace', () => {
 
     const reading = view.load();
     await waitFor(() => typeof progressContext === 'function');
-    expect(collectText(root)).toContain('導入確認');
+    expect(collectText(root)).toContain('タスク1件取得済み');
     expect(byClass(root, 'bb-pkw-skeleton-bar').length).toBeGreaterThan(0);
     expect(findAll(root, (node) => node.attributes['aria-busy'] === 'true').length).toBeGreaterThan(0);
     const loadingPanel = byClass(root, 'bb-pkw-overview-loading')[0];
     const firstSkeleton = byClass(loadingPanel, 'bb-pkw-skeleton-section')[0];
-    const resolvedTasks = findAll(loadingPanel, (node) => node.tagName === 'SECTION'
-      && String(node.className).includes('bb-pkw-context-group')
-      && collectText(node).includes('導入確認'))[0];
-    const pendingKnowledge = byClass(loadingPanel, 'bb-pkw-context-group-loading')[0];
-    expect(resolvedTasks).toBeDefined();
-    expect(loadingPanel.children.indexOf(resolvedTasks.parentNode)).toBeLessThan(loadingPanel.children.indexOf(firstSkeleton.parentNode));
-    expect(loadingPanel.children.indexOf(pendingKnowledge.parentNode)).toBeGreaterThan(loadingPanel.children.indexOf(firstSkeleton.parentNode));
+    const directory = byClass(loadingPanel, 'bb-pkw-context-directory')[0];
+    expect(collectText(directory)).toContain('知識件数未確認読み込み中');
+    expect(loadingPanel.children.indexOf(directory)).toBeLessThan(loadingPanel.children.indexOf(firstSkeleton.parentNode));
 
     detailGate.resolve();
     await reading;
@@ -185,13 +181,15 @@ describe('プロジェクトと関係者: workspace', () => {
     graphTab.dispatch('click');
     await waitFor(() => byClass(workspace, 'bb-pkw-graph-canvas').length === 1);
     const canvas = byClass(workspace, 'bb-pkw-graph-canvas')[0];
-    expect(collectText(workspace)).toContain('導入確認');
+    expect(collectText(workspace)).toContain('タスク1件取得済み');
 
     contextGate.resolve();
-    await waitFor(() => collectText(workspace).includes('導入計画'));
+    await waitFor(() => view.state.context.sections.find((section) => section.id === 'knowledge')?.state === 'ok');
     expect(byClass(root, 'bb-pkw-graph-canvas')[0]).toBe(canvas);
     expect(buttonsNamed(workspace, '情報を探す')[0].attributes['aria-selected']).toBe('true');
     expect(view.state.context.sections.find((section) => section.id === 'knowledge').state).toBe('ok');
+    buttonsNamed(workspace, '概要')[0].dispatch('click');
+    expect(collectText(workspace)).toContain('知識1件取得済み');
     view.destroy();
   });
 
@@ -228,7 +226,8 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(view.state.context?.projectId).toBe('project-beta');
 
     callbacks.get('project-beta')({ sections: [{ id: 'tasks', title: '新しいタスク', state: 'ok', items: [{ id: 'new', title: '新しい情報' }] }] });
-    expect(collectText(root)).toContain('新しい情報');
+    expect(collectText(root)).toContain('タスク1件取得済み');
+    expect(view.state.context.sections[0].items[0].title).toBe('新しい情報');
     expect(collectText(root)).not.toContain('古い情報');
     gates.get('project-atlas').resolve({ sections: [] });
     gates.get('project-beta').resolve({ sections: [{ id: 'tasks', title: '新しいタスク', state: 'ok', items: [{ id: 'new', title: '新しい情報' }] }] });

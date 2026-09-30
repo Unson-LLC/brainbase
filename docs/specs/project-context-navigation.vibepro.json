@@ -1,0 +1,76 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-project-dense-workspace-v1",
+  "clauses": [
+    {
+      "id": "AC-08",
+      "type": "scenario",
+      "statement": "概要ではタスク・判断・知識・用語集の取得状態と件数、一覧への導線を表示し、補足情報とGraph判断・関連情報の全件を展開しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-08",
+            "text_snippet": "概要ではタスク・判断・知識・用語集の取得状態と件数、一覧への導線"
+          }
+        ]
+      }
+    },
+    {
+      "id": "AC-09",
+      "type": "scenario",
+      "statement": "各区分の一覧はそのsection.idの項目だけを検索・絞り込み、16行ずつページ送りでき、同じIDの詳細へ進める。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-09",
+            "text_snippet": "各区分の一覧はそのsection.idの項目だけを検索・絞り込み"
+          }
+        ]
+      }
+    },
+    {
+      "id": "AC-10",
+      "type": "invariant",
+      "statement": "明示された総数と取得済み表示件数を区別し、未取得・読取失敗・部分取得を0件や全件取得と表示しない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-10",
+            "text_snippet": "明示された総数と取得済み表示件数を区別し、未取得・読取失敗・部分"
+          }
+        ]
+      }
+    },
+    {
+      "id": "AC-11",
+      "type": "scenario",
+      "statement": "詳細は本文・状態・出典・更新時点・未確定事項を表示し、同じプロジェクトIDと元の区分の一覧へ戻れる。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-11",
+            "text_snippet": "詳細は本文・状態・出典・更新時点・未確定事項を表示し、同じプロジ"
+          }
+        ]
+      }
+    },
+    {
+      "id": "AC-12",
+      "type": "invariant",
+      "statement": "タスク・判断・知識・用語集の取得中、空、未接続、取得失敗を区分ごとに示し、取得できない区分を0件や空の成功として扱わない。",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-12",
+            "text_snippet": "取得中・空・未接続・取得失敗をセクションごとに表示"
+          }
+        ]
+      }
+    }
+  ]
+}

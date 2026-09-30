@@ -933,6 +933,56 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
   gap: var(--bb-space-2);
 }
 
+.bb-pkw-context-directory {
+  margin-block: var(--bb-space-5);
+}
+
+.bb-pkw-directory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--bb-space-3);
+}
+
+.bb-pkw-directory-card {
+  display: grid;
+  align-content: start;
+  gap: var(--bb-space-2);
+  min-width: 0;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  padding: var(--bb-space-4);
+  background: var(--bb-color-panel);
+}
+
+.bb-pkw-directory-card h4,
+.bb-pkw-directory-card p {
+  margin: 0;
+}
+
+.bb-pkw-directory-count {
+  font-size: 16px;
+  font-weight: 720;
+}
+
+.bb-pkw-directory-card .bb-pkw-dense-action {
+  justify-self: start;
+  margin-top: var(--bb-space-2);
+}
+
+.bb-pkw-list-pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--bb-space-3);
+}
+
+.bb-pkw-list-pager button:disabled {
+  color: var(--bb-color-muted);
+  cursor: default;
+  text-decoration: none;
+  opacity: .5;
+}
+
 .bb-pkw-work-search,
 .bb-pkw-work-status,
 .bb-pkw-work-owner,
