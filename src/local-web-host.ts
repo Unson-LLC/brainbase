@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
+import { lstat, readFile, stat } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,9 +50,9 @@ import {
  *
  * One loopback server carries every local screen.  The host owns the
  * protections, the trusted principal and the static allowlist; each screen's
- * server side is a `LocalWebModule`.  To add a screen, add its module to
- * `defaultLocalWebModules()` and its nav entry to `LOCAL_WEB_SCREENS` in
- * `ui/local-web-shell.js`.
+ * server side is a `LocalWebModule`. Public screens live in
+ * `defaultLocalWebModules()` and `LOCAL_WEB_SCREENS`; private products register
+ * a `LocalWebExtension` without copying either one.
  */
 export const LOCAL_WEB_HOST_VERSION = 'local-web-host.v1' as const;
 /** One per-launch token guards every write on this host, including value-proof feedback. */
@@ -107,6 +107,18 @@ export interface LocalWebModule {
   handle(request: IncomingMessage, response: ServerResponse): Promise<boolean>;
 }
 
+/** Private products add one screen and one namespaced API without changing OSS routes. */
+export interface LocalWebExtension {
+  /** Lowercase URL segment, unique among extensions. */
+  readonly id: string;
+  /** Packaged directory containing only the files listed in uiFiles. */
+  readonly uiDir: string;
+  readonly uiFiles: readonly string[];
+  /** ES module exporting a `screen` compatible with createLocalWebShell. */
+  readonly screenEntry: string;
+  createModule(context: LocalWebModuleContext): LocalWebModule;
+}
+
 export interface LocalWebHostOptions {
   /** Personal OS data directory. Defaults to `BRAINBASE_PERSONAL_OS_DIR` or `~/.brainbase/personal-os`. */
   readonly dataDir?: string;
@@ -116,6 +128,7 @@ export interface LocalWebHostOptions {
   /** Directory containing the packaged `ui/` files. */
   readonly uiDir?: string;
   readonly now?: () => Date;
+  readonly extensions?: readonly LocalWebExtension[];
 }
 
 export interface LocalWebHost {
@@ -692,7 +705,7 @@ function shellHtml(token: string, stylesheets: readonly string[]): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="brainbase-web-token" content="${escapeAttribute(token)}">
 <title>Brainbase</title>
-${stylesheets.map((file) => `<link rel="stylesheet" href="/ui/${escapeAttribute(file)}">`).join('\n')}
+${stylesheets.map((path) => `<link rel="stylesheet" href="${escapeAttribute(path)}">`).join('\n')}
 </head>
 <body>
 <div id="brainbase-local-web"></div>
@@ -702,16 +715,34 @@ ${stylesheets.map((file) => `<link rel="stylesheet" href="/ui/${escapeAttribute(
 `;
 }
 
-const BOOTSTRAP_JS = `import { createLocalWebShell } from '/ui/local-web-shell.js';
+function bootstrapJs(extensions: readonly LocalWebExtension[]): string {
+  const imports = extensions.map((extension, index) =>
+    `import { screen as extensionScreen${index} } from '/ui/extensions/${extension.id}/${extension.screenEntry}';`
+  ).join('\n');
+  const screens = extensions.map((_, index) => `extensionScreen${index}`).join(', ');
+  const ids = JSON.stringify(extensions.map((extension) => extension.id));
+  return `import { createLocalWebShell, LOCAL_WEB_SCREENS } from '/ui/local-web-shell.js';
+${imports}
+const extensionScreens = [${screens}];
+const extensionIds = ${ids};
+if (extensionScreens.some((screen, index) => screen?.id !== extensionIds[index] || LOCAL_WEB_SCREENS.some((base) => base.id === screen.id))) {
+  throw new Error('Invalid extension screen id');
+}
 const meta = (name) => document.querySelector(\`meta[name="\${name}"]\`)?.getAttribute('content') ?? '';
 const screenFromHash = () => decodeURIComponent(location.hash.replace(/^#/, '')) || undefined;
 const shell = createLocalWebShell({
   root: document.getElementById('brainbase-local-web'),
   token: meta('brainbase-web-token'),
-  initialScreen: screenFromHash()
+  initialScreen: screenFromHash(),
+  screens: [...LOCAL_WEB_SCREENS, ...extensionScreens]
 });
 addEventListener('hashchange', () => shell.show(screenFromHash()));
 `;
+}
+
+function validExtensionFile(file: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*\.(?:js|css)$/u.test(file) && !file.includes('..');
+}
 
 /** Local single-owner host. The caller owns `listen()` and must bind to a loopback address. */
 export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebHost {
@@ -722,14 +753,37 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
   const uiDir = options.uiDir ?? fileURLToPath(new URL('../ui/', import.meta.url));
   const context: LocalWebModuleContext = { dataDir, journalRoot, token, now: options.now ?? (() => new Date()) };
   const modules = defaultLocalWebModules(context);
-  const uiFiles = new Map<string, string>();
+  const extensions = [...options.extensions ?? []];
+  const extensionModules: { prefix: string; module: LocalWebModule }[] = [];
+  const ids = new Set<string>();
+  const uiFiles = new Map<string, { type: string; root: string; file: string }>();
   for (const file of [...BASE_UI_FILES, ...modules.flatMap((module) => module.uiFiles)]) {
     const extension = file.slice(file.lastIndexOf('.'));
     const type = CONTENT_TYPES[extension];
-    if (!type || file.includes('/')) throw new TypeError(`Unsupported UI file ${file}`);
-    uiFiles.set(`/ui/${file}`, type);
+    if (!type || !validExtensionFile(file)) throw new TypeError(`Unsupported UI file ${file}`);
+    uiFiles.set(`/ui/${file}`, { type, root: uiDir, file });
   }
-  const stylesheets = [...uiFiles.keys()].filter((path) => path.endsWith('.css')).map((path) => path.slice('/ui/'.length));
+  for (const extension of extensions) {
+    if (!/^[a-z][a-z0-9-]*$/u.test(extension.id) || ids.has(extension.id)) {
+      throw new TypeError(`Invalid or duplicate extension id ${extension.id}`);
+    }
+    ids.add(extension.id);
+    if (!extension.uiFiles.includes(extension.screenEntry) || !extension.screenEntry.endsWith('.js')) {
+      throw new TypeError(`Extension screen entry must be an allowlisted JS file: ${extension.id}`);
+    }
+    const module = extension.createModule(context);
+    if (module.id !== extension.id || module.uiFiles.length !== 0) {
+      throw new TypeError(`Extension module must use its id and declare UI files on the extension: ${extension.id}`);
+    }
+    extensionModules.push({ prefix: `/api/extensions/${extension.id}`, module });
+    for (const file of extension.uiFiles) {
+      if (!validExtensionFile(file)) throw new TypeError(`Unsupported extension UI file ${file}`);
+      const path = `/ui/extensions/${extension.id}/${file}`;
+      if (uiFiles.has(path)) throw new TypeError(`Duplicate extension UI file ${path}`);
+      uiFiles.set(path, { type: CONTENT_TYPES[file.slice(file.lastIndexOf('.'))], root: extension.uiDir, file });
+    }
+  }
+  const stylesheets = [...uiFiles.keys()].filter((path) => path.endsWith('.css'));
 
   async function handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
     if (!isLoopbackHost(request)) {
@@ -747,6 +801,13 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
       if (await module.handle(request, response)) return;
     }
     const path = requestUrl(request).pathname;
+    for (const extension of extensionModules) {
+      if (path === extension.prefix || path.startsWith(`${extension.prefix}/`)) {
+        if (await extension.module.handle(request, response)) return;
+        writeJson(response, 404, { error: { code: 'not_found', message: 'Not found' } });
+        return;
+      }
+    }
     if (request.method !== 'GET') {
       writeJson(response, 405, { error: { code: 'method_not_allowed', message: 'Use GET' } });
       return;
@@ -762,16 +823,21 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
     }
     if (path === '/app.js') {
       response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
-      response.end(BOOTSTRAP_JS);
+      response.end(bootstrapJs(extensions));
       return;
     }
-    const type = uiFiles.get(path);
-    if (!type) {
+    const asset = uiFiles.get(path);
+    if (!asset) {
       writeJson(response, 404, { error: { code: 'not_found', message: 'Not found' } });
       return;
     }
-    response.setHeader('Content-Type', type);
-    response.end(await readFile(join(uiDir, path.slice('/ui/'.length))));
+    const target = join(asset.root, asset.file);
+    if (!(await lstat(target)).isFile()) {
+      writeJson(response, 404, { error: { code: 'not_found', message: 'Not found' } });
+      return;
+    }
+    response.setHeader('Content-Type', asset.type);
+    response.end(await readFile(target));
   }
 
   const server = createServer((request, response) => {

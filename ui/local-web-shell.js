@@ -11,9 +11,8 @@
  * mounted until the host reports Graph v2; a v1 Graph shows the migration
  * commands instead of zero items, and the host never migrates by itself.
  *
- * To add a screen: append `{ id, label, usesGraph, mount(container, context) }`
- * to LOCAL_WEB_SCREENS (or pass `screens`) and add its server module to
- * `defaultLocalWebModules()` in `src/local-web-host.ts`.
+ * Public screens are listed in LOCAL_WEB_SCREENS. Private products pass an
+ * extended `screens` list through LocalWebHostOptions.extensions.
  */
 
 import { createGraphProjectsView } from './graph-projects-view.js';

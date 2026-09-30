@@ -663,6 +663,18 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-local-web-private-extension-v1",
+        "title": "公開Personal画面へ私有版の画面とAPIを安全に接続する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-09",
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-project-dense-workspace-v1"
