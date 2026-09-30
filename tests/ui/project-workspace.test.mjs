@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createProjectKnowledgeWorkspace,
   normalizeProjectContext,
+  renderProjectContext,
   projectKnowledgeEdges,
   projectKnowledgeEntities,
   projectKnowledgeUnknowns,
@@ -57,6 +58,32 @@ const detail = (overrides = {}) => ({
 });
 
 describe('project knowledge projection', () => {
+  it('shows task context as compact rows while keeping other records detailed', () => {
+    const context = normalizeProjectContext('project-atlas', { sections: [
+      { id: 'tasks', title: 'タスク', state: 'ok', items: [{
+        id: 'task-1', title: '導入確認', kind: 'task', status: '確認待ち', statusKind: 'wait',
+        owner: '佐藤 花子', dueAt: '2026-09-30T00:00:00.000Z', summary: '一覧には長い説明を出さない',
+        updatedAt: '2026-09-29', source: 'Slack',
+      }] },
+      { id: 'knowledge', title: '知識', state: 'ok', items: [{ id: 'record-1', title: '手順書', summary: '詳細を表示する' }] },
+    ] });
+    const onTaskOpen = vi.fn();
+    const root = renderProjectContext(new FakeDocument(), context, { onTaskOpen });
+    const task = section(root, 'タスク');
+    const row = findAll(task, (node) => node.className === 'bb-pkw-context-task-row')[0];
+    expect(row).toBeDefined();
+    expect(collectText(row)).toContain('導入確認');
+    expect(collectText(row)).toContain('佐藤 花子');
+    expect(collectText(row)).toContain('9/30');
+    expect(collectText(row)).toContain('確認待ち');
+    expect(collectText(row)).not.toContain('一覧には長い説明を出さない');
+    expect(collectText(row)).not.toContain('Slack');
+    expect(findAll(row, (node) => node.className.includes('bb-pkw-context-task-wait'))).toHaveLength(2);
+    buttonsNamed(row, '導入確認')[0].dispatch('click');
+    expect(onTaskOpen).toHaveBeenCalledWith('task-1');
+    expect(collectText(section(root, '知識'))).toContain('詳細を表示する');
+  });
+
   it('keeps arbitrary entity and relation types in the accessible projection', () => {
     const result = projectKnowledgeEntities(detail({ knowledge: {
       entities: [{ id: 'doc-a', type: 'evidence_document', name: '導入計画', summary: '計画書' }],

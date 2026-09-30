@@ -218,6 +218,120 @@
   flex-basis: 100%;
 }
 
+.bb-pkw-context-task-list {
+  gap: 0;
+  border-top: 1px solid var(--bb-color-border);
+}
+
+.bb-pkw-context-list .bb-pkw-context-task-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 2.4fr) minmax(112px, .75fr) 92px minmax(100px, .9fr);
+  align-items: center;
+  gap: 0;
+  min-height: 54px;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding: 0;
+  font-size: 12px;
+}
+
+.bb-pkw-context-list .bb-pkw-context-task-row:last-child {
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-pkw-context-task-row > * {
+  min-width: 0;
+  padding: 8px 10px;
+}
+
+.bb-pkw-context-task-row .bb-pkw-context-task-state {
+  width: 9px;
+  height: 9px;
+  margin: auto;
+  padding: 0;
+  border: 1.5px solid var(--bb-color-muted);
+  border-radius: 50%;
+}
+
+.bb-pkw-context-task-row .bb-pkw-context-task-state.bb-pkw-context-task-wait {
+  border-color: var(--bb-color-warning);
+  background: var(--bb-color-warning);
+}
+
+.bb-pkw-context-task-row .bb-pkw-context-task-state.bb-pkw-context-task-fail {
+  border-color: var(--bb-color-danger);
+  background: var(--bb-color-danger);
+}
+
+.bb-pkw-context-task-row .bb-pkw-context-task-state.bb-pkw-context-task-ok {
+  border-color: var(--bb-color-accent);
+  background: var(--bb-color-accent);
+}
+
+.bb-pkw-context-task-row .bb-pkw-context-task-title {
+  width: 100%;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 690;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+button.bb-pkw-context-task-title { cursor: pointer; }
+button.bb-pkw-context-task-title:hover { color: var(--bb-color-accent-strong); text-decoration: underline; }
+button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-color-focus); outline-offset: -2px; }
+
+.bb-pkw-context-task-owner {
+  color: var(--bb-color-muted);
+  overflow-wrap: anywhere;
+}
+
+.bb-pkw-context-task-due {
+  white-space: nowrap;
+}
+
+.bb-pkw-context-task-due.bb-pkw-context-task-overdue {
+  color: var(--bb-color-danger);
+  font-weight: 740;
+}
+
+.bb-pkw-context-task-stage {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--bb-color-muted);
+}
+
+.bb-pkw-context-task-stage::before {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--bb-color-muted);
+  content: '';
+}
+
+.bb-pkw-context-task-stage.bb-pkw-context-task-wait::before { background: var(--bb-color-warning); }
+.bb-pkw-context-task-stage.bb-pkw-context-task-fail::before { background: var(--bb-color-danger); }
+.bb-pkw-context-task-stage.bb-pkw-context-task-ok::before { background: var(--bb-color-accent); }
+
+@media (max-width: 760px) {
+  .bb-pkw-context-list .bb-pkw-context-task-row {
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    grid-template-areas: 'state title stage' '. owner due';
+  }
+
+  .bb-pkw-context-task-state { grid-area: state; }
+  .bb-pkw-context-task-title { grid-area: title; }
+  .bb-pkw-context-task-owner { grid-area: owner; }
+  .bb-pkw-context-task-due { grid-area: due; }
+  .bb-pkw-context-task-stage { grid-area: stage; }
+}
+
 .bb-pkw-info-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
