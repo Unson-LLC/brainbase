@@ -155,6 +155,10 @@
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"
     },
+    "./knowledge-promotion": {
+      "types": "./dist/knowledge-promotion.d.ts",
+      "import": "./dist/knowledge-promotion.js"
+    },
     "./organization-connection": {
       "types": "./dist/organization-connection.d.ts",
       "import": "./dist/organization-connection.js"
