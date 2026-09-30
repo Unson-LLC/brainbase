@@ -301,4 +301,89 @@ describe('execution authority canonical HTTP adapter', () => {
     expect(unknown.body?.error?.code).toBe('authority_unknown');
     expect(state.effectCalls).toHaveLength(0);
   });
+
+  it('registers through the real service with the trusted attribution and accepts the effect report', async () => {
+    const dataDir = await tempDir();
+    const state: HarnessState = { authorityStatus: 'approved', tenantBReadStatus: 'approved', effectCalls: [] };
+    const handler = createExecutionAuthorityHttpHandler({ serviceFactory: () => serviceFor(dataDir, state) });
+    const attribution = { mode: 'delegated_service' as const, servicePrincipal: 'svc-mana', delegationRef: 'delegation-1', correlationId: 'cor-1' };
+    const baseUrl = await start(handler, { default: context({ attribution }) });
+
+    const registered = await request(baseUrl, '/execution-authority/register', {
+      method: 'POST',
+      body: JSON.stringify(requestBody('register-http')),
+    });
+    expect(registered.response.status).toBe(200);
+    expect(registered.body?.action).toBe('register');
+    expect(registered.body?.result?.intent).toMatchObject({ phase: 'registered', attribution });
+    expect(registered.body?.result?.capability?.attribution).toEqual(attribution);
+    expect(state.effectCalls).toEqual([]);
+
+    const reported = await request(baseUrl, '/execution-authority/intents/register-http/effect', {
+      method: 'POST',
+      body: JSON.stringify({ status: 'started', capabilityDigest: registered.body?.result?.capabilityDigest }),
+    });
+    expect(reported.response.status).toBe(200);
+    expect(reported.body).toMatchObject({ action: 'report_effect', operationId: 'register-http', result: { intent: { phase: 'started' } } });
+
+    const read = await request(baseUrl, '/execution-authority/intents/register-http', { method: 'GET' });
+    expect(read.body?.result).toMatchObject({ phase: 'started', attribution });
+    expect(JSON.stringify(read.body)).not.toContain('fence-r1');
+
+    const mismatch = await request(baseUrl, '/execution-authority/intents/register-http/effect', {
+      method: 'POST',
+      body: JSON.stringify({ status: 'started', capabilityDigest: 'f'.repeat(64) }),
+    });
+    expect(mismatch.response.status).toBe(403);
+    expect(mismatch.body?.error?.code).toBe('capability_mismatch');
+  });
+
+  it('never takes attribution from the body and refuses an inconsistent trusted attribution', async () => {
+    const serviceFactory = vi.fn(() => {
+      throw new Error('factory must not be called');
+    });
+    const handler = createExecutionAuthorityHttpHandler({ serviceFactory });
+    const baseUrl = await start(handler, {
+      default: context(),
+      forged: context({ attribution: { mode: 'delegated_service', servicePrincipal: 'owner-a', delegationRef: 'd' } }),
+    });
+
+    const inBody = await request(baseUrl, '/execution-authority/register', {
+      method: 'POST',
+      body: JSON.stringify({ ...requestBody('body-attribution'), attribution: { mode: 'service' } }),
+    });
+    expect(inBody.response.status).toBe(400);
+
+    const reportIdentity = await request(baseUrl, '/execution-authority/intents/x/effect', {
+      method: 'POST',
+      body: JSON.stringify({ status: 'started', capabilityDigest: 'a'.repeat(64), principal: 'owner-b' }),
+    });
+    expect(reportIdentity.response.status).toBe(400);
+
+    const forged = await request(baseUrl, '/execution-authority/register', {
+      method: 'POST',
+      headers: { 'x-test-context': 'forged' },
+      body: JSON.stringify(requestBody('forged-attribution')),
+    });
+    expect(forged.response.status).toBe(401);
+    expect(serviceFactory).not.toHaveBeenCalled();
+  });
+
+  it('answers 501 when the host service has no registration operations', async () => {
+    const handler = createExecutionAuthorityHttpHandler({
+      serviceFactory: () => ({ start: vi.fn(), readIntent: vi.fn() }) as unknown as ExecutionAuthorityService,
+    });
+    const baseUrl = await start(handler);
+
+    const response = await request(baseUrl, '/execution-authority/register', {
+      method: 'POST',
+      body: JSON.stringify(requestBody('unconfigured')),
+    });
+    expect(response.response.status).toBe(501);
+    expect(response.body?.error?.code).toBe('operation_unconfigured');
+
+    const wrongMethod = await request(baseUrl, '/execution-authority/intents/unconfigured/effect', { method: 'GET' });
+    expect(wrongMethod.response.status).toBe(405);
+    expect(wrongMethod.response.headers.get('allow')).toBe('POST');
+  });
 });
