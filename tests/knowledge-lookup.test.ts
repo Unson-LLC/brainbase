@@ -65,6 +65,28 @@ describe('purpose based knowledge lookup', () => {
     ]);
   });
 
+  it('declares every next_action field inside its own variant so clients that render only oneOf can see it', () => {
+    const tool = knowledgeLookupTools.find((candidate) => candidate.name === 'brainbase_knowledge_lookup');
+    const nextAction = (tool?.inputSchema.properties as Record<string, Record<string, unknown>>).next_action;
+    expect(nextAction.properties).toBeUndefined();
+    const variants = nextAction.oneOf as Array<{ properties: Record<string, unknown>; required: string[]; additionalProperties: boolean }>;
+    const byKind = Object.fromEntries(variants.map((variant) => [
+      (variant.properties.kind as Record<string, unknown>).const,
+      variant,
+    ]));
+    expect(Object.keys(byKind).sort()).toEqual(['finish', 'follow_relation', 'read', 'search']);
+    for (const variant of variants) {
+      expect(variant.additionalProperties).toBe(false);
+      for (const key of variant.required) expect(variant.properties).toHaveProperty(key);
+      expect(variant.properties).toHaveProperty('required_fields');
+      expect(variant.properties).toHaveProperty('why_different');
+    }
+    expect(byKind.read.required).toEqual(['kind', 'entity_id', 'entity_type']);
+    expect(byKind.follow_relation.required).toEqual(['kind', 'seed_ids', 'relation', 'direction']);
+    expect(Object.keys(byKind.search.properties)).toEqual(expect.arrayContaining(['query', 'entity_types', 'seed_ids']));
+    expect(byKind.read.properties).not.toHaveProperty('status');
+  });
+
   it('shares public field validation with the continuation host', () => {
     expect(validateKnowledgeLookupFields(['body'])).toEqual({ valid: true, fields: ['body'] });
     expect(validateKnowledgeLookupFields(['既存哲学の本文例']).valid).toBe(false);
