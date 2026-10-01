@@ -553,16 +553,69 @@ function basisText(entry) {
   return layer ? `[${layer}] ${application}` : application;
 }
 
-/**
- * Keep the recorded basis target visible without pretending it is a navigable
- * source.  The value-proof contract records an entity ID and optional version,
- * but it does not provide a URL or a source-read contract.
- */
 function basisTargetText(entry) {
   const entityId = text(entry?.entity_id);
   if (!entityId) return '対象の記録なし';
   const version = text(entry?.version);
   return version ? `${entityId}（版 ${version}）` : entityId;
+}
+
+const SOURCE_READ_STATES = Object.freeze(['loading', 'available', 'not_found', 'ambiguous', 'forbidden', 'unavailable']);
+const SOURCE_READ_LABELS = Object.freeze({
+  loading: '出典を確認中…',
+  not_found: '出典が見つかりません（未確認）',
+  ambiguous: '同じIDの出典が複数あります（未確認）',
+  forbidden: '出典を読む権限がありません（未確認）',
+  unavailable: '出典を確認できません（未確認）',
+});
+
+function sourceContract(entry) {
+  const source = entry?.source;
+  if (!isRecord(source) || source.kind !== 'local_graph') return null;
+  const entityId = text(source.entity_id);
+  const entityType = text(source.entity_type);
+  if (!entityId || !entityType || entityId !== text(entry?.entity_id)) return null;
+  return source;
+}
+
+function sourceKey(source) {
+  return [source.kind, source.entity_id, source.entity_type, source.version ?? '', source.digest ?? ''].join('\u0000');
+}
+
+function sourceReadState(value) {
+  const state = text(value?.state);
+  return SOURCE_READ_STATES.includes(state) ? state : 'unavailable';
+}
+
+function renderBasisTarget(doc, entry, state) {
+  const target = makeElement(doc, 'span', { className: 'bb-vpr-source-target' });
+  target.append(makeElement(doc, 'span', { text: basisTargetText(entry) }));
+  const source = sourceContract(entry);
+  if (!source) return target;
+  const key = sourceKey(source);
+  const read = state.sourceReads instanceof Map ? state.sourceReads.get(key) : null;
+  if (!read) {
+    target.append(makeElement(doc, 'span', {
+      className: 'bb-vpr-source-status is-unavailable',
+      text: '出典の読み取り先を確認できません（未確認）',
+    }));
+    return target;
+  }
+  const readState = sourceReadState(read);
+  if (readState === 'available') {
+    const link = makeElement(doc, 'a', {
+      className: 'bb-vpr-source-link',
+      text: '出典を開く',
+      attrs: { href: `#graph?entity_id=${encodeURIComponent(source.entity_id)}` },
+    });
+    target.append(link);
+    return target;
+  }
+  target.append(makeElement(doc, 'span', {
+    className: `bb-vpr-source-status is-${readState}`,
+    text: SOURCE_READ_LABELS[readState] ?? SOURCE_READ_LABELS.unavailable,
+  }));
+  return target;
 }
 
 function journalSetupGuide(doc) {
@@ -768,7 +821,7 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
     title: '根拠と引き継ぎ',
     content: facts(doc, [
       ['根拠', basis.length > 0 ? basis.map(basisText).join(' / ') : '根拠の記録なし'],
-      ['根拠の対象', basis.length > 0 ? basis.map(basisTargetText).join(' / ') : '対象の記録なし'],
+      ['根拠の対象', basis.length > 0 ? basis.map((entry) => renderBasisTarget(doc, entry, state)) : '対象の記録なし'],
       ['過去の学習の再利用', reuse === true ? 'あり' : reuse === false ? 'なし' : '未確認'],
       ['引き継ぎ', inheritanceText(proof.decision.inheritance)],
     ]),
@@ -975,6 +1028,8 @@ export function createValueProofReviewUI({
   clipboard,
   /** Optional `{ title, guidance }` for hosts where the local journal hint does not apply. */
   unavailableNotice,
+  /** Optional host-owned reader for typed basis sources. It must not invent a URL. */
+  sourceReader,
   autoLoad = true,
 } = {}) {
   if (!root) throw new TypeError('root is required');
@@ -999,6 +1054,30 @@ export function createValueProofReviewUI({
     save: { state: 'idle', message: '' },
     focusCard: false,
     consultMessage: '',
+    sourceReads: new Map(),
+  };
+
+  const readSelectedSources = async (item) => {
+    if (typeof sourceReader !== 'function' || !item?.proof?.decision?.basis) return;
+    const sources = item.proof.decision.basis.map(sourceContract).filter(Boolean);
+    for (const source of sources) {
+      const key = sourceKey(source);
+      state.sourceReads.set(key, { state: 'loading' });
+    }
+    if (sources.length > 0) controller.render();
+    await Promise.all(sources.map(async (source) => {
+      const key = sourceKey(source);
+      let result;
+      try {
+        result = await sourceReader(source);
+      } catch {
+        result = { state: 'unavailable' };
+      }
+      if (state.selectedKey !== itemKey(item.proof)) return;
+      const normalized = isRecord(result) ? result : {};
+      state.sourceReads.set(key, { ...normalized, state: sourceReadState(normalized) });
+    }));
+    if (state.selectedKey === itemKey(item.proof)) controller.render();
   };
 
   const resetJudgmentInput = () => {
@@ -1041,6 +1120,8 @@ export function createValueProofReviewUI({
       state.focusCard = true;
       controller.render();
       state.focusCard = false;
+      const item = findItem(state, key);
+      if (item) void readSelectedSources(item);
     },
     onDraft(patch) {
       state.draft = { ...state.draft, ...patch };

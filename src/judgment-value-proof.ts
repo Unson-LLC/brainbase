@@ -41,12 +41,29 @@ export type JudgmentValueProofBasisLayer =
   | 'constraint'
   | 'other';
 
+/**
+ * A source that the local Web host can read and open.  This is deliberately
+ * not a URL: the host owns the reader and keeps navigation same-origin.
+ */
+export type JudgmentValueProofBasisSourceKind = 'local_graph';
+export type JudgmentValueProofBasisSourceEntityType = 'person' | 'org' | 'project' | 'decision';
+
+export interface JudgmentValueProofBasisSource {
+  kind: JudgmentValueProofBasisSourceKind;
+  entity_id: string;
+  entity_type: JudgmentValueProofBasisSourceEntityType;
+  version?: string | null;
+  digest?: string | null;
+}
+
 export interface JudgmentValueProofBasis {
   entity_id: string;
   application: string;
   layer?: JudgmentValueProofBasisLayer;
   /** Version of the referenced entity used for this judgment. */
   version?: string | null;
+  /** Optional, typed read contract for a source-bearing proof. */
+  source?: JudgmentValueProofBasisSource | null;
 }
 
 export interface JudgmentValueProofInheritanceSource {
@@ -240,6 +257,20 @@ export function validateJudgmentValueProof(proof: JudgmentValueProof): JudgmentV
     if (entry.layer !== undefined && !layers.includes(entry.layer)) {
       throw new TypeError(`unsupported decision.basis[].layer: ${String(entry.layer)}`);
     }
+    const source = entry.source;
+    if (source === undefined || source === null) continue;
+    if (source.kind !== 'local_graph') {
+      throw new TypeError('decision.basis[].source.kind must be local_graph');
+    }
+    requiredText(source.entity_id, 'decision.basis[].source.entity_id');
+    if (source.entity_id !== entry.entity_id) {
+      throw new TypeError('decision.basis[].source.entity_id must match entity_id');
+    }
+    if (!['person', 'org', 'project', 'decision'].includes(source.entity_type)) {
+      throw new TypeError(`unsupported decision.basis[].source.entity_type: ${String(source.entity_type)}`);
+    }
+    if (source.version !== undefined && source.version !== null) requiredText(source.version, 'decision.basis[].source.version');
+    if (source.digest !== undefined && source.digest !== null) requiredText(source.digest, 'decision.basis[].source.digest');
   }
 
   const kind = proof.decision.judgment_kind;

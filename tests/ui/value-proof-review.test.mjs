@@ -4,6 +4,12 @@ import {
   normalizeValueProofReviewHome,
   renderValueProofReview,
 } from '../../ui/value-proof-review.js';
+import {
+  sourceBearingHome,
+  sourceBearingProof,
+  sourceFreeProof,
+  UX06_SOURCE,
+} from './ux06-source-fixture.mjs';
 
 class FakeElement {
   constructor(tagName) {
@@ -156,6 +162,7 @@ function baseState(payload, overrides = {}) {
     needsHumanOnly: false,
     draft: { status: '', summary: '', targetLayer: '' },
     save: { state: 'idle', message: '' },
+    sourceReads: new Map(),
     ...overrides,
   };
 }
@@ -167,6 +174,11 @@ function renderHome(payload, overrides = {}, options = {}) {
   const rail = doc.createElement('aside');
   renderValueProofReview(root, baseState(payload, overrides), {}, { document: doc, rail, ...options });
   return { root, rail };
+}
+
+function docForTest() {
+  const doc = new FakeDocument();
+  return { doc, root: doc.createElement('main'), rail: doc.createElement('aside') };
 }
 
 /** Rows of a ledger (the header row excluded). */
@@ -350,6 +362,61 @@ describe('value proof review UI contract', () => {
     expect(factsText).toContain('根拠の記録なし');
     expect(factsText).toContain('対象の記録なし');
     expect(byTag(detail, 'A')).toHaveLength(0);
+  });
+
+  it('links a source-bearing basis only after the host confirms the exact Graph target', async () => {
+    const fixture = sourceBearingProof();
+    const payload = sourceBearingHome(fixture);
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const rail = doc.createElement('aside');
+    let resolveSource;
+    const ui = createValueProofReviewUI({
+      root,
+      rail,
+      document: doc,
+      fetcher: async () => jsonResponse(200, payload),
+      sourceReader: async (source) => {
+        expect(source).toEqual(UX06_SOURCE);
+        return new Promise((resolve) => { resolveSource = resolve; });
+      },
+      autoLoad: false,
+    });
+    await ui.load();
+    ui.callbacks.onSelect('fixture-intent-ux06\u0000fixture-attempt-ux06');
+    expect(collectText(rail)).toContain('出典を確認中');
+    expect(byTag(rail, 'A')).toHaveLength(0);
+
+    resolveSource({ state: 'available' });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const links = byTag(rail, 'A');
+    expect(links).toHaveLength(1);
+    expect(links[0].textContent).toBe('出典を開く');
+    expect(links[0].attributes.href).toBe('#graph?entity_id=project-atlas');
+  });
+
+  it('keeps a source-free basis non-navigable and reports failed source reads as unconfirmed', () => {
+    const sourceKey = [UX06_SOURCE.kind, UX06_SOURCE.entity_id, UX06_SOURCE.entity_type, UX06_SOURCE.version ?? '', UX06_SOURCE.digest ?? ''].join('\u0000');
+    const sourceFree = sourceFreeProof();
+    const sourceFreeState = baseState(sourceBearingHome(sourceFree), {
+      selectedKey: 'fixture-intent-ux06\u0000fixture-attempt-ux06',
+      railView: 'judgment',
+    });
+    const sourceFreeRoot = docForTest();
+    renderValueProofReview(sourceFreeRoot.root, sourceFreeState, {}, { document: sourceFreeRoot.doc, rail: sourceFreeRoot.rail });
+    expect(byTag(sourceFreeRoot.rail, 'A')).toHaveLength(0);
+
+    for (const state of ['not_found', 'ambiguous', 'forbidden', 'unavailable']) {
+      const rendered = docForTest();
+      const stateWithRead = baseState(sourceBearingHome(), {
+        selectedKey: 'fixture-intent-ux06\u0000fixture-attempt-ux06',
+        railView: 'judgment',
+        sourceReads: new Map([[sourceKey, { state }]]),
+      });
+      renderValueProofReview(rendered.root, stateWithRead, {}, { document: rendered.doc, rail: rendered.rail });
+      expect(byTag(rendered.rail, 'A'), state).toHaveLength(0);
+      expect(collectText(rendered.rail), state).toContain('未確認');
+    }
   });
 
   it('requires a reason for corrections, posts with the review token and confirms the saved feedback by reloading', async () => {
