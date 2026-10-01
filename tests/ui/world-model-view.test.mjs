@@ -138,6 +138,27 @@ async function mount(routes, options = {}) {
 }
 
 describe('World Model view', () => {
+  it('explains the real registration boundary when every World Model section is confirmed empty', async () => {
+    const { root, rail } = await mount({
+      '/api/world-model/variables': jsonResponse(200, { state: 'empty', records: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+      '/api/world-model/models': jsonResponse(200, { state: 'empty', records: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+      '/api/world-model/observations': jsonResponse(200, { state: 'empty', observations: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+      '/api/world-model/adoptions': jsonResponse(200, { state: 'empty', adoptions: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+    });
+    const guidance = byClass(root, 'bb-wm-registration-guidance');
+    expect(guidance).toHaveLength(1);
+    const text = collectText(guidance[0]);
+    expect(text).toContain('登録方法');
+    expect(text).toContain('この欄は表示専用です');
+    expect(text).toContain('利用者向けのWeb/CLI登録入口は現行OSSにありません');
+    expect(text).toContain('この画面からは登録できません');
+    expect(text).toContain('@unson/brainbase-mcp/world-model');
+    expect(text).toContain('createWorldModelStore');
+    expect(findAll(root, (node) => node.tagName === 'BUTTON')).toHaveLength(0);
+    expect(findAll(root, (node) => node.tagName === 'A')).toHaveLength(0);
+    expect(rail.children).toHaveLength(0);
+  });
+
   it('keeps the view (variables and models) apart from recorded observations, as read-only ledgers', async () => {
     const { root, rail } = await mount({
       '/api/world-model/variables': jsonResponse(200, variablesPayload),
@@ -178,6 +199,7 @@ describe('World Model view', () => {
     expect(observedText).not.toContain('支持');
 
     expect(collectText(section(root, 'モデルの採用'))).toContain('モデルの採用はまだありません。');
+    expect(byClass(root, 'bb-wm-registration-guidance')).toHaveLength(0);
     // Rows are not selectable and the view never writes to the host's rail.
     expect(findAll(root, (node) => node.tagName === 'BUTTON')).toHaveLength(0);
     expect(rail.children).toHaveLength(0);
@@ -246,6 +268,7 @@ describe('World Model view', () => {
     expect(text).toContain('読めない記録が1件あります（読む権限がない）');
     expect(text).not.toContain('モデルはまだ登録がありません');
     expect(text).not.toContain('観測はまだ記録がありません');
+    expect(byClass(root, 'bb-wm-registration-guidance')).toHaveLength(0);
 
     const retry = findAll(root, (node) => node.tagName === 'BUTTON' && node.textContent === '再試行')[0];
     retry.listeners.get('click')();

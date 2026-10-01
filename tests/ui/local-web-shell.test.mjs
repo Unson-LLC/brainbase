@@ -172,6 +172,10 @@ describe('local Web shell', () => {
     const text = collectText(screen(root, 'objectives'));
     expect(text).toContain('目的はまだ登録されていません。');
     expect(text).toContain('現状と見通し');
+    expect(text).toContain('登録方法');
+    expect(text).toContain('利用者向けのWeb/CLI登録入口は現行OSSにありません');
+    const worldModel = findAll(screen(root, 'objectives'), (node) => String(node.className ?? '').split(' ').includes('bb-wm'))[0];
+    expect(findAll(worldModel, (node) => node.tagName === 'BUTTON')).toHaveLength(0);
     expect(text).not.toContain('Story参照');
     expect(calls).toEqual(expect.arrayContaining(['/api/foundation/objectives', '/api/world-model/variables', '/api/world-model/adoptions']));
     const links = findAll(root, (node) => node.tagName === 'A');

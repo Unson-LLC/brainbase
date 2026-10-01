@@ -333,6 +333,22 @@ function unavailableSummary(doc, state, unavailableNotice) {
 }
 
 /**
+ * The current Personal Web is a read-only World Model surface.  Show the
+ * actual registration boundary only after every section has been confirmed empty;
+ * an unknown, partial or unavailable section must not be presented as an
+ * empty World Model.
+ */
+function emptyRegistrationGuidance(doc, state) {
+  if (!WORLD_MODEL_SECTIONS.every((section) => state[section]?.state === 'empty')) return null;
+  const guidance = workspaceNotice(doc, {
+    label: '登録方法',
+    text: 'この欄は表示専用です。利用者向けのWeb/CLI登録入口は現行OSSにありません。この画面からは登録できません。登録機能を実装する場合は、公開パッケージ「@unson/brainbase-mcp/world-model」の createWorldModelStore を使い、変数・モデル・観測・モデルの採用を保存します。',
+  });
+  guidance.className += ' bb-wm-registration-guidance';
+  return guidance;
+}
+
+/**
  * Render the whole view into a host-owned root: a section title and read-only ledgers.
  * `options.unavailableNotice` is the host's `{ title, guidance }` shown once
  * when every section is unavailable.
@@ -356,6 +372,8 @@ export function renderWorldModelView(root, state, callbacks = {}, options = {}) 
   const models = namesOf(state.models);
 
   const view = block(doc, '変数とモデル', '見方：変数とモデル', '何を測り、どう関係すると考えているか。認識の状態は、確かめた度合いです。観測ではありません。');
+  const registrationGuidance = emptyRegistrationGuidance(doc, state);
+  if (registrationGuidance) view.append(registrationGuidance);
   const statuses = {
     variables: sectionStatus(doc, '変数', 'variables', state.variables, callbacks, '変数はまだ登録がありません。'),
     models: sectionStatus(doc, 'モデル', 'models', state.models, callbacks, 'モデルはまだ登録がありません。'),
