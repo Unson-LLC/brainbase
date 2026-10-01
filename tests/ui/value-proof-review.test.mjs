@@ -256,9 +256,16 @@ describe('value proof review UI contract', () => {
     const notices = byClass(root, 'bb-ws-notice');
     expect(collectText(notices[0])).toContain('記録の範囲');
     expect(collectText(notices[0])).toContain('/tmp/journal');
-    // The stalled-record warning is its own warning notice.
-    const stalled = notices.find((element) => collectText(element).includes('記録が止まっている可能性があります'));
+    // The value-confirmation warning is separate and does not claim the whole journal stopped.
+    const stalled = notices.find((element) => collectText(element).includes('価値の確認記録の停止'));
     expect(stalled.className).toContain('is-warning');
+    const stalledText = collectText(stalled);
+    expect(stalledText).toContain('しばらく新しい価値の確認記録（.value-proof.json）がありません。');
+    expect(stalledText).toContain('判断journalには別の記録（episode/final）が書かれます');
+    expect(stalledText).toContain('journal全体の停止を示しません。');
+    expect(stalledText).toContain('journal全体の最新の書き込み状況は、この画面では確認できません。');
+    expect(stalledText).toContain('0件・成功とは扱いません。');
+    expect(stalledText).not.toContain('記録が止まっている可能性があります');
     const metrics = byClass(root, 'bb-ws-metric').map((element) => [element.children[0].textContent, element.children[1].textContent]);
     // An unknown saved count is 未確認, never zero.
     expect(metrics).toEqual([['保存済み', '未確認'], ['あなたの判断が必要', '0'], ['聞かずに進めた', '1'], ['評価済み', '0']]);
