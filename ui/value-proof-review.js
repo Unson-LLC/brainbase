@@ -875,9 +875,14 @@ export function renderValueProofReview(root, state, callbacks = {}, options = {}
   surface.append(renderCoverageNotice(doc, home));
   if (home.coverage.possiblyStalled) {
     surface.append(workspaceNotice(doc, {
-      label: '記録の停止',
+      label: '価値の確認記録の停止',
       tone: 'warning',
-      text: 'しばらく新しい記録がありません。記録が止まっている可能性があります。0件を「何も無かった」とは扱いません。',
+      text: noticeBody(
+        doc,
+        'しばらく新しい価値の確認記録（.value-proof.json）がありません。',
+        'この画面は判断journalのうち価値の確認記録だけを表示しています。判断journalには別の記録（episode/final）が書かれますが、この注意はjournal全体の停止を示しません。journal全体の最新の書き込み状況は、この画面では確認できません。',
+        '保存済み件数や最新時刻が未確認の場合は、0件・成功とは扱いません。',
+      ),
     }));
   }
   surface.append(renderFilters(doc, home, state, callbacks), renderMetrics(doc, home));

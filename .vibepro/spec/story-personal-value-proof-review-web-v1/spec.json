@@ -36,6 +36,11 @@
       "id": "AC-007",
       "type": "behavior",
       "text": "The value-proof-review UI part lets a host that cannot read a local journal replace the unavailable notice title and guidance; the notice still shows the reason and never renders as zero items, and the default guidance stays the local --journal and environment variable hint."
+    },
+    {
+      "id": "AC-008",
+      "type": "behavior",
+      "text": "The possible-stall notice is explicitly scoped to web-readable .value-proof.json value-confirmation records, explains that the judgment journal also writes other episode/final records, and does not claim that the whole judgment journal stopped or infer its latest write status from this notice; unavailable or unconfirmed counts and timestamps remain neither zero nor success."
     }
   ]
 }
