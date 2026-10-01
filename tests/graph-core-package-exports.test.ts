@@ -68,7 +68,7 @@ describe('判断の枠組みの公開契約', () => {
       import: './dist/judgment-frame.js',
     });
     const frame = await importExport(manifest, './judgment-frame');
-    for (const name of ['buildJudgmentFrameCatalog', 'renderJudgmentFrameCatalog', 'validateJudgmentFrameRecord']) {
+    for (const name of ['buildJudgmentFrameCatalog', 'renderJudgmentFrameCatalog', 'validateJudgmentFrameRecord', 'handleJudgmentFrameToolCall']) {
       expect(typeof frame[name]).toBe('function');
     }
   });

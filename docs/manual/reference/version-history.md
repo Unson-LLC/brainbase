@@ -14,6 +14,11 @@
 - HTTPホスト向けの小さな共通部品`@unson/brainbase-mcp/server-support`（`AppError`・`ErrorCodes`・`asyncHandler`・秘密を隠すJSON logger）を追加。組織やテナントの概念を持たない
 - 実行記録の状態に`registered`が増えるため、実行記録の応答を厳密に検査している利用者は対応が必要。0.10からのminorにした
 
+## 0.10.15 candidate — npm公開前
+
+- 判断の枠組みのMCPツール `brainbase_judgment_frame_catalog`・`brainbase_judgment_frame_record` を `@unson/brainbase-mcp/judgment-frame` に追加（Graphの読み方は呼び出し側が差し込む）
+- 読み取りの失敗・例外・上限いっぱいの応答は、空や短い一覧ではなく失敗として返す
+
 ## 0.10.14 candidate — npm公開前
 
 - 判断の枠組みの共通部品 `@unson/brainbase-mcp/judgment-frame` を追加（一覧の組み立て・モデル向けの表示・記録の構造照合）
