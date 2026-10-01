@@ -55,9 +55,9 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
-## Candidate — v0.10.14（npm公開前）
+## Candidate — v0.10.15（npm公開前）
 
-判断の枠組みの共通部品（`@unson/brainbase-mcp/judgment-frame`）を追加します。判断を伴う作業で、哲学・目的・世界モデルの一覧から効くものを選び、選択肢ごとに哲学を制約・目的を基準・世界モデルを予測として使った内容を記録し、一覧に無い参照や使われない選択を構造として止めます。草案や未検証の状態はラベルとして添え、判断を止める条件にしません。意味の良し悪しは判定しません。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+判断の枠組みのMCPツール（`brainbase_judgment_frame_catalog`・`brainbase_judgment_frame_record`）の定義と処理を `@unson/brainbase-mcp/judgment-frame` に加えます。呼び出し側はGraphの記録の読み方だけを差し込みます。読み取りの失敗や上限いっぱいの応答では、短い一覧を返さず失敗にします。npm配布と外部照合が完了するまでは公開済みとして扱いません。
 
 ## Develop — release前
 
