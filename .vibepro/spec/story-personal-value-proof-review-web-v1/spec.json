@@ -15,7 +15,7 @@
     {
       "id": "AC-003",
       "type": "behavior",
-      "text": "The judgment card shows handling, decision, work impact, basis, prior learning reuse, execution, outcome and feedback in that order, and internal IDs appear only in the audit details."
+      "text": "The judgment card shows handling, decision, work impact, basis, recorded basis target (entity ID and optional version), prior learning reuse, execution, outcome and feedback in that order. A recorded basis target is visible for traceability; a missing target remains explicit and no source link is invented."
     },
     {
       "id": "AC-004",
@@ -41,6 +41,16 @@
       "id": "AC-008",
       "type": "behavior",
       "text": "The possible-stall notice is explicitly scoped to web-readable .value-proof.json value-confirmation records, explains that the judgment journal also writes other episode/final records, and does not claim that the whole judgment journal stopped or infer its latest write status from this notice; unavailable or unconfirmed counts and timestamps remain neither zero nor success."
+    },
+    {
+      "id": "AC-009",
+      "type": "behavior",
+      "text": "When the local journal is unavailable, the default notice gives concrete --journal and BRAINBASE_JUDGMENT_JOURNAL_DIR setup steps and a visible retry action; a host-provided notice keeps its own guidance and still offers retry without adding local-only instructions."
+    },
+    {
+      "id": "AC-010",
+      "type": "boundary",
+      "text": "The value-proof payload currently has no source URL or source-read contract. The UI must not fabricate a navigable source; adding source navigation requires a separately defined contract and an actual target fixture."
     }
   ]
 }
