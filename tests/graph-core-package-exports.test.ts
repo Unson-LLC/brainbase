@@ -45,3 +45,17 @@ describe('Graphの検索コアの公開契約', () => {
       .toThrow(embeddingProvider.EmbeddingProviderConfigError);
   });
 });
+
+describe('共通昇格処理の公開契約', () => {
+  it('昇格サービスと正規化・受領記録をpackageの出口から取り込める', async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+    expect(manifest.exports['./knowledge-promotion']).toEqual({
+      types: './dist/knowledge-promotion.d.ts',
+      import: './dist/knowledge-promotion.js',
+    });
+    const promotion = await importExport(manifest, './knowledge-promotion');
+    for (const name of ['KnowledgePromotionService', 'normalizePromotionPayload', 'ownerConsentReceipt', 'organizationReviewReceipt', 'candidateApprovalReceipt']) {
+      expect(typeof promotion[name]).toBe('function');
+    }
+  });
+});

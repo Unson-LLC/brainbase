@@ -13,6 +13,17 @@
 - 実行記録の保存先を`ExecutionIntentStore`として差し替え可能にする。既定はこれまでのsidecar
 - 実行記録の状態に`registered`が増えるため、実行記録の応答を厳密に検査している利用者は対応が必要。0.10からのminorにした
 
+## 0.10.13 candidate — npm公開前
+
+- `brainbase_knowledge_lookup` の `next_action` を、種類ごとに項目・必須項目を宣言する形へ変更。分岐の外の項目を表示しないエージェントでも、読み取り（`entity_id`・`entity_type`）と完了の宣言（`status`・`field_evidence` など）を書ける
+- 受け付ける値と検証処理は変更しない
+
+## 0.10.12 candidate — npm公開前
+
+- 個人KG v1の共有（本人承認→組織レビュー）と組織候補（組織内承認）を同じ処理で組織のGraphへ渡す共通昇格処理 `@unson/brainbase-mcp/knowledge-promotion` を追加
+- 本人の承認が無い共有、組織の承認が無い登録、却下後の承認、古い版の登録を止め、承認の種類・元・受領記録・知識イベント・Graphの系譜を残す
+- 保存、元の読み取り、知識イベント、Graph、組織の審査規則は差し込み口とし、無ければ止まる
+
 ## 0.10.11 candidate — npm公開前
 
 - ローカルWebホストに、名前空間で分離した私有画面・静的資産・APIを登録できる拡張口を追加

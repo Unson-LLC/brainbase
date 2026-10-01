@@ -877,6 +877,30 @@ function unsupported(input: CommonInput | null, action: KnowledgeLookupAction | 
   };
 }
 
+function lookupActionVariant(
+  kind: KnowledgeLookupActionKind,
+  properties: Record<string, unknown>,
+  required: string[],
+): Record<string, unknown> {
+  return {
+    type: 'object',
+    properties: {
+      kind: { const: kind },
+      ...properties,
+      required_fields: {
+        type: 'array',
+        minItems: 1,
+        maxItems: MAX_FIELDS,
+        description: 'Must contain the same public field paths as the top-level required_fields.',
+        items: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
+      },
+      why_different: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH },
+    },
+    required: ['kind', ...required],
+    additionalProperties: false,
+  };
+}
+
 export const knowledgeLookupTools: Tool[] = [{
   name: 'brainbase_knowledge_lookup',
   description: 'Find and read authorized Graph knowledge by purpose. Each call performs one bounded search, read, relation follow, or finish proposal; project hints never change authorization scope.',
@@ -901,57 +925,49 @@ export const knowledgeLookupTools: Tool[] = [{
       missing_information: { type: 'array', maxItems: MAX_FIELDS, items: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH } },
       based_on_attempt_ids: { type: 'array', maxItems: MAX_IDS, items: { type: 'string', minLength: 1, maxLength: 300 } },
       why_different: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH },
+      // Each variant lists its own properties. Codex renders only the oneOf
+      // variants into the model-facing declaration, so properties declared
+      // beside oneOf are invisible and read/finish calls cannot be written.
       next_action: {
         type: 'object',
-        properties: {
-          kind: { type: 'string', enum: ['search', 'read', 'follow_relation', 'finish'] },
-          query: { type: 'string', minLength: 1, maxLength: MAX_TEXT_LENGTH },
-          entity_types: { type: 'array', maxItems: 10, items: { type: 'string', minLength: 1, maxLength: 100 } },
-          seed_ids: { type: 'array', minItems: 1, maxItems: MAX_IDS, items: { type: 'string', minLength: 1, maxLength: 1_000 } },
-          entity_id: { type: 'string', minLength: 1, maxLength: 1_000 },
-          entity_type: { type: 'string', minLength: 1, maxLength: 100 },
-          required_fields: {
-            type: 'array',
-            minItems: 1,
-            maxItems: MAX_FIELDS,
-            description: 'Must contain the same public field paths as the top-level required_fields.',
-            items: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
-          },
-          relation: { type: 'string', minLength: 1, maxLength: MAX_RELATION_LENGTH },
-          direction: { type: 'string', enum: ['incoming', 'outgoing'] },
-          target_types: { type: 'array', maxItems: 10, items: { type: 'string', minLength: 1, maxLength: 100 } },
-          why_different: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH },
-          assessment: { type: 'string', enum: ['sufficient', 'insufficient'] },
-          status: { type: 'string', enum: ['satisfied', 'unresolved', 'needs_user_input'] },
-          reference_ids: { type: 'array', maxItems: MAX_IDS, items: { type: 'string', minLength: 1, maxLength: 1_000 } },
-          field_evidence: {
-            type: 'array',
-            maxItems: MAX_FIELDS,
-            items: {
-              type: 'object',
-              properties: {
-                field: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
-                reference_id: { type: 'string', minLength: 1, maxLength: 1_000 },
-                attempt_id: { type: 'string', minLength: 1, maxLength: 300 },
-              },
-              required: ['field', 'reference_id', 'attempt_id'],
-              additionalProperties: false,
-            },
-          },
-          unresolved_items: { type: 'array', maxItems: MAX_FIELDS, items: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH } },
-          termination_reason: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH },
-        },
         oneOf: [
-          { properties: { kind: { const: 'search' } }, required: ['kind'] },
-          { properties: { kind: { const: 'read' } }, required: ['kind', 'entity_id', 'entity_type'] },
-          { properties: { kind: { const: 'follow_relation' } }, required: ['kind', 'seed_ids', 'relation', 'direction'] },
-          {
-            properties: { kind: { const: 'finish' } },
-            required: ['kind', 'assessment', 'status', 'reference_ids', 'field_evidence', 'unresolved_items', 'termination_reason'],
-          },
+          lookupActionVariant('search', {
+            query: { type: 'string', minLength: 1, maxLength: MAX_TEXT_LENGTH },
+            entity_types: { type: 'array', maxItems: 10, items: { type: 'string', minLength: 1, maxLength: 100 } },
+            seed_ids: { type: 'array', minItems: 1, maxItems: MAX_IDS, items: { type: 'string', minLength: 1, maxLength: 1_000 } },
+          }, []),
+          lookupActionVariant('read', {
+            entity_id: { type: 'string', minLength: 1, maxLength: 1_000 },
+            entity_type: { type: 'string', minLength: 1, maxLength: 100 },
+          }, ['entity_id', 'entity_type']),
+          lookupActionVariant('follow_relation', {
+            seed_ids: { type: 'array', minItems: 1, maxItems: MAX_IDS, items: { type: 'string', minLength: 1, maxLength: 1_000 } },
+            relation: { type: 'string', minLength: 1, maxLength: MAX_RELATION_LENGTH },
+            direction: { type: 'string', enum: ['incoming', 'outgoing'] },
+            target_types: { type: 'array', maxItems: 10, items: { type: 'string', minLength: 1, maxLength: 100 } },
+          }, ['seed_ids', 'relation', 'direction']),
+          lookupActionVariant('finish', {
+            assessment: { type: 'string', enum: ['sufficient', 'insufficient'] },
+            status: { type: 'string', enum: ['satisfied', 'unresolved', 'needs_user_input'] },
+            reference_ids: { type: 'array', maxItems: MAX_IDS, items: { type: 'string', minLength: 1, maxLength: 1_000 } },
+            field_evidence: {
+              type: 'array',
+              maxItems: MAX_FIELDS,
+              items: {
+                type: 'object',
+                properties: {
+                  field: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
+                  reference_id: { type: 'string', minLength: 1, maxLength: 1_000 },
+                  attempt_id: { type: 'string', minLength: 1, maxLength: 300 },
+                },
+                required: ['field', 'reference_id', 'attempt_id'],
+                additionalProperties: false,
+              },
+            },
+            unresolved_items: { type: 'array', maxItems: MAX_FIELDS, items: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH } },
+            termination_reason: { type: 'string', minLength: 1, maxLength: MAX_HINT_LENGTH },
+          }, ['assessment', 'status', 'reference_ids', 'field_evidence', 'unresolved_items', 'termination_reason']),
         ],
-        required: ['kind'],
-        additionalProperties: false,
       },
     },
     required: ['question', 'target_hint', 'required_fields'],
