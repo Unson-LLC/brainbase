@@ -197,6 +197,10 @@ describe('value proof review UI contract', () => {
     const { root, rail } = renderHome({ status: 'unavailable', root: '/x', reason: 'judgment_journal_not_found' });
     const text = collectText(root);
     expect(text).toContain('判断journalに接続できません');
+    expect(text).toContain('brainbase review:serve --journal <判断journalの場所>');
+    expect(text).toContain('BRAINBASE_JUDGMENT_JOURNAL_DIR=<判断journalの場所>');
+    expect(text).toContain('接続できる状態にしたら「再試行」を押してください。');
+    expect(findAll(root, (element) => element.tagName === 'BUTTON' && element.textContent === '再試行')).toHaveLength(1);
     expect(text).toContain('0件としては扱いません');
     expect(text).not.toContain('聞かずに進めた');
     // No metrics at all: an unreadable journal is never shown as zero judgments.
@@ -222,7 +226,31 @@ describe('value proof review UI contract', () => {
     expect(text).toContain('value_proof_source_not_connected');
     expect(text).toContain('0件としては扱いません');
     expect(text).not.toContain('--journal');
+    expect(findAll(root, (element) => element.tagName === 'BUTTON' && element.textContent === '再試行')).toHaveLength(1);
     expect(text).not.toContain('場所: 不明');
+  });
+
+  it('retries after an unavailable journal once the setup is corrected', async () => {
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    let retries = 0;
+    const ui = createValueProofReviewUI({
+      root,
+      document: doc,
+      fetcher: async () => {
+        retries += 1;
+        return jsonResponse(200, retries === 1
+          ? { status: 'unavailable', root: '/x', reason: 'judgment_journal_not_found' }
+          : home());
+      },
+      autoLoad: false,
+    });
+    await ui.load();
+    click(findAll(root, (element) => element.tagName === 'BUTTON' && element.textContent === '再試行')[0]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(retries).toBe(2);
+    expect(ui.state.phase).toBe('ready');
+    expect(collectText(root)).toContain('委任の地図');
   });
 
   it('reports a failed request as an error with a retry, never as zero', async () => {
@@ -271,17 +299,18 @@ describe('value proof review UI contract', () => {
     expect(metrics).toEqual([['保存済み', '未確認'], ['あなたの判断が必要', '0'], ['聞かずに進めた', '1'], ['評価済み', '0']]);
   });
 
-  it('shows the card in the contract order in the rail and keeps internal IDs in the audit details', () => {
+  it('shows the card in the contract order and surfaces the recorded basis target', () => {
     const { root, rail } = renderHome(home(), { selectedKey: 'intent-1\u0000attempt-1', selectedRowKey: 'reason:routine_reversible_work', railView: 'judgment' });
     const detail = byClass(rail, 'bb-vpr-detail')[0];
     expect(detail.attributes['data-detail']).toBe('judgment');
     const facts = byClass(detail, 'bb-vpr-facts');
     expect(facts.flatMap((list) => byTag(list, 'dt').map((element) => element.textContent))).toEqual([
-      '扱い', '判断', '仕事への影響', '根拠', '過去の学習の再利用', '引き継ぎ', '実行', '成果の確認', '評価',
+      '扱い', '判断', '仕事への影響', '根拠', '根拠の対象', '過去の学習の再利用', '引き継ぎ', '実行', '成果の確認', '評価',
     ]);
     // After the facts: the evaluation form, the consult action and the audit details, in that order.
     const titles = byClass(detail, 'bb-ws-rail-block').map((block) => block.attributes['aria-label'] ?? '');
     expect(titles).toEqual(['判断', '根拠と引き継ぎ', '実行と成果', '評価', 'Codexで相談', '']);
+    expect(facts.map(collectText).join('')).toContain('dec-1');
     expect(facts.map(collectText).join('')).not.toContain('attempt-1');
     expect(collectText(byClass(detail, 'bb-vpr-audit')[0])).toContain('attempt-1');
     // The workspace keeps only the ledgers; the card lives in the rail.
@@ -310,6 +339,17 @@ describe('value proof review UI contract', () => {
     const text = render(recorded);
     expect(text).toContain('[目的] フロントの総対応負荷を減らす');
     expect(text).toContain('ホテルAの総負荷の評価方法。今回も同じ: 問い合わせ自動化の実証である。今回だけ確認: ホテルBの作業記録の方法');
+  });
+
+  it('keeps a basis without a source target explicit and does not invent a link', () => {
+    const entry = proof();
+    entry.decision = { ...entry.decision, basis: [] };
+    const { rail } = renderHome(home([entry]), { selectedKey: 'intent-1\u0000attempt-1', railView: 'judgment' });
+    const detail = byClass(rail, 'bb-vpr-detail')[0];
+    const factsText = byClass(detail, 'bb-vpr-facts').map(collectText).join('');
+    expect(factsText).toContain('根拠の記録なし');
+    expect(factsText).toContain('対象の記録なし');
+    expect(byTag(detail, 'A')).toHaveLength(0);
   });
 
   it('requires a reason for corrections, posts with the review token and confirms the saved feedback by reloading', async () => {

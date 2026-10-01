@@ -93,6 +93,28 @@ body:has(#brainbase-value-proof-review) {
   font-weight: 700;
 }
 
+.bb-vpr-setup-guide {
+  display: grid;
+  gap: var(--bb-space-1);
+  padding: var(--bb-space-2) var(--bb-space-3);
+  border: 1px solid var(--bb-color-border, #d8dee9);
+  background: var(--bb-color-panel, #ffffff);
+}
+
+.bb-vpr-setup-guide p,
+.bb-vpr-setup-guide ol {
+  margin: 0;
+}
+
+.bb-vpr-setup-guide ol {
+  padding-left: var(--bb-space-5);
+}
+
+.bb-vpr-setup-guide code {
+  overflow-wrap: anywhere;
+  font-size: .92em;
+}
+
 .bb-vpr-rejected summary {
   cursor: pointer;
 }
