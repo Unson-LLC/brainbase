@@ -59,3 +59,17 @@ describe('共通昇格処理の公開契約', () => {
     }
   });
 });
+
+describe('判断の枠組みの公開契約', () => {
+  it('一覧の組み立て・表示・記録の照合をpackageの出口から取り込める', async () => {
+    const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+    expect(manifest.exports['./judgment-frame']).toEqual({
+      types: './dist/judgment-frame.d.ts',
+      import: './dist/judgment-frame.js',
+    });
+    const frame = await importExport(manifest, './judgment-frame');
+    for (const name of ['buildJudgmentFrameCatalog', 'renderJudgmentFrameCatalog', 'validateJudgmentFrameRecord']) {
+      expect(typeof frame[name]).toBe('function');
+    }
+  });
+});

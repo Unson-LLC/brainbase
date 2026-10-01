@@ -13,6 +13,12 @@
 - 実行記録の保存先を`ExecutionIntentStore`として差し替え可能にする。既定はこれまでのsidecar
 - 実行記録の状態に`registered`が増えるため、実行記録の応答を厳密に検査している利用者は対応が必要。0.10からのminorにした
 
+## 0.10.14 candidate — npm公開前
+
+- 判断の枠組みの共通部品 `@unson/brainbase-mcp/judgment-frame` を追加（一覧の組み立て・モデル向けの表示・記録の構造照合）
+- 置き換え済み・無効の記録と、元の哲学を言い直しただけの分解草案は一覧から理由付きで外す。草案・未検証はラベルとして残す
+- 目的が無いまま選ぶとき、選んだ案が哲学に反する・緊張するときは、人間に戻す印を返す
+
 ## 0.10.13 candidate — npm公開前
 
 - `brainbase_knowledge_lookup` の `next_action` を、種類ごとに項目・必須項目を宣言する形へ変更。分岐の外の項目を表示しないエージェントでも、読み取り（`entity_id`・`entity_type`）と完了の宣言（`status`・`field_evidence` など）を書ける
