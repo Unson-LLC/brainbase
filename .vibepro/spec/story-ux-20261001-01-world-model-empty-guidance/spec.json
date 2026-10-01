@@ -1,0 +1,68 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ux-20261001-01-world-model-empty-guidance",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "behavior",
+      "text": "When variables and observations are both confirmed empty, the World Model view shows a first-registration form near the section heading; unknown, error, invalid, unavailable, partial, or unreadable sections never show the form.",
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/ui/world-model-view.test.mjs", "must_cover": "offers a real first-user registration entry and reads the saved records back" }
+        ]
+      }
+    },
+    {
+      "id": "AC-002",
+      "type": "behavior",
+      "text": "The first-registration form accepts meaning, subject, value kind, required unit, aggregation, granularity, measurement method, and the first value, and sends the variable fields and observation value through the local Web registration route.",
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/ui/world-model-view.test.mjs", "must_cover": "offers a real first-user registration entry" }
+        ]
+      }
+    },
+    {
+      "id": "AC-003",
+      "type": "invariant",
+      "text": "POST /api/world-model/variables and POST /api/world-model/observations derive owner, ACL, timestamps, period, and provenance from the trusted local Web host; authority fields supplied by the client are rejected.",
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/local-web-host.test.ts", "must_cover": "registers an initial variable and observation through the trusted local Web entry" }
+        ]
+      }
+    },
+    {
+      "id": "AC-004",
+      "type": "behavior",
+      "text": "After both writes succeed, the view reloads the GET sections and shows the saved variable and observation; if the observation write fails after the variable write, the view states that the variable was saved but the observation was not.",
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/ui/world-model-view.test.mjs", "must_cover": "shows the non-atomic result when the initial observation cannot be saved" }
+        ]
+      }
+    },
+    {
+      "id": "AC-005",
+      "type": "invariant",
+      "text": "The first-user route does not offer model creation, model adoption, or observation correction, and existing World Model read-only status, partial-read, and approval-verification boundaries remain unchanged.",
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/local-web-host.test.ts", "must_cover": "registers an initial variable and observation through the trusted local Web entry" },
+          { "file_glob": "tests/ui/world-model-view.test.mjs", "must_cover": "never shows a failed, unconfirmed or partial section as zero items" }
+        ]
+      }
+    },
+    {
+      "id": "AC-006",
+      "type": "behavior",
+      "text": "Fictional UI and local-host regression fixtures assert the visible first-registration entry, two POST requests, trusted token/body boundaries, and GET readback.",
+      "verifiable_by": {
+        "test_pattern": [
+          { "file_glob": "tests/ui/world-model-view.test.mjs", "must_cover": "offers a real first-user registration entry and reads the saved records back" },
+          { "file_glob": "tests/local-web-host.test.ts", "must_cover": "registers an initial variable and observation through the trusted local Web entry" }
+        ]
+      }
+    }
+  ]
+}

@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFoundationRevisionStore } from '../src/foundation-store.js';
 import { createLocalWebHost, LOCAL_WEB_TOKEN_HEADER, type LocalWebExtension } from '../src/local-web-host.js';
-import type { ConstraintDefinition, ModelDefinition, ObjectiveDefinition, VariableDefinition } from '../src/ontology-foundation.js';
+import type { ConstraintDefinition, FoundationRevision, ModelDefinition, ObjectiveDefinition, VariableDefinition } from '../src/ontology-foundation.js';
 import { initializePersonalOs, mutatePersonalOs } from '../src/ssot.js';
 import { createWorldModelStore } from '../src/world-model.js';
 
@@ -456,7 +456,62 @@ describe('objectives through the Foundation routes', () => {
   });
 });
 
-describe('read-only World Model routes', () => {
+describe('World Model routes', () => {
+  it('registers an initial variable and observation through the trusted local Web entry', async () => {
+    await v2DataDir();
+    const base = await start();
+    const variableResponse = await write(base, 'POST', '/api/world-model/variables', {
+      meaning: '架空の集中時間',
+      subject: '架空の利用者',
+      valueKind: 'number',
+      unit: '時間',
+      aggregation: 'last',
+      granularity: '日',
+      measurementMethod: '画面から手入力'
+    });
+    expect(variableResponse.status).toBe(201);
+    const created = await variableResponse.json() as { reference: FoundationRevision; digest: string };
+    expect(created.reference).toMatchObject({ type: 'variable', revision: '1' });
+    expect(created.reference.id).toMatch(/^web\.variable\.[0-9a-f]+$/);
+    expect(created.digest).toMatch(/^sha256:/);
+
+    const observationResponse = await write(base, 'POST', '/api/world-model/observations', {
+      variableRef: created.reference,
+      value: 3
+    });
+    expect(observationResponse.status).toBe(201);
+    const savedObservation = await observationResponse.json() as { observation: Record<string, unknown> };
+    expect(savedObservation.observation).toMatchObject({
+      variableRef: created.reference,
+      subjectId: 'self',
+      value: 3,
+      sourceRef: { sourceId: 'brainbase-local-web', sourceKind: 'observation' }
+    });
+    expect(savedObservation.observation.id).toMatch(/^web\.observation\.[0-9a-f]+$/);
+    expect(savedObservation.observation.sourceRef.evidenceIds).toEqual([savedObservation.observation.id]);
+    expect(savedObservation.observation.occurredAt).toBe('2026-09-26T00:00:00.000Z');
+
+    const variables = await (await fetch(`${base}/api/world-model/variables`)).json();
+    expect(variables.records).toHaveLength(1);
+    expect(variables.records[0].definition).toMatchObject({
+      id: created.reference.id,
+      meaning: '架空の集中時間',
+      adoptionState: 'draft',
+      acl: { ownerId: 'self', visibility: 'private' }
+    });
+    const observations = await (await fetch(`${base}/api/world-model/observations`)).json();
+    expect(observations.observations).toHaveLength(1);
+    expect(observations.observations[0]).toMatchObject({ variableRef: created.reference, subjectId: 'self', value: 3 });
+
+    const authorityAttempt = await write(base, 'POST', '/api/world-model/variables', {
+      meaning: '架空の別変数', subject: '架空の利用者', valueKind: 'number', unit: '件', aggregation: 'count',
+      granularity: '日', measurementMethod: '手入力', acl: { ownerId: 'someone-else', visibility: 'public' }
+    });
+    expect(authorityAttempt.status).toBe(400);
+    expect((await authorityAttempt.json()).error.code).toBe('authority_field_in_body');
+    expect((await write(base, 'POST', '/api/world-model/models', { meaning: '架空のモデル' })).status).toBe(405);
+  });
+
   it('lists variables and models with their epistemic state apart from observations and corrections', async () => {
     await v2DataDir();
     const writer = worldModelWriter();
@@ -482,7 +537,7 @@ describe('read-only World Model routes', () => {
     const adoptions = await (await fetch(`${base}/api/world-model/adoptions`)).json();
     expect(adoptions).toMatchObject({ state: 'empty', adoptions: [], absence_confirmed: true });
 
-    expect((await write(base, 'POST', '/api/world-model/observations', observation('observation-3', 1))).status).toBe(405);
+    expect((await write(base, 'POST', '/api/world-model/models', { meaning: '書き込み対象外' })).status).toBe(405);
     expect((await fetch(`${base}/api/world-model/unknown`)).status).toBe(404);
   });
 

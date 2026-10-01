@@ -6,36 +6,66 @@ spec_maturity: implementation_ready
 owner_repository: brainbase
 ---
 
-# World Model空状態の登録方法案内 Spec
+# World Model空状態から最初の登録を行うSpec
 
-## 状態判定
+## 状態判定と表示
 
-`WORLD_MODEL_SECTIONS`（`variables`、`models`、`observations`、`adoptions`）の全区画が `state: 'empty'` のときだけ、World Model全体が空であると扱う。`empty` は既存の `absence_confirmed: true` による正本確認を通過した状態であり、`unknown`、`error`、`invalid`、`unavailable`、`partial` は空とみなさない。
+- `variables` と `observations` がそれぞれ `state: 'empty'`（`absence_confirmed: true`、未読0件）のとき、`bb-wm-registration-guidance` に「最初の登録」フォームを表示する。
+- `unknown`、`error`、`invalid`、`unavailable`、`partial`、未読ありは空とみなさず、既存の「0件ではありません」境界・再試行・利用不可表示を維持する。
+- `models` と `adoptions` はフォームの表示条件ではないが、初回フォームでは登録しない。全4区画が空の場合も、利用者には変数と最初の観測値を登録できること、モデル等は別手順であることを示す。
 
-## 表示契約
+## フォーム契約
 
-- `現状と見通し` の区画見出し直後に、既存の `workspaceNotice` を使った `bb-wm-registration-guidance` を追加する。
-- noticeの短いラベルは `登録方法` とする。
-- 本文は次の事実を一つの案内として表示する。
-  - この欄は表示専用である。
-  - 利用者向けの現行OSSのWeb/CLIにはWorld Modelの登録入口がなく、この画面から登録できない。
-  - 登録機能を実装する場合は公開パッケージ `@unson/brainbase-mcp/world-model` の `createWorldModelStore` を使い、変数・モデル・観測・モデルの採用を保存する。これは開発者向けの既存APIであり、利用者向けの操作手順ではない。
-- 本文はボタン、リンク、入力欄を持たない。存在しないWeb/CLI routeやコマンドを推測して表示しない。
+フォームは次の利用者入力を受け取る。未入力の必須値、数値以外の数値欄、許可されない値の種類・集計方法は送信しない。
+
+| 入力 | API field | 契約 |
+| --- | --- | --- |
+| 何を記録するか | `meaning` | 空でない文字列 |
+| 対象 | `subject` | 空でない文字列 |
+| 値の種類 | `valueKind` | `number` / `boolean` / `string` / `state` |
+| 単位 | `unit` | `number` のとき必須。それ以外は任意 |
+| 集計方法 | `aggregation` | `none` / `sum` / `average` / `count` / `min` / `max` / `last` / `custom` |
+| 記録の単位 | `granularity` | 空でない文字列 |
+| 測り方 | `measurementMethod` | 空でない文字列 |
+| 最初の値 | observation `value` | 種類に応じた有限数、真偽値、文字列 |
+
+## POST API契約
+
+### `POST /api/world-model/variables`
+
+本文は `meaning`、`subject`、`valueKind`、任意の `unit`、`aggregation`、`granularity`、`measurementMethod` のみ受け取る。`id`、`revision`、`type`、`adoptionState`、`authorizedUses`、`acl`、`storage`、`provenance`、`scope`、`ownerId` などのauthority fieldは本文で指定できず、400を返す。
+
+local Web hostは、Graph ownerをprincipalとして次を構成する。
+
+- idはhostが生成、type=`variable`、revision=`1`。
+- adoptionState=`draft`、authorizedUsesは `draft`／`judgment`／`evaluation`。
+- ACLは owner private、reader/writerは空。
+- storage=`ontology`、provenanceは `brainbase-local-web` の観測出典、scopeはownerの有効範囲。
+
+201応答は、保存後readbackの `reference`（id/type/revision）とdigestを返す。
+
+### `POST /api/world-model/observations`
+
+本文は `variableRef`（id/type=`variable`/revision）と `value` のみ受け取る。id、subjectId、occurredAt、recordedAt、period、sourceRefはhostがownerと `context.now()` から構成する。201応答は `WorldModelStore.saveObservation` のreadback observationを返す。対象変数がない、ACLが不正、値の型が合わない場合は既存WorldModelStoreのエラーコードで返す。
+
+GETの既存4 routeは保存後に読み直し、変数と観測値を台帳に表示する。変数保存後の観測値保存は同一トランザクションではないため、後段失敗時は「変数は登録されたが観測値は保存できなかった」と表示する。
+
+## 信頼境界
+
+既存のlocal Web hostの同一Origin、loopback、launch token検査を全POSTに適用する。hostはGraph owner以外のprincipalを採用しない。フォームとAPIはモデル、adoption、correctionを提供しない。
 
 ## 非変更契約
 
-- World Modelのfetcher、GET route、状態正規化、再試行、台帳、右レール、保存経路を変更しない。
-- データが空でない状態、空が確認できない状態、全区画が利用不可の状態では既存表示を維持する。
-- 新しいCSSトークンや画面外の設定を追加しない。既存noticeの見た目を利用する。
-
-## 未解決の境界
-
-利用者向けの登録入口を追加するには、現在のGET専用World Model route、認証、保存・readback境界を変更する必要がある。この変更はUI文言の範囲を越えるため、本Specではアーキテクチャ判断待ちとして扱い、PRの受入条件に含めない。
+- World Modelの既存GET応答、正規化、部分未読、承認未確認、台帳、右レールを変更しない。
+- 常駐Web、別repoのMCP、Graphのrelation・SSOT形式は変更しない。
+- authority fieldや実在しないroute／CLIを画面から案内しない。
 
 ## 回帰テスト
 
-`tests/ui/world-model-view.test.mjs` に、変数・モデル・観測・採用が空である架空fixtureを追加する。fixtureをmountした結果について、`登録方法` とWeb/CLI入口がない旨の文言が見えること、`bb-wm-registration-guidance` が一つであること、`BUTTON` と `A` が存在しないことを確認する。既存の未確認・失敗・部分未読fixtureでは空案内が出ないことも確認する。
+- `tests/ui/world-model-view.test.mjs`: 架空の全空fixtureで、フォームが表示され、架空入力がvariables→observationsの2 POSTになり、token header・本文のauthority欠落・GET後readbackを確認する。非empty／unknown／partial fixtureではフォームを表示しない。
+- `tests/ui/local-web-shell.test.mjs`: Graph v2の初回目的画面にフォームと境界文言が現れること、Graph v1の移行ゲートではWorld Modelを書き込まないことを確認する。
+- `tests/local-web-host.test.ts`: 実storeを使い、variables→observationsのPOSTとGET readback、host生成ID／owner／時刻／出典、authority field拒否、models等の405を確認する。
 
 ## 影響確認
 
-対象は `ui/world-model-view.js` とそのUI fixtureであり、Webの読み取り専用境界・公開store API・保存形式は変更しない。Graphifyの実行結果（run `2026-10-01T131101Z`、4185 nodes／11048 edges、extracted 9497／inferred 1551／ambiguous 0、requirement consistency 5 invariants／0 scenario gaps／0 contradictions）を影響確認の証跡とする。診断の一般的な `VP-FLOW-000`、`VP-NET-001`、`VP-ARCH-001`、`VP-STATIC-002` はUIルート未走査・既存の別API route・既存混在責務・一般的な静的検出であり、本Storyの範囲を変更しない。未確認を影響なしとは扱わず、利用者向け登録入口がない点は未解決として残す。
+Graphifyを本Story／Spec／実装／テストに対して再実行し、traceと診断をPRに添付する。今回のPOST接続は既存storeを再利用するが、GET専用から書込み可能へ契約を広げるため、アーキテクチャ判断待ちとしてPR後に停止する。

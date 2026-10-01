@@ -60,6 +60,59 @@
   justify-self: start;
 }
 
+/* First-user registration stays in the empty-state notice, beside the fact it affects. */
+.bb-wm-registration-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--bb-space-3);
+  margin-top: var(--bb-space-2);
+  max-width: 680px;
+}
+
+.bb-wm-registration-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.bb-wm-registration-field > label {
+  color: var(--bb-color-ink);
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.bb-wm-registration-input {
+  width: 100%;
+  min-height: 34px;
+  padding: 7px 9px;
+  border: 1px solid var(--bb-color-border-strong);
+  border-radius: var(--bb-radius-sm);
+  background: var(--bb-color-paper);
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 13px;
+}
+
+.bb-wm-registration-input:focus {
+  outline: 2px solid var(--bb-color-accent);
+  outline-offset: 1px;
+}
+
+.bb-wm-registration-status {
+  grid-column: 1 / -1;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-wm-registration-form .bb-ws-button {
+  justify-self: start;
+}
+
+.bb-wm-registration-boundary {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
 /* The local shell resets `.bb-shell button { font: inherit }`, which outranks the kit's button type. */
 .bb-wm .bb-ws-button {
   font-size: 12px;
@@ -159,6 +212,14 @@
 }
 
 @media (max-width: 760px) {
+  .bb-wm-registration-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bb-wm-registration-status {
+    grid-column: auto;
+  }
+
   .bb-wm-view-ledger .bb-ws-ledger-row {
     grid-template-columns: minmax(0, 1fr) 72px;
   }

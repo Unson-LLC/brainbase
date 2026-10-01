@@ -27,12 +27,18 @@ import {
   isLoopbackHost,
   LOCAL_WEB_CONTENT_SECURITY_POLICY,
   LocalWebHttpError,
+  readJsonObjectBody,
   requestUrl,
   tokenMatches,
   writeHttpError,
   writeJson
 } from './local-web-security.js';
-import type { FoundationRevision, FoundationType, ObjectiveDefinition } from './ontology-foundation.js';
+import type {
+  FoundationRevision,
+  FoundationType,
+  ObjectiveDefinition,
+  VariableDefinition
+} from './ontology-foundation.js';
 import { resolveDataDir } from './paths.js';
 import { loadPersonalOs, readPersonalOsSidecar } from './ssot.js';
 import type { FoundationCatalogRecord, PersonalOs } from './types.js';
@@ -41,6 +47,7 @@ import {
   createWorldModelStore,
   WORLD_MODEL_EVIDENCE_SIDECAR,
   WorldModelStoreError,
+  type WorldModelObservationInput,
   type WorldModelRecordStore,
   type WorldModelStoreContext
 } from './world-model.js';
@@ -539,7 +546,7 @@ function worldModelError(error: unknown): LocalWebHttpError {
     return new LocalWebHttpError(status, error.code, error.message);
   }
   if (error instanceof LocalWebHttpError) return error;
-  return new LocalWebHttpError(500, 'internal_error', 'World model read failed');
+  return new LocalWebHttpError(500, 'internal_error', 'World model request failed');
 }
 
 async function listReadableSidecarRecords<T>(input: {
@@ -577,11 +584,116 @@ async function listReadableSidecarRecords<T>(input: {
   return { records, unreadable: { count, codes: [...codes] } };
 }
 
+const LOCAL_WEB_WORLD_MODEL_SCOPE_START = '1970-01-01T00:00:00.000Z';
+const WORLD_MODEL_VALUE_KINDS = new Set(['number', 'boolean', 'string', 'state']);
+const WORLD_MODEL_AGGREGATIONS = new Set(['none', 'sum', 'average', 'count', 'min', 'max', 'last', 'custom']);
+const WORLD_MODEL_VARIABLE_FIELDS = new Set([
+  'meaning', 'subject', 'valueKind', 'unit', 'aggregation', 'granularity', 'measurementMethod'
+]);
+const WORLD_MODEL_OBSERVATION_FIELDS = new Set(['variableRef', 'value']);
+const WORLD_MODEL_AUTHORITY_FIELDS = new Set([
+  'acl', 'scope', 'storage', 'provenance', 'authorizedUses', 'ownerId', 'readerIds', 'writerIds',
+  'principal', 'subjectId', 'recordedAt', 'occurredAt', 'period', 'id', 'revision', 'type'
+]);
+
+function worldModelInvalid(message: string): LocalWebHttpError {
+  return new LocalWebHttpError(400, 'invalid_input', message);
+}
+
+function assertWorldModelBodyFields(body: Readonly<Record<string, unknown>>, allowed: ReadonlySet<string>): void {
+  for (const key of Object.keys(body)) {
+    if (allowed.has(key)) continue;
+    if (WORLD_MODEL_AUTHORITY_FIELDS.has(key)) {
+      throw new LocalWebHttpError(400, 'authority_field_in_body', `${key} is decided by the local Web host`);
+    }
+    throw worldModelInvalid(`Unknown World Model field ${key}`);
+  }
+}
+
+function requiredWorldModelText(body: Readonly<Record<string, unknown>>, key: string): string {
+  const value = body[key];
+  if (typeof value !== 'string' || value.trim() === '') throw worldModelInvalid(`${key} is required`);
+  return value.trim();
+}
+
+function worldModelVariableFromBody(body: Readonly<Record<string, unknown>>, principal: string): VariableDefinition {
+  assertWorldModelBodyFields(body, WORLD_MODEL_VARIABLE_FIELDS);
+  const valueKind = requiredWorldModelText(body, 'valueKind');
+  if (!WORLD_MODEL_VALUE_KINDS.has(valueKind)) throw worldModelInvalid(`Unknown valueKind ${valueKind}`);
+  const aggregation = requiredWorldModelText(body, 'aggregation');
+  if (!WORLD_MODEL_AGGREGATIONS.has(aggregation)) throw worldModelInvalid(`Unknown aggregation ${aggregation}`);
+  const unit = body.unit === undefined ? undefined : requiredWorldModelText(body, 'unit');
+  if (valueKind === 'number' && !unit) throw worldModelInvalid('unit is required for number variables');
+  return {
+    id: `web.variable.${randomBytes(10).toString('hex')}`,
+    type: 'variable',
+    revision: '1',
+    meaning: requiredWorldModelText(body, 'meaning'),
+    epistemicState: 'unverified',
+    adoptionState: 'draft',
+    authorizedUses: ['draft', 'judgment', 'evaluation'],
+    acl: { ownerId: principal, visibility: 'private', readerIds: [], writerIds: [] },
+    storage: 'ontology',
+    provenance: [{ sourceId: LOCAL_WEB_PROVENANCE_SOURCE_ID, sourceKind: 'observation', evidenceIds: [] }],
+    scope: { subjectIds: [principal], validFrom: LOCAL_WEB_WORLD_MODEL_SCOPE_START },
+    subject: requiredWorldModelText(body, 'subject'),
+    valueKind: valueKind as VariableDefinition['valueKind'],
+    ...(unit ? { unit } : {}),
+    aggregation: aggregation as VariableDefinition['aggregation'],
+    granularity: requiredWorldModelText(body, 'granularity'),
+    measurementMethod: requiredWorldModelText(body, 'measurementMethod'),
+    // The local host stamps the current date into observations; a broad owner-only
+    // validity window avoids asking the first-time user for hidden scope fields.
+  };
+}
+
+function worldModelReference(value: unknown): FoundationRevision {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw worldModelInvalid('variableRef is required');
+  const reference = value as Record<string, unknown>;
+  if (reference.type !== 'variable' || typeof reference.id !== 'string' || reference.id.trim() === ''
+    || typeof reference.revision !== 'string' || !/^[1-9]\d*$/u.test(reference.revision)) {
+    throw worldModelInvalid('variableRef must reference a variable revision');
+  }
+  if (Object.keys(reference).some((key) => !['id', 'type', 'revision'].includes(key))) {
+    throw worldModelInvalid('variableRef contains an unsupported field');
+  }
+  return { id: reference.id.trim(), type: 'variable', revision: reference.revision };
+}
+
+function worldModelObservationFromBody(
+  body: Readonly<Record<string, unknown>>,
+  principal: string,
+  now: Date
+): WorldModelObservationInput {
+  assertWorldModelBodyFields(body, WORLD_MODEL_OBSERVATION_FIELDS);
+  if (!Object.hasOwn(body, 'value') || body.value === null || body.value === undefined) throw worldModelInvalid('value is required');
+  const value = body.value;
+  if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') {
+    throw worldModelInvalid('value must be a string, number, or boolean');
+  }
+  if (typeof value === 'number' && !Number.isFinite(value)) {
+    throw worldModelInvalid('value must be a finite number');
+  }
+  const nowIso = now.toISOString();
+  const day = nowIso.slice(0, 10);
+  const observationId = `web.observation.${randomBytes(10).toString('hex')}`;
+  return {
+    id: observationId,
+    variableRef: worldModelReference(body.variableRef),
+    subjectId: principal,
+    value,
+    occurredAt: nowIso,
+    period: { from: `${day}T00:00:00.000Z`, until: `${day}T23:59:59.999Z` },
+    recordedAt: nowIso,
+    sourceRef: { sourceId: LOCAL_WEB_PROVENANCE_SOURCE_ID, sourceKind: 'observation', evidenceIds: [observationId] }
+  };
+}
+
 /**
- * Read-only World Model routes.  Writes (observations, corrections, model
- * adoption) are not on the Web in v1.  Without an approval reader an approved
- * adoption cannot be verified, so only the adoptions route reports
- * `approval_reference_unresolved`; the other routes stay readable.
+ * World Model routes.  Reads retain the explicit absence/partial contract;
+ * the first-user Web entry writes only a trusted Variable definition and an
+ * initial Observation. Models, adoption and corrections stay out of this
+ * focused route until their own authority and review contract exists.
  */
 export function createWorldModelReadModule(context: LocalWebModuleContext): LocalWebModule {
   const foundationStore = createFoundationRevisionStore({ dataDir: context.dataDir });
@@ -624,17 +736,37 @@ export function createWorldModelReadModule(context: LocalWebModuleContext): Loca
         writeJson(response, 404, { error: { code: 'not_found', message: 'Not found' } });
         return true;
       }
-      if (request.method !== 'GET') {
-        writeJson(response, 405, { error: { code: 'method_not_allowed', message: 'The world model is read-only here' } });
-        return true;
-      }
       const graph = await readLocalGraphState(context.dataDir);
       if (graph.status !== 'ready' || !graph.ownerId) {
         writeGraphUnavailable(response, graph, context.dataDir);
         return true;
       }
+      const principal = { principal: graph.ownerId };
+      if (request.method === 'POST' && (resource === 'variables' || resource === 'observations')) {
+        try {
+          const body = await readJsonObjectBody(request, LOCAL_WEB_FOUNDATION_BODY_LIMIT_BYTES);
+          if (resource === 'variables') {
+            const definition = worldModelVariableFromBody(body, graph.ownerId);
+            const reference = await worldModel.createVariable(definition, principal);
+            writeJson(response, 201, {
+              reference: { id: reference.id, type: reference.type, revision: reference.revision },
+              digest: reference.digest
+            });
+          } else {
+            const observation = await worldModel.saveObservation(worldModelObservationFromBody(body, graph.ownerId, context.now()), principal);
+            writeJson(response, 201, { observation });
+          }
+        } catch (error) {
+          writeHttpError(response, worldModelError(error));
+        }
+        return true;
+      }
+      if (request.method !== 'GET') {
+        writeJson(response, 405, { error: { code: 'method_not_allowed', message: 'この入口では変数と観測値を登録できます' } });
+        return true;
+      }
       try {
-        writeJson(response, 200, await read(resource, { principal: graph.ownerId }));
+        writeJson(response, 200, await read(resource, principal));
       } catch (error) {
         writeHttpError(response, worldModelError(error));
       }

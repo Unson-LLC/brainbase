@@ -12,6 +12,7 @@ class FakeElement {
     this.listeners = new Map();
     this.className = '';
     this.textContent = '';
+    this.value = '';
   }
 
   append(...children) {
@@ -27,7 +28,10 @@ class FakeElement {
     this.append(...children);
   }
 
-  setAttribute(name, value) { this.attributes[name] = String(value); }
+  setAttribute(name, value) {
+    this.attributes[name] = String(value);
+    if (name === 'value') this.value = String(value);
+  }
   addEventListener(name, callback) { this.listeners.set(name, callback); }
 }
 
@@ -119,44 +123,134 @@ function jsonResponse(status, body) {
 
 function fetcherFor(routes) {
   const calls = [];
-  const fetcher = async (path) => {
+  const requests = [];
+  const fetcher = async (path, init) => {
     calls.push(path);
+    requests.push({ path, init });
     const route = routes[path];
     if (!route) return jsonResponse(404, { error: { code: 'not_found', message: 'Not found' } });
-    return typeof route === 'function' ? route() : route;
+    return typeof route === 'function' ? route(path, init) : route;
   };
-  return { fetcher, calls };
+  return { fetcher, calls, requests };
 }
 
 async function mount(routes, options = {}) {
   const root = new FakeElement('div');
   const rail = new FakeElement('aside');
-  const { fetcher, calls } = fetcherFor(routes);
+  const { fetcher, calls, requests } = fetcherFor(routes);
   const view = createWorldModelView({ root, rail, document: new FakeDocument(), fetcher, autoLoad: false, ...options });
   await view.load();
-  return { root, rail, view, calls };
+  return { root, rail, view, calls, requests };
 }
 
 describe('World Model view', () => {
-  it('explains the real registration boundary when every World Model section is confirmed empty', async () => {
-    const { root, rail } = await mount({
-      '/api/world-model/variables': jsonResponse(200, { state: 'empty', records: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+  it('offers a real first-user registration entry and reads the saved records back', async () => {
+    let variables = { state: 'empty', records: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } };
+    let observations = { state: 'empty', observations: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } };
+    const createdVariable = {
+      digest: 'sha256:web-variable',
+      definition: {
+        id: 'web.variable.fixture', type: 'variable', revision: '1', meaning: '架空の集中時間', subject: '架空の利用者',
+        valueKind: 'number', unit: '時間', aggregation: 'last', granularity: '日', measurementMethod: '手入力',
+        epistemicState: 'unverified', adoptionState: 'draft', acl: { ownerId: 'self', visibility: 'private', readerIds: [], writerIds: [] },
+      },
+    };
+    const createdObservation = {
+      id: 'web.observation.fixture', variableRef: { id: 'web.variable.fixture', type: 'variable', revision: '1' },
+      subjectId: 'self', value: 3, occurredAt: '2026-10-01T00:00:00.000Z',
+      period: { from: '2026-10-01T00:00:00.000Z', until: '2026-10-01T23:59:59.999Z' },
+      recordedAt: '2026-10-01T00:00:00.000Z', sourceRef: { sourceId: 'brainbase-local-web', sourceKind: 'observation', evidenceIds: [] },
+    };
+    const { root, rail, requests, view } = await mount({
+      '/api/world-model/variables': (path, init) => {
+        if (init?.method === 'POST') return jsonResponse(201, { reference: { id: 'web.variable.fixture', type: 'variable', revision: '1' }, digest: 'sha256:web-variable' });
+        return jsonResponse(200, variables);
+      },
       '/api/world-model/models': jsonResponse(200, { state: 'empty', records: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
-      '/api/world-model/observations': jsonResponse(200, { state: 'empty', observations: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+      '/api/world-model/observations': (path, init) => {
+        if (init?.method === 'POST') {
+          variables = { state: 'ready', records: [createdVariable], absence_confirmed: true, unreadable: { count: 0, codes: [] } };
+          observations = { state: 'ready', observations: [createdObservation], absence_confirmed: true, unreadable: { count: 0, codes: [] } };
+          return jsonResponse(201, { observation: createdObservation });
+        }
+        return jsonResponse(200, observations);
+      },
       '/api/world-model/adoptions': jsonResponse(200, { state: 'empty', adoptions: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
-    });
+    }, { token: 'fixture-launch-token' });
     const guidance = byClass(root, 'bb-wm-registration-guidance');
     expect(guidance).toHaveLength(1);
     const text = collectText(guidance[0]);
-    expect(text).toContain('登録方法');
-    expect(text).toContain('この欄は表示専用です');
-    expect(text).toContain('利用者向けのWeb/CLI登録入口は現行OSSにありません');
-    expect(text).toContain('この画面からは登録できません');
-    expect(text).toContain('@unson/brainbase-mcp/world-model');
-    expect(text).toContain('createWorldModelStore');
-    expect(findAll(root, (node) => node.tagName === 'BUTTON')).toHaveLength(0);
+    expect(text).toContain('最初の登録');
+    expect(text).toContain('ここから変数と最初の観測値を登録できます');
+    expect(text).toContain('モデルの作成・採用や、既存観測の訂正はこの初回登録の対象外です');
+    const form = findAll(guidance[0], (node) => node.tagName === 'FORM')[0];
+    expect(form).toBeDefined();
+    const inputs = Object.fromEntries(findAll(form, (node) => node.tagName === 'INPUT' || node.tagName === 'SELECT').map((node) => [node.attributes.name, node]));
+    inputs['bb-wm-registration-meaning'].value = '架空の集中時間';
+    inputs['bb-wm-registration-subject'].value = '架空の利用者';
+    inputs['bb-wm-registration-unit'].value = '時間';
+    inputs['bb-wm-registration-granularity'].value = '日';
+    inputs['bb-wm-registration-method'].value = '手入力';
+    inputs['bb-wm-registration-value'].value = '3';
+    await form.listeners.get('submit')({ preventDefault() {} });
+    const posts = requests.filter(({ init }) => init?.method === 'POST');
+    expect(posts).toHaveLength(2);
+    expect(posts[0].path).toBe('/api/world-model/variables');
+    expect(posts[0].init.headers['X-Brainbase-Review-Token']).toBe('fixture-launch-token');
+    expect(JSON.parse(posts[0].init.body)).toEqual({
+      meaning: '架空の集中時間', subject: '架空の利用者', valueKind: 'number', unit: '時間', aggregation: 'last',
+      granularity: '日', measurementMethod: '手入力',
+    });
+    expect(JSON.parse(posts[1].init.body)).toEqual({ variableRef: { id: 'web.variable.fixture', type: 'variable', revision: '1' }, value: 3 });
+    expect(collectText(section(root, '変数とモデル'))).toContain('架空の集中時間');
+    expect(collectText(section(root, '観測'))).toContain('3 時間');
     expect(findAll(root, (node) => node.tagName === 'A')).toHaveLength(0);
     expect(rail.children).toHaveLength(0);
+    expect(view.state.variables.state).toBe('ready');
+  });
+
+  it('shows the non-atomic result when the initial observation cannot be saved', async () => {
+    let variables = { state: 'empty', records: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } };
+    let observations = { state: 'empty', observations: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } };
+    const createdVariable = {
+      digest: 'sha256:web-variable-partial',
+      definition: {
+        id: 'web.variable.partial', type: 'variable', revision: '1', meaning: '架空の睡眠時間', subject: '架空の利用者',
+        valueKind: 'number', unit: '時間', aggregation: 'last', granularity: '日', measurementMethod: '手入力',
+        epistemicState: 'unverified', adoptionState: 'draft', acl: { ownerId: 'self', visibility: 'private', readerIds: [], writerIds: [],
+        },
+      },
+    };
+    const { root, requests, view } = await mount({
+      '/api/world-model/variables': (path, init) => {
+        if (init?.method === 'POST') {
+          variables = { state: 'ready', records: [createdVariable], absence_confirmed: true, unreadable: { count: 0, codes: [] } };
+          return jsonResponse(201, { reference: { id: 'web.variable.partial', type: 'variable', revision: '1' }, digest: createdVariable.digest });
+        }
+        return jsonResponse(200, variables);
+      },
+      '/api/world-model/models': jsonResponse(200, { state: 'empty', records: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+      '/api/world-model/observations': (path, init) => {
+        if (init?.method === 'POST') return jsonResponse(503, { error: { code: 'storage_unavailable', message: '保存先を確認できません' } });
+        return jsonResponse(200, observations);
+      },
+      '/api/world-model/adoptions': jsonResponse(200, { state: 'empty', adoptions: [], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+    }, { token: 'fixture-launch-token' });
+    const form = findAll(root, (node) => node.tagName === 'FORM')[0];
+    const inputs = Object.fromEntries(findAll(form, (node) => node.tagName === 'INPUT' || node.tagName === 'SELECT').map((node) => [node.attributes.name, node]));
+    inputs['bb-wm-registration-meaning'].value = '架空の睡眠時間';
+    inputs['bb-wm-registration-subject'].value = '架空の利用者';
+    inputs['bb-wm-registration-unit'].value = '時間';
+    inputs['bb-wm-registration-granularity'].value = '日';
+    inputs['bb-wm-registration-method'].value = '手入力';
+    inputs['bb-wm-registration-value'].value = '7';
+    await form.listeners.get('submit')({ preventDefault() {} });
+    expect(requests.filter(({ init }) => init?.method === 'POST')).toHaveLength(2);
+    expect(view.state.variables.state).toBe('ready');
+    expect(view.state.observations.state).toBe('empty');
+    expect(collectText(root)).toContain('変数は登録されましたが、最初の観測値を保存できませんでした');
+    expect(collectText(root)).toContain('保存先を確認できません');
+    expect(collectText(section(root, '変数とモデル'))).toContain('架空の睡眠時間');
   });
 
   it('keeps the view (variables and models) apart from recorded observations, as read-only ledgers', async () => {

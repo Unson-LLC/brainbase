@@ -678,7 +678,7 @@
       },
       {
         "story_id": "story-ux-20261001-01-world-model-empty-guidance",
-        "title": "World Modelが空のとき、登録できる場所を判断できる",
+        "title": "World Modelが空のとき、最初の記録を登録できる",
         "ssot": "local",
         "status": "active",
         "horizon": "now",

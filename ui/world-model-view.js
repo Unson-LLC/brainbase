@@ -1,15 +1,17 @@
 /*
- * Read-only World Model view (現状と見通し).
+ * World Model view (現状と見通し).
  *
  * Shows recorded observations apart from the variables and models that are
  * the owner's way of seeing them (which may be hypotheses), plus model
  * adoptions.  The host injects the fetcher and base path; this module keeps
- * no global state and never writes.  Each section loads on its own: a failed
+ * no global state.  The empty state also offers the host's first-user
+ * variable-and-observation registration route. Each section loads on its own: a failed
  * or unverifiable section is reported in place and never shown as zero items.
  *
  * Drawn with the organization edition's screen pattern (workspace-kit): a
- * section title under the page head, then one read-only ledger per block.
- * Rows are not selectable, so the view never writes to the host's rail.
+ * section title under the page head, then one ledger per block. Rows are not
+ * selectable, so the view never writes to the host's rail; the only write is
+ * the explicit first-registration form shown for a confirmed empty state.
  *
  * A section the host cannot serve answers `{ status: 'unavailable', reason }`
  * (HTTP 200).  It is shown as unavailable, never as zero items; a host with no
@@ -333,23 +335,138 @@ function unavailableSummary(doc, state, unavailableNotice) {
 }
 
 /**
- * The current Personal Web is a read-only World Model surface.  Show the
- * actual registration boundary only after every section has been confirmed empty;
+ * The current Personal Web is a read-mostly World Model surface. Show the
+ * first-registration entry only after variables and observations have both
+ * been confirmed empty;
  * an unknown, partial or unavailable section must not be presented as an
  * empty World Model.
  */
-function emptyRegistrationGuidance(doc, state) {
-  if (!WORLD_MODEL_SECTIONS.every((section) => state[section]?.state === 'empty')) return null;
+function registrationField(doc, { id, label, type = 'text', value = '', required = true, attrs = {}, options = [] } = {}) {
+  const field = makeElement(doc, 'div', { className: 'bb-wm-registration-field' });
+  const labelElement = makeElement(doc, 'label', { text: label, attrs: { for: id } });
+  const input = makeElement(doc, type === 'select' ? 'select' : 'input', {
+    className: 'bb-wm-registration-input',
+    attrs: { id, name: id, type: type === 'select' ? undefined : type, required, ...attrs },
+  });
+  if (type === 'select') {
+    for (const option of options) {
+      input.append(makeElement(doc, 'option', { text: option.label, attrs: { value: option.value } }));
+    }
+    input.value = value;
+  } else {
+    input.value = value;
+  }
+  field.append(labelElement, input);
+  return { field, input, id };
+}
+
+function registrationValue(raw, valueKind) {
+  const value = String(raw ?? '').trim();
+  if (!value) return { error: '最初の観測値を入力してください。' };
+  if (valueKind === 'number') {
+    const number = Number(value);
+    return Number.isFinite(number) ? { value: number } : { error: '数値の観測値を入力してください。' };
+  }
+  if (valueKind === 'boolean') {
+    if (value === 'true' || value === 'はい') return { value: true };
+    if (value === 'false' || value === 'いいえ') return { value: false };
+    return { error: '真偽値は「true」または「false」で入力してください。' };
+  }
+  return { value };
+}
+
+function emptyRegistrationEntry(doc, state, callbacks, registration = {}) {
+  if (state.variables?.state !== 'empty' || state.observations?.state !== 'empty') return null;
+  const formFields = {};
+  const form = makeElement(doc, 'form', {
+    className: 'bb-wm-registration-form',
+    attrs: { 'aria-label': '最初の変数と観測値を登録' },
+  });
+  const fields = [
+    registrationField(doc, { id: 'bb-wm-registration-meaning', label: '何を記録するか', attrs: { autocomplete: 'off' } }),
+    registrationField(doc, { id: 'bb-wm-registration-subject', label: '対象', attrs: { autocomplete: 'off' } }),
+    registrationField(doc, {
+      id: 'bb-wm-registration-value-kind', label: '値の種類', type: 'select', value: 'number',
+      options: [
+        { value: 'number', label: '数値' },
+        { value: 'boolean', label: 'はい／いいえ' },
+        { value: 'string', label: '文字' },
+        { value: 'state', label: '状態' },
+      ],
+    }),
+    registrationField(doc, { id: 'bb-wm-registration-unit', label: '単位（数値の場合）', required: false, attrs: { autocomplete: 'off' } }),
+    registrationField(doc, {
+      id: 'bb-wm-registration-aggregation', label: '集計方法', type: 'select', value: 'last',
+      options: [
+        { value: 'last', label: '最新の値' },
+        { value: 'sum', label: '合計' },
+        { value: 'average', label: '平均' },
+        { value: 'count', label: '件数' },
+        { value: 'none', label: '集計しない' },
+      ],
+    }),
+    registrationField(doc, { id: 'bb-wm-registration-granularity', label: '記録の単位', value: '日', attrs: { autocomplete: 'off' } }),
+    registrationField(doc, { id: 'bb-wm-registration-method', label: '測り方', attrs: { autocomplete: 'off' } }),
+    registrationField(doc, { id: 'bb-wm-registration-value', label: '最初の観測値', attrs: { autocomplete: 'off' } }),
+  ];
+  for (const { field, input, id } of fields) {
+    formFields[id] = input;
+    form.append(field);
+  }
+  const status = makeElement(doc, 'p', {
+    className: 'bb-wm-registration-status',
+    text: registration.message ?? '登録すると、この画面の記録として読み直します。',
+    attrs: { 'aria-live': 'polite' },
+  });
+  const submit = workspaceButton(doc, {
+    text: registration.state === 'saving' ? '登録しています…' : '変数と観測値を登録',
+    variant: 'primary',
+    disabled: registration.state === 'saving',
+    attrs: { type: 'submit' },
+  });
+  form.addEventListener('submit', (event) => {
+    event?.preventDefault?.();
+    const parsed = registrationValue(formFields['bb-wm-registration-value'].value, formFields['bb-wm-registration-value-kind'].value);
+    const payload = {
+      meaning: String(formFields['bb-wm-registration-meaning'].value ?? '').trim(),
+      subject: String(formFields['bb-wm-registration-subject'].value ?? '').trim(),
+      valueKind: String(formFields['bb-wm-registration-value-kind'].value ?? '').trim(),
+      unit: String(formFields['bb-wm-registration-unit'].value ?? '').trim(),
+      aggregation: String(formFields['bb-wm-registration-aggregation'].value ?? '').trim(),
+      granularity: String(formFields['bb-wm-registration-granularity'].value ?? '').trim(),
+      measurementMethod: String(formFields['bb-wm-registration-method'].value ?? '').trim(),
+      value: parsed.value,
+    };
+    if (!payload.meaning || !payload.subject || !payload.granularity || !payload.measurementMethod) {
+      status.textContent = '何を記録するか、対象、記録の単位、測り方を入力してください。';
+      return;
+    }
+    if (payload.valueKind === 'number' && !payload.unit) {
+      status.textContent = '数値を記録する場合は単位を入力してください。';
+      return;
+    }
+    if (parsed.error) {
+      status.textContent = parsed.error;
+      return;
+    }
+    return callbacks.onRegister?.(payload);
+  });
+  form.append(status, submit);
   const guidance = workspaceNotice(doc, {
-    label: '登録方法',
-    text: 'この欄は表示専用です。利用者向けのWeb/CLI登録入口は現行OSSにありません。この画面からは登録できません。登録機能を実装する場合は、公開パッケージ「@unson/brainbase-mcp/world-model」の createWorldModelStore を使い、変数・モデル・観測・モデルの採用を保存します。',
+    label: '最初の登録',
+    text: [
+      makeElement(doc, 'p', { text: 'ここから変数と最初の観測値を登録できます。登録者と記録日時は、この手元のWebホストが決めます。' }),
+      form,
+      makeElement(doc, 'p', { className: 'bb-wm-registration-boundary', text: 'モデルの作成・採用や、既存観測の訂正はこの初回登録の対象外です。確認と権限が必要な別の手順で扱います。' }),
+    ],
   });
   guidance.className += ' bb-wm-registration-guidance';
   return guidance;
 }
 
 /**
- * Render the whole view into a host-owned root: a section title and read-only ledgers.
+ * Render the whole view into a host-owned root: a section title, optional first-registration form,
+ * and ledgers.
  * `options.unavailableNotice` is the host's `{ title, guidance }` shown once
  * when every section is unavailable.
  */
@@ -359,7 +476,7 @@ export function renderWorldModelView(root, state, callbacks = {}, options = {}) 
   const surface = makeElement(doc, 'section', { className: 'bb-wm', attrs: { 'data-contract-version': WORLD_MODEL_VIEW_CONTRACT_VERSION, 'aria-label': '現状と見通し' } });
   surface.append(workspaceSectionTitle(doc, {
     title: '現状と見通し',
-    lead: '見方（変数とモデル。仮説を含みます）と、記録された観測を分けて表示します。この欄は表示だけです。',
+    lead: '見方（変数とモデル。仮説を含みます）と、記録された観測を分けて表示します。最初の変数と観測値はここから登録できます。',
   }));
   const unavailable = unavailableSummary(doc, state, options.unavailableNotice);
   if (unavailable) {
@@ -368,11 +485,19 @@ export function renderWorldModelView(root, state, callbacks = {}, options = {}) 
     return surface;
   }
 
+  if (options.registration?.state === 'error' && text(options.registration.message)) {
+    surface.append(workspaceNotice(doc, {
+      label: '登録結果',
+      tone: 'danger',
+      text: options.registration.message,
+    }));
+  }
+
   const variables = namesOf(state.variables);
   const models = namesOf(state.models);
 
   const view = block(doc, '変数とモデル', '見方：変数とモデル', '何を測り、どう関係すると考えているか。認識の状態は、確かめた度合いです。観測ではありません。');
-  const registrationGuidance = emptyRegistrationGuidance(doc, state);
+  const registrationGuidance = emptyRegistrationEntry(doc, state, callbacks, options.registration);
   if (registrationGuidance) view.append(registrationGuidance);
   const statuses = {
     variables: sectionStatus(doc, '変数', 'variables', state.variables, callbacks, '変数はまだ登録がありません。'),
@@ -425,13 +550,14 @@ async function readError(response) {
 }
 
 /**
- * Mounts the read-only World Model view.
+ * Mounts the World Model view.
  *
  * @param {object} options
  * @param {Element} options.root Where the view is drawn.
  * @param {Element} [options.rail] Accepted for the host's screen contract; the view never writes to it.
  * @param {Document} [options.document] The document to build elements with (default: the global one).
  * @param {Function} [options.fetcher] `fetch`-compatible function for the sections.
+ * @param {string} [options.token] Local Web write token sent with registration requests.
  * @param {string} [options.basePath='/api/world-model'] Where `{variables,models,observations,adoptions}` are served.
  * @param {boolean} [options.autoLoad=true] Reads every section on mount.
  * @param {{ title: string, guidance?: string, reasonLabels?: Record<string, string> }} [options.unavailableNotice]
@@ -443,10 +569,11 @@ async function readError(response) {
  */
 export function createWorldModelView({
   root,
-  /** Accepted for the host's screen contract; the read-only view keeps the rail to the screen's editor. */
+  /** Accepted for the host's screen contract; the view keeps the rail to the screen's editor. */
   rail: _rail,
   document: explicitDocument,
   fetcher,
+  token,
   basePath = '/api/world-model',
   autoLoad = true,
   unavailableNotice,
@@ -459,12 +586,16 @@ export function createWorldModelView({
   const base = String(basePath).replace(/\/+$/u, '');
   const state = Object.fromEntries(WORLD_MODEL_SECTIONS.map((section) => [section, { state: 'loading', items: null }]));
 
-  const callbacks = { onRetry: (section) => controller.loadSection(section) };
+  const registration = { state: 'idle', message: null };
+  const callbacks = {
+    onRetry: (section) => controller.loadSection(section),
+    onRegister: (payload) => controller.register(payload),
+  };
 
   const controller = {
     get state() { return state; },
     render() {
-      renderWorldModelView(root, state, callbacks, { document: doc, unavailableNotice });
+      renderWorldModelView(root, state, callbacks, { document: doc, unavailableNotice, registration });
       return controller;
     },
     async loadSection(section) {
@@ -494,6 +625,62 @@ export function createWorldModelView({
     async load() {
       await Promise.all(WORLD_MODEL_SECTIONS.map((section) => controller.loadSection(section)));
       return state;
+    },
+    async register(payload) {
+      if (!request) {
+        registration.state = 'error';
+        registration.message = '登録先が設定されていません。';
+        controller.render();
+        return;
+      }
+      registration.state = 'saving';
+      registration.message = '登録しています…';
+      controller.render();
+      const write = async (path, body) => {
+        const response = await request(`${base}${path}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'X-Brainbase-Review-Token': token } : {}),
+          },
+          body: JSON.stringify(body),
+        });
+        if (!response.ok) {
+          const error = await readError(response);
+          throw new Error(error.message ?? error.code ?? `HTTP ${response.status}`);
+        }
+        return response.json();
+      };
+      let variableReference = null;
+      try {
+        const created = await write('/variables', {
+          meaning: payload.meaning,
+          subject: payload.subject,
+          valueKind: payload.valueKind,
+          ...(payload.unit ? { unit: payload.unit } : {}),
+          aggregation: payload.aggregation,
+          granularity: payload.granularity,
+          measurementMethod: payload.measurementMethod,
+        });
+        const reference = created?.reference;
+        if (!reference || typeof reference.id !== 'string' || typeof reference.revision !== 'string') {
+          throw new Error('変数の登録結果を読み取れませんでした');
+        }
+        variableReference = reference;
+        await write('/observations', { variableRef: reference, value: payload.value });
+        registration.state = 'idle';
+        registration.message = null;
+        await controller.load();
+      } catch (error) {
+        registration.state = 'error';
+        const detail = error instanceof Error ? error.message : '登録できませんでした';
+        registration.message = variableReference
+          ? `変数は登録されましたが、最初の観測値を保存できませんでした。${detail}`
+          : detail;
+        await controller.load();
+        controller.render();
+      }
+      return registration;
     },
   };
   controller.render();
