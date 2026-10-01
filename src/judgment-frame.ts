@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+import type { Tool } from '@modelcontextprotocol/sdk/types.js';
+
 /**
  * Judgment frame (brainbase-project ADR-014).
  *
@@ -366,4 +368,156 @@ export function validateJudgmentFrameRecord(value: unknown, catalog: JudgmentFra
     if (tension.length > 0) escalations.push({ code: 'chosen_philosophy_tension', refs: tension });
   }
   return { valid: issues.length === 0, issues, escalations };
+}
+
+// ---------------------------------------------------------------------------
+// MCP tools. The host injects how Graph records are read; these definitions
+// and the validation stay shared so every host enforces the same contract.
+
+const FRAME_PAGE_LIMIT = 500;
+
+const frameUseSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    ref: { type: 'string', minLength: 1, maxLength: 1_000 },
+    role: { type: 'string', enum: ['constraint', 'criterion', 'prediction'] },
+    note: { type: 'string', minLength: 1, maxLength: MAX_NOTE },
+    verdict: { type: 'string', enum: ['satisfied', 'violated', 'tension'], description: 'Required when role is constraint.' },
+  },
+  required: ['ref', 'role', 'note'],
+};
+
+export const judgmentFrameTools: Tool[] = [{
+  name: 'brainbase_judgment_frame_catalog',
+  description: 'On a judgment-bearing turn, read the catalog of philosophy, objectives, and world models visible to you. Select only what bears on this decision. Status is a label (draft objectives and adopted_unverified models are still usable as hypotheses); it is not a reason to skip them. Then call brainbase_judgment_frame_record with the returned catalog_digest.',
+  inputSchema: { type: 'object', additionalProperties: false, properties: {} },
+  annotations: { readOnlyHint: true, destructiveHint: false },
+}, {
+  name: 'brainbase_judgment_frame_record',
+  description: 'Record the judgment frame: which catalog references you selected and why, and for each evaluated option how each selected reference was used. Philosophy is a constraint (give verdict satisfied, violated, or tension), an objective is a criterion, a world model is a prediction. Every selection must be used by at least one option. For a kind with no applicable reference, give the reason in none instead of selecting. Name the option you chose. The tool rejects references outside the catalog; it does not judge semantic quality. If escalations are returned, ask the human before acting on the chosen option.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      record_version: { type: 'string', const: JUDGMENT_FRAME_RECORD_VERSION },
+      catalog_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
+      selections: {
+        type: 'array',
+        maxItems: MAX_SELECTIONS,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            ref: { type: 'string', minLength: 1, maxLength: 1_000 },
+            kind: { type: 'string', enum: [...KINDS] },
+            why: { type: 'string', minLength: 1, maxLength: MAX_NOTE },
+          },
+          required: ['ref', 'kind', 'why'],
+        },
+      },
+      none: {
+        type: 'object',
+        additionalProperties: false,
+        properties: Object.fromEntries(KINDS.map((kind) => [kind, { type: 'string', minLength: 1, maxLength: MAX_NOTE }])),
+      },
+      options: {
+        type: 'array',
+        minItems: 1,
+        maxItems: MAX_OPTIONS,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            label: { type: 'string', minLength: 1, maxLength: 400 },
+            uses: { type: 'array', maxItems: MAX_USES, items: frameUseSchema },
+          },
+          required: ['label', 'uses'],
+        },
+      },
+      chosen_option: { type: 'string', minLength: 1, maxLength: 400 },
+    },
+    required: ['record_version', 'catalog_digest', 'selections', 'options', 'chosen_option'],
+  },
+  annotations: { readOnlyHint: true, destructiveHint: false },
+}];
+
+export type JudgmentFrameRecordsPage =
+  | { readonly status: 'ok'; readonly records: readonly JudgmentFrameSourceRecord[] }
+  | { readonly status: 'unavailable' | 'error'; readonly code: string; readonly message: string };
+
+export interface JudgmentFrameToolDependencies {
+  /** Read every record of one kind visible to the caller, at most `limit`. */
+  readonly loadRecords: (kind: JudgmentFrameKind, limit: number) => Promise<JudgmentFrameRecordsPage>;
+}
+
+export type JudgmentFrameToolResult =
+  | { readonly status: 'ok'; readonly data: Record<string, unknown> }
+  | { readonly status: 'unavailable' | 'error'; readonly error: { code: string; message: string; details?: unknown } };
+
+const toolError = (status: 'unavailable' | 'error', code: string, message: string, details?: unknown): JudgmentFrameToolResult => ({
+  status, error: { code, message, ...(details === undefined ? {} : { details }) },
+});
+
+async function loadFrameCatalog(dependencies: JudgmentFrameToolDependencies): Promise<JudgmentFrameCatalogBuild | JudgmentFrameToolResult> {
+  const records: JudgmentFrameSourceRecord[] = [];
+  for (const kind of KINDS) {
+    let page: JudgmentFrameRecordsPage;
+    try {
+      page = await dependencies.loadRecords(kind, FRAME_PAGE_LIMIT);
+    } catch (error) {
+      return toolError('unavailable', 'judgment_frame_catalog_unavailable', `Graph ${kind} records could not be read: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (page.status !== 'ok') return toolError(page.status, page.code, page.message);
+    // A full page may be truncated; a silently shorter catalog would hide references.
+    if (page.records.length >= FRAME_PAGE_LIMIT) {
+      return toolError('error', 'judgment_frame_catalog_truncated', `Graph returned ${page.records.length} ${kind} records; the catalog may be incomplete`);
+    }
+    records.push(...page.records);
+  }
+  return buildJudgmentFrameCatalog(records);
+}
+
+export async function handleJudgmentFrameToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies: JudgmentFrameToolDependencies,
+): Promise<JudgmentFrameToolResult | null> {
+  if (name !== 'brainbase_judgment_frame_catalog' && name !== 'brainbase_judgment_frame_record') return null;
+  if (name === 'brainbase_judgment_frame_catalog' && Object.keys(args).length > 0) {
+    return toolError('error', 'judgment_frame_catalog_input_invalid', 'brainbase_judgment_frame_catalog takes no arguments');
+  }
+  const loaded = await loadFrameCatalog(dependencies);
+  if ('status' in loaded) return loaded;
+  const { catalog, excluded } = loaded;
+  if (name === 'brainbase_judgment_frame_catalog') {
+    return {
+      status: 'ok',
+      data: {
+        schema_version: 'brainbase-judgment-frame-catalog-v1',
+        catalog_digest: catalog.digest,
+        counts: Object.fromEntries(KINDS.map((kind) => [kind, catalog.items.filter((item) => item.kind === kind).length])),
+        excluded_count: excluded.length,
+        catalog: renderJudgmentFrameCatalog(catalog),
+      },
+    };
+  }
+  const validation = validateJudgmentFrameRecord(args, catalog);
+  if (!validation.valid) {
+    return toolError('error', 'judgment_frame_invalid', 'The judgment frame does not match the catalog contract', {
+      issues: validation.issues,
+      current_catalog_digest: catalog.digest,
+    });
+  }
+  return {
+    status: 'ok',
+    data: {
+      schema_version: 'brainbase-judgment-frame-v1',
+      catalog_digest: catalog.digest,
+      selections: (args.selections as Array<{ ref: string; kind: string }>).map(({ ref, kind }) => ({ ref, kind })),
+      option_count: (args.options as unknown[]).length,
+      chosen_option: args.chosen_option,
+      escalations: validation.escalations,
+    },
+  };
 }
