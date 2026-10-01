@@ -4,8 +4,9 @@
  * The host supplies a same-origin request function and a review token. A host
  * that cannot read a local journal may replace the unavailable notice. This
  * module owns presentation only: it never treats an unavailable journal as an
- * empty list, never edits the judgment journal, and keeps internal IDs inside
- * the audit details.
+ * empty list and never edits the judgment journal. Recorded basis target IDs
+ * are shown as trace metadata; no source URL is invented when the payload has
+ * no source-read contract.
  *
  * The screen follows the organization edition's pattern (workspace-kit): page
  * head, the 記録の範囲 notice, filters, metrics, and the 委任の地図 as a ledger
@@ -547,9 +548,43 @@ function renderDelegationMap(doc, state, callbacks) {
 }
 
 function basisText(entry) {
-  const application = text(entry.application) ?? '適用内容なし';
-  const layer = BASIS_LAYER_LABELS[entry.layer];
+  const application = text(entry?.application) ?? '適用内容なし';
+  const layer = BASIS_LAYER_LABELS[entry?.layer];
   return layer ? `[${layer}] ${application}` : application;
+}
+
+/**
+ * Keep the recorded basis target visible without pretending it is a navigable
+ * source.  The value-proof contract records an entity ID and optional version,
+ * but it does not provide a URL or a source-read contract.
+ */
+function basisTargetText(entry) {
+  const entityId = text(entry?.entity_id);
+  if (!entityId) return '対象の記録なし';
+  const version = text(entry?.version);
+  return version ? `${entityId}（版 ${version}）` : entityId;
+}
+
+function journalSetupGuide(doc) {
+  const guide = makeElement(doc, 'div', { className: 'bb-vpr-setup-guide' });
+  guide.append(makeElement(doc, 'strong', { text: '接続を直す' }));
+  guide.append(makeElement(doc, 'p', { text: '判断journalの場所を指定して画面を起動し直したあと、「再試行」を押してください。' }));
+  const list = makeElement(doc, 'ol');
+  const journalOption = makeElement(doc, 'li');
+  journalOption.append(
+    makeElement(doc, 'span', { text: '起動時に ' }),
+    makeElement(doc, 'code', { text: 'brainbase review:serve --journal <判断journalの場所>' }),
+    makeElement(doc, 'span', { text: ' を指定する' }),
+  );
+  const journalEnv = makeElement(doc, 'li');
+  journalEnv.append(
+    makeElement(doc, 'span', { text: 'または環境変数 ' }),
+    makeElement(doc, 'code', { text: 'BRAINBASE_JUDGMENT_JOURNAL_DIR=<判断journalの場所>' }),
+    makeElement(doc, 'span', { text: ' を設定する' }),
+  );
+  list.append(journalOption, journalEnv);
+  guide.append(list);
+  return guide;
 }
 
 function inheritanceText(inheritance) {
@@ -733,6 +768,7 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
     title: '根拠と引き継ぎ',
     content: facts(doc, [
       ['根拠', basis.length > 0 ? basis.map(basisText).join(' / ') : '根拠の記録なし'],
+      ['根拠の対象', basis.length > 0 ? basis.map(basisTargetText).join(' / ') : '対象の記録なし'],
       ['過去の学習の再利用', reuse === true ? 'あり' : reuse === false ? 'なし' : '未確認'],
       ['引き継ぎ', inheritanceText(proof.decision.inheritance)],
     ]),
@@ -861,13 +897,18 @@ export function renderValueProofReview(root, state, callbacks = {}, options = {}
   if (home.status === 'unavailable') {
     const hostNotice = options.unavailableNotice;
     const title = makeElement(doc, 'p', { className: 'bb-vpr-notice-title', text: text(hostNotice?.title) ?? '判断journalに接続できません' });
+    const retry = workspaceButton(doc, { text: '再試行', variant: 'primary', onClick: () => void callbacks.onReload?.() });
+    const defaultGuide = hostNotice ? null : journalSetupGuide(doc);
     surface.append(workspaceNotice(doc, {
       label: '記録の範囲',
       tone: 'danger',
       text: noticeBody(doc,
         title,
         home.root ? `場所: ${home.root}（${home.reason}）` : `理由: ${home.reason}`,
-        `${text(hostNotice?.guidance) ?? '記録の場所は、起動時の --journal か環境変数 BRAINBASE_JUDGMENT_JOURNAL_DIR で指定できます。'}0件としては扱いません。`),
+        text(hostNotice?.guidance) ?? (defaultGuide ? null : '接続元の案内に従って記録を読める状態にしてください。'),
+        defaultGuide,
+        retry,
+        '接続できる状態にしたら「再試行」を押してください。0件としては扱いません。'),
     }));
     return finish(null, unreadable);
   }
