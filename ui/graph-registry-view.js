@@ -617,6 +617,23 @@ export function createGraphRegistryView({
       const canFix = scope.entity(entity.type) && scope.fields(graphEntityCorrectionFields(entity.type)).length > 0;
       const relatable = newRelationOptions(entity.type).length > 0;
       const related = loaded.outgoing.length + loaded.incoming.length > 0;
+      const correctionEntries = [
+        canFix ? '「この記録を直す」' : null,
+        relatable && scope.createEdges ? '「関係を加える」' : null,
+        related && scope.edges ? '関係ごとの「この関係を直す」' : null,
+      ].filter(Boolean);
+      if (correctionEntries.length > 0) {
+        const lastEntry = correctionEntries.at(-1);
+        const entries = correctionEntries.length === 1
+          ? lastEntry
+          : `${correctionEntries.slice(0, -1).join('、')}、または${lastEntry}`;
+        children.push(workspaceRailBlock(doc, {
+          title: '訂正の流れ',
+          content: makeElement(doc, 'p', {
+            text: `誤りを見つけたときの訂正入口です。${entries}から変更案を入力します。承認待ちの提出ではなく、保存するとその場でGraphに反映され、理由と変更前後が履歴に残ります。保存後に読み直して一致を確かめ、確認できた内容は、次のMCPの search・get_context・resolve_entity で使われます。`,
+          }),
+        }));
+      }
       const actions = [
         canFix ? workspaceButton(doc, { text: 'この記録を直す', onClick: () => openCorrection('entity', () => correction.openEntity(entity, { title: 'この記録を直す' })) }) : null,
         relatable && scope.createEdges

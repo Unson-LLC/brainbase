@@ -184,6 +184,28 @@ describe('情報と関係: workspace', () => {
 });
 
 describe('情報と関係: the record in the rail', () => {
+  it('shows the correction entry and save/readback flow before editing', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail } = await mountView();
+    resultRow(root, 'person-tanaka').dispatch('click');
+    await waitFor(() => section(rail, '概要'));
+
+    const guidance = visibleText(section(rail, '訂正の流れ'));
+    expect(guidance).toContain('訂正入口');
+    expect(guidance).toContain('変更案を入力します');
+    expect(guidance).toContain('この記録を直す');
+    expect(guidance).toContain('関係を加える');
+    expect(guidance).toContain('この関係を直す');
+    expect(guidance).toContain('承認待ちの提出ではなく');
+    expect(guidance).toContain('その場でGraphに反映され');
+    expect(guidance).toContain('理由と変更前後が履歴に残ります');
+    expect(guidance).toContain('保存後に読み直して一致を確かめ');
+    expect(guidance).toContain('次のMCPの search・get_context・resolve_entity で使われます');
+    expect(buttonsNamed(rail, 'この記録を直す')).toHaveLength(1);
+    expect(buttonsNamed(rail, 'この関係を直す').length).toBeGreaterThan(0);
+    expect(findAll(rail, (node) => node.tagName === 'FORM' && node.className.includes('bb-graph-form') && !node.className.includes('bb-gr-search'))).toHaveLength(0);
+  });
+
   it('opens the selected row in the rail with its names, validity and both directions of relations with meaning, role and source', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView();
@@ -471,6 +493,7 @@ describe('情報と関係: host extensions', () => {
     const { root, rail, view } = await mountWith({ canCorrect: false });
     await view.openEntity('person-tanaka');
     expect(section(rail, '出る関係')).toBeDefined();
+    expect(section(rail, '訂正の流れ')).toBeUndefined();
     expect(correctionButtons(rail)).toEqual([]);
     expect(byClass(rail, 'bb-ws-notice')).toEqual([]);
     // What this screen can correct is not listed either; the kinds stay.
