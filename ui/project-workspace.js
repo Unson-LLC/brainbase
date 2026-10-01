@@ -667,7 +667,7 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   todayHead.append(makeElement(doc, 'h4', { text: '今日判断・対応すること' }));
   if (typeof actions.openWorkList === 'function') todayHead.append(denseButton(doc, 'すべて見る', 'bb-pkw-dense-action', actions.openWorkList));
   today.append(todayHead);
-  const todayNotice = denseContextStateNotice(doc, taskSection ?? (context?.state !== 'ok' ? context : null), 'タスクを読み取れませんでした。');
+  const todayNotice = denseContextStateNotice(doc, taskSection ?? (context?.state && context.state !== 'ok' ? context : { state: 'unknown' }), 'タスクを読み取れませんでした。');
   if (todayNotice) today.append(todayNotice);
   if (!todayNotice && due.length === 0) today.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '表示できる仕事はありません。' }));
   if (!todayNotice && due.length > 0) {
