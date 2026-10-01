@@ -465,6 +465,24 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('distinguishes a missing task section from a confirmed empty task section in today actions', () => {
+    const document = new FakeDocument();
+    const context = { projectId: 'project-atlas', state: 'ok', sections: [] };
+    const workspace = createProjectKnowledgeWorkspace({ document, detail: detail(), context });
+
+    let today = collectText(section(workspace.element, '今日判断・対応すること'));
+    expect(today).toContain('未確認');
+    expect(today).not.toContain('表示できる仕事はありません。');
+
+    workspace.setContext({ ...context, sections: [{
+      id: 'tasks', title: 'タスク', state: 'ok', items: [],
+    }] });
+    today = collectText(section(workspace.element, '今日判断・対応すること'));
+    expect(today).toContain('表示できる仕事はありません。');
+    expect(today).not.toContain('タスクを読み取れませんでした。');
+    workspace.destroy();
+  });
+
   it('limits today actions to due or confirmation work', () => {
     const workspace = createProjectKnowledgeWorkspace({
       document: new FakeDocument(),
