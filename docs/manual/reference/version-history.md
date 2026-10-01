@@ -6,6 +6,11 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.10.13 candidate — npm公開前
+
+- `brainbase_knowledge_lookup` の `next_action` を、種類ごとに項目・必須項目を宣言する形へ変更。分岐の外の項目を表示しないエージェントでも、読み取り（`entity_id`・`entity_type`）と完了の宣言（`status`・`field_evidence` など）を書ける
+- 受け付ける値と検証処理は変更しない
+
 ## 0.10.12 candidate — npm公開前
 
 - 個人KG v1の共有（本人承認→組織レビュー）と組織候補（組織内承認）を同じ処理で組織のGraphへ渡す共通昇格処理 `@unson/brainbase-mcp/knowledge-promotion` を追加
