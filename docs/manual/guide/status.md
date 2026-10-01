@@ -55,6 +55,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.11.0（npm公開前）
+
+組織の実行hostが、外部作用を自分で持たずに実行を登録できるようにします。登録は検査・予約の開始印・許可の発行までで、外部作用の結果は作用を持つ側が報告します。実行の帰属（本人・代行サービス・委任）を記録し、保存先を差し替えられます。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
 ## Candidate — v0.10.15（npm公開前）
 
 判断の枠組みのMCPツール（`brainbase_judgment_frame_catalog`・`brainbase_judgment_frame_record`）の定義と処理を `@unson/brainbase-mcp/judgment-frame` に加えます。呼び出し側はGraphの記録の読み方だけを差し込みます。読み取りの失敗や上限いっぱいの応答では、短い一覧を返さず失敗にします。npm配布と外部照合が完了するまでは公開済みとして扱いません。

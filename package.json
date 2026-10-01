@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.10.15",
+  "version": "0.11.0",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -190,6 +190,10 @@
     "./execution-authority-http": {
       "types": "./dist/execution-authority-http.d.ts",
       "import": "./dist/execution-authority-http.js"
+    },
+    "./server-support": {
+      "types": "./dist/server-support.d.ts",
+      "import": "./dist/server-support.js"
     },
     "./company-os-impact-review": {
       "types": "./dist/company-os-impact-review.d.ts",

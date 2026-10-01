@@ -3,6 +3,8 @@ import { z } from 'zod';
 import {
   ExecutionAuthorityError,
   ExecutionAuthorityService,
+  type ExecutionAttribution,
+  type ExecutionEffectReport,
   type ExecutionProblemReference,
   type ExecutionStartInput,
 } from './execution-authority.js';
@@ -20,12 +22,17 @@ export interface TrustedExecutionAuthorityRequestContext {
   scopeId: string;
   /** A non-empty value means that the host already verified the mutation origin. */
   verifiedMutationOrigin?: string;
+  /** Resolved by the host from authentication. Request bodies cannot supply it. */
+  attribution?: ExecutionAttribution;
 }
 
 /** The factory is the boundary where a host binds a service to its trusted context. */
 export type ExecutionAuthorityServiceFactory = (
   context: TrustedExecutionAuthorityRequestContext,
-) => MaybePromise<Pick<ExecutionAuthorityService, 'start' | 'readIntent'>>;
+) => MaybePromise<
+  Pick<ExecutionAuthorityService, 'start' | 'readIntent'>
+  & Partial<Pick<ExecutionAuthorityService, 'register' | 'reportEffect'>>
+>;
 
 export interface ExecutionAuthorityMutationVerificationInput {
   request: IncomingMessage;
@@ -73,7 +80,22 @@ const startRequestSchema = z.object({
   problem: problemSchema,
 }).strict();
 
-type RouteOperation = 'start' | 'read' | 'unknown';
+const attributionSchema = z.object({
+  mode: z.enum(['person', 'delegated_service', 'service']),
+  servicePrincipal: boundedText.optional(),
+  delegationRef: boundedText.optional(),
+  correlationId: boundedText.optional(),
+}).strict();
+
+const effectReportSchema = z.object({
+  tenantId: boundedText,
+  principal: boundedText,
+  scopeId: boundedText,
+  status: z.enum(['started', 'unknown']),
+  capabilityDigest: boundedText,
+}).strict();
+
+type RouteOperation = 'start' | 'register' | 'read' | 'report_effect' | 'unknown';
 
 interface RouteMatch {
   operation: RouteOperation;
@@ -198,14 +220,18 @@ function matchRoute(path: string, basePath: string): RouteMatch | null {
   if (!normalized.startsWith(prefix)) return null;
   const suffix = normalized.slice(prefix.length);
   if (suffix === 'start') return { operation: 'start' };
+  if (suffix === 'register') return { operation: 'register' };
   const intentPrefix = 'intents/';
   if (suffix.startsWith(intentPrefix)) {
-    const encodedOperationId = suffix.slice(intentPrefix.length);
+    const rest = suffix.slice(intentPrefix.length);
+    const reportSuffix = '/effect';
+    const operation: RouteOperation = rest.endsWith(reportSuffix) ? 'report_effect' : 'read';
+    const encodedOperationId = operation === 'report_effect' ? rest.slice(0, -reportSuffix.length) : rest;
     if (encodedOperationId.length === 0 || encodedOperationId.includes('/')) return { operation: 'unknown' };
     try {
-      return { operation: 'read', operationId: decodeURIComponent(encodedOperationId) };
+      return { operation, operationId: decodeURIComponent(encodedOperationId) };
     } catch {
-      return { operation: 'read', operationId: undefined };
+      return { operation, operationId: undefined };
     }
   }
   return { operation: 'unknown' };
@@ -226,6 +252,19 @@ function assertContext(context: TrustedExecutionAuthorityRequestContext | null):
     || !boundedText.safeParse(context.scopeId).success) {
     throw new HttpInputError('Authenticated execution authority context is required');
   }
+  if (context.attribution !== undefined && !attributionIsConsistent(context.attribution, context.principal)) {
+    throw new HttpInputError('Authenticated execution attribution is inconsistent');
+  }
+}
+
+/** Mirrors the service rules so an inconsistent host context is an authentication failure. */
+function attributionIsConsistent(value: unknown, principal: string): boolean {
+  const parsed = attributionSchema.safeParse(value);
+  if (!parsed.success) return false;
+  const { mode, servicePrincipal, delegationRef } = parsed.data;
+  if (mode === 'person') return servicePrincipal === undefined && delegationRef === undefined;
+  if (servicePrincipal === undefined || delegationRef === undefined) return false;
+  return mode === 'delegated_service' ? servicePrincipal !== principal : servicePrincipal === principal;
 }
 
 function bindTrustedIdentity(
@@ -263,6 +302,21 @@ function parseStartBody(body: unknown, context: TrustedExecutionAuthorityRequest
   return parsed.data as ExecutionStartInput;
 }
 
+function parseEffectReportBody(
+  body: unknown,
+  context: TrustedExecutionAuthorityRequestContext,
+  operationId: string,
+): ExecutionEffectReport {
+  const bound = bindTrustedIdentity(body, context);
+  if (hasOwn(bound, 'operationId')) {
+    if (bound.operationId !== operationId) throw new HttpInputError('operationId does not match the request path');
+    delete bound.operationId;
+  }
+  const parsed = effectReportSchema.safeParse(bound);
+  if (!parsed.success) throw new HttpInputError(parsed.error.issues[0]?.message ?? 'Request body is invalid');
+  return { ...parsed.data, operationId };
+}
+
 function serviceError(error: unknown): { status: number; code: string; message: string } {
   if (!(error instanceof ExecutionAuthorityError)) {
     return { status: 500, code: 'internal_error', message: 'Execution authority operation failed' };
@@ -270,6 +324,7 @@ function serviceError(error: unknown): { status: number; code: string; message: 
   const status = (() => {
     switch (error.code) {
       case 'scope_mismatch':
+      case 'capability_mismatch':
       case 'authority_revoked':
       case 'authority_expired':
       case 'approval_revoked':
@@ -286,7 +341,12 @@ function serviceError(error: unknown): { status: number; code: string; message: 
       case 'approval_unknown':
       case 'constraint_unknown':
       case 'reservation_unknown':
+      case 'store_unavailable':
         return 503;
+      case 'intent_not_found':
+        return 404;
+      case 'effect_unconfigured':
+        return 501;
       case 'operation_conflict':
       case 'revision_conflict':
       case 'fencing_unsupported':
@@ -317,7 +377,8 @@ function writeError(
 }
 
 function methodAllowed(operation: RouteOperation, method: string): boolean {
-  return operation === 'read' ? method === 'GET' : operation === 'start' ? method === 'POST' : false;
+  if (operation === 'read') return method === 'GET';
+  return operation === 'unknown' ? false : method === 'POST';
 }
 
 async function verifyMutationRequest(
@@ -414,6 +475,37 @@ export function createExecutionAuthorityHttpHandler(
       return true;
     }
 
+    const requestOptions = context.attribution ? { attribution: context.attribution } : {};
+
+    if (route.operation === 'report_effect') {
+      const parsedOperationId = boundedText.safeParse(route.operationId);
+      let report: ExecutionEffectReport;
+      try {
+        if (!parsedOperationId.success) throw new HttpInputError('operationId is invalid');
+        report = parseEffectReportBody(body, context, parsedOperationId.data);
+      } catch (error) {
+        writeError(response, 400, 'invalid_request', error instanceof Error ? error.message : 'Request body is invalid');
+        return true;
+      }
+      if (!await verifyMutationRequest(options, request, context)) {
+        writeError(response, 403, 'mutation_origin_unverified', 'Mutation origin could not be verified');
+        return true;
+      }
+      try {
+        const service = await options.serviceFactory(context);
+        if (typeof service.reportEffect !== 'function') {
+          writeError(response, 501, 'operation_unconfigured', 'This host does not accept effect reports');
+          return true;
+        }
+        const intent = await service.reportEffect(report);
+        writeJson(response, 200, { action: 'report_effect', operationId: report.operationId, result: { intent } });
+      } catch (error) {
+        const failure = serviceError(error);
+        writeError(response, failure.status, failure.code, failure.message);
+      }
+      return true;
+    }
+
     let parsed: ExecutionStartInput;
     try {
       parsed = parseStartBody(body, context);
@@ -429,8 +521,17 @@ export function createExecutionAuthorityHttpHandler(
 
     try {
       const service = await options.serviceFactory(context);
-      const result = await service.start(parsed);
-      writeJson(response, 200, { action: 'start', operationId: parsed.operationId, result });
+      if (route.operation === 'register') {
+        if (typeof service.register !== 'function') {
+          writeError(response, 501, 'operation_unconfigured', 'This host does not register executions');
+          return true;
+        }
+        const result = await service.register(parsed, requestOptions);
+        writeJson(response, 200, { action: 'register', operationId: parsed.operationId, result });
+      } else {
+        const result = await service.start(parsed, requestOptions);
+        writeJson(response, 200, { action: 'start', operationId: parsed.operationId, result });
+      }
     } catch (error) {
       const failure = serviceError(error);
       writeError(response, failure.status, failure.code, failure.message);
