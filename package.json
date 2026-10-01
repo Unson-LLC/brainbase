@@ -27,6 +27,10 @@
       "types": "./dist/judgment-dag-composition.d.ts",
       "import": "./dist/judgment-dag-composition.js"
     },
+    "./judgment-frame": {
+      "types": "./dist/judgment-frame.d.ts",
+      "import": "./dist/judgment-frame.js"
+    },
     "./judgment-value-proof": {
       "types": "./dist/judgment-value-proof.d.ts",
       "import": "./dist/judgment-value-proof.js"
