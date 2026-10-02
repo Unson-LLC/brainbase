@@ -55,6 +55,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.13.0（npm公開前）
+
+予約と実行開始が照合する問題のスナップショットを、HTTPで作って読み戻す入口（`@unson/brainbase-mcp/judgment-problem-snapshot-http`）を加えます。保存・照合・読み取り方針は既存の処理のままで、主体と参照の照合（Foundationなど）はホストが渡します。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
 ## Candidate — v0.12.0（npm公開前）
 
 個人KG v1から組織へ共有した記憶を、本人が撤回したときの取消を共通昇格処理（`@unson/brainbase-mcp/knowledge-promotion`）に加えます。審査待ちの申請は「取消済み」になって承認できなくなり、既に組織のGraphに入った事実は撤回済み・検索対象外になります。承認の記録と系譜は残します。npm配布と外部照合が完了するまでは公開済みとして扱いません。
