@@ -155,6 +155,10 @@
       "types": "./dist/judgment-problem-snapshot.d.ts",
       "import": "./dist/judgment-problem-snapshot.js"
     },
+    "./judgment-problem-snapshot-http": {
+      "types": "./dist/judgment-problem-snapshot-http.d.ts",
+      "import": "./dist/judgment-problem-snapshot-http.js"
+    },
     "./personal-knowledge": {
       "types": "./dist/personal-knowledge.d.ts",
       "import": "./dist/personal-knowledge.js"
