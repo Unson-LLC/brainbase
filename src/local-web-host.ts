@@ -861,7 +861,9 @@ if (extensionScreens.some((screen, index) => screen?.id !== extensionIds[index] 
   throw new Error('Invalid extension screen id');
 }
 const meta = (name) => document.querySelector(\`meta[name="\${name}"]\`)?.getAttribute('content') ?? '';
-const screenFromHash = () => decodeURIComponent(location.hash.replace(/^#/, '')) || undefined;
+// Keep the query portion intact; the shell parses the Graph entity query and
+// only treats the entity id as a target of the Graph screen.
+const screenFromHash = () => location.hash.replace(/^#/, '') || undefined;
 const shell = createLocalWebShell({
   root: document.getElementById('brainbase-local-web'),
   token: meta('brainbase-web-token'),

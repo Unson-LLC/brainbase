@@ -21,6 +21,7 @@ import { createObjectiveEditorController } from './objective-editor.js';
 import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
 import { createValueProofReviewUI } from './value-proof-review.js';
 import { createWorldModelView } from './world-model-view.js';
+import { createGraphClient } from './graph-view-shared.js';
 
 export const LOCAL_WEB_SHELL_CONTRACT_VERSION = 'brainbase.local-web-shell.v1';
 
@@ -75,6 +76,60 @@ function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Parses the local shell's hash target without treating query data as a
+ * screen id.  Only the Graph screen accepts an entity target; all other
+ * screens deliberately discard query parameters.
+ */
+export function parseLocalWebTarget(target) {
+  const raw = typeof target === 'string' ? target.replace(/^#/, '') : '';
+  const separator = raw.indexOf('?');
+  const screenId = separator < 0 ? raw : raw.slice(0, separator);
+  if (!screenId) return { screenId: null, entityId: null };
+  const query = separator < 0 ? '' : raw.slice(separator + 1);
+  const params = new URLSearchParams(query);
+  return {
+    screenId,
+    entityId: screenId === 'graph' ? params.get('entity_id')?.trim() || null : null,
+  };
+}
+
+function graphSourceReader(context) {
+  const client = createGraphClient({ fetcher: context.fetcher, basePath: '/api/graph', token: context.token });
+  return async (source) => {
+    if (!isRecord(source) || source.kind !== 'local_graph'
+      || typeof source.entity_id !== 'string' || !source.entity_id.trim()
+      || typeof source.entity_type !== 'string' || !source.entity_type.trim()) {
+      return { state: 'unavailable', reason: 'source_contract_invalid' };
+    }
+    const result = await client.read(`/entities/${encodeURIComponent(source.entity_id)}`);
+    if (result.state === 'error') {
+      if (result.status === 404 || result.code === 'entity_not_found') return { state: 'not_found' };
+      if (result.status === 403 || result.code === 'authorization_denied' || result.code === 'scope_violation') return { state: 'forbidden' };
+      if (result.code === 'entity_id_ambiguous') return { state: 'ambiguous' };
+      return { state: 'unavailable', reason: result.code };
+    }
+    if (result.state !== 'ok' || !isRecord(result.payload?.entity)) return { state: 'unavailable', reason: 'source_response_invalid' };
+    const entity = result.payload.entity;
+    if (entity.id !== source.entity_id || entity.type !== source.entity_type) {
+      return { state: 'unavailable', reason: 'source_target_mismatch' };
+    }
+    if (source.digest && entity.digest !== source.digest) {
+      return { state: 'unavailable', reason: 'source_digest_mismatch' };
+    }
+    // The local Graph response currently exposes a content digest, not a
+    // revision number.  A requested version is therefore linkable only when
+    // the provider returns the same explicit version field.
+    if (source.version) {
+      const currentVersion = entity.version ?? entity.revision ?? null;
+      if (!currentVersion || currentVersion !== source.version) {
+        return { state: 'unavailable', reason: 'source_version_mismatch' };
+      }
+    }
+    return { state: 'available' };
+  };
+}
+
 function makePage(container, context) {
   const page = makeElement(context.document, 'div', { className: 'bb-shell-page' });
   container.append(page);
@@ -89,6 +144,7 @@ function mountToday(container, context) {
     document: context.document,
     fetcher: context.fetcher,
     token: context.token,
+    sourceReader: graphSourceReader(context),
   });
 }
 
@@ -150,6 +206,7 @@ function mountGraphScreen(createView) {
       document: context.document,
       fetcher: context.fetcher,
       token: context.token,
+      initialEntityId: context.initialEntityId,
     });
   };
 }
@@ -254,6 +311,7 @@ export function createLocalWebShell({
   const mounted = new Map();
   const slots = new Map();
   const links = new Map();
+  const pendingEntityIds = new Map();
   let active = null;
 
   const shell = makeElement(doc, 'div', { className: 'bb-shell', attrs: { 'data-contract-version': LOCAL_WEB_SHELL_CONTRACT_VERSION } });
@@ -317,8 +375,14 @@ export function createLocalWebShell({
     for (const [screenId, railSlot] of rails) railSlot.hidden = !(showRail && screenId === active);
   }
 
-  function ensureMounted(screen) {
-    if (mounted.has(screen.id)) return;
+  function ensureMounted(screen, entityId = pendingEntityIds.get(screen.id) ?? null) {
+    if (mounted.has(screen.id)) {
+      if (entityId && screen.id === 'graph') {
+        const view = mounted.get(screen.id);
+        if (typeof view?.openEntity === 'function') void view.openEntity(entityId);
+      }
+      return;
+    }
     const slot = slots.get(screen.id);
     if (screen.usesGraph && !(status.phase === 'ready' && status.data.graph.status === 'ready')) {
       renderGraphGate(doc, slot, status, controller.refreshStatus, screen.label);
@@ -328,7 +392,7 @@ export function createLocalWebShell({
     const rail = rails.get(screen.id) ?? null;
     rail?.replaceChildren();
     const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: screen.source ?? null });
-    mounted.set(screen.id, screen.mount(slot, Object.freeze({ ...context, rail, page })) ?? true);
+    mounted.set(screen.id, screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId })) ?? true);
     updateRail();
   }
 
@@ -336,15 +400,17 @@ export function createLocalWebShell({
     get state() {
       return { active, status, mounted: [...mounted.keys()] };
     },
-    show(id) {
-      const screen = screens.find((candidate) => candidate.id === id) ?? screens[0];
+    show(target) {
+      const parsed = parseLocalWebTarget(target);
+      const screen = screens.find((candidate) => candidate.id === parsed.screenId) ?? screens[0];
+      pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId : null);
       active = screen.id;
       for (const [screenId, slot] of slots) slot.hidden = screenId !== screen.id;
       for (const [screenId, link] of links) {
         if (screenId === screen.id) link.setAttribute('aria-current', 'page');
         else link.removeAttribute('aria-current');
       }
-      ensureMounted(screen);
+      ensureMounted(screen, pendingEntityIds.get(screen.id));
       updateRail();
       return controller;
     },
@@ -368,7 +434,7 @@ export function createLocalWebShell({
       renderSource(doc, source, status, controller.refreshStatus);
       // Re-evaluate Graph-backed screens that are waiting behind the gate.
       for (const screen of screens) {
-        if (screen.usesGraph && !mounted.has(screen.id) && (screen.id === active)) ensureMounted(screen);
+        if (screen.usesGraph && !mounted.has(screen.id) && (screen.id === active)) ensureMounted(screen, pendingEntityIds.get(screen.id));
       }
       return status;
     },

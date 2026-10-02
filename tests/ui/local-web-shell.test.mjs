@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createLocalWebShell, LOCAL_WEB_SCREENS } from '../../ui/local-web-shell.js';
+import { createLocalWebShell, LOCAL_WEB_SCREENS, parseLocalWebTarget } from '../../ui/local-web-shell.js';
+import {
+  graphEntityPayload,
+  sourceBearingHome,
+  sourceBearingProof,
+  UX06_GRAPH_ENTITY,
+  UX06_GRAPH_ONTOLOGY,
+  UX06_GRAPH_SEARCH,
+} from './ux06-source-fixture.mjs';
 
 class FakeElement {
   constructor(tagName) {
@@ -51,6 +59,7 @@ function jsonResponse(status, body) {
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 5));
+const flushMany = async (count = 3) => { for (let index = 0; index < count; index += 1) await flush(); };
 
 function statusPayload(graph) {
   return {
@@ -108,6 +117,13 @@ function mount(fetcher, initialScreen) {
 }
 
 describe('local Web shell', () => {
+  it('parses a Graph entity target from the same-origin hash and ignores queries on other screens', () => {
+    expect(parseLocalWebTarget('#graph?entity_id=project-atlas')).toEqual({ screenId: 'graph', entityId: 'project-atlas' });
+    expect(parseLocalWebTarget('graph?entity_id=project%2Datlas')).toEqual({ screenId: 'graph', entityId: 'project-atlas' });
+    expect(parseLocalWebTarget('#today?entity_id=project-atlas')).toEqual({ screenId: 'today', entityId: null });
+    expect(parseLocalWebTarget(undefined)).toEqual({ screenId: null, entityId: null });
+  });
+
   it('gives each screen its own right rail and the page context, and shows the rail column only for the mounted screen', async () => {
     const received = [];
     const screens = [
@@ -256,6 +272,65 @@ describe('local Web shell', () => {
       expect(text, id).not.toContain('まだ登録がありません');
       expect(calls.some((path) => path.startsWith('/api/graph')), id).toBe(false);
     }
+  });
+
+  it('opens a real Graph route from a source link target and shows the exact fixture entity', async () => {
+    const { fetcher, calls } = hostFetcher(V2, {
+      '/api/graph/search?limit=50': () => jsonResponse(200, UX06_GRAPH_SEARCH),
+      '/api/graph/ontology': () => jsonResponse(200, UX06_GRAPH_ONTOLOGY),
+      '/api/graph/entities/project-atlas': () => jsonResponse(200, graphEntityPayload()),
+    });
+    const { root, shell } = mount(fetcher, '#graph?entity_id=project-atlas');
+    await flushMany();
+    expect(shell.state.active).toBe('graph');
+    expect(calls).toContain('/api/graph/entities/project-atlas');
+    expect(collectText(screen(root, 'graph'))).toContain(UX06_GRAPH_ENTITY.name);
+    expect(collectText(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0])).toContain(UX06_GRAPH_ENTITY.id);
+  });
+
+  it('only exposes the source link after the host confirms the source, and preserves unconfirmed states', async () => {
+    const cases = [
+      ['404', () => jsonResponse(404, { error: { code: 'entity_not_found' } }), '出典が見つかりません'],
+      ['duplicate', () => jsonResponse(503, { error: { code: 'entity_id_ambiguous' } }), '同じIDの出典が複数あります'],
+      ['forbidden', () => jsonResponse(403, { error: { code: 'authorization_denied' } }), '出典を読む権限がありません'],
+      ['network', () => { throw new Error('fixture network failure'); }, '出典を確認できません'],
+    ];
+
+    for (const [label, entityRoute, expected] of cases) {
+      const { fetcher, calls } = hostFetcher(V2, {
+        '/api/value-proofs/home': () => jsonResponse(200, sourceBearingHome()),
+        '/api/graph/entities/project-atlas': entityRoute,
+      });
+      const { root } = mount(fetcher, 'today');
+      await flushMany(2);
+      const rail = findAll(root, (node) => node.attributes?.['data-rail'] === 'today')[0];
+      const item = findAll(rail, (node) => node.tagName === 'BUTTON' && String(node.className).includes('bb-vpr-item'))[0];
+      expect(item, label).toBeTruthy();
+      item.listeners.get('click')();
+      await flushMany(2);
+      expect(calls, label).toContain('/api/graph/entities/project-atlas');
+      expect(findAll(rail, (node) => node.tagName === 'A'), label).toHaveLength(0);
+      expect(collectText(rail), label).toContain(expected);
+      expect(collectText(rail), label).toContain('未確認');
+    }
+  });
+
+  it('does not expose a link when the source version cannot be confirmed', async () => {
+    const home = sourceBearingHome(sourceBearingProof({ source: { kind: 'local_graph', entity_id: 'project-atlas', entity_type: 'project', version: 'fixture-v2' } }));
+    const { fetcher, calls } = hostFetcher(V2, {
+      '/api/value-proofs/home': () => jsonResponse(200, home),
+      '/api/graph/entities/project-atlas': () => jsonResponse(200, graphEntityPayload()),
+    });
+    const { root } = mount(fetcher, 'today');
+    await flushMany(2);
+    const rail = findAll(root, (node) => node.attributes?.['data-rail'] === 'today')[0];
+    const item = findAll(rail, (node) => node.tagName === 'BUTTON' && String(node.className).includes('bb-vpr-item'))[0];
+    item.listeners.get('click')();
+    await flushMany(2);
+    expect(calls).toContain('/api/graph/entities/project-atlas');
+    expect(findAll(rail, (node) => node.tagName === 'A')).toHaveLength(0);
+    expect(collectText(rail)).toContain('出典を確認できません');
+    expect(collectText(rail)).toContain('未確認');
   });
 
   it('puts the selected judgment kind of 今日 and the selected objective of 目的と現状 in each screen\'s rail', async () => {
