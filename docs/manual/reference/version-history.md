@@ -5,7 +5,10 @@
 ## Unreleased — develop
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
-- 共通昇格処理 `@unson/brainbase-mcp/knowledge-promotion` に、本人が個人KG v1の記憶を撤回したときの共有の取消（`withdrawPersonalShares`）を追加。審査待ちの申請を「取消済み」（`source_withdrawn`）にし、承認済みの事実は組織のGraphで撤回済み・検索対象外にする。状態に`source_withdrawn`が増えるため、申請の状態を厳密に検査している利用者は対応が必要
+
+## 0.12.0 candidate — npm公開前
+
+- 共通昇格処理 `@unson/brainbase-mcp/knowledge-promotion` に、本人が個人KG v1の記憶を撤回したときの共有の取消（`withdrawPersonalShares`）を追加。審査待ちの申請を「取消済み」（`source_withdrawn`）にし、承認済みの事実は組織のGraphで撤回済み・検索対象外にする。状態に`source_withdrawn`が増えるため、申請の状態を厳密に検査している利用者は対応が必要。0.11からのminorにした
 
 ## 0.11.0 candidate — npm公開前
 
