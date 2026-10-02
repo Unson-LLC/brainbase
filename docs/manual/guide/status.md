@@ -55,6 +55,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.14.0（npm公開前）
+
+Foundationの草案を、判断と評価に使える版にする「採用」の書き込みの検査（`validateFoundationGraphAdoption`・`normalizeFoundationGraphAdoption`、`@unson/brainbase-mcp/foundation-graph-write`）を加えます。採用者が確かめた版と中身のまま次の版を作り、実行への使用は含めません。誰が採用できるかの照合はホストが行います。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
 ## Candidate — v0.13.0（npm公開前）
 
 予約と実行開始が照合する問題のスナップショットを、HTTPで作って読み戻す入口（`@unson/brainbase-mcp/judgment-problem-snapshot-http`）を加えます。保存・照合・読み取り方針は既存の処理のままで、主体と参照の照合（Foundationなど）はホストが渡します。npm配布と外部照合が完了するまでは公開済みとして扱いません。
