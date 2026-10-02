@@ -247,6 +247,38 @@ body:has(#brainbase-value-proof-review) {
   font-size: 13px;
 }
 
+/* A source-bearing target is still trace metadata until the host has read the
+ * exact Graph record.  Only the same-origin link is styled as an action. */
+.bb-vpr-source-target {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: var(--bb-space-1, 4px);
+  align-items: baseline;
+}
+
+.bb-vpr-source-link {
+  color: var(--vpr-action);
+  font-weight: 680;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bb-vpr-source-status {
+  color: var(--vpr-muted);
+  font-size: 12px;
+}
+
+.bb-vpr-source-status.is-loading {
+  color: var(--vpr-muted);
+}
+
+.bb-vpr-source-status.is-not_found,
+.bb-vpr-source-status.is-ambiguous,
+.bb-vpr-source-status.is-forbidden,
+.bb-vpr-source-status.is-unavailable {
+  color: var(--vpr-warning);
+}
+
 /* Detail: in the rail, or after the workspace when the host has none. */
 .bb-vpr-inline-detail {
   max-width: 760px;

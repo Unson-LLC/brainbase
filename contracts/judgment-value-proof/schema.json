@@ -154,7 +154,25 @@
         "entity_id": { "type": "string", "minLength": 1 },
         "application": { "type": "string", "minLength": 1 },
         "layer": { "enum": ["philosophy", "objective", "world_model", "method", "constraint", "other"] },
-        "version": { "type": ["string", "null"] }
+        "version": { "type": ["string", "null"] },
+        "source": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/basis_source" }
+          ]
+        }
+      }
+    },
+    "basis_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "entity_id", "entity_type"],
+      "properties": {
+        "kind": { "const": "local_graph" },
+        "entity_id": { "type": "string", "minLength": 1 },
+        "entity_type": { "enum": ["person", "org", "project", "decision"] },
+        "version": { "type": ["string", "null"] },
+        "digest": { "type": ["string", "null"] }
       }
     },
     "inheritance_source": {

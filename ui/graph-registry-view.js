@@ -163,6 +163,7 @@ function textCell(value, fallback) {
  * @param {string} [options.token] Launch token sent with a correction.
  * @param {string} [options.tokenHeader] Header name for the token.
  * @param {boolean} [options.autoLoad=true] Runs the empty search and reads the kinds on mount.
+ * @param {string} [options.initialEntityId] Opens this exact entity after the initial Graph read.
  * @param {() => Date} [options.now] The owner's clock.
  * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
  *   (この記録を直す, 関係を加える, この関係を直す, and この画面で直せること under the kinds of
@@ -204,6 +205,7 @@ export function createGraphRegistryView({
   token,
   tokenHeader,
   autoLoad = true,
+  initialEntityId,
   now = () => new Date(),
   canCorrect = true,
   correctionScope,
@@ -814,7 +816,14 @@ export function createGraphRegistryView({
     },
   };
   controller.render();
-  if (autoLoad) void controller.load();
+  if (autoLoad) {
+    void controller.load().then(() => {
+      if (initialEntityId) return controller.openEntity(initialEntityId);
+      return undefined;
+    });
+  } else if (initialEntityId) {
+    void controller.openEntity(initialEntityId);
+  }
   return controller;
 }
 

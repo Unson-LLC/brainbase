@@ -188,6 +188,42 @@ describe('judgment value proof placement', () => {
 });
 
 describe('judgment value proof inheritance', () => {
+  it('accepts a typed local Graph source only when it matches the basis target', () => {
+    const proof = verifiedProof();
+    proof.decision.basis = [{
+      entity_id: 'project-atlas',
+      application: 'Atlas導入の判断材料を確認する',
+      source: {
+        kind: 'local_graph',
+        entity_id: 'project-atlas',
+        entity_type: 'project',
+        digest: 'sha256:fixture-project-atlas'
+      }
+    }];
+
+    expect(validateJudgmentValueProof(proof)).toBe(proof);
+
+    const mismatched = structuredClone(proof);
+    mismatched.decision.basis[0].source = {
+      kind: 'local_graph',
+      entity_id: 'person-atlas',
+      entity_type: 'person'
+    };
+    expect(() => validateJudgmentValueProof(mismatched)).toThrow(
+      'decision.basis[].source.entity_id must match entity_id'
+    );
+
+    const unsupported = structuredClone(proof);
+    unsupported.decision.basis[0].source = {
+      kind: 'external_url',
+      entity_id: 'project-atlas',
+      entity_type: 'project'
+    } as never;
+    expect(() => validateJudgmentValueProof(unsupported)).toThrow(
+      'decision.basis[].source.kind must be local_graph'
+    );
+  });
+
   it('keeps records without inheritance, layered basis or kind valid', () => {
     const proof = verifiedProof();
     expect(proof.decision.inheritance).toBeUndefined();

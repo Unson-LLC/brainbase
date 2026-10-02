@@ -1,0 +1,41 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-ux-20261001-06-source-navigation",
+  "clauses": [
+    {
+      "id": "AC-001",
+      "type": "invariant",
+      "text": "basis.sourceがない、または契約不正の根拠は対象ID・版だけを表示し、架空の出典リンクを作らない。"
+    },
+    {
+      "id": "AC-002",
+      "type": "behavior",
+      "text": "local_graph sourceがbasis対象と一致し、host-owned Graph readbackでID・種類・指定されたdigest/versionが一致した場合だけ、同一オリジンのGraph対象へのリンクを表示する。"
+    },
+    {
+      "id": "AC-003",
+      "type": "invariant",
+      "text": "出典リンクは任意URLではなく#graph?entity_id=<encoded-id>だけを使い、Graph画面は既存read経路から対象詳細を表示する。"
+    },
+    {
+      "id": "AC-004",
+      "type": "behavior",
+      "text": "404、同一ID複数候補、認可不可、通信失敗、種類・digest・version不一致ではリンクを出さず、理由を未確認として表示する。"
+    },
+    {
+      "id": "AC-005",
+      "type": "boundary",
+      "text": "実journalのsource欠落、既存journal内容、sourceのbackfillは変更せず、source-bearing fixtureは架空データだけで構成する。"
+    },
+    {
+      "id": "AC-006",
+      "type": "verification",
+      "text": "validator、value-proof UI、local Web shellの回帰テストで出典あり・出典なし・404・重複・権限不可・通信失敗を確認する。"
+    },
+    {
+      "id": "ARCH-001",
+      "type": "boundary",
+      "text": "payload schemaとhost-owned readerを追加するため、このStoryはアーキテクチャ判断待ちであり、CI成功だけではマージ可能としない。"
+    }
+  ]
+}
