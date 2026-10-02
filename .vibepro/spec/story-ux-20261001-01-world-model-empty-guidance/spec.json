@@ -175,6 +175,36 @@
           }
         ]
       }
+    },
+    {
+      "id": "AC-007",
+      "type": "http_ui_scenario",
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/local-web-host.test.ts",
+            "must_cover": "empty, non-empty, and unreadable World Model states on a temporary local Web host"
+          },
+          {
+            "file_glob": "tests/ui/local-web-shell.test.mjs",
+            "must_cover": "renders the registration entry only for confirmed empty data"
+          }
+        ]
+      },
+      "statement": "On a loopback Personal Web host backed by a fictional temporary data_dir and journal, confirmed empty World Model shows the first-registration entry, non-empty World Model shows existing records without the first-registration entry, and unreadable Graph data shows the read failure and next action without presenting zero or the registration entry."
+    },
+    {
+      "id": "AC-008",
+      "type": "http_boundary",
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/local-web-host.test.ts",
+            "must_cover": "World Model registration POST rejects a missing or wrong launch token and a mismatched Origin"
+          }
+        ]
+      },
+      "statement": "The local-host HTTP tests prove that World Model registration POSTs are rejected unless both the same-origin check and the per-launch token check pass, and a rejected request does not create a record."
     }
   ]
 }

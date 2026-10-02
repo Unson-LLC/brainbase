@@ -33,6 +33,21 @@
       "text": "validator、value-proof UI、local Web shellの回帰テストで出典あり・出典なし・404・重複・権限不可・通信失敗を確認する。"
     },
     {
+      "id": "AC-007",
+      "type": "http_ui_scenario",
+      "text": "架空のdata_dirとjournalを使うPersonal Web local hostのHTTP/UI回帰テストで、Graph出典の読戻しがID・種類・digest（出典に版がある場合は版も）を一致確認できたときだけ、同一Originの#graph?entity_id=<encoded-id>リンクを表示し、Graph画面の対象詳細へ渡す。"
+    },
+    {
+      "id": "AC-008",
+      "type": "http_ui_boundary",
+      "text": "同じ架空fixtureのテストで、出典なし、404、重複、権限不足、通信失敗、版不一致、digest不一致の各ケースはリンクを表示せず、未確認理由を表示する。"
+    },
+    {
+      "id": "AC-009",
+      "type": "http_ui_boundary",
+      "text": "URL形式の出典descriptorは受け付けず、外部URL・任意path・別Originへのリンクを生成しない。"
+    },
+    {
       "id": "ARCH-001",
       "type": "boundary",
       "text": "payload schemaとhost-owned readerを追加するため、このStoryはアーキテクチャ判断待ちであり、CI成功だけではマージ可能としない。"
