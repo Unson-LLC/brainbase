@@ -63,6 +63,6 @@ Personal Web hostはdescriptorを受け、Graphの既存read routeから`/entiti
 ## ローカルWeb回帰受入条件（W-20261002-UXE2E）
 
 - 架空の一時`data_dir`と`journalRoot`で`createLocalWebHost`をloopback起動し、架空journalの根拠をPersonal WebのHTTP/UI経路で読み戻す。
-- 根拠の`local_graph` descriptorとGraph読戻しのID・種類・指定されたdigest・versionが一致した場合だけ、同一Originの`#graph?entity_id=<encoded-id>`リンクを表示する。既存local-web-shellテストでhashと対象詳細表示まで確認する。
+- 根拠の`local_graph` descriptorとGraph読戻しのID・種類・指定されたdigest（descriptorに版がある場合は版も）が一致した場合だけ、同一Originの`#graph?entity_id=<encoded-id>`リンクを表示する。既存local-web-shellテストでhashと対象詳細表示まで確認する。
 - 出典なし、404、重複、権限不足、通信失敗、版不一致、digest不一致の各ケースはリンクを表示しない。URL形式の出典も受け付けず、外部URLを生成しない。
 - `tests/local-web-host.test.ts`と`tests/ui/local-web-shell.test.mjs`で各ケースを確認する。fixtureはテスト実行中に作成し、実journal・利用者データ・常駐Webを参照しない。既存テストでリンク遷移先まで検証できるため、Playwright依存は追加しない。
