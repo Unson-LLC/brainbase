@@ -80,6 +80,9 @@ const FEEDBACK_LAYER_LABELS = Object.freeze({
   philosophy: '大切にすること',
   other: 'その他',
 });
+const HUMAN_DECISION_BOUNDARY_NOTE = 'この画面では、人に戻した判断への回答や作業の再開はできません。';
+const FEEDBACK_PURPOSE_NOTE = '評価は、実行後の振り返りとして記録します。人に戻した判断への回答や承認ではありません。';
+const CONSULT_COPY_NOTE = '相談文をコピーするだけで、この画面からCodexへは送信しません。';
 /** Layers the owner can pick for a correction. `delegation` comes from 「次回は聞く」. */
 export const VALUE_PROOF_CORRECTION_LAYERS = Object.freeze(['method', 'objective', 'world_model', 'philosophy', 'other']);
 export const VALUE_PROOF_FEEDBACK_OPTIONS = Object.freeze([
@@ -851,10 +854,14 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
       for (const option of options) list.append(makeElement(doc, 'li', { text: `${text(option.label) ?? option.id}: ${text(option.impact) ?? '影響の記録なし'}` }));
       content.push(makeElement(doc, 'h4', { text: '選択肢と影響' }), list);
     }
+    content.push(makeElement(doc, 'p', { className: 'bb-vpr-hint', text: HUMAN_DECISION_BOUNDARY_NOTE }));
     detail.push(workspaceRailBlock(doc, { title: 'あなたに戻した理由', className: 'bb-vpr-human-decision', content }));
   }
 
-  const feedback = [renderFeedbackForm(doc, item, state, callbacks)];
+  const feedback = [
+    makeElement(doc, 'p', { className: 'bb-vpr-hint', text: FEEDBACK_PURPOSE_NOTE }),
+    renderFeedbackForm(doc, item, state, callbacks),
+  ];
   if (item.feedbackHistory.length > 1) {
     const history = makeElement(doc, 'details', { className: 'bb-vpr-history' });
     history.append(makeElement(doc, 'summary', { text: `評価の履歴 ${item.feedbackHistory.length}件` }));
@@ -867,7 +874,10 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
   }
   detail.push(workspaceRailBlock(doc, { title: '評価', className: 'bb-vpr-feedback-block', content: feedback }));
 
-  const consult = [workspaceButton(doc, { text: 'Codexで相談する（依頼文をコピー）', onClick: () => callbacks.onConsult?.(consultText(proof)) })];
+  const consult = [
+    makeElement(doc, 'p', { className: 'bb-vpr-hint', text: CONSULT_COPY_NOTE }),
+    workspaceButton(doc, { text: 'Codexで相談する（依頼文をコピー）', onClick: () => callbacks.onConsult?.(consultText(proof)) }),
+  ];
   if (state.consultMessage) consult.push(notice(doc, 'is-muted', state.consultMessage));
   detail.push(workspaceRailBlock(doc, { title: 'Codexで相談', content: consult }));
 
