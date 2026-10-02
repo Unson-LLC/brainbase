@@ -185,7 +185,13 @@ function mountObjectives(container, context) {
     constraintsEditable: false,
     storyLinks: false,
   });
-  const worldModel = createWorldModelView({ root: worldRoot, rail: context.rail, document: doc, fetcher: context.fetcher });
+  const worldModel = createWorldModelView({
+    root: worldRoot,
+    rail: context.rail,
+    document: doc,
+    fetcher: context.fetcher,
+    token: context.token,
+  });
   return { editor, worldModel };
 }
 

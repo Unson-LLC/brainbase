@@ -675,8 +675,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-ux-20261001-01-world-model-empty-guidance",
+        "title": "World Modelが空のとき、最初の記録を登録できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-10",
+        "started_at": "2026-10-01",
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-project-dense-workspace-v1"
+    "current_story_id": "story-ux-20261001-01-world-model-empty-guidance"
   }
 }

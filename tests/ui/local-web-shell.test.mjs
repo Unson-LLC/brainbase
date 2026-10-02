@@ -188,6 +188,10 @@ describe('local Web shell', () => {
     const text = collectText(screen(root, 'objectives'));
     expect(text).toContain('目的はまだ登録されていません。');
     expect(text).toContain('現状と見通し');
+    expect(text).toContain('最初の登録');
+    expect(text).toContain('ここから変数と最初の観測値を登録できます');
+    const worldModel = findAll(screen(root, 'objectives'), (node) => String(node.className ?? '').split(' ').includes('bb-wm'))[0];
+    expect(findAll(worldModel, (node) => node.tagName === 'BUTTON')).toHaveLength(1);
     expect(text).not.toContain('Story参照');
     expect(calls).toEqual(expect.arrayContaining(['/api/foundation/objectives', '/api/world-model/variables', '/api/world-model/adoptions']));
     const links = findAll(root, (node) => node.tagName === 'A');
