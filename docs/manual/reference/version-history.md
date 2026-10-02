@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.14.0 candidate — npm公開前
+
+- Foundationの草案の採用 `validateFoundationGraphAdoption` / `normalizeFoundationGraphAdoption` を `@unson/brainbase-mcp/foundation-graph-write` に追加。確かめた版とdigestが今の版と同じ、持ち主以外、判断と評価の検査を通る草案だけを、中身を変えない次の版（approved・ontology・draft/judgment/evaluation）にする。公開の関数が増えるのでminorにした
+
 ## 0.13.0 candidate — npm公開前
 
 - 問題のスナップショットを作って読み戻すHTTPの入口 `@unson/brainbase-mcp/judgment-problem-snapshot-http` を追加。`POST /judgment-problem-snapshots` で保存して受領を返し、`GET /judgment-problem-snapshots/{snapshot_id}` で今の参照で照合して読み戻す。主体と参照の照合はホストが渡す。公開の出口が増えるのでminorにした
