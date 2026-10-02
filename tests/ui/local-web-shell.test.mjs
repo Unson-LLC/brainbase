@@ -4,6 +4,7 @@ import {
   graphEntityPayload,
   sourceBearingHome,
   sourceBearingProof,
+  sourceFreeProof,
   UX06_GRAPH_ENTITY,
   UX06_GRAPH_ONTOLOGY,
   UX06_GRAPH_SEARCH,
@@ -199,6 +200,36 @@ describe('local Web shell', () => {
     expect(links[0].attributes['aria-current']).toBeUndefined();
   });
 
+  it('shows existing synthetic World Model records without the first-registration entry', async () => {
+    const variable = {
+      digest: 'sha256:synthetic-variable',
+      definition: {
+        id: 'synthetic.focus-hours', type: 'variable', revision: '1', meaning: '架空の集中時間',
+        subject: '架空の利用者', unit: '時間', measurementMethod: '架空の記録',
+        epistemicState: 'supported', adoptionState: 'approved',
+      },
+    };
+    const observation = {
+      id: 'synthetic-observation', variableRef: { id: variable.definition.id, type: 'variable', revision: '1' },
+      subjectId: 'synthetic-owner', value: 4,
+      occurredAt: '2026-09-20T00:00:00.000Z',
+      period: { from: '2026-09-19T00:00:00.000Z', until: '2026-09-19T23:59:59.000Z' },
+      recordedAt: '2026-09-20T00:01:00.000Z',
+      sourceRef: { sourceId: 'synthetic-journal', sourceKind: 'observation', evidenceIds: [] },
+    };
+    const { fetcher } = hostFetcher(V2, {
+      '/api/world-model/variables': () => jsonResponse(200, { state: 'ready', records: [variable], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+      '/api/world-model/observations': () => jsonResponse(200, { state: 'ready', observations: [observation], absence_confirmed: true, unreadable: { count: 0, codes: [] } }),
+    });
+    const { root } = mount(fetcher, 'objectives');
+    await flushMany();
+    const text = collectText(screen(root, 'objectives'));
+    expect(text).toContain('架空の集中時間');
+    expect(text).toContain('synthetic-observation');
+    expect(text).not.toContain('最初の登録');
+    expect(findAll(screen(root, 'objectives'), (node) => node.attributes?.['aria-label'] === '最初の変数と観測値を登録')).toHaveLength(0);
+  });
+
   it('shows the migration commands for Graph v1 and never asks for objectives or the world model', async () => {
     const { fetcher, calls } = hostFetcher(V1);
     const { root } = mount(fetcher, 'objectives');
@@ -228,6 +259,21 @@ describe('local Web shell', () => {
     recheck.listeners.get('click')();
     await flush();
     expect(collectText(screen(root, 'objectives'))).toContain('目的はまだ登録されていません。');
+  });
+
+  it('shows an unreadable Graph and a recheck action instead of the first-registration entry', async () => {
+    const unreadable = {
+      status: 'unreadable', format: null, message: '架空のgraph.jsonを読み取れません', commands: [],
+    };
+    const { fetcher } = hostFetcher(unreadable);
+    const { root } = mount(fetcher, 'objectives');
+    await flushMany();
+    const text = collectText(screen(root, 'objectives'));
+    expect(text).toContain('データを読み取れません');
+    expect(text).toContain('架空のgraph.jsonを読み取れません');
+    expect(text).toContain('0件ではありません');
+    expect(text).toContain('再確認');
+    expect(text).not.toContain('最初の登録');
   });
 
   it('mounts プロジェクトと関係者 and 情報と関係 on Graph v2', async () => {
@@ -312,6 +358,46 @@ describe('local Web shell', () => {
       expect(findAll(rail, (node) => node.tagName === 'A'), label).toHaveLength(0);
       expect(collectText(rail), label).toContain(expected);
       expect(collectText(rail), label).toContain('未確認');
+    }
+  });
+
+  it('exposes only a same-origin Graph hash link after a matching source read', async () => {
+    const { fetcher } = hostFetcher(V2, {
+      '/api/value-proofs/home': () => jsonResponse(200, sourceBearingHome()),
+      '/api/graph/entities/project-atlas': () => jsonResponse(200, graphEntityPayload()),
+    });
+    const { root } = mount(fetcher, 'today');
+    await flushMany(2);
+    const rail = findAll(root, (node) => node.attributes?.['data-rail'] === 'today')[0];
+    const item = findAll(rail, (node) => node.tagName === 'BUTTON' && String(node.className).includes('bb-vpr-item'))[0];
+    item.listeners.get('click')();
+    await flushMany(2);
+    const links = findAll(rail, (node) => node.tagName === 'A');
+    expect(links).toHaveLength(1);
+    expect(links[0].attributes.href).toBe('#graph?entity_id=project-atlas');
+    expect(links[0].attributes.href).not.toMatch(/^https?:/u);
+  });
+
+  it('does not expose links for source-free, digest-mismatched, or URL-shaped descriptors', async () => {
+    const cases = [
+      ['source-free', sourceFreeProof(), null],
+      ['digest-mismatch', sourceBearingProof({ source: { kind: 'local_graph', entity_id: 'project-atlas', entity_type: 'project', digest: 'sha256:not-current' } }), '出典を確認できません'],
+      ['url-shaped', sourceBearingProof({ source: { kind: 'url', url: 'https://outside.invalid/entity/project-atlas' } }), null],
+    ];
+    for (const [label, proof, expected] of cases) {
+      const { fetcher } = hostFetcher(V2, {
+        '/api/value-proofs/home': () => jsonResponse(200, sourceBearingHome(proof)),
+        '/api/graph/entities/project-atlas': () => jsonResponse(200, graphEntityPayload()),
+      });
+      const { root } = mount(fetcher, 'today');
+      await flushMany(2);
+      const rail = findAll(root, (node) => node.attributes?.['data-rail'] === 'today')[0];
+      const item = findAll(rail, (node) => node.tagName === 'BUTTON' && String(node.className).includes('bb-vpr-item'))[0];
+      expect(item, label).toBeTruthy();
+      item.listeners.get('click')();
+      await flushMany(2);
+      expect(findAll(rail, (node) => node.tagName === 'A'), label).toHaveLength(0);
+      if (expected) expect(collectText(rail), label).toContain(expected);
     }
   });
 

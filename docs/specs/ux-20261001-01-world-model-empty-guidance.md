@@ -69,3 +69,11 @@ GETの既存4 routeは保存後に読み直し、変数と観測値を台帳に�
 ## 影響確認
 
 Graphifyを本Story／Spec／実装／テストに対して再実行し、traceと診断をPRに添付する。今回のPOST接続は既存storeを再利用するが、GET専用から書込み可能へ契約を広げるため、アーキテクチャ判断待ちとしてPR後に停止する。
+
+## ローカルWeb回帰受入条件（W-20261002-UXE2E）
+
+- 架空の一時`data_dir`と`journalRoot`で`createLocalWebHost`をloopback起動し、HTTPテストから`#objectives`相当のWorld Model応答を読む。
+- GraphとWorld Modelが確認済みの空状態なら「最初の登録」と案内を表示する。既存の変数・観測値がある状態では既存内容を表示し、初回登録の入口を表示しない。
+- GraphまたはWorld Modelを読み取れない状態では、読み取れない理由と次の操作を表示し、「0件」や初回登録として表示しない。
+- 変数・観測値のPOSTは、同一Originと起動トークンの両方が必要で、欠落・不一致の各リクエストを拒否し、データを作成しない。
+- `tests/local-web-host.test.ts`でHTTPと一時data_dir/journalを、`tests/ui/local-web-shell.test.mjs`で画面表示を確認する。fixtureはテスト実行中に作成し、実データ・常駐Web・利用者のjournalを参照しない。

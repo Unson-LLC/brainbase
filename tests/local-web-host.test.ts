@@ -5,10 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFoundationRevisionStore } from '../src/foundation-store.js';
+import { graphRecordDigest } from '../src/graph-corrections.js';
 import { createLocalWebHost, LOCAL_WEB_TOKEN_HEADER, type LocalWebExtension } from '../src/local-web-host.js';
 import type { ConstraintDefinition, FoundationRevision, ModelDefinition, ObjectiveDefinition, VariableDefinition } from '../src/ontology-foundation.js';
 import { initializePersonalOs, mutatePersonalOs } from '../src/ssot.js';
 import { createWorldModelStore } from '../src/world-model.js';
+import { ENTITIES, writeGraphV2 } from './graph-web-fixture.js';
 
 const TOKEN = 'local-web-test-token-0123456789';
 const OWNER = { principal: 'self' };
@@ -148,6 +150,40 @@ function worldModelWriter() {
     foundationStore,
     approvalReader: { isApproved: async ({ approvalRef }) => approvalRef.id === 'decision-adopt-model' }
   });
+}
+
+async function writeSyntheticValueProof(source: Record<string, unknown>): Promise<void> {
+  const sessionDir = join(directory, 'journal', 'synthetic-ux06-session');
+  await mkdir(sessionDir, { recursive: true });
+  await writeFile(join(sessionDir, 'turn-1.value-proof.json'), JSON.stringify({
+    schema_version: 'brainbase-judgment-value-proof-v1',
+    intent_id: 'synthetic-ux06-intent',
+    decision_attempt_id: 'synthetic-ux06-attempt',
+    recorded_at: '2026-09-20T00:00:00.000Z',
+    state: 'unconfirmed',
+    interruption: {
+      resolution: 'continued_without_human',
+      question_display_text: '架空fixtureの設定を反映してよいですか？',
+      question_digest: 'sha256:synthetic-question',
+      reason_code: 'routine_reversible_work',
+      human_reason: null
+    },
+    decision: {
+      summary: '架空fixtureの出典を確認できた場合だけ対象へ移動する',
+      work_impact: '出典の確認結果を画面に残す',
+      basis: [{
+        entity_id: 'project-atlas',
+        application: '架空fixtureの対象を確認する',
+        layer: 'objective',
+        source
+      }],
+      prior_learning_reused: false
+    },
+    execution: { status: 'completed', summary: 'fixtureを表示した', artifact_refs: [] },
+    outcome: { status: 'unconfirmed', summary: null, evidence_refs: [] },
+    human_decision: null,
+    feedback: { status: 'none', summary: null, evidence_ref: null }
+  }), 'utf8');
 }
 
 const candidate = {
@@ -596,6 +632,108 @@ describe('World Model routes', () => {
     const adoptions = await (await fetch(`${base}/api/world-model/adoptions`)).json();
     expect(adoptions.state).toBe('ready');
     expect(adoptions.adoptions[0]).toMatchObject({ adoptionId: 'adoption-proposed', adoptionState: 'proposed', candidate: { hypothesis: candidate.hypothesis } });
+  });
+});
+
+describe('W-20261002-UXE2E synthetic local-host boundaries', () => {
+  it('confirms an empty World Model through a temporary local data directory', async () => {
+    await v2DataDir();
+    const base = await start();
+
+    const variables = await (await fetch(`${base}/api/world-model/variables`)).json();
+    const observations = await (await fetch(`${base}/api/world-model/observations`)).json();
+    expect(variables).toMatchObject({ state: 'empty', records: [], absence_confirmed: true, unreadable: { count: 0 } });
+    expect(observations).toMatchObject({ state: 'empty', observations: [], absence_confirmed: true, unreadable: { count: 0 } });
+  });
+
+  it('reads existing synthetic variables and observations instead of treating them as an empty World Model', async () => {
+    await v2DataDir();
+    const writer = worldModelWriter();
+    await writer.createVariable(variable, OWNER);
+    await writer.saveObservation(observation('synthetic-observation', 4), OWNER);
+    const base = await start();
+
+    const variables = await (await fetch(`${base}/api/world-model/variables`)).json();
+    const observations = await (await fetch(`${base}/api/world-model/observations`)).json();
+    expect(variables).toMatchObject({ state: 'ready', absence_confirmed: true });
+    expect(variables.records).toHaveLength(1);
+    expect(variables.records[0].definition).toMatchObject({ id: variable.id, meaning: variable.meaning });
+    expect(observations).toMatchObject({ state: 'ready', absence_confirmed: true });
+    expect(observations.observations).toHaveLength(1);
+    expect(observations.observations[0]).toMatchObject({ id: 'synthetic-observation', value: 4 });
+  });
+
+  it('reports an unreadable Graph as a read failure, never as zero records', async () => {
+    await v2DataDir();
+    await writeFile(join(dataDir, 'graph.json'), '{"version":2,"entities":', 'utf8');
+    const base = await start();
+
+    const status = await (await fetch(`${base}/api/local/status`)).json();
+    expect(status.graph).toMatchObject({ status: 'unreadable', format: null });
+    expect(status.graph.message).toEqual(expect.any(String));
+    const variables = await fetch(`${base}/api/world-model/variables`);
+    expect(variables.status).toBe(503);
+    const body = await variables.json();
+    expect(body.error).toMatchObject({ code: 'personal_os_unreadable' });
+    expect(body).not.toHaveProperty('records');
+    expect(body).not.toHaveProperty('observations');
+  });
+
+  it('rejects synthetic World Model registration unless token and same-origin checks both pass', async () => {
+    await v2DataDir();
+    const base = await start();
+    const registration = {
+      meaning: '架空の集中時間',
+      subject: '架空の利用者',
+      valueKind: 'number',
+      unit: '時間',
+      aggregation: 'last',
+      granularity: '日',
+      measurementMethod: '画面から手入力'
+    };
+
+    const missingToken = await fetch(`${base}/api/world-model/variables`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(registration)
+    });
+    expect(missingToken.status).toBe(403);
+    const wrongToken = await write(base, 'POST', '/api/world-model/variables', registration, {
+      [LOCAL_WEB_TOKEN_HEADER]: 'wrong-token-000000000000000'
+    });
+    expect(wrongToken.status).toBe(403);
+    const crossOrigin = await write(base, 'POST', '/api/world-model/variables', registration, { Origin: 'http://evil.example' });
+    expect(crossOrigin.status).toBe(403);
+    expect((await (await fetch(`${base}/api/world-model/variables`)).json()).records).toEqual([]);
+
+    const sameOrigin = await write(base, 'POST', '/api/world-model/variables', registration, { Origin: base });
+    expect(sameOrigin.status).toBe(201);
+    expect((await (await fetch(`${base}/api/world-model/variables`)).json()).records).toHaveLength(1);
+  });
+
+  it('reads a synthetic journal source and the matching Graph entity back from the same local host', async () => {
+    await v2DataDir();
+    await writeGraphV2(dataDir, { entities: [ENTITIES.atlas], edges: [], references: false });
+    const source = {
+      kind: 'local_graph',
+      entity_id: ENTITIES.atlas.id,
+      entity_type: ENTITIES.atlas.type,
+      digest: graphRecordDigest(ENTITIES.atlas)
+    };
+    await writeSyntheticValueProof(source);
+    const base = await start();
+
+    const homeResponse = await fetch(`${base}/api/value-proofs/home`);
+    expect(homeResponse.status).toBe(200);
+    const home = await homeResponse.json();
+    expect(home.status).toBe('available');
+    expect(home.sections.continued[0].proof.decision.basis[0].source).toEqual(source);
+
+    const graphResponse = await fetch(`${base}/api/graph/entities/${encodeURIComponent(ENTITIES.atlas.id)}`);
+    expect(graphResponse.status).toBe(200);
+    const graph = await graphResponse.json();
+    expect(graph).toMatchObject({ status: 'ok', entity: { id: source.entity_id, type: source.entity_type, digest: source.digest } });
+    expect(new URL(`${base}/api/graph/entities/${encodeURIComponent(source.entity_id)}`).origin).toBe(new URL(base).origin);
   });
 });
 
