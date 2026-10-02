@@ -1,0 +1,72 @@
+---
+story_id: story-judgment-value-proof-basis-source-recording-v1
+title: 保存済み判断の根拠に確認済みのGraph出典を記録できる
+status: proposed
+created_at: 2026-10-02
+implementation_started: false
+owner_repository: brainbase
+depends_on: ["story-m3-judgment-value-proof-surface", "story-judgment-value-proof-inheritance-v1", "story-ux-20261001-06-source-navigation"]
+external_dependencies: ["Canonical Graphの認証済みreadback境界"]
+---
+
+# 保存済み判断の根拠に確認済みのGraph出典を記録できる
+
+## 利用者成果
+
+判断の見返しで、判断時に確認できたCanonical Graphの対象を、判断の根拠と同じIDで確認したい。出典を確認できなかった判断は出典なしのまま見返せ、後から作った推測リンクや出典によって、判断レシート・成果確認済み・事業成果を誤って示さない。
+
+## 現在確認できていることと未確認
+
+- **確認済みの観測（C509読取）**: 現行MCP/Hostのbasis入力には`source`と`project`がなく、保存済み20件、basis 6要素、`source=0`だった。
+- **確認済みの別経路の観測**: 認証済みGraph照会で哲学IDを2件見つけた。
+- **未確認**: その2件がPersonal Webの`/api/graph/entities/:id`と同じ認証・scope・readback経路で読めること。Foundationの哲学・目的をこの`local_graph`出典として扱えることも未確認。
+- **判断境界**: D-20261001-07で承認済みなのはsourceのreadback/navigationだけであり、producerによる新規記録や既存journalのbackfillは承認されていない。
+
+したがって、このStoryは将来producerが満たす条件を定義する提案であり、現在の20件への記録追加、既存記録の書換え、Graph照会、Web routeの実装を含まない。
+
+## 対象と契約上の位置づけ
+
+- 対象は`decision.basis[]`の任意欄である`source`を、判断時点の信頼できるGraph readbackに基づいて記録するproducer境界と検証条件。
+- `source`がない既存のvalue-proof v1は引き続き有効であり、source-free記録はsource-freeのまま扱う。
+- `local_graph`の出典対象はCanonical Graphの`person`、`org`、`project`、`decision`の4型に限る。sourceの`entity_id`は同じbasis entryの`entity_id`と一致させる。
+- `basis[].layer`（哲学、目的、現状と見通し、判断方法、守る条件、その他）は、sourceの有無・型・IDから独立して保存する。layer、`application`、表示名からsourceを推測しない。
+- `source`はURLでも、任意のpathでも、Graphに検索すれば見つかるかもしれないIDでもない。UX-20261001-06のhost-owned readerが同一ID・型・指定版/digestを読み戻せる場合に限るtyped descriptorである。
+
+## 受入条件
+
+- [ ] **AC-01（旧記録の有効性）**: `decision.basis[].source`が欠落または`null`の既存value-proof v1は、従来どおり検証・読取できる。sourceがない記録を、後続の検索結果や`layer`から補完しない。source-free記録の表示・リンク・未確認状態を成功扱いに変えない。
+- [ ] **AC-02（producerの記録条件）**: producerは、判断時点でHostが解決した認証済みCanonical Graph readerのreadbackが`available`であり、返却された対象のIDと型がbasis entryと一致した場合だけ`local_graph` descriptorを記録できる。呼出し元が渡した任意のURL、project名、表示名、検索候補はreadbackの代わりにならない。
+- [ ] **AC-03（descriptorの範囲）**: `local_graph`は`person`、`org`、`project`、`decision`だけを受け付ける。`source.entity_id`は同じentryの`entity_id`と完全一致させ、`version`/`digest`を記録する場合はreadbackの値をそのまま固定する。`project`やscopeを現行basis入力に存在するものとして推測せず、必要なscope/authorityはHostの信頼境界で検証する。
+- [ ] **AC-04（layerの独立性）**: `layer=philosophy`や`layer=objective`であることだけを理由に`local_graph` sourceを付けない。sourceが記録できても、layerを変更・補完・型変換しない。layerがないbasisもsourceのreadback条件を満たせば記録対象になり得るが、sourceの存在はlayerの記録を意味しない。
+- [ ] **AC-05（反証時の扱い）**: readerが`not_found`、`ambiguous`、`forbidden`、`unavailable`を返す、ID・型・version・digestが一致しない、認証・scopeが不明、またはreaderが例外・不正payloadを返す場合、producerはsourceを記録しない。basis自体は既存のsource-free記録として保存できる範囲を保ち、出典あり・存在・確認済みへ昇格させない。
+- [ ] **AC-06（URLと架空出典の禁止）**: `source.kind`のURL型、外部URL、任意path、URLから作ったGraph IDは受け付けない。producer・journal・rendererのいずれも、出典がない記録にリンクや出典を生成しない。遷移はUX-20261001-06のreadback成功後に同一OriginのGraph routeへ委譲する。
+- [ ] **AC-07（Foundationの分離）**: `philosophy`または`objective`のFoundation出典を、`local_graph`のentity type列挙に追加して表現しない。現行WebのGraph routeとの同一経路・認証・scope・revision/digest契約が確認できるまでは未対応とし、必要なら別provider/reader契約のStoryとarchitecture判断を先に置く。
+- [ ] **AC-08（Receipt・成果との非混同）**: source descriptorの記録・readback成功は、判断レシートの発行、実行完了、`outcome_verified`、事業成果、本人の評価を意味しない。`execution`、`outcome`、`feedback`、evidence refは既存の契約と実証結果を保持し、sourceだけで`canonical_readback`や成果確認済みを追加しない。
+- [ ] **AC-09（移行と後方互換）**: 既存journalの読取はsource欠落を許容し、旧producerはsourceなしで動作できる。移行処理は既存JSONの書換えやsourceの自動backfillを行わない。将来の新producerだけが確認済みsourceを追加し、旧記録のbackfillは別の承認済みStory・個別readback・監査証跡なしには実施しない。
+- [ ] **AC-10（失敗の可視性）**: sourceの検証不能を`0件`、成功、存在しない、成果未確認から成果確認済み、または「sourceなし=Graphに存在しない」と読み替えない。producer・reader・UIの各層で、未確認理由と未実施の範囲を区別できる。
+
+## 実装前に佐藤さんのarchitecture判断が必要な論点
+
+このStoryを実装着手へ進める前に、少なくとも次を判断する。判断がない間は、既存のsource-free契約とUX-20261001-06のreadback/navigationだけを維持する。
+
+1. **authorityの所有者**: producerが使うCanonical Graph readerをどのHost境界で提供し、認証主体・project/scope・ACL・現在版を同じ経路で照合するか。
+2. **scope/projectの保持方法**: 現在のdescriptorに`project`を追加せずHostの信頼境界だけで束縛するか、source descriptorへscope/revisionを追加するか。入力に無いprojectを推測する実装は採用しない。
+3. **版とdigestの意味**: Graph readbackがversion/revisionを返さない場合、指定版のsourceを未確認にするか。digestだけで代用できるか。latestへの差し替えを許さないか。
+4. **Foundationの接続方式**: 哲学・目的を別provider/readerで扱う場合の正本、認証、scope、revision/digest、Web route、失敗状態をどう契約するか。`local_graph`への単純なenum追加は選択肢にしない。
+5. **失敗時のproducer方針**: readback不能時にvalue-proofをsource-freeで保存するか、source記録だけを保留するか。いずれの場合も架空出典を作らないことを不変条件にする。
+6. **journalの原子性と移行**: sourceを追加するproducerの保存境界、部分書込み、旧producerとの同時稼働、backfillを禁止または別承認にする監査方法。
+7. **表示・Receipt境界**: source readbackを判断カードへ表示する範囲と、判断レシート・`canonical_readback`・成果確認・事業成果の証拠を混ぜない表示規則。
+
+## 対象外
+
+- producer、MCP/Host入力、journal writer、schema/contract、Graph reader、Graph DB、実Graph、実journalの変更。
+- 現在保存済み20件へのsource追加、sourceのbackfill、欠落projectの補完。
+- Personal Webの`/api/graph/entities/:id`、Graph画面、UX-20261001-06のreadback/navigation実装。
+- Foundationの哲学・目的の保存、Web Graph routeへの接続、provider/readerの新設。
+- sourceの有無から判断レシート、実行・成果、Receipt、本人評価、事業成果を生成すること。
+
+## 検証と完了
+
+このPRでは文書整合だけを検証する。実装時の最小回帰候補は、source-free旧記録、4つの`local_graph`型、ID不一致、layer独立、URL型、readback各失敗、version/digest不一致、Foundation型の拒否、旧producerとの併用、backfill禁止である。fixtureは架空Graphだけを使い、実journal・認証済みGraph・常駐Web・事業成果を完了証拠にしない。
+
+このStoryを採用しても、現在のC509記録に出典が付き、UX-06の画面遷移が実データで確認できたこと、Receiptが発行されたこと、または事業成果が確認されたことを意味しない。
