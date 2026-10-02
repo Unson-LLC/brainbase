@@ -10,7 +10,7 @@ Story: `docs/stories/story-knowledge-promotion-common-v1.md`
 | `personal_share` | 個人KG v1のイベント（`personal_knowledge_v1`） | `pending_owner_approval` →（本人承認）`pending_org_review` →（組織レビュー承認）`org_accepted` |
 | `organization_candidate` | 組織の候補（`organization_candidate`） | `pending_org_review` →（組織内承認）`org_accepted` |
 
-終わりの状態は `owner_rejected`、`org_rejected`、`org_accepted`、`source_stale`。終わりの状態から他の状態へは移らない。同じ判断の再試行だけは、今の状態をそのまま返す。
+終わりの状態は `owner_rejected`、`org_rejected`、`org_accepted`、`source_stale`、`source_withdrawn`（本人が元の記憶を撤回して取り消した。`docs/specs/story-knowledge-promotion-source-withdrawal-v1-spec.md`）。`org_accepted` からは取消でだけ `source_withdrawn` へ移る。終わりの状態から他の状態へは移らない。同じ判断の再試行だけは、今の状態をそのまま返す。
 
 ## 不変条件
 

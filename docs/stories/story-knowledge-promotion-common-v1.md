@@ -39,7 +39,7 @@ owner_repository: brainbase
 ## 対象外
 
 - 旧Personal Vault（`personal_knowledge_events`）と旧候補（`memory_candidates`内の旧個人KG）の自動移行（ADR-003 D4）。
-- 共有の取消・権限失効の将来の取得への反映、削除のAPI。
+- 共有の取消・権限失効の将来の取得への反映、削除のAPI。本人の撤回による取消は `story-knowledge-promotion-source-withdrawal-v1` で扱う。
 - 認証・テナント分離・役職と決定権の判定（組織版）、DBのスキーマとHTTPの経路（組立て側）。
 - 本番への配備。
 

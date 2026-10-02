@@ -10,6 +10,10 @@
  *   task candidate, ...) → organization approval → Graph. It never takes the
  *   shape of an owner consent.
  *
+ * When the owner retracts the source memory, `withdrawPersonalShares` cancels
+ * the shares still waiting for a decision and withdraws an already promoted
+ * Graph fact from future retrieval, keeping the approval lineage and audit.
+ *
  * This module owns normalization, receipts, evidence, lineage, the Graph
  * mutation, and the state machine. Storage, the source readers, the knowledge
  * event kernel, the Graph writer, and the organization review policy (roles,
@@ -29,7 +33,8 @@ export type PromotionStatus =
   | 'owner_rejected'
   | 'org_rejected'
   | 'org_accepted'
-  | 'source_stale';
+  | 'source_stale'
+  | 'source_withdrawn';
 export type PromotionDecision = 'approve' | 'reject';
 export type PromotionReviewAction = 'request' | 'owner_consent' | 'organization_review';
 
@@ -354,8 +359,8 @@ export interface PromotionSourceRef {
 }
 
 export interface PromotionDecisionRecord {
-  action: 'owner_consent' | 'organization_review';
-  decision: PromotionDecision;
+  action: 'owner_consent' | 'organization_review' | 'source_withdrawal';
+  decision: PromotionDecision | 'withdraw';
   actor_person_id: string;
   decided_at: string;
   receipt_id: string | null;
@@ -462,6 +467,38 @@ export interface KnowledgePromotionLineage {
   created_at: string;
 }
 
+/** Append-only record of a share cancelled because the owner retracted the source memory. */
+export interface KnowledgePromotionWithdrawal {
+  withdrawal_id: string;
+  contract_version: typeof KNOWLEDGE_PROMOTION_CONTRACT_VERSION;
+  approval_kind: PromotionApprovalKind;
+  promotion_request_id: string;
+  source: PromotionSourceRef;
+  owner_person_id: string | null;
+  organization_id: string;
+  project_code: string;
+  previous_status: PromotionStatus;
+  organization_event_id: string | null;
+  graph_entity_id: string | null;
+  graph_withdrawn: boolean;
+  graph_outcome: 'not_promoted' | 'retracted' | 'projection_replaced';
+  withdrawn_by_person_id: string;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface PromotedEntityWithdrawalInput {
+  request_id: string;
+  graph_entity_id: string;
+  organization_event_id: string | null;
+  organization_id: string;
+  project_code: string;
+  normalized_payload_hash: string;
+  withdrawal_id: string;
+  withdrawn_at: string;
+  reason: string | null;
+}
+
 export interface KnowledgePromotionStore {
   transaction<T>(work: (tx: unknown) => Promise<T>, options?: { principal: KnowledgePromotionPrincipal }): Promise<T>;
   /** Insert, or return the existing request with the same `request_id`. */
@@ -484,6 +521,9 @@ export interface KnowledgePromotionStore {
     organization_id: string;
     project_code: string;
   }, ctx: PromotionContext): Promise<void>;
+  /** Requests of one source visible to the caller, locked so a concurrent decision is ordered with the withdrawal. */
+  listRequestsBySource?(sourceKind: PromotionSourceKind, sourceId: string, ctx: PromotionContext): Promise<KnowledgePromotionRequest[]>;
+  recordWithdrawal?(withdrawal: KnowledgePromotionWithdrawal, ctx: PromotionContext): Promise<void>;
 }
 
 export interface KnowledgePromotionSources {
@@ -530,6 +570,14 @@ export interface KnowledgePromotionEventSink {
 
 export interface KnowledgePromotionGraphWriter {
   commitNormalizedPromotion(mutation: NormalizedGraphMutation, ctx: PromotionContext): Promise<{ id: string } | null>;
+  /**
+   * Mark the fact promoted by the request as retracted and out of retrieval. `projection_replaced` means
+   * another write has replaced the fact since, so it was left as it is.
+   */
+  withdrawPromotedEntity?(
+    input: PromotedEntityWithdrawalInput,
+    ctx: PromotionContext,
+  ): Promise<{ id: string; outcome: 'retracted' | 'projection_replaced' } | null>;
 }
 
 export interface KnowledgePromotionPorts {
@@ -588,7 +636,8 @@ export interface NormalizedGraphMutation {
 }
 
 const DECISIONS = new Set<PromotionDecision>(['approve', 'reject']);
-const TERMINAL: ReadonlySet<PromotionStatus> = new Set(['owner_rejected', 'org_rejected', 'org_accepted', 'source_stale']);
+const TERMINAL: ReadonlySet<PromotionStatus> = new Set(['owner_rejected', 'org_rejected', 'org_accepted', 'source_stale', 'source_withdrawn']);
+const WITHDRAWABLE: ReadonlySet<PromotionStatus> = new Set(['pending_owner_approval', 'pending_org_review', 'org_accepted']);
 
 function sanitizePreview(value: unknown): string {
   const text = String(value ?? '').trim().slice(0, 2000);
@@ -631,6 +680,12 @@ function requireHuman(principal: KnowledgePromotionPrincipal | undefined): Knowl
 
 function actorOf(principal: KnowledgePromotionPrincipal): string {
   return principal.actorPersonId || principal.personId;
+}
+
+function rejectWithdrawn(request: KnowledgePromotionRequest): void {
+  if (request.status === 'source_withdrawn') {
+    throw new KnowledgePromotionError('knowledge_promotion_source_withdrawn', 409, { request_id: request.request_id });
+  }
 }
 
 function requireProjectAccess(principal: KnowledgePromotionPrincipal, projectCode: string): void {
@@ -929,6 +984,7 @@ export class KnowledgePromotionService {
         throw new KnowledgePromotionError('knowledge_promotion_request_not_found', 404);
       }
       requireProjectAccess(principal, request.project_code);
+      rejectWithdrawn(request);
       const normalized = normalizePromotionPayload(request.normalized_payload).normalized;
       await this.authorize(policy, 'owner_consent', request, normalized, principal, context.authority ?? null, ctx);
       await this.claimAuthority(context.authority ?? null, request, 'owner_consent', ctx);
@@ -988,6 +1044,8 @@ export class KnowledgePromotionService {
       if (request.approval_kind === 'personal_share' && request.owner_person_id === actor) {
         throw new KnowledgePromotionError('knowledge_promotion_distinct_reviewer_required', 403);
       }
+      // The owner retracted the source memory; neither an approval nor a retried decision may pass.
+      rejectWithdrawn(request);
       if (request.status === 'pending_owner_approval' || request.status === 'owner_rejected') {
         throw new KnowledgePromotionError('knowledge_promotion_owner_consent_required', 409);
       }
@@ -1094,6 +1152,112 @@ export class KnowledgePromotionService {
     // The stale state is committed, then reported, so a retry cannot promote an old version.
     if (staleness.stale) throw new KnowledgePromotionError('knowledge_promotion_source_stale', 409, { request_id: requestId });
     return result;
+  }
+
+  /**
+   * D4: the owner retracted a Personal Knowledge v1 memory. Cancel its shares that wait for a decision and
+   * withdraw an already promoted Graph fact from future retrieval. The approval lineage, the organization
+   * event, and the receipts stay. Retraction is the owner's right, so the organization review policy is
+   * not consulted and lost project access does not block it. Pass `tx` to commit with the retraction itself.
+   */
+  async withdrawPersonalShares(input: {
+    personal_event_id: string;
+    reason?: string | null;
+  }, context: { principal: KnowledgePromotionPrincipal; tx?: unknown }): Promise<{
+    personal_event_id: string;
+    withdrawals: KnowledgePromotionWithdrawal[];
+  }> {
+    const principal = requireHuman(context.principal);
+    const read = this.ports.sources.readPersonalKnowledgeEvent;
+    if (typeof read !== 'function') throw new KnowledgePromotionError('knowledge_promotion_personal_source_unavailable', 503);
+    const { listRequestsBySource, recordWithdrawal } = this.ports.store;
+    if (typeof listRequestsBySource !== 'function' || typeof recordWithdrawal !== 'function') {
+      throw new KnowledgePromotionError('knowledge_promotion_withdrawal_unavailable', 503);
+    }
+    const eventId = requireText(input?.personal_event_id, 'knowledge_promotion_source_id_required');
+    const reason = sanitizeReason(input?.reason);
+    const work = async (tx: unknown) => {
+      const ctx = { tx, principal };
+      const event = await read.call(this.ports.sources, eventId, ctx);
+      if (!event || event.owner_person_id !== principal.personId || event.organization_id !== principal.organizationId) {
+        throw new KnowledgePromotionError('knowledge_promotion_source_not_found', 404);
+      }
+      if (event.active) throw new KnowledgePromotionError('knowledge_promotion_source_still_active', 409);
+      const requests = (await listRequestsBySource.call(this.ports.store, 'personal_knowledge_v1', eventId, ctx))
+        .filter((request) => request.approval_kind === 'personal_share'
+          && request.owner_person_id === principal.personId
+          && request.organization_id === principal.organizationId
+          && WITHDRAWABLE.has(request.status))
+        .sort((left, right) => left.request_id.localeCompare(right.request_id));
+      const withdrawals: KnowledgePromotionWithdrawal[] = [];
+      for (const request of requests) {
+        withdrawals.push(await this.withdrawRequest(request, reason, ctx));
+      }
+      return { personal_event_id: eventId, withdrawals };
+    };
+    return context.tx === undefined
+      ? this.ports.store.transaction(work, { principal })
+      : work(context.tx);
+  }
+
+  private async withdrawRequest(
+    request: KnowledgePromotionRequest,
+    reason: string | null,
+    ctx: PromotionContext,
+  ): Promise<KnowledgePromotionWithdrawal> {
+    const withdrawnAt = this.now().toISOString();
+    const actor = actorOf(ctx.principal);
+    const withdrawalId = `kpw_${promotionSha256(`${request.request_id}:${request.source.version}:withdrawal`).slice(0, 24)}`;
+    let graphOutcome: KnowledgePromotionWithdrawal['graph_outcome'] = 'not_promoted';
+    if (request.status === 'org_accepted') {
+      const withdraw = this.ports.graph.withdrawPromotedEntity;
+      if (typeof withdraw !== 'function') throw new KnowledgePromotionError('knowledge_promotion_withdrawal_unavailable', 503);
+      const result = await withdraw.call(this.ports.graph, {
+        request_id: request.request_id,
+        graph_entity_id: requireText(request.graph_entity_id, 'knowledge_promotion_graph_entity_required'),
+        organization_event_id: request.organization_event_id,
+        organization_id: request.organization_id,
+        project_code: request.project_code,
+        normalized_payload_hash: request.normalized_payload_hash,
+        withdrawal_id: withdrawalId,
+        withdrawn_at: withdrawnAt,
+        reason,
+      }, ctx);
+      if (!result?.id || (result.outcome !== 'retracted' && result.outcome !== 'projection_replaced')) {
+        throw new KnowledgePromotionError('knowledge_promotion_graph_withdrawal_failed', 409, { request_id: request.request_id });
+      }
+      graphOutcome = result.outcome;
+    }
+    const updated = await this.ports.store.updateRequest(request.request_id, {
+      status: 'source_withdrawn',
+      decisions: [...request.decisions, {
+        action: 'source_withdrawal', decision: 'withdraw', actor_person_id: actor, decided_at: withdrawnAt,
+        receipt_id: withdrawalId, reason,
+      }],
+      updated_at: withdrawnAt,
+    }, { expectedRevision: request.revision }, ctx);
+    if (!updated) throw new KnowledgePromotionError('knowledge_promotion_state_conflict', 409);
+    const withdrawal: KnowledgePromotionWithdrawal = {
+      withdrawal_id: withdrawalId,
+      contract_version: KNOWLEDGE_PROMOTION_CONTRACT_VERSION,
+      approval_kind: request.approval_kind,
+      promotion_request_id: request.request_id,
+      source: request.source,
+      owner_person_id: request.owner_person_id,
+      organization_id: request.organization_id,
+      project_code: request.project_code,
+      previous_status: request.status,
+      organization_event_id: request.organization_event_id,
+      graph_entity_id: request.graph_entity_id,
+      graph_withdrawn: graphOutcome === 'retracted',
+      graph_outcome: graphOutcome,
+      withdrawn_by_person_id: actor,
+      reason,
+      created_at: withdrawnAt,
+    };
+    await (this.ports.store.recordWithdrawal as NonNullable<KnowledgePromotionStore['recordWithdrawal']>)
+      .call(this.ports.store, withdrawal, ctx);
+    return withdrawal;
   }
 
   private requirePolicy(): PromotionReviewPolicy {
