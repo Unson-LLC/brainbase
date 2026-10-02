@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.13.0 candidate — npm公開前
+
+- 問題のスナップショットを作って読み戻すHTTPの入口 `@unson/brainbase-mcp/judgment-problem-snapshot-http` を追加。`POST /judgment-problem-snapshots` で保存して受領を返し、`GET /judgment-problem-snapshots/{snapshot_id}` で今の参照で照合して読み戻す。主体と参照の照合はホストが渡す。公開の出口が増えるのでminorにした
+
 ## 0.12.0 candidate — npm公開前
 
 - 共通昇格処理 `@unson/brainbase-mcp/knowledge-promotion` に、本人が個人KG v1の記憶を撤回したときの共有の取消（`withdrawPersonalShares`）を追加。審査待ちの申請を「取消済み」（`source_withdrawn`）にし、承認済みの事実は組織のGraphで撤回済み・検索対象外にする。状態に`source_withdrawn`が増えるため、申請の状態を厳密に検査している利用者は対応が必要。0.11からのminorにした
