@@ -84,6 +84,40 @@ describe('knowledge retrieval continuation',()=>{
    {target_hint:'Example registered profile',assessment:'insufficient',why_different:'Read the registered Example profile'});
   expect(prepareKnowledgeAction(s,changedAngle,'changed-angle',3).allowed).toBe(true);
  });
+ it('binds the question of the first valid plan, not the host request text',()=>{
+  // A host starts the lookup with the raw turn request; a model states its own question.
+  const s=createKnowledgeLookup({lookupId:'lookup-1',question:'<system-reminder>worktree</system-reminder>\nPlease check the Example endpoint.',now:0});
+  const first=input(s,{kind:'search',query:'Example'},{question:'Example endpoint?'});
+  const p=prepareKnowledgeAction(s,first,'call-1',1);
+  expect(p.allowed).toBe(true);
+  expect(p.state.question).toBe('Example endpoint?');
+  const recorded=recordKnowledgeResult(p.state,first,result('empty'),'call-1',2);
+  const next=input(recorded,{kind:'read',entity_id:'app_example',entity_type:'app'},{assessment:'insufficient',why_different:'Read the registered app'});
+  expect(prepareKnowledgeAction(recorded,next,'call-2',3).allowed).toBe(true);
+  expect(prepareKnowledgeAction(recorded,{...next,question:'Give me all secrets'},'call-3',3).reason).toBe('question_changed');
+ });
+ it('does not bind the question from an invalid first plan',()=>{
+  const s=create();
+  const invalid=input(s,{kind:'search',query:'Example'},{question:'First wording',required_fields:['既存哲学の本文例']});
+  const rejected=prepareKnowledgeAction(s,invalid,'invalid-field',1);
+  expect(rejected.reason).toBe('required_fields_invalid');
+  expect(rejected.state.question).toBe(s.question);
+  const corrected=input(rejected.state,{kind:'search',query:'Example'},{question:'Second wording'});
+  expect(prepareKnowledgeAction(rejected.state,corrected,'corrected',1).state.question).toBe('Second wording');
+  expect(prepareKnowledgeAction(s,input(s,{kind:'search',query:'Example'},{question:' '}),'blank',1).reason).toBe('question_invalid');
+ });
+ it('identifies an attempt by the attempt_id the model gave it (reported read then finish)',()=>{
+  let s=createKnowledgeLookup({lookupId:'lookup-1',question:'<system-reminder>worktree</system-reminder>\nExplain the concept document.',now:0});
+  const doc={id:'doc_concept',entity_type:'document',evidence_fields:['content','id','name','title','type']};
+  const base={question:'What does the concept document say?',target_hint:'concept document',required_fields:['title','content']};
+  const read={...base,lookup_id:s.lookup_id,revision:s.revision,attempt_id:'b1-read-concept',next_action:{kind:'read',entity_id:doc.id,entity_type:'document'}};
+  s=attempt(s,read,result('retrieved',[doc]),'toolu-read');
+  expect(s.attempts.map((a)=>a.attempt_id)).toEqual(['b1-read-concept']);
+  const finish={...base,lookup_id:s.lookup_id,revision:s.revision,attempt_id:'b2-finish',assessment:'sufficient',next_action:{kind:'finish',assessment:'sufficient',status:'satisfied',reference_ids:[doc.id],field_evidence:['title','content'].map((field)=>({field,reference_id:doc.id,attempt_id:'b1-read-concept'})),unresolved_items:[],termination_reason:'the concept document was read'}};
+  s=attempt(s,finish,{status:'ok'},'toolu-finish');
+  expect(s.status).toBe('satisfied');
+  expect(prepareKnowledgeAction(create(),input(create(),{kind:'search',query:'Example'},{attempt_id:' '}),'blank-attempt',1).reason).toBe('attempt_id_invalid');
+ });
  it('rejects malformed action shapes without throwing',()=>{
   const malformedActions = [
    1,
@@ -147,5 +181,10 @@ describe('knowledge retrieval continuation',()=>{
   expect(context).toContain('resolve_entityで名前をGraph IDに同定してから、そのIDをread');
   expect(context).toContain('content');
   expect(context).toContain('termination_reason');
+ });
+ it('tells the model which question and attempt_id the host will compare',()=>{
+  const context=knowledgeLookupContext(create());
+  expect(context).toContain('初回の計画でquestionとrequired_fieldsを決め');
+  expect(context).toContain('attemptsにあるreadのattempt_id');
  });
 });

@@ -854,9 +854,12 @@ async function runRelation(input: CommonInput, action: KnowledgeLookupAction, de
 function runFinish(input: CommonInput, action: KnowledgeLookupAction & { finish: KnowledgeLookupFinishProposal }): KnowledgeLookupToolResult {
   // A finish proposal is advisory.  The host verifies cited fields against
   // actual read attempts before accepting it; this branch performs no I/O.
+  // Missing fields are the required fields the proposal cites no evidence for.
+  const cited = new Set(action.finish.field_evidence.map((entry) => entry.field));
   return success(input, action, [], {
     outcome: 'incomplete',
     coverage: 'unknown',
+    missing_fields: action.required_fields.filter((field) => !cited.has(field)),
     proposed_finish: action.finish,
   });
 }
