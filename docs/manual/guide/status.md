@@ -55,6 +55,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.15.1（npm公開前）
+
+知識取得の継続（`@unson/brainbase-mcp/knowledge-continuation`）で、質問を初回の有効な計画で固定し、試行をモデルが付けた `attempt_id` で識別するように直します。目的ベースのlookup（`@unson/brainbase-mcp/knowledge-lookup`）のfinish応答は、根拠を挙げていない必須欄だけを `missing_fields` に示します。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
 ## Candidate — v0.15.0（npm公開前）
 
 Foundationの草案を採用するMCPのtool `foundation_adopt`（`@unson/brainbase-mcp/foundation-authenticated-tools`）を加えます。採用者が `foundation_read` で確かめた版とdigestを渡し、正本APIの採用の経路を呼びます。npm配布と外部照合が完了するまでは公開済みとして扱いません。

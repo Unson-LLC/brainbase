@@ -263,9 +263,41 @@ describe('purpose based knowledge lookup', () => {
     }, deps);
     expect(result?.status).toBe('ok');
     expect(result?.data?.proposed_finish?.status).toBe('satisfied');
+    // A proposal retrieves nothing; the host decides acceptance. Only fields
+    // the proposal cites no evidence for are reported missing.
+    expect(result?.data?.outcome).toBe('incomplete');
+    expect(result?.data?.missing_fields).toEqual([]);
     expect(deps.search).not.toHaveBeenCalled();
     expect(deps.read).not.toHaveBeenCalled();
     expect(deps.followRelation).not.toHaveBeenCalled();
+
+    const uncited = await handleKnowledgeLookupToolCall('brainbase_knowledge_lookup', {
+      ...input({
+        kind: 'finish',
+        assessment: 'sufficient',
+        status: 'satisfied',
+        reference_ids: ['app_fixture'],
+        field_evidence: [{ field: 'environments.production.endpoint', reference_id: 'app_fixture', attempt_id: 'toolu-read-1' }],
+        unresolved_items: [],
+        termination_reason: 'only the endpoint was read',
+      }),
+      required_fields: ['environments.production.endpoint', 'repository'],
+    }, deps);
+    expect(uncited?.data?.missing_fields).toEqual(['repository']);
+
+    // Evidence for a reference outside reference_ids does not count, as in the host.
+    const outside = await handleKnowledgeLookupToolCall('brainbase_knowledge_lookup', {
+      ...input({
+        kind: 'finish',
+        assessment: 'sufficient',
+        status: 'satisfied',
+        reference_ids: ['app_fixture'],
+        field_evidence: [{ field: 'environments.production.endpoint', reference_id: 'app_other', attempt_id: 'toolu-read-1' }],
+        unresolved_items: [],
+        termination_reason: 'the endpoint was read from another reference',
+      }),
+    }, deps);
+    expect(outside?.data?.missing_fields).toEqual(['environments.production.endpoint']);
   });
 
   it('rejects caller supplied project filters and unsafe field paths before I/O', async () => {
