@@ -24,3 +24,11 @@ Graphのfoundationの書き込み（`@unson/brainbase-mcp/foundation-graph-write
 - `provenance` の末尾に `{ sourceId: 'foundation-adoption:<id>@<採用した版>', sourceKind: 'decision', evidenceIds: [authorityRef] }`
 
 Graphの行の `payload.adoption` には、採用者・権限の証跡・採用した版とdigest・時刻を入れる。採用後に草案として書き直すと、次の版は再び草案になる。
+
+## MCPの tool：`foundation_adopt`
+
+`@unson/brainbase-mcp/foundation-authenticated-tools` の `foundationAdoptionTools` と `handleFoundationAdoptionToolCall` は、正本APIの採用の経路（`POST /api/company-os/foundation-adoptions`）を呼ぶ tool を提供する。
+
+- 入力は `{ scope_id, type, id, revision, digest }` だけである。`revision` と `digest` は、採用者が `foundation_read` で確かめた値を渡す。
+- 送る前に、本人がそのプロジェクトを使えるかを確かめる。CSRF のトークンを取り、`x-brainbase-scope` にプロジェクトを付けて送る。
+- 経路の拒否（持ち主・付与不足・版の変化・準備不足）は、その code のまま返す。応答の版が `revision + 1` でなければ、成功として扱わない。
