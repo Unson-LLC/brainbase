@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.15.0 candidate — npm公開前
+
+- 草案を採用するMCPのtool `foundation_adopt`（`foundationAdoptionTools`・`handleFoundationAdoptionToolCall`）を `@unson/brainbase-mcp/foundation-authenticated-tools` に追加。確かめた版とdigestで `POST /api/company-os/foundation-adoptions` を呼び、応答が次の版でなければ成功にしない。公開の関数が増えるのでminorにした
+
 ## 0.14.0 candidate — npm公開前
 
 - Foundationの草案の採用 `validateFoundationGraphAdoption` / `normalizeFoundationGraphAdoption` を `@unson/brainbase-mcp/foundation-graph-write` に追加。確かめた版とdigestが今の版と同じ、持ち主以外、判断と評価の検査を通る草案だけを、中身を変えない次の版（approved・ontology・draft/judgment/evaluation）にする。公開の関数が増えるのでminorにした
