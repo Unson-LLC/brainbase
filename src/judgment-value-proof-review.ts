@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { appendFile, mkdir, readdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, open, readdir, readFile, stat, unlink } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import {
   placeJudgmentValueProof,
@@ -11,8 +11,13 @@ import { defaultDataDir } from './paths.js';
 export const JUDGMENT_VALUE_PROOF_FILE_SUFFIX = '.value-proof.json';
 export const JUDGMENT_VALUE_PROOF_FEEDBACK_SCHEMA = 'brainbase-judgment-value-proof-feedback-v1';
 export const JUDGMENT_VALUE_PROOF_FEEDBACK_FILE = 'judgment-value-proof-feedback.jsonl';
+export const JUDGMENT_VALUE_PROOF_ANSWER_SCHEMA = 'brainbase-judgment-value-proof-answer-v1';
+export const JUDGMENT_VALUE_PROOF_ANSWER_FILE = 'judgment-value-proof-answers.jsonl';
 
 const FEEDBACK_SUMMARY_LIMIT = 500;
+const ANSWER_LOCK_TIMEOUT_MS = 2_000;
+/** A lock older than this was left by a write that stopped part way. */
+const ANSWER_LOCK_STALE_MS = 30_000;
 const DEFAULT_STALE_AFTER_MS = 48 * 60 * 60 * 1000;
 
 export type JudgmentValueProofReviewSection = 'needs_human' | 'blocked' | 'continued' | 'other';
@@ -84,11 +89,56 @@ export interface JudgmentValueProofFeedbackInput {
   readonly now?: Date;
 }
 
+/** `select` chooses one of the question's options; `reject` answers that none of them should be taken. */
+export type JudgmentValueProofAnswerKind = 'select' | 'reject';
+const ANSWER_KINDS: readonly JudgmentValueProofAnswerKind[] = ['select', 'reject'];
+
+export interface JudgmentValueProofAnswerRecord {
+  readonly schema_version: typeof JUDGMENT_VALUE_PROOF_ANSWER_SCHEMA;
+  readonly answer_id: string;
+  readonly intent_id: string;
+  readonly decision_attempt_id: string;
+  /** sha256 of the question text the owner answered. This is not the proof's `question_digest`. */
+  readonly question_sha256: string;
+  readonly kind: JudgmentValueProofAnswerKind;
+  readonly selected_option_id: string | null;
+  readonly selected_option_label: string | null;
+  /** The owner confirmed the answer on the local screen. The launch token does not prove identity. */
+  readonly owner_confirmation: 'local_web_confirmed';
+  /** Recording an answer never resumes the stopped work. */
+  readonly resume: 'not_started';
+  readonly recorded_at: string;
+}
+
+export interface JudgmentValueProofAnswerInput {
+  readonly dataDir?: string;
+  readonly proof: JudgmentValueProof;
+  readonly kind: JudgmentValueProofAnswerKind;
+  readonly selected_option_id?: string | null;
+  /** Must be true: the owner confirmed this answer on the screen before it was sent. */
+  readonly confirmed: boolean;
+  readonly now?: Date;
+  readonly lockTimeoutMs?: number;
+}
+
+/** A different answer is already recorded for the judgment. The recorded one is never overwritten. */
+export class JudgmentValueProofAnswerConflictError extends Error {
+  readonly existing: JudgmentValueProofAnswerRecord;
+
+  constructor(existing: JudgmentValueProofAnswerRecord) {
+    super('judgment_value_proof_answer_conflict');
+    this.name = 'JudgmentValueProofAnswerConflictError';
+    this.existing = existing;
+  }
+}
+
 export interface JudgmentValueProofReviewItem {
   readonly file: string;
   readonly section: JudgmentValueProofReviewSection;
   readonly proof: JudgmentValueProof;
   readonly feedback_history: readonly JudgmentValueProofFeedbackRecord[];
+  /** The owner's recorded answer to a judgment returned to them; null when there is none. */
+  readonly answer?: JudgmentValueProofAnswerRecord | null;
 }
 
 export type JudgmentValueProofReviewHome =
@@ -378,6 +428,151 @@ export async function recordJudgmentValueProofFeedback(
   return { record: readBack, created: true };
 }
 
+function answerFile(dataDir?: string): string {
+  return join(resolve(dataDir ?? defaultDataDir()), JUDGMENT_VALUE_PROOF_ANSWER_FILE);
+}
+
+function sha256(text: string): string {
+  return `sha256:${createHash('sha256').update(text).digest('hex')}`;
+}
+
+function parseAnswerRecord(line: string, lineNumber: number): JudgmentValueProofAnswerRecord {
+  let value: Partial<JudgmentValueProofAnswerRecord>;
+  try {
+    value = JSON.parse(line) as Partial<JudgmentValueProofAnswerRecord>;
+  } catch (error) {
+    throw new Error(`judgment_value_proof_answer_corrupt:line_${lineNumber}`, { cause: error });
+  }
+  const optionMatchesKind = value.kind === 'select'
+    ? typeof value.selected_option_id === 'string' && typeof value.selected_option_label === 'string'
+    : value.selected_option_id === null && value.selected_option_label === null;
+  if (value.schema_version !== JUDGMENT_VALUE_PROOF_ANSWER_SCHEMA
+    || !ANSWER_KINDS.includes(value.kind as JudgmentValueProofAnswerKind)
+    || !optionMatchesKind
+    || typeof value.answer_id !== 'string'
+    || typeof value.intent_id !== 'string'
+    || typeof value.decision_attempt_id !== 'string'
+    || typeof value.question_sha256 !== 'string'
+    || value.owner_confirmation !== 'local_web_confirmed'
+    || value.resume !== 'not_started'
+    || typeof value.recorded_at !== 'string') {
+    throw new Error(`judgment_value_proof_answer_invalid:line_${lineNumber}`);
+  }
+  return value as JudgmentValueProofAnswerRecord;
+}
+
+/** Reads all recorded answers in append order. A missing file means no answer has been recorded. */
+export async function readJudgmentValueProofAnswers(
+  options: { readonly dataDir?: string } = {}
+): Promise<readonly JudgmentValueProofAnswerRecord[]> {
+  let text: string;
+  try {
+    text = await readFile(answerFile(options.dataDir), 'utf8');
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return [];
+    throw error;
+  }
+  return text.split('\n')
+    .map((line, index) => ({ line, lineNumber: index + 1 }))
+    .filter(({ line }) => line.trim())
+    .map(({ line, lineNumber }) => parseAnswerRecord(line, lineNumber));
+}
+
+/**
+ * Runs `operation` while holding `<file>.lock`, created exclusively, so that two writers cannot
+ * both record an answer for the same judgment. A lock left by a stopped write expires.
+ */
+async function withAnswerLock<T>(file: string, timeoutMs: number, operation: () => Promise<T>): Promise<T> {
+  const lock = `${file}.lock`;
+  await mkdir(dirname(file), { recursive: true });
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    try {
+      await (await open(lock, 'wx')).close();
+      break;
+    } catch (error) {
+      if (errorCode(error) !== 'EEXIST') throw error;
+    }
+    let ageMs: number | null = null;
+    try {
+      ageMs = Date.now() - (await stat(lock)).mtimeMs;
+    } catch (error) {
+      if (errorCode(error) !== 'ENOENT') throw error;
+    }
+    if (ageMs === null) continue;
+    if (ageMs > ANSWER_LOCK_STALE_MS) {
+      await unlink(lock).catch(() => undefined);
+      continue;
+    }
+    if (Date.now() >= deadline) throw new Error('judgment_value_proof_answer_lock_busy');
+    await new Promise((resolveWait) => setTimeout(resolveWait, 25));
+  }
+  try {
+    return await operation();
+  } finally {
+    await unlink(lock).catch(() => undefined);
+  }
+}
+
+/**
+ * Records the owner's answer to a judgment returned to them, without touching the judgment journal
+ * and without resuming the work. One answer per judgment: re-sending the same answer returns the
+ * recorded one, and a different answer is refused with `JudgmentValueProofAnswerConflictError`.
+ */
+export async function recordJudgmentValueProofAnswer(
+  input: JudgmentValueProofAnswerInput
+): Promise<{ readonly record: JudgmentValueProofAnswerRecord; readonly created: boolean }> {
+  if (!ANSWER_KINDS.includes(input.kind)) throw new TypeError(`unsupported answer kind: ${String(input.kind)}`);
+  const proof = validateJudgmentValueProof(input.proof);
+  const question = proof.human_decision;
+  if (classifyJudgmentValueProof(proof) !== 'needs_human' || !question) {
+    throw new TypeError('judgment is not waiting for the owner');
+  }
+  const optionId = typeof input.selected_option_id === 'string' && input.selected_option_id.trim()
+    ? input.selected_option_id.trim()
+    : null;
+  let optionLabel: string | null = null;
+  if (input.kind === 'select') {
+    if (!optionId) throw new TypeError('select answer requires selected_option_id');
+    const option = question.options.find((entry) => entry.id === optionId);
+    if (!option) throw new TypeError('selected_option_id is not an option of this question');
+    optionLabel = option.label;
+  } else if (optionId) {
+    throw new TypeError('reject answer does not take selected_option_id');
+  }
+  if (input.confirmed !== true) throw new TypeError('answer requires explicit confirmation');
+
+  const questionSha256 = sha256(question.question);
+  const id = sha256(`${proof.decision_attempt_id}\n${questionSha256}\n${input.kind}\n${optionId ?? ''}`);
+  const file = answerFile(input.dataDir);
+  return withAnswerLock(file, input.lockTimeoutMs ?? ANSWER_LOCK_TIMEOUT_MS, async () => {
+    const existing = (await readJudgmentValueProofAnswers({ dataDir: input.dataDir }))
+      .find((record) => record.intent_id === proof.intent_id && record.decision_attempt_id === proof.decision_attempt_id);
+    if (existing) {
+      if (existing.answer_id === id) return { record: existing, created: false };
+      throw new JudgmentValueProofAnswerConflictError(existing);
+    }
+    const record: JudgmentValueProofAnswerRecord = {
+      schema_version: JUDGMENT_VALUE_PROOF_ANSWER_SCHEMA,
+      answer_id: id,
+      intent_id: proof.intent_id,
+      decision_attempt_id: proof.decision_attempt_id,
+      question_sha256: questionSha256,
+      kind: input.kind,
+      selected_option_id: optionId,
+      selected_option_label: optionLabel,
+      owner_confirmation: 'local_web_confirmed',
+      resume: 'not_started',
+      recorded_at: (input.now ?? new Date()).toISOString()
+    };
+    await appendFile(file, `${JSON.stringify(record)}\n`, 'utf8');
+    const readBack = (await readJudgmentValueProofAnswers({ dataDir: input.dataDir }))
+      .find((entry) => entry.answer_id === id);
+    if (!readBack) throw new Error('judgment_value_proof_answer_readback_missing');
+    return { record: readBack, created: true };
+  });
+}
+
 /** Returns the proof with its latest owner feedback applied, plus the feedback history for that attempt. */
 export function applyJudgmentValueProofFeedback(
   proof: JudgmentValueProof,
@@ -406,10 +601,20 @@ export function applyJudgmentValueProofFeedback(
 export function buildJudgmentValueProofReviewHome(
   journal: JudgmentValueProofJournalRead,
   feedback: readonly JudgmentValueProofFeedbackRecord[],
-  options: { readonly now?: Date; readonly staleAfterMs?: number } = {}
+  options: {
+    readonly now?: Date;
+    readonly staleAfterMs?: number;
+    /** Recorded answers; the first answer for a judgment is the one shown. */
+    readonly answers?: readonly JudgmentValueProofAnswerRecord[];
+  } = {}
 ): JudgmentValueProofReviewHome {
   if (journal.status === 'unavailable') return journal;
 
+  const answers = new Map<string, JudgmentValueProofAnswerRecord>();
+  for (const answer of options.answers ?? []) {
+    const key = `${answer.intent_id}\u0000${answer.decision_attempt_id}`;
+    if (!answers.has(key)) answers.set(key, answer);
+  }
   const sections: Record<JudgmentValueProofReviewSection, JudgmentValueProofReviewItem[]> = {
     needs_human: [],
     blocked: [],
@@ -419,7 +624,8 @@ export function buildJudgmentValueProofReviewHome(
   for (const entry of journal.entries) {
     const { proof, history } = applyJudgmentValueProofFeedback(entry.proof, feedback);
     const section = classifyJudgmentValueProof(proof);
-    sections[section].push({ file: entry.file, section, proof, feedback_history: history });
+    const answer = answers.get(`${proof.intent_id}\u0000${proof.decision_attempt_id}`) ?? null;
+    sections[section].push({ file: entry.file, section, proof, feedback_history: history, answer });
   }
 
   const delegationMap = buildJudgmentDelegationMap(

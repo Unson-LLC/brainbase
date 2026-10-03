@@ -503,6 +503,30 @@ body:has(#brainbase-value-proof-review) {
   outline-offset: 2px;
 }
 
+/* The answer area of a judgment returned to the owner, and its confirmation. */
+.bb-vpr-answer {
+  display: grid;
+  gap: var(--bb-space-2);
+  margin-top: var(--bb-space-3);
+  padding: var(--bb-space-3);
+  border: 1px solid var(--vpr-border-strong);
+  border-radius: var(--bb-radius-sm, 7px);
+}
+
+.bb-vpr-answer h4,
+.bb-vpr-answer .bb-vpr-hint {
+  margin: 0;
+}
+
+.bb-vpr-answer-confirm {
+  margin: 0;
+  padding: 11px 12px;
+  border-radius: var(--bb-radius-sm, 7px);
+  color: var(--vpr-ink);
+  background: var(--vpr-warning-soft);
+  font-size: 13px;
+}
+
 /* Messages under the form and the consult button. */
 .vpr-notice {
   margin: 0;

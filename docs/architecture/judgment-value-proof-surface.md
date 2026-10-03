@@ -99,6 +99,10 @@ Entity ID、raw ref、digest、検索query、Tool Event本文は既定表示に�
 
 代理判断の訂正は、回答の言い直しで終わらせない。`accepted`、`corrected`、`next_time_ask`、`reverted`を証拠参照付きで記録し、再利用可能な判断基準への昇格候補へ接続する。
 
+### 7. 人間判断への回答（記録のみ）
+
+人へ戻した判断への回答は、Feedbackと別の正本に置く。ローカルの見返し画面は、`human_required`の判断の選択肢（または「どれも選ばない」）を`brainbase-judgment-value-proof-answer-v1`として`judgment-value-proof-answers.jsonl`へ1件だけ追記する。判断の記録は書き換えず、同じ判断への違う回答は競合として拒否する。回答は作業を再開しない。再開はHostが回答の記録を読み、束縛・権限・現在の状態を確かめ直す別の操作として足す（`docs/specs/personal-human-decision-answer-record-v1.md`）。
+
 ## Repository boundary
 
 - `Unson-LLC/brainbase`: public type、schema、fixture、pure placement/rendering functionsの正本。
@@ -111,6 +115,7 @@ Entity ID、raw ref、digest、検索query、Tool Event本文は既定表示に�
 - Tool response本文を表示projectionへ転載しない。
 - 既定レシートは内部Entity IDとraw evidence refを隠す。
 - `outcome_verified`はverified evidenceが一つ以上ある場合だけ許可する。
+- 回答の書き込みは、同一オリジン・起動トークン・既知の判断・送信前の確認を要求する。起動トークンは本人の証明ではないので、回答の記録は「画面で確認の操作を経た」とだけ書く。
 
 ## Verification
 

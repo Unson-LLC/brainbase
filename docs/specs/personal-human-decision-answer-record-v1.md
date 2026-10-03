@@ -1,0 +1,56 @@
+# Personal Human Decision Answer Record v1
+
+Story: `docs/stories/story-personal-human-decision-answer-record-v1.md`
+
+## 目的
+
+AIが所有者に戻した判断（`human_required`、`waiting_human`）へ、ローカルの見返し画面から回答を記録できるようにする。回答の記録は判断の記録と別の正本に置き、作業の再開はしない。PR #642 の設計（`personal-human-decision-answer-web-v1`、planning-only）の候補のうち、回答の正本を別の追記記録に置く S2 と、記録のみの T3 を、この版の範囲として採る。
+
+## 入力と境界
+
+回答の対象は、`classifyJudgmentValueProof` が `needs_human` に分類し、`human_decision` に問いと選択肢がある判断だけである。判断の記録（`.value-proof.json`）、episode、final は読むだけで書き換えない。回答は個人データの場所の `judgment-value-proof-answers.jsonl` へ追記する。評価（`judgment-value-proof-feedback.jsonl`）とは別のファイルで、評価の状態・ID・記録を回答に流用しない。
+
+起動トークンと同一オリジンは、評価と同じく、このMacの見返し画面からの書き込みであることを示すだけで、本人の証明ではない。回答の記録は `owner_confirmation: "local_web_confirmed"`（画面で確認の操作を経た）とだけ書き、本人確認済みとは書かない。
+
+## 記録
+
+`brainbase-judgment-value-proof-answer-v1` の1行は次を持つ。
+
+- `answer_id`: `decision_attempt_id`、`question_sha256`、`kind`、`selected_option_id` から作る `sha256:` の値。時刻・リクエスト・保存先は含めない。
+- `intent_id`、`decision_attempt_id`: 回答した判断。
+- `question_sha256`: 回答した時点の `human_decision.question` の本文の sha256。旧記録の `question_digest` を推測で作らない。
+- `kind`: `select`（選択肢を選んだ）または `reject`（どれも選ばない）。
+- `selected_option_id`、`selected_option_label`: `select` のときだけ、問いにある選択肢の ID と表示名。`reject` では null。
+- `owner_confirmation`: `local_web_confirmed`。
+- `resume`: `not_started`。この版の回答は作業を再開しない。
+- `recorded_at`。
+
+## 書き込みの規則
+
+1. 判断が回答の対象でない、選択肢が問いに無い、`select` に選択肢が無い、`reject` に選択肢がある、`confirmed` が true でない、のどれかなら書かない（入力の誤り）。
+2. 回答のファイルの横の排他ロック（`.lock`、作成のみで取得）を取ってから、既存の回答を読む。同じ判断の回答が既にあれば、同じ `answer_id` なら既存の記録を返し、違えば競合として拒否する。上書き・追記はしない。
+3. 無ければ1行を追記し、同じ `answer_id` を読み戻せた場合だけ記録したとみなす。読み戻せなければ失敗とする。
+4. ロックが30秒より古ければ、前の書き込みが途中で止まったとみなして外す。ロックを取れなければ失敗とし、回答したことにしない。
+
+## HTTP
+
+`POST <basePath>/answers` は、評価と同じ同一オリジン・起動トークン（`x-brainbase-review-token`）を要求する。本文は `intent_id`、`decision_attempt_id`、`kind`、`selected_option_id`、`confirmed`。応答は、新しく記録したら 201、同じ回答の再送なら 200、判断が無ければ 404、回答の対象でなければ 422（`not_answerable`）、違う回答が既にあれば 409（`answer_conflict`、既存の回答を添える）、入力の誤りは 400（`invalid_answer`）。`GET <basePath>/home` の各項目は `answer`（記録した回答、無ければ null）を持ち、応答は `capabilities.answer: "record_only"`（回答を記録するが作業は再開しない）を持つ。画面は、この宣言がある Host でだけ回答の操作を出し、宣言の無い Host（回答を受け付けない組み込み先）では「回答できません」の案内のままにする。
+
+## 画面
+
+人に戻した判断の詳細の「あなたに戻した理由」に、回答の欄を置く。
+
+- 未回答: 選択肢ごとに「この選択肢で回答する」と「どれも選ばない」を出す。押すと、選んだ内容・記録後はこの画面で変更・取り消しできないこと・作業は自動で再開しないことを示す確認を出し、「回答を記録する」を押したときだけ `confirmed: true` で送る。読み戻して `answer` が同じ回答なら「回答を記録しました（読み戻し済み）」と出す。
+- 回答済み: 記録した回答と日時、作業は自動で再開しないので続きはAIにこの回答を伝えて頼み直すこと、を出す。回答の操作は出さない。
+- 「あなたの判断が必要」の件数と絞り込みは、回答済みを除く。一覧の項目の区分の表示は「回答済み」にする。
+- 評価の欄の「回答や承認ではない」と、Codexへの相談はコピーだけという案内は変えない。
+
+## 対象外と次の段階
+
+作業の再開（PR #642 の T1・T2）、回答の変更と取り消し（`revoked`）、`defer`、本人の証明、組織版・MCPからの回答は、この版に含めない。再開を足すときは、この記録を回答の正本として読み、Host が束縛・権限・現在の状態を確かめ直す別の操作にする。
+
+## 検証
+
+- 記録: 選択・どれも選ばない・同じ回答の再送・違う回答の競合・対象外の判断・問いに無い選択肢・確認なし・同時の書き込み・壊れた記録の検出を、一時ディレクトリの実ファイルで確かめる。判断の記録が変わらないことも確かめる。
+- HTTP: 201・200・409・422・404・403（トークンなし）・400 と、`home` の `answer` を実サーバーで確かめる。
+- 画面: 回答の操作と確認、送信の本文、回答済みの表示、件数と絞り込みからの除外を簡易DOMで確かめる。

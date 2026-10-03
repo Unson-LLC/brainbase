@@ -4,10 +4,16 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  applyJudgmentValueProofFeedback,
   buildJudgmentValueProofReviewHome,
+  classifyJudgmentValueProof,
+  JudgmentValueProofAnswerConflictError,
+  readJudgmentValueProofAnswers,
   readJudgmentValueProofFeedback,
   readJudgmentValueProofJournal,
+  recordJudgmentValueProofAnswer,
   recordJudgmentValueProofFeedback,
+  type JudgmentValueProofAnswerKind,
   type JudgmentValueProofFeedbackLayer,
   type JudgmentValueProofFeedbackStatus,
   type JudgmentValueProofReviewHome,
@@ -42,7 +48,7 @@ const UI_FILES: Readonly<Record<string, { readonly file: string; readonly type: 
 export interface ValueProofReviewHttpOptions {
   /** Judgment journal root. Defaults to `~/.brainbase/personal-os/judgment-journal`. */
   readonly journalRoot?: string;
-  /** Personal OS data directory that stores owner feedback. */
+  /** Personal OS data directory that stores owner feedback and answers. */
   readonly dataDir?: string;
   /** Required on mutating requests. */
   readonly token: string;
@@ -57,13 +63,17 @@ function publicHome(home: JudgmentValueProofReviewHome): unknown {
   const strip = (items: Readonly<Record<string, readonly JudgmentValueProofReviewItem[]>>) =>
     Object.fromEntries(Object.entries(items).map(([section, list]) => [
       section,
-      list.map(({ section: itemSection, proof, feedback_history }) => ({ section: itemSection, proof, feedback_history }))
+      list.map(({ section: itemSection, proof, feedback_history, answer }) => ({
+        section: itemSection, proof, feedback_history, answer: answer ?? null
+      }))
     ]));
   return {
     status: home.status,
     root: home.root,
     coverage: home.coverage,
     sections: strip(home.sections),
+    // The screen offers answering only when the host says it records answers (and never resumes work).
+    capabilities: { answer: 'record_only' },
     // Holds only decision IDs, counts and states; no local paths.
     delegation_map: home.delegation_map,
     rejected: home.rejected.map((entry) => ({ file: relative(home.root, entry.file), reason: entry.reason }))
@@ -79,18 +89,70 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
 
   async function readHome(): Promise<JudgmentValueProofReviewHome> {
     const journal = await readJudgmentValueProofJournal({ root: options.journalRoot });
-    const feedback = journal.status === 'available'
-      ? await readJudgmentValueProofFeedback({ dataDir: options.dataDir })
-      : [];
-    return buildJudgmentValueProofReviewHome(journal, feedback, { now: now() });
+    if (journal.status !== 'available') return buildJudgmentValueProofReviewHome(journal, [], { now: now() });
+    const [feedback, answers] = await Promise.all([
+      readJudgmentValueProofFeedback({ dataDir: options.dataDir }),
+      readJudgmentValueProofAnswers({ dataDir: options.dataDir })
+    ]);
+    return buildJudgmentValueProofReviewHome(journal, feedback, { now: now(), answers });
   }
 
-  async function recordFeedback(request: IncomingMessage): Promise<{ statusCode: number; body: unknown }> {
+  async function authorizedBody(request: IncomingMessage): Promise<Record<string, unknown>> {
     assertSameOrigin(request);
     if (!tokenMatches(options.token, request.headers[VALUE_PROOF_REVIEW_TOKEN_HEADER])) {
       throw new HttpError(403, 'review_token_required', 'A valid review token is required');
     }
-    const body = await readJsonObjectBody(request, MAX_BODY_BYTES);
+    return readJsonObjectBody(request, MAX_BODY_BYTES);
+  }
+
+  async function recordAnswer(request: IncomingMessage): Promise<{ statusCode: number; body: unknown }> {
+    const body = await authorizedBody(request);
+    const intentId = typeof body.intent_id === 'string' ? body.intent_id : '';
+    const attemptId = typeof body.decision_attempt_id === 'string' ? body.decision_attempt_id : '';
+
+    const journal = await readJudgmentValueProofJournal({ root: options.journalRoot });
+    if (journal.status === 'unavailable') {
+      throw new HttpError(503, 'judgment_journal_unavailable', journal.reason);
+    }
+    const entry = journal.entries.find((candidate) => candidate.proof.intent_id === intentId
+      && candidate.proof.decision_attempt_id === attemptId);
+    if (!entry) throw new HttpError(404, 'value_proof_not_found', 'No saved value proof matches this decision');
+    // Classify the judgment as the home shows it, with the owner's evaluation applied.
+    const { proof } = applyJudgmentValueProofFeedback(
+      entry.proof,
+      await readJudgmentValueProofFeedback({ dataDir: options.dataDir })
+    );
+    if (classifyJudgmentValueProof(proof) !== 'needs_human' || !proof.human_decision) {
+      throw new HttpError(422, 'not_answerable', 'This judgment is not waiting for the owner');
+    }
+
+    try {
+      const result = await recordJudgmentValueProofAnswer({
+        dataDir: options.dataDir,
+        proof,
+        kind: body.kind as JudgmentValueProofAnswerKind,
+        selected_option_id: typeof body.selected_option_id === 'string' ? body.selected_option_id : null,
+        confirmed: body.confirmed === true,
+        now: now()
+      });
+      return { statusCode: result.created ? 201 : 200, body: result };
+    } catch (error) {
+      if (error instanceof JudgmentValueProofAnswerConflictError) {
+        return {
+          statusCode: 409,
+          body: {
+            error: { code: 'answer_conflict', message: 'A different answer is already recorded for this judgment' },
+            existing: error.existing
+          }
+        };
+      }
+      if (error instanceof TypeError) throw new HttpError(400, 'invalid_answer', error.message);
+      throw error;
+    }
+  }
+
+  async function recordFeedback(request: IncomingMessage): Promise<{ statusCode: number; body: unknown }> {
+    const body = await authorizedBody(request);
     const intentId = typeof body.intent_id === 'string' ? body.intent_id : '';
     const attemptId = typeof body.decision_attempt_id === 'string' ? body.decision_attempt_id : '';
 
@@ -121,7 +183,7 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
 
   return async (request, response) => {
     const path = requestUrl(request).pathname;
-    if (path !== `${basePath}/home` && path !== `${basePath}/feedback`) return false;
+    if (path !== `${basePath}/home` && path !== `${basePath}/feedback` && path !== `${basePath}/answers`) return false;
     try {
       if (path === `${basePath}/home`) {
         if (request.method !== 'GET') throw new HttpError(405, 'method_not_allowed', 'Use GET');
@@ -129,7 +191,7 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
         return true;
       }
       if (request.method !== 'POST') throw new HttpError(405, 'method_not_allowed', 'Use POST');
-      const result = await recordFeedback(request);
+      const result = path === `${basePath}/answers` ? await recordAnswer(request) : await recordFeedback(request);
       writeJson(response, result.statusCode, result.body);
     } catch (error) {
       if (error instanceof HttpError) writeError(response, error);
