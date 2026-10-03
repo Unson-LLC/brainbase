@@ -63,8 +63,12 @@ function publicHome(home: JudgmentValueProofReviewHome): unknown {
   const strip = (items: Readonly<Record<string, readonly JudgmentValueProofReviewItem[]>>) =>
     Object.fromEntries(Object.entries(items).map(([section, list]) => [
       section,
-      list.map(({ section: itemSection, proof, feedback_history, answer }) => ({
-        section: itemSection, proof, feedback_history, answer: answer ?? null
+      list.map(({ section: itemSection, proof, feedback_history, answer, conversation_moved_on_at }) => ({
+        section: itemSection,
+        proof,
+        feedback_history,
+        answer: answer ?? null,
+        conversation_moved_on_at: conversation_moved_on_at ?? null
       }))
     ]));
   return {
@@ -124,6 +128,10 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
     );
     if (classifyJudgmentValueProof(proof) !== 'needs_human' || !proof.human_decision) {
       throw new HttpError(422, 'not_answerable', 'This judgment is not waiting for the owner');
+    }
+    if (entry.conversation_moved_on_at) {
+      // The owner answered in that conversation or moved on; answering here could replay a settled question.
+      throw new HttpError(422, 'conversation_moved_on', 'The conversation moved on after this question; continue it there');
     }
 
     try {

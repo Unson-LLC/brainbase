@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { appendFile, mkdir, open, readdir, readFile, stat, unlink } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import {
   placeJudgmentValueProof,
   validateJudgmentValueProof,
@@ -9,6 +9,8 @@ import {
 import { defaultDataDir } from './paths.js';
 
 export const JUDGMENT_VALUE_PROOF_FILE_SUFFIX = '.value-proof.json';
+/** The judgment Host's per-turn final record, next to the turn's value proof. */
+const JUDGMENT_FINAL_FILE_SUFFIX = '.final.json';
 export const JUDGMENT_VALUE_PROOF_FEEDBACK_SCHEMA = 'brainbase-judgment-value-proof-feedback-v1';
 export const JUDGMENT_VALUE_PROOF_FEEDBACK_FILE = 'judgment-value-proof-feedback.jsonl';
 export const JUDGMENT_VALUE_PROOF_ANSWER_SCHEMA = 'brainbase-judgment-value-proof-answer-v1';
@@ -50,6 +52,11 @@ export const JUDGMENT_VALUE_PROOF_FEEDBACK_LAYERS: readonly JudgmentValueProofFe
 export interface JudgmentValueProofJournalEntry {
   readonly file: string;
   readonly proof: JudgmentValueProof;
+  /**
+   * For a judgment waiting for the owner: when another turn of the same conversation was first finalized
+   * after it, i.e. the conversation moved on (the owner answered there or changed the subject); null otherwise.
+   */
+  readonly conversation_moved_on_at?: string | null;
 }
 
 export interface JudgmentValueProofJournalRejection {
@@ -139,6 +146,8 @@ export interface JudgmentValueProofReviewItem {
   readonly feedback_history: readonly JudgmentValueProofFeedbackRecord[];
   /** The owner's recorded answer to a judgment returned to them; null when there is none. */
   readonly answer?: JudgmentValueProofAnswerRecord | null;
+  /** See `JudgmentValueProofJournalEntry.conversation_moved_on_at`. Such a judgment is no longer answered here. */
+  readonly conversation_moved_on_at?: string | null;
 }
 
 export type JudgmentValueProofReviewHome =
@@ -237,6 +246,41 @@ async function readProofFile(file: string): Promise<JudgmentValueProofJournalEnt
   }
 }
 
+/** The `finalized_at` of a turn's final record, or null when it cannot be read as a time. */
+async function readFinalizedAt(file: string): Promise<string | null> {
+  try {
+    const value = (JSON.parse(await readFile(file, 'utf8')) as { finalized_at?: unknown }).finalized_at;
+    return typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The judgment Host keeps each conversation in its own folder, one `<turn>.final.json` per finished turn.
+ * Returns when the first later turn of the same conversation was finalized after the waiting turn (compared
+ * with the waiting turn's own final, or the proof's recorded time when that is missing). An unreadable final
+ * is not evidence that the conversation moved on.
+ */
+async function conversationMovedOnAt(file: string, proof: JudgmentValueProof): Promise<string | null> {
+  const folder = dirname(file);
+  const ownFinal = `${basename(file, JUDGMENT_VALUE_PROOF_FILE_SUFFIX)}${JUDGMENT_FINAL_FILE_SUFFIX}`;
+  const since = Date.parse(await readFinalizedAt(join(folder, ownFinal)) ?? proof.recorded_at);
+  let names: string[];
+  try {
+    names = await readdir(folder);
+  } catch {
+    return null;
+  }
+  let first: string | null = null;
+  for (const name of names) {
+    if (!name.endsWith(JUDGMENT_FINAL_FILE_SUFFIX) || name === ownFinal) continue;
+    const at = await readFinalizedAt(join(folder, name));
+    if (at && Date.parse(at) > since && (first === null || Date.parse(at) < Date.parse(first))) first = at;
+  }
+  return first;
+}
+
 /**
  * Reads saved judgment value proofs from `<root>/*.value-proof.json` and
  * `<root>/<session>/*.value-proof.json`. The journal is read-only here.
@@ -274,8 +318,15 @@ export async function readJudgmentValueProofJournal(
   }
 
   const results = await Promise.all(files.sort().map(readProofFile));
-  const entries = results
+  const entries = (await Promise.all(results
     .filter((result): result is JudgmentValueProofJournalEntry => 'proof' in result)
+    .map(async (entry) => ({
+      ...entry,
+      // Only a judgment inside a conversation folder can tell whether its conversation moved on.
+      conversation_moved_on_at: entry.proof.state === 'waiting_human' && dirname(entry.file) !== root
+        ? await conversationMovedOnAt(entry.file, entry.proof)
+        : null
+    }))))
     .sort((left, right) => compareRecordedAtDesc(left.proof.recorded_at, right.proof.recorded_at)
       || left.file.localeCompare(right.file));
   const rejected = results.filter((result): result is JudgmentValueProofJournalRejection => 'reason' in result);
@@ -625,7 +676,14 @@ export function buildJudgmentValueProofReviewHome(
     const { proof, history } = applyJudgmentValueProofFeedback(entry.proof, feedback);
     const section = classifyJudgmentValueProof(proof);
     const answer = answers.get(`${proof.intent_id}\u0000${proof.decision_attempt_id}`) ?? null;
-    sections[section].push({ file: entry.file, section, proof, feedback_history: history, answer });
+    sections[section].push({
+      file: entry.file,
+      section,
+      proof,
+      feedback_history: history,
+      answer,
+      conversation_moved_on_at: entry.conversation_moved_on_at ?? null
+    });
   }
 
   const delegationMap = buildJudgmentDelegationMap(
