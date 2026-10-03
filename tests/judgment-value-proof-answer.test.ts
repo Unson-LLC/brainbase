@@ -81,6 +81,77 @@ async function answerLines(): Promise<string[]> {
   return (await readFile(join(dataDir, JUDGMENT_VALUE_PROOF_ANSWER_FILE), 'utf8')).split('\n').filter(Boolean);
 }
 
+/** Writes a turn's final record the way the judgment Host does: `<conversation>/<turn>.final.json`. */
+async function writeFinal(location: string, turn: string, finalizedAt: string, raw?: string): Promise<void> {
+  await mkdir(location, { recursive: true });
+  await writeFile(
+    join(location, `${turn}.final.json`),
+    raw ?? JSON.stringify({ schema_version: 'brainbase-judgment-episode-final-v2', finalized_at: finalizedAt }),
+    'utf8'
+  );
+}
+
+async function writeProof(location: string, turn: string, proof: JudgmentValueProof): Promise<void> {
+  await mkdir(location, { recursive: true });
+  await writeFile(join(location, `${turn}.value-proof.json`), JSON.stringify(proof), 'utf8');
+}
+
+describe('judgments whose conversation moved on after the question', () => {
+  it('marks a waiting judgment with the first later turn of the same conversation', async () => {
+    const session = join(journal, 'session-a');
+    await writeProof(session, 'turn-1', waitingProof('1'));
+    await writeFinal(session, 'turn-0', '2026-09-14T06:00:00.000Z');
+    await writeFinal(session, 'turn-1', '2026-09-14T07:14:37.000Z');
+    await writeFinal(session, 'turn-3', '2026-09-14T09:00:00.000Z');
+    await writeFinal(session, 'turn-2', '2026-09-14T07:32:24.000Z');
+
+    const read = await readJudgmentValueProofJournal({ root: journal });
+    if (read.status !== 'available') throw new Error('expected available journal');
+    expect(read.entries[0]?.conversation_moved_on_at).toBe('2026-09-14T07:32:24.000Z');
+
+    const home = buildJudgmentValueProofReviewHome(read, []);
+    if (home.status !== 'available') throw new Error('expected available home');
+    expect(home.sections.needs_human[0]?.conversation_moved_on_at).toBe('2026-09-14T07:32:24.000Z');
+  });
+
+  it('keeps a judgment waiting when the conversation has only earlier turns or unreadable finals', async () => {
+    const session = join(journal, 'session-b');
+    await writeProof(session, 'turn-1', waitingProof('1'));
+    await writeFinal(session, 'turn-0', '2026-09-14T06:00:00.000Z');
+    await writeFinal(session, 'turn-1', '2026-09-14T07:14:37.000Z');
+    await writeFinal(session, 'turn-2', '', '{broken');
+    await writeFinal(session, 'turn-3', '', JSON.stringify({ finalized_at: 'not-a-date' }));
+
+    const read = await readJudgmentValueProofJournal({ root: journal });
+    if (read.status !== 'available') throw new Error('expected available journal');
+    expect(read.entries[0]?.conversation_moved_on_at).toBeNull();
+  });
+
+  it('compares with the recorded time when the waiting turn has no final of its own', async () => {
+    const session = join(journal, 'session-c');
+    await writeProof(session, 'turn-1', waitingProof('1'));
+    await writeFinal(session, 'turn-2', '2026-09-14T07:20:00.000Z');
+
+    const read = await readJudgmentValueProofJournal({ root: journal });
+    if (read.status !== 'available') throw new Error('expected available journal');
+    expect(read.entries[0]?.conversation_moved_on_at).toBe('2026-09-14T07:20:00.000Z');
+  });
+
+  it('checks only judgments that wait for the owner, and not judgments outside a conversation folder', async () => {
+    await writeProof(journal, 'turn-root', waitingProof('root'));
+    await writeFinal(journal, 'turn-other', '2026-09-15T00:00:00.000Z');
+    const session = join(journal, 'session-d');
+    await writeProof(session, 'turn-1', continuedProof('1'));
+    await writeFinal(session, 'turn-2', '2026-09-15T00:00:00.000Z');
+
+    const read = await readJudgmentValueProofJournal({ root: journal });
+    if (read.status !== 'available') throw new Error('expected available journal');
+    const byAttempt = new Map(read.entries.map((entry) => [entry.proof.decision_attempt_id, entry]));
+    expect(byAttempt.get('attempt-root')?.conversation_moved_on_at).toBeNull();
+    expect(byAttempt.get('attempt-1')?.conversation_moved_on_at).toBeNull();
+  });
+});
+
 describe('recording an answer to a judgment returned to the owner', () => {
   it('records the chosen option once, bound to the question text, without resuming work', async () => {
     const proof = waitingProof('1');

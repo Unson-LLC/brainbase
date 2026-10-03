@@ -834,6 +834,35 @@ describe('value proof review UI contract', () => {
       expect(ui.state.answerSave.message).not.toContain('回答はまだ記録されていません');
     });
 
+    it('shows a judgment whose conversation moved on as such, offers no answer, and leaves it out of the count', () => {
+      const payload = answerHome();
+      payload.sections.needs_human[0].conversation_moved_on_at = '2026-10-04T07:32:00.000Z';
+      const { root, rail } = renderHome(payload, {
+        selectedKey: 'intent-w\u0000attempt-w', selectedRowKey: 'reason:irreversible_external_action', railView: 'judgment',
+      });
+      const block = byClass(rail, 'bb-vpr-human-decision')[0];
+      expect(collectText(block)).toContain('この問いのあと、同じ会話で次のやり取りがありました');
+      expect(collectText(block)).toContain('この画面では回答を受け付けません。続きが必要なら、元の会話で頼んでください。');
+      expect(collectText(block)).not.toContain('この問いに回答する');
+      expect(findAll(block, (element) => element.tagName === 'BUTTON')).toHaveLength(0);
+      expect(collectText(rail)).toContain('会話で先に進んだ');
+      expect(collectText(rail)).not.toContain('回答済み');
+      expect(buttons(root, 'あなたの判断が必要 0件')).toHaveLength(1);
+      expect(collectText(byClass(root, 'bb-ws-summary')[0])).toContain('会話で先に進んだものを除く');
+    });
+
+    it('shows the moved-on note also on a host that does not offer recording answers', () => {
+      const payload = answerHome();
+      delete payload.capabilities;
+      payload.sections.needs_human[0].conversation_moved_on_at = '2026-10-04T07:32:00.000Z';
+      const { rail } = renderHome(payload, {
+        selectedKey: 'intent-w\u0000attempt-w', selectedRowKey: 'reason:irreversible_external_action', railView: 'judgment',
+      });
+      const block = byClass(rail, 'bb-vpr-human-decision')[0];
+      expect(collectText(block)).toContain('この問いのあと、同じ会話で次のやり取りがありました');
+      expect(collectText(block)).not.toContain('この画面では、人に戻した判断への回答や作業の再開はできません。');
+    });
+
     it('keeps the 回答できません note on a host that does not offer recording answers', () => {
       const payload = answerHome();
       delete payload.capabilities;

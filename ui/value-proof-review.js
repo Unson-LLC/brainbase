@@ -87,6 +87,7 @@ const ANSWER_FINAL_NOTE = '記録した回答は、この画面では変更・�
 const ANSWER_RESUME_NOTE = '止まった作業は自動では再開しません。続きを進めるときは、AIにこの回答を伝えて頼み直してください。';
 const ANSWER_REJECT_LABEL = 'どれも選ばない';
 const ANSWER_KINDS = Object.freeze(['select', 'reject']);
+const MOVED_ON_LABEL = '会話で先に進んだ';
 const FEEDBACK_PURPOSE_NOTE = '評価は、実行後の振り返りとして記録します。人に戻した判断への回答や承認ではありません。';
 const CONSULT_COPY_NOTE = '相談文をコピーするだけで、この画面からCodexへは送信しません。';
 /** Layers the owner can pick for a correction. `delegation` comes from 「次回は聞く」. */
@@ -159,9 +160,26 @@ function normalizeAnswer(answer) {
   };
 }
 
-/** A judgment returned to the owner that still has no recorded answer. */
+/** When the conversation moved on after the question, or null. */
+function normalizeMovedOnAt(value) {
+  const at = text(value);
+  return at && !Number.isNaN(Date.parse(at)) ? at : null;
+}
+
+/** A judgment returned to the owner that still has no recorded answer and whose conversation is still at the question. */
 function awaitsOwner(item) {
-  return item.section === 'needs_human' && !item.answer;
+  return item.section === 'needs_human' && !item.answer && !item.conversationMovedOnAt;
+}
+
+/** The section label, or how the owner's side of a returned judgment ended. */
+function itemStateLabel(item) {
+  if (item.answer) return '回答済み';
+  return item.conversationMovedOnAt ? MOVED_ON_LABEL : SECTION_LABELS[item.section];
+}
+
+/** Shown instead of the answer controls: the owner answered in that conversation or it moved on. */
+function movedOnNote(at) {
+  return `この問いのあと、同じ会話で次のやり取りがありました（${formatDate(at)}）。会話の中で答えたか、話が先に進んだと考えられるので、この画面では回答を受け付けません。続きが必要なら、元の会話で頼んでください。`;
 }
 
 /** Normalize the host response. Anything unexpected becomes `invalid`, never an empty success. */
@@ -184,6 +202,7 @@ export function normalizeValueProofReviewHome(payload) {
       proof: item.proof,
       feedbackHistory: Array.isArray(item.feedback_history) ? item.feedback_history.filter(isRecord) : [],
       answer: normalizeAnswer(item.answer),
+      conversationMovedOnAt: normalizeMovedOnAt(item.conversation_moved_on_at),
     }));
   }
   const itemsByKey = new Map(SECTION_ORDER.flatMap((section) => sections[section].map((item) => [itemKey(item.proof), item])));
@@ -420,12 +439,16 @@ function renderFilters(doc, home, state, callbacks) {
 
 function renderMetrics(doc, home) {
   const map = home.delegationMap;
+  const excluded = [
+    home.answersRecordable && '回答済み',
+    home.sections.needs_human.some((item) => item.conversationMovedOnAt) && '会話で先に進んだもの',
+  ].filter(Boolean);
   return workspaceMetrics(doc, [
     { label: '保存済み', value: home.coverage.saved, note: '判断journalの記録' },
     {
       label: 'あなたの判断が必要',
       value: home.sections.needs_human.filter(awaitsOwner).length,
-      note: home.answersRecordable ? 'あなたに戻した判断（回答済みを除く）' : 'あなたに戻した判断',
+      note: excluded.length > 0 ? `あなたに戻した判断（${excluded.join('と、')}を除く）` : 'あなたに戻した判断',
     },
     { label: '聞かずに進めた', value: home.sections.continued.length, note: '聞かずに続行した判断' },
     { label: '評価済み', value: map.rated, note: `判断 ${map.judged}件のうち` },
@@ -701,7 +724,7 @@ function renderItemButton(doc, state, item, callbacks) {
     makeElement(doc, 'span', {
       className: 'bb-vpr-item-meta',
       text: [
-        item.answer ? '回答済み' : SECTION_LABELS[item.section],
+        itemStateLabel(item),
         formatDate(item.proof.recorded_at),
         OUTCOME_LABELS[item.proof.outcome.status] ?? '成果不明',
         FEEDBACK_LABELS[item.proof.feedback.status] ?? '評価不明',
@@ -890,7 +913,7 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
     detail.push(back);
   }
   const head = workspaceRailHead(doc, {
-    kicker: item.answer ? '回答済み' : SECTION_LABELS[item.section],
+    kicker: itemStateLabel(item),
     title: itemTitle(proof),
     sub: kindLabel(proof) ? `判断の種類: ${kindLabel(proof)}` : row ? rowName(row) : null,
   });
@@ -943,7 +966,8 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
       for (const option of options) list.append(makeElement(doc, 'li', { text: `${text(option.label) ?? option.id}: ${text(option.impact) ?? '影響の記録なし'}` }));
       content.push(makeElement(doc, 'h4', { text: '選択肢と影響' }), list);
     }
-    if (state.home?.answersRecordable && item.section === 'needs_human') content.push(renderAnswer(doc, item, state, callbacks));
+    if (item.conversationMovedOnAt && !item.answer) content.push(notice(doc, 'is-muted', movedOnNote(item.conversationMovedOnAt)));
+    else if (state.home?.answersRecordable && item.section === 'needs_human') content.push(renderAnswer(doc, item, state, callbacks));
     else content.push(makeElement(doc, 'p', { className: 'bb-vpr-hint', text: HUMAN_DECISION_BOUNDARY_NOTE }));
     detail.push(workspaceRailBlock(doc, { title: 'あなたに戻した理由', className: 'bb-vpr-human-decision', content }));
   }

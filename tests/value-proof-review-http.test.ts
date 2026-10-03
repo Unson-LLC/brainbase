@@ -288,5 +288,23 @@ describe('answering a judgment returned to the owner', () => {
 
     const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
     expect(home.sections.needs_human[0].answer).toBeNull();
+    expect(home.sections.needs_human[0].conversation_moved_on_at).toBeNull();
+  });
+
+  it('refuses answers to a judgment whose conversation moved on after the question, and shows when it moved on', async () => {
+    await writeFile(
+      join(journal, 'session', 'turn-later.final.json'),
+      JSON.stringify({ schema_version: 'brainbase-judgment-episode-final-v2', finalized_at: '2026-09-20T01:00:00.000Z' }),
+      'utf8'
+    );
+    const base = await start();
+
+    const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
+    const waiting = home.sections.needs_human.find((item: { proof: JudgmentValueProof }) => item.proof.decision_attempt_id === 'attempt-2');
+    expect(waiting.conversation_moved_on_at).toBe('2026-09-20T01:00:00.000Z');
+
+    const refused = await postAnswer(base, answer);
+    expect(refused.status).toBe(422);
+    expect((await refused.json()).error.code).toBe('conversation_moved_on');
   });
 });
