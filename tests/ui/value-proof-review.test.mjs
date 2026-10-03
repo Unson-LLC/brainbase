@@ -616,6 +616,46 @@ describe('value proof review UI contract', () => {
     expect(byClass(empty, 'bb-ws-detail-empty')).toHaveLength(0);
   });
 
+  it('separates an unanswered human decision from post-execution feedback and copy-only consultation', () => {
+    const waiting = proof({
+      intent_id: 'intent-w',
+      decision_attempt_id: 'attempt-w',
+      state: 'waiting_human',
+      interruption: {
+        resolution: 'human_required',
+        question_display_text: '本番へ反映しますか？',
+        question_digest: 'sha256:waiting-question',
+        reason_code: 'irreversible_external_action',
+        human_reason: '外部への反映は本人が決める必要があります',
+      },
+      human_decision: {
+        question: '本番へ反映しますか？',
+        why_human: '外部への反映は本人が決める必要があります',
+        options: [
+          { id: 'approve', label: '反映する', impact: '本番へ反映します' },
+          { id: 'hold', label: '保留する', impact: '反映せずに止めます' },
+        ],
+      },
+    });
+    const payload = home([], delegationMap([
+      mapRow('reason:irreversible_external_action', [waiting], {
+        state: 'returned',
+        state_basis: { reason: 'latest_judgment_returned', at: waiting.recorded_at },
+      }),
+    ]), [waiting]);
+    const { rail } = renderHome(payload, {
+      selectedKey: 'intent-w\u0000attempt-w',
+      selectedRowKey: 'reason:irreversible_external_action',
+      railView: 'judgment',
+    });
+
+    expect(collectText(byClass(rail, 'bb-vpr-human-decision')[0]))
+      .toContain('この画面では、人に戻した判断への回答や作業の再開はできません。');
+    expect(collectText(byClass(rail, 'bb-vpr-feedback-block')[0]))
+      .toContain('評価は、実行後の振り返りとして記録します。人に戻した判断への回答や承認ではありません。');
+    expect(collectText(rail)).toContain('相談文をコピーするだけで、この画面からCodexへは送信しません。');
+  });
+
   it('says that no kind and no evaluation are recorded yet instead of inventing them', () => {
     const text = collectText(renderHome(home()).root);
     expect(text).toContain('判断の種類はまだ記録されていません');
