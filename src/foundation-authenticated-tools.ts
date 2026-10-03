@@ -463,3 +463,87 @@ export async function handleFoundationPublicToolCall(
   }
   return { status: 'ok', scope: { project_codes: context.scope }, data: fetched.payload };
 }
+
+const FOUNDATION_ADOPTION_TYPES = new Set(['objective', 'variable', 'model', 'constraint']);
+const FOUNDATION_ADOPTION_PATH = '/api/company-os/foundation-adoptions';
+
+/**
+ * brainbase-project ADR-015: adopt a Foundation draft for judgment and
+ * evaluation through the canonical API. The caller passes the revision and
+ * digest they reviewed (for example with foundation_read); the API refuses a
+ * draft that changed since, the draft's own owner, a caller without a gm or
+ * above grant for the project, and a definition not ready for judgment.
+ */
+export const foundationAdoptionTools: Tool[] = [{
+  name: 'foundation_adopt',
+  description: [
+    'Adopt a Foundation draft (objective, variable, model or constraint) so it can be used for judgment and evaluation, never execution.',
+    'Read the draft first with foundation_read and pass the exact revision and digest you reviewed; the content is adopted unchanged as the next revision.',
+    'Only a gm or above of the project who is not the owner of the draft can adopt. This is a write: confirm with the person before calling it.',
+  ].join(' '),
+  inputSchema: {
+    type: 'object',
+    properties: {
+      scope_id: { type: 'string', minLength: 1, maxLength: MAX_SCOPE_ID_LENGTH, description: 'Project code the draft belongs to.' },
+      type: { type: 'string', enum: ['objective', 'variable', 'model', 'constraint'] },
+      id: { type: 'string', minLength: 1, maxLength: 256 },
+      revision: { type: 'string', pattern: '^[1-9][0-9]*$', description: 'The draft revision you reviewed.' },
+      digest: { type: 'string', pattern: '^sha256:[0-9a-f]{64}$', description: 'The digest of the reviewed revision, as foundation_read returned it.' },
+    },
+    required: ['scope_id', 'type', 'id', 'revision', 'digest'],
+    additionalProperties: false,
+  },
+}];
+
+export function isFoundationAdoptionToolName(name: string): boolean {
+  return name === 'foundation_adopt';
+}
+
+function isValidAdoptionPayload(args: Record<string, unknown>, payload: unknown): boolean {
+  if (!isRecord(payload) || payload.action !== 'adopt' || !isRecord(payload.result)) return false;
+  const result = payload.result;
+  return result.id === args.id
+    && result.type === args.type
+    && result.revision === String(Number(args.revision) + 1)
+    && isNonEmptyString(result.digest)
+    && DIGEST_PATTERN.test(result.digest);
+}
+
+export async function handleFoundationAdoptionToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies: FoundationAuthenticatedToolDependencies,
+): Promise<FoundationAuthenticatedToolResult | null> {
+  if (!isFoundationAdoptionToolName(name)) return null;
+  const scopeId = readScopeId(args);
+  if (!scopeId) return invalidInput('scope_id is required and must be a safe project identifier', dependencies);
+  const unexpected = rejectUnexpectedKeys(args, ['scope_id', 'type', 'id', 'revision', 'digest'], dependencies);
+  if (unexpected) return unexpected;
+  const type = readRequiredString(args, 'type');
+  const id = readRequiredString(args, 'id');
+  const revision = readRequiredString(args, 'revision');
+  const digest = readRequiredString(args, 'digest');
+  if (!type || !FOUNDATION_ADOPTION_TYPES.has(type)) return invalidInput('foundation type must be objective, variable, model or constraint', dependencies);
+  if (!id) return invalidInput('foundation id is required', dependencies);
+  if (!revision || !REVISION_PATTERN.test(revision)) return invalidInput('foundation revision is invalid', dependencies);
+  if (!digest || !DIGEST_PATTERN.test(digest)) return invalidInput('foundation digest is invalid', dependencies);
+
+  const authenticated = await dependencies.auth.authenticateProject({ project_code: scopeId }, { requireProject: true });
+  if ('status' in authenticated) return authenticated;
+  const context = selectedContext(authenticated, scopeId);
+  const csrf = await fetchFoundationCsrfToken(dependencies, context);
+  if (!csrf.ok) return csrf.result;
+  const fetched = await dependencies.auth.fetchAuthenticatedJson(context, {
+    path: FOUNDATION_ADOPTION_PATH,
+    method: 'POST',
+    body: { id, type, revision, digest },
+    headers: { 'x-brainbase-scope': scopeId, 'x-session-id': csrf.sessionId, 'x-csrf-token': csrf.token },
+  });
+  if (!fetched.ok) return fetched.result;
+  if (!fetched.response.ok) return errorFromResponse(fetched.response, fetched.payload, context.scope, dependencies);
+  const normalizedArgs = { id, type, revision };
+  if (!fetched.payloadParsed || !isValidAdoptionPayload(normalizedArgs, fetched.payload)) {
+    return dependencies.auth.toolError('error', 'foundation_api_response_invalid', 'Brainbase API returned an invalid adoption response', context.scope, fetched.response.status);
+  }
+  return { status: 'ok', scope: { project_codes: context.scope }, data: fetched.payload };
+}
