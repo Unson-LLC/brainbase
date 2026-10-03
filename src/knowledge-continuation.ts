@@ -465,11 +465,6 @@ export function prepareKnowledgeAction(
       return reject(state, 'required_fields_changed');
     }
   }
-  if (state.required_fields === null) {
-    state.required_fields = normalizedRequiredFields;
-    state.question = input.question.trim();
-  }
-
   if (action.kind === 'finish') {
     const finishValidation = validateKnowledgeLookupFinish(action);
     if (!finishValidation.valid) {
@@ -493,6 +488,13 @@ export function prepareKnowledgeAction(
       status: action.status
     };
     return { state, allowed: true, reason: null };
+  }
+
+  // A first plan cannot be a valid finish (nothing was read yet), so only a
+  // retrieval plan fixes the question and required_fields.
+  if (state.required_fields === null) {
+    state.required_fields = normalizedRequiredFields;
+    state.question = input.question.trim();
   }
 
   if (state.attempts.length >= state.limits.attempts) {

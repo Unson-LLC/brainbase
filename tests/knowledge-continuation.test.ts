@@ -105,6 +105,12 @@ describe('knowledge retrieval continuation',()=>{
   const corrected=input(rejected.state,{kind:'search',query:'Example'},{question:'Second wording'});
   expect(prepareKnowledgeAction(rejected.state,corrected,'corrected',1).state.question).toBe('Second wording');
   expect(prepareKnowledgeAction(s,input(s,{kind:'search',query:'Example'},{question:' '}),'blank',1).reason).toBe('question_invalid');
+  // A first finish is always rejected (nothing was read), so it fixes nothing.
+  const firstFinish=input(s,{kind:'finish',status:'unresolved',assessment:'insufficient',reference_ids:[],field_evidence:[],unresolved_items:['endpoint'],termination_reason:'nothing read yet'},{question:'Finish wording'});
+  const finishRejected=prepareKnowledgeAction(s,firstFinish,'first-finish',1);
+  expect(finishRejected.allowed).toBe(false);
+  expect(finishRejected.state).toMatchObject({question:s.question,required_fields:null});
+  expect(prepareKnowledgeAction(finishRejected.state,input(finishRejected.state,{kind:'search',query:'Example'},{question:'Search wording'}),'after-finish',1).state.question).toBe('Search wording');
  });
  it('identifies an attempt by the attempt_id the model gave it (reported read then finish)',()=>{
   let s=createKnowledgeLookup({lookupId:'lookup-1',question:'<system-reminder>worktree</system-reminder>\nExplain the concept document.',now:0});
@@ -116,7 +122,22 @@ describe('knowledge retrieval continuation',()=>{
   const finish={...base,lookup_id:s.lookup_id,revision:s.revision,attempt_id:'b2-finish',assessment:'sufficient',next_action:{kind:'finish',assessment:'sufficient',status:'satisfied',reference_ids:[doc.id],field_evidence:['title','content'].map((field)=>({field,reference_id:doc.id,attempt_id:'b1-read-concept'})),unresolved_items:[],termination_reason:'the concept document was read'}};
   s=attempt(s,finish,{status:'ok'},'toolu-finish');
   expect(s.status).toBe('satisfied');
-  expect(prepareKnowledgeAction(create(),input(create(),{kind:'search',query:'Example'},{attempt_id:' '}),'blank-attempt',1).reason).toBe('attempt_id_invalid');
+  for (const attempt_id of [' ',null,5,'x'.repeat(301)]) {
+   expect(prepareKnowledgeAction(create(),input(create(),{kind:'search',query:'Example'},{attempt_id}),'invalid-attempt',1).reason).toBe('attempt_id_invalid');
+  }
+ });
+ it('never accepts a search snippet or another read through a shared or renamed attempt_id',()=>{
+  let s=create(); const fields=['environments.production.endpoint'];
+  // A search and a read share the name 'x'; only the search saw the field.
+  s=attempt(s,input(s,{kind:'search',query:'Example'},{attempt_id:'x'}),result('incomplete',[ref]),'toolu-search');
+  s=attempt(s,input(s,{kind:'read',entity_id:'app_other',entity_type:'app'},{attempt_id:'x',assessment:'insufficient',why_different:'Read another registered app'}),result('retrieved',[{...ref,id:'app_other',evidence_fields:['name']}]),'toolu-read');
+  const finish=(attempt_id)=>input(s,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:fields[0],reference_id:ref.id,attempt_id}],unresolved_items:[],termination_reason:'endpoint cited'});
+  expect(prepareKnowledgeAction(s,finish('x'),'finish-x',3).reason).toBe('required_field_not_retrieved');
+  // A named read is cited by its name, not by the tool ID that reserved it.
+  let named=create();
+  named=attempt(named,input(named,{kind:'read',entity_id:'app_example',entity_type:'app'},{attempt_id:'r1'}),result('retrieved',[ref]),'toolu-r1');
+  const byToolId=input(named,{kind:'finish',status:'satisfied',assessment:'sufficient',reference_ids:[ref.id],field_evidence:[{field:fields[0],reference_id:ref.id,attempt_id:'toolu-r1'}],unresolved_items:[],termination_reason:'endpoint cited'});
+  expect(prepareKnowledgeAction(named,byToolId,'finish-tool-id',3).reason).toBe('required_field_not_retrieved');
  });
  it('rejects malformed action shapes without throwing',()=>{
   const malformedActions = [

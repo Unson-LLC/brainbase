@@ -17,9 +17,9 @@ SIMPLIFICATION。既存の固定と照合の規則を、利用側のHostが実�
 ## 受入条件
 
 - AC-01: 質問はrequired_fieldsと同じく、初回の有効な計画で固定する。Hostが最初に持つ依頼文と一字一句同じである必要はない。固定した後の変更は引き続き拒否する。
-- AC-02: 不正な初回の計画では、質問もrequired_fieldsも固定しない。空の質問は `question_invalid` として区別する。
-- AC-03: 試行は、その呼び出しのattempt_id（無ければtool ID）で識別する。finishのfield_evidenceは、その値で実際のreadと照合する。
-- AC-04: lookupのfinish応答は、取得を行わない提案のままにする。missing_fieldsには、根拠を挙げていない必須欄だけを示す。
+- AC-02: 不正な初回の計画では、質問もrequired_fieldsも固定しない。初回のfinishは何も読んでいないので必ず拒否し、固定もしない。空の質問は `question_invalid`、不正なattempt_idは `attempt_id_invalid` として区別する。
+- AC-03: 試行は、その呼び出しのattempt_id（無ければtool ID）で識別する。finishのfield_evidenceは、その値で実際のreadと照合する。名前が検索と重なっても、別の参照のreadでも、読んでいない欄の根拠にはならない。結果が届かないまま中断した試行だけは、入力が残らないのでtool IDで記録する。
+- AC-04: lookupのfinish応答は、取得を行わない未検証の提案のままにする。missing_fieldsには、reference_idsの中で根拠を挙げていない必須欄だけを示す。
 - AC-05: Hostの案内に、固定の規則と、根拠に挙げるattempt_idを書く。
 
 ## 調査
@@ -28,5 +28,5 @@ SIMPLIFICATION。既存の固定と照合の規則を、利用側のHostが実�
 
 ## 検証
 
-- 関連2ファイルの35テストと型検査が成功した。
+- 関連2ファイルの36テストと型検査が成功した。レビュー（1回）で、初回のfinishで固定してしまう点、試行名の衝突と不正なattempt_idのテスト不足、finish応答の数え方の食い違いを直した。
 - 本番への反映は、利用側Hostの依存更新と、Claude CodeでのPreToolUseの登録につながる。
