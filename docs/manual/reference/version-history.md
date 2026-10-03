@@ -6,6 +6,12 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.15.1 candidate — npm公開前
+
+- `knowledge-continuation` の `prepareKnowledgeAction` は、質問を `required_fields` と同じく初回の有効な取得計画で固定する。Hostが最初に持つ依頼文との一字一句の一致は求めない。初回のfinishは必ず拒否し、固定もしない。固定後の変更は引き続き `question_changed`、空の質問は `question_invalid`、不正な `attempt_id` は `attempt_id_invalid` で拒否する
+- `recordKnowledgeResult` は、試行をその呼び出しの `attempt_id`（無ければtool ID）で識別する。finishの `field_evidence` はこの値でreadの試行と照合する
+- `knowledge-lookup` のfinish応答の `missing_fields` を、`reference_ids` の中で根拠を挙げていない必須欄にした。状態のキーや結果の種類は増やしていないので、patchにした
+
 ## 0.15.0 candidate — npm公開前
 
 - 草案を採用するMCPのtool `foundation_adopt`（`foundationAdoptionTools`・`handleFoundationAdoptionToolCall`）を `@unson/brainbase-mcp/foundation-authenticated-tools` に追加。確かめた版とdigestで `POST /api/company-os/foundation-adoptions` を呼び、応答が次の版でなければ成功にしない。公開の関数が増えるのでminorにした
