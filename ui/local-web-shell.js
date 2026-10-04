@@ -208,11 +208,12 @@ const ORGANIZATION_READ_ONLY_NOTE = '組織のGraphを読み取り専用で表�
 // very record there, who may correct it, and what happens after saving.  The organization web opens
 // 情報と関係 by record id and プロジェクトと関係者 by project code, and keeps that record across sign-in.
 const ORGANIZATION_RECORD_ID = /^[A-Za-z0-9_.:-]{1,200}$/u;
-function organizationRecordLink(origin, screenId, record) {
+export function organizationRecordLink(origin, screenId, record) {
   const id = typeof record?.id === 'string' && ORGANIZATION_RECORD_ID.test(record.id) ? record.id : null;
-  const code = typeof record?.metadata?.project_code === 'string' && ORGANIZATION_RECORD_ID.test(record.metadata.project_code)
-    ? record.metadata.project_code
-    : null;
+  // The organization web picks a project by its own code.  Only that code is used: a sub-project's scope
+  // code is its parent's and would open the parent, so without its own code the record opens by id.
+  const own = typeof record?.metadata?.code === 'string' ? record.metadata.code.trim() : '';
+  const code = own && ORGANIZATION_RECORD_ID.test(own) ? own : null;
   if (screenId === 'projects' && record?.type === 'project' && code) {
     return { href: `${origin}/?screen=projects&project=${encodeURIComponent(code)}`, label: '「プロジェクトと関係者」' };
   }
@@ -226,7 +227,7 @@ const organizationReadOnlyNoteLinked = (doc, origin, screenId) => (record) => {
     makeElement(doc, 'span', { text: [
       '組織のGraphを読み取り専用で表示しています。ここでは直せません。訂正の手順：',
       `① 下のリンクから、組織版の${target.label}でこの記録を開きます。ログインしていなければSlackでログインすると、そのままこの記録に戻ります。`,
-      '② 直せるのは、組織版での役割がgmかceoの人です。直せるのはプロジェクトの記録（名前・別名・要約・期間・目的・状態）だけで、人物の記録と、関係者の追加・終了は組織版でもまだ直せません。',
+      '② 直せるのは、組織版での役割がgmかceoで、このプロジェクトとその上の事業の両方を許可されている人です。直せるのはプロジェクトの記録（名前・別名・要約・期間・目的・状態）だけで、人物の記録と、関係者の追加・終了は組織版でもまだ直せません。',
       '③ 保存すると、理由といっしょに組織のGraphへ書き込まれ、組織版がその場で読み戻して表示します。この画面には、1分ほどたってから再読み込みすると反映されます。',
       '',
     ].join('\n') }),
