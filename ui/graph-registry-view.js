@@ -173,7 +173,8 @@ function textCell(value, fallback) {
  *   offer この記録を直す, `fields` limits its form, `edges: false` withholds この関係を直す and
  *   `createEdges: false` withholds 関係を加える.  A withheld control is not drawn and the client refuses
  *   such a correction before sending it.  Without it every correction is allowed.
- * @param {string} [options.readOnlyNote] With `canCorrect: false`, or where `correctionScope` withholds a
+ * @param {string | ((record: { id: string, type: string | null, metadata: object } | null) => string | Element | null)} [options.readOnlyNote]
+ *   With `canCorrect: false`, or where `correctionScope` withholds a
  *   control of the selected record, a note shown in the rail where the correction buttons would be.
  *   Without it the rail says nothing about corrections.
  * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
@@ -601,6 +602,8 @@ export function createGraphRegistryView({
       children.push(graphStateNotice(doc, detail, { onRetry: () => controller.loadEntity(detail.id), loadingText: 'この記録を読み込んでいます。' }));
       return children;
     }
+    // The record a host's read-only note may point at.
+    const noteSubject = { id: entity.id, type: entity.type, metadata: loaded.entity?.metadata ?? {} };
     const summaryRows = [
       ['別名', entity.aliases.length > 0 ? entity.aliases.join('、') : { text: 'なし', className: 'is-unrecorded' }],
       ['要約', textOrNull(entity.summary)],
@@ -647,9 +650,9 @@ export function createGraphRegistryView({
       const inRelation = [...loaded.outgoing, ...loaded.incoming].some((edge) => edge.id === state.panelAt);
       if (!inRelation) children.push(correction.render(doc));
       // The host's reason for a control it withholds, where that control would be.
-      if (!canFix || (relatable && !scope.createEdges) || (related && !scope.edges)) children.push(hostReadOnlyNote(doc, readOnlyNote));
+      if (!canFix || (relatable && !scope.createEdges) || (related && !scope.edges)) children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
     } else {
-      children.push(hostReadOnlyNote(doc, readOnlyNote));
+      children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
     }
     children.push(renderRelations(loaded, 'outgoing'), renderRelations(loaded, 'incoming'));
     children.push(renderCorrectionHistory(doc, loaded.history));

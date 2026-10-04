@@ -188,7 +188,8 @@ function normalizeProjectSummary(value) {
  *   プロジェクトを直す, `fields` limits its form, `edges: false` withholds 役割を直す and 関わりを終える /
  *   終了日を直す, and `createEdges: false` withholds 関係者を加える.  A withheld control is not drawn and the
  *   client refuses such a correction before sending it.  Without it every correction is allowed.
- * @param {string} [options.readOnlyNote] With `canCorrect: false`, or where `correctionScope` withholds a
+ * @param {string | ((record: { id: string, type: string | null, metadata: object } | null) => string | Element | null)} [options.readOnlyNote]
+ *   With `canCorrect: false`, or where `correctionScope` withholds a
  *   control of the selected project, a note shown in the rail where the correction buttons would be.
  *   Without it the rail says nothing about corrections.
  * @param {{ label?: string, text: string | Element }} [options.emptyNotice] Replaces the 未登録 notice
@@ -714,6 +715,8 @@ export function createGraphProjectsView({
     const detail = state.detail;
     const loaded = detail?.id === state.selectedId && detail.state === 'ok' ? detail.payload : null;
     const project = loaded?.project ?? listItem(state.selectedId) ?? { id: state.selectedId, name: state.selectedId };
+    // The record a host's read-only note may point at.
+    const noteSubject = { id: project.id, type: 'project', metadata: loaded?.project?.metadata ?? {} };
     const children = [workspaceRailHead(doc, { kicker: 'プロジェクト', title: project.name, sub: project.id })];
     if (!loaded) {
       const readState = detail?.id === state.selectedId
@@ -776,9 +779,9 @@ export function createGraphProjectsView({
       if (!loaded.participants.some((edge) => edge.id === state.panelAt)) children.push(correction.render(doc));
       // The host's reason for a control it withholds, where that control would be.
       const withheld = !canAdd || projectFields.length === 0 || (!scope.edges && loaded.participants.length > 0);
-      if (withheld) children.push(hostReadOnlyNote(doc, readOnlyNote));
+      if (withheld) children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
     } else {
-      children.push(hostReadOnlyNote(doc, readOnlyNote));
+      children.push(hostReadOnlyNote(doc, readOnlyNote, noteSubject));
     }
     children.push(...railExtensions(state.selectedId, loaded));
     children.push(renderOtherRelations(loaded));

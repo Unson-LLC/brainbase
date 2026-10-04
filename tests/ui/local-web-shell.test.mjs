@@ -365,7 +365,7 @@ describe('local Web shell', () => {
     expect(collectText(screen(withoutLink.root, 'graph'))).toContain('このMacのGraphではありません。');
   });
 
-  it('tells the owner, before leaving, how to find the record in the organization web, who may correct it, and when it shows here', async () => {
+  it('links the open record itself to the organization web, and tells who may correct it and when it shows here', async () => {
     const { fetcher } = hostFetcher(V2, {
       '/api/local/status': () => jsonResponse(200, { ...statusPayload(V2), organization_graph: { status: 'connected', server: 'https://graph.example.com', mode: 'read_only', web_url: 'https://org.example.com' } }),
       '/api/graph/search?limit=50': () => jsonResponse(200, UX06_GRAPH_SEARCH),
@@ -374,11 +374,12 @@ describe('local Web shell', () => {
     });
     const { root } = mount(fetcher, '#graph?entity_id=project-atlas');
     await flushMany();
-    const rail = collectText(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0]);
-    expect(rail).toContain(UX06_GRAPH_ENTITY.id);
-    expect(rail).toContain('Slackでログイン');
-    expect(rail).toContain('「情報と関係」を開き直してください');
-    expect(rail).toContain('名前かIDで探します');
+    const railNode = findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0];
+    const rail = collectText(railNode);
+    const [recordLink] = findAll(railNode, (node) => node.tagName === 'A' && node.textContent === '組織版でこの記録を開く');
+    expect(recordLink.attributes).toMatchObject({ href: `https://org.example.com/?screen=graph&entity_id=${UX06_GRAPH_ENTITY.id}`, target: '_blank', rel: 'noopener noreferrer' });
+    expect(rail).toContain('組織版の「情報と関係」でこの記録を開きます');
+    expect(rail).toContain('Slackでログインすると、そのままこの記録に戻ります');
     expect(rail).toContain('gmかceo');
     expect(rail).toContain('人物の記録と、関係者の追加・終了は組織版でもまだ直せません');
     expect(rail).toContain('1分ほどたってから再読み込み');
