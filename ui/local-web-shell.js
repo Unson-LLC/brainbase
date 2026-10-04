@@ -204,17 +204,37 @@ function mountObjectives(container, context) {
 }
 
 const ORGANIZATION_READ_ONLY_NOTE = '組織のGraphを読み取り専用で表示しています。登録の訂正は組織版で行ってください。';
-// What the owner needs before leaving for the organization web (Inspector UX-20261004-01): how to find
-// the record there, who may correct it, and what happens after saving. The organization web does not yet
-// open one record by URL and drops the screen at sign-in, so the steps say so.
-const ORGANIZATION_SCREEN_LABELS = Object.freeze({ projects: 'プロジェクトと関係者', graph: '情報と関係' });
-const organizationReadOnlyNoteLinked = (screenId) => [
-  '組織のGraphを読み取り専用で表示しています。ここでは直せません。訂正の手順：',
-  `① 上の「出典」のリンクから組織版を開き、Slackでログインします。ログイン後は組織版の最初の画面に戻るので、「${ORGANIZATION_SCREEN_LABELS[screenId] ?? '情報と関係'}」を開き直してください。`,
-  '② この記録を、ここに出ている名前かIDで探します。',
-  '③ 直せるのは、組織版での役割がgmかceoの人です。直せるのはプロジェクトの記録（名前・別名・要約・期間・目的・状態）だけで、人物の記録と、関係者の追加・終了は組織版でもまだ直せません。',
-  '④ 保存すると、理由といっしょに組織のGraphへ書き込まれ、組織版がその場で読み戻して表示します。この画面には、1分ほどたってから再読み込みすると反映されます。',
-].join('\n');
+// What the owner needs before leaving for the organization web (Inspector UX-20261004-01): a link to this
+// very record there, who may correct it, and what happens after saving.  The organization web opens
+// 情報と関係 by record id and プロジェクトと関係者 by project code, and keeps that record across sign-in.
+const ORGANIZATION_RECORD_ID = /^[A-Za-z0-9_.:-]{1,200}$/u;
+export function organizationRecordLink(origin, screenId, record) {
+  const id = typeof record?.id === 'string' && ORGANIZATION_RECORD_ID.test(record.id) ? record.id : null;
+  // The organization web picks a project by its own code.  Only that code is used: a sub-project's scope
+  // code is its parent's and would open the parent, so without its own code the record opens by id.
+  const own = typeof record?.metadata?.code === 'string' ? record.metadata.code.trim() : '';
+  const code = own && ORGANIZATION_RECORD_ID.test(own) ? own : null;
+  if (screenId === 'projects' && record?.type === 'project' && code) {
+    return { href: `${origin}/?screen=projects&project=${encodeURIComponent(code)}`, label: '「プロジェクトと関係者」' };
+  }
+  return id ? { href: `${origin}/?screen=graph&entity_id=${encodeURIComponent(id)}`, label: '「情報と関係」' } : null;
+}
+const organizationReadOnlyNoteLinked = (doc, origin, screenId) => (record) => {
+  const target = organizationRecordLink(origin, screenId, record);
+  if (!target) return ORGANIZATION_READ_ONLY_NOTE;
+  const note = makeElement(doc, 'span');
+  note.append(
+    makeElement(doc, 'span', { text: [
+      '組織のGraphを読み取り専用で表示しています。ここでは直せません。訂正の手順：',
+      `① 下のリンクから、組織版の${target.label}でこの記録を開きます。ログインしていなければSlackでログインすると、そのままこの記録に戻ります。`,
+      '② 直せるのは、組織版での役割がgmかceoで、このプロジェクトが属する事業（事業そのものなら、その事業）を許可されている人です。直せるのはプロジェクトの記録（名前・別名・要約・期間・目的・状態）だけで、人物の記録と、関係者の追加・終了は組織版でもまだ直せません。',
+      '③ 保存すると、理由といっしょに組織のGraphへ書き込まれ、組織版がその場で読み戻して表示します。この画面には、1分ほどたってから再読み込みすると反映されます。',
+      '',
+    ].join('\n') }),
+    makeElement(doc, 'a', { text: '組織版でこの記録を開く', attrs: { href: target.href, target: '_blank', rel: 'noopener noreferrer' } }),
+  );
+  return note;
+};
 
 /** The organization's web for this screen, or null when the host was not told where it is. */
 function organizationWebLink(doc, organizationGraph, screenId) {
@@ -241,7 +261,7 @@ function mountGraphScreen(screenId, createView) {
     return createView({
       ...(readOnly ? {
         canCorrect: false,
-        readOnlyNote: link ? organizationReadOnlyNoteLinked(screenId) : ORGANIZATION_READ_ONLY_NOTE,
+        readOnlyNote: link ? organizationReadOnlyNoteLinked(context.document, context.organizationGraph.web_url, screenId) : ORGANIZATION_READ_ONLY_NOTE,
         sourceNotice: { label: '出典', text: source ?? sourceText },
       } : {}),
       root: viewRoot,

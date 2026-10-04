@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.15.2 candidate — npm公開前
+
+- Canonical Taskのpolicy指定storageScopeを、repositoryの全操作、主体と操作キーのclaim、競合の読み戻し、監査、準備済みdeleteの再実行に渡す。scopeを省略したlocal-first consumerの契約を保持する互換修正なのでpatchにした。組織の認証とSQL predicateはホストが担当する
+
 ## 0.15.1 candidate — npm公開前
 
 - `knowledge-continuation` の `prepareKnowledgeAction` は、質問を `required_fields` と同じく初回の有効な取得計画で固定する。Hostが最初に持つ依頼文との一字一句の一致は求めない。初回のfinishは必ず拒否し、固定もしない。固定後の変更は引き続き `question_changed`、空の質問は `question_invalid`、不正な `attempt_id` は `attempt_id_invalid` で拒否する

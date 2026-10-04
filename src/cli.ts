@@ -13,7 +13,7 @@ import {
 } from './personal-memory-handover.js';
 import { constants, realpathSync } from 'node:fs';
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { delimiter, dirname, isAbsolute, join } from 'node:path';
+import { delimiter, dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializePersonalOs, loadPersonalOs, migrateCanonicalGraph, mutatePersonalOs } from './ssot.js';
 import { diagnoseGraph, type GraphDiagnosis } from './graph-diagnosis.js';
@@ -62,7 +62,7 @@ import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js'
 import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, type JudgmentHookPayload } from './judgment-host.js';
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
-import { createWorldExtension } from './world-extension.js';
+import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
 import { createOrganizationGraphSource } from './organization-graph-web.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT, type LocalWebOrganizationGraph } from './local-web-host.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
@@ -1154,6 +1154,10 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   }
   // World view (ledger P17): the businesses as a city above the home. Off unless the flag is given.
   const world = parsed.flags.has('world');
+  // The owner's words for project kinds and statuses (labels, buildings, lifecycle phases).
+  const worldVocabularyPath = first(parsed, 'world-vocabulary');
+  if (worldVocabularyPath !== undefined && !world) throw new Error(`${command} --world-vocabulary requires --world`);
+  const worldVocabulary = worldVocabularyPath === undefined ? undefined : await readWorldVocabulary(resolve(worldVocabularyPath));
   // Ledger C1: the Graph screens read the owner's organization Graph read only.
   let organizationGraph: LocalWebOrganizationGraph | null = null;
   if (parsed.flags.has('organization-graph')) {
@@ -1175,7 +1179,7 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   const { server } = createLocalWebHost({
     dataDir,
     journalRoot,
-    extensions: world ? [createWorldExtension()] : [],
+    extensions: world ? [createWorldExtension(worldVocabulary ? { vocabulary: worldVocabulary } : {})] : [],
     ...(organizationGraph ? { organizationGraph } : {})
   });
   await new Promise<void>((resolveListen, rejectListen) => {
@@ -1364,7 +1368,7 @@ function usage(): string {
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
-  brainbase web:serve [--dir path] [--journal path] [--port n] [--world] [--organization-graph [--organization-web https-origin]]
+  brainbase web:serve [--dir path] [--journal path] [--port n] [--world [--world-vocabulary file]] [--organization-graph [--organization-web https-origin]]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
 `;
 }

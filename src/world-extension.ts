@@ -1,27 +1,70 @@
 import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JudgmentValueProofJournalCache, readJudgmentValueProofJournal } from './judgment-value-proof-review.js';
-import type { LocalWebExtension, LocalWebModule, LocalWebModuleContext } from './local-web-host.js';
+import { readLocalGraphState, type GraphVocabularyTerm, type LocalWebExtension, type LocalWebModule, type LocalWebModuleContext } from './local-web-host.js';
+import { loadPersonalOs } from './ssot.js';
+import type { CanonicalEntity, GraphFileV2 } from './types.js';
 import { requestUrl, writeJson } from './local-web-security.js';
 
 /**
  * World view (ledger P17, adopted 2026-10-04): the home's upper layer.
  *
- * The world is a read-only projection.  Businesses come from the owner's
- * organization Graph (read-only, ledger P3/C1); judgments come from the
- * existing value-proof home on the browser side.  Nothing here writes, and a
- * failure to read is reported as a state, never as zero businesses.
+ * The world is a read-only projection.  Businesses come from the same Graph
+ * the other screens read (the organization Graph under C1, else the local
+ * Graph); judgments come from the existing value-proof home on the browser
+ * side.  Nothing here writes, and a failure to read is reported as a state,
+ * never as zero businesses.
  */
 export const WORLD_EXTENSION_ID = 'world';
 export const WORLD_EXTENSION_VERSION = 'world-extension.v1' as const;
 
-const BUSINESS_KINDS = ['product', 'client', 'internal', 'research'] as const;
-type BusinessKind = (typeof BUSINESS_KINDS)[number];
-const FETCH_TIMEOUT_MS = 10_000;
-const MAX_RESPONSE_BYTES = 9_000_000;
+const LIFECYCLE_PHASES = ['active', 'maintenance', 'finished', 'concept'] as const;
+/** How a status looks in the world: lit, muted, an empty lot, or a scaffold. */
+export type WorldLifecyclePhase = (typeof LIFECYCLE_PHASES)[number];
+const BUILDING_FORMS = ['tower', 'hall', 'dome', 'office'] as const;
+export type WorldBuildingForm = (typeof BUILDING_FORMS)[number];
+
+/**
+ * The words of the owner's Graph, given by the host (`--world-vocabulary`):
+ * the project kinds in display order with their label and building, and the
+ * statuses with their label and lifecycle phase.  None of it is required: a
+ * kind the vocabulary does not name is drawn under its own value, and a status
+ * it does not name keeps its value and the active look.
+ */
+export interface WorldVocabularyConfig {
+  readonly kinds?: Readonly<Record<string, { readonly label?: string; readonly form?: WorldBuildingForm; readonly color?: string }>>;
+  readonly statuses?: Readonly<Record<string, { readonly label?: string; readonly phase?: WorldLifecyclePhase }>>;
+}
+
+export interface WorldVocabulary {
+  readonly kinds: readonly {
+    readonly key: string | null;
+    readonly label: string;
+    /** Where the label came from: the organization's term, the host's vocabulary file, or the value itself. */
+    readonly label_source: 'graph' | 'config' | 'value';
+    readonly definition: string | null;
+    readonly form: WorldBuildingForm;
+    readonly color: string;
+    readonly configured: boolean;
+  }[];
+  /** Whether the organization's terms were read: `unavailable` when they could not be, `none` without an organization Graph. */
+  readonly terms: 'read' | 'unavailable' | 'none';
+  readonly statuses: readonly { readonly key: string; readonly label: string; readonly phase: WorldLifecyclePhase }[];
+}
+
+/** Lifecycle words common to any Graph; a host vocabulary may relabel or add to them. */
+const DEFAULT_STATUSES: Readonly<Record<string, { label: string; phase: WorldLifecyclePhase }>> = Object.freeze({
+  active: { label: '進行中', phase: 'active' },
+  maintenance: { label: '保守', phase: 'maintenance' },
+  completed: { label: '完了', phase: 'finished' },
+  closed: { label: '終了', phase: 'finished' },
+  archived: { label: '保管', phase: 'finished' },
+  concept: { label: '構想', phase: 'concept' },
+});
+const KIND_PALETTE = ['#1261ad', '#b07a1f', '#35684c', '#6b4fa0', '#a8433a', '#2f7d86', '#7a6a2b', '#5b6470'];
+const UNCLASSIFIED_COLOR = '#69746d';
+const HEX_COLOR = /^#[0-9a-f]{6}$/iu;
 
 export interface WorldEngagement {
   readonly id: string;
@@ -32,26 +75,32 @@ export interface WorldEngagement {
 
 export interface WorldBusiness {
   readonly id: string;
+  /** The project's code in its Graph (`metadata.code`), else its id; judgments are placed by it. */
   readonly code: string;
   readonly name: string;
-  readonly kind: BusinessKind;
+  /** `metadata.kind`, or null when the Graph does not classify the project. */
+  readonly kind: string | null;
   readonly purpose: string | null;
   readonly status: string | null;
-  /** Repository names the Graph registers for this business (`repository_roots[].repository`). */
+  /** Repository names the Graph registers for this project (`metadata.repositories`). */
   readonly repositories: readonly string[];
   readonly engagements: readonly WorldEngagement[];
 }
 
 export interface WorldBusinessProjection {
   readonly businesses: readonly WorldBusiness[];
-  /** Active records that belong to no listed business (kept visible, never dropped silently). */
+  /** Projects that name a parent the Graph does not hold (kept visible as a count, never dropped silently). */
   readonly unplaced: readonly WorldEngagement[];
-  readonly excluded: { readonly inactive: number; readonly unnamed: number };
+  readonly excluded: { readonly inactive: number };
 }
 
+export type WorldSource =
+  | { readonly authority: 'organization_graph'; readonly server: string }
+  | { readonly authority: 'local'; readonly dataDir: string };
+
 export type WorldBusinessesResponse =
-  | ({ readonly status: 'ok'; readonly version: typeof WORLD_EXTENSION_VERSION; readonly source: { readonly server: string; readonly organization_id: string | null }; readonly as_of: string } & WorldBusinessProjection)
-  | { readonly status: 'not_connected' | 'auth_failed' | 'unavailable'; readonly version: typeof WORLD_EXTENSION_VERSION; readonly reason: string };
+  | ({ readonly status: 'ok'; readonly version: typeof WORLD_EXTENSION_VERSION; readonly source: WorldSource; readonly as_of: string; readonly vocabulary: WorldVocabulary } & WorldBusinessProjection)
+  | { readonly status: 'not_initialized' | 'migration_required' | 'unavailable'; readonly version: typeof WORLD_EXTENSION_VERSION; readonly reason: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -61,131 +110,182 @@ function text(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
-function engagementOf(record: Record<string, unknown>, payload: Record<string, unknown>): WorldEngagement {
+function engagementOf(entity: CanonicalEntity): WorldEngagement {
   return {
-    id: String(record.id),
-    name: text(payload.name) ?? String(record.id),
-    summary: text(payload.summary) ?? text(payload.description) ?? text(payload.purpose),
-    status: text(payload.operational_status) ?? text(payload.status),
+    id: entity.id,
+    name: entity.name,
+    summary: text(entity.summary) ?? text(entity.metadata?.goal),
+    status: text(entity.metadata?.status),
   };
 }
 
 /**
- * Organization Graph project records → businesses (cities) and their
- * engagements (districts).  A business is an active catalog project with a
- * known kind; an engagement is an active record without a kind that names a
- * business through `project_code`.  Retired and superseded records are counted,
- * not drawn.
+ * The projects of a Graph v2 → cities (top-level projects) and their districts
+ * (projects whose `metadata.parent_project_id` names another project).  A
+ * project whose declared parent (`metadata.parent_project_code`) is not in the
+ * Graph is counted as unplaced.  Projects past `validTo` are counted, not drawn.
+ * Nothing here knows any organization's words: kinds and statuses are the
+ * Graph's own values.
  */
-export function projectWorldBusinesses(records: readonly unknown[]): WorldBusinessProjection {
-  const businesses = new Map<string, { base: Omit<WorldBusiness, 'engagements'>; engagements: WorldEngagement[] }>();
-  const candidates: { record: Record<string, unknown>; payload: Record<string, unknown> }[] = [];
-  let inactive = 0;
-  let unnamed = 0;
-  for (const record of records) {
-    if (!isRecord(record) || !isRecord(record.payload) || typeof record.id !== 'string') continue;
-    const payload = record.payload;
-    if (record.lifecycle_status !== 'active') {
-      inactive += 1;
-      continue;
+export function projectWorldFromGraph(graph: Pick<GraphFileV2, 'entities'>, now: Date = new Date()): WorldBusinessProjection {
+  const projects = graph.entities.filter((entity) => entity.type === 'project');
+  const active = projects.filter((entity) => !entity.validTo || Date.parse(entity.validTo) > now.getTime());
+  const byId = new Map(active.map((entity) => [entity.id, entity]));
+  // A district hangs on its top-level ancestor, so nested projects stay in one city.
+  const topOf = (entity: CanonicalEntity): CanonicalEntity | null => {
+    let current = entity;
+    const seen = new Set<string>();
+    for (;;) {
+      const parentId = text(current.metadata?.parent_project_id);
+      if (!parentId || parentId === current.id) return current;
+      const parent = byId.get(parentId);
+      if (!parent || seen.has(parentId)) return parent ? current : null;
+      seen.add(parentId);
+      current = parent;
     }
-    if (!text(payload.name)) {
-      unnamed += 1;
-      continue;
-    }
-    const kind = payload.kind;
-    const code = text(payload.code) ?? text(record.project_code);
-    if (typeof kind === 'string' && (BUSINESS_KINDS as readonly string[]).includes(kind) && code && code === record.project_code) {
-      businesses.set(code, {
-        base: {
-          id: record.id,
-          code,
-          name: text(payload.name) ?? code,
-          kind: kind as BusinessKind,
-          purpose: text(payload.purpose) ?? text(payload.summary),
-          status: text(payload.operational_status) ?? text(payload.status),
-          repositories: Array.isArray(payload.repository_roots)
-            ? payload.repository_roots.filter(isRecord).map((root) => text(root.repository)).filter((name): name is string => name !== null)
-            : [],
-        },
-        engagements: [],
-      });
-      continue;
-    }
-    candidates.push({ record, payload });
-  }
+  };
+  const cities = new Map<string, { entity: CanonicalEntity; engagements: WorldEngagement[] }>();
   const unplaced: WorldEngagement[] = [];
-  for (const { record, payload } of candidates) {
-    const owner = typeof record.project_code === 'string' ? businesses.get(record.project_code) : undefined;
-    if (owner) owner.engagements.push(engagementOf(record, payload));
-    else unplaced.push(engagementOf(record, payload));
+  const children: CanonicalEntity[] = [];
+  for (const entity of active) {
+    const parentId = text(entity.metadata?.parent_project_id);
+    if (parentId && parentId !== entity.id) children.push(entity);
+    else if (text(entity.metadata?.parent_project_code)) unplaced.push(engagementOf(entity));
+    else cities.set(entity.id, { entity, engagements: [] });
   }
-  const order = (kind: BusinessKind) => BUSINESS_KINDS.indexOf(kind);
+  for (const entity of children) {
+    const top = topOf(entity);
+    const city = top ? cities.get(top.id) : undefined;
+    if (city && top!.id !== entity.id) city.engagements.push(engagementOf(entity));
+    else unplaced.push(engagementOf(entity));
+  }
+  const businesses = [...cities.values()].map(({ entity, engagements }): WorldBusiness => ({
+    id: entity.id,
+    code: text(entity.metadata?.code) ?? entity.id,
+    name: entity.name,
+    kind: text(entity.metadata?.kind),
+    purpose: text(entity.metadata?.goal) ?? text(entity.summary),
+    status: text(entity.metadata?.status),
+    repositories: Array.isArray(entity.metadata?.repositories)
+      ? (entity.metadata!.repositories as unknown[]).map(text).filter((name): name is string => name !== null)
+      : [],
+    engagements: engagements.sort((a, b) => a.name.localeCompare(b.name, 'ja')),
+  }));
   return {
-    businesses: [...businesses.values()]
-      .map(({ base, engagements }) => ({ ...base, engagements: engagements.sort((a, b) => a.name.localeCompare(b.name, 'ja')) }))
-      .sort((a, b) => order(a.kind) - order(b.kind) || a.name.localeCompare(b.name, 'ja')),
+    businesses: businesses.sort((a, b) => a.name.localeCompare(b.name, 'ja')),
     unplaced,
-    excluded: { inactive, unnamed },
+    excluded: { inactive: projects.length - active.length },
   };
 }
 
-interface OrganizationAccess {
-  readonly server: string;
-  readonly token: string;
-}
-
-/** Reads the owner's Brainbase server and token at request time (tokens rotate hourly). */
-async function readOrganizationAccess(home: string): Promise<OrganizationAccess | { readonly reason: string }> {
-  try {
-    const config = JSON.parse(await readFile(join(home, '.brainbase', 'config.json'), 'utf8')) as unknown;
-    const tokens = JSON.parse(await readFile(join(home, '.brainbase', 'tokens.json'), 'utf8')) as unknown;
-    const server = isRecord(config) ? text(config.server_url) : null;
-    const token = isRecord(tokens) ? text(tokens.access_token) : null;
-    if (!server || !/^https:\/\/[^/?#@]+$/u.test(server)) return { reason: 'server_url_missing_or_invalid' };
-    if (!token) return { reason: 'access_token_missing' };
-    return { server, token };
-  } catch {
-    return { reason: 'brainbase_auth_files_unreadable' };
-  }
-}
-
-export async function readWorldBusinesses(options: { home?: string; fetch?: typeof fetch; now?: () => Date } = {}): Promise<WorldBusinessesResponse> {
-  const access = await readOrganizationAccess(options.home ?? homedir());
-  if ('reason' in access) return { status: 'not_connected', version: WORLD_EXTENSION_VERSION, reason: access.reason };
-  const request = options.fetch ?? fetch;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const response = await request(`${access.server}/api/info/graph/entities?type=project&limit=500`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${access.token}`, Accept: 'application/json' },
-      redirect: 'error',
-      signal: controller.signal,
+/**
+ * The vocabulary the world draws with: the host's kinds in their order, then
+ * kinds the Graph uses that the host did not name (under their own value),
+ * then unclassified projects; statuses are the common lifecycle words with the
+ * host's on top.
+ */
+export function resolveWorldVocabulary(
+  config: WorldVocabularyConfig | undefined,
+  businesses: readonly WorldBusiness[],
+  terms: readonly GraphVocabularyTerm[] | null | undefined = undefined
+): WorldVocabulary {
+  // The organization names its kinds in the Graph; the host's file only adds a look (form, colour).
+  const graphTerms = new Map((terms ?? []).filter((term) => term.field === 'project.kind').map((term) => [term.value, term]));
+  const named = (key: string, configLabel: string | undefined) => {
+    const term = graphTerms.get(key);
+    if (term) return { label: term.label, label_source: 'graph' as const, definition: term.definition };
+    const label = text(configLabel);
+    return label ? { label, label_source: 'config' as const, definition: null } : { label: key, label_source: 'value' as const, definition: null };
+  };
+  const configured = Object.entries(config?.kinds ?? {});
+  const used = new Set(businesses.map((business) => business.kind));
+  const kinds: WorldVocabulary['kinds'][number][] = configured.map(([key, entry], index) => ({
+    key,
+    ...named(key, entry.label),
+    form: entry.form && (BUILDING_FORMS as readonly string[]).includes(entry.form) ? entry.form : 'office',
+    color: entry.color && HEX_COLOR.test(entry.color) ? entry.color : KIND_PALETTE[index % KIND_PALETTE.length]!,
+    configured: true,
+  }));
+  const configuredKeys = new Set(configured.map(([key]) => key));
+  [...used].filter((key): key is string => key !== null && !configuredKeys.has(key)).sort().forEach((key) => {
+    kinds.push({ key, ...named(key, undefined), form: 'office', color: KIND_PALETTE[kinds.length % KIND_PALETTE.length]!, configured: false });
+  });
+  if (used.has(null)) kinds.push({ key: null, label: '分類なし', label_source: 'value', definition: null, form: 'office', color: UNCLASSIFIED_COLOR, configured: false });
+  const statuses = new Map<string, { label: string; phase: WorldLifecyclePhase }>(Object.entries(DEFAULT_STATUSES));
+  for (const [key, entry] of Object.entries(config?.statuses ?? {})) {
+    const base = statuses.get(key);
+    statuses.set(key, {
+      label: text(entry.label) ?? base?.label ?? key,
+      phase: entry.phase && (LIFECYCLE_PHASES as readonly string[]).includes(entry.phase) ? entry.phase : base?.phase ?? 'active',
     });
-    if (response.status === 401 || response.status === 403) {
-      return { status: 'auth_failed', version: WORLD_EXTENSION_VERSION, reason: `http_${response.status}` };
-    }
-    if (!response.ok) return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: `http_${response.status}` };
-    const body = await response.text();
-    if (body.length > MAX_RESPONSE_BYTES) return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: 'response_too_large' };
-    const parsed = JSON.parse(body) as unknown;
-    const records = isRecord(parsed) && Array.isArray(parsed.records) ? parsed.records : null;
-    if (!records) return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: 'response_shape_invalid' };
-    const organizationIds = new Set(records.filter(isRecord).map((record) => record.organization_id).filter((id): id is string => typeof id === 'string'));
-    return {
-      status: 'ok',
-      version: WORLD_EXTENSION_VERSION,
-      source: { server: access.server, organization_id: organizationIds.size === 1 ? [...organizationIds][0]! : null },
-      as_of: (options.now ?? (() => new Date()))().toISOString(),
-      ...projectWorldBusinesses(records),
-    };
-  } catch (error) {
-    const reason = error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'request_failed';
-    return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason };
-  } finally {
-    clearTimeout(timer);
   }
+  return { kinds, statuses: [...statuses].map(([key, entry]) => ({ key, ...entry })), terms: terms === undefined ? 'none' : terms === null ? 'unavailable' : 'read' };
+}
+
+/** Reads and checks a vocabulary file; an invalid file is an error, never silently ignored. */
+export async function readWorldVocabulary(path: string): Promise<WorldVocabularyConfig> {
+  const parsed = JSON.parse(await readFile(path, 'utf8')) as unknown;
+  if (!isRecord(parsed)) throw new Error('world vocabulary must be a JSON object');
+  const kinds: Record<string, { label?: string; form?: WorldBuildingForm; color?: string }> = {};
+  for (const [key, entry] of Object.entries(isRecord(parsed.kinds) ? parsed.kinds : {})) {
+    if (!isRecord(entry)) throw new Error(`world vocabulary kind ${key} must be an object`);
+    if (entry.form !== undefined && !(BUILDING_FORMS as readonly unknown[]).includes(entry.form)) throw new Error(`world vocabulary kind ${key} has an unknown form`);
+    if (entry.color !== undefined && !(typeof entry.color === 'string' && HEX_COLOR.test(entry.color))) throw new Error(`world vocabulary kind ${key} has an invalid color`);
+    kinds[key] = { ...(text(entry.label) ? { label: text(entry.label)! } : {}), ...(entry.form ? { form: entry.form as WorldBuildingForm } : {}), ...(entry.color ? { color: entry.color as string } : {}) };
+  }
+  const statuses: Record<string, { label?: string; phase?: WorldLifecyclePhase }> = {};
+  for (const [key, entry] of Object.entries(isRecord(parsed.statuses) ? parsed.statuses : {})) {
+    if (!isRecord(entry)) throw new Error(`world vocabulary status ${key} must be an object`);
+    if (entry.phase !== undefined && !(LIFECYCLE_PHASES as readonly unknown[]).includes(entry.phase)) throw new Error(`world vocabulary status ${key} has an unknown phase`);
+    statuses[key] = { ...(text(entry.label) ? { label: text(entry.label)! } : {}), ...(entry.phase ? { phase: entry.phase as WorldLifecyclePhase } : {}) };
+  }
+  return { kinds, statuses };
+}
+
+/**
+ * The businesses from the same Graph the other screens read: the organization
+ * Graph when the host reads it (C1), else the local Graph.  A Graph that cannot
+ * be read is a state with its reason, never zero businesses.
+ */
+export async function readWorldBusinesses(
+  context: Pick<LocalWebModuleContext, 'dataDir' | 'organizationGraph'>,
+  options: { readonly vocabulary?: WorldVocabularyConfig; readonly now?: () => Date } = {}
+): Promise<WorldBusinessesResponse> {
+  const now = (options.now ?? (() => new Date()))();
+  let graph: Pick<GraphFileV2, 'entities'>;
+  let source: WorldSource;
+  let terms: readonly GraphVocabularyTerm[] | null | undefined;
+  try {
+    if (context.organizationGraph) {
+      if (!context.organizationGraph.readGraphFile) {
+        return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: 'organization_graph_records_unavailable' };
+      }
+      graph = await context.organizationGraph.readGraphFile();
+      source = { authority: 'organization_graph', server: context.organizationGraph.server };
+      terms = context.organizationGraph.readVocabularyTerms ? await context.organizationGraph.readVocabularyTerms().catch(() => null) : null;
+    } else {
+      const state = await readLocalGraphState(context.dataDir);
+      if (state.status === 'not_initialized' || state.status === 'migration_required') {
+        return { status: state.status, version: WORLD_EXTENSION_VERSION, reason: state.status };
+      }
+      if (state.status !== 'ready') return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: state.message ?? 'local_graph_unreadable' };
+      const os = await loadPersonalOs(context.dataDir);
+      if (os.graph.version !== 2) return { status: 'migration_required', version: WORLD_EXTENSION_VERSION, reason: 'migration_required' };
+      graph = os.graph;
+      source = { authority: 'local', dataDir: context.dataDir };
+    }
+  } catch (error) {
+    return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: error instanceof Error ? error.message : 'graph_unreadable' };
+  }
+  const projection = projectWorldFromGraph(graph, now);
+  return {
+    status: 'ok',
+    version: WORLD_EXTENSION_VERSION,
+    source,
+    as_of: now.toISOString(),
+    vocabulary: resolveWorldVocabulary(options.vocabulary, projection.businesses, terms),
+    ...projection,
+  };
 }
 
 export interface WorldJudgmentPlace {
@@ -253,7 +353,7 @@ function createWorldModule(context: LocalWebModuleContext, read: () => Promise<W
   };
 }
 
-export function createWorldExtension(options: { home?: string; fetch?: typeof fetch } = {}): LocalWebExtension {
+export function createWorldExtension(options: { readonly vocabulary?: WorldVocabularyConfig } = {}): LocalWebExtension {
   return {
     id: WORLD_EXTENSION_ID,
     uiDir: fileURLToPath(new URL('../ui/world/', import.meta.url)),
@@ -261,6 +361,6 @@ export function createWorldExtension(options: { home?: string; fetch?: typeof fe
     screenEntry: 'world-view.js',
     // P17: the world sits above the home and opens first.
     navPosition: 'first',
-    createModule: (context) => createWorldModule(context, () => readWorldBusinesses(options)),
+    createModule: (context) => createWorldModule(context, () => readWorldBusinesses(context, { vocabulary: options.vocabulary, now: context.now })),
   };
 }

@@ -2,8 +2,10 @@
  * World view (ledger P17, adopted 2026-10-04): the home's upper layer.
  *
  * A read-only 3D projection of two existing sources:
- *   - businesses and their engagements from the owner's organization Graph
- *     (GET /api/extensions/world/businesses), drawn as cities and districts;
+ *   - projects from the same Graph the other screens read (the organization
+ *     Graph under C1, else this Mac's Graph; GET /api/extensions/world/businesses),
+ *     top-level projects as cities and their sub-projects as districts, in the
+ *     Graph's own kinds and statuses as the host's vocabulary names them;
  *   - the delegation map of the value-proof home (GET /api/value-proofs/home),
  *     drawn as buildings in the plaza, one per judgment kind.
  * Judgments do not record a project yet (W4), so every judgment building stands
@@ -26,8 +28,6 @@ import {
 
 export const WORLD_VIEW_CONTRACT_VERSION = 'brainbase.world-view.v0';
 
-const KIND_LABELS = Object.freeze({ product: 'プロダクト', client: '顧客案件', internal: '社内', research: '研究' });
-const KIND_COLORS = Object.freeze({ product: 0x1261ad, client: 0xb07a1f, internal: 0x35684c, research: 0x6b4fa0 });
 const STATE_LABELS = Object.freeze({ delegated: '任せている', verifying: '確かめ中', returned: '戻している' });
 const STATE_COLORS = Object.freeze({ delegated: 0x087d62, verifying: 0xc99a3a, returned: 0xd92335 });
 const REASON_LABELS = Object.freeze({
@@ -39,16 +39,27 @@ const REASON_LABELS = Object.freeze({
   evidenced_terminal_blocker: '進められない障害',
 });
 const BUSINESS_STATE_TEXT = Object.freeze({
-  not_connected: '組織のGraphに接続していません',
-  auth_failed: '組織のGraphの認証が切れています',
-  unavailable: '組織のGraphを読めません',
+  not_initialized: 'Graphがまだありません',
+  migration_required: 'Graphの形式を移す必要があります',
+  unavailable: 'Graphを読めません',
 });
 
-const STATUS_TEXT = Object.freeze({ active: '進行中', maintenance: '保守', completed: '完了', closed: '終了', not_converted: '案件化せず', concept: '構想' });
-const FINISHED_STATUSES = new Set(['completed', 'closed', 'not_converted']);
+/*
+ * The words the world draws with come from the host (`vocabulary` in the
+ * businesses answer): the Graph's own kinds and statuses, labelled by the
+ * owner's vocabulary when one is given.  Nothing here names an organization's
+ * kinds.  Until the answer arrives, everything is unclassified and active.
+ */
+let worldVocabulary = { kinds: [], statuses: [] };
+const kindEntry = (key) => worldVocabulary.kinds.find((entry) => entry.key === (key ?? null))
+  ?? { key: key ?? null, label: key ?? '分類なし', definition: null, form: 'office', color: '#69746d' };
+const kindColor = (key) => Number.parseInt(kindEntry(key).color.slice(1), 16);
+const statusEntry = (status) => worldVocabulary.statuses.find((entry) => entry.key === status) ?? null;
+const statusPhase = (status) => statusEntry(status)?.phase ?? 'active';
+const isFinished = (status) => statusPhase(status) === 'finished';
 const SECTION_TEXT = Object.freeze({ needs_human: 'あなたに戻した', blocked: '止まった', continued: '聞かずに進めた', other: 'その他' });
 const BASIS_TEXT = Object.freeze({ repository: '作業したリポジトリがこの事業に登録されている', code: '作業したリポジトリ名がこの事業のコードと同じ' });
-const statusText = (status) => (status ? STATUS_TEXT[status] ?? status : '未記録');
+const statusText = (status) => (status ? statusEntry(status)?.label ?? status : '未記録');
 
 const PLAZA_RADIUS = 7;
 const CITY_RING = 30;
@@ -103,13 +114,17 @@ function proofIndex(home) {
  * Returns the cities, the centre angle of each kind and the world's extent.
  */
 export function layoutWorld(businesses) {
-  const kinds = Object.keys(KIND_LABELS);
-  const ordered = [...businesses].sort((a, b) => kinds.indexOf(a.kind) - kinds.indexOf(b.kind));
+  const kinds = worldVocabulary.kinds.map((entry) => entry.key);
+  const order = (kind) => {
+    const index = kinds.indexOf(kind ?? null);
+    return index === -1 ? kinds.length : index;
+  };
+  const ordered = [...businesses].sort((a, b) => order(a.kind) - order(b.kind));
   const kindCount = new Set(ordered.map((business) => business.kind)).size;
   const gap = 0.35;
   const slot = (Math.PI * 2 - gap * kindCount) / Math.max(ordered.length, 1);
   const cities = [];
-  const kindAngles = {};
+  const kindAngles = new Map();
   let angle = -Math.PI / 2 - slot / 2;
   let previousKind = null;
   let extent = PLAZA_RADIUS;
@@ -124,10 +139,11 @@ export function layoutWorld(businesses) {
     const ring = CITY_RING + (index % 2) * 16 + size * 0.35;
     const city = { business, kind: business.kind, size, angle, x: Math.cos(angle) * ring, z: Math.sin(angle) * ring };
     cities.push(city);
-    (kindAngles[business.kind] ??= []).push(angle);
+    if (!kindAngles.has(business.kind ?? null)) kindAngles.set(business.kind ?? null, []);
+    kindAngles.get(business.kind ?? null).push(angle);
     extent = Math.max(extent, ring + size * 0.75);
   });
-  const sectors = Object.entries(kindAngles).map(([kind, angles]) => ({ kind, angle: angles.reduce((sum, value) => sum + value, 0) / angles.length }));
+  const sectors = [...kindAngles].map(([kind, angles]) => ({ kind, angle: angles.reduce((sum, value) => sum + value, 0) / angles.length }));
   return { cities, sectors, extent };
 }
 
@@ -397,22 +413,23 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   }
 
   // --- cities ----------------------------------------------------------------
-  function landmark(kind, color, height, status) {
+  function landmark(form, color, height, status) {
     const group = new THREE.Group();
-    const concept = status === 'concept';
-    const tone = status === 'maintenance' ? muted(color, 0.55) : new THREE.Color(color);
+    const phase = statusPhase(status);
+    const concept = phase === 'concept';
+    const tone = phase === 'maintenance' ? muted(color, 0.55) : new THREE.Color(color);
     const options = concept ? { transparent: true, opacity: 0.38 } : {};
-    if (kind === 'product') {
+    if (form === 'tower') {
       const base = texturedBlock(3, height, 3, tone, !concept, { roughness: 0.4, ...options });
       const mid = texturedBlock(2.2, height * 0.45, 2.2, tone, !concept, { roughness: 0.4, ...options });
       mid.position.y += height;
       group.add(base, mid, mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6), standard(0x46524a), { y: height * 1.45 + 0.8 }));
-    } else if (kind === 'client') {
+    } else if (form === 'hall') {
       const hall = texturedBlock(4.4, height * 0.55, 3, tone, !concept, options);
       const roof = mesh(gableRoof(4.4, 3, 1.4), standard(muted(color, 0.15).multiplyScalar(0.85), options), { y: height * 0.55 });
       roof.rotation.y = Math.PI / 2;
       group.add(hall, roof);
-    } else if (kind === 'research') {
+    } else if (form === 'dome') {
       group.add(mesh(new THREE.CylinderGeometry(1.9, 2.1, height * 0.5, 24), standard(tone, options), { y: height * 0.25 }));
       group.add(mesh(new THREE.SphereGeometry(1.9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), standard(0xf3f6f8, { roughness: 0.3, ...options }), { y: height * 0.5 }));
     } else {
@@ -431,16 +448,17 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   function house(engagement, color) {
     const group = new THREE.Group();
     const status = engagement.status;
-    if (FINISHED_STATUSES.has(status)) {
+    const phase = statusPhase(status);
+    if (phase === 'finished') {
       // A finished engagement leaves its lot: a low slab, no roof.
       group.add(mesh(new THREE.BoxGeometry(1.8, 0.18, 1.8), standard(0xc9cfc8), { y: 0.09 }));
       group.userData.finished = true;
       return group;
     }
     const h = 0.9 + hashUnit(engagement.id) * 1.1;
-    const tone = status === 'maintenance' ? muted(color, 0.6) : new THREE.Color(0xf2efe8);
-    group.add(texturedBlock(1.6, h, 1.4, tone, status === 'active'));
-    const roof = mesh(gableRoof(1.6, 1.4, 0.8), standard(status === 'maintenance' ? muted(color, 0.6) : color), { y: h });
+    const tone = phase === 'maintenance' ? muted(color, 0.6) : new THREE.Color(0xf2efe8);
+    group.add(texturedBlock(1.6, h, 1.4, tone, phase === 'active'));
+    const roof = mesh(gableRoof(1.6, 1.4, 0.8), standard(phase === 'maintenance' ? muted(color, 0.6) : color), { y: h });
     roof.rotation.y = hashUnit(`${engagement.id}r`) > 0.5 ? Math.PI / 2 : 0;
     group.add(roof);
     return group;
@@ -469,7 +487,8 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     }
     for (const city of cities) {
       const { business, size, x, z, kind } = city;
-      const color = KIND_COLORS[kind] ?? 0x69746d;
+      const entry = kindEntry(kind);
+      const color = kindColor(kind);
       const start = new THREE.Vector3(x, 0, z).setLength(PLAZA_RADIUS + 4);
       road(start, new THREE.Vector3(x, 0, z));
       const group = new THREE.Group();
@@ -477,11 +496,12 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       const plateColor = new THREE.Color(0xf7f8f4).lerp(new THREE.Color(color), 0.1);
       group.add(mesh(roundedPlate(size, size, 0.45, 1.6), standard(plateColor, { roughness: 0.95 })));
       const towerHeight = 3.2 + Math.min(business.engagements.length, 8) * 0.55;
-      group.add(landmark(kind, color, towerHeight, business.status));
+      group.add(landmark(entry.form, color, towerHeight, business.status));
       scene.add(group);
       register(group, { kind: 'city', business });
-      const top = kind === 'product' ? towerHeight * 1.45 + 1.8 : towerHeight + 1;
-      const cityLabel = addLabel(business.status === 'concept' ? `${business.name}（構想）` : business.name, new THREE.Vector3(x, top, z), `is-city is-${kind}`, { priority: LABEL_PRIORITY.city, owner: group });
+      const top = entry.form === 'tower' ? towerHeight * 1.45 + 1.8 : towerHeight + 1;
+      const cityLabel = addLabel(statusPhase(business.status) === 'concept' ? `${business.name}（${statusText(business.status)}）` : business.name, new THREE.Vector3(x, top, z), 'is-city', { priority: LABEL_PRIORITY.city, owner: group });
+      cityLabel.node.style.borderColor = `${entry.color}80`;
       cityLabel.business = business;
       const n = business.engagements.length;
       const cols = Math.max(2, Math.ceil(Math.sqrt(n + 1)));
@@ -528,7 +548,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       }
     }
     for (const { kind, angle } of sectors) {
-      addLabel(KIND_LABELS[kind] ?? kind, new THREE.Vector3(Math.cos(angle) * 21, 0.2, Math.sin(angle) * 21), `is-sector is-${kind}`, { priority: LABEL_PRIORITY.sector });
+      addLabel(kindEntry(kind).label, new THREE.Vector3(Math.cos(angle) * 21, 0.2, Math.sin(angle) * 21), 'is-sector', { priority: LABEL_PRIORITY.sector });
     }
   }
 
@@ -756,7 +776,7 @@ function renderFallbackList(doc, root, businesses, rows) {
   list.append(el(doc, 'h2', { text: '事業' }));
   const ul = el(doc, 'ul');
   for (const business of businesses) {
-    ul.append(el(doc, 'li', { text: `${business.name}（${KIND_LABELS[business.kind] ?? business.kind}・案件${business.engagements.length}件）` }));
+    ul.append(el(doc, 'li', { text: `${business.name}（${kindEntry(business.kind).label}・案件${business.engagements.length}件）` }));
   }
   list.append(ul, el(doc, 'h2', { text: '判断の種類' }));
   const ol = el(doc, 'ul');
@@ -850,7 +870,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       const business = data.business;
       scene?.flyTo(new THREE.Vector3(position.x, 0, position.z), data.kind === "engagement" ? 3.6 : 2.8);
       const blocks = [workspaceRailHead(doc, {
-        kicker: data.kind === 'engagement' ? `${business.name} の案件` : `事業・${KIND_LABELS[business.kind] ?? business.kind}`,
+        kicker: data.kind === 'engagement' ? `${business.name} の案件` : `事業・${kindEntry(business.kind).label}`,
         title: data.kind === 'engagement' ? data.engagement.name : business.name,
         lead: data.kind === 'engagement' ? data.engagement.summary ?? undefined : business.purpose ?? undefined,
       })];
@@ -858,8 +878,10 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }));
         blocks.push(workspaceRailBlock(doc, { title: '詳しく見る', content: projectLink(data.engagement.id, '「プロジェクトと関係者」でこの案件を開く') }));
       } else {
-        const open = business.engagements.filter((engagement) => !FINISHED_STATUSES.has(engagement.status)).length;
-        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(business.status)], ['コード', business.code], ['案件', `${business.engagements.length}件（動いている${open}件）`]]) }));
+        const open = business.engagements.filter((engagement) => !isFinished(engagement.status)).length;
+        const kind = kindEntry(business.kind);
+        const kindText = kind.definition ? `${kind.label}（${kind.definition}）` : kind.label;
+        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['分類', kindText], ['状態', statusText(business.status)], ['コード', business.code], ['案件', `${business.engagements.length}件（動いている${open}件）`]]) }));
         const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
         for (const engagement of business.engagements) {
           const li = el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` });
@@ -945,14 +967,19 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     };
     const businessPayload = businessesResult.ok ? businessesResult.data : null;
     const businesses = businessPayload?.status === 'ok' ? businessPayload.businesses : [];
+    if (businessPayload?.status === 'ok' && businessPayload.vocabulary) worldVocabulary = businessPayload.vocabulary;
     if (!businessesResult.ok || businessPayload?.status !== 'ok') {
       const reason = businessesResult.ok ? `${BUSINESS_STATE_TEXT[businessPayload?.status] ?? '状態不明'}（${businessPayload?.reason ?? '理由不明'}）` : `取得に失敗しました（${businessesResult.error}）`;
       note('事業', `${reason}。事業は0件ではありません。`, 'warning');
     } else {
       const extra = [];
-      if (businessPayload.unplaced.length) extra.push(`どの事業にも属さない案件${businessPayload.unplaced.length}件は描いていません`);
+      if (businessPayload.unplaced.length) extra.push(`親の事業がGraphに無い案件${businessPayload.unplaced.length}件は描いていません`);
       if (businessPayload.excluded.inactive) extra.push(`終了・統合済み${businessPayload.excluded.inactive}件は除外`);
-      note('事業', `組織のGraph（${businessPayload.source.server}）の事業${businesses.length}件・案件${businesses.reduce((sum, business) => sum + business.engagements.length, 0)}件。${extra.join('。')}${extra.length ? '。' : ''}`);
+      const sourceText = businessPayload.source.authority === 'organization_graph' ? `組織のGraph（${businessPayload.source.server}）` : 'このMacのGraph';
+      const unclassified = businesses.filter((business) => !business.kind).length;
+      if (unclassified) extra.push(`分類の無い事業${unclassified}件は「分類なし」として描いています`);
+      if (businessPayload.vocabulary?.terms === 'unavailable') extra.push('組織の用語を読めないため、分類の名前は語彙ファイルか値のままです');
+      note('事業', `${sourceText}の事業${businesses.length}件・案件${businesses.reduce((sum, business) => sum + business.engagements.length, 0)}件。${extra.join('。')}${extra.length ? '。' : ''}`);
     }
     const home = homeResult.ok ? homeResult.data : null;
     const readable = home?.status === 'available' && Array.isArray(home.delegation_map?.rows);

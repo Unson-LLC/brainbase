@@ -132,10 +132,6 @@
   font-size: 13px;
 }
 
-.bb-world-label.is-city.is-product { border-color: #9bbbe0; }
-.bb-world-label.is-city.is-client { border-color: #e2c48c; }
-.bb-world-label.is-city.is-internal { border-color: #a9c8b5; }
-.bb-world-label.is-city.is-research { border-color: #c2b3df; }
 
 .bb-world-label.is-sector {
   background: transparent;
