@@ -158,6 +158,20 @@ export interface LocalWebOrganizationGraph {
   read(): Promise<InMemoryGraphReader<GraphWebAnySource>>;
   /** The same Graph as plain records (the world reads project metadata from it). */
   readGraphFile?(): Promise<GraphFileV2>;
+  /**
+   * The organization's words for field values (glossary terms with `payload.vocabulary`), or null when
+   * they could not be read.  The rest of the Graph is read even when these are not.
+   */
+  readVocabularyTerms?(): Promise<readonly GraphVocabularyTerm[] | null>;
+}
+
+/** One organization term that names a field value, e.g. project.kind = product → プロダクト. */
+export interface GraphVocabularyTerm {
+  readonly id: string;
+  readonly field: string;
+  readonly value: string;
+  readonly label: string;
+  readonly definition: string | null;
 }
 
 export interface LocalWebHost {

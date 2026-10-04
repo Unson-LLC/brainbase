@@ -81,6 +81,43 @@ describe('world: businesses from any Graph', () => {
     expect(statuses.completed).toEqual(['完了', 'finished']);
   });
 
+  it('names a kind by the organization\'s term first, then the vocabulary file, then its value, and says where the name came from', () => {
+    const businesses = projectWorldFromGraph({ entities: [
+      project('a', 'A', { kind: 'product' }),
+      project('b', 'B', { kind: 'client' }),
+      project('c', 'C', { kind: 'lab' }),
+    ] }).businesses;
+    const terms = [
+      { id: 'gls_p', field: 'project.kind', value: 'product', label: 'プロダクト', definition: '自社の提供物' },
+      { id: 'gls_s', field: 'project.status', value: 'product', label: '別の欄', definition: null },
+    ];
+    const vocabulary = resolveWorldVocabulary({ kinds: { product: { label: '製品', form: 'tower' }, client: { label: '顧客案件', form: 'hall' } } }, businesses, terms);
+    expect(vocabulary.kinds.map((kind) => [kind.key, kind.label, kind.label_source, kind.definition, kind.form])).toEqual([
+      ['product', 'プロダクト', 'graph', '自社の提供物', 'tower'],
+      ['client', '顧客案件', 'config', null, 'hall'],
+      ['lab', 'lab', 'value', null, 'office'],
+    ]);
+    expect(vocabulary.terms).toBe('read');
+    expect(resolveWorldVocabulary(undefined, businesses, null).terms).toBe('unavailable');
+    expect(resolveWorldVocabulary(undefined, businesses).terms).toBe('none');
+  });
+
+  it('keeps drawing when the organization\'s terms cannot be read', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'bb-world-'));
+    const result = await readWorldBusinesses({
+      dataDir,
+      organizationGraph: {
+        server: 'https://graph.example',
+        read: async () => { throw new Error('not used'); },
+        readGraphFile: async () => ({ entities: [project('prj_a', 'A', { kind: 'product' })] }) as never,
+        readVocabularyTerms: async () => { throw new Error('glossary down'); },
+      },
+    });
+    expect(result.status).toBe('ok');
+    expect(result.status === 'ok' && result.vocabulary.terms).toBe('unavailable');
+    expect(result.status === 'ok' && result.vocabulary.kinds.map((kind) => kind.label)).toEqual(['product']);
+  });
+
   it('draws with the Graph\'s own words when no vocabulary is given', () => {
     const businesses = projectWorldFromGraph({ entities: [project('a', 'A', { kind: 'product' })] }).businesses;
     expect(resolveWorldVocabulary(undefined, businesses).kinds.map((kind) => [kind.key, kind.label])).toEqual([['product', 'product']]);

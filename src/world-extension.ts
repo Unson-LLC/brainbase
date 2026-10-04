@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { JudgmentValueProofJournalCache, readJudgmentValueProofJournal } from './judgment-value-proof-review.js';
-import { readLocalGraphState, type LocalWebExtension, type LocalWebModule, type LocalWebModuleContext } from './local-web-host.js';
+import { readLocalGraphState, type GraphVocabularyTerm, type LocalWebExtension, type LocalWebModule, type LocalWebModuleContext } from './local-web-host.js';
 import { loadPersonalOs } from './ssot.js';
 import type { CanonicalEntity, GraphFileV2 } from './types.js';
 import { requestUrl, writeJson } from './local-web-security.js';
@@ -38,7 +38,18 @@ export interface WorldVocabularyConfig {
 }
 
 export interface WorldVocabulary {
-  readonly kinds: readonly { readonly key: string | null; readonly label: string; readonly form: WorldBuildingForm; readonly color: string; readonly configured: boolean }[];
+  readonly kinds: readonly {
+    readonly key: string | null;
+    readonly label: string;
+    /** Where the label came from: the organization's term, the host's vocabulary file, or the value itself. */
+    readonly label_source: 'graph' | 'config' | 'value';
+    readonly definition: string | null;
+    readonly form: WorldBuildingForm;
+    readonly color: string;
+    readonly configured: boolean;
+  }[];
+  /** Whether the organization's terms were read: `unavailable` when they could not be, `none` without an organization Graph. */
+  readonly terms: 'read' | 'unavailable' | 'none';
   readonly statuses: readonly { readonly key: string; readonly label: string; readonly phase: WorldLifecyclePhase }[];
 }
 
@@ -173,21 +184,33 @@ export function projectWorldFromGraph(graph: Pick<GraphFileV2, 'entities'>, now:
  * then unclassified projects; statuses are the common lifecycle words with the
  * host's on top.
  */
-export function resolveWorldVocabulary(config: WorldVocabularyConfig | undefined, businesses: readonly WorldBusiness[]): WorldVocabulary {
+export function resolveWorldVocabulary(
+  config: WorldVocabularyConfig | undefined,
+  businesses: readonly WorldBusiness[],
+  terms: readonly GraphVocabularyTerm[] | null | undefined = undefined
+): WorldVocabulary {
+  // The organization names its kinds in the Graph; the host's file only adds a look (form, colour).
+  const graphTerms = new Map((terms ?? []).filter((term) => term.field === 'project.kind').map((term) => [term.value, term]));
+  const named = (key: string, configLabel: string | undefined) => {
+    const term = graphTerms.get(key);
+    if (term) return { label: term.label, label_source: 'graph' as const, definition: term.definition };
+    const label = text(configLabel);
+    return label ? { label, label_source: 'config' as const, definition: null } : { label: key, label_source: 'value' as const, definition: null };
+  };
   const configured = Object.entries(config?.kinds ?? {});
   const used = new Set(businesses.map((business) => business.kind));
   const kinds: WorldVocabulary['kinds'][number][] = configured.map(([key, entry], index) => ({
     key,
-    label: text(entry.label) ?? key,
+    ...named(key, entry.label),
     form: entry.form && (BUILDING_FORMS as readonly string[]).includes(entry.form) ? entry.form : 'office',
     color: entry.color && HEX_COLOR.test(entry.color) ? entry.color : KIND_PALETTE[index % KIND_PALETTE.length]!,
     configured: true,
   }));
-  const named = new Set(configured.map(([key]) => key));
-  [...used].filter((key): key is string => key !== null && !named.has(key)).sort().forEach((key) => {
-    kinds.push({ key, label: key, form: 'office', color: KIND_PALETTE[kinds.length % KIND_PALETTE.length]!, configured: false });
+  const configuredKeys = new Set(configured.map(([key]) => key));
+  [...used].filter((key): key is string => key !== null && !configuredKeys.has(key)).sort().forEach((key) => {
+    kinds.push({ key, ...named(key, undefined), form: 'office', color: KIND_PALETTE[kinds.length % KIND_PALETTE.length]!, configured: false });
   });
-  if (used.has(null)) kinds.push({ key: null, label: '分類なし', form: 'office', color: UNCLASSIFIED_COLOR, configured: false });
+  if (used.has(null)) kinds.push({ key: null, label: '分類なし', label_source: 'value', definition: null, form: 'office', color: UNCLASSIFIED_COLOR, configured: false });
   const statuses = new Map<string, { label: string; phase: WorldLifecyclePhase }>(Object.entries(DEFAULT_STATUSES));
   for (const [key, entry] of Object.entries(config?.statuses ?? {})) {
     const base = statuses.get(key);
@@ -196,7 +219,7 @@ export function resolveWorldVocabulary(config: WorldVocabularyConfig | undefined
       phase: entry.phase && (LIFECYCLE_PHASES as readonly string[]).includes(entry.phase) ? entry.phase : base?.phase ?? 'active',
     });
   }
-  return { kinds, statuses: [...statuses].map(([key, entry]) => ({ key, ...entry })) };
+  return { kinds, statuses: [...statuses].map(([key, entry]) => ({ key, ...entry })), terms: terms === undefined ? 'none' : terms === null ? 'unavailable' : 'read' };
 }
 
 /** Reads and checks a vocabulary file; an invalid file is an error, never silently ignored. */
@@ -231,6 +254,7 @@ export async function readWorldBusinesses(
   const now = (options.now ?? (() => new Date()))();
   let graph: Pick<GraphFileV2, 'entities'>;
   let source: WorldSource;
+  let terms: readonly GraphVocabularyTerm[] | null | undefined;
   try {
     if (context.organizationGraph) {
       if (!context.organizationGraph.readGraphFile) {
@@ -238,6 +262,7 @@ export async function readWorldBusinesses(
       }
       graph = await context.organizationGraph.readGraphFile();
       source = { authority: 'organization_graph', server: context.organizationGraph.server };
+      terms = context.organizationGraph.readVocabularyTerms ? await context.organizationGraph.readVocabularyTerms().catch(() => null) : null;
     } else {
       const state = await readLocalGraphState(context.dataDir);
       if (state.status === 'not_initialized' || state.status === 'migration_required') {
@@ -258,7 +283,7 @@ export async function readWorldBusinesses(
     version: WORLD_EXTENSION_VERSION,
     source,
     as_of: now.toISOString(),
-    vocabulary: resolveWorldVocabulary(options.vocabulary, projection.businesses),
+    vocabulary: resolveWorldVocabulary(options.vocabulary, projection.businesses, terms),
     ...projection,
   };
 }

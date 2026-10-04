@@ -52,7 +52,7 @@ const BUSINESS_STATE_TEXT = Object.freeze({
  */
 let worldVocabulary = { kinds: [], statuses: [] };
 const kindEntry = (key) => worldVocabulary.kinds.find((entry) => entry.key === (key ?? null))
-  ?? { key: key ?? null, label: key ?? '分類なし', form: 'office', color: '#69746d' };
+  ?? { key: key ?? null, label: key ?? '分類なし', definition: null, form: 'office', color: '#69746d' };
 const kindColor = (key) => Number.parseInt(kindEntry(key).color.slice(1), 16);
 const statusEntry = (status) => worldVocabulary.statuses.find((entry) => entry.key === status) ?? null;
 const statusPhase = (status) => statusEntry(status)?.phase ?? 'active';
@@ -879,7 +879,9 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         blocks.push(workspaceRailBlock(doc, { title: '詳しく見る', content: projectLink(data.engagement.id, '「プロジェクトと関係者」でこの案件を開く') }));
       } else {
         const open = business.engagements.filter((engagement) => !isFinished(engagement.status)).length;
-        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(business.status)], ['コード', business.code], ['案件', `${business.engagements.length}件（動いている${open}件）`]]) }));
+        const kind = kindEntry(business.kind);
+        const kindText = kind.definition ? `${kind.label}（${kind.definition}）` : kind.label;
+        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['分類', kindText], ['状態', statusText(business.status)], ['コード', business.code], ['案件', `${business.engagements.length}件（動いている${open}件）`]]) }));
         const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
         for (const engagement of business.engagements) {
           const li = el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` });
@@ -976,6 +978,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       const sourceText = businessPayload.source.authority === 'organization_graph' ? `組織のGraph（${businessPayload.source.server}）` : 'このMacのGraph';
       const unclassified = businesses.filter((business) => !business.kind).length;
       if (unclassified) extra.push(`分類の無い事業${unclassified}件は「分類なし」として描いています`);
+      if (businessPayload.vocabulary?.terms === 'unavailable') extra.push('組織の用語を読めないため、分類の名前は語彙ファイルか値のままです');
       note('事業', `${sourceText}の事業${businesses.length}件・案件${businesses.reduce((sum, business) => sum + business.engagements.length, 0)}件。${extra.join('。')}${extra.length ? '。' : ''}`);
     }
     const home = homeResult.ok ? homeResult.data : null;

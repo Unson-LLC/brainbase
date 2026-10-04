@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { createGraphWebHttpHandler } from '../src/graph-web-http.js';
 import { openInMemoryGraph } from '../src/graph-web.js';
 import { createLocalWebHost } from '../src/local-web-host.js';
-import { createOrganizationGraphSource, projectOrganizationGraph } from '../src/organization-graph-web.js';
+import { createOrganizationGraphSource, projectOrganizationGraph, projectVocabularyTerms } from '../src/organization-graph-web.js';
 
 const entity = (id: string, type: string, payload: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({
   id, entity_type: type, lifecycle_status: 'active', payload, ...extra
@@ -65,6 +65,24 @@ describe('organization Graph projects placed for the world', () => {
     expect(metadata('mana')).toMatchObject({ code: 'mana' });
     expect(metadata('mana')).not.toHaveProperty('parent_project_code');
     expect(metadata('eng_mana_pilot')).toMatchObject({ code: 'mana-pilot', parent_project_id: 'mana' });
+  });
+});
+
+describe('organization terms that name field values', () => {
+  it('reads active glossary terms with a vocabulary as names and meanings of field values', () => {
+    const terms = projectVocabularyTerms([
+      entity('gls_kind_product', 'glossary_term', { label: 'プロダクト', term: 'Product', definition: '自社の提供物', vocabulary: { field: 'project.kind', value: 'product' } }),
+      entity('gls_kind_lab', 'glossary_term', { term: '研究所', vocabulary: { field: 'project.kind', value: 'lab' } }),
+      entity('gls_kind_bare', 'glossary_term', { vocabulary: { field: 'project.kind', value: 'bare' } }),
+      entity('gls_plain', 'glossary_term', { term: 'Graph SSOT', definition: '正本' }),
+      entity('gls_retired', 'glossary_term', { label: '旧', vocabulary: { field: 'project.kind', value: 'old' } }, { lifecycle_status: 'retired' }),
+      entity('gls_partial', 'glossary_term', { label: '片方', vocabulary: { field: 'project.kind' } }),
+    ]);
+    expect(terms).toEqual([
+      { id: 'gls_kind_bare', field: 'project.kind', value: 'bare', label: 'bare', definition: null },
+      { id: 'gls_kind_lab', field: 'project.kind', value: 'lab', label: '研究所', definition: null },
+      { id: 'gls_kind_product', field: 'project.kind', value: 'product', label: 'プロダクト', definition: '自社の提供物' },
+    ]);
   });
 });
 
