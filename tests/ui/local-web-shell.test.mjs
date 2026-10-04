@@ -365,6 +365,25 @@ describe('local Web shell', () => {
     expect(collectText(screen(withoutLink.root, 'graph'))).toContain('このMacのGraphではありません。');
   });
 
+  it('tells the owner, before leaving, how to find the record in the organization web, who may correct it, and when it shows here', async () => {
+    const { fetcher } = hostFetcher(V2, {
+      '/api/local/status': () => jsonResponse(200, { ...statusPayload(V2), organization_graph: { status: 'connected', server: 'https://graph.example.com', mode: 'read_only', web_url: 'https://org.example.com' } }),
+      '/api/graph/search?limit=50': () => jsonResponse(200, UX06_GRAPH_SEARCH),
+      '/api/graph/ontology': () => jsonResponse(200, UX06_GRAPH_ONTOLOGY),
+      '/api/graph/entities/project-atlas': () => jsonResponse(200, graphEntityPayload()),
+    });
+    const { root } = mount(fetcher, '#graph?entity_id=project-atlas');
+    await flushMany();
+    const rail = collectText(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0]);
+    expect(rail).toContain(UX06_GRAPH_ENTITY.id);
+    expect(rail).toContain('Slackでログイン');
+    expect(rail).toContain('「情報と関係」を開き直してください');
+    expect(rail).toContain('名前かIDで探します');
+    expect(rail).toContain('gmかceo');
+    expect(rail).toContain('人物の記録と、関係者の追加・終了は組織版でもまだ直せません');
+    expect(rail).toContain('1分ほどたってから再読み込み');
+  });
+
   it('only exposes the source link after the host confirms the source, and preserves unconfirmed states', async () => {
     const cases = [
       ['404', () => jsonResponse(404, { error: { code: 'entity_not_found' } }), '出典が見つかりません'],

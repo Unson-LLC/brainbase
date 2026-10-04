@@ -47,6 +47,8 @@
 /* Notices inside the rail sit closer than the workspace's. */
 .bb-graph-rail .bb-ws-notice {
   margin: 16px 0;
+  /* A host's read-only note may list steps on separate lines. */
+  white-space: pre-line;
 }
 
 .bb-graph-notice-body {

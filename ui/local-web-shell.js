@@ -204,7 +204,17 @@ function mountObjectives(container, context) {
 }
 
 const ORGANIZATION_READ_ONLY_NOTE = '組織のGraphを読み取り専用で表示しています。登録の訂正は組織版で行ってください。';
-const ORGANIZATION_READ_ONLY_NOTE_LINKED = '組織のGraphを読み取り専用で表示しています。登録の訂正は、上の「出典」にあるリンクから組織版で行ってください。';
+// What the owner needs before leaving for the organization web (Inspector UX-20261004-01): how to find
+// the record there, who may correct it, and what happens after saving. The organization web does not yet
+// open one record by URL and drops the screen at sign-in, so the steps say so.
+const ORGANIZATION_SCREEN_LABELS = Object.freeze({ projects: 'プロジェクトと関係者', graph: '情報と関係' });
+const organizationReadOnlyNoteLinked = (screenId) => [
+  '組織のGraphを読み取り専用で表示しています。ここでは直せません。訂正の手順：',
+  `① 上の「出典」のリンクから組織版を開き、Slackでログインします。ログイン後は組織版の最初の画面に戻るので、「${ORGANIZATION_SCREEN_LABELS[screenId] ?? '情報と関係'}」を開き直してください。`,
+  '② この記録を、ここに出ている名前かIDで探します。',
+  '③ 直せるのは、組織版での役割がgmかceoの人です。直せるのはプロジェクトの記録（名前・別名・要約・期間・目的・状態）だけで、人物の記録と、関係者の追加・終了は組織版でもまだ直せません。',
+  '④ 保存すると、理由といっしょに組織のGraphへ書き込まれ、組織版がその場で読み戻して表示します。この画面には、1分ほどたってから再読み込みすると反映されます。',
+].join('\n');
 
 /** The organization's web for this screen, or null when the host was not told where it is. */
 function organizationWebLink(doc, organizationGraph, screenId) {
@@ -231,7 +241,7 @@ function mountGraphScreen(screenId, createView) {
     return createView({
       ...(readOnly ? {
         canCorrect: false,
-        readOnlyNote: link ? ORGANIZATION_READ_ONLY_NOTE_LINKED : ORGANIZATION_READ_ONLY_NOTE,
+        readOnlyNote: link ? organizationReadOnlyNoteLinked(screenId) : ORGANIZATION_READ_ONLY_NOTE,
         sourceNotice: { label: '出典', text: source ?? sourceText },
       } : {}),
       root: viewRoot,
