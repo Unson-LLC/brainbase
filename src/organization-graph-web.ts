@@ -76,12 +76,43 @@ function isAccountableRole(payload: Record<string, unknown>): boolean {
   return role === 'accountable' || role === 'A' || lane === 'decider' || role.startsWith('decision:');
 }
 
+/** The record that is the project of its scope: its code, or else its id, is the scope's code. */
+function isCatalogProject(record: OrganizationRecord, payload: Record<string, unknown>): boolean {
+  const scope = text(record.project_code);
+  return scope !== null && (text(payload.code) ?? record.id) === scope;
+}
+
+/** A project's code, parent and repositories as the organization Graph states them. */
+function projectPlacement(record: OrganizationRecord, payload: Record<string, unknown>, catalogByCode: ReadonlyMap<string, string>): Record<string, unknown> {
+  const scope = text(record.project_code);
+  const isCatalog = isCatalogProject(record, payload);
+  const code = text(payload.code) ?? (isCatalog ? scope : null);
+  const repositories = Array.isArray(payload.repository_roots)
+    ? payload.repository_roots.filter(isRecord).map((root) => text(root.repository)).filter((name): name is string => name !== null)
+    : [];
+  const parentId = scope ? catalogByCode.get(scope) : undefined;
+  return {
+    ...(code ? { code } : {}),
+    ...(!isCatalog && scope ? { parent_project_code: scope } : {}),
+    ...(!isCatalog && parentId && parentId !== record.id ? { parent_project_id: parentId } : {}),
+    ...(repositories.length ? { repositories } : {})
+  };
+}
+
 /** Projects organization Graph records into a canonical Graph v2 (pure; tested). */
 export function projectOrganizationGraph(records: OrganizationGraphRecords, owner?: { id: string; name?: string }): OrganizationGraphProjection {
   const entities: CanonicalEntity[] = [];
   const ids = new Map<string, CanonicalEntityKind>();
   let inactive = 0;
   let unnamed = 0;
+  // The organization's catalog project for each project code (its own code or id equals its scope);
+  // other projects in that scope hang under it (the world draws them as its districts).
+  const catalogByCode = new Map<string, string>();
+  for (const record of records.entities.project ?? []) {
+    if (!isRecord(record) || typeof record.id !== 'string' || (record.lifecycle_status && record.lifecycle_status !== 'active')) continue;
+    const scope = text(record.project_code);
+    if (scope && isCatalogProject(record, isRecord(record.payload) ? record.payload : {}) && !catalogByCode.has(scope)) catalogByCode.set(scope, record.id);
+  }
   for (const type of ENTITY_TYPES) {
     for (const record of records.entities[type] ?? []) {
       if (!isRecord(record) || typeof record.id !== 'string' || ids.has(record.id)) continue;
@@ -109,7 +140,8 @@ export function projectOrganizationGraph(records: OrganizationGraphRecords, owne
           ...(record.project_code ? { project_code: record.project_code } : {}),
           ...(type === 'project' && summary ? { goal: summary } : {}),
           ...(type === 'project' && status ? { status } : {}),
-          ...(type === 'project' && text(payload.kind) ? { kind: text(payload.kind) } : {})
+          ...(type === 'project' && text(payload.kind) ? { kind: text(payload.kind) } : {}),
+          ...(type === 'project' ? projectPlacement(record, payload, catalogByCode) : {})
         }
       });
       ids.set(record.id, type);
@@ -231,10 +263,11 @@ export async function createOrganizationGraphSource(options: OrganizationGraphSo
   const request = options.fetch ?? fetch;
   const now = options.now ?? (() => new Date());
   const cacheMs = options.cacheMs ?? CACHE_MS;
-  let cached: { at: number; reader: InMemoryGraphReader<GraphWebOrganizationSource> } | null = null;
-  let inFlight: Promise<InMemoryGraphReader<GraphWebOrganizationSource>> | null = null;
+  type Loaded = { reader: InMemoryGraphReader<GraphWebOrganizationSource>; graph: GraphFileV2 };
+  let cached: { at: number; loaded: Loaded } | null = null;
+  let inFlight: Promise<Loaded> | null = null;
 
-  async function load(): Promise<InMemoryGraphReader<GraphWebOrganizationSource>> {
+  async function load(): Promise<Loaded> {
     const access = await readOrganizationAccess(home);
     if ('reason' in access) throw new GraphWebError('unavailable', 'organization_graph_not_connected', `The organization Graph cannot be read (${access.reason})`);
     const [project, person, org, decision, raci, memberOf, assignedTo] = await Promise.all([
@@ -258,21 +291,28 @@ export async function createOrganizationGraphSource(options: OrganizationGraphSo
       assignedTo: assignedTo as OrganizationEdge[]
     });
     const source: GraphWebOrganizationSource = { dataDir: null, graphFormat: 2, authority: 'organization_graph', server: access.server, readAt: now().toISOString() };
-    return openInMemoryGraph(projection.graph, source);
+    return { reader: openInMemoryGraph(projection.graph, source), graph: projection.graph };
+  }
+
+  async function current(): Promise<Loaded> {
+    const at = now().getTime();
+    if (cached && at - cached.at < cacheMs) return cached.loaded;
+    inFlight ??= load().then((loaded) => {
+      cached = { at: now().getTime(), loaded };
+      return loaded;
+    }).finally(() => {
+      inFlight = null;
+    });
+    return inFlight;
   }
 
   return {
     server: initial.server,
     async read() {
-      const at = now().getTime();
-      if (cached && at - cached.at < cacheMs) return cached.reader;
-      inFlight ??= load().then((reader) => {
-        cached = { at: now().getTime(), reader };
-        return reader;
-      }).finally(() => {
-        inFlight = null;
-      });
-      return inFlight;
+      return (await current()).reader;
+    },
+    async readGraphFile() {
+      return (await current()).graph;
     }
   };
 }

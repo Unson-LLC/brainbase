@@ -42,7 +42,7 @@ import type {
 } from './ontology-foundation.js';
 import { resolveDataDir } from './paths.js';
 import { loadPersonalOs, readPersonalOsSidecar } from './ssot.js';
-import type { FoundationCatalogRecord, PersonalOs } from './types.js';
+import type { FoundationCatalogRecord, GraphFileV2, PersonalOs } from './types.js';
 import { createValueProofReviewHttpHandler, VALUE_PROOF_REVIEW_TOKEN_HEADER } from './value-proof-review-http.js';
 import {
   createWorldModelStore,
@@ -156,6 +156,8 @@ export interface LocalWebOrganizationGraph {
   /** The organization's own web (where its records are corrected), when the owner configured it. */
   readonly webUrl?: string;
   read(): Promise<InMemoryGraphReader<GraphWebAnySource>>;
+  /** The same Graph as plain records (the world reads project metadata from it). */
+  readGraphFile?(): Promise<GraphFileV2>;
 }
 
 export interface LocalWebHost {

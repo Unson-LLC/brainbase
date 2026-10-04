@@ -37,6 +37,37 @@ const records = {
   assignedTo: [edge('e4', 'rac_final', 'assigned_to', 'per_owner'), edge('e5', 'rac_r', 'assigned_to', 'per_a')]
 };
 
+describe('organization Graph projects placed for the world', () => {
+  it('writes each project\'s code, its catalog parent and its repositories, as the organization Graph states them', () => {
+    const projected = projectOrganizationGraph({
+      entities: {
+        project: [
+          entity('prj_atlas', 'project', { name: 'Atlas', code: 'atlas', kind: 'internal', repository_roots: [{ repository: 'atlas-app' }, { repository: '' }] }, { project_code: 'atlas' }),
+          entity('eng_training', 'project', { name: '研修案件' }, { project_code: 'atlas' }),
+          entity('eng_orphan', 'project', { name: '行き先なし' }, { project_code: 'no-such' }),
+          entity('prj_plain', 'project', { name: 'Plain' }),
+          entity('mana', 'project', { name: 'mana', kind: 'product' }, { project_code: 'mana' }),
+          entity('eng_mana_pilot', 'project', { name: 'mana試行', code: 'mana-pilot' }, { project_code: 'mana' })
+        ],
+        person: [], org: [], decision: [], raci_assignment: []
+      },
+      memberOf: [],
+      assignedTo: []
+    }).graph;
+    const metadata = (id: string) => projected.entities.find((item) => item.id === id)?.metadata;
+    expect(metadata('prj_atlas')).toMatchObject({ code: 'atlas', kind: 'internal', repositories: ['atlas-app'] });
+    expect(metadata('prj_atlas')).not.toHaveProperty('parent_project_id');
+    expect(metadata('eng_training')).toMatchObject({ parent_project_code: 'atlas', parent_project_id: 'prj_atlas' });
+    expect(metadata('eng_orphan')).toMatchObject({ parent_project_code: 'no-such' });
+    expect(metadata('eng_orphan')).not.toHaveProperty('parent_project_id');
+    expect(metadata('prj_plain')).not.toHaveProperty('parent_project_code');
+    // A project whose id is its scope's code is that scope's project too.
+    expect(metadata('mana')).toMatchObject({ code: 'mana' });
+    expect(metadata('mana')).not.toHaveProperty('parent_project_code');
+    expect(metadata('eng_mana_pilot')).toMatchObject({ code: 'mana-pilot', parent_project_id: 'mana' });
+  });
+});
+
 describe('organization Graph projected for the local host (C1)', () => {
   it('turns stated memberships and RACI into participation and accountability, and reads like a local Graph', () => {
     const { graph, excluded } = projectOrganizationGraph(records);

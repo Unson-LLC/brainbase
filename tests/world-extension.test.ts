@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { JudgmentValueProofJournalCache } from '../src/judgment-value-proof-review.js';
-import { projectWorldBusinesses, readJudgmentPlaces, readWorldBusinesses } from '../src/world-extension.js';
+import { projectWorldFromGraph, readJudgmentPlaces, readWorldBusinesses, readWorldVocabulary, resolveWorldVocabulary } from '../src/world-extension.js';
 
 const valueProof = (id: string) => ({
   schema_version: 'brainbase-judgment-value-proof-v1',
@@ -21,60 +21,99 @@ const valueProof = (id: string) => ({
 // @ts-expect-error plain browser module without type declarations
 import { groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
 
-const record = (id: string, projectCode: string, payload: Record<string, unknown>, lifecycle = 'active') => ({
-  id,
-  project_code: projectCode,
-  organization_id: 'acme',
-  lifecycle_status: lifecycle,
-  payload,
+const project = (id: string, name: string, metadata: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
+  id, type: 'project' as const, name, metadata, ...extra,
 });
 
-describe('world: businesses from the organization Graph', () => {
-  it('draws active catalog projects as cities and attaches engagements by project_code', () => {
-    const projection = projectWorldBusinesses([
-      record('prj_atlas', 'atlas', { code: 'atlas', kind: 'internal', name: 'Atlas', purpose: '研修' }),
-      record('prj_beacon', 'beacon', { code: 'beacon', kind: 'product', name: 'Beacon' }),
-      record('eng_training', 'atlas', { name: '研修案件A', summary: '研修案件' }),
-      record('eng_poc', 'atlas', { name: 'PoC案件B' }),
-    ]);
-    expect(projection.businesses.map((business) => business.code)).toEqual(['beacon', 'atlas']);
+describe('world: businesses from any Graph', () => {
+  it('draws top-level projects as cities and their sub-projects (at any depth) as districts', () => {
+    const projection = projectWorldFromGraph({ entities: [
+      project('prj_atlas', 'Atlas', { code: 'atlas', kind: 'internal', goal: '研修' }),
+      project('prj_beacon', 'Beacon', { kind: 'product', repositories: ['beacon-app'] }),
+      project('eng_training', '研修案件A', { parent_project_id: 'prj_atlas', parent_project_code: 'atlas' }),
+      project('eng_poc', 'PoC案件B', { parent_project_id: 'eng_training' }),
+      { id: 'per_owner', type: 'person' as const, name: '本人' },
+    ] });
+    expect(projection.businesses.map((business) => business.code)).toEqual(['atlas', 'prj_beacon']);
     const atlas = projection.businesses.find((business) => business.code === 'atlas');
     expect(atlas?.engagements.map((engagement) => engagement.name)).toEqual(['PoC案件B', '研修案件A']);
+    expect(atlas?.purpose).toBe('研修');
+    expect(projection.businesses.find((business) => business.id === 'prj_beacon')?.repositories).toEqual(['beacon-app']);
     expect(projection.unplaced).toEqual([]);
   });
 
-  it('counts retired, superseded and unnamed records instead of drawing them', () => {
-    const projection = projectWorldBusinesses([
-      record('prj_old', 'acme-old', { code: 'acme-old', kind: 'product', name: 'Old Product' }, 'retired'),
-      record('old_pilot', 'pilot', { name: 'pilot' }, 'superseded'),
-      record('blank', 'acme', {}),
-    ]);
+  it('keeps a project whose declared parent is not in the Graph visible as unplaced, never dropping it', () => {
+    const projection = projectWorldFromGraph({ entities: [project('eng_orphan', '行き先のない案件', { parent_project_code: 'no-such-business' })] });
     expect(projection.businesses).toEqual([]);
-    expect(projection.excluded).toEqual({ inactive: 2, unnamed: 1 });
-  });
-
-  it('keeps an engagement whose business is not listed visible as unplaced, never dropping it', () => {
-    const projection = projectWorldBusinesses([record('eng_orphan', 'no-such-business', { name: '行き先のない案件' })]);
     expect(projection.unplaced.map((engagement) => engagement.name)).toEqual(['行き先のない案件']);
   });
 
-  it('reports a missing connection as a state, not as zero businesses', async () => {
-    const home = await mkdtemp(join(tmpdir(), 'bb-world-'));
-    const result = await readWorldBusinesses({ home });
-    expect(result.status).toBe('not_connected');
+  it('counts projects past their end instead of drawing them, and draws an unclassified project as a city', () => {
+    const projection = projectWorldFromGraph({ entities: [
+      project('prj_old', 'Old', { kind: 'product' }, { validTo: '2026-01-01T00:00:00.000Z' }),
+      project('prj_plain', 'Plain'),
+    ] }, new Date('2026-10-04T00:00:00.000Z'));
+    expect(projection.excluded).toEqual({ inactive: 1 });
+    expect(projection.businesses.map((business) => [business.name, business.kind])).toEqual([['Plain', null]]);
   });
 
-  it('reports an expired token as auth_failed without leaking the token', async () => {
-    const home = await mkdtemp(join(tmpdir(), 'bb-world-'));
-    await mkdir(join(home, '.brainbase'));
-    await writeFile(join(home, '.brainbase', 'config.json'), JSON.stringify({ server_url: 'https://graph.example' }));
-    await writeFile(join(home, '.brainbase', 'tokens.json'), JSON.stringify({ access_token: 'secret-token-value' }));
-    const result = await readWorldBusinesses({
-      home,
-      fetch: (async () => new Response('{}', { status: 401 })) as typeof fetch,
+  it('names kinds in the host vocabulary order, then the Graph\'s own kinds under their value, then 分類なし', () => {
+    const businesses = projectWorldFromGraph({ entities: [
+      project('a', 'A', { kind: 'client' }),
+      project('b', 'B', { kind: 'lab' }),
+      project('c', 'C'),
+      project('d', 'D', { kind: 'product' }),
+    ] }).businesses;
+    const vocabulary = resolveWorldVocabulary({
+      kinds: { product: { label: 'プロダクト', form: 'tower', color: '#123456' }, client: { label: '顧客案件', form: 'hall' } },
+      statuses: { not_converted: { label: '案件化せず', phase: 'finished' }, active: { label: '稼働中' } },
+    }, businesses);
+    expect(vocabulary.kinds.map((kind) => [kind.key, kind.label, kind.form, kind.configured])).toEqual([
+      ['product', 'プロダクト', 'tower', true],
+      ['client', '顧客案件', 'hall', true],
+      ['lab', 'lab', 'office', false],
+      [null, '分類なし', 'office', false],
+    ]);
+    expect(vocabulary.kinds[0]!.color).toBe('#123456');
+    const statuses = Object.fromEntries(vocabulary.statuses.map((status) => [status.key, [status.label, status.phase]]));
+    expect(statuses.not_converted).toEqual(['案件化せず', 'finished']);
+    expect(statuses.active).toEqual(['稼働中', 'active']);
+    expect(statuses.completed).toEqual(['完了', 'finished']);
+  });
+
+  it('draws with the Graph\'s own words when no vocabulary is given', () => {
+    const businesses = projectWorldFromGraph({ entities: [project('a', 'A', { kind: 'product' })] }).businesses;
+    expect(resolveWorldVocabulary(undefined, businesses).kinds.map((kind) => [kind.key, kind.label])).toEqual([['product', 'product']]);
+  });
+
+  it('refuses a vocabulary file with an unknown building, phase or color instead of ignoring it', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'bb-world-vocab-'));
+    const write = async (name: string, body: unknown) => {
+      const path = join(dir, name);
+      await writeFile(path, JSON.stringify(body));
+      return path;
+    };
+    await expect(readWorldVocabulary(await write('form.json', { kinds: { product: { form: 'castle' } } }))).rejects.toThrow(/unknown form/u);
+    await expect(readWorldVocabulary(await write('phase.json', { statuses: { done: { phase: 'gone' } } }))).rejects.toThrow(/unknown phase/u);
+    await expect(readWorldVocabulary(await write('color.json', { kinds: { product: { color: 'blue' } } }))).rejects.toThrow(/invalid color/u);
+    await expect(readWorldVocabulary(await write('ok.json', { kinds: { product: { label: 'プロダクト', form: 'tower' } } }))).resolves.toEqual({ kinds: { product: { label: 'プロダクト', form: 'tower' } }, statuses: {} });
+  });
+
+  it('reads the organization Graph when the host reads it, and a missing local Graph as a state, not zero businesses', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'bb-world-'));
+    const organization = await readWorldBusinesses({
+      dataDir,
+      organizationGraph: {
+        server: 'https://graph.example',
+        read: async () => { throw new Error('not used'); },
+        readGraphFile: async () => ({ entities: [project('prj_a', 'A', { kind: 'product' })] }) as never,
+      },
     });
-    expect(result).toMatchObject({ status: 'auth_failed', reason: 'http_401' });
-    expect(JSON.stringify(result)).not.toContain('secret-token-value');
+    expect(organization).toMatchObject({ status: 'ok', source: { authority: 'organization_graph', server: 'https://graph.example' } });
+    expect(organization.status === 'ok' && organization.businesses.map((business) => business.name)).toEqual(['A']);
+    const withoutRecords = await readWorldBusinesses({ dataDir, organizationGraph: { server: 'https://graph.example', read: async () => { throw new Error('not used'); } } });
+    expect(withoutRecords).toMatchObject({ status: 'unavailable', reason: 'organization_graph_records_unavailable' });
+    expect(await readWorldBusinesses({ dataDir })).toMatchObject({ status: 'not_initialized' });
   });
 });
 
