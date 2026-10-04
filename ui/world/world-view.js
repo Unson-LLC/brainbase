@@ -815,6 +815,11 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     return link;
   }
 
+  /** Descends to the same project in プロジェクトと関係者 (the shell opens `#projects?project=`). */
+  function projectLink(projectId, label) {
+    return el(doc, 'a', { className: 'bb-world-rail-link', text: label, attrs: { href: `#projects?project=${encodeURIComponent(projectId)}` } });
+  }
+
   function judgmentList(entries, describe) {
     const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
     const sorted = [...entries].sort((a, b) => String(b.item?.proof?.recorded_at ?? '').localeCompare(String(a.item?.proof?.recorded_at ?? '')));
@@ -853,12 +858,18 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       })];
       if (data.kind === 'engagement') {
         blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }));
+        blocks.push(workspaceRailBlock(doc, { title: '詳しく見る', content: projectLink(data.engagement.id, '「プロジェクトと関係者」でこの案件を開く') }));
       } else {
         const open = business.engagements.filter((engagement) => !FINISHED_STATUSES.has(engagement.status)).length;
         blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(business.status)], ['コード', business.code], ['案件', `${business.engagements.length}件（動いている${open}件）`]]) }));
         const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
-        for (const engagement of business.engagements) ul.append(el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` }));
+        for (const engagement of business.engagements) {
+          const li = el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` });
+          li.append(projectLink(engagement.id, '開く'));
+          ul.append(li);
+        }
         blocks.push(workspaceRailBlock(doc, { title: '案件（区画）', content: business.engagements.length ? ul : { text: '登録された案件はありません' } }));
+        blocks.push(workspaceRailBlock(doc, { title: '詳しく見る', content: projectLink(business.id, '「プロジェクトと関係者」でこの事業を開く') }));
       }
       blocks.push(cityJudgmentBlock(business));
       showRail(blocks);

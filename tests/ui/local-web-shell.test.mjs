@@ -129,6 +129,8 @@ describe('local Web shell', () => {
     expect(parseLocalWebTarget('#today?decision=decision_abc')).toEqual({ screenId: 'today', entityId: null, decisionId: 'decision_abc' });
     expect(parseLocalWebTarget('#graph?decision=decision_abc')).toEqual({ screenId: 'graph', entityId: null });
     expect(parseLocalWebTarget('#today?decision=')).toEqual({ screenId: 'today', entityId: null });
+    expect(parseLocalWebTarget('#projects?project=prj_baao')).toEqual({ screenId: 'projects', entityId: null, projectId: 'prj_baao' });
+    expect(parseLocalWebTarget('#today?project=prj_baao')).toEqual({ screenId: 'today', entityId: null });
   });
 
   it('gives each screen its own right rail and the page context, and shows the rail column only for the mounted screen', async () => {
