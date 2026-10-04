@@ -43,6 +43,8 @@ const NAV_ICON_PATHS = Object.freeze({
   objectives: ['M12 4 3 20h18z', 'M12 9v5m0 3h.01'],
   projects: ['M3 6.5h7l2 2h9v10H3z', 'M3 6.5v-2h7l2 2'],
   graph: ['M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2', 'M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2'],
+  // Experimental world view (extension id `world`).
+  world: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'],
 });
 const SVG_NS = 'http://www.w3.org/2000/svg';
 

@@ -62,6 +62,7 @@ import { renderGuidedFirstRun, type GuidedTarget } from './guided-onboarding.js'
 import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, type JudgmentHookPayload } from './judgment-host.js';
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
+import { createExperimentalWorldExtension } from './experimental-world.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
@@ -1150,7 +1151,13 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   if (!Number.isInteger(port) || port < 0 || port > 65535) {
     throw new Error(`${command} requires --port to be an integer between 0 and 65535`);
   }
-  const { server } = createLocalWebHost({ dataDir, journalRoot });
+  // Experimental world view (W1–W4, provisional). Off unless the flag is given.
+  const experimentalWorld = parsed.flags.has('experimental-world');
+  const { server } = createLocalWebHost({
+    dataDir,
+    journalRoot,
+    extensions: experimentalWorld ? [createExperimentalWorldExtension()] : []
+  });
   await new Promise<void>((resolveListen, rejectListen) => {
     server.once('error', rejectListen);
     server.listen(port, '127.0.0.1', () => resolveListen());
@@ -1164,6 +1171,7 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
     `- 目的と現状: ${origin}/#objectives`,
     `- プロジェクトと関係者: ${origin}/#projects`,
     `- 情報と関係: ${origin}/#graph`,
+    ...(experimentalWorld ? [`- 世界（実験）: ${origin}/#world`] : []),
     `データ: ${dataDir}`,
     `判断journal: ${journalRoot}`,
     '終了: Ctrl+C',
@@ -1334,7 +1342,7 @@ function usage(): string {
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
-  brainbase web:serve [--dir path] [--journal path] [--port n]
+  brainbase web:serve [--dir path] [--journal path] [--port n] [--experimental-world]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
 `;
 }
