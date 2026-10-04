@@ -316,6 +316,15 @@ function rowOfItem(state, key) {
   return state.home?.delegationMap?.rows.find((row) => row.itemKeys.includes(key)) ?? null;
 }
 
+function findItemByDecision(state, decisionAttemptId) {
+  if (state.home?.status !== 'available' || !decisionAttemptId) return null;
+  for (const section of [...SECTION_ORDER, 'other']) {
+    const found = state.home.sections[section].find((item) => item.proof.decision_attempt_id === decisionAttemptId);
+    if (found) return found;
+  }
+  return null;
+}
+
 function findItem(state, key) {
   if (state.home?.status !== 'available' || !key) return null;
   for (const section of [...SECTION_ORDER, 'other']) {
@@ -1391,8 +1400,25 @@ export function createValueProofReviewUI({
     },
   };
 
+  /** Selects a judgment by decision_attempt_id; false when the loaded home does not have it. */
+  const selectDecision = (decisionAttemptId) => {
+    const item = findItemByDecision(state, decisionAttemptId);
+    if (!item) return false;
+    callbacks.onSelect(itemKey(item.proof));
+    return true;
+  };
+
   const controller = {
     get state() { return state; },
+    /**
+     * Opens one judgment, as a link from another screen does. Before the home
+     * has loaded, the request waits for the load; an unknown id selects nothing.
+     */
+    openDecision(decisionAttemptId) {
+      if (state.phase === 'ready') return selectDecision(decisionAttemptId);
+      state.pendingDecisionId = decisionAttemptId;
+      return false;
+    },
     render() {
       renderValueProofReview(root, state, callbacks, { document: doc, unavailableNotice, rail, page });
       return controller;
@@ -1417,6 +1443,11 @@ export function createValueProofReviewUI({
         state.error = error instanceof Error ? error.message : 'request_failed';
       }
       controller.render();
+      if (state.phase === 'ready' && state.pendingDecisionId) {
+        const pending = state.pendingDecisionId;
+        state.pendingDecisionId = null;
+        selectDecision(pending);
+      }
       return state.home;
     },
     callbacks,

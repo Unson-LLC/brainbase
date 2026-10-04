@@ -201,6 +201,27 @@ function jsonResponse(status, body) {
 }
 
 describe('value proof review UI contract', () => {
+  it('opens a judgment named by another screen, waiting for the home to load first', async () => {
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const first = proof({ intent_id: 'intent-1', decision_attempt_id: 'attempt-1' });
+    const second = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });
+    const ui = createValueProofReviewUI({
+      root,
+      document: doc,
+      fetcher: async () => jsonResponse(200, home([first, second], delegationMap([mapRow('reason:routine_reversible_work', [first, second])]))),
+      autoLoad: false,
+    });
+    expect(ui.openDecision('attempt-2')).toBe(false);
+    await ui.load();
+    expect(ui.state.selectedKey).toBe('intent-2\u0000attempt-2');
+    expect(ui.state.railView).toBe('judgment');
+    expect(ui.openDecision('attempt-1')).toBe(true);
+    expect(ui.state.selectedKey).toBe('intent-1\u0000attempt-1');
+    expect(ui.openDecision('no-such-attempt')).toBe(false);
+    expect(ui.state.selectedKey).toBe('intent-1\u0000attempt-1');
+  });
+
   it('never turns an unavailable or malformed response into an empty list', () => {
     expect(normalizeValueProofReviewHome({ status: 'unavailable', root: '/x', reason: 'judgment_journal_not_found' }))
       .toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });

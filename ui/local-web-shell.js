@@ -43,6 +43,8 @@ const NAV_ICON_PATHS = Object.freeze({
   objectives: ['M12 4 3 20h18z', 'M12 9v5m0 3h.01'],
   projects: ['M3 6.5h7l2 2h9v10H3z', 'M3 6.5v-2h7l2 2'],
   graph: ['M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2', 'M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2'],
+  // World view (extension id `world`, ledger P17).
+  world: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'],
 });
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
@@ -88,9 +90,15 @@ export function parseLocalWebTarget(target) {
   if (!screenId) return { screenId: null, entityId: null };
   const query = separator < 0 ? '' : raw.slice(separator + 1);
   const params = new URLSearchParams(query);
+  // 今日 accepts one judgment to open (`decision` = decision_attempt_id) and
+  // プロジェクトと関係者 one project (`project` = Graph project id); other screens ignore them.
+  const decisionId = screenId === 'today' ? params.get('decision')?.trim() || null : null;
+  const projectId = screenId === 'projects' ? params.get('project')?.trim() || null : null;
   return {
     screenId,
     entityId: screenId === 'graph' ? params.get('entity_id')?.trim() || null : null,
+    ...(decisionId ? { decisionId } : {}),
+    ...(projectId ? { projectId } : {}),
   };
 }
 
@@ -195,11 +203,20 @@ function mountObjectives(container, context) {
   return { editor, worldModel };
 }
 
+const ORGANIZATION_READ_ONLY_NOTE = '組織のGraphを読み取り専用で表示しています。登録の訂正は組織版で行ってください。';
+
 function mountGraphScreen(createView) {
   return (container, context) => {
     const viewRoot = makeElement(context.document, 'div');
     makePage(container, context).append(viewRoot);
+    // Ledger C1: when the host reads the organization Graph, nothing here can be corrected.
+    const readOnly = context.organizationGraph?.status === 'connected';
     return createView({
+      ...(readOnly ? {
+        canCorrect: false,
+        readOnlyNote: ORGANIZATION_READ_ONLY_NOTE,
+        sourceNotice: { label: '出典', text: `組織のGraph（${context.organizationGraph.server ?? '接続先不明'}）を読み取り専用で表示しています。このMacのGraphではありません。` },
+      } : {}),
       root: viewRoot,
       rail: context.rail,
       page: context.page,
@@ -279,7 +296,7 @@ function renderSource(doc, bar, status, onRecheck) {
   bar.append(
     fact('データ', data.data_dir),
     fact('Graph', graphLabel, data.graph.status === 'ready' ? '' : 'is-warning'),
-    fact('組織のGraph', data.organization_graph?.status === 'connected' ? '読んでいます' : '読んでいません'),
+    fact('組織のGraph', data.organization_graph?.status === 'connected' ? '読んでいます（読み取りのみ）' : '読んでいません'),
   );
 }
 
@@ -377,10 +394,10 @@ export function createLocalWebShell({
 
   function ensureMounted(screen, entityId = pendingEntityIds.get(screen.id) ?? null) {
     if (mounted.has(screen.id)) {
-      if (entityId && screen.id === 'graph') {
-        const view = mounted.get(screen.id);
-        if (typeof view?.openEntity === 'function') void view.openEntity(entityId);
-      }
+      const view = mounted.get(screen.id);
+      if (entityId && screen.id === 'graph' && typeof view?.openEntity === 'function') void view.openEntity(entityId);
+      if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
+      if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
       return;
     }
     const slot = slots.get(screen.id);
@@ -391,8 +408,13 @@ export function createLocalWebShell({
     slot.replaceChildren();
     const rail = rails.get(screen.id) ?? null;
     rail?.replaceChildren();
-    const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: screen.source ?? null });
-    mounted.set(screen.id, screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId })) ?? true);
+    const organizationGraph = status.phase === 'ready' ? status.data.organization_graph ?? null : null;
+    const readsOrganization = organizationGraph?.status === 'connected' && (screen.id === 'projects' || screen.id === 'graph');
+    const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: readsOrganization ? '組織のGraph（読み取りのみ）' : screen.source ?? null });
+    const view = screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId, organizationGraph })) ?? true;
+    mounted.set(screen.id, view);
+    if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
+    if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
     updateRail();
   }
 
@@ -403,7 +425,9 @@ export function createLocalWebShell({
     show(target) {
       const parsed = parseLocalWebTarget(target);
       const screen = screens.find((candidate) => candidate.id === parsed.screenId) ?? screens[0];
-      pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId : null);
+      pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId
+        : screen.id === 'today' ? parsed.decisionId ?? null
+          : screen.id === 'projects' ? parsed.projectId ?? null : null);
       active = screen.id;
       for (const [screenId, slot] of slots) slot.hidden = screenId !== screen.id;
       for (const [screenId, link] of links) {

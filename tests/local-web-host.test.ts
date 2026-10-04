@@ -206,6 +206,18 @@ afterEach(async () => {
 });
 
 describe('local web host protections', () => {
+  it('lists an extension marked first before the public screens, so it opens when no screen is named', async () => {
+    const uiDir = join(directory, 'first-ui');
+    await mkdir(uiDir);
+    await writeFile(join(uiDir, 'screen.js'), 'export const screen = { id: "lead" };');
+    const extension: LocalWebExtension = {
+      id: 'lead', uiDir, uiFiles: ['screen.js'], screenEntry: 'screen.js', navPosition: 'first',
+      createModule: () => ({ id: 'lead', uiFiles: [], async handle() { return false; } })
+    };
+    const base = await start({ extensions: [extension] });
+    expect(await (await fetch(`${base}/app.js`)).text()).toContain('screens: [extensionScreen0, ...LOCAL_WEB_SCREENS]');
+  });
+
   it('mounts an allowlisted private screen and confines its API to its own prefix', async () => {
     const uiDir = join(directory, 'extension-ui');
     await mkdir(uiDir);

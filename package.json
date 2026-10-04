@@ -330,7 +330,8 @@
     "release:validate": "node scripts/npm-release.mjs validate",
     "release:publish": "node scripts/npm-release.mjs publish",
     "release:verify": "node scripts/npm-release.mjs verify",
-    "build:graph": "node scripts/build-project-graph.mjs"
+    "build:graph": "node scripts/build-project-graph.mjs",
+    "build:world": "node scripts/build-world-vendor.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -345,6 +346,7 @@
     "@electric-sql/pglite": "^0.5.8",
     "@types/node": "^22.15.29",
     "esbuild": "0.28.2",
+    "three": "0.186.1",
     "tsx": "^4.19.4",
     "typescript": "^5.8.3",
     "vitepress": "^1.6.4",
