@@ -16,6 +16,13 @@ export const JUDGMENT_VALUE_PROOF_FEEDBACK_FILE = 'judgment-value-proof-feedback
 export const JUDGMENT_VALUE_PROOF_ANSWER_SCHEMA = 'brainbase-judgment-value-proof-answer-v1';
 export const JUDGMENT_VALUE_PROOF_ANSWER_FILE = 'judgment-value-proof-answers.jsonl';
 
+/** Folders stat'ed or listed at once. Node runs file system calls on a small thread pool; this keeps it fed. */
+const JOURNAL_FOLDER_CONCURRENCY = 16;
+/**
+ * A folder listed this soon after its last change is listed again on the next read: on file systems with
+ * coarse timestamps (HFS+ 1 s, exFAT 2 s) a change right after the listing can keep the same mtime.
+ */
+const JOURNAL_LISTING_SETTLE_NS = 3_000_000_000n;
 const FEEDBACK_SUMMARY_LIMIT = 500;
 const ANSWER_LOCK_TIMEOUT_MS = 2_000;
 /** A lock older than this was left by a write that stopped part way. */
@@ -281,12 +288,75 @@ async function conversationMovedOnAt(file: string, proof: JudgmentValueProof): P
   return first;
 }
 
+/** Maps with at most `limit` calls in flight; results keep the input order. */
+async function mapConcurrently<T, R>(items: readonly T[], limit: number, map: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+  const work = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await map(items[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, work));
+  return results;
+}
+
+async function listValueProofFiles(folder: string): Promise<string[]> {
+  return (await readdir(folder, { withFileTypes: true }))
+    .filter((child) => child.isFile() && child.name.endsWith(JUDGMENT_VALUE_PROOF_FILE_SUFFIX))
+    .map((child) => join(folder, child.name));
+}
+
+interface JournalFolderListing {
+  readonly ino: bigint;
+  readonly mtimeNs: bigint;
+  readonly ctimeNs: bigint;
+  /** Wall-clock time taken before the folder was stat'ed and listed. */
+  readonly listedAtNs: bigint;
+  readonly files: readonly string[];
+}
+
+/**
+ * Remembers which value proofs each folder of a judgment journal held, so that a later read lists only
+ * the folders that changed. A folder is listed again when its inode, mtime or ctime differs from the
+ * listing, or when it was listed within a few seconds of its last change. The judgment Host creates
+ * value proofs and finals by linking a new file and never rewrites them, so every new or removed file
+ * changes the folder's mtime. It keeps no proof contents; every read still reads each proof.
+ * Use one cache per journal.
+ */
+export class JudgmentValueProofJournalCache {
+  readonly #folders = new Map<string, JournalFolderListing>();
+
+  /** The value proof files in `folder`, reusing the last listing while the folder is unchanged. */
+  async valueProofFiles(folder: string): Promise<readonly string[]> {
+    const listedAtNs = BigInt(Date.now()) * 1_000_000n;
+    const { ino, mtimeNs, ctimeNs } = await stat(folder, { bigint: true });
+    const listing = this.#folders.get(folder);
+    if (listing && listing.ino === ino && listing.mtimeNs === mtimeNs && listing.ctimeNs === ctimeNs
+      && listing.listedAtNs - mtimeNs >= JOURNAL_LISTING_SETTLE_NS) {
+      return listing.files;
+    }
+    const files = await listValueProofFiles(folder);
+    this.#folders.set(folder, { ino, mtimeNs, ctimeNs, listedAtNs, files });
+    return files;
+  }
+
+  /** Forgets folders that are no longer in the journal. */
+  retainOnly(folders: ReadonlySet<string>): void {
+    for (const folder of this.#folders.keys()) {
+      if (!folders.has(folder)) this.#folders.delete(folder);
+    }
+  }
+}
+
 /**
  * Reads saved judgment value proofs from `<root>/*.value-proof.json` and
  * `<root>/<session>/*.value-proof.json`. The journal is read-only here.
+ * With `cache`, folders unchanged since an earlier read are not listed again; without it every folder is listed.
  */
 export async function readJudgmentValueProofJournal(
-  options: { readonly root?: string } = {}
+  options: { readonly root?: string; readonly cache?: JudgmentValueProofJournalCache } = {}
 ): Promise<JudgmentValueProofJournalRead> {
   const root = resolve(options.root ?? defaultJudgmentJournalRoot());
   let topLevel;
@@ -303,19 +373,20 @@ export async function readJudgmentValueProofJournal(
   }
 
   const files: string[] = [];
+  const folders: string[] = [];
   for (const entry of topLevel) {
     const path = join(root, entry.name);
     if (entry.isFile() && entry.name.endsWith(JUDGMENT_VALUE_PROOF_FILE_SUFFIX)) {
       files.push(path);
     } else if (entry.isDirectory()) {
-      const nested = await readdir(path, { withFileTypes: true });
-      for (const child of nested) {
-        if (child.isFile() && child.name.endsWith(JUDGMENT_VALUE_PROOF_FILE_SUFFIX)) {
-          files.push(join(path, child.name));
-        }
-      }
+      folders.push(path);
     }
   }
+  const { cache } = options;
+  const nested = await mapConcurrently(folders, JOURNAL_FOLDER_CONCURRENCY,
+    (folder) => cache ? cache.valueProofFiles(folder) : listValueProofFiles(folder));
+  cache?.retainOnly(new Set(folders));
+  for (const folderFiles of nested) files.push(...folderFiles);
 
   const results = await Promise.all(files.sort().map(readProofFile));
   const entries = (await Promise.all(results

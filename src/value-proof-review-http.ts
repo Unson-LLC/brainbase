@@ -8,6 +8,7 @@ import {
   buildJudgmentValueProofReviewHome,
   classifyJudgmentValueProof,
   JudgmentValueProofAnswerConflictError,
+  JudgmentValueProofJournalCache,
   readJudgmentValueProofAnswers,
   readJudgmentValueProofFeedback,
   readJudgmentValueProofJournal,
@@ -90,9 +91,12 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
   }
   const basePath = (options.basePath ?? DEFAULT_BASE_PATH).replace(/\/+$/u, '');
   const now = options.now ?? (() => new Date());
+  // A large journal has thousands of conversation folders; only the ones that changed are listed again.
+  const journalCache = new JudgmentValueProofJournalCache();
+  const readJournal = () => readJudgmentValueProofJournal({ root: options.journalRoot, cache: journalCache });
 
   async function readHome(): Promise<JudgmentValueProofReviewHome> {
-    const journal = await readJudgmentValueProofJournal({ root: options.journalRoot });
+    const journal = await readJournal();
     if (journal.status !== 'available') return buildJudgmentValueProofReviewHome(journal, [], { now: now() });
     const [feedback, answers] = await Promise.all([
       readJudgmentValueProofFeedback({ dataDir: options.dataDir }),
@@ -114,7 +118,7 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
     const intentId = typeof body.intent_id === 'string' ? body.intent_id : '';
     const attemptId = typeof body.decision_attempt_id === 'string' ? body.decision_attempt_id : '';
 
-    const journal = await readJudgmentValueProofJournal({ root: options.journalRoot });
+    const journal = await readJournal();
     if (journal.status === 'unavailable') {
       throw new HttpError(503, 'judgment_journal_unavailable', journal.reason);
     }
@@ -164,7 +168,7 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
     const intentId = typeof body.intent_id === 'string' ? body.intent_id : '';
     const attemptId = typeof body.decision_attempt_id === 'string' ? body.decision_attempt_id : '';
 
-    const journal = await readJudgmentValueProofJournal({ root: options.journalRoot });
+    const journal = await readJournal();
     if (journal.status === 'unavailable') {
       throw new HttpError(503, 'judgment_journal_unavailable', journal.reason);
     }
