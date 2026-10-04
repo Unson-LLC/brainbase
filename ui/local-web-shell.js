@@ -204,18 +204,35 @@ function mountObjectives(container, context) {
 }
 
 const ORGANIZATION_READ_ONLY_NOTE = '組織のGraphを読み取り専用で表示しています。登録の訂正は組織版で行ってください。';
+const ORGANIZATION_READ_ONLY_NOTE_LINKED = '組織のGraphを読み取り専用で表示しています。登録の訂正は、上の「出典」にあるリンクから組織版で行ってください。';
 
-function mountGraphScreen(createView) {
+/** The organization's web for this screen, or null when the host was not told where it is. */
+function organizationWebLink(doc, organizationGraph, screenId) {
+  const origin = typeof organizationGraph?.web_url === 'string' && /^https:\/\/[^/?#@\s]+$/u.test(organizationGraph.web_url)
+    ? organizationGraph.web_url
+    : null;
+  if (!origin) return null;
+  return makeElement(doc, 'a', {
+    text: '組織版で開いて訂正する',
+    attrs: { href: `${origin}/?screen=${encodeURIComponent(screenId)}`, target: '_blank', rel: 'noopener noreferrer' },
+  });
+}
+
+function mountGraphScreen(screenId, createView) {
   return (container, context) => {
     const viewRoot = makeElement(context.document, 'div');
     makePage(container, context).append(viewRoot);
     // Ledger C1: when the host reads the organization Graph, nothing here can be corrected.
     const readOnly = context.organizationGraph?.status === 'connected';
+    const link = readOnly ? organizationWebLink(context.document, context.organizationGraph, screenId) : null;
+    const sourceText = `組織のGraph（${context.organizationGraph?.server ?? '接続先不明'}）を読み取り専用で表示しています。このMacのGraphではありません。`;
+    const source = link ? makeElement(context.document, 'span') : null;
+    source?.append(makeElement(context.document, 'span', { text: `${sourceText} ` }), link);
     return createView({
       ...(readOnly ? {
         canCorrect: false,
-        readOnlyNote: ORGANIZATION_READ_ONLY_NOTE,
-        sourceNotice: { label: '出典', text: `組織のGraph（${context.organizationGraph.server ?? '接続先不明'}）を読み取り専用で表示しています。このMacのGraphではありません。` },
+        readOnlyNote: link ? ORGANIZATION_READ_ONLY_NOTE_LINKED : ORGANIZATION_READ_ONLY_NOTE,
+        sourceNotice: { label: '出典', text: source ?? sourceText },
       } : {}),
       root: viewRoot,
       rail: context.rail,
@@ -231,8 +248,8 @@ function mountGraphScreen(createView) {
 export const LOCAL_WEB_SCREENS = Object.freeze([
   Object.freeze({ id: 'today', label: '今日', usesGraph: false, rail: true, source: '判断journal', mount: mountToday }),
   Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
-  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen(createGraphProjectsView) }),
-  Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen(createGraphRegistryView) }),
+  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
+  Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),
 ]);
 
 function renderGraphGate(doc, slot, status, onRecheck, label) {

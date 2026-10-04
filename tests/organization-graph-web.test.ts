@@ -91,4 +91,19 @@ describe('organization Graph projected for the local host (C1)', () => {
       server.close();
     }
   });
+
+  it('tells the shell where the organization web is, when the owner configured it', async () => {
+    const reader = openInMemoryGraph(projectOrganizationGraph(records).graph, { dataDir: null, graphFormat: 2, authority: 'organization_graph', server: 'https://graph.example', readAt: '2026-10-04T00:00:00.000Z' });
+    const dataDir = await mkdtemp(join(tmpdir(), 'bb-org-host-'));
+    const { server } = createLocalWebHost({ dataDir, journalRoot: join(dataDir, 'journal'), organizationGraph: { server: 'https://graph.example', webUrl: 'https://org.example', read: async () => reader } });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const address = server.address();
+    const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
+    try {
+      const status = await (await fetch(`${base}/api/local/status`)).json() as { organization_graph: Record<string, string> };
+      expect(status.organization_graph).toEqual({ status: 'connected', server: 'https://graph.example', mode: 'read_only', web_url: 'https://org.example' });
+    } finally {
+      server.close();
+    }
+  });
 });
