@@ -1,8 +1,9 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { JudgmentValueProofJournalCache, readJudgmentValueProofJournal } from './judgment-value-proof-review.js';
 import type { LocalWebExtension, LocalWebModule, LocalWebModuleContext } from './local-web-host.js';
 import { requestUrl, writeJson } from './local-web-security.js';
 
@@ -193,8 +194,33 @@ export interface WorldJudgmentPlace {
   readonly workspace: string | null;
 }
 
-const MAX_JUDGMENT_PLACES = 5_000;
 const VALUE_PROOF_SUFFIX = '.value-proof.json';
+
+/**
+ * Reads, for every saved value proof in the judgment journal, the repository
+ * the Host recorded for that turn. The journal is listed through the host's
+ * shared listing cache (the same one as the 今日 list), so only folders that
+ * changed are listed again; turn inputs are never rewritten by the Host, so
+ * each is read once. A journal that cannot be read is `unavailable`, never
+ * an empty list.
+ */
+export async function readJudgmentPlaces(
+  journalRoot: string,
+  options: { readonly cache?: JudgmentValueProofJournalCache; readonly workspaces?: Map<string, string | null> } = {}
+): Promise<{ readonly status: 'available' | 'unavailable'; readonly places: readonly WorldJudgmentPlace[]; readonly reason?: string }> {
+  const journal = await readJudgmentValueProofJournal({ root: journalRoot, ...(options.cache ? { cache: options.cache } : {}) });
+  if (journal.status !== 'available') return { status: 'unavailable', places: [], reason: 'journal_unreadable' };
+  const workspaces = options.workspaces ?? new Map<string, string | null>();
+  const places = await Promise.all(journal.entries.map(async (entry) => {
+    const turnInputFile = `${entry.file.slice(0, -VALUE_PROOF_SUFFIX.length)}.turn-input.json`;
+    if (!workspaces.has(turnInputFile)) {
+      const turnInput = await readJsonFile(turnInputFile);
+      workspaces.set(turnInputFile, isRecord(turnInput) ? text(turnInput.project_code) : null);
+    }
+    return { decision_attempt_id: entry.proof.decision_attempt_id, workspace: workspaces.get(turnInputFile) ?? null };
+  }));
+  return { status: 'available', places };
+}
 
 async function readJsonFile(path: string): Promise<unknown> {
   try {
@@ -204,41 +230,8 @@ async function readJsonFile(path: string): Promise<unknown> {
   }
 }
 
-/**
- * Reads, for every saved value proof in the judgment journal, the repository
- * the Host recorded for that turn.  Read only; a missing journal is an empty
- * list with `status: 'unavailable'`, never invented places.
- */
-export async function readJudgmentPlaces(journalRoot: string): Promise<{ readonly status: 'available' | 'unavailable'; readonly places: readonly WorldJudgmentPlace[]; readonly reason?: string }> {
-  let sessions: string[];
-  try {
-    sessions = (await readdir(journalRoot, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  } catch {
-    return { status: 'unavailable', places: [], reason: 'journal_unreadable' };
-  }
-  const places: WorldJudgmentPlace[] = [];
-  // Proofs live in per-session folders; older ones may sit at the journal root.
-  for (const session of ['', ...sessions]) {
-    let files: string[];
-    try {
-      files = await readdir(join(journalRoot, session));
-    } catch {
-      continue;
-    }
-    for (const file of files) {
-      if (!file.endsWith(VALUE_PROOF_SUFFIX) || places.length >= MAX_JUDGMENT_PLACES) continue;
-      const base = join(journalRoot, session, file.slice(0, -VALUE_PROOF_SUFFIX.length));
-      const proof = await readJsonFile(`${base}${VALUE_PROOF_SUFFIX}`);
-      const decisionAttemptId = isRecord(proof) ? text(proof.decision_attempt_id) : null;
-      if (!decisionAttemptId) continue;
-      const turnInput = await readJsonFile(`${base}.turn-input.json`);
-      places.push({ decision_attempt_id: decisionAttemptId, workspace: isRecord(turnInput) ? text(turnInput.project_code) : null });
-    }
-  }
-  return { status: 'available', places };
-}
-
 function createWorldModule(context: LocalWebModuleContext, read: () => Promise<WorldBusinessesResponse>): LocalWebModule {
+  const workspaces = new Map<string, string | null>();
   return {
     id: WORLD_EXTENSION_ID,
     uiFiles: [],
@@ -252,7 +245,7 @@ function createWorldModule(context: LocalWebModuleContext, read: () => Promise<W
       }
       if (path === `/api/extensions/${WORLD_EXTENSION_ID}/judgment-places`) {
         response.setHeader('Cache-Control', 'no-store');
-        writeJson(response, 200, { version: WORLD_EXTENSION_VERSION, ...(await readJudgmentPlaces(context.journalRoot)) });
+        writeJson(response, 200, { version: WORLD_EXTENSION_VERSION, ...(await readJudgmentPlaces(context.journalRoot, { cache: context.journalCache, workspaces })) });
         return true;
       }
       return false;

@@ -55,6 +55,8 @@ export interface ValueProofReviewHttpOptions {
   readonly token: string;
   readonly basePath?: string;
   readonly now?: () => Date;
+  /** One cache per journal; a host passes the one it shares with other readers of the same journal. */
+  readonly journalCache?: JudgmentValueProofJournalCache;
 }
 
 export type ValueProofReviewHttpHandler = (request: IncomingMessage, response: ServerResponse) => Promise<boolean>;
@@ -92,7 +94,7 @@ export function createValueProofReviewHttpHandler(options: ValueProofReviewHttpO
   const basePath = (options.basePath ?? DEFAULT_BASE_PATH).replace(/\/+$/u, '');
   const now = options.now ?? (() => new Date());
   // A large journal has thousands of conversation folders; only the ones that changed are listed again.
-  const journalCache = new JudgmentValueProofJournalCache();
+  const journalCache = options.journalCache ?? new JudgmentValueProofJournalCache();
   const readJournal = () => readJudgmentValueProofJournal({ root: options.journalRoot, cache: journalCache });
 
   async function readHome(): Promise<JudgmentValueProofReviewHome> {

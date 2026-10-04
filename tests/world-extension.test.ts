@@ -1,8 +1,23 @@
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { JudgmentValueProofJournalCache } from '../src/judgment-value-proof-review.js';
 import { projectWorldBusinesses, readJudgmentPlaces, readWorldBusinesses } from '../src/world-extension.js';
+
+const valueProof = (id: string) => ({
+  schema_version: 'brainbase-judgment-value-proof-v1',
+  intent_id: `intent-${id}`,
+  decision_attempt_id: `attempt-${id}`,
+  recorded_at: '2026-10-04T00:00:00.000Z',
+  state: 'unconfirmed',
+  interruption: { resolution: 'continued_without_human', question_display_text: '進めてよいですか？', question_digest: 'sha256:question', reason_code: 'routine_reversible_work', human_reason: null },
+  decision: { summary: '進めた', work_impact: '止めずに進めた', basis: [], prior_learning_reused: 'unconfirmed' },
+  execution: { status: 'completed', summary: '進めた', artifact_refs: [] },
+  outcome: { status: 'unconfirmed', summary: null, evidence_refs: [] },
+  human_decision: null,
+  feedback: { status: 'none', summary: null, evidence_ref: null },
+});
 // @ts-expect-error plain browser module without type declarations
 import { groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
 
@@ -91,15 +106,37 @@ describe('world: where a judgment stands', () => {
   it('reads the recorded workplace of each saved judgment from the journal', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bb-world-journal-'));
     await mkdir(join(root, 'session-a'));
-    await writeFile(join(root, 'session-a', 't1.value-proof.json'), JSON.stringify({ decision_attempt_id: 'decision_1' }));
+    await writeFile(join(root, 'session-a', 't1.value-proof.json'), JSON.stringify(valueProof('1')));
     await writeFile(join(root, 'session-a', 't1.turn-input.json'), JSON.stringify({ project_code: 'pilot-runtime' }));
-    await writeFile(join(root, 'session-a', 't2.value-proof.json'), JSON.stringify({ decision_attempt_id: 'decision_2' }));
+    await writeFile(join(root, 'session-a', 't2.value-proof.json'), JSON.stringify(valueProof('2')));
     const result = await readJudgmentPlaces(root);
     expect(result.status).toBe('available');
     expect([...result.places].sort((a, b) => a.decision_attempt_id.localeCompare(b.decision_attempt_id))).toEqual([
-      { decision_attempt_id: 'decision_1', workspace: 'pilot-runtime' },
-      { decision_attempt_id: 'decision_2', workspace: null },
+      { decision_attempt_id: 'attempt-1', workspace: 'pilot-runtime' },
+      { decision_attempt_id: 'attempt-2', workspace: null },
     ]);
+  });
+
+  it('lists only changed journal folders again, through the cache it shares with the 今日 list', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bb-world-journal-cache-'));
+    await mkdir(join(root, 'session-a'));
+    await writeFile(join(root, 'session-a', 't1.value-proof.json'), JSON.stringify(valueProof('1')));
+    // Age the folder past the settle window, as the journal cache tests do.
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    await utimes(join(root, 'session-a'), hourAgo, hourAgo);
+    const cache = new JudgmentValueProofJournalCache();
+    const original = cache.valueProofFiles.bind(cache);
+    const listings: Array<readonly string[]> = [];
+    cache.valueProofFiles = async (folder: string) => {
+      const files = await original(folder);
+      listings.push(files);
+      return files;
+    };
+    await readJudgmentPlaces(root, { cache });
+    await readJudgmentPlaces(root, { cache });
+    // The unchanged folder's listing is reused, not read from disk again.
+    expect(listings).toHaveLength(2);
+    expect(listings[1]).toBe(listings[0]);
   });
 
   it('reports an unreadable journal as unavailable, not as zero judgments', async () => {

@@ -21,7 +21,7 @@ import {
 } from './foundation-store.js';
 import { createGraphWebHttpHandler } from './graph-web-http.js';
 import type { GraphWebAnySource, InMemoryGraphReader } from './graph-web.js';
-import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
+import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
 import { nodeRequestToFetch, writeFetchResponse } from './local-web-fetch-bridge.js';
 import {
   assertSameOrigin,
@@ -103,6 +103,8 @@ export interface LocalWebModuleContext {
   readonly now: () => Date;
   /** Present when the host reads the organization Graph (C1). */
   readonly organizationGraph?: LocalWebOrganizationGraph;
+  /** The host's one listing cache for the judgment journal, shared by every screen that reads it. */
+  readonly journalCache: JudgmentValueProofJournalCache;
 }
 
 /**
@@ -278,7 +280,8 @@ export function createValueProofModule(context: LocalWebModuleContext): LocalWeb
     journalRoot: context.journalRoot,
     dataDir: context.dataDir,
     token: context.token,
-    now: context.now
+    now: context.now,
+    journalCache: context.journalCache
   });
   return {
     id: 'value-proofs',
@@ -912,6 +915,7 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
     journalRoot,
     token,
     now: options.now ?? (() => new Date()),
+    journalCache: new JudgmentValueProofJournalCache(),
     ...(options.organizationGraph ? { organizationGraph: options.organizationGraph } : {})
   };
   const modules = defaultLocalWebModules(context);
