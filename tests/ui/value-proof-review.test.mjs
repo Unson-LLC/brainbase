@@ -582,6 +582,63 @@ describe('value proof review UI contract', () => {
     expect(detail).toContain('稼働中の設定へ反映してよいですか？');
   });
 
+  it('uses the row label for an older judgment after a kind is relabelled', async () => {
+    const older = proof({
+      intent_id: 'intent-old',
+      decision_attempt_id: 'attempt-old',
+      recorded_at: '2026-09-20T00:00:00.000Z',
+    });
+    older.decision = {
+      ...older.decision,
+      judgment_kind: { key: 'kind-renamed', label: '以前の分類名' },
+    };
+    const newer = proof({
+      intent_id: 'intent-new',
+      decision_attempt_id: 'attempt-new',
+      recorded_at: '2026-09-22T00:00:00.000Z',
+    });
+    newer.decision = {
+      ...newer.decision,
+      judgment_kind: { key: 'kind-renamed', label: '現在の分類名' },
+    };
+    const other = proof({
+      intent_id: 'intent-other',
+      decision_attempt_id: 'attempt-other',
+      recorded_at: '2026-09-21T00:00:00.000Z',
+    });
+    other.decision = {
+      ...other.decision,
+      judgment_kind: { key: 'other-kind', label: '別の分類名' },
+    };
+    const renamedRow = mapRow('kind:kind-renamed', [newer, older], { label: '現在の分類名' });
+    const otherRow = mapRow('kind:other-kind', [other], { label: '別の分類名' });
+    const payload = home([newer, older, other], delegationMap([renamedRow, otherRow]));
+    const doc = new FakeDocument();
+    const root = doc.createElement('main');
+    const rail = doc.createElement('aside');
+    const ui = createValueProofReviewUI({
+      root,
+      rail,
+      document: doc,
+      fetcher: async () => jsonResponse(200, payload),
+      autoLoad: false,
+    });
+    await ui.load();
+
+    const map = byClass(root, 'bb-vpr-map')[0];
+    expect(collectText(map)).toContain('現在の分類名');
+    expect(collectText(map)).toContain('別の分類名');
+    expect(collectText(rail)).toContain('現在の分類名');
+
+    const items = byClass(rail, 'bb-vpr-item');
+    expect(items).toHaveLength(2);
+    click(items[1]);
+
+    const detail = collectText(rail);
+    expect(detail).toContain('判断の種類: 現在の分類名');
+    expect(detail).not.toContain('判断の種類: 以前の分類名');
+  });
+
   it('gives the rail the row the owner selects, then the judgment picked from it, and goes back to the row', async () => {
     const first = proof();
     const second = proof({ intent_id: 'intent-2', decision_attempt_id: 'attempt-2' });

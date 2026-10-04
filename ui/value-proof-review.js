@@ -916,6 +916,11 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
   const { proof } = item;
   const detail = [];
   const row = rowOfItem(state, itemKey(proof));
+  const proofKind = kindLabel(proof);
+  // Keep a judgment-kind detail aligned with the row that groups it.
+  const displayedKind = row?.source === 'judgment_kind'
+    ? rowName(row)
+    : proofKind ? proofKind : row ? rowName(row) : null;
   if (row) {
     const back = workspaceButton(doc, { text: `← ${rowName(row)}`, variant: 'quiet', onClick: () => callbacks.onShowRow?.() });
     back.className = `${back.className} bb-vpr-back`;
@@ -924,7 +929,7 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
   const head = workspaceRailHead(doc, {
     kicker: itemStateLabel(item),
     title: itemTitle(proof),
-    sub: kindLabel(proof) ? `判断の種類: ${kindLabel(proof)}` : row ? rowName(row) : null,
+    sub: displayedKind ? `判断の種類: ${displayedKind}` : null,
   });
   const heading = Array.from(head.children ?? []).find((child) => child.tagName === 'H2');
   heading?.setAttribute('tabindex', '-1');
