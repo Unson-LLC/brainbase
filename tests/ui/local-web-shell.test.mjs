@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createLocalWebShell, LOCAL_WEB_SCREENS, parseLocalWebTarget } from '../../ui/local-web-shell.js';
+import { createLocalWebShell, LOCAL_WEB_SCREENS, organizationRecordLink, parseLocalWebTarget } from '../../ui/local-web-shell.js';
 import {
   graphEntityPayload,
   sourceBearingHome,
@@ -380,9 +380,19 @@ describe('local Web shell', () => {
     expect(recordLink.attributes).toMatchObject({ href: `https://org.example.com/?screen=graph&entity_id=${UX06_GRAPH_ENTITY.id}`, target: '_blank', rel: 'noopener noreferrer' });
     expect(rail).toContain('組織版の「情報と関係」でこの記録を開きます');
     expect(rail).toContain('Slackでログインすると、そのままこの記録に戻ります');
-    expect(rail).toContain('gmかceo');
+    expect(rail).toContain('gmかceoで、このプロジェクトとその上の事業の両方を許可されている人');
     expect(rail).toContain('人物の記録と、関係者の追加・終了は組織版でもまだ直せません');
     expect(rail).toContain('1分ほどたってから再読み込み');
+  });
+
+  it('opens a sub-project in the organization web by its own code, not by the code of the business it belongs to', () => {
+    const origin = 'https://org.example.com';
+    const engagement = { id: 'eng_training', type: 'project', metadata: { code: 'atlas-training', project_code: 'atlas' } };
+    expect(organizationRecordLink(origin, 'projects', engagement)).toEqual({ href: `${origin}/?screen=projects&project=atlas-training`, label: '「プロジェクトと関係者」' });
+    // Without its own code the scope's code would name the parent, so the record opens by id instead.
+    expect(organizationRecordLink(origin, 'projects', { id: 'eng_plain', type: 'project', metadata: { project_code: 'atlas' } }).href).toBe(`${origin}/?screen=graph&entity_id=eng_plain`);
+    expect(organizationRecordLink(origin, 'projects', { id: 'eng_bad', type: 'project', metadata: { code: '//evil.example' } }).href).toBe(`${origin}/?screen=graph&entity_id=eng_bad`);
+    expect(organizationRecordLink(origin, 'graph', engagement).href).toBe(`${origin}/?screen=graph&entity_id=eng_training`);
   });
 
   it('only exposes the source link after the host confirms the source, and preserves unconfirmed states', async () => {
