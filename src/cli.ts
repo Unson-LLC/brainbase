@@ -64,7 +64,7 @@ import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-build
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension } from './world-extension.js';
 import { createOrganizationGraphSource } from './organization-graph-web.js';
-import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
+import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT, type LocalWebOrganizationGraph } from './local-web-host.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -1155,12 +1155,22 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   // World view (ledger P17): the businesses as a city above the home. Off unless the flag is given.
   const world = parsed.flags.has('world');
   // Ledger C1: the Graph screens read the owner's organization Graph read only.
-  let organizationGraph: Awaited<ReturnType<typeof createOrganizationGraphSource>> | null = null;
+  let organizationGraph: LocalWebOrganizationGraph | null = null;
   if (parsed.flags.has('organization-graph')) {
-    organizationGraph = await createOrganizationGraphSource();
-    if ('reason' in organizationGraph) {
-      throw new Error(`${command} --organization-graph cannot read the organization Graph (${organizationGraph.reason}); sign in with brainbase auth first`);
+    const source = await createOrganizationGraphSource();
+    if ('reason' in source) {
+      throw new Error(`${command} --organization-graph cannot read the organization Graph (${source.reason}); sign in with brainbase auth first`);
     }
+    organizationGraph = source;
+  }
+  // Where the organization's records are corrected; the read-only screens link to it.
+  const organizationWeb = first(parsed, 'organization-web');
+  if (organizationWeb !== undefined) {
+    if (!organizationGraph) throw new Error(`${command} --organization-web requires --organization-graph`);
+    if (!/^https:\/\/[^/?#@\s]+$/u.test(organizationWeb)) {
+      throw new Error(`${command} --organization-web must be an https origin such as https://org.example.com`);
+    }
+    organizationGraph = { ...organizationGraph, webUrl: organizationWeb };
   }
   const { server } = createLocalWebHost({
     dataDir,
@@ -1183,6 +1193,7 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
     `- 情報と関係: ${origin}/#graph`,
     ...(world ? [`- 世界: ${origin}/#world`] : []),
     ...(organizationGraph ? [`組織のGraph（読み取りのみ）: ${organizationGraph.server}`] : []),
+    ...(organizationGraph?.webUrl ? [`組織版（訂正の入口）: ${organizationGraph.webUrl}`] : []),
     `データ: ${dataDir}`,
     `判断journal: ${journalRoot}`,
     '終了: Ctrl+C',
@@ -1353,7 +1364,7 @@ function usage(): string {
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
-  brainbase web:serve [--dir path] [--journal path] [--port n] [--world] [--organization-graph]
+  brainbase web:serve [--dir path] [--journal path] [--port n] [--world] [--organization-graph [--organization-web https-origin]]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
 `;
 }

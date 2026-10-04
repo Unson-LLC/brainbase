@@ -153,6 +153,8 @@ export interface LocalWebHostOptions {
 export interface LocalWebOrganizationGraph {
   /** Organization server origin shown as the source, without credentials. */
   readonly server: string;
+  /** The organization's own web (where its records are corrected), when the owner configured it. */
+  readonly webUrl?: string;
   read(): Promise<InMemoryGraphReader<GraphWebAnySource>>;
 }
 
@@ -267,7 +269,12 @@ export function createLocalStatusModule(context: LocalWebModuleContext): LocalWe
           commands: graphCommands(graph, context.dataDir)
         },
         organization_graph: context.organizationGraph
-          ? { status: 'connected', server: context.organizationGraph.server, mode: 'read_only' }
+          ? {
+              status: 'connected',
+              server: context.organizationGraph.server,
+              mode: 'read_only',
+              ...(context.organizationGraph.webUrl ? { web_url: context.organizationGraph.webUrl } : {})
+            }
           : { status: 'not_connected' }
       });
       return true;

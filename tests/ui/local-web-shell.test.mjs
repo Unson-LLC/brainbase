@@ -342,6 +342,29 @@ describe('local Web shell', () => {
     expect(collectText(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0])).toContain(UX06_GRAPH_ENTITY.id);
   });
 
+  it('links the read-only organization Graph screens to the organization web where records are corrected', async () => {
+    const graphRoutes = {
+      '/api/graph/search?limit=50': () => jsonResponse(200, UX06_GRAPH_SEARCH),
+      '/api/graph/ontology': () => jsonResponse(200, UX06_GRAPH_ONTOLOGY),
+    };
+    const connected = (organization) => () => jsonResponse(200, { ...statusPayload(V2), organization_graph: organization });
+    const orgLinks = (root) => findAll(root, (node) => node.tagName === 'A' && String(node.attributes?.href ?? '').startsWith('https://'));
+
+    const linked = hostFetcher(V2, { ...graphRoutes, '/api/local/status': connected({ status: 'connected', server: 'https://graph.example.com', mode: 'read_only', web_url: 'https://org.example.com' }) });
+    const withLink = mount(linked.fetcher, 'graph');
+    await flushMany();
+    const [link] = orgLinks(withLink.root);
+    expect(link.attributes).toMatchObject({ href: 'https://org.example.com/?screen=graph', target: '_blank', rel: 'noopener noreferrer' });
+    expect(collectText(screen(withLink.root, 'graph'))).toContain('組織のGraph（https://graph.example.com）');
+
+    const unlinked = hostFetcher(V2, { ...graphRoutes, '/api/local/status': connected({ status: 'connected', server: 'https://graph.example.com', mode: 'read_only', web_url: 'javascript:alert(1)' }) });
+    const withoutLink = mount(unlinked.fetcher, 'graph');
+    await flushMany();
+    expect(orgLinks(withoutLink.root)).toEqual([]);
+    expect(findAll(withoutLink.root, (node) => String(node.attributes?.href ?? '').startsWith('javascript:'))).toEqual([]);
+    expect(collectText(screen(withoutLink.root, 'graph'))).toContain('このMacのGraphではありません。');
+  });
+
   it('only exposes the source link after the host confirms the source, and preserves unconfirmed states', async () => {
     const cases = [
       ['404', () => jsonResponse(404, { error: { code: 'entity_not_found' } }), '出典が見つかりません'],
