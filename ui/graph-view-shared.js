@@ -459,9 +459,15 @@ function withinCorrectionScope(scope, body, recordType) {
   return scope.entity(recordType) && scope.fields(changed).length === changed.length;
 }
 
-/** A host's note that corrections are not available here, or null when it passed none. */
-export function hostReadOnlyNote(doc, readOnlyNote) {
-  const text = textOrNull(readOnlyNote);
+/**
+ * A host's note that corrections are not available here, or null when it passed none.  The host may
+ * pass a function of the selected record (`{ id, type, metadata }`) returning a string or an element,
+ * for a note that points at that record (for example a link to where it is corrected).
+ */
+export function hostReadOnlyNote(doc, readOnlyNote, subject) {
+  const value = typeof readOnlyNote === 'function' ? readOnlyNote(subject ?? null) : readOnlyNote;
+  if (value && typeof value === 'object' && typeof value.tagName === 'string') return workspaceNotice(doc, { text: value, tone: 'info' });
+  const text = textOrNull(value);
   return text ? workspaceNotice(doc, { text, tone: 'info' }) : null;
 }
 
