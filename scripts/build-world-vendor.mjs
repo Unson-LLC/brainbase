@@ -7,7 +7,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const vendorPath = resolve(repoRoot, 'ui/world/world-vendor.js');
 const licensePath = resolve(repoRoot, 'ui/world/world-vendor.LICENSE.txt');
 
-// Experimental world view (W1–W4, provisional). Like the project graph, three.js
+// World view (ledger P17). Like the project graph, three.js
 // is bundled into the application so the page never loads a CDN.
 await build({
   stdin: {

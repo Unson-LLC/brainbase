@@ -1,4 +1,4 @@
-/* Experimental world view (W1–W4, provisional). Uses only the shared tokens. */
+/* World view (ledger P17). Uses only the shared tokens. */
 .bb-world {
   display: flex;
   flex-direction: column;

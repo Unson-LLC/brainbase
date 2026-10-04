@@ -1,5 +1,5 @@
 /*
- * Experimental world view (W1–W4, provisional adoption 2026-10-04).
+ * World view (ledger P17, adopted 2026-10-04): the home's upper layer.
  *
  * A read-only 3D projection of two existing sources:
  *   - businesses and their engagements from the owner's organization Graph
@@ -733,8 +733,6 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     placeLabels();
   }
   requestAnimationFrame(frame);
-  // Experiment-only inspection handle (read in the browser console while tuning).
-  globalThis.__bbWorldDebug = { camera, controls, get flight() { return flight; }, get selected() { return selected; } };
 
   return {
     buildPlaza,
@@ -775,7 +773,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   let scene = null;
 
   const header = workspacePageHeader(doc, {
-    crumbs: page?.crumbs ?? ['あなたのBrainbase', '世界（実験）'],
+    crumbs: page?.crumbs ?? ['あなたのBrainbase', '世界'],
     title: '世界',
     lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。見るための画面で、ここからは何も書き換えません。',
     source: page?.source ?? null,
@@ -998,7 +996,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
 export const screen = Object.freeze({
   id: 'world',
-  label: '世界（実験）',
+  label: '世界',
   usesGraph: false,
   rail: true,
   source: '組織のGraph・判断journal（読み取りのみ）',

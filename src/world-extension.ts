@@ -7,15 +7,15 @@ import type { LocalWebExtension, LocalWebModule, LocalWebModuleContext } from '.
 import { requestUrl, writeJson } from './local-web-security.js';
 
 /**
- * Experimental world view (W1–W4, provisional adoption on 2026-10-04).
+ * World view (ledger P17, adopted 2026-10-04): the home's upper layer.
  *
  * The world is a read-only projection.  Businesses come from the owner's
  * organization Graph (read-only, ledger P3/C1); judgments come from the
  * existing value-proof home on the browser side.  Nothing here writes, and a
  * failure to read is reported as a state, never as zero businesses.
  */
-export const EXPERIMENTAL_WORLD_ID = 'world';
-export const EXPERIMENTAL_WORLD_VERSION = 'experimental-world.v0' as const;
+export const WORLD_EXTENSION_ID = 'world';
+export const WORLD_EXTENSION_VERSION = 'world-extension.v1' as const;
 
 const BUSINESS_KINDS = ['product', 'client', 'internal', 'research'] as const;
 type BusinessKind = (typeof BUSINESS_KINDS)[number];
@@ -49,8 +49,8 @@ export interface WorldBusinessProjection {
 }
 
 export type WorldBusinessesResponse =
-  | ({ readonly status: 'ok'; readonly version: typeof EXPERIMENTAL_WORLD_VERSION; readonly source: { readonly server: string; readonly organization_id: string | null }; readonly as_of: string } & WorldBusinessProjection)
-  | { readonly status: 'not_connected' | 'auth_failed' | 'unavailable'; readonly version: typeof EXPERIMENTAL_WORLD_VERSION; readonly reason: string };
+  | ({ readonly status: 'ok'; readonly version: typeof WORLD_EXTENSION_VERSION; readonly source: { readonly server: string; readonly organization_id: string | null }; readonly as_of: string } & WorldBusinessProjection)
+  | { readonly status: 'not_connected' | 'auth_failed' | 'unavailable'; readonly version: typeof WORLD_EXTENSION_VERSION; readonly reason: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -151,7 +151,7 @@ async function readOrganizationAccess(home: string): Promise<OrganizationAccess 
 
 export async function readWorldBusinesses(options: { home?: string; fetch?: typeof fetch; now?: () => Date } = {}): Promise<WorldBusinessesResponse> {
   const access = await readOrganizationAccess(options.home ?? homedir());
-  if ('reason' in access) return { status: 'not_connected', version: EXPERIMENTAL_WORLD_VERSION, reason: access.reason };
+  if ('reason' in access) return { status: 'not_connected', version: WORLD_EXTENSION_VERSION, reason: access.reason };
   const request = options.fetch ?? fetch;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
@@ -163,25 +163,25 @@ export async function readWorldBusinesses(options: { home?: string; fetch?: type
       signal: controller.signal,
     });
     if (response.status === 401 || response.status === 403) {
-      return { status: 'auth_failed', version: EXPERIMENTAL_WORLD_VERSION, reason: `http_${response.status}` };
+      return { status: 'auth_failed', version: WORLD_EXTENSION_VERSION, reason: `http_${response.status}` };
     }
-    if (!response.ok) return { status: 'unavailable', version: EXPERIMENTAL_WORLD_VERSION, reason: `http_${response.status}` };
+    if (!response.ok) return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: `http_${response.status}` };
     const body = await response.text();
-    if (body.length > MAX_RESPONSE_BYTES) return { status: 'unavailable', version: EXPERIMENTAL_WORLD_VERSION, reason: 'response_too_large' };
+    if (body.length > MAX_RESPONSE_BYTES) return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: 'response_too_large' };
     const parsed = JSON.parse(body) as unknown;
     const records = isRecord(parsed) && Array.isArray(parsed.records) ? parsed.records : null;
-    if (!records) return { status: 'unavailable', version: EXPERIMENTAL_WORLD_VERSION, reason: 'response_shape_invalid' };
+    if (!records) return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: 'response_shape_invalid' };
     const organizationIds = new Set(records.filter(isRecord).map((record) => record.organization_id).filter((id): id is string => typeof id === 'string'));
     return {
       status: 'ok',
-      version: EXPERIMENTAL_WORLD_VERSION,
+      version: WORLD_EXTENSION_VERSION,
       source: { server: access.server, organization_id: organizationIds.size === 1 ? [...organizationIds][0]! : null },
       as_of: (options.now ?? (() => new Date()))().toISOString(),
       ...projectWorldBusinesses(records),
     };
   } catch (error) {
     const reason = error instanceof Error && error.name === 'AbortError' ? 'timeout' : 'request_failed';
-    return { status: 'unavailable', version: EXPERIMENTAL_WORLD_VERSION, reason };
+    return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason };
   } finally {
     clearTimeout(timer);
   }
@@ -240,19 +240,19 @@ export async function readJudgmentPlaces(journalRoot: string): Promise<{ readonl
 
 function createWorldModule(context: LocalWebModuleContext, read: () => Promise<WorldBusinessesResponse>): LocalWebModule {
   return {
-    id: EXPERIMENTAL_WORLD_ID,
+    id: WORLD_EXTENSION_ID,
     uiFiles: [],
     async handle(request: IncomingMessage, response: ServerResponse): Promise<boolean> {
       if (request.method !== 'GET') return false;
       const path = requestUrl(request).pathname;
-      if (path === `/api/extensions/${EXPERIMENTAL_WORLD_ID}/businesses`) {
+      if (path === `/api/extensions/${WORLD_EXTENSION_ID}/businesses`) {
         response.setHeader('Cache-Control', 'no-store');
         writeJson(response, 200, await read());
         return true;
       }
-      if (path === `/api/extensions/${EXPERIMENTAL_WORLD_ID}/judgment-places`) {
+      if (path === `/api/extensions/${WORLD_EXTENSION_ID}/judgment-places`) {
         response.setHeader('Cache-Control', 'no-store');
-        writeJson(response, 200, { version: EXPERIMENTAL_WORLD_VERSION, ...(await readJudgmentPlaces(context.journalRoot)) });
+        writeJson(response, 200, { version: WORLD_EXTENSION_VERSION, ...(await readJudgmentPlaces(context.journalRoot)) });
         return true;
       }
       return false;
@@ -260,13 +260,13 @@ function createWorldModule(context: LocalWebModuleContext, read: () => Promise<W
   };
 }
 
-export function createExperimentalWorldExtension(options: { home?: string; fetch?: typeof fetch } = {}): LocalWebExtension {
+export function createWorldExtension(options: { home?: string; fetch?: typeof fetch } = {}): LocalWebExtension {
   return {
-    id: EXPERIMENTAL_WORLD_ID,
+    id: WORLD_EXTENSION_ID,
     uiDir: fileURLToPath(new URL('../ui/world/', import.meta.url)),
     uiFiles: ['world-view.js', 'world-view.css', 'world-vendor.js', 'world-placement.js'],
     screenEntry: 'world-view.js',
-    // W1 (provisional): the world sits above the home and opens first.
+    // P17: the world sits above the home and opens first.
     navPosition: 'first',
     createModule: (context) => createWorldModule(context, () => readWorldBusinesses(options)),
   };

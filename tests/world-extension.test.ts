@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { projectWorldBusinesses, readJudgmentPlaces, readWorldBusinesses } from '../src/experimental-world.js';
+import { projectWorldBusinesses, readJudgmentPlaces, readWorldBusinesses } from '../src/world-extension.js';
 // @ts-expect-error plain browser module without type declarations
 import { groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
 
@@ -14,7 +14,7 @@ const record = (id: string, projectCode: string, payload: Record<string, unknown
   payload,
 });
 
-describe('experimental world: businesses from the organization Graph', () => {
+describe('world: businesses from the organization Graph', () => {
   it('draws active catalog projects as cities and attaches engagements by project_code', () => {
     const projection = projectWorldBusinesses([
       record('prj_baao', 'baao', { code: 'baao', kind: 'internal', name: 'BAAO', purpose: '研修' }),
@@ -63,7 +63,7 @@ describe('experimental world: businesses from the organization Graph', () => {
   });
 });
 
-describe('experimental world: where a judgment stands', () => {
+describe('world: where a judgment stands', () => {
   const businesses = [
     { code: 'mana', repositories: ['mana-runtime', 'mana'] },
     { code: 'brainbase', repositories: ['brainbase-unson'] },

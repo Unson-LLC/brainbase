@@ -1,5 +1,5 @@
 /*
- * Where a judgment stands in the world (experimental, M3).
+ * Where a judgment stands in the world (ledger D6 placement).
  *
  * The judgment Host records the repository a turn worked in (`project_code`,
  * the session's repository name).  A judgment is placed in a business only by
