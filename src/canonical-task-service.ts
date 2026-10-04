@@ -29,6 +29,7 @@ type CanonicalTaskDeleteResult = {
  */
 type CanonicalTaskDeleteOperationResult = CanonicalTaskDeleteResult & {
   _audit_source_refs?: unknown[];
+  _storage_scope?: string;
 };
 
 export type CanonicalTaskAction =
@@ -52,6 +53,8 @@ export interface CanonicalTaskContext extends JsonRecord {
   auditPrincipal?: CanonicalTaskPrincipal | null;
   auditAuthSource?: string | null;
   idempotencyKey?: string | null;
+  /** Opaque host-policy scope, not authority or task input. */
+  storageScope?: string;
 }
 
 export interface CanonicalTaskRecord extends JsonRecord {
@@ -154,13 +157,13 @@ export interface CanonicalTaskAuditEntry extends JsonRecord {
 }
 
 export interface CanonicalTaskRepository {
-  list(filters: CanonicalTaskListFilters): Promise<CanonicalTaskPage>;
-  search(filters: CanonicalTaskSearchFilters): Promise<CanonicalTaskPage>;
-  get(taskId: string): Promise<CanonicalTaskRecord | null>;
-  findByIdempotencyKey(key: string): Promise<CanonicalTaskRecord | null>;
-  create(input: JsonRecord): Promise<CanonicalTaskRecord>;
-  update(taskId: string, patch: JsonRecord): Promise<CanonicalTaskRecord>;
-  delete(taskId: string, expectedVersion: number): Promise<void>;
+  list(filters: CanonicalTaskListFilters, storageScope?: string): Promise<CanonicalTaskPage>;
+  search(filters: CanonicalTaskSearchFilters, storageScope?: string): Promise<CanonicalTaskPage>;
+  get(taskId: string, storageScope?: string): Promise<CanonicalTaskRecord | null>;
+  findByIdempotencyKey(key: string, storageScope?: string): Promise<CanonicalTaskRecord | null>;
+  create(input: JsonRecord, storageScope?: string): Promise<CanonicalTaskRecord>;
+  update(taskId: string, patch: JsonRecord, storageScope?: string): Promise<CanonicalTaskRecord>;
+  delete(taskId: string, expectedVersion: number, storageScope?: string): Promise<void>;
 }
 
 export interface CanonicalTaskAuditRepository {
@@ -221,6 +224,7 @@ export interface CanonicalTaskPreparedDeleteRequest<T> {
   versionFingerprint: string;
   versionClaimKey: string;
   principalNamespace: string;
+  storageScope?: string;
   prepare: () => Promise<{
     result: T;
     task?: CanonicalTaskRecord | null;
@@ -411,8 +415,12 @@ function validHttpUrl(value: unknown): string | null {
   }
 }
 
-function operationKey(principal: CanonicalTaskPrincipal, clientKey: string, prefix: string): string {
-  return `${prefix}${principalNamespace(principal)}:${clientKey}`;
+function scopedNamespace(context: CanonicalTaskContext): string {
+  return context.storageScope === undefined ? principalNamespace(context.principal)
+    : `v2.${Buffer.from(JSON.stringify({ actor: context.principal, storageScope: context.storageScope })).toString('base64url')}`;
+}
+function operationKey(context: CanonicalTaskContext, clientKey: string, prefix: string): string {
+  return `${prefix}${scopedNamespace(context)}:${clientKey}`;
 }
 
 function extractPersistedFingerprint(task: CanonicalTaskRecord): string | null {
@@ -492,7 +500,7 @@ export class CanonicalTaskService {
     const normalizedFilters = this.normalizeListFilters(filters);
     await this.authorize('list', normalizedContext, undefined, normalizedFilters);
     const scoped = await this.scopeFilters('list', normalizedContext, normalizedFilters);
-    const page = await this.read(() => this.repository.list(scoped));
+    const page = await this.read(() => this.repository.list(scoped, ...this.scopeArgs(normalizedContext)));
     return {
       ...normalizePage(page, (task) => this.normalizeResponse(task)),
       as_of: this.clock().toISOString(),
@@ -511,7 +519,7 @@ export class CanonicalTaskService {
         503,
       );
     }
-    const page = await this.read(() => this.repository.search(scoped));
+    const page = await this.read(() => this.repository.search(scoped, ...this.scopeArgs(normalizedContext)));
     const normalizedPage = normalizePage(page, (task) => this.normalizeResponse(task));
     return {
       ...normalizedPage,
@@ -524,7 +532,7 @@ export class CanonicalTaskService {
   async getTask(taskId: string, context: CanonicalTaskContext): Promise<CanonicalTaskRecord> {
     const normalizedId = normalizeString(taskId, 'task_id', { required: true, max: 200 }) as string;
     const normalizedContext = await this.normalizeContext(context);
-    const task = await this.read(() => this.repository.get(normalizedId));
+    const task = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
     if (!task) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
     await this.authorize('read', normalizedContext, task);
     return this.normalizeResponse(task);
@@ -535,10 +543,10 @@ export class CanonicalTaskService {
     const clientKey = this.requireIdempotencyKey(normalizedContext);
     const payload = this.normalizeCreateInput(input);
     await this.authorize('create', normalizedContext, undefined, payload);
-    const operation = operationKey(normalizedContext.principal, clientKey, 'api:');
+    const operation = operationKey(normalizedContext, clientKey, 'api:');
     const inputFingerprint = fingerprint(payload);
     const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
-      const existing = await this.read(() => this.repository.findByIdempotencyKey(operation));
+      const existing = await this.read(() => this.repository.findByIdempotencyKey(operation, ...this.scopeArgs(normalizedContext)));
       if (!existing) return { recovered: false };
       const existingFingerprint = extractPersistedFingerprint(existing);
       if (existingFingerprint && existingFingerprint !== inputFingerprint) {
@@ -560,7 +568,7 @@ export class CanonicalTaskService {
         version: 1,
         idempotency_key: operation,
         payload_fingerprint: inputFingerprint,
-      }));
+      }, ...this.scopeArgs(normalizedContext)));
       return this.normalizeResponse(created);
     };
     const result = await this.executeOperation({
@@ -571,6 +579,7 @@ export class CanonicalTaskService {
       recover,
       run,
     });
+    if (normalizedContext.storageScope !== undefined) await this.authorize('read', normalizedContext, result);
     const normalized = this.normalizeResponse(result);
     // Audit each invocation, including a replay/recovery. The deterministic
     // entry id lets an upsert sink collapse retries without losing evidence
@@ -664,9 +673,10 @@ export class CanonicalTaskService {
     // operation may legitimately recover after the delete removed the row.
     // The fallback path still performs the ordinary read and authorization
     // checks before invoking the local operation runner.
+    if (normalizedContext.storageScope !== undefined) await this.authorize('delete', normalizedContext);
     let task: CanonicalTaskRecord | null = null;
     if (!this.operationRepository?.executePreparedDelete) {
-      task = await this.read(() => this.repository.get(normalizedId));
+      task = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!task) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       await this.authorize('delete', normalizedContext, task);
       this.assertVersion(task, version);
@@ -674,16 +684,19 @@ export class CanonicalTaskService {
     // The client key identifies the delete command. The task/version claim is
     // carried separately so an operation coordinator can atomically claim the
     // exact row version without allowing another actor to replay the command.
-    const operation = operationKey(normalizedContext.principal, clientKey, 'delete:');
-    const versionClaimKey = `task-version:${normalizedId}:${version}`;
+    const operation = operationKey(normalizedContext, clientKey, 'delete:');
+    const scopePrefix = normalizedContext.storageScope === undefined ? '' : `${Buffer.from(normalizedContext.storageScope).toString('base64url')}:`;
+    const versionClaimKey = `task-version:${scopePrefix}${normalizedId}:${version}`;
     const versionFingerprint = fingerprint({
       kind: 'delete',
+      ...(normalizedContext.storageScope === undefined ? {} : { storageScope: normalizedContext.storageScope }),
       taskId: normalizedId,
       expectedVersion: version,
     });
-    const actorNamespace = principalNamespace(normalizedContext.principal);
+    const actorNamespace = scopedNamespace(normalizedContext);
     const operationFingerprint = fingerprint({
       kind: 'delete',
+      ...(normalizedContext.storageScope === undefined ? {} : { storageScope: normalizedContext.storageScope }),
       taskId: normalizedId,
       expectedVersion: version,
       principalNamespace: actorNamespace,
@@ -698,7 +711,7 @@ export class CanonicalTaskService {
       task: CanonicalTaskRecord;
       authorizationSnapshot: JsonRecord;
     }> => {
-      const current = await this.read(() => this.repository.get(normalizedId));
+      const current = await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       await this.authorize('delete', normalizedContext, current);
       this.assertVersion(current, version);
@@ -707,23 +720,25 @@ export class CanonicalTaskService {
         result: {
           ...result,
           _audit_source_refs: Array.isArray(current.source_refs) ? current.source_refs : [],
+          ...(normalizedContext.storageScope === undefined ? {} : { _storage_scope: normalizedContext.storageScope }),
         },
         task: current,
         authorizationSnapshot: {
           task_id: normalizedId,
           task_version: current.version,
+          ...(normalizedContext.storageScope === undefined ? {} : { storage_scope: normalizedContext.storageScope }),
           actor: normalizedContext.principal,
           auth_source: normalizedContext.authSource ?? null,
         },
       };
     };
     const findTask = async (): Promise<CanonicalTaskRecord | null> =>
-      this.read(() => this.repository.get(normalizedId)).then((current) => {
+      this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext))).then((current) => {
         if (current) task = current;
         return current;
       });
     const removeTask = async (current?: CanonicalTaskRecord): Promise<void> => {
-      const taskToRemove = current ?? await this.read(() => this.repository.get(normalizedId));
+      const taskToRemove = current ?? await this.read(() => this.repository.get(normalizedId, ...this.scopeArgs(normalizedContext)));
       if (!taskToRemove) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: normalizedId });
       task = taskToRemove;
       // The coordinator may call removeTask after an earlier prepare step.
@@ -731,7 +746,7 @@ export class CanonicalTaskService {
       // actor cannot delete a task using a previously prepared authorization.
       await this.authorize('delete', normalizedContext, taskToRemove);
       this.assertVersion(taskToRemove, version);
-      await this.read(() => this.repository.delete(normalizedId, version));
+      await this.read(() => this.repository.delete(normalizedId, version, ...this.scopeArgs(normalizedContext)));
     };
     let deleted: CanonicalTaskDeleteOperationResult;
     if (this.operationRepository?.executePreparedDelete) {
@@ -742,6 +757,7 @@ export class CanonicalTaskService {
         versionFingerprint,
         versionClaimKey,
         principalNamespace: actorNamespace,
+        ...(normalizedContext.storageScope === undefined ? {} : { storageScope: normalizedContext.storageScope }),
         prepare,
         findTask,
         removeTask,
@@ -759,6 +775,9 @@ export class CanonicalTaskService {
           return prepared.result;
         },
       });
+    }
+    if (normalizedContext.storageScope !== undefined && deleted._storage_scope !== normalizedContext.storageScope) {
+      throw new CanonicalTaskError('task_not_found', 'Task was not found', 404);
     }
     // A completed replay may return without prepare/findTask, because the
     // durable operation result is sufficient. Keep the audit target stable in
@@ -805,10 +824,10 @@ export class CanonicalTaskService {
   }): Promise<CanonicalTaskRecord> {
     const taskId = normalizeString(input.taskId, 'task_id', { required: true, max: 200 }) as string;
     const expectedVersion = this.requireExpectedVersion(input.expectedVersion);
-    const current = await this.read(() => this.repository.get(taskId));
+    const current = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
     if (!current) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
     await this.authorize(input.action, input.context, current, input.patch);
-    const operation = operationKey(input.context.principal, `${taskId}:${expectedVersion}`, `${input.action}:`);
+    const operation = operationKey(input.context, `${taskId}:${expectedVersion}`, `${input.action}:`);
     const mutationTimestamp = this.clock().toISOString();
     const patch = {
       ...input.patch,
@@ -828,6 +847,7 @@ export class CanonicalTaskService {
       patch: input.patch,
       transitionStatus: input.transitionStatus ?? null,
       principal: input.context.principal,
+      ...(input.context.storageScope === undefined ? {} : { storageScope: input.context.storageScope }),
     });
     const wasApplied = (candidate: CanonicalTaskRecord): boolean =>
       candidate.version === expectedVersion + 1
@@ -843,7 +863,7 @@ export class CanonicalTaskService {
       }
     }
     const recover = async (): Promise<CanonicalTaskOperationRecovery<CanonicalTaskRecord>> => {
-      const latest = await this.read(() => this.repository.get(taskId));
+      const latest = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
       await this.authorize(input.action, input.context, latest, input.patch);
       if (wasApplied(latest)) return { recovered: true, result: this.normalizeResponse(latest) };
@@ -857,7 +877,7 @@ export class CanonicalTaskService {
       return { recovered: false };
     };
     const run = async (): Promise<CanonicalTaskRecord> => {
-      const latest = await this.read(() => this.repository.get(taskId));
+      const latest = await this.read(() => this.repository.get(taskId, ...this.scopeArgs(input.context)));
       if (!latest) throw new CanonicalTaskError('task_not_found', 'Task was not found', 404, { task_id: taskId });
       if (wasApplied(latest)) return this.normalizeResponse(latest);
       this.assertVersion(latest, expectedVersion);
@@ -871,7 +891,7 @@ export class CanonicalTaskService {
         ...patch,
         _last_operation_key: operation,
         _last_operation_fingerprint: operationFingerprint,
-      }));
+      }, ...this.scopeArgs(input.context)));
       return this.normalizeResponse(updated);
     };
     const result = await this.executeOperation({
@@ -882,6 +902,7 @@ export class CanonicalTaskService {
       recover,
       run,
     });
+    if (input.context.storageScope !== undefined) await this.authorize(input.action, input.context, result, input.patch);
     const normalized = this.normalizeResponse(result);
     const auditAction: CanonicalTaskAuditAction = input.action === 'update'
       ? 'canonical_task.updated'
@@ -984,6 +1005,10 @@ export class CanonicalTaskService {
     return { ...normalized, q, query: q, tokens, limit };
   }
 
+  private scopeArgs(context: CanonicalTaskContext): [] | [string] {
+    return context.storageScope === undefined ? [] : [context.storageScope];
+  }
+
   private async normalizeContext(context: CanonicalTaskContext): Promise<CanonicalTaskContext> {
     if (!context || typeof context !== 'object') {
       throw new CanonicalTaskError('unauthenticated_context', 'A task context is required', 401);
@@ -1001,6 +1026,10 @@ export class CanonicalTaskService {
       ? await this.policy.normalizeContext(normalized)
       : normalized;
     try {
+      if (fromPolicy.storageScope !== undefined && (typeof fromPolicy.storageScope !== 'string'
+        || !fromPolicy.storageScope.trim() || /\p{Cc}/u.test(fromPolicy.storageScope))) {
+        throw new Error('Storage scope is invalid');
+      }
       return { ...fromPolicy, principal: normalizeCanonicalTaskPrincipal(fromPolicy.principal) };
     } catch (error) {
       throw new CanonicalTaskError('unauthenticated_context', error instanceof Error ? error.message : 'Principal is invalid', 401);
@@ -1068,6 +1097,7 @@ export class CanonicalTaskService {
       actor_type: actor.type,
       actor_principal: actor,
       actor_namespace: principalNamespace(actor),
+      ...(context.storageScope === undefined ? {} : { storage_scope: context.storageScope }),
       auth_source: context.auditAuthSource ?? context.authSource ?? null,
       action,
       target_type: 'canonical_task',
