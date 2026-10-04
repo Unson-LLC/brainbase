@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { GraphWebError, openInMemoryGraph, type GraphWebOrganizationSource, type InMemoryGraphReader } from './graph-web.js';
-import type { LocalWebOrganizationGraph } from './local-web-host.js';
+import type { GraphVocabularyTerm, LocalWebOrganizationGraph } from './local-web-host.js';
 import { canonicalEdgeId } from './canonical-graph.js';
 import { canonicalGraphOntologyRelease } from './templates.js';
 import type { CanonicalEdge, CanonicalEntity, CanonicalEntityKind, CoreRelation, GraphFileV2 } from './types.js';
@@ -80,6 +80,31 @@ function isAccountableRole(payload: Record<string, unknown>): boolean {
 function isCatalogProject(record: OrganizationRecord, payload: Record<string, unknown>): boolean {
   const scope = text(record.project_code);
   return scope !== null && (text(payload.code) ?? record.id) === scope;
+}
+
+/**
+ * The organization's words for field values: active glossary terms that carry
+ * `payload.vocabulary = { field, value }`.  The name is the term's label, else
+ * its term, else the value itself (pure; tested).
+ */
+export function projectVocabularyTerms(records: readonly unknown[]): GraphVocabularyTerm[] {
+  const terms: GraphVocabularyTerm[] = [];
+  for (const record of records) {
+    if (!isRecord(record) || typeof record.id !== 'string' || !isRecord(record.payload)) continue;
+    if (record.lifecycle_status && record.lifecycle_status !== 'active') continue;
+    const vocabulary = record.payload.vocabulary;
+    const field = isRecord(vocabulary) ? text(vocabulary.field) : null;
+    const value = isRecord(vocabulary) ? text(vocabulary.value) : null;
+    if (!field || !value) continue;
+    terms.push({
+      id: record.id,
+      field,
+      value,
+      label: text(record.payload.label) ?? text(record.payload.term) ?? value,
+      definition: text(record.payload.definition)
+    });
+  }
+  return terms.sort((a, b) => a.id.localeCompare(b.id));
 }
 
 /** A project's code, parent and repositories as the organization Graph states them. */
@@ -263,13 +288,17 @@ export async function createOrganizationGraphSource(options: OrganizationGraphSo
   const request = options.fetch ?? fetch;
   const now = options.now ?? (() => new Date());
   const cacheMs = options.cacheMs ?? CACHE_MS;
-  type Loaded = { reader: InMemoryGraphReader<GraphWebOrganizationSource>; graph: GraphFileV2 };
+  type Loaded = { reader: InMemoryGraphReader<GraphWebOrganizationSource>; graph: GraphFileV2; terms: readonly GraphVocabularyTerm[] | null };
   let cached: { at: number; loaded: Loaded } | null = null;
   let inFlight: Promise<Loaded> | null = null;
 
   async function load(): Promise<Loaded> {
     const access = await readOrganizationAccess(home);
     if ('reason' in access) throw new GraphWebError('unavailable', 'organization_graph_not_connected', `The organization Graph cannot be read (${access.reason})`);
+    // The organization's words are read alongside; failing to read them never fails the Graph.
+    const termsRead = getRecords(request, access, 'entities?type=glossary_term&limit=500')
+      .then((records) => projectVocabularyTerms(records))
+      .catch(() => null);
     const [project, person, org, decision, raci, memberOf, assignedTo] = await Promise.all([
       getRecords(request, access, 'entities?type=project&limit=500'),
       getRecords(request, access, 'entities?type=person&limit=500'),
@@ -291,7 +320,7 @@ export async function createOrganizationGraphSource(options: OrganizationGraphSo
       assignedTo: assignedTo as OrganizationEdge[]
     });
     const source: GraphWebOrganizationSource = { dataDir: null, graphFormat: 2, authority: 'organization_graph', server: access.server, readAt: now().toISOString() };
-    return { reader: openInMemoryGraph(projection.graph, source), graph: projection.graph };
+    return { reader: openInMemoryGraph(projection.graph, source), graph: projection.graph, terms: await termsRead };
   }
 
   async function current(): Promise<Loaded> {
@@ -313,6 +342,9 @@ export async function createOrganizationGraphSource(options: OrganizationGraphSo
     },
     async readGraphFile() {
       return (await current()).graph;
+    },
+    async readVocabularyTerms() {
+      return (await current()).terms;
     }
   };
 }
