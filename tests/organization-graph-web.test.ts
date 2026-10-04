@@ -18,23 +18,23 @@ const edge = (id: string, from: string, rel: string, to: string, payload: Record
 const records = {
   entities: {
     project: [
-      entity('prj_baao', 'project', { name: 'BAAO', purpose: '研修', status: 'active' }, { project_code: 'baao' }),
-      entity('prj_old', 'project', { name: 'SalesTailor' }, { lifecycle_status: 'retired' })
+      entity('prj_atlas', 'project', { name: 'Atlas', purpose: '研修', status: 'active' }, { project_code: 'atlas' }),
+      entity('prj_old', 'project', { name: 'Old Product' }, { lifecycle_status: 'retired' })
     ],
-    person: [entity('per_sato', 'person', { name: '佐藤 圭吾', aliases: ['佐藤'] }), entity('per_a', 'person', { name: '安部' })],
-    org: [entity('unson', 'org', { name: '雲孫' })],
+    person: [entity('per_owner', 'person', { name: '山田 太郎', aliases: ['山田'] }), entity('per_a', 'person', { name: '鈴木' })],
+    org: [entity('acme', 'org', { name: '例示組織' })],
     decision: [entity('dec_1', 'decision', { title: '研修は月1' })],
     raci_assignment: [
-      entity('rac_final', 'raci_assignment', { role_code: 'decision:最終決裁' }, { project_id: 'prj_baao' }),
-      entity('rac_r', 'raci_assignment', { role_code: 'responsible' }, { project_id: 'prj_baao' })
+      entity('rac_final', 'raci_assignment', { role_code: 'decision:最終決裁' }, { project_id: 'prj_atlas' }),
+      entity('rac_r', 'raci_assignment', { role_code: 'responsible' }, { project_id: 'prj_atlas' })
     ]
   },
   memberOf: [
-    edge('e1', 'per_sato', 'member_of', 'prj_baao', { role_code: 'decision:最終決裁' }),
-    edge('e2', 'per_a', 'member_of', 'prj_baao'),
+    edge('e1', 'per_owner', 'member_of', 'prj_atlas', { role_code: 'decision:最終決裁' }),
+    edge('e2', 'per_a', 'member_of', 'prj_atlas'),
     edge('e3', 'per_a', 'member_of', 'prj_old')
   ],
-  assignedTo: [edge('e4', 'rac_final', 'assigned_to', 'per_sato'), edge('e5', 'rac_r', 'assigned_to', 'per_a')]
+  assignedTo: [edge('e4', 'rac_final', 'assigned_to', 'per_owner'), edge('e5', 'rac_r', 'assigned_to', 'per_a')]
 };
 
 describe('organization Graph projected for the local host (C1)', () => {
@@ -42,13 +42,13 @@ describe('organization Graph projected for the local host (C1)', () => {
     const { graph, excluded } = projectOrganizationGraph(records);
     expect(excluded).toEqual({ inactive: 1, unnamed: 0, danglingRelations: 1 });
     const reader = openInMemoryGraph(graph, { dataDir: null, graphFormat: 2, authority: 'organization_graph', server: 'https://graph.example', readAt: '2026-10-04T00:00:00.000Z' });
-    const [baao] = reader.listProjects().projects;
-    expect(baao).toMatchObject({ name: 'BAAO', goal: '研修', status: 'active', participantCount: 2, accountableCount: 1 });
-    expect(baao.people[0]).toMatchObject({ name: '佐藤 圭吾', accountable: true });
+    const [atlas] = reader.listProjects().projects;
+    expect(atlas).toMatchObject({ name: 'Atlas', goal: '研修', status: 'active', participantCount: 2, accountableCount: 1 });
+    expect(atlas.people[0]).toMatchObject({ name: '山田 太郎', accountable: true });
     expect(reader.status().source.authority).toBe('organization_graph');
-    const anzai = graph.edges.filter((item) => item.fromId === 'per_a');
+    const member = graph.edges.filter((item) => item.fromId === 'per_a');
     // The same person, relation and project become one relation with both role names.
-    expect(anzai).toEqual([expect.objectContaining({ relation: 'participates_in', role: 'responsible' })]);
+    expect(member).toEqual([expect.objectContaining({ relation: 'participates_in', role: 'responsible' })]);
   });
 
   it('refuses corrections while reading the organization Graph', async () => {
@@ -60,7 +60,7 @@ describe('organization Graph projected for the local host (C1)', () => {
     const base = `http://127.0.0.1:${typeof address === 'object' && address ? address.port : 0}`;
     try {
       const listed = await (await fetch(`${base}/api/graph/projects`)).json() as { projects: Array<{ name: string }> };
-      expect(listed.projects.map((project) => project.name)).toEqual(['BAAO']);
+      expect(listed.projects.map((project) => project.name)).toEqual(['Atlas']);
       const refused = await fetch(`${base}/api/graph/corrections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       expect(refused.status).toBe(403);
       expect((await refused.json() as { error: { code: string } }).error.code).toBe('organization_graph_read_only');

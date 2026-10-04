@@ -9,7 +9,7 @@ import { groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.
 const record = (id: string, projectCode: string, payload: Record<string, unknown>, lifecycle = 'active') => ({
   id,
   project_code: projectCode,
-  organization_id: 'unson',
+  organization_id: 'acme',
   lifecycle_status: lifecycle,
   payload,
 });
@@ -17,22 +17,22 @@ const record = (id: string, projectCode: string, payload: Record<string, unknown
 describe('world: businesses from the organization Graph', () => {
   it('draws active catalog projects as cities and attaches engagements by project_code', () => {
     const projection = projectWorldBusinesses([
-      record('prj_baao', 'baao', { code: 'baao', kind: 'internal', name: 'BAAO', purpose: '研修' }),
-      record('prj_zeims', 'zeims', { code: 'zeims', kind: 'product', name: 'Zeims' }),
-      record('eng_nec', 'baao', { name: 'NEC AI研修', summary: '研修案件' }),
-      record('eng_growin', 'baao', { name: 'Growin SNS PoC' }),
+      record('prj_atlas', 'atlas', { code: 'atlas', kind: 'internal', name: 'Atlas', purpose: '研修' }),
+      record('prj_beacon', 'beacon', { code: 'beacon', kind: 'product', name: 'Beacon' }),
+      record('eng_training', 'atlas', { name: '研修案件A', summary: '研修案件' }),
+      record('eng_poc', 'atlas', { name: 'PoC案件B' }),
     ]);
-    expect(projection.businesses.map((business) => business.code)).toEqual(['zeims', 'baao']);
-    const baao = projection.businesses.find((business) => business.code === 'baao');
-    expect(baao?.engagements.map((engagement) => engagement.name)).toEqual(['Growin SNS PoC', 'NEC AI研修']);
+    expect(projection.businesses.map((business) => business.code)).toEqual(['beacon', 'atlas']);
+    const atlas = projection.businesses.find((business) => business.code === 'atlas');
+    expect(atlas?.engagements.map((engagement) => engagement.name)).toEqual(['PoC案件B', '研修案件A']);
     expect(projection.unplaced).toEqual([]);
   });
 
   it('counts retired, superseded and unnamed records instead of drawing them', () => {
     const projection = projectWorldBusinesses([
-      record('prj_st', 'unson-salestailor', { code: 'unson-salestailor', kind: 'product', name: 'SalesTailor' }, 'retired'),
-      record('old_mana', 'mana', { name: 'mana' }, 'superseded'),
-      record('blank', 'unson', {}),
+      record('prj_old', 'acme-old', { code: 'acme-old', kind: 'product', name: 'Old Product' }, 'retired'),
+      record('old_pilot', 'pilot', { name: 'pilot' }, 'superseded'),
+      record('blank', 'acme', {}),
     ]);
     expect(projection.businesses).toEqual([]);
     expect(projection.excluded).toEqual({ inactive: 2, unnamed: 1 });
@@ -65,39 +65,39 @@ describe('world: businesses from the organization Graph', () => {
 
 describe('world: where a judgment stands', () => {
   const businesses = [
-    { code: 'mana', repositories: ['mana-runtime', 'mana'] },
-    { code: 'brainbase', repositories: ['brainbase-unson'] },
+    { code: 'pilot', repositories: ['pilot-runtime', 'pilot'] },
+    { code: 'beacon', repositories: ['beacon-app'] },
   ];
 
   it('places a judgment by the repository the Graph registers for a business', () => {
-    expect(placeJudgment('mana-runtime', businesses)).toMatchObject({ business: { code: 'mana' }, basis: 'repository' });
+    expect(placeJudgment('pilot-runtime', businesses)).toMatchObject({ business: { code: 'pilot' }, basis: 'repository' });
   });
 
   it('places a judgment whose repository name equals a business code', () => {
-    expect(placeJudgment('brainbase', businesses)).toMatchObject({ business: { code: 'brainbase' }, basis: 'code' });
+    expect(placeJudgment('beacon', businesses)).toMatchObject({ business: { code: 'beacon' }, basis: 'code' });
   });
 
   it('keeps unrecorded and unregistered workplaces in the plaza with the reason, never guessing', () => {
     expect(placeJudgment(null, businesses)).toEqual({ business: null, reason: 'workspace_unrecorded' });
-    expect(placeJudgment('brainbase-project', businesses)).toEqual({ business: null, reason: 'workspace_unregistered' });
+    expect(placeJudgment('notes-repo', businesses)).toEqual({ business: null, reason: 'workspace_unregistered' });
     const grouped = groupJudgmentPlaces([
-      { decision_attempt_id: 'd1', workspace: 'mana-runtime' },
-      { decision_attempt_id: 'd2', workspace: 'techknight' },
+      { decision_attempt_id: 'd1', workspace: 'pilot-runtime' },
+      { decision_attempt_id: 'd2', workspace: 'other-repo' },
     ], businesses);
-    expect(grouped.byBusiness.get('mana')?.map((entry: { decision_attempt_id: string }) => entry.decision_attempt_id)).toEqual(['d1']);
-    expect(grouped.unplaced).toEqual([{ decision_attempt_id: 'd2', workspace: 'techknight', reason: 'workspace_unregistered' }]);
+    expect(grouped.byBusiness.get('pilot')?.map((entry: { decision_attempt_id: string }) => entry.decision_attempt_id)).toEqual(['d1']);
+    expect(grouped.unplaced).toEqual([{ decision_attempt_id: 'd2', workspace: 'other-repo', reason: 'workspace_unregistered' }]);
   });
 
   it('reads the recorded workplace of each saved judgment from the journal', async () => {
     const root = await mkdtemp(join(tmpdir(), 'bb-world-journal-'));
     await mkdir(join(root, 'session-a'));
     await writeFile(join(root, 'session-a', 't1.value-proof.json'), JSON.stringify({ decision_attempt_id: 'decision_1' }));
-    await writeFile(join(root, 'session-a', 't1.turn-input.json'), JSON.stringify({ project_code: 'mana-runtime' }));
+    await writeFile(join(root, 'session-a', 't1.turn-input.json'), JSON.stringify({ project_code: 'pilot-runtime' }));
     await writeFile(join(root, 'session-a', 't2.value-proof.json'), JSON.stringify({ decision_attempt_id: 'decision_2' }));
     const result = await readJudgmentPlaces(root);
     expect(result.status).toBe('available');
     expect([...result.places].sort((a, b) => a.decision_attempt_id.localeCompare(b.decision_attempt_id))).toEqual([
-      { decision_attempt_id: 'decision_1', workspace: 'mana-runtime' },
+      { decision_attempt_id: 'decision_1', workspace: 'pilot-runtime' },
       { decision_attempt_id: 'decision_2', workspace: null },
     ]);
   });
