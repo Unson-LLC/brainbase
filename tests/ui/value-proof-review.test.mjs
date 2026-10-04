@@ -630,13 +630,33 @@ describe('value proof review UI contract', () => {
     expect(collectText(map)).toContain('別の分類名');
     expect(collectText(rail)).toContain('現在の分類名');
 
-    const items = byClass(rail, 'bb-vpr-item');
-    expect(items).toHaveLength(2);
-    click(items[1]);
-
-    const detail = collectText(rail);
-    expect(detail).toContain('判断の種類: 現在の分類名');
-    expect(detail).not.toContain('判断の種類: 以前の分類名');
+    // Every detail must agree with its selected row, including the old label
+    // and a different kind. The row counts must partition the fixture.
+    const rows = ledgerRows(byClass(map, 'bb-vpr-map-ledger')[0]);
+    expect(rows).toHaveLength(2);
+    const displayedCounts = rows.map((row) => {
+      const match = /^続行 (\d+)・戻した (\d+)$/.exec(collectText(row.children[2]));
+      expect(match).not.toBeNull();
+      return Number(match[1]) + Number(match[2]);
+    });
+    expect(displayedCounts).toEqual([2, 1]);
+    expect(displayedCounts.reduce((total, count) => total + count, 0)).toBe(3);
+    expect(displayedCounts.reduce((total, count) => total + count, 0)).toBe(ui.state.home.delegationMap.kindRecorded);
+    for (const [rowIndex, expectedLabel, expectedCount] of [
+      [0, '現在の分類名', 2],
+      [1, '別の分類名', 1],
+    ]) {
+      click(ledgerRows(byClass(root, 'bb-vpr-map-ledger')[0])[rowIndex]);
+      const items = byClass(rail, 'bb-vpr-item');
+      expect(items).toHaveLength(expectedCount);
+      for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+        click(byClass(rail, 'bb-vpr-item')[itemIndex]);
+        const detail = collectText(rail);
+        expect(detail).toContain(`判断の種類: ${expectedLabel}`);
+        expect(detail).not.toContain('判断の種類: 以前の分類名');
+        click(byClass(rail, 'bb-vpr-back')[0]);
+      }
+    }
   });
 
   it('gives the rail the row the owner selects, then the judgment picked from it, and goes back to the row', async () => {
