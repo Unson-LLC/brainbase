@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { request as httpRequest, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -124,6 +124,24 @@ describe('value proof review host', () => {
     const base = await start(join(directory, 'missing'));
     const body = await (await fetch(`${base}/api/value-proofs/home`)).json();
     expect(body).toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
+  });
+
+  it('shows proofs saved after an earlier read of the home, and a journal removed later as unavailable', async () => {
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    await utimes(join(journal, 'session'), hourAgo, hourAgo);
+    const base = await start();
+    expect((await (await fetch(`${base}/api/value-proofs/home`)).json()).coverage.saved).toBe(1);
+
+    await writeFile(join(journal, 'session', 'turn-next.value-proof.json'),
+      JSON.stringify({ ...proof(), intent_id: 'intent-3', decision_attempt_id: 'attempt-3' }), 'utf8');
+    await mkdir(join(journal, 'session-later'));
+    await writeFile(join(journal, 'session-later', 'turn.value-proof.json'),
+      JSON.stringify({ ...proof(), intent_id: 'intent-4', decision_attempt_id: 'attempt-4' }), 'utf8');
+    expect((await (await fetch(`${base}/api/value-proofs/home`)).json()).coverage.saved).toBe(3);
+
+    await rm(journal, { recursive: true });
+    expect(await (await fetch(`${base}/api/value-proofs/home`)).json())
+      .toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
   });
 
   it('returns the classified home without local file paths for each item', async () => {
