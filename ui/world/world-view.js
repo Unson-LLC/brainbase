@@ -809,6 +809,12 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     return `${textValue}${suffix}`;
   }
 
+  /** Descends to the same judgment in 今日 (the shell opens `#today?decision=`). */
+  function decisionLink(decisionAttemptId) {
+    const link = el(doc, 'a', { className: 'bb-world-rail-link', text: '「今日」でこの判断を開く', attrs: { href: `#today?decision=${encodeURIComponent(decisionAttemptId)}` } });
+    return link;
+  }
+
   function judgmentList(entries, describe) {
     const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
     const sorted = [...entries].sort((a, b) => String(b.item?.proof?.recorded_at ?? '').localeCompare(String(a.item?.proof?.recorded_at ?? '')));
@@ -816,6 +822,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       const li = el(doc, 'li');
       li.append(el(doc, 'span', { text: judgmentText(entry.item, entry.decision_attempt_id) }));
       li.append(el(doc, 'small', { className: 'bb-world-rail-note', text: describe(entry) }));
+      li.append(decisionLink(entry.decision_attempt_id));
       ul.append(li);
     }
     return ul;
@@ -885,7 +892,11 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         ]),
       }));
       const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
-      for (const ref of items.slice(0, 12)) ul.append(el(doc, 'li', { text: judgmentText(proofs.get(ref.decision_attempt_id), ref.decision_attempt_id) }));
+      for (const ref of items.slice(0, 12)) {
+        const li = el(doc, 'li', { text: judgmentText(proofs.get(ref.decision_attempt_id), ref.decision_attempt_id) });
+        li.append(decisionLink(ref.decision_attempt_id));
+        ul.append(li);
+      }
       blocks.push(workspaceRailBlock(doc, { title: '判断（新しい順）', content: items.length ? ul : { text: '判断はありません' } }));
       blocks.push(workspaceRailBlock(doc, {
         title: '詳しく見る',

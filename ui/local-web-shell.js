@@ -90,9 +90,12 @@ export function parseLocalWebTarget(target) {
   if (!screenId) return { screenId: null, entityId: null };
   const query = separator < 0 ? '' : raw.slice(separator + 1);
   const params = new URLSearchParams(query);
+  // 今日 accepts one judgment to open (`decision` = decision_attempt_id); other screens ignore it.
+  const decisionId = screenId === 'today' ? params.get('decision')?.trim() || null : null;
   return {
     screenId,
     entityId: screenId === 'graph' ? params.get('entity_id')?.trim() || null : null,
+    ...(decisionId ? { decisionId } : {}),
   };
 }
 
@@ -379,10 +382,9 @@ export function createLocalWebShell({
 
   function ensureMounted(screen, entityId = pendingEntityIds.get(screen.id) ?? null) {
     if (mounted.has(screen.id)) {
-      if (entityId && screen.id === 'graph') {
-        const view = mounted.get(screen.id);
-        if (typeof view?.openEntity === 'function') void view.openEntity(entityId);
-      }
+      const view = mounted.get(screen.id);
+      if (entityId && screen.id === 'graph' && typeof view?.openEntity === 'function') void view.openEntity(entityId);
+      if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
       return;
     }
     const slot = slots.get(screen.id);
@@ -394,7 +396,9 @@ export function createLocalWebShell({
     const rail = rails.get(screen.id) ?? null;
     rail?.replaceChildren();
     const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: screen.source ?? null });
-    mounted.set(screen.id, screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId })) ?? true);
+    const view = screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId })) ?? true;
+    mounted.set(screen.id, view);
+    if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
     updateRail();
   }
 
@@ -405,7 +409,7 @@ export function createLocalWebShell({
     show(target) {
       const parsed = parseLocalWebTarget(target);
       const screen = screens.find((candidate) => candidate.id === parsed.screenId) ?? screens[0];
-      pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId : null);
+      pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId : screen.id === 'today' ? parsed.decisionId ?? null : null);
       active = screen.id;
       for (const [screenId, slot] of slots) slot.hidden = screenId !== screen.id;
       for (const [screenId, link] of links) {

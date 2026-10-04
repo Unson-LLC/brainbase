@@ -125,6 +125,12 @@ describe('local Web shell', () => {
     expect(parseLocalWebTarget(undefined)).toEqual({ screenId: null, entityId: null });
   });
 
+  it('carries one judgment to open into 今日 and nowhere else', () => {
+    expect(parseLocalWebTarget('#today?decision=decision_abc')).toEqual({ screenId: 'today', entityId: null, decisionId: 'decision_abc' });
+    expect(parseLocalWebTarget('#graph?decision=decision_abc')).toEqual({ screenId: 'graph', entityId: null });
+    expect(parseLocalWebTarget('#today?decision=')).toEqual({ screenId: 'today', entityId: null });
+  });
+
   it('gives each screen its own right rail and the page context, and shows the rail column only for the mounted screen', async () => {
     const received = [];
     const screens = [

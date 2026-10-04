@@ -227,3 +227,12 @@
   border-color: #d92335;
   color: #a1192a;
 }
+
+.bb-world-rail-link {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: var(--bb-color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

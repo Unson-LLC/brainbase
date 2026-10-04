@@ -123,6 +123,8 @@ export interface LocalWebExtension {
   readonly uiFiles: readonly string[];
   /** ES module exporting a `screen` compatible with createLocalWebShell. */
   readonly screenEntry: string;
+  /** `first` lists the screen before the public screens and opens it when no screen is named. Defaults to `last`. */
+  readonly navPosition?: 'first' | 'last';
   createModule(context: LocalWebModuleContext): LocalWebModule;
 }
 
@@ -851,6 +853,8 @@ function bootstrapJs(extensions: readonly LocalWebExtension[]): string {
   const imports = extensions.map((extension, index) =>
     `import { screen as extensionScreen${index} } from '/ui/extensions/${extension.id}/${extension.screenEntry}';`
   ).join('\n');
+  const leading = extensions.flatMap((extension, index) => (extension.navPosition === 'first' ? [`extensionScreen${index}`] : [])).join(', ');
+  const trailing = extensions.flatMap((extension, index) => (extension.navPosition === 'first' ? [] : [`extensionScreen${index}`])).join(', ');
   const screens = extensions.map((_, index) => `extensionScreen${index}`).join(', ');
   const ids = JSON.stringify(extensions.map((extension) => extension.id));
   return `import { createLocalWebShell, LOCAL_WEB_SCREENS } from '/ui/local-web-shell.js';
@@ -868,7 +872,7 @@ const shell = createLocalWebShell({
   root: document.getElementById('brainbase-local-web'),
   token: meta('brainbase-web-token'),
   initialScreen: screenFromHash(),
-  screens: [...LOCAL_WEB_SCREENS, ...extensionScreens]
+  screens: ${leading ? `[${leading}, ...LOCAL_WEB_SCREENS${trailing ? `, ${trailing}` : ''}]` : '[...LOCAL_WEB_SCREENS, ...extensionScreens]'}
 });
 addEventListener('hashchange', () => shell.show(screenFromHash()));
 `;

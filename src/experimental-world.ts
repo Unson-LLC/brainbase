@@ -266,6 +266,8 @@ export function createExperimentalWorldExtension(options: { home?: string; fetch
     uiDir: fileURLToPath(new URL('../ui/world/', import.meta.url)),
     uiFiles: ['world-view.js', 'world-view.css', 'world-vendor.js', 'world-placement.js'],
     screenEntry: 'world-view.js',
+    // W1 (provisional): the world sits above the home and opens first.
+    navPosition: 'first',
     createModule: (context) => createWorldModule(context, () => readWorldBusinesses(options)),
   };
 }
