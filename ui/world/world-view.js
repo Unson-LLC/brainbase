@@ -43,6 +43,10 @@ const BUSINESS_STATE_TEXT = Object.freeze({
   unavailable: '組織のGraphを読めません',
 });
 
+const STATUS_TEXT = Object.freeze({ active: '進行中', maintenance: '保守', completed: '完了', closed: '終了', not_converted: '案件化せず', concept: '構想' });
+const FINISHED_STATUSES = new Set(['completed', 'closed', 'not_converted']);
+const statusText = (status) => (status ? STATUS_TEXT[status] ?? status : '未記録');
+
 const PLAZA_RADIUS = 7;
 const CITY_RING = 30;
 
@@ -139,18 +143,93 @@ function webglAvailable(doc) {
   }
 }
 
-function createScene({ doc, stage, labelsLayer, reducedMotion, onPick }) {
+// ---------------------------------------------------------------------------
+// Scene (M2). Everything drawn here is a projection of the loaded facts; the
+// shapes only encode kind and state, never invented quantities.
+// ---------------------------------------------------------------------------
+
+const RECENT_MS = 24 * 60 * 60 * 1000;
+const LABEL_PRIORITY = Object.freeze({ selected: 0, plaza: 1, city: 2, sector: 3, judgment: 4, engagement: 5 });
+
+function canvasTexture(doc, width, height, draw) {
+  const canvas = doc.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  draw(canvas.getContext('2d'), width, height);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+function windowTexture(doc, lit, glowOnly = false) {
+  const texture = canvasTexture(doc, 64, 64, (ctx, w, h) => {
+    ctx.fillStyle = glowOnly ? '#000000' : '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = glowOnly ? '#ffffff' : lit ? '#ffe2a0' : '#c6d3de';
+    for (let y = 8; y < h; y += 16) {
+      for (let x = 6; x < w; x += 14) ctx.fillRect(x, y, 8, 8);
+    }
+  });
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+
+function roundedPlate(width, depth, height, radius) {
+  const shape = new THREE.Shape();
+  const w = width / 2;
+  const d = depth / 2;
+  shape.moveTo(-w + radius, -d);
+  shape.lineTo(w - radius, -d);
+  shape.quadraticCurveTo(w, -d, w, -d + radius);
+  shape.lineTo(w, d - radius);
+  shape.quadraticCurveTo(w, d, w - radius, d);
+  shape.lineTo(-w + radius, d);
+  shape.quadraticCurveTo(-w, d, -w, d - radius);
+  shape.lineTo(-w, -d + radius);
+  shape.quadraticCurveTo(-w, -d, -w + radius, -d);
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 2 });
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
+}
+
+function gableRoof(width, depth, rise) {
+  const shape = new THREE.Shape();
+  shape.moveTo(-width / 2 - 0.1, 0);
+  shape.lineTo(width / 2 + 0.1, 0);
+  shape.lineTo(0, rise);
+  shape.lineTo(-width / 2 - 0.1, 0);
+  const geometry = new THREE.ExtrudeGeometry(shape, { depth: depth + 0.2, bevelEnabled: false });
+  geometry.translate(0, 0, -(depth + 0.2) / 2);
+  return geometry;
+}
+
+function muted(color, amount) {
+  return new THREE.Color(color).lerp(new THREE.Color(0xb9c2bb), amount);
+}
+
+function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
   renderer.domElement.className = 'bb-world-canvas';
+  renderer.domElement.tabIndex = 0;
   stage.prepend(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xeef3ef);
-  scene.fog = new THREE.Fog(0xeef3ef, 160, 320);
+  scene.background = canvasTexture(doc, 4, 256, (ctx, w, h) => {
+    const gradient = ctx.createLinearGradient(0, 0, 0, h);
+    gradient.addColorStop(0, '#dfeee6');
+    gradient.addColorStop(0.55, '#eef4ef');
+    gradient.addColorStop(1, '#f6f1e6');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+  });
+  scene.fog = new THREE.Fog(0xeef3ec, 170, 340);
 
   const camera = new THREE.OrthographicCamera(-50, 50, 50, -50, 0.1, 1000);
   const home = { position: new THREE.Vector3(90, 95, 90), target: new THREE.Vector3(0, 0, 0), zoom: 1 };
@@ -162,154 +241,350 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick }) {
   controls.dampingFactor = 0.08;
   controls.screenSpacePanning = false;
   controls.minZoom = 0.5;
-  controls.maxZoom = 6;
-  controls.maxPolarAngle = Math.PI / 2.6;
+  controls.maxZoom = 7;
+  controls.maxPolarAngle = Math.PI / 2.5;
   controls.minPolarAngle = Math.PI / 6;
   controls.target.copy(home.target);
 
-  scene.add(new THREE.HemisphereLight(0xffffff, 0xc8d4cb, 1.6));
-  const sun = new THREE.DirectionalLight(0xffffff, 2.2);
-  sun.position.set(60, 120, 30);
+  scene.add(new THREE.HemisphereLight(0xf4f8ff, 0xd8ccb2, 1.25));
+  const sun = new THREE.DirectionalLight(0xfff1dc, 2.7);
+  sun.position.set(70, 110, 40);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -140, right: 140, top: 140, bottom: -140, near: 1, far: 400 });
+  sun.shadow.radius = 4;
+  sun.shadow.bias = -0.0004;
+  Object.assign(sun.shadow.camera, { left: -150, right: 150, top: 150, bottom: -150, near: 1, far: 420 });
   scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xdfe9ff, 0.6);
+  fill.position.set(-80, 60, -60);
+  scene.add(fill);
 
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(200, 64), new THREE.MeshStandardMaterial({ color: 0xe3eae4, roughness: 1 }));
+  const ground = new THREE.Mesh(new THREE.CircleGeometry(230, 72), new THREE.MeshStandardMaterial({ color: 0xe4ebe1, roughness: 1 }));
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
+  ground.userData = { kind: 'ground' };
   scene.add(ground);
 
+  const textures = { lit: windowTexture(doc, true), unlit: windowTexture(doc, false), glow: windowTexture(doc, true, true) };
   const pickables = [];
   const labels = [];
   const beacons = [];
-  const roads = new THREE.Group();
-  scene.add(roads);
+  const glows = [];
+  const highlightable = new Map();
 
-  function addLabel(text, position, className, minZoom = 0) {
+  function addLabel(text, position, className, { minZoom = 0, priority = LABEL_PRIORITY.city, owner = null } = {}) {
     const node = makeLabel(doc, text, className);
     labelsLayer.append(node);
-    labels.push({ node, position: position.clone(), minZoom });
+    const label = { node, position: position.clone(), minZoom, priority, owner, size: null };
+    labels.push(label);
+    return label;
   }
 
-  function box(w, h, d, color, { x = 0, y = 0, z = 0, emissive = 0x000000, opacity = 1 } = {}) {
-    const material = new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.02, emissive, transparent: opacity < 1, opacity });
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), material);
-    mesh.position.set(x, y + h / 2, z);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    return mesh;
+  function mesh(geometry, material, { x = 0, y = 0, z = 0, shadow = true } = {}) {
+    const object = new THREE.Mesh(geometry, material);
+    object.position.set(x, y, z);
+    object.castShadow = shadow;
+    object.receiveShadow = true;
+    return object;
   }
 
-  function road(from, to) {
+  function standard(color, options = {}) {
+    return new THREE.MeshStandardMaterial({ color, roughness: 0.8, metalness: 0.03, ...options });
+  }
+
+  function texturedBlock(w, h, d, color, lit, options = {}) {
+    const map = (lit ? textures.lit : textures.unlit).clone();
+    map.needsUpdate = true;
+    map.repeat.set(Math.max(1, Math.round(w / 1.4)), Math.max(1, Math.round(h / 1.2)));
+    const material = standard(color, { map, ...options });
+    if (lit) {
+      const glow = textures.glow.clone();
+      glow.needsUpdate = true;
+      glow.repeat.copy(map.repeat);
+      material.emissive = new THREE.Color(0xffc867);
+      material.emissiveMap = glow;
+      material.emissiveIntensity = 0.6;
+    }
+    return mesh(new THREE.BoxGeometry(w, h, d), material, { y: h / 2 });
+  }
+
+  function register(group, data) {
+    group.userData = data;
+    pickables.push(group);
+    const materials = [];
+    group.traverse((child) => {
+      if (child.isMesh && child.material?.emissive) materials.push(child.material);
+    });
+    highlightable.set(group, materials.map((material) => ({ material, base: material.emissive.clone(), intensity: material.emissiveIntensity })));
+  }
+
+  function road(from, to, width = 1.9) {
     const length = from.distanceTo(to);
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.6, length), new THREE.MeshStandardMaterial({ color: 0xd2dbd4, roughness: 1 }));
-    mesh.rotation.x = -Math.PI / 2;
-    mesh.rotation.z = -Math.atan2(to.z - from.z, to.x - from.x) + Math.PI / 2;
-    mesh.position.set((from.x + to.x) / 2, 0.02, (from.z + to.z) / 2);
-    mesh.receiveShadow = true;
-    roads.add(mesh);
+    const angle = -Math.atan2(to.z - from.z, to.x - from.x) + Math.PI / 2;
+    const surface = mesh(new THREE.PlaneGeometry(width, length), standard(0xd3d9d1, { roughness: 1 }), { x: (from.x + to.x) / 2, y: 0.03, z: (from.z + to.z) / 2, shadow: false });
+    surface.rotation.set(-Math.PI / 2, 0, angle);
+    scene.add(surface);
+    const line = mesh(new THREE.PlaneGeometry(0.12, length), new THREE.MeshBasicMaterial({ color: 0xf8faf7 }), { x: (from.x + to.x) / 2, y: 0.05, z: (from.z + to.z) / 2, shadow: false });
+    line.rotation.set(-Math.PI / 2, 0, angle);
+    scene.add(line);
   }
 
-  function buildPlaza(rows, rowItems, waitingOf) {
-    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(PLAZA_RADIUS, PLAZA_RADIUS + 0.6, 0.6, 48), new THREE.MeshStandardMaterial({ color: 0xf7faf8, roughness: 0.9 }));
-    plaza.position.y = 0.3;
-    plaza.receiveShadow = true;
-    plaza.userData = { kind: 'plaza' };
+  function tree(x, z, scale = 1) {
+    const group = new THREE.Group();
+    group.add(mesh(new THREE.CylinderGeometry(0.12 * scale, 0.16 * scale, 0.7 * scale, 6), standard(0x8a6d4e), { y: 0.35 * scale }));
+    group.add(mesh(new THREE.ConeGeometry(0.7 * scale, 1.6 * scale, 7), standard(0x6f9a72, { roughness: 0.95 }), { y: 1.4 * scale }));
+    group.position.set(x, 0, z);
+    scene.add(group);
+  }
+
+  // --- plaza ---------------------------------------------------------------
+  function buildPlaza(rows, rowItems, waitingOf, now) {
+    const plaza = new THREE.Group();
+    plaza.add(mesh(new THREE.CylinderGeometry(PLAZA_RADIUS + 2.2, PLAZA_RADIUS + 2.6, 0.3, 64), standard(0x9fbf9d, { roughness: 1 }), { y: 0.15 }));
+    plaza.add(mesh(new THREE.CylinderGeometry(PLAZA_RADIUS, PLAZA_RADIUS + 0.4, 0.7, 64), standard(0xf3efe6, { roughness: 0.9 }), { y: 0.35 }));
+    plaza.add(mesh(new THREE.TorusGeometry(PLAZA_RADIUS - 0.3, 0.08, 6, 64), standard(0xd8cfbd), { y: 0.72 }));
+    plaza.children[2].rotation.x = Math.PI / 2;
     scene.add(plaza);
-    pickables.push(plaza);
-    addLabel('広場（判断）', new THREE.Vector3(0, 0.8, PLAZA_RADIUS + 1.6), 'is-plaza');
+    register(plaza, { kind: 'plaza' });
+    addLabel('広場（判断）', new THREE.Vector3(0, 0.8, PLAZA_RADIUS + 2.8), 'is-plaza', { priority: LABEL_PRIORITY.plaza });
+    for (let i = 0; i < 10; i += 1) {
+      const angle = (i / 10) * Math.PI * 2 + 0.3;
+      tree(Math.cos(angle) * (PLAZA_RADIUS + 1.3), Math.sin(angle) * (PLAZA_RADIUS + 1.3), 0.7);
+    }
     rows.forEach((row, index) => {
       const angle = (index / Math.max(rows.length, 1)) * Math.PI * 2 - Math.PI / 2;
-      const r = rows.length === 1 ? 0 : PLAZA_RADIUS * 0.55;
+      const r = rows.length === 1 ? 0 : PLAZA_RADIUS * 0.56;
       const total = row.counts.continued + row.counts.returned;
-      const height = 1.4 + Math.log2(1 + total) * 1.6;
+      const height = 1.6 + Math.log2(1 + total) * 1.7;
       const x = Math.cos(angle) * r;
       const z = Math.sin(angle) * r;
-      const building = box(2.2, height, 2.2, STATE_COLORS[row.state] ?? 0x929b95, { x, y: 0.6, z });
-      building.userData = { kind: 'judgment', row, items: rowItems.get(row.key) ?? [] };
-      scene.add(building);
-      pickables.push(building);
+      const recent = Number.isFinite(Date.parse(row.latest_recorded_at)) && now - Date.parse(row.latest_recorded_at) < RECENT_MS;
+      const group = new THREE.Group();
+      group.position.set(x, 0.7, z);
+      const color = STATE_COLORS[row.state] ?? 0x929b95;
+      group.add(mesh(new THREE.BoxGeometry(2.6, 0.25, 2.6), standard(0xe6ded0), { y: 0.12 }));
+      const body = texturedBlock(2.1, height, 2.1, color, recent);
+      body.position.y += 0.25;
+      group.add(body);
+      const cap = texturedBlock(1.4, 0.7, 1.4, color, recent);
+      cap.position.y += 0.25 + height;
+      group.add(cap);
+      scene.add(group);
+      register(group, { kind: 'judgment', row, items: rowItems.get(row.key) ?? [] });
+      const top = 0.7 + 0.25 + height + 0.7;
       const waiting = waitingOf(row);
       if (waiting > 0) {
-        const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 14, 12), new THREE.MeshBasicMaterial({ color: 0xd92335, transparent: true, opacity: 0.55 }));
-        beam.position.set(x, 0.6 + height + 7, z);
+        const beam = mesh(new THREE.CylinderGeometry(0.22, 0.22, 16, 12), new THREE.MeshBasicMaterial({ color: 0xd92335, transparent: true, opacity: 0.55 }), { x, y: top + 8, z, shadow: false });
         scene.add(beam);
         beacons.push(beam);
       }
       if (row.counts.corrected_or_reverted > 0) {
-        const flag = box(0.9, 0.6, 0.12, 0xd92335, { x: x + 0.6, y: 0.6 + height + 0.9, z });
-        const pole = box(0.08, 1.4, 0.08, 0x1e2822, { x, y: 0.6 + height, z });
-        scene.add(flag, pole);
+        scene.add(mesh(new THREE.BoxGeometry(0.08, 1.4, 0.08), standard(0x1e2822), { x, y: top + 0.7, z }));
+        scene.add(mesh(new THREE.BoxGeometry(0.9, 0.55, 0.06), standard(0xd92335, { emissive: new THREE.Color(0x5a0b13) }), { x: x + 0.48, y: top + 1.1, z }));
+      }
+      if (recent) {
+        const ring = mesh(new THREE.RingGeometry(1.7, 1.95, 40), new THREE.MeshBasicMaterial({ color: 0xffc867, transparent: true, opacity: 0.6, side: THREE.DoubleSide }), { x, y: 0.74, z, shadow: false });
+        ring.rotation.x = -Math.PI / 2;
+        scene.add(ring);
+        glows.push(ring);
       }
       const stateText = row.state === 'returned' && waiting === 0 ? '戻した・会話で先に進んだ' : STATE_LABELS[row.state] ?? row.state;
-      addLabel(`${rowLabel(row)}・${stateText}`, new THREE.Vector3(x, 0.6 + height + 0.6, z), `is-judgment is-${row.state}${waiting > 0 ? ' is-waiting' : ''}`, 1.6);
+      addLabel(`${rowLabel(row)}・${stateText}`, new THREE.Vector3(x, top + 0.2, z), `is-judgment is-${row.state}${waiting > 0 ? ' is-waiting' : ''}`, { minZoom: 1.6, priority: waiting > 0 ? LABEL_PRIORITY.plaza : LABEL_PRIORITY.judgment, owner: group });
     });
+  }
+
+  // --- cities ----------------------------------------------------------------
+  function landmark(kind, color, height, status) {
+    const group = new THREE.Group();
+    const concept = status === 'concept';
+    const tone = status === 'maintenance' ? muted(color, 0.55) : new THREE.Color(color);
+    const options = concept ? { transparent: true, opacity: 0.38 } : {};
+    if (kind === 'product') {
+      const base = texturedBlock(3, height, 3, tone, !concept, { roughness: 0.4, ...options });
+      const mid = texturedBlock(2.2, height * 0.45, 2.2, tone, !concept, { roughness: 0.4, ...options });
+      mid.position.y += height;
+      group.add(base, mid, mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6), standard(0x46524a), { y: height * 1.45 + 0.8 }));
+    } else if (kind === 'client') {
+      const hall = texturedBlock(4.4, height * 0.55, 3, tone, !concept, options);
+      const roof = mesh(gableRoof(4.4, 3, 1.4), standard(muted(color, 0.15).multiplyScalar(0.85), options), { y: height * 0.55 });
+      roof.rotation.y = Math.PI / 2;
+      group.add(hall, roof);
+    } else if (kind === 'research') {
+      group.add(mesh(new THREE.CylinderGeometry(1.9, 2.1, height * 0.5, 24), standard(tone, options), { y: height * 0.25 }));
+      group.add(mesh(new THREE.SphereGeometry(1.9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), standard(0xf3f6f8, { roughness: 0.3, ...options }), { y: height * 0.5 }));
+    } else {
+      group.add(texturedBlock(3.6, height * 0.75, 2.8, tone, !concept, options));
+      group.add(mesh(new THREE.BoxGeometry(1.2, 0.6, 1), standard(0xb8c2bb), { y: height * 0.75 + 0.3 }));
+    }
+    if (concept) {
+      // Scaffold outline: a business that is still a concept.
+      const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(3.2, height * 1.2, 3.2)), new THREE.LineBasicMaterial({ color: 0x46524a }));
+      outline.position.y = height * 0.6;
+      group.add(outline);
+    }
+    return group;
+  }
+
+  function house(engagement, color) {
+    const group = new THREE.Group();
+    const status = engagement.status;
+    if (FINISHED_STATUSES.has(status)) {
+      // A finished engagement leaves its lot: a low slab, no roof.
+      group.add(mesh(new THREE.BoxGeometry(1.8, 0.18, 1.8), standard(0xc9cfc8), { y: 0.09 }));
+      group.userData.finished = true;
+      return group;
+    }
+    const h = 0.9 + hashUnit(engagement.id) * 1.1;
+    const tone = status === 'maintenance' ? muted(color, 0.6) : new THREE.Color(0xf2efe8);
+    group.add(texturedBlock(1.6, h, 1.4, tone, status === 'active'));
+    const roof = mesh(gableRoof(1.6, 1.4, 0.8), standard(status === 'maintenance' ? muted(color, 0.6) : color), { y: h });
+    roof.rotation.y = hashUnit(`${engagement.id}r`) > 0.5 ? Math.PI / 2 : 0;
+    group.add(roof);
+    return group;
   }
 
   function buildCities({ cities, sectors, extent }) {
     fitExtent(extent);
+    for (let i = 0; i < 12; i += 1) {
+      const angle = (i / 12) * Math.PI * 2;
+      road(new THREE.Vector3(Math.cos(angle) * (PLAZA_RADIUS + 4), 0, Math.sin(angle) * (PLAZA_RADIUS + 4)), new THREE.Vector3(Math.cos(angle + Math.PI / 6) * (PLAZA_RADIUS + 4), 0, Math.sin(angle + Math.PI / 6) * (PLAZA_RADIUS + 4)), 1.5);
+    }
     for (const city of cities) {
       const { business, size, x, z, kind } = city;
       const color = KIND_COLORS[kind] ?? 0x69746d;
-      road(new THREE.Vector3(0, 0, 0), new THREE.Vector3(x, 0, z));
-      const plate = box(size, 0.5, size, 0xffffff, { x, z });
-      plate.material.color.lerp(new THREE.Color(color), 0.12);
-      plate.userData = { kind: 'city', business };
-      scene.add(plate);
-      pickables.push(plate);
-      const towerHeight = 3 + Math.min(business.engagements.length, 8) * 0.6;
-      const tower = box(2.4, towerHeight, 2.4, color, { x, y: 0.5, z });
-      tower.userData = { kind: 'city', business };
-      scene.add(tower);
-      pickables.push(tower);
-      addLabel(business.name, new THREE.Vector3(x, 0.5 + towerHeight + 0.8, z), `is-city is-${kind}`);
+      const start = new THREE.Vector3(x, 0, z).setLength(PLAZA_RADIUS + 4);
+      road(start, new THREE.Vector3(x, 0, z));
+      const group = new THREE.Group();
+      group.position.set(x, 0, z);
+      const plateColor = new THREE.Color(0xf7f8f4).lerp(new THREE.Color(color), 0.1);
+      group.add(mesh(roundedPlate(size, size, 0.45, 1.6), standard(plateColor, { roughness: 0.95 })));
+      const towerHeight = 3.2 + Math.min(business.engagements.length, 8) * 0.55;
+      group.add(landmark(kind, color, towerHeight, business.status));
+      scene.add(group);
+      register(group, { kind: 'city', business });
+      const top = kind === 'product' ? towerHeight * 1.45 + 1.8 : towerHeight + 1;
+      const cityLabel = addLabel(business.status === 'concept' ? `${business.name}（構想）` : business.name, new THREE.Vector3(x, top, z), `is-city is-${kind}`, { priority: LABEL_PRIORITY.city, owner: group });
+      cityLabel.business = business;
       const n = business.engagements.length;
-      const cols = Math.ceil(Math.sqrt(Math.max(n, 1)));
+      const cols = Math.max(2, Math.ceil(Math.sqrt(n + 1)));
+      const step = 2.5;
+      const cells = [];
+      for (let row = 0; row < cols; row += 1) {
+        for (let col = 0; col < cols; col += 1) {
+          const cx = -((cols - 1) * step) / 2 + col * step;
+          const cz = -((cols - 1) * step) / 2 + row * step;
+          if (Math.abs(cx) < 2.2 && Math.abs(cz) < 2.2) continue; // the landmark's lot
+          cells.push([cx, cz]);
+        }
+      }
+      cells.sort((a, b) => Math.hypot(...a) - Math.hypot(...b));
       business.engagements.forEach((engagement, index) => {
-        const row = Math.floor(index / cols);
-        const col = index % cols;
-        const step = 2.6;
-        const offset = ((cols - 1) * step) / 2;
-        let ex = x - offset + col * step;
-        let ez = z - offset + row * step;
-        // Keep the landmark tower clear.
-        if (Math.abs(ex - x) < 1.8 && Math.abs(ez - z) < 1.8) ex += step * 0.9;
-        const h = 0.8 + hashUnit(engagement.id) * 1.6;
-        const block = box(1.8, h, 1.8, 0xdfe6e0, { x: ex, y: 0.5, z: ez });
-        block.material.color.lerp(new THREE.Color(color), 0.28);
-        block.userData = { kind: 'engagement', engagement, business };
-        scene.add(block);
-        pickables.push(block);
-        addLabel(engagement.name, new THREE.Vector3(ex, 0.5 + h + 0.4, ez), 'is-engagement', 2.4);
+        const [cx, cz] = cells[index % cells.length];
+        const lot = house(engagement, color);
+        const finished = lot.userData.finished === true;
+        lot.position.set(x + cx * (size / (cols * step + 2)), 0.45, z + cz * (size / (cols * step + 2)));
+        scene.add(lot);
+        register(lot, { kind: 'engagement', engagement, business, finished });
+        const label = addLabel(finished ? `${engagement.name}（${statusText(engagement.status)}）` : engagement.name, new THREE.Vector3(lot.position.x, 2.6, lot.position.z), `is-engagement${finished ? ' is-finished' : ''}`, { minZoom: 3.4, priority: LABEL_PRIORITY.engagement, owner: lot });
+        label.business = business;
       });
+      const treeCount = 2 + Math.floor(hashUnit(business.id) * 3);
+      for (let t = 0; t < treeCount; t += 1) {
+        const a = hashUnit(`${business.id}${t}`) * Math.PI * 2;
+        tree(x + Math.cos(a) * size * 0.42, z + Math.sin(a) * size * 0.42, 0.8);
+      }
     }
     for (const { kind, angle } of sectors) {
-      addLabel(KIND_LABELS[kind] ?? kind, new THREE.Vector3(Math.cos(angle) * 19, 0.2, Math.sin(angle) * 19), `is-sector is-${kind}`);
+      addLabel(KIND_LABELS[kind] ?? kind, new THREE.Vector3(Math.cos(angle) * 21, 0.2, Math.sin(angle) * 21), `is-sector is-${kind}`, { priority: LABEL_PRIORITY.sector });
     }
   }
 
-  // --- interaction ---------------------------------------------------------
+  // --- selection & hover -------------------------------------------------
+  const selectionRing = mesh(new THREE.RingGeometry(1, 1.035, 96), new THREE.MeshBasicMaterial({ color: 0x087d62, transparent: true, opacity: 0.9, side: THREE.DoubleSide }), { y: 0.08, shadow: false });
+  selectionRing.rotation.x = -Math.PI / 2;
+  selectionRing.visible = false;
+  scene.add(selectionRing);
+  let selected = null;
+  let hovered = null;
+
+  function setHighlight(group, on) {
+    for (const entry of highlightable.get(group) ?? []) {
+      if (on) {
+        entry.material.emissive.set(0x3d8f74);
+        entry.material.emissiveIntensity = 0.35;
+      } else {
+        entry.material.emissive.copy(entry.base);
+        entry.material.emissiveIntensity = entry.intensity;
+      }
+    }
+  }
+
+  function select(group) {
+    selected = group;
+    if (!group) {
+      selectionRing.visible = false;
+      return;
+    }
+    const box3 = new THREE.Box3().setFromObject(group);
+    const sizeVector = box3.getSize(new THREE.Vector3());
+    const radius = Math.max(sizeVector.x, sizeVector.z) * 0.62 + 0.4;
+    selectionRing.scale.set(radius, radius, 1);
+    selectionRing.position.set((box3.min.x + box3.max.x) / 2, group.userData.kind === 'judgment' ? 0.76 : 0.6, (box3.min.z + box3.max.z) / 2);
+    selectionRing.visible = true;
+  }
+
   const raycaster = new THREE.Raycaster();
   const pointer = new THREE.Vector2();
+  function pickAt(clientX, clientY) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+    pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    for (const hit of raycaster.intersectObjects(pickables, true)) {
+      let object = hit.object;
+      while (object && !pickables.includes(object)) object = object.parent;
+      if (object) return object;
+    }
+    return null;
+  }
+
   let downAt = null;
+  let pendingHover = null;
   renderer.domElement.addEventListener('pointerdown', (event) => {
     downAt = { x: event.clientX, y: event.clientY };
   });
+  renderer.domElement.addEventListener('pointermove', (event) => {
+    pendingHover = { x: event.clientX, y: event.clientY };
+  });
+  renderer.domElement.addEventListener('pointerleave', () => {
+    pendingHover = null;
+    if (hovered) setHighlight(hovered, false);
+    hovered = null;
+  });
   renderer.domElement.addEventListener('pointerup', (event) => {
     if (!downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 5) return;
-    const rect = renderer.domElement.getBoundingClientRect();
-    pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-    pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
-    const hit = raycaster.intersectObjects(pickables, false)[0];
-    if (hit) onPick(hit.object.userData, hit.object.position);
+    const group = pickAt(event.clientX, event.clientY);
+    if (group) {
+      select(group);
+      const center = new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3());
+      onPick(group.userData, center);
+    } else {
+      select(null);
+      onClear();
+    }
+  });
+  renderer.domElement.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      select(null);
+      onClear();
+      resetView();
+    }
   });
 
   let flight = null;
   function flyTo(target, zoom) {
     const offset = camera.position.clone().sub(controls.target);
-    const to = { target: target.clone(), position: target.clone().add(offset), zoom };
+    const to = { target: new THREE.Vector3(target.x, 0, target.z), position: new THREE.Vector3(target.x, 0, target.z).add(offset), zoom };
     if (reducedMotion) {
       controls.target.copy(to.target);
       camera.position.copy(to.position);
@@ -328,10 +603,6 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick }) {
   // --- frame loop -----------------------------------------------------------
   const projected = new THREE.Vector3();
   let worldExtent = 60;
-  function fitExtent(extent) {
-    worldExtent = extent;
-    if (width > 0) resize();
-  }
   let width = 0;
   let height = 0;
   function resize() {
@@ -341,12 +612,49 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick }) {
     height = rect.height;
     renderer.setSize(width, height, false);
     const aspect = width / height;
-    const span = Math.max(worldExtent * 0.9 / Math.min(aspect, 1.25), 24);
+    const span = Math.max((worldExtent * 0.9) / Math.min(aspect, 1.25), 24);
     Object.assign(camera, { left: -span * aspect, right: span * aspect, top: span, bottom: -span });
     camera.updateProjectionMatrix();
   }
+  function fitExtent(extent) {
+    worldExtent = extent;
+    if (width > 0) resize();
+  }
   const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
   observer?.observe(stage);
+
+  function placeLabels() {
+    const placed = [];
+    const selectedBusiness = selected?.userData?.business ?? null;
+    const visibleLabels = [];
+    for (const label of labels) {
+      projected.copy(label.position).project(camera);
+      const onScreen = projected.z < 1 && projected.x > -1.05 && projected.x < 1.05 && projected.y > -1.05 && projected.y < 1.05;
+      const focused = selectedBusiness && label.business === selectedBusiness;
+      const zoomOk = camera.zoom >= label.minZoom || (focused && label.priority === LABEL_PRIORITY.engagement && camera.zoom >= 1.8);
+      if (!onScreen || !zoomOk) {
+        label.node.hidden = true;
+        continue;
+      }
+      label.screen = { x: ((projected.x + 1) / 2) * width, y: ((1 - projected.y) / 2) * height };
+      label.rank = label.owner === selected ? LABEL_PRIORITY.selected : focused && label.priority === LABEL_PRIORITY.city ? LABEL_PRIORITY.selected : label.priority;
+      visibleLabels.push(label);
+    }
+    visibleLabels.sort((a, b) => a.rank - b.rank);
+    for (const label of visibleLabels) {
+      label.node.hidden = false;
+      label.size ??= { w: label.node.offsetWidth, h: label.node.offsetHeight };
+      const rect = { x: label.screen.x - label.size.w / 2, y: label.screen.y - label.size.h, w: label.size.w, h: label.size.h };
+      const clash = placed.some((other) => rect.x < other.x + other.w + 2 && rect.x + rect.w + 2 > other.x && rect.y < other.y + other.h + 2 && rect.y + rect.h + 2 > other.y);
+      if (clash && label.rank > LABEL_PRIORITY.selected) {
+        label.node.hidden = true;
+        continue;
+      }
+      placed.push(rect);
+      label.node.style.transform = `translate(${Math.round(rect.x)}px, ${Math.round(rect.y)}px)`;
+      label.node.classList.toggle('is-selected', label.rank === LABEL_PRIORITY.selected);
+    }
+  }
 
   let running = true;
   function frame(time) {
@@ -356,7 +664,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick }) {
     if (width === 0) resize();
     if (flight) {
       flight.started ??= time;
-      flight.t = Math.min((time - flight.started) / 800, 1);
+      flight.t = Math.min((time - flight.started) / 850, 1);
       const e = 1 - (1 - flight.t) ** 3;
       controls.target.lerpVectors(flight.from.target, flight.to.target, e);
       camera.position.lerpVectors(flight.from.position, flight.to.position, e);
@@ -368,31 +676,41 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick }) {
         controls.enabled = true;
       }
     }
+    if (pendingHover) {
+      const group = pickAt(pendingHover.x, pendingHover.y);
+      pendingHover = null;
+      if (group !== hovered) {
+        if (hovered) setHighlight(hovered, false);
+        hovered = group;
+        if (hovered) setHighlight(hovered, true);
+        renderer.domElement.style.cursor = hovered ? 'pointer' : '';
+      }
+    }
     if (!reducedMotion) {
-      const pulse = 0.35 + 0.3 * (1 + Math.sin(time / 380)) / 2;
-      for (const beam of beacons) beam.material.opacity = pulse;
+      const wave = (1 + Math.sin(time / 380)) / 2;
+      for (const beam of beacons) beam.material.opacity = 0.35 + 0.3 * wave;
+      for (const ring of glows) {
+        ring.material.opacity = 0.25 + 0.45 * (1 + Math.sin(time / 900)) / 2;
+        ring.scale.setScalar(1 + 0.08 * Math.sin(time / 900));
+      }
+      if (selectionRing.visible) selectionRing.material.opacity = 0.6 + 0.35 * wave;
     }
     if (!flight) controls.update();
     renderer.render(scene, camera);
-    for (const label of labels) {
-      projected.copy(label.position).project(camera);
-      const visible = camera.zoom >= label.minZoom && projected.z < 1
-        && projected.x > -1.1 && projected.x < 1.1 && projected.y > -1.1 && projected.y < 1.1;
-      label.node.hidden = !visible;
-      if (visible) {
-        label.node.style.transform = `translate(-50%, -100%) translate(${((projected.x + 1) / 2) * width}px, ${((1 - projected.y) / 2) * height}px)`;
-      }
-    }
+    placeLabels();
   }
   requestAnimationFrame(frame);
   // Experiment-only inspection handle (read in the browser console while tuning).
-  globalThis.__bbWorldDebug = { camera, controls, get flight() { return flight; } };
+  globalThis.__bbWorldDebug = { camera, controls, get flight() { return flight; }, get selected() { return selected; } };
 
   return {
     buildPlaza,
     buildCities,
     flyTo,
     resetView,
+    clearSelection() {
+      select(null);
+    },
     dispose() {
       running = false;
       observer?.disconnect();
@@ -428,7 +746,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     title: '世界',
     lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。見るための画面で、ここからは何も書き換えません。',
     source: page?.source ?? null,
-    actions: [workspaceButton(doc, { text: '全体に戻る', onClick: () => scene?.resetView() })],
+    actions: [workspaceButton(doc, { text: '全体に戻る', onClick: () => { scene?.clearSelection(); showEmptyRail(); scene?.resetView(); } })],
   });
   const notices = el(doc, 'div', { className: 'bb-world-hud', attrs: { 'aria-live': 'polite' } });
   const legend = el(doc, 'div', { className: 'bb-world-legend', attrs: { 'aria-label': '凡例' } });
@@ -446,25 +764,27 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (!rail) return;
     rail.replaceChildren(...nodes);
   }
-  showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。' })]);
+  const showEmptyRail = () => showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
+  showEmptyRail();
 
   let proofs = new Map();
 
   function onPick(data, position) {
     if (data.kind === 'city' || data.kind === 'engagement') {
       const business = data.business;
-      scene?.flyTo(new THREE.Vector3(position.x, 0, position.z), 2.6);
+      scene?.flyTo(new THREE.Vector3(position.x, 0, position.z), data.kind === "engagement" ? 3.6 : 2.8);
       const blocks = [workspaceRailHead(doc, {
         kicker: data.kind === 'engagement' ? `${business.name} の案件` : `事業・${KIND_LABELS[business.kind] ?? business.kind}`,
         title: data.kind === 'engagement' ? data.engagement.name : business.name,
         lead: data.kind === 'engagement' ? data.engagement.summary ?? undefined : business.purpose ?? undefined,
       })];
       if (data.kind === 'engagement') {
-        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', data.engagement.status], ['Graph ID', data.engagement.id]]) }));
+        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }));
       } else {
-        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', business.status], ['コード', business.code], ['案件', `${business.engagements.length}件`]]) }));
+        const open = business.engagements.filter((engagement) => !FINISHED_STATUSES.has(engagement.status)).length;
+        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(business.status)], ['コード', business.code], ['案件', `${business.engagements.length}件（動いている${open}件）`]]) }));
         const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
-        for (const engagement of business.engagements) ul.append(el(doc, 'li', { text: engagement.name }));
+        for (const engagement of business.engagements) ul.append(el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` }));
         blocks.push(workspaceRailBlock(doc, { title: '案件（区画）', content: business.engagements.length ? ul : { text: '登録された案件はありません' } }));
       }
       blocks.push(workspaceRailBlock(doc, { title: 'この事業の判断', content: { text: '判断の記録にはまだ事業の欄がありません（W4で追加予定）。判断は広場に置いています。' } }));
@@ -553,8 +873,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       renderFallbackList(doc, wrap, businesses, rows);
       return;
     }
-    scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick });
-    scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length);
+    scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: showEmptyRail });
+    scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now());
     scene.buildCities(layoutWorld(businesses));
   }
 

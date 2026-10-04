@@ -186,3 +186,19 @@
     will-change: auto;
   }
 }
+
+.bb-world-label.is-selected {
+  border-color: var(--bb-color-accent);
+  box-shadow: 0 0 0 2px rgb(8 125 98 / 18%);
+  font-weight: 700;
+}
+
+.bb-world-label.is-engagement.is-finished {
+  color: var(--bb-color-quiet);
+  background: rgb(255 255 255 / 70%);
+}
+
+.bb-world-canvas:focus-visible {
+  outline: 2px solid var(--bb-color-focus);
+  outline-offset: -2px;
+}
