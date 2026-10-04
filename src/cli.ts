@@ -63,6 +63,7 @@ import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, 
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createExperimentalWorldExtension } from './experimental-world.js';
+import { createOrganizationGraphSource } from './organization-graph-web.js';
 import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
@@ -1153,10 +1154,19 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   }
   // Experimental world view (W1–W4, provisional). Off unless the flag is given.
   const experimentalWorld = parsed.flags.has('experimental-world');
+  // Ledger C1: the Graph screens read the owner's organization Graph read only.
+  let organizationGraph: Awaited<ReturnType<typeof createOrganizationGraphSource>> | null = null;
+  if (parsed.flags.has('organization-graph')) {
+    organizationGraph = await createOrganizationGraphSource();
+    if ('reason' in organizationGraph) {
+      throw new Error(`${command} --organization-graph cannot read the organization Graph (${organizationGraph.reason}); sign in with brainbase auth first`);
+    }
+  }
   const { server } = createLocalWebHost({
     dataDir,
     journalRoot,
-    extensions: experimentalWorld ? [createExperimentalWorldExtension()] : []
+    extensions: experimentalWorld ? [createExperimentalWorldExtension()] : [],
+    ...(organizationGraph ? { organizationGraph } : {})
   });
   await new Promise<void>((resolveListen, rejectListen) => {
     server.once('error', rejectListen);
@@ -1172,6 +1182,7 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
     `- プロジェクトと関係者: ${origin}/#projects`,
     `- 情報と関係: ${origin}/#graph`,
     ...(experimentalWorld ? [`- 世界（実験）: ${origin}/#world`] : []),
+    ...(organizationGraph ? [`組織のGraph（読み取りのみ）: ${organizationGraph.server}`] : []),
     `データ: ${dataDir}`,
     `判断journal: ${journalRoot}`,
     '終了: Ctrl+C',
@@ -1342,7 +1353,7 @@ function usage(): string {
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
-  brainbase web:serve [--dir path] [--journal path] [--port n] [--experimental-world]
+  brainbase web:serve [--dir path] [--journal path] [--port n] [--experimental-world] [--organization-graph]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
 `;
 }

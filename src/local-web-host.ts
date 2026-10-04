@@ -20,6 +20,7 @@ import {
   type FoundationStoreContext
 } from './foundation-store.js';
 import { createGraphWebHttpHandler } from './graph-web-http.js';
+import type { GraphWebAnySource, InMemoryGraphReader } from './graph-web.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { nodeRequestToFetch, writeFetchResponse } from './local-web-fetch-bridge.js';
 import {
@@ -100,6 +101,8 @@ export interface LocalWebModuleContext {
   readonly journalRoot: string;
   readonly token: string;
   readonly now: () => Date;
+  /** Present when the host reads the organization Graph (C1). */
+  readonly organizationGraph?: LocalWebOrganizationGraph;
 }
 
 /**
@@ -138,6 +141,17 @@ export interface LocalWebHostOptions {
   readonly uiDir?: string;
   readonly now?: () => Date;
   readonly extensions?: readonly LocalWebExtension[];
+  /**
+   * Ledger C1: the owner's organization Graph, read only. When given, the Graph
+   * screens read it instead of the data directory and the status reports it.
+   */
+  readonly organizationGraph?: LocalWebOrganizationGraph;
+}
+
+export interface LocalWebOrganizationGraph {
+  /** Organization server origin shown as the source, without credentials. */
+  readonly server: string;
+  read(): Promise<InMemoryGraphReader<GraphWebAnySource>>;
 }
 
 export interface LocalWebHost {
@@ -237,7 +251,9 @@ export function createLocalStatusModule(context: LocalWebModuleContext): LocalWe
         writeJson(response, 405, { error: { code: 'method_not_allowed', message: 'Use GET' } });
         return true;
       }
-      const graph = await readLocalGraphState(context.dataDir);
+      const local = await readLocalGraphState(context.dataDir);
+      // Under C1 the Graph screens read the organization Graph, so they are not gated on the local file.
+      const graph = context.organizationGraph ? { ...local, status: 'ready' as const, format: 'v2' as const, message: undefined } : local;
       writeJson(response, 200, {
         version: LOCAL_WEB_HOST_VERSION,
         data_dir: context.dataDir,
@@ -248,8 +264,9 @@ export function createLocalStatusModule(context: LocalWebModuleContext): LocalWe
           ...(graph.message ? { message: graph.message } : {}),
           commands: graphCommands(graph, context.dataDir)
         },
-        // This host reads only the local data directory (C1 is not connected here).
-        organization_graph: { status: 'not_connected' }
+        organization_graph: context.organizationGraph
+          ? { status: 'connected', server: context.organizationGraph.server, mode: 'read_only' }
+          : { status: 'not_connected' }
       });
       return true;
     }
@@ -790,6 +807,7 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
     dataDir: context.dataDir,
     basePath: LOCAL_WEB_GRAPH_PREFIX,
     now: context.now,
+    ...(context.organizationGraph ? { readGraph: context.organizationGraph.read } : {}),
     assertWriteAllowed(request) {
       if (isTrustedLocalWrite(request, context.token)) return;
       throw rejectUntrustedWrite(request, context.token)
@@ -889,7 +907,13 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
   const dataDir = resolveDataDir(options.dataDir);
   const journalRoot = options.journalRoot ?? defaultJudgmentJournalRoot(dataDir);
   const uiDir = options.uiDir ?? fileURLToPath(new URL('../ui/', import.meta.url));
-  const context: LocalWebModuleContext = { dataDir, journalRoot, token, now: options.now ?? (() => new Date()) };
+  const context: LocalWebModuleContext = {
+    dataDir,
+    journalRoot,
+    token,
+    now: options.now ?? (() => new Date()),
+    ...(options.organizationGraph ? { organizationGraph: options.organizationGraph } : {})
+  };
   const modules = defaultLocalWebModules(context);
   const extensions = [...options.extensions ?? []];
   const extensionModules: { prefix: string; module: LocalWebModule }[] = [];

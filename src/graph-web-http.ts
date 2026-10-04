@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { applyGraphCorrection, GraphCorrectionError } from './graph-corrections.js';
 import {
   GraphWebError,
+  type GraphWebAnySource,
+  type InMemoryGraphReader,
   listGraphProjects,
   readGraphEntity,
   readGraphOntology,
@@ -26,6 +28,12 @@ export interface GraphWebHttpOptions {
    */
   readonly assertWriteAllowed?: (request: IncomingMessage) => void | Promise<void>;
   readonly now?: () => Date;
+  /**
+   * Ledger C1: read every route from a Graph the host holds in memory (the
+   * owner's organization Graph) instead of the data directory. Corrections
+   * are refused as read only.
+   */
+  readonly readGraph?: () => Promise<InMemoryGraphReader<GraphWebAnySource>>;
 }
 
 export type GraphWebHttpHandler = (request: IncomingMessage, response: ServerResponse) => Promise<boolean>;
@@ -80,6 +88,9 @@ export function createGraphWebHttpHandler(options: GraphWebHttpOptions): GraphWe
     try {
       if (route.name === 'corrections') {
         if (request.method !== 'POST') throw methodNotAllowed('POST');
+        if (options.readGraph) {
+          throw new HttpError(403, 'organization_graph_read_only', 'This host reads the organization Graph read only; correct it in the organization edition');
+        }
         await assertWriteAllowed(options.assertWriteAllowed, request);
         const body = await readJsonBody(request);
         const result = await applyGraphCorrection(dataDir, body, { now: now() });
@@ -89,6 +100,17 @@ export function createGraphWebHttpHandler(options: GraphWebHttpOptions): GraphWe
       if (request.method !== 'GET') throw methodNotAllowed('GET');
       const asOf = queryValue(url, 'as_of');
       const readOptions = { ...(asOf !== undefined ? { asOf } : {}), now: now() };
+      if (options.readGraph) {
+        const reader = await options.readGraph();
+        const body = route.name === 'status' ? reader.status(readOptions)
+          : route.name === 'projects' ? reader.listProjects(readOptions)
+            : route.name === 'project' ? reader.readProject(route.id, readOptions)
+              : route.name === 'search' ? reader.search({ q: queryValue(url, 'q'), type: queryValue(url, 'type'), asOf, limit: parseLimit(queryValue(url, 'limit')), now: readOptions.now })
+                : route.name === 'entity' ? reader.readEntity(route.id, readOptions)
+                  : reader.ontology(readOptions);
+        writeJson(response, 200, body);
+        return true;
+      }
       switch (route.name) {
         case 'status':
           writeJson(response, 200, await readGraphWebStatus(dataDir, readOptions));
