@@ -380,9 +380,11 @@ describe('local Web shell', () => {
     expect(recordLink.attributes).toMatchObject({ href: `https://org.example.com/?screen=graph&entity_id=${UX06_GRAPH_ENTITY.id}`, target: '_blank', rel: 'noopener noreferrer' });
     expect(rail).toContain('組織版の「情報と関係」でこの記録を開きます');
     expect(rail).toContain('Slackでログインすると、そのままこの記録に戻ります');
-    // The organization web scopes a project by its own code or by the business it belongs to (D-20261004-08).
-    expect(rail).toContain('gmかceoで、このプロジェクトか、その上の事業を許可されている人');
+    // The organization web lets a record be changed with the grant of the business it belongs to
+    // (D-20261004-08); an own-code grant alone only lets it be read there.
+    expect(rail).toContain('gmかceoで、このプロジェクトが属する事業（事業そのものなら、その事業）を許可されている人');
     expect(rail).not.toContain('両方を許可');
+    expect(rail).not.toContain('このプロジェクトか、その上の事業');
     expect(rail).toContain('人物の記録と、関係者の追加・終了は組織版でもまだ直せません');
     expect(rail).toContain('1分ほどたってから再読み込み');
   });
