@@ -13,6 +13,7 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
+import { groupJudgmentPlaces, UNPLACED_REASON_TEXT } from './world-placement.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -45,6 +46,8 @@ const BUSINESS_STATE_TEXT = Object.freeze({
 
 const STATUS_TEXT = Object.freeze({ active: '進行中', maintenance: '保守', completed: '完了', closed: '終了', not_converted: '案件化せず', concept: '構想' });
 const FINISHED_STATUSES = new Set(['completed', 'closed', 'not_converted']);
+const SECTION_TEXT = Object.freeze({ needs_human: 'あなたに戻した', blocked: '止まった', continued: '聞かずに進めた', other: 'その他' });
+const BASIS_TEXT = Object.freeze({ repository: '作業したリポジトリがこの事業に登録されている', code: '作業したリポジトリ名がこの事業のコードと同じ' });
 const statusText = (status) => (status ? STATUS_TEXT[status] ?? status : '未記録');
 
 const PLAZA_RADIUS = 7;
@@ -443,7 +446,22 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     return group;
   }
 
-  function buildCities({ cities, sectors, extent }) {
+  function judgmentHall(judgments) {
+    const group = new THREE.Group();
+    const waiting = judgments.some((entry) => isWaiting(entry.item));
+    const returned = judgments.some((entry) => entry.item?.section === 'needs_human');
+    const blocked = judgments.some((entry) => entry.item?.section === 'blocked');
+    const color = waiting || returned ? 0xd92335 : blocked ? 0xc99a3a : 0x087d62;
+    const h = 1 + Math.log2(1 + judgments.length) * 0.9;
+    group.add(mesh(new THREE.CylinderGeometry(1, 1.15, 0.3, 20), standard(0xe6ded0), { y: 0.15 }));
+    group.add(mesh(new THREE.CylinderGeometry(0.75, 0.8, h, 16), standard(waiting || returned ? muted(color, 0.25) : new THREE.Color(0xf4f1ea)), { y: 0.3 + h / 2 }));
+    group.add(mesh(new THREE.ConeGeometry(1.05, 0.9, 16), standard(color), { y: 0.3 + h + 0.45 }));
+    group.userData.top = 0.3 + h + 0.9;
+    group.userData.waiting = waiting;
+    return group;
+  }
+
+  function buildCities({ cities, sectors, extent }, judgmentsByBusiness = new Map()) {
     fitExtent(extent);
     for (let i = 0; i < 12; i += 1) {
       const angle = (i / 12) * Math.PI * 2;
@@ -488,6 +506,21 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
         const label = addLabel(finished ? `${engagement.name}（${statusText(engagement.status)}）` : engagement.name, new THREE.Vector3(lot.position.x, 2.6, lot.position.z), `is-engagement${finished ? ' is-finished' : ''}`, { minZoom: 3.4, priority: LABEL_PRIORITY.engagement, owner: lot });
         label.business = business;
       });
+      const judgments = judgmentsByBusiness.get(business.code) ?? [];
+      if (judgments.length > 0) {
+        const hall = judgmentHall(judgments);
+        hall.position.set(x + size * 0.34, 0.45, z - size * 0.34);
+        scene.add(hall);
+        register(hall, { kind: 'cityJudgments', business, judgments });
+        const top = 0.45 + hall.userData.top;
+        if (hall.userData.waiting) {
+          const beam = mesh(new THREE.CylinderGeometry(0.22, 0.22, 16, 12), new THREE.MeshBasicMaterial({ color: 0xd92335, transparent: true, opacity: 0.55 }), { x: hall.position.x, y: top + 8, z: hall.position.z, shadow: false });
+          scene.add(beam);
+          beacons.push(beam);
+        }
+        const hallLabel = addLabel(`判断 ${judgments.length}件`, new THREE.Vector3(hall.position.x, top + 0.2, hall.position.z), `is-hall${hall.userData.waiting ? ' is-waiting' : ''}`, { minZoom: 1.3, priority: LABEL_PRIORITY.judgment, owner: hall });
+        hallLabel.business = business;
+      }
       const treeCount = 2 + Math.floor(hashUnit(business.id) * 3);
       for (let t = 0; t < treeCount; t += 1) {
         const a = hashUnit(`${business.id}${t}`) * Math.PI * 2;
@@ -768,6 +801,39 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   showEmptyRail();
 
   let proofs = new Map();
+  let placement = { byBusiness: new Map(), unplaced: [] };
+
+  function judgmentText(item, fallback) {
+    const textValue = item?.proof?.interruption?.question_display_text ?? item?.proof?.decision?.summary ?? fallback;
+    const suffix = item?.conversation_moved_on_at ? '（会話で先に進んだ）' : item?.answer ? '（回答済み）' : isWaiting(item) ? '（あなたを待っています）' : '';
+    return `${textValue}${suffix}`;
+  }
+
+  function judgmentList(entries, describe) {
+    const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
+    const sorted = [...entries].sort((a, b) => String(b.item?.proof?.recorded_at ?? '').localeCompare(String(a.item?.proof?.recorded_at ?? '')));
+    for (const entry of sorted.slice(0, 15)) {
+      const li = el(doc, 'li');
+      li.append(el(doc, 'span', { text: judgmentText(entry.item, entry.decision_attempt_id) }));
+      li.append(el(doc, 'small', { className: 'bb-world-rail-note', text: describe(entry) }));
+      ul.append(li);
+    }
+    return ul;
+  }
+
+  function cityJudgmentBlock(business) {
+    const entries = placement.byBusiness.get(business.code) ?? [];
+    if (entries.length === 0) {
+      return workspaceRailBlock(doc, { title: 'この事業の判断', content: { text: 'この事業のリポジトリで作業した判断の記録はありません。' } });
+    }
+    return workspaceRailBlock(doc, {
+      title: `この事業の判断（${entries.length}件）`,
+      content: [
+        judgmentList(entries, (entry) => `${SECTION_TEXT[entry.item?.section] ?? '状態不明'}・作業場所 ${entry.workspace}（${BASIS_TEXT[entry.basis]}）`),
+        { text: '作業した場所で置いています。判断の対象とは違うことがあります。', className: 'bb-world-rail-caveat' },
+      ],
+    });
+  }
 
   function onPick(data, position) {
     if (data.kind === 'city' || data.kind === 'engagement') {
@@ -787,8 +853,18 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         for (const engagement of business.engagements) ul.append(el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` }));
         blocks.push(workspaceRailBlock(doc, { title: '案件（区画）', content: business.engagements.length ? ul : { text: '登録された案件はありません' } }));
       }
-      blocks.push(workspaceRailBlock(doc, { title: 'この事業の判断', content: { text: '判断の記録にはまだ事業の欄がありません（W4で追加予定）。判断は広場に置いています。' } }));
+      blocks.push(cityJudgmentBlock(business));
       showRail(blocks);
+      return;
+    }
+    if (data.kind === 'cityJudgments') {
+      const business = data.business;
+      scene?.flyTo(new THREE.Vector3(position.x, 0, position.z), 3.2);
+      showRail([
+        workspaceRailHead(doc, { kicker: `${business.name} の判断所`, title: `判断 ${data.judgments.length}件`, lead: business.purpose ?? undefined }),
+        cityJudgmentBlock(business),
+        workspaceRailBlock(doc, { title: '詳しく見る', content: workspaceButton(doc, { text: '「今日」で開く', variant: 'primary', onClick: () => { globalThis.location.hash = '#today'; } }) }),
+      ]);
       return;
     }
     if (data.kind === 'judgment') {
@@ -809,12 +885,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         ]),
       }));
       const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
-      for (const ref of items.slice(0, 12)) {
-        const found = proofs.get(ref.decision_attempt_id);
-        const textValue = found?.proof?.interruption?.question_display_text ?? found?.proof?.decision?.summary ?? ref.decision_attempt_id;
-        const suffix = found?.conversation_moved_on_at ? '（会話で先に進んだ）' : found?.answer ? '（回答済み）' : isWaiting(found) ? '（あなたを待っています）' : '';
-        ul.append(el(doc, 'li', { text: `${textValue}${suffix}` }));
-      }
+      for (const ref of items.slice(0, 12)) ul.append(el(doc, 'li', { text: judgmentText(proofs.get(ref.decision_attempt_id), ref.decision_attempt_id) }));
       blocks.push(workspaceRailBlock(doc, { title: '判断（新しい順）', content: items.length ? ul : { text: '判断はありません' } }));
       blocks.push(workspaceRailBlock(doc, {
         title: '詳しく見る',
@@ -825,18 +896,26 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     }
     if (data.kind === 'plaza') {
       scene?.flyTo(new THREE.Vector3(0, 0, 0), 2.2);
-      showRail([workspaceRailHead(doc, {
+      const blocks = [workspaceRailHead(doc, {
         kicker: '広場',
-        title: '判断の種類',
-        lead: '建物1つが判断の種類1つです。高さは判断の件数、色は任せ方の状態です。どの事業の判断かは、まだ記録されていません。',
-      })]);
+        title: '判断の種類（全体）',
+        lead: '建物1つが判断の種類1つで、全事業の判断をまとめています。高さは件数、色は任せ方の状態です。事業ごとの判断は、各都市の判断所にあります。',
+      })];
+      blocks.push(workspaceRailBlock(doc, {
+        title: `どの事業にも置けない判断（${placement.unplaced.length}件）`,
+        content: placement.unplaced.length
+          ? judgmentList(placement.unplaced, (entry) => `${UNPLACED_REASON_TEXT[entry.reason] ?? entry.reason}${entry.workspace ? `（作業場所 ${entry.workspace}）` : ''}`)
+          : { text: 'ありません' },
+      }));
+      showRail(blocks);
     }
   }
 
   async function load() {
-    const [businessesResult, homeResult] = await Promise.all([
+    const [businessesResult, homeResult, placesResult] = await Promise.all([
       readJson(fetcher, '/api/extensions/world/businesses'),
       readJson(fetcher, '/api/value-proofs/home'),
+      readJson(fetcher, '/api/extensions/world/judgment-places'),
     ]);
     notices.replaceChildren();
     const note = (label, textValue, tone = 'info') => {
@@ -863,7 +942,16 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     } else {
       proofs = proofIndex(home);
       const waiting = [...proofs.values()].filter(isWaiting).length;
-      note('判断', `${home.delegation_map.judged}件を種類ごとに${rows.length}棟。今あなたを待っている判断${waiting}件${waiting ? '（光の柱）' : ''}。事業の欄が無いため広場に置いています（W4）。`, waiting ? 'attention' : 'info');
+      const places = placesResult.ok && placesResult.data?.status === 'available' ? placesResult.data.places : null;
+      if (places) {
+        // Only judgments the home lists are placed, so the world and 今日 count the same judgments.
+        const known = places.filter((place) => proofs.has(place.decision_attempt_id)).map((place) => ({ ...place, item: proofs.get(place.decision_attempt_id) }));
+        placement = groupJudgmentPlaces(known, businesses);
+        const placed = known.length - placement.unplaced.length;
+        note('判断', `${home.delegation_map.judged}件のうち${placed}件を作業した事業の判断所に、${placement.unplaced.length}件は事業が分からないため広場に。今あなたを待っている判断${waiting}件${waiting ? '（光の柱）' : ''}。`, waiting ? 'attention' : 'info');
+      } else {
+        note('判断', `${home.delegation_map.judged}件。作業した場所を読めないため、事業には置かず広場の種類別だけで描いています（${placesResult.ok ? placesResult.data?.reason ?? '理由不明' : placesResult.error}）。今あなたを待っている判断${waiting}件。`, 'warning');
+      }
     }
     const rowItems = new Map(rows.map((row) => [row.key, Array.isArray(row.items) ? row.items : []]));
 
@@ -875,7 +963,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     }
     scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: showEmptyRail });
     scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now());
-    scene.buildCities(layoutWorld(businesses));
+    scene.buildCities(layoutWorld(businesses), placement.byBusiness);
   }
 
   void load();

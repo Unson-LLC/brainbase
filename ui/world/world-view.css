@@ -202,3 +202,28 @@
   outline: 2px solid var(--bb-color-focus);
   outline-offset: -2px;
 }
+
+.bb-world-rail-note {
+  display: block;
+  margin-top: 2px;
+  color: var(--bb-color-muted);
+  font-size: 11px;
+}
+
+.bb-world-rail-caveat {
+  display: block;
+  margin-top: var(--bb-space-2);
+  color: var(--bb-color-warning);
+  font-size: 12px;
+}
+
+.bb-world-label.is-hall {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bb-color-accent-strong);
+}
+
+.bb-world-label.is-hall.is-waiting {
+  border-color: #d92335;
+  color: #a1192a;
+}

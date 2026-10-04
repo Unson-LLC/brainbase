@@ -2,7 +2,9 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { projectWorldBusinesses, readWorldBusinesses } from '../src/experimental-world.js';
+import { projectWorldBusinesses, readJudgmentPlaces, readWorldBusinesses } from '../src/experimental-world.js';
+// @ts-expect-error plain browser module without type declarations
+import { groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
 
 const record = (id: string, projectCode: string, payload: Record<string, unknown>, lifecycle = 'active') => ({
   id,
@@ -58,5 +60,50 @@ describe('experimental world: businesses from the organization Graph', () => {
     });
     expect(result).toMatchObject({ status: 'auth_failed', reason: 'http_401' });
     expect(JSON.stringify(result)).not.toContain('secret-token-value');
+  });
+});
+
+describe('experimental world: where a judgment stands', () => {
+  const businesses = [
+    { code: 'mana', repositories: ['mana-runtime', 'mana'] },
+    { code: 'brainbase', repositories: ['brainbase-unson'] },
+  ];
+
+  it('places a judgment by the repository the Graph registers for a business', () => {
+    expect(placeJudgment('mana-runtime', businesses)).toMatchObject({ business: { code: 'mana' }, basis: 'repository' });
+  });
+
+  it('places a judgment whose repository name equals a business code', () => {
+    expect(placeJudgment('brainbase', businesses)).toMatchObject({ business: { code: 'brainbase' }, basis: 'code' });
+  });
+
+  it('keeps unrecorded and unregistered workplaces in the plaza with the reason, never guessing', () => {
+    expect(placeJudgment(null, businesses)).toEqual({ business: null, reason: 'workspace_unrecorded' });
+    expect(placeJudgment('brainbase-project', businesses)).toEqual({ business: null, reason: 'workspace_unregistered' });
+    const grouped = groupJudgmentPlaces([
+      { decision_attempt_id: 'd1', workspace: 'mana-runtime' },
+      { decision_attempt_id: 'd2', workspace: 'techknight' },
+    ], businesses);
+    expect(grouped.byBusiness.get('mana')?.map((entry: { decision_attempt_id: string }) => entry.decision_attempt_id)).toEqual(['d1']);
+    expect(grouped.unplaced).toEqual([{ decision_attempt_id: 'd2', workspace: 'techknight', reason: 'workspace_unregistered' }]);
+  });
+
+  it('reads the recorded workplace of each saved judgment from the journal', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bb-world-journal-'));
+    await mkdir(join(root, 'session-a'));
+    await writeFile(join(root, 'session-a', 't1.value-proof.json'), JSON.stringify({ decision_attempt_id: 'decision_1' }));
+    await writeFile(join(root, 'session-a', 't1.turn-input.json'), JSON.stringify({ project_code: 'mana-runtime' }));
+    await writeFile(join(root, 'session-a', 't2.value-proof.json'), JSON.stringify({ decision_attempt_id: 'decision_2' }));
+    const result = await readJudgmentPlaces(root);
+    expect(result.status).toBe('available');
+    expect([...result.places].sort((a, b) => a.decision_attempt_id.localeCompare(b.decision_attempt_id))).toEqual([
+      { decision_attempt_id: 'decision_1', workspace: 'mana-runtime' },
+      { decision_attempt_id: 'decision_2', workspace: null },
+    ]);
+  });
+
+  it('reports an unreadable journal as unavailable, not as zero judgments', async () => {
+    const result = await readJudgmentPlaces(join(tmpdir(), 'bb-world-no-such-journal'));
+    expect(result).toMatchObject({ status: 'unavailable', reason: 'journal_unreadable' });
   });
 });

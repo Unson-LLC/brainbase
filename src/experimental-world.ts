@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -36,6 +36,8 @@ export interface WorldBusiness {
   readonly kind: BusinessKind;
   readonly purpose: string | null;
   readonly status: string | null;
+  /** Repository names the Graph registers for this business (`repository_roots[].repository`). */
+  readonly repositories: readonly string[];
   readonly engagements: readonly WorldEngagement[];
 }
 
@@ -101,6 +103,9 @@ export function projectWorldBusinesses(records: readonly unknown[]): WorldBusine
           kind: kind as BusinessKind,
           purpose: text(payload.purpose) ?? text(payload.summary),
           status: text(payload.operational_status) ?? text(payload.status),
+          repositories: Array.isArray(payload.repository_roots)
+            ? payload.repository_roots.filter(isRecord).map((root) => text(root.repository)).filter((name): name is string => name !== null)
+            : [],
         },
         engagements: [],
       });
@@ -182,15 +187,75 @@ export async function readWorldBusinesses(options: { home?: string; fetch?: type
   }
 }
 
-function createWorldModule(_context: LocalWebModuleContext, read: () => Promise<WorldBusinessesResponse>): LocalWebModule {
+export interface WorldJudgmentPlace {
+  readonly decision_attempt_id: string;
+  /** Repository the judgment Host recorded for the turn (`turn-input.json` project_code); null when unrecorded. */
+  readonly workspace: string | null;
+}
+
+const MAX_JUDGMENT_PLACES = 5_000;
+const VALUE_PROOF_SUFFIX = '.value-proof.json';
+
+async function readJsonFile(path: string): Promise<unknown> {
+  try {
+    return JSON.parse(await readFile(path, 'utf8')) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reads, for every saved value proof in the judgment journal, the repository
+ * the Host recorded for that turn.  Read only; a missing journal is an empty
+ * list with `status: 'unavailable'`, never invented places.
+ */
+export async function readJudgmentPlaces(journalRoot: string): Promise<{ readonly status: 'available' | 'unavailable'; readonly places: readonly WorldJudgmentPlace[]; readonly reason?: string }> {
+  let sessions: string[];
+  try {
+    sessions = (await readdir(journalRoot, { withFileTypes: true })).filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch {
+    return { status: 'unavailable', places: [], reason: 'journal_unreadable' };
+  }
+  const places: WorldJudgmentPlace[] = [];
+  // Proofs live in per-session folders; older ones may sit at the journal root.
+  for (const session of ['', ...sessions]) {
+    let files: string[];
+    try {
+      files = await readdir(join(journalRoot, session));
+    } catch {
+      continue;
+    }
+    for (const file of files) {
+      if (!file.endsWith(VALUE_PROOF_SUFFIX) || places.length >= MAX_JUDGMENT_PLACES) continue;
+      const base = join(journalRoot, session, file.slice(0, -VALUE_PROOF_SUFFIX.length));
+      const proof = await readJsonFile(`${base}${VALUE_PROOF_SUFFIX}`);
+      const decisionAttemptId = isRecord(proof) ? text(proof.decision_attempt_id) : null;
+      if (!decisionAttemptId) continue;
+      const turnInput = await readJsonFile(`${base}.turn-input.json`);
+      places.push({ decision_attempt_id: decisionAttemptId, workspace: isRecord(turnInput) ? text(turnInput.project_code) : null });
+    }
+  }
+  return { status: 'available', places };
+}
+
+function createWorldModule(context: LocalWebModuleContext, read: () => Promise<WorldBusinessesResponse>): LocalWebModule {
   return {
     id: EXPERIMENTAL_WORLD_ID,
     uiFiles: [],
     async handle(request: IncomingMessage, response: ServerResponse): Promise<boolean> {
-      if (request.method !== 'GET' || requestUrl(request).pathname !== `/api/extensions/${EXPERIMENTAL_WORLD_ID}/businesses`) return false;
-      response.setHeader('Cache-Control', 'no-store');
-      writeJson(response, 200, await read());
-      return true;
+      if (request.method !== 'GET') return false;
+      const path = requestUrl(request).pathname;
+      if (path === `/api/extensions/${EXPERIMENTAL_WORLD_ID}/businesses`) {
+        response.setHeader('Cache-Control', 'no-store');
+        writeJson(response, 200, await read());
+        return true;
+      }
+      if (path === `/api/extensions/${EXPERIMENTAL_WORLD_ID}/judgment-places`) {
+        response.setHeader('Cache-Control', 'no-store');
+        writeJson(response, 200, { version: EXPERIMENTAL_WORLD_VERSION, ...(await readJudgmentPlaces(context.journalRoot)) });
+        return true;
+      }
+      return false;
     },
   };
 }
@@ -199,7 +264,7 @@ export function createExperimentalWorldExtension(options: { home?: string; fetch
   return {
     id: EXPERIMENTAL_WORLD_ID,
     uiDir: fileURLToPath(new URL('../ui/world/', import.meta.url)),
-    uiFiles: ['world-view.js', 'world-view.css', 'world-vendor.js'],
+    uiFiles: ['world-view.js', 'world-view.css', 'world-vendor.js', 'world-placement.js'],
     screenEntry: 'world-view.js',
     createModule: (context) => createWorldModule(context, () => readWorldBusinesses(options)),
   };
