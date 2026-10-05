@@ -93,3 +93,43 @@ export function cityMeasures(business, { isFinished, judgments = [], now = Date.
     lit: recent > 0,
   };
 }
+
+/**
+ * The sky for an hour of the day (scenery only; it represents no data).  `mode` 'auto' follows the hour;
+ * 'day', 'dusk' and 'night' fix it.  At night lit windows and street lamps glow the most, so the cities
+ * that moved lately read best then.
+ */
+export function skyAt(hour, mode = 'auto') {
+  const phase = mode !== 'auto' ? mode
+    : hour >= 5 && hour < 7 ? 'dawn'
+      : hour >= 7 && hour < 17 ? 'day'
+        : hour >= 17 && hour < 19 ? 'dusk'
+          : 'night';
+  const skies = {
+    dawn: { top: '#c9d6ef', middle: '#f3d9c4', bottom: '#f6ead8', fog: 0xf1e2d2, sun: 0xffd2a8, sunIntensity: 1.6, hemi: 0.95, exposure: 1.0, glow: 1.1, lamps: true, stars: false },
+    day: { top: '#bfdcf0', middle: '#e3f0f2', bottom: '#f4f1e6', fog: 0xe9f1ee, sun: 0xfff1dc, sunIntensity: 2.7, hemi: 1.25, exposure: 1.05, glow: 0.6, lamps: false, stars: false },
+    dusk: { top: '#5d6f9e', middle: '#e7a77e', bottom: '#f3cfa4', fog: 0xe6bf9c, sun: 0xffb27a, sunIntensity: 1.3, hemi: 0.75, exposure: 0.95, glow: 1.5, lamps: true, stars: false },
+    night: { top: '#0d1730', middle: '#1c2b4c', bottom: '#33456a', fog: 0x2a3a5a, sun: 0x9fb4ff, sunIntensity: 0.35, hemi: 0.35, exposure: 0.9, glow: 2.4, lamps: true, stars: true },
+  };
+  return { phase, ...skies[phase] };
+}
+
+/**
+ * What moved since the viewer last opened the world: cities whose newest decision or a placed judgment
+ * is newer than `lastVisit`, and plaza buildings whose newest judgment is.  Null on a first visit.
+ */
+export function changesSince(lastVisit, businesses, judgmentsByBusiness, rows) {
+  const since = Date.parse(lastVisit ?? '');
+  if (!Number.isFinite(since)) return null;
+  const newer = (at) => {
+    const time = Date.parse(at ?? '');
+    return Number.isFinite(time) && time > since;
+  };
+  const cities = [];
+  for (const business of businesses ?? []) {
+    const judgments = judgmentsByBusiness?.get?.(business.code) ?? [];
+    if (newer(business.activity?.latest_decision_at) || judgments.some((entry) => newer(entry?.item?.proof?.recorded_at))) cities.push(business.code);
+  }
+  const plaza = (rows ?? []).filter((row) => newer(row.latest_recorded_at)).map((row) => row.key);
+  return { since: new Date(since).toISOString(), cities, plaza };
+}
