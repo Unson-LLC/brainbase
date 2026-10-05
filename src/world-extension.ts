@@ -9,6 +9,7 @@ import {
   readJudgmentValueProofJournal,
 } from './judgment-value-proof-review.js';
 import { publicHome } from './value-proof-review-http.js';
+import { projectOrganizationGraph, projectVocabularyTerms } from './organization-graph-web.js';
 import { readLocalGraphState, type GraphVocabularyTerm, type LocalWebExtension, type LocalWebModule, type LocalWebModuleContext } from './local-web-host.js';
 import { loadPersonalOs } from './ssot.js';
 import type { CanonicalEntity, GraphFileV2 } from './types.js';
@@ -294,6 +295,32 @@ export async function readWorldBusinesses(
     source,
     as_of: now.toISOString(),
     vocabulary: resolveWorldVocabulary(options.vocabulary, projection.businesses, terms),
+    ...projection,
+  };
+}
+
+/**
+ * The world of an organization from the project and glossary-term records its Graph API returns, for an
+ * organization web that hosts the same world screen (P16).  Pure: the caller reads the records with the
+ * member's own grants, so the world shows only what that member may read.
+ */
+export function projectOrganizationWorld(
+  records: { readonly projects: readonly unknown[]; readonly glossaryTerms?: readonly unknown[] },
+  options: { readonly server: string; readonly vocabulary?: WorldVocabularyConfig; readonly now?: Date }
+): WorldBusinessesResponse {
+  const now = options.now ?? new Date();
+  const { graph } = projectOrganizationGraph({
+    entities: { person: [], org: [], project: records.projects as never, decision: [], raci_assignment: [] },
+    memberOf: [],
+    assignedTo: [],
+  });
+  const projection = projectWorldFromGraph(graph, now);
+  return {
+    status: 'ok',
+    version: WORLD_EXTENSION_VERSION,
+    source: { authority: 'organization_graph', server: options.server },
+    as_of: now.toISOString(),
+    vocabulary: resolveWorldVocabulary(options.vocabulary, projection.businesses, projectVocabularyTerms(records.glossaryTerms ?? [])),
     ...projection,
   };
 }

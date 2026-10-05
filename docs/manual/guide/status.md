@@ -55,6 +55,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.15.3（npm公開前）
+
+世界の画面を、組織版でも同じ部品のまま載せられるようにします。組織のGraph APIが返すプロジェクトと用語の記録から世界を描く純関数を `@unson/brainbase-mcp/world` に公開し、画面にはプロジェクトを開く行き先をホストが渡せる口と、判断の記録が未接続であることの表示を加えます。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
 ## Candidate — v0.15.2（npm公開前）
 
 Canonical Taskの共通CRUDに、ホストのpolicyが指定する保存scopeを加えます。読み取り・変更・競合の読み戻し・操作の再実行・監査まで同じscopeを渡し、別scopeの結果の再利用を拒否します。組織の認証とDBの分離predicateはホストが持ち、scopeを指定しないローカル利用の契約は維持します。npm配布と外部照合が完了するまでは公開済みとして扱いません。

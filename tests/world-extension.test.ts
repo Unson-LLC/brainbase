@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { JudgmentValueProofJournalCache } from '../src/judgment-value-proof-review.js';
-import { projectWorldFromGraph, readJudgmentPlaces, readOrganizationJudgments, readWorldBusinesses, readWorldVocabulary, resolveWorldVocabulary } from '../src/world-extension.js';
+import { projectOrganizationWorld, projectWorldFromGraph, readJudgmentPlaces, readOrganizationJudgments, readWorldBusinesses, readWorldVocabulary, resolveWorldVocabulary } from '../src/world-extension.js';
 
 const valueProof = (id: string) => ({
   schema_version: 'brainbase-judgment-value-proof-v1',
@@ -23,6 +23,26 @@ import { groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.
 
 const project = (id: string, name: string, metadata: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   id, type: 'project' as const, name, metadata, ...extra,
+});
+
+describe('world: an organization web hosting the same screen', () => {
+  it('draws the organization\'s businesses and districts from the records its Graph API returns, named by its glossary', () => {
+    const world = projectOrganizationWorld({
+      projects: [
+        { id: 'prj_atlas', project_code: 'atlas', lifecycle_status: 'active', payload: { code: 'atlas', name: 'Atlas', kind: 'product', repository_roots: [{ repository: 'atlas-app' }] } },
+        { id: 'eng_atlas_training', project_code: 'atlas', lifecycle_status: 'active', payload: { code: 'atlas-training', name: '研修案件', status: 'active' } },
+        { id: 'prj_old', project_code: 'old', lifecycle_status: 'retired', payload: { code: 'old', name: 'Old' } },
+      ],
+      glossaryTerms: [{ id: 'gls_kind_product', lifecycle_status: 'active', payload: { term: 'プロダクト', vocabulary: { field: 'project.kind', value: 'product' }, definition: '自社が提供する' } }],
+    }, { server: 'https://graph.example.com', now: new Date('2026-10-05T00:00:00Z') });
+    expect(world.status).toBe('ok');
+    if (world.status !== 'ok') return;
+    expect(world.source).toEqual({ authority: 'organization_graph', server: 'https://graph.example.com' });
+    expect(world.businesses.map((business) => business.code)).toEqual(['atlas']);
+    expect(world.businesses[0]!.repositories).toEqual(['atlas-app']);
+    expect(world.businesses[0]!.engagements.map((engagement) => [engagement.name, engagement.code])).toEqual([['研修案件', 'atlas-training']]);
+    expect(world.vocabulary.kinds.find((kind) => kind.key === 'product')?.label).toBe('プロダクト');
+  });
 });
 
 describe('world: businesses from any Graph', () => {
