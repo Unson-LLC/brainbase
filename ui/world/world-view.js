@@ -15,7 +15,7 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { groupJudgmentPlaces, UNPLACED_REASON_TEXT } from './world-placement.js';
+import { districtLots, groupJudgmentPlaces, UNPLACED_REASON_TEXT } from './world-placement.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -505,17 +505,8 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       cityLabel.node.style.borderColor = `${entry.color}80`;
       cityLabel.business = business;
       const n = business.engagements.length;
-      const cols = Math.max(2, Math.ceil(Math.sqrt(n + 1)));
       const step = 2.5;
-      const cells = [];
-      for (let row = 0; row < cols; row += 1) {
-        for (let col = 0; col < cols; col += 1) {
-          const cx = -((cols - 1) * step) / 2 + col * step;
-          const cz = -((cols - 1) * step) / 2 + row * step;
-          if (Math.abs(cx) < 2.2 && Math.abs(cz) < 2.2) continue; // the landmark's lot
-          cells.push([cx, cz]);
-        }
-      }
+      const { cols, cells } = districtLots(n, step);
       cells.sort((a, b) => Math.hypot(...a) - Math.hypot(...b));
       business.engagements.forEach((engagement, index) => {
         const [cx, cz] = cells[index % cells.length];

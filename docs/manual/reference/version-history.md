@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.15.4 candidate — npm公開前
+
+- 世界の画面で、案件が1〜3件の事業の区画が都市の中央（目印の場所）にしか取れず、描画が例外で止まって以降の事業も描かれなかった。区画の置き場は足りるまで格子を広げて取る（`districtLots`）。公開の口・応答の形は変えない修正なので、patchにした
+
 ## 0.15.3 candidate — npm公開前
 
 - 世界の画面を組織版でも同じ部品のまま載せるため、`@unson/brainbase-mcp/world` を公開し、組織のGraph APIのプロジェクト・用語の記録から世界を描く `projectOrganizationWorld` を加える。画面の `createWorldView` には、プロジェクトを開く行き先をホストが渡す `projectHref` と、判断の記録が未接続（`judgment_journal_not_connected`）であることの表示を加える。既存の口・応答の形は変えない追加なので、patchにした

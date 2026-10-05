@@ -43,3 +43,24 @@ export function groupJudgmentPlaces(places, businesses) {
   }
   return { byBusiness, unplaced };
 }
+
+/**
+ * The lots around a city's landmark for `count` districts: a square grid of `step` spacing whose cells
+ * outside the landmark's lot hold at least `count` districts (a 2x2 grid lies wholly inside it).
+ */
+export function districtLots(count, step = 2.5) {
+  let cols = Math.max(2, Math.ceil(Math.sqrt(count + 1)));
+  for (;;) {
+    const cells = [];
+    for (let row = 0; row < cols; row += 1) {
+      for (let col = 0; col < cols; col += 1) {
+        const cx = -((cols - 1) * step) / 2 + col * step;
+        const cz = -((cols - 1) * step) / 2 + row * step;
+        if (Math.abs(cx) < 2.2 && Math.abs(cz) < 2.2) continue; // the landmark's lot
+        cells.push([cx, cz]);
+      }
+    }
+    if (cells.length >= count) return { cols, cells };
+    cols += 1;
+  }
+}
