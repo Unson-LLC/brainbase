@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.16.0 candidate — npm公開前
+
+- 検証用の経路C1を外す。`web:serve --organization-graph` / `--organization-web`、本人のトークンで組織のGraphを読む `createOrganizationGraphSource`、ホストの組織モード（状態の `organization_graph`、`readGraph`、訂正の403）、メモリ上の読み手 `openInMemoryGraph`、OSSホストの `organization-judgments`、Personal Webの組織版へのリンクを消す。組織版が使う `projectOrganizationWorld` と記録の写し方は残す。公開していた出口を消すのでminorを上げた
+
 ## 0.15.7 candidate — npm公開前
 
 - 世界の描画の品質を上げる。地面・海・山を頂点の色で塗って絵柄の繰り返しによる縞を無くし、窓を壁だけに付け、種類ごとの建物（塔・館・ドーム・事務所棟）、家、公園、街区、道、木、夜の光だまり、奥の雲を作り込む。データとの対応（形＝種類、高さ・明かり＝最近30日の動き）と応答の形は変えないので、patchにした

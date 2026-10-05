@@ -1,6 +1,6 @@
 import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isActiveAt, validateCanonicalGraph } from './canonical-graph.js';
+import { isActiveAt } from './canonical-graph.js';
 import { assertFoundationCatalog, findFoundationRecord } from './foundation-catalog.js';
 import {
   GRAPH_CORRECTION_EDGE_FIELDS,
@@ -61,21 +61,7 @@ export interface GraphWebOwnerPrivateSource {
   authority: 'owner_private';
 }
 
-/**
- * The owner's organization Graph read through the host (ledger C1): read only,
- * held in memory, never written to the data directory.
- */
-export interface GraphWebOrganizationSource {
-  dataDir: null;
-  graphFormat: 2;
-  authority: 'organization_graph';
-  /** Organization server origin, without credentials. */
-  server: string;
-  /** When the host last read the organization Graph. */
-  readAt: string;
-}
-
-export type GraphWebAnySource = GraphWebSource | GraphWebOwnerPrivateSource | GraphWebOrganizationSource;
+export type GraphWebAnySource = GraphWebSource | GraphWebOwnerPrivateSource;
 
 export interface GraphMigrationRequired {
   status: 'migration_required';
@@ -626,57 +612,6 @@ export function openOwnerPrivateGraph(bundle: unknown, owner: PortableGraphOwner
       if (foundationError !== null) throw new GraphWebError('unavailable', 'foundation_invalid', foundationError);
       return objectiveListOf(graph, source);
     }
-  });
-}
-
-/** Read views of one in-memory Graph v2 held by the host (no data directory, no corrections). */
-export interface InMemoryGraphReader<S extends GraphWebAnySource> {
-  readonly source: S;
-  status(options?: GraphWebReadOptions): GraphWebStatus<S>;
-  listProjects(options?: GraphWebReadOptions): GraphProjectList<S>;
-  readProject(projectId: string, options?: GraphWebReadOptions): GraphProjectDetail<S>;
-  search(input?: GraphEntitySearchInput): GraphEntitySearchResult<S>;
-  readEntity(entityId: string, options?: GraphWebReadOptions): GraphEntityDetail<S>;
-  ontology(options?: GraphWebReadOptions): GraphOntologySummary<S>;
-}
-
-/**
- * The same read views as the local Graph routes over a Graph v2 the host
- * holds in memory (the organization Graph read under C1).  The Graph is
- * checked with the canonical validator first; nothing is written, and there
- * are no correction records or relation sources to resolve.
- */
-export function openInMemoryGraph<S extends GraphWebAnySource>(graph: GraphFileV2, source: S): InMemoryGraphReader<S> {
-  try {
-    validateCanonicalGraph(graph);
-  } catch (error) {
-    throw new GraphWebError('unavailable', 'graph_invalid', errorMessage(error));
-  }
-  return Object.freeze({
-    source,
-    status: (options: GraphWebReadOptions = {}) => {
-      const asOf = resolveAsOf(options);
-      const entities = Object.fromEntries(ENTITY_KINDS.map((kind) => [kind, graph.entities.filter((entity) => entity.type === kind).length])) as Record<CanonicalEntityKind, number>;
-      return {
-        status: 'ok' as const,
-        version: GRAPH_WEB_VERSION,
-        source,
-        asOf,
-        ontology: { ...graph.ontology, currentVersion: ONTOLOGY_VERSION },
-        counts: {
-          entities: { ...entities, total: graph.entities.length },
-          edges: { total: graph.edges.length, active: graph.edges.filter((edge) => isActiveAt(edge, asOf)).length },
-          relationships: 0,
-          corrections: 0
-        },
-        issues: []
-      };
-    },
-    listProjects: (options: GraphWebReadOptions = {}) => projectListOf(graph, source, resolveAsOf(options)),
-    readProject: (projectId: string, options: GraphWebReadOptions = {}) => projectDetailOf(graph, source, projectId, resolveAsOf(options), NO_REFERENCES),
-    search: (input: GraphEntitySearchInput = {}) => entitySearchOf(graph, source, parseSearchInput(input)),
-    readEntity: (entityId: string, options: GraphWebReadOptions = {}) => entityDetailOf(graph, source, entityId, resolveAsOf(options), NO_REFERENCES),
-    ontology: (options: GraphWebReadOptions = {}) => ontologyOf(graph, source, resolveAsOf(options))
   });
 }
 

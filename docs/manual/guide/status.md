@@ -55,6 +55,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.16.0（npm公開前）
+
+Personal Webが本人のトークンで組織のGraphを読み取る検証用の経路（C1）を外します。`web:serve` の `--organization-graph` と `--organization-web` は無くなり、渡すと案内つきで失敗します。Personal Webは手元のGraphだけを描き、組織のGraphは組織版で見ます。公開していた `openInMemoryGraph` や `readOrganizationJudgments` などの出口も無くなるので、版を0.16.0に上げます。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
 ## Candidate — v0.15.7（npm公開前）
 
 世界の建物・地面・街並みの作りを上げます。地面と海は繰り返しの絵柄をやめて縞を無くし、窓は壁だけに付け、事業の種類ごとに建物の形を作り込み、都市を街区に、道を歩道つきのアスファルトにし、夜は街灯の光だまりを出します。建物の形・高さ・明かりの意味は変えません。npm配布と外部照合が完了するまでは公開済みとして扱いません。

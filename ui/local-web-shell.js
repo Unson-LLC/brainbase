@@ -21,7 +21,7 @@ import { createObjectiveEditorController } from './objective-editor.js';
 import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
 import { createValueProofReviewUI } from './value-proof-review.js';
 import { createWorldModelView } from './world-model-view.js';
-import { createGraphClient, organizationRecordAnchor, organizationRecordLink, organizationWebOrigin } from './graph-view-shared.js';
+import { createGraphClient } from './graph-view-shared.js';
 
 export const LOCAL_WEB_SHELL_CONTRACT_VERSION = 'brainbase.local-web-shell.v1';
 
@@ -203,58 +203,11 @@ function mountObjectives(container, context) {
   return { editor, worldModel };
 }
 
-const ORGANIZATION_READ_ONLY_NOTE = '組織のGraphを読み取り専用で表示しています。登録の訂正は組織版で行ってください。';
-// What the owner needs before leaving for the organization web (Inspector UX-20261004-01): a link to this
-// very record there, who may correct it, and what happens after saving.
-export { organizationRecordLink };
-const organizationReadOnlyNoteLinked = (doc, origin, screenId) => (record) => {
-  const target = organizationRecordLink(origin, screenId, record);
-  if (!target) return ORGANIZATION_READ_ONLY_NOTE;
-  const note = makeElement(doc, 'span');
-  note.append(
-    makeElement(doc, 'span', { text: [
-      '組織のGraphを読み取り専用で表示しています。ここでは直せません。訂正の手順：',
-      `① 下のリンク（上の「出典」にも同じリンクがあります）から、組織版の${target.label}でこの記録を開きます。ログインしていなければSlackでログインすると、そのままこの記録に戻ります。`,
-      '② 直せるのは、組織版での役割がgmかceoで、このプロジェクトが属する事業（事業そのものなら、その事業）を許可されている人です。直せるのはプロジェクトの記録（名前・別名・要約・期間・目的・状態）だけで、人物の記録と、関係者の追加・終了は組織版でもまだ直せません。',
-      '③ 保存すると、理由といっしょに組織のGraphへ書き込まれ、組織版がその場で読み戻して表示します。この画面には、1分ほどたってから再読み込みすると反映されます。',
-      '',
-    ].join('\n') }),
-    organizationRecordAnchor(doc, target),
-  );
-  return note;
-};
-
-/**
- * The 出典 notice of a screen reading the organization Graph.  Once a record is selected its link opens
- * that record in the organization web; before that, the screen there.
- */
-const organizationSourceText = (doc, origin, screenId, sourceText) => (record) => {
-  const target = record ? organizationRecordLink(origin, screenId, record) : null;
-  const link = target
-    ? organizationRecordAnchor(doc, target)
-    : makeElement(doc, 'a', {
-      text: '組織版で開いて訂正する',
-      attrs: { href: `${origin}/?screen=${encodeURIComponent(screenId)}`, target: '_blank', rel: 'noopener noreferrer' },
-    });
-  const source = makeElement(doc, 'span');
-  source.append(makeElement(doc, 'span', { text: `${sourceText} ` }), link);
-  return source;
-};
-
 function mountGraphScreen(screenId, createView) {
   return (container, context) => {
     const viewRoot = makeElement(context.document, 'div');
     makePage(container, context).append(viewRoot);
-    // Ledger C1: when the host reads the organization Graph, nothing here can be corrected.
-    const readOnly = context.organizationGraph?.status === 'connected';
-    const origin = readOnly ? organizationWebOrigin(context.organizationGraph) : null;
-    const sourceText = `組織のGraph（${context.organizationGraph?.server ?? '接続先不明'}）を読み取り専用で表示しています。このMacのGraphではありません。`;
     return createView({
-      ...(readOnly ? {
-        canCorrect: false,
-        readOnlyNote: origin ? organizationReadOnlyNoteLinked(context.document, origin, screenId) : ORGANIZATION_READ_ONLY_NOTE,
-        sourceNotice: { label: '出典', text: origin ? organizationSourceText(context.document, origin, screenId, sourceText) : sourceText },
-      } : {}),
       root: viewRoot,
       rail: context.rail,
       page: context.page,
@@ -334,7 +287,6 @@ function renderSource(doc, bar, status, onRecheck) {
   bar.append(
     fact('データ', data.data_dir),
     fact('Graph', graphLabel, data.graph.status === 'ready' ? '' : 'is-warning'),
-    fact('組織のGraph', data.organization_graph?.status === 'connected' ? '読んでいます（読み取りのみ）' : '読んでいません'),
   );
 }
 
@@ -343,17 +295,6 @@ function normalizeStatus(payload) {
     return null;
   }
   return payload;
-}
-
-/**
- * The 出典 shown at the top of a screen.  It names the organization Graph only for the screens that read it
- * while it is connected (C1); otherwise each screen's own source (this Mac's Graph, the journal) stands.
- */
-export function pageSourceLabel(screen, organizationGraph) {
-  const connected = organizationGraph?.status === 'connected';
-  if (connected && (screen.id === 'projects' || screen.id === 'graph')) return '組織のGraph（読み取りのみ）';
-  if (connected && screen.id === 'world') return '組織のGraph・判断journal（読み取りのみ）';
-  return screen.source ?? null;
 }
 
 export function createLocalWebShell({
@@ -457,9 +398,8 @@ export function createLocalWebShell({
     slot.replaceChildren();
     const rail = rails.get(screen.id) ?? null;
     rail?.replaceChildren();
-    const organizationGraph = status.phase === 'ready' ? status.data.organization_graph ?? null : null;
-    const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: pageSourceLabel(screen, organizationGraph) });
-    const view = screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId, organizationGraph })) ?? true;
+    const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: screen.source ?? null });
+    const view = screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId })) ?? true;
     mounted.set(screen.id, view);
     if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
     if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
