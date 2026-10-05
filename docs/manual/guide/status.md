@@ -55,6 +55,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.17.0（npm公開前）
+
+プロジェクト一覧・詳細にアイコンを表示し、PNG/JPEG/WebP画像の登録・変更・削除をできるようにします。組織版と共用する `@unson/brainbase-mcp/ui/project-icon` を公開します。未登録時は名前の頭文字を表示します。公開する部品と関数が増えるためminorの0.17.0にします。npm配布と外部照合が完了するまでは公開済みとして扱いません。
+
 ## Candidate — v0.16.0（npm公開前）
 
 Personal Webが本人のトークンで組織のGraphを読み取る検証用の経路（C1）を外します。`web:serve` の `--organization-graph` と `--organization-web` は無くなり、渡すと案内つきで失敗します。Personal Webは手元のGraphだけを描き、組織のGraphは組織版で見ます。公開していた `openInMemoryGraph` や `readOrganizationJudgments` などの出口も無くなるので、版を0.16.0に上げます。npm配布と外部照合が完了するまでは公開済みとして扱いません。
