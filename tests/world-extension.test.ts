@@ -19,7 +19,7 @@ const valueProof = (id: string) => ({
   feedback: { status: 'none', summary: null, evidence_ref: null },
 });
 // @ts-expect-error plain browser module without type declarations
-import { groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
+import { districtLots, groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
 
 const project = (id: string, name: string, metadata: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   id, type: 'project' as const, name, metadata, ...extra,
@@ -42,6 +42,17 @@ describe('world: an organization web hosting the same screen', () => {
     expect(world.businesses[0]!.repositories).toEqual(['atlas-app']);
     expect(world.businesses[0]!.engagements.map((engagement) => [engagement.name, engagement.code])).toEqual([['研修案件', 'atlas-training']]);
     expect(world.vocabulary.kinds.find((kind) => kind.key === 'product')?.label).toBe('プロダクト');
+  });
+});
+
+describe('world: district lots around a city', () => {
+  it('has a lot for every district, including a city with one to three (a 2x2 grid lies inside the landmark)', () => {
+    for (const count of [0, 1, 2, 3, 4, 8, 9, 10, 25]) {
+      const { cells } = districtLots(count);
+      expect(cells.length).toBeGreaterThanOrEqual(count);
+      // No lot overlaps the landmark in the middle.
+      expect(cells.every(([x, z]: [number, number]) => Math.abs(x) >= 2.2 || Math.abs(z) >= 2.2)).toBe(true);
+    }
   });
 });
 
