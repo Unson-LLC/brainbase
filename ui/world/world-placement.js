@@ -64,3 +64,32 @@ export function districtLots(count, step = 2.5) {
     cols += 1;
   }
 }
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * How a city reads (story-world-size-and-activity-v1): its size is the engagements still going, its
+ * height and lit windows are what happened in the last 30 days (decisions the Graph records for it,
+ * and judgments placed in it when the host has them).  Finished engagements stay as empty lots but do
+ * not make the city bigger.
+ */
+export function cityMeasures(business, { isFinished, judgments = [], now = Date.now() } = {}) {
+  const engagements = Array.isArray(business?.engagements) ? business.engagements : [];
+  const open = engagements.filter((engagement) => !isFinished?.(engagement.status)).length;
+  const since = now - (business?.activity?.window_days ?? 30) * DAY_MS;
+  const recentJudgments = judgments.filter((entry) => {
+    const at = Date.parse(entry?.item?.proof?.recorded_at ?? '');
+    return Number.isFinite(at) && at >= since && at <= now;
+  }).length;
+  const decisions = Number.isInteger(business?.activity?.decisions) ? business.activity.decisions : 0;
+  const recent = decisions + recentJudgments;
+  return {
+    open,
+    finished: engagements.length - open,
+    decisions,
+    judgments: recentJudgments,
+    recent,
+    towerHeight: 3.2 + Math.min(Math.log2(1 + recent) * 1.6, 5.5),
+    lit: recent > 0,
+  };
+}

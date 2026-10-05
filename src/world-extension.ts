@@ -95,7 +95,19 @@ export interface WorldBusiness {
   /** Repository names the Graph registers for this project (`metadata.repositories`). */
   readonly repositories: readonly string[];
   readonly engagements: readonly WorldEngagement[];
+  /** How much happened lately: decisions of this business (or its engagements) in the last 30 days. */
+  readonly activity: WorldBusinessActivity;
 }
+
+export interface WorldBusinessActivity {
+  readonly window_days: 30;
+  /** Decisions decided in the window, belonging to this business by scope code or a `governs` edge. */
+  readonly decisions: number;
+  /** The newest decision date of this business at any time, or null when it has none dated. */
+  readonly latest_decision_at: string | null;
+}
+
+const ACTIVITY_WINDOW_DAYS = 30;
 
 export interface WorldBusinessProjection {
   readonly businesses: readonly WorldBusiness[];
@@ -138,7 +150,7 @@ function engagementOf(entity: CanonicalEntity): WorldEngagement {
  * Nothing here knows any organization's words: kinds and statuses are the
  * Graph's own values.
  */
-export function projectWorldFromGraph(graph: Pick<GraphFileV2, 'entities'>, now: Date = new Date()): WorldBusinessProjection {
+export function projectWorldFromGraph(graph: Pick<GraphFileV2, 'entities'> & { readonly edges?: GraphFileV2['edges'] }, now: Date = new Date()): WorldBusinessProjection {
   const projects = graph.entities.filter((entity) => entity.type === 'project');
   const active = projects.filter((entity) => !entity.validTo || Date.parse(entity.validTo) > now.getTime());
   const byId = new Map(active.map((entity) => [entity.id, entity]));
@@ -170,6 +182,39 @@ export function projectWorldFromGraph(graph: Pick<GraphFileV2, 'entities'>, now:
     if (city && top!.id !== entity.id) city.engagements.push(engagementOf(entity));
     else unplaced.push(engagementOf(entity));
   }
+  // Which business a decision belongs to: its scope code (organization Graph) or the project it
+  // governs (local Graph), resolved to the city that project is or hangs under.
+  const cityOfKey = new Map<string, string>();
+  for (const [cityId, { entity, engagements }] of cities) {
+    cityOfKey.set(entity.id, cityId);
+    const code = text(entity.metadata?.code);
+    if (code) cityOfKey.set(code, cityId);
+    for (const engagement of engagements) {
+      cityOfKey.set(engagement.id, cityId);
+      if (engagement.code) cityOfKey.set(engagement.code, cityId);
+    }
+  }
+  const governs = new Map<string, string[]>();
+  for (const edge of graph.edges ?? []) {
+    if (edge.relation !== 'governs') continue;
+    governs.set(edge.fromId, [...(governs.get(edge.fromId) ?? []), edge.toId]);
+  }
+  const windowStart = now.getTime() - ACTIVITY_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  const activity = new Map<string, { decisions: number; latest: string | null }>();
+  for (const decision of graph.entities) {
+    if (decision.type !== 'decision') continue;
+    const at = text(decision.metadata?.decided_at) ?? text(decision.validFrom);
+    const time = at ? Date.parse(at) : Number.NaN;
+    if (!Number.isFinite(time)) continue;
+    const keys = [text(decision.metadata?.project_code), ...(governs.get(decision.id) ?? [])].filter((key): key is string => key !== null);
+    const cityIds = new Set(keys.map((key) => cityOfKey.get(key)).filter((id): id is string => id !== undefined));
+    for (const cityId of cityIds) {
+      const entry = activity.get(cityId) ?? { decisions: 0, latest: null };
+      if (time >= windowStart && time <= now.getTime()) entry.decisions += 1;
+      if (!entry.latest || time > Date.parse(entry.latest)) entry.latest = new Date(time).toISOString();
+      activity.set(cityId, entry);
+    }
+  }
   const businesses = [...cities.values()].map(({ entity, engagements }): WorldBusiness => ({
     id: entity.id,
     code: text(entity.metadata?.code) ?? entity.id,
@@ -181,6 +226,11 @@ export function projectWorldFromGraph(graph: Pick<GraphFileV2, 'entities'>, now:
       ? (entity.metadata!.repositories as unknown[]).map(text).filter((name): name is string => name !== null)
       : [],
     engagements: engagements.sort((a, b) => a.name.localeCompare(b.name, 'ja')),
+    activity: {
+      window_days: ACTIVITY_WINDOW_DAYS,
+      decisions: activity.get(entity.id)?.decisions ?? 0,
+      latest_decision_at: activity.get(entity.id)?.latest ?? null,
+    },
   }));
   return {
     businesses: businesses.sort((a, b) => a.name.localeCompare(b.name, 'ja')),
@@ -305,12 +355,12 @@ export async function readWorldBusinesses(
  * member's own grants, so the world shows only what that member may read.
  */
 export function projectOrganizationWorld(
-  records: { readonly projects: readonly unknown[]; readonly glossaryTerms?: readonly unknown[] },
+  records: { readonly projects: readonly unknown[]; readonly decisions?: readonly unknown[]; readonly glossaryTerms?: readonly unknown[] },
   options: { readonly server: string; readonly vocabulary?: WorldVocabularyConfig; readonly now?: Date }
 ): WorldBusinessesResponse {
   const now = options.now ?? new Date();
   const { graph } = projectOrganizationGraph({
-    entities: { person: [], org: [], project: records.projects as never, decision: [], raci_assignment: [] },
+    entities: { person: [], org: [], project: records.projects as never, decision: (records.decisions ?? []) as never, raci_assignment: [] },
     memberOf: [],
     assignedTo: [],
   });
