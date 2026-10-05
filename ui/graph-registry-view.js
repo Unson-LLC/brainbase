@@ -35,6 +35,7 @@ import {
   graphPageContext,
   graphStateNotice,
   hostReadOnlyNote,
+  hostSourceNotice,
   isEdgeView,
   isEntityView,
   isRecord,
@@ -444,6 +445,12 @@ export function createGraphRegistryView({
     return section;
   }
 
+  /** The record a host's 出典 notice may point at: the selected record once it is read. */
+  function sourceSubject() {
+    const entity = state.detail?.state === 'ok' ? state.detail.payload.entity : null;
+    return entity ? { id: entity.id, type: entity.type, metadata: entity.metadata ?? {} } : null;
+  }
+
   function renderWorkspace() {
     const dir = state.search.state === 'ok' ? textOrNull(state.search.payload.source?.dataDir) : null;
     return [
@@ -453,7 +460,7 @@ export function createGraphRegistryView({
         lead: writable ? 'Graphに何がどう登録されているかを確かめ、誤りを直します。' : 'Graphに何がどう登録されているかを確かめます。',
         source: context.source,
       }),
-      workspaceHostNotice(doc, sourceNotice) ?? workspaceNotice(doc, {
+      workspaceHostNotice(doc, hostSourceNotice(sourceNotice, sourceSubject())) ?? workspaceNotice(doc, {
         label: '出典',
         text: `このMacのGraph${dir ? `（${dir}）` : ''}だけを表示します。ここで直した内容は、同じGraphを読むMCPの search・get_context・resolve_entity で次から使われます。`,
       }),

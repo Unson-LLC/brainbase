@@ -68,6 +68,8 @@ const HEX_COLOR = /^#[0-9a-f]{6}$/iu;
 
 export interface WorldEngagement {
   readonly id: string;
+  /** The project's own code in its Graph (`metadata.code`), or null when it has none. */
+  readonly code: string | null;
   readonly name: string;
   readonly summary: string | null;
   readonly status: string | null;
@@ -113,6 +115,7 @@ function text(value: unknown): string | null {
 function engagementOf(entity: CanonicalEntity): WorldEngagement {
   return {
     id: entity.id,
+    code: text(entity.metadata?.code),
     name: entity.name,
     summary: text(entity.summary) ?? text(entity.metadata?.goal),
     status: text(entity.metadata?.status),

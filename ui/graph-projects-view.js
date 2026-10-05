@@ -34,6 +34,7 @@ import {
   graphPageContext,
   graphStateNotice,
   hostReadOnlyNote,
+  hostSourceNotice,
   isEdgeView,
   isEntityView,
   isRecord,
@@ -507,7 +508,10 @@ export function createGraphProjectsView({
     const legacyChrome = [pageHeader];
     const children = [pageHeader];
     const dir = state.list.state === 'ok' ? textOrNull(state.list.payload.source?.dataDir) : null;
-    const sourceBlock = workspaceHostNotice(doc, sourceNotice) ?? workspaceNotice(doc, {
+    // The record a host's 出典 notice may point at: the selected project once its detail is read.
+    const sourceDetail = state.detail?.id === state.selectedId && state.detail.state === 'ok' ? state.detail.payload.project : null;
+    const sourceSubject = sourceDetail ? { id: sourceDetail.id, type: 'project', metadata: sourceDetail.metadata ?? {} } : null;
+    const sourceBlock = workspaceHostNotice(doc, hostSourceNotice(sourceNotice, sourceSubject)) ?? workspaceNotice(doc, {
       label: '出典',
       text: `このMacのGraph${dir ? `（${dir}）` : ''}から読み、ここで直した内容もそこへ保存します。関係者は、プロジェクトに参加している人や責任を持つ人の記録で、ログインや共有の設定ではありません。`,
     });
