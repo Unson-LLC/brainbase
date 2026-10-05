@@ -25,6 +25,7 @@ import {
   workspaceDetailEmpty,
   workspaceButton,
 } from '../../workspace-kit.js';
+import { organizationRecordAnchor, organizationRecordLink, organizationWebOrigin } from '../../graph-view-shared.js';
 
 export const WORLD_VIEW_CONTRACT_VERSION = 'brainbase.world-view.v0';
 
@@ -785,7 +786,7 @@ function renderFallbackList(doc, root, businesses, rows) {
   root.append(list);
 }
 
-export function createWorldView({ root, rail, page, document: explicitDocument, fetcher }) {
+export function createWorldView({ root, rail, page, document: explicitDocument, fetcher, organizationGraph = null }) {
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const wrap = el(doc, 'div', { className: 'bb-world' });
@@ -838,6 +839,25 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     return el(doc, 'a', { className: 'bb-world-rail-link', text: label, attrs: { href: `#projects?project=${encodeURIComponent(projectId)}` } });
   }
 
+  /**
+   * The same project in the organization web, where it is corrected (Inspector UX-20261004-01).  Only when
+   * the host reads the organization Graph and was told where its web is.
+   */
+  function organizationLink(project) {
+    const origin = organizationWebOrigin(organizationGraph);
+    if (!origin) return null;
+    // A business without its own code carries its id as its code; that is not a code the organization web knows.
+    const code = project.code && project.code !== project.id ? project.code : null;
+    const target = organizationRecordLink(origin, 'projects', { id: project.id, type: 'project', metadata: { code } });
+    return target ? organizationRecordAnchor(doc, target, 'bb-world-rail-link') : null;
+  }
+
+  /** 詳しく見る: プロジェクトと関係者 here, and the organization web when there is one. */
+  function detailBlock(project, label) {
+    const content = [projectLink(project.id, label), organizationLink(project)].filter(Boolean);
+    return workspaceRailBlock(doc, { title: '詳しく見る', content });
+  }
+
   function judgmentList(entries, describe) {
     const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
     const sorted = [...entries].sort((a, b) => String(b.item?.proof?.recorded_at ?? '').localeCompare(String(a.item?.proof?.recorded_at ?? '')));
@@ -876,7 +896,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       })];
       if (data.kind === 'engagement') {
         blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }));
-        blocks.push(workspaceRailBlock(doc, { title: '詳しく見る', content: projectLink(data.engagement.id, '「プロジェクトと関係者」でこの案件を開く') }));
+        blocks.push(detailBlock(data.engagement, '「プロジェクトと関係者」でこの案件を開く'));
       } else {
         const open = business.engagements.filter((engagement) => !isFinished(engagement.status)).length;
         const kind = kindEntry(business.kind);
@@ -889,7 +909,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
           ul.append(li);
         }
         blocks.push(workspaceRailBlock(doc, { title: '案件（区画）', content: business.engagements.length ? ul : { text: '登録された案件はありません' } }));
-        blocks.push(workspaceRailBlock(doc, { title: '詳しく見る', content: projectLink(business.id, '「プロジェクトと関係者」でこの事業を開く') }));
+        blocks.push(detailBlock(business, '「プロジェクトと関係者」でこの事業を開く'));
       }
       blocks.push(cityJudgmentBlock(business));
       showRail(blocks);
@@ -1031,6 +1051,6 @@ export const screen = Object.freeze({
     const root = context.document.createElement('div');
     root.className = 'bb-shell-page';
     container.append(root);
-    return createWorldView({ root, rail: context.rail, page: context.page, document: context.document, fetcher: context.fetcher });
+    return createWorldView({ root, rail: context.rail, page: context.page, document: context.document, fetcher: context.fetcher, organizationGraph: context.organizationGraph ?? null });
   },
 });

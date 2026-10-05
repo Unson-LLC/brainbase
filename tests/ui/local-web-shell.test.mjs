@@ -387,6 +387,12 @@ describe('local Web shell', () => {
     expect(rail).not.toContain('このプロジェクトか、その上の事業');
     expect(rail).toContain('人物の記録と、関係者の追加・終了は組織版でもまだ直せません');
     expect(rail).toContain('1分ほどたってから再読み込み');
+    // The 出典 at the top of the page points at the same record, not at the screen (it is the link seen first).
+    const allRecordLinks = findAll(root, (node) => node.tagName === 'A' && node.textContent === '組織版でこの記録を開く');
+    const sourceLinks = allRecordLinks.filter((node) => !findAll(railNode, (inRail) => inRail === node).length);
+    expect(sourceLinks).toHaveLength(1);
+    expect(sourceLinks[0].attributes.href).toBe(`https://org.example.com/?screen=graph&entity_id=${UX06_GRAPH_ENTITY.id}`);
+    expect(findAll(root, (node) => node.tagName === 'A' && node.attributes?.href === 'https://org.example.com/?screen=graph')).toEqual([]);
   });
 
   it('opens a sub-project in the organization web by its own code, not by the code of the business it belongs to', () => {

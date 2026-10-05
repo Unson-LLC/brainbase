@@ -460,6 +460,55 @@ function withinCorrectionScope(scope, body, recordType) {
 }
 
 /**
+ * A host's 出典 notice with its text resolved for the selected record: the host may pass `text` as a
+ * function of that record (`{ id, type, metadata }`, or null before one is read), for a notice that points
+ * at it.  Returns the notice for `workspaceHostNotice`, or the value it was given.
+ */
+export function hostSourceNotice(sourceNotice, subject) {
+  if (!sourceNotice || typeof sourceNotice.text !== 'function') return sourceNotice;
+  return { ...sourceNotice, text: sourceNotice.text(subject ?? null) };
+}
+
+// ---------------------------------------------------------------------------
+// The organization's web (Inspector UX-20261004-01)
+
+const ORGANIZATION_RECORD_ID = /^[A-Za-z0-9_.:-]{1,200}$/u;
+
+/** The organization web's origin the host was told about, or null. */
+export function organizationWebOrigin(organizationGraph) {
+  if (organizationGraph?.status !== 'connected') return null;
+  const origin = organizationGraph.web_url;
+  return typeof origin === 'string' && /^https:\/\/[^/?#@\s]+$/u.test(origin) ? origin : null;
+}
+
+/**
+ * Where a record opens in the organization web, `{ href, label }`, or null when it has no usable id.  The
+ * organization web opens 情報と関係 by record id and プロジェクトと関係者 by project code, and keeps that record
+ * across sign-in.  A project opens by its own code only: a sub-project's scope code is its parent's and
+ * would open the parent, so without its own code the record opens by id.
+ */
+export function organizationRecordLink(origin, screenId, record) {
+  const id = typeof record?.id === 'string' && ORGANIZATION_RECORD_ID.test(record.id) ? record.id : null;
+  const own = typeof record?.metadata?.code === 'string' ? record.metadata.code.trim() : '';
+  const code = own && ORGANIZATION_RECORD_ID.test(own) ? own : null;
+  if (screenId === 'projects' && record?.type === 'project' && code) {
+    return { href: `${origin}/?screen=projects&project=${encodeURIComponent(code)}`, label: '「プロジェクトと関係者」' };
+  }
+  return id ? { href: `${origin}/?screen=graph&entity_id=${encodeURIComponent(id)}`, label: '「情報と関係」' } : null;
+}
+
+export const ORGANIZATION_RECORD_LINK_TEXT = '組織版でこの記録を開く';
+
+/** A link that opens `target` from organizationRecordLink in a new tab. */
+export function organizationRecordAnchor(doc, target, className) {
+  return makeElement(doc, 'a', {
+    ...(className ? { className } : {}),
+    text: ORGANIZATION_RECORD_LINK_TEXT,
+    attrs: { href: target.href, target: '_blank', rel: 'noopener noreferrer' },
+  });
+}
+
+/**
  * A host's note that corrections are not available here, or null when it passed none.  The host may
  * pass a function of the selected record (`{ id, type, metadata }`) returning a string or an element,
  * for a note that points at that record (for example a link to where it is corrected).

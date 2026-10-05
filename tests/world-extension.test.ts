@@ -30,13 +30,15 @@ describe('world: businesses from any Graph', () => {
     const projection = projectWorldFromGraph({ entities: [
       project('prj_atlas', 'Atlas', { code: 'atlas', kind: 'internal', goal: '研修' }),
       project('prj_beacon', 'Beacon', { kind: 'product', repositories: ['beacon-app'] }),
-      project('eng_training', '研修案件A', { parent_project_id: 'prj_atlas', parent_project_code: 'atlas' }),
+      project('eng_training', '研修案件A', { code: 'atlas-training', parent_project_id: 'prj_atlas', parent_project_code: 'atlas' }),
       project('eng_poc', 'PoC案件B', { parent_project_id: 'eng_training' }),
       { id: 'per_owner', type: 'person' as const, name: '本人' },
     ] });
     expect(projection.businesses.map((business) => business.code)).toEqual(['atlas', 'prj_beacon']);
     const atlas = projection.businesses.find((business) => business.code === 'atlas');
     expect(atlas?.engagements.map((engagement) => engagement.name)).toEqual(['PoC案件B', '研修案件A']);
+    // A district keeps its own code (null without one), so its link opens it, not its business.
+    expect(atlas?.engagements.map((engagement) => engagement.code)).toEqual([null, 'atlas-training']);
     expect(atlas?.purpose).toBe('研修');
     expect(projection.businesses.find((business) => business.id === 'prj_beacon')?.repositories).toEqual(['beacon-app']);
     expect(projection.unplaced).toEqual([]);
