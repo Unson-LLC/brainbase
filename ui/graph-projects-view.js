@@ -55,6 +55,7 @@ import {
   graphHostEmptyNotice,
 } from './graph-view-shared.js';
 import { graphOwnShareSource, ownProjectDetail, ownShareSection, ownShareStateNotice } from './graph-own-share.js';
+import { renderProjectIcon } from './project-icon.js';
 import {
   createProjectKnowledgeWorkspace,
   normalizeProjectContext,
@@ -617,7 +618,7 @@ export function createGraphProjectsView({
           void reading;
         },
         cells: [
-          { primary: project.name, secondary: project.id },
+          { primary: project.name, secondary: project.id, leading: renderProjectIcon(doc, project.icon, project.name, { size: 'sm' }) },
           textCell(project.goal, '目的未記入'),
           accountableCell(project),
           textCell(project.status, '未記入'),
@@ -721,7 +722,7 @@ export function createGraphProjectsView({
     const project = loaded?.project ?? listItem(state.selectedId) ?? { id: state.selectedId, name: state.selectedId };
     // The record a host's read-only note may point at.
     const noteSubject = { id: project.id, type: 'project', metadata: loaded?.project?.metadata ?? {} };
-    const children = [workspaceRailHead(doc, { kicker: 'プロジェクト', title: project.name, sub: project.id })];
+    const children = [workspaceRailHead(doc, { kicker: 'プロジェクト', title: project.name, sub: project.id, leading: renderProjectIcon(doc, project.icon, project.name) })];
     if (!loaded) {
       const readState = detail?.id === state.selectedId
         ? detail
@@ -756,7 +757,7 @@ export function createGraphProjectsView({
     children.push(renderParticipants(loaded));
     if (writable) {
       const canAdd = scope.createEdges;
-      const projectFields = scope.entity('project') ? scope.fields(['name', 'goal', 'status']) : [];
+      const projectFields = scope.entity('project') ? scope.fields(['name', 'goal', 'status', 'icon']) : [];
       const actions = [
         canAdd ? workspaceButton(doc, {
           text: '関係者を加える',

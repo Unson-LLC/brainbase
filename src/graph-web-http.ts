@@ -13,7 +13,9 @@ import {
 export const GRAPH_WEB_HTTP_VERSION = 'graph-web-http.v1' as const;
 
 const DEFAULT_BASE_PATH = '/api/graph';
-const MAX_BODY_BYTES = 16 * 1024;
+// A 256KiB decoded image becomes roughly 350KiB as base64 in JSON. Keep a
+// bounded request envelope while allowing the project-icon correction through.
+const MAX_BODY_BYTES = 512 * 1024;
 
 export interface GraphWebHttpOptions {
   /** Personal OS data directory chosen by the host. Never taken from the request. */

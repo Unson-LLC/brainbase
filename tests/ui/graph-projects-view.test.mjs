@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyGraphCorrection, graphRecordDigest } from '../../src/graph-corrections.js';
 import { createGraphProjectsView, GRAPH_PROJECT_LEDGER_COLUMNS, normalizeProjectList } from '../../ui/graph-projects-view.js';
+import { PROJECT_ICON_MAX_BYTES } from '../../ui/project-icon.js';
 import { EDGES, ENTITIES, FIXTURE_NOW, writeGraphV1, writeGraphV2 } from '../graph-web-fixture.js';
 import {
   buttonsNamed,
@@ -840,6 +841,140 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
     // No longer 進行中.
     expect(metricValues(root)).toEqual(['1', '0', '2']);
     expect(ledgerRow(root, 'project-atlas').className).toContain('is-selected');
+  });
+
+  it('registers, previews, removes and reads back a project icon through the correction form', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    const input = control(rail, 'icon');
+    expect(input.attributes.accept).toBe('image/png,image/jpeg,image/webp');
+    expect(byClass(rail, 'bb-project-icon').some((node) => node.className.includes('is-unregistered'))).toBe(true);
+
+    const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    input.files = [{ size: pngBytes.byteLength, type: 'image/png', arrayBuffer: async () => pngBytes.buffer }];
+    await input.dispatch('change', { target: input });
+    const icon = 'data:image/png;base64,iVBORw0KGgo=';
+    await waitFor(() => view.correction.form?.draft.icon === icon);
+    expect(byClass(rail, 'bb-project-icon').some((node) => node.className.includes('is-registered'))).toBe(true);
+    expect(visibleText(rail)).not.toContain(icon);
+    type(rail, 'reason', '一覧で見分けやすくする。');
+    await submit(rail);
+    const [registerPost] = api.posts();
+    expect(registerPost.body.changes).toEqual({ icon });
+    await waitFor(() => view.state.detail.payload.project.icon === icon);
+    expect(collectText(section(rail, 'プロジェクトを直す'))).toContain('PNG');
+    expect(visibleText(rail)).not.toContain(icon);
+
+    buttonsNamed(rail, '閉じる')[0].dispatch('click');
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    expect(buttonsNamed(rail, 'アイコンを外す')).toHaveLength(1);
+    buttonsNamed(rail, 'アイコンを外す')[0].dispatch('click');
+    expect(view.correction.form.draft.icon).toBeNull();
+    expect(byClass(rail, 'bb-project-icon').some((node) => node.className.includes('is-unregistered'))).toBe(true);
+    type(rail, 'reason', '既定のアイコンに戻す。');
+    await submit(rail);
+    const posts = api.posts();
+    expect(posts[1].body.changes).toEqual({ icon: null });
+    await waitFor(() => view.state.detail.payload.project.icon === null);
+    expect(await history()).toHaveLength(2);
+    expect(visibleText(rail)).not.toContain(icon);
+    expect(collectText(root)).toContain('未登録');
+  });
+
+  it('rejects an oversized file before reading and ignores stale icon reads after a later selection or cancellation', async () => {
+    await writeGraphV2(dataDir);
+    const { rail, view } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    const input = control(rail, 'icon');
+    let oversizedRead = false;
+    input.files = [{ size: PROJECT_ICON_MAX_BYTES + 1, arrayBuffer: async () => { oversizedRead = true; return new ArrayBuffer(0); } }];
+    await input.dispatch('change', { target: input });
+    expect(oversizedRead).toBe(false);
+    expect(view.correction.form.draft.icon).toBe('');
+    expect(visibleText(rail)).toContain('アイコンは256KiB以下にしてください。');
+
+    let unsupportedTypeRead = false;
+    input.files = [{ size: 1, type: 'text/plain', arrayBuffer: async () => { unsupportedTypeRead = true; return new ArrayBuffer(0); } }];
+    await input.dispatch('change', { target: input });
+    expect(unsupportedTypeRead).toBe(false);
+    expect(visibleText(rail)).toContain('アイコンはPNG、JPEG、WebPの画像を選んでください。');
+    expect(buttonsNamed(rail, '保存する')[0].attributes.disabled).toBe('');
+    const invalidSubmit = await view.correction.submit();
+    expect(invalidSubmit.phase).toBe('editing');
+    expect(api.posts()).toHaveLength(0);
+    expect(visibleText(rail)).toContain('アイコンはPNG、JPEG、WebPの画像を選んでください。');
+    const cancelledInvalidInput = control(rail, 'icon');
+    cancelledInvalidInput.files = [];
+    await cancelledInvalidInput.dispatch('change', { target: cancelledInvalidInput });
+    expect(view.correction.form.fieldErrors.icon).toBeNull();
+    expect(buttonsNamed(rail, '保存する')[0].attributes.disabled).toBeUndefined();
+
+    const failedInput = control(rail, 'icon');
+    failedInput.files = [{ size: 8, type: 'image/png', arrayBuffer: async () => { throw new Error('read failed'); } }];
+    await failedInput.dispatch('change', { target: failedInput });
+    expect(view.correction.form.fieldErrors.icon).toBe('read failed');
+    expect(buttonsNamed(rail, '保存する')[0].attributes.disabled).toBe('');
+    type(rail, 'goal', '読み込み失敗後も保存させない。');
+    type(rail, 'reason', '画像の読み込み失敗を確認する。');
+    const failedSubmit = await view.correction.submit();
+    expect(failedSubmit.phase).toBe('editing');
+    expect(api.posts()).toHaveLength(0);
+    expect(visibleText(rail)).toContain('read failed');
+
+    const first = deferred();
+    const firstBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const staleInput = control(rail, 'icon');
+    staleInput.files = [{ size: firstBytes.byteLength, type: 'image/png', arrayBuffer: () => first.promise }];
+    const staleRead = staleInput.dispatch('change', { target: staleInput });
+    await waitFor(() => view.correction.form?.iconReadPending === true);
+    expect(buttonsNamed(rail, 'アイコンを読み込んでいます')).toHaveLength(1);
+    expect(buttonsNamed(rail, 'アイコンを読み込んでいます')[0].attributes.disabled).toBe('');
+    const guarded = await view.correction.submit();
+    expect(guarded.phase).toBe('editing');
+    expect(api.posts()).toHaveLength(0);
+    expect(visibleText(rail)).toContain('アイコンを読み込んでいます。読み込みが終わってから保存してください。');
+    const secondBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00]);
+    const secondInput = control(rail, 'icon');
+    secondInput.files = [{ size: secondBytes.byteLength, type: 'image/png', arrayBuffer: async () => secondBytes.buffer }];
+    await secondInput.dispatch('change', { target: secondInput });
+    const secondIcon = `data:image/png;base64,${btoa(String.fromCharCode(...secondBytes))}`;
+    await waitFor(() => view.correction.form?.draft.icon === secondIcon);
+    expect(view.correction.form.iconReadPending).toBe(false);
+    expect(buttonsNamed(rail, '保存する')).toHaveLength(1);
+    expect(buttonsNamed(rail, '保存する')[0].attributes.disabled).toBeUndefined();
+    first.resolve(firstBytes.buffer);
+    await staleRead;
+    expect(view.correction.form.draft.icon).toBe(secondIcon);
+
+    const pending = deferred();
+    const pendingInput = control(rail, 'icon');
+    pendingInput.files = [{ size: firstBytes.byteLength, type: 'image/png', arrayBuffer: () => pending.promise }];
+    const pendingRead = pendingInput.dispatch('change', { target: pendingInput });
+    await waitFor(() => view.correction.form?.iconReadPending === true);
+    buttonsNamed(rail, 'アイコンを外す')[0].dispatch('click');
+    expect(view.correction.form.iconReadPending).toBe(false);
+    expect(view.correction.form.draft.icon).toBeNull();
+    pending.resolve(firstBytes.buffer);
+    await pendingRead;
+    expect(view.correction.form.draft.icon).toBeNull();
+
+    const restoredInput = control(rail, 'icon');
+    restoredInput.files = [{ size: secondBytes.byteLength, type: 'image/png', arrayBuffer: async () => secondBytes.buffer }];
+    await restoredInput.dispatch('change', { target: restoredInput });
+    await waitFor(() => view.correction.form?.draft.icon === secondIcon);
+
+    const cancelled = deferred();
+    const cancelInput = control(rail, 'icon');
+    cancelInput.files = [{ size: firstBytes.byteLength, type: 'image/png', arrayBuffer: () => cancelled.promise }];
+    const cancelledRead = cancelInput.dispatch('change', { target: cancelInput });
+    await waitFor(() => view.correction.form?.iconReadPending === true);
+    cancelInput.files = [];
+    await cancelInput.dispatch('change', { target: cancelInput });
+    expect(view.correction.form.iconReadPending).toBe(false);
+    cancelled.resolve(firstBytes.buffer);
+    await cancelledRead;
+    expect(view.correction.form.draft.icon).toBe(secondIcon);
   });
 
   it('says there is nothing to save when nothing changed', async () => {

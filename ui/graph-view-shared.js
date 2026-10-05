@@ -21,6 +21,15 @@
  */
 
 import { workspaceButton, workspaceNotice } from './workspace-kit.js';
+import {
+  PROJECT_ICON_MAX_BYTES,
+  PROJECT_ICON_MIME_TYPES,
+  projectIconMimeLabel,
+  projectIconSummary,
+  readProjectIconFile,
+  renderProjectIcon,
+  validateProjectIconDataUrl,
+} from './project-icon.js';
 
 export const GRAPH_VIEW_SHARED_CONTRACT_VERSION = 'brainbase.graph-view-shared.v2';
 
@@ -76,8 +85,10 @@ const FIELD_LABELS = Object.freeze({
   validTo: '終了日',
   goal: '目的',
   status: '状態',
+  icon: 'アイコン',
   'metadata.goal': '目的',
   'metadata.status': '状態',
+  'metadata.icon': 'アイコン',
   role: '役割',
   context: '文脈',
   fromId: '起点',
@@ -99,6 +110,7 @@ export const GRAPH_CORRECTION_FIELDS = Object.freeze({
   summary: Object.freeze({ label: '要約', control: 'textarea', max: 2000 }),
   goal: Object.freeze({ label: '目的', control: 'textarea', max: 2000 }),
   status: Object.freeze({ label: '状態', control: 'text', max: 200, help: '自由記述です。例: 進行中、保留、完了' }),
+  icon: Object.freeze({ label: 'アイコン', control: 'project-icon', help: 'PNG、JPEG、WebP。256KiB以下。' }),
   validFrom: Object.freeze({ label: '開始日', control: 'date' }),
   validTo: Object.freeze({ label: '終了日', control: 'date', help: 'この日の0時から、終わったものとして扱います。空にすると終了日を消します。' }),
   role: Object.freeze({ label: '役割', control: 'text', max: 200, help: '自由記述です。例: 最終判断、進行管理' }),
@@ -448,7 +460,7 @@ export function graphCorrectionScope(scope) {
 
 /** The record fields the correction form offers for an entity of this kind. */
 export function graphEntityCorrectionFields(type) {
-  return ['name', 'aliases', 'summary', 'validFrom', 'validTo', ...(type === 'project' ? ['goal', 'status'] : [])];
+  return ['name', 'aliases', 'summary', 'validFrom', 'validTo', ...(type === 'project' ? ['goal', 'status', 'icon'] : [])];
 }
 
 /** Whether a built correction request stays inside the scope (`recordType` is the corrected entity's kind). */
@@ -718,6 +730,9 @@ export function graphRecordValues(record) {
     validTo: formatDay(record?.validTo) ?? '',
     goal: pick(typeof record?.goal === 'string' ? record.goal : metadata.goal),
     status: pick(typeof record?.status === 'string' && record?.type === 'project' ? record.status : metadata.status),
+    // Keep the raw value in form state for exact comparison; renderers below
+    // always replace it with a short summary and never put the data URL in text.
+    icon: typeof metadata.icon === 'string' ? metadata.icon : '',
     role: pick(record?.role),
     context: pick(record?.context),
   };
@@ -725,16 +740,32 @@ export function graphRecordValues(record) {
 
 function displayValue(field, value) {
   if (field === 'validFrom' || field === 'validTo') return value ? value : 'なし';
+  if (field === 'icon') {
+    const summary = projectIconSummary(value);
+    return summary ? `${projectIconMimeLabel(summary.mimeType)}（${Math.ceil(summary.bytes / 1024)}KiB）` : '未登録';
+  }
   return value ? value : '未記入';
 }
 
-function valueRows(record, fields) {
+function valueRows(doc, record, fields) {
   const values = graphRecordValues(record);
-  return fields.map((field) => [GRAPH_CORRECTION_FIELDS[field]?.label ?? FIELD_LABELS[field] ?? field, displayValue(field, values[field])]);
+  return fields.map((field) => [
+    GRAPH_CORRECTION_FIELDS[field]?.label ?? FIELD_LABELS[field] ?? field,
+    field === 'icon' ? renderIconValue(doc, values[field], record?.name) : displayValue(field, values[field]),
+  ]);
 }
 
 function renderValues(doc, record, fields, leadingRows = []) {
-  return facts(doc, [...leadingRows, ...valueRows(record, fields)], 'bb-graph-facts');
+  return facts(doc, [...leadingRows, ...valueRows(doc, record, fields)], 'bb-graph-facts');
+}
+
+function renderIconValue(doc, value, name) {
+  const summary = projectIconSummary(value);
+  const wrap = makeElement(doc, 'span', { className: 'bb-graph-icon-value' });
+  wrap.append(renderProjectIcon(doc, value, name, { size: 'sm' }), makeElement(doc, 'span', {
+    text: summary ? `${projectIconMimeLabel(summary.mimeType)}（${Math.ceil(summary.bytes / 1024)}KiB）` : '未登録',
+  }));
+  return wrap;
 }
 
 function splitAliases(value) {
@@ -791,6 +822,15 @@ export function buildCorrectionRequest(form) {
 
   const changes = {};
   for (const field of form.fields) {
+    if (field === 'icon') {
+      const before = form.original[field] ?? '';
+      const after = form.draft[field] ?? '';
+      if (after === before) continue;
+      const parsed = validateProjectIconDataUrl(after === '' ? null : after);
+      if (!parsed.ok) return { ok: false, message: parsed.message };
+      changes.icon = parsed.value;
+      continue;
+    }
     const before = String(form.original[field] ?? '');
     const after = String(form.draft[field] ?? '');
     if (after.trim() === before.trim()) continue;
@@ -846,6 +886,29 @@ function fieldControl(doc, form, field, callbacks) {
   const id = `${form.formId}-${field}`;
   const wrap = makeElement(doc, 'div', { className: 'bb-graph-field' });
   wrap.append(makeElement(doc, 'label', { text: definition.label, attrs: { for: id } }));
+  if (definition.control === 'project-icon') {
+    const input = makeElement(doc, 'input', { attrs: {
+      id,
+      name: field,
+      type: 'file',
+      accept: 'image/png,image/jpeg,image/webp',
+    } });
+    input.addEventListener('change', (event) => callbacks.onIconFile(event?.target?.files?.[0] ?? null));
+    const preview = makeElement(doc, 'div', { className: 'bb-graph-icon-picker' });
+    preview.append(renderProjectIcon(doc, form.draft[field], form.recordName ?? form.subject ?? 'プロジェクト', { size: 'md' }));
+    const summary = projectIconSummary(form.draft[field]);
+    preview.append(makeElement(doc, 'span', {
+      className: 'bb-graph-icon-picker-state',
+      text: summary ? `${projectIconMimeLabel(summary.mimeType)}（${Math.ceil(summary.bytes / 1024)}KiB）` : '未登録',
+    }));
+    if (form.draft[field]) {
+      preview.append(button(doc, 'アイコンを外す', () => callbacks.onInput(field, null), { className: 'bb-ws-button is-quiet' }));
+    }
+    wrap.append(input, preview);
+    if (form.fieldErrors?.[field]) wrap.append(makeElement(doc, 'small', { className: 'bb-graph-field-error', text: form.fieldErrors[field], attrs: { role: 'alert' } }));
+    if (definition.help) wrap.append(makeElement(doc, 'small', { className: 'bb-graph-help', text: definition.help }));
+    return wrap;
+  }
   const control = definition.control === 'textarea'
     ? makeElement(doc, 'textarea', { attrs: { id, name: field, rows: 3, maxlength: definition.max } })
     : makeElement(doc, 'input', { attrs: { id, name: field, type: definition.control === 'date' ? 'date' : 'text', maxlength: definition.max } });
@@ -1010,9 +1073,21 @@ export function renderCorrectionPanel(doc, form, callbacks) {
   formElement.append(reasonControl(doc, form, callbacks));
   const actions = makeElement(doc, 'div', { className: 'bb-graph-actions' });
   const saving = form.phase === 'saving';
-  const submitLabel = saving ? '保存しています' : form.phase === 'conflict' && form.conflictCode === 'digest_conflict' ? '今の内容に対して保存する' : '保存する';
+  const iconReadPending = form.iconReadPending === true;
+  const iconHasError = Boolean(form.fieldErrors?.icon);
+  const submitLabel = saving
+    ? '保存しています'
+    : iconReadPending
+      ? 'アイコンを読み込んでいます'
+      : form.phase === 'conflict' && form.conflictCode === 'digest_conflict'
+        ? '今の内容に対して保存する'
+        : '保存する';
   actions.append(
-    makeElement(doc, 'button', { className: 'bb-ws-button is-primary', text: submitLabel, attrs: { type: 'submit', disabled: saving } }),
+    makeElement(doc, 'button', {
+      className: 'bb-ws-button is-primary',
+      text: submitLabel,
+      attrs: { type: 'submit', disabled: saving || iconReadPending || iconHasError },
+    }),
     button(doc, '取り消す', callbacks.onClose, { attrs: { disabled: saving } }),
   );
   formElement.append(actions);
@@ -1034,18 +1109,24 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
   let form = null;
   let focusPending = false;
   let sequence = 0;
+  // A file read can finish after a newer selection, removal, cancellation or
+  // form switch.  Invalidate the older read before touching the draft.
+  let iconReadGeneration = 0;
   // Label/input ids stay unique when two screens are on one page.
   const idPrefix = `bb-graph-form-${Math.random().toString(36).slice(2, 8)}`;
   const redraw = () => rerender?.();
 
   function baseForm(kind, extra) {
     sequence += 1;
+    iconReadGeneration += 1;
     focusPending = true;
     return {
       kind,
       formId: `${idPrefix}-${sequence}`,
       phase: 'editing',
       message: null,
+      fieldErrors: {},
+      iconReadPending: false,
       reason: '',
       current: null,
       conflictCode: null,
@@ -1079,7 +1160,60 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
 
   const callbacks = {
     onInput(field, value) {
-      if (form) form.draft[field] = value;
+      if (form) {
+        if (field === 'icon') {
+          iconReadGeneration += 1;
+          form.iconReadPending = false;
+          form.fieldErrors.icon = null;
+          form.message = null;
+        }
+        form.draft[field] = value;
+        if (field === 'icon') redraw();
+      }
+    },
+    async onIconFile(file) {
+      const generation = ++iconReadGeneration;
+      const target = form;
+      if (!target || target.kind === 'create_edge') return;
+      // Selecting the file input and then cancelling is a no-op; keep the
+      // current draft and any already selected icon intact.
+      if (!file) {
+        target.iconReadPending = false;
+        target.fieldErrors.icon = null;
+        target.message = null;
+        redraw();
+        return;
+      }
+      target.iconReadPending = false;
+      target.message = null;
+      if (typeof file.size === 'number' && file.size > PROJECT_ICON_MAX_BYTES) {
+        target.fieldErrors.icon = `アイコンは${Math.floor(PROJECT_ICON_MAX_BYTES / 1024)}KiB以下にしてください。`;
+        redraw();
+        return;
+      }
+      if (typeof file.type !== 'string' || !PROJECT_ICON_MIME_TYPES.includes(file.type)) {
+        target.fieldErrors.icon = 'アイコンはPNG、JPEG、WebPの画像を選んでください。';
+        redraw();
+        return;
+      }
+      target.iconReadPending = true;
+      target.fieldErrors.icon = null;
+      target.message = null;
+      redraw();
+      try {
+        const value = await readProjectIconFile(file);
+        const parsed = validateProjectIconDataUrl(value);
+        if (!parsed.ok) throw new Error(parsed.message);
+        if (form !== target || iconReadGeneration !== generation) return;
+        target.draft.icon = parsed.value;
+        target.iconReadPending = false;
+        target.message = null;
+      } catch (error) {
+        if (form !== target || iconReadGeneration !== generation) return;
+        target.iconReadPending = false;
+        target.fieldErrors.icon = error instanceof Error ? error.message : 'アイコンを読み取れません。';
+      }
+      if (form === target && iconReadGeneration === generation) redraw();
     },
     onReason(value) {
       if (form) form.reason = value;
@@ -1115,6 +1249,7 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
         title,
         subject: subject ?? `${typeLabel(record.type)}「${record.name}」`,
         recordType: record.type,
+        recordName: record.name,
         targetId: record.id,
         expectedDigest: record.digest,
         fields: shown,
@@ -1164,12 +1299,26 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
       return form;
     },
     close() {
+      iconReadGeneration += 1;
       form = null;
       redraw();
     },
     async submit() {
       const target = form;
       if (!target || target.phase === 'saving') return target;
+      if (target.fieldErrors?.icon) {
+        target.message = { tone: 'danger', text: target.fieldErrors.icon };
+        redraw();
+        return target;
+      }
+      if (target.iconReadPending === true) {
+        target.message = {
+          tone: 'warning',
+          text: 'アイコンを読み込んでいます。読み込みが終わってから保存してください。',
+        };
+        redraw();
+        return target;
+      }
       const built = buildCorrectionRequest(target);
       if (!built.ok) {
         target.message = { tone: 'danger', text: built.message };

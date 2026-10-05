@@ -809,6 +809,7 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
   return {
     id: 'graph',
     uiFiles: [
+      'project-icon.js',
       'graph-view-shared.js',
       'graph-view-shared.css',
       'graph-projects-view.js',
