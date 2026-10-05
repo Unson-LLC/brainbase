@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.15.3 candidate — npm公開前
+
+- 世界の画面を組織版でも同じ部品のまま載せるため、`@unson/brainbase-mcp/world` を公開し、組織のGraph APIのプロジェクト・用語の記録から世界を描く `projectOrganizationWorld` を加える。画面の `createWorldView` には、プロジェクトを開く行き先をホストが渡す `projectHref` と、判断の記録が未接続（`judgment_journal_not_connected`）であることの表示を加える。既存の口・応答の形は変えない追加なので、patchにした
+
 ## 0.15.2 candidate — npm公開前
 
 - Canonical Taskのpolicy指定storageScopeを、repositoryの全操作、主体と操作キーのclaim、競合の読み戻し、監査、準備済みdeleteの再実行に渡す。scopeを省略したlocal-first consumerの契約を保持する互換修正なのでpatchにした。組織の認証とSQL predicateはホストが担当する
