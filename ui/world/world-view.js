@@ -821,6 +821,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   let proofs = new Map();
   let placement = { byBusiness: new Map(), unplaced: [] };
+  /** Judgments the host kept back because they are not this organization's (organization mode only). */
+  let withheld = 0;
 
   function judgmentText(item, fallback) {
     const textValue = item?.proof?.interruption?.question_display_text ?? item?.proof?.decision?.summary ?? fallback;
@@ -969,16 +971,36 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
           ? judgmentList(placement.unplaced, (entry) => `${UNPLACED_REASON_TEXT[entry.reason] ?? entry.reason}${entry.workspace ? `（作業場所 ${entry.workspace}）` : ''}`)
           : { text: 'ありません' },
       }));
+      if (withheld) {
+        blocks.push(workspaceRailBlock(doc, {
+          title: `この世界に出していない判断（${withheld}件）`,
+          content: { text: 'この組織の事業で作業したと確かめられない判断です。ほかの会社の仕事が混ざるため、内容も作業場所も出しません。「今日」では見られます。' },
+        }));
+      }
       showRail(blocks);
     }
   }
 
   async function load() {
-    const [businessesResult, homeResult, placesResult] = await Promise.all([
-      readJson(fetcher, '/api/extensions/world/businesses'),
-      readJson(fetcher, '/api/value-proofs/home'),
-      readJson(fetcher, '/api/extensions/world/judgment-places'),
-    ]);
+    const businessesResult = await readJson(fetcher, '/api/extensions/world/businesses');
+    // A world drawn from an organization's Graph shows only that organization's judgments: the host keeps
+    // the others (another company's work, or unknown) back and sends only how many it kept back.
+    const organizationScoped = businessesResult.ok && businessesResult.data?.status === 'ok'
+      && businessesResult.data.source?.authority === 'organization_graph';
+    let homeResult;
+    let placesResult;
+    if (organizationScoped) {
+      const scoped = await readJson(fetcher, '/api/extensions/world/organization-judgments');
+      const available = scoped.ok && scoped.data?.status === 'available';
+      withheld = available ? scoped.data.withheld : 0;
+      homeResult = available ? { ok: true, data: scoped.data.home } : scoped.ok ? { ok: true, data: { status: 'unavailable', reason: scoped.data?.reason } } : scoped;
+      placesResult = available ? { ok: true, data: { status: 'available', places: scoped.data.places } } : { ok: true, data: { status: 'unavailable', reason: scoped.data?.reason } };
+    } else {
+      [homeResult, placesResult] = await Promise.all([
+        readJson(fetcher, '/api/value-proofs/home'),
+        readJson(fetcher, '/api/extensions/world/judgment-places'),
+      ]);
+    }
     notices.replaceChildren();
     const note = (label, textValue, tone = 'info') => {
       const line = el(doc, 'p', { className: `bb-world-hud-line is-${tone}`, attrs: tone === 'info' ? {} : { role: 'alert' } });
@@ -1015,7 +1037,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         const known = places.filter((place) => proofs.has(place.decision_attempt_id)).map((place) => ({ ...place, item: proofs.get(place.decision_attempt_id) }));
         placement = groupJudgmentPlaces(known, businesses);
         const placed = known.length - placement.unplaced.length;
-        note('判断', `${home.delegation_map.judged}件のうち${placed}件を作業した事業の判断所に、${placement.unplaced.length}件は事業が分からないため広場に。今あなたを待っている判断${waiting}件${waiting ? '（光の柱）' : ''}。`, waiting ? 'attention' : 'info');
+        const kept = withheld ? `この組織の事業で作業したと確かめられない判断${withheld}件は、この世界には出していません（「今日」で見られます）。` : '';
+        note('判断', `${home.delegation_map.judged}件のうち${placed}件を作業した事業の判断所に、${placement.unplaced.length}件は事業が分からないため広場に。${kept}今あなたを待っている判断${waiting}件${waiting ? '（光の柱）' : ''}。`, waiting ? 'attention' : 'info');
       } else {
         note('判断', `${home.delegation_map.judged}件。作業した場所を読めないため、事業には置かず広場の種類別だけで描いています（${placesResult.ok ? placesResult.data?.reason ?? '理由不明' : placesResult.error}）。今あなたを待っている判断${waiting}件。`, 'warning');
       }
