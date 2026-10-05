@@ -768,8 +768,7 @@ describe('Graph format and data directory state', () => {
     const status = await (await fetch(`${base}/api/local/status`)).json();
     expect(status).toMatchObject({
       data_dir: dataDir,
-      graph: { status: 'migration_required', format: 'v1' },
-      organization_graph: { status: 'not_connected' }
+      graph: { status: 'migration_required', format: 'v1' }
     });
     expect(status.graph.commands).toHaveLength(2);
     expect(status.graph.commands[0]).toContain('brainbase ontology:migrate --dir');
@@ -786,11 +785,12 @@ describe('Graph format and data directory state', () => {
     expect(await readFile(join(dataDir, 'graph.json'), 'utf8')).toBe(before);
   });
 
-  it('reports Graph v2 with the data directory and no organization Graph', async () => {
+  it('reports Graph v2 with the data directory, and nothing about an organization Graph (the local host never reads one)', async () => {
     await v2DataDir();
     const base = await start();
     const status = await (await fetch(`${base}/api/local/status`)).json();
-    expect(status).toMatchObject({ data_dir: dataDir, graph: { status: 'ready', format: 'v2', commands: [] }, organization_graph: { status: 'not_connected' } });
+    expect(status).toMatchObject({ data_dir: dataDir, graph: { status: 'ready', format: 'v2', commands: [] } });
+    expect(status).not.toHaveProperty('organization_graph');
   });
 
   it('reports a missing data directory without creating it', async () => {

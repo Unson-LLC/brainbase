@@ -20,7 +20,6 @@ import {
   type FoundationStoreContext
 } from './foundation-store.js';
 import { createGraphWebHttpHandler } from './graph-web-http.js';
-import type { GraphWebAnySource, InMemoryGraphReader } from './graph-web.js';
 import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
 import { nodeRequestToFetch, writeFetchResponse } from './local-web-fetch-bridge.js';
 import {
@@ -42,7 +41,7 @@ import type {
 } from './ontology-foundation.js';
 import { resolveDataDir } from './paths.js';
 import { loadPersonalOs, readPersonalOsSidecar } from './ssot.js';
-import type { FoundationCatalogRecord, GraphFileV2, PersonalOs } from './types.js';
+import type { FoundationCatalogRecord, PersonalOs } from './types.js';
 import { createValueProofReviewHttpHandler, VALUE_PROOF_REVIEW_TOKEN_HEADER } from './value-proof-review-http.js';
 import {
   createWorldModelStore,
@@ -101,8 +100,6 @@ export interface LocalWebModuleContext {
   readonly journalRoot: string;
   readonly token: string;
   readonly now: () => Date;
-  /** Present when the host reads the organization Graph (C1). */
-  readonly organizationGraph?: LocalWebOrganizationGraph;
   /** The host's one listing cache for the judgment journal, shared by every screen that reads it. */
   readonly journalCache: JudgmentValueProofJournalCache;
 }
@@ -143,26 +140,6 @@ export interface LocalWebHostOptions {
   readonly uiDir?: string;
   readonly now?: () => Date;
   readonly extensions?: readonly LocalWebExtension[];
-  /**
-   * Ledger C1: the owner's organization Graph, read only. When given, the Graph
-   * screens read it instead of the data directory and the status reports it.
-   */
-  readonly organizationGraph?: LocalWebOrganizationGraph;
-}
-
-export interface LocalWebOrganizationGraph {
-  /** Organization server origin shown as the source, without credentials. */
-  readonly server: string;
-  /** The organization's own web (where its records are corrected), when the owner configured it. */
-  readonly webUrl?: string;
-  read(): Promise<InMemoryGraphReader<GraphWebAnySource>>;
-  /** The same Graph as plain records (the world reads project metadata from it). */
-  readGraphFile?(): Promise<GraphFileV2>;
-  /**
-   * The organization's words for field values (glossary terms with `payload.vocabulary`), or null when
-   * they could not be read.  The rest of the Graph is read even when these are not.
-   */
-  readVocabularyTerms?(): Promise<readonly GraphVocabularyTerm[] | null>;
 }
 
 /** One organization term that names a field value, e.g. project.kind = product → プロダクト. */
@@ -271,9 +248,7 @@ export function createLocalStatusModule(context: LocalWebModuleContext): LocalWe
         writeJson(response, 405, { error: { code: 'method_not_allowed', message: 'Use GET' } });
         return true;
       }
-      const local = await readLocalGraphState(context.dataDir);
-      // Under C1 the Graph screens read the organization Graph, so they are not gated on the local file.
-      const graph = context.organizationGraph ? { ...local, status: 'ready' as const, format: 'v2' as const, message: undefined } : local;
+      const graph = await readLocalGraphState(context.dataDir);
       writeJson(response, 200, {
         version: LOCAL_WEB_HOST_VERSION,
         data_dir: context.dataDir,
@@ -283,15 +258,7 @@ export function createLocalStatusModule(context: LocalWebModuleContext): LocalWe
           format: graph.format,
           ...(graph.message ? { message: graph.message } : {}),
           commands: graphCommands(graph, context.dataDir)
-        },
-        organization_graph: context.organizationGraph
-          ? {
-              status: 'connected',
-              server: context.organizationGraph.server,
-              mode: 'read_only',
-              ...(context.organizationGraph.webUrl ? { web_url: context.organizationGraph.webUrl } : {})
-            }
-          : { status: 'not_connected' }
+        }
       });
       return true;
     }
@@ -833,7 +800,6 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
     dataDir: context.dataDir,
     basePath: LOCAL_WEB_GRAPH_PREFIX,
     now: context.now,
-    ...(context.organizationGraph ? { readGraph: context.organizationGraph.read } : {}),
     assertWriteAllowed(request) {
       if (isTrustedLocalWrite(request, context.token)) return;
       throw rejectUntrustedWrite(request, context.token)
@@ -938,8 +904,7 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
     journalRoot,
     token,
     now: options.now ?? (() => new Date()),
-    journalCache: new JudgmentValueProofJournalCache(),
-    ...(options.organizationGraph ? { organizationGraph: options.organizationGraph } : {})
+    journalCache: new JudgmentValueProofJournalCache()
   };
   const modules = defaultLocalWebModules(context);
   const extensions = [...options.extensions ?? []];
