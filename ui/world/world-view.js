@@ -1780,7 +1780,7 @@ export const screen = Object.freeze({
   label: '世界',
   usesGraph: false,
   rail: true,
-  source: '組織のGraph・判断journal（読み取りのみ）',
+  source: '手元のGraph・判断journal（読み取りのみ）',
   mount(container, context) {
     const root = context.document.createElement('div');
     root.className = 'bb-shell-page';

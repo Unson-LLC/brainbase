@@ -345,6 +345,17 @@ function normalizeStatus(payload) {
   return payload;
 }
 
+/**
+ * The 出典 shown at the top of a screen.  It names the organization Graph only for the screens that read it
+ * while it is connected (C1); otherwise each screen's own source (this Mac's Graph, the journal) stands.
+ */
+export function pageSourceLabel(screen, organizationGraph) {
+  const connected = organizationGraph?.status === 'connected';
+  if (connected && (screen.id === 'projects' || screen.id === 'graph')) return '組織のGraph（読み取りのみ）';
+  if (connected && screen.id === 'world') return '組織のGraph・判断journal（読み取りのみ）';
+  return screen.source ?? null;
+}
+
 export function createLocalWebShell({
   root,
   document: explicitDocument,
@@ -447,8 +458,7 @@ export function createLocalWebShell({
     const rail = rails.get(screen.id) ?? null;
     rail?.replaceChildren();
     const organizationGraph = status.phase === 'ready' ? status.data.organization_graph ?? null : null;
-    const readsOrganization = organizationGraph?.status === 'connected' && (screen.id === 'projects' || screen.id === 'graph');
-    const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: readsOrganization ? '組織のGraph（読み取りのみ）' : screen.source ?? null });
+    const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: pageSourceLabel(screen, organizationGraph) });
     const view = screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId, organizationGraph })) ?? true;
     mounted.set(screen.id, view);
     if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
