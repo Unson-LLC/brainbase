@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createLocalWebShell, LOCAL_WEB_SCREENS, organizationRecordLink, parseLocalWebTarget } from '../../ui/local-web-shell.js';
+import { createLocalWebShell, LOCAL_WEB_SCREENS, organizationRecordLink, pageSourceLabel, parseLocalWebTarget } from '../../ui/local-web-shell.js';
+import { readFileSync } from 'node:fs';
 import {
   graphEntityPayload,
   sourceBearingHome,
@@ -393,6 +394,23 @@ describe('local Web shell', () => {
     expect(sourceLinks).toHaveLength(1);
     expect(sourceLinks[0].attributes.href).toBe(`https://org.example.com/?screen=graph&entity_id=${UX06_GRAPH_ENTITY.id}`);
     expect(findAll(root, (node) => node.tagName === 'A' && node.attributes?.href === 'https://org.example.com/?screen=graph')).toEqual([]);
+  });
+
+  it('names the organization Graph in the 出典 only for the screens that read it while it is connected', () => {
+    const connected = { status: 'connected', server: 'https://graph.example.com' };
+    const local = { status: 'not_connected' };
+    const projects = LOCAL_WEB_SCREENS.find((entry) => entry.id === 'projects');
+    const today = LOCAL_WEB_SCREENS.find((entry) => entry.id === 'today');
+    expect(pageSourceLabel(projects, connected)).toBe('組織のGraph（読み取りのみ）');
+    expect(pageSourceLabel(projects, local)).toBe('手元のGraph');
+    expect(pageSourceLabel(today, connected)).toBe('判断journal');
+    // The world draws this Mac's Graph unless the organization Graph is connected.  Its file is served under
+    // /ui/extensions/ and imports by that path, so its declared label is read from the source here.
+    const worldSource = /\bsource: '([^']+)'/.exec(readFileSync(new URL('../../ui/world/world-view.js', import.meta.url), 'utf8'))?.[1];
+    const worldScreen = { id: 'world', source: worldSource };
+    expect(pageSourceLabel(worldScreen, local)).toBe('手元のGraph・判断journal（読み取りのみ）');
+    expect(pageSourceLabel(worldScreen, null)).toBe('手元のGraph・判断journal（読み取りのみ）');
+    expect(pageSourceLabel(worldScreen, connected)).toBe('組織のGraph・判断journal（読み取りのみ）');
   });
 
   it('opens a sub-project in the organization web by its own code, not by the code of the business it belongs to', () => {
