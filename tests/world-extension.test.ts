@@ -19,7 +19,7 @@ const valueProof = (id: string) => ({
   feedback: { status: 'none', summary: null, evidence_ref: null },
 });
 // @ts-expect-error plain browser module without type declarations
-import { districtLots, groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
+import { cityMeasures, districtLots, groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
 
 const project = (id: string, name: string, metadata: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   id, type: 'project' as const, name, metadata, ...extra,
@@ -33,6 +33,10 @@ describe('world: an organization web hosting the same screen', () => {
         { id: 'eng_atlas_training', project_code: 'atlas', lifecycle_status: 'active', payload: { code: 'atlas-training', name: '研修案件', status: 'active' } },
         { id: 'prj_old', project_code: 'old', lifecycle_status: 'retired', payload: { code: 'old', name: 'Old' } },
       ],
+      decisions: [
+        { id: 'dec_a', project_code: 'atlas', lifecycle_status: 'active', payload: { title: '研修の進め方', decided_at: '2026-10-01T00:00:00Z' } },
+        { id: 'dec_b', project_code: 'atlas', lifecycle_status: 'active', payload: { title: '昔の決定', decided_at: '2026-06-01T00:00:00Z' } },
+      ],
       glossaryTerms: [{ id: 'gls_kind_product', lifecycle_status: 'active', payload: { term: 'プロダクト', vocabulary: { field: 'project.kind', value: 'product' }, definition: '自社が提供する' } }],
     }, { server: 'https://graph.example.com', now: new Date('2026-10-05T00:00:00Z') });
     expect(world.status).toBe('ok');
@@ -42,6 +46,47 @@ describe('world: an organization web hosting the same screen', () => {
     expect(world.businesses[0]!.repositories).toEqual(['atlas-app']);
     expect(world.businesses[0]!.engagements.map((engagement) => [engagement.name, engagement.code])).toEqual([['研修案件', 'atlas-training']]);
     expect(world.vocabulary.kinds.find((kind) => kind.key === 'product')?.label).toBe('プロダクト');
+    expect(world.businesses[0]!.activity).toEqual({ window_days: 30, decisions: 1, latest_decision_at: '2026-10-01T00:00:00.000Z' });
+  });
+});
+
+describe('world: a city\'s size is its open engagements, its height and lights are the last 30 days', () => {
+  const now = new Date('2026-10-05T00:00:00Z');
+  it('counts the decisions of a business and its engagements in the last 30 days, by scope code or a governs edge', () => {
+    const projection = projectWorldFromGraph({
+      entities: [
+        project('prj_atlas', 'Atlas', { code: 'atlas' }),
+        project('eng_training', '研修', { code: 'atlas-training', parent_project_id: 'prj_atlas' }),
+        project('prj_beacon', 'Beacon', { code: 'beacon' }),
+        { id: 'dec_recent', type: 'decision' as const, name: '最近の決定', metadata: { project_code: 'atlas', decided_at: '2026-09-30T00:00:00Z' } },
+        { id: 'dec_engagement', type: 'decision' as const, name: '案件の決定', metadata: { project_code: 'atlas-training', decided_at: '2026-10-01T00:00:00Z' } },
+        { id: 'dec_old', type: 'decision' as const, name: '古い決定', metadata: { project_code: 'atlas', decided_at: '2026-07-01T00:00:00Z' } },
+        { id: 'dec_local', type: 'decision' as const, name: '手元の決定', validFrom: '2026-09-20' },
+        { id: 'dec_undated', type: 'decision' as const, name: '日付の無い決定', metadata: { project_code: 'beacon' } },
+      ],
+      edges: [{ id: 'e1', fromId: 'dec_local', relation: 'governs' as const, toId: 'prj_beacon' } as never],
+    }, now);
+    const by = Object.fromEntries(projection.businesses.map((business) => [business.code, business.activity]));
+    expect(by.atlas).toEqual({ window_days: 30, decisions: 2, latest_decision_at: '2026-10-01T00:00:00.000Z' });
+    // A governs edge places a local decision; an undated one is never counted.
+    expect(by.beacon).toEqual({ window_days: 30, decisions: 1, latest_decision_at: '2026-09-20T00:00:00.000Z' });
+  });
+
+  it('makes a city as big as its open engagements and as tall and lit as its recent decisions and judgments', () => {
+    const isFinished = (status: string | null) => status === 'completed';
+    const business = {
+      engagements: [{ status: 'active' }, { status: 'active' }, { status: 'completed' }],
+      activity: { window_days: 30, decisions: 2, latest_decision_at: null },
+    };
+    const judgments = [
+      { item: { proof: { recorded_at: '2026-10-04T00:00:00Z' } } },
+      { item: { proof: { recorded_at: '2026-08-01T00:00:00Z' } } },
+    ];
+    const busy = cityMeasures(business, { isFinished, judgments, now: now.getTime() });
+    expect([busy.open, busy.finished, busy.decisions, busy.judgments, busy.recent, busy.lit]).toEqual([2, 1, 2, 1, 3, true]);
+    const quiet = cityMeasures({ engagements: business.engagements, activity: { window_days: 30, decisions: 0, latest_decision_at: null } }, { isFinished, now: now.getTime() });
+    expect([quiet.recent, quiet.lit]).toEqual([0, false]);
+    expect(busy.towerHeight).toBeGreaterThan(quiet.towerHeight);
   });
 });
 

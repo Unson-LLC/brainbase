@@ -15,7 +15,7 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { districtLots, groupJudgmentPlaces, UNPLACED_REASON_TEXT } from './world-placement.js';
+import { cityMeasures, districtLots, groupJudgmentPlaces, UNPLACED_REASON_TEXT } from './world-placement.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -135,7 +135,8 @@ export function layoutWorld(businesses) {
       previousKind = business.kind;
     }
     angle += slot;
-    const n = business.engagements.length;
+    // The city's size is the engagements still going (finished ones stay as empty lots).
+    const n = business.engagements.filter((engagement) => !isFinished(engagement.status)).length;
     const size = 7 + 2.6 * Math.ceil(Math.sqrt(Math.max(n, 1)));
     const ring = CITY_RING + (index % 2) * 16 + size * 0.35;
     const city = { business, kind: business.kind, size, angle, x: Math.cos(angle) * ring, z: Math.sin(angle) * ring };
@@ -414,19 +415,21 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   }
 
   // --- cities ----------------------------------------------------------------
-  function landmark(form, color, height, status) {
+  function landmark(form, color, height, status, active = true) {
     const group = new THREE.Group();
     const phase = statusPhase(status);
     const concept = phase === 'concept';
+    // Windows are lit only when something happened in the last 30 days.
+    const lit = !concept && active;
     const tone = phase === 'maintenance' ? muted(color, 0.55) : new THREE.Color(color);
     const options = concept ? { transparent: true, opacity: 0.38 } : {};
     if (form === 'tower') {
-      const base = texturedBlock(3, height, 3, tone, !concept, { roughness: 0.4, ...options });
-      const mid = texturedBlock(2.2, height * 0.45, 2.2, tone, !concept, { roughness: 0.4, ...options });
+      const base = texturedBlock(3, height, 3, tone, lit, { roughness: 0.4, ...options });
+      const mid = texturedBlock(2.2, height * 0.45, 2.2, tone, lit, { roughness: 0.4, ...options });
       mid.position.y += height;
       group.add(base, mid, mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.6, 6), standard(0x46524a), { y: height * 1.45 + 0.8 }));
     } else if (form === 'hall') {
-      const hall = texturedBlock(4.4, height * 0.55, 3, tone, !concept, options);
+      const hall = texturedBlock(4.4, height * 0.55, 3, tone, lit, options);
       const roof = mesh(gableRoof(4.4, 3, 1.4), standard(muted(color, 0.15).multiplyScalar(0.85), options), { y: height * 0.55 });
       roof.rotation.y = Math.PI / 2;
       group.add(hall, roof);
@@ -434,7 +437,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       group.add(mesh(new THREE.CylinderGeometry(1.9, 2.1, height * 0.5, 24), standard(tone, options), { y: height * 0.25 }));
       group.add(mesh(new THREE.SphereGeometry(1.9, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2), standard(0xf3f6f8, { roughness: 0.3, ...options }), { y: height * 0.5 }));
     } else {
-      group.add(texturedBlock(3.6, height * 0.75, 2.8, tone, !concept, options));
+      group.add(texturedBlock(3.6, height * 0.75, 2.8, tone, lit, options));
       group.add(mesh(new THREE.BoxGeometry(1.2, 0.6, 1), standard(0xb8c2bb), { y: height * 0.75 + 0.3 }));
     }
     if (concept) {
@@ -496,8 +499,9 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       group.position.set(x, 0, z);
       const plateColor = new THREE.Color(0xf7f8f4).lerp(new THREE.Color(color), 0.1);
       group.add(mesh(roundedPlate(size, size, 0.45, 1.6), standard(plateColor, { roughness: 0.95 })));
-      const towerHeight = 3.2 + Math.min(business.engagements.length, 8) * 0.55;
-      group.add(landmark(entry.form, color, towerHeight, business.status));
+      const measures = cityMeasures(business, { isFinished, judgments: judgmentsByBusiness.get(business.code) ?? [] });
+      const towerHeight = measures.towerHeight;
+      group.add(landmark(entry.form, color, towerHeight, business.status, measures.lit));
       scene.add(group);
       register(group, { kind: 'city', business });
       const top = entry.form === 'tower' ? towerHeight * 1.45 + 1.8 : towerHeight + 1;
@@ -825,6 +829,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   let placement = { byBusiness: new Map(), unplaced: [] };
   /** Judgments the host kept back because they are not this organization's (organization mode only). */
   let withheld = 0;
+  /** Whether the host gave judgments at all (an organization web does not: they stay on each Mac). */
+  let judgmentsConnected = false;
 
   function judgmentText(item, fallback) {
     const textValue = item?.proof?.interruption?.question_display_text ?? item?.proof?.decision?.summary ?? fallback;
@@ -902,10 +908,17 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }));
         blocks.push(detailBlock(data.engagement, '「プロジェクトと関係者」でこの案件を開く'));
       } else {
-        const open = business.engagements.filter((engagement) => !isFinished(engagement.status)).length;
+        const measures = cityMeasures(business, { isFinished, judgments: placement.byBusiness.get(business.code) ?? [] });
         const kind = kindEntry(business.kind);
         const kindText = kind.definition ? `${kind.label}（${kind.definition}）` : kind.label;
-        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['分類', kindText], ['状態', statusText(business.status)], ['コード', business.code], ['案件', `${business.engagements.length}件（動いている${open}件）`]]) }));
+        const judgmentText = judgmentsConnected ? `・判断${measures.judgments}件` : '（判断は未接続）';
+        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [
+          ['分類', kindText],
+          ['状態', statusText(business.status)],
+          ['コード', business.code],
+          ['進行中の案件（都市の広さ）', `${measures.open}件${measures.finished ? `（完了・終了${measures.finished}件は更地）` : ''}`],
+          ['最近30日の動き（高さ・明かり）', `決定${measures.decisions}件${judgmentText}`],
+        ]) }));
         const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
         for (const engagement of business.engagements) {
           const li = el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` });
@@ -1034,6 +1047,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       else note('判断', `判断の記録を読めません（${reason}）。0件ではありません。`, 'warning');
     } else {
       proofs = proofIndex(home);
+      judgmentsConnected = true;
       const waiting = [...proofs.values()].filter(isWaiting).length;
       const places = placesResult.ok && placesResult.data?.status === 'available' ? placesResult.data.places : null;
       if (places) {

@@ -166,6 +166,7 @@ export function projectOrganizationGraph(records: OrganizationGraphRecords, owne
           ...(type === 'project' && summary ? { goal: summary } : {}),
           ...(type === 'project' && status ? { status } : {}),
           ...(type === 'project' && text(payload.kind) ? { kind: text(payload.kind) } : {}),
+          ...(type === 'decision' && text(payload.decided_at) ? { decided_at: text(payload.decided_at) } : {}),
           ...(type === 'project' ? projectPlacement(record, payload, catalogByCode) : {})
         }
       });
