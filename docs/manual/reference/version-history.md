@@ -6,9 +6,13 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
-## 0.16.0 candidate — npm公開前
+## 0.17.0 candidate — npm公開前
 
 - プロジェクト一覧・詳細のアイコン表示と、PNG/JPEG/WebP画像の登録・変更・削除を追加。共有部品 `@unson/brainbase-mcp/ui/project-icon` を公開し、組織版にも同じ表示と画像検証を提供する。画像は256 KiB以下に制限し、未登録時は名前の頭文字を表示する。公開の関数と出口が増えるためminorにした
+
+## 0.16.0 candidate — npm公開前
+
+- 検証用の経路C1を外す。`web:serve --organization-graph` / `--organization-web`、本人のトークンで組織のGraphを読む `createOrganizationGraphSource`、ホストの組織モード（状態の `organization_graph`、`readGraph`、訂正の403）、メモリ上の読み手 `openInMemoryGraph`、OSSホストの `organization-judgments`、Personal Webの組織版へのリンクを消す。組織版が使う `projectOrganizationWorld` と記録の写し方は残す。公開していた出口を消すのでminorを上げた
 
 ## 0.15.7 candidate — npm公開前
 

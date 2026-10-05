@@ -1,17 +1,13 @@
-import { readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
-import { GraphWebError, openInMemoryGraph, type GraphWebOrganizationSource, type InMemoryGraphReader } from './graph-web.js';
-import type { GraphVocabularyTerm, LocalWebOrganizationGraph } from './local-web-host.js';
+import type { GraphVocabularyTerm } from './local-web-host.js';
 import { canonicalEdgeId } from './canonical-graph.js';
 import { canonicalGraphOntologyRelease } from './templates.js';
 import type { CanonicalEdge, CanonicalEntity, CanonicalEntityKind, CoreRelation, GraphFileV2 } from './types.js';
 
 /**
- * Ledger C1 (adopted 2026-09-24): while the owner validates the Web, the host
- * reads the owner's organization Graph read only. The records are projected
- * into an in-memory Graph v2 so the existing Graph screens read them through
- * the same views as a local Graph. Nothing is written locally or remotely.
+ * Projects organization Graph records (as an organization host reads them for
+ * its member) into a Graph v2, so shared parts such as the world draw them the
+ * same way as a local Graph. This module never reads a network or a token: the
+ * host that owns the records passes them in (`projectOrganizationWorld`).
  *
  * Relations come only from what the organization Graph states:
  *   - `member_of` person → project       → `participates_in` (role = role_code)
@@ -23,8 +19,6 @@ import type { CanonicalEdge, CanonicalEntity, CanonicalEntityKind, CoreRelation,
 
 export const ORGANIZATION_GRAPH_WEB_VERSION = 'organization-graph-web.v0' as const;
 const ENTITY_TYPES: readonly CanonicalEntityKind[] = ['project', 'person', 'org', 'decision'];
-const FETCH_TIMEOUT_MS = 15_000;
-const CACHE_MS = 60_000;
 
 interface OrganizationRecord {
   id: string;
@@ -221,131 +215,5 @@ export function projectOrganizationGraph(records: OrganizationGraphRecords, owne
       edges
     },
     excluded: { inactive, unnamed, danglingRelations }
-  };
-}
-
-interface OrganizationAccess {
-  readonly server: string;
-  readonly token: string;
-}
-
-/** The owner's Brainbase server and token, read at request time (tokens rotate hourly). Never logged or returned. */
-export async function readOrganizationAccess(home: string = homedir()): Promise<OrganizationAccess | { readonly reason: string }> {
-  try {
-    const config = JSON.parse(await readFile(join(home, '.brainbase', 'config.json'), 'utf8')) as unknown;
-    const tokens = JSON.parse(await readFile(join(home, '.brainbase', 'tokens.json'), 'utf8')) as unknown;
-    const server = isRecord(config) ? text(config.server_url) : null;
-    const token = isRecord(tokens) ? text(tokens.access_token) : null;
-    if (!server || !/^https:\/\/[^/?#@]+$/u.test(server)) return { reason: 'server_url_missing_or_invalid' };
-    if (!token) return { reason: 'access_token_missing' };
-    return { server, token };
-  } catch {
-    return { reason: 'brainbase_auth_files_unreadable' };
-  }
-}
-
-async function getRecords(request: typeof fetch, access: OrganizationAccess, path: string): Promise<unknown[]> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    const response = await request(`${access.server}/api/info/graph/${path}`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${access.token}`, Accept: 'application/json' },
-      redirect: 'error',
-      signal: controller.signal
-    });
-    if (response.status === 401 || response.status === 403) {
-      throw new GraphWebError('unavailable', 'organization_graph_auth_failed', `The organization Graph refused the owner's token (HTTP ${response.status}); sign in again`);
-    }
-    if (!response.ok) throw new GraphWebError('unavailable', 'organization_graph_unavailable', `The organization Graph answered HTTP ${response.status} for ${path.split('?')[0]}`);
-    const body = await response.json() as unknown;
-    if (!isRecord(body) || !Array.isArray(body.records)) throw new GraphWebError('unavailable', 'organization_graph_unavailable', 'The organization Graph response has no records');
-    return body.records;
-  } catch (error) {
-    if (error instanceof GraphWebError) throw error;
-    const reason = error instanceof Error && error.name === 'AbortError' ? 'timed out' : 'request failed';
-    throw new GraphWebError('unavailable', 'organization_graph_unavailable', `The organization Graph ${reason}`);
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-export interface OrganizationGraphSourceOptions {
-  readonly home?: string;
-  readonly fetch?: typeof fetch;
-  readonly now?: () => Date;
-  readonly cacheMs?: number;
-}
-
-/**
- * The organization Graph for the local host (C1). Reads are cached briefly and
- * shared while in flight; a failure is reported as `unavailable`, never as an
- * empty Graph.
- */
-export async function createOrganizationGraphSource(options: OrganizationGraphSourceOptions = {}): Promise<LocalWebOrganizationGraph | { readonly reason: string }> {
-  const home = options.home ?? homedir();
-  const initial = await readOrganizationAccess(home);
-  if ('reason' in initial) return initial;
-  const request = options.fetch ?? fetch;
-  const now = options.now ?? (() => new Date());
-  const cacheMs = options.cacheMs ?? CACHE_MS;
-  type Loaded = { reader: InMemoryGraphReader<GraphWebOrganizationSource>; graph: GraphFileV2; terms: readonly GraphVocabularyTerm[] | null };
-  let cached: { at: number; loaded: Loaded } | null = null;
-  let inFlight: Promise<Loaded> | null = null;
-
-  async function load(): Promise<Loaded> {
-    const access = await readOrganizationAccess(home);
-    if ('reason' in access) throw new GraphWebError('unavailable', 'organization_graph_not_connected', `The organization Graph cannot be read (${access.reason})`);
-    // The organization's words are read alongside; failing to read them never fails the Graph.
-    const termsRead = getRecords(request, access, 'entities?type=glossary_term&limit=500')
-      .then((records) => projectVocabularyTerms(records))
-      .catch(() => null);
-    const [project, person, org, decision, raci, memberOf, assignedTo] = await Promise.all([
-      getRecords(request, access, 'entities?type=project&limit=500'),
-      getRecords(request, access, 'entities?type=person&limit=500'),
-      getRecords(request, access, 'entities?type=org&limit=500'),
-      getRecords(request, access, 'entities?type=decision&limit=500'),
-      getRecords(request, access, 'entities?type=raci_assignment&limit=500'),
-      getRecords(request, access, 'edges?type=member_of'),
-      getRecords(request, access, 'edges?type=assigned_to')
-    ]);
-    const projection = projectOrganizationGraph({
-      entities: {
-        project: project as OrganizationRecord[],
-        person: person as OrganizationRecord[],
-        org: org as OrganizationRecord[],
-        decision: decision as OrganizationRecord[],
-        raci_assignment: raci as OrganizationRecord[]
-      },
-      memberOf: memberOf as OrganizationEdge[],
-      assignedTo: assignedTo as OrganizationEdge[]
-    });
-    const source: GraphWebOrganizationSource = { dataDir: null, graphFormat: 2, authority: 'organization_graph', server: access.server, readAt: now().toISOString() };
-    return { reader: openInMemoryGraph(projection.graph, source), graph: projection.graph, terms: await termsRead };
-  }
-
-  async function current(): Promise<Loaded> {
-    const at = now().getTime();
-    if (cached && at - cached.at < cacheMs) return cached.loaded;
-    inFlight ??= load().then((loaded) => {
-      cached = { at: now().getTime(), loaded };
-      return loaded;
-    }).finally(() => {
-      inFlight = null;
-    });
-    return inFlight;
-  }
-
-  return {
-    server: initial.server,
-    async read() {
-      return (await current()).reader;
-    },
-    async readGraphFile() {
-      return (await current()).graph;
-    },
-    async readVocabularyTerms() {
-      return (await current()).terms;
-    }
   };
 }

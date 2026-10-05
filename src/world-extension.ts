@@ -2,13 +2,9 @@ import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import {
-  buildJudgmentValueProofReviewHome,
   JudgmentValueProofJournalCache,
-  readJudgmentValueProofAnswers,
-  readJudgmentValueProofFeedback,
   readJudgmentValueProofJournal,
 } from './judgment-value-proof-review.js';
-import { publicHome } from './value-proof-review-http.js';
 import { projectOrganizationGraph, projectVocabularyTerms } from './organization-graph-web.js';
 import { readLocalGraphState, type GraphVocabularyTerm, type LocalWebExtension, type LocalWebModule, type LocalWebModuleContext } from './local-web-host.js';
 import { loadPersonalOs } from './ssot.js';
@@ -304,37 +300,27 @@ export async function readWorldVocabulary(path: string): Promise<WorldVocabulary
 }
 
 /**
- * The businesses from the same Graph the other screens read: the organization
- * Graph when the host reads it (C1), else the local Graph.  A Graph that cannot
- * be read is a state with its reason, never zero businesses.
+ * The businesses from the same Graph the other screens read (this Mac's Graph).
+ * An organization host draws its own records with `projectOrganizationWorld`.
+ * A Graph that cannot be read is a state with its reason, never zero businesses.
  */
 export async function readWorldBusinesses(
-  context: Pick<LocalWebModuleContext, 'dataDir' | 'organizationGraph'>,
+  context: Pick<LocalWebModuleContext, 'dataDir'>,
   options: { readonly vocabulary?: WorldVocabularyConfig; readonly now?: () => Date } = {}
 ): Promise<WorldBusinessesResponse> {
   const now = (options.now ?? (() => new Date()))();
   let graph: Pick<GraphFileV2, 'entities'>;
   let source: WorldSource;
-  let terms: readonly GraphVocabularyTerm[] | null | undefined;
   try {
-    if (context.organizationGraph) {
-      if (!context.organizationGraph.readGraphFile) {
-        return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: 'organization_graph_records_unavailable' };
-      }
-      graph = await context.organizationGraph.readGraphFile();
-      source = { authority: 'organization_graph', server: context.organizationGraph.server };
-      terms = context.organizationGraph.readVocabularyTerms ? await context.organizationGraph.readVocabularyTerms().catch(() => null) : null;
-    } else {
-      const state = await readLocalGraphState(context.dataDir);
-      if (state.status === 'not_initialized' || state.status === 'migration_required') {
-        return { status: state.status, version: WORLD_EXTENSION_VERSION, reason: state.status };
-      }
-      if (state.status !== 'ready') return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: state.message ?? 'local_graph_unreadable' };
-      const os = await loadPersonalOs(context.dataDir);
-      if (os.graph.version !== 2) return { status: 'migration_required', version: WORLD_EXTENSION_VERSION, reason: 'migration_required' };
-      graph = os.graph;
-      source = { authority: 'local', dataDir: context.dataDir };
+    const state = await readLocalGraphState(context.dataDir);
+    if (state.status === 'not_initialized' || state.status === 'migration_required') {
+      return { status: state.status, version: WORLD_EXTENSION_VERSION, reason: state.status };
     }
+    if (state.status !== 'ready') return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: state.message ?? 'local_graph_unreadable' };
+    const os = await loadPersonalOs(context.dataDir);
+    if (os.graph.version !== 2) return { status: 'migration_required', version: WORLD_EXTENSION_VERSION, reason: 'migration_required' };
+    graph = os.graph;
+    source = { authority: 'local', dataDir: context.dataDir };
   } catch (error) {
     return { status: 'unavailable', version: WORLD_EXTENSION_VERSION, reason: error instanceof Error ? error.message : 'graph_unreadable' };
   }
@@ -344,7 +330,7 @@ export async function readWorldBusinesses(
     version: WORLD_EXTENSION_VERSION,
     source,
     as_of: now.toISOString(),
-    vocabulary: resolveWorldVocabulary(options.vocabulary, projection.businesses, terms),
+    vocabulary: resolveWorldVocabulary(options.vocabulary, projection.businesses),
     ...projection,
   };
 }
@@ -409,48 +395,6 @@ export async function readJudgmentPlaces(
   return { status: 'available', places };
 }
 
-/**
- * The judgments of one organization, for a world drawn from that organization's Graph.  A judgment
- * belongs to the organization only when the repository it was worked in is one of the organization's
- * businesses (a registered repository or the business code, the same rule as the world's placement).
- * Every other judgment (another company's work, or one whose repository was not recorded) is withheld:
- * only their count leaves the host, never their questions or repositories.
- */
-export async function readOrganizationJudgments(
-  context: Pick<LocalWebModuleContext, 'journalRoot' | 'journalCache' | 'dataDir' | 'now'>,
-  businesses: readonly Pick<WorldBusiness, 'code' | 'repositories'>[],
-  workspaces: Map<string, string | null> = new Map()
-): Promise<{ readonly status: 'available' | 'unavailable'; readonly scope: 'organization'; readonly withheld: number; readonly places: readonly WorldJudgmentPlace[]; readonly home: unknown; readonly reason?: string }> {
-  const journal = await readJudgmentValueProofJournal({ root: context.journalRoot, cache: context.journalCache });
-  if (journal.status !== 'available') return { status: 'unavailable', scope: 'organization', withheld: 0, places: [], home: null, reason: 'journal_unreadable' };
-  const belongs = (workspace: string | null) => workspace !== null
-    && businesses.some((business) => business.repositories.includes(workspace) || business.code === workspace);
-  const kept: (typeof journal.entries)[number][] = [];
-  const places: WorldJudgmentPlace[] = [];
-  for (const entry of journal.entries) {
-    const workspace = await entryWorkspace(entry.file, workspaces);
-    if (!belongs(workspace)) continue;
-    kept.push(entry);
-    places.push({ decision_attempt_id: entry.proof.decision_attempt_id, workspace });
-  }
-  const [feedback, answers] = await Promise.all([
-    readJudgmentValueProofFeedback({ dataDir: context.dataDir }),
-    readJudgmentValueProofAnswers({ dataDir: context.dataDir }),
-  ]);
-  // Rejected files are left out too: their names would say nothing about the organization they belong to.
-  const home = buildJudgmentValueProofReviewHome({ ...journal, entries: kept, rejected: [] }, feedback, { now: context.now(), answers });
-  return { status: 'available', scope: 'organization', withheld: journal.entries.length - kept.length, places, home: publicHome(home) };
-}
-
-async function entryWorkspace(valueProofFile: string, workspaces: Map<string, string | null>): Promise<string | null> {
-  const turnInputFile = `${valueProofFile.slice(0, -VALUE_PROOF_SUFFIX.length)}.turn-input.json`;
-  if (!workspaces.has(turnInputFile)) {
-    const turnInput = await readJsonFile(turnInputFile);
-    workspaces.set(turnInputFile, isRecord(turnInput) ? text(turnInput.project_code) : null);
-  }
-  return workspaces.get(turnInputFile) ?? null;
-}
-
 async function readJsonFile(path: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(path, 'utf8')) as unknown;
@@ -470,16 +414,6 @@ function createWorldModule(context: LocalWebModuleContext, read: () => Promise<W
       if (path === `/api/extensions/${WORLD_EXTENSION_ID}/businesses`) {
         response.setHeader('Cache-Control', 'no-store');
         writeJson(response, 200, await read());
-        return true;
-      }
-      if (path === `/api/extensions/${WORLD_EXTENSION_ID}/organization-judgments`) {
-        response.setHeader('Cache-Control', 'no-store');
-        const world = await read();
-        if (world.status !== 'ok' || world.source.authority !== 'organization_graph') {
-          writeJson(response, 200, { version: WORLD_EXTENSION_VERSION, status: 'unavailable', scope: 'organization', withheld: 0, places: [], home: null, reason: 'not_reading_organization_graph' });
-          return true;
-        }
-        writeJson(response, 200, { version: WORLD_EXTENSION_VERSION, ...(await readOrganizationJudgments(context, world.businesses, workspaces)) });
         return true;
       }
       if (path === `/api/extensions/${WORLD_EXTENSION_ID}/judgment-places`) {

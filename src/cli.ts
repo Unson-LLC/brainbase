@@ -63,8 +63,7 @@ import { blockedJudgmentOutput, processJudgmentHook, type JudgmentAutonomyMode, 
 import { applyCanonicalWrites, buildCanonicalEdge } from './canonical-edge-builder.js';
 import { defaultJudgmentJournalRoot } from './judgment-value-proof-review.js';
 import { createWorldExtension, readWorldVocabulary } from './world-extension.js';
-import { createOrganizationGraphSource } from './organization-graph-web.js';
-import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT, type LocalWebOrganizationGraph } from './local-web-host.js';
+import { createLocalWebHost, LOCAL_WEB_DEFAULT_PORT } from './local-web-host.js';
 import type { CanonicalEntity, DecisionRecord, PersonalKgEntry, PersonalOs, RelationshipRecord } from './types.js';
 
 interface CliIo {
@@ -1158,29 +1157,16 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
   const worldVocabularyPath = first(parsed, 'world-vocabulary');
   if (worldVocabularyPath !== undefined && !world) throw new Error(`${command} --world-vocabulary requires --world`);
   const worldVocabulary = worldVocabularyPath === undefined ? undefined : await readWorldVocabulary(resolve(worldVocabularyPath));
-  // Ledger C1: the Graph screens read the owner's organization Graph read only.
-  let organizationGraph: LocalWebOrganizationGraph | null = null;
-  if (parsed.flags.has('organization-graph')) {
-    const source = await createOrganizationGraphSource();
-    if ('reason' in source) {
-      throw new Error(`${command} --organization-graph cannot read the organization Graph (${source.reason}); sign in with brainbase auth first`);
+  // The organization Graph is shown by the organization web, not by this local host (C1 ended 2026-10-05).
+  for (const removed of ['organization-graph', 'organization-web']) {
+    if (parsed.flags.has(removed) || first(parsed, removed) !== undefined) {
+      throw new Error(`${command} --${removed} was removed; open the organization web to see the organization Graph`);
     }
-    organizationGraph = source;
-  }
-  // Where the organization's records are corrected; the read-only screens link to it.
-  const organizationWeb = first(parsed, 'organization-web');
-  if (organizationWeb !== undefined) {
-    if (!organizationGraph) throw new Error(`${command} --organization-web requires --organization-graph`);
-    if (!/^https:\/\/[^/?#@\s]+$/u.test(organizationWeb)) {
-      throw new Error(`${command} --organization-web must be an https origin such as https://org.example.com`);
-    }
-    organizationGraph = { ...organizationGraph, webUrl: organizationWeb };
   }
   const { server } = createLocalWebHost({
     dataDir,
     journalRoot,
-    extensions: world ? [createWorldExtension(worldVocabulary ? { vocabulary: worldVocabulary } : {})] : [],
-    ...(organizationGraph ? { organizationGraph } : {})
+    extensions: world ? [createWorldExtension(worldVocabulary ? { vocabulary: worldVocabulary } : {})] : []
   });
   await new Promise<void>((resolveListen, rejectListen) => {
     server.once('error', rejectListen);
@@ -1196,8 +1182,6 @@ async function webServe(parsed: ParsedArgs, io: CliIo, command: string): Promise
     `- プロジェクトと関係者: ${origin}/#projects`,
     `- 情報と関係: ${origin}/#graph`,
     ...(world ? [`- 世界: ${origin}/#world`] : []),
-    ...(organizationGraph ? [`組織のGraph（読み取りのみ）: ${organizationGraph.server}`] : []),
-    ...(organizationGraph?.webUrl ? [`組織版（訂正の入口）: ${organizationGraph.webUrl}`] : []),
     `データ: ${dataDir}`,
     `判断journal: ${journalRoot}`,
     '終了: Ctrl+C',
@@ -1368,7 +1352,7 @@ function usage(): string {
   brainbase judgment:install --target codex [--autonomy-mode off|canary|on] [--autonomy-project code] [--dry-run] [--output path]
   brainbase judgment:hook [--autonomy-mode off|canary|on] [--autonomy-project code]
   brainbase doctor [--dir path] [--judgment-hooks path]
-  brainbase web:serve [--dir path] [--journal path] [--port n] [--world [--world-vocabulary file]] [--organization-graph [--organization-web https-origin]]
+  brainbase web:serve [--dir path] [--journal path] [--port n] [--world [--world-vocabulary file]]
   brainbase review:serve [--dir path] [--journal path] [--port n]  （web:serveの別名）
 `;
 }

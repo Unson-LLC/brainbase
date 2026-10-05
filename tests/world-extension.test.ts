@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { JudgmentValueProofJournalCache } from '../src/judgment-value-proof-review.js';
-import { projectOrganizationWorld, projectWorldFromGraph, readJudgmentPlaces, readOrganizationJudgments, readWorldBusinesses, readWorldVocabulary, resolveWorldVocabulary } from '../src/world-extension.js';
+import { projectOrganizationWorld, projectWorldFromGraph, readJudgmentPlaces, readWorldBusinesses, readWorldVocabulary, resolveWorldVocabulary } from '../src/world-extension.js';
 
 const valueProof = (id: string) => ({
   schema_version: 'brainbase-judgment-value-proof-v1',
@@ -207,20 +207,11 @@ describe('world: businesses from any Graph', () => {
     expect(resolveWorldVocabulary(undefined, businesses).terms).toBe('none');
   });
 
-  it('keeps drawing when the organization\'s terms cannot be read', async () => {
-    const dataDir = await mkdtemp(join(tmpdir(), 'bb-world-'));
-    const result = await readWorldBusinesses({
-      dataDir,
-      organizationGraph: {
-        server: 'https://graph.example',
-        read: async () => { throw new Error('not used'); },
-        readGraphFile: async () => ({ entities: [project('prj_a', 'A', { kind: 'product' })] }) as never,
-        readVocabularyTerms: async () => { throw new Error('glossary down'); },
-      },
-    });
-    expect(result.status).toBe('ok');
-    expect(result.status === 'ok' && result.vocabulary.terms).toBe('unavailable');
-    expect(result.status === 'ok' && result.vocabulary.kinds.map((kind) => kind.label)).toEqual(['product']);
+  it('keeps drawing when the organization\'s terms could not be read, and says so', () => {
+    const businesses = projectWorldFromGraph({ entities: [project('prj_a', 'A', { kind: 'product' })] }).businesses;
+    const vocabulary = resolveWorldVocabulary(undefined, businesses, null);
+    expect(vocabulary.terms).toBe('unavailable');
+    expect(vocabulary.kinds.map((kind) => kind.label)).toEqual(['product']);
   });
 
   it('draws with the Graph\'s own words when no vocabulary is given', () => {
@@ -241,20 +232,8 @@ describe('world: businesses from any Graph', () => {
     await expect(readWorldVocabulary(await write('ok.json', { kinds: { product: { label: 'プロダクト', form: 'tower' } } }))).resolves.toEqual({ kinds: { product: { label: 'プロダクト', form: 'tower' } }, statuses: {} });
   });
 
-  it('reads the organization Graph when the host reads it, and a missing local Graph as a state, not zero businesses', async () => {
+  it('reports a missing local Graph as a state, not zero businesses', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'bb-world-'));
-    const organization = await readWorldBusinesses({
-      dataDir,
-      organizationGraph: {
-        server: 'https://graph.example',
-        read: async () => { throw new Error('not used'); },
-        readGraphFile: async () => ({ entities: [project('prj_a', 'A', { kind: 'product' })] }) as never,
-      },
-    });
-    expect(organization).toMatchObject({ status: 'ok', source: { authority: 'organization_graph', server: 'https://graph.example' } });
-    expect(organization.status === 'ok' && organization.businesses.map((business) => business.name)).toEqual(['A']);
-    const withoutRecords = await readWorldBusinesses({ dataDir, organizationGraph: { server: 'https://graph.example', read: async () => { throw new Error('not used'); } } });
-    expect(withoutRecords).toMatchObject({ status: 'unavailable', reason: 'organization_graph_records_unavailable' });
     expect(await readWorldBusinesses({ dataDir })).toMatchObject({ status: 'not_initialized' });
   });
 });
@@ -296,34 +275,6 @@ describe('world: where a judgment stands', () => {
       { decision_attempt_id: 'attempt-1', workspace: 'pilot-runtime' },
       { decision_attempt_id: 'attempt-2', workspace: null },
     ]);
-  });
-
-  it('shows an organization only its own judgments: another company\'s work and unrecorded ones are withheld, never listed', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'bb-world-org-judgments-'));
-    const dataDir = await mkdtemp(join(tmpdir(), 'bb-world-org-data-'));
-    await mkdir(join(root, 'session-a'));
-    const write = async (id: string, workspace: string | null) => {
-      await writeFile(join(root, 'session-a', `t${id}.value-proof.json`), JSON.stringify(valueProof(id)));
-      if (workspace) await writeFile(join(root, 'session-a', `t${id}.turn-input.json`), JSON.stringify({ project_code: workspace }));
-    };
-    await write('1', 'atlas-app');      // a registered repository of Atlas
-    await write('2', 'beacon');         // the code of Beacon
-    await write('3', 'other-company');  // another company's repository
-    await write('4', null);             // no repository recorded
-    const businesses = [{ code: 'atlas', repositories: ['atlas-app'] }, { code: 'beacon', repositories: [] }];
-    const result = await readOrganizationJudgments(
-      { journalRoot: root, journalCache: new JudgmentValueProofJournalCache(), dataDir, now: () => new Date('2026-10-05T00:00:00Z') },
-      businesses,
-    );
-    expect(result.status).toBe('available');
-    expect(result.withheld).toBe(2);
-    expect(result.places.map((place) => place.workspace).sort()).toEqual(['atlas-app', 'beacon']);
-    const sent = JSON.stringify(result.home);
-    expect(sent).toContain('attempt-1');
-    expect(sent).toContain('attempt-2');
-    expect(sent).not.toContain('attempt-3');
-    expect(sent).not.toContain('attempt-4');
-    expect(JSON.stringify(result)).not.toContain('other-company');
   });
 
   it('lists only changed journal folders again, through the cache it shares with the 今日 list', async () => {

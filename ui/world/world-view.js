@@ -25,7 +25,6 @@ import {
   workspaceDetailEmpty,
   workspaceButton,
 } from '../../workspace-kit.js';
-import { organizationRecordAnchor, organizationRecordLink, organizationWebOrigin } from '../../graph-view-shared.js';
 
 export const WORLD_VIEW_CONTRACT_VERSION = 'brainbase.world-view.v0';
 
@@ -1431,7 +1430,7 @@ const JUDGMENT_UNAVAILABLE_TEXT = Object.freeze({
  *   engagement opens in the host's プロジェクトと関係者.  The local web opens `#projects?project=<id>`; an
  *   organization web passes its own route.
  */
-export function createWorldView({ root, rail, page, document: explicitDocument, fetcher, organizationGraph = null, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}` }) {
+export function createWorldView({ root, rail, page, document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}` }) {
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const wrap = el(doc, 'div', { className: 'bb-world' });
@@ -1502,22 +1501,9 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     return el(doc, 'a', { className: 'bb-world-rail-link', text: label, attrs: { href: projectHref(project) } });
   }
 
-  /**
-   * The same project in the organization web, where it is corrected (Inspector UX-20261004-01).  Only when
-   * the host reads the organization Graph and was told where its web is.
-   */
-  function organizationLink(project) {
-    const origin = organizationWebOrigin(organizationGraph);
-    if (!origin) return null;
-    // A business without its own code carries its id as its code; that is not a code the organization web knows.
-    const code = project.code && project.code !== project.id ? project.code : null;
-    const target = organizationRecordLink(origin, 'projects', { id: project.id, type: 'project', metadata: { code } });
-    return target ? organizationRecordAnchor(doc, target, 'bb-world-rail-link') : null;
-  }
-
-  /** 詳しく見る: プロジェクトと関係者 here, and the organization web when there is one. */
+  /** 詳しく見る: the same project in プロジェクトと関係者. */
   function detailBlock(project, label) {
-    const content = [projectLink(project, label), organizationLink(project)].filter(Boolean);
+    const content = [projectLink(project, label)];
     return workspaceRailBlock(doc, { title: '詳しく見る', content });
   }
 
@@ -1780,11 +1766,11 @@ export const screen = Object.freeze({
   label: '世界',
   usesGraph: false,
   rail: true,
-  source: '組織のGraph・判断journal（読み取りのみ）',
+  source: '手元のGraph・判断journal（読み取りのみ）',
   mount(container, context) {
     const root = context.document.createElement('div');
     root.className = 'bb-shell-page';
     container.append(root);
-    return createWorldView({ root, rail: context.rail, page: context.page, document: context.document, fetcher: context.fetcher, organizationGraph: context.organizationGraph ?? null });
+    return createWorldView({ root, rail: context.rail, page: context.page, document: context.document, fetcher: context.fetcher });
   },
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { createLocalWebShell, LOCAL_WEB_SCREENS, organizationRecordLink, parseLocalWebTarget } from '../../ui/local-web-shell.js';
+import { createLocalWebShell, LOCAL_WEB_SCREENS, parseLocalWebTarget } from '../../ui/local-web-shell.js';
 import {
   graphEntityPayload,
   sourceBearingHome,
@@ -68,7 +68,6 @@ function statusPayload(graph) {
     data_dir: '/home/owner/.brainbase/personal-os',
     journal_root: '/home/owner/.brainbase/personal-os/judgment-journal',
     graph,
-    organization_graph: { status: 'not_connected' },
   };
 }
 
@@ -182,7 +181,7 @@ describe('local Web shell', () => {
     const source = collectText(findAll(root, (node) => node.attributes?.['aria-label'] === '出典')[0]);
     expect(source).toContain('/home/owner/.brainbase/personal-os');
     expect(source).toContain('Graphv2');
-    expect(source).toContain('組織のGraph読んでいません');
+    expect(source).not.toContain('組織のGraph');
     expect(collectText(screen(root, 'today'))).toContain('判断journalに接続できません');
   });
 
@@ -340,69 +339,6 @@ describe('local Web shell', () => {
     expect(calls).toContain('/api/graph/entities/project-atlas');
     expect(collectText(screen(root, 'graph'))).toContain(UX06_GRAPH_ENTITY.name);
     expect(collectText(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0])).toContain(UX06_GRAPH_ENTITY.id);
-  });
-
-  it('links the read-only organization Graph screens to the organization web where records are corrected', async () => {
-    const graphRoutes = {
-      '/api/graph/search?limit=50': () => jsonResponse(200, UX06_GRAPH_SEARCH),
-      '/api/graph/ontology': () => jsonResponse(200, UX06_GRAPH_ONTOLOGY),
-    };
-    const connected = (organization) => () => jsonResponse(200, { ...statusPayload(V2), organization_graph: organization });
-    const orgLinks = (root) => findAll(root, (node) => node.tagName === 'A' && String(node.attributes?.href ?? '').startsWith('https://'));
-
-    const linked = hostFetcher(V2, { ...graphRoutes, '/api/local/status': connected({ status: 'connected', server: 'https://graph.example.com', mode: 'read_only', web_url: 'https://org.example.com' }) });
-    const withLink = mount(linked.fetcher, 'graph');
-    await flushMany();
-    const [link] = orgLinks(withLink.root);
-    expect(link.attributes).toMatchObject({ href: 'https://org.example.com/?screen=graph', target: '_blank', rel: 'noopener noreferrer' });
-    expect(collectText(screen(withLink.root, 'graph'))).toContain('組織のGraph（https://graph.example.com）');
-
-    const unlinked = hostFetcher(V2, { ...graphRoutes, '/api/local/status': connected({ status: 'connected', server: 'https://graph.example.com', mode: 'read_only', web_url: 'javascript:alert(1)' }) });
-    const withoutLink = mount(unlinked.fetcher, 'graph');
-    await flushMany();
-    expect(orgLinks(withoutLink.root)).toEqual([]);
-    expect(findAll(withoutLink.root, (node) => String(node.attributes?.href ?? '').startsWith('javascript:'))).toEqual([]);
-    expect(collectText(screen(withoutLink.root, 'graph'))).toContain('このMacのGraphではありません。');
-  });
-
-  it('links the open record itself to the organization web, and tells who may correct it and when it shows here', async () => {
-    const { fetcher } = hostFetcher(V2, {
-      '/api/local/status': () => jsonResponse(200, { ...statusPayload(V2), organization_graph: { status: 'connected', server: 'https://graph.example.com', mode: 'read_only', web_url: 'https://org.example.com' } }),
-      '/api/graph/search?limit=50': () => jsonResponse(200, UX06_GRAPH_SEARCH),
-      '/api/graph/ontology': () => jsonResponse(200, UX06_GRAPH_ONTOLOGY),
-      '/api/graph/entities/project-atlas': () => jsonResponse(200, graphEntityPayload()),
-    });
-    const { root } = mount(fetcher, '#graph?entity_id=project-atlas');
-    await flushMany();
-    const railNode = findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0];
-    const rail = collectText(railNode);
-    const [recordLink] = findAll(railNode, (node) => node.tagName === 'A' && node.textContent === '組織版でこの記録を開く');
-    expect(recordLink.attributes).toMatchObject({ href: `https://org.example.com/?screen=graph&entity_id=${UX06_GRAPH_ENTITY.id}`, target: '_blank', rel: 'noopener noreferrer' });
-    expect(rail).toContain('組織版の「情報と関係」でこの記録を開きます');
-    expect(rail).toContain('Slackでログインすると、そのままこの記録に戻ります');
-    // The organization web lets a record be changed with the grant of the business it belongs to
-    // (D-20261004-08); an own-code grant alone only lets it be read there.
-    expect(rail).toContain('gmかceoで、このプロジェクトが属する事業（事業そのものなら、その事業）を許可されている人');
-    expect(rail).not.toContain('両方を許可');
-    expect(rail).not.toContain('このプロジェクトか、その上の事業');
-    expect(rail).toContain('人物の記録と、関係者の追加・終了は組織版でもまだ直せません');
-    expect(rail).toContain('1分ほどたってから再読み込み');
-    // The 出典 at the top of the page points at the same record, not at the screen (it is the link seen first).
-    const allRecordLinks = findAll(root, (node) => node.tagName === 'A' && node.textContent === '組織版でこの記録を開く');
-    const sourceLinks = allRecordLinks.filter((node) => !findAll(railNode, (inRail) => inRail === node).length);
-    expect(sourceLinks).toHaveLength(1);
-    expect(sourceLinks[0].attributes.href).toBe(`https://org.example.com/?screen=graph&entity_id=${UX06_GRAPH_ENTITY.id}`);
-    expect(findAll(root, (node) => node.tagName === 'A' && node.attributes?.href === 'https://org.example.com/?screen=graph')).toEqual([]);
-  });
-
-  it('opens a sub-project in the organization web by its own code, not by the code of the business it belongs to', () => {
-    const origin = 'https://org.example.com';
-    const engagement = { id: 'eng_training', type: 'project', metadata: { code: 'atlas-training', project_code: 'atlas' } };
-    expect(organizationRecordLink(origin, 'projects', engagement)).toEqual({ href: `${origin}/?screen=projects&project=atlas-training`, label: '「プロジェクトと関係者」' });
-    // Without its own code the scope's code would name the parent, so the record opens by id instead.
-    expect(organizationRecordLink(origin, 'projects', { id: 'eng_plain', type: 'project', metadata: { project_code: 'atlas' } }).href).toBe(`${origin}/?screen=graph&entity_id=eng_plain`);
-    expect(organizationRecordLink(origin, 'projects', { id: 'eng_bad', type: 'project', metadata: { code: '//evil.example' } }).href).toBe(`${origin}/?screen=graph&entity_id=eng_bad`);
-    expect(organizationRecordLink(origin, 'graph', engagement).href).toBe(`${origin}/?screen=graph&entity_id=eng_training`);
   });
 
   it('only exposes the source link after the host confirms the source, and preserves unconfirmed states', async () => {

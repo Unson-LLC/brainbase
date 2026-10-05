@@ -74,6 +74,18 @@ describe('brainbase web:serve', () => {
     expect(output.stderr()).toContain('review:serve requires --port');
   });
 
+  it('refuses the removed organization Graph flags instead of ignoring them, and never starts a server', async () => {
+    for (const args of [['--organization-graph'], ['--organization-web', 'https://org.example.com']]) {
+      const output = capture();
+      await expect(runCli(['web:serve', '--dir', directory, '--port', '0', ...args], output.io)).resolves.toBe(1);
+      expect(output.stderr()).toContain(`${args[0]} was removed; open the organization web`);
+      expect(output.stdout()).not.toContain('Brainbase: http://');
+    }
+    const help = capture();
+    await runCli(['--help'], help.io);
+    expect(help.stdout()).not.toContain('--organization-graph');
+  });
+
   it('lists web:serve and keeps review:serve as its alias in the help', async () => {
     const output = capture();
     await runCli(['--help'], output.io);
