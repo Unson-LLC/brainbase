@@ -150,7 +150,7 @@ describe('local Graph web HTTP handler', () => {
   it('checks write protection before reading the body and returns the host refusal', async () => {
     await writeGraphV2(dataDir);
     const base = await start();
-    const oversized = JSON.stringify({ ...roleCorrection, reason: 'x'.repeat(20 * 1024) });
+    const oversized = JSON.stringify({ ...roleCorrection, reason: 'x'.repeat(520 * 1024) });
     const refused = await postCorrection(base, oversized, { 'X-Test-Token': 'wrong' });
     expect(refused.status).toBe(403);
     expect(await refused.json()).toMatchObject({ error: { code: 'launch_token_required' } });

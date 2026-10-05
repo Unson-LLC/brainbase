@@ -344,6 +344,57 @@ describe('local Graph corrections', () => {
     expect((await readRelationships()).relationships.find((record) => record.id === 'relationship-reg1')!.context).toBe('Atlas本番導入: 最終判断を担当');
   });
 
+  it('registers and removes a bounded project icon, keeps history compact, and reads it back in list/detail views', async () => {
+    await writeGraphV2(dataDir);
+    const icon = 'data:image/png;base64,iVBORw0KGgo=';
+    for (const suffix of ['\n', '\r', '\r\n']) {
+      await expectCorrectionError(applyGraphCorrection(dataDir, {
+        kind: 'update_entity',
+        entityId: 'project-atlas',
+        expectedDigest: graphRecordDigest(ENTITIES.atlas),
+        reason: '形式を確認する。',
+        changes: { icon: `${icon}${suffix}` }
+      }, { now: FIXTURE_NOW }), 'invalid', 'correction_invalid');
+    }
+    const registered = await applyGraphCorrection(dataDir, {
+      kind: 'update_entity',
+      entityId: 'project-atlas',
+      expectedDigest: graphRecordDigest(ENTITIES.atlas),
+      reason: 'プロジェクトを見分けやすくする。',
+      changes: { icon }
+    }, { now: FIXTURE_NOW });
+
+    const stored = (await readGraph()).entities.find((entity) => entity.id === 'project-atlas')!;
+    expect(stored.metadata).toMatchObject({ icon });
+    expect(registered.correction.changedFields).toEqual(['metadata.icon']);
+    expect(registered.correction.changes).toEqual({
+      'metadata.icon': { before: null, after: { present: true, valid: true, mimeType: 'image/png', bytes: 8 } }
+    });
+    expect(JSON.stringify(registered.correction)).not.toContain(icon);
+    expect(registered.readback).toMatchObject({ verified: true, historyRecorded: true });
+
+    const list = await listGraphProjects(dataDir, { now: FIXTURE_NOW });
+    if (list.status !== 'ok') throw new Error('expected ok');
+    expect(list.projects.find((project) => project.id === 'project-atlas')?.icon).toBe(icon);
+    const detail = await readGraphProject(dataDir, 'project-atlas', { now: FIXTURE_NOW });
+    if (detail.status !== 'ok') throw new Error('expected ok');
+    expect(detail.project.icon).toBe(icon);
+
+    const removed = await applyGraphCorrection(dataDir, {
+      kind: 'update_entity',
+      entityId: 'project-atlas',
+      expectedDigest: graphRecordDigest(stored),
+      reason: '既定の見た目に戻す。',
+      changes: { icon: null }
+    }, { now: FIXTURE_NOW });
+    const afterRemoval = (await readGraph()).entities.find((entity) => entity.id === 'project-atlas')!;
+    expect(afterRemoval.metadata?.icon).toBeUndefined();
+    expect(removed.correction.changes).toEqual({
+      'metadata.icon': { before: { present: true, valid: true, mimeType: 'image/png', bytes: 8 }, after: null }
+    });
+    expect(JSON.stringify(await readGraphCorrectionHistory(dataDir))).not.toContain(icon);
+  });
+
   it('refuses a stale digest with the current record and writes nothing', async () => {
     await writeGraphV2(dataDir);
     const graphBefore = await readFile(join(dataDir, 'graph.json'), 'utf8');

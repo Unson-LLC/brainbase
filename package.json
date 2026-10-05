@@ -228,6 +228,7 @@
     "./ui/workspace-kit.css": "./ui/workspace-kit.css",
     "./ui/graph-view-shared": "./ui/graph-view-shared.js",
     "./ui/graph-view-shared.css": "./ui/graph-view-shared.css",
+    "./ui/project-icon": "./ui/project-icon.js",
     "./ui/graph-own-share": "./ui/graph-own-share.js",
     "./ui/graph-projects-view": "./ui/graph-projects-view.js",
     "./ui/graph-projects-view.css": "./ui/graph-projects-view.css",

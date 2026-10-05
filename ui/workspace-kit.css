@@ -286,7 +286,18 @@
 
 .bb-ws-ledger-object {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
+}
+
+.bb-ws-ledger-object:has(> .bb-project-icon) {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.bb-ws-ledger-object:has(> .bb-project-icon) > strong,
+.bb-ws-ledger-object:has(> .bb-project-icon) > code {
+  grid-column: 2;
 }
 
 .bb-ws-ledger-object strong {

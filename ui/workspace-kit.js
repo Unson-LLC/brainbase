@@ -139,7 +139,8 @@ function ledgerRowLabel(cells = []) {
 /**
  * A ledger: a header row and selectable rows. `className` sets the column
  * template in the caller's CSS. A cell is text, an element, `{ text, className }`,
- * or `{ primary, secondary }` for a name with its id underneath.
+ * or `{ primary, secondary, leading }` for a name with its id underneath and
+ * an optional leading element (for example a project icon).
  */
 export function workspaceLedger(doc, { columns = [], rows = [], className = '', ariaLabel, empty } = {}) {
   const ledger = el(doc, 'div', { className: `bb-ws-ledger${className ? ` ${className}` : ''}`, attrs: { role: 'table', 'aria-label': ariaLabel } });
@@ -165,6 +166,7 @@ export function workspaceLedger(doc, { columns = [], rows = [], className = '', 
     for (const cell of row.cells ?? []) {
       if (cell && typeof cell === 'object' && 'primary' in cell) {
         const object = el(doc, 'span', { className: 'bb-ws-ledger-object', attrs: { role: 'cell' } });
+        if (cell.leading && typeof cell.leading.tagName === 'string') object.append(cell.leading);
         object.append(el(doc, 'strong', { text: cell.primary }));
         if (cell.secondary) object.append(el(doc, 'code', { text: cell.secondary }));
         item.append(object);
@@ -185,9 +187,10 @@ export function workspaceLedger(doc, { columns = [], rows = [], className = '', 
 }
 
 /** The selected item's head in the right rail. */
-export function workspaceRailHead(doc, { kicker, title, sub, lead } = {}) {
+export function workspaceRailHead(doc, { kicker, title, sub, lead, leading } = {}) {
   const head = el(doc, 'div', { className: 'bb-ws-rail-head' });
   if (kicker) head.append(el(doc, 'small', { text: kicker }));
+  if (leading && typeof leading.tagName === 'string') head.append(leading);
   head.append(el(doc, 'h2', { text: title }));
   if (sub) head.append(el(doc, 'span', { text: sub }));
   if (lead) head.append(el(doc, 'p', { text: lead }));

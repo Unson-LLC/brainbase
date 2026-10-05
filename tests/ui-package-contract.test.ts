@@ -43,6 +43,7 @@ describe('OSS共通UIの公開契約', () => {
       './ui/workspace-kit.css': './ui/workspace-kit.css',
       './ui/graph-view-shared': './ui/graph-view-shared.js',
       './ui/graph-view-shared.css': './ui/graph-view-shared.css',
+      './ui/project-icon': './ui/project-icon.js',
       './ui/graph-own-share': './ui/graph-own-share.js',
       './ui/graph-projects-view': './ui/graph-projects-view.js',
       './ui/graph-projects-view.css': './ui/graph-projects-view.css',
@@ -85,6 +86,7 @@ describe('OSS共通UIの公開契約', () => {
       'brainbase-tokens.css',
       'graph-view-shared.js',
       'graph-view-shared.css',
+      'project-icon.js',
       'graph-own-share.js',
       'graph-projects-view.js',
       'graph-projects-view.css',
@@ -180,4 +182,3 @@ describe('OSS共通UIの公開契約', () => {
     }
   });
 });
-

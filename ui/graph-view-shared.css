@@ -100,6 +100,55 @@
   min-width: 0;
 }
 
+/* Project marks are shared by the ledger, rail and correction readback. The
+   unregistered initial is painted from an attribute so it never pollutes the
+   ledger's accessible project name or correction history with data URLs. */
+.bb-project-icon {
+  display: inline-grid;
+  flex: 0 0 36px;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  overflow: hidden;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  color: var(--bb-color-accent-strong);
+  background: var(--bb-color-accent-soft);
+  font-size: 15px;
+  font-weight: 750;
+  line-height: 1;
+}
+
+.bb-project-icon.is-sm {
+  flex-basis: 26px;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.bb-project-icon::before { content: attr(data-initial); }
+.bb-project-icon.is-registered::before { content: ''; }
+.bb-project-icon img { display: block; width: 100%; height: 100%; object-fit: cover; }
+
+.bb-graph-icon-value,
+.bb-graph-icon-picker {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--bb-space-2);
+}
+
+.bb-graph-icon-picker { margin-top: var(--bb-space-2); }
+.bb-graph-icon-picker-state { color: var(--bb-color-muted); font-size: 12px; }
+.bb-graph-field-error { display: block; color: var(--bb-color-danger); font-size: 12px; }
+.bb-graph-correction .bb-project-icon { margin-right: var(--bb-space-1); }
+
+.bb-ws-ledger-object > .bb-project-icon {
+  grid-row: 1 / span 2;
+}
+.bb-ws-rail-head > .bb-project-icon { margin-bottom: var(--bb-space-3); }
+
 /* Compact items: each 関係者 or relation in the rail. */
 .bb-graph-compact-list {
   display: grid;

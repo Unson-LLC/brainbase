@@ -9,6 +9,7 @@ import {
   GRAPH_CORRECTION_PROJECT_FIELDS,
   GRAPH_CORRECTIONS_FILE,
   graphRecordDigest,
+  isProjectIconDataUrl,
   readGraphCorrectionHistory,
   type GraphCorrectionRecord
 } from './graph-corrections.js';
@@ -120,6 +121,8 @@ export interface GraphEntityView {
   digest: string;
   goal?: string | null;
   status?: string | null;
+  /** Projects only. A validated PNG/JPEG/WebP data URL, or null when unset. */
+  icon?: string | null;
 }
 
 export type GraphProvenanceReference =
@@ -921,12 +924,25 @@ function entityView(entity: CanonicalEntity, asOf: string): GraphEntityView {
     validTo: entity.validTo ?? null,
     active: isActiveAt(entity, asOf),
     digest: graphRecordDigest(entity),
-    ...(entity.type === 'project' ? { goal: metadataString(entity, 'goal'), status: metadataString(entity, 'status') } : {})
+    ...(entity.type === 'project'
+      ? { goal: metadataString(entity, 'goal'), status: metadataString(entity, 'status'), icon: projectIconString(entity) }
+      : {})
   };
 }
 
 function projectView(project: CanonicalEntity, asOf: string): GraphEntityView & { type: 'project'; goal: string | null; status: string | null } {
-  return { ...entityView(project, asOf), type: 'project', goal: metadataString(project, 'goal'), status: metadataString(project, 'status') };
+  return {
+    ...entityView(project, asOf),
+    type: 'project',
+    goal: metadataString(project, 'goal'),
+    status: metadataString(project, 'status'),
+    icon: projectIconString(project),
+  };
+}
+
+function projectIconString(entity: CanonicalEntity): string | null {
+  const value = entity.metadata?.icon;
+  return isProjectIconDataUrl(value) ? value : null;
 }
 
 function historyFor(records: GraphCorrectionRecord[], ids: Set<string>): GraphCorrectionRecord[] {

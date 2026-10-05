@@ -21,7 +21,7 @@ export const GRAPH_CORRECTION_SCHEMA = 'brainbase-graph-correction.v1' as const;
 /** Relative to the data directory. Committed as a sidecar of the canonical SSOT transaction. */
 export const GRAPH_CORRECTIONS_FILE = 'evidence/graph-corrections.jsonl';
 export const GRAPH_CORRECTION_ENTITY_FIELDS = ['name', 'aliases', 'summary', 'validFrom', 'validTo'] as const;
-export const GRAPH_CORRECTION_PROJECT_FIELDS = ['goal', 'status'] as const;
+export const GRAPH_CORRECTION_PROJECT_FIELDS = ['goal', 'status', 'icon'] as const;
 export const GRAPH_CORRECTION_EDGE_FIELDS = ['role', 'context', 'validTo'] as const;
 export const GRAPH_CORRECTION_NEW_EDGE_RELATIONS = ['participates_in', 'accountable_for', 'member_of'] as const;
 /** MCP tools that read the same graph.json on every call and therefore see a saved correction next time. */
@@ -31,6 +31,8 @@ const MAX_REASON_LENGTH = 500;
 const MAX_NAME_LENGTH = 200;
 const MAX_TEXT_LENGTH = 2000;
 const MAX_ALIASES = 50;
+/** Decoded bytes, shared with the browser-side project-icon helper. */
+export const PROJECT_ICON_MAX_BYTES = 256 * 1024;
 const DIGEST_PATTERN = /^sha256:[0-9a-f]{64}$/u;
 const PROJECTED_RELATIONS: ReadonlySet<CoreRelation> = new Set(['participates_in', 'accountable_for']);
 
@@ -47,6 +49,8 @@ export interface GraphEntityCorrectionChanges {
   goal?: string | null;
   /** Projects only. Stored as `metadata.status`. */
   status?: string | null;
+  /** Projects only. Stored as `metadata.icon` as a bounded PNG/JPEG/WebP data URL. */
+  icon?: string | null;
 }
 
 export interface GraphEdgeCorrectionChanges {
@@ -320,8 +324,8 @@ function planEntityUpdate(
   const before = matches[0]!;
   assertExpectedDigest('entity', before, correction.expectedDigest);
   const changes = correction.changes;
-  if ((changes.goal !== undefined || changes.status !== undefined) && before.type !== 'project') {
-    invalid('correction_field_not_allowed', 'goal and status can be corrected only on a project');
+  if ((changes.goal !== undefined || changes.status !== undefined || changes.icon !== undefined) && before.type !== 'project') {
+    invalid('correction_field_not_allowed', 'goal, status and icon can be corrected only on a project');
   }
 
   const after: CanonicalEntity = structuredClone(before);
@@ -331,7 +335,7 @@ function planEntityUpdate(
   if (changes.summary !== undefined) setField(after, 'summary', changes.summary, before, diff);
   if (changes.validFrom !== undefined) setField(after, 'validFrom', changes.validFrom, before, diff);
   if (changes.validTo !== undefined) setField(after, 'validTo', changes.validTo, before, diff);
-  if (changes.goal !== undefined || changes.status !== undefined) {
+  if (changes.goal !== undefined || changes.status !== undefined || changes.icon !== undefined) {
     const metadata: Record<string, unknown> = { ...(before.metadata ?? {}) };
     for (const key of ['goal', 'status'] as const) {
       const next = changes[key];
@@ -341,6 +345,16 @@ function planEntityUpdate(
       if (next === null) delete metadata[key];
       else metadata[key] = next;
       diff[`metadata.${key}`] = { before: previous, after: next };
+    }
+    if (changes.icon !== undefined) {
+      const previous = typeof metadata.icon === 'string' ? metadata.icon : null;
+      const next = changes.icon;
+      if (previous !== next) {
+        if (next === null) delete metadata.icon;
+        else metadata.icon = next;
+        // Keep image bytes and the long data URL out of append-only history.
+        diff['metadata.icon'] = { before: projectIconSummary(previous), after: projectIconSummary(next) };
+      }
     }
     if (Object.keys(metadata).length > 0) after.metadata = metadata;
     else delete after.metadata;
@@ -623,6 +637,7 @@ function parseEntityChanges(value: unknown): GraphEntityCorrectionChanges {
   if (value.validTo !== undefined) changes.validTo = optionalDateTime(value.validTo, 'changes.validTo');
   if (value.goal !== undefined) changes.goal = optionalText(value.goal, 'changes.goal', MAX_TEXT_LENGTH);
   if (value.status !== undefined) changes.status = optionalText(value.status, 'changes.status', MAX_NAME_LENGTH);
+  if (value.icon !== undefined) changes.icon = parseProjectIcon(value.icon);
   return changes;
 }
 
@@ -701,6 +716,66 @@ function optionalDateTime(value: unknown, field: string): string | null {
     invalid('correction_invalid', `${field} must be an RFC 3339 date-time such as 2026-09-30T00:00:00Z`);
   }
   return value;
+}
+
+const PROJECT_ICON_DATA_URL = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]*={0,2})(?![\s\S])/u;
+
+function parseProjectIcon(value: unknown): string | null {
+  if (value === null) return null;
+  if (typeof value !== 'string') invalid('correction_invalid', 'changes.icon must be a PNG, JPEG, WebP data URL or null');
+  const match = PROJECT_ICON_DATA_URL.exec(value);
+  if (!match || value.length === 0) invalid('correction_invalid', 'changes.icon must be a PNG, JPEG, WebP data URL or null');
+  const payload = match[2]!;
+  if (!payload || payload.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/u.test(payload)) {
+    invalid('correction_invalid', 'changes.icon must contain canonical base64 data');
+  }
+  let decoded: Buffer;
+  try {
+    decoded = Buffer.from(payload, 'base64');
+  } catch {
+    invalid('correction_invalid', 'changes.icon contains invalid base64 data');
+  }
+  if (decoded.length === 0 || decoded.toString('base64') !== payload) {
+    invalid('correction_invalid', 'changes.icon contains invalid base64 data');
+  }
+  if (decoded.length > PROJECT_ICON_MAX_BYTES) {
+    invalid('correction_invalid', `changes.icon must be at most ${PROJECT_ICON_MAX_BYTES} decoded bytes`);
+  }
+  const mimeType = match[1];
+  const validSignature = mimeType === 'image/png'
+    ? decoded.length >= 8 && Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]).equals(decoded.subarray(0, 8))
+    : mimeType === 'image/jpeg'
+      ? decoded.length >= 4 && decoded[0] === 0xff && decoded[1] === 0xd8 && decoded[2] === 0xff
+        && decoded[decoded.length - 2] === 0xff && decoded[decoded.length - 1] === 0xd9
+      : decoded.length >= 12 && decoded.subarray(0, 4).toString('ascii') === 'RIFF'
+        && decoded.subarray(8, 12).toString('ascii') === 'WEBP';
+  if (!validSignature) invalid('correction_invalid', 'changes.icon image signature does not match its MIME type');
+  return value;
+}
+
+/** Returns true only for a bounded, signature-checked project icon data URL. */
+export function isProjectIconDataUrl(value: unknown): value is string {
+  if (value === null) return false;
+  try {
+    return parseProjectIcon(value) !== null;
+  } catch (error) {
+    if (error instanceof GraphCorrectionError && error.kind === 'invalid') return false;
+    throw error;
+  }
+}
+
+function projectIconSummary(value: unknown): JsonValue {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') return { present: true, valid: false };
+  const match = PROJECT_ICON_DATA_URL.exec(value);
+  if (!match) return { present: true, valid: false };
+  if (!isProjectIconDataUrl(value)) return { present: true, valid: false };
+  try {
+    const decoded = Buffer.from(match[2]!, 'base64');
+    return { present: true, valid: true, mimeType: match[1]!, bytes: decoded.length };
+  } catch {
+    return { present: true, valid: false };
+  }
 }
 
 function requireId(value: unknown, field: string): string {
