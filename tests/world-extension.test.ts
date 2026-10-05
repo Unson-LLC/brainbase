@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { JudgmentValueProofJournalCache } from '../src/judgment-value-proof-review.js';
-import { projectWorldFromGraph, readJudgmentPlaces, readWorldBusinesses, readWorldVocabulary, resolveWorldVocabulary } from '../src/world-extension.js';
+import { projectWorldFromGraph, readJudgmentPlaces, readOrganizationJudgments, readWorldBusinesses, readWorldVocabulary, resolveWorldVocabulary } from '../src/world-extension.js';
 
 const valueProof = (id: string) => ({
   schema_version: 'brainbase-judgment-value-proof-v1',
@@ -193,6 +193,34 @@ describe('world: where a judgment stands', () => {
       { decision_attempt_id: 'attempt-1', workspace: 'pilot-runtime' },
       { decision_attempt_id: 'attempt-2', workspace: null },
     ]);
+  });
+
+  it('shows an organization only its own judgments: another company\'s work and unrecorded ones are withheld, never listed', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'bb-world-org-judgments-'));
+    const dataDir = await mkdtemp(join(tmpdir(), 'bb-world-org-data-'));
+    await mkdir(join(root, 'session-a'));
+    const write = async (id: string, workspace: string | null) => {
+      await writeFile(join(root, 'session-a', `t${id}.value-proof.json`), JSON.stringify(valueProof(id)));
+      if (workspace) await writeFile(join(root, 'session-a', `t${id}.turn-input.json`), JSON.stringify({ project_code: workspace }));
+    };
+    await write('1', 'atlas-app');      // a registered repository of Atlas
+    await write('2', 'beacon');         // the code of Beacon
+    await write('3', 'other-company');  // another company's repository
+    await write('4', null);             // no repository recorded
+    const businesses = [{ code: 'atlas', repositories: ['atlas-app'] }, { code: 'beacon', repositories: [] }];
+    const result = await readOrganizationJudgments(
+      { journalRoot: root, journalCache: new JudgmentValueProofJournalCache(), dataDir, now: () => new Date('2026-10-05T00:00:00Z') },
+      businesses,
+    );
+    expect(result.status).toBe('available');
+    expect(result.withheld).toBe(2);
+    expect(result.places.map((place) => place.workspace).sort()).toEqual(['atlas-app', 'beacon']);
+    const sent = JSON.stringify(result.home);
+    expect(sent).toContain('attempt-1');
+    expect(sent).toContain('attempt-2');
+    expect(sent).not.toContain('attempt-3');
+    expect(sent).not.toContain('attempt-4');
+    expect(JSON.stringify(result)).not.toContain('other-company');
   });
 
   it('lists only changed journal folders again, through the cache it shares with the 今日 list', async () => {

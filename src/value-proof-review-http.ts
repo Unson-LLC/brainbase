@@ -61,7 +61,8 @@ export interface ValueProofReviewHttpOptions {
 
 export type ValueProofReviewHttpHandler = (request: IncomingMessage, response: ServerResponse) => Promise<boolean>;
 
-function publicHome(home: JudgmentValueProofReviewHome): unknown {
+/** The home as the browser receives it: no local paths beyond the journal root. */
+export function publicHome(home: JudgmentValueProofReviewHome): unknown {
   if (home.status === 'unavailable') return home;
   const strip = (items: Readonly<Record<string, readonly JudgmentValueProofReviewItem[]>>) =>
     Object.fromEntries(Object.entries(items).map(([section, list]) => [

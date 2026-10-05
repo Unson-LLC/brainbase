@@ -1,7 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { fileURLToPath } from 'node:url';
-import { JudgmentValueProofJournalCache, readJudgmentValueProofJournal } from './judgment-value-proof-review.js';
+import {
+  buildJudgmentValueProofReviewHome,
+  JudgmentValueProofJournalCache,
+  readJudgmentValueProofAnswers,
+  readJudgmentValueProofFeedback,
+  readJudgmentValueProofJournal,
+} from './judgment-value-proof-review.js';
+import { publicHome } from './value-proof-review-http.js';
 import { readLocalGraphState, type GraphVocabularyTerm, type LocalWebExtension, type LocalWebModule, type LocalWebModuleContext } from './local-web-host.js';
 import { loadPersonalOs } from './ssot.js';
 import type { CanonicalEntity, GraphFileV2 } from './types.js';
@@ -325,6 +332,48 @@ export async function readJudgmentPlaces(
   return { status: 'available', places };
 }
 
+/**
+ * The judgments of one organization, for a world drawn from that organization's Graph.  A judgment
+ * belongs to the organization only when the repository it was worked in is one of the organization's
+ * businesses (a registered repository or the business code, the same rule as the world's placement).
+ * Every other judgment (another company's work, or one whose repository was not recorded) is withheld:
+ * only their count leaves the host, never their questions or repositories.
+ */
+export async function readOrganizationJudgments(
+  context: Pick<LocalWebModuleContext, 'journalRoot' | 'journalCache' | 'dataDir' | 'now'>,
+  businesses: readonly Pick<WorldBusiness, 'code' | 'repositories'>[],
+  workspaces: Map<string, string | null> = new Map()
+): Promise<{ readonly status: 'available' | 'unavailable'; readonly scope: 'organization'; readonly withheld: number; readonly places: readonly WorldJudgmentPlace[]; readonly home: unknown; readonly reason?: string }> {
+  const journal = await readJudgmentValueProofJournal({ root: context.journalRoot, cache: context.journalCache });
+  if (journal.status !== 'available') return { status: 'unavailable', scope: 'organization', withheld: 0, places: [], home: null, reason: 'journal_unreadable' };
+  const belongs = (workspace: string | null) => workspace !== null
+    && businesses.some((business) => business.repositories.includes(workspace) || business.code === workspace);
+  const kept: (typeof journal.entries)[number][] = [];
+  const places: WorldJudgmentPlace[] = [];
+  for (const entry of journal.entries) {
+    const workspace = await entryWorkspace(entry.file, workspaces);
+    if (!belongs(workspace)) continue;
+    kept.push(entry);
+    places.push({ decision_attempt_id: entry.proof.decision_attempt_id, workspace });
+  }
+  const [feedback, answers] = await Promise.all([
+    readJudgmentValueProofFeedback({ dataDir: context.dataDir }),
+    readJudgmentValueProofAnswers({ dataDir: context.dataDir }),
+  ]);
+  // Rejected files are left out too: their names would say nothing about the organization they belong to.
+  const home = buildJudgmentValueProofReviewHome({ ...journal, entries: kept, rejected: [] }, feedback, { now: context.now(), answers });
+  return { status: 'available', scope: 'organization', withheld: journal.entries.length - kept.length, places, home: publicHome(home) };
+}
+
+async function entryWorkspace(valueProofFile: string, workspaces: Map<string, string | null>): Promise<string | null> {
+  const turnInputFile = `${valueProofFile.slice(0, -VALUE_PROOF_SUFFIX.length)}.turn-input.json`;
+  if (!workspaces.has(turnInputFile)) {
+    const turnInput = await readJsonFile(turnInputFile);
+    workspaces.set(turnInputFile, isRecord(turnInput) ? text(turnInput.project_code) : null);
+  }
+  return workspaces.get(turnInputFile) ?? null;
+}
+
 async function readJsonFile(path: string): Promise<unknown> {
   try {
     return JSON.parse(await readFile(path, 'utf8')) as unknown;
@@ -344,6 +393,16 @@ function createWorldModule(context: LocalWebModuleContext, read: () => Promise<W
       if (path === `/api/extensions/${WORLD_EXTENSION_ID}/businesses`) {
         response.setHeader('Cache-Control', 'no-store');
         writeJson(response, 200, await read());
+        return true;
+      }
+      if (path === `/api/extensions/${WORLD_EXTENSION_ID}/organization-judgments`) {
+        response.setHeader('Cache-Control', 'no-store');
+        const world = await read();
+        if (world.status !== 'ok' || world.source.authority !== 'organization_graph') {
+          writeJson(response, 200, { version: WORLD_EXTENSION_VERSION, status: 'unavailable', scope: 'organization', withheld: 0, places: [], home: null, reason: 'not_reading_organization_graph' });
+          return true;
+        }
+        writeJson(response, 200, { version: WORLD_EXTENSION_VERSION, ...(await readOrganizationJudgments(context, world.businesses, workspaces)) });
         return true;
       }
       if (path === `/api/extensions/${WORLD_EXTENSION_ID}/judgment-places`) {
