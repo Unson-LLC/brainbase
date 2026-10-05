@@ -786,7 +786,18 @@ function renderFallbackList(doc, root, businesses, rows) {
   root.append(list);
 }
 
-export function createWorldView({ root, rail, page, document: explicitDocument, fetcher, organizationGraph = null }) {
+/** Why the host has no judgments to give, in the words the screen shows. */
+const JUDGMENT_UNAVAILABLE_TEXT = Object.freeze({
+  judgment_journal_not_connected: '判断の記録は各メンバーのMacにあり、組織版には送らないため未接続です',
+});
+
+/**
+ * @param {object} options
+ * @param {(project: { id: string, code?: string | null }) => string} [options.projectHref] Where a business or
+ *   engagement opens in the host's プロジェクトと関係者.  The local web opens `#projects?project=<id>`; an
+ *   organization web passes its own route.
+ */
+export function createWorldView({ root, rail, page, document: explicitDocument, fetcher, organizationGraph = null, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}` }) {
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const wrap = el(doc, 'div', { className: 'bb-world' });
@@ -837,8 +848,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   }
 
   /** Descends to the same project in プロジェクトと関係者 (the shell opens `#projects?project=`). */
-  function projectLink(projectId, label) {
-    return el(doc, 'a', { className: 'bb-world-rail-link', text: label, attrs: { href: `#projects?project=${encodeURIComponent(projectId)}` } });
+  function projectLink(project, label) {
+    return el(doc, 'a', { className: 'bb-world-rail-link', text: label, attrs: { href: projectHref(project) } });
   }
 
   /**
@@ -856,7 +867,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   /** 詳しく見る: プロジェクトと関係者 here, and the organization web when there is one. */
   function detailBlock(project, label) {
-    const content = [projectLink(project.id, label), organizationLink(project)].filter(Boolean);
+    const content = [projectLink(project, label), organizationLink(project)].filter(Boolean);
     return workspaceRailBlock(doc, { title: '詳しく見る', content });
   }
 
@@ -907,7 +918,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
         for (const engagement of business.engagements) {
           const li = el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` });
-          li.append(projectLink(engagement.id, '開く'));
+          li.append(projectLink(engagement, '開く'));
           ul.append(li);
         }
         blocks.push(workspaceRailBlock(doc, { title: '案件（区画）', content: business.engagements.length ? ul : { text: '登録された案件はありません' } }));
@@ -1027,7 +1038,9 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     const readable = home?.status === 'available' && Array.isArray(home.delegation_map?.rows);
     const rows = readable ? home.delegation_map.rows : [];
     if (!homeResult.ok || !readable) {
-      note('判断', `判断の記録を読めません（${homeResult.ok ? home?.reason ?? home?.status ?? '状態不明' : homeResult.error}）。0件ではありません。`, 'warning');
+      const reason = homeResult.ok ? home?.reason ?? home?.status ?? '状態不明' : homeResult.error;
+      if (JUDGMENT_UNAVAILABLE_TEXT[reason]) note('判断', `${JUDGMENT_UNAVAILABLE_TEXT[reason]}。事業だけを描いています。`);
+      else note('判断', `判断の記録を読めません（${reason}）。0件ではありません。`, 'warning');
     } else {
       proofs = proofIndex(home);
       const waiting = [...proofs.values()].filter(isWaiting).length;
