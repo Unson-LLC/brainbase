@@ -19,7 +19,7 @@ const valueProof = (id: string) => ({
   feedback: { status: 'none', summary: null, evidence_ref: null },
 });
 // @ts-expect-error plain browser module without type declarations
-import { cityMeasures, districtLots, groupJudgmentPlaces, placeJudgment } from '../ui/world/world-placement.js';
+import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, placeJudgment, skyAt } from '../ui/world/world-placement.js';
 
 const project = (id: string, name: string, metadata: Record<string, unknown> = {}, extra: Record<string, unknown> = {}) => ({
   id, type: 'project' as const, name, metadata, ...extra,
@@ -87,6 +87,33 @@ describe('world: a city\'s size is its open engagements, its height and lights a
     const quiet = cityMeasures({ engagements: business.engagements, activity: { window_days: 30, decisions: 0, latest_decision_at: null } }, { isFinished, now: now.getTime() });
     expect([quiet.recent, quiet.lit]).toEqual([0, false]);
     expect(busy.towerHeight).toBeGreaterThan(quiet.towerHeight);
+  });
+});
+
+describe('world: scenery follows the clock, marks follow the data', () => {
+  it('picks the sky from the hour unless a phase is fixed', () => {
+    expect(skyAt(6).phase).toBe('dawn');
+    expect(skyAt(12).phase).toBe('day');
+    expect(skyAt(18).phase).toBe('dusk');
+    expect(skyAt(23).phase).toBe('night');
+    expect(skyAt(2).phase).toBe('night');
+    expect(skyAt(12, 'night').phase).toBe('night');
+    expect(skyAt(23).lamps).toBe(true);
+    expect(skyAt(12).lamps).toBe(false);
+  });
+
+  it('marks only what moved after the last visit, and nothing on a first visit', () => {
+    const businesses = [
+      { code: 'alpha', activity: { latest_decision_at: '2026-10-05T03:00:00Z' } },
+      { code: 'beta', activity: { latest_decision_at: '2026-10-01T00:00:00Z' } },
+      { code: 'gamma', activity: { latest_decision_at: null } },
+    ];
+    const judgmentsByBusiness = new Map([['gamma', [{ item: { proof: { recorded_at: '2026-10-05T04:00:00Z' } } }]]]);
+    const rows = [{ key: 'deploy', latest_recorded_at: '2026-10-05T05:00:00Z' }, { key: 'review', latest_recorded_at: '2026-09-30T00:00:00Z' }];
+    expect(changesSince(null, businesses, judgmentsByBusiness, rows)).toBeNull();
+    const changes = changesSince('2026-10-04T00:00:00Z', businesses, judgmentsByBusiness, rows);
+    expect(changes?.cities).toEqual(['alpha', 'gamma']);
+    expect(changes?.plaza).toEqual(['deploy']);
   });
 });
 

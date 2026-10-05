@@ -15,7 +15,7 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { cityMeasures, districtLots, groupJudgmentPlaces, UNPLACED_REASON_TEXT } from './world-placement.js';
+import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT } from './world-placement.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -242,15 +242,29 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   stage.prepend(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.background = canvasTexture(doc, 4, 256, (ctx, w, h) => {
-    const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, '#dfeee6');
-    gradient.addColorStop(0.55, '#eef4ef');
-    gradient.addColorStop(1, '#f6f1e6');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, w, h);
-  });
-  scene.fog = new THREE.Fog(0xeef3ec, 170, 340);
+  // Scenery (sky, sea, land, mountains, trees, lamps) represents no data: it only sets the place.
+  let skyMode = 'auto';
+  let sky = skyAt(new Date().getHours(), skyMode);
+  function skyTexture(current) {
+    return canvasTexture(doc, 256, 256, (ctx, w, h) => {
+      const gradient = ctx.createLinearGradient(0, 0, 0, h);
+      gradient.addColorStop(0, current.top);
+      gradient.addColorStop(0.55, current.middle);
+      gradient.addColorStop(1, current.bottom);
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, w, h);
+      if (current.stars) {
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        for (let i = 0; i < 90; i += 1) {
+          const sx = hashUnit(`star${i}x`) * w;
+          const sy = hashUnit(`star${i}y`) * h * 0.55;
+          ctx.fillRect(sx, sy, hashUnit(`star${i}s`) > 0.85 ? 1.6 : 0.9, hashUnit(`star${i}s`) > 0.85 ? 1.6 : 0.9);
+        }
+      }
+    });
+  }
+  scene.background = skyTexture(sky);
+  scene.fog = new THREE.Fog(sky.fog, 170, 340);
 
   const camera = new THREE.OrthographicCamera(-50, 50, 50, -50, 0.1, 1000);
   const home = { position: new THREE.Vector3(90, 95, 90), target: new THREE.Vector3(0, 0, 0), zoom: 1 };
@@ -267,8 +281,9 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   controls.minPolarAngle = Math.PI / 6;
   controls.target.copy(home.target);
 
-  scene.add(new THREE.HemisphereLight(0xf4f8ff, 0xd8ccb2, 1.25));
-  const sun = new THREE.DirectionalLight(0xfff1dc, 2.7);
+  const hemisphere = new THREE.HemisphereLight(0xf4f8ff, 0xd8ccb2, sky.hemi);
+  scene.add(hemisphere);
+  const sun = new THREE.DirectionalLight(sky.sun, sky.sunIntensity);
   sun.position.set(70, 110, 40);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -280,11 +295,10 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   fill.position.set(-80, 60, -60);
   scene.add(fill);
 
-  const ground = new THREE.Mesh(new THREE.CircleGeometry(230, 72), new THREE.MeshStandardMaterial({ color: 0xe4ebe1, roughness: 1 }));
-  ground.rotation.x = -Math.PI / 2;
-  ground.receiveShadow = true;
-  ground.userData = { kind: 'ground' };
-  scene.add(ground);
+  // Lit windows and street lamps follow the sky (brightest at night); their meaning does not change.
+  const litMaterials = new Set();
+  const lampMaterials = [];
+  const animated = { water: null, jets: [], sparkles: [] };
 
   const textures = { lit: windowTexture(doc, true), unlit: windowTexture(doc, false), glow: windowTexture(doc, true, true) };
   const pickables = [];
@@ -324,7 +338,8 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       glow.repeat.copy(map.repeat);
       material.emissive = new THREE.Color(0xffc867);
       material.emissiveMap = glow;
-      material.emissiveIntensity = 0.6;
+      material.emissiveIntensity = sky.glow;
+      litMaterials.add(material);
     }
     return mesh(new THREE.BoxGeometry(w, h, d), material, { y: h / 2 });
   }
@@ -350,13 +365,214 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     scene.add(line);
   }
 
+  // Trees are many; they are drawn as two instanced meshes (trunks, crowns) once the world is built.
+  const treePlacements = [];
   function tree(x, z, scale = 1) {
-    const group = new THREE.Group();
-    group.add(mesh(new THREE.CylinderGeometry(0.12 * scale, 0.16 * scale, 0.7 * scale, 6), standard(0x8a6d4e), { y: 0.35 * scale }));
-    group.add(mesh(new THREE.ConeGeometry(0.7 * scale, 1.6 * scale, 7), standard(0x6f9a72, { roughness: 0.95 }), { y: 1.4 * scale }));
-    group.position.set(x, 0, z);
-    scene.add(group);
+    treePlacements.push([x, z, scale]);
   }
+  function plantTrees() {
+    if (treePlacements.length === 0) return;
+    const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.12, 0.16, 0.7, 6), standard(0x8a6d4e), treePlacements.length);
+    const crowns = new THREE.InstancedMesh(new THREE.ConeGeometry(0.7, 1.6, 7), standard(0x6f9a72, { roughness: 0.95 }), treePlacements.length);
+    const matrix = new THREE.Matrix4();
+    const tint = new THREE.Color();
+    treePlacements.forEach(([x, z, scale], index) => {
+      matrix.makeScale(scale, scale, scale).setPosition(x, 0.35 * scale, z);
+      trunks.setMatrixAt(index, matrix);
+      matrix.makeScale(scale, scale, scale).setPosition(x, 1.4 * scale, z);
+      crowns.setMatrixAt(index, matrix);
+      crowns.setColorAt(index, tint.setHSL(0.33 + (hashUnit(`${x},${z}`) - 0.5) * 0.05, 0.22, 0.45 + (hashUnit(`${z},${x}`) - 0.5) * 0.1));
+    });
+    for (const instanced of [trunks, crowns]) {
+      instanced.castShadow = true;
+      instanced.receiveShadow = true;
+      scene.add(instanced);
+    }
+    treePlacements.length = 0;
+  }
+
+  // --- scenery (no data) -----------------------------------------------------
+  function grassTexture() {
+    const texture = canvasTexture(doc, 256, 256, (ctx, w, h) => {
+      ctx.fillStyle = '#cfe0c2';
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 900; i += 1) {
+        const tone = hashUnit(`g${i}t`);
+        ctx.fillStyle = tone > 0.66 ? 'rgba(150,186,132,0.35)' : tone > 0.33 ? 'rgba(214,230,196,0.45)' : 'rgba(176,204,152,0.3)';
+        ctx.beginPath();
+        ctx.arc(hashUnit(`g${i}x`) * w, hashUnit(`g${i}y`) * h, 2 + hashUnit(`g${i}r`) * 7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(18, 18);
+    return texture;
+  }
+
+  function waterTexture() {
+    const texture = canvasTexture(doc, 128, 128, (ctx, w, h) => {
+      ctx.fillStyle = '#8fc0d2';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      ctx.lineWidth = 1.2;
+      for (let i = 0; i < 26; i += 1) {
+        const x = hashUnit(`w${i}x`) * w;
+        const y = hashUnit(`w${i}y`) * h;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + 6, y - 3, x + 12, y);
+        ctx.stroke();
+      }
+    });
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(40, 40);
+    return texture;
+  }
+
+  function pavingTexture() {
+    return canvasTexture(doc, 128, 128, (ctx, w, h) => {
+      ctx.fillStyle = '#f1ece1';
+      ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = 'rgba(176,164,140,0.55)';
+      ctx.lineWidth = 1;
+      for (let r = 8; r < w / 2; r += 9) {
+        ctx.beginPath();
+        ctx.arc(w / 2, h / 2, r, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      for (let i = 0; i < 24; i += 1) {
+        const a = (i / 24) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(w / 2 + Math.cos(a) * 8, h / 2 + Math.sin(a) * 8);
+        ctx.lineTo(w / 2 + Math.cos(a) * w / 2, h / 2 + Math.sin(a) * h / 2);
+        ctx.stroke();
+      }
+    });
+  }
+
+  /** Land, beach, sea and a far shore of mountains around the cities; scenery only. */
+  function buildTerrain(extent) {
+    const landRadius = extent + 22;
+    const land = mesh(new THREE.CircleGeometry(landRadius, 96), standard(0xffffff, { map: grassTexture(), roughness: 1 }), { shadow: false });
+    land.rotation.x = -Math.PI / 2;
+    land.receiveShadow = true;
+    scene.add(land);
+    const beach = mesh(new THREE.RingGeometry(landRadius, landRadius + 4.5, 96), new THREE.MeshLambertMaterial({ color: 0xeadfc4 }), { y: -0.05, shadow: false });
+    beach.rotation.x = -Math.PI / 2;
+    beach.receiveShadow = false;
+    scene.add(beach);
+    const water = waterTexture();
+    const sea = mesh(new THREE.PlaneGeometry(900, 900), new THREE.MeshLambertMaterial({ map: water }), { y: -0.35, shadow: false });
+    sea.rotation.x = -Math.PI / 2;
+    sea.receiveShadow = false;
+    scene.add(sea);
+    animated.water = water;
+    // A far shore: low mountains across the water, faded by the fog.
+    for (let i = 0; i < 22; i += 1) {
+      const angle = Math.PI * 0.85 + (i / 21) * Math.PI * 0.95 + (hashUnit(`m${i}a`) - 0.5) * 0.08;
+      const distance = landRadius + 110 + hashUnit(`m${i}d`) * 50;
+      const peak = 10 + hashUnit(`m${i}h`) * 16;
+      const radius = 10 + hashUnit(`m${i}r`) * 9;
+      const mountain = mesh(new THREE.ConeGeometry(radius, peak, 7), new THREE.MeshLambertMaterial({ color: 0xb4c4bc, flatShading: true }), { x: Math.cos(angle) * distance, y: peak / 2 - 0.4, z: Math.sin(angle) * distance, shadow: false });
+      mountain.rotation.y = hashUnit(`m${i}y`) * Math.PI;
+      mountain.receiveShadow = false;
+      scene.add(mountain);
+      if (peak > 21) {
+        const cap = mesh(new THREE.ConeGeometry(radius * 0.32, peak * 0.3, 7), new THREE.MeshLambertMaterial({ color: 0xf4f6f6, flatShading: true }), { x: mountain.position.x, y: peak - 0.4 - peak * 0.15, z: mountain.position.z, shadow: false });
+        cap.rotation.y = mountain.rotation.y;
+        scene.add(cap);
+      }
+    }
+    return landRadius;
+  }
+
+  const lampPlacements = [];
+  function streetLamp(x, z) {
+    lampPlacements.push([x, z]);
+  }
+  function placeLamps() {
+    if (lampPlacements.length === 0) return;
+    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.07, 1.6, 6), new THREE.MeshLambertMaterial({ color: 0x4b5550 }), lampPlacements.length);
+    const bulbMaterial = standard(0xfff3d6, { emissive: new THREE.Color(0xffd27a), emissiveIntensity: sky.lamps ? 1.6 : 0 });
+    lampMaterials.push(bulbMaterial);
+    const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.16, 10, 8), bulbMaterial, lampPlacements.length);
+    const matrix = new THREE.Matrix4();
+    lampPlacements.forEach(([x, z], index) => {
+      poles.setMatrixAt(index, matrix.makeTranslation(x, 0.8, z));
+      bulbs.setMatrixAt(index, matrix.makeTranslation(x, 1.68, z));
+    });
+    scene.add(poles, bulbs);
+    lampPlacements.length = 0;
+  }
+
+  /** Trees and lamps along a road, kept off the plaza and the city plates. */
+  function avenue(from, to, keepOut) {
+    const length = from.distanceTo(to);
+    const dir = to.clone().sub(from).normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    for (let d = 3; d < length - 2; d += 4.2) {
+      const point = from.clone().addScaledVector(dir, d);
+      if (keepOut(point)) continue;
+      const index = Math.round(d / 4.2);
+      for (const sign of [-1, 1]) {
+        const at = point.clone().addScaledVector(side, sign * 1.9);
+        if (index % 3 === 0 && sign === 1) streetLamp(at.x, at.z);
+        else tree(at.x, at.z, 0.55 + hashUnit(`${from.x}${d}${sign}`) * 0.2);
+      }
+    }
+  }
+
+  /** Groves and fields between the cities; scenery only (no houses, which could read as engagements). */
+  function countryside(landRadius, cities, roads) {
+    const blocked = (x, z, margin) => {
+      if (Math.hypot(x, z) < PLAZA_RADIUS + 8) return true;
+      if (Math.hypot(x, z) > landRadius - 4) return true;
+      if (cities.some((city) => Math.hypot(x - city.x, z - city.z) < city.size * 0.8 + margin)) return true;
+      return roads.some(([a, b]) => {
+        const ab = b.clone().sub(a);
+        const t = Math.max(0, Math.min(1, new THREE.Vector3(x, 0, z).sub(a).dot(ab) / ab.lengthSq()));
+        return a.clone().addScaledVector(ab, t).distanceTo(new THREE.Vector3(x, 0, z)) < margin;
+      });
+    };
+    let groves = 0;
+    for (let i = 0; i < 90 && groves < 26; i += 1) {
+      const angle = hashUnit(`grove${i}a`) * Math.PI * 2;
+      const radius = PLAZA_RADIUS + 10 + hashUnit(`grove${i}r`) * (landRadius - PLAZA_RADIUS - 14);
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      if (blocked(x, z, 4)) continue;
+      groves += 1;
+      if (hashUnit(`grove${i}k`) > 0.7) {
+        // A field: a flat patch in a crop colour.
+        const field = mesh(new THREE.PlaneGeometry(6 + hashUnit(`f${i}w`) * 5, 4 + hashUnit(`f${i}h`) * 4), new THREE.MeshLambertMaterial({ color: hashUnit(`f${i}c`) > 0.5 ? 0xe7dca0 : 0xbfd69b }), { x, y: 0.02, z, shadow: false });
+        field.rotation.set(-Math.PI / 2, 0, hashUnit(`f${i}r`) * Math.PI);
+        scene.add(field);
+        continue;
+      }
+      const count = 4 + Math.floor(hashUnit(`grove${i}n`) * 6);
+      for (let t = 0; t < count; t += 1) {
+        const a = hashUnit(`grove${i}t${t}a`) * Math.PI * 2;
+        const r = hashUnit(`grove${i}t${t}r`) * 3.2;
+        tree(x + Math.cos(a) * r, z + Math.sin(a) * r, 0.6 + hashUnit(`grove${i}t${t}s`) * 0.5);
+      }
+    }
+  }
+
+  function applySky() {
+    sky = skyAt(new Date().getHours(), skyMode);
+    scene.background?.dispose?.();
+    scene.background = skyTexture(sky);
+    scene.fog.color.setHex(sky.fog);
+    sun.color.setHex(sky.sun);
+    sun.intensity = sky.sunIntensity;
+    hemisphere.intensity = sky.hemi;
+    renderer.toneMappingExposure = sky.exposure;
+    for (const material of litMaterials) if (!highlightedMaterials.has(material)) material.emissiveIntensity = sky.glow;
+    for (const material of lampMaterials) material.emissiveIntensity = sky.lamps ? 1.6 : 0;
+  }
+  const highlightedMaterials = new Set();
 
   // --- plaza ---------------------------------------------------------------
   function buildPlaza(rows, rowItems, waitingOf, now) {
@@ -365,6 +581,20 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     plaza.add(mesh(new THREE.CylinderGeometry(PLAZA_RADIUS, PLAZA_RADIUS + 0.4, 0.7, 64), standard(0xf3efe6, { roughness: 0.9 }), { y: 0.35 }));
     plaza.add(mesh(new THREE.TorusGeometry(PLAZA_RADIUS - 0.3, 0.08, 6, 64), standard(0xd8cfbd), { y: 0.72 }));
     plaza.children[2].rotation.x = Math.PI / 2;
+    const paving = mesh(new THREE.CircleGeometry(PLAZA_RADIUS - 0.05, 64), standard(0xffffff, { map: pavingTexture(), roughness: 0.95 }), { y: 0.705, shadow: false });
+    paving.rotation.x = -Math.PI / 2;
+    plaza.add(paving);
+    if (rows.length !== 1) {
+      // A fountain in the middle of the plaza (scenery; the kinds of judgment stand around it).
+      plaza.add(mesh(new THREE.CylinderGeometry(1.5, 1.7, 0.45, 32), standard(0xd9d1c1), { y: 0.92 }));
+      const pool = mesh(new THREE.CircleGeometry(1.3, 32), standard(0x9fd0de, { roughness: 0.2, metalness: 0.1 }), { y: 1.15, shadow: false });
+      pool.rotation.x = -Math.PI / 2;
+      plaza.add(pool);
+      plaza.add(mesh(new THREE.CylinderGeometry(0.18, 0.24, 0.9, 12), standard(0xd9d1c1), { y: 1.5 }));
+      const jet = mesh(new THREE.CylinderGeometry(0.05, 0.16, 1.2, 10), new THREE.MeshBasicMaterial({ color: 0xe8f6fb, transparent: true, opacity: 0.7 }), { y: 2.5, shadow: false });
+      plaza.add(jet);
+      animated.jets.push(jet);
+    }
     scene.add(plaza);
     register(plaza, { kind: 'plaza' });
     addLabel('広場（判断）', new THREE.Vector3(0, 0.8, PLAZA_RADIUS + 2.8), 'is-plaza', { priority: LABEL_PRIORITY.plaza });
@@ -393,6 +623,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       scene.add(group);
       register(group, { kind: 'judgment', row, items: rowItems.get(row.key) ?? [] });
       const top = 0.7 + 0.25 + height + 0.7;
+      markers.plaza.set(row.key, new THREE.Vector3(x, top, z));
       const waiting = waitingOf(row);
       if (waiting > 0) {
         const beam = mesh(new THREE.CylinderGeometry(0.22, 0.22, 16, 12), new THREE.MeshBasicMaterial({ color: 0xd92335, transparent: true, opacity: 0.55 }), { x, y: top + 8, z, shadow: false });
@@ -454,8 +685,11 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     const status = engagement.status;
     const phase = statusPhase(status);
     if (phase === 'finished') {
-      // A finished engagement leaves its lot: a low slab, no roof.
-      group.add(mesh(new THREE.BoxGeometry(1.8, 0.18, 1.8), standard(0xc9cfc8), { y: 0.09 }));
+      // A finished engagement becomes a small memorial park: a lawn, a stone and two bushes.
+      group.add(mesh(new THREE.BoxGeometry(1.8, 0.16, 1.8), standard(0xa9c99a, { roughness: 1 }), { y: 0.08 }));
+      group.add(mesh(new THREE.BoxGeometry(0.28, 0.9, 0.28), standard(0xdcd5c6), { y: 0.61 }));
+      group.add(mesh(new THREE.ConeGeometry(0.2, 0.25, 4), standard(0xdcd5c6), { y: 1.18 }));
+      for (const [bx, bz] of [[-0.55, 0.45], [0.55, -0.4]]) group.add(mesh(new THREE.SphereGeometry(0.28, 8, 6), standard(0x7fa877, { roughness: 1 }), { x: bx, y: 0.3, z: bz }));
       group.userData.finished = true;
       return group;
     }
@@ -483,8 +717,13 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     return group;
   }
 
+  const markers = { cities: new Map(), plaza: new Map() };
   function buildCities({ cities, sectors, extent }, judgmentsByBusiness = new Map()) {
     fitExtent(extent);
+    const landRadius = buildTerrain(extent);
+    const roads = [];
+    const keepOut = (point) => Math.hypot(point.x, point.z) < PLAZA_RADIUS + 5
+      || cities.some((city) => Math.hypot(point.x - city.x, point.z - city.z) < city.size * 0.62 + 1.2);
     for (let i = 0; i < 12; i += 1) {
       const angle = (i / 12) * Math.PI * 2;
       road(new THREE.Vector3(Math.cos(angle) * (PLAZA_RADIUS + 4), 0, Math.sin(angle) * (PLAZA_RADIUS + 4)), new THREE.Vector3(Math.cos(angle + Math.PI / 6) * (PLAZA_RADIUS + 4), 0, Math.sin(angle + Math.PI / 6) * (PLAZA_RADIUS + 4)), 1.5);
@@ -495,6 +734,8 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       const color = kindColor(kind);
       const start = new THREE.Vector3(x, 0, z).setLength(PLAZA_RADIUS + 4);
       road(start, new THREE.Vector3(x, 0, z));
+      roads.push([start, new THREE.Vector3(x, 0, z)]);
+      avenue(start, new THREE.Vector3(x, 0, z), keepOut);
       const group = new THREE.Group();
       group.position.set(x, 0, z);
       const plateColor = new THREE.Color(0xf7f8f4).lerp(new THREE.Color(color), 0.1);
@@ -505,6 +746,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       scene.add(group);
       register(group, { kind: 'city', business });
       const top = entry.form === 'tower' ? towerHeight * 1.45 + 1.8 : towerHeight + 1;
+      markers.cities.set(business.code, new THREE.Vector3(x, top, z));
       const cityLabel = addLabel(statusPhase(business.status) === 'concept' ? `${business.name}（${statusText(business.status)}）` : business.name, new THREE.Vector3(x, top, z), 'is-city', { priority: LABEL_PRIORITY.city, owner: group });
       cityLabel.node.style.borderColor = `${entry.color}80`;
       cityLabel.business = business;
@@ -543,6 +785,9 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
         tree(x + Math.cos(a) * size * 0.42, z + Math.sin(a) * size * 0.42, 0.8);
       }
     }
+    countryside(landRadius, cities, roads);
+    plantTrees();
+    placeLamps();
     for (const { kind, angle } of sectors) {
       addLabel(kindEntry(kind).label, new THREE.Vector3(Math.cos(angle) * 21, 0.2, Math.sin(angle) * 21), 'is-sector', { priority: LABEL_PRIORITY.sector });
     }
@@ -559,11 +804,13 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   function setHighlight(group, on) {
     for (const entry of highlightable.get(group) ?? []) {
       if (on) {
+        highlightedMaterials.add(entry.material);
         entry.material.emissive.set(0x3d8f74);
         entry.material.emissiveIntensity = 0.35;
       } else {
+        highlightedMaterials.delete(entry.material);
         entry.material.emissive.copy(entry.base);
-        entry.material.emissiveIntensity = entry.intensity;
+        entry.material.emissiveIntensity = litMaterials.has(entry.material) ? sky.glow : entry.intensity;
       }
     }
   }
@@ -705,6 +952,34 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     }
   }
 
+  /** A short burst of rising lights over what moved since the last visit. */
+  function markChanges(changes) {
+    const points = [
+      ...(changes?.cities ?? []).map((code) => markers.cities.get(code)),
+      ...(changes?.plaza ?? []).map((key) => markers.plaza.get(key)),
+    ].filter(Boolean);
+    for (const point of points) {
+      for (let i = 0; i < 10; i += 1) {
+        // Around the building and from its middle, so the labels above it never hide the sparks.
+        const angle = (i / 10) * Math.PI * 2;
+        const spark = mesh(new THREE.SphereGeometry(0.6, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffb21a, transparent: true, opacity: 0.95, fog: false }), { x: point.x + Math.cos(angle) * 2.6, y: point.y * 0.35, z: point.z + Math.sin(angle) * 2.6, shadow: false });
+        spark.userData = { base: Math.max(1.2, point.y * 0.35), rise: Math.max(4, point.y * 0.8), delay: i * 220 };
+        scene.add(spark);
+        animated.sparkles.push(spark);
+      }
+      // A ring on the ground that pulses with the sparks.
+      const ring = mesh(new THREE.RingGeometry(2.8, 3.5, 48), new THREE.MeshBasicMaterial({ color: 0xffb21a, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthTest: false, fog: false }), { x: point.x, y: 0.9, z: point.z, shadow: false });
+      ring.rotation.x = -Math.PI / 2;
+      ring.renderOrder = 2;
+      ring.userData = { ring: true, base: 0.9, delay: 0 };
+      scene.add(ring);
+      animated.sparkles.push(ring);
+    }
+    animated.sparkleStart = null;
+    return points.length;
+  }
+
+  let lastSkyMinute = -1;
   let running = true;
   function frame(time) {
     if (!running) return;
@@ -735,7 +1010,35 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
         renderer.domElement.style.cursor = hovered ? 'pointer' : '';
       }
     }
+    const minute = Math.floor(Date.now() / 60000);
+    if (skyMode === 'auto' && minute !== lastSkyMinute) {
+      if (lastSkyMinute !== -1 && skyAt(new Date().getHours(), 'auto').phase !== sky.phase) applySky();
+      lastSkyMinute = minute;
+    }
+    if (animated.sparkles.length) {
+      // Timed by the clock, not the frame timestamp, which can lag behind on a slow renderer.
+      const clock = performance.now();
+      animated.sparkleStart ??= clock;
+      const elapsed = clock - animated.sparkleStart;
+      for (const spark of animated.sparkles) {
+        const t = Math.max(0, elapsed - spark.userData.delay) / 2600;
+        const cycle = t % 1;
+        if (spark.userData.ring) {
+          spark.scale.setScalar(reducedMotion ? 1 : 1 + cycle * 0.6);
+          spark.material.opacity = elapsed > 9000 ? Math.max(0, 0.8 - (elapsed - 9000) / 1500) : reducedMotion ? 0.8 : 0.8 * (1 - cycle);
+          continue;
+        }
+        spark.position.y = spark.userData.base + (reducedMotion ? 0.6 : cycle * spark.userData.rise);
+        spark.material.opacity = elapsed > 9000 ? Math.max(0, 1 - (elapsed - 9000) / 1500) : reducedMotion ? 0.9 : 0.95 * (1 - cycle);
+      }
+      if (elapsed > 10500) {
+        for (const spark of animated.sparkles) scene.remove(spark);
+        animated.sparkles = [];
+      }
+    }
     if (!reducedMotion) {
+      if (animated.water) animated.water.offset.set((time / 90000) % 1, (time / 140000) % 1);
+      for (const jet of animated.jets) jet.scale.y = 0.85 + 0.2 * Math.sin(time / 260);
       const wave = (1 + Math.sin(time / 380)) / 2;
       for (const beam of beacons) beam.material.opacity = 0.35 + 0.3 * wave;
       for (const ring of glows) {
@@ -753,6 +1056,13 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   return {
     buildPlaza,
     buildCities,
+    markChanges,
+    /** The sky: 'auto' follows the hour; 'day', 'dusk' or 'night' fix it.  Returns the phase shown. */
+    setSky(mode) {
+      skyMode = mode;
+      applySky();
+      return sky.phase;
+    },
     flyTo,
     resetView,
     clearSelection() {
@@ -799,12 +1109,26 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   root.append(wrap);
   let scene = null;
 
+  // The sky follows the hour by default; the viewer can fix it to see the lit windows at night.
+  const SKY_MODES = [['auto', '空：時刻'], ['day', '空：昼'], ['dusk', '空：夕方'], ['night', '空：夜']];
+  let skyIndex = 0;
+  const skyButton = workspaceButton(doc, {
+    text: SKY_MODES[0][1],
+    onClick: () => {
+      skyIndex = (skyIndex + 1) % SKY_MODES.length;
+      skyButton.textContent = SKY_MODES[skyIndex][1];
+      scene?.setSky(SKY_MODES[skyIndex][0]);
+    },
+  });
   const header = workspacePageHeader(doc, {
     crumbs: page?.crumbs ?? ['あなたのBrainbase', '世界'],
     title: '世界',
     lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。見るための画面で、ここからは何も書き換えません。',
     source: page?.source ?? null,
-    actions: [workspaceButton(doc, { text: '全体に戻る', onClick: () => { scene?.clearSelection(); showEmptyRail(); scene?.resetView(); } })],
+    actions: [
+      skyButton,
+      workspaceButton(doc, { text: '全体に戻る', onClick: () => { scene?.clearSelection(); showEmptyRail(); scene?.resetView(); } }),
+    ],
   });
   const notices = el(doc, 'div', { className: 'bb-world-hud', attrs: { 'aria-live': 'polite' } });
   const legend = el(doc, 'div', { className: 'bb-world-legend', attrs: { 'aria-label': '凡例' } });
@@ -916,7 +1240,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
           ['分類', kindText],
           ['状態', statusText(business.status)],
           ['コード', business.code],
-          ['進行中の案件（都市の広さ）', `${measures.open}件${measures.finished ? `（完了・終了${measures.finished}件は更地）` : ''}`],
+          ['進行中の案件（都市の広さ）', `${measures.open}件${measures.finished ? `（完了・終了${measures.finished}件は記念公園）` : ''}`],
           ['最近30日の動き（高さ・明かり）', `決定${measures.decisions}件${judgmentText}`],
         ]) }));
         const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
@@ -1072,6 +1396,46 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: showEmptyRail });
     scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now());
     scene.buildCities(layoutWorld(businesses), placement.byBusiness);
+    showChangesSinceLastVisit(note, businesses, rows);
+  }
+
+  /**
+   * What moved since this viewer last opened the world (a per-viewer convenience kept in this browser;
+   * nothing is lost if the browser forgets it).
+   */
+  function showChangesSinceLastVisit(note, businesses, rows) {
+    const key = 'brainbase.world.lastVisit';
+    let lastVisit = null;
+    try {
+      lastVisit = globalThis.localStorage?.getItem(key) ?? null;
+    } catch {
+      lastVisit = null;
+    }
+    const changes = changesSince(lastVisit, businesses, placement.byBusiness, rows);
+    try {
+      globalThis.localStorage?.setItem(key, new Date().toISOString());
+    } catch {
+      // Without storage the world simply shows no marks next time.
+    }
+    if (!changes) {
+      note('前回から', '初めての表示です。次に開いたときから、前回から動きがあった所に光の印を出します。');
+      return;
+    }
+    const names = new Map(businesses.map((business) => [business.code, business.name]));
+    const cityNames = changes.cities.map((code) => names.get(code) ?? code);
+    const last = new Date(changes.since);
+    const pad = (value) => String(value).padStart(2, '0');
+    const when = `${pad(last.getMonth() + 1)}/${pad(last.getDate())} ${pad(last.getHours())}:${pad(last.getMinutes())}`;
+    if (cityNames.length === 0 && changes.plaza.length === 0) {
+      note('前回から', `前回（${when}）から、新しい決定や判断はありません。`);
+      return;
+    }
+    const parts = [
+      cityNames.length ? `都市：${cityNames.join('・')}` : null,
+      changes.plaza.length ? `広場の判断の種類${changes.plaza.length}つ` : null,
+    ].filter(Boolean);
+    note('前回から', `前回（${when}）から動きがあった所に光の印を出しています。${parts.join('、')}。`, 'attention');
+    scene?.markChanges(changes);
   }
 
   void load();
