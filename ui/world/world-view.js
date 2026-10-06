@@ -1761,7 +1761,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   const onVisible = () => {
     if (doc.visibilityState === 'visible') void recheckDistrict();
   };
-  doc.addEventListener('visibilitychange', onVisible);
+  // Hosts may hand in a document without events (tests, server rendering); the recheck is then off.
+  doc.addEventListener?.('visibilitychange', onVisible);
 
   // --- inside a district (AC-11): the world rests behind it while it is open ---------------------
   let district = null;
@@ -2177,7 +2178,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   void load();
   return {
     dispose() {
-      doc.removeEventListener('visibilitychange', onVisible);
+      doc.removeEventListener?.('visibilitychange', onVisible);
       scene?.dispose();
     },
   };
