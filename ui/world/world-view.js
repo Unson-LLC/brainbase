@@ -1097,6 +1097,13 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
       cityIndex.set(business.code, { city, group, label: null });
       const cityLabel = addLabel(statusPhase(business.status) === 'concept' ? `${business.name}（${statusText(business.status)}）` : business.name, new THREE.Vector3(x, top, z), 'is-city', { priority: LABEL_PRIORITY.city, owner: group });
       cityLabel.node.style.borderColor = `${entry.color}80`;
+      // The name is a way in too (AC-20): pressing it enters the district, as pressing the city does.
+      cityLabel.node.classList.add('is-enterable');
+      cityLabel.node.title = `${business.name}の区画に入る`;
+      cityLabel.node.addEventListener('click', () => {
+        select(group);
+        onPick(group.userData, new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()));
+      });
       cityIndex.get(business.code).label = cityLabel;
       cityLabel.business = business;
       const n = business.engagements.length;
@@ -1149,6 +1156,12 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
   scene.add(selectionRing);
   let selected = null;
   let hovered = null;
+
+  /** The name label of a city group, to say "enter" next to it while the pointer is on the city. */
+  function labelOfCity(group) {
+    if (group?.userData?.kind !== 'city') return null;
+    return cityIndex.get(group.userData.business.code)?.label ?? null;
+  }
 
   function setHighlight(group, on) {
     for (const entry of highlightable.get(group) ?? []) {
@@ -1204,6 +1217,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
   });
   renderer.domElement.addEventListener('pointerleave', () => {
     pendingHover = null;
+    labelOfCity(hovered)?.node.classList.remove('is-hover');
     if (hovered) setHighlight(hovered, false);
     hovered = null;
   });
@@ -1478,8 +1492,10 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
       pendingHover = null;
       if (group !== hovered) {
         if (hovered) setHighlight(hovered, false);
+        labelOfCity(hovered)?.node.classList.remove('is-hover');
         hovered = group;
         if (hovered) setHighlight(hovered, true);
+        labelOfCity(hovered)?.node.classList.add('is-hover');
         renderer.domElement.style.cursor = hovered ? 'pointer' : '';
       }
     }
@@ -1672,8 +1688,48 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (!rail) return;
     rail.replaceChildren(...nodes);
   }
-  const showEmptyRail = () => showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
-  showEmptyRail();
+  /**
+   * With nothing chosen, the rail lists the ways in (AC-19): one button per business, the ones with the
+   * most work to check first. The count orders the list; it is not a score.
+   */
+  let workSummaries = {};
+  const showEmptyRail = () => {
+    if (!knownBusinesses.length) {
+      showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
+      return;
+    }
+    const noteOf = (business) => {
+      const summary = workSummaries[business.code];
+      if (!summary) return { text: workConnected === false ? '' : '仕事は区画で読みます', count: -1 };
+      if (summary.state !== 'complete' && summary.state !== 'partial') return { text: '仕事を読めない（0件ではありません）', count: -1, muted: true };
+      const needs = summary.needs_check?.length ?? 0;
+      const parts = [needs ? `要確認 ${needs}` : `未完了 ${summary.open ?? 0}`];
+      if (summary.state === 'partial') parts.push('一部だけ読めた');
+      return { text: parts.join('・'), count: needs };
+    };
+    const rows = knownBusinesses
+      .map((business) => ({ business, note: noteOf(business) }))
+      .sort((a, b) => b.note.count - a.note.count || a.business.name.localeCompare(b.business.name, 'ja'));
+    const list = el(doc, 'ul', { className: 'bb-world-entrances' });
+    for (const { business, note } of rows) {
+      const item = el(doc, 'li', { className: 'bb-world-entrance' });
+      const button = workspaceButton(doc, { text: `${business.name}の区画に入る ›`, onClick: () => enterFromRail(business) });
+      item.append(button);
+      if (note.text) item.append(el(doc, 'span', { className: `bb-world-entrance-note${note.count > 0 ? ' is-check' : ''}${note.muted ? ' is-muted' : ''}`, text: note.text }));
+      list.append(item);
+    }
+    showRail([
+      workspaceRailHead(doc, { kicker: '区画の入口', title: 'どの区画に入りますか', lead: '下のボタン、または地図の都市（建物や名前）を押すと、その事業の区画に入ります。Escで一つ上に戻ります。' }),
+      workspaceRailBlock(doc, { title: '事業', content: list }),
+    ]);
+  };
+  // The businesses are not known yet here (the list is drawn again once the world is built).
+  showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
+
+  function enterFromRail(business) {
+    const picked = scene?.selectKey({ code: business.code });
+    openCity(business, picked?.center ?? null);
+  }
 
   let proofs = new Map();
   let placement = { byBusiness: new Map(), unplaced: [] };
@@ -2012,6 +2068,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     }
     workConnected = true;
     const summaries = result.data.businesses ?? {};
+    workSummaries = summaries;
+    if (current.level === 'world' && !current.code) showEmptyRail();
     scene?.setWorkSigns(summaries);
     const entries = Object.values(summaries);
     const readable = entries.filter((entry) => entry.state === 'complete' || entry.state === 'partial');
@@ -2059,7 +2117,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         workspaceRailHead(doc, { kicker: `${business.name} の案件`, title: data.engagement.name, lead: data.engagement.summary ?? undefined }),
         workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }),
         detailBlock(data.engagement, '「プロジェクトと関係者」でこの案件を開く'),
-        workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: `${business.name}の仕事と関係を見る`, onClick: () => openCity(business, position) }) }),
+        workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: `${business.name}の区画に入る`, variant: 'primary', onClick: () => openCity(business, position) }) }),
         cityJudgmentBlock(business),
       ]);
       return;
@@ -2209,6 +2267,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     scene.buildCities(layoutWorld(businesses), placement.byBusiness);
     showChangesSinceLastVisit(note, businesses, rows);
     knownBusinesses = businesses;
+    if (!current.code) showEmptyRail();
     restoreSelection();
     void loadWorkSummary(note);
   }
