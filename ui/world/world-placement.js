@@ -134,49 +134,62 @@ export function changesSince(lastVisit, businesses, judgmentsByBusiness, rows) {
   return { since: new Date(since).toISOString(), cities, plaza };
 }
 
-function placementHash(value) {
-  let h = 2166136261;
-  for (let i = 0; i < value.length; i += 1) {
-    h ^= value.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0) / 4294967296;
+/**
+ * The lots inside a district (story-world-work-sites-and-gaps-v1, AC-12, AC-16, AC-17): a main street along
+ * z, a back street on each side, and lots facing them in four columns.  Work with the same `purpose_label`
+ * stands in one block (a street of its own); blocks run from the hall toward the gate in the order of their
+ * oldest task, and work with no label stands last, by the gate.  Inside a block the lots fill in order of
+ * creation (`created_at`, then id), row by row: left front, right front, left back, right back.  So a new
+ * task never moves an older one and a change of state never moves any; only when a block's rows are full do
+ * the blocks after it shift one row toward the gate.  A cross street separates the blocks.
+ * Returns `{ lots: { [taskId]: { x, z, facing, street } }, streets: [{ key, label, count, z_from, z_to }],
+ * rows, length }`, `facing` being +1 when the lot's front looks toward +x, `label` null for the unlabelled.
+ */
+export const DISTRICT_STREETS = Object.freeze({ main: 2, frontLot: 4, backStreet: 7, backLot: 10, lot: 2.8, row: 3.4, cross: 2.6 });
+
+const LOT_COLUMNS = Object.freeze([
+  { x: -DISTRICT_STREETS.frontLot, facing: 1 },
+  { x: DISTRICT_STREETS.frontLot, facing: -1 },
+  { x: -DISTRICT_STREETS.backLot, facing: 1 },
+  { x: DISTRICT_STREETS.backLot, facing: -1 },
+]);
+
+function byCreation(a, b) {
+  const at = String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
+  return at !== 0 ? at : String(a.task_id).localeCompare(String(b.task_id));
 }
 
-/**
- * The lots inside a district (story-world-work-sites-and-gaps-v1, AC-12): a main street along z, a back
- * street on each side, and lots facing them in four columns.  A lot comes from its task id, and tasks are
- * taken oldest first (by `created_at`, then id), so a new task never moves an older one and a change of
- * state never moves any.  The number of rows grows only when the count outgrows them.
- * Returns `{ lots: { [taskId]: { x, z, facing } }, rows, length }`, `facing` being +1 when the lot's front
- * looks toward +x and -1 toward -x.
- */
-export const DISTRICT_STREETS = Object.freeze({ main: 2, frontLot: 4, backStreet: 7, backLot: 10, lot: 2.8, row: 3.4 });
-
 export function districtStreetLots(sites, { minRows = 4 } = {}) {
-  const ordered = [...(sites ?? [])].sort((a, b) => {
-    const at = String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
-    return at !== 0 ? at : String(a.task_id).localeCompare(String(b.task_id));
+  const groups = new Map();
+  for (const site of sites ?? []) {
+    const label = typeof site.purpose_label === 'string' && site.purpose_label.trim() ? site.purpose_label.trim() : null;
+    const key = label ?? '';
+    if (!groups.has(key)) groups.set(key, { key, label, sites: [] });
+    groups.get(key).sites.push(site);
+  }
+  const blocks = [...groups.values()].map((group) => ({ ...group, sites: group.sites.sort(byCreation) }));
+  blocks.sort((a, b) => {
+    if ((a.label === null) !== (b.label === null)) return a.label === null ? 1 : -1;
+    const first = byCreation(a.sites[0], b.sites[0]);
+    return first !== 0 ? first : a.key.localeCompare(b.key);
   });
-  const columns = [
-    { x: -DISTRICT_STREETS.frontLot, facing: 1 },
-    { x: DISTRICT_STREETS.frontLot, facing: -1 },
-    { x: -DISTRICT_STREETS.backLot, facing: 1 },
-    { x: DISTRICT_STREETS.backLot, facing: -1 },
-  ];
-  const rows = Math.max(minRows, Math.ceil((ordered.length * 1.25) / columns.length));
-  const cells = [];
-  for (let row = 0; row < rows; row += 1) {
-    const z = Math.round((-((rows - 1) * DISTRICT_STREETS.row) / 2 + row * DISTRICT_STREETS.row) * 100) / 100;
-    for (const column of columns) cells.push({ x: column.x, z, facing: column.facing });
-  }
-  const taken = new Set();
+  const rowsOf = (block) => Math.max(1, Math.ceil(block.sites.length / LOT_COLUMNS.length));
+  const rows = blocks.reduce((sum, block) => sum + rowsOf(block), 0);
+  const used = rows * DISTRICT_STREETS.row + Math.max(0, blocks.length - 1) * DISTRICT_STREETS.cross;
+  const length = Math.max(used, minRows * DISTRICT_STREETS.row);
+  const round = (value) => Math.round(value * 100) / 100;
   const lots = {};
-  for (const site of ordered) {
-    let index = Math.floor(placementHash(String(site.task_id)) * cells.length);
-    while (taken.has(index)) index = (index + 1) % cells.length;
-    taken.add(index);
-    lots[site.task_id] = cells[index];
+  const streets = [];
+  let cursor = -used / 2;
+  for (const block of blocks) {
+    const blockRows = rowsOf(block);
+    block.sites.forEach((site, index) => {
+      const row = Math.floor(index / LOT_COLUMNS.length);
+      const column = LOT_COLUMNS[index % LOT_COLUMNS.length];
+      lots[site.task_id] = { x: column.x, z: round(cursor + (row + 0.5) * DISTRICT_STREETS.row), facing: column.facing, street: block.key };
+    });
+    streets.push({ key: block.key, label: block.label, count: block.sites.length, z_from: round(cursor), z_to: round(cursor + blockRows * DISTRICT_STREETS.row) });
+    cursor += blockRows * DISTRICT_STREETS.row + DISTRICT_STREETS.cross;
   }
-  return { lots, rows, length: rows * DISTRICT_STREETS.row };
+  return { lots, streets, rows, length };
 }

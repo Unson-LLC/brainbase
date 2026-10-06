@@ -45,7 +45,7 @@ const tasks = {
   read_at: '2026-10-06T02:59:00.000Z',
   items: [
     task('t-video', { title: '動画企画の企画書作成', description: 'YK（山田）が企画書を作成する。\n\n2026-09-18監査: 実担当は山田太郎（Graph ID: per_01SAMPLEYAMADA）。ただしTask APIが当該Personをnot_foundとして拒否したため担当欄は未反映。' }),
-    task('t-clean', { title: '清掃管理の比較案を持参する', description: '2026-09-18監査: 比較表と持参記録は確認できなかった。完了条件: 3〜4案それぞれの範囲・概算費用・比較軸を含む資料＋ミーティングで提示した記録' }),
+    task('t-clean', { title: '清掃管理の比較案を持参する', purpose_label: '  清掃の運営支援 ', description: '2026-09-18監査: 比較表と持参記録は確認できなかった。完了条件: 3〜4案それぞれの範囲・概算費用・比較軸を含む資料＋ミーティングで提示した記録' }),
     task('t-renew', { title: '継続提案の設計', description: '[2026-09-18確認] 提案確定・提示・先方合意の直接証拠はない。森の資料を参照。waitingを維持し2026-09-25再確認。' }),
     task('t-fee', { title: '保守料の引き上げを打診', description: '高木さんへ保守料引き上げを打診する。' }),
     task('t-minutes', { status: 'pending', due_at: null, review_at: null, updated_at: '2026-10-03T00:00:00.000Z', source_refs: [{ type: 'meeting_minutes', minutes_url: 'https://example.test/minutes/1' }], description: '調査結果を共有する。' }),
@@ -225,5 +225,43 @@ describe('world work lots stay where they are', () => {
       expect([4, 10]).toContain(Math.abs(lot.x));
       expect(lot.facing).toBe(lot.x < 0 ? 1 : -1);
     }
+  });
+});
+
+describe('what the work is for decides its street', () => {
+  it('carries the label the task record states, and none when it states none', () => {
+    const result = work();
+    if (result.status !== 'ok') throw new Error(result.status);
+    expect(result.sites.find((entry) => entry.task_id === 't-clean')!.purpose_label).toBe('清掃の運営支援');
+    expect(result.sites.find((entry) => entry.task_id === 't-video')!.purpose_label).toBeNull();
+  });
+
+  it('puts work with the same label in one block, the unlabelled last, and a new task moves no older one', () => {
+    const sites = [
+      { task_id: 'a1', created_at: '2026-08-17', purpose_label: 'Googleマップ強化' },
+      { task_id: 'b1', created_at: '2026-08-10', purpose_label: '定例会議' },
+      { task_id: 'a2', created_at: '2026-09-08', purpose_label: 'Googleマップ強化' },
+      { task_id: 'n1', created_at: '2026-08-01', purpose_label: null },
+      { task_id: 'a3', created_at: '2026-09-09', purpose_label: ' Googleマップ強化 ' },
+      { task_id: 'b2', created_at: '2026-09-14', purpose_label: '定例会議' },
+    ];
+    const before = districtStreetLots(sites);
+    // Blocks run from the hall (-z) in the order of their oldest task; the unlabelled stand last, by the gate.
+    expect(before.streets.map((street: { label: string | null; count: number }) => [street.label, street.count])).toEqual([
+      ['定例会議', 2],
+      ['Googleマップ強化', 3],
+      [null, 1],
+    ]);
+    for (const site of sites) {
+      const street = before.streets.find((entry: { key: string }) => entry.key === before.lots[site.task_id].street);
+      expect(before.lots[site.task_id].z).toBeGreaterThan(street.z_from);
+      expect(before.lots[site.task_id].z).toBeLessThan(street.z_to);
+    }
+    expect(before.lots.b1.street).toBe(before.lots.b2.street);
+    expect(before.lots.a1.street).not.toBe(before.lots.b1.street);
+    // A new task with a label that already has room takes the next lot and moves nothing.
+    const after = districtStreetLots([...sites, { task_id: 'a4', created_at: '2026-10-01', purpose_label: 'Googleマップ強化' }]);
+    for (const site of sites) expect(after.lots[site.task_id]).toEqual(before.lots[site.task_id]);
+    expect(after.lots.a4.street).toBe(before.lots.a1.street);
   });
 });

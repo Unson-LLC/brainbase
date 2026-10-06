@@ -44,6 +44,7 @@ export const DISTRICT_LEGEND = Object.freeze([
   ['is-blueprint', '図面の看板だけ＝成果物の記録が未接続'],
   ['is-weeds', '雑草と色あせ＝見直し予定を過ぎた'],
   ['is-stone', '庁舎前の石碑＝方針の決定（枠だけ＝題名からの推定）'],
+  ['is-street', '通りの看板＝何のための仕事か（タスクの記録の言葉。言葉が無い仕事は門の近くの空き地）'],
   ['is-ambience', '通りを歩く人と煙＝街の雰囲気（記録とは関係しません）'],
 ]);
 
@@ -279,7 +280,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     root.add(selectionRing);
     const readable = work?.status === 'ok' && (work.reads.tasks.state === 'complete' || work.reads.tasks.state === 'partial');
     const shown = readable ? work.sites.filter((site) => site.work.status !== 'cancelled') : [];
-    const layout = districtStreetLots(shown.map((site) => ({ task_id: site.task_id, created_at: site.work.created_at })));
+    const layout = districtStreetLots(shown.map((site) => ({ task_id: site.task_id, created_at: site.work.created_at, purpose_label: site.purpose_label })));
     const L = layout.length;
     const gateZ = L / 2 + 4;
     const hallZ = -L / 2 - 7;
@@ -299,6 +300,20 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     street(0, DISTRICT_STREETS.main * 2, gateZ + 8, hallZ + 3);
     street(-DISTRICT_STREETS.backStreet, 2, L / 2 + 1, -L / 2 - 1);
     street(DISTRICT_STREETS.backStreet, 2, L / 2 + 1, -L / 2 - 1);
+    // A cross street between the blocks, and at the hall end of each block a sign saying what its work is for.
+    const crossWidth = DISTRICT_STREETS.backLot * 2 + 4;
+    layout.streets.forEach((block, index) => {
+      if (index < layout.streets.length - 1) {
+        const strip = mesh(new THREE.PlaneGeometry(crossWidth, DISTRICT_STREETS.cross * 0.7), asphalt, { y: 0.02, z: block.z_to + DISTRICT_STREETS.cross / 2, shadow: false });
+        strip.rotation.x = -Math.PI / 2;
+        root.add(strip);
+      }
+      const signZ = block.z_from - (index === 0 ? 0.9 : DISTRICT_STREETS.cross / 2);
+      root.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.4, 6), material(0x4a4a4a), { x: -DISTRICT_STREETS.main - 0.5, y: 1.2, z: signZ }));
+      root.add(mesh(new THREE.BoxGeometry(1.9, 0.5, 0.08), material(block.label ? 0x2f6e4f : 0xbfb8a8), { x: -DISTRICT_STREETS.main - 0.5, y: 2.3, z: signZ }));
+      const text = block.label ? `${block.label}（${block.count}件）` : `未分類の空き地：何のための仕事か未記録（${block.count}件）`;
+      addLabel(text, new THREE.Vector3(-DISTRICT_STREETS.main - 0.5, 2.9, signZ), `is-street${block.label ? '' : ' is-unlabelled'}`, { priority: 2 });
+    });
     // Trees and lamps along the main street, between the lots (scenery).
     const trunk = material(0x7d6249);
     const crown = material(0x6f9a5c, { flatShading: true });
@@ -372,7 +387,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       root.add(group);
       lots.set(site.task_id, group);
       const title = site.title.length > 15 ? `${site.title.slice(0, 14)}…` : site.title;
-      addLabel(title, new THREE.Vector3(lot.x, 2.6, lot.z), `is-site${site.gaps.length ? ' is-check' : ''}`, { owner: group, near: 26, priority: 6 });
+      addLabel(title, new THREE.Vector3(lot.x, 2.6, lot.z), `is-site${site.gaps.length ? ' is-check' : ''}`, { owner: group, near: 15, priority: 6 });
     }
     // Atmosphere: walkers on the sidewalks and back streets, smoke from chimneys (no record behind them).
     const routes = [-1.55, 1.55, -DISTRICT_STREETS.backStreet + 0.6, DISTRICT_STREETS.backStreet - 0.6];

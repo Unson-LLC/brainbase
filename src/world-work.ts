@@ -102,6 +102,8 @@ export interface WorldWorkAmbiguousMention {
 export interface WorldWorkSite {
   readonly task_id: string;
   readonly title: string;
+  /** What the work is for, as the task record states it (`purpose_label`); null when it states none. */
+  readonly purpose_label: string | null;
   readonly project_codes: readonly string[];
   /** Codes of other visible businesses this task also belongs to (work across a boundary). */
   readonly other_business_codes: readonly string[];
@@ -456,6 +458,7 @@ function workSite(record: Record<string, unknown>, context: TaskReadContext): Wo
   return {
     task_id: id,
     title,
+    purpose_label: text(record.purpose_label),
     project_codes: projectCodes,
     other_business_codes: otherBusinessCodes,
     work: {

@@ -149,6 +149,20 @@
   border-color: var(--bb-color-rail-border);
 }
 
+.bb-world-label.is-street {
+  font-weight: 700;
+  background: #2f6e4f;
+  border-color: #255a40;
+  color: #ffffff;
+}
+
+.bb-world-label.is-street.is-unlabelled {
+  background: #f1ece1;
+  border-style: dashed;
+  border-color: #8a8270;
+  color: #5c5546;
+}
+
 .bb-world-label.is-engagement {
   font-size: 11px;
   color: var(--bb-color-muted);
