@@ -87,11 +87,16 @@ function loadErrorMessage(error, fallback) {
   return error instanceof Error && error.message.trim() ? error.message : fallback;
 }
 
-function preserveLoadedStateOnFailure(error) {
+function isAccessDenied(error) {
   const status = Number(error?.status);
   const code = text(error?.code);
-  if (status === 401 || status === 403 || status === 404
-    || code === 'authorization_denied' || code === 'not_found') return false;
+  return status === 401 || status === 403 || status === 404
+    || code === 'authorization_denied' || code === 'not_found';
+}
+
+function preserveLoadedStateOnFailure(error) {
+  if (isAccessDenied(error)) return false;
+  const status = Number(error?.status);
   if (Number.isFinite(status)) return status === 408 || status === 429 || status >= 500;
   return true;
 }
@@ -376,7 +381,10 @@ export function createMeetingMinutesUI({
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
     clear(detailPane);
     if (state.detailError) {
-      appendLoadError(detailPane, `会議詳細を読み込めませんでした。理由: ${state.detailError}`, () => loadDetail(state.meetingId));
+      const retry = state.meetingId === null ? loadMeetings : () => loadDetail(state.meetingId);
+      appendLoadError(detailPane, state.detailError.startsWith('会議詳細を読み込めませんでした。')
+        ? state.detailError
+        : `会議詳細を読み込めませんでした。理由: ${state.detailError}`, retry);
     }
     if (!detail || !isRecord(detail.meeting)) {
       if (state.detailError) {
@@ -473,12 +481,25 @@ export function createMeetingMinutesUI({
       if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
       state.meetings = payload.meetings;
       state.listError = null;
+      if (!state.detail) state.detailError = null;
       renderList();
       setStatus(state.meetings.length ? `${state.meetings.length}件の会議を読み込みました。` : '保存された会議はありません。');
     } catch (error) {
-      if (!preserveLoadedStateOnFailure(error)) state.meetings = [];
       state.listError = loadErrorMessage(error, '会議一覧を読み込めませんでした。');
+      const preserve = preserveLoadedStateOnFailure(error);
+      const hadDetail = Boolean(state.detail) || state.meetingId !== null;
+      if (!preserve) {
+        state.meetings = [];
+        if (hadDetail) {
+          state.detail = null;
+          state.meetingId = null;
+          state.minutesId = null;
+          state.versionId = null;
+          state.detailError = `会議詳細を読み込めませんでした。会議一覧へのアクセスを確認できません。理由: ${state.listError}`;
+        }
+      }
       renderList();
+      if (!preserve && hadDetail) renderDetail(null);
       setStatus(state.listError, 'error');
     } finally {
       state.loading = false;

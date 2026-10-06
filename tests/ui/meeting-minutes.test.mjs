@@ -136,4 +136,30 @@ describe('meeting minutes UI loading states', () => {
     expect(collectText(root)).toContain('会議詳細を読み込めませんでした。理由: この会議を読む権限がありません');
     expect(collectText(root)).not.toContain('保存済み本文');
   });
+
+  it('clears protected detail when a refreshed list is denied', async () => {
+    let listAttempts = 0;
+    const root = new FakeElement('div');
+    const view = createMeetingMinutesUI({
+      root,
+      document: new FakeDocument(),
+      fetcher: async (path) => {
+        if (path === '/api/meeting-minutes') {
+          listAttempts += 1;
+          return listAttempts === 1
+            ? jsonResponse(200, meetingList())
+            : jsonResponse(403, { error: { code: 'authorization_denied', message: '会議一覧を読む権限がありません' } });
+        }
+        return jsonResponse(200, meetingDetail());
+      },
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    expect(collectText(root)).toContain('保存済み本文');
+
+    await view.refresh();
+    expect(collectText(root)).toContain('会議一覧を読み込めませんでした。理由: 会議一覧を読む権限がありません');
+    expect(collectText(root)).toContain('会議一覧へのアクセスを確認できません');
+    expect(collectText(root)).not.toContain('保存済み本文');
+  });
 });
