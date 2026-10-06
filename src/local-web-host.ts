@@ -275,7 +275,10 @@ export function createValueProofModule(context: LocalWebModuleContext): LocalWeb
   });
   return {
     id: 'value-proofs',
-    uiFiles: ['value-proof-review.js', 'value-proof-review.css'],
+    // The history screen is the local shell's current entry point.  Keep the
+    // legacy assets listed as well: the old public UI export remains a
+    // supported compatibility route for downstream consumers.
+    uiFiles: ['judgment-history.js', 'judgment-history.css', 'value-proof-review.js', 'value-proof-review.css'],
     handle: handler
   };
 }
