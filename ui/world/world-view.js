@@ -24,7 +24,7 @@
 
 import { THREE, MapControls } from './world-vendor.js';
 import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT, workSiteCells } from './world-placement.js';
-import { WORK_STATES, workCityBlocks, workPickBlock, workSignText, workSiteBlocks } from './world-work-rail.js';
+import { WORK_STATES, workCityBlocks, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -180,6 +180,13 @@ function webglAvailable(doc) {
 const RECENT_MS = 24 * 60 * 60 * 1000;
 const LABEL_PRIORITY = Object.freeze({ selected: 0, plaza: 1, city: 2, sector: 3, judgment: 4, engagement: 5, site: 6 });
 const WORK_COLORS = Object.freeze(Object.fromEntries(WORK_STATES.map((state) => [state.key, state.color])));
+const GAP_SHORT_TEXT = Object.freeze({
+  assignee_unlinked_mentioned: '担当欄に未接続（本文に人物）',
+  assignee_unrecorded: '担当の記録なし',
+  outcome_unlinked: '成果物の記録が未接続',
+  source_unlinked: '出典リンクなし',
+  review_overdue: '見直し超過',
+});
 
 function canvasTexture(doc, width, height, draw) {
   const canvas = doc.createElement('canvas');
@@ -1269,9 +1276,10 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
       const summary = summaries?.[code];
       entry.label?.node.querySelector('.bb-world-badge')?.remove();
       if (entry.label) entry.label.size = null;
-      const text = workSignText(summary);
-      if (!text) continue;
-      const unreadable = !(summary.state === 'complete' || summary.state === 'partial');
+      const signal = workSign(summary);
+      if (!signal) continue;
+      const { text } = signal;
+      const unreadable = signal.kind === 'unreadable';
       const { city } = entry;
       const post = sign(unreadable ? 'unreadable' : 'check', 2.2, 0.9);
       post.position.set(city.x - city.size / 2 + 0.6, 0.45, city.z + city.size / 2 - 0.6);
@@ -1793,6 +1801,12 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   const workCache = new Map();
   const current = { code: null, siteId: null, level: 'world', focus: null, pendingSite: null };
 
+  /** Inside a city the notices fold away (they would cover it); its rail carries the sources and times. */
+  function setLevel(level) {
+    current.level = level;
+    notices.hidden = level !== 'world';
+  }
+
   function setCurrent(code, siteId) {
     current.code = code;
     current.siteId = siteId;
@@ -1904,7 +1918,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   function openCity(business, center, { zoom = 2.8 } = {}) {
     if (current.code !== business.code) current.focus = null;
     setCurrent(business.code, null);
-    current.level = 'city';
+    setLevel('city');
     if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), zoom);
     const work = workCache.get(business.code);
     if (work) {
@@ -1918,7 +1932,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   function openSite(business, site, center) {
     setCurrent(business.code, site.task_id);
-    current.level = 'site';
+    setLevel('site');
     if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), 4.6);
     const work = workCache.get(business.code);
     const back = workspaceButton(doc, { text: `← ${business.name}に戻る`, onClick: () => goUp() });
@@ -1940,7 +1954,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   /** The whole world again, with the open city kept in hand (ring and rail stay). */
   function goToWorld() {
-    current.level = 'world';
+    setLevel('world');
     if (current.code) {
       const business = businessOf(current.code);
       scene?.selectKey({ code: current.code });
@@ -1955,7 +1969,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   function clearAll() {
     setCurrent(null, null);
-    current.level = 'world';
+    setLevel('world');
     current.focus = null;
     scene?.focusSites(null);
     showEmptyRail();
@@ -2012,10 +2026,16 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     const needs = readable.reduce((sum, entry) => sum + (entry.needs_check?.length ?? 0), 0);
     const cities = readable.filter((entry) => entry.needs_check?.length).length;
     const partial = readable.filter((entry) => entry.state === 'partial').length;
-    const parts = [`未完了の仕事${open}件のうち${needs}件（${cities}事業）に、記録から把握できていないことがあります（？の札）`];
-    if (unreadable) parts.push(`仕事を読めなかった事業${unreadable}件（灰色の札。0件ではありません）`);
+    // Which kinds of gap, across the businesses read: what is not visible, not how bad it is.
+    const kinds = new Map();
+    for (const entry of readable) for (const [kind, ids] of Object.entries(entry.gaps ?? {})) kinds.set(kind, (kinds.get(kind) ?? 0) + ids.length);
+    const kindText = [...kinds].sort((a, b) => b[1] - a[1]).map(([kind, count]) => `${GAP_SHORT_TEXT[kind] ?? kind}${count}`).join('・');
+    const parts = readable.length
+      ? [`未完了の仕事${open}件のうち${needs}件（${cities}事業）に、記録から把握できていないことがあります（？の札${kindText ? `。内訳：${kindText}` : ''}）`]
+      : [];
+    if (unreadable) parts.push(`${readable.length ? '' : 'どの事業の仕事も読めませんでした。'}仕事を読めなかった事業${unreadable}件（灰色の札。0件ではありません）`);
     if (partial) parts.push(`一部だけ読めた事業${partial}件`);
-    note('仕事', `${parts.join('。')}。「止まっている」という意味ではありません（${shortTimeText(result.data.as_of)}時点）。`, needs ? 'attention' : 'info');
+    note('仕事', `${parts.join('。')}。「止まっている」という意味ではありません（${shortTimeText(result.data.as_of)}時点）。`);
   }
 
   function shortTimeText(value) {
@@ -2038,7 +2058,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (data.kind === 'engagement') {
       const business = data.business;
       setCurrent(business.code, null);
-      current.level = 'city';
+      setLevel('city');
       scene?.flyTo(new THREE.Vector3(position.x, 0, position.z), 3.6);
       if (!workCache.has(business.code)) void loadWork(business);
       showRail([

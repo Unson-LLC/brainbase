@@ -81,14 +81,23 @@ export function shortTime(value) {
   return `${date.getUTCMonth() + 1}/${date.getUTCDate()} ${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}`;
 }
 
-/** What a city's sign says: open work with something we cannot see, or why the work could not be read. */
-export function workSignText(summary) {
-  if (!summary) return null;
+/**
+ * What a city's sign says, and its kind: amber when open work shows a gap, grey when the work could not
+ * be read or was read only in part (an unknown city is never shown as one without problems).
+ */
+export function workSign(summary) {
+  if (!summary || summary.state === 'not_connected') return null;
   if (summary.state === 'complete' || summary.state === 'partial') {
     const count = summary.needs_check?.length ?? 0;
-    return count > 0 ? `要確認 ${count}` : null;
+    const part = summary.state === 'partial' ? '（一部だけ読めた）' : '';
+    if (count > 0) return { kind: 'check', text: `要確認 ${count}${part}` };
+    return summary.state === 'partial' ? { kind: 'unreadable', text: '一部だけ読めた' } : null;
   }
-  return summary.state === 'not_connected' ? null : '仕事を読めない';
+  return { kind: 'unreadable', text: '仕事を読めない' };
+}
+
+export function workSignText(summary) {
+  return workSign(summary)?.text ?? null;
 }
 
 function linkLine(doc, link, label, extra) {
@@ -138,7 +147,11 @@ function workStateBlocks(doc, { work, summary, onSelectGap, onSelectStatus }) {
   blocks.push(workspaceRailBlock(doc, {
     title: `仕事（記録上の状態）未完了 ${summary.open}件`,
     content: [
-      summary.total === 0 ? { text: `この事業の仕事は0件です（${shortTime(summary.read_at) ?? '時点不明'}に読んだ実際の0件）。` } : states,
+      summary.total === 0
+        ? { text: summary.state === 'complete'
+          ? `この事業の仕事は0件です（${shortTime(summary.read_at) ?? '時点不明'}に読んだ実際の0件）。`
+          : `読めた範囲では0件です。${readReasonText(summary.reason) ?? '一部だけ読めました'}。読めていない分は0件とは限りません。` }
+        : states,
       reasons.size ? el(doc, 'h4', { className: 'bb-world-rail-sub', text: '待ちの理由（記録の原文・多い順）' }) : null,
       reasons.size ? reasonList : null,
       { text: '状態はタスクの記録のままです。待ちの理由を読み替えて「止まっている」とは判断していません。', className: 'bb-world-rail-caveat is-quiet' },
@@ -208,7 +221,10 @@ export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatu
   for (const person of work.people) {
     people.append(linkLine(doc, person.link, person.name, `${person.roles.join('・')}${person.task_ids.length ? `（仕事${person.task_ids.length}件）` : ''}`));
   }
-  if (work.members_state === 'unregistered') people.append(linkLine(doc, 'recorded', 'メンバーは未登録です', 'プロジェクトの記録にメンバーの登録がありません'));
+  // The project record's member field; participation recorded as Graph relations is listed below.
+  if (work.members_state === 'unregistered' && !work.relations.some((relation) => relation.kind === 'member_of' && relation.link === 'recorded')) {
+    people.append(linkLine(doc, 'recorded', 'メンバーは未登録です', 'プロジェクトの記録にもGraphの関係にも、メンバーの登録がありません'));
+  }
   if (work.members_state === 'unreadable') people.append(linkLine(doc, 'unreadable', 'メンバーを読めませんでした', null));
   const relations = el(doc, 'ul', { className: 'bb-world-rail-list is-links' });
   for (const relation of work.relations.filter((entry) => entry.kind !== 'mentioned_person')) {

@@ -54,6 +54,9 @@ describe('world work rail: facts, then what cannot be seen, then people, then so
     expect(workSignText({ state: 'not_connected' })).toBeNull();
     expect(workSignText({ state: 'complete', needs_check: [] })).toBeNull();
     expect(workSignText({ state: 'complete', needs_check: ['a', 'b'] })).toBe('要確認 2');
+    // Read only in part: never a city without a sign.
+    expect(workSignText({ state: 'partial', needs_check: [] })).toBe('一部だけ読めた');
+    expect(workSignText({ state: 'partial', needs_check: ['a'] })).toBe('要確認 1（一部だけ読めた）');
   });
 
   it('says a real zero is a real zero, with its time', () => {
@@ -96,5 +99,14 @@ describe('world work rail: a partial or failed read is said in words', () => {
     const text = workCityBlocks(doc, { business, work: failed }).map(collectText).join('');
     expect(text).toContain('仕事の記録を読めなかった（時間内に応答がありませんでした）。仕事が0件という意味ではありません。');
     expect(text).not.toContain('未完了 null');
+  });
+});
+
+describe('world work rail: zero read in part is not a real zero', () => {
+  it('says the zero covers only what could be read', () => {
+    const partial = projectWorldWork({ business, tasks: { state: 'partial', reason: 'codes_not_permitted', read_at: '2026-10-06T02:59:00.000Z', items: [] } }, { now: NOW });
+    const text = workCityBlocks(doc, { business, work: partial }).map(collectText).join('');
+    expect(text).toContain('読めた範囲では0件です。案件の一部は、あなたのタスクの権限の範囲外のため読んでいません。読めていない分は0件とは限りません。');
+    expect(text).not.toContain('実際の0件');
   });
 });
