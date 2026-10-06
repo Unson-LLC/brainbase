@@ -1295,13 +1295,107 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(section(rail, 'プロジェクトを直す')).toBeDefined();
   });
 
-  it('selects the first project when the host asks for one that is not listed, and says so', async () => {
+  it('keeps an explicitly requested project when it is not listed and shows not found', async () => {
     await writeGraphV2(dataDir);
     const selected = [];
-    const { rail } = await mountView({ selectedId: 'project-gone', onSelect: (id) => selected.push(id) });
-    expect(railHead(rail)).toBe('プロジェクトAtlas導入project-atlas');
-    expect(selected).toEqual(['project-atlas']);
-    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-atlas']);
+    const { rail, view } = await mountView({ selectedId: 'project-gone', onSelect: (id) => selected.push(id) });
+    expect(view.state.selectedId).toBe('project-gone');
+    expect(view.state.detail).toMatchObject({ id: 'project-gone', state: 'not_found' });
+    expect(railHead(rail)).toBe('プロジェクトproject-goneproject-gone');
+    expect(collectText(rail)).toContain('このプロジェクトは一覧から見つかりません');
+    expect(selected).toEqual([]);
+    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects']);
+  });
+
+  it('keeps the selected project when a refreshed list no longer contains it', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    let listReads = 0;
+    const fetcher = async (path, init) => {
+      const response = await api.fetcher(path, init);
+      if (path !== '/api/graph/projects' || ++listReads !== 2) return response;
+      const payload = await response.json();
+      return jsonResponse(200, { ...payload, projects: payload.projects.filter((project) => project.id !== 'project-atlas') });
+    };
+    const selected = [];
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail,
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      onSelect: (id) => selected.push(id),
+    });
+
+    await view.load();
+    expect(view.state.detail?.state).toBe('ok');
+    const requestCountBeforeRefresh = api.requests.length;
+    await view.load({ keep: true });
+
+    expect(view.state.selectedId).toBe('project-atlas');
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'not_found' });
+    expect(selected).toEqual([]);
+    expect(api.requests.slice(requestCountBeforeRefresh).map((request) => request.path)).toEqual(['/api/graph/projects']);
+    expect(collectText(rail)).toContain('このプロジェクトは一覧から見つかりません');
+
+    const requestCountBeforeRestore = api.requests.length;
+    await view.load({ keep: true });
+    expect(view.state.selectedId).toBe('project-atlas');
+    expect(view.state.detail?.state).toBe('ok');
+    expect(api.requests.slice(requestCountBeforeRestore).map((request) => request.path)).toEqual([
+      '/api/graph/projects',
+      '/api/graph/projects/project-atlas',
+    ]);
+  });
+
+  it('does not let a pending detail read overwrite not found after the selected project disappears', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const detailGate = deferred();
+    let detailStarted = false;
+    let listReads = 0;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') {
+        const response = await api.fetcher(path, init);
+        listReads += 1;
+        if (listReads === 2) {
+          const payload = await response.json();
+          return jsonResponse(200, { ...payload, projects: payload.projects.filter((project) => project.id !== 'project-atlas') });
+        }
+        return response;
+      }
+      if (path === '/api/graph/projects/project-atlas') {
+        detailStarted = true;
+        await detailGate.promise;
+      }
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail,
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+    });
+
+    const initial = view.load();
+    await waitFor(() => detailStarted);
+    await view.load({ keep: true });
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'not_found' });
+
+    detailGate.resolve();
+    await initial;
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'not_found' });
   });
 
   it('gives the knowledge graph the first viewport by collapsing legacy chrome and the rail', async () => {

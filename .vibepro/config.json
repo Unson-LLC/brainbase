@@ -687,8 +687,20 @@
         "started_at": "2026-10-01",
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-project-canonical-identity",
+        "title": "指定したプロジェクトを別の詳細へ切り替えない",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-ux-20261001-01-world-model-empty-guidance"
+    "current_story_id": "story-project-canonical-identity"
   }
 }
