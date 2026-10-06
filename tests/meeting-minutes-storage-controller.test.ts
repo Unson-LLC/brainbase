@@ -115,6 +115,12 @@ class FakeCore implements MeetingMinutesControllerCorePort {
     return this.detail(document.meeting_id);
   }
 
+  async confirm_version(input: { meeting_id: string; minutes_id: string; version_id: string; expected_revision: number }, _context: MeetingMinutesControllerRequestContext): Promise<MeetingMinutesControllerDetail> {
+    const version = this.versions.get(input.version_id);
+    if (!version || version.meeting_id !== input.meeting_id || version.minutes_id !== input.minutes_id) throw new Error('not_found');
+    return this.detail(input.meeting_id);
+  }
+
   private detail(meeting_id: string): MeetingMinutesControllerDetail {
     const meeting = this.meetings.get(meeting_id);
     if (!meeting) throw new Error('not_found');
@@ -253,6 +259,41 @@ describe('MeetingMinutesStorageController', () => {
     assert.equal(result.source_status, 'unavailable');
     expect(result.reason).toMatch(/adapter/i);
     expect(result.body).toBeUndefined();
+  });
+
+  test('confirms only an exact externally readable revision', async () => {
+    const root = await createRoot({ 'minutes.txt': 'v1' });
+    let allowed = true;
+    const controller = controllerFor(root, () => allowed);
+    const created = await controller.create_meeting({ title: 'Confirm meeting' }, external(), PRINCIPAL);
+    const document = created.minutes[0];
+    const version = created.versions.find((candidate) => candidate.version_id === document.current_version_id);
+    assert.ok(version);
+
+    const confirmed = await controller.confirm_version({
+      meeting_id: created.meeting.meeting_id,
+      minutes_id: document.minutes_id,
+      version_id: version.version_id,
+      expected_revision: document.revision,
+    }, PRINCIPAL);
+    assert.equal(confirmed.meeting.meeting_id, created.meeting.meeting_id);
+
+    allowed = false;
+    await expect(controller.confirm_version({
+      meeting_id: created.meeting.meeting_id,
+      minutes_id: document.minutes_id,
+      version_id: version.version_id,
+      expected_revision: document.revision,
+    }, PRINCIPAL)).rejects.toMatchObject({ code: 'source_denied' });
+
+    allowed = true;
+    await writeFile(join(root, 'minutes.txt'), 'v2', 'utf8');
+    await expect(controller.confirm_version({
+      meeting_id: created.meeting.meeting_id,
+      minutes_id: document.minutes_id,
+      version_id: version.version_id,
+      expected_revision: document.revision,
+    }, PRINCIPAL)).rejects.toMatchObject({ code: 'source_changed' });
   });
 });
 

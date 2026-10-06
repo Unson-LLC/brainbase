@@ -5,6 +5,7 @@ import {
   MeetingMinutesStorageRequestContext,
   MeetingMinutesRegisterResult,
 } from './meeting-minutes-storage.js';
+import { createHash } from 'node:crypto';
 
 /** Provider-independent storage placement and re-import boundary. */
 export const MEETING_MINUTES_STORAGE_CONTROLLER_CONTRACT_VERSION = 'brainbase.meeting-minutes-storage-controller.v1' as const;
@@ -56,12 +57,17 @@ export interface MeetingMinutesControllerCreateMeetingInput {
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly minutes_title?: string;
   readonly minutes_metadata?: Readonly<Record<string, unknown>>;
+  /** Optional durable retry receipt supplied by an HTTP host. */
+  readonly idempotency_key?: string;
+  readonly idempotency_fingerprint?: string;
 }
 
 export interface MeetingMinutesControllerCreateMinutesInput {
   readonly title?: string;
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly expected_revision: number;
+  readonly idempotency_key?: string;
+  readonly idempotency_fingerprint?: string;
 }
 
 export interface MeetingMinutesControllerSaveVersionInput {
@@ -69,10 +75,21 @@ export interface MeetingMinutesControllerSaveVersionInput {
   readonly metadata?: Readonly<Record<string, unknown>>;
   readonly expected_revision: number;
   readonly predecessor_version_id?: string;
+  readonly idempotency_key?: string;
+  readonly idempotency_fingerprint?: string;
 }
 
 export interface MeetingMinutesControllerRebindInput extends MeetingMinutesControllerSaveVersionInput {
   readonly meeting_id: string;
+}
+
+export interface MeetingMinutesControllerConfirmVersionInput {
+  readonly meeting_id: string;
+  readonly minutes_id: string;
+  readonly version_id: string;
+  readonly expected_revision: number;
+  readonly idempotency_key?: string;
+  readonly idempotency_fingerprint?: string;
 }
 
 /** This port is structurally compatible with `MeetingMinutesStore`. */
@@ -104,6 +121,11 @@ export interface MeetingMinutesControllerCorePort {
       readonly body?: string;
       readonly source_ref?: MeetingMinutesControllerSourceRef;
     },
+    context: MeetingMinutesControllerRequestContext,
+  ): Promise<MeetingMinutesControllerDetail>;
+  /** Optional on older ports; required when confirmation is exposed. */
+  confirm_version?(
+    input: MeetingMinutesControllerConfirmVersionInput,
     context: MeetingMinutesControllerRequestContext,
   ): Promise<MeetingMinutesControllerDetail>;
 }
@@ -519,6 +541,39 @@ export class MeetingMinutesStorageController {
       throw new MeetingMinutesStorageControllerError('source_unavailable', 'The current minutes version has no readable body');
     }
     return this.core.save_version({ ...input, body }, context);
+  }
+
+  /**
+   * Confirm only an exact, currently readable external version.  The core
+   * receipt is written after the adapter has re-read the source, so an ACL
+   * revocation, source change, or missing historical revision cannot be
+   * turned into a confirmation by reusing a newer body.
+   */
+  async confirm_version(
+    input: MeetingMinutesControllerConfirmVersionInput,
+    context: MeetingMinutesControllerRequestContext,
+  ): Promise<MeetingMinutesControllerDetail> {
+    if (typeof this.core.confirm_version !== 'function') {
+      throw new MeetingMinutesStorageControllerError('invalid_configuration', 'The core does not implement confirm_version');
+    }
+    const version = await this.core.get_version(input.meeting_id, input.minutes_id, input.version_id, context);
+    if (version.source_ref) {
+      const resolved = await this.get_version(input.meeting_id, input.minutes_id, input.version_id, context);
+      if (resolved.source_status !== 'available' || typeof resolved.body !== 'string') {
+        const code = resolved.source_status === 'denied' ? 'source_denied'
+          : resolved.source_status === 'historical_unavailable' ? 'source_changed' : 'source_unavailable';
+        throw new MeetingMinutesStorageControllerError(
+          code,
+          resolved.reason ?? 'The exact external minutes version is not currently readable',
+          resolved.source_result,
+        );
+      }
+      const digest = `sha256:${createHash('sha256').update(resolved.body, 'utf8').digest('hex')}`;
+      if (digest !== version.source_ref.digest) {
+        throw new MeetingMinutesStorageControllerError('source_changed', 'The exact external minutes digest does not match the stored revision', resolved.source_result);
+      }
+    }
+    return this.core.confirm_version(input, context);
   }
 
   private async registerExternal(
