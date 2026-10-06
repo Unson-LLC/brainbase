@@ -132,6 +132,60 @@
   font-size: 13px;
 }
 
+/* A city's name is a way into its district (AC-20). */
+.bb-world-label.is-enterable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.bb-world-label.is-enterable::after {
+  content: ' ›';
+  color: var(--bb-color-muted);
+}
+
+.bb-world-label.is-enterable:hover,
+.bb-world-label.is-enterable.is-hover {
+  background: #1f5f47;
+  border-color: #1f5f47;
+  color: #ffffff;
+}
+
+.bb-world-label.is-enterable:hover::after,
+.bb-world-label.is-enterable.is-hover::after {
+  content: '　区画に入る ›';
+  color: #ffffff;
+}
+
+/* With nothing chosen, the rail lists the ways in (AC-19). */
+.bb-world-entrances {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.bb-world-entrance {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+
+.bb-world-entrance-note {
+  font-size: 12px;
+  color: var(--bb-color-muted);
+}
+
+.bb-world-entrance-note.is-check {
+  color: #8a5a00;
+  font-weight: 600;
+}
+
+.bb-world-entrance-note.is-muted {
+  color: #6b6b6b;
+}
+
 
 .bb-world-label.is-sector {
   background: transparent;

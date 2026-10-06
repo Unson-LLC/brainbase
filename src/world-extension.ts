@@ -440,7 +440,7 @@ export function createWorldExtension(options: { readonly vocabulary?: WorldVocab
   return {
     id: WORLD_EXTENSION_ID,
     uiDir: fileURLToPath(new URL('../ui/world/', import.meta.url)),
-    uiFiles: ['world-view.js', 'world-view.css', 'world-vendor.js', 'world-placement.js', 'world-work-rail.js', 'world-district.js'],
+    uiFiles: ['world-view.js', 'world-view.css', 'world-vendor.js', 'world-placement.js', 'world-work-rail.js', 'world-district.js', 'world-scenery.js'],
     screenEntry: 'world-view.js',
     // P17: the world sits above the home and opens first.
     navPosition: 'first',
