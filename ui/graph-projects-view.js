@@ -298,6 +298,9 @@ export function createGraphProjectsView({
   let contextRequest = 0;
   let detailRequest = 0;
   let hostListRequest = 0;
+  // An explicitly selected project may be read in parallel with the host
+  // list, but the list remains authoritative for whether its detail is shown.
+  let initialSelectionGate = null;
   let viewDestroyed = false;
 
   const correction = createGraphCorrection({
@@ -415,7 +418,7 @@ export function createGraphProjectsView({
   }
 
   /** Reads supplementary sections independently of the Graph project detail. */
-  async function loadProjectContextFor(id, { keep = false } = {}) {
+  async function loadProjectContextFor(id, { keep = false, deferUntilHostList = null } = {}) {
     if (viewDestroyed) return state.context;
     if (typeof loadProjectContext !== 'function') {
       if (state.context?.projectId !== id) state.context = null;
@@ -425,9 +428,16 @@ export function createGraphProjectsView({
     const request = ++contextRequest;
     state.context = normalizeProjectContext(id, { state: 'loading' });
     controller.render();
-    const applyContext = (snapshot) => {
+    const applyContext = (snapshot, { flushDeferred = false } = {}) => {
       const normalized = normalizeProjectContext(id, snapshot);
       if (viewDestroyed || request !== contextRequest || state.selectedId !== id) return false;
+      if (deferUntilHostList && !deferUntilHostList.confirmed && !flushDeferred) {
+        if (!deferUntilHostList.cancelled && initialSelectionGate === deferUntilHostList) {
+          deferUntilHostList.pendingContext = normalized;
+          deferUntilHostList.flushContext = () => applyContext(normalized, { flushDeferred: true });
+        }
+        return false;
+      }
       state.context = normalized;
       // Context progress must not rebuild the workspace: rebuilding destroys
       // Sigma's viewport and resets the user's active tab/selection. Detail
@@ -796,6 +806,37 @@ export function createGraphProjectsView({
     return children;
   }
 
+  function cancelInitialSelectionGate(gate, { reset = true } = {}) {
+    if (!gate || gate.cancelled || gate.confirmed) return;
+    gate.cancelled = true;
+    gate.pendingContext = null;
+    gate.pendingDetail = null;
+    gate.flushContext = null;
+    gate.flushDetail = null;
+    if (initialSelectionGate === gate) initialSelectionGate = null;
+    // A caller may have selected another project while this gate was pending.
+    // Do not invalidate that newer project's reads in that case.
+    if (!reset || state.selectedId !== gate.id) return;
+    detailRequest += 1;
+    contextRequest += 1;
+    if (state.detail?.id === gate.id && state.detail.state === 'loading') state.detail = null;
+    if (state.context?.projectId === gate.id && state.context.state === 'loading') state.context = null;
+  }
+
+  function confirmInitialSelectionGate(gate) {
+    if (!gate || gate.cancelled) return;
+    gate.confirmed = true;
+    if (initialSelectionGate === gate) initialSelectionGate = null;
+    // Responses which finished before the list are safe to expose now.  A
+    // response still in flight will apply through its normal completion path.
+    gate.flushDetail?.();
+    gate.flushContext?.();
+    gate.pendingDetail = null;
+    gate.pendingContext = null;
+    gate.flushDetail = null;
+    gate.flushContext = null;
+  }
+
   /** Reads the host's project list (see `load`). */
   async function loadHostList({ keep = false } = {}) {
     const request = ++hostListRequest;
@@ -804,14 +845,45 @@ export function createGraphProjectsView({
       state.list = { state: 'loading' };
       controller.render();
     }
+    let selectionGate = null;
+    let selectionDetailReading = null;
+    const selectedBeforeList = state.selectedId;
+    if (selectedBeforeList) {
+      if (initialSelectionGate?.id === selectedBeforeList && !initialSelectionGate.cancelled && !initialSelectionGate.confirmed) {
+        selectionGate = initialSelectionGate;
+        selectionDetailReading = selectionGate.detailReading;
+      } else if (state.detail === null) {
+        selectionGate = {
+          id: selectedBeforeList,
+          confirmed: false,
+          cancelled: false,
+          pendingContext: null,
+          pendingDetail: null,
+          flushContext: null,
+          flushDetail: null,
+          detailReading: null,
+        };
+        initialSelectionGate = selectionGate;
+        selectionDetailReading = controller.loadDetail(selectedBeforeList, {
+          keep,
+          deferUntilHostList: selectionGate,
+        });
+        selectionGate.detailReading = selectionDetailReading;
+      }
+    }
     const result = await client.read('/projects');
     if (viewDestroyed || request !== hostListRequest) return state.list;
     state.list = normalizeProjectList(result);
     if (state.list.state !== 'ok') {
+      cancelInitialSelectionGate(selectionGate);
       controller.render();
       return state.list;
     }
     const { projects } = state.list.payload;
+    if (selectionGate && (selectionGate.cancelled || state.selectedId !== selectionGate.id)) {
+      cancelInitialSelectionGate(selectionGate, { reset: false });
+      selectionGate = null;
+    }
     if (!state.selectedId) {
       if (correction.form) correction.close();
       state.panelAt = null;
@@ -832,6 +904,7 @@ export function createGraphProjectsView({
       // never be replaced with the first row when the refreshed list no
       // longer contains it.  Keeping the id makes the missing target visible
       // and lets the host decide whether its identity or access changed.
+      cancelInitialSelectionGate(selectionGate);
       if (correction.form) correction.close();
       detailRequest += 1;
       state.panelAt = null;
@@ -842,6 +915,11 @@ export function createGraphProjectsView({
       };
       state.context = null;
       contextRequest += 1;
+    } else if (selectionGate && selectionGate.id === state.selectedId) {
+      confirmInitialSelectionGate(selectionGate);
+      if (selectionDetailReading) await selectionDetailReading;
+      if (viewDestroyed || request !== hostListRequest) return state.list;
+      return state.list;
     } else if (state.detail?.id !== state.selectedId || state.detail?.state === 'not_found') {
       // The project the host asked for is listed; read it for the rail.
       if (viewDestroyed || request !== hostListRequest) return state.list;
@@ -876,6 +954,7 @@ export function createGraphProjectsView({
       hostListRequest += 1;
       detailRequest += 1;
       contextRequest += 1;
+      initialSelectionGate = null;
       knowledgeWorkspace?.destroy();
       knowledgeWorkspace = null;
       correction.close();
@@ -925,7 +1004,7 @@ export function createGraphProjectsView({
       return state.own.detail;
     },
     /** `keep` shows the current detail until the new one has been read. */
-    async loadDetail(id, { keep = false } = {}) {
+    async loadDetail(id, { keep = false, deferUntilHostList = null } = {}) {
       if (viewDestroyed) return state.detail;
       const request = ++detailRequest;
       const previous = state.detail;
@@ -933,13 +1012,26 @@ export function createGraphProjectsView({
         state.detail = { id, state: 'loading' };
         controller.render();
       }
-      const contextReading = loadProjectContextFor(id, { keep });
+      const contextReading = loadProjectContextFor(id, { keep, deferUntilHostList });
       const result = await client.read(`/projects/${encodeURIComponent(id)}`);
       if (viewDestroyed || request !== detailRequest || state.selectedId !== id) return state.detail;
-      state.detail = result.state === 'error' && result.status === 404
+      const detail = result.state === 'error' && result.status === 404
         ? { id, state: 'not_found', reason: 'このプロジェクトは見つかりません。一覧を読み直してください。' }
         : { id, ...normalizeProjectDetail(result) };
-      controller.render();
+      const applyDetail = () => {
+        if (viewDestroyed || request !== detailRequest || state.selectedId !== id) return false;
+        state.detail = detail;
+        controller.render();
+        return true;
+      };
+      if (deferUntilHostList && !deferUntilHostList.confirmed) {
+        if (!deferUntilHostList.cancelled && initialSelectionGate === deferUntilHostList) {
+          deferUntilHostList.pendingDetail = detail;
+          deferUntilHostList.flushDetail = applyDetail;
+        }
+        return state.detail;
+      }
+      applyDetail();
       // The context is intentionally independent.  Its completion may trigger
       // one more render, but never changes the Graph detail result.
       void contextReading;
@@ -947,6 +1039,10 @@ export function createGraphProjectsView({
     },
     /** Selects a row: the rail shows that project, and an open correction is closed. */
     async selectProject(id) {
+      // A host selection supersedes a prefetched initial detail.  Cancel the
+      // gate before changing the id so A -> B -> A cannot make a later list
+      // response wait for the first A read.
+      cancelInitialSelectionGate(initialSelectionGate, { reset: false });
       if (correction.form) correction.close();
       state.panelAt = null;
       state.selectedId = id;
