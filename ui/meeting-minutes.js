@@ -481,8 +481,21 @@ export function createMeetingMinutesUI({
       if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
       state.meetings = payload.meetings;
       state.listError = null;
-      if (!state.detail) state.detailError = null;
+      const selectedMeetingStillListed = state.meetingId !== null
+        && state.meetings.some((entry) => entry?.meeting?.meeting_id === state.meetingId);
+      if (state.meetingId !== null && !selectedMeetingStillListed) {
+        state.detail = null;
+        state.meetingId = null;
+        state.minutesId = null;
+        state.versionId = null;
+        state.detailError = '会議詳細を読み込めませんでした。選択中の会議は現在の一覧に含まれません。アクセス権または絞り込み条件を確認して再試行してください。';
+      } else if (!state.detail && state.meetingId === null) {
+        const hadDetailError = Boolean(state.detailError);
+        state.detailError = null;
+        if (hadDetailError) renderDetail(null);
+      }
       renderList();
+      if (state.detailError && state.detail === null) renderDetail(null);
       setStatus(state.meetings.length ? `${state.meetings.length}件の会議を読み込みました。` : '保存された会議はありません。');
     } catch (error) {
       state.listError = loadErrorMessage(error, '会議一覧を読み込めませんでした。');

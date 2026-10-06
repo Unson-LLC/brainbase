@@ -162,4 +162,32 @@ describe('meeting minutes UI loading states', () => {
     expect(collectText(root)).toContain('会議一覧へのアクセスを確認できません');
     expect(collectText(root)).not.toContain('保存済み本文');
   });
+
+  it('clears selected detail when a confirmed list no longer includes it', async () => {
+    let listAttempts = 0;
+    const root = new FakeElement('div');
+    const view = createMeetingMinutesUI({
+      root,
+      document: new FakeDocument(),
+      fetcher: async (path) => {
+        if (path === '/api/meeting-minutes') {
+          listAttempts += 1;
+          return listAttempts === 1
+            ? jsonResponse(200, meetingList())
+            : jsonResponse(200, { absence_confirmed: true, meetings: [] });
+        }
+        return jsonResponse(200, meetingDetail());
+      },
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    expect(collectText(root)).toContain('保存済み本文');
+
+    await view.refresh();
+    expect(view.state.meetingId).toBeNull();
+    expect(view.state.detail).toBeNull();
+    expect(collectText(root)).toContain('選択中の会議は現在の一覧に含まれません');
+    expect(collectText(root)).toContain('再試行');
+    expect(collectText(root)).not.toContain('保存済み本文');
+  });
 });
