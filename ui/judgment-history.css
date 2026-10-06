@@ -1,0 +1,215 @@
+/* Judgment history uses the organization workspace kit and shared tokens. */
+
+.bb-jh {
+  min-width: 0;
+}
+
+.bb-jh-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px 20px;
+  margin: 28px 0 20px;
+}
+
+.bb-jh-reference-note {
+  margin: -4px 0 18px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.bb-jh-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bb-jh-search {
+  display: flex;
+  flex: 1 1 230px;
+  align-items: center;
+  gap: 9px;
+  max-width: 330px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-jh-search span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.bb-jh-search input {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--bb-color-border-strong);
+  border-radius: var(--bb-radius-sm);
+  padding: 8px 12px;
+  background: var(--bb-color-panel);
+  color: var(--bb-color-ink);
+  font: inherit;
+  outline: none;
+}
+
+.bb-jh-search input:focus {
+  border-color: var(--bb-color-accent);
+  box-shadow: 0 0 0 2px var(--bb-color-accent-soft);
+}
+
+.bb-jh .bb-ws-summary {
+  margin-top: 22px;
+}
+
+.bb-jh-ledger {
+  border-top-color: var(--bb-color-border-strong);
+}
+
+.bb-jh-ledger .bb-ws-ledger-row {
+  grid-template-columns: 124px minmax(190px, 1.05fr) minmax(260px, 1.8fr);
+  align-items: stretch;
+  min-height: 76px;
+}
+
+.bb-jh-ledger .bb-ws-ledger-head {
+  align-items: center;
+  min-height: 38px;
+}
+
+.bb-jh-ledger .bb-ws-ledger-row > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.bb-jh-ledger .bb-ws-ledger-head > span {
+  align-items: center;
+  white-space: nowrap;
+}
+
+.bb-jh-ledger .bb-ws-ledger-row > span:first-child {
+  padding-left: 8px;
+}
+
+.bb-jh-date {
+  color: var(--bb-color-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap !important;
+}
+
+.bb-jh-reference-summary,
+.bb-jh-decision {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  line-height: 1.45;
+}
+
+.bb-jh-reference-summary strong,
+.bb-jh-decision strong {
+  overflow-wrap: anywhere;
+  color: var(--bb-color-ink);
+  font-weight: 680;
+}
+
+.bb-jh-reference-summary small,
+.bb-jh-decision small {
+  color: var(--bb-color-muted);
+  font-size: 11px;
+}
+
+.bb-jh-decision.is-delegated small {
+  color: var(--bb-color-accent-strong);
+}
+
+.bb-jh-unrecorded {
+  color: var(--bb-color-quiet);
+}
+
+.bb-jh-reference-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-jh-reference-list li {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.bb-jh-reference-list strong {
+  color: var(--bb-color-ink);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.bb-jh-reference-list code {
+  color: var(--bb-color-quiet);
+  font-family: var(--bb-font-mono);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.bb-jh-reference-list span {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.bb-jh .bb-ws-definition dd > span {
+  display: block;
+  line-height: 1.5;
+}
+
+@media (max-width: 760px) {
+  .bb-jh-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bb-jh-search {
+    max-width: none;
+  }
+
+  .bb-jh-ledger .bb-ws-ledger-head {
+    display: none;
+  }
+
+  .bb-jh-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    min-height: 0;
+    padding: 10px 0;
+  }
+
+  .bb-jh-ledger .bb-ws-ledger-row > span,
+  .bb-jh-ledger .bb-ws-ledger-row > span:first-child {
+    min-height: 0;
+    padding: 6px 12px;
+  }
+
+  .bb-jh-ledger .bb-ws-ledger-row > span::before {
+    flex: 0 0 82px;
+    color: var(--bb-color-quiet);
+    content: '';
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(1)::before { content: '日時'; }
+  .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(2)::before { content: '使った参照'; }
+  .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(3)::before { content: '行った判断'; }
+}
