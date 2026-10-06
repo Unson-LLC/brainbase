@@ -4,6 +4,20 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Released — v0.19.0
+
+目的・保存時点の現状・哲学・世界モデルを同じ範囲で読む共通UIと読み取りAPIを公開しました。共通UIはホストから読取portを受け取り、組織の認証と許可範囲は組織版が担当します。組織版への取込みと本番画面の確認は別の段階です。
+
+公開確認済みの配布証跡は次のとおりです。
+
+- npm package [`@unson/brainbase-mcp@0.19.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.19.0)
+- npmの`latest`は`0.19.0`を指し、registryの`gitHead`は`7cd7be975882fd1cbc797b7992b27a221f9fc02f`、integrityは`sha512-2xFtzRvppxqVFzVhdySNoGqelZsJItQIvxljM7IBWE2pgFVIE1etY0K8Vh4GwFz3W+tD/hNDxaANxBZ2jVDyYA==`
+- GitHub Release [`v0.19.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.19.0)は同じcommitを指し、正式版としてLatestに掲載
+- 公開とlatestの照合を完了したworkflowの検証済みrun [`37415232781` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/37415232781/attempts/2)
+- 空の設定・キャッシュを使う独立したnpm consumerで、正確なversion・integrity、新しい公開口、CLIの起動とPersonal Onboardingを確認
+
+公開用の一時タグ`release-7cd7be975882`の削除は、registry権限エラーで未完了です。正式版の配布、`latest`、GitHub Releaseの照合は完了しています。
+
 ## Released — v0.18.1
 
 0.18.1で、OSSのプロジェクトワークスペースの余白、文字の強弱、境界線を整理し、組織版のシンプルなデザインに合わせました。package stylesheetの公開口は既存のままです。
@@ -11,7 +25,7 @@
 公開確認済みの配布証跡は次のとおりです。
 
 - npm package [`@unson/brainbase-mcp@0.18.1`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.18.1)
-- npmの`latest`は`0.18.1`を指し、registryの`gitHead`は`9037a15719140c0e5c4e28f29975f98aa970c557`、integrityは`sha512-K0KYduvNDb/RIDiwocm1PI0Wk8C095KZdv+FBlsbyYZPRRiw0XgYMTXwfe4yrJzsXghL4u4dfiDBAPmv6pO4oA==`
+- 公開時点のnpmの`latest`は`0.18.1`を指し、registryの`gitHead`は`9037a15719140c0e5c4e28f29975f98aa970c557`、integrityは`sha512-K0KYduvNDb/RIDiwocm1PI0Wk8C095KZdv+FBlsbyYZPRRiw0XgYMTXwfe4yrJzsXghL4u4dfiDBAPmv6pO4oA==`
 - GitHub Release [`v0.18.1`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.18.1)
 - 公開とlatestの照合を完了したworkflowの検証済みrun [`37413609018`](https://github.com/Unson-LLC/brainbase/actions/runs/37413609018)
 
@@ -22,7 +36,7 @@
 公開確認済みの配布証跡は次のとおりです。
 
 - npm package [`@unson/brainbase-mcp@0.18.0`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.18.0)
-- npmの`latest`は`0.18.0`を指し、registryの`gitHead`は`0913d58555fe29ce69b49bb85bf6e21b6c9ed6d9`、integrityは`sha512-/EKrE3r61tJgo5s85GMYEDzqh7HVjwgZo9T8DtbuM0vLRK2V7kBcfs7sj1CgFmCT0DqHi02vR3ZsTpJgSZmIuA==`
+- 公開時点のnpmの`latest`は`0.18.0`を指し、registryの`gitHead`は`0913d58555fe29ce69b49bb85bf6e21b6c9ed6d9`、integrityは`sha512-/EKrE3r61tJgo5s85GMYEDzqh7HVjwgZo9T8DtbuM0vLRK2V7kBcfs7sj1CgFmCT0DqHi02vR3ZsTpJgSZmIuA==`
 - GitHub Release [`v0.18.0`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.18.0)
 - 公開workflowの検証済みrun [`37409099606` attempt 2](https://github.com/Unson-LLC/brainbase/actions/runs/37409099606/attempts/2)
 
@@ -70,10 +84,6 @@
 ## Candidate — v0.20.0（npm公開前）
 
 プロジェクト概要の共通UIを拡張し、「このプロジェクトについて」から「次に確認すること」、プロジェクトに直接紐づく資料、関連資料の順で、確認の優先度と資料の関係を読み取れるようにします。資料の直接・関連、本文取得済み・未取得、確認済みの空・取得失敗を区別します。`@unson/brainbase-mcp/ui/project-overview` を公開し、組織版は自身のGraph投影と認証・許可範囲を渡して利用します。npm配布と外部照合が完了するまでは公開済みとして扱いません。
-
-## Candidate — v0.19.0（npm公開前）
-
-目的・保存時点の現状・哲学・世界モデルを同じ範囲で読む共通UIと読み取りAPIを追加します。共通UIはホストから読取portを受け取り、組織の認証と許可範囲は組織版が担当します。npm配布と外部照合が完了するまでは公開済みとして扱いません。組織版への取込みと本番画面の確認は別の段階です。
 
 ## Candidate — v0.17.0（npm公開前）
 
