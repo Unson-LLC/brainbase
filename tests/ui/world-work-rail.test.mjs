@@ -110,3 +110,14 @@ describe('world work rail: zero read in part is not a real zero', () => {
     expect(text).not.toContain('実際の0件');
   });
 });
+
+describe('world district legend: what each phenomenon means, and what means nothing', () => {
+  it('names every gap as a street phenomenon and says the walkers and smoke come from no record', async () => {
+    const { DISTRICT_LEGEND } = await import('../../ui/world/world-district.js');
+    const text = DISTRICT_LEGEND.map(([, line]) => line).join('\n');
+    for (const phrase of ['誰もいない現場＝担当の記録なし', '柵の外の人（破線の輪）＝本文にだけ名前がある', '通りへの道が無い＝出典リンクなし', '図面の看板だけ＝成果物の記録が未接続', '雑草と色あせ＝見直し予定を過ぎた']) {
+      expect(text).toContain(phrase);
+    }
+    expect(DISTRICT_LEGEND.at(-1)[1]).toBe('通りを歩く人と煙＝街の雰囲気（記録とは関係しません）');
+  });
+});

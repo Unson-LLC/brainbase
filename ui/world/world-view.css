@@ -392,3 +392,66 @@
 .bb-world-hud[hidden] {
   display: none;
 }
+
+/* --- inside a district (AC-11〜15) ---------------------------------------- */
+.bb-world-canvas[hidden],
+.bb-world-labels[hidden] {
+  display: none;
+}
+
+.bb-world-district-legend {
+  position: absolute;
+  left: var(--bb-space-3);
+  bottom: var(--bb-space-3);
+  z-index: 3;
+  width: min(600px, calc(100% - 2 * var(--bb-space-3)));
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  font-size: 12px;
+  color: var(--bb-color-ink);
+}
+
+.bb-world-district-legend[hidden] {
+  display: none;
+}
+
+.bb-world-district-legend summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.bb-world-district-legend ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 2px 14px;
+}
+
+.bb-world-district-legend li.is-ambience {
+  grid-column: 1 / -1;
+  color: var(--bb-color-muted);
+  margin-top: 4px;
+}
+
+.bb-world-district-notice {
+  position: absolute;
+  top: var(--bb-space-3);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  margin: 0;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: rgb(255 240 199 / 95%);
+  border-left: 3px solid var(--bb-color-warning);
+  font-size: 13px;
+}
+
+.bb-world-district-notice[hidden] {
+  display: none;
+}

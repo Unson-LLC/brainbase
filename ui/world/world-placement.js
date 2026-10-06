@@ -144,51 +144,39 @@ function placementHash(value) {
 }
 
 /**
- * Where the work of a city stands (story-world-work-sites-and-gaps-v1): small sites on square rings
- * just outside the city's plate, away from the road that enters it.  A site's cell comes from its task
- * id, and sites are taken oldest first (by `created_at`, then id), so a new task never moves an older
- * one; the number of rings grows only when the count outgrows them.  The state of the work never moves
- * a site.  Returns `{ [taskId]: [dx, dz] }` relative to the city's centre, and the rings used.
+ * The lots inside a district (story-world-work-sites-and-gaps-v1, AC-12): a main street along z, a back
+ * street on each side, and lots facing them in four columns.  A lot comes from its task id, and tasks are
+ * taken oldest first (by `created_at`, then id), so a new task never moves an older one and a change of
+ * state never moves any.  The number of rows grows only when the count outgrows them.
+ * Returns `{ lots: { [taskId]: { x, z, facing } }, rows, length }`, `facing` being +1 when the lot's front
+ * looks toward +x and -1 toward -x.
  */
-export function workSiteCells(sites, { size, roadAngle = null, spacing = 1.45 } = {}) {
+export const DISTRICT_STREETS = Object.freeze({ main: 2, frontLot: 4, backStreet: 7, backLot: 10, lot: 2.8, row: 3.4 });
+
+export function districtStreetLots(sites, { minRows = 4 } = {}) {
   const ordered = [...(sites ?? [])].sort((a, b) => {
     const at = String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
     return at !== 0 ? at : String(a.task_id).localeCompare(String(b.task_id));
   });
-  const ringCells = (k) => {
-    const half = size / 2 + 1.0 + k * spacing;
-    const count = Math.max(4, Math.floor((8 * half) / spacing));
-    const cells = [];
-    for (let i = 0; i < count; i += 1) {
-      // Walk the square's perimeter at even steps.
-      const d = (i / count) * 8 * half;
-      const side = Math.floor(d / (2 * half));
-      const t = d - side * 2 * half - half;
-      const [x, z] = side === 0 ? [t, -half] : side === 1 ? [half, t] : side === 2 ? [-t, half] : [-half, -t];
-      if (roadAngle !== null) {
-        // Keep the road that enters the city clear.
-        const along = x * Math.cos(roadAngle) + z * Math.sin(roadAngle);
-        const across = -x * Math.sin(roadAngle) + z * Math.cos(roadAngle);
-        if (along > 0 && Math.abs(across) < 1.6) continue;
-      }
-      cells.push([Math.round(x * 100) / 100, Math.round(z * 100) / 100]);
-    }
-    return cells;
-  };
-  const needed = Math.ceil(ordered.length * 1.3);
+  const columns = [
+    { x: -DISTRICT_STREETS.frontLot, facing: 1 },
+    { x: DISTRICT_STREETS.frontLot, facing: -1 },
+    { x: -DISTRICT_STREETS.backLot, facing: 1 },
+    { x: DISTRICT_STREETS.backLot, facing: -1 },
+  ];
+  const rows = Math.max(minRows, Math.ceil((ordered.length * 1.25) / columns.length));
   const cells = [];
-  let rings = 0;
-  while (cells.length < Math.max(needed, 1)) {
-    cells.push(...ringCells(rings));
-    rings += 1;
+  for (let row = 0; row < rows; row += 1) {
+    const z = Math.round((-((rows - 1) * DISTRICT_STREETS.row) / 2 + row * DISTRICT_STREETS.row) * 100) / 100;
+    for (const column of columns) cells.push({ x: column.x, z, facing: column.facing });
   }
   const taken = new Set();
-  const placed = {};
+  const lots = {};
   for (const site of ordered) {
     let index = Math.floor(placementHash(String(site.task_id)) * cells.length);
     while (taken.has(index)) index = (index + 1) % cells.length;
     taken.add(index);
-    placed[site.task_id] = cells[index];
+    lots[site.task_id] = cells[index];
   }
-  return { cells: placed, rings };
+  return { lots, rows, length: rows * DISTRICT_STREETS.row };
 }

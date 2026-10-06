@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { projectWorldWork, summarizeWorldWork, WORLD_WORK_GAP_KINDS } from '../src/world-extension.js';
 // @ts-expect-error plain browser module without type declarations
-import { workSiteCells } from '../ui/world/world-placement.js';
+import { districtStreetLots } from '../ui/world/world-placement.js';
 
 // Fictional records in the shapes the Task API and the organization Graph return.
 const NOW = new Date('2026-10-06T03:00:00.000Z');
@@ -210,16 +210,20 @@ describe('world work summary: counts with the tasks behind them, and unreadable 
   });
 });
 
-describe('world work sites stay where they are', () => {
-  it('places each task by its id, oldest first, so a new task or a new state never moves an older site', () => {
-    const sites = Array.from({ length: 30 }, (_, index) => ({ task_id: `task-${index}`, created_at: `2026-09-${String(1 + index).padStart(2, '0')}` }));
-    const before = workSiteCells(sites, { size: 9.6, roadAngle: Math.PI });
-    const after = workSiteCells([...sites, { task_id: 'task-new', created_at: '2026-10-05' }], { size: 9.6, roadAngle: Math.PI });
-    for (const site of sites) expect(after.cells[site.task_id]).toEqual(before.cells[site.task_id]);
-    expect(new Set(Object.values(before.cells).map(String)).size).toBe(30);
-    // Reading the same tasks in another order gives the same places.
-    expect(workSiteCells([...sites].reverse(), { size: 9.6, roadAngle: Math.PI }).cells).toEqual(before.cells);
-    // The road into the city stays clear.
-    for (const [x, z] of Object.values(before.cells) as [number, number][]) expect(x < 0 && Math.abs(z) < 1.6).toBe(false);
+describe('world work lots stay where they are', () => {
+  it('places each task on a lot by its id, oldest first, so a new task or a new state never moves an older one', () => {
+    const sites = Array.from({ length: 29 }, (_, index) => ({ task_id: `task-${index}`, created_at: `2026-09-${String(1 + index).padStart(2, '0')}` }));
+    const before = districtStreetLots(sites);
+    const after = districtStreetLots([...sites, { task_id: 'task-new', created_at: '2026-10-05' }]);
+    expect(after.rows).toBe(before.rows);
+    for (const site of sites) expect(after.lots[site.task_id]).toEqual(before.lots[site.task_id]);
+    expect(new Set(Object.values(before.lots).map((lot: { x: number; z: number }) => `${lot.x},${lot.z}`)).size).toBe(29);
+    // Reading the same tasks in another order gives the same lots.
+    expect(districtStreetLots([...sites].reverse()).lots).toEqual(before.lots);
+    // Every lot faces a street: the main street (|x| = 4) or a back street (|x| = 10).
+    for (const lot of Object.values(before.lots) as { x: number; facing: number }[]) {
+      expect([4, 10]).toContain(Math.abs(lot.x));
+      expect(lot.facing).toBe(lot.x < 0 ? 1 : -1);
+    }
   });
 });

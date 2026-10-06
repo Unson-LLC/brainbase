@@ -23,7 +23,8 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT, workSiteCells } from './world-placement.js';
+import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT } from './world-placement.js';
+import { createDistrictView } from './world-district.js';
 import { WORK_STATES, workCityBlocks, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
 import {
   makeWorkspaceElement as el,
@@ -1289,49 +1290,17 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
     }
   }
 
-  const workLayer = { group: null, code: null, sites: new Map(), labels: [] };
+  const workLayer = { group: null, code: null, labels: [] };
   function clearWork() {
     if (workLayer.group) scene.remove(workLayer.group);
-    for (const group of workLayer.sites.values()) {
-      const index = pickables.indexOf(group);
-      if (index !== -1) pickables.splice(index, 1);
-      highlightable.delete(group);
-    }
     for (const label of workLayer.labels) {
       label.node.remove();
       const index = labels.indexOf(label);
       if (index !== -1) labels.splice(index, 1);
     }
-    if (selected && workLayer.sites.has(selected.userData?.site?.task_id)) select(null);
     workLayer.group = null;
     workLayer.code = null;
-    workLayer.sites = new Map();
     workLayer.labels = [];
-  }
-
-  function siteMesh(site) {
-    const group = new THREE.Group();
-    const color = WORK_COLORS[site.work.status] ?? 0x8d979e;
-    group.add(mesh(new THREE.BoxGeometry(1.05, 0.1, 1.05), standard(0xe2dccf, { roughness: 1 }), { y: 0.05 }));
-    const body = block(0.74, 0.78, 0.74, { style: 'house', wall: new THREE.Color(color), lit: false, roof: 0xd9d3c6 });
-    body.position.y += 0.1;
-    group.add(body);
-    // The text names a person the assignee field does not: a dashed ring (inferred, not recorded).
-    if (site.people.some((person) => person.link === 'inferred') || site.ambiguous_mentions?.length) {
-      const dashes = 10;
-      const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x5b4a8a, side: THREE.DoubleSide });
-      for (let i = 0; i < dashes; i += 1) {
-        const arc = mesh(new THREE.RingGeometry(0.66, 0.76, 8, 1, (i / dashes) * Math.PI * 2, Math.PI / dashes), ringMaterial, { y: 0.12, shadow: false });
-        arc.rotation.x = -Math.PI / 2;
-        group.add(arc);
-      }
-    }
-    if (site.gaps.length) {
-      const post = sign('check', 1.15, 0.42);
-      post.position.set(0.42, 0.1, 0.42);
-      group.add(post);
-    }
-    return group;
   }
 
   /** An arc between two cities: solid for a recorded relation, dashed for an inferred one. */
@@ -1355,29 +1324,13 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
     return { group, mid: curve.getPoint(0.5) };
   }
 
-  /** Draws the work of one city; the work layer of the city opened before is removed first. */
+  /** Draws the roads from one city to the businesses its work relates to (its work itself is inside its district). */
   function showWork(code, work) {
     clearWork();
     const entry = cityIndex.get(code);
     if (!entry || work?.status !== 'ok') return;
     const { city } = entry;
     const layer = new THREE.Group();
-    const open = work.sites.filter((site) => site.work.open);
-    // The road into a city runs from the plaza, so its direction from the city's centre points home.
-    const roadAngle = Math.atan2(-city.z, -city.x);
-    const { cells } = workSiteCells(open.map((site) => ({ task_id: site.task_id, created_at: site.work.created_at })), { size: city.size, roadAngle });
-    for (const site of open) {
-      const [dx, dz] = cells[site.task_id];
-      const group = siteMesh(site);
-      group.position.set(city.x + dx, 0, city.z + dz);
-      layer.add(group);
-      register(group, { kind: 'site', site, business: city.business });
-      workLayer.sites.set(site.task_id, group);
-      const title = site.title.length > 16 ? `${site.title.slice(0, 15)}…` : site.title;
-      const label = addLabel(title, new THREE.Vector3(group.position.x, 1.7, group.position.z), `is-site${site.gaps.length ? ' is-check' : ''}`, { minZoom: 4.2, priority: LABEL_PRIORITY.site, owner: group });
-      label.business = city.business;
-      workLayer.labels.push(label);
-    }
     // Roads to other businesses: recorded relations solid; decisions found only by their titles dashed.
     const links = new Map();
     for (const relation of work.relations) {
@@ -1406,32 +1359,9 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
     workLayer.code = code;
   }
 
-  /** Brings the given sites forward (the rest fade); null shows them all. */
-  function focusSites(taskIds) {
-    const keep = taskIds ? new Set(taskIds) : null;
-    for (const [taskId, group] of workLayer.sites) {
-      const on = !keep || keep.has(taskId);
-      group.traverse((child) => {
-        if (!child.isMesh) return;
-        for (const material of Array.isArray(child.material) ? child.material : [child.material]) {
-          material.userData.focusBase ??= { transparent: material.transparent, opacity: material.opacity };
-          material.transparent = on ? material.userData.focusBase.transparent : true;
-          material.opacity = on ? material.userData.focusBase.opacity : 0.16;
-          material.needsUpdate = true;
-        }
-      });
-    }
-    for (const label of workLayer.labels) {
-      const taskId = label.owner?.userData?.site?.task_id;
-      label.hiddenByFocus = Boolean(keep && taskId && !keep.has(taskId));
-      // A picked site's label shows even when zoomed out a little.
-      label.minZoom = keep && taskId && keep.has(taskId) && keep.size <= 12 ? 2.4 : taskId ? 4.2 : label.minZoom;
-    }
-  }
-
-  /** Selects a city or a site by its key, as a click would (without the host's callbacks). */
-  function selectKey({ code, siteId }) {
-    const group = siteId ? workLayer.sites.get(siteId) : cityIndex.get(code)?.group;
+  /** Selects a city by its code, as a click would (without the host's callbacks). */
+  function selectKey({ code }) {
+    const group = cityIndex.get(code)?.group;
     if (!group) return null;
     select(group);
     return { data: group.userData, center: new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()) };
@@ -1522,9 +1452,11 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
 
   let lastSkyMinute = -1;
   let running = true;
+  let paused = false;
   function frame(time) {
     if (!running) return;
     requestAnimationFrame(frame);
+    if (paused) return;
     if (!stage.isConnected || stage.offsetParent === null) return;
     if (width === 0) resize();
     if (flight) {
@@ -1612,8 +1544,14 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
     },
     setWorkSigns,
     showWork,
-    focusSites,
     selectKey,
+    /** While a district is open the world is not drawn (its canvas and labels are hidden). */
+    setPaused(value) {
+      paused = value;
+      renderer.domElement.hidden = value;
+      labelsLayer.hidden = value;
+      if (!value) resize();
+    },
     dispose() {
       running = false;
       observer?.disconnect();
@@ -1701,7 +1639,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   const header = workspacePageHeader(doc, {
     crumbs: page?.crumbs ?? ['あなたのBrainbase', '世界'],
     title: '世界',
-    lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶと、その事業の仕事（タスク）が外周に現場として並び、記録から把握できていないことに札が立ちます。見るための画面で、ここからは何も書き換えません。',
+    lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶとその事業の区画に入り、仕事（タスク）が通りに面した現場として建ち、記録から把握できていないことが街の様子で見えます。見るための画面で、ここからは何も書き換えません。',
     source: page?.source ?? null,
     actions: [
       skyButton,
@@ -1895,16 +1833,56 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (revealFocus) reveal(focusBlock ?? blocks[0]);
   }
 
+  /** The open tasks a focus picks: a kind of gap, or a recorded state; null for all. */
+  function focusIdsFor(work, focus) {
+    if (!focus || work?.status !== 'ok') return null;
+    return focus.kind
+      ? work.summary.gaps?.[focus.kind] ?? []
+      : work.sites.filter((site) => site.work.open && site.work.status === focus.status).map((site) => site.task_id);
+  }
+
   function showFocus(business, focus) {
     current.focus = focus;
-    const work = workCache.get(business.code);
-    if (work?.status === 'ok') {
-      const ids = !focus ? null : focus.kind
-        ? work.summary.gaps?.[focus.kind] ?? []
-        : work.sites.filter((site) => site.work.open && site.work.status === focus.status).map((site) => site.task_id);
-      scene?.focusSites(ids);
-    }
+    district?.focus(focusIdsFor(workCache.get(business.code), focus));
     renderCityRail(business, { revealFocus: true });
+  }
+
+  // --- inside a district (AC-11): the world rests behind it while it is open ---------------------
+  let district = null;
+  let districtCode = null;
+  function enterDistrict(business, work) {
+    if (!scene || !work || work.status === 'not_connected') return false;
+    district ??= createDistrictView({
+      doc,
+      stage,
+      reducedMotion,
+      onPick: (site) => {
+        const owner = businessOf(current.code);
+        if (owner) openSite(owner, site);
+      },
+      onClear: () => {
+        const owner = businessOf(current.code);
+        if (owner && current.level === 'site') openCity(owner, null);
+      },
+      onEscape: goUp,
+    });
+    scene.setPaused(true);
+    legend.hidden = true;
+    workLegend.hidden = true;
+    if (districtCode !== business.code || !district.isOpen()) {
+      district.show(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
+      districtCode = business.code;
+    }
+    district.focus(focusIdsFor(work, current.focus));
+    return true;
+  }
+
+  function leaveDistrict() {
+    if (!district?.isOpen()) return;
+    district.hide();
+    districtCode = null;
+    scene?.setPaused(false);
+    legend.hidden = false;
   }
 
   async function loadWork(business) {
@@ -1915,8 +1893,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     workCache.set(business.code, work);
     if (current.code !== business.code) return work;
     scene?.showWork(business.code, work);
-    workLegend.hidden = work?.status !== 'ok';
-    if (current.focus) showFocus(business, current.focus);
+    if (current.level !== 'world') enterDistrict(business, work);
     if (current.pendingSite) {
       const siteId = current.pendingSite;
       current.pendingSite = null;
@@ -1926,27 +1903,32 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     return work;
   }
 
+  /** Opens a city: its rail, and its district once its work is read (the district is where its work is). */
   function openCity(business, center, { zoom = 2.8 } = {}) {
     if (current.code !== business.code) current.focus = null;
     setCurrent(business.code, null);
     setLevel('city');
-    if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), zoom);
     const work = workCache.get(business.code);
-    if (work) {
-      scene?.showWork(business.code, work);
-      workLegend.hidden = work.status !== 'ok';
-      if (current.focus) showFocus(business, current.focus);
+    if (districtCode === business.code && district?.isOpen()) {
+      district.home();
+      district.focus(focusIdsFor(work, current.focus));
+    } else {
+      if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), zoom);
+      if (work) {
+        scene?.showWork(business.code, work);
+        enterDistrict(business, work);
+      }
     }
     renderCityRail(business);
     if (!work) void loadWork(business);
   }
 
-  function openSite(business, site, center) {
+  function openSite(business, site) {
     setCurrent(business.code, site.task_id);
     setLevel('site');
-    if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), 4.6);
+    if (districtCode === business.code) district?.select(site.task_id);
     const work = workCache.get(business.code);
-    const back = workspaceButton(doc, { text: `← ${business.name}に戻る`, onClick: () => goUp() });
+    const back = workspaceButton(doc, { text: `← ${business.name}の区画に戻る`, onClick: () => goUp() });
     const head = workspaceRailHead(doc, { kicker: `${business.name} の仕事（タスク）`, title: site.title, sub: `記録上：${site.work.label}${site.gaps.length ? `・把握できていないこと${site.gaps.length}種` : ''}` });
     showRail([
       head,
@@ -1959,14 +1941,14 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   function openSiteById(business, taskId) {
     const work = workCache.get(business.code);
     const site = work?.status === 'ok' ? work.sites.find((entry) => entry.task_id === taskId) : null;
-    const picked = site ? scene?.selectKey({ code: business.code, siteId: taskId }) : null;
     if (!site) return false;
-    openSite(business, site, picked?.center ?? null);
+    openSite(business, site);
     return true;
   }
 
   /** The whole world again, with the open city kept in hand (ring and rail stay). */
   function goToWorld() {
+    leaveDistrict();
     setLevel('world');
     if (current.code) {
       const business = businessOf(current.code);
@@ -1984,16 +1966,15 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     setCurrent(null, null);
     setLevel('world');
     current.focus = null;
-    scene?.focusSites(null);
     showEmptyRail();
   }
 
-  /** One level up: a site → its city, a city → the whole world (city kept), the world → nothing selected. */
+  /** One level up: a work site → its district, a district → the whole world (city kept), the world → nothing selected. */
   function goUp() {
     const business = current.code ? businessOf(current.code) : null;
     if (business && current.level === 'site') {
-      const picked = scene?.selectKey({ code: business.code });
-      openCity(business, picked?.center ?? null, { zoom: 2.8 });
+      district?.clearSelection();
+      openCity(business, null);
       return;
     }
     if (business && current.level === 'city') {
@@ -2061,7 +2042,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   function onPick(data, position) {
     if (data.kind === 'site') {
-      openSite(data.business, data.site, position);
+      openSite(data.business, data.site);
       return;
     }
     if (data.kind === 'city') {
