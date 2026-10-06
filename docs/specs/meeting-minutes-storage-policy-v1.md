@@ -28,7 +28,9 @@ Brainbaseが議事録を「どこに保存したか」「どこから取り込�
 | `digest` | 取り込み時の本文バイト列の SHA-256 |
 | `provenance` | 取り込み経路と観測時刻。会議コンテキストとは別に保持 |
 
-読み取りは毎回、呼び出し側から渡された現在の認可結果を検証してから行う。認可なし、locator の root 外解決、symlink、revision 不一致、digest 不一致、または source 不在は本文取得成功に変換しない。過去版が取得できないとき現在版を代用しない。
+読み取りは毎回、organization 境界から注入された `authorize(request_context, operation, target)` callback を本文の読み取り前に呼び出す。request に任意の `allowed` や認可結果を持たせず、adapter は callback の現在の判定だけを受け入れる。認可なし、locator の root 外解決、symlink、revision 不一致、digest 不一致、または source 不在は本文取得成功に変換しない。過去版が取得できないとき現在版を代用しない。
+
+filesystem adapter は外部本文を安全に読むため、設定された `max_bytes`（既定 10 MiB）を超えるファイルを拒否し、不正な UTF-8 を本文に変換しない。解決したパスの symlink 拒否に加え、`O_NOFOLLOW` でファイルを開き、file descriptor のデバイス・inode・サイズと path の実体を読み取り前後に再検証する。境界を超えた本文は `too_large`、不正なバイト列は `invalid_encoding`、接続断や読み取り不能は `unavailable` として返す。
 
 ## filesystem adapter の capability
 
