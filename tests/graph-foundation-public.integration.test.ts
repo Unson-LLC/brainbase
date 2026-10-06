@@ -496,6 +496,37 @@ describe('Graph foundation history through the public provider and HTTP boundary
     expect(projectBObjectives).toEqual([]);
   });
 
+  it('excludes legacy philosophies without applicability while rejecting explicit invalid metadata', async () => {
+    await createDatabase();
+
+    await setOwner();
+    await sql(
+      `INSERT INTO public.graph_entities
+        (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+       VALUES ('legacy-principle', 'philosophy', 'project-a', $1::jsonb, 'reader', 'normal', 'active', 1)`,
+      [graphPayload({ statement: 'Imported before applicability was recorded' })]
+    );
+
+    await setRuntimeProject('project-a');
+    const projectA = createReaderForProject('project-a');
+    const available = await projectA.readers.listPhilosophies(projectA.context);
+    expect(available.map((record) => record.id)).toEqual(['principle']);
+
+    await setOwner();
+    await sql(
+      `INSERT INTO public.graph_entities
+        (id, entity_type, project_id, payload, role_min, sensitivity, lifecycle_status, version)
+       VALUES ('invalid-principle', 'philosophy', 'project-a', $1::jsonb, 'reader', 'normal', 'active', 1)`,
+      [graphPayload({ statement: 'Explicitly invalid applicability', judgmentApplicability: null })]
+    );
+
+    await setRuntimeProject('project-a');
+    await expect(projectA.readers.listPhilosophies(projectA.context)).rejects.toMatchObject({
+      code: 'corrupt_catalog',
+      message: 'Philosophy payload requires judgmentApplicability'
+    });
+  });
+
   it('reads the newest history revision while retaining the current Graph authorization check', async () => {
     await createDatabase();
     await setRuntimeProject('project-a');

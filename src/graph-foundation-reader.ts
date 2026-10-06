@@ -215,6 +215,7 @@ LEFT JOIN LATERAL (
 ) AS history ON true
 WHERE current_entity.entity_type = 'philosophy'
   AND projects.code = $1
+  AND current_entity.payload ? 'judgmentApplicability'
 ORDER BY current_entity.id
 `;
 

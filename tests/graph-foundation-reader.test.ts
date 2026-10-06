@@ -363,6 +363,7 @@ describe('Graph philosophy history reader', () => {
     expect(calls[0]!.values).toEqual(['project-1']);
     expect(calls[0]!.text).toContain("current_entity.entity_type = 'philosophy'");
     expect(calls[0]!.text).toContain('projects.code = $1');
+    expect(calls[0]!.text).toContain("current_entity.payload ? 'judgmentApplicability'");
     expect(calls[0]!.text).toContain('storage_digest_valid');
   });
 
@@ -406,5 +407,19 @@ describe('Graph philosophy history reader', () => {
       phase: 'historical_read',
       context: { principal: 'alice', scope: { type: 'project', id: 'project-2' } }
     })).resolves.toMatchObject({ status: 'unauthorized' });
+  });
+
+  it('rejects explicit null applicability in a philosophy list instead of treating it as legacy', async () => {
+    const payload = { ...philosophyPayload(), judgmentApplicability: null };
+    const readers = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(philosophyRow(payload))
+    });
+
+    await expect(readers.listPhilosophies(trustedContext())).rejects.toMatchObject({
+      code: 'corrupt_catalog',
+      message: 'Philosophy payload requires judgmentApplicability'
+    });
   });
 });
