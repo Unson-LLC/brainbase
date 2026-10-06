@@ -701,6 +701,30 @@
         "contract_type": null
       },
       {
+        "story_id": "story-meeting-minutes-native-lifecycle-v1",
+        "title": "外部連携なしで会議と議事録を保存し、版と確認状態を管理できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-10",
+        "started_at": "2026-10-06",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted"
+      },
+      {
+        "story_id": "story-minutes-current-white-ui",
+        "title": "議事録UIを現行白基調へ合わせる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-10",
+        "started_at": "2026-10-06",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted"
+      },
+      {
         "story_id": "story-philosophy-catalog-legacy",
         "title": "旧哲学データがあっても目的と現状を確認できる",
         "ssot": "local",
@@ -713,6 +737,6 @@
         "contract_type": null
       }
     ],
-    "current_story_id": "story-philosophy-catalog-legacy"
+    "current_story_id": "story-minutes-current-white-ui"
   }
 }

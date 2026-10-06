@@ -39,6 +39,8 @@ describe('OSS共通UIの公開契約', () => {
       './ui/world-model-view.css': './ui/world-model-view.css',
       './ui/local-web-shell': './ui/local-web-shell.js',
       './ui/local-web-shell.css': './ui/local-web-shell.css',
+      './ui/meeting-minutes': './ui/meeting-minutes.js',
+      './ui/meeting-minutes.css': './ui/meeting-minutes.css',
       './ui/workspace-kit': './ui/workspace-kit.js',
       './ui/workspace-kit.css': './ui/workspace-kit.css',
       './ui/graph-view-shared': './ui/graph-view-shared.js',
@@ -81,6 +83,8 @@ describe('OSS共通UIの公開契約', () => {
       'world-model-view.css',
       'local-web-shell.js',
       'local-web-shell.css',
+      'meeting-minutes.js',
+      'meeting-minutes.css',
       'workspace-kit.js',
       'workspace-kit.css',
       'brainbase-tokens.css',
@@ -104,28 +108,28 @@ describe('OSS共通UIの公開契約', () => {
 
   it('新しい部品とホストの外枠は共通の見た目の定義だけで色・文字・余白を決める', async () => {
     const tokens = await readFile(new URL('../ui/brainbase-tokens.css', import.meta.url), 'utf8');
-    // The values are the organization edition's design (the visual source of truth).
+    // The values are the current white UI design (the visual source of truth).
     for (const [name, value] of Object.entries({
-      '--bb-color-ink': '#1e2822', '--bb-color-muted': '#69746d', '--bb-color-border': '#dce3dd', '--bb-color-panel': '#ffffff',
-      '--bb-color-paper': '#fbfcfa', '--bb-color-canvas': '#f1f3f0', '--bb-color-surface': '#f5f8f5',
-      '--bb-color-accent': '#087d62', '--bb-color-accent-soft': '#e6f2ec', '--bb-color-action': '#35684c',
-      '--bb-color-success': '#087d62', '--bb-color-success-soft': '#e6f2ec', '--bb-color-warning': '#8a631d',
+      '--bb-color-ink': '#202124', '--bb-color-muted': '#6b6b73', '--bb-color-border': '#e5e5e9', '--bb-color-panel': '#ffffff',
+      '--bb-color-paper': '#ffffff', '--bb-color-canvas': '#f6f6f8', '--bb-color-surface': '#f6f6f8',
+      '--bb-color-accent': '#5b4bd8', '--bb-color-accent-soft': '#efedff', '--bb-color-action': '#5b4bd8',
+      '--bb-color-success': '#18794e', '--bb-color-success-soft': '#e4f5eb', '--bb-color-warning': '#8a631d',
       '--bb-color-warning-soft': '#fff0c7', '--bb-color-danger': '#d92335', '--bb-color-danger-soft': '#fde9eb',
-      '--bb-color-rail': '#171c19', '--bb-color-rail-active': '#203e33',
+      '--bb-color-rail': '#ffffff', '--bb-color-rail-active': '#efedff',
       '--bb-font-sans': 'Geist, "Noto Sans JP", "Hiragino Sans", system-ui, sans-serif',
       '--bb-radius-sm': '7px', '--bb-radius-md': '14px', '--bb-radius-lg': '16px', '--bb-space-1': '4px', '--bb-space-2': '8px', '--bb-space-3': '12px',
       '--bb-space-4': '16px', '--bb-space-5': '24px', '--bb-space-6': '32px',
     })) {
       expect(tokens).toContain(`${name}: ${value};`);
     }
-    for (const file of ['world-model-view.css', 'local-web-shell.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css']) {
+    for (const file of ['world-model-view.css', 'local-web-shell.css', 'meeting-minutes.css', 'workspace-kit.css', 'graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       // Colors and font families come only from the shared tokens.
       expect(css, file).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
       expect(css, file).not.toMatch(/font-family:(?!\s*var\(--bb-font-)/);
     }
     const defined = new Set([...tokens.matchAll(/(--bb-[a-z0-9-]+):/g)].map((match) => match[1]));
-    for (const file of ['graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css']) {
+    for (const file of ['graph-view-shared.css', 'graph-projects-view.css', 'meeting-minutes.css', 'project-workspace.css', 'graph-registry-view.css']) {
       const css = await readFile(new URL(`../ui/${file}`, import.meta.url), 'utf8');
       const used = [...css.matchAll(/var\((--[a-z0-9-]+)\)/g)].map((match) => match[1]);
       // The Graph screens read only tokens that brainbase-tokens.css defines.

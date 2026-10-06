@@ -168,10 +168,10 @@ describe('local Web shell', () => {
     await flush();
     const links = findAll(root, (node) => node.tagName === 'A');
     expect(links.map((link) => [link.textContent, link.attributes.href])).toEqual([
-      ['今日', '#today'], ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['情報と関係', '#graph'],
+      ['今日', '#today'], ['議事録', '#minutes'], ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['情報と関係', '#graph'],
     ]);
     expect(LOCAL_WEB_SCREENS.map((entry) => [entry.id, entry.usesGraph])).toEqual([
-      ['today', false], ['objectives', true], ['projects', true], ['graph', true],
+      ['today', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true],
     ]);
     expect(links[0].attributes['aria-current']).toBe('page');
     expect(shell.state.active).toBe('today');
@@ -201,8 +201,10 @@ describe('local Web shell', () => {
     expect(text).not.toContain('Story参照');
     expect(calls).toEqual(expect.arrayContaining(['/api/foundation/objectives', '/api/world-model/variables', '/api/world-model/adoptions']));
     const links = findAll(root, (node) => node.tagName === 'A');
-    expect(links[1].attributes['aria-current']).toBe('page');
-    expect(links[0].attributes['aria-current']).toBeUndefined();
+    const objectiveLink = links.find((link) => link.attributes.href === '#objectives');
+    const todayLink = links.find((link) => link.attributes.href === '#today');
+    expect(objectiveLink?.attributes['aria-current']).toBe('page');
+    expect(todayLink?.attributes['aria-current']).toBeUndefined();
   });
 
   it('shows existing synthetic World Model records without the first-registration entry', async () => {

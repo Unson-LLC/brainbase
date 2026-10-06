@@ -21,6 +21,8 @@ import {
 } from './foundation-store.js';
 import { createGraphWebHttpHandler } from './graph-web-http.js';
 import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
+import { createMeetingMinutesHttpHandler } from './meeting-minutes-http.js';
+import { createMeetingMinutesStore, type MeetingMinutesStore } from './meeting-minutes.js';
 import { nodeRequestToFetch, writeFetchResponse } from './local-web-fetch-bridge.js';
 import {
   assertSameOrigin,
@@ -70,6 +72,7 @@ export const LOCAL_WEB_DEFAULT_OWNER_ID = 'self';
 export const LOCAL_WEB_STATUS_PATH = '/api/local/status';
 export const LOCAL_WEB_WORLD_MODEL_PREFIX = '/api/world-model';
 export const LOCAL_WEB_GRAPH_PREFIX = '/api/graph';
+export const LOCAL_WEB_MEETING_MINUTES_PREFIX = '/api/meeting-minutes';
 /**
  * An Objective is a few KB of text and criteria.  64 KiB leaves room for long
  * Japanese text (about 20k characters) while keeping a loopback request that
@@ -102,6 +105,8 @@ export interface LocalWebModuleContext {
   readonly now: () => Date;
   /** The host's one listing cache for the judgment journal, shared by every screen that reads it. */
   readonly journalCache: JudgmentValueProofJournalCache;
+  /** The one host-owned native meeting-minutes service shared by modules/extensions. */
+  readonly meetingMinutesStore: MeetingMinutesStore;
 }
 
 /**
@@ -139,6 +144,8 @@ export interface LocalWebHostOptions {
   /** Directory containing the packaged `ui/` files. */
   readonly uiDir?: string;
   readonly now?: () => Date;
+  /** Optional composition seam for organization adapters and lineage. */
+  readonly meetingMinutesStore?: MeetingMinutesStore;
   readonly extensions?: readonly LocalWebExtension[];
 }
 
@@ -279,6 +286,20 @@ export function createValueProofModule(context: LocalWebModuleContext): LocalWeb
     // legacy assets listed as well: the old public UI export remains a
     // supported compatibility route for downstream consumers.
     uiFiles: ['judgment-history.js', 'judgment-history.css', 'value-proof-review.js', 'value-proof-review.css'],
+    handle: handler
+  };
+}
+
+/** Native meeting minutes use the host's authenticated local single-owner principal. */
+export function createMeetingMinutesModule(context: LocalWebModuleContext): LocalWebModule {
+  const handler = createMeetingMinutesHttpHandler({
+    store: context.meetingMinutesStore,
+    basePath: LOCAL_WEB_MEETING_MINUTES_PREFIX,
+    resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID })
+  });
+  return {
+    id: 'meeting-minutes',
+    uiFiles: ['meeting-minutes.js', 'meeting-minutes.css'],
     handle: handler
   };
 }
@@ -836,6 +857,7 @@ export function defaultLocalWebModules(context: LocalWebModuleContext): LocalWeb
   return [
     createLocalStatusModule(context),
     createValueProofModule(context),
+    createMeetingMinutesModule(context),
     createObjectiveFoundationModule(context),
     createWorldModelReadModule(context),
     createGraphWebModule(context)
@@ -904,12 +926,14 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
   const dataDir = resolveDataDir(options.dataDir);
   const journalRoot = options.journalRoot ?? defaultJudgmentJournalRoot(dataDir);
   const uiDir = options.uiDir ?? fileURLToPath(new URL('../ui/', import.meta.url));
+  const now = options.now ?? (() => new Date());
   const context: LocalWebModuleContext = {
     dataDir,
     journalRoot,
     token,
-    now: options.now ?? (() => new Date()),
-    journalCache: new JudgmentValueProofJournalCache()
+    now,
+    journalCache: new JudgmentValueProofJournalCache(),
+    meetingMinutesStore: options.meetingMinutesStore ?? createMeetingMinutesStore({ data_dir: dataDir, now })
   };
   const modules = defaultLocalWebModules(context);
   const extensions = [...options.extensions ?? []];
