@@ -699,8 +699,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-philosophy-catalog-legacy",
+        "title": "旧哲学データがあっても目的と現状を確認できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-project-canonical-identity"
+    "current_story_id": "story-philosophy-catalog-legacy"
   }
 }
