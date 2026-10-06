@@ -5,7 +5,8 @@
  * Built on the organization edition's screen pattern (workspace kit): the
  * workspace has the page head, the source notice, summary metrics and the
  * project ledger; the right rail has the selected project — its outline, each
- * 関係者 and the corrections.  The first project is selected on load.
+ * 関係者 and the corrections.  The first project is selected on load when the
+ * host has not provided a selection.
  *
  * Reads `GET {base}/projects` and `GET {base}/projects/:id` and corrects
  * through `POST {base}/corrections` (see `graph-view-shared.js`).  「関係者」
@@ -209,8 +210,9 @@ function normalizeProjectSummary(value) {
  *   history).  Called synchronously on every rail render while a project is selected, with the read
  *   project detail, or null while it loads or when it could not be read.  A throw or a value that is
  *   not a node is shown as a small danger notice instead of breaking the rail.
- * @param {string} [options.selectedId] The project to select first.  When absent or not in the
- *   list, the first project is selected, as by default.
+ * @param {string} [options.selectedId] The project to select first. When it
+ *   is absent, the first project is selected. When it is not in the list, the
+ *   requested id stays selected and the rail shows not found.
  * @param {(id: string) => void} [options.onSelect] Called when the view changes the selection itself
  *   (a ledger row, or the automatic first project).  Not called for `select(id)`.
  * @param {{ basePath: string, fetcher?: Function, label?: string }} [options.ownShare]
@@ -810,7 +812,7 @@ export function createGraphProjectsView({
       return state.list;
     }
     const { projects } = state.list.payload;
-    if (!state.selectedId || !projects.some((project) => project.id === state.selectedId)) {
+    if (!state.selectedId) {
       if (correction.form) correction.close();
       state.panelAt = null;
       state.detail = null;
@@ -825,7 +827,22 @@ export function createGraphProjectsView({
         if (viewDestroyed || request !== hostListRequest) return state.list;
         return state.list;
       }
-    } else if (state.detail?.id !== state.selectedId) {
+    } else if (!projects.some((project) => project.id === state.selectedId)) {
+      // An explicit host selection, or a project selected by the user, must
+      // never be replaced with the first row when the refreshed list no
+      // longer contains it.  Keeping the id makes the missing target visible
+      // and lets the host decide whether its identity or access changed.
+      if (correction.form) correction.close();
+      detailRequest += 1;
+      state.panelAt = null;
+      state.detail = {
+        id: state.selectedId,
+        state: 'not_found',
+        reason: 'このプロジェクトは一覧から見つかりません。一覧を読み直してください。',
+      };
+      state.context = null;
+      contextRequest += 1;
+    } else if (state.detail?.id !== state.selectedId || state.detail?.state === 'not_found') {
       // The project the host asked for is listed; read it for the rail.
       if (viewDestroyed || request !== hostListRequest) return state.list;
       await controller.loadDetail(state.selectedId);
