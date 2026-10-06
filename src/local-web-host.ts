@@ -22,7 +22,18 @@ import {
 import { createGraphWebHttpHandler } from './graph-web-http.js';
 import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
 import { createMeetingMinutesHttpHandler } from './meeting-minutes-http.js';
-import { createMeetingMinutesStore, type MeetingMinutesStore } from './meeting-minutes.js';
+import { createMeetingMinutesLineageHttpHandler } from './meeting-minutes-lineage-http.js';
+import {
+  createMeetingMinutesLineageCorrectionHook,
+  type MeetingMinutesLineageCorrectionHook,
+} from './meeting-minutes-lineage-lifecycle.js';
+import type {
+  MinutesLineageAccess,
+  MinutesLineageActor,
+  MinutesLineageStore,
+} from './meeting-minutes-lineage.js';
+import { createMeetingMinutesStore, type MeetingMinutesDetail, type MeetingMinutesStore, type MinutesVersionRecord } from './meeting-minutes.js';
+import type { NativeMeetingMinutesVersionRecord } from './meeting-minutes-lineage-adapters.js';
 import {
   createFilesystemMeetingMinutesAdapter,
   type FilesystemMeetingMinutesAdapterOptions,
@@ -118,11 +129,22 @@ export interface LocalWebModuleContext {
   readonly meetingMinutesStore: MeetingMinutesStore;
   /** Explicitly configured storage runtime. Native minutes remain the default. */
   readonly meetingMinutesStorage?: LocalWebMeetingMinutesStorageRuntime;
+  /** Explicitly configured lineage runtime. No lineage provider is guessed. */
+  readonly meetingMinutesLineage?: LocalWebMeetingMinutesLineageRuntime;
 }
 
 export interface LocalWebMeetingMinutesStorageRuntime {
   readonly defaultExternal?: Readonly<{ provider: string; locator: string }>;
   readonly controller: MeetingMinutesStorageController;
+}
+
+export interface LocalWebMeetingMinutesLineageRuntime {
+  readonly store: MinutesLineageStore;
+  /** Host-owned actor. Browser actor fields are never used as authority. */
+  readonly actor: MinutesLineageActor;
+  readonly correctionHook: MeetingMinutesLineageCorrectionHook;
+  readonly correctionReason: string;
+  readonly candidateDefaults?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -168,6 +190,8 @@ export interface LocalWebHostOptions {
    * either value.
    */
   readonly meetingMinutesStorage?: LocalWebMeetingMinutesStorageOptions;
+  /** Enables lineage only with an organization supplied, real provider store. */
+  readonly meetingMinutesLineage?: LocalWebMeetingMinutesLineageOptions;
   readonly extensions?: readonly LocalWebExtension[];
 }
 
@@ -176,6 +200,18 @@ export interface LocalWebMeetingMinutesStorageOptions {
   readonly externalRegistry?: MeetingMinutesExternalSourceRegistry;
   /** Optional host-selected external source used by the shared UI placement selector. */
   readonly defaultExternal?: Readonly<{ provider: string; locator: string }>;
+}
+
+export interface LocalWebMeetingMinutesLineageOptions {
+  /** The actual provider-backed ledger shared by the host. */
+  readonly store: MinutesLineageStore;
+  /** Optional host-selected actor; defaults to the local single-owner actor. */
+  readonly actor?: MinutesLineageActor;
+  /** Optional hook seam for organizations; default writes to the supplied store. */
+  readonly correctionHook?: MeetingMinutesLineageCorrectionHook;
+  readonly correctionReason?: string;
+  /** Non-authoritative UI defaults for the candidate form. */
+  readonly candidateDefaults?: Readonly<Record<string, unknown>>;
 }
 
 /** One organization term that names a field value, e.g. project.kind = product → プロダクト. */
@@ -321,22 +357,94 @@ export function createValueProofModule(context: LocalWebModuleContext): LocalWeb
 
 /** Native meeting minutes use the host's authenticated local single-owner principal. */
 export function createMeetingMinutesModule(context: LocalWebModuleContext): LocalWebModule {
+  const lineage = context.meetingMinutesLineage;
+  const afterSave = lineage
+    ? async ({ before, after, context: saveContext }: {
+      readonly before: MeetingMinutesDetail;
+      readonly after: MeetingMinutesDetail;
+      readonly context: { readonly principal_id: string };
+    }) => {
+      const pair = savedLineageVersionPair(before, after);
+      if (!pair) return undefined;
+      return lineage.correctionHook.onVersionSaved({
+        previousVersion: pair.previousVersion,
+        replacementVersion: pair.replacementVersion,
+        access: { principal: saveContext.principal_id } satisfies MinutesLineageAccess,
+        actor: lineage.actor,
+        reason: lineage.correctionReason,
+      });
+    }
+    : undefined;
   const handler = context.meetingMinutesStorage
     ? createMeetingMinutesStorageHttpHandler({
       store: context.meetingMinutesStore,
       controller: context.meetingMinutesStorage.controller,
       basePath: LOCAL_WEB_MEETING_MINUTES_PREFIX,
-      resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID })
+      resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID }),
+      ...(afterSave ? { afterSave } : {}),
     })
     : createMeetingMinutesHttpHandler({
       store: context.meetingMinutesStore,
       basePath: LOCAL_WEB_MEETING_MINUTES_PREFIX,
-      resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID })
+      resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID }),
+      ...(afterSave ? { afterSave } : {}),
     });
+  const lineageHandler = lineage
+    ? createMeetingMinutesLineageHttpHandler({
+      store: lineage.store,
+      basePath: '/api/meeting-minutes-lineage',
+      resolveAccess: () => ({ principal: LOCAL_WEB_DEFAULT_OWNER_ID }),
+      resolveActor: () => lineage.actor,
+      assertWriteAllowed: (request) => {
+        const rejected = rejectUntrustedWrite(request, context.token);
+        if (rejected) throw rejected;
+      },
+    })
+    : undefined;
   return {
     id: 'meeting-minutes',
-    uiFiles: ['meeting-minutes.js', 'meeting-minutes.css', 'meeting-minutes-storage.js', 'meeting-minutes-storage.css'],
-    handle: handler
+    uiFiles: [
+      'meeting-minutes.js',
+      'meeting-minutes.css',
+      'meeting-minutes-storage.js',
+      'meeting-minutes-storage.css',
+      'meeting-minutes-lineage.js',
+      'meeting-minutes-lineage.css',
+      'meeting-minutes-lineage-http.js',
+    ],
+    async handle(request, response) {
+      if (await handler(request, response)) return true;
+      return lineageHandler ? lineageHandler(request, response) : false;
+    }
+  };
+}
+
+function savedLineageVersionPair(before: MeetingMinutesDetail, after: MeetingMinutesDetail): {
+  readonly previousVersion: NativeMeetingMinutesVersionRecord;
+  readonly replacementVersion: NativeMeetingMinutesVersionRecord;
+} | undefined {
+  for (const beforeDocument of before.minutes) {
+    const afterDocument = after.minutes.find((candidate) => candidate.minutes_id === beforeDocument.minutes_id);
+    if (!afterDocument || afterDocument.current_version_id === beforeDocument.current_version_id) continue;
+    const previous = before.versions.find((candidate) => candidate.version_id === beforeDocument.current_version_id);
+    const replacement = after.versions.find((candidate) => candidate.version_id === afterDocument.current_version_id);
+    if (!previous || !replacement) continue;
+    return {
+      previousVersion: nativeLineageVersion(previous),
+      replacementVersion: nativeLineageVersion(replacement),
+    };
+  }
+  return undefined;
+}
+
+function nativeLineageVersion(version: MinutesVersionRecord): NativeMeetingMinutesVersionRecord {
+  return {
+    version_id: version.version_id,
+    minutes_id: version.minutes_id,
+    meeting_id: version.meeting_id,
+    ...(version.predecessor_version_id ? { predecessor_version_id: version.predecessor_version_id } : {}),
+    ...(version.body_digest ? { body_digest: version.body_digest } : {}),
+    ...(version.source_ref ? { source_ref: version.source_ref } : {}),
   };
 }
 
@@ -370,6 +478,33 @@ function createLocalWebMeetingMinutesStorageRuntime(
     ...(defaultExternal
       ? { defaultExternal: Object.freeze({ provider: defaultExternal.provider.trim(), locator: defaultExternal.locator.trim() }) }
       : {}),
+  };
+}
+
+function createLocalWebMeetingMinutesLineageRuntime(
+  options: LocalWebMeetingMinutesLineageOptions,
+): LocalWebMeetingMinutesLineageRuntime {
+  if (!options.store || typeof options.store.readByMinutesVersion !== 'function'
+    || typeof options.store.createCandidate !== 'function'
+    || typeof options.store.markCorrection !== 'function') {
+    throw new TypeError('meetingMinutesLineage.store must be a complete lineage store');
+  }
+  const actor = options.actor ?? { type: 'person', id: LOCAL_WEB_DEFAULT_OWNER_ID } satisfies MinutesLineageActor;
+  if (!actor || !['person', 'agent', 'service', 'system'].includes(actor.type)
+    || typeof actor.id !== 'string' || actor.id.trim() === '') {
+    throw new TypeError('meetingMinutesLineage.actor must be a trusted actor');
+  }
+  const correctionReason = options.correctionReason?.trim() || '議事録版を修正しました';
+  const correctionHook = options.correctionHook ?? createMeetingMinutesLineageCorrectionHook({ store: options.store });
+  if (!correctionHook || typeof correctionHook.onVersionSaved !== 'function') {
+    throw new TypeError('meetingMinutesLineage.correctionHook must implement onVersionSaved');
+  }
+  return {
+    store: options.store,
+    actor: { type: actor.type, id: actor.id.trim() },
+    correctionHook,
+    correctionReason,
+    ...(options.candidateDefaults ? { candidateDefaults: options.candidateDefaults } : {}),
   };
 }
 
@@ -958,6 +1093,7 @@ ${stylesheets.map((path) => `<link rel="stylesheet" href="${escapeAttribute(path
 function bootstrapJs(
   extensions: readonly LocalWebExtension[],
   meetingMinutesStorage?: Readonly<{ defaultExternal?: Readonly<{ provider: string; locator: string }> }>,
+  meetingMinutesLineage?: Readonly<{ candidateDefaults?: Readonly<Record<string, unknown>> }>,
 ): string {
   const imports = extensions.map((extension, index) =>
     `import { screen as extensionScreen${index} } from '/ui/extensions/${extension.id}/${extension.screenEntry}';`
@@ -982,6 +1118,7 @@ const shell = createLocalWebShell({
   token: meta('brainbase-web-token'),
   initialScreen: screenFromHash(),
   meetingMinutesStorage: ${JSON.stringify(meetingMinutesStorage ?? null)},
+  meetingMinutesLineage: ${JSON.stringify(meetingMinutesLineage ?? null)},
   screens: ${leading ? `[${leading}, ...LOCAL_WEB_SCREENS${trailing ? `, ${trailing}` : ''}]` : '[...LOCAL_WEB_SCREENS, ...extensionScreens]'}
 });
 addEventListener('hashchange', () => shell.show(screenFromHash()));
@@ -1004,6 +1141,9 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
   const meetingMinutesStorage = options.meetingMinutesStorage
     ? createLocalWebMeetingMinutesStorageRuntime(options.meetingMinutesStorage, meetingMinutesStore)
     : undefined;
+  const meetingMinutesLineage = options.meetingMinutesLineage
+    ? createLocalWebMeetingMinutesLineageRuntime(options.meetingMinutesLineage)
+    : undefined;
   const context: LocalWebModuleContext = {
     dataDir,
     journalRoot,
@@ -1011,7 +1151,8 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
     now,
     journalCache: new JudgmentValueProofJournalCache(),
     meetingMinutesStore,
-    ...(meetingMinutesStorage ? { meetingMinutesStorage } : {})
+    ...(meetingMinutesStorage ? { meetingMinutesStorage } : {}),
+    ...(meetingMinutesLineage ? { meetingMinutesLineage } : {})
   };
   const modules = defaultLocalWebModules(context);
   const extensions = [...options.extensions ?? []];
@@ -1086,7 +1227,9 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
       response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
       response.end(bootstrapJs(extensions, meetingMinutesStorage
         ? { defaultExternal: meetingMinutesStorage.defaultExternal }
-        : undefined));
+        : undefined, meetingMinutesLineage
+          ? { candidateDefaults: meetingMinutesLineage.candidateDefaults }
+          : undefined));
       return;
     }
     const asset = uiFiles.get(path);
