@@ -72,6 +72,8 @@ export interface CanonicalTaskRecord extends JsonRecord {
   completed_at?: string | null;
   source_refs?: unknown[];
   project_codes?: string[];
+  /** What the work is for, in a few words (one per task); null when unlabelled. */
+  purpose_label?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   web_url?: string | null;
@@ -87,6 +89,7 @@ export interface CanonicalTaskCreateInput extends JsonRecord {
   review_at?: string | null;
   source_refs?: unknown[];
   project_codes?: unknown;
+  purpose_label?: string | null;
 }
 
 export interface CanonicalTaskUpdateInput extends JsonRecord {
@@ -99,6 +102,7 @@ export interface CanonicalTaskUpdateInput extends JsonRecord {
   review_at?: string | null;
   source_refs?: unknown[];
   project_codes?: unknown;
+  purpose_label?: string | null;
 }
 
 export interface CanonicalTaskListFilters extends JsonRecord {
@@ -292,6 +296,7 @@ const CREATE_FIELDS = new Set([
   'review_at',
   'source_refs',
   'project_codes',
+  'purpose_label',
 ]);
 const MUTABLE_FIELDS = new Set([
   'expected_version',
@@ -304,6 +309,7 @@ const MUTABLE_FIELDS = new Set([
   'review_at',
   'source_refs',
   'project_codes',
+  'purpose_label',
 ]);
 
 function fail(code: string, message: string, status = 400, details: JsonRecord = {}): never {
@@ -340,6 +346,12 @@ function normalizeString(
     fail('validation_error', `${field} exceeds the maximum length`, 400, { field, max: options.max });
   }
   return normalized;
+}
+
+/** A purpose label: a single line of at most 30 characters; empty or null clears it. */
+const MAX_PURPOSE_LABEL_LENGTH = 30;
+function normalizePurposeLabel(value: unknown): string | null {
+  return normalizeString(value, 'purpose_label', { max: MAX_PURPOSE_LABEL_LENGTH });
 }
 
 function normalizeIsoDate(value: unknown, field: string): string | null {
@@ -933,6 +945,7 @@ export class CanonicalTaskService {
     const title = normalizeString(input.title, 'title', { required: true, max: MAX_TITLE_LENGTH }) as string;
     const priority = input.priority == null || input.priority === '' ? 'medium' : String(input.priority);
     if (!isCanonicalTaskPriority(priority)) fail('validation_error', 'priority is invalid', 400, { field: 'priority' });
+    const purposeLabel = normalizePurposeLabel(input.purpose_label);
     return {
       title,
       description: normalizeString(input.description, 'description', { max: 10000, multiline: true }),
@@ -943,6 +956,8 @@ export class CanonicalTaskService {
       review_at: normalizeIsoDate(input.review_at, 'review_at'),
       source_refs: normalizeSourceRefs(input.source_refs) ?? [],
       project_codes: normalizeProjectCodes(input.project_codes) ?? [],
+      // Only a label that is there is written, so a store without the column still accepts unlabelled work.
+      ...(purposeLabel ? { purpose_label: purposeLabel } : {}),
     };
   }
 
@@ -964,6 +979,7 @@ export class CanonicalTaskService {
     if ('review_at' in input) patch.review_at = normalizeIsoDate(input.review_at, 'review_at');
     if ('source_refs' in input) patch.source_refs = normalizeSourceRefs(input.source_refs) ?? [];
     if ('project_codes' in input) patch.project_codes = normalizeProjectCodes(input.project_codes) ?? [];
+    if ('purpose_label' in input) patch.purpose_label = normalizePurposeLabel(input.purpose_label);
     if (Object.keys(patch).length === 0) fail('validation_error', 'Task update must include at least one mutable field');
     return patch;
   }
@@ -1149,6 +1165,7 @@ export class CanonicalTaskService {
     if (response.completed_at === undefined) response.completed_at = null;
     if (response.source_refs === undefined) response.source_refs = [];
     if (response.project_codes === undefined) response.project_codes = [];
+    if (response.purpose_label === undefined) response.purpose_label = null;
     return response;
   }
 }

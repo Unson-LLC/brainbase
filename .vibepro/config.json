@@ -741,6 +741,18 @@
         "title": "議事録UIを現行白基調へ合わせる",
         "ssot": "local",
         "status": "active",
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-10",
+        "started_at": "2026-10-06",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted"
+      },
+      {
+        "story_id": "story-philosophy-catalog-legacy",
+        "title": "旧哲学データがあっても目的と現状を確認できる",
+        "ssot": "local",
+        "status": "active",
         "horizon": null,
         "view": null,
         "period": null,

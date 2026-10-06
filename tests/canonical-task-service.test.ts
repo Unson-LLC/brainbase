@@ -58,6 +58,26 @@ describe('CanonicalTaskService', () => {
       .rejects.toMatchObject({ code: 'validation_error', status: 400 });
   });
 
+  it('keeps one short single-line purpose label per task, and clears it when empty', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const unlabelled = await fixture.service.createTask({ title: 'No label yet' }, fixture.context('label-none'));
+    expect(unlabelled.purpose_label).toBeNull();
+    // An unlabelled create does not write the field at all, so a store without the column keeps working.
+    expect(fixture.tasks.get(unlabelled.id)).not.toHaveProperty('purpose_label');
+
+    const labelled = await fixture.service.createTask({ title: 'Review campaign', purpose_label: '  口コミ  ' }, fixture.context('label-create'));
+    expect(labelled.purpose_label).toBe('口コミ');
+    const relabelled = await fixture.service.updateTask(labelled.id, { purpose_label: 'Googleマップ強化' }, labelled.version, fixture.context());
+    expect(relabelled.purpose_label).toBe('Googleマップ強化');
+    const cleared = await fixture.service.updateTask(labelled.id, { purpose_label: '' }, relabelled.version, fixture.context());
+    expect(cleared.purpose_label).toBeNull();
+
+    await expect(fixture.service.createTask({ title: 'Too long', purpose_label: 'あ'.repeat(31) }, fixture.context('label-long')))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(labelled.id, { purpose_label: '口コミ\n清掃' }, cleared.version, fixture.context()))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+  });
+
   it('reports task normalization warnings by code instead of an unreadable object string', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const created = await fixture.service.createTask({ title: 'Legacy task' }, fixture.context('warning-create'));
