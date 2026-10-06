@@ -170,6 +170,54 @@ WHERE ($1::text IS NULL OR current_entity.entity_type = $1)
 ORDER BY current_entity.id, current_entity.entity_type
 `;
 
+/**
+ * List the newest immutable revision for each philosophy attached to the
+ * selected project. The current Graph row is still the authorization
+ * boundary; the transaction's RLS policies hide rows the caller cannot see.
+ * Unlike the Foundation list, this query requires a canonical project join so
+ * a missing project membership cannot be interpreted as a selected-scope hit.
+ */
+export const GRAPH_PHILOSOPHY_LIST_SQL = `
+SELECT
+  history.entity_id,
+  history.entity_type,
+  history.revision,
+  history.payload,
+  history.project_id,
+  history.role_min,
+  history.sensitivity,
+  history.lifecycle_status,
+  history.storage_digest,
+  history.captured_at,
+  (
+    history.storage_digest = 'sha256:' ||
+      encode(sha256(convert_to(history.payload::text, 'UTF8')), 'hex')
+  ) AS storage_digest_valid,
+  current_entity.id AS current_entity_id,
+  current_entity.entity_type AS current_entity_type,
+  current_entity.payload AS current_payload,
+  current_entity.project_id AS current_project_id,
+  current_entity.role_min AS current_role_min,
+  current_entity.sensitivity AS current_sensitivity,
+  current_entity.lifecycle_status AS current_lifecycle_status,
+  projects.code AS current_project_code,
+  true AS current_visible
+FROM public.graph_entities AS current_entity
+JOIN public.projects AS projects
+  ON projects.id = current_entity.project_id
+LEFT JOIN LATERAL (
+  SELECT history.*
+  FROM public.graph_foundation_revisions AS history
+  WHERE history.entity_id = current_entity.id
+    AND history.entity_type = current_entity.entity_type
+  ORDER BY history.revision::numeric DESC
+  LIMIT 1
+) AS history ON true
+WHERE current_entity.entity_type = 'philosophy'
+  AND projects.code = $1
+ORDER BY current_entity.id
+`;
+
 /** Flat row shape returned by GRAPH_FOUNDATION_READ_SQL. */
 export interface GraphFoundationHistoryRow {
   readonly entity_id?: unknown;
@@ -213,9 +261,25 @@ export interface GraphFoundationReaderOptions {
   readonly selectedProjectCode?: string;
 }
 
+export interface FoundationObjectiveDetails {
+  readonly title?: unknown;
+  readonly criteria_text?: unknown;
+  readonly beneficiary_description?: unknown;
+  readonly evaluation_period_note?: unknown;
+  readonly evaluator_note?: unknown;
+  readonly current_state?: unknown;
+}
+
+/** Runtime shape used by the overview contract for Objective records. */
+export interface FoundationOverviewObjectiveRecord extends FoundationCatalogRecord {
+  readonly details?: FoundationObjectiveDetails;
+}
+
 export interface GraphFoundationReaders {
   readonly store: Pick<FoundationRevisionStore, 'read' | 'readLatest' | 'list'>;
   readonly philosophyReader: PhilosophyRevisionReader;
+  /** List latest, current-visible philosophy revisions for the selected project. */
+  readonly listPhilosophies: (context: FoundationStoreContext) => Promise<PhilosophyRevisionRecord[]>;
 }
 
 const FOUNDATION_TYPES: readonly FoundationType[] = ['objective', 'variable', 'model', 'constraint'];
@@ -295,7 +359,50 @@ export function createGraphFoundationReaders(options: GraphFoundationReaderOptio
     }
   };
 
-  return { store, philosophyReader };
+  async function listPhilosophies(suppliedContext: FoundationStoreContext): Promise<PhilosophyRevisionRecord[]> {
+    assertTrustedPrincipal(context, suppliedContext);
+    if (selectedProjectCode === undefined) {
+      throw scopeViolation('A selected project is required to list philosophy revisions');
+    }
+
+    const rows = await executePhilosophyList(query, selectedProjectCode);
+    const seen = new Set<string>();
+    return rows.map((row) => {
+      const id = requireString(row.entity_id, 'Philosophy history entity_id');
+      const revision = requireRevision(row.revision, 'Philosophy history revision');
+      if (row.current_project_code !== selectedProjectCode) {
+        throw scopeViolation('The current philosophy project is outside the selected project scope');
+      }
+      const key = `${id}:${revision}`;
+      if (seen.has(key)) throw corrupt('Philosophy list returned duplicate entity revisions');
+      seen.add(key);
+
+      const validated = validatePhilosophyHistoryAccess(row, id, revision, context);
+      return createPhilosophyRevisionRecord(validated, id, revision, context.principal);
+    });
+  }
+
+  return { store, philosophyReader, listPhilosophies };
+}
+
+function createPhilosophyRevisionRecord(
+  validated: ValidatedPhilosophyHistoryAccess,
+  id: string,
+  revision: string,
+  principal: string
+): PhilosophyRevisionRecord {
+  return {
+    kind: 'philosophy',
+    id,
+    revision,
+    digest: validated.digest,
+    payload: validated.history.payload,
+    applicability: validated.history.applicability,
+    // This is a read-time projection of the current Graph permission. It
+    // does not mutate the canonical philosophy payload or Graph ACL.
+    currentAcl: privateCurrentAcl(principal),
+    currentScope: cloneJudgmentScope(validated.history.applicability.scope)
+  };
 }
 
 async function readCanonicalPhilosophyRevision(
@@ -511,8 +618,26 @@ async function executeList(
   throw corrupt('Graph foundation list query returned an invalid result');
 }
 
+async function executePhilosophyList(
+  query: GraphFoundationQuery,
+  selectedProjectCode: string
+): Promise<readonly GraphFoundationHistoryRow[]> {
+  let result: GraphFoundationQueryResult | readonly GraphFoundationHistoryRow[];
+  try {
+    result = await query(GRAPH_PHILOSOPHY_LIST_SQL, [selectedProjectCode]);
+  } catch {
+    throw corrupt('Graph philosophy list query failed');
+  }
+  if (Array.isArray(result)) return result;
+  if (!Array.isArray(result) && 'rows' in result && Array.isArray(result.rows)) {
+    return result.rows as readonly GraphFoundationHistoryRow[];
+  }
+  throw corrupt('Graph philosophy list query returned an invalid result');
+}
+
 interface ValidatedFoundationHistory {
   readonly definition: FoundationDefinition;
+  readonly payload: Record<string, unknown>;
   readonly projectId: string;
 }
 
@@ -538,7 +663,7 @@ function validateFoundationRecord(
   context: FoundationStoreContext,
   selectedProjectCode: string | undefined,
   requireCurrentRevision = false
-): FoundationCatalogRecord {
+): FoundationOverviewObjectiveRecord {
   const history = validateHistoryRow(row, reference.id, reference.type, reference.revision);
   const current = validateCurrentRow(row, reference.id, reference.type);
   if (requireCurrentRevision && current.projectCode === undefined) {
@@ -559,10 +684,41 @@ function validateFoundationRecord(
   if (history.projectId !== current.projectId) {
     throw scopeViolation('Historical foundation project differs from current Graph project');
   }
-  return {
+  const record: FoundationOverviewObjectiveRecord = {
     definition: cloneFoundationDefinition(history.definition),
     digest: digestFoundationDefinition(history.definition)
   };
+  if (reference.type === 'objective') {
+    const details = projectObjectiveDetails(history.payload);
+    if (details !== undefined) return { ...record, details };
+  }
+  return record;
+}
+
+const OBJECTIVE_DETAIL_KEYS = [
+  'title',
+  'criteria_text',
+  'beneficiary_description',
+  'evaluation_period_note',
+  'evaluator_note',
+  'current_state'
+] as const satisfies readonly (keyof FoundationObjectiveDetails)[];
+
+function projectObjectiveDetails(payload: Record<string, unknown>): FoundationObjectiveDetails | undefined {
+  const nestedDetails = isPlainRecord(payload.details) ? payload.details : undefined;
+  const foundation = isPlainRecord(payload.foundation) ? payload.foundation : undefined;
+  // Graphify payloads historically carried these descriptive fields at the
+  // payload root. Keep the two known nested forms compatible while exposing
+  // only the six fields in the overview contract.
+  const candidates = [payload, nestedDetails, foundation].filter(
+    (candidate): candidate is Record<string, unknown> => candidate !== undefined
+  );
+  const projected: Record<string, unknown> = {};
+  for (const key of OBJECTIVE_DETAIL_KEYS) {
+    const source = candidates.find((candidate) => Object.prototype.hasOwnProperty.call(candidate, key));
+    if (source !== undefined && source[key] !== undefined) projected[key] = source[key];
+  }
+  return Object.keys(projected).length === 0 ? undefined : projected as FoundationObjectiveDetails;
 }
 
 function rowReference(row: GraphFoundationHistoryRow): FoundationRevision {
@@ -588,7 +744,7 @@ function validateHistoryRow(
     throw corrupt('Foundation history definition identity does not match the requested revision');
   }
   const projectId = requireString(row.project_id, 'Foundation history project_id');
-  return { definition, projectId };
+  return { definition, payload, projectId };
 }
 
 function validatePhilosophyHistoryRow(

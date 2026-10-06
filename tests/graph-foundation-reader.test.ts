@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
   createGraphFoundationReaders,
+  GRAPH_PHILOSOPHY_LIST_SQL,
   type GraphFoundationHistoryRow,
   type GraphFoundationQuery
 } from '../src/graph-foundation-reader.js';
@@ -96,6 +97,35 @@ describe('Graph foundation history reader', () => {
     expect(calls[0]!.text).toContain('storage_digest_valid');
     expect(calls[0]!.text).toContain('public.graph_entities');
     expect(calls[0]!.text).toContain('public.projects');
+  });
+
+  it('projects only the approved objective detail fields from the immutable payload', async () => {
+    const definition = foundationDefinition();
+    const payload = {
+      foundation: definition,
+      title: 'Improve operator continuity',
+      criteria_text: 'Operators can complete the workflow',
+      beneficiary_description: 'The operators who rely on the service',
+      evaluation_period_note: 'Review at the end of each quarter',
+      evaluator_note: 'The operations lead reviews the record',
+      current_state: 'Recorded state at import time',
+      private_secret: 'must never be projected'
+    };
+    const row = { ...foundationRow(), payload, storage_digest: storageDigest(payload) };
+    const { store } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(row) });
+
+    await expect(store.read({ id: definition.id, type: definition.type, revision: definition.revision }, trustedContext())).resolves.toEqual({
+      definition,
+      digest: digestFoundationDefinition(definition),
+      details: {
+        title: 'Improve operator continuity',
+        criteria_text: 'Operators can complete the workflow',
+        beneficiary_description: 'The operators who rely on the service',
+        evaluation_period_note: 'Review at the end of each quarter',
+        evaluator_note: 'The operations lead reviews the record',
+        current_state: 'Recorded state at import time'
+      }
+    });
   });
 
   it('rejects a read whose supplied principal is different from the trusted context', async () => {
@@ -269,7 +299,7 @@ describe('Graph philosophy history reader', () => {
     };
   }
 
-  function philosophyRow(payload = philosophyPayload(), options: { currentPayload?: unknown; currentProjectId?: string; currentVisible?: boolean } = {}): GraphFoundationHistoryRow {
+  function philosophyRow(payload = philosophyPayload(), options: { currentPayload?: unknown; currentProjectId?: string; currentProjectCode?: string; currentVisible?: boolean } = {}): GraphFoundationHistoryRow {
     return {
       entity_id: 'philosophy-1',
       entity_type: 'philosophy',
@@ -282,6 +312,7 @@ describe('Graph philosophy history reader', () => {
       current_entity_type: 'philosophy',
       current_payload: options.currentPayload ?? { judgmentApplicability: payload.judgmentApplicability },
       current_project_id: options.currentProjectId ?? 'project-1',
+      current_project_code: options.currentProjectCode ?? 'project-1',
       current_lifecycle_status: 'active',
       current_visible: options.currentVisible ?? true
     };
@@ -309,6 +340,46 @@ describe('Graph philosophy history reader', () => {
         applicability: { scope: projectScope, validFrom, validUntil: '2026-12-31T00:00:00.000Z' }
       }
     });
+  });
+
+  it('lists the latest visible philosophy revisions for the selected project', async () => {
+    const calls: Array<{ text: string; values: readonly unknown[] }> = [];
+    const payload = philosophyPayload();
+    const readers = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(philosophyRow(payload), calls)
+    });
+
+    await expect(readers.listPhilosophies(trustedContext())).resolves.toMatchObject([{
+      kind: 'philosophy',
+      id: 'philosophy-1',
+      revision: '4',
+      payload,
+      applicability: payload.judgmentApplicability,
+      currentScope: projectScope
+    }]);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.values).toEqual(['project-1']);
+    expect(calls[0]!.text).toContain("current_entity.entity_type = 'philosophy'");
+    expect(calls[0]!.text).toContain('projects.code = $1');
+    expect(calls[0]!.text).toContain('storage_digest_valid');
+  });
+
+  it('reuses current visibility and selected-project validation for philosophy lists', async () => {
+    const hidden = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(philosophyRow(undefined, { currentVisible: false }))
+    });
+    await expect(hidden.listPhilosophies(trustedContext())).rejects.toMatchObject({ code: 'authorization_denied' });
+
+    const moved = createGraphFoundationReaders({
+      context: trustedContext(),
+      selectedProjectCode: 'project-1',
+      query: queryReturning(philosophyRow(undefined, { currentProjectCode: 'project-2' }))
+    });
+    await expect(moved.listPhilosophies(trustedContext())).rejects.toMatchObject({ code: 'scope_violation' });
   });
 
   it('requires explicit applicability, current visibility, and trusted scope for philosophy reads', async () => {

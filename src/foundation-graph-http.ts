@@ -3,11 +3,12 @@ import {
   createFoundationHttpRouter,
   createObjectiveFoundationRoute,
   type FoundationHttpCsrfVerifier,
+  type FoundationHttpRoute,
   type FoundationHttpRouter
 } from './foundation-http.js';
 import { checkObjectiveReadiness } from './company-os-objectives.js';
 import { createFoundationPublicProvider, createFoundationPublicRoute } from './foundation-public-provider.js';
-import { createGraphFoundationReaders, type GraphFoundationHistoryRow } from './graph-foundation-reader.js';
+import { createGraphFoundationReaders, type GraphFoundationHistoryRow, type GraphFoundationReaders } from './graph-foundation-reader.js';
 import { FoundationStoreError, type FoundationStoreContext } from './foundation-store.js';
 
 /**
@@ -30,6 +31,8 @@ export const FOUNDATION_GRAPH_READY_SQL = `SELECT
         AND tgfoid = to_regprocedure('public.guard_graph_foundation_revision_mutation()')) AS ready`;
 
 export const FOUNDATION_GRAPH_CONTRACT_VERSION = 'foundation-graph-http.v1' as const;
+export const FOUNDATION_OVERVIEW_CONTRACT_VERSION = 'foundation-overview.v1' as const;
+const FOUNDATION_CATALOG_PATH = '/api/foundation/catalog' as const;
 
 type MaybePromise<T> = T | Promise<T>;
 
@@ -79,6 +82,16 @@ function jsonResponse(status: number, value: unknown): Response {
   return new Response(JSON.stringify(value), {
     status,
     headers: { 'content-type': 'application/json' }
+  });
+}
+
+function methodNotAllowed(allow: readonly string[]): Response {
+  return new Response(JSON.stringify({ error: { code: 'method_not_allowed' } }), {
+    status: 405,
+    headers: {
+      'content-type': 'application/json',
+      allow: allow.join(', ')
+    }
   });
 }
 
@@ -192,6 +205,25 @@ async function readJsonForScopeCheck(request: Request, bodyLimitBytes: number): 
   }
 }
 
+async function catalogRequestHasBody(request: Request, bodyLimitBytes: number): Promise<boolean> {
+  const contentLength = Number(request.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > 0) return true;
+  if (Number.isFinite(contentLength) && contentLength > bodyLimitBytes) return true;
+  if (!request.body) return false;
+  try {
+    return (await request.clone().text()).length > 0;
+  } catch {
+    return true;
+  }
+}
+
+function catalogQueryIsStrict(url: URL): boolean {
+  for (const key of url.searchParams.keys()) {
+    if (key !== 'scope_id') return false;
+  }
+  return true;
+}
+
 function identityIsValid(identity: FoundationGraphTrustedIdentity | null): identity is FoundationGraphTrustedIdentity {
   if (!identity) return false;
   return typeof identity.principal === 'string'
@@ -207,6 +239,39 @@ function selectedScopeIsAllowed(identity: FoundationGraphTrustedIdentity, scopeI
 
 function readyResult(result: FoundationGraphQueryResult): boolean {
   return result.rows[0]?.ready === true;
+}
+
+function createFoundationCatalogRoute(
+  readers: GraphFoundationReaders,
+  scopeId: string,
+  context: FoundationStoreContext
+): FoundationHttpRoute {
+  return {
+    name: 'foundation-catalog',
+    methods: ['GET'],
+    paths: [`GET ${FOUNDATION_CATALOG_PATH}`],
+    matches(request) {
+      return new URL(request.url).pathname === FOUNDATION_CATALOG_PATH;
+    },
+    async handle(request) {
+      if ((request.method || 'GET').toUpperCase() !== 'GET') return methodNotAllowed(['GET']);
+
+      // Resolve all collections before constructing the response. A failed
+      // history/ACL read must never be represented as an empty partial catalog.
+      const objectives = await readers.store.list('objective', context);
+      const variables = await readers.store.list('variable', context);
+      const models = await readers.store.list('model', context);
+      const philosophies = await readers.listPhilosophies(context);
+      return jsonResponse(200, {
+        contractVersion: FOUNDATION_OVERVIEW_CONTRACT_VERSION,
+        scopeId,
+        objectives,
+        variables,
+        models,
+        philosophies
+      });
+    }
+  };
 }
 
 /**
@@ -252,6 +317,17 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
         return jsonResponse(403, { error: { code: 'scope_not_allowed' } });
       }
 
+      const isCatalog = url.pathname === FOUNDATION_CATALOG_PATH;
+      if (isCatalog && (request.method || 'GET').toUpperCase() !== 'GET') {
+        return methodNotAllowed(['GET']);
+      }
+      if (isCatalog && !catalogQueryIsStrict(url)) {
+        return jsonResponse(400, { error: { code: 'unknown_query_parameter' } });
+      }
+      if (isCatalog && await catalogRequestHasBody(request, bodyLimitBytes)) {
+        return jsonResponse(400, { error: { code: 'body_not_allowed' } });
+      }
+
       const body = await readJsonForScopeCheck(request, bodyLimitBytes);
       if (hasFoundationScopeOverride(request, body, scopeId, identity.organizationId)) {
         return jsonResponse(403, { error: { code: 'scope_not_allowed' } });
@@ -286,6 +362,7 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
           });
           const provider = createFoundationPublicProvider(readers);
           const route = createFoundationPublicRoute(provider);
+          const catalogRoute = createFoundationCatalogRoute(readers, scopeId, context);
           const objectiveRoute = createObjectiveFoundationRoute({
             objectives: {
               async createObjective() {
@@ -308,7 +385,7 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
           const handler = createFoundationHttpRouter({
             resolveContext: () => context,
             csrf: options.csrf,
-            routes: [route, objectiveRoute],
+            routes: [catalogRoute, route, objectiveRoute],
             bodyLimitBytes
           });
           return handler.handle(request);

@@ -228,6 +228,8 @@
     "./ui/local-web-shell.css": "./ui/local-web-shell.css",
     "./ui/workspace-kit": "./ui/workspace-kit.js",
     "./ui/workspace-kit.css": "./ui/workspace-kit.css",
+    "./ui/foundation-overview": "./ui/foundation-overview.js",
+    "./ui/foundation-overview.css": "./ui/foundation-overview.css",
     "./ui/graph-view-shared": "./ui/graph-view-shared.js",
     "./ui/graph-view-shared.css": "./ui/graph-view-shared.css",
     "./ui/project-icon": "./ui/project-icon.js",
