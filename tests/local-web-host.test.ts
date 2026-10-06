@@ -6,7 +6,12 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createFoundationRevisionStore } from '../src/foundation-store.js';
 import { graphRecordDigest } from '../src/graph-corrections.js';
-import { createLocalWebHost, LOCAL_WEB_TOKEN_HEADER, type LocalWebExtension } from '../src/local-web-host.js';
+import {
+  createLocalWebHost,
+  LOCAL_WEB_TOKEN_HEADER,
+  type LocalWebExtension,
+  type LocalWebMeetingMinutesStorageOptions,
+} from '../src/local-web-host.js';
 import type { ConstraintDefinition, FoundationRevision, ModelDefinition, ObjectiveDefinition, VariableDefinition } from '../src/ontology-foundation.js';
 import { initializePersonalOs, mutatePersonalOs } from '../src/ssot.js';
 import { createWorldModelStore } from '../src/world-model.js';
@@ -19,13 +24,18 @@ let directory: string;
 let dataDir: string;
 let server: Server | null = null;
 
-async function start(options: { dataDir?: string; extensions?: readonly LocalWebExtension[] } = {}): Promise<string> {
+async function start(options: {
+  dataDir?: string;
+  extensions?: readonly LocalWebExtension[];
+  meetingMinutesStorage?: LocalWebMeetingMinutesStorageOptions;
+} = {}): Promise<string> {
   const host = createLocalWebHost({
     dataDir: options.dataDir ?? dataDir,
     journalRoot: join(directory, 'journal'),
     token: TOKEN,
     now: () => new Date('2026-09-26T00:00:00.000Z'),
-    extensions: options.extensions
+    extensions: options.extensions,
+    meetingMinutesStorage: options.meetingMinutesStorage,
   });
   server = host.server;
   await new Promise<void>((resolve) => host.server.listen(0, '127.0.0.1', () => resolve()));
@@ -277,7 +287,7 @@ describe('local web host protections', () => {
     for (const file of [
       'brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css', 'value-proof-review.js', 'value-proof-review.css',
       'objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'world-model-view.js', 'world-model-view.css', 'project-icon.js',
-      'meeting-minutes.js', 'meeting-minutes.css'
+      'meeting-minutes.js', 'meeting-minutes.css', 'meeting-minutes-storage.js', 'meeting-minutes-storage.css'
     ]) {
       const response = await fetch(`${base}/ui/${file}`);
       expect(response.status, file).toBe(200);
@@ -367,6 +377,56 @@ describe('local web host protections', () => {
     const detail = await (await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}`)).json();
     expect(detail.meeting.meeting_id).toBe(meetingId);
     expect(detail.versions[0]).toMatchObject({ body: '手元の議事録' });
+  });
+
+  it('connects an explicitly configured filesystem source through the shared host and preserves unavailable history', async () => {
+    await v2DataDir();
+    const externalRoot = join(directory, 'minutes-external');
+    await mkdir(externalRoot, { recursive: true });
+    await writeFile(join(externalRoot, 'minutes.md'), '外部の議事録\n', 'utf8');
+    const authorizationCalls: string[] = [];
+    const base = await start({
+      meetingMinutesStorage: {
+        filesystem: {
+          root: externalRoot,
+          authorize: (_context, operation) => {
+            authorizationCalls.push(operation);
+            return true;
+          },
+        },
+        defaultExternal: { provider: 'filesystem', locator: 'minutes.md' },
+      },
+    });
+
+    const app = await (await fetch(`${base}/app.js`)).text();
+    expect(app).toContain('"provider":"filesystem","locator":"minutes.md"');
+    expect(app).not.toContain(externalRoot);
+    const created = await write(base, 'POST', '/api/meeting-minutes', {
+      title: '外部ソース会議',
+      placement: { kind: 'external', provider: 'filesystem', locator: 'minutes.md' },
+    }, { 'Idempotency-Key': 'external-meeting-1' });
+    expect(created.status).toBe(201);
+    const createdPayload = await created.json();
+    const meetingId = createdPayload.meeting.meeting_id;
+    const minutesId = createdPayload.minutes[0].minutes_id;
+    const versionId = createdPayload.versions.find((version: { minutes_id: string }) => version.minutes_id === minutesId).version_id;
+    expect(createdPayload.versions[0].source_ref).toMatchObject({ provider: 'filesystem', locator: 'minutes.md' });
+
+    const resolved = await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}/minutes/${encodeURIComponent(minutesId)}/versions/${encodeURIComponent(versionId)}`);
+    expect(resolved.status).toBe(200);
+    expect(await resolved.json()).toMatchObject({
+      placement: 'external',
+      source_status: 'available',
+      body: '外部の議事録\n',
+    });
+    expect(authorizationCalls).toEqual(expect.arrayContaining(['register', 'read']));
+
+    await writeFile(join(externalRoot, 'minutes.md'), '更新された外部の議事録\n', 'utf8');
+    const unavailable = await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}/minutes/${encodeURIComponent(minutesId)}/versions/${encodeURIComponent(versionId)}`);
+    expect(unavailable.status).toBe(200);
+    const unavailablePayload = await unavailable.json();
+    expect(unavailablePayload).toMatchObject({ placement: 'external', source_status: 'historical_unavailable' });
+    expect(unavailablePayload).not.toHaveProperty('body');
   });
 });
 

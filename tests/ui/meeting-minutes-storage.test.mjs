@@ -2,11 +2,12 @@ import { strict as assert } from 'node:assert';
 import { test } from 'vitest';
 
 import {
+  createMeetingMinutesStorageExtension,
   createMeetingMinutesStorageUI,
   MEETING_MINUTES_STORAGE_UI_CONTRACT_VERSION,
   normalizeMeetingMinutesStoragePanel,
 } from '../../ui/meeting-minutes-storage.js';
-import { FakeDocument, FakeElement, collectText, findAll } from './graph-ui-harness.mjs';
+import { FakeDocument, FakeElement, collectText, findAll, waitFor } from './graph-ui-harness.mjs';
 
 function byAttr(root, name, value) {
   return findAll(root, (node) => node.attributes?.[name] === value)[0];
@@ -83,3 +84,48 @@ test('renders native placement and sends an explicit placement change through th
   assert.match(collectText(root), /Brainbase内蔵/);
 });
 
+test('mounts the version extension against the host route and keeps retry keys stable', async () => {
+  const root = new FakeElement('main');
+  const requests = [];
+  const extension = createMeetingMinutesStorageExtension({
+    defaultExternal: { provider: 'filesystem', locator: 'minutes.md' },
+  });
+  const panel = extension.mount({
+    root,
+    document: new FakeDocument(),
+    detail: { meeting: { meeting_id: 'meeting-1' } },
+    documentRecord: { minutes_id: 'minutes-1', revision: 7 },
+    version: {
+      version_id: 'version-2',
+      source_ref: { provider: 'filesystem', locator: 'minutes.md', revision: 'sha256:r', digest: 'sha256:d' },
+    },
+    request: async (path, init = {}) => {
+      requests.push({ path, init });
+      return {
+        placement: 'external',
+        source_status: 'available',
+        source_ref: { provider: 'filesystem', locator: 'minutes.md', revision: 'sha256:r', digest: 'sha256:d' },
+        capabilities: { read: true, read_only: true, save: false, history: false, retention_delete: false, current_acl: 'injected' },
+        version: { version_id: 'version-2' },
+      };
+    },
+    refresh: async () => {},
+    setStatus: () => {},
+  });
+  await waitFor(() => panel.state.sourceStatus === 'available');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].path, '/meeting-1/minutes/minutes-1/versions/version-2');
+  assert.equal(panel.state.sourceStatus, 'available');
+
+  const select = findAll(root, (node) => node.tagName === 'SELECT')[0];
+  select.value = 'native';
+  select.dispatch('change');
+  await waitFor(() => requests.length === 2);
+  assert.equal(requests[1].path, '/meeting-1/minutes/minutes-1');
+  assert.equal(requests[1].init.method, 'POST');
+  assert.equal(requests[1].init.headers['Idempotency-Key'], 'meeting-minutes-storage-version-2-native');
+  assert.deepEqual(JSON.parse(requests[1].init.body), {
+    expected_revision: 7,
+    placement: { kind: 'native' },
+  });
+});

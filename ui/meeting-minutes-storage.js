@@ -255,3 +255,110 @@ export function createMeetingMinutesStorageUI({
     destroy() { root.replaceChildren(); },
   });
 }
+
+function sourceFromVersion(version) {
+  const source = version?.source_ref;
+  if (!isObject(source)) return null;
+  const provider = text(source.provider);
+  const locator = text(source.locator);
+  return provider && locator ? { provider, locator } : null;
+}
+
+function storagePath(basePath, detail, documentRecord, version) {
+  return `/${encodeURIComponent(detail.meeting.meeting_id)}/minutes/${encodeURIComponent(documentRecord.minutes_id)}/versions/${encodeURIComponent(version.version_id)}`;
+}
+
+function rebindPath(detail, documentRecord) {
+  return `/${encodeURIComponent(detail.meeting.meeting_id)}/minutes/${encodeURIComponent(documentRecord.minutes_id)}`;
+}
+
+function failureStatus(error) {
+  const code = text(error?.code);
+  if (code === 'source_denied' || error?.status === 403) return 'denied';
+  if (code === 'source_changed' || code === 'historical_unavailable') return 'historical_unavailable';
+  return 'unavailable';
+}
+
+/**
+ * Adds the host-owned storage projection to a selected minutes version.
+ * The browser supplies only a placement choice; root and authorization stay
+ * in the LocalWebHost configuration.
+ */
+export function createMeetingMinutesStorageExtension({
+  basePath = '/api/meeting-minutes',
+  defaultExternal = null,
+} = {}) {
+  const normalizedBase = String(basePath).replace(/\/+$/u, '');
+  const configuredExternal = isObject(defaultExternal)
+    && text(defaultExternal.provider) && text(defaultExternal.locator)
+    ? { provider: text(defaultExternal.provider), locator: text(defaultExternal.locator) }
+    : null;
+  return Object.freeze({
+    id: 'meeting-minutes-storage',
+    mount({ root, document: explicitDocument, detail, documentRecord, version, request, refresh, setStatus }) {
+      const source = sourceFromVersion(version);
+      const external = source ?? configuredExternal;
+      const initial = {
+        placement: source ? 'external' : 'native',
+        source_status: source ? 'unconfirmed' : 'native',
+        source_ref: version?.source_ref,
+        placement_options: external ? ['native', 'external'] : ['native'],
+        version: { version_id: version?.version_id, source_ref: version?.source_ref },
+      };
+      let panel;
+      const panelUpdate = (value) => panel?.update(value);
+      const call = typeof request === 'function' ? request : null;
+      const path = storagePath(normalizedBase, detail, documentRecord, version);
+      const reload = async () => {
+        if (!call) return;
+        setStatus?.('保存先を確認しています。');
+        try {
+          const value = await call(path, { headers: { Accept: 'application/json' } });
+          panelUpdate(value);
+          setStatus?.('保存先を確認しました。', 'success');
+        } catch (error) {
+          panelUpdate({ ...initial, source_status: failureStatus(error), reason: error instanceof Error ? error.message : '保存先を確認できません。' });
+          setStatus?.(error instanceof Error ? error.message : '保存先を確認できません。', 'error');
+        }
+      };
+      const changePlacement = async (kind) => {
+        if (!call || (kind !== 'native' && kind !== 'external')) return;
+        const selectedExternal = source ?? configuredExternal;
+        if (kind === 'external' && !selectedExternal) {
+          const message = '会社指定の外部保存先がホストに設定されていません。';
+          panelUpdate({ ...initial, source_status: 'unavailable', reason: message });
+          setStatus?.(message, 'error');
+          return;
+        }
+        const placement = kind === 'native'
+          ? { kind: 'native' }
+          : { kind: 'external', ...selectedExternal };
+        const body = { expected_revision: documentRecord.revision, placement };
+        const idempotency = `meeting-minutes-storage-${version.version_id}-${kind}`;
+        setStatus?.(kind === 'native' ? 'Brainbase内蔵へ切り替えています。' : '外部保存先へ切り替えています。');
+        try {
+          await call(rebindPath(detail, documentRecord), {
+            method: 'POST',
+            headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'Idempotency-Key': idempotency },
+            body: JSON.stringify(body),
+          });
+          setStatus?.('保存先を変更しました。', 'success');
+          await refresh?.();
+        } catch (error) {
+          const message = error instanceof Error ? error.message : '保存先を変更できません。';
+          panelUpdate({ ...initial, source_status: failureStatus(error), reason: message });
+          setStatus?.(message, 'error');
+        }
+      };
+      panel = createMeetingMinutesStorageUI({
+        root,
+        document: explicitDocument,
+        view: initial,
+        onRetry: () => void reload(),
+        onPlacementChange: (kind) => void changePlacement(kind),
+      });
+      void reload();
+      return panel;
+    },
+  });
+}

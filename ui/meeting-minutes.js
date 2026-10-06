@@ -147,6 +147,53 @@ function appendIdentifiers(doc, parent, { meetingId, minutesId, versionId } = {}
   parent.append(details);
 }
 
+function appendVersionActionExtensions(doc, section, {
+  extensions,
+  detail,
+  documentRecord,
+  version,
+  request,
+  mutate,
+  refresh,
+  setStatus,
+} = {}) {
+  for (const extension of Array.isArray(extensions) ? extensions : []) {
+    if (!extension || typeof extension !== 'object' || typeof extension.mount !== 'function') continue;
+    const id = text(extension.id, 'version-action');
+    const slot = makeElement(doc, 'div', {
+      className: 'bb-minutes-version-extension',
+      attrs: { 'data-minutes-version-extension': id },
+    });
+    section.append(slot);
+    try {
+      const mounted = extension.mount({
+        root: slot,
+        document: doc,
+        detail,
+        documentRecord,
+        version,
+        request,
+        mutate,
+        refresh,
+        setStatus,
+      });
+      if (mounted && typeof mounted.then === 'function') {
+        mounted.catch(() => {
+          slot.replaceChildren(makeElement(doc, 'p', {
+            className: 'bb-minutes-warning',
+            textContent: '追加の保存先情報を表示できません。',
+          }));
+        });
+      }
+    } catch {
+      slot.replaceChildren(makeElement(doc, 'p', {
+        className: 'bb-minutes-warning',
+        textContent: '追加の保存先情報を表示できません。',
+      }));
+    }
+  }
+}
+
 export function createMeetingMinutesUI({
   root,
   rail = null,
@@ -155,6 +202,7 @@ export function createMeetingMinutesUI({
   fetcher,
   token,
   basePath = '/api/meeting-minutes',
+  versionActionExtensions = [],
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
@@ -343,6 +391,16 @@ export function createMeetingMinutesUI({
       actions.append(confirm);
       section.append(actions);
     }
+    appendVersionActionExtensions(doc, section, {
+      extensions: versionActionExtensions,
+      detail,
+      documentRecord,
+      version: selected,
+      request: call,
+      mutate,
+      refresh: () => loadDetail(detail.meeting.meeting_id),
+      setStatus,
+    });
     appendIdentifiers(doc, section, {
       meetingId: detail.meeting?.meeting_id,
       minutesId: documentRecord.minutes_id,
