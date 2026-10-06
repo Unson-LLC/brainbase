@@ -10,6 +10,9 @@ import { readLocalGraphState, type GraphVocabularyTerm, type LocalWebExtension, 
 import { loadPersonalOs } from './ssot.js';
 import type { CanonicalEntity, GraphFileV2 } from './types.js';
 import { requestUrl, writeJson } from './local-web-security.js';
+import { WORLD_WORK_VERSION } from './world-work.js';
+
+export * from './world-work.js';
 
 /**
  * World view (ledger P17, adopted 2026-10-04): the home's upper layer.
@@ -416,6 +419,13 @@ function createWorldModule(context: LocalWebModuleContext, read: () => Promise<W
         writeJson(response, 200, await read());
         return true;
       }
+      // This Mac keeps no Canonical Task store, so the work inside a city is not connected here
+      // (an organization web answers these from its Task API).  Said as a state, never as no work.
+      if (path === `/api/extensions/${WORLD_EXTENSION_ID}/work-summary` || /^\/api\/extensions\/world\/businesses\/[^/]+\/work$/u.test(path)) {
+        response.setHeader('Cache-Control', 'no-store');
+        writeJson(response, 200, { status: 'not_connected', version: WORLD_WORK_VERSION, reason: 'task_store_not_connected' });
+        return true;
+      }
       if (path === `/api/extensions/${WORLD_EXTENSION_ID}/judgment-places`) {
         response.setHeader('Cache-Control', 'no-store');
         writeJson(response, 200, { version: WORLD_EXTENSION_VERSION, ...(await readJudgmentPlaces(context.journalRoot, { cache: context.journalCache, workspaces })) });
@@ -430,7 +440,7 @@ export function createWorldExtension(options: { readonly vocabulary?: WorldVocab
   return {
     id: WORLD_EXTENSION_ID,
     uiDir: fileURLToPath(new URL('../ui/world/', import.meta.url)),
-    uiFiles: ['world-view.js', 'world-view.css', 'world-vendor.js', 'world-placement.js'],
+    uiFiles: ['world-view.js', 'world-view.css', 'world-vendor.js', 'world-placement.js', 'world-work-rail.js', 'world-district.js'],
     screenEntry: 'world-view.js',
     // P17: the world sits above the home and opens first.
     navPosition: 'first',
