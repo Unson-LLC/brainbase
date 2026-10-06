@@ -87,6 +87,23 @@ export interface MeetingMinutesReadRequest {
   readonly request_context: MeetingMinutesStorageRequestContext;
 }
 
+/**
+ * Read a source reference persisted by the provider-independent minutes core.
+ *
+ * The core deliberately keeps only provider/locator/revision/digest.  The
+ * adapter recreates its local provenance for this read; the observed source
+ * body still has to pass the exact revision and digest checks below.
+ */
+export interface MeetingMinutesReadSourceRequest {
+  readonly source_ref: {
+    readonly provider: string;
+    readonly locator: string;
+    readonly revision: string;
+    readonly digest: string;
+  };
+  readonly request_context: MeetingMinutesStorageRequestContext;
+}
+
 export interface MeetingMinutesSaveRequest {
   readonly reference?: MeetingMinutesExternalReference;
   readonly body?: string;
@@ -158,6 +175,8 @@ export interface MeetingMinutesStorageAdapter {
   readonly capabilities: MeetingMinutesStorageCapabilities;
   register(input: MeetingMinutesRegisterRequest): Promise<MeetingMinutesRegisterResult>;
   read(input: MeetingMinutesReadRequest): Promise<MeetingMinutesReadResult>;
+  /** Resolve a core source_ref without asking callers to fabricate provenance. */
+  read_source?(input: MeetingMinutesReadSourceRequest): Promise<MeetingMinutesReadResult>;
   read_history(input: MeetingMinutesReadRequest): Promise<MeetingMinutesHistoryResult>;
   save(input: MeetingMinutesSaveRequest): Promise<MeetingMinutesUnsupportedOperation>;
   delete(input: MeetingMinutesDeleteRequest): Promise<MeetingMinutesDeleteResult>;
@@ -308,6 +327,25 @@ export class FilesystemMeetingMinutesAdapter implements MeetingMinutesStorageAda
       body: content.body,
       capabilities: this.capabilities,
     };
+  }
+
+  async read_source(input: MeetingMinutesReadSourceRequest): Promise<MeetingMinutesReadResult> {
+    const source = input?.source_ref;
+    if (!source || typeof source !== 'object') {
+      return this.readFailure('invalid_reference', 'A persisted external source reference is required');
+    }
+    const reference = {
+      provider: source.provider,
+      locator: source.locator,
+      revision: source.revision,
+      digest: source.digest,
+      provenance: {
+        source: 'external' as const,
+        adapter: FILESYSTEM_MEETING_MINUTES_ADAPTER,
+        observed_at: new Date().toISOString(),
+      },
+    };
+    return this.read({ reference, request_context: input.request_context });
   }
 
   async read_history(input: MeetingMinutesReadRequest): Promise<MeetingMinutesHistoryResult> {

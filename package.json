@@ -219,6 +219,14 @@
       "types": "./dist/meeting-minutes-http.d.ts",
       "import": "./dist/meeting-minutes-http.js"
     },
+    "./meeting-minutes-storage": {
+      "types": "./dist/meeting-minutes-storage.d.ts",
+      "import": "./dist/meeting-minutes-storage.js"
+    },
+    "./meeting-minutes-storage-controller": {
+      "types": "./dist/meeting-minutes-storage-controller.d.ts",
+      "import": "./dist/meeting-minutes-storage-controller.js"
+    },
     "./ui/outcome-knowledge": "./ui/outcome-knowledge.js",
     "./ui/outcome-knowledge.css": "./ui/outcome-knowledge.css",
     "./ui/judgment-view": "./ui/judgment-view.js",
@@ -248,6 +256,8 @@
     "./ui/graph-projects-view.css": "./ui/graph-projects-view.css",
     "./ui/graph-registry-view": "./ui/graph-registry-view.js",
     "./ui/graph-registry-view.css": "./ui/graph-registry-view.css",
+    "./ui/meeting-minutes-storage": "./ui/meeting-minutes-storage.js",
+    "./ui/meeting-minutes-storage.css": "./ui/meeting-minutes-storage.css",
     "./ui/brainbase-tokens.css": "./ui/brainbase-tokens.css",
     "./dist/*": "./dist/*",
     "./contracts/judgment-dag/schema.json": "./contracts/judgment-dag/schema.json",

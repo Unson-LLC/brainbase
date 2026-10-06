@@ -51,6 +51,20 @@ filesystem adapter は外部本文を安全に読むため、設定された `ma
 
 同一 meeting/minutes ID と同じ provider/locator/revision/digest の参照を再取り込みすると、core の dedupe 契約により既存版を再利用する。本文 digest が変わると新しい外部版として扱う。Brainbase の meeting/minutes ID と既存版の provenance は保存先変更でも維持する。外部ファイルの移動・削除・権限取消し・接続断は、観測された状態を `unavailable` として返し、移行済みや取得成功とは記録しない。
 
+## core 接続と画面投影
+
+`MeetingMinutesStorageController` は、core の `MeetingMinutesStore` と同じ native/external content input を受ける薄い service 境界である。controller は次の順序を固定する。
+
+1. `native` は body を core に渡し、core が Brainbase 管理の immutable version として保存する。
+2. `external` は選択された provider adapter の `register` を先に実行し、成功した `provider/locator/revision/digest` だけを core の `source_ref` に渡す。外部本文は core snapshot に複製しない。
+3. external version の表示・再利用は `read_source` を通して毎回現在 ACL を確認する。core に保存された参照だけでは本文を表示せず、adapter が `available` を返した場合だけ本文を表示する。
+4. registry が同じ source reference を返した場合は既存 identity を再利用し、同じ `minutes_id` の新規 version を作らない。revision/digest が変わった場合だけ core の `save_version` を呼び、新しい version を作る。
+5. `rebind` は既存 `minutes_id` を維持した successor version を作る。external adapter への書き戻しは行わず、native への明示的な再配置時だけ読み取れた本文を native version に渡す。
+
+controller の registry は組織側で core の `external_source_hook` と同じ durable registry に接続する。未指定時の in-memory registry は同一プロセス内の短命な検証用であり、再起動をまたぐ重複排除の証跡にはしない。
+
+`ui/meeting-minutes-storage.js` は controller の projection を表示するだけの共通部品である。`native`、外部取得済み、権限不足、接続断、保存時点の版が取得できない状態を分け、provider名・locator・revision・digest と capability を表示する。本文や過去版を取得できない場合は、現在版を代用した成功表示を出さない。配置選択や再試行は host callback に委譲し、Google カレンダー、GitHub、Google Driveを画面の必須選択肢として埋め込まない。
+
 ## 実装と検証の対応
 
 | 受入条件 | 検証 |
