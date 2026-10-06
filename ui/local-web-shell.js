@@ -22,6 +22,7 @@ import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
 import { createJudgmentHistoryUI } from './judgment-history.js';
 import { createMeetingMinutesUI } from './meeting-minutes.js';
 import { createMeetingMinutesStorageExtension } from './meeting-minutes-storage.js';
+import { createMeetingMinutesLineageExtension } from './meeting-minutes-lineage-http.js';
 import { createWorldModelView } from './world-model-view.js';
 import { createGraphClient } from './graph-view-shared.js';
 
@@ -160,14 +161,19 @@ function mountToday(container, context) {
 }
 
 function mountMeetingMinutes(container, context) {
-  const versionActionExtensions = context.meetingMinutesStorage
-    ? [createMeetingMinutesStorageExtension({
+  const versionActionExtensions = [];
+  if (context.meetingMinutesStorage) versionActionExtensions.push(createMeetingMinutesStorageExtension({
       fetcher: context.fetcher,
       token: context.token,
       basePath: '/api/meeting-minutes',
       defaultExternal: context.meetingMinutesStorage.defaultExternal,
-    })]
-    : [];
+    }));
+  if (context.meetingMinutesLineage) versionActionExtensions.push(createMeetingMinutesLineageExtension({
+    fetcher: context.fetcher,
+    token: context.token,
+    basePath: '/api/meeting-minutes-lineage',
+    candidateDefaults: context.meetingMinutesLineage.candidateDefaults,
+  }));
   return createMeetingMinutesUI({
     root: makePage(container, context),
     rail: context.rail,
@@ -331,6 +337,7 @@ export function createLocalWebShell({
   screens = LOCAL_WEB_SCREENS,
   initialScreen,
   meetingMinutesStorage = null,
+  meetingMinutesLineage = null,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
@@ -338,7 +345,7 @@ export function createLocalWebShell({
   const request = typeof fetcher === 'function'
     ? fetcher
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
-  const context = Object.freeze({ document: doc, fetcher: request, token, meetingMinutesStorage });
+  const context = Object.freeze({ document: doc, fetcher: request, token, meetingMinutesStorage, meetingMinutesLineage });
 
   const status = { phase: 'loading', data: null, error: null };
   const mounted = new Map();

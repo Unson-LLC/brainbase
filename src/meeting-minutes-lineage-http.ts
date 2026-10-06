@@ -31,6 +31,8 @@ export interface MeetingMinutesLineageHttpOptions {
   readonly store: MinutesLineageStore;
   /** The host resolves current principal and scope; request JSON never supplies access. */
   readonly resolveAccess: (request: IncomingMessage) => MaybePromise<MinutesLineageAccess>;
+  /** The host resolves the current actor; request JSON is an audit hint only. */
+  readonly resolveActor?: (request: IncomingMessage, access: MinutesLineageAccess) => MaybePromise<MinutesLineageActor>;
   /** Optional host CSRF/origin policy for mutations. */
   readonly assertWriteAllowed?: (request: IncomingMessage, access: MinutesLineageAccess) => MaybePromise<void>;
   readonly basePath?: string;
@@ -65,7 +67,10 @@ export function createMeetingMinutesLineageHttpHandler(options: MeetingMinutesLi
       if (route.write) {
         if (options.assertWriteAllowed) await options.assertWriteAllowed(request, access);
       }
-      const result = await execute(route, body, access);
+      const actor = route.write
+        ? await (options.resolveActor?.(request, access) ?? { type: 'person', id: access.principal } as MinutesLineageActor)
+        : undefined;
+      const result = await execute(route, body, access, actor);
       writeJson(response, result.statusCode, result.body);
     } catch (error) {
       if (error instanceof LocalWebHttpError) writeHttpError(response, error);
@@ -79,7 +84,12 @@ export function createMeetingMinutesLineageHttpHandler(options: MeetingMinutesLi
     return true;
   };
 
-  async function execute(route: Route, body: Record<string, unknown> | undefined, access: MinutesLineageAccess): Promise<OperationResult> {
+  async function execute(
+    route: Route,
+    body: Record<string, unknown> | undefined,
+    access: MinutesLineageAccess,
+    actor: MinutesLineageActor | undefined,
+  ): Promise<OperationResult> {
     switch (route.kind) {
       case 'candidate_read': {
         requireMethod(route.method, 'GET');
@@ -101,7 +111,7 @@ export function createMeetingMinutesLineageHttpHandler(options: MeetingMinutesLi
         const request: CreateMinutesLineageCandidateRequest = {
           id: value.id as string,
           idempotencyKey: stringValue(value.idempotencyKey ?? value.idempotency_key, 'idempotencyKey'),
-          actor: value.actor as MinutesLineageActor,
+          actor: requireTrustedActor(actor),
           evidence: value.evidence as CreateMinutesLineageCandidateRequest['evidence'],
           kind: value.kind as CreateMinutesLineageCandidateRequest['kind'],
           proposal: value.proposal,
@@ -118,7 +128,7 @@ export function createMeetingMinutesLineageHttpHandler(options: MeetingMinutesLi
           id: value.id as string,
           idempotencyKey: stringValue(value.idempotencyKey ?? value.idempotency_key, 'idempotencyKey'),
           candidateId: route.candidateId,
-          actor: value.actor as MinutesLineageActor,
+          actor: requireTrustedActor(actor),
           evidenceDigest: value.evidenceDigest as string,
           access,
         };
@@ -131,7 +141,7 @@ export function createMeetingMinutesLineageHttpHandler(options: MeetingMinutesLi
           id: value.id as string,
           idempotencyKey: stringValue(value.idempotencyKey ?? value.idempotency_key, 'idempotencyKey'),
           candidateId: route.candidateId,
-          actor: value.actor as MinutesLineageActor,
+          actor: requireTrustedActor(actor),
           access,
         };
         const adoption = route.targetKind === 'judgment'
@@ -147,7 +157,7 @@ export function createMeetingMinutesLineageHttpHandler(options: MeetingMinutesLi
           idempotencyKey: stringValue(value.idempotencyKey ?? value.idempotency_key, 'idempotencyKey'),
           previousVersion: value.previousVersion as MarkMinutesLineageCorrectionRequest['previousVersion'],
           replacementVersion: value.replacementVersion as MarkMinutesLineageCorrectionRequest['replacementVersion'],
-          actor: value.actor as MinutesLineageActor,
+          actor: requireTrustedActor(actor),
           reason: value.reason as string,
           access,
         };
@@ -209,6 +219,14 @@ function requireMethod(actual: string | undefined, expected: string): void {
 function stringValue(value: unknown, label: string): string {
   if (typeof value !== 'string' || value.trim() === '') throw new LocalWebHttpError(422, 'invalid_input', `${label} is required`);
   return value;
+}
+
+function requireTrustedActor(value: MinutesLineageActor | undefined): MinutesLineageActor {
+  if (!value || (value.type !== 'person' && value.type !== 'agent' && value.type !== 'service' && value.type !== 'system')
+    || typeof value.id !== 'string' || value.id.trim() === '') {
+    throw new LocalWebHttpError(403, 'authorization_denied', 'A trusted actor is required');
+  }
+  return { type: value.type, id: value.id.trim() };
 }
 
 function lineageStatus(code: string): number {

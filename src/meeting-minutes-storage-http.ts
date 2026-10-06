@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   MeetingMinutesError,
+  type MeetingMinutesDetail,
   type MeetingMinutesRequestContext,
   type MeetingMinutesStore,
 } from './meeting-minutes.js';
@@ -37,6 +38,12 @@ export interface MeetingMinutesStorageHttpOptions {
   readonly controller: MeetingMinutesStorageController;
   /** The host supplies the trusted principal; request JSON is never used. */
   readonly resolveContext: (request: IncomingMessage) => MaybePromise<MeetingMinutesRequestContext>;
+  /** Called only after a placement save has returned the core's readback detail. */
+  readonly afterSave?: (input: {
+    readonly before: MeetingMinutesDetail;
+    readonly after: MeetingMinutesDetail;
+    readonly context: MeetingMinutesRequestContext;
+  }) => MaybePromise<unknown>;
   readonly basePath?: string;
   readonly bodyLimitBytes?: number;
 }
@@ -300,17 +307,28 @@ export function createMeetingMinutesStorageHttpHandler(options: MeetingMinutesSt
         }
         case 'save': {
           if (body === undefined) throw new MeetingMinutesError('invalid_input', 'Request body is required');
-          const detail = await options.store.get_meeting(route.meetingId ?? '', context);
-          if (!detail.minutes.some((candidate) => candidate.minutes_id === route.minutesId)) {
+          const before = await options.store.get_meeting(route.meetingId ?? '', context);
+          if (!before.minutes.some((candidate) => candidate.minutes_id === route.minutesId)) {
             throw new MeetingMinutesError('not_found', `Minutes document ${route.minutesId} was not found`);
           }
+          const after = await options.controller.rebind(
+            saveInput(body, route.minutesId ?? '', route.meetingId ?? '', key, fingerprint),
+            rebindPlacement(body),
+            context,
+          );
+          // The controller detail intentionally omits native audit timestamps.
+          // Read the canonical store again for lifecycle hooks so they receive
+          // the same exact version shape as the native HTTP handler while the
+          // response keeps the controller's placement fields.
+          const lineageAfter = options.afterSave
+            ? await options.store.get_meeting(route.meetingId ?? '', context)
+            : undefined;
+          const lineage = options.afterSave && lineageAfter
+            ? await options.afterSave({ before, after: lineageAfter, context })
+            : undefined;
           return {
             statusCode: 201,
-            body: await options.controller.rebind(
-              saveInput(body, route.minutesId ?? '', route.meetingId ?? '', key, fingerprint),
-              rebindPlacement(body),
-              context,
-            ),
+            body: lineage === undefined ? after : { ...after, lineage },
           };
         }
         case 'confirm': {

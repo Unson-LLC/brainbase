@@ -112,6 +112,19 @@ describe('meeting minutes lineage UI', () => {
     expect(adopt).toHaveBeenCalledWith(expect.objectContaining({ id: 'candidate-1' }));
   });
 
+  it('offers a Japanese Task and judgment candidate form in the selected version slot', () => {
+    const root = new FakeNode('main');
+    renderMeetingMinutesLineage(root, payload(), {
+      documentRef,
+      actions: { createCandidate: vi.fn(async () => ({ id: 'candidate-created' })) },
+      candidateDefaults: { kind: 'task', task: { title: '次回会議の準備' } },
+    });
+    const labels = descendants(root).filter((node) => node.tagName === 'span').map((node) => node.textContent);
+    expect(labels).toEqual(expect.arrayContaining(['Task名', '判断の提案', '候補の種類']));
+    expect(descendants(root).some((node) => node.tagName === 'form')).toBe(true);
+    expect(descendants(root).some((node) => node.tagName === 'h3' && node.textContent === 'この版から候補を作る')).toBe(true);
+  });
+
   it('lets the core host load a projection without taking ownership of records', async () => {
     const root = new FakeNode('main');
     const load = vi.fn(async () => payload());

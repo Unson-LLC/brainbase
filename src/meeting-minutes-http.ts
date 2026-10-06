@@ -4,6 +4,7 @@ import {
   MeetingMinutesError,
   type ConfirmMinutesVersionInput,
   type CreateMinutesInput,
+  type MeetingMinutesDetail,
   type MeetingCreateInput,
   type MeetingMinutesRequestContext,
   type MeetingMinutesStore,
@@ -29,6 +30,12 @@ export interface MeetingMinutesHttpOptions {
   readonly store: MeetingMinutesStore;
   /** The host supplies the trusted principal; request JSON is never used. */
   readonly resolveContext: (request: IncomingMessage) => MaybePromise<MeetingMinutesRequestContext>;
+  /** Called only after a save has returned the core's readback detail. */
+  readonly afterSave?: (input: {
+    readonly before: MeetingMinutesDetail;
+    readonly after: MeetingMinutesDetail;
+    readonly context: MeetingMinutesRequestContext;
+  }) => MaybePromise<unknown>;
   readonly basePath?: string;
   readonly bodyLimitBytes?: number;
 }
@@ -228,11 +235,13 @@ export function createMeetingMinutesHttpHandler(options: MeetingMinutesHttpOptio
         }
         case 'save': {
           if (body === undefined) throw new MeetingMinutesError('invalid_input', 'Request body is required');
-          const detail = await options.store.get_meeting(route.meetingId ?? '', context);
-          if (!detail.minutes.some((candidate) => candidate.minutes_id === route.minutesId)) {
+          const before = await options.store.get_meeting(route.meetingId ?? '', context);
+          if (!before.minutes.some((candidate) => candidate.minutes_id === route.minutesId)) {
             throw new MeetingMinutesError('not_found', `Minutes document ${route.minutesId} was not found`);
           }
-          return { statusCode: 201, body: await options.store.save_version(saveInput(body, route.minutesId, key, fingerprint), context) };
+          const after = await options.store.save_version(saveInput(body, route.minutesId, key, fingerprint), context);
+          const lineage = options.afterSave ? await options.afterSave({ before, after, context }) : undefined;
+          return { statusCode: 201, body: lineage === undefined ? after : { ...after, lineage } };
         }
         case 'confirm': {
           if (body === undefined) throw new MeetingMinutesError('invalid_input', 'Request body is required');

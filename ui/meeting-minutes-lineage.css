@@ -37,6 +37,69 @@
   gap: 10px;
 }
 
+.bb-mml-candidate-form {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--bb-color-border, #d8dde3);
+  border-radius: 10px;
+  background: var(--bb-color-panel-subtle, #f7f8fa);
+}
+
+.bb-mml-form-title,
+.bb-mml-form-subtitle {
+  margin: 0;
+  color: var(--bb-color-ink, #17202a);
+  font-size: 14px;
+}
+
+.bb-mml-form-subtitle {
+  font-size: 12px;
+}
+
+.bb-mml-form-help,
+.bb-mml-form-status {
+  margin: 0;
+  color: var(--bb-color-muted, #68727d);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.bb-mml-form-group {
+  display: grid;
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.bb-mml-field {
+  display: grid;
+  gap: 4px;
+  color: var(--bb-color-muted, #68727d);
+  font-size: 12px;
+}
+
+.bb-mml-field-label {
+  font-weight: 600;
+}
+
+.bb-mml-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 8px;
+  border: 1px solid var(--bb-color-border-strong, #b8c0c9);
+  border-radius: 6px;
+  background: var(--bb-color-panel, #fff);
+  color: var(--bb-color-ink, #17202a);
+  font: inherit;
+  font-size: 12px;
+}
+
+textarea.bb-mml-input {
+  min-height: 56px;
+  resize: vertical;
+}
+
 .bb-mml-candidate {
   display: grid;
   gap: 10px;

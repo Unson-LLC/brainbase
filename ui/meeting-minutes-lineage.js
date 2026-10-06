@@ -156,6 +156,168 @@ function candidateActions(doc, item, actions) {
   return actionsNode;
 }
 
+function field(doc, label, { type = 'text', value = '', required = false, placeholder = '' } = {}) {
+  const wrapper = makeElement(doc, 'label', 'bb-mml-field');
+  wrapper.appendChild(makeElement(doc, 'span', 'bb-mml-field-label', label));
+  const input = makeElement(doc, type === 'textarea' ? 'textarea' : 'input', 'bb-mml-input');
+  if (type !== 'textarea') input.type = type;
+  input.value = value ?? '';
+  if (required) input.setAttribute('required', '');
+  if (placeholder) input.setAttribute('placeholder', placeholder);
+  wrapper.appendChild(input);
+  return { wrapper, input };
+}
+
+function selectField(doc, label, options, value) {
+  const wrapper = makeElement(doc, 'label', 'bb-mml-field');
+  wrapper.appendChild(makeElement(doc, 'span', 'bb-mml-field-label', label));
+  const input = makeElement(doc, 'select', 'bb-mml-input');
+  for (const option of options) {
+    const item = makeElement(doc, 'option', '', option.label);
+    item.value = option.value;
+    if (option.value === value) item.selected = true;
+    input.appendChild(item);
+  }
+  input.value = value ?? options[0]?.value ?? '';
+  wrapper.appendChild(input);
+  return { wrapper, input };
+}
+
+function valueOf(input) {
+  return typeof input?.value === 'string' ? input.value.trim() : '';
+}
+
+function linesOf(input, fallback = '') {
+  const value = valueOf(input);
+  const lines = value.split(/\r?\n/u).map((line) => line.trim()).filter(Boolean);
+  return lines.length ? lines : (fallback ? [fallback] : []);
+}
+
+function record(value) {
+  return isRecord(value) ? value : {};
+}
+
+function candidateForm(doc, actions, candidateDefaults, onCreated) {
+  if (typeof actions.createCandidate !== 'function') return null;
+  const defaults = record(candidateDefaults);
+  const taskDefaults = record(defaults.task);
+  const judgmentDefaults = record(defaults.judgment);
+  const sourceDefault = record(judgmentDefaults.sourceEvaluationRef ?? defaults.sourceEvaluationRef);
+  const targetDefault = record(judgmentDefaults.target ?? defaults.target);
+  const applicabilityDefault = record(judgmentDefaults.applicability ?? defaults.applicability);
+  const form = makeElement(doc, 'form', 'bb-mml-candidate-form');
+  form.appendChild(makeElement(doc, 'h3', 'bb-mml-form-title', 'この版から候補を作る'));
+  form.appendChild(makeElement(doc, 'p', 'bb-mml-form-help', '候補を作成した後、内容を確認してから正本へ採用します。'));
+
+  const kind = selectField(doc, '候補の種類', [
+    { value: 'task', label: 'Task' },
+    { value: 'judgment', label: '判断' },
+  ], text(defaults.kind) === 'judgment' ? 'judgment' : 'task');
+  form.appendChild(kind.wrapper);
+
+  const task = makeElement(doc, 'div', 'bb-mml-form-group');
+  task.appendChild(makeElement(doc, 'h4', 'bb-mml-form-subtitle', 'Taskの内容'));
+  const taskTitle = field(doc, 'Task名', { value: text(taskDefaults.title), required: true, placeholder: '例：次回会議の資料を確認する' });
+  const taskDescription = field(doc, '説明', { type: 'textarea', value: text(taskDefaults.description), placeholder: '必要な作業や完了条件' });
+  const taskPriority = field(doc, '優先度', { value: text(taskDefaults.priority), placeholder: '任意' });
+  const taskAssignee = field(doc, '担当者', { value: text(taskDefaults.assignee_person_id), placeholder: '任意' });
+  const taskDue = field(doc, '期限', { type: 'datetime-local', value: text(taskDefaults.due_at) });
+  for (const item of [taskTitle, taskDescription, taskPriority, taskAssignee, taskDue]) task.appendChild(item.wrapper);
+  form.appendChild(task);
+
+  const judgment = makeElement(doc, 'div', 'bb-mml-form-group');
+  judgment.appendChild(makeElement(doc, 'h4', 'bb-mml-form-subtitle', '判断の内容'));
+  const sourceId = field(doc, '評価の識別子', { value: text(sourceDefault.id), required: true, placeholder: '既存の評価ID' });
+  const sourceDigest = field(doc, '評価のダイジェスト', { value: text(sourceDefault.digest), required: true, placeholder: 'sha256:...' });
+  const targetKind = selectField(doc, '対象の種類', [
+    { value: 'world_model', label: 'World Model' },
+    { value: 'judgment_method', label: '判断方法' },
+    { value: 'execution_method', label: '実行方法' },
+    { value: 'objective', label: '目的' },
+  ], text(targetDefault.kind) || 'world_model');
+  const targetId = field(doc, '対象の識別子', { value: text(targetDefault.id), required: true, placeholder: '対象ID' });
+  const targetRevision = field(doc, '対象の版', { value: text(targetDefault.revision), required: true, placeholder: '1' });
+  const targetDigest = field(doc, '対象のダイジェスト', { value: text(targetDefault.digest), required: true, placeholder: 'sha256:...' });
+  const proposedChange = field(doc, '判断の提案', { type: 'textarea', value: text(judgmentDefaults.proposedChange ?? defaults.proposedChange), required: true, placeholder: '何をどう判断・変更するか' });
+  const grounds = field(doc, '根拠（1行1件）', { type: 'textarea', value: text(judgmentDefaults.grounds ?? defaults.grounds), required: true, placeholder: '議事録から確認できる根拠' });
+  const counterexamples = field(doc, '反例・留保（1行1件）', { type: 'textarea', value: text(judgmentDefaults.counterexamples ?? defaults.counterexamples), required: true, placeholder: '分からない点も含めて記入' });
+  const uncertainty = field(doc, '不確実性（1行1件）', { type: 'textarea', value: text(judgmentDefaults.uncertainty ?? defaults.uncertainty), required: true, placeholder: '判断を見直す条件' });
+  const subjectIds = field(doc, '対象範囲（1行1件）', { type: 'textarea', value: text(applicabilityDefault.subjectIds ?? defaults.subjectIds ?? 'self'), required: true, placeholder: 'self' });
+  const validFrom = field(doc, '適用開始', { type: 'datetime-local', value: text(applicabilityDefault.validFrom ?? defaults.validFrom) });
+  const validUntil = field(doc, '適用終了', { type: 'datetime-local', value: text(applicabilityDefault.validUntil ?? defaults.validUntil) });
+  for (const item of [sourceId, sourceDigest, targetKind, targetId, targetRevision, targetDigest, proposedChange, grounds, counterexamples, uncertainty, subjectIds, validFrom, validUntil]) judgment.appendChild(item.wrapper);
+  form.appendChild(judgment);
+
+  const status = makeElement(doc, 'p', 'bb-mml-form-status', '');
+  const submit = makeElement(doc, 'button', 'bb-mml-action bb-mml-submit', '候補を作成');
+  submit.type = 'submit';
+  form.appendChild(submit);
+  form.appendChild(status);
+
+  const setMode = () => {
+    const isJudgment = valueOf(kind.input) === 'judgment';
+    task.hidden = isJudgment;
+    judgment.hidden = !isJudgment;
+    task.setAttribute('aria-hidden', isJudgment ? 'true' : 'false');
+    judgment.setAttribute('aria-hidden', isJudgment ? 'false' : 'true');
+  };
+  kind.input.addEventListener('change', setMode);
+  setMode();
+
+  form.addEventListener('submit', async (event) => {
+    event?.preventDefault?.();
+    status.textContent = '';
+    submit.disabled = true;
+    const kindValue = valueOf(kind.input) === 'judgment' ? 'judgment' : 'task';
+    const proposal = kindValue === 'task'
+      ? {
+        task: {
+          title: valueOf(taskTitle.input),
+          ...(valueOf(taskDescription.input) ? { description: valueOf(taskDescription.input) } : {}),
+          ...(valueOf(taskPriority.input) ? { priority: valueOf(taskPriority.input) } : {}),
+          ...(valueOf(taskAssignee.input) ? { assignee_person_id: valueOf(taskAssignee.input) } : {}),
+          ...(valueOf(taskDue.input) ? { due_at: valueOf(taskDue.input) } : {}),
+        },
+      }
+      : {
+        learningCandidate: {
+          sourceEvaluationRef: { id: valueOf(sourceId.input), digest: valueOf(sourceDigest.input) },
+          target: {
+            kind: valueOf(targetKind.input),
+            id: valueOf(targetId.input),
+            revision: valueOf(targetRevision.input),
+            digest: valueOf(targetDigest.input),
+          },
+          proposedChange: valueOf(proposedChange.input),
+          grounds: linesOf(grounds.input),
+          counterexamples: linesOf(counterexamples.input),
+          uncertainty: linesOf(uncertainty.input),
+          applicability: {
+            subjectIds: linesOf(subjectIds.input, 'self'),
+            validFrom: valueOf(validFrom.input) || new Date().toISOString(),
+            ...(valueOf(validUntil.input) ? { validUntil: valueOf(validUntil.input) } : {}),
+          },
+        },
+        learningValidation: {
+          findings: [],
+          conclusion: 'indeterminate',
+          modelDisposition: 'indeterminate',
+          basis: '議事録版から作成した候補。確認後に採用します。',
+          validatedAt: new Date().toISOString(),
+        },
+      };
+    try {
+      const created = await actions.createCandidate({ kind: kindValue, proposal, epistemicStatus: 'inferred' });
+      status.textContent = `候補を作成しました（${created?.id ?? 'ID確認中'}）。内容を確認して採用できます。`;
+      await onCreated?.(created);
+    } catch (error) {
+      status.textContent = error instanceof Error ? error.message : '候補を作成できませんでした。';
+      submit.disabled = false;
+    }
+  });
+  return form;
+}
+
 function renderUnavailable(root, normalized, doc) {
   const notice = makeElement(doc, 'p', 'bb-mml-notice', normalized.status === 'unavailable'
     ? '議事録の判断履歴を読み取れません。権限または保存先を確認してください。'
@@ -166,7 +328,7 @@ function renderUnavailable(root, normalized, doc) {
 }
 
 /** Render one lineage projection into a host-owned slot. */
-export function renderMeetingMinutesLineage(root, payload, { actions = {}, documentRef = globalThis.document } = {}) {
+export function renderMeetingMinutesLineage(root, payload, { actions = {}, candidateDefaults = null, onCandidateCreated, documentRef = globalThis.document } = {}) {
   if (!root || !documentRef || typeof documentRef.createElement !== 'function') throw new TypeError('root and documentRef are required');
   const normalized = normalizeMeetingMinutesLineageView(payload);
   while (root.firstChild) root.removeChild(root.firstChild);
@@ -182,6 +344,8 @@ export function renderMeetingMinutesLineage(root, payload, { actions = {}, docum
   if (normalized.invalidCount > 0) {
     root.appendChild(makeElement(documentRef, 'p', 'bb-mml-notice', `${normalized.invalidCount}件の候補は形式を確認できないため表示していません。`));
   }
+  const form = candidateForm(documentRef, actions, candidateDefaults, onCandidateCreated);
+  if (form) root.appendChild(form);
   const list = makeElement(documentRef, 'div', 'bb-mml-candidates');
   if (!normalized.candidates.length) {
     list.appendChild(makeElement(documentRef, 'p', 'bb-mml-empty', 'この議事録版から作られた候補はありません。'));
@@ -211,19 +375,19 @@ export function renderMeetingMinutesLineage(root, payload, { actions = {}, docum
 }
 
 /** Host adapter: the core owns loading and action implementations. */
-export function createMeetingMinutesLineageView({ root, load, actions = {}, documentRef = globalThis.document } = {}) {
+export function createMeetingMinutesLineageView({ root, load, actions = {}, candidateDefaults = null, documentRef = globalThis.document } = {}) {
   let state = { status: 'unavailable', reason: 'not_loaded' };
   const controller = {
     get state() { return state; },
     render(payload = state) {
       state = normalizeMeetingMinutesLineageView(payload);
-      renderMeetingMinutesLineage(root, state, { actions, documentRef });
+      renderMeetingMinutesLineage(root, state, { actions, candidateDefaults, onCandidateCreated: () => controller.refresh(), documentRef });
       return state;
     },
     async refresh() {
       if (typeof load !== 'function') {
         state = { status: 'unavailable', reason: 'loader_not_connected' };
-        renderMeetingMinutesLineage(root, state, { actions, documentRef });
+        renderMeetingMinutesLineage(root, state, { actions, candidateDefaults, onCandidateCreated: () => controller.refresh(), documentRef });
         return state;
       }
       try {
@@ -234,7 +398,7 @@ export function createMeetingMinutesLineageView({ root, load, actions = {}, docu
           status: 'unavailable',
           reason: error && typeof error.code === 'string' ? error.code : 'lineage_unavailable',
         };
-        renderMeetingMinutesLineage(root, state, { actions, documentRef });
+        renderMeetingMinutesLineage(root, state, { actions, candidateDefaults, onCandidateCreated: () => controller.refresh(), documentRef });
         return state;
       }
     },
