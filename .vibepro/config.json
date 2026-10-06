@@ -699,6 +699,18 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-meeting-minutes-native-lifecycle-v1",
+        "title": "外部連携なしで会議と議事録を保存し、版と確認状態を管理できる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-10",
+        "started_at": "2026-10-06",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted"
       }
     ],
     "current_story_id": "story-project-canonical-identity"

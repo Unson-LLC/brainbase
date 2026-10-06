@@ -20,6 +20,7 @@ import { createGraphRegistryView } from './graph-registry-view.js';
 import { createObjectiveEditorController } from './objective-editor.js';
 import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
 import { createJudgmentHistoryUI } from './judgment-history.js';
+import { createMeetingMinutesUI } from './meeting-minutes.js';
 import { createWorldModelView } from './world-model-view.js';
 import { createGraphClient } from './graph-view-shared.js';
 
@@ -43,6 +44,7 @@ const NAV_ICON_PATHS = Object.freeze({
   objectives: ['M12 4 3 20h18z', 'M12 9v5m0 3h.01'],
   projects: ['M3 6.5h7l2 2h9v10H3z', 'M3 6.5v-2h7l2 2'],
   graph: ['M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2', 'M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2'],
+  minutes: ['M6 3.5h9l3 3V20.5H6z', 'M15 3.5v4h3', 'M9 12h6m-6 3h6'],
   // World view (extension id `world`, ledger P17).
   world: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'],
 });
@@ -156,6 +158,18 @@ function mountToday(container, context) {
   });
 }
 
+function mountMeetingMinutes(container, context) {
+  return createMeetingMinutesUI({
+    root: makePage(container, context),
+    rail: context.rail,
+    page: context.page,
+    document: context.document,
+    fetcher: context.fetcher,
+    token: context.token,
+    basePath: '/api/meeting-minutes',
+  });
+}
+
 function renderUnreadableObjectives(doc, slot, payload) {
   slot.replaceChildren();
   const count = Number.isInteger(payload?.unreadable?.count) ? payload.unreadable.count : 0;
@@ -221,6 +235,7 @@ function mountGraphScreen(screenId, createView) {
 
 export const LOCAL_WEB_SCREENS = Object.freeze([
   Object.freeze({ id: 'today', label: '今日', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
+  Object.freeze({ id: 'minutes', label: '議事録', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
   Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
   Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
   Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),

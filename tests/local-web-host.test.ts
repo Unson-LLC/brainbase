@@ -276,7 +276,8 @@ describe('local web host protections', () => {
 
     for (const file of [
       'brainbase-tokens.css', 'local-web-shell.js', 'local-web-shell.css', 'workspace-kit.js', 'workspace-kit.css', 'value-proof-review.js', 'value-proof-review.css',
-      'objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'world-model-view.js', 'world-model-view.css', 'project-icon.js'
+      'objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'world-model-view.js', 'world-model-view.css', 'project-icon.js',
+      'meeting-minutes.js', 'meeting-minutes.css'
     ]) {
       const response = await fetch(`${base}/ui/${file}`);
       expect(response.status, file).toBe(200);
@@ -348,6 +349,24 @@ describe('local web host protections', () => {
     const base = await start();
     const home = await (await fetch(`${base}/api/value-proofs/home`)).json();
     expect(home).toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
+  });
+
+  it('serves native meeting minutes from the local single-owner host and preserves idempotent writes', async () => {
+    await v2DataDir();
+    const base = await start();
+    const payload = { title: 'ローカル会議', initial_body: '手元の議事録' };
+    const created = await write(base, 'POST', '/api/meeting-minutes', payload, { 'Idempotency-Key': 'local-meeting-1' });
+    expect(created.status).toBe(201);
+    const first = await created.json();
+    const meetingId = first.meeting.meeting_id;
+
+    const replay = await write(base, 'POST', '/api/meeting-minutes', payload, { 'Idempotency-Key': 'local-meeting-1' });
+    expect(replay.status).toBe(201);
+    expect((await replay.json()).meeting.meeting_id).toBe(meetingId);
+
+    const detail = await (await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}`)).json();
+    expect(detail.meeting.meeting_id).toBe(meetingId);
+    expect(detail.versions[0]).toMatchObject({ body: '手元の議事録' });
   });
 });
 

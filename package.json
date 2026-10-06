@@ -211,6 +211,14 @@
       "types": "./dist/streamable-http.d.ts",
       "import": "./dist/streamable-http.js"
     },
+    "./meeting-minutes": {
+      "types": "./dist/meeting-minutes.d.ts",
+      "import": "./dist/meeting-minutes.js"
+    },
+    "./meeting-minutes-http": {
+      "types": "./dist/meeting-minutes-http.d.ts",
+      "import": "./dist/meeting-minutes-http.js"
+    },
     "./ui/outcome-knowledge": "./ui/outcome-knowledge.js",
     "./ui/outcome-knowledge.css": "./ui/outcome-knowledge.css",
     "./ui/judgment-view": "./ui/judgment-view.js",
@@ -221,6 +229,8 @@
     "./ui/value-proof-review.css": "./ui/value-proof-review.css",
     "./ui/judgment-history": "./ui/judgment-history.js",
     "./ui/judgment-history.css": "./ui/judgment-history.css",
+    "./ui/meeting-minutes": "./ui/meeting-minutes.js",
+    "./ui/meeting-minutes.css": "./ui/meeting-minutes.css",
     "./ui/objective-editor-http-port": "./ui/objective-editor-http-port.js",
     "./ui/world-model-view": "./ui/world-model-view.js",
     "./ui/world-model-view.css": "./ui/world-model-view.css",
