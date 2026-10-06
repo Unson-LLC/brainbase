@@ -6,11 +6,11 @@ created_at: 2026-10-06
 updated_at: 2026-10-06
 implementation_started: true
 implementation_status: host_http_and_shared_ui_implementation_complete
-verification_status: affected_tests_and_build_passed_gui_pending
+verification_status: affected_tests_build_and_partial_gui_passed
 implementation_commits: ["c5e72485a", "dd33e5280", "6051ecdcf", "991e90c90", "9028ff56f", "edf8a1e4c"]
 technical_adapter_status: filesystem_read_only_adapter_verified
 company_policy_status: unselected
-host_ui_acceptance_status: pending
+host_ui_acceptance_status: external_body_and_current_acl_gui_verified_full_acceptance_pending
 verification_evidence: "HTTP/core/filesystem integration: 7 files, 36 tests passed; npm run build passed; git diff --check passed"
 owner_repository: brainbase
 development_mode: SIMPLIFICATION
