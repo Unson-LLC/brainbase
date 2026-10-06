@@ -14,7 +14,8 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { DISTRICT_STREETS, districtStreetLots } from './world-placement.js';
+import { DISTRICT_STREETS, districtStreetLots, skyAt } from './world-placement.js';
+import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { makeWorkspaceElement as el } from '../../workspace-kit.js';
 
 export const WORLD_DISTRICT_CONTRACT_VERSION = 'brainbase.world-district.v0';
@@ -48,16 +49,6 @@ export const DISTRICT_LEGEND = Object.freeze([
   ['is-ambience', '通りを歩く人と煙＝街の雰囲気（記録とは関係しません）'],
 ]);
 
-function canvasTexture(doc, width, height, draw) {
-  const canvas = doc.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  draw(canvas.getContext('2d'), width, height);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
 export function createDistrictView({ doc, stage, reducedMotion = false, onPick, onClear, onEscape }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
@@ -83,24 +74,54 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   notice.hidden = true;
   stage.append(notice);
 
+  // The same sky, light and exposure as the world (scenery: it carries no data), following the hour or
+  // the sky the viewer fixed in the world.
   const scene = new THREE.Scene();
-  scene.background = canvasTexture(doc, 16, 256, (ctx, w, h) => {
+  let skyMode = 'auto';
+  let sky = skyAt(new Date().getHours(), skyMode);
+  const skyTexture = (current) => canvasTexture(doc, 256, 256, (ctx, w, h) => {
     const gradient = ctx.createLinearGradient(0, 0, 0, h);
-    gradient.addColorStop(0, '#a9cdea');
-    gradient.addColorStop(0.6, '#e2eef0');
-    gradient.addColorStop(1, '#f3efe3');
+    gradient.addColorStop(0, current.top);
+    gradient.addColorStop(0.55, current.middle);
+    gradient.addColorStop(1, current.bottom);
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, w, h);
+    if (current.stars) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let i = 0; i < 90; i += 1) ctx.fillRect(hashUnit(`star${i}x`) * w, hashUnit(`star${i}y`) * h * 0.55, 1.2, 1.2);
+    }
   });
-  scene.fog = new THREE.Fog(0xe7efee, 70, 170);
-  scene.add(new THREE.HemisphereLight(0xf6f9ff, 0xd8ccb2, 1.25));
-  const sun = new THREE.DirectionalLight(0xfff0d8, 2.4);
-  sun.position.set(30, 55, 22);
+  scene.fog = new THREE.Fog(sky.fog, 70, 170);
+  const hemisphere = new THREE.HemisphereLight(0xf4f8ff, 0xd8ccb2, sky.hemi);
+  scene.add(hemisphere);
+  const sun = new THREE.DirectionalLight(sky.sun, sky.sunIntensity);
+  sun.position.set(34, 58, 24);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
-  Object.assign(sun.shadow.camera, { left: -45, right: 45, top: 45, bottom: -45, near: 1, far: 160 });
-  sun.shadow.bias = -0.0005;
+  sun.shadow.radius = 4;
+  sun.shadow.bias = -0.0004;
+  sun.shadow.normalBias = 0.03;
+  Object.assign(sun.shadow.camera, { left: -48, right: 48, top: 48, bottom: -48, near: 1, far: 170 });
   scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xdfe9ff, 0.6);
+  fill.position.set(-40, 30, -30);
+  scene.add(fill);
+  // Lit windows and street lamps follow the sky (brightest at night); their meaning does not change.
+  const litMaterials = new Set();
+  const lampMaterials = new Set();
+  function applySky() {
+    sky = skyAt(new Date().getHours(), skyMode);
+    scene.background = skyTexture(sky);
+    scene.fog.color.set(sky.fog);
+    hemisphere.intensity = sky.hemi;
+    sun.color.set(sky.sun);
+    sun.intensity = sky.sunIntensity;
+    renderer.toneMappingExposure = sky.exposure;
+    for (const mat of litMaterials) mat.emissiveIntensity = sky.glow;
+    for (const mat of lampMaterials) mat.emissiveIntensity = sky.lamps ? 1.8 : 0;
+  }
+  applySky();
+  const maxAnisotropy = renderer.capabilities.getMaxAnisotropy?.() ?? 1;
 
   const camera = new THREE.PerspectiveCamera(40, 1, 0.5, 600);
   const controls = new MapControls(camera, renderer.domElement);
@@ -121,6 +142,150 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     return object;
   };
   const box = (w, h, d, color, at = {}, options = {}) => mesh(new THREE.BoxGeometry(w, h, d), material(color, options), { y: h / 2, ...at });
+
+  // Facades as in the world: windows drawn on the walls, glowing at dusk and night when the building is lit.
+  // Textures are shared; materials are made per lot, so fading one lot never fades another.
+  const facadeCache = new Map();
+  function facadeTiles(style, wall, lit) {
+    const key = `${style}|${new THREE.Color(wall).getHexString()}|${lit}`;
+    if (!facadeCache.has(key)) {
+      const make = (glowOnly) => {
+        const size = FACADE_SIZES[style] ?? 128;
+        const texture = canvasTexture(doc, size, size, (ctx, w, h) => drawFacade(ctx, w, h, style, wall, lit, glowOnly));
+        texture.wrapS = THREE.RepeatWrapping;
+        texture.wrapT = THREE.RepeatWrapping;
+        texture.anisotropy = maxAnisotropy;
+        return texture;
+      };
+      facadeCache.set(key, { map: make(false), glow: lit ? make(true) : null });
+    }
+    return facadeCache.get(key);
+  }
+  function facadeMaterial(style, wall, lit, span, h) {
+    const tiles = facadeTiles(style, wall, lit);
+    const [unitW, unitH] = FACADE_UNITS[style] ?? [1, 1];
+    const repeat = unitW === 0 ? [1, Math.max(1, Math.round(h / 1.1))] : [Math.max(1, Math.round(span / unitW)), Math.max(1, Math.round(h / unitH))];
+    const map = tiles.map.clone();
+    map.needsUpdate = true;
+    map.repeat.set(...repeat);
+    const mat = material(0xffffff, { map, roughness: 0.85 });
+    if (tiles.glow) {
+      const glow = tiles.glow.clone();
+      glow.needsUpdate = true;
+      glow.repeat.copy(map.repeat);
+      mat.emissive = new THREE.Color(0xffc867);
+      mat.emissiveMap = glow;
+      mat.emissiveIntensity = sky.glow;
+      litMaterials.add(mat);
+    }
+    return mat;
+  }
+  /** A block with facades on its four walls and a plain roof, standing on y = 0. */
+  function block(w, h, d, { style = 'office', wall = 0xe9e4da, lit = false, roof = 0xc9c5bb } = {}) {
+    const alongX = facadeMaterial(style, wall, lit, d, h);
+    const alongZ = facadeMaterial(style, wall, lit, w, h);
+    const top = material(roof, { roughness: 0.95 });
+    return mesh(new THREE.BoxGeometry(w, h, d), [alongX, alongX, top, top, alongZ, alongZ], { y: h / 2 });
+  }
+
+  // Trees and street lamps are many; like the world, they are instanced (scenery, no data).
+  function plantTrees(parent, placements) {
+    if (!placements.length) return;
+    const conifers = [];
+    const broadleaves = [];
+    for (const placement of placements) (hashUnit(`${placement[0]},${placement[1]}k`) < 0.42 ? conifers : broadleaves).push(placement);
+    const foliage = () => material(0xffffff, { roughness: 0.9, flatShading: true });
+    const trunks = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.1, 0.15, 0.8, 6), material(0x7d6249, { roughness: 1 }), placements.length);
+    const lower = new THREE.InstancedMesh(new THREE.ConeGeometry(0.78, 1.3, 7), foliage(), Math.max(conifers.length, 1));
+    const upper = new THREE.InstancedMesh(new THREE.ConeGeometry(0.55, 1.05, 7), foliage(), Math.max(conifers.length, 1));
+    const crowns = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(0.72, 0), foliage(), Math.max(broadleaves.length, 1));
+    const matrix = new THREE.Matrix4();
+    const rotation = new THREE.Quaternion();
+    const tint = new THREE.Color();
+    const up = new THREE.Vector3(0, 1, 0);
+    const place = (instanced, index, x, y, z, sx, sy, sz, spin) => {
+      rotation.setFromAxisAngle(up, spin);
+      matrix.compose(new THREE.Vector3(x, y, z), rotation, new THREE.Vector3(sx, sy, sz));
+      instanced.setMatrixAt(index, matrix);
+    };
+    placements.forEach(([x, z, scale], index) => place(trunks, index, x, 0.4 * scale, z, scale, scale, scale, 0));
+    conifers.forEach(([x, z, scale], index) => {
+      const spin = hashUnit(`${x}${z}s`) * Math.PI;
+      const tall = 0.9 + hashUnit(`${z}${x}t`) * 0.35;
+      place(lower, index, x, 1.15 * scale * tall, z, scale, scale * tall, scale, spin);
+      place(upper, index, x, 1.85 * scale * tall, z, scale, scale * tall, scale, spin);
+      const shade = tint.setHSL(0.37 + (hashUnit(`${x},${z}`) - 0.5) * 0.04, 0.34, 0.3 + hashUnit(`${z},${x}`) * 0.08);
+      lower.setColorAt(index, shade);
+      upper.setColorAt(index, shade.offsetHSL(0, 0, 0.04));
+    });
+    broadleaves.forEach(([x, z, scale], index) => {
+      const squash = 0.85 + hashUnit(`${x}${z}q`) * 0.25;
+      place(crowns, index, x, 1.25 * scale, z, scale * squash, scale, scale * (1.9 - squash), hashUnit(`${x}${z}s`) * Math.PI);
+      crowns.setColorAt(index, tint.setHSL(0.24 + hashUnit(`${x},${z}h`) * 0.08, 0.38, 0.4 + hashUnit(`${z},${x}l`) * 0.12));
+    });
+    lower.count = conifers.length;
+    upper.count = conifers.length;
+    crowns.count = broadleaves.length;
+    for (const instanced of [trunks, lower, upper, crowns]) {
+      instanced.castShadow = true;
+      instanced.receiveShadow = true;
+      parent.add(instanced);
+    }
+  }
+  function placeLamps(parent, placements) {
+    if (!placements.length) return;
+    const metal = material(0x3f4844, { roughness: 0.6, metalness: 0.4 });
+    const poles = new THREE.InstancedMesh(new THREE.CylinderGeometry(0.05, 0.07, 1.9, 6), metal, placements.length);
+    const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.26, 0.08, 0.26), metal, placements.length);
+    const bulbMaterial = material(0xfff3d6, { emissive: new THREE.Color(0xffd27a), emissiveIntensity: sky.lamps ? 1.8 : 0 });
+    lampMaterials.add(bulbMaterial);
+    const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.11, 10, 8), bulbMaterial, placements.length);
+    const matrix = new THREE.Matrix4();
+    placements.forEach(([x, z], index) => {
+      poles.setMatrixAt(index, matrix.makeTranslation(x, 0.95, z));
+      heads.setMatrixAt(index, matrix.makeTranslation(x, 1.92, z));
+      bulbs.setMatrixAt(index, matrix.makeTranslation(x, 1.82, z));
+    });
+    for (const instanced of [poles, heads, bulbs]) {
+      instanced.castShadow = instanced !== bulbs;
+      parent.add(instanced);
+    }
+  }
+  const dashTexture = canvasTexture(doc, 8, 64, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(1, 0, w - 2, h * 0.55);
+  });
+  dashTexture.wrapT = THREE.RepeatWrapping;
+  /** A street along z (or along x when `across`): sidewalks, asphalt, and a dashed centre line if wide. */
+  function streetStrip(parent, { x = 0, z = 0, width, length, across = false, centreLine = false }) {
+    const strip = (stripWidth, mat, y) => {
+      const surface = mesh(new THREE.PlaneGeometry(stripWidth, length), mat, { x, y, z, shadow: false });
+      surface.rotation.set(-Math.PI / 2, 0, across ? Math.PI / 2 : 0);
+      parent.add(surface);
+    };
+    strip(width + 0.7, material(0xe4dfd2, { roughness: 1 }), 0.025);
+    strip(width, material(0x8e938f, { roughness: 0.95 }), 0.04);
+    if (centreLine) {
+      const dashes = dashTexture.clone();
+      dashes.needsUpdate = true;
+      dashes.repeat.set(1, Math.max(1, Math.round(length / 1.6)));
+      strip(0.1, new THREE.MeshBasicMaterial({ map: dashes, transparent: true, opacity: 0.85, color: 0xf6f3e6 }), 0.055);
+    }
+  }
+  // A tarp, folded: vertical bands of light and shade on the blue sheet (the colour is the meaning).
+  const tarpTexture = canvasTexture(doc, 64, 64, (ctx, w, h) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 8; i += 1) {
+      ctx.fillStyle = i % 2 ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.0)';
+      ctx.fillRect((i * w) / 8, 0, w / 8, h);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.12)';
+    ctx.fillRect(0, h * 0.48, w, 2);
+  });
+  tarpTexture.wrapS = THREE.RepeatWrapping;
+  tarpTexture.wrapT = THREE.RepeatWrapping;
 
   let root = null;
   let lots = new Map();
@@ -161,7 +326,9 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     const overdue = GAP(site, 'review_overdue');
     const fade = (color) => (overdue ? new THREE.Color(color).lerp(new THREE.Color(0xb9b29a), 0.45) : new THREE.Color(color));
     const half = DISTRICT_STREETS.lot / 2;
-    group.add(box(DISTRICT_STREETS.lot, 0.06, DISTRICT_STREETS.lot, overdue ? 0xc9c0a2 : 0xd9d4c4));
+    // The lot: a rounded plate, gravel on a site and lawn round a finished house (faded when overdue).
+    const groundColor = site.work.status === 'completed' ? 0xb7cf9f : 0xd9d2bf;
+    group.add(mesh(roundedPlate(DISTRICT_STREETS.lot, DISTRICT_STREETS.lot, 0.08, 0.32), material(fade(groundColor), { roughness: 1 })));
     const status = site.work.status;
     const building = status === 'in_progress' || status === 'waiting';
     if (status !== 'completed') {
@@ -181,34 +348,57 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     if (building) {
       const floors = 1 + Math.floor(hash(`${site.task_id}f`) * 2);
       const height = 0.75 * floors;
-      group.add(box(1.7, height, 1.5, fade(STATE_WALL[status]), { z: -0.25 }));
-      // Scaffolding: a frame of edges around the building.
-      const frame = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(2.0, height + 0.6, 1.8)), new THREE.LineBasicMaterial({ color: 0x8c8f8a }));
-      frame.position.set(0, (height + 0.6) / 2, -0.25);
-      group.add(frame);
+      // The building rising: walls with their windows (unlit, no one has moved in), concrete on top.
+      const core = block(1.7, height, 1.5, { style: hash(`${site.task_id}s`) < 0.5 ? 'office' : 'brick', wall: fade(STATE_WALL[status]).getHex(), roof: 0xa9a59b });
+      core.position.z = -0.25;
+      group.add(core);
+      // Scaffolding: poles at the corners and along the faces, a plank at each floor.
+      const steel = material(0x9a9c97, { roughness: 0.5, metalness: 0.5 });
+      const plank = material(0xb88f5a, { roughness: 0.9 });
+      const scaffoldH = height + 0.55;
+      for (const x of [-1.0, -0.33, 0.33, 1.0]) {
+        for (const z of [-1.15, 0.65]) group.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, scaffoldH, 5), steel, { x, y: scaffoldH / 2, z }));
+      }
+      // Planks only where work goes on; a held site is wrapped in its tarp.
+      for (let f = 1; status === 'in_progress' && f <= floors; f += 1) {
+        for (const z of [-1.15, 0.65]) group.add(mesh(new THREE.BoxGeometry(2.05, 0.04, 0.24), plank, { y: f * 0.75, z }));
+        for (const x of [-1.0, 1.0]) group.add(mesh(new THREE.BoxGeometry(0.24, 0.04, 1.8), plank, { x, y: f * 0.75, z: -0.25 }));
+      }
       if (status === 'in_progress') {
-        const net = mesh(new THREE.PlaneGeometry(2.0, height + 0.5), material(0x4f9a5c, { transparent: true, opacity: 0.55, side: THREE.DoubleSide }), { y: (height + 0.5) / 2, z: 0.66, shadow: false });
+        const net = mesh(new THREE.PlaneGeometry(2.0, scaffoldH - 0.05), material(0x4f9a5c, { transparent: true, opacity: 0.55, side: THREE.DoubleSide }), { y: scaffoldH / 2, z: 0.7, shadow: false });
         group.add(net);
-        // A crane over a site being worked.
-        group.add(mesh(new THREE.BoxGeometry(0.12, 3.6, 0.12), material(0xe0a526), { x: 0.9, y: 1.8, z: -0.9 }));
-        group.add(mesh(new THREE.BoxGeometry(2.2, 0.1, 0.1), material(0xe0a526), { x: 0.2, y: 3.5, z: -0.9 }));
+        // A tower crane over a site being worked: a mast, a jib and its counterweight.
+        const yellow = material(0xe0a526, { roughness: 0.6 });
+        group.add(mesh(new THREE.BoxGeometry(0.14, 3.8, 0.14), yellow, { x: 0.95, y: 1.9, z: -1.05 }));
+        group.add(mesh(new THREE.BoxGeometry(2.6, 0.1, 0.12), yellow, { x: 0.35, y: 3.7, z: -1.05 }));
+        group.add(mesh(new THREE.BoxGeometry(0.34, 0.3, 0.3), material(0x6b6b66), { x: 1.55, y: 3.55, z: -1.05 }));
+        group.add(mesh(new THREE.CylinderGeometry(0.008, 0.008, 1.4, 4), material(0x333333), { x: -0.7, y: 3.0, z: -1.05, shadow: false }));
       } else {
-        // Waiting: a blue tarp over the building, as on a site where work is held.
-        group.add(box(1.9, height + 0.4, 1.7, fade(0x3f78b5), { z: -0.25 }, { transparent: true, opacity: 0.9, roughness: 0.6 }));
+        // Waiting: a blue tarp over the building and its scaffold, tied down, as on a site where work is held.
+        const tarp = tarpTexture.clone();
+        tarp.needsUpdate = true;
+        tarp.repeat.set(2, 1);
+        group.add(box(2.15, scaffoldH, 1.95, fade(0x4f93db), { z: -0.25 }, { map: tarp, transparent: true, opacity: 0.95, roughness: 0.5, emissive: fade(0x1d4f8a), emissiveIntensity: 0.35 }));
+        const rope = material(0xf2efe6);
+        for (const x of [-1.08, 1.08]) group.add(mesh(new THREE.BoxGeometry(0.02, 0.02, 2.0), rope, { x, y: scaffoldH * 0.55, z: -0.25, shadow: false }));
       }
     }
     if (status === 'completed') {
-      group.add(box(1.6, 1.0, 1.4, 0xf2ebdd, { z: -0.3 }));
-      const roof = mesh(new THREE.ConeGeometry(1.25, 0.7, 4), material(0xb5654a), { y: 1.35, z: -0.3 });
-      roof.rotation.y = Math.PI / 4;
+      // A finished house: plastered walls with lit windows, a gable roof, a door to the street.
+      const house = block(1.7, 1.05, 1.4, { style: 'house', wall: 0xf2ebdd, lit: true, roof: 0xd8d0c2 });
+      house.position.z = -0.3;
+      group.add(house);
+      const roof = mesh(gableRoof(1.7, 1.4, 0.7), material(0xb5654a, { roughness: 0.75 }), { y: 1.05, z: -0.3 });
+      roof.rotation.y = Math.PI / 2;
       group.add(roof);
-      group.add(mesh(new THREE.BoxGeometry(0.5, 0.36, 0.04), material(0xffd98c, { emissive: new THREE.Color(0xffc867), emissiveIntensity: 0.9 }), { y: 0.55, z: 0.41, shadow: false }));
-      group.add(mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), material(0x9c7a62), { x: 0.4, y: 1.5, z: -0.6 }));
-      group.userData.chimney = new THREE.Vector3(0.4, 1.8, -0.6);
+      group.add(mesh(new THREE.BoxGeometry(0.34, 0.6, 0.04), material(0x8a5a3c), { y: 0.3, z: 0.41 }));
+      group.add(mesh(new THREE.BoxGeometry(0.2, 0.5, 0.2), material(0x9c7a62), { x: 0.45, y: 1.6, z: -0.6 }));
+      group.userData.chimney = new THREE.Vector3(0.45, 1.9, -0.6);
     }
     // A path to the street only when the record links its source.
     if (!GAP(site, 'source_unlinked') && !GAP(site, 'outcome_unlinked')) {
-      group.add(mesh(new THREE.BoxGeometry(0.7, 0.04, 1.0), material(0xbdb7aa), { y: 0.05, z: half + 0.45, shadow: false }));
+      const stones = material(0xcfc8b8, { roughness: 1 });
+      for (let i = 0; i < 3; i += 1) group.add(mesh(roundedPlate(0.6, 0.26, 0.03, 0.08), stones, { x: (i % 2 ? 0.06 : -0.06), y: 0.04, z: half + 0.18 + i * 0.32, shadow: false }));
     }
     // A blueprint stands where the completion condition is, with no record of what was made.
     if (GAP(site, 'outcome_unlinked')) {
@@ -262,6 +452,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   // --- the district -------------------------------------------------------------------------------
   function clear() {
     if (root) scene.remove(root);
+    litMaterials.clear();
+    lampMaterials.clear();
     for (const label of labels) label.node.remove();
     labels = [];
     lots = new Map();
@@ -284,79 +476,100 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     const L = layout.length;
     const gateZ = L / 2 + 4;
     const hallZ = -L / 2 - 7;
-    // Land, the district's paving, the main street and the back streets.
-    const land = mesh(new THREE.PlaneGeometry(260, 260), material(0xa9c595, { roughness: 1 }), { shadow: false });
+    // Land as in the world: gentle, non-repeating shades of grass (scenery).
+    const grass = { low: new THREE.Color(0x9fbf8c), high: new THREE.Color(0xd3e4bd), warm: new THREE.Color(0xd9d6a6) };
+    const land = mesh(paintVertices(new THREE.CircleGeometry(150, 96, 0, Math.PI * 2), (color, x, y) => {
+      color.copy(grass.low).lerp(grass.high, valueNoise(x / 16, y / 16, 'dland') * 0.7 + valueNoise(x / 4.5, y / 4.5, 'dtuft') * 0.3);
+      if (valueNoise(x / 22, y / 22, 'ddry') > 0.68) color.lerp(grass.warm, 0.35);
+    }), material(0xffffff, { vertexColors: true, roughness: 1 }), { shadow: false });
     land.rotation.x = -Math.PI / 2;
+    land.receiveShadow = true;
     root.add(land);
-    const paving = mesh(new THREE.PlaneGeometry(26, L + 22), material(0xe9e4d6, { roughness: 1 }), { y: 0.01, z: (gateZ + hallZ) / 2, shadow: false });
-    paving.rotation.x = -Math.PI / 2;
-    root.add(paving);
-    const asphalt = material(0x8e938f, { roughness: 0.95 });
-    const street = (x, width, from, to) => {
-      const strip = mesh(new THREE.PlaneGeometry(width, Math.abs(to - from)), asphalt, { x, y: 0.02, z: (from + to) / 2, shadow: false });
-      strip.rotation.x = -Math.PI / 2;
-      root.add(strip);
-    };
-    street(0, DISTRICT_STREETS.main * 2, gateZ + 8, hallZ + 3);
-    street(-DISTRICT_STREETS.backStreet, 2, L / 2 + 1, -L / 2 - 1);
-    street(DISTRICT_STREETS.backStreet, 2, L / 2 + 1, -L / 2 - 1);
+    // The district's paving: a raised plate with a kerb, from the gate to the hall.
+    const pavingDepth = gateZ - hallZ + 14;
+    root.add(mesh(roundedPlate(28, pavingDepth, 0.04, 2.2), material(0xd4cec0, { roughness: 1 }), { z: (gateZ + hallZ) / 2, shadow: false }));
+    root.add(mesh(roundedPlate(27, pavingDepth - 1, 0.06, 1.8), material(0xebe6d8, { roughness: 1 }), { z: (gateZ + hallZ) / 2, shadow: false }));
+    const lift = new THREE.Group();
+    lift.position.y = 0.17;
+    root.add(lift);
+    streetStrip(lift, { x: 0, z: (gateZ + 8 + hallZ + 3) / 2, width: DISTRICT_STREETS.main * 2, length: gateZ + 8 - (hallZ + 3), centreLine: true });
+    streetStrip(lift, { x: -DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2 });
+    streetStrip(lift, { x: DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2 });
     // A cross street between the blocks, and at the hall end of each block a sign saying what its work is for.
     const crossWidth = DISTRICT_STREETS.backLot * 2 + 4;
     layout.streets.forEach((block, index) => {
       if (index < layout.streets.length - 1) {
-        const strip = mesh(new THREE.PlaneGeometry(crossWidth, DISTRICT_STREETS.cross * 0.7), asphalt, { y: 0.02, z: block.z_to + DISTRICT_STREETS.cross / 2, shadow: false });
-        strip.rotation.x = -Math.PI / 2;
-        root.add(strip);
+        streetStrip(lift, { x: 0, z: block.z_to + DISTRICT_STREETS.cross / 2, width: DISTRICT_STREETS.cross * 0.62, length: crossWidth, across: true });
       }
       const signZ = block.z_from - (index === 0 ? 0.9 : DISTRICT_STREETS.cross / 2);
-      root.add(mesh(new THREE.CylinderGeometry(0.07, 0.07, 2.4, 6), material(0x4a4a4a), { x: -DISTRICT_STREETS.main - 0.5, y: 1.2, z: signZ }));
-      root.add(mesh(new THREE.BoxGeometry(1.9, 0.5, 0.08), material(block.label ? 0x2f6e4f : 0xbfb8a8), { x: -DISTRICT_STREETS.main - 0.5, y: 2.3, z: signZ }));
+      root.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.5, 8), material(0x3f4844, { roughness: 0.6, metalness: 0.4 }), { x: -DISTRICT_STREETS.main - 0.5, y: 1.25, z: signZ }));
+      root.add(mesh(new THREE.BoxGeometry(1.1, 0.34, 0.05), material(block.label ? 0x2f6e4f : 0xbfb8a8, { roughness: 0.6 }), { x: -DISTRICT_STREETS.main - 0.5, y: 2.2, z: signZ }));
       const text = block.label ? `${block.label}（${block.count}件）` : `未分類の空き地：何のための仕事か未記録（${block.count}件）`;
       addLabel(text, new THREE.Vector3(-DISTRICT_STREETS.main - 0.5, 2.9, signZ), `is-street${block.label ? '' : ' is-unlabelled'}`, { priority: 2 });
     });
-    // Trees and lamps along the main street, between the lots (scenery).
-    const trunk = material(0x7d6249);
-    const crown = material(0x6f9a5c, { flatShading: true });
+    // Trees along the main street and lamps between them; a belt of trees round the district (scenery).
+    const trees = [];
+    const lamps = [];
     for (let z = -L / 2; z <= L / 2; z += DISTRICT_STREETS.row) {
-      for (const x of [-2.4, 2.4]) {
-        const at = z + DISTRICT_STREETS.row / 2;
-        if (at > L / 2) continue;
-        root.add(mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.8, 6), trunk, { x, y: 0.4, z: at }));
-        root.add(mesh(new THREE.IcosahedronGeometry(0.55, 0), crown, { x, y: 1.15, z: at }));
-      }
+      const at = z + DISTRICT_STREETS.row / 2;
+      if (at > L / 2) continue;
+      for (const x of [-2.45, 2.45]) trees.push([x, at, 0.62]);
+      for (const x of [-2.45, 2.45]) lamps.push([x, at + DISTRICT_STREETS.row / 2]);
     }
-    // The gate.
-    const stone = material(0xe2dccf);
-    root.add(box(0.7, 4.2, 0.7, 0xe2dccf, { x: -3.2, z: gateZ }));
-    root.add(box(0.7, 4.2, 0.7, 0xe2dccf, { x: 3.2, z: gateZ }));
-    root.add(mesh(new THREE.BoxGeometry(7.6, 0.6, 0.9), stone, { y: 4.4, z: gateZ }));
+    for (let i = 0; i < 90; i += 1) {
+      const angle = (i / 90) * Math.PI * 2 + hashUnit(`belt${i}a`) * 0.05;
+      const rx = 17 + hashUnit(`belt${i}r`) * 9;
+      const rz = pavingDepth / 2 + 3 + hashUnit(`belt${i}z`) * 8;
+      trees.push([Math.cos(angle) * rx, (gateZ + hallZ) / 2 + Math.sin(angle) * rz, 0.8 + hashUnit(`belt${i}s`) * 0.6]);
+    }
+    plantTrees(root, trees.filter(([x, z]) => !(Math.abs(x) < 4.2 && z > gateZ - 1)));
+    placeLamps(lift, lamps);
+    // The gate: stone pillars on plinths, a lintel with a cornice, lamps on its pillars.
+    const stone = material(0xe2dccf, { roughness: 0.9 });
+    for (const x of [-3.3, 3.3]) {
+      root.add(mesh(roundedPlate(1.2, 1.2, 0.3, 0.12), stone, { x, z: gateZ }));
+      root.add(mesh(new THREE.BoxGeometry(0.72, 4.0, 0.72), stone, { x, y: 2.3, z: gateZ }));
+      root.add(mesh(new THREE.BoxGeometry(0.9, 0.18, 0.9), stone, { x, y: 4.35, z: gateZ }));
+    }
+    root.add(mesh(new THREE.BoxGeometry(7.8, 0.55, 0.95), stone, { y: 4.65, z: gateZ }));
+    root.add(mesh(new THREE.BoxGeometry(8.2, 0.16, 1.1), material(0xcfc8ba, { roughness: 0.9 }), { y: 5.0, z: gateZ }));
+    placeLamps(root, [[-3.3, gateZ + 0.6], [3.3, gateZ + 0.6]]);
     addLabel(`${business.name}の区画（入口）`, new THREE.Vector3(0, 5.2, gateZ), 'is-city', { priority: 1 });
     // The hall: what this business is for, and the stones of its policies in front of it.
-    root.add(box(8, 3.6, 4.4, 0xeee8dc, { z: hallZ }));
-    root.add(mesh(new THREE.BoxGeometry(8.6, 0.3, 5.0), stone, { y: 3.75, z: hallZ }));
-    for (let i = 0; i < 6; i += 1) root.add(mesh(new THREE.CylinderGeometry(0.16, 0.18, 3.0, 10), material(0xf7f4ee), { x: -3.1 + i * 1.24, y: 1.5, z: hallZ + 2.5 }));
-    const pediment = mesh(new THREE.ConeGeometry(4.9, 1.2, 4), material(0xf7f4ee), { y: 4.5, z: hallZ });
-    pediment.rotation.y = Math.PI / 4;
-    pediment.scale.z = 0.6;
+    // A civic building as in the world: steps, a colonnade, tall lit windows, a pediment.
+    for (let step = 0; step < 3; step += 1) root.add(mesh(roundedPlate(9.6 - step * 0.5, 6.2 - step * 0.4, 0.1, 0.25), stone, { y: step * 0.18, z: hallZ + 0.2 }));
+    const hall = block(8, 3.4, 4.2, { style: 'civic', wall: 0xeee8dc, lit: true, roof: 0xd9d2c4 });
+    hall.position.set(0, 0.54, hallZ);
+    root.add(hall);
+    root.add(mesh(new THREE.BoxGeometry(8.6, 0.3, 4.9), stone, { y: 4.08, z: hallZ }));
+    for (let i = 0; i < 6; i += 1) {
+      const x = -3.1 + i * 1.24;
+      root.add(mesh(new THREE.CylinderGeometry(0.16, 0.19, 3.0, 14), material(0xf7f4ee, { roughness: 0.7 }), { x, y: 2.04, z: hallZ + 2.45 }));
+      root.add(mesh(new THREE.BoxGeometry(0.46, 0.12, 0.46), stone, { x, y: 3.6, z: hallZ + 2.45 }));
+    }
+    const pediment = mesh(gableRoof(8.6, 4.9, 1.15), material(0xf7f4ee, { roughness: 0.8 }), { y: 4.23, z: hallZ });
     root.add(pediment);
-    root.add(box(0.4, 0.9, 0.4, 0x9c7a62, { x: 2.8, y: 3.9, z: hallZ - 1.2 }));
-    const hallChimney = new THREE.Vector3(2.8, 4.8, hallZ - 1.2);
+    root.add(box(0.4, 0.9, 0.4, 0x9c7a62, { x: 2.8, y: 4.3, z: hallZ - 1.2 }));
+    const hallChimney = new THREE.Vector3(2.8, 5.2, hallZ - 1.2);
     const purposeText = work?.status === 'ok' ? (work.purpose.text ?? '目的は未登録') : '目的を読めません';
     addLabel(`庁舎：${business.name}（${purposeText}）`, new THREE.Vector3(0, 5.6, hallZ), 'is-plaza', { priority: 1 });
-    const plaza = mesh(new THREE.CircleGeometry(3.6, 40), material(0xf1ece1), { y: 0.03, z: hallZ + 5.4, shadow: false });
+    const plaza = mesh(new THREE.CircleGeometry(3.6, 48), material(0xf1ece1, { roughness: 1 }), { y: 0.2, z: hallZ + 5.4, shadow: false });
     plaza.rotation.x = -Math.PI / 2;
     root.add(plaza);
+    const ring = mesh(new THREE.RingGeometry(3.6, 3.85, 48), material(0xcfc8b8, { roughness: 1 }), { y: 0.21, z: hallZ + 5.4, shadow: false });
+    ring.rotation.x = -Math.PI / 2;
+    root.add(ring);
     const policies = work?.status === 'ok' ? work.purpose.policies.slice(0, 8) : [];
     policies.forEach((policy, index) => {
       const angle = Math.PI * (0.15 + (0.7 * index) / Math.max(policies.length - 1, 1));
       const x = Math.cos(angle) * 2.8;
       const z = hallZ + 5.4 + Math.sin(angle) * 1.6;
       if (policy.link === 'recorded') {
-        root.add(box(0.5, 1.2, 0.22, 0xa8a49a, { x, z }));
+        root.add(box(0.5, 1.2, 0.22, 0xa8a49a, { x, y: 0.8, z }, { roughness: 0.9 }));
       } else {
         const outline = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.5, 1.2, 0.22)), new THREE.LineDashedMaterial({ color: 0x5b4a8a, dashSize: 0.12, gapSize: 0.08 }));
         outline.computeLineDistances();
-        outline.position.set(x, 0.6, z);
+        outline.position.set(x, 0.8, z);
         root.add(outline);
       }
       const title = policy.title.length > 18 ? `${policy.title.slice(0, 17)}…` : policy.title;
@@ -381,7 +594,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     for (const site of shown) {
       const lot = layout.lots[site.task_id];
       const group = lotGroup(site);
-      group.position.set(lot.x, 0, lot.z);
+      group.position.set(lot.x, 0.17, lot.z);
       group.rotation.y = lot.facing > 0 ? Math.PI / 2 : -Math.PI / 2;
       group.userData = { kind: 'site', site, chimney: group.userData.chimney ?? null };
       root.add(group);
@@ -415,6 +628,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       }
     }
     // Fog when the work could not be read: the district cannot be seen, which is not empty.
+    scene.fog.color.set(sky.fog);
     scene.fog.near = readable ? 70 : 6;
     scene.fog.far = readable ? 170 : 34;
     notice.hidden = readable;
@@ -489,7 +703,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       selectionRing.visible = false;
       return;
     }
-    selectionRing.position.set(group.position.x, 0.09, group.position.z);
+    selectionRing.position.set(group.position.x, 0.3, group.position.z);
     selectionRing.visible = true;
     const at = group.position.clone();
     fly(new THREE.Vector3(at.x, 0, at.z), new THREE.Vector3(at.x + (at.x > 0 ? 9 : -9), 11, at.z + 12));
@@ -574,7 +788,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
         const forward = travel < 1;
         walker.position.set(x, 0, forward ? from + travel * span : to - (travel - 1) * span);
         walker.rotation.y = forward ? 0 : Math.PI;
-        walker.position.y = Math.abs(Math.sin(seconds * 8 * speed)) * 0.04;
+        walker.position.y = 0.2 + Math.abs(Math.sin(seconds * 8 * speed)) * 0.04;
       }
       for (const puff of puffs) {
         const cycle = (seconds * 0.25 + puff.userData.phase) % 1;
@@ -612,6 +826,11 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     },
     hide() {
       setVisible(false);
+    },
+    /** The sky: the same modes as the world ('auto' follows the hour). */
+    setSky(mode) {
+      skyMode = mode;
+      applySky();
     },
     isOpen: () => open,
     /** Back to the view from the gate, keeping the district. */

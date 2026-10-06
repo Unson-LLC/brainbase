@@ -25,6 +25,7 @@
 import { THREE, MapControls } from './world-vendor.js';
 import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT } from './world-placement.js';
 import { createDistrictView } from './world-district.js';
+import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, muted, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { WORK_STATES, workCityBlocks, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
 import {
   makeWorkspaceElement as el,
@@ -73,15 +74,6 @@ const statusText = (status) => (status ? statusEntry(status)?.label ?? status : 
 
 const PLAZA_RADIUS = 7;
 const CITY_RING = 30;
-
-function hashUnit(text) {
-  let h = 2166136261;
-  for (let i = 0; i < text.length; i += 1) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return ((h >>> 0) % 10000) / 10000;
-}
 
 async function readJson(fetcher, path) {
   try {
@@ -188,199 +180,6 @@ const GAP_SHORT_TEXT = Object.freeze({
   source_unlinked: '出典リンクなし',
   review_overdue: '見直し超過',
 });
-
-function canvasTexture(doc, width, height, draw) {
-  const canvas = doc.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  draw(canvas.getContext('2d'), width, height);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-/** Smooth value noise in [0, 1]; used only to shade scenery (ground, sea, mountains) without repeating textures. */
-function valueNoise(x, z, seed = 'n') {
-  const xi = Math.floor(x);
-  const zi = Math.floor(z);
-  const fx = x - xi;
-  const fz = z - zi;
-  const sx = fx * fx * (3 - 2 * fx);
-  const sz = fz * fz * (3 - 2 * fz);
-  const at = (i, j) => hashUnit(`${seed}${i},${j}`);
-  const near = at(xi, zi) + (at(xi + 1, zi) - at(xi, zi)) * sx;
-  const far = at(xi, zi + 1) + (at(xi + 1, zi + 1) - at(xi, zi + 1)) * sx;
-  return near + (far - near) * sz;
-}
-
-/** Colours a geometry per vertex from its position (x, y, z before any rotation). */
-function paintVertices(geometry, colorAt) {
-  const position = geometry.attributes.position;
-  const colors = new Float32Array(position.count * 3);
-  const color = new THREE.Color();
-  for (let i = 0; i < position.count; i += 1) {
-    colorAt(color, position.getX(i), position.getY(i), position.getZ(i));
-    colors[i * 3] = color.r;
-    colors[i * 3 + 1] = color.g;
-    colors[i * 3 + 2] = color.b;
-  }
-  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-  return geometry;
-}
-
-/*
- * Facades: one tile of a wall, drawn for a style and a wall colour.  Windows are on the walls only (roofs
- * get a plain material).  Which panes are lit is fixed per pane, so the glow map matches the colour map;
- * whether a building has lit windows at all still means "moved in the last 30 days".
- */
-const FACADE_UNITS = Object.freeze({ glass: [2.0, 2.3], office: [3.0, 2.0], brick: [1.3, 1.35], civic: [0.85, 1.5], research: [0.9, 1.2], house: [0, 0] });
-
-/** Tile size in pixels: glass and office tiles hold several floors so lit panes do not repeat as a pattern. */
-const FACADE_SIZES = Object.freeze({ glass: 256, office: 256 });
-
-function drawFacade(ctx, w, h, style, wall, lit, glowOnly) {
-  const wallColor = `#${new THREE.Color(wall).getHexString()}`;
-  const dark = `#${new THREE.Color(wall).multiplyScalar(0.72).getHexString()}`;
-  const light = `#${new THREE.Color(wall).lerp(new THREE.Color(0xffffff), 0.35).getHexString()}`;
-  ctx.fillStyle = glowOnly ? '#000000' : wallColor;
-  ctx.fillRect(0, 0, w, h);
-  const pane = (x, y, pw, ph, index) => {
-    const on = lit && hashUnit(`${style}pane${index}x`) < 0.55;
-    if (glowOnly) {
-      ctx.fillStyle = on ? '#ffffff' : '#000000';
-      ctx.fillRect(x, y, pw, ph);
-      return;
-    }
-    if (on) {
-      ctx.fillStyle = '#ffd98c';
-      ctx.fillRect(x, y, pw, ph);
-      ctx.fillStyle = 'rgba(255,244,214,0.55)';
-      ctx.fillRect(x, y, pw, ph * 0.3);
-    } else {
-      const glass = ctx.createLinearGradient(x, y, x + pw, y + ph);
-      glass.addColorStop(0, '#9fb3c4');
-      glass.addColorStop(0.5, '#56687a');
-      glass.addColorStop(1, '#3f4f60');
-      ctx.fillStyle = glass;
-      ctx.fillRect(x, y, pw, ph);
-    }
-  };
-  if (style === 'glass') {
-    // A curtain wall: four floors of four panes, thin mullions, a floor band under each floor.
-    const cw = w / 4;
-    const rh = h / 4;
-    for (let r = 0; r < 4; r += 1) {
-      if (!glowOnly) {
-        ctx.fillStyle = dark;
-        ctx.fillRect(0, r * rh + rh - 7, w, 7);
-      }
-      for (let c = 0; c < 4; c += 1) pane(c * cw + 4, r * rh + 5, cw - 8, rh - 15, r * 4 + c);
-    }
-    if (!glowOnly) {
-      ctx.fillStyle = light;
-      for (let c = 0; c <= 4; c += 1) ctx.fillRect(c * cw - 2, 0, 4, h);
-    }
-  } else if (style === 'office') {
-    // Ribbon windows: two floors, each a long band split by mullions over a concrete spandrel.
-    const rh = h / 2;
-    for (let r = 0; r < 2; r += 1) {
-      if (!glowOnly) {
-        ctx.fillStyle = light;
-        ctx.fillRect(0, r * rh, w, 22);
-        ctx.fillStyle = dark;
-        ctx.fillRect(0, r * rh + rh - 10, w, 6);
-      }
-      for (let c = 0; c < 8; c += 1) pane(4 + c * (w / 8), r * rh + 34, w / 8 - 6, rh - 54, r * 8 + c);
-    }
-  } else if (style === 'brick') {
-    if (!glowOnly) {
-      ctx.strokeStyle = 'rgba(0,0,0,0.07)';
-      ctx.lineWidth = 2;
-      for (let y = 16; y < h; y += 16) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(w, y);
-        ctx.stroke();
-      }
-    }
-    for (let c = 0; c < 2; c += 1) {
-      const x = 18 + c * 58;
-      if (!glowOnly) {
-        ctx.fillStyle = '#f5f1e8';
-        ctx.fillRect(x - 5, 22, 44, 82);
-      }
-      pane(x, 26, 34, 74, c);
-      if (!glowOnly) {
-        ctx.fillStyle = '#f5f1e8';
-        ctx.fillRect(x + 15, 26, 4, 74);
-        ctx.fillRect(x, 58, 34, 4);
-      }
-    }
-  } else if (style === 'civic') {
-    // Pilasters and tall windows.
-    if (!glowOnly) {
-      ctx.fillStyle = light;
-      ctx.fillRect(0, 0, 18, h);
-      ctx.fillRect(w - 18, 0, 18, h);
-    }
-    pane(30, 14, 68, 96, 0);
-    if (!glowOnly) {
-      ctx.fillStyle = light;
-      ctx.fillRect(62, 14, 4, 96);
-    }
-  } else if (style === 'research') {
-    for (let c = 0; c < 2; c += 1) pane(20 + c * 60, 18, 28, 90, c);
-  } else if (style === 'house') {
-    // A plastered wall with two framed windows (doors are separate meshes).
-    for (let c = 0; c < 2; c += 1) {
-      const x = 22 + c * 52;
-      if (!glowOnly) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(x - 4, 36, 40, 50);
-      }
-      pane(x, 40, 32, 42, c);
-      if (!glowOnly) {
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(x + 14, 40, 4, 42);
-        ctx.fillStyle = dark;
-        ctx.fillRect(x - 6, 86, 44, 5);
-      }
-    }
-  }
-}
-
-function roundedPlate(width, depth, height, radius) {
-  const shape = new THREE.Shape();
-  const w = width / 2;
-  const d = depth / 2;
-  shape.moveTo(-w + radius, -d);
-  shape.lineTo(w - radius, -d);
-  shape.quadraticCurveTo(w, -d, w, -d + radius);
-  shape.lineTo(w, d - radius);
-  shape.quadraticCurveTo(w, d, w - radius, d);
-  shape.lineTo(-w + radius, d);
-  shape.quadraticCurveTo(-w, d, -w, d - radius);
-  shape.lineTo(-w, -d + radius);
-  shape.quadraticCurveTo(-w, -d, -w + radius, -d);
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: height, bevelEnabled: true, bevelThickness: 0.12, bevelSize: 0.12, bevelSegments: 2 });
-  geometry.rotateX(-Math.PI / 2);
-  return geometry;
-}
-
-function gableRoof(width, depth, rise) {
-  const shape = new THREE.Shape();
-  shape.moveTo(-width / 2 - 0.1, 0);
-  shape.lineTo(width / 2 + 0.1, 0);
-  shape.lineTo(0, rise);
-  shape.lineTo(-width / 2 - 0.1, 0);
-  const geometry = new THREE.ExtrudeGeometry(shape, { depth: depth + 0.2, bevelEnabled: false });
-  geometry.translate(0, 0, -(depth + 0.2) / 2);
-  return geometry;
-}
-
-function muted(color, amount) {
-  return new THREE.Color(color).lerp(new THREE.Color(0xb9c2bb), amount);
-}
 
 function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, onEscape }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -1097,6 +896,13 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
       cityIndex.set(business.code, { city, group, label: null });
       const cityLabel = addLabel(statusPhase(business.status) === 'concept' ? `${business.name}（${statusText(business.status)}）` : business.name, new THREE.Vector3(x, top, z), 'is-city', { priority: LABEL_PRIORITY.city, owner: group });
       cityLabel.node.style.borderColor = `${entry.color}80`;
+      // The name is a way in too (AC-20): pressing it enters the district, as pressing the city does.
+      cityLabel.node.classList.add('is-enterable');
+      cityLabel.node.title = `${business.name}の区画に入る`;
+      cityLabel.node.addEventListener('click', () => {
+        select(group);
+        onPick(group.userData, new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()));
+      });
       cityIndex.get(business.code).label = cityLabel;
       cityLabel.business = business;
       const n = business.engagements.length;
@@ -1149,6 +955,12 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
   scene.add(selectionRing);
   let selected = null;
   let hovered = null;
+
+  /** The name label of a city group, to say "enter" next to it while the pointer is on the city. */
+  function labelOfCity(group) {
+    if (group?.userData?.kind !== 'city') return null;
+    return cityIndex.get(group.userData.business.code)?.label ?? null;
+  }
 
   function setHighlight(group, on) {
     for (const entry of highlightable.get(group) ?? []) {
@@ -1204,6 +1016,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
   });
   renderer.domElement.addEventListener('pointerleave', () => {
     pendingHover = null;
+    labelOfCity(hovered)?.node.classList.remove('is-hover');
     if (hovered) setHighlight(hovered, false);
     hovered = null;
   });
@@ -1478,8 +1291,10 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
       pendingHover = null;
       if (group !== hovered) {
         if (hovered) setHighlight(hovered, false);
+        labelOfCity(hovered)?.node.classList.remove('is-hover');
         hovered = group;
         if (hovered) setHighlight(hovered, true);
+        labelOfCity(hovered)?.node.classList.add('is-hover');
         renderer.domElement.style.cursor = hovered ? 'pointer' : '';
       }
     }
@@ -1634,6 +1449,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       skyIndex = (skyIndex + 1) % SKY_MODES.length;
       skyButton.textContent = SKY_MODES[skyIndex][1];
       scene?.setSky(SKY_MODES[skyIndex][0]);
+      district?.setSky(SKY_MODES[skyIndex][0]);
     },
   });
   const header = workspacePageHeader(doc, {
@@ -1672,8 +1488,48 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (!rail) return;
     rail.replaceChildren(...nodes);
   }
-  const showEmptyRail = () => showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
-  showEmptyRail();
+  /**
+   * With nothing chosen, the rail lists the ways in (AC-19): one button per business, the ones with the
+   * most work to check first. The count orders the list; it is not a score.
+   */
+  let workSummaries = {};
+  const showEmptyRail = () => {
+    if (!knownBusinesses.length) {
+      showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
+      return;
+    }
+    const noteOf = (business) => {
+      const summary = workSummaries[business.code];
+      if (!summary) return { text: workConnected === false ? '' : '仕事は区画で読みます', count: -1 };
+      if (summary.state !== 'complete' && summary.state !== 'partial') return { text: '仕事を読めない（0件ではありません）', count: -1, muted: true };
+      const needs = summary.needs_check?.length ?? 0;
+      const parts = [needs ? `要確認 ${needs}` : `未完了 ${summary.open ?? 0}`];
+      if (summary.state === 'partial') parts.push('一部だけ読めた');
+      return { text: parts.join('・'), count: needs };
+    };
+    const rows = knownBusinesses
+      .map((business) => ({ business, note: noteOf(business) }))
+      .sort((a, b) => b.note.count - a.note.count || a.business.name.localeCompare(b.business.name, 'ja'));
+    const list = el(doc, 'ul', { className: 'bb-world-entrances' });
+    for (const { business, note } of rows) {
+      const item = el(doc, 'li', { className: 'bb-world-entrance' });
+      const button = workspaceButton(doc, { text: `${business.name}の区画に入る ›`, onClick: () => enterFromRail(business) });
+      item.append(button);
+      if (note.text) item.append(el(doc, 'span', { className: `bb-world-entrance-note${note.count > 0 ? ' is-check' : ''}${note.muted ? ' is-muted' : ''}`, text: note.text }));
+      list.append(item);
+    }
+    showRail([
+      workspaceRailHead(doc, { kicker: '区画の入口', title: 'どの区画に入りますか', lead: '下のボタン、または地図の都市（建物や名前）を押すと、その事業の区画に入ります。Escで一つ上に戻ります。' }),
+      workspaceRailBlock(doc, { title: '事業', content: list }),
+    ]);
+  };
+  // The businesses are not known yet here (the list is drawn again once the world is built).
+  showRail([workspaceDetailEmpty(doc, { mark: '◇', title: '都市や建物を選ぶと、ここに出ます', text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転します。Escで全体に戻ります。' })]);
+
+  function enterFromRail(business) {
+    const picked = scene?.selectKey({ code: business.code });
+    openCity(business, picked?.center ?? null);
+  }
 
   let proofs = new Map();
   let placement = { byBusiness: new Map(), unplaced: [] };
@@ -1866,6 +1722,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       },
       onEscape: goUp,
     });
+    district.setSky(SKY_MODES[skyIndex][0]);
     scene.setPaused(true);
     legend.hidden = true;
     workLegend.hidden = true;
@@ -2012,6 +1869,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     }
     workConnected = true;
     const summaries = result.data.businesses ?? {};
+    workSummaries = summaries;
+    if (current.level === 'world' && !current.code) showEmptyRail();
     scene?.setWorkSigns(summaries);
     const entries = Object.values(summaries);
     const readable = entries.filter((entry) => entry.state === 'complete' || entry.state === 'partial');
@@ -2059,7 +1918,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         workspaceRailHead(doc, { kicker: `${business.name} の案件`, title: data.engagement.name, lead: data.engagement.summary ?? undefined }),
         workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }),
         detailBlock(data.engagement, '「プロジェクトと関係者」でこの案件を開く'),
-        workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: `${business.name}の仕事と関係を見る`, onClick: () => openCity(business, position) }) }),
+        workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: `${business.name}の区画に入る`, variant: 'primary', onClick: () => openCity(business, position) }) }),
         cityJudgmentBlock(business),
       ]);
       return;
@@ -2209,6 +2068,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     scene.buildCities(layoutWorld(businesses), placement.byBusiness);
     showChangesSinceLastVisit(note, businesses, rows);
     knownBusinesses = businesses;
+    if (!current.code) showEmptyRail();
     restoreSelection();
     void loadWorkSummary(note);
   }
