@@ -5,8 +5,8 @@ status: active
 created_at: 2026-10-06
 updated_at: 2026-10-06
 implementation_started: true
-implementation_status: local_library_implementation_complete
-verification_status: affected_tests_and_build_passed
+implementation_status: host_http_and_shared_ui_implementation_complete
+verification_status: affected_tests_and_build_passed_gui_pending
 implementation_commits: ["c5e72485a", "dd33e5280", "6051ecdcf", "991e90c90", "9028ff56f", "edf8a1e4c"]
 technical_adapter_status: filesystem_read_only_adapter_verified
 company_policy_status: unselected
@@ -45,3 +45,9 @@ Brainbase内保存と、実際の会社方針に沿って選んだ一つの外�
 全体の選択はSIMPLIFICATION。GitHub repo型の登録を普遍的な要件にせず、既存Evidenceのlocator・revision・ACL契約を再利用する。既存台帳の一括移行、全サービス向けconnector、Calendar自動同期、汎用同期基盤の構築は範囲外。必要な保持方針は実adapterの受容条件に含める。
 
 全体の分割と根拠: [Story分割計画](../../../brainbase-project/docs/architecture/brainbase-minutes-story-plan-2026-10-06.md)。
+
+## 2026-10-06 統合・レビュー修正
+
+共通host/API/画面へ接続し、外部本文は現行ACLを確認して本文領域へ表示する。拒否・取得不能・版切替・再配置時に本文を消去し、古い非同期応答で再表示しない。実filesystemと実hostで本文取得後の権限取消し、過去版取得不能を検証。修正前の統合8ファイル61テスト、native受容4テスト、修正後の影響4ファイル46テストとbuild/diff checkが成功。
+
+ブラウザ接続不能のため実画面受容は未完了。filesystemは技術検証adapterであり、会社の保存先・ACL・保持方針は未選定。会社導入と全provider対応を完了扱いしない。
