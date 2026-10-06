@@ -730,7 +730,9 @@ class GraphMeetingMinutesLineageStore implements MinutesLineageStore {
       return { ledger: { ...ledger, results: [...ledger.results, complete] }, result: complete };
     });
     if (!committed) throw new MeetingMinutesLineageError('readback_mismatch', `Result ${input.id} was not committed`);
-    return committed;
+    const readback = await this.readResult(committed.id, access);
+    if (!readback || readback.digest !== committed.digest) throw new MeetingMinutesLineageError('readback_mismatch', `Result ${input.id} was not readable after commit`);
+    return readback;
   }
 
   async markCorrection(request: MarkMinutesLineageCorrectionRequest): Promise<MinutesLineageCorrection> {
@@ -836,10 +838,35 @@ class GraphMeetingMinutesLineageStore implements MinutesLineageStore {
     if (confirmation) assertDigest(confirmation, 'confirmation');
     const adoption = ledger.adoptions.find((item) => item.candidateId === candidate.id);
     if (adoption) assertDigest(adoption, 'adoption');
-    const execution = adoption ? ledger.executions.find((item) => item.adoptionId === adoption.id) : undefined;
-    if (execution) assertDigest(execution, 'execution');
-    const result = execution ? ledger.results.find((item) => item.executionId === execution.id) : undefined;
-    if (result) assertDigest(result, 'result');
+    const storedExecution = adoption ? ledger.executions.find((item) => item.adoptionId === adoption.id) : undefined;
+    if (storedExecution) assertDigest(storedExecution, 'execution');
+    let execution: MinutesLineageExecution | undefined;
+    let executionStatus: MinutesLineageExecutionStatus = 'unrecorded';
+    if (storedExecution) {
+      try {
+        execution = (await this.readExecution(storedExecution.id, access)) ?? undefined;
+        if (execution) executionStatus = 'actual';
+      } catch {
+        // An execution is actual only while its exact receipt and target can
+        // be read under the current ACL.  A stale sidecar entry must never
+        // make a projection look successful after the provider changes.
+        execution = undefined;
+      }
+    }
+    const storedResult = execution ? ledger.results.find((item) => item.executionId === execution.id) : undefined;
+    if (storedResult) assertDigest(storedResult, 'result');
+    let result: MinutesLineageResult | undefined;
+    let resultStatus: MinutesLineageResultStatus = 'unrecorded';
+    if (execution && storedResult) {
+      try {
+        result = (await this.readResult(storedResult.id, access, execution)) ?? undefined;
+        if (result) resultStatus = 'accepted';
+      } catch {
+        // Results are accepted only while their exact provider record remains
+        // readable and points at the same execution target.
+        result = undefined;
+      }
+    }
     const reviewRequired = ledger.corrections.some((correction) => correction.affectedCandidateIds.includes(candidate.id));
     let targetStatus: LineageTargetStatus | undefined;
     if (adoption && !options.targetAlreadyRead) targetStatus = await this.targetStatus(adoption.target, access);
@@ -851,8 +878,8 @@ class GraphMeetingMinutesLineageStore implements MinutesLineageStore {
       ...(result ? { result: cloneJson(result) } : {}),
       confirmationStatus: confirmation ? 'confirmed' : 'unconfirmed',
       adoptionStatus: adoption ? 'adopted' : 'not_adopted',
-      executionStatus: execution ? 'actual' : 'unrecorded',
-      resultStatus: result ? 'accepted' : 'unrecorded',
+      executionStatus,
+      resultStatus,
       reviewStatus: reviewRequired ? 'review_required' : 'clear',
       ...(targetStatus ? { targetStatus } : {}),
     };
@@ -900,6 +927,37 @@ class GraphMeetingMinutesLineageStore implements MinutesLineageStore {
     }
     assertDigest(execution, 'execution');
     return cloneJson(execution);
+  }
+
+  private async readResult(
+    id: string,
+    access: MinutesLineageAccess,
+    verifiedExecution?: MinutesLineageExecution,
+  ): Promise<MinutesLineageResult | null> {
+    const resultId = requireId(id, 'result id');
+    const ledger = await this.readLedger();
+    const result = ledger.results.find((item) => item.id === resultId);
+    if (!result) return null;
+    assertDigest(result, 'result');
+    const execution = verifiedExecution ?? await this.requireExecution(result.executionId, access);
+    if (execution.id !== result.executionId || !sameTarget(execution.target, result.target)) {
+      throw new MeetingMinutesLineageError('integrity_mismatch', `Result ${result.id} points to a different execution target`);
+    }
+    if (!this.options.result) throw new MeetingMinutesLineageError('provider_unavailable', 'Result provider is not connected');
+    let providerResult: ResultRead | null;
+    try {
+      providerResult = await this.options.result.read(result.resultRef, access);
+    } catch (error) {
+      throw mapProviderError(error, 'Result provider is unavailable', 'target_unavailable');
+    }
+    if (
+      !providerResult ||
+      !sameJson(normalizeResultReference(providerResult.reference), result.resultRef) ||
+      !sameTarget(normalizeTarget(providerResult.target), execution.target)
+    ) {
+      throw new MeetingMinutesLineageError('integrity_mismatch', `Result ${result.resultRef.id} is not readable at the exact version`);
+    }
+    return cloneJson(result);
   }
 
   private async requireExecution(id: string, access: MinutesLineageAccess): Promise<MinutesLineageExecution> {

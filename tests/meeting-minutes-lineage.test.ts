@@ -117,15 +117,23 @@ function createProviderFixtures() {
 
   let receiptTarget: MinutesLineageTargetReference | undefined;
   const receiptReads: string[] = [];
+  let receiptError: MeetingMinutesLineageError | undefined;
   const receipt: ExecutionReceiptPort = {
     read: vi.fn(async (reference) => {
       receiptReads.push(reference.id);
+      if (receiptError) throw receiptError;
       return receiptTarget ? { reference, runId: 'run-1', target: receiptTarget } : null;
     }),
   };
   let resultTarget: MinutesLineageTargetReference | undefined;
+  const resultReads: string[] = [];
+  let resultError: MeetingMinutesLineageError | undefined;
   const result: ResultPort = {
-    read: vi.fn(async (reference) => resultTarget ? { reference, target: resultTarget } : null),
+    read: vi.fn(async (reference) => {
+      resultReads.push(reference.id);
+      if (resultError) throw resultError;
+      return resultTarget ? { reference, target: resultTarget } : null;
+    }),
   };
 
   return {
@@ -144,8 +152,11 @@ function createProviderFixtures() {
     receipt,
     receiptReads,
     setReceiptTarget(target: MinutesLineageTargetReference) { receiptTarget = target; },
+    setReceiptError(error?: MeetingMinutesLineageError) { receiptError = error; },
     result,
+    resultReads,
     setResultTarget(target: MinutesLineageTargetReference) { resultTarget = target; },
+    setResultError(error?: MeetingMinutesLineageError) { resultError = error; },
   };
 }
 
@@ -280,6 +291,68 @@ describe('meeting minutes judgment/task lineage', () => {
     const view = await store.readByMinutesVersion(minutesV1, access);
     expect(view.candidates).toHaveLength(3);
     expect(view.candidates.filter((item) => item.adoptionStatus === 'adopted')).toHaveLength(3);
+  });
+
+  it('revalidates receipt and result providers for every projection', async () => {
+    const dataDir = await makeDataDir();
+    const fixtures = createProviderFixtures();
+    const store = createMeetingMinutesLineageStore({ dataDir, ...fixtures });
+    const candidate = await createCandidate(store, 'candidate-j1', 'judgment');
+    await confirmCandidate(store, candidate);
+    const adoption = await store.adoptJudgment({ id: 'adoption-j1', idempotencyKey: 'adoption-key-j1', candidateId: candidate.id, actor, access });
+    fixtures.setReceiptTarget(adoption.target);
+    const execution = await store.recordExecution({
+      id: 'execution-j1',
+      idempotencyKey: 'execution-key-j1',
+      candidateId: candidate.id,
+      receiptRef: { id: 'receipt-j1', digest: 'sha256:receipt-j1' },
+      actor,
+      access,
+    });
+    fixtures.setResultTarget(adoption.target);
+    await store.acceptResult({
+      id: 'result-j1',
+      idempotencyKey: 'result-key-j1',
+      executionId: execution.id,
+      resultRef: { id: 'result-j1', digest: 'sha256:result-j1' },
+      actor,
+      access,
+    });
+
+    const initial = await store.readByMinutesVersion(minutesV1, access);
+    expect(initial.candidates[0]).toMatchObject({ executionStatus: 'actual', resultStatus: 'accepted' });
+    const receiptReadsBeforeProjection = fixtures.receiptReads.length;
+    const resultReadsBeforeProjection = fixtures.resultReads.length;
+
+    fixtures.setReceiptError(new MeetingMinutesLineageError('authorization_denied', 'receipt ACL denied'));
+    const deniedReceipt = await store.readByMinutesVersion(minutesV1, access);
+    expect(deniedReceipt.candidates[0]).toMatchObject({ executionStatus: 'unrecorded', resultStatus: 'unrecorded' });
+    expect(deniedReceipt.candidates[0]).not.toHaveProperty('execution');
+    expect(deniedReceipt.candidates[0]).not.toHaveProperty('result');
+    expect(fixtures.receiptReads.length).toBeGreaterThan(receiptReadsBeforeProjection);
+    expect(fixtures.resultReads.length).toBe(resultReadsBeforeProjection);
+
+    fixtures.setReceiptError();
+    fixtures.setResultError(new MeetingMinutesLineageError('provider_unavailable', 'result provider unavailable'));
+    const unavailableResult = await store.readByMinutesVersion(minutesV1, access);
+    expect(unavailableResult.candidates[0]).toMatchObject({ executionStatus: 'actual', resultStatus: 'unrecorded' });
+    expect(unavailableResult.candidates[0]).toHaveProperty('execution');
+    expect(unavailableResult.candidates[0]).not.toHaveProperty('result');
+    expect(fixtures.resultReads.length).toBeGreaterThan(resultReadsBeforeProjection);
+
+    fixtures.setResultError();
+    fixtures.setReceiptTarget({ kind: 'judgment', id: 'judgment-other', revision: '2', digest: 'sha256:judgment-other' });
+    const mismatchedReceipt = await store.readByMinutesVersion(minutesV1, access);
+    expect(mismatchedReceipt.candidates[0]).toMatchObject({ executionStatus: 'unrecorded', resultStatus: 'unrecorded' });
+    expect(mismatchedReceipt.candidates[0]).not.toHaveProperty('execution');
+    expect(mismatchedReceipt.candidates[0]).not.toHaveProperty('result');
+
+    fixtures.setReceiptTarget(adoption.target);
+    fixtures.setResultTarget({ kind: 'judgment', id: 'judgment-other', revision: '2', digest: 'sha256:judgment-other' });
+    const mismatchedResult = await store.readByMinutesVersion(minutesV1, access);
+    expect(mismatchedResult.candidates[0]).toMatchObject({ executionStatus: 'actual', resultStatus: 'unrecorded' });
+    expect(mismatchedResult.candidates[0]).toHaveProperty('execution');
+    expect(mismatchedResult.candidates[0]).not.toHaveProperty('result');
   });
 
   it('records correction as review-required and never invokes task cancellation or execution', async () => {
