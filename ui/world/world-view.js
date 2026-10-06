@@ -1861,8 +1861,18 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     });
   }
 
-  function renderCityRail(business) {
+  /** Brings a rail block the viewer just asked for into view (the rail may be scrolled down, or below the city). */
+  function reveal(node) {
+    try {
+      node?.scrollIntoView?.({ block: 'start', behavior: reducedMotion ? 'auto' : 'smooth' });
+    } catch {
+      // Without scrolling the block is still in the rail.
+    }
+  }
+
+  function renderCityRail(business, { revealFocus = false } = {}) {
     const blocks = [workspaceRailHead(doc, { kicker: `事業・${kindEntry(business.kind).label}`, title: business.name, lead: business.purpose ?? undefined })];
+    let focusBlock = null;
     const work = workCache.get(business.code);
     if (current.focus && work?.status === 'ok') {
       const ids = new Set(current.focus.kind
@@ -1872,7 +1882,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       const label = current.focus.kind
         ? sites[0]?.gaps.find((gap) => gap.kind === current.focus.kind)?.label ?? current.focus.kind
         : `記録上の状態「${WORK_STATES.find((state) => state.key === current.focus.status)?.label ?? current.focus.status}」`;
-      blocks.push(workPickBlock(doc, {
+      blocks.push(focusBlock = workPickBlock(doc, {
         title: `${label} ${sites.length}件`,
         sites,
         note: '該当する仕事を街の中で濃く、ほかを薄く出しています。選ぶと、その仕事の根拠が開きます。',
@@ -1882,6 +1892,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     }
     blocks.push(...workBlocksFor(business), ...cityRegistrationBlocks(business));
     showRail(blocks);
+    if (revealFocus) reveal(focusBlock ?? blocks[0]);
   }
 
   function showFocus(business, focus) {
@@ -1893,7 +1904,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         : work.sites.filter((site) => site.work.open && site.work.status === focus.status).map((site) => site.task_id);
       scene?.focusSites(ids);
     }
-    renderCityRail(business);
+    renderCityRail(business, { revealFocus: true });
   }
 
   async function loadWork(business) {
@@ -1936,11 +1947,13 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), 4.6);
     const work = workCache.get(business.code);
     const back = workspaceButton(doc, { text: `← ${business.name}に戻る`, onClick: () => goUp() });
+    const head = workspaceRailHead(doc, { kicker: `${business.name} の仕事（タスク）`, title: site.title, sub: `記録上：${site.work.label}${site.gaps.length ? `・把握できていないこと${site.gaps.length}種` : ''}` });
     showRail([
-      workspaceRailHead(doc, { kicker: `${business.name} の仕事（タスク）`, title: site.title, sub: `記録上：${site.work.label}${site.gaps.length ? `・把握できていないこと${site.gaps.length}種` : ''}` }),
+      head,
       workspaceRailBlock(doc, { title: '', content: back }),
       ...workSiteBlocks(doc, { business, site, readAt: work?.reads?.tasks?.read_at ?? null, taskHref }),
     ]);
+    reveal(head);
   }
 
   function openSiteById(business, taskId) {
