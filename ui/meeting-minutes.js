@@ -83,6 +83,19 @@ function createHttpError(status, payload) {
   return result;
 }
 
+function loadErrorMessage(error, fallback) {
+  return error instanceof Error && error.message.trim() ? error.message : fallback;
+}
+
+function preserveLoadedStateOnFailure(error) {
+  const status = Number(error?.status);
+  const code = text(error?.code);
+  if (status === 401 || status === 403 || status === 404
+    || code === 'authorization_denied' || code === 'not_found') return false;
+  if (Number.isFinite(status)) return status === 408 || status === 429 || status >= 500;
+  return true;
+}
+
 function sourceLabel(source) {
   if (!isRecord(source)) return '';
   const provider = text(source.provider, '外部ソース');
@@ -145,7 +158,16 @@ export function createMeetingMinutesUI({
     ? fetcher
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
   const base = String(basePath).replace(/\/+$/u, '');
-  const state = { meetings: [], detail: null, meetingId: null, minutesId: null, versionId: null, loading: false };
+  const state = {
+    meetings: [],
+    detail: null,
+    meetingId: null,
+    minutesId: null,
+    versionId: null,
+    loading: false,
+    listError: null,
+    detailError: null,
+  };
 
   const screen = makeElement(doc, 'div', { className: 'bb-minutes-screen', attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
   const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading' });
@@ -194,13 +216,27 @@ export function createMeetingMinutesUI({
 
   function clear(node) { node.replaceChildren(); return node; }
 
+  function appendLoadError(parent, message, retry) {
+    const notice = makeElement(doc, 'div', {
+      className: 'bb-minutes-load-error',
+      attrs: { role: 'alert' },
+    });
+    notice.append(makeElement(doc, 'p', { textContent: message }));
+    notice.append(button(doc, '再試行', () => { void retry(); }));
+    parent.append(notice);
+  }
+
   function renderList() {
     clear(listPane);
     const head = makeElement(doc, 'div', { className: 'bb-minutes-pane-head' });
     head.append(makeElement(doc, 'h2', { textContent: '会議一覧' }));
     head.append(button(doc, '会議を作成', () => renderCreateForm(), { className: 'bb-minutes-button is-primary' }));
     listPane.append(head);
+    if (state.listError) {
+      appendLoadError(listPane, `会議一覧を読み込めませんでした。理由: ${state.listError}`, loadMeetings);
+    }
     if (state.meetings.length === 0) {
+      if (state.listError) return;
       listPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '保存された会議はありません。会議を作成するとここに表示されます。' }));
       return;
     }
@@ -339,7 +375,14 @@ export function createMeetingMinutesUI({
 
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
     clear(detailPane);
+    if (state.detailError) {
+      appendLoadError(detailPane, `会議詳細を読み込めませんでした。理由: ${state.detailError}`, () => loadDetail(state.meetingId));
+    }
     if (!detail || !isRecord(detail.meeting)) {
+      if (state.detailError) {
+        renderRail(null, null);
+        return;
+      }
       detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '会議を選ぶと詳細を表示します。' }));
       renderRail(null, null);
       return;
@@ -429,12 +472,14 @@ export function createMeetingMinutesUI({
       const payload = await call('');
       if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
       state.meetings = payload.meetings;
+      state.listError = null;
       renderList();
       setStatus(state.meetings.length ? `${state.meetings.length}件の会議を読み込みました。` : '保存された会議はありません。');
     } catch (error) {
-      state.meetings = [];
+      if (!preserveLoadedStateOnFailure(error)) state.meetings = [];
+      state.listError = loadErrorMessage(error, '会議一覧を読み込めませんでした。');
       renderList();
-      setStatus(error instanceof Error ? error.message : '会議一覧を読み込めませんでした。', 'error');
+      setStatus(state.listError, 'error');
     } finally {
       state.loading = false;
     }
@@ -444,18 +489,24 @@ export function createMeetingMinutesUI({
   async function loadDetail(meetingId) {
     state.meetingId = meetingId;
     state.minutesId = null;
+    state.detailError = null;
     renderList();
     setStatus('会議詳細を読み込んでいます。');
     try {
       const detail = await call(`/${encodeURIComponent(meetingId)}`);
       if (!isRecord(detail) || !isRecord(detail.meeting) || !Array.isArray(detail.minutes) || !Array.isArray(detail.versions)) throw new Error('会議詳細の形式を確認できません。');
       state.detail = detail;
+      state.detailError = null;
       renderDetail(detail);
       setStatus('会議詳細を読み込みました。');
     } catch (error) {
-      state.detail = null;
-      renderDetail(null);
-      setStatus(error instanceof Error ? error.message : '会議詳細を読み込めませんでした。', 'error');
+      const preserved = preserveLoadedStateOnFailure(error) && state.detail?.meeting?.meeting_id === meetingId
+        ? state.detail
+        : null;
+      state.detail = preserved;
+      state.detailError = loadErrorMessage(error, '会議詳細を読み込めませんでした。');
+      renderDetail(preserved);
+      setStatus(state.detailError, 'error');
     }
     return state.detail;
   }

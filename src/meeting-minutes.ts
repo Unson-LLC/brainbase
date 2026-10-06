@@ -549,6 +549,7 @@ function assertSnapshotShape(value: unknown): MeetingMinutesSnapshot {
   }
   const versionIds = new Set<string>();
   const versionById = new Map<string, Record<string, unknown>>();
+  const predecessorById = new Map<string, string>();
   for (const raw of versions) {
     if (!isRecord(raw)) throw new MeetingMinutesError('corrupt_record', 'Minutes version is invalid');
     const versionId = checkId(raw.version_id, 'version_id');
@@ -565,6 +566,7 @@ function assertSnapshotShape(value: unknown): MeetingMinutesSnapshot {
     if (raw.predecessor_version_id !== undefined && typeof raw.predecessor_version_id !== 'string') {
       throw new MeetingMinutesError('corrupt_record', `Minutes version ${versionId}.predecessor_version_id is invalid`);
     }
+    if (typeof raw.predecessor_version_id === 'string') predecessorById.set(versionId, raw.predecessor_version_id);
     if (raw.confirmation !== undefined) {
       if (!isRecord(raw.confirmation) || raw.confirmation.version_id !== versionId
         || typeof raw.confirmation.actor_id !== 'string' || !raw.confirmation.actor_id.trim()) {
@@ -587,10 +589,30 @@ function assertSnapshotShape(value: unknown): MeetingMinutesSnapshot {
   }
   for (const raw of versions) {
     if (!isRecord(raw)) continue;
-    if (raw.predecessor_version_id !== undefined && !versionIds.has(raw.predecessor_version_id as string)) {
-      throw new MeetingMinutesError('corrupt_record', `Minutes version ${raw.version_id as string}.predecessor_version_id is invalid`);
+    if (raw.predecessor_version_id !== undefined) {
+      const predecessor = raw.predecessor_version_id as string;
+      if (!versionIds.has(predecessor)) {
+        throw new MeetingMinutesError('corrupt_record', `Minutes version ${raw.version_id as string}.predecessor_version_id is invalid`);
+      }
+      const predecessorRecord = versionById.get(predecessor);
+      if (predecessorRecord?.minutes_id !== raw.minutes_id || predecessorRecord?.meeting_id !== raw.meeting_id) {
+        throw new MeetingMinutesError('corrupt_record', `Minutes version ${raw.version_id as string}.predecessor_version_id references another document`);
+      }
     }
   }
+  // A predecessor chain must terminate at the first version.  Keep this
+  // explicit even though the ordered document check below also rejects a
+  // cycle, so malformed snapshots cannot rely on array ordering to hide one.
+  for (const start of predecessorById.keys()) {
+    const visited = new Set<string>();
+    let current: string | undefined = start;
+    while (current !== undefined && predecessorById.has(current)) {
+      if (visited.has(current)) throw new MeetingMinutesError('corrupt_record', `Minutes version ${start}.predecessor_version_id contains a cycle`);
+      visited.add(current);
+      current = predecessorById.get(current);
+    }
+  }
+  const versionReferenceCount = new Map<string, number>();
   for (const raw of documents) {
     if (!isRecord(raw)) throw new MeetingMinutesError('corrupt_record', 'Minutes document is invalid');
     const minutesId = raw.minutes_id as string;
@@ -599,7 +621,21 @@ function assertSnapshotShape(value: unknown): MeetingMinutesSnapshot {
       throw new MeetingMinutesError('corrupt_record', `Minutes document ${minutesId}.version_ids is invalid`);
     }
     for (const versionId of idsForDocument) {
-      if (versionById.get(versionId)?.minutes_id !== minutesId) throw new MeetingMinutesError('corrupt_record', `Minutes document ${minutesId} references another document's version`);
+      const version = versionById.get(versionId);
+      if (version?.minutes_id !== minutesId) throw new MeetingMinutesError('corrupt_record', `Minutes document ${minutesId} references another document's version`);
+      versionReferenceCount.set(versionId, (versionReferenceCount.get(versionId) ?? 0) + 1);
+      if (version.predecessor_version_id !== undefined) {
+        const predecessorIndex = idsForDocument.indexOf(version.predecessor_version_id as string);
+        const versionIndex = idsForDocument.indexOf(versionId);
+        if (predecessorIndex !== versionIndex - 1) {
+          throw new MeetingMinutesError('corrupt_record', `Minutes version ${versionId} does not point to the immediately preceding version`);
+        }
+      }
+    }
+  }
+  for (const versionId of versionIds) {
+    if (versionReferenceCount.get(versionId) !== 1) {
+      throw new MeetingMinutesError('corrupt_record', `Minutes version ${versionId} is not attached to exactly one document`);
     }
   }
   const idempotencyKeys = new Set<string>();

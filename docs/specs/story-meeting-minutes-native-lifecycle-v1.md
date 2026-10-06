@@ -69,7 +69,7 @@ interface MinutesVersion {
 `body` と `source_ref` は版ごとにちょうど一方を持つ。`source_ref` の provider・locator・revision・digest は省略できず、adapter固有の provenance は正本へ保持する。
 ```
 
-`version_id` は保存済み本文とdigestの組み合わせを識別する不変記録である。同じ議事録の訂正は新しい版を追加し、`predecessor_version_id` で直前の版へ戻れる。確認済み版を訂正して保存すると、新しい版は未確認となり、旧版の確認レシートは旧版に残る。
+`version_id` は保存済み本文とdigestの組み合わせを識別する不変記録である。同じ議事録の訂正は新しい版を追加し、`predecessor_version_id` は同じ `minutes_id` の `version_ids` 配列にある直前の版だけを指す。不正なcross-document参照、cycle、どの文書にも属さない孤立版は正本として受け付けない。確認済み版を訂正して保存すると、新しい版は未確認となり、旧版の確認レシートは旧版に残る。
 
 ## サービス契約
 

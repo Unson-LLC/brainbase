@@ -175,6 +175,52 @@ describe('native meeting minutes lifecycle', () => {
     await expect(port.readExact(reference, { principal: 'self' })).resolves.toEqual({ reference });
     await expect(port.readExact({ ...reference, contentDigest: 'sha256:wrong' }, { principal: 'self' })).resolves.toBeNull();
   });
+
+  it('rejects cross-document, cyclic, and orphan predecessor/version links', async () => {
+    const dataDir = await dataDirectory();
+    const minutes = store(dataDir);
+    const created = await minutes.create_meeting({ title: '不正な版リンク', initial_body: '会議本文' }, ACTOR);
+    const firstDocument = created.minutes[0]!;
+    const withSecond = await minutes.create_minutes(created.meeting.meeting_id, {
+      title: '別文書', body: '別文書本文', expected_revision: created.snapshot_revision
+    }, ACTOR);
+    const secondDocument = withSecond.minutes.find((candidate) => candidate.minutes_id !== firstDocument.minutes_id)!;
+    const withCorrection = await minutes.save_version({
+      minutes_id: firstDocument.minutes_id,
+      body: '訂正版',
+      expected_revision: firstDocument.revision,
+    }, ACTOR);
+    const snapshot = await createMeetingMinutesStorage(dataDir).read();
+    const firstVersion = snapshot.versions.find((version) => version.minutes_id === firstDocument.minutes_id && version.predecessor_version_id === undefined)!;
+    const correctedVersion = snapshot.versions.find((version) => version.version_id === withCorrection.minutes.find((candidate) => candidate.minutes_id === firstDocument.minutes_id)!.current_version_id)!;
+    const secondVersion = snapshot.versions.find((version) => version.minutes_id === secondDocument.minutes_id)!;
+    const storage = createMeetingMinutesStorage(dataDir);
+    const invalidSnapshot = (mutate: (value: any) => void) => {
+      const value = JSON.parse(JSON.stringify(snapshot));
+      mutate(value);
+      value.revision = snapshot.revision + 1;
+      return expect(storage.write(value, snapshot.revision)).rejects.toMatchObject({ code: 'corrupt_record' });
+    };
+
+    await invalidSnapshot((value) => {
+      value.versions.find((version: any) => version.version_id === secondVersion.version_id).predecessor_version_id = firstVersion.version_id;
+    });
+    await invalidSnapshot((value) => {
+      value.versions.find((version: any) => version.version_id === firstVersion.version_id).predecessor_version_id = correctedVersion.version_id;
+      value.versions.find((version: any) => version.version_id === correctedVersion.version_id).predecessor_version_id = firstVersion.version_id;
+    });
+    await invalidSnapshot((value) => {
+      value.versions.push({
+        version_id: 'version_orphan',
+        minutes_id: firstDocument.minutes_id,
+        meeting_id: created.meeting.meeting_id,
+        body: '孤立した版',
+        body_digest: meetingMinutesBodyDigest('孤立した版'),
+        created_at: NOW().toISOString(),
+        created_actor_id: 'self',
+      });
+    });
+  });
 });
 
 describe('meeting minutes storage locking', () => {
