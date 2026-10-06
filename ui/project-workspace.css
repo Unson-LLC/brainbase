@@ -1125,3 +1125,65 @@ button.bb-pkw-context-task-title:focus-visible { outline: 3px solid var(--bb-col
     grid-column: auto;
   }
 }
+
+/* Match the organization surface's quiet ledger treatment while keeping the
+   project workspace controls, states, and graph visualization intact. */
+.bb-pkw-graph-list {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--bb-color-border-strong);
+}
+
+.bb-pkw-graph-item {
+  min-height: 54px;
+  border: 0;
+  border-bottom: 1px solid var(--bb-color-border);
+  border-radius: 0;
+  padding-inline: var(--bb-space-3);
+  background: transparent;
+}
+
+.bb-pkw-graph-item:hover {
+  background: var(--bb-color-surface);
+}
+
+.bb-pkw-graph-item.is-selected {
+  background: var(--bb-color-accent-soft);
+  box-shadow: inset 3px 0 var(--bb-color-accent);
+}
+
+.bb-pkw-evidence-list {
+  gap: 0;
+  border-top: 1px solid var(--bb-color-border-strong);
+}
+
+.bb-pkw-evidence-item {
+  border: 0;
+  border-bottom: 1px solid var(--bb-color-border);
+  border-radius: 0;
+  padding: var(--bb-space-4) 0;
+  background: transparent;
+}
+
+.bb-pkw-directory-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.bb-pkw-directory-card {
+  border: 0;
+  border-top: 1px solid var(--bb-color-border);
+  border-radius: 0;
+  padding: var(--bb-space-4) 0;
+  background: transparent;
+}
+
+.bb-pkw-directory-card:last-child {
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-pkw-unknown {
+  border-left: 3px solid var(--bb-color-warning);
+  border-radius: 0;
+  padding: 14px 16px;
+}
