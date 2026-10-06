@@ -1,9 +1,17 @@
 ---
 story_id: story-meeting-minutes-storage-policy-v1
 title: 会社の保存方針に合わせて既存議事録を同じ会議と版で扱える
-status: planned
+status: active
 created_at: 2026-10-06
-implementation_started: false
+updated_at: 2026-10-06
+implementation_started: true
+implementation_status: local_library_implementation_complete
+verification_status: affected_tests_and_build_passed
+implementation_commits: ["c5e72485a", "dd33e5280", "6051ecdcf", "991e90c90", "9028ff56f", "edf8a1e4c"]
+technical_adapter_status: filesystem_read_only_adapter_verified
+company_policy_status: unselected
+host_ui_acceptance_status: pending
+verification_evidence: "HTTP/core/filesystem integration: 7 files, 36 tests passed; npm run build passed; git diff --check passed"
 owner_repository: brainbase
 development_mode: SIMPLIFICATION
 depends_on: ["story-meeting-minutes-native-lifecycle-v1"]
