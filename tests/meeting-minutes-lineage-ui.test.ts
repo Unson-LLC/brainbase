@@ -13,6 +13,9 @@ class FakeNode {
   className = '';
   textContent = '';
   type = '';
+  value = '';
+  hidden = false;
+  disabled = false;
 
   constructor(readonly tagName: string) {}
 
@@ -50,6 +53,11 @@ const documentRef = { createElement: (tag: string) => new FakeNode(tag) };
 
 function descendants(node: FakeNode): FakeNode[] {
   return node.children.flatMap((child) => [child, ...descendants(child)]);
+}
+
+function inputForLabel(root: FakeNode, label: string): FakeNode | undefined {
+  const labelNode = descendants(root).find((node) => node.tagName === 'span' && node.textContent === label);
+  return labelNode?.parentNode?.children.find((node) => ['input', 'textarea', 'select'].includes(node.tagName));
 }
 
 const evidence = {
@@ -123,6 +131,55 @@ describe('meeting minutes lineage UI', () => {
     expect(labels).toEqual(expect.arrayContaining(['Task名', '判断の提案', '候補の種類']));
     expect(descendants(root).some((node) => node.tagName === 'form')).toBe(true);
     expect(descendants(root).some((node) => node.tagName === 'h3' && node.textContent === 'この版から候補を作る')).toBe(true);
+  });
+
+  it('disables inactive candidate fields and restores them when the kind changes', () => {
+    const root = new FakeNode('main');
+    renderMeetingMinutesLineage(root, payload(), {
+      documentRef,
+      actions: { createCandidate: vi.fn(async () => ({ id: 'candidate-created' })) },
+      candidateDefaults: { kind: 'task', task: { title: '次回会議の準備' } },
+    });
+
+    const kind = inputForLabel(root, '候補の種類');
+    const taskTitle = inputForLabel(root, 'Task名');
+    const grounds = inputForLabel(root, '根拠（1行1件）');
+    expect(kind?.tagName).toBe('select');
+    expect(taskTitle?.disabled).toBe(false);
+    expect(grounds?.disabled).toBe(true);
+    expect(grounds?.attributes.required).toBe('');
+
+    kind!.value = 'judgment';
+    kind!.listeners.change?.();
+    expect(taskTitle?.disabled).toBe(true);
+    expect(grounds?.disabled).toBe(false);
+
+    kind!.value = 'task';
+    kind!.listeners.change?.();
+    expect(taskTitle?.disabled).toBe(false);
+    expect(grounds?.disabled).toBe(true);
+  });
+
+  it('renders array defaults as separate lines in judgment fields', () => {
+    const root = new FakeNode('main');
+    renderMeetingMinutesLineage(root, payload(), {
+      documentRef,
+      actions: { createCandidate: vi.fn(async () => ({ id: 'candidate-created' })) },
+      candidateDefaults: {
+        kind: 'judgment',
+        judgment: {
+          grounds: ['議事録の根拠A', '議事録の根拠B'],
+          counterexamples: ['留保A'],
+          uncertainty: ['条件A', '条件B'],
+        },
+        applicability: { subjectIds: ['project-a', 'project-b'] },
+      },
+    });
+
+    expect(inputForLabel(root, '根拠（1行1件）')?.value).toBe('議事録の根拠A\n議事録の根拠B');
+    expect(inputForLabel(root, '反例・留保（1行1件）')?.value).toBe('留保A');
+    expect(inputForLabel(root, '不確実性（1行1件）')?.value).toBe('条件A\n条件B');
+    expect(inputForLabel(root, '対象範囲（1行1件）')?.value).toBe('project-a\nproject-b');
   });
 
   it('lets the core host load a projection without taking ownership of records', async () => {

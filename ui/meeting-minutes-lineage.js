@@ -27,6 +27,11 @@ function text(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+function textLines(value) {
+  if (Array.isArray(value)) return value.map((line) => text(line)).filter(Boolean).join('\n');
+  return text(value);
+}
+
 function status(value, allowed, fallback) {
   return allowed.includes(value) ? value : fallback;
 }
@@ -193,6 +198,10 @@ function linesOf(input, fallback = '') {
   return lines.length ? lines : (fallback ? [fallback] : []);
 }
 
+function setFieldsDisabled(fields, disabled) {
+  for (const fieldRef of fields) fieldRef.input.disabled = disabled;
+}
+
 function record(value) {
   return isRecord(value) ? value : {};
 }
@@ -239,10 +248,10 @@ function candidateForm(doc, actions, candidateDefaults, onCreated) {
   const targetRevision = field(doc, '対象の版', { value: text(targetDefault.revision), required: true, placeholder: '1' });
   const targetDigest = field(doc, '対象のダイジェスト', { value: text(targetDefault.digest), required: true, placeholder: 'sha256:...' });
   const proposedChange = field(doc, '判断の提案', { type: 'textarea', value: text(judgmentDefaults.proposedChange ?? defaults.proposedChange), required: true, placeholder: '何をどう判断・変更するか' });
-  const grounds = field(doc, '根拠（1行1件）', { type: 'textarea', value: text(judgmentDefaults.grounds ?? defaults.grounds), required: true, placeholder: '議事録から確認できる根拠' });
-  const counterexamples = field(doc, '反例・留保（1行1件）', { type: 'textarea', value: text(judgmentDefaults.counterexamples ?? defaults.counterexamples), required: true, placeholder: '分からない点も含めて記入' });
-  const uncertainty = field(doc, '不確実性（1行1件）', { type: 'textarea', value: text(judgmentDefaults.uncertainty ?? defaults.uncertainty), required: true, placeholder: '判断を見直す条件' });
-  const subjectIds = field(doc, '対象範囲（1行1件）', { type: 'textarea', value: text(applicabilityDefault.subjectIds ?? defaults.subjectIds ?? 'self'), required: true, placeholder: 'self' });
+  const grounds = field(doc, '根拠（1行1件）', { type: 'textarea', value: textLines(judgmentDefaults.grounds ?? defaults.grounds), required: true, placeholder: '議事録から確認できる根拠' });
+  const counterexamples = field(doc, '反例・留保（1行1件）', { type: 'textarea', value: textLines(judgmentDefaults.counterexamples ?? defaults.counterexamples), required: true, placeholder: '分からない点も含めて記入' });
+  const uncertainty = field(doc, '不確実性（1行1件）', { type: 'textarea', value: textLines(judgmentDefaults.uncertainty ?? defaults.uncertainty), required: true, placeholder: '判断を見直す条件' });
+  const subjectIds = field(doc, '対象範囲（1行1件）', { type: 'textarea', value: textLines(applicabilityDefault.subjectIds ?? defaults.subjectIds ?? 'self'), required: true, placeholder: 'self' });
   const validFrom = field(doc, '適用開始', { type: 'datetime-local', value: text(applicabilityDefault.validFrom ?? defaults.validFrom) });
   const validUntil = field(doc, '適用終了', { type: 'datetime-local', value: text(applicabilityDefault.validUntil ?? defaults.validUntil) });
   for (const item of [sourceId, sourceDigest, targetKind, targetId, targetRevision, targetDigest, proposedChange, grounds, counterexamples, uncertainty, subjectIds, validFrom, validUntil]) judgment.appendChild(item.wrapper);
@@ -258,6 +267,8 @@ function candidateForm(doc, actions, candidateDefaults, onCreated) {
     const isJudgment = valueOf(kind.input) === 'judgment';
     task.hidden = isJudgment;
     judgment.hidden = !isJudgment;
+    setFieldsDisabled([taskTitle, taskDescription, taskPriority, taskAssignee, taskDue], isJudgment);
+    setFieldsDisabled([sourceId, sourceDigest, targetKind, targetId, targetRevision, targetDigest, proposedChange, grounds, counterexamples, uncertainty, subjectIds, validFrom, validUntil], !isJudgment);
     task.setAttribute('aria-hidden', isJudgment ? 'true' : 'false');
     judgment.setAttribute('aria-hidden', isJudgment ? 'false' : 'true');
   };
