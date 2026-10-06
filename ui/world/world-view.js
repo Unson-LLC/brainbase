@@ -12,10 +12,19 @@
  * in the plaza; nothing is assigned to a city by guesswork (P9).  The world
  * never writes. Selecting something opens its facts in the rail and hands off
  * to the existing screens.
+ *
+ * Inside a city (story-world-work-sites-and-gaps-v1) the host's Canonical Tasks
+ * stand as small work sites around the plate, read only when the city is
+ * opened.  A site's wall is its recorded state; a sign says something about it
+ * cannot be seen from the records (an empty assignee field, no source link, a
+ * review date passed); a dashed ring says the text names a person the assignee
+ * field does not.  Above the cities, a sign counts the open work with such a
+ * gap, and a grey sign says the work could not be read (never zero).
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT } from './world-placement.js';
+import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT, workSiteCells } from './world-placement.js';
+import { WORK_STATES, workCityBlocks, workPickBlock, workSignText, workSiteBlocks } from './world-work-rail.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -169,7 +178,8 @@ function webglAvailable(doc) {
 // ---------------------------------------------------------------------------
 
 const RECENT_MS = 24 * 60 * 60 * 1000;
-const LABEL_PRIORITY = Object.freeze({ selected: 0, plaza: 1, city: 2, sector: 3, judgment: 4, engagement: 5 });
+const LABEL_PRIORITY = Object.freeze({ selected: 0, plaza: 1, city: 2, sector: 3, judgment: 4, engagement: 5, site: 6 });
+const WORK_COLORS = Object.freeze(Object.fromEntries(WORK_STATES.map((state) => [state.key, state.color])));
 
 function canvasTexture(doc, width, height, draw) {
   const canvas = doc.createElement('canvas');
@@ -364,7 +374,7 @@ function muted(color, amount) {
   return new THREE.Color(color).lerp(new THREE.Color(0xb9c2bb), amount);
 }
 
-function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }) {
+function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, onEscape }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
   renderer.shadowMap.enabled = true;
@@ -1042,6 +1052,8 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
   }
 
   const markers = { cities: new Map(), plaza: new Map() };
+  /** code → { city (layout), group, label } */
+  const cityIndex = new Map();
   function buildCities({ cities, sectors, extent }, judgmentsByBusiness = new Map()) {
     fitExtent(extent);
     const landRadius = buildTerrain(extent);
@@ -1074,8 +1086,10 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       register(group, { kind: 'city', business });
       const top = entry.form === 'tower' ? towerHeight * 1.45 + 1.8 : towerHeight + 1;
       markers.cities.set(business.code, new THREE.Vector3(x, top, z));
+      cityIndex.set(business.code, { city, group, label: null });
       const cityLabel = addLabel(statusPhase(business.status) === 'concept' ? `${business.name}（${statusText(business.status)}）` : business.name, new THREE.Vector3(x, top, z), 'is-city', { priority: LABEL_PRIORITY.city, owner: group });
       cityLabel.node.style.borderColor = `${entry.color}80`;
+      cityIndex.get(business.code).label = cityLabel;
       cityLabel.business = business;
       const n = business.engagements.length;
       const step = 2.5;
@@ -1152,7 +1166,8 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     const sizeVector = box3.getSize(new THREE.Vector3());
     const radius = Math.max(sizeVector.x, sizeVector.z) * 0.62 + 0.4;
     selectionRing.scale.set(radius, radius, 1);
-    selectionRing.position.set((box3.min.x + box3.max.x) / 2, group.userData.kind === 'judgment' ? 0.76 : 0.6, (box3.min.z + box3.max.z) / 2);
+    const ringY = group.userData.kind === 'judgment' ? 0.76 : group.userData.kind === 'site' ? 0.1 : 0.6;
+    selectionRing.position.set((box3.min.x + box3.max.x) / 2, ringY, (box3.min.z + box3.max.z) / 2);
     selectionRing.visible = true;
   }
 
@@ -1197,11 +1212,8 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     }
   });
   renderer.domElement.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') {
-      select(null);
-      onClear();
-      resetView();
-    }
+    // Escape goes one level up; the view decides what that level is.
+    if (event.key === 'Escape') onEscape();
   });
 
   let flight = null;
@@ -1221,6 +1233,200 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
 
   function resetView() {
     flyTo(home.target, home.zoom);
+  }
+
+  // --- the work inside a city (sites, signs, roads between businesses) -------
+  const signTextures = new Map();
+  function signTexture(kind) {
+    if (!signTextures.has(kind)) {
+      signTextures.set(kind, canvasTexture(doc, 64, 64, (ctx, w, h) => {
+        ctx.fillStyle = kind === 'unreadable' ? '#8a9096' : '#e3a21a';
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 44px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(kind === 'unreadable' ? '…' : '?', w / 2, h / 2 + 2);
+      }));
+    }
+    return signTextures.get(kind);
+  }
+  /** A small sign on a pole: amber '?' (something cannot be seen) or grey '…' (could not be read). */
+  function sign(kind, height = 1.2, boardSize = 0.5) {
+    const group = new THREE.Group();
+    group.add(mesh(new THREE.CylinderGeometry(0.035, 0.045, height, 6), standard(0x4b524e), { y: height / 2 }));
+    const face = new THREE.MeshBasicMaterial({ map: signTexture(kind) });
+    const edge = standard(0xf3efe6);
+    group.add(mesh(new THREE.BoxGeometry(boardSize, boardSize, 0.06), [edge, edge, edge, edge, face, face], { y: height + boardSize / 2 - 0.05 }));
+    return group;
+  }
+
+  const citySigns = [];
+  /** Signs over the cities from the work summary; a city without one has no gap, or its work is not connected. */
+  function setWorkSigns(summaries) {
+    for (const post of citySigns.splice(0)) scene.remove(post);
+    for (const [code, entry] of cityIndex) {
+      const summary = summaries?.[code];
+      entry.label?.node.querySelector('.bb-world-badge')?.remove();
+      if (entry.label) entry.label.size = null;
+      const text = workSignText(summary);
+      if (!text) continue;
+      const unreadable = !(summary.state === 'complete' || summary.state === 'partial');
+      const { city } = entry;
+      const post = sign(unreadable ? 'unreadable' : 'check', 2.2, 0.9);
+      post.position.set(city.x - city.size / 2 + 0.6, 0.45, city.z + city.size / 2 - 0.6);
+      scene.add(post);
+      citySigns.push(post);
+      if (entry.label) entry.label.node.append(el(doc, 'span', { className: `bb-world-badge ${unreadable ? 'is-unreadable' : 'is-check'}`, text }));
+    }
+  }
+
+  const workLayer = { group: null, code: null, sites: new Map(), labels: [] };
+  function clearWork() {
+    if (workLayer.group) scene.remove(workLayer.group);
+    for (const group of workLayer.sites.values()) {
+      const index = pickables.indexOf(group);
+      if (index !== -1) pickables.splice(index, 1);
+      highlightable.delete(group);
+    }
+    for (const label of workLayer.labels) {
+      label.node.remove();
+      const index = labels.indexOf(label);
+      if (index !== -1) labels.splice(index, 1);
+    }
+    if (selected && workLayer.sites.has(selected.userData?.site?.task_id)) select(null);
+    workLayer.group = null;
+    workLayer.code = null;
+    workLayer.sites = new Map();
+    workLayer.labels = [];
+  }
+
+  function siteMesh(site) {
+    const group = new THREE.Group();
+    const color = WORK_COLORS[site.work.status] ?? 0x8d979e;
+    group.add(mesh(new THREE.BoxGeometry(1.05, 0.1, 1.05), standard(0xe2dccf, { roughness: 1 }), { y: 0.05 }));
+    const body = block(0.74, 0.78, 0.74, { style: 'house', wall: new THREE.Color(color), lit: false, roof: 0xd9d3c6 });
+    body.position.y += 0.1;
+    group.add(body);
+    // The text names a person the assignee field does not: a dashed ring (inferred, not recorded).
+    if (site.people.some((person) => person.link === 'inferred') || site.ambiguous_mentions?.length) {
+      const dashes = 10;
+      const ringMaterial = new THREE.MeshBasicMaterial({ color: 0x5b4a8a, side: THREE.DoubleSide });
+      for (let i = 0; i < dashes; i += 1) {
+        const arc = mesh(new THREE.RingGeometry(0.66, 0.76, 8, 1, (i / dashes) * Math.PI * 2, Math.PI / dashes), ringMaterial, { y: 0.12, shadow: false });
+        arc.rotation.x = -Math.PI / 2;
+        group.add(arc);
+      }
+    }
+    if (site.gaps.length) {
+      const post = sign('check', 1.15, 0.42);
+      post.position.set(0.42, 0.1, 0.42);
+      group.add(post);
+    }
+    return group;
+  }
+
+  /** An arc between two cities: solid for a recorded relation, dashed for an inferred one. */
+  function cityLink(from, to, link) {
+    const a = new THREE.Vector3(from.x, 1.2, from.z);
+    const b = new THREE.Vector3(to.x, 1.2, to.z);
+    const mid = a.clone().add(b).multiplyScalar(0.5);
+    mid.y = 4 + a.distanceTo(b) * 0.12;
+    const curve = new THREE.QuadraticBezierCurve3(a, mid, b);
+    const material = new THREE.MeshBasicMaterial({ color: link === 'recorded' ? 0x1261ad : 0x7a6a9e, transparent: true, opacity: 0.85, fog: false });
+    const group = new THREE.Group();
+    if (link === 'recorded') {
+      group.add(mesh(new THREE.TubeGeometry(curve, 48, 0.12, 6), material, { shadow: false }));
+    } else {
+      const segments = 28;
+      for (let i = 0; i < segments; i += 2) {
+        const piece = new THREE.CatmullRomCurve3([curve.getPoint(i / segments), curve.getPoint((i + 0.5) / segments), curve.getPoint((i + 1) / segments)]);
+        group.add(mesh(new THREE.TubeGeometry(piece, 4, 0.1, 6), material, { shadow: false }));
+      }
+    }
+    return { group, mid: curve.getPoint(0.5) };
+  }
+
+  /** Draws the work of one city; the work layer of the city opened before is removed first. */
+  function showWork(code, work) {
+    clearWork();
+    const entry = cityIndex.get(code);
+    if (!entry || work?.status !== 'ok') return;
+    const { city } = entry;
+    const layer = new THREE.Group();
+    const open = work.sites.filter((site) => site.work.open);
+    // The road into a city runs from the plaza, so its direction from the city's centre points home.
+    const roadAngle = Math.atan2(-city.z, -city.x);
+    const { cells } = workSiteCells(open.map((site) => ({ task_id: site.task_id, created_at: site.work.created_at })), { size: city.size, roadAngle });
+    for (const site of open) {
+      const [dx, dz] = cells[site.task_id];
+      const group = siteMesh(site);
+      group.position.set(city.x + dx, 0, city.z + dz);
+      layer.add(group);
+      register(group, { kind: 'site', site, business: city.business });
+      workLayer.sites.set(site.task_id, group);
+      const title = site.title.length > 16 ? `${site.title.slice(0, 15)}…` : site.title;
+      const label = addLabel(title, new THREE.Vector3(group.position.x, 1.7, group.position.z), `is-site${site.gaps.length ? ' is-check' : ''}`, { minZoom: 4.2, priority: LABEL_PRIORITY.site, owner: group });
+      label.business = city.business;
+      workLayer.labels.push(label);
+    }
+    // Roads to other businesses: recorded relations solid; decisions found only by their titles dashed.
+    const links = new Map();
+    for (const relation of work.relations) {
+      if (!relation.business_code || relation.link === 'unreadable') continue;
+      const key = `${relation.business_code}|${relation.link}`;
+      links.set(key, [...(links.get(key) ?? []), relation.label]);
+    }
+    for (const policy of work.purpose.policies) {
+      if (policy.link !== 'inferred' || !policy.scope_code || policy.scope_code === code || !cityIndex.has(policy.scope_code)) continue;
+      const key = `${policy.scope_code}|inferred`;
+      links.set(key, links.get(key) ?? []);
+    }
+    for (const [key, texts] of links) {
+      const [otherCode, link] = key.split('|');
+      const other = cityIndex.get(otherCode);
+      if (!other) continue;
+      const inferredDecisions = link === 'inferred' ? work.purpose.policies.filter((policy) => policy.link === 'inferred' && policy.scope_code === otherCode).length : 0;
+      const words = [...texts, ...(inferredDecisions ? [`${other.city.business.name}の範囲の決定${inferredDecisions}件が題名で${city.business.name}を指す（推定）`] : [])];
+      const { group, mid } = cityLink(other.city, city, link);
+      layer.add(group);
+      const label = addLabel(`${link === 'recorded' ? '━' : '┅'} ${words.join('・')}`, mid, `is-link is-${link}`, { minZoom: 0.8, priority: LABEL_PRIORITY.judgment });
+      workLayer.labels.push(label);
+    }
+    scene.add(layer);
+    workLayer.group = layer;
+    workLayer.code = code;
+  }
+
+  /** Brings the given sites forward (the rest fade); null shows them all. */
+  function focusSites(taskIds) {
+    const keep = taskIds ? new Set(taskIds) : null;
+    for (const [taskId, group] of workLayer.sites) {
+      const on = !keep || keep.has(taskId);
+      group.traverse((child) => {
+        if (!child.isMesh) return;
+        for (const material of Array.isArray(child.material) ? child.material : [child.material]) {
+          material.userData.focusBase ??= { transparent: material.transparent, opacity: material.opacity };
+          material.transparent = on ? material.userData.focusBase.transparent : true;
+          material.opacity = on ? material.userData.focusBase.opacity : 0.16;
+          material.needsUpdate = true;
+        }
+      });
+    }
+    for (const label of workLayer.labels) {
+      const taskId = label.owner?.userData?.site?.task_id;
+      label.hiddenByFocus = Boolean(keep && taskId && !keep.has(taskId));
+      // A picked site's label shows even when zoomed out a little.
+      label.minZoom = keep && taskId && keep.has(taskId) && keep.size <= 12 ? 2.4 : taskId ? 4.2 : label.minZoom;
+    }
+  }
+
+  /** Selects a city or a site by its key, as a click would (without the host's callbacks). */
+  function selectKey({ code, siteId }) {
+    const group = siteId ? workLayer.sites.get(siteId) : cityIndex.get(code)?.group;
+    if (!group) return null;
+    select(group);
+    return { data: group.userData, center: new THREE.Box3().setFromObject(group).getCenter(new THREE.Vector3()) };
   }
 
   // --- frame loop -----------------------------------------------------------
@@ -1255,7 +1461,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
       const onScreen = projected.z < 1 && projected.x > -1.05 && projected.x < 1.05 && projected.y > -1.05 && projected.y < 1.05;
       const focused = selectedBusiness && label.business === selectedBusiness;
       const zoomOk = camera.zoom >= label.minZoom || (focused && label.priority === LABEL_PRIORITY.engagement && camera.zoom >= 1.8);
-      if (!onScreen || !zoomOk) {
+      if (!onScreen || !zoomOk || label.hiddenByFocus) {
         label.node.hidden = true;
         continue;
       }
@@ -1396,6 +1602,10 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear }
     clearSelection() {
       select(null);
     },
+    setWorkSigns,
+    showWork,
+    focusSites,
+    selectKey,
     dispose() {
       running = false;
       observer?.disconnect();
@@ -1425,12 +1635,44 @@ const JUDGMENT_UNAVAILABLE_TEXT = Object.freeze({
 });
 
 /**
+ * Where the selected city and work site are kept: the page address (`world_business`, `world_site`),
+ * so leaving for another screen and coming back opens the same place.  A host may pass its own.
+ */
+function addressSelection() {
+  return {
+    read() {
+      try {
+        const params = new URLSearchParams(globalThis.location?.search ?? '');
+        return { business: params.get('world_business'), site: params.get('world_site') };
+      } catch {
+        return { business: null, site: null };
+      }
+    },
+    write({ business, site }) {
+      try {
+        const url = new URL(globalThis.location.href);
+        if (business) url.searchParams.set('world_business', business);
+        else url.searchParams.delete('world_business');
+        if (site) url.searchParams.set('world_site', site);
+        else url.searchParams.delete('world_site');
+        globalThis.history?.replaceState(globalThis.history.state, '', `${url.pathname}${url.search}${url.hash}`);
+      } catch {
+        // Without an address the selection simply is not kept.
+      }
+    },
+  };
+}
+
+/**
  * @param {object} options
  * @param {(project: { id: string, code?: string | null }) => string} [options.projectHref] Where a business or
  *   engagement opens in the host's プロジェクトと関係者.  The local web opens `#projects?project=<id>`; an
  *   organization web passes its own route.
+ * @param {(site: { task_id: string }) => string | null} [options.taskHref] Where a work site's task opens in the
+ *   host's task screen (to check or correct it).  Without one the rail says it cannot be corrected here.
+ * @param {{ read(): { business: string | null, site: string | null }, write(selection): void }} [options.selection]
  */
-export function createWorldView({ root, rail, page, document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}` }) {
+export function createWorldView({ root, rail, page, document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, selection = addressSelection() }) {
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const wrap = el(doc, 'div', { className: 'bb-world' });
@@ -1451,11 +1693,12 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   const header = workspacePageHeader(doc, {
     crumbs: page?.crumbs ?? ['あなたのBrainbase', '世界'],
     title: '世界',
-    lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。見るための画面で、ここからは何も書き換えません。',
+    lead: '事業を都市、案件を区画、判断の種類を広場の建物として描いています。都市を選ぶと、その事業の仕事（タスク）が外周に現場として並び、記録から把握できていないことに札が立ちます。見るための画面で、ここからは何も書き換えません。',
     source: page?.source ?? null,
     actions: [
       skyButton,
-      workspaceButton(doc, { text: '全体に戻る', onClick: () => { scene?.clearSelection(); showEmptyRail(); scene?.resetView(); } }),
+      // Back to the whole world, keeping the city in hand (its ring and its rail stay).
+      workspaceButton(doc, { text: '全体に戻る', onClick: () => goToWorld() }),
     ],
   });
   const notices = el(doc, 'div', { className: 'bb-world-hud', attrs: { 'aria-live': 'polite' } });
@@ -1465,9 +1708,18 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     legend.append(chip);
   }
   legend.append(el(doc, 'span', { className: 'bb-world-chip is-flag', text: '赤い旗＝任せたのに訂正・取り消し' }));
+  // Shown once a city's work is open.
+  const workLegend = el(doc, 'div', { className: 'bb-world-legend is-work', attrs: { 'aria-label': '仕事の凡例' } });
+  workLegend.hidden = true;
+  for (const state of WORK_STATES.slice(0, 3)) workLegend.append(el(doc, 'span', { className: `bb-world-chip is-work-${state.key}`, text: `${state.label}（記録上）` }));
+  workLegend.append(
+    el(doc, 'span', { className: 'bb-world-chip is-sign', text: '？の札＝把握できていないことがある' }),
+    el(doc, 'span', { className: 'bb-world-chip is-ring', text: '破線の輪＝本文に人物（担当欄は未接続）' }),
+    el(doc, 'span', { className: 'bb-world-chip is-road', text: '実線＝記録された関係・破線＝推定' }),
+  );
   const stage = el(doc, 'div', { className: 'bb-world-stage' });
   const labelsLayer = el(doc, 'div', { className: 'bb-world-labels' });
-  stage.append(labelsLayer, notices, legend);
+  stage.append(labelsLayer, notices, legend, workLegend);
   wrap.append(header, stage);
 
   function showRail(nodes) {
@@ -1534,45 +1786,273 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     });
   }
 
+  // --- which city and work site are open (story-world-work-sites-and-gaps-v1) ---
+  let knownBusinesses = [];
+  /** Whether the host has a task store: true, false (not connected), or null (not known yet / unreadable). */
+  let workConnected = null;
+  const workCache = new Map();
+  const current = { code: null, siteId: null, level: 'world', focus: null, pendingSite: null };
+
+  function setCurrent(code, siteId) {
+    current.code = code;
+    current.siteId = siteId;
+    selection?.write?.({ business: code, site: siteId });
+  }
+
+  function businessOf(code) {
+    return knownBusinesses.find((business) => business.code === code) ?? null;
+  }
+
+  /** The registration, engagements, link out and judgments of a city (as before the work layer). */
+  function cityRegistrationBlocks(business) {
+    const blocks = [];
+    const measures = cityMeasures(business, { isFinished, judgments: placement.byBusiness.get(business.code) ?? [] });
+    const kind = kindEntry(business.kind);
+    const kindText = kind.definition ? `${kind.label}（${kind.definition}）` : kind.label;
+    const judgmentText = judgmentsConnected ? `・判断${measures.judgments}件` : '（判断は未接続）';
+    blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [
+      ['分類', kindText],
+      ['状態', statusText(business.status)],
+      ['コード', business.code],
+      ['進行中の案件（都市の広さ）', `${measures.open}件${measures.finished ? `（完了・終了${measures.finished}件は記念公園）` : ''}`],
+      ['最近30日の動き（高さ・明かり）', `決定${measures.decisions}件${judgmentText}`],
+    ]) }));
+    const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
+    for (const engagement of business.engagements) {
+      const li = el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` });
+      li.append(projectLink(engagement, '開く'));
+      ul.append(li);
+    }
+    blocks.push(workspaceRailBlock(doc, { title: '案件（区画）', content: business.engagements.length ? ul : { text: '登録された案件はありません' } }));
+    blocks.push(detailBlock(business, '「プロジェクトと関係者」でこの事業を開く'));
+    blocks.push(cityJudgmentBlock(business));
+    return blocks;
+  }
+
+  function workBlocksFor(business) {
+    if (workConnected === false) {
+      return [workspaceRailBlock(doc, { title: '仕事', content: { text: 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません。仕事が0件という意味ではありません。' } })];
+    }
+    const work = workCache.get(business.code) ?? null;
+    return workCityBlocks(doc, {
+      business,
+      work,
+      onSelectGap: (kind) => showFocus(business, { kind }),
+      onSelectStatus: (status) => showFocus(business, { status }),
+      onReload: () => {
+        workCache.delete(business.code);
+        renderCityRail(business);
+        void loadWork(business);
+      },
+    });
+  }
+
+  function renderCityRail(business) {
+    const blocks = [workspaceRailHead(doc, { kicker: `事業・${kindEntry(business.kind).label}`, title: business.name, lead: business.purpose ?? undefined })];
+    const work = workCache.get(business.code);
+    if (current.focus && work?.status === 'ok') {
+      const ids = new Set(current.focus.kind
+        ? work.summary.gaps?.[current.focus.kind] ?? []
+        : work.sites.filter((site) => site.work.open && site.work.status === current.focus.status).map((site) => site.task_id));
+      const sites = work.sites.filter((site) => ids.has(site.task_id));
+      const label = current.focus.kind
+        ? sites[0]?.gaps.find((gap) => gap.kind === current.focus.kind)?.label ?? current.focus.kind
+        : `記録上の状態「${WORK_STATES.find((state) => state.key === current.focus.status)?.label ?? current.focus.status}」`;
+      blocks.push(workPickBlock(doc, {
+        title: `${label} ${sites.length}件`,
+        sites,
+        note: '該当する仕事を街の中で濃く、ほかを薄く出しています。選ぶと、その仕事の根拠が開きます。',
+        onSelectSite: (taskId) => openSiteById(business, taskId),
+      }));
+      blocks.push(workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: 'すべての仕事を表示', onClick: () => showFocus(business, null) }) }));
+    }
+    blocks.push(...workBlocksFor(business), ...cityRegistrationBlocks(business));
+    showRail(blocks);
+  }
+
+  function showFocus(business, focus) {
+    current.focus = focus;
+    const work = workCache.get(business.code);
+    if (work?.status === 'ok') {
+      const ids = !focus ? null : focus.kind
+        ? work.summary.gaps?.[focus.kind] ?? []
+        : work.sites.filter((site) => site.work.open && site.work.status === focus.status).map((site) => site.task_id);
+      scene?.focusSites(ids);
+    }
+    renderCityRail(business);
+  }
+
+  async function loadWork(business) {
+    if (workConnected === false || workCache.has(business.code)) return workCache.get(business.code) ?? null;
+    const result = await readJson(fetcher, `/api/extensions/world/businesses/${encodeURIComponent(business.code)}/work`);
+    const work = result.ok ? result.data : { status: 'unavailable', reason: result.error };
+    if (work?.status === 'not_connected') workConnected = false;
+    workCache.set(business.code, work);
+    if (current.code !== business.code) return work;
+    scene?.showWork(business.code, work);
+    workLegend.hidden = work?.status !== 'ok';
+    if (current.focus) showFocus(business, current.focus);
+    if (current.pendingSite) {
+      const siteId = current.pendingSite;
+      current.pendingSite = null;
+      if (openSiteById(business, siteId)) return work;
+    }
+    if (current.level !== 'site') renderCityRail(business);
+    return work;
+  }
+
+  function openCity(business, center, { zoom = 2.8 } = {}) {
+    if (current.code !== business.code) current.focus = null;
+    setCurrent(business.code, null);
+    current.level = 'city';
+    if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), zoom);
+    const work = workCache.get(business.code);
+    if (work) {
+      scene?.showWork(business.code, work);
+      workLegend.hidden = work.status !== 'ok';
+      if (current.focus) showFocus(business, current.focus);
+    }
+    renderCityRail(business);
+    if (!work) void loadWork(business);
+  }
+
+  function openSite(business, site, center) {
+    setCurrent(business.code, site.task_id);
+    current.level = 'site';
+    if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), 4.6);
+    const work = workCache.get(business.code);
+    const back = workspaceButton(doc, { text: `← ${business.name}に戻る`, onClick: () => goUp() });
+    showRail([
+      workspaceRailHead(doc, { kicker: `${business.name} の仕事（タスク）`, title: site.title, sub: `記録上：${site.work.label}${site.gaps.length ? `・把握できていないこと${site.gaps.length}種` : ''}` }),
+      workspaceRailBlock(doc, { title: '', content: back }),
+      ...workSiteBlocks(doc, { business, site, readAt: work?.reads?.tasks?.read_at ?? null, taskHref }),
+    ]);
+  }
+
+  function openSiteById(business, taskId) {
+    const work = workCache.get(business.code);
+    const site = work?.status === 'ok' ? work.sites.find((entry) => entry.task_id === taskId) : null;
+    const picked = site ? scene?.selectKey({ code: business.code, siteId: taskId }) : null;
+    if (!site) return false;
+    openSite(business, site, picked?.center ?? null);
+    return true;
+  }
+
+  /** The whole world again, with the open city kept in hand (ring and rail stay). */
+  function goToWorld() {
+    current.level = 'world';
+    if (current.code) {
+      const business = businessOf(current.code);
+      scene?.selectKey({ code: current.code });
+      if (business) renderCityRail(business);
+      setCurrent(current.code, null);
+    } else {
+      scene?.clearSelection();
+      showEmptyRail();
+    }
+    scene?.resetView();
+  }
+
+  function clearAll() {
+    setCurrent(null, null);
+    current.level = 'world';
+    current.focus = null;
+    scene?.focusSites(null);
+    showEmptyRail();
+  }
+
+  /** One level up: a site → its city, a city → the whole world (city kept), the world → nothing selected. */
+  function goUp() {
+    const business = current.code ? businessOf(current.code) : null;
+    if (business && current.level === 'site') {
+      const picked = scene?.selectKey({ code: business.code });
+      openCity(business, picked?.center ?? null, { zoom: 2.8 });
+      return;
+    }
+    if (business && current.level === 'city') {
+      goToWorld();
+      return;
+    }
+    scene?.clearSelection();
+    clearAll();
+    scene?.resetView();
+  }
+
+  function restoreSelection() {
+    const saved = selection?.read?.() ?? {};
+    const business = saved.business ? businessOf(saved.business) : null;
+    if (!business) return;
+    const picked = scene?.selectKey({ code: business.code });
+    current.pendingSite = saved.site ?? null;
+    openCity(business, picked?.center ?? null);
+  }
+
+  async function loadWorkSummary(note) {
+    const result = await readJson(fetcher, '/api/extensions/world/work-summary');
+    if (!result.ok) {
+      note('仕事', `仕事の要約を読めません（${result.error}）。都市を選ぶと、その事業の仕事を読みにいきます。0件ではありません。`, 'warning');
+      return;
+    }
+    if (result.data?.status === 'not_connected') {
+      workConnected = false;
+      note('仕事', 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません（0件ではありません）。');
+      return;
+    }
+    if (result.data?.status !== 'ok') {
+      note('仕事', `仕事の要約を読めません（${result.data?.reason ?? result.data?.status ?? '理由不明'}）。0件ではありません。`, 'warning');
+      return;
+    }
+    workConnected = true;
+    const summaries = result.data.businesses ?? {};
+    scene?.setWorkSigns(summaries);
+    const entries = Object.values(summaries);
+    const readable = entries.filter((entry) => entry.state === 'complete' || entry.state === 'partial');
+    const unreadable = entries.length - readable.length;
+    const open = readable.reduce((sum, entry) => sum + (entry.open ?? 0), 0);
+    const needs = readable.reduce((sum, entry) => sum + (entry.needs_check?.length ?? 0), 0);
+    const cities = readable.filter((entry) => entry.needs_check?.length).length;
+    const partial = readable.filter((entry) => entry.state === 'partial').length;
+    const parts = [`未完了の仕事${open}件のうち${needs}件（${cities}事業）に、記録から把握できていないことがあります（？の札）`];
+    if (unreadable) parts.push(`仕事を読めなかった事業${unreadable}件（灰色の札。0件ではありません）`);
+    if (partial) parts.push(`一部だけ読めた事業${partial}件`);
+    note('仕事', `${parts.join('。')}。「止まっている」という意味ではありません（${shortTimeText(result.data.as_of)}時点）。`, needs ? 'attention' : 'info');
+  }
+
+  function shortTimeText(value) {
+    const at = Date.parse(value ?? '');
+    if (!Number.isFinite(at)) return '時点不明';
+    const date = new Date(at);
+    const pad = (number) => String(number).padStart(2, '0');
+    return `${date.getMonth() + 1}/${date.getDate()} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
   function onPick(data, position) {
-    if (data.kind === 'city' || data.kind === 'engagement') {
+    if (data.kind === 'site') {
+      openSite(data.business, data.site, position);
+      return;
+    }
+    if (data.kind === 'city') {
+      openCity(data.business, position);
+      return;
+    }
+    if (data.kind === 'engagement') {
       const business = data.business;
-      scene?.flyTo(new THREE.Vector3(position.x, 0, position.z), data.kind === "engagement" ? 3.6 : 2.8);
-      const blocks = [workspaceRailHead(doc, {
-        kicker: data.kind === 'engagement' ? `${business.name} の案件` : `事業・${kindEntry(business.kind).label}`,
-        title: data.kind === 'engagement' ? data.engagement.name : business.name,
-        lead: data.kind === 'engagement' ? data.engagement.summary ?? undefined : business.purpose ?? undefined,
-      })];
-      if (data.kind === 'engagement') {
-        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }));
-        blocks.push(detailBlock(data.engagement, '「プロジェクトと関係者」でこの案件を開く'));
-      } else {
-        const measures = cityMeasures(business, { isFinished, judgments: placement.byBusiness.get(business.code) ?? [] });
-        const kind = kindEntry(business.kind);
-        const kindText = kind.definition ? `${kind.label}（${kind.definition}）` : kind.label;
-        const judgmentText = judgmentsConnected ? `・判断${measures.judgments}件` : '（判断は未接続）';
-        blocks.push(workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [
-          ['分類', kindText],
-          ['状態', statusText(business.status)],
-          ['コード', business.code],
-          ['進行中の案件（都市の広さ）', `${measures.open}件${measures.finished ? `（完了・終了${measures.finished}件は記念公園）` : ''}`],
-          ['最近30日の動き（高さ・明かり）', `決定${measures.decisions}件${judgmentText}`],
-        ]) }));
-        const ul = el(doc, 'ul', { className: 'bb-world-rail-list' });
-        for (const engagement of business.engagements) {
-          const li = el(doc, 'li', { text: `${engagement.name}（${statusText(engagement.status)}）` });
-          li.append(projectLink(engagement, '開く'));
-          ul.append(li);
-        }
-        blocks.push(workspaceRailBlock(doc, { title: '案件（区画）', content: business.engagements.length ? ul : { text: '登録された案件はありません' } }));
-        blocks.push(detailBlock(business, '「プロジェクトと関係者」でこの事業を開く'));
-      }
-      blocks.push(cityJudgmentBlock(business));
-      showRail(blocks);
+      setCurrent(business.code, null);
+      current.level = 'city';
+      scene?.flyTo(new THREE.Vector3(position.x, 0, position.z), 3.6);
+      if (!workCache.has(business.code)) void loadWork(business);
+      showRail([
+        workspaceRailHead(doc, { kicker: `${business.name} の案件`, title: data.engagement.name, lead: data.engagement.summary ?? undefined }),
+        workspaceRailBlock(doc, { title: '登録', content: workspaceDefinition(doc, [['状態', statusText(data.engagement.status)], ['Graph ID', data.engagement.id]]) }),
+        detailBlock(data.engagement, '「プロジェクトと関係者」でこの案件を開く'),
+        workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: `${business.name}の仕事と関係を見る`, onClick: () => openCity(business, position) }) }),
+        cityJudgmentBlock(business),
+      ]);
       return;
     }
     if (data.kind === 'cityJudgments') {
       const business = data.business;
+      setCurrent(business.code, null);
       scene?.flyTo(new THREE.Vector3(position.x, 0, position.z), 3.2);
       showRail([
         workspaceRailHead(doc, { kicker: `${business.name} の判断所`, title: `判断 ${data.judgments.length}件`, lead: business.purpose ?? undefined }),
@@ -1583,6 +2063,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     }
     if (data.kind === 'judgment') {
       const { row, items } = data;
+      setCurrent(null, null);
       scene?.flyTo(new THREE.Vector3(0, 0, 0), 2.2);
       const blocks = [workspaceRailHead(doc, {
         kicker: `判断の種類・${STATE_LABELS[row.state] ?? row.state}`,
@@ -1613,6 +2094,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       return;
     }
     if (data.kind === 'plaza') {
+      setCurrent(null, null);
       scene?.flyTo(new THREE.Vector3(0, 0, 0), 2.2);
       const blocks = [workspaceRailHead(doc, {
         kicker: '広場',
@@ -1708,10 +2190,13 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       renderFallbackList(doc, wrap, businesses, rows);
       return;
     }
-    scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: showEmptyRail });
+    scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: clearAll, onEscape: goUp });
     scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now());
     scene.buildCities(layoutWorld(businesses), placement.byBusiness);
     showChangesSinceLastVisit(note, businesses, rows);
+    knownBusinesses = businesses;
+    restoreSelection();
+    void loadWorkSummary(note);
   }
 
   /**

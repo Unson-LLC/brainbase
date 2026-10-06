@@ -232,3 +232,159 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* --- the work inside a city (story-world-work-sites-and-gaps-v1) --------- */
+.bb-world-legend.is-work {
+  bottom: calc(var(--bb-space-3) + 34px);
+}
+
+.bb-world-legend[hidden] {
+  display: none;
+}
+
+.bb-world-chip.is-work-waiting::before { background: #7a6a9e; }
+.bb-world-chip.is-work-in_progress::before { background: #2f7d86; }
+.bb-world-chip.is-work-pending::before { background: #8d979e; }
+.bb-world-chip.is-sign::before { background: #e3a21a; }
+.bb-world-chip.is-ring::before { background: transparent; border: 2px dashed #5b4a8a; border-radius: 50%; width: 8px; height: 8px; }
+.bb-world-chip.is-road::before { background: #1261ad; height: 3px; width: 14px; border-radius: 0; }
+
+.bb-world-badge {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.bb-world-badge.is-check {
+  background: #fbe7bd;
+  color: #7a5200;
+  border: 1px solid #e3a21a;
+}
+
+.bb-world-badge.is-unreadable {
+  background: #eceeef;
+  color: #4b524e;
+  border: 1px dashed #8a9096;
+}
+
+.bb-world-label.is-site {
+  font-size: 10px;
+  padding: 1px 5px;
+  color: var(--bb-color-muted);
+}
+
+.bb-world-label.is-site.is-check {
+  border-color: #e3a21a;
+}
+
+.bb-world-label.is-link {
+  font-size: 11px;
+  background: rgb(255 255 255 / 92%);
+}
+
+.bb-world-label.is-link.is-recorded {
+  border-color: #1261ad;
+  color: #0d4a85;
+}
+
+.bb-world-label.is-link.is-inferred {
+  border-style: dashed;
+  border-color: #7a6a9e;
+  color: #4d3f75;
+}
+
+.bb-world-rail-list.is-plain,
+.bb-world-rail-list.is-links {
+  list-style: none;
+  padding-left: 0;
+}
+
+.bb-world-link {
+  display: grid;
+  grid-template-columns: 1.4em 1fr;
+  column-gap: 4px;
+}
+
+.bb-world-link .bb-world-rail-note {
+  grid-column: 2;
+}
+
+.bb-world-link-mark {
+  font-weight: 700;
+  color: #1261ad;
+}
+
+.bb-world-link.is-inferred .bb-world-link-mark { color: #7a6a9e; }
+.bb-world-link.is-unreadable .bb-world-link-mark { color: #8a9096; }
+.bb-world-link.is-unreadable > span:not(.bb-world-link-mark) { color: var(--bb-color-muted); }
+
+.bb-world-rail-pick {
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--bb-color-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.bb-world-rail-pick:disabled {
+  color: var(--bb-color-ink);
+  text-decoration: none;
+  cursor: default;
+}
+
+.bb-world-rail-pick.is-gap {
+  color: #7a5200;
+}
+
+.bb-world-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 3px;
+  background: var(--bb-color-quiet);
+}
+
+.bb-world-swatch.is-waiting { background: #7a6a9e; }
+.bb-world-swatch.is-in_progress { background: #2f7d86; }
+.bb-world-swatch.is-pending { background: #8d979e; }
+.bb-world-swatch.is-completed { background: #6f9a68; }
+.bb-world-swatch.is-cancelled { background: #b9b2a5; }
+
+.bb-world-rail-sub {
+  margin: var(--bb-space-2) 0 4px;
+  font-size: 12px;
+  color: var(--bb-color-muted);
+}
+
+.bb-world-rail-caveat.is-quiet {
+  color: var(--bb-color-muted);
+}
+
+.bb-world-gap {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  border-left: 3px solid #e3a21a;
+  background: rgb(251 231 189 / 35%);
+  border-radius: 4px;
+}
+
+.bb-world-gap h4 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.bb-world-original p {
+  white-space: pre-wrap;
+  font-size: 12px;
+  color: var(--bb-color-muted);
+}
