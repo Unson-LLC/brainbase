@@ -312,7 +312,11 @@
     "./ui/project-overview": "./ui/project-overview.js",
     "./ui/project-graph": "./ui/project-graph.js",
     "./ui/project-workspace.css": "./ui/project-workspace.css",
-    "./ui/project-graph-vendor.js": "./ui/project-graph-vendor.js"
+    "./ui/project-graph-vendor.js": "./ui/project-graph-vendor.js",
+    "./meeting-minutes-storage-http": {
+      "types": "./dist/meeting-minutes-storage-http.d.ts",
+      "import": "./dist/meeting-minutes-storage-http.js"
+    }
   },
   "bin": {
     "brainbase-mcp": "dist/index.js",
