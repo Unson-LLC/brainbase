@@ -723,8 +723,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-minutes-current-white-ui",
+        "title": "議事録UIを現行白基調へ合わせる",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-project-canonical-identity"
+    "current_story_id": "story-minutes-current-white-ui"
   }
 }
