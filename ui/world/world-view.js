@@ -1449,6 +1449,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       skyIndex = (skyIndex + 1) % SKY_MODES.length;
       skyButton.textContent = SKY_MODES[skyIndex][1];
       scene?.setSky(SKY_MODES[skyIndex][0]);
+      district?.setSky(SKY_MODES[skyIndex][0]);
     },
   });
   const header = workspacePageHeader(doc, {
@@ -1721,6 +1722,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       },
       onEscape: goUp,
     });
+    district.setSky(SKY_MODES[skyIndex][0]);
     scene.setPaused(true);
     legend.hidden = true;
     workLegend.hidden = true;
