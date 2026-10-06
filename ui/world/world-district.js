@@ -14,7 +14,7 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { DISTRICT_STREETS, districtStage, districtStreetLots, skyAt } from './world-placement.js';
+import { DISTRICT_STREETS, districtGroundPlan, districtStage, districtStreetLots, skyAt } from './world-placement.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { makeWorkspaceElement as el } from '../../workspace-kit.js';
 
@@ -535,8 +535,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     // The stage of the district (AC-24): counted from permanent buildings, it sets how built-up it looks.
     const stage = districtStage(shown);
     const grown = stage.level;
-    const gateZ = L / 2 + 4;
-    const hallZ = -L / 2 - 7;
+    const plan = districtGroundPlan(L);
+    const { gateZ, hallZ, plazaZ, plazaRadius } = plan;
     // Land as in the world: gentle, non-repeating shades of grass (scenery).
     const grass = { low: new THREE.Color(0x9fbf8c), high: new THREE.Color(0xd3e4bd), warm: new THREE.Color(0xd9d6a6) };
     const land = mesh(paintVertices(new THREE.CircleGeometry(150, 96, 0, Math.PI * 2), (color, x, y) => {
@@ -554,7 +554,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     const lift = new THREE.Group();
     lift.position.y = 0.17;
     root.add(lift);
-    streetStrip(lift, { x: 0, z: (gateZ + 8 + hallZ + 3) / 2, width: DISTRICT_STREETS.main * 2, length: gateZ + 8 - (hallZ + 3), centreLine: grown >= 2, dirt: grown === 0 });
+    // The main street ends at the plaza's edge; it never runs under the plaza (that overlap flickered).
+    streetStrip(lift, { x: 0, z: (plan.street.from + plan.street.to) / 2, width: DISTRICT_STREETS.main * 2, length: plan.street.to - plan.street.from, centreLine: grown >= 2, dirt: grown === 0 });
     streetStrip(lift, { x: -DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2, dirt: grown < 2 });
     streetStrip(lift, { x: DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2, dirt: grown < 2 });
     // A cross street between the blocks, and at the hall end of each block a sign saying what its work is for.
@@ -616,20 +617,20 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     const hallChimney = new THREE.Vector3(2.8, 5.2, hallZ - 1.2);
     const purposeText = work?.status === 'ok' ? (work.purpose.text ?? '目的は未登録') : '目的を読めません';
     addLabel(`庁舎：${business.name}（${purposeText}）`, new THREE.Vector3(0, 5.6, hallZ), 'is-plaza', { priority: 1 });
-    const plaza = mesh(new THREE.CircleGeometry(3.6, 48), material(0xf1ece1, { roughness: 1 }), { y: 0.2, z: hallZ + 5.4, shadow: false });
+    const plaza = mesh(new THREE.CircleGeometry(plazaRadius - 0.25, 48), material(0xf1ece1, { roughness: 1 }), { y: 0.24, z: plazaZ, shadow: false });
     plaza.rotation.x = -Math.PI / 2;
     root.add(plaza);
-    const ring = mesh(new THREE.RingGeometry(3.6, 3.85, 48), material(0xcfc8b8, { roughness: 1 }), { y: 0.21, z: hallZ + 5.4, shadow: false });
+    const ring = mesh(new THREE.RingGeometry(plazaRadius - 0.25, plazaRadius, 48), material(0xcfc8b8, { roughness: 1 }), { y: 0.25, z: plazaZ, shadow: false });
     ring.rotation.x = -Math.PI / 2;
     root.add(ring);
     if (grown >= 3) {
       // A fountain in the plaza once the district is a 街.
       const basin = material(0xd9d3c6, { roughness: 0.8 });
-      root.add(mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.35, 32), basin, { y: 0.37, z: hallZ + 5.4 }));
-      const water = mesh(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 32), material(0x7fc4d6, { roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 }), { y: 0.52, z: hallZ + 5.4, shadow: false });
+      root.add(mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.35, 32), basin, { y: 0.37, z: plazaZ }));
+      const water = mesh(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 32), material(0x7fc4d6, { roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 }), { y: 0.52, z: plazaZ, shadow: false });
       root.add(water);
-      root.add(mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.7, 12), basin, { y: 0.7, z: hallZ + 5.4 }));
-      const jet = mesh(new THREE.ConeGeometry(0.22, 0.6, 12, 1, true), material(0xcfeef5, { transparent: true, opacity: 0.6, emissive: new THREE.Color(0x6fb6c9), emissiveIntensity: 0.2 }), { y: 1.25, z: hallZ + 5.4, shadow: false });
+      root.add(mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.7, 12), basin, { y: 0.7, z: plazaZ }));
+      const jet = mesh(new THREE.ConeGeometry(0.22, 0.6, 12, 1, true), material(0xcfeef5, { transparent: true, opacity: 0.6, emissive: new THREE.Color(0x6fb6c9), emissiveIntensity: 0.2 }), { y: 1.25, z: plazaZ, shadow: false });
       jet.rotation.x = Math.PI;
       root.add(jet);
       fountainJet = jet;
@@ -648,7 +649,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     policies.forEach((policy, index) => {
       const angle = Math.PI * (0.15 + (0.7 * index) / Math.max(policies.length - 1, 1));
       const x = Math.cos(angle) * 2.8;
-      const z = hallZ + 5.4 + Math.sin(angle) * 1.6;
+      const z = plazaZ + Math.sin(angle) * 1.6;
       if (policy.link === 'recorded') {
         root.add(box(0.5, 1.2, 0.22, 0xa8a49a, { x, y: 0.8, z }, { roughness: 0.9 }));
       } else {

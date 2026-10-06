@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { projectWorldWork, summarizeWorldWork, WORLD_WORK_GAP_KINDS } from '../src/world-extension.js';
 // @ts-expect-error plain browser module without type declarations
-import { districtChanges, districtSnapshot, districtStage, districtStreetLots } from '../ui/world/world-placement.js';
+import { DISTRICT_STREETS, districtChanges, districtGroundPlan, districtSnapshot, districtStage, districtStreetLots } from '../ui/world/world-placement.js';
 
 // Fictional records in the shapes the Task API and the organization Graph return.
 const NOW = new Date('2026-10-06T03:00:00.000Z');
@@ -331,5 +331,22 @@ describe('the town grows from evidenced outcomes and closed gaps, not from activ
     expect(districtStage(many(15))).toMatchObject({ key: 'city', next: null });
     // Splitting work does not grow the town: completions without a record stay prefabs.
     expect(districtStage(Array.from({ length: 40 }, (_, i) => site(`q${i}`, 'completed'))).key).toBe('vacant');
+  });
+});
+
+describe('district ground plan: the plaza, the street and the lots do not overlap', () => {
+  const sites = (n: number) => Array.from({ length: n }, (_, i) => ({ task_id: `t${i}`, created_at: `2026-08-${String(10 + (i % 20)).padStart(2, '0')}`, purpose_label: i % 3 === 0 ? null : `L${i % 5}` }));
+  it.each([0, 3, 8, 25, 60])('keeps %i tasks clear of the plaza', (n) => {
+    const layout = districtStreetLots(sites(n));
+    const plan = districtGroundPlan(layout.length);
+    const plazaFar = plan.plazaZ + plan.plazaRadius;
+    // The main street starts at the plaza's edge, never under it.
+    expect(plan.street.from).toBeGreaterThanOrEqual(plazaFar);
+    // Every lot (and the first street sign) stands beyond the plaza.
+    for (const lot of Object.values(layout.lots)) expect(lot.z - DISTRICT_STREETS.lot / 2).toBeGreaterThan(plazaFar);
+    for (const street of layout.streets) expect(street.z_from - 0.9).toBeGreaterThan(plazaFar);
+    // The hall stands behind the plaza, the gate in front of the lots.
+    expect(plan.hallZ).toBeLessThan(plan.plazaZ - plan.plazaRadius);
+    expect(plan.gateZ).toBeGreaterThan(layout.length / 2);
   });
 });
