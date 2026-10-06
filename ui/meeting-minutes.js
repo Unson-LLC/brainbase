@@ -111,11 +111,11 @@ function sourceLabel(source) {
 
 function versionContent(doc, version) {
   if (!isRecord(version)) return makeElement(doc, 'p', { textContent: '版の形式を確認できません。', className: 'bb-minutes-warning' });
-  if (typeof version.body === 'string') {
-    return makeElement(doc, 'pre', { className: 'bb-minutes-body', textContent: version.body });
-  }
   if (isRecord(version.source_ref)) {
     return makeElement(doc, 'p', { className: 'bb-minutes-source', textContent: `外部参照: ${sourceLabel(version.source_ref)}` });
+  }
+  if (typeof version.body === 'string') {
+    return makeElement(doc, 'pre', { className: 'bb-minutes-body', textContent: version.body });
   }
   return makeElement(doc, 'p', { className: 'bb-minutes-warning', textContent: '本文または外部参照を確認できません。' });
 }
@@ -147,6 +147,55 @@ function appendIdentifiers(doc, parent, { meetingId, minutesId, versionId } = {}
   parent.append(details);
 }
 
+function appendVersionActionExtensions(doc, section, {
+  extensions,
+  detail,
+  documentRecord,
+  version,
+  request,
+  mutate,
+  refresh,
+  setStatus,
+  bodyRoot,
+} = {}) {
+  for (const extension of Array.isArray(extensions) ? extensions : []) {
+    if (!extension || typeof extension !== 'object' || typeof extension.mount !== 'function') continue;
+    const id = text(extension.id, 'version-action');
+    const slot = makeElement(doc, 'div', {
+      className: 'bb-minutes-version-extension',
+      attrs: { 'data-minutes-version-extension': id },
+    });
+    section.append(slot);
+    try {
+      const mounted = extension.mount({
+        root: slot,
+        document: doc,
+        detail,
+        documentRecord,
+        version,
+        request,
+        mutate,
+        refresh,
+        setStatus,
+        bodyRoot,
+      });
+      if (mounted && typeof mounted.then === 'function') {
+        mounted.catch(() => {
+          slot.replaceChildren(makeElement(doc, 'p', {
+            className: 'bb-minutes-warning',
+            textContent: '追加の保存先情報を表示できません。',
+          }));
+        });
+      }
+    } catch {
+      slot.replaceChildren(makeElement(doc, 'p', {
+        className: 'bb-minutes-warning',
+        textContent: '追加の保存先情報を表示できません。',
+      }));
+    }
+  }
+}
+
 export function createMeetingMinutesUI({
   root,
   rail = null,
@@ -155,6 +204,7 @@ export function createMeetingMinutesUI({
   fetcher,
   token,
   basePath = '/api/meeting-minutes',
+  versionActionExtensions = [],
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
@@ -314,7 +364,11 @@ export function createMeetingMinutesUI({
     }
     section.append(history);
     const content = makeElement(doc, 'div', { className: 'bb-minutes-version-content' });
-    content.append(makeElement(doc, 'h4', { textContent: `${selectedLabel}の本文` }), versionContent(doc, selected));
+    const bodyRoot = makeElement(doc, 'div', {
+      className: 'bb-minutes-external-body-slot',
+      attrs: { 'data-minutes-external-body': 'true' },
+    });
+    content.append(makeElement(doc, 'h4', { textContent: `${selectedLabel}の本文` }), versionContent(doc, selected), bodyRoot);
     if (selected?.predecessor_version_id) {
       const predecessor = versions.find((version) => version.version_id === selected.predecessor_version_id);
       content.append(makeElement(doc, 'p', {
@@ -343,6 +397,17 @@ export function createMeetingMinutesUI({
       actions.append(confirm);
       section.append(actions);
     }
+    appendVersionActionExtensions(doc, section, {
+      extensions: versionActionExtensions,
+      detail,
+      documentRecord,
+      version: selected,
+      request: call,
+      mutate,
+      refresh: () => loadDetail(detail.meeting.meeting_id),
+      setStatus,
+      bodyRoot,
+    });
     appendIdentifiers(doc, section, {
       meetingId: detail.meeting?.meeting_id,
       minutesId: documentRecord.minutes_id,

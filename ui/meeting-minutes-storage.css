@@ -1,0 +1,170 @@
+/* Storage placement and source status panel. Load after brainbase-tokens.css. */
+
+.bb-mms {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  color: var(--bb-color-ink);
+  font-family: var(--bb-font-sans, ui-sans-serif, system-ui, sans-serif);
+}
+
+.bb-mms-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid var(--bb-color-border);
+  padding-bottom: 14px;
+}
+
+.bb-mms-header-copy {
+  min-width: 0;
+}
+
+.bb-mms-title {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.35;
+}
+
+.bb-mms-status {
+  margin: 5px 0 0;
+  color: var(--bb-color-muted);
+  font-size: .82rem;
+}
+
+.bb-mms-body {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.bb-mms-facts {
+  display: grid;
+  grid-template-columns: minmax(110px, .4fr) minmax(0, 1fr);
+  gap: 9px 16px;
+  margin: 0;
+  min-width: 0;
+}
+
+.bb-mms-facts dt {
+  color: var(--bb-color-muted);
+  font-size: .78rem;
+}
+
+.bb-mms-facts dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-mms-source {
+  display: grid;
+  gap: 3px;
+}
+
+.bb-mms-source-provider {
+  font-weight: 680;
+}
+
+.bb-mms-source-locator,
+.bb-mms-source-revision,
+.bb-mms-source-digest {
+  overflow-wrap: anywhere;
+  color: var(--bb-color-muted);
+  font-size: .75rem;
+}
+
+.bb-mms-source-locator {
+  color: var(--bb-color-ink);
+  font-family: var(--bb-font-mono, ui-monospace, monospace);
+}
+
+.bb-mms-capabilities {
+  display: grid;
+  gap: 8px;
+}
+
+.bb-mms-capabilities h3 {
+  margin: 0;
+  font-size: .88rem;
+}
+
+.bb-mms-capability-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 18px;
+  color: var(--bb-color-muted);
+  font-size: .8rem;
+}
+
+.bb-mms-notice {
+  border-left: 3px solid var(--bb-color-warning);
+  margin: 0;
+  padding: 10px 13px;
+  background: var(--bb-color-warning-soft);
+  color: var(--bb-color-muted);
+  font-size: .8rem;
+  line-height: 1.55;
+}
+
+.bb-mms-status-denied .bb-mms-notice,
+.bb-mms-status-unavailable .bb-mms-notice,
+.bb-mms-status-historical_unavailable .bb-mms-notice,
+.bb-mms-status-unconfirmed .bb-mms-notice {
+  border-left-color: var(--bb-color-danger);
+  background: var(--bb-color-danger-soft);
+}
+
+.bb-mms-placement-settings {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+}
+
+.bb-mms-placement-settings label {
+  display: grid;
+  gap: 6px;
+  color: var(--bb-color-muted);
+  font-size: .78rem;
+  font-weight: 680;
+}
+
+.bb-mms-placement-settings select {
+  min-height: 38px;
+  border: 1px solid var(--bb-color-control-border);
+  border-radius: var(--bb-radius-sm, 7px);
+  padding: 7px 10px;
+  background: var(--bb-color-panel);
+  color: var(--bb-color-ink);
+  font: inherit;
+}
+
+.bb-mms-placement-settings select:focus-visible,
+.bb-mms-retry:focus-visible {
+  outline: 3px solid var(--bb-color-focus);
+  outline-offset: 2px;
+}
+
+.bb-mms-retry {
+  justify-self: start;
+  min-height: 38px;
+  border: 1px solid var(--bb-color-control-border);
+  border-radius: var(--bb-radius-sm, 7px);
+  padding: 7px 12px;
+  background: var(--bb-color-panel);
+  color: var(--bb-color-ink);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 680;
+}
+
+.bb-mms-retry:hover {
+  border-color: var(--bb-color-border-strong);
+}
+
+.bb-mms [hidden] {
+  display: none !important;
+}
+

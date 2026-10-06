@@ -21,6 +21,7 @@ import { createObjectiveEditorController } from './objective-editor.js';
 import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
 import { createJudgmentHistoryUI } from './judgment-history.js';
 import { createMeetingMinutesUI } from './meeting-minutes.js';
+import { createMeetingMinutesStorageExtension } from './meeting-minutes-storage.js';
 import { createWorldModelView } from './world-model-view.js';
 import { createGraphClient } from './graph-view-shared.js';
 
@@ -159,6 +160,14 @@ function mountToday(container, context) {
 }
 
 function mountMeetingMinutes(container, context) {
+  const versionActionExtensions = context.meetingMinutesStorage
+    ? [createMeetingMinutesStorageExtension({
+      fetcher: context.fetcher,
+      token: context.token,
+      basePath: '/api/meeting-minutes',
+      defaultExternal: context.meetingMinutesStorage.defaultExternal,
+    })]
+    : [];
   return createMeetingMinutesUI({
     root: makePage(container, context),
     rail: context.rail,
@@ -167,6 +176,7 @@ function mountMeetingMinutes(container, context) {
     fetcher: context.fetcher,
     token: context.token,
     basePath: '/api/meeting-minutes',
+    versionActionExtensions,
   });
 }
 
@@ -320,6 +330,7 @@ export function createLocalWebShell({
   statusPath = '/api/local/status',
   screens = LOCAL_WEB_SCREENS,
   initialScreen,
+  meetingMinutesStorage = null,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
@@ -327,7 +338,7 @@ export function createLocalWebShell({
   const request = typeof fetcher === 'function'
     ? fetcher
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
-  const context = Object.freeze({ document: doc, fetcher: request, token });
+  const context = Object.freeze({ document: doc, fetcher: request, token, meetingMinutesStorage });
 
   const status = { phase: 'loading', data: null, error: null };
   const mounted = new Map();

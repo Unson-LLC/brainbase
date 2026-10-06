@@ -23,6 +23,15 @@ import { createGraphWebHttpHandler } from './graph-web-http.js';
 import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
 import { createMeetingMinutesHttpHandler } from './meeting-minutes-http.js';
 import { createMeetingMinutesStore, type MeetingMinutesStore } from './meeting-minutes.js';
+import {
+  createFilesystemMeetingMinutesAdapter,
+  type FilesystemMeetingMinutesAdapterOptions,
+} from './meeting-minutes-storage.js';
+import {
+  MeetingMinutesStorageController,
+  type MeetingMinutesExternalSourceRegistry,
+} from './meeting-minutes-storage-controller.js';
+import { createMeetingMinutesStorageHttpHandler } from './meeting-minutes-storage-http.js';
 import { nodeRequestToFetch, writeFetchResponse } from './local-web-fetch-bridge.js';
 import {
   assertSameOrigin,
@@ -107,6 +116,13 @@ export interface LocalWebModuleContext {
   readonly journalCache: JudgmentValueProofJournalCache;
   /** The one host-owned native meeting-minutes service shared by modules/extensions. */
   readonly meetingMinutesStore: MeetingMinutesStore;
+  /** Explicitly configured storage runtime. Native minutes remain the default. */
+  readonly meetingMinutesStorage?: LocalWebMeetingMinutesStorageRuntime;
+}
+
+export interface LocalWebMeetingMinutesStorageRuntime {
+  readonly defaultExternal?: Readonly<{ provider: string; locator: string }>;
+  readonly controller: MeetingMinutesStorageController;
 }
 
 /**
@@ -146,7 +162,20 @@ export interface LocalWebHostOptions {
   readonly now?: () => Date;
   /** Optional composition seam for organization adapters and lineage. */
   readonly meetingMinutesStore?: MeetingMinutesStore;
+  /**
+   * Enables the storage controller only when a host supplies an explicit
+   * filesystem root and authorization policy. Browser input never supplies
+   * either value.
+   */
+  readonly meetingMinutesStorage?: LocalWebMeetingMinutesStorageOptions;
   readonly extensions?: readonly LocalWebExtension[];
+}
+
+export interface LocalWebMeetingMinutesStorageOptions {
+  readonly filesystem: Pick<FilesystemMeetingMinutesAdapterOptions, 'root' | 'authorize' | 'provider' | 'max_bytes'>;
+  readonly externalRegistry?: MeetingMinutesExternalSourceRegistry;
+  /** Optional host-selected external source used by the shared UI placement selector. */
+  readonly defaultExternal?: Readonly<{ provider: string; locator: string }>;
 }
 
 /** One organization term that names a field value, e.g. project.kind = product → プロダクト. */
@@ -292,15 +321,55 @@ export function createValueProofModule(context: LocalWebModuleContext): LocalWeb
 
 /** Native meeting minutes use the host's authenticated local single-owner principal. */
 export function createMeetingMinutesModule(context: LocalWebModuleContext): LocalWebModule {
-  const handler = createMeetingMinutesHttpHandler({
-    store: context.meetingMinutesStore,
-    basePath: LOCAL_WEB_MEETING_MINUTES_PREFIX,
-    resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID })
-  });
+  const handler = context.meetingMinutesStorage
+    ? createMeetingMinutesStorageHttpHandler({
+      store: context.meetingMinutesStore,
+      controller: context.meetingMinutesStorage.controller,
+      basePath: LOCAL_WEB_MEETING_MINUTES_PREFIX,
+      resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID })
+    })
+    : createMeetingMinutesHttpHandler({
+      store: context.meetingMinutesStore,
+      basePath: LOCAL_WEB_MEETING_MINUTES_PREFIX,
+      resolveContext: () => ({ principal_id: LOCAL_WEB_DEFAULT_OWNER_ID })
+    });
   return {
     id: 'meeting-minutes',
-    uiFiles: ['meeting-minutes.js', 'meeting-minutes.css'],
+    uiFiles: ['meeting-minutes.js', 'meeting-minutes.css', 'meeting-minutes-storage.js', 'meeting-minutes-storage.css'],
     handle: handler
+  };
+}
+
+function createLocalWebMeetingMinutesStorageRuntime(
+  options: LocalWebMeetingMinutesStorageOptions,
+  core: MeetingMinutesStore,
+): LocalWebMeetingMinutesStorageRuntime {
+  if (!options.filesystem || typeof options.filesystem !== 'object') {
+    throw new TypeError('meetingMinutesStorage.filesystem is required');
+  }
+  const provider = typeof options.filesystem.provider === 'string' && options.filesystem.provider.trim()
+    ? options.filesystem.provider.trim()
+    : 'filesystem';
+  const adapter = createFilesystemMeetingMinutesAdapter({ ...options.filesystem, provider });
+  const defaultExternal = options.defaultExternal;
+  if (defaultExternal !== undefined) {
+    if (typeof defaultExternal.provider !== 'string' || !defaultExternal.provider.trim()
+      || typeof defaultExternal.locator !== 'string' || !defaultExternal.locator.trim()) {
+      throw new TypeError('meetingMinutesStorage.defaultExternal provider and locator are required');
+    }
+    if (defaultExternal.provider.trim() !== provider) {
+      throw new TypeError('meetingMinutesStorage.defaultExternal provider must match the configured filesystem provider');
+    }
+  }
+  return {
+    controller: new MeetingMinutesStorageController({
+      core,
+      external_adapters: [{ provider, adapter }],
+      external_registry: options.externalRegistry,
+    }),
+    ...(defaultExternal
+      ? { defaultExternal: Object.freeze({ provider: defaultExternal.provider.trim(), locator: defaultExternal.locator.trim() }) }
+      : {}),
   };
 }
 
@@ -886,7 +955,10 @@ ${stylesheets.map((path) => `<link rel="stylesheet" href="${escapeAttribute(path
 `;
 }
 
-function bootstrapJs(extensions: readonly LocalWebExtension[]): string {
+function bootstrapJs(
+  extensions: readonly LocalWebExtension[],
+  meetingMinutesStorage?: Readonly<{ defaultExternal?: Readonly<{ provider: string; locator: string }> }>,
+): string {
   const imports = extensions.map((extension, index) =>
     `import { screen as extensionScreen${index} } from '/ui/extensions/${extension.id}/${extension.screenEntry}';`
   ).join('\n');
@@ -909,6 +981,7 @@ const shell = createLocalWebShell({
   root: document.getElementById('brainbase-local-web'),
   token: meta('brainbase-web-token'),
   initialScreen: screenFromHash(),
+  meetingMinutesStorage: ${JSON.stringify(meetingMinutesStorage ?? null)},
   screens: ${leading ? `[${leading}, ...LOCAL_WEB_SCREENS${trailing ? `, ${trailing}` : ''}]` : '[...LOCAL_WEB_SCREENS, ...extensionScreens]'}
 });
 addEventListener('hashchange', () => shell.show(screenFromHash()));
@@ -927,13 +1000,18 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
   const journalRoot = options.journalRoot ?? defaultJudgmentJournalRoot(dataDir);
   const uiDir = options.uiDir ?? fileURLToPath(new URL('../ui/', import.meta.url));
   const now = options.now ?? (() => new Date());
+  const meetingMinutesStore = options.meetingMinutesStore ?? createMeetingMinutesStore({ data_dir: dataDir, now });
+  const meetingMinutesStorage = options.meetingMinutesStorage
+    ? createLocalWebMeetingMinutesStorageRuntime(options.meetingMinutesStorage, meetingMinutesStore)
+    : undefined;
   const context: LocalWebModuleContext = {
     dataDir,
     journalRoot,
     token,
     now,
     journalCache: new JudgmentValueProofJournalCache(),
-    meetingMinutesStore: options.meetingMinutesStore ?? createMeetingMinutesStore({ data_dir: dataDir, now })
+    meetingMinutesStore,
+    ...(meetingMinutesStorage ? { meetingMinutesStorage } : {})
   };
   const modules = defaultLocalWebModules(context);
   const extensions = [...options.extensions ?? []];
@@ -1006,7 +1084,9 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
     }
     if (path === '/app.js') {
       response.setHeader('Content-Type', 'text/javascript; charset=utf-8');
-      response.end(bootstrapJs(extensions));
+      response.end(bootstrapJs(extensions, meetingMinutesStorage
+        ? { defaultExternal: meetingMinutesStorage.defaultExternal }
+        : undefined));
       return;
     }
     const asset = uiFiles.get(path);

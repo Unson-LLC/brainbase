@@ -713,6 +713,18 @@
         "contract_type": "local_single_owner_non_hosted"
       },
       {
+        "story_id": "story-meeting-minutes-storage-policy-v1",
+        "title": "会社の保存方針に合わせて既存議事録を同じ会議と版で扱える",
+        "ssot": "local",
+        "status": "planned",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
         "story_id": "story-minutes-current-white-ui",
         "title": "議事録UIを現行白基調へ合わせる",
         "ssot": "local",
