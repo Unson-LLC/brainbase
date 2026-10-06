@@ -4,6 +4,17 @@
 
 配信中の正確なcommitは、各ページ下部の`Build <SHA>`で確認できます。
 
+## Released — v0.18.1
+
+0.18.1で、OSSのプロジェクトワークスペースの余白、文字の強弱、境界線を整理し、組織版のシンプルなデザインに合わせました。package stylesheetの公開口は既存のままです。
+
+公開確認済みの配布証跡は次のとおりです。
+
+- npm package [`@unson/brainbase-mcp@0.18.1`](https://www.npmjs.com/package/@unson/brainbase-mcp/v/0.18.1)
+- npmの`latest`は`0.18.1`を指し、registryの`gitHead`は`9037a15719140c0e5c4e28f29975f98aa970c557`、integrityは`sha512-K0KYduvNDb/RIDiwocm1PI0Wk8C095KZdv+FBlsbyYZPRRiw0XgYMTXwfe4yrJzsXghL4u4dfiDBAPmv6pO4oA==`
+- GitHub Release [`v0.18.1`](https://github.com/Unson-LLC/brainbase/releases/tag/v0.18.1)
+- 公開とlatestの照合を完了したworkflowの検証済みrun [`37413609018`](https://github.com/Unson-LLC/brainbase/actions/runs/37413609018)
+
 ## Released — v0.18.0
 
 0.18.0までのnpm packageとGitHub Releaseで公開済みのOSS範囲です。
@@ -59,10 +70,6 @@
 ## Candidate — v0.19.0（npm公開前）
 
 目的・保存時点の現状・哲学・世界モデルを同じ範囲で読む共通UIと読み取りAPIを追加します。共通UIはホストから読取portを受け取り、組織の認証と許可範囲は組織版が担当します。npm配布と外部照合が完了するまでは公開済みとして扱いません。組織版への取込みと本番画面の確認は別の段階です。
-
-## Candidate — v0.18.1（npm公開前）
-
-プロジェクトワークスペースの余白、文字の強弱、境界線を整理し、組織版のシンプルなデザインに合わせます。npm配布と外部照合が完了するまでは公開済みとして扱いません。
 
 ## Candidate — v0.17.0（npm公開前）
 
