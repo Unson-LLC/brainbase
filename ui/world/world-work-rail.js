@@ -40,6 +40,20 @@ const READ_STATE_TEXT = Object.freeze({
   not_connected: '未接続',
 });
 
+/** Why a read was partial or failed, in the words the rail shows; anything else is shown as given. */
+const READ_REASON_TEXT = Object.freeze({
+  codes_not_permitted: '案件の一部は、あなたのタスクの権限の範囲外のため読んでいません',
+  page_limit_reached: '件数が多く、最初の200件だけを読みました',
+  limit_reached: '上限の500件まで読みました。ほかにもある可能性があります',
+  upstream_timeout: '時間内に応答がありませんでした',
+  upstream_request_failed: '接続できませんでした',
+});
+
+export function readReasonText(reason) {
+  if (!reason) return null;
+  return String(reason).split(',').map((part) => READ_REASON_TEXT[part] ?? part).join('。');
+}
+
 const WORK_UNAVAILABLE_TEXT = Object.freeze({
   task_store_not_connected: 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません',
 });
@@ -93,33 +107,14 @@ function sourceText(source, readAt) {
   return `${system}${fields}${at}`;
 }
 
-/** The blocks for a city whose work was read (or could not be). */
-export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatus, onReload }) {
-  if (!work) return [workspaceRailBlock(doc, { title: '仕事', content: { text: '仕事を読み込んでいます…' } })];
-  if (work.status !== 'ok') {
-    const text = WORK_UNAVAILABLE_TEXT[work.reason] ?? `仕事の記録を読めません（${work.reason ?? work.status}）。仕事が0件という意味ではありません。`;
-    const content = [{ text }];
-    if (onReload && work.status !== 'not_connected') content.push(workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }));
-    return [workspaceRailBlock(doc, { title: '仕事', content })];
-  }
+function readLine(what, read, at) {
+  const reason = read.state === 'complete' ? null : readReasonText(read.reason);
+  return `${what}・${READ_STATE_TEXT[read.state] ?? read.state}${at ? `（${at}）` : ''}${reason ? `。${reason}` : ''}`;
+}
+
+/** The work as recorded, and what cannot be seen of it (only when the tasks were read). */
+function workStateBlocks(doc, { work, summary, onSelectGap, onSelectStatus }) {
   const blocks = [];
-  // 1. Purpose and policies (facts as recorded).
-  const policies = el(doc, 'ul', { className: 'bb-world-rail-list is-links' });
-  for (const policy of work.purpose.policies) {
-    policies.append(linkLine(doc, policy.link, policy.title, `${shortDate(policy.decided_at) ?? '日付なし'}の決定・${policy.basis}（${policy.decision_id}）`));
-  }
-  blocks.push(workspaceRailBlock(doc, {
-    title: '目的と方針',
-    content: [
-      workspaceDefinition(doc, [
-        ['目的', work.purpose.text ?? { text: '目的の欄は未登録です', className: 'is-unrecorded' }],
-        ['概要', work.purpose.summary],
-      ]),
-      work.purpose.policies.length ? policies : { text: work.reads.decisions.state === 'complete' ? 'この事業に結び付く決定は見つかりません。' : `決定を${READ_STATE_TEXT[work.reads.decisions.state] ?? work.reads.decisions.state}ため、方針は分かりません。` },
-    ],
-  }));
-  // 2. The work as recorded.
-  const summary = work.summary;
   const states = el(doc, 'ul', { className: 'bb-world-rail-list is-plain' });
   for (const state of WORK_STATES) {
     const count = summary.by_status?.[state.key] ?? 0;
@@ -149,7 +144,7 @@ export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatu
       { text: '状態はタスクの記録のままです。待ちの理由を読み替えて「止まっている」とは判断していません。', className: 'bb-world-rail-caveat is-quiet' },
     ],
   }));
-  // 3. What we cannot see.
+  // What we cannot see.
   const gapList = el(doc, 'ul', { className: 'bb-world-rail-list is-plain' });
   for (const [kind, taskIds] of Object.entries(summary.gaps ?? {})) {
     const sample = work.sites.find((site) => site.gaps.some((gap) => gap.kind === kind));
@@ -167,6 +162,47 @@ export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatu
       ? [gapList, { text: '記録から分からないことの一覧です。仕事が止まっていることは意味しません。種類を選ぶと、該当する仕事と街の中の位置が出ます。', className: 'bb-world-rail-caveat is-quiet' }]
       : { text: '未完了の仕事に、構造化された欄から分かる断絶はありません。本文の内容までは確かめていません。' },
   }));
+  return blocks;
+}
+
+/** The blocks for a city whose work was read (or could not be). */
+export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatus, onReload }) {
+  if (!work) return [workspaceRailBlock(doc, { title: '仕事', content: { text: '仕事を読み込んでいます…' } })];
+  if (work.status !== 'ok') {
+    const text = WORK_UNAVAILABLE_TEXT[work.reason] ?? `仕事の記録を読めません（${work.reason ?? work.status}）。仕事が0件という意味ではありません。`;
+    const content = [{ text }];
+    if (onReload && work.status !== 'not_connected') content.push(workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }));
+    return [workspaceRailBlock(doc, { title: '仕事', content })];
+  }
+  const blocks = [];
+  // 1. Purpose and policies (facts as recorded).
+  const policies = el(doc, 'ul', { className: 'bb-world-rail-list is-links' });
+  for (const policy of work.purpose.policies) {
+    policies.append(linkLine(doc, policy.link, policy.title, `${shortDate(policy.decided_at) ?? '日付なし'}の決定・${policy.basis}（${policy.decision_id}）`));
+  }
+  blocks.push(workspaceRailBlock(doc, {
+    title: '目的と方針',
+    content: [
+      workspaceDefinition(doc, [
+        ['目的', work.purpose.text ?? { text: '目的の欄は未登録です', className: 'is-unrecorded' }],
+        ['概要', work.purpose.summary],
+      ]),
+      work.purpose.policies.length ? policies : { text: work.reads.decisions.state === 'complete' ? 'この事業に結び付く決定は見つかりません。' : `決定を${READ_STATE_TEXT[work.reads.decisions.state] ?? work.reads.decisions.state}ため、方針は分かりません。` },
+    ],
+  }));
+  // 2. The work as recorded.
+  const summary = work.summary;
+  if (summary.open === null) {
+    blocks.push(workspaceRailBlock(doc, {
+      title: '仕事',
+      content: [
+        { text: `仕事の記録を${READ_STATE_TEXT[summary.state] ?? summary.state}（${readReasonText(summary.reason) ?? '理由不明'}）。仕事が0件という意味ではありません。` },
+        onReload ? workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }) : null,
+      ],
+    }));
+  } else {
+    blocks.push(...workStateBlocks(doc, { work, summary, onSelectGap, onSelectStatus }));
+  }
   // 4. People and relations.
   const people = el(doc, 'ul', { className: 'bb-world-rail-list is-links' });
   for (const person of work.people) {
@@ -186,10 +222,10 @@ export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatu
     title: '出典と時点',
     content: [
       workspaceDefinition(doc, [
-        ['仕事', `タスクの記録 ${work.reads.tasks.count ?? '—'}件・${READ_STATE_TEXT[work.reads.tasks.state] ?? work.reads.tasks.state}（${shortTime(work.reads.tasks.read_at) ?? '時点不明'}）`],
-        ['人物', `組織のGraph・${READ_STATE_TEXT[work.reads.persons.state] ?? work.reads.persons.state}`],
-        ['決定', `組織のGraph・${READ_STATE_TEXT[work.reads.decisions.state] ?? work.reads.decisions.state}`],
-        ['関係', `組織のGraph・${READ_STATE_TEXT[work.reads.relations.state] ?? work.reads.relations.state}`],
+        ['仕事', readLine(`タスクの記録 ${work.reads.tasks.count ?? '—'}件`, work.reads.tasks, shortTime(work.reads.tasks.read_at) ?? '時点不明')],
+        ['人物', readLine('組織のGraph', work.reads.persons)],
+        ['決定', readLine('組織のGraph', work.reads.decisions)],
+        ['関係', readLine('組織のGraph', work.reads.relations)],
       ]),
       onReload ? workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }) : null,
     ],

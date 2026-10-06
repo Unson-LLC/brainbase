@@ -87,3 +87,14 @@ describe('world work rail: facts, then what cannot be seen, then people, then so
     expect(collectText(block)).toContain('記録上：待ち・断絶3種');
   });
 });
+
+describe('world work rail: a partial or failed read is said in words', () => {
+  it('names a permission boundary and a failed read instead of counting zero', () => {
+    const partial = projectWorldWork({ business, tasks: { state: 'partial', reason: 'codes_not_permitted', read_at: '2026-10-06T02:59:00.000Z', items: [] } }, { now: NOW });
+    expect(workCityBlocks(doc, { business, work: partial }).map(collectText).join('')).toContain('一部だけ読めた（10/6 11:59）。案件の一部は、あなたのタスクの権限の範囲外のため読んでいません');
+    const failed = projectWorldWork({ business, tasks: { state: 'failed', reason: 'upstream_timeout' } }, { now: NOW });
+    const text = workCityBlocks(doc, { business, work: failed }).map(collectText).join('');
+    expect(text).toContain('仕事の記録を読めなかった（時間内に応答がありませんでした）。仕事が0件という意味ではありません。');
+    expect(text).not.toContain('未完了 null');
+  });
+});
