@@ -1,0 +1,246 @@
+/*
+ * Meeting-minutes lineage is rendered as a projection of the core ledger.
+ * The host supplies the actions; this module never creates judgment, Task, or
+ * execution records by itself.  That keeps the screen usable with any
+ * minutes provider while preserving the existing adoption and Task owners.
+ */
+
+export const MEETING_MINUTES_LINEAGE_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-lineage-ui.v1';
+
+const STATUS_LABELS = Object.freeze({
+  unconfirmed: '未確認',
+  confirmed: '確認済み',
+  not_adopted: '未採用',
+  adopted: '採用済み',
+  unrecorded: '未記録',
+  actual: '実行記録あり',
+  accepted: '結果確認済み',
+  clear: '修正なし',
+  review_required: '修正後の再確認が必要',
+});
+
+function isRecord(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function text(value) {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function status(value, allowed, fallback) {
+  return allowed.includes(value) ? value : fallback;
+}
+
+function exactEvidence(value) {
+  if (!isRecord(value)) return null;
+  const meetingId = text(value.meetingId);
+  const minutesId = text(value.minutesId);
+  const versionId = text(value.versionId);
+  const provenance = isRecord(value.provenance) ? value.provenance : null;
+  if (!meetingId || !minutesId || !versionId || !provenance || !text(provenance.providerKind) || !text(provenance.providerId)) return null;
+  return {
+    meetingId,
+    minutesId,
+    versionId,
+    contentDigest: value.contentDigest === null ? null : text(value.contentDigest) || null,
+    locator: value.locator ?? null,
+    provenance: {
+      providerKind: text(provenance.providerKind),
+      providerId: text(provenance.providerId),
+      ...(text(provenance.revision) ? { revision: text(provenance.revision) } : {}),
+      ...(text(provenance.digest) ? { digest: text(provenance.digest) } : {}),
+    },
+  };
+}
+
+function candidateView(value) {
+  if (!isRecord(value) || !isRecord(value.candidate)) return null;
+  const candidate = value.candidate;
+  const id = text(candidate.id);
+  const kind = candidate.kind === 'judgment' || candidate.kind === 'task' ? candidate.kind : '';
+  if (!id || !kind) return null;
+  return {
+    ...value,
+    candidate: {
+      ...candidate,
+      id,
+      kind,
+      proposal: candidate.proposal ?? null,
+      evidence: exactEvidence(candidate.evidence),
+    },
+    confirmationStatus: status(value.confirmationStatus, ['unconfirmed', 'confirmed'], 'unconfirmed'),
+    adoptionStatus: status(value.adoptionStatus, ['not_adopted', 'adopted'], 'not_adopted'),
+    executionStatus: status(value.executionStatus, ['unrecorded', 'actual'], 'unrecorded'),
+    resultStatus: status(value.resultStatus, ['unrecorded', 'accepted'], 'unrecorded'),
+    reviewStatus: status(value.reviewStatus, ['clear', 'review_required'], 'clear'),
+  };
+}
+
+/**
+ * Validate the core read model while preserving a non-success state.
+ * `[]` is a valid list only after the evidence and response shape are known.
+ */
+export function normalizeMeetingMinutesLineageView(payload) {
+  if (!isRecord(payload)) return { status: 'invalid', reason: 'response_not_object' };
+  if (payload.status === 'unavailable') {
+    return { status: 'unavailable', reason: text(payload.reason) || 'lineage_unavailable' };
+  }
+  const evidence = exactEvidence(payload.evidence);
+  if (!evidence || !Array.isArray(payload.candidates) || !Array.isArray(payload.corrections)) {
+    return { status: 'invalid', reason: 'lineage_shape_invalid' };
+  }
+  const candidates = payload.candidates.map(candidateView).filter(Boolean);
+  const invalidCount = payload.candidates.length - candidates.length;
+  const corrections = payload.corrections.filter(isRecord).map((correction) => ({
+    id: text(correction.id) || null,
+    reason: text(correction.reason) || '議事録版が修正されました',
+    affectedCandidateIds: Array.isArray(correction.affectedCandidateIds)
+      ? correction.affectedCandidateIds.filter((id) => text(id)).map((id) => text(id))
+      : [],
+  }));
+  return { status: 'available', evidence, candidates, corrections, invalidCount };
+}
+
+function makeElement(doc, tag, className, content) {
+  const element = doc.createElement(tag);
+  if (className) element.className = className;
+  if (content !== undefined) element.textContent = content;
+  return element;
+}
+
+function append(parent, ...children) {
+  for (const child of children) if (child) parent.appendChild(child);
+  return parent;
+}
+
+function evidenceLabel(evidence) {
+  return `${evidence.provenance.providerKind}:${evidence.provenance.providerId} / ${evidence.versionId}`;
+}
+
+function proposalLabel(proposal) {
+  if (typeof proposal === 'string') return proposal;
+  if (isRecord(proposal)) {
+    for (const key of ['title', 'judgment', 'summary', 'description', 'text']) {
+      if (text(proposal[key])) return text(proposal[key]);
+    }
+  }
+  return '候補の内容を開く';
+}
+
+function statusBadge(doc, value) {
+  const label = STATUS_LABELS[value] || value;
+  const badge = makeElement(doc, 'span', `bb-mml-status bb-mml-status-${value}`, label);
+  badge.setAttribute('data-status', value);
+  return badge;
+}
+
+function actionButton(doc, label, action, candidate) {
+  if (typeof action !== 'function') return null;
+  const button = makeElement(doc, 'button', 'bb-mml-action', label);
+  button.type = 'button';
+  button.addEventListener('click', () => action(candidate));
+  return button;
+}
+
+function candidateActions(doc, item, actions) {
+  const actionsNode = makeElement(doc, 'div', 'bb-mml-candidate-actions');
+  const candidate = item.candidate;
+  if (item.reviewStatus === 'review_required') {
+    append(actionsNode, actionButton(doc, '修正を確認', actions.reviewCandidate, candidate));
+  } else if (item.confirmationStatus === 'unconfirmed') {
+    append(actionsNode, actionButton(doc, '確認する', actions.confirmCandidate, candidate));
+  } else if (item.adoptionStatus === 'not_adopted') {
+    append(actionsNode, actionButton(doc, candidate.kind === 'judgment' ? '判断として採用' : 'Taskとして採用', candidate.kind === 'judgment' ? actions.adoptJudgment : actions.adoptTask, candidate));
+  }
+  if (!actionsNode.children?.length) actionsNode.appendChild(makeElement(doc, 'span', 'bb-mml-action-hint', '操作は接続済みの正本から行います'));
+  return actionsNode;
+}
+
+function renderUnavailable(root, normalized, doc) {
+  const notice = makeElement(doc, 'p', 'bb-mml-notice', normalized.status === 'unavailable'
+    ? '議事録の判断履歴を読み取れません。権限または保存先を確認してください。'
+    : '議事録の判断履歴の形式を確認できません。');
+  notice.setAttribute('data-lineage-status', normalized.status);
+  root.appendChild(notice);
+  return root;
+}
+
+/** Render one lineage projection into a host-owned slot. */
+export function renderMeetingMinutesLineage(root, payload, { actions = {}, documentRef = globalThis.document } = {}) {
+  if (!root || !documentRef || typeof documentRef.createElement !== 'function') throw new TypeError('root and documentRef are required');
+  const normalized = normalizeMeetingMinutesLineageView(payload);
+  while (root.firstChild) root.removeChild(root.firstChild);
+  root.className = `${root.className || ''} bb-mml`.trim();
+  if (normalized.status !== 'available') return renderUnavailable(root, normalized, documentRef);
+
+  const heading = makeElement(documentRef, 'div', 'bb-mml-heading');
+  append(heading,
+    makeElement(documentRef, 'h2', 'bb-mml-title', '議事録からの判断・Task'),
+    makeElement(documentRef, 'p', 'bb-mml-evidence', `根拠: ${evidenceLabel(normalized.evidence)}`));
+  root.appendChild(heading);
+
+  if (normalized.invalidCount > 0) {
+    root.appendChild(makeElement(documentRef, 'p', 'bb-mml-notice', `${normalized.invalidCount}件の候補は形式を確認できないため表示していません。`));
+  }
+  const list = makeElement(documentRef, 'div', 'bb-mml-candidates');
+  if (!normalized.candidates.length) {
+    list.appendChild(makeElement(documentRef, 'p', 'bb-mml-empty', 'この議事録版から作られた候補はありません。'));
+  }
+  for (const item of normalized.candidates) {
+    const row = makeElement(documentRef, 'article', 'bb-mml-candidate');
+    row.setAttribute('data-candidate-id', item.candidate.id);
+    const title = makeElement(documentRef, 'h3', 'bb-mml-candidate-title', `${item.candidate.kind === 'judgment' ? '判断' : 'Task'}: ${proposalLabel(item.candidate.proposal)}`);
+    const statuses = makeElement(documentRef, 'div', 'bb-mml-statuses');
+    append(statuses,
+      statusBadge(documentRef, item.confirmationStatus),
+      statusBadge(documentRef, item.adoptionStatus),
+      statusBadge(documentRef, item.executionStatus),
+      statusBadge(documentRef, item.resultStatus),
+      statusBadge(documentRef, item.reviewStatus));
+    append(row, title, statuses, candidateActions(documentRef, item, actions));
+    list.appendChild(row);
+  }
+  root.appendChild(list);
+  if (normalized.corrections.length) {
+    const corrections = makeElement(documentRef, 'details', 'bb-mml-corrections');
+    corrections.appendChild(makeElement(documentRef, 'summary', '', `修正履歴 (${normalized.corrections.length})`));
+    for (const correction of normalized.corrections) corrections.appendChild(makeElement(documentRef, 'p', '', correction.reason));
+    root.appendChild(corrections);
+  }
+  return root;
+}
+
+/** Host adapter: the core owns loading and action implementations. */
+export function createMeetingMinutesLineageView({ root, load, actions = {}, documentRef = globalThis.document } = {}) {
+  let state = { status: 'unavailable', reason: 'not_loaded' };
+  const controller = {
+    get state() { return state; },
+    render(payload = state) {
+      state = normalizeMeetingMinutesLineageView(payload);
+      renderMeetingMinutesLineage(root, state, { actions, documentRef });
+      return state;
+    },
+    async refresh() {
+      if (typeof load !== 'function') {
+        state = { status: 'unavailable', reason: 'loader_not_connected' };
+        renderMeetingMinutesLineage(root, state, { actions, documentRef });
+        return state;
+      }
+      try {
+        const payload = await load();
+        return controller.render(payload);
+      } catch (error) {
+        state = {
+          status: 'unavailable',
+          reason: error && typeof error.code === 'string' ? error.code : 'lineage_unavailable',
+        };
+        renderMeetingMinutesLineage(root, state, { actions, documentRef });
+        return state;
+      }
+    },
+  };
+  controller.render(state);
+  return controller;
+}
+
+export default renderMeetingMinutesLineage;

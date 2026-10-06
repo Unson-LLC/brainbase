@@ -1,0 +1,114 @@
+.bb-mml {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.bb-mml-heading {
+  display: grid;
+  gap: 4px;
+}
+
+.bb-mml-title {
+  margin: 0;
+  color: var(--bb-color-ink, #17202a);
+  font-size: 18px;
+}
+
+.bb-mml-evidence,
+.bb-mml-notice,
+.bb-mml-empty,
+.bb-mml-action-hint {
+  margin: 0;
+  color: var(--bb-color-muted, #68727d);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.bb-mml-notice {
+  padding: 10px 12px;
+  border: 1px solid var(--bb-color-border, #d8dde3);
+  border-radius: 8px;
+  background: var(--bb-color-panel-subtle, #f7f8fa);
+}
+
+.bb-mml-candidates {
+  display: grid;
+  gap: 10px;
+}
+
+.bb-mml-candidate {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--bb-color-border, #d8dde3);
+  border-radius: 10px;
+  background: var(--bb-color-panel, #fff);
+}
+
+.bb-mml-candidate-title {
+  margin: 0;
+  color: var(--bb-color-ink, #17202a);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.bb-mml-statuses,
+.bb-mml-candidate-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.bb-mml-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid var(--bb-color-border, #d8dde3);
+  border-radius: 999px;
+  color: var(--bb-color-muted, #68727d);
+  font-size: 11px;
+}
+
+.bb-mml-status-confirmed,
+.bb-mml-status-adopted,
+.bb-mml-status-accepted,
+.bb-mml-status-actual {
+  border-color: var(--bb-color-accent, #84a98c);
+  color: var(--bb-color-accent-strong, #2f6f44);
+}
+
+.bb-mml-status-review_required {
+  border-color: var(--bb-color-warning, #d89b35);
+  color: var(--bb-color-warning-strong, #8a5a00);
+}
+
+.bb-mml-action {
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--bb-color-border-strong, #b8c0c9);
+  border-radius: 6px;
+  background: var(--bb-color-panel, #fff);
+  color: var(--bb-color-ink, #17202a);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.bb-mml-action:hover,
+.bb-mml-action:focus-visible {
+  border-color: var(--bb-color-accent, #84a98c);
+  outline: 2px solid var(--bb-color-accent-soft, #dfeee2);
+  outline-offset: 1px;
+}
+
+.bb-mml-corrections {
+  color: var(--bb-color-muted, #68727d);
+  font-size: 12px;
+}
+
+.bb-mml-corrections p {
+  margin: 8px 0 0;
+}

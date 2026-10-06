@@ -723,6 +723,18 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-meeting-minutes-judgment-lineage-v1",
+        "title": "議事録の特定版から採用した判断とTask、訂正の影響を追える",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": "shared_judgment_lineage"
       }
     ],
     "current_story_id": "story-project-canonical-identity"
