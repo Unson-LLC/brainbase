@@ -1,5 +1,5 @@
 /*
- * Shell of the local Web host, in the organization edition's layout: a dark
+ * Shell of the local Web host, in the organization edition's layout: a white
  * left rail (brand, navigation, source) and a paper workspace. Uses only the
  * shared tokens in brainbase-tokens.css.
  */
@@ -51,15 +51,15 @@ body {
   flex-direction: column;
   overflow: auto;
   border-right: 1px solid var(--bb-color-rail-border);
-  padding: 28px 12px 12px;
+  padding: 18px 12px 14px;
   background: var(--bb-color-rail);
   color: var(--bb-color-rail-text);
 }
 
 .bb-shell-brand {
-  padding: 0 12px 28px;
+  padding: 0 10px 22px;
   color: var(--bb-color-rail-strong);
-  font-size: 24px;
+  font-size: 19px;
   font-weight: 780;
   line-height: 1;
   letter-spacing: -.035em;
@@ -67,17 +67,17 @@ body {
 
 .bb-shell-nav {
   display: grid;
-  gap: 4px;
+  gap: 2px;
 }
 
 .bb-shell-nav-link {
-  min-height: 42px;
+  min-height: 38px;
   display: flex;
   align-items: center;
-  gap: 12px;
-  border-radius: 8px;
-  padding: 0 12px;
-  color: var(--bb-color-rail-text);
+  gap: 11px;
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--bb-color-rail-muted);
   font-size: 13px;
   font-weight: 620;
   text-decoration: none;
@@ -90,8 +90,8 @@ body {
 
 .bb-shell-nav-link[aria-current="page"] {
   background: var(--bb-color-rail-active);
-  color: var(--bb-color-rail-strong);
-  box-shadow: inset 3px 0 var(--bb-color-accent);
+  color: var(--bb-color-accent);
+  box-shadow: none;
 }
 
 .bb-shell-icon {
@@ -137,9 +137,12 @@ body {
   font-size: 11px;
 }
 
-.bb-shell-fact.is-warning .bb-shell-fact-value,
+.bb-shell-fact.is-warning .bb-shell-fact-value {
+  color: var(--bb-color-warning);
+}
+
 .bb-shell-source .is-danger {
-  color: var(--bb-color-warning-soft);
+  color: var(--bb-color-danger);
 }
 
 .bb-shell-source .bb-shell-link-button {
@@ -150,7 +153,7 @@ body {
 
 /* Right detail rail (the organization edition's decision rail) */
 .bb-shell.has-rail {
-  grid-template-columns: 240px minmax(0, 1fr) 380px;
+  grid-template-columns: 240px minmax(0, 1fr) 360px;
 }
 
 .bb-shell-rail {
@@ -160,7 +163,7 @@ body {
   min-width: 0;
   overflow: auto;
   border-left: 1px solid var(--bb-color-border);
-  padding: 44px 30px 48px;
+  padding: 28px 22px 36px;
   background: var(--bb-color-surface);
 }
 
@@ -194,7 +197,7 @@ body {
   max-width: 1440px;
   min-width: 0;
   margin: 0 auto;
-  padding: 40px 48px 72px;
+  padding: 20px 24px 52px;
 }
 
 .bb-shell-objectives,
