@@ -194,6 +194,23 @@ export function districtStreetLots(sites, { minRows = 4 } = {}) {
   return { lots, streets, rows, length };
 }
 
+/**
+ * Where the gate, the plaza and the hall stand around the blocks of a district (`length` from
+ * `districtStreetLots`).  The main street runs from beyond the gate to the plaza's edge and never into
+ * it, and the plaza stays clear of the first row of lots.
+ */
+export function districtGroundPlan(length) {
+  const plazaRadius = 3.85;
+  const plazaZ = -length / 2 - 1.5 - plazaRadius;
+  return {
+    gateZ: length / 2 + 4,
+    plazaZ,
+    plazaRadius,
+    hallZ: plazaZ - 5.4,
+    street: { from: plazaZ + plazaRadius, to: length / 2 + 12 },
+  };
+}
+
 /*
  * The town grows (story-world-work-sites-and-gaps-v1, AC-22〜24).  It grows only from evidenced outcomes
  * and closed gaps, never from activity: counting completions or edits would let splitting work inflate it.
