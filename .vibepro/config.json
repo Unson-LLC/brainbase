@@ -729,10 +729,10 @@
         "title": "議事録の特定版から採用した判断とTask、訂正の影響を追える",
         "ssot": "local",
         "status": "active",
-        "horizon": null,
-        "view": null,
-        "period": null,
-        "started_at": null,
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-10",
+        "started_at": "2026-10-06",
         "due_at": null,
         "contract_type": "shared_judgment_lineage"
       }

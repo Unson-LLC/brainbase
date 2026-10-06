@@ -1,9 +1,9 @@
 ---
 story_id: story-meeting-minutes-judgment-lineage-v1
 title: 議事録の特定版から採用した判断とTask、訂正の影響を追える
-status: planned
+status: in_progress
 created_at: 2026-10-06
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 development_mode: SIMPLIFICATION
 depends_on: ["story-meeting-minutes-native-lifecycle-v1"]
@@ -37,3 +37,7 @@ depends_on: ["story-meeting-minutes-native-lifecycle-v1"]
 全体の選択はSIMPLIFICATION。既存Evidence、adoptionとreceiptをつなぎ、別の判断モデルや議事録専用Taskエンジンを作らない。既存の契約検証と実利用者が履歴を追えたという成果を区別する。
 
 全体の分割と根拠: [Story分割計画](../../../brainbase-project/docs/architecture/brainbase-minutes-story-plan-2026-10-06.md)。
+
+## 実装・検証状況（2026-10-06）
+
+共通host/UIへの接続を含む実装済み。関連15ファイル89テスト、build、diff check成功。現在の参照先権限・実行結果を再取得し、取得不能時は完了と表示しない。実画面とcanonical readbackによるAC-06は最終確認中。npm公開・本番反映は未実施。
