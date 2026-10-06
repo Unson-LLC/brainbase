@@ -173,6 +173,8 @@ describe('MeetingMinutesStorageController', () => {
     const document = first.minutes[0];
     const firstVersion = first.versions.find((version) => version.version_id === document.current_version_id);
     assert.ok(firstVersion?.source_ref);
+    assert.equal(firstVersion.source_ref?.provenance?.source, 'external');
+    assert.equal(firstVersion.source_ref?.provenance?.adapter, 'filesystem');
     assert.equal(firstVersion.body, undefined);
 
     const readFirst = await controller.get_version(first.meeting.meeting_id, document.minutes_id, firstVersion.version_id, PRINCIPAL);

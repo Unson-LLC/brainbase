@@ -100,6 +100,7 @@ export interface MeetingMinutesReadSourceRequest {
     readonly locator: string;
     readonly revision: string;
     readonly digest: string;
+    readonly provenance?: Readonly<Record<string, unknown>>;
   };
   readonly request_context: MeetingMinutesStorageRequestContext;
 }

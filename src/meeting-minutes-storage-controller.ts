@@ -14,6 +14,8 @@ export interface MeetingMinutesControllerSourceRef {
   readonly locator: string;
   readonly revision: string;
   readonly digest: string;
+  /** Adapter provenance is retained with the source ref, but is not part of identity. */
+  readonly provenance?: Readonly<Record<string, unknown>>;
 }
 
 export interface MeetingMinutesControllerRequestContext extends MeetingMinutesStorageRequestContext {}
@@ -217,12 +219,15 @@ function sourceFromReference(reference: {
   readonly locator: string;
   readonly revision: string;
   readonly digest: string;
+  readonly provenance?: object;
 }): MeetingMinutesControllerSourceRef {
+  const provenance = isRecord(reference.provenance) ? Object.freeze({ ...reference.provenance }) : undefined;
   return {
     provider: requiredText(reference.provider, 'source_ref.provider'),
     locator: requiredText(reference.locator, 'source_ref.locator'),
     revision: requiredText(reference.revision, 'source_ref.revision'),
     digest: requiredText(reference.digest, 'source_ref.digest'),
+    ...(provenance ? { provenance } : {}),
   };
 }
 
