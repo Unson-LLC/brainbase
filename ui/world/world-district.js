@@ -14,7 +14,7 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { DISTRICT_STREETS, districtStreetLots, skyAt } from './world-placement.js';
+import { DISTRICT_STREETS, districtStage, districtStreetLots, skyAt } from './world-placement.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { makeWorkspaceElement as el } from '../../workspace-kit.js';
 
@@ -37,7 +37,8 @@ export const DISTRICT_LEGEND = Object.freeze([
   ['is-scaffold', '足場と緑のネット＝進行中（記録上）'],
   ['is-cover', 'ブルーシートの覆い＝待ち（記録上）'],
   ['is-stakes', '杭と縄の空き地＝未着手（記録上）'],
-  ['is-house', '明かりのついた家＝完了（記録上）'],
+  ['is-house', '明かりのついた家＝完了して、出典・成果の記録がある（本設の建物）'],
+  ['is-prefab', 'プレハブ＝完了したが、出典・成果の記録が無い'],
   ['is-worker', 'ヘルメットの人＝担当欄の担当'],
   ['is-empty', '誰もいない現場＝担当の記録なし'],
   ['is-outside', '柵の外の人（破線の輪）＝本文にだけ名前がある'],
@@ -46,6 +47,7 @@ export const DISTRICT_LEGEND = Object.freeze([
   ['is-weeds', '雑草と色あせ＝見直し予定を過ぎた'],
   ['is-stone', '庁舎前の石碑＝方針の決定（枠だけ＝題名からの推定）'],
   ['is-street', '通りの看板＝何のための仕事か（タスクの記録の言葉。言葉が無い仕事は門の近くの空き地）'],
+  ['is-stage', '区画の段階（更地・村・町・街・都市）＝本設の建物の数。石畳・街灯・噴水・時計塔が増える'],
   ['is-ambience', '通りを歩く人と煙＝街の雰囲気（記録とは関係しません）'],
 ]);
 
@@ -258,12 +260,17 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   });
   dashTexture.wrapT = THREE.RepeatWrapping;
   /** A street along z (or along x when `across`): sidewalks, asphalt, and a dashed centre line if wide. */
-  function streetStrip(parent, { x = 0, z = 0, width, length, across = false, centreLine = false }) {
+  function streetStrip(parent, { x = 0, z = 0, width, length, across = false, centreLine = false, dirt = false }) {
     const strip = (stripWidth, mat, y) => {
       const surface = mesh(new THREE.PlaneGeometry(stripWidth, length), mat, { x, y, z, shadow: false });
       surface.rotation.set(-Math.PI / 2, 0, across ? Math.PI / 2 : 0);
       parent.add(surface);
     };
+    // A dirt track on vacant land; sidewalks and asphalt once the district has grown.
+    if (dirt) {
+      strip(width, material(0xb59d7a, { roughness: 1 }), 0.03);
+      return;
+    }
     strip(width + 0.7, material(0xe4dfd2, { roughness: 1 }), 0.025);
     strip(width, material(0x8e938f, { roughness: 0.95 }), 0.04);
     if (centreLine) {
@@ -288,6 +295,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   tarpTexture.wrapT = THREE.RepeatWrapping;
 
   let root = null;
+  let fountainJet = null;
   let lots = new Map();
   let labels = [];
   let walkers = [];
@@ -298,6 +306,11 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   let flight = null;
   let home = null;
   let focusIds = null;
+  // What changed since the viewer was last here (AC-22, AC-23): a gold ring, a rising building, words.
+  let celebrations = [];
+  const RISING = new Set(['new', 'built', 'evidenced', 'started']);
+  // Changes that set the district back are marked too, in grey, without the gold or the plus.
+  const SETBACK = new Set(['worker_out', 'weeds_grew', 'held']);
   const selectionRing = mesh(new THREE.RingGeometry(1.75, 1.95, 48), new THREE.MeshBasicMaterial({ color: 0x087d62, transparent: true, opacity: 0.9, side: THREE.DoubleSide }), { y: 0.09, shadow: false });
   selectionRing.rotation.x = -Math.PI / 2;
   selectionRing.visible = false;
@@ -383,7 +396,15 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
         for (const x of [-1.08, 1.08]) group.add(mesh(new THREE.BoxGeometry(0.02, 0.02, 2.0), rope, { x, y: scaffoldH * 0.55, z: -0.25, shadow: false }));
       }
     }
-    if (status === 'completed') {
+    if (status === 'completed' && !(site.source_refs?.length > 0)) {
+      // A prefab: completed, with no record of its source or outcome yet (AC-24).
+      const shell = box(1.7, 0.75, 1.3, 0xd7d9d6, { z: -0.3 }, { roughness: 0.6, metalness: 0.15 });
+      group.add(shell);
+      group.add(mesh(new THREE.BoxGeometry(1.8, 0.06, 1.4), material(0x9fa3a0, { roughness: 0.5, metalness: 0.3 }), { y: 0.78, z: -0.3 }));
+      group.add(mesh(new THREE.BoxGeometry(0.5, 0.28, 0.03), material(0x8fb3c8, { roughness: 0.2 }), { x: -0.35, y: 0.45, z: 0.36, shadow: false }));
+      group.add(mesh(new THREE.BoxGeometry(0.3, 0.55, 0.03), material(0x7d8a8f), { x: 0.45, y: 0.28, z: 0.36, shadow: false }));
+    }
+    if (status === 'completed' && site.source_refs?.length > 0) {
       // A finished house: plastered walls with lit windows, a gable roof, a door to the street.
       const house = block(1.7, 1.05, 1.4, { style: 'house', wall: 0xf2ebdd, lit: true, roof: 0xd8d0c2 });
       house.position.z = -0.3;
@@ -452,6 +473,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   // --- the district -------------------------------------------------------------------------------
   function clear() {
     if (root) scene.remove(root);
+    fountainJet = null;
     litMaterials.clear();
     lampMaterials.clear();
     for (const label of labels) label.node.remove();
@@ -462,7 +484,43 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     selected = null;
     hovered = null;
     focusIds = null;
+    celebrations = [];
     selectionRing.visible = false;
+  }
+
+  /** Marks what changed: each changed lot glows; built ones rise from the ground (not with reduced motion). */
+  function celebrate(changes) {
+    for (const item of celebrations) {
+      root?.remove(item.ring);
+      root?.remove(item.beam);
+      item.label.node.remove();
+      labels = labels.filter((label) => label !== item.label);
+    }
+    celebrations = [];
+    if (!changes || changes.first || !root) return;
+    const byTask = new Map();
+    for (const item of changes.items) {
+      if (item.kind === 'left' || !lots.has(item.task_id)) continue;
+      if (!byTask.has(item.task_id)) byTask.set(item.task_id, []);
+      byTask.get(item.task_id).push(item);
+    }
+    let shownWords = 0;
+    for (const [taskId, items] of byTask) {
+      const group = lots.get(taskId);
+      const setback = items.every((item) => SETBACK.has(item.kind));
+      const color = setback ? 0x8a8f94 : 0xe0a526;
+      const ring = mesh(new THREE.RingGeometry(1.95, 2.35, 48), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, side: THREE.DoubleSide }), { x: group.position.x, y: 0.1, z: group.position.z, shadow: false });
+      ring.rotation.x = -Math.PI / 2;
+      root.add(ring);
+      // A column of light, so the change can be found from the gate.
+      const beam = mesh(new THREE.CylinderGeometry(0.5, 1.6, 9, 24, 1, true), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }), { x: group.position.x, y: 4.6, z: group.position.z, shadow: false });
+      root.add(beam);
+      const words = items.map((item) => `${SETBACK.has(item.kind) ? '！' : '＋'}${item.text.split('（')[0]}`).join('・');
+      const label = addLabel(words, new THREE.Vector3(group.position.x, 3.3, group.position.z), `is-change${setback ? ' is-setback' : ''}`, { priority: shownWords++ < 6 ? 0 : 3 });
+      const rises = !reducedMotion && items.some((item) => RISING.has(item.kind));
+      if (rises) group.scale.set(1, 0.02, 1);
+      celebrations.push({ ring, beam, label, group, rises, started: null });
+    }
   }
 
   function build(business, work, neighbours) {
@@ -474,6 +532,9 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     const shown = readable ? work.sites.filter((site) => site.work.status !== 'cancelled') : [];
     const layout = districtStreetLots(shown.map((site) => ({ task_id: site.task_id, created_at: site.work.created_at, purpose_label: site.purpose_label })));
     const L = layout.length;
+    // The stage of the district (AC-24): counted from permanent buildings, it sets how built-up it looks.
+    const stage = districtStage(shown);
+    const grown = stage.level;
     const gateZ = L / 2 + 4;
     const hallZ = -L / 2 - 7;
     // Land as in the world: gentle, non-repeating shades of grass (scenery).
@@ -488,18 +549,19 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     // The district's paving: a raised plate with a kerb, from the gate to the hall.
     const pavingDepth = gateZ - hallZ + 14;
     root.add(mesh(roundedPlate(28, pavingDepth, 0.04, 2.2), material(0xd4cec0, { roughness: 1 }), { z: (gateZ + hallZ) / 2, shadow: false }));
-    root.add(mesh(roundedPlate(27, pavingDepth - 1, 0.06, 1.8), material(0xebe6d8, { roughness: 1 }), { z: (gateZ + hallZ) / 2, shadow: false }));
+    const pavingColor = [0xd8cdb2, 0xe2dac6, 0xebe6d8, 0xefeadc, 0xf2eee2][grown];
+    root.add(mesh(roundedPlate(27, pavingDepth - 1, 0.06, 1.8), material(pavingColor, { roughness: 1 }), { z: (gateZ + hallZ) / 2, shadow: false }));
     const lift = new THREE.Group();
     lift.position.y = 0.17;
     root.add(lift);
-    streetStrip(lift, { x: 0, z: (gateZ + 8 + hallZ + 3) / 2, width: DISTRICT_STREETS.main * 2, length: gateZ + 8 - (hallZ + 3), centreLine: true });
-    streetStrip(lift, { x: -DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2 });
-    streetStrip(lift, { x: DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2 });
+    streetStrip(lift, { x: 0, z: (gateZ + 8 + hallZ + 3) / 2, width: DISTRICT_STREETS.main * 2, length: gateZ + 8 - (hallZ + 3), centreLine: grown >= 2, dirt: grown === 0 });
+    streetStrip(lift, { x: -DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2, dirt: grown < 2 });
+    streetStrip(lift, { x: DISTRICT_STREETS.backStreet, z: 0, width: 1.6, length: L + 2, dirt: grown < 2 });
     // A cross street between the blocks, and at the hall end of each block a sign saying what its work is for.
     const crossWidth = DISTRICT_STREETS.backLot * 2 + 4;
     layout.streets.forEach((block, index) => {
       if (index < layout.streets.length - 1) {
-        streetStrip(lift, { x: 0, z: block.z_to + DISTRICT_STREETS.cross / 2, width: DISTRICT_STREETS.cross * 0.62, length: crossWidth, across: true });
+        streetStrip(lift, { x: 0, z: block.z_to + DISTRICT_STREETS.cross / 2, width: DISTRICT_STREETS.cross * 0.62, length: crossWidth, across: true, dirt: grown < 2 });
       }
       const signZ = block.z_from - (index === 0 ? 0.9 : DISTRICT_STREETS.cross / 2);
       root.add(mesh(new THREE.CylinderGeometry(0.06, 0.08, 2.5, 8), material(0x3f4844, { roughness: 0.6, metalness: 0.4 }), { x: -DISTRICT_STREETS.main - 0.5, y: 1.25, z: signZ }));
@@ -523,7 +585,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       trees.push([Math.cos(angle) * rx, (gateZ + hallZ) / 2 + Math.sin(angle) * rz, 0.8 + hashUnit(`belt${i}s`) * 0.6]);
     }
     plantTrees(root, trees.filter(([x, z]) => !(Math.abs(x) < 4.2 && z > gateZ - 1)));
-    placeLamps(lift, lamps);
+    // Lamps come with the district's growth: none on vacant land, every other one in a village.
+    placeLamps(lift, grown === 0 ? [] : grown === 1 ? lamps.filter((_, i) => i % 4 === 0) : lamps);
     // The gate: stone pillars on plinths, a lintel with a cornice, lamps on its pillars.
     const stone = material(0xe2dccf, { roughness: 0.9 });
     for (const x of [-3.3, 3.3]) {
@@ -534,7 +597,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     root.add(mesh(new THREE.BoxGeometry(7.8, 0.55, 0.95), stone, { y: 4.65, z: gateZ }));
     root.add(mesh(new THREE.BoxGeometry(8.2, 0.16, 1.1), material(0xcfc8ba, { roughness: 0.9 }), { y: 5.0, z: gateZ }));
     placeLamps(root, [[-3.3, gateZ + 0.6], [3.3, gateZ + 0.6]]);
-    addLabel(`${business.name}の区画（入口）`, new THREE.Vector3(0, 5.2, gateZ), 'is-city', { priority: 1 });
+    addLabel(`${business.name}の区画（入口）・${stage.label}`, new THREE.Vector3(0, 5.2, gateZ), 'is-city', { priority: 1 });
     // The hall: what this business is for, and the stones of its policies in front of it.
     // A civic building as in the world: steps, a colonnade, tall lit windows, a pediment.
     for (let step = 0; step < 3; step += 1) root.add(mesh(roundedPlate(9.6 - step * 0.5, 6.2 - step * 0.4, 0.1, 0.25), stone, { y: step * 0.18, z: hallZ + 0.2 }));
@@ -559,6 +622,28 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     const ring = mesh(new THREE.RingGeometry(3.6, 3.85, 48), material(0xcfc8b8, { roughness: 1 }), { y: 0.21, z: hallZ + 5.4, shadow: false });
     ring.rotation.x = -Math.PI / 2;
     root.add(ring);
+    if (grown >= 3) {
+      // A fountain in the plaza once the district is a 街.
+      const basin = material(0xd9d3c6, { roughness: 0.8 });
+      root.add(mesh(new THREE.CylinderGeometry(1.0, 1.1, 0.35, 32), basin, { y: 0.37, z: hallZ + 5.4 }));
+      const water = mesh(new THREE.CylinderGeometry(0.88, 0.88, 0.04, 32), material(0x7fc4d6, { roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 }), { y: 0.52, z: hallZ + 5.4, shadow: false });
+      root.add(water);
+      root.add(mesh(new THREE.CylinderGeometry(0.12, 0.16, 0.7, 12), basin, { y: 0.7, z: hallZ + 5.4 }));
+      const jet = mesh(new THREE.ConeGeometry(0.22, 0.6, 12, 1, true), material(0xcfeef5, { transparent: true, opacity: 0.6, emissive: new THREE.Color(0x6fb6c9), emissiveIntensity: 0.2 }), { y: 1.25, z: hallZ + 5.4, shadow: false });
+      jet.rotation.x = Math.PI;
+      root.add(jet);
+      fountainJet = jet;
+    }
+    if (grown >= 4) {
+      // A clock tower beside the hall once the district is a 都市.
+      const tower = block(1.4, 6.0, 1.4, { style: 'civic', wall: 0xe8e0cf, lit: true, roof: 0xb5654a });
+      tower.position.set(5.6, 0.2, hallZ - 0.4);
+      root.add(tower);
+      const cap = mesh(new THREE.ConeGeometry(1.1, 1.4, 4), material(0xb5654a, { roughness: 0.7 }), { x: 5.6, y: 6.9, z: hallZ - 0.4 });
+      cap.rotation.y = Math.PI / 4;
+      root.add(cap);
+      root.add(mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.06, 24), material(0xfaf6ea, { emissive: new THREE.Color(0xffe2a0), emissiveIntensity: 0.3 }), { x: 5.6, y: 5.6, z: hallZ + 0.33, shadow: false }).rotateX(Math.PI / 2));
+    }
     const policies = work?.status === 'ok' ? work.purpose.policies.slice(0, 8) : [];
     policies.forEach((policy, index) => {
       const angle = Math.PI * (0.15 + (0.7 * index) / Math.max(policies.length - 1, 1));
@@ -797,6 +882,19 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
         puff.material.opacity = 0.5 * (1 - cycle);
       }
     }
+    for (const item of celebrations) {
+      item.started ??= time;
+      const elapsed = (time - item.started) / 1000;
+      if (item.rises) {
+        const t = Math.min(elapsed / 1.4, 1);
+        item.group.scale.y = 0.02 + 0.98 * (1 - (1 - t) ** 3);
+        if (t >= 1) item.rises = false;
+      }
+      // Pulses for a while, then stays as a faint ring so the change can still be found.
+      item.ring.material.opacity = reducedMotion ? 0.8 : elapsed < 8 ? 0.55 + 0.4 * Math.sin(elapsed * 5) : 0.45;
+      item.beam.material.opacity = reducedMotion ? 0.2 : elapsed < 8 ? 0.16 + 0.12 * Math.sin(elapsed * 5) : 0.12;
+    }
+    if (fountainJet && !reducedMotion) fountainJet.scale.y = 1 + 0.12 * Math.sin(time / 260);
     if (selectionRing.visible) selectionRing.material.opacity = 0.6 + 0.3 * Math.sin(time / 300);
     renderer.render(scene, camera);
     placeLabels();
@@ -850,6 +948,16 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     focus(taskIds) {
       focusIds = taskIds ? new Set(taskIds) : null;
       applyFocus();
+    },
+    /** Shows what changed since the viewer's last visit (from `districtChanges`). */
+    celebrate,
+    /** Rebuilds the open district from fresh records, keeping the camera where it is. */
+    refresh(business, work, { neighbours = new Map() } = {}) {
+      const keep = { target: controls.target.clone(), position: camera.position.clone() };
+      build(business, work, neighbours);
+      controls.target.copy(keep.target);
+      camera.position.copy(keep.position);
+      camera.lookAt(keep.target);
     },
     dispose() {
       running = false;

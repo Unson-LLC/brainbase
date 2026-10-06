@@ -23,10 +23,10 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { changesSince, cityMeasures, districtLots, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT } from './world-placement.js';
+import { changesSince, cityMeasures, districtChanges, districtLots, districtSnapshot, districtStage, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT } from './world-placement.js';
 import { createDistrictView } from './world-district.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, muted, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
-import { WORK_STATES, workCityBlocks, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
+import { WORK_STATES, workCityBlocks, workGrowthBlock, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -1684,6 +1684,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       }));
       blocks.push(workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: 'すべての仕事を表示', onClick: () => showFocus(business, null) }) }));
     }
+    const growth = growthFor(business.code);
+    if (growth) blocks.push(workGrowthBlock(doc, growth));
     blocks.push(...workBlocksFor(business), ...cityRegistrationBlocks(business));
     showRail(blocks);
     if (revealFocus) reveal(focusBlock ?? blocks[0]);
@@ -1702,6 +1704,64 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     district?.focus(focusIdsFor(workCache.get(business.code), focus));
     renderCityRail(business, { revealFocus: true });
   }
+
+  // --- the district grows (AC-22〜24): what changed since this viewer was last inside -------------
+  // The last state seen is a per-viewer convenience kept in this browser; nothing is lost if it forgets.
+  const districtGrowth = new Map();
+  const snapshotKey = (code) => `brainbase.world.district.${code}`;
+  function readSnapshot(code) {
+    try {
+      return JSON.parse(globalThis.localStorage?.getItem(snapshotKey(code)) ?? 'null');
+    } catch {
+      return null;
+    }
+  }
+  function writeSnapshot(code, snapshot) {
+    try {
+      globalThis.localStorage?.setItem(snapshotKey(code), JSON.stringify(snapshot));
+    } catch {
+      // Without storage the district shows no changes next time.
+    }
+  }
+  const liveSites = (work) => (work?.status === 'ok' && work.reads.tasks.state !== 'unavailable' ? work.sites : null);
+  /** Compares against what this viewer last saw, then remembers what they see now. */
+  function noteGrowth(code, work, previous) {
+    const sites = liveSites(work);
+    if (!sites) {
+      districtGrowth.delete(code);
+      return null;
+    }
+    const at = new Date().toISOString();
+    const changes = districtChanges(previous, sites, at);
+    const growth = { stage: districtStage(sites), changes, seen: districtSnapshot(sites, at) };
+    districtGrowth.set(code, growth);
+    writeSnapshot(code, growth.seen);
+    return growth;
+  }
+  const growthFor = (code) => districtGrowth.get(code) ?? null;
+
+  // AC-23: coming back from the task screen with the district open, read its work again and answer.
+  async function recheckDistrict() {
+    const business = districtCode ? businessOf(districtCode) : null;
+    if (!business || !district?.isOpen()) return;
+    const previous = growthFor(business.code)?.seen ?? readSnapshot(business.code);
+    const result = await readJson(fetcher, `/api/extensions/world/businesses/${encodeURIComponent(business.code)}/work`);
+    if (!result.ok || districtCode !== business.code) return;
+    const work = result.data;
+    const before = previous ? districtChanges(previous, liveSites(work) ?? [], new Date().toISOString()) : null;
+    if (!before || before.first || !before.items.length) return;
+    workCache.set(business.code, work);
+    scene?.showWork(business.code, work);
+    district.refresh(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
+    const growth = noteGrowth(business.code, work, previous);
+    district.celebrate(growth?.changes ?? null);
+    district.focus(focusIdsFor(work, current.focus));
+    if (current.level === 'city') renderCityRail(business);
+  }
+  const onVisible = () => {
+    if (doc.visibilityState === 'visible') void recheckDistrict();
+  };
+  doc.addEventListener('visibilitychange', onVisible);
 
   // --- inside a district (AC-11): the world rests behind it while it is open ---------------------
   let district = null;
@@ -1729,6 +1789,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (districtCode !== business.code || !district.isOpen()) {
       district.show(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
       districtCode = business.code;
+      const growth = growthFor(business.code) ?? noteGrowth(business.code, work, readSnapshot(business.code));
+      district.celebrate(growth?.changes ?? null);
     }
     district.focus(focusIdsFor(work, current.focus));
     return true;
@@ -2115,6 +2177,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   void load();
   return {
     dispose() {
+      doc.removeEventListener('visibilitychange', onVisible);
       scene?.dispose();
     },
   };

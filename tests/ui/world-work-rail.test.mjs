@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 // path is the repository root, so it is pointed at the kit itself.
 vi.mock('../../workspace-kit.js', () => import('../../ui/workspace-kit.js'));
 import { projectWorldWork } from '../../src/world-extension.js';
-import { workCityBlocks, workPickBlock, workSignText, workSiteBlocks } from '../../ui/world/world-work-rail.js';
+import { workCityBlocks, workGrowthBlock, workPickBlock, workSignText, workSiteBlocks } from '../../ui/world/world-work-rail.js';
+import { districtChanges, districtSnapshot, districtStage } from '../../ui/world/world-placement.js';
 import { FakeDocument, collectText, findAll, visibleText } from './graph-ui-harness.mjs';
 
 const doc = new FakeDocument();
@@ -115,9 +116,31 @@ describe('world district legend: what each phenomenon means, and what means noth
   it('names every gap as a street phenomenon and says the walkers and smoke come from no record', async () => {
     const { DISTRICT_LEGEND } = await import('../../ui/world/world-district.js');
     const text = DISTRICT_LEGEND.map(([, line]) => line).join('\n');
-    for (const phrase of ['誰もいない現場＝担当の記録なし', '柵の外の人（破線の輪）＝本文にだけ名前がある', '通りへの道が無い＝出典リンクなし', '図面の看板だけ＝成果物の記録が未接続', '雑草と色あせ＝見直し予定を過ぎた']) {
+    for (const phrase of ['プレハブ＝完了したが、出典・成果の記録が無い', '誰もいない現場＝担当の記録なし', '柵の外の人（破線の輪）＝本文にだけ名前がある', '通りへの道が無い＝出典リンクなし', '図面の看板だけ＝成果物の記録が未接続', '雑草と色あせ＝見直し予定を過ぎた']) {
       expect(text).toContain(phrase);
     }
     expect(DISTRICT_LEGEND.at(-1)[1]).toBe('通りを歩く人と煙＝街の雰囲気（記録とは関係しません）');
+  });
+});
+
+describe('world district growth: counted from evidenced outcomes, compared with the last visit', () => {
+  it('names the stage, what it is counted from and how far the next stage is, without a score', () => {
+    const block = workGrowthBlock(doc, { stage: districtStage(work.sites), changes: districtChanges(null, work.sites, 'x') });
+    const text = visibleText(block);
+    expect(block.attributes['aria-label']).toBe('区画の育ち');
+    expect(text).toContain('村');
+    expect(text).toContain('本設の建物 1軒・プレハブ 0軒');
+    expect(text).toContain('町まで本設の建物あと2軒');
+    expect(text).toContain('件数を増やしても街は育ちません');
+    expect(text).toContain('次回から、前回からの変化を出します');
+    expect(text).not.toMatch(/点|スコア/);
+  });
+
+  it('lists what changed since the last visit in the words of the street', () => {
+    const before = districtSnapshot(work.sites.map((site) => (site.task_id === 't-done' ? { ...site, work: { ...site.work, status: 'in_progress' } } : site)), '2026-10-05T09:00:00.000Z');
+    const changes = districtChanges(before, work.sites, '2026-10-06T03:00:00.000Z');
+    const text = visibleText(workGrowthBlock(doc, { stage: districtStage(work.sites), changes }));
+    expect(text).toContain('前回（');
+    expect(text).toContain('家が建った（完了）　1件');
   });
 });

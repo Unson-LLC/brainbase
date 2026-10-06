@@ -335,3 +335,37 @@ export function workSiteBlocks(doc, { business, site, readAt, taskHref }) {
   blocks.push(workspaceRailBlock(doc, { title: '出典', content: workspaceDefinition(doc, [['記録', `${site.task_id}（版 ${site.source.version ?? '不明'}）`], ['事業', business.name]]) }));
   return blocks;
 }
+
+/**
+ * How the district has grown (AC-22, AC-24): its stage, what it is counted from, how far to the next, and
+ * what changed since this viewer was last here.  Counts of records, never a score.
+ */
+export function workGrowthBlock(doc, { stage, changes }) {
+  const content = [];
+  const head = el(doc, 'p', { className: 'bb-world-growth-stage' });
+  head.append(el(doc, 'strong', { text: stage.label }), el(doc, 'span', { text: `　本設の建物 ${stage.permanent}軒・プレハブ ${stage.prefab}軒` }));
+  content.push(head);
+  content.push(workspaceDefinition(doc, [
+    ['断絶の無い未完了', `${stage.clear_open} / ${stage.open}件`],
+    ['次の段階', stage.next ? `${stage.next.label}まで本設の建物あと${stage.next.needed}軒` : 'いちばん上の段階です'],
+  ]));
+  content.push(el(doc, 'p', {
+    className: 'bb-world-rail-note',
+    text: '本設の建物＝完了して、出典か成果の記録がついた仕事。記録の無い完了はプレハブのままで、件数を増やしても街は育ちません。',
+  }));
+  if (changes) {
+    if (changes.first) {
+      content.push(el(doc, 'p', { className: 'bb-world-rail-note', text: 'この区画に初めて入りました。次回から、前回からの変化を出します（このブラウザに覚えます）。' }));
+    } else if (!changes.items.length) {
+      content.push(el(doc, 'p', { className: 'bb-world-rail-note', text: `前回（${shortTime(changes.since) ?? '時点不明'}）から変わったことはありません。` }));
+    } else {
+      const list = el(doc, 'ul', { className: 'bb-world-rail-list bb-world-growth-changes' });
+      for (const [kind, count] of Object.entries(changes.counts)) {
+        const text = changes.items.find((item) => item.kind === kind)?.text ?? kind;
+        list.append(el(doc, 'li', { className: `is-${kind}`, text: `${text}　${count}件` }));
+      }
+      content.push(el(doc, 'p', { className: 'bb-world-growth-since', text: `前回（${shortTime(changes.since) ?? '時点不明'}）から` }), list);
+    }
+  }
+  return workspaceRailBlock(doc, { title: '区画の育ち', content });
+}
