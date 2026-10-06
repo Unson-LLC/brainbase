@@ -25,6 +25,7 @@ import {
   validityText,
 } from './graph-view-shared.js';
 import { workspaceDefinition, workspaceNotice } from './workspace-kit.js';
+import { normalizeProjectOverview, renderProjectOverview } from './project-overview.js';
 
 export const PROJECT_WORKSPACE_CONTRACT_VERSION = 'brainbase.project-workspace.v1';
 
@@ -241,6 +242,31 @@ function graphEntityMap(detail) {
 
 function graphEvidenceEdges(detail) {
   return projectKnowledgeEdges(detail);
+}
+
+/**
+ * Keep overview-only canonical IDs available for the existing detail action.
+ * These are loading placeholders, not Graph entities or inferred relations;
+ * the host must still provide readEntity before a projection-only ID can be
+ * selected.
+ */
+function projectOverviewProjectionRecords(overview) {
+  const records = new Map();
+  if (!overview) return records;
+  const add = (id, title) => {
+    const target = cleanId(id);
+    if (!target || records.has(target)) return;
+    records.set(target, {
+      id: target,
+      type: 'unknown',
+      name: cleanName(title, target),
+    });
+  };
+  for (const check of overview.checks) add(check.recordId, check.title);
+  for (const material of [...overview.directMaterials.items, ...overview.relatedMaterials.items]) {
+    add(material.id, material.title);
+  }
+  return records;
 }
 
 function resultEntity(result) {
@@ -966,6 +992,12 @@ function renderOverview(doc, detail, context, entities, actions = {}) {
   const payload = projectDetailPayload(detail);
   const project = payload?.project;
   const panel = makeElement(doc, 'div', { className: 'bb-pkw-panel bb-pkw-overview', attrs: { role: 'tabpanel', 'aria-label': '概要' } });
+  const overview = normalizeProjectOverview(payload?.overview);
+  if (overview) {
+    panel.append(renderProjectOverview(doc, overview, { projectName: project?.name, actions }));
+    panel.append(renderContextDirectory(doc, context, actions));
+    return panel;
+  }
   panel.append(renderDenseOverview(doc, detail, context, entities, actions));
   panel.append(renderContextDirectory(doc, context, actions));
   const summary = makeElement(doc, 'section', { className: 'bb-pkw-section', attrs: { 'aria-label': '目的と現在地' } });
@@ -1011,6 +1043,7 @@ export function createProjectKnowledgeWorkspace({
   // but those records are not evidence that they belong to this project.
   const overviewEntities = graphEntityMap(payload);
   const overviewEdges = graphEvidenceEdges(payload);
+  const overviewProjectionRecords = projectOverviewProjectionRecords(normalizeProjectOverview(payload?.overview));
   const entities = new Map(overviewEntities);
   const edges = [...overviewEdges];
   let destroyed = false;
@@ -1137,7 +1170,8 @@ export function createProjectKnowledgeWorkspace({
 
   function select(id, { fromGraph = false } = {}) {
     const target = cleanId(id);
-    if (!target || !entities.has(target) || destroyed) return;
+    const canReadOverviewProjection = overviewProjectionRecords.has(target) && typeof readEntity === 'function';
+    if (!target || (!entities.has(target) && !canReadOverviewProjection) || destroyed) return;
     // A list click synchronizes Sigma by calling its `select`, which notifies
     // this workspace again. Keep the second notification from starting a
     // duplicate entity read (or resetting a completed detail read).
@@ -1155,7 +1189,8 @@ export function createProjectKnowledgeWorkspace({
 
   function selectAndExplore(id) {
     const target = cleanId(id);
-    if (!target || !entities.has(target) || destroyed) return;
+    const canReadOverviewProjection = overviewProjectionRecords.has(target) && typeof readEntity === 'function';
+    if (!target || (!entities.has(target) && !canReadOverviewProjection) || destroyed) return;
     activeTab = 'graph';
     select(target);
     render();
@@ -1201,7 +1236,7 @@ export function createProjectKnowledgeWorkspace({
     const panel = root.querySelector?.('.bb-pkw-selection') ?? selectedPanel;
     if (!panel) return;
     panel.replaceChildren();
-    const entity = entities.get(selectedId);
+    const entity = entities.get(selectedId) ?? overviewProjectionRecords.get(selectedId);
     if (!entity) return;
     const read = entityRead?.id === selectedId ? entityRead : null;
     const fetched = selectedId === project.id ? { entity: project, incoming: [], outgoing: [] } : read?.entity ? read : null;

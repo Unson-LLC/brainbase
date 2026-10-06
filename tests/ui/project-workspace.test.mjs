@@ -180,6 +180,71 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('uses an optional host overview projection before the existing context directory', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail({
+        overview: {
+          about: { definition: '正本の定義', owner: '責任者', finalApprover: '最終決裁', goal: '確認する' },
+          checks: [{ id: 'check-1', title: '正本を確認', recordId: 'record-1' }],
+          directMaterials: { state: 'ok', total: 1, items: [{ id: 'doc-1', title: '直接資料', bodyState: 'retrieved' }] },
+          relatedMaterials: { state: 'ok', total: 0, items: [] },
+        },
+      }),
+      context: { projectId: 'project-atlas', state: 'ok', sections: [{ id: 'tasks', title: '仕事', state: 'ok', items: [] }] },
+    });
+    const overview = findAll(workspace.element, (node) => String(node.className).split(' ').includes('bb-pkw-overview'))[0];
+    const sections = findAll(overview, (node) => node.tagName === 'SECTION').map((node) => node.attributes['aria-label']);
+    expect(sections.slice(0, 5)).toEqual([
+      'このプロジェクトについて',
+      '次に確認すること',
+      'Atlas導入に直接紐づく資料',
+      '関連資料',
+      '項目別の一覧',
+    ]);
+    expect(findAll(overview, (node) => node.tagName === 'SECTION' && node.attributes['aria-label'] === '目的と現在地')).toHaveLength(0);
+    workspace.destroy();
+  });
+
+  it('loads an overview-only material through Graph detail without inventing an edge', async () => {
+    const mounts = [];
+    const readEntity = vi.fn(async (id) => ({
+      state: 'ok',
+      payload: {
+        entity: fullEntity({ id, type: 'evidence_document', name: '戦略資料', summary: '戦略資料の詳細' }),
+        incoming: [],
+        outgoing: [],
+        asOf: '2026-10-01T00:00:00.000Z',
+      },
+    }));
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail({
+        participants: [],
+        relations: [],
+        overview: {
+          directMaterials: { state: 'ok', total: 1, items: [{ id: 'doc-strategy', title: '戦略資料', bodyState: 'retrieved' }] },
+          relatedMaterials: { state: 'ok', total: 0, items: [] },
+        },
+      }),
+      mountGraph: (_container, options) => {
+        mounts.push(options);
+        return { destroy: vi.fn(), select: vi.fn() };
+      },
+      readEntity,
+    });
+
+    buttonsNamed(workspace.element, '戦略資料')[0].dispatch('click');
+    await tick();
+    await tick();
+    await tick();
+
+    expect(readEntity).toHaveBeenCalledWith('doc-strategy');
+    expect(collectText(section(workspace.element, '選択した記録'))).toContain('戦略資料の詳細');
+    expect(mounts.at(-1)?.edges).toEqual([]);
+    workspace.destroy();
+  });
+
   it('does not mount Sigma while the overview is visible and destroys a late async mount', async () => {
     const mounts = [];
     let resolveMount;

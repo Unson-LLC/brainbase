@@ -289,6 +289,7 @@
     },
     "./contracts/foundation/graph-history.sql": "./contracts/foundation/graph-history.sql",
     "./ui/project-workspace": "./ui/project-workspace.js",
+    "./ui/project-overview": "./ui/project-overview.js",
     "./ui/project-graph": "./ui/project-graph.js",
     "./ui/project-workspace.css": "./ui/project-workspace.css",
     "./ui/project-graph-vendor.js": "./ui/project-graph-vendor.js"
