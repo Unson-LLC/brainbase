@@ -711,6 +711,18 @@
         "started_at": "2026-10-06",
         "due_at": null,
         "contract_type": "local_single_owner_non_hosted"
+      },
+      {
+        "story_id": "story-meeting-minutes-storage-policy-v1",
+        "title": "会社の保存方針に合わせて既存議事録を同じ会議と版で扱える",
+        "ssot": "local",
+        "status": "planned",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-project-canonical-identity"
