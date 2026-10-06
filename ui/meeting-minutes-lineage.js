@@ -125,11 +125,37 @@ function evidenceLabel(evidence) {
 function proposalLabel(proposal) {
   if (typeof proposal === 'string') return proposal;
   if (isRecord(proposal)) {
+    const task = isRecord(proposal.task) ? proposal.task : (isRecord(proposal.taskData) ? proposal.taskData : null);
+    if (task) {
+      const title = text(task.title);
+      const description = text(task.description);
+      if (title || description) return [title, description].filter(Boolean).join(' — ');
+    }
+    const learning = isRecord(proposal.learningCandidate) ? proposal.learningCandidate : (isRecord(proposal.candidate) ? proposal.candidate : null);
+    if (learning) {
+      const proposedChange = proposalValueLabel(learning.proposedChange);
+      const grounds = proposalLinesLabel(learning.grounds);
+      if (proposedChange || grounds) return [proposedChange, grounds ? `根拠: ${grounds}` : ''].filter(Boolean).join(' / ');
+    }
     for (const key of ['title', 'judgment', 'summary', 'description', 'text']) {
       if (text(proposal[key])) return text(proposal[key]);
     }
   }
   return '候補の内容を開く';
+}
+
+function proposalValueLabel(value) {
+  if (typeof value === 'string') return text(value);
+  if (!isRecord(value)) return '';
+  for (const key of ['title', 'label', 'judgment', 'summary', 'description', 'text']) {
+    if (text(value[key])) return text(value[key]);
+  }
+  return '';
+}
+
+function proposalLinesLabel(value) {
+  if (Array.isArray(value)) return value.map((line) => proposalValueLabel(line)).filter(Boolean).join(' / ');
+  return proposalValueLabel(value);
 }
 
 function statusBadge(doc, value) {
@@ -159,6 +185,12 @@ function candidateActions(doc, item, actions) {
   }
   if (!actionsNode.children?.length) actionsNode.appendChild(makeElement(doc, 'span', 'bb-mml-action-hint', '操作は接続済みの正本から行います'));
   return actionsNode;
+}
+
+function actionErrorMessage(error) {
+  if (error instanceof Error && error.message) return error.message;
+  if (isRecord(error) && text(error.message)) return text(error.message);
+  return '操作に失敗しました。再試行してください。';
 }
 
 function field(doc, label, { type = 'text', value = '', required = false, placeholder = '' } = {}) {
@@ -339,7 +371,7 @@ function renderUnavailable(root, normalized, doc) {
 }
 
 /** Render one lineage projection into a host-owned slot. */
-export function renderMeetingMinutesLineage(root, payload, { actions = {}, candidateDefaults = null, onCandidateCreated, documentRef = globalThis.document } = {}) {
+export function renderMeetingMinutesLineage(root, payload, { actions = {}, candidateDefaults = null, onCandidateCreated, actionError = null, documentRef = globalThis.document } = {}) {
   if (!root || !documentRef || typeof documentRef.createElement !== 'function') throw new TypeError('root and documentRef are required');
   const normalized = normalizeMeetingMinutesLineageView(payload);
   while (root.firstChild) root.removeChild(root.firstChild);
@@ -351,6 +383,12 @@ export function renderMeetingMinutesLineage(root, payload, { actions = {}, candi
     makeElement(documentRef, 'h2', 'bb-mml-title', '議事録からの判断・Task'),
     makeElement(documentRef, 'p', 'bb-mml-evidence', `根拠: ${evidenceLabel(normalized.evidence)}`));
   root.appendChild(heading);
+
+  if (actionError) {
+    const notice = makeElement(documentRef, 'p', 'bb-mml-notice', `操作に失敗しました。${actionErrorMessage(actionError)} 再試行できます。`);
+    notice.setAttribute('data-lineage-action-status', 'error');
+    root.appendChild(notice);
+  }
 
   if (normalized.invalidCount > 0) {
     root.appendChild(makeElement(documentRef, 'p', 'bb-mml-notice', `${normalized.invalidCount}件の候補は形式を確認できないため表示していません。`));
@@ -388,17 +426,43 @@ export function renderMeetingMinutesLineage(root, payload, { actions = {}, candi
 /** Host adapter: the core owns loading and action implementations. */
 export function createMeetingMinutesLineageView({ root, load, actions = {}, candidateDefaults = null, documentRef = globalThis.document } = {}) {
   let state = { status: 'unavailable', reason: 'not_loaded' };
+  let actionError = null;
+  let wrappedActions;
+  const renderCurrent = () => renderMeetingMinutesLineage(root, state, {
+    actions: wrappedActions,
+    candidateDefaults,
+    onCandidateCreated: () => controller.refresh(),
+    actionError,
+    documentRef,
+  });
+  const runAction = async (action, candidate) => {
+    try {
+      await action(candidate);
+      actionError = null;
+      await controller.refresh();
+    } catch (error) {
+      actionError = error;
+      renderCurrent();
+    }
+  };
+  wrappedActions = { ...actions };
+  for (const name of ['confirmCandidate', 'adoptJudgment', 'adoptTask', 'reviewCandidate']) {
+    if (typeof actions[name] === 'function') {
+      wrappedActions[name] = (candidate) => runAction(actions[name], candidate);
+    }
+  }
   const controller = {
     get state() { return state; },
     render(payload = state) {
+      actionError = null;
       state = normalizeMeetingMinutesLineageView(payload);
-      renderMeetingMinutesLineage(root, state, { actions, candidateDefaults, onCandidateCreated: () => controller.refresh(), documentRef });
+      renderCurrent();
       return state;
     },
     async refresh() {
       if (typeof load !== 'function') {
         state = { status: 'unavailable', reason: 'loader_not_connected' };
-        renderMeetingMinutesLineage(root, state, { actions, candidateDefaults, onCandidateCreated: () => controller.refresh(), documentRef });
+        renderCurrent();
         return state;
       }
       try {
@@ -409,7 +473,7 @@ export function createMeetingMinutesLineageView({ root, load, actions = {}, cand
           status: 'unavailable',
           reason: error && typeof error.code === 'string' ? error.code : 'lineage_unavailable',
         };
-        renderMeetingMinutesLineage(root, state, { actions, candidateDefaults, onCandidateCreated: () => controller.refresh(), documentRef });
+        renderCurrent();
         return state;
       }
     },
