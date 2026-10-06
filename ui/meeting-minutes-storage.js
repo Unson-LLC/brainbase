@@ -279,6 +279,20 @@ function failureStatus(error) {
   return 'unavailable';
 }
 
+function clearExternalBody(bodyRoot) {
+  bodyRoot?.replaceChildren?.();
+}
+
+function renderExternalBody(bodyRoot, doc, value) {
+  clearExternalBody(bodyRoot);
+  if (!bodyRoot || !doc || value?.source_status !== 'available' || typeof value?.body !== 'string') return;
+  bodyRoot.append?.(makeElement(doc, 'pre', {
+    className: 'bb-minutes-body bb-minutes-external-body',
+    text: value.body,
+    attrs: { 'data-source-status': 'available' },
+  }));
+}
+
 /**
  * Adds the host-owned storage projection to a selected minutes version.
  * The browser supplies only a placement choice; root and authorization stay
@@ -295,7 +309,7 @@ export function createMeetingMinutesStorageExtension({
     : null;
   return Object.freeze({
     id: 'meeting-minutes-storage',
-    mount({ root, document: explicitDocument, detail, documentRecord, version, request, refresh, setStatus }) {
+    mount({ root, bodyRoot, document: explicitDocument, detail, documentRecord, version, request, refresh, setStatus }) {
       const source = sourceFromVersion(version);
       const external = source ?? configuredExternal;
       const initial = {
@@ -309,20 +323,29 @@ export function createMeetingMinutesStorageExtension({
       const panelUpdate = (value) => panel?.update(value);
       const call = typeof request === 'function' ? request : null;
       const path = storagePath(normalizedBase, detail, documentRecord, version);
+      let requestSerial = 0;
       const reload = async () => {
         if (!call) return;
+        const serial = ++requestSerial;
+        clearExternalBody(bodyRoot);
         setStatus?.('保存先を確認しています。');
         try {
           const value = await call(path, { headers: { Accept: 'application/json' } });
+          if (serial !== requestSerial) return;
           panelUpdate(value);
+          renderExternalBody(bodyRoot, explicitDocument, value);
           setStatus?.('保存先を確認しました。', 'success');
         } catch (error) {
+          if (serial !== requestSerial) return;
+          clearExternalBody(bodyRoot);
           panelUpdate({ ...initial, source_status: failureStatus(error), reason: error instanceof Error ? error.message : '保存先を確認できません。' });
           setStatus?.(error instanceof Error ? error.message : '保存先を確認できません。', 'error');
         }
       };
       const changePlacement = async (kind) => {
         if (!call || (kind !== 'native' && kind !== 'external')) return;
+        ++requestSerial;
+        clearExternalBody(bodyRoot);
         const selectedExternal = source ?? configuredExternal;
         if (kind === 'external' && !selectedExternal) {
           const message = '会社指定の外部保存先がホストに設定されていません。';
@@ -345,6 +368,7 @@ export function createMeetingMinutesStorageExtension({
           setStatus?.('保存先を変更しました。', 'success');
           await refresh?.();
         } catch (error) {
+          clearExternalBody(bodyRoot);
           const message = error instanceof Error ? error.message : '保存先を変更できません。';
           panelUpdate({ ...initial, source_status: failureStatus(error), reason: message });
           setStatus?.(message, 'error');

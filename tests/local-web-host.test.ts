@@ -385,13 +385,14 @@ describe('local web host protections', () => {
     await mkdir(externalRoot, { recursive: true });
     await writeFile(join(externalRoot, 'minutes.md'), '外部の議事録\n', 'utf8');
     const authorizationCalls: string[] = [];
+    let sourceAllowed = true;
     const base = await start({
       meetingMinutesStorage: {
         filesystem: {
           root: externalRoot,
           authorize: (_context, operation) => {
             authorizationCalls.push(operation);
-            return true;
+            return sourceAllowed;
           },
         },
         defaultExternal: { provider: 'filesystem', locator: 'minutes.md' },
@@ -421,6 +422,14 @@ describe('local web host protections', () => {
     });
     expect(authorizationCalls).toEqual(expect.arrayContaining(['register', 'read']));
 
+    sourceAllowed = false;
+    const denied = await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}/minutes/${encodeURIComponent(minutesId)}/versions/${encodeURIComponent(versionId)}`);
+    expect(denied.status).toBe(200);
+    const deniedPayload = await denied.json();
+    expect(deniedPayload).toMatchObject({ placement: 'external', source_status: 'denied' });
+    expect(deniedPayload).not.toHaveProperty('body');
+
+    sourceAllowed = true;
     await writeFile(join(externalRoot, 'minutes.md'), '更新された外部の議事録\n', 'utf8');
     const unavailable = await fetch(`${base}/api/meeting-minutes/${encodeURIComponent(meetingId)}/minutes/${encodeURIComponent(minutesId)}/versions/${encodeURIComponent(versionId)}`);
     expect(unavailable.status).toBe(200);
