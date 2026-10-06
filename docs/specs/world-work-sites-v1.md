@@ -62,6 +62,12 @@ projectWorldWork({
 - 街区の間には横道を1本入れ、街区の庁舎側の端に看板（言葉・件数）を立てる。
 - 戻り値 `{ lots: { [taskId]: { x, z, facing, street } }, streets: [{ key, label, count, z_from, z_to }], rows, length }`。`label` は言葉、未分類は null。
 
+## 街の育ち（world-placement.js、純粋関数）
+
+- `districtSnapshot(sites, at)` → `{ v: 1, at, sites: { [taskId]: { s: status, g: [gap kinds 昇順], l: purpose_label, e: 出典あり } } }`。取消の仕事は含めない。
+- `districtChanges(previous, sites, at)` → `{ first, since, items: [{ task_id, kind, text }], counts: { [kind]: n } }`。`previous` が無い・壊れている・版が違うときは `first: true`、items は空。kind は `new`・`left`・`built`（完了になった）・`evidenced`（完了のまま出典がつながった）・`started`（未着手→進行中）・`held`（→待ち）・`resumed`（待ち→進行中）・`worker_in`（担当の断絶が消えた）・`worker_out`・`path_linked`（出典・成果物の断絶が消えた）・`weeds_cleared`（見直し超過が消えた）・`weeds_grew`。1つの仕事に複数の kind が出てよい。
+- `districtStage(sites)` → `{ key, label, permanent, prefab, open, clear_open, next: { label, needed } | null }`。permanent＝完了かつ `source_refs` が1件以上、prefab＝完了かつ0件、clear_open＝未完了で断絶なし。段階は permanent の数で 0 更地・1 村・3 町・7 街・15 都市。
+
 ## 不変条件
 
 - 取得失敗・権限外・未接続・一部だけ読めた、を0件や問題なしにしない。

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { projectWorldWork, summarizeWorldWork, WORLD_WORK_GAP_KINDS } from '../src/world-extension.js';
 // @ts-expect-error plain browser module without type declarations
-import { districtStreetLots } from '../ui/world/world-placement.js';
+import { districtChanges, districtSnapshot, districtStage, districtStreetLots } from '../ui/world/world-placement.js';
 
 // Fictional records in the shapes the Task API and the organization Graph return.
 const NOW = new Date('2026-10-06T03:00:00.000Z');
@@ -263,5 +263,73 @@ describe('what the work is for decides its street', () => {
     const after = districtStreetLots([...sites, { task_id: 'a4', created_at: '2026-10-01', purpose_label: 'Googleマップ強化' }]);
     for (const site of sites) expect(after.lots[site.task_id]).toEqual(before.lots[site.task_id]);
     expect(after.lots.a4.street).toBe(before.lots.a1.street);
+  });
+});
+
+describe('the town grows from evidenced outcomes and closed gaps, not from activity', () => {
+  const site = (id: string, status: string, gaps: string[] = [], refs = 0, label: string | null = null) => ({
+    task_id: id,
+    purpose_label: label,
+    work: { status, open: ['pending', 'in_progress', 'waiting'].includes(status) },
+    gaps: gaps.map((kind) => ({ kind })),
+    source_refs: Array.from({ length: refs }, () => ({ type: 'slack', url: 'https://example.test', label: 'x' })),
+  });
+
+  it('says it is the first visit when nothing was kept, and remembers the town without cancelled work', () => {
+    const sites = [site('a', 'waiting', ['source_unlinked']), site('z', 'cancelled')];
+    expect(districtChanges(null, sites, '2026-10-06T10:00:00Z')).toMatchObject({ first: true, items: [] });
+    expect(districtChanges({ v: 99 }, sites, '2026-10-06T10:00:00Z').first).toBe(true);
+    const snap = districtSnapshot(sites, '2026-10-06T10:00:00Z');
+    expect(Object.keys(snap.sites)).toEqual(['a']);
+    expect(snap.sites.a).toEqual({ s: 'waiting', g: ['source_unlinked'], l: null, e: false });
+  });
+
+  it('names what changed since the last visit, in the words of the street', () => {
+    const before = districtSnapshot([
+      site('built', 'in_progress', ['assignee_unrecorded']),
+      site('proof', 'completed', ['source_unlinked']),
+      site('start', 'pending'),
+      site('hold', 'in_progress'),
+      site('fix', 'waiting', ['assignee_unrecorded', 'source_unlinked', 'review_overdue']),
+      site('gone', 'waiting'),
+      site('stale', 'waiting'),
+    ], '2026-10-05T10:00:00Z');
+    const now = [
+      site('built', 'completed', ['assignee_unrecorded']),
+      site('proof', 'completed', [], 1),
+      site('start', 'in_progress'),
+      site('hold', 'waiting'),
+      site('fix', 'waiting', [], 1),
+      site('stale', 'waiting', ['review_overdue']),
+      site('fresh', 'pending'),
+    ];
+    const changes = districtChanges(before, now, '2026-10-06T10:00:00Z');
+    expect(changes.first).toBe(false);
+    expect(changes.since).toBe('2026-10-05T10:00:00Z');
+    const kinds = (id: string) => changes.items.filter((item: { task_id: string }) => item.task_id === id).map((item: { kind: string }) => item.kind).sort();
+    expect(kinds('built')).toEqual(['built']);
+    expect(kinds('proof')).toEqual(['evidenced', 'path_linked']);
+    expect(kinds('start')).toEqual(['started']);
+    expect(kinds('hold')).toEqual(['held']);
+    expect(kinds('fix')).toEqual(['path_linked', 'weeds_cleared', 'worker_in']);
+    expect(kinds('stale')).toEqual(['weeds_grew']);
+    expect(kinds('fresh')).toEqual(['new']);
+    expect(kinds('gone')).toEqual(['left']);
+    expect(changes.counts).toMatchObject({ built: 1, path_linked: 2, worker_in: 1, new: 1, left: 1 });
+    // Nothing that did not change is named.
+    expect(districtChanges(districtSnapshot(now, 'x'), now, 'y').items).toEqual([]);
+  });
+
+  it('counts only completed work with a record of its source as a building, and stages the district by them', () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) => site(`p${i}`, 'completed', [], 1));
+    expect(districtStage([site('a', 'completed'), site('b', 'waiting', ['source_unlinked']), site('c', 'pending')])).toMatchObject({
+      key: 'vacant', label: '更地', permanent: 0, prefab: 1, open: 2, clear_open: 1, next: { label: '村', needed: 1 },
+    });
+    expect(districtStage(many(1)).key).toBe('village');
+    expect(districtStage(many(3)).key).toBe('town');
+    expect(districtStage(many(7)).key).toBe('street');
+    expect(districtStage(many(15))).toMatchObject({ key: 'city', next: null });
+    // Splitting work does not grow the town: completions without a record stay prefabs.
+    expect(districtStage(Array.from({ length: 40 }, (_, i) => site(`q${i}`, 'completed'))).key).toBe('vacant');
   });
 });
