@@ -193,3 +193,106 @@ export function districtStreetLots(sites, { minRows = 4 } = {}) {
   }
   return { lots, streets, rows, length };
 }
+
+/*
+ * The town grows (story-world-work-sites-and-gaps-v1, AC-22〜24).  It grows only from evidenced outcomes
+ * and closed gaps, never from activity: counting completions or edits would let splitting work inflate it.
+ */
+const WORKER_GAPS = new Set(['assignee_unrecorded', 'assignee_unlinked_mentioned']);
+const PATH_GAPS = new Set(['source_unlinked', 'outcome_unlinked']);
+const OPEN_STATES = new Set(['pending', 'in_progress', 'waiting']);
+
+export const DISTRICT_CHANGE_TEXT = Object.freeze({
+  new: '新しい現場ができた',
+  left: '区画を出た仕事がある（取消・付け替え）',
+  built: '家が建った（完了）',
+  evidenced: 'プレハブが本設の建物になった（成果の記録がつながった）',
+  started: '着工した（未着手→進行中）',
+  held: 'シートがかかった（→待ち）',
+  resumed: 'シートが外れた（待ち→進行中）',
+  worker_in: '作業員が入った（担当がつながった）',
+  worker_out: '作業員がいなくなった（担当が外れた）',
+  path_linked: '道がつながった（出典・成果の記録がついた）',
+  weeds_cleared: '雑草が抜けた（見直された）',
+  weeds_grew: '雑草が生えた（見直し予定を過ぎた）',
+});
+
+const hasEvidence = (site) => (site.source_refs?.length ?? 0) > 0;
+
+/** What this viewer saw of a district, kept in their browser to tell what changed next time. */
+export function districtSnapshot(sites, at) {
+  const kept = {};
+  for (const site of sites ?? []) {
+    if (site.work?.status === 'cancelled') continue;
+    kept[site.task_id] = {
+      s: site.work?.status ?? null,
+      g: [...new Set((site.gaps ?? []).map((gap) => gap.kind))].sort(),
+      l: site.purpose_label ?? null,
+      e: hasEvidence(site),
+    };
+  }
+  return { v: 1, at, sites: kept };
+}
+
+/** What changed in a district since `previous` (a snapshot), in the words of the street. */
+export function districtChanges(previous, sites, at) {
+  if (!previous || previous.v !== 1 || typeof previous.sites !== 'object' || previous.sites === null) {
+    return { first: true, since: null, at, items: [], counts: {} };
+  }
+  const now = districtSnapshot(sites, at).sites;
+  const items = [];
+  const add = (taskId, kind) => items.push({ task_id: taskId, kind, text: DISTRICT_CHANGE_TEXT[kind] });
+  for (const [taskId, after] of Object.entries(now)) {
+    const before = previous.sites[taskId];
+    if (!before) {
+      add(taskId, 'new');
+      continue;
+    }
+    if (OPEN_STATES.has(before.s) && after.s === 'completed') add(taskId, 'built');
+    if (before.s === 'completed' && after.s === 'completed' && !before.e && after.e) add(taskId, 'evidenced');
+    if (before.s === 'pending' && after.s === 'in_progress') add(taskId, 'started');
+    if (before.s !== 'waiting' && OPEN_STATES.has(before.s) && after.s === 'waiting') add(taskId, 'held');
+    if (before.s === 'waiting' && after.s === 'in_progress') add(taskId, 'resumed');
+    const had = (gaps, set) => (gaps ?? []).some((kind) => set.has(kind));
+    if (had(before.g, WORKER_GAPS) && !had(after.g, WORKER_GAPS)) add(taskId, 'worker_in');
+    if (!had(before.g, WORKER_GAPS) && had(after.g, WORKER_GAPS)) add(taskId, 'worker_out');
+    if (had(before.g, PATH_GAPS) && !had(after.g, PATH_GAPS)) add(taskId, 'path_linked');
+    const overdue = new Set(['review_overdue']);
+    if (had(before.g, overdue) && !had(after.g, overdue)) add(taskId, 'weeds_cleared');
+    if (!had(before.g, overdue) && had(after.g, overdue)) add(taskId, 'weeds_grew');
+  }
+  for (const taskId of Object.keys(previous.sites)) if (!now[taskId]) add(taskId, 'left');
+  const counts = {};
+  for (const item of items) counts[item.kind] = (counts[item.kind] ?? 0) + 1;
+  return { first: false, since: previous.at ?? null, at, items, counts };
+}
+
+export const DISTRICT_STAGES = Object.freeze([
+  { key: 'vacant', label: '更地', min: 0 },
+  { key: 'village', label: '村', min: 1 },
+  { key: 'town', label: '町', min: 3 },
+  { key: 'street', label: '街', min: 7 },
+  { key: 'city', label: '都市', min: 15 },
+]);
+
+/** The stage of a district: counted from completed work with a record of its source (a permanent building). */
+export function districtStage(sites) {
+  const live = (sites ?? []).filter((site) => site.work?.status !== 'cancelled');
+  const completed = live.filter((site) => site.work?.status === 'completed');
+  const permanent = completed.filter(hasEvidence).length;
+  const open = live.filter((site) => OPEN_STATES.has(site.work?.status));
+  let index = 0;
+  DISTRICT_STAGES.forEach((stage, i) => { if (permanent >= stage.min) index = i; });
+  const stage = DISTRICT_STAGES[index];
+  const following = DISTRICT_STAGES[index + 1] ?? null;
+  return {
+    key: stage.key,
+    label: stage.label,
+    level: index,
+    permanent,
+    prefab: completed.length - permanent,
+    open: open.length,
+    clear_open: open.filter((site) => (site.gaps?.length ?? 0) === 0).length,
+    next: following ? { label: following.label, needed: following.min - permanent } : null,
+  };
+}

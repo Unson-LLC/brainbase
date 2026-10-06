@@ -217,6 +217,44 @@
   color: #5c5546;
 }
 
+.bb-world-label.is-change {
+  font-weight: 700;
+  background: #fff4d6;
+  border-color: #e0a526;
+  color: #6b4a00;
+}
+
+.bb-world-label.is-change.is-setback {
+  background: #eef0f1;
+  border-color: #8a8f94;
+  color: #3f454a;
+}
+
+.bb-world-growth-stage {
+  margin: 0 0 6px;
+}
+
+.bb-world-growth-stage strong {
+  font-size: 1.25em;
+}
+
+.bb-world-growth-since {
+  margin: 8px 0 2px;
+  font-weight: 700;
+}
+
+.bb-world-growth-changes li {
+  border-left: 3px solid #e0a526;
+  padding-left: 6px;
+}
+
+.bb-world-growth-changes li.is-worker_out,
+.bb-world-growth-changes li.is-weeds_grew,
+.bb-world-growth-changes li.is-held,
+.bb-world-growth-changes li.is-left {
+  border-left-color: var(--bb-color-muted);
+}
+
 .bb-world-label.is-engagement {
   font-size: 11px;
   color: var(--bb-color-muted);
