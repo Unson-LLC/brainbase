@@ -115,7 +115,7 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(shell).toBeDefined();
     expect(findAll(shell, (node) => node.tagName === 'H2')[0].textContent).toBe('Atlas導入');
     expect(collectText(shell)).toContain('プロジェクトの記録を読み込んでいます。');
-    expect(detailReads).toBe(0);
+    expect(detailReads).toBe(1);
 
     listGate.resolve();
     await waitFor(() => detailReads === 1);
@@ -126,6 +126,102 @@ describe('プロジェクトと関係者: workspace', () => {
     expect(byClass(root, 'bb-pkw-loading')).toEqual([]);
     expect(findAll(byClass(root, 'bb-pkw')[0], (node) => node.tagName === 'H2')[0].textContent).toBe('Atlas導入');
     expect(collectText(root)).toContain('導入を完了する');
+  });
+
+  it('holds a prefetched detail until the host list confirms the selected project', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const listGate = deferred();
+    const detailGate = deferred();
+    let detailStarted = false;
+    let detailDone = false;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') await listGate.promise;
+      if (path === '/api/graph/projects/project-atlas') {
+        detailStarted = true;
+        await detailGate.promise;
+        const response = await api.fetcher(path, init);
+        detailDone = true;
+        return response;
+      }
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const view = createGraphProjectsView({
+      root,
+      rail: new FakeElement('div'),
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [{ id: 'project-atlas', name: 'Atlas導入' }],
+    });
+
+    const reading = view.load();
+    await waitFor(() => detailStarted);
+    detailGate.resolve();
+    await waitFor(() => detailDone);
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'loading' });
+    expect(collectText(root)).not.toContain('導入を完了する');
+
+    listGate.resolve();
+    await reading;
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'ok' });
+    expect(collectText(root)).toContain('導入を完了する');
+  });
+
+  it('cancels an unconfirmed initial gate when selection changes back to the same project', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const listGate = deferred();
+    const atlasGates = [deferred(), deferred()];
+    let atlasReads = 0;
+    const fetcher = async (path, init) => {
+      if (path === '/api/graph/projects') await listGate.promise;
+      if (path === '/api/graph/projects/project-atlas') {
+        const gate = atlasGates[atlasReads++];
+        await gate.promise;
+      }
+      return api.fetcher(path, init);
+    };
+    const view = createGraphProjectsView({
+      root: new FakeElement('div'),
+      rail: new FakeElement('div'),
+      page: PAGE,
+      document: new FakeDocument(),
+      fetcher,
+      token: TOKEN,
+      autoLoad: false,
+      selectedId: 'project-atlas',
+      projectSummaries: [
+        { id: 'project-atlas', name: 'Atlas導入' },
+        { id: 'project-beta', name: 'Beta検証' },
+      ],
+    });
+
+    let initialDone = false;
+    const initial = view.load().then(() => { initialDone = true; });
+    await waitFor(() => atlasReads === 1);
+
+    const betaReading = view.select('project-beta');
+    await betaReading;
+    const atlasAgain = view.select('project-atlas');
+    await waitFor(() => atlasReads === 2);
+    atlasGates[1].resolve();
+    await atlasAgain;
+    expect(view.state.selectedId).toBe('project-atlas');
+    expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'ok' });
+
+    listGate.resolve();
+    await waitFor(() => initialDone);
+    expect(initialDone).toBe(true);
+
+    // Release the stale prefetched read only after the list load has settled;
+    // the new selection must not remain coupled to that old request.
+    atlasGates[0].resolve();
+    await initial;
   });
 
   it('shows resolved context sections while Graph detail is pending, then keeps the graph tab during final context arrival', async () => {
@@ -166,6 +262,7 @@ describe('プロジェクトと関係者: workspace', () => {
 
     const reading = view.load();
     await waitFor(() => typeof progressContext === 'function');
+    await waitFor(() => view.state.list.state === 'ok');
     expect(collectText(root)).toContain('タスク1件取得済み');
     expect(byClass(root, 'bb-pkw-skeleton-bar').length).toBeGreaterThan(0);
     expect(findAll(root, (node) => node.attributes['aria-busy'] === 'true').length).toBeGreaterThan(0);
@@ -432,7 +529,7 @@ describe('プロジェクトと関係者: workspace', () => {
     });
 
     await view.load();
-    expect(detailReads).toBe(0);
+    expect(detailReads).toBe(1);
     expect(collectText(rail)).toContain('読み取り失敗');
     expect(collectText(rail)).toContain('一覧が利用できません');
     expect(collectText(rail)).not.toContain('読み込み中');
@@ -1276,7 +1373,10 @@ describe('プロジェクトと関係者: host extensions', () => {
     const { root, rail, view } = await mountView({ selectedId: 'project-beta', onSelect: (id) => selected.push(id) });
     expect(railHead(rail)).toBe('プロジェクトBeta検証project-beta');
     expect(ledgerRow(root, 'project-beta').className).toContain('is-selected');
-    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects', '/api/graph/projects/project-beta']);
+    const initialRequests = api.requests.map((request) => request.path);
+    expect(initialRequests).toHaveLength(2);
+    expect(initialRequests).toContain('/api/graph/projects');
+    expect(initialRequests).toContain('/api/graph/projects/project-beta');
     expect(selected).toEqual([]);
 
     ledgerRow(root, 'project-atlas').dispatch('click');
@@ -1304,7 +1404,10 @@ describe('プロジェクトと関係者: host extensions', () => {
     expect(railHead(rail)).toBe('プロジェクトproject-goneproject-gone');
     expect(collectText(rail)).toContain('このプロジェクトは一覧から見つかりません');
     expect(selected).toEqual([]);
-    expect(api.requests.map((request) => request.path)).toEqual(['/api/graph/projects']);
+    const initialRequests = api.requests.map((request) => request.path);
+    expect(initialRequests).toHaveLength(2);
+    expect(initialRequests).toContain('/api/graph/projects');
+    expect(initialRequests).toContain('/api/graph/projects/project-gone');
   });
 
   it('keeps the selected project when a refreshed list no longer contains it', async () => {
