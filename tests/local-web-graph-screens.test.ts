@@ -101,7 +101,7 @@ describe('Graph screens on the local Web host', () => {
     for (const file of ['graph-view-shared.css', 'graph-projects-view.css', 'project-workspace.css', 'graph-registry-view.css']) {
       expect(shell).toContain(`<link rel="stylesheet" href="/ui/${file}">`);
     }
-    for (const file of ['graph-view-shared.js', 'graph-view-shared.css', 'graph-projects-view.js', 'graph-own-share.js', 'project-graph.js', 'project-graph-entry.js', 'project-graph-vendor.js', 'project-workspace.js', 'graph-projects-view.css', 'graph-registry-view.js', 'graph-registry-view.css']) {
+    for (const file of ['graph-view-shared.js', 'graph-view-shared.css', 'graph-projects-view.js', 'graph-own-share.js', 'project-graph.js', 'project-graph-entry.js', 'project-graph-vendor.js', 'project-workspace.js', 'project-overview.js', 'graph-projects-view.css', 'graph-registry-view.js', 'graph-registry-view.css']) {
       const response = await fetch(`${base}/ui/${file}`);
       expect(response.status, file).toBe(200);
       expect(response.headers.get('content-type')).toMatch(file.endsWith('.js') ? /text\/javascript/ : /text\/css/);

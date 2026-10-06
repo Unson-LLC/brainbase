@@ -42,6 +42,8 @@ const UI_FILES: Readonly<Record<string, { readonly file: string; readonly type: 
   '/ui/brainbase-tokens.css': { file: 'brainbase-tokens.css', type: 'text/css; charset=utf-8' },
   '/ui/workspace-kit.js': { file: 'workspace-kit.js', type: 'text/javascript; charset=utf-8' },
   '/ui/workspace-kit.css': { file: 'workspace-kit.css', type: 'text/css; charset=utf-8' },
+  '/ui/judgment-history.js': { file: 'judgment-history.js', type: 'text/javascript; charset=utf-8' },
+  '/ui/judgment-history.css': { file: 'judgment-history.css', type: 'text/css; charset=utf-8' },
   '/ui/value-proof-review.js': { file: 'value-proof-review.js', type: 'text/javascript; charset=utf-8' },
   '/ui/value-proof-review.css': { file: 'value-proof-review.css', type: 'text/css; charset=utf-8' }
 });
@@ -228,9 +230,10 @@ function shellHtml(token: string, basePath: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="brainbase-review-token" content="${escapeAttribute(token)}">
 <meta name="brainbase-review-base-path" content="${escapeAttribute(basePath)}">
-<title>Brainbase 判断の見返し</title>
+<title>Brainbase 判断の履歴</title>
 <link rel="stylesheet" href="/ui/brainbase-tokens.css">
 <link rel="stylesheet" href="/ui/workspace-kit.css">
+<link rel="stylesheet" href="/ui/judgment-history.css">
 <link rel="stylesheet" href="/ui/value-proof-review.css">
 </head>
 <body>
@@ -241,12 +244,13 @@ function shellHtml(token: string, basePath: string): string {
 `;
 }
 
-const BOOTSTRAP_JS = `import { createValueProofReviewUI } from '/ui/value-proof-review.js';
+const BOOTSTRAP_JS = `import { createJudgmentHistoryUI } from '/ui/judgment-history.js';
 const meta = (name) => document.querySelector(\`meta[name="\${name}"]\`)?.getAttribute('content') ?? '';
-createValueProofReviewUI({
+createJudgmentHistoryUI({
   root: document.getElementById('brainbase-value-proof-review'),
   basePath: meta('brainbase-review-base-path'),
-  token: meta('brainbase-review-token')
+  token: meta('brainbase-review-token'),
+  page: { crumbs: ['あなたのBrainbase', '判断の履歴'], source: '判断の記録' }
 });
 `;
 

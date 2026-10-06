@@ -19,7 +19,7 @@ import { createGraphProjectsView } from './graph-projects-view.js';
 import { createGraphRegistryView } from './graph-registry-view.js';
 import { createObjectiveEditorController } from './objective-editor.js';
 import { createObjectiveEditorHttpPort } from './objective-editor-http-port.js';
-import { createValueProofReviewUI } from './value-proof-review.js';
+import { createJudgmentHistoryUI } from './judgment-history.js';
 import { createWorldModelView } from './world-model-view.js';
 import { createGraphClient } from './graph-view-shared.js';
 
@@ -145,14 +145,14 @@ function makePage(container, context) {
 }
 
 function mountToday(container, context) {
-  return createValueProofReviewUI({
+  return createJudgmentHistoryUI({
     root: makePage(container, context),
     rail: context.rail,
     page: context.page,
     document: context.document,
     fetcher: context.fetcher,
     token: context.token,
-    sourceReader: graphSourceReader(context),
+    basePath: '/api/value-proofs',
   });
 }
 
@@ -220,7 +220,7 @@ function mountGraphScreen(screenId, createView) {
 }
 
 export const LOCAL_WEB_SCREENS = Object.freeze([
-  Object.freeze({ id: 'today', label: '今日', usesGraph: false, rail: true, source: '判断journal', mount: mountToday }),
+  Object.freeze({ id: 'today', label: '今日', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
   Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
   Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
   Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),
