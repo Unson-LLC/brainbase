@@ -559,11 +559,11 @@ class GraphMeetingMinutesLineageStore implements MinutesLineageStore {
       if (kind === 'judgment') {
         const provider = this.options.judgment;
         if (!provider) throw new MeetingMinutesLineageError('provider_unavailable', 'judgment adoption provider is not connected');
-        adopted = await provider.adopt({ candidate, idempotencyKey: input.idempotencyKey, actor: input.actor, access });
+        adopted = await provider.adopt({ candidate, idempotencyKey: providerIdempotencyKey(kind, candidate), actor: input.actor, access });
       } else {
         const provider = this.options.task;
         if (!provider) throw new MeetingMinutesLineageError('provider_unavailable', 'task adoption provider is not connected');
-        adopted = await provider.create({ candidate, idempotencyKey: input.idempotencyKey, actor: input.actor, access });
+        adopted = await provider.create({ candidate, idempotencyKey: providerIdempotencyKey(kind, candidate), actor: input.actor, access });
       }
     } catch (error) {
       throw mapProviderError(error, `${kind} adoption provider is unavailable`, 'target_unavailable');
@@ -811,6 +811,13 @@ class GraphMeetingMinutesLineageStore implements MinutesLineageStore {
         await this.readExactMinutes(candidate.evidence, context);
         sourceStatuses[candidate.id] = { status: 'available' };
       } catch (error) {
+        // Reverse lookup must not become a side channel after a source ACL is
+        // revoked.  The candidate contains the proposal, exact source ids,
+        // and provider locator, so returning it alongside a denied status
+        // would disclose the very records that the source denied.
+        if (error instanceof MeetingMinutesLineageError && error.code === 'authorization_denied') {
+          throw new MeetingMinutesLineageError('authorization_denied', 'Meeting minutes source is not available for this principal');
+        }
         sourceStatuses[candidate.id] = statusFromError(error);
       }
       candidates.push(await this.projectCandidate(candidate, ledger, context, { targetAlreadyRead: true }));
@@ -1251,6 +1258,17 @@ function mapProviderError(
   if (code === 'not_found' || code === 'source_not_found' || code === 'task_not_found') return new MeetingMinutesLineageError(notFoundCode, fallback);
   if (code === 'integrity_mismatch' || code === 'revision_conflict' || code === 'readback_mismatch') return new MeetingMinutesLineageError(code, fallback);
   return new MeetingMinutesLineageError(notFoundCode === 'target_unavailable' ? 'target_unavailable' : 'source_unavailable', fallback);
+}
+
+/**
+ * Provider calls use the candidate identity as their idempotency boundary.
+ * The request key belongs to the HTTP/transport attempt and may change when a
+ * caller retries after a lost response.  Reusing the candidate key lets a
+ * provider recover the same canonical target instead of creating a second
+ * judgment or Task during that retry window.
+ */
+function providerIdempotencyKey(kind: MinutesLineageCandidateKind, candidate: Pick<MinutesLineageCandidate, 'id'>): string {
+  return `meeting-minutes:${kind}:${candidate.id}`;
 }
 
 function requireId(value: unknown, label: string): string {

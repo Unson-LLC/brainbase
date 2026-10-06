@@ -92,12 +92,16 @@ function createProviderFixtures() {
 
   const judgmentTargets = new Map<string, MinutesLineageTargetReference>();
   const taskTargets = new Map<string, MinutesLineageTargetReference>();
-  const judgmentAdopt = vi.fn(async ({ candidate }: { candidate: MinutesLineageCandidate }): Promise<JudgmentAdoptionResult> => {
+  const judgmentProviderKeys: string[] = [];
+  const taskProviderKeys: string[] = [];
+  const judgmentAdopt = vi.fn(async ({ candidate, idempotencyKey }: { candidate: MinutesLineageCandidate; idempotencyKey: string }): Promise<JudgmentAdoptionResult> => {
+    judgmentProviderKeys.push(idempotencyKey);
     const target = targetFor('judgment', candidate);
     judgmentTargets.set(target.id, target);
     return { target: target as Extract<MinutesLineageTargetReference, { kind: 'judgment' }>, adoption: adoptionFor('judgment', candidate) };
   });
-  const taskCreate = vi.fn(async ({ candidate }: { candidate: MinutesLineageCandidate }): Promise<TaskAdoptionResult> => {
+  const taskCreate = vi.fn(async ({ candidate, idempotencyKey }: { candidate: MinutesLineageCandidate; idempotencyKey: string }): Promise<TaskAdoptionResult> => {
+    taskProviderKeys.push(idempotencyKey);
     const target = targetFor('task', candidate);
     taskTargets.set(target.id, target);
     return { target: target as Extract<MinutesLineageTargetReference, { kind: 'task' }>, adoption: adoptionFor('task', candidate) };
@@ -133,6 +137,8 @@ function createProviderFixtures() {
     task,
     judgmentAdopt,
     taskCreate,
+    judgmentProviderKeys,
+    taskProviderKeys,
     judgmentTargets,
     taskTargets,
     receipt,
@@ -214,6 +220,7 @@ describe('meeting minutes judgment/task lineage', () => {
     });
     expect(replayWithNewTransportKey.id).toBe(adoption.id);
     expect(fixtures.judgmentAdopt).toHaveBeenCalledTimes(1);
+    expect(fixtures.judgmentProviderKeys).toEqual([`meeting-minutes:judgment:${candidate.id}`]);
 
     fixtures.setReceiptTarget(adoption.target);
     const execution = await store.recordExecution({
@@ -314,6 +321,18 @@ describe('meeting minutes judgment/task lineage', () => {
     await expect(store.readCandidate(candidate.id, access)).rejects.toMatchObject({ code: 'authorization_denied' });
     fixtures.setDenyMinutes(false);
     expect((await store.readCandidate(candidate.id, access))?.id).toBe(candidate.id);
+  });
+
+  it('fails closed on reverse lookup after the minutes source ACL is revoked', async () => {
+    const dataDir = await makeDataDir();
+    const fixtures = createProviderFixtures();
+    const store = createMeetingMinutesLineageStore({ dataDir, ...fixtures });
+    const candidate = await createCandidate(store, 'candidate-j1', 'judgment', { judgment: 'private proposal' });
+    await confirmCandidate(store, candidate);
+    const adoption = await store.adoptJudgment({ id: 'adoption-j1', idempotencyKey: 'adoption-key-j1', candidateId: candidate.id, actor, access });
+    fixtures.setDenyMinutes(true);
+
+    await expect(store.readByTarget(adoption.target, access)).rejects.toMatchObject({ code: 'authorization_denied' });
   });
 
   it('persists an append-only sidecar with separate collections', async () => {

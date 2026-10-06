@@ -115,6 +115,22 @@
       "types": "./dist/company-os-learning-adoption.d.ts",
       "import": "./dist/company-os-learning-adoption.js"
     },
+    "./meeting-minutes-lineage": {
+      "types": "./dist/meeting-minutes-lineage.d.ts",
+      "import": "./dist/meeting-minutes-lineage.js"
+    },
+    "./meeting-minutes-lineage-adapters": {
+      "types": "./dist/meeting-minutes-lineage-adapters.d.ts",
+      "import": "./dist/meeting-minutes-lineage-adapters.js"
+    },
+    "./meeting-minutes-lineage-http": {
+      "types": "./dist/meeting-minutes-lineage-http.d.ts",
+      "import": "./dist/meeting-minutes-lineage-http.js"
+    },
+    "./meeting-minutes-lineage-lifecycle": {
+      "types": "./dist/meeting-minutes-lineage-lifecycle.d.ts",
+      "import": "./dist/meeting-minutes-lineage-lifecycle.js"
+    },
     "./constraint-resolution": {
       "types": "./dist/constraint-resolution.d.ts",
       "import": "./dist/constraint-resolution.js"
@@ -259,6 +275,9 @@
     "./ui/meeting-minutes-storage": "./ui/meeting-minutes-storage.js",
     "./ui/meeting-minutes-storage.css": "./ui/meeting-minutes-storage.css",
     "./ui/brainbase-tokens.css": "./ui/brainbase-tokens.css",
+    "./ui/meeting-minutes-lineage": "./ui/meeting-minutes-lineage.js",
+    "./ui/meeting-minutes-lineage.css": "./ui/meeting-minutes-lineage.css",
+    "./ui/meeting-minutes-lineage-http": "./ui/meeting-minutes-lineage-http.js",
     "./dist/*": "./dist/*",
     "./contracts/judgment-dag/schema.json": "./contracts/judgment-dag/schema.json",
     "./contracts/judgment-dag/fixture.json": "./contracts/judgment-dag/fixture.json",
