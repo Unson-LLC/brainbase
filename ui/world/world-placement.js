@@ -133,3 +133,62 @@ export function changesSince(lastVisit, businesses, judgmentsByBusiness, rows) {
   const plaza = (rows ?? []).filter((row) => newer(row.latest_recorded_at)).map((row) => row.key);
   return { since: new Date(since).toISOString(), cities, plaza };
 }
+
+function placementHash(value) {
+  let h = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    h ^= value.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return (h >>> 0) / 4294967296;
+}
+
+/**
+ * Where the work of a city stands (story-world-work-sites-and-gaps-v1): small sites on square rings
+ * just outside the city's plate, away from the road that enters it.  A site's cell comes from its task
+ * id, and sites are taken oldest first (by `created_at`, then id), so a new task never moves an older
+ * one; the number of rings grows only when the count outgrows them.  The state of the work never moves
+ * a site.  Returns `{ [taskId]: [dx, dz] }` relative to the city's centre, and the rings used.
+ */
+export function workSiteCells(sites, { size, roadAngle = null, spacing = 1.45 } = {}) {
+  const ordered = [...(sites ?? [])].sort((a, b) => {
+    const at = String(a.created_at ?? '').localeCompare(String(b.created_at ?? ''));
+    return at !== 0 ? at : String(a.task_id).localeCompare(String(b.task_id));
+  });
+  const ringCells = (k) => {
+    const half = size / 2 + 1.0 + k * spacing;
+    const count = Math.max(4, Math.floor((8 * half) / spacing));
+    const cells = [];
+    for (let i = 0; i < count; i += 1) {
+      // Walk the square's perimeter at even steps.
+      const d = (i / count) * 8 * half;
+      const side = Math.floor(d / (2 * half));
+      const t = d - side * 2 * half - half;
+      const [x, z] = side === 0 ? [t, -half] : side === 1 ? [half, t] : side === 2 ? [-t, half] : [-half, -t];
+      if (roadAngle !== null) {
+        // Keep the road that enters the city clear.
+        const along = x * Math.cos(roadAngle) + z * Math.sin(roadAngle);
+        const across = -x * Math.sin(roadAngle) + z * Math.cos(roadAngle);
+        if (along > 0 && Math.abs(across) < 1.6) continue;
+      }
+      cells.push([Math.round(x * 100) / 100, Math.round(z * 100) / 100]);
+    }
+    return cells;
+  };
+  const needed = Math.ceil(ordered.length * 1.3);
+  const cells = [];
+  let rings = 0;
+  while (cells.length < Math.max(needed, 1)) {
+    cells.push(...ringCells(rings));
+    rings += 1;
+  }
+  const taken = new Set();
+  const placed = {};
+  for (const site of ordered) {
+    let index = Math.floor(placementHash(String(site.task_id)) * cells.length);
+    while (taken.has(index)) index = (index + 1) % cells.length;
+    taken.add(index);
+    placed[site.task_id] = cells[index];
+  }
+  return { cells: placed, rings };
+}
