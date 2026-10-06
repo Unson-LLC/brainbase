@@ -819,6 +819,7 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
       'graph-own-share.js',
       'graph-projects-view.css',
       'project-workspace.js',
+      'project-overview.js',
       'project-workspace.css',
       'project-graph.js',
       'project-graph-entry.js',
