@@ -508,6 +508,147 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
+  it('posts a feedback event with an explicit result state and marks it saved only after canonical readback', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({ record_id: 'normal-feedback-1' });
+    const calls = [];
+    let detailReads = 0;
+    let posted;
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path, init = {}) => {
+        calls.push({ path, init });
+        if (path.endsWith('/feedback')) {
+          posted = JSON.parse(init.body);
+          return { ok: true, status: 201, json: async () => ({ status: 'accepted' }) };
+        }
+        if (path.endsWith('/records/normal-feedback-1')) {
+          detailReads += 1;
+          const detail = detailReads > 1
+            ? { ...record, feedback_events: [{
+              record_id: record.record_id,
+              event_id: posted?.event_id,
+              kind: posted?.kind,
+              content: posted?.content,
+            }] }
+            : record;
+          return { ok: true, status: 200, json: async () => ({ status: 'available', record: detail }) };
+        }
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    row.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const content = findAll(rail, (node) => node.attributes['aria-label'] === '追記の内容')[0];
+    const resultStatus = findAll(rail, (node) => node.attributes['aria-label'] === '結果の確認状態')[0];
+    expect(content).toBeTruthy();
+    content.value = '顧客の返信を確認した';
+    content.listeners.get('input')({ target: content });
+    resultStatus.value = 'confirmed';
+    resultStatus.listeners.get('change')({ target: resultStatus });
+    const submit = findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')[0];
+    submit.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(posted).toEqual(expect.objectContaining({
+      record_id: 'normal-feedback-1',
+      kind: 'feedback',
+      content: { summary: '顧客の返信を確認した', outcome_status: 'confirmed' },
+    }));
+    expect(posted.event_id).toBeTruthy();
+    expect(collectText(rail)).toContain('保存済み（正本で確認しました）。');
+    expect(calls.filter(({ path }) => path.endsWith('/feedback'))).toHaveLength(1);
+    expect(detailReads).toBeGreaterThanOrEqual(2);
+    view.dispose();
+  });
+
+  it('keeps an accepted feedback event unconfirmed when the canonical readback has no matching event', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({ record_id: 'normal-feedback-unconfirmed' });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        if (path.endsWith('/feedback')) return { ok: true, status: 201, json: async () => ({ status: 'accepted' }) };
+        if (path.includes('/records/')) return { ok: true, status: 200, json: async () => ({ status: 'available', record }) };
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const content = findAll(rail, (node) => node.attributes['aria-label'] === '追記の内容')[0];
+    content.value = '受付だけで正本にはまだ見えていない';
+    content.listeners.get('input')({ target: content });
+    findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(collectText(rail)).toContain('未確認。');
+    expect(collectText(rail)).not.toContain('保存済み（正本で確認しました）。');
+    view.dispose();
+  });
+
+  it('copies a stable record and feedback reference with the applicability reason without writing a new judgment', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({
+      record_id: 'normal-reference-1',
+      feedback_events: [{ record_id: 'normal-reference-1', event_id: 'event-reference-1', kind: 'result', content: { summary: '結果を確認した' } }],
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        if (path.includes('/records/')) return { ok: true, status: 200, json: async () => ({ status: 'available', record }) };
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(collectText(rail)).toContain('event_id=event-reference-1');
+    const reason = findAll(rail, (node) => node.attributes['aria-label'] === '適用理由（event-reference-1）')[0];
+    const copy = findAll(rail, (node) => node.attributes['data-action'] === 'copy-judgment-reference')[0];
+    reason.value = '同じ契約条件の判断なので参照する';
+    copy.listeners.get('click')();
+    let payload = findAll(rail, (node) => node.className === 'bb-jh-reference-payload')[0].textContent;
+    for (let attempt = 0; attempt < 20 && !/judgment-history-feedback:normal-reference-1:[a-f0-9]{64}/u.test(payload); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      payload = findAll(rail, (node) => node.className === 'bb-jh-reference-payload')[0].textContent;
+    }
+    expect(payload).toContain('"ref": "judgment-history:normal-reference-1"');
+    expect(payload).toContain('"event_id": "event-reference-1"');
+    expect(payload).toContain('"why": "同じ契約条件の判断なので参照する"');
+    expect(payload).toMatch(/judgment-history-feedback:normal-reference-1:[a-f0-9]{64}/u);
+    expect(findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')).toHaveLength(1);
+    view.dispose();
+  });
+
   it('requests the next normal page and appends records while preserving the reported total', async () => {
     const root = new FakeElement('div');
     const doc = new FakeDocument();

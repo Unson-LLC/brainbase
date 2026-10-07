@@ -1,5 +1,5 @@
 /*
- * Read-only judgment history for the local and organization workspaces.
+ * Judgment history projection for the local and organization workspaces.
  *
  * The host already owns the journal read model.  This module deliberately
  * projects that model in the browser instead of creating another ledger.  It
@@ -36,6 +36,12 @@ const NORMAL_ENTRYPOINT_LABELS = Object.freeze({
   company_os: 'Company OS',
   unknown: '入口不明',
 });
+const FEEDBACK_KINDS = Object.freeze(['feedback', 'result', 'correction']);
+const FEEDBACK_KIND_LABELS = Object.freeze({
+  feedback: 'フィードバック',
+  result: '結果',
+  correction: '訂正',
+});
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -43,6 +49,63 @@ function isRecord(value) {
 
 function text(value) {
   return typeof value === 'string' ? value.trim() : '';
+}
+
+function canonicalJson(value) {
+  if (value === null || typeof value !== 'object') {
+    if (typeof value === 'number' && !Number.isFinite(value)) return JSON.stringify(null);
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) return `[${value.map((entry) => canonicalJson(entry)).join(',')}]`;
+  return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+}
+
+function feedbackKind(value) {
+  const candidate = text(value).toLowerCase();
+  return FEEDBACK_KINDS.includes(candidate) ? candidate : null;
+}
+
+function normalizeFeedbackEvent(value, fallbackRecordId) {
+  if (!isRecord(value)) return null;
+  const eventId = text(value.event_id ?? value.eventId ?? value.id);
+  const recordId = text(value.record_id ?? value.recordId ?? fallbackRecordId);
+  const kind = feedbackKind(value.kind ?? value.type);
+  if (!eventId || !recordId || !kind || !isRecord(value.content)) return null;
+  return {
+    recordId,
+    eventId,
+    kind,
+    content: value.content,
+    recordedAt: text(value.recorded_at ?? value.recordedAt) || null,
+    saved: value.saved === true,
+    storageStatus: text(value.storage_status ?? value.storageStatus ?? value.save_status).toLowerCase() || null,
+  };
+}
+
+function normalizeFeedbackEvents(value, fallbackRecordId) {
+  if (!isRecord(value)) return [];
+  const candidates = [
+    value.feedback_events,
+    value.feedback,
+    isRecord(value.feedback) ? value.feedback.events : undefined,
+    value.events,
+    value.appended_events,
+    value.event,
+    value.feedback_event,
+  ];
+  const collection = candidates.find((candidate) => Array.isArray(candidate))
+    ?? candidates.find((candidate) => isRecord(candidate));
+  if (!collection) return [];
+  const entries = Array.isArray(collection) ? collection : [collection];
+  const seen = new Set();
+  const result = [];
+  for (const candidate of entries) {
+    const event = normalizeFeedbackEvent(candidate, fallbackRecordId);
+    if (!event || seen.has(event.eventId)) continue;
+    seen.add(event.eventId);
+    result.push(event);
+  }
+  return result;
 }
 
 function findFirst(node, predicate) {
@@ -188,6 +251,7 @@ function normalizeNormalRecord(value) {
     execution,
     selectedReferences,
     alternatives,
+    feedbackEvents: normalizeFeedbackEvents(value, recordId),
     missingFields,
     invalidFields,
   };
@@ -847,7 +911,158 @@ function appendTextParts(doc, values) {
   return wrap;
 }
 
-function renderNormalRail(doc, rail, row, detail, onClose) {
+function normalFeedbackContentSummary(content) {
+  if (!isRecord(content)) return '内容は未記録';
+  return text(content.summary ?? content.result_summary ?? content.message ?? content.reason)
+    || canonicalJson(content)
+    || '内容は未記録';
+}
+
+function normalReferencePayload(record, event, applicabilityReason = '', eventRef = null) {
+  const payload = {
+    ref: `judgment-history:${record.recordId}`,
+    record_id: record.recordId,
+    why: text(applicabilityReason) || null,
+  };
+  if (event) {
+    payload.event_ref = eventRef;
+    payload.event_id = event.eventId;
+    payload.kind = event.kind;
+  }
+  return payload;
+}
+
+function normalReferencePayloadText(record, event, applicabilityReason = '', eventRef = null) {
+  return JSON.stringify(normalReferencePayload(record, event, applicabilityReason, eventRef), null, 2);
+}
+
+function appendNormalReferenceExport(doc, record, event, { onCopyReference } = {}) {
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-reference-export' });
+  const refLabel = event
+    ? `${record.recordId} / ${event.eventId}`
+    : `${record.recordId} / イベントIDは未記録`;
+  wrap.append(makeWorkspaceElement(doc, 'code', { text: refLabel }));
+  if (event) wrap.append(makeWorkspaceElement(doc, 'p', { text: `種別: ${FEEDBACK_KIND_LABELS[event.kind] ?? event.kind}・${normalFeedbackContentSummary(event.content)}` }));
+  const reason = makeWorkspaceElement(doc, 'textarea', {
+    className: 'bb-jh-applicability-reason',
+    attrs: {
+      rows: 2,
+      'aria-label': `適用理由${event ? `（${event.eventId}）` : ''}`,
+      placeholder: '次の判断で使う理由を記入',
+    },
+  });
+  reason.value = '';
+  wrap.append(makeWorkspaceElement(doc, 'label', { text: '適用理由' }), reason);
+  const preview = makeWorkspaceElement(doc, 'pre', {
+    className: 'bb-jh-reference-payload',
+    text: normalReferencePayloadText(record, event),
+  });
+  const status = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-copy-status', text: 'この情報を次の判断へ渡せます。' });
+  wrap.append(preview, workspaceButton(doc, {
+    text: '参照情報をコピー',
+    variant: 'quiet',
+    attrs: { 'data-action': 'copy-judgment-reference' },
+    onClick: () => {
+      if (typeof onCopyReference === 'function') onCopyReference({ record, event, reason, preview, status });
+      else status.textContent = '参照情報を選択してコピーできます。';
+    },
+  }), status);
+  return wrap;
+}
+
+function appendNormalFeedbackEvents(doc, record, { onCopyReference } = {}) {
+  const events = Array.isArray(record.feedbackEvents) ? record.feedbackEvents : [];
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-feedback-events' });
+  if (!events.length) {
+    wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '追記された結果・訂正・フィードバックはありません。' }));
+    wrap.append(appendNormalReferenceExport(doc, record, null, { onCopyReference }));
+    return wrap;
+  }
+  for (const event of events) {
+    const item = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-feedback-event' });
+    item.append(makeWorkspaceElement(doc, 'strong', { text: FEEDBACK_KIND_LABELS[event.kind] ?? event.kind }));
+    item.append(makeWorkspaceElement(doc, 'code', { text: `record_id=${event.recordId} event_id=${event.eventId}` }));
+    item.append(makeWorkspaceElement(doc, 'p', { text: normalFeedbackContentSummary(event.content) }));
+    item.append(appendNormalReferenceExport(doc, record, event, { onCopyReference }));
+    wrap.append(item);
+  }
+  return wrap;
+}
+
+function feedbackStatusText(draft) {
+  if (!draft) return '';
+  if (draft.phase === 'submitting') return '送信中です。保存状態はまだ未確認です。';
+  if (draft.phase === 'readback') return '正本を読み戻して保存状態を確認しています。';
+  if (draft.phase === 'saved') return '保存済み（正本で確認しました）。';
+  if (draft.phase === 'unavailable') return `利用できません。${draft.status || '正本に接続できないため、保存状態を確認できません。'}`;
+  if (draft.phase === 'unconfirmed') return `未確認。${draft.status || 'POST後の正本読戻しで一致を確認できませんでした。'}`;
+  if (draft.phase === 'error') return `送信できません。保存状態は未確認です。${draft.status ? ` ${draft.status}` : ''}`;
+  return draft.status || '送信前です。';
+}
+
+function appendNormalFeedbackComposer(doc, record, {
+  detailReady = false,
+  detailPhase = 'idle',
+  draft,
+  onKindChange,
+  onSummaryChange,
+  onOutcomeStatusChange,
+  onSubmitFeedback,
+} = {}) {
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-feedback-composer' });
+  if (!detailReady) {
+    const message = detailPhase === 'loading'
+      ? '正本の詳細を確認しています。'
+      : '正本の詳細を確認できないため、追記は利用できません。';
+    wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: message }));
+    return wrap;
+  }
+  const kindLabel = makeWorkspaceElement(doc, 'label', { text: '追記の種別' });
+  const kind = makeWorkspaceElement(doc, 'select', { attrs: { 'aria-label': '追記の種別' } });
+  for (const value of FEEDBACK_KINDS) {
+    kind.append(makeWorkspaceElement(doc, 'option', {
+      text: FEEDBACK_KIND_LABELS[value],
+      attrs: { value },
+    }));
+  }
+  kind.value = draft?.kind ?? 'feedback';
+  kind.addEventListener('change', (event) => onKindChange?.(event?.target?.value ?? kind.value));
+  const summaryLabel = makeWorkspaceElement(doc, 'label', { text: '内容（保存公開フィールド）' });
+  const summary = makeWorkspaceElement(doc, 'textarea', {
+    className: 'bb-jh-feedback-content',
+    attrs: { rows: 3, 'aria-label': '追記の内容', placeholder: '結果・訂正・フィードバックを記入' },
+  });
+  summary.value = draft?.summary ?? '';
+  summary.addEventListener('input', (event) => onSummaryChange?.(event?.target?.value ?? summary.value));
+  const outcomeLabel = makeWorkspaceElement(doc, 'label', { text: '結果の確認状態（明示する場合）' });
+  const outcomeStatus = makeWorkspaceElement(doc, 'select', { attrs: { 'aria-label': '結果の確認状態' } });
+  outcomeStatus.append(makeWorkspaceElement(doc, 'option', { text: '記録しない', attrs: { value: '' } }));
+  for (const value of ['unknown', 'unconfirmed', 'confirmed']) {
+    const label = { unknown: '未確認', unconfirmed: '結果未確認', confirmed: '結果確認済み' }[value];
+    outcomeStatus.append(makeWorkspaceElement(doc, 'option', { text: label, attrs: { value } }));
+  }
+  outcomeStatus.value = draft?.outcomeStatus ?? '';
+  outcomeStatus.addEventListener('change', (event) => onOutcomeStatusChange?.(event?.target?.value ?? outcomeStatus.value));
+  const eventId = makeWorkspaceElement(doc, 'code', { text: `event_id=${draft?.eventId ?? '未発行'}` });
+  const phase = draft?.phase ?? 'idle';
+  const busy = phase === 'submitting' || phase === 'readback';
+  const button = workspaceButton(doc, {
+    text: phase === 'saved' ? '保存済み' : '結果・訂正・フィードバックを追記',
+    variant: 'primary',
+    disabled: busy || phase === 'saved',
+    attrs: { 'data-action': 'submit-judgment-feedback' },
+    onClick: () => onSubmitFeedback?.({ kind, summary, outcomeStatus, eventId: draft?.eventId }),
+  });
+  const status = makeWorkspaceElement(doc, 'p', {
+    className: `bb-jh-feedback-status is-${phase}`,
+    text: feedbackStatusText(draft),
+    attrs: { role: phase === 'error' || phase === 'unavailable' ? 'alert' : 'status' },
+  });
+  wrap.append(kindLabel, kind, summaryLabel, summary, outcomeLabel, outcomeStatus, eventId, button, status);
+  return wrap;
+}
+
+function renderNormalRail(doc, rail, row, detail, onClose, options = {}) {
   if (!rail) return;
   rail.replaceChildren();
   const record = detail ?? row;
@@ -880,6 +1095,14 @@ function renderNormalRail(doc, rail, row, detail, onClose) {
     title: '実行と結果',
     content: appendNormalExecution(doc, record.execution),
   }));
+  rail.append(workspaceRailBlock(doc, {
+    title: '結果・訂正・フィードバック',
+    content: appendNormalFeedbackEvents(doc, record, { onCopyReference: options.onCopyReference }),
+  }));
+  rail.append(workspaceRailBlock(doc, {
+    title: '次の判断に渡す参照',
+    content: appendNormalFeedbackComposer(doc, record, options),
+  }));
   const metadata = workspaceDefinition(doc, [
     ['記録ID', record.recordId],
     ['プロジェクト', record.projectCode],
@@ -890,7 +1113,7 @@ function renderNormalRail(doc, rail, row, detail, onClose) {
   rail.append(workspaceRailBlock(doc, { title: '記録の範囲', content: metadata }));
 }
 
-function renderRail(doc, rail, row, detail, onClose) {
+function renderRail(doc, rail, row, detail, onClose, options = {}) {
   if (!rail) return;
   rail.replaceChildren();
   if (!row) {
@@ -902,7 +1125,7 @@ function renderRail(doc, rail, row, detail, onClose) {
     return;
   }
   if (row.mode === 'normal') {
-    renderNormalRail(doc, rail, row, detail, onClose);
+    renderNormalRail(doc, rail, row, detail, onClose, options);
     return;
   }
   const proof = row.proof;
@@ -1110,7 +1333,7 @@ function makeRows(doc, aggregate, selectedKey, onSelect) {
   }));
 }
 
-/** Create the shared, read-only judgment history controller. */
+/** Create the shared judgment history controller and canonical feedback adapter. */
 export function createJudgmentHistoryUI({
   root,
   rail = null,
@@ -1147,6 +1370,7 @@ export function createJudgmentHistoryUI({
     detailPhase: 'idle',
     detailError: null,
     activeBasePath: normalizedBasePath,
+    feedbackDrafts: new Map(),
     disposed: false,
     generation: 0,
     detailGeneration: 0,
@@ -1178,6 +1402,169 @@ export function createJudgmentHistoryUI({
       crumbs,
       source: page?.source ?? '判断の記録',
     };
+  }
+
+  function newFeedbackEventId() {
+    try {
+      if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+    } catch {
+      // The fallback below is sufficient for a retry token when Web Crypto is unavailable.
+    }
+    return `judgment-history-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  function feedbackDraft(recordId) {
+    if (!recordId) return null;
+    let draft = state.feedbackDrafts.get(recordId);
+    if (!draft) {
+      draft = {
+        recordId,
+        eventId: newFeedbackEventId(),
+        kind: 'feedback',
+        summary: '',
+        outcomeStatus: '',
+        phase: 'idle',
+        status: '',
+      };
+      state.feedbackDrafts.set(recordId, draft);
+    }
+    return draft;
+  }
+
+  function updateFeedbackDraft(recordId, changes) {
+    const current = feedbackDraft(recordId);
+    if (!current || !isRecord(changes)) return current;
+    const next = { ...current, ...changes };
+    state.feedbackDrafts.set(recordId, next);
+    return next;
+  }
+
+  function feedbackReadbackMatches(detail, expected) {
+    if (!detail || !expected) return false;
+    const events = Array.isArray(detail.feedbackEvents) ? detail.feedbackEvents : [];
+    return events.some((event) => event.recordId === expected.recordId
+      && event.eventId === expected.eventId
+      && event.kind === expected.kind
+      && canonicalJson(event.content) === canonicalJson(expected.content));
+  }
+
+  function responseFeedbackReadback(payload, expected) {
+    if (!isRecord(payload) || !expected) return false;
+    const candidate = payload.event
+      ?? payload.feedback_event
+      ?? (isRecord(payload.feedback) ? payload.feedback : null)
+      ?? (text(payload.event_id) ? payload : null);
+    const event = normalizeFeedbackEvent(candidate, expected.recordId);
+    if (!event) return false;
+    const storageStatus = text(payload.storage_status ?? payload.storage?.status ?? payload.save_status).toLowerCase();
+    const saved = payload.saved === true || event.saved === true || ['saved', 'stored', 'idempotent', 'confirmed'].includes(storageStatus)
+      || ['saved', 'stored', 'idempotent', 'confirmed'].includes(event.storageStatus)
+      || text(payload.status).toLowerCase() === 'saved';
+    return saved
+      && event.recordId === expected.recordId
+      && event.eventId === expected.eventId
+      && event.kind === expected.kind
+      && canonicalJson(event.content) === canonicalJson(expected.content);
+  }
+
+  async function feedbackReference(record, event) {
+    if (!record || !event) return null;
+    try {
+      const subtle = globalThis.crypto?.subtle;
+      if (!subtle || typeof subtle.digest !== 'function' || typeof TextEncoder !== 'function') return null;
+      const bytes = await subtle.digest('SHA-256', new TextEncoder().encode(event.eventId));
+      const hash = [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      return `judgment-history-feedback:${record.recordId}:${hash}`;
+    } catch {
+      return null;
+    }
+  }
+
+  async function copyReference({ record, event, reason, preview, status } = {}) {
+    if (!record || !preview || !status) return false;
+    const applicabilityReason = reason?.value ?? '';
+    preview.textContent = normalReferencePayloadText(record, event, applicabilityReason);
+    const eventRef = await feedbackReference(record, event);
+    const serialized = normalReferencePayloadText(record, event, applicabilityReason, eventRef);
+    preview.textContent = serialized;
+    try {
+      const clipboard = globalThis.navigator?.clipboard;
+      if (!clipboard || typeof clipboard.writeText !== 'function') throw new Error('clipboard_unavailable');
+      await clipboard.writeText(serialized);
+      status.textContent = '参照情報をコピーしました。';
+      return true;
+    } catch {
+      status.textContent = '参照情報を表示しました。選択してコピーできます。';
+      return false;
+    }
+  }
+
+  async function submitFeedback(row, controls) {
+    if (!row || row.mode !== 'normal' || !controls || !request || state.disposed) return false;
+    const current = feedbackDraft(row.recordId);
+    const kind = feedbackKind(controls.kind?.value ?? current?.kind) ?? 'feedback';
+    const summary = text(controls.summary?.value ?? current?.summary);
+    const outcomeStatus = text(controls.outcomeStatus?.value ?? current?.outcomeStatus).toLowerCase();
+    if (!summary) {
+      updateFeedbackDraft(row.recordId, { kind, summary, outcomeStatus: '', phase: 'error', status: '内容を入力してください。' });
+      render();
+      return false;
+    }
+    const acceptedOutcomeStatuses = new Set(['unknown', 'unconfirmed', 'confirmed']);
+    const content = { summary };
+    if (acceptedOutcomeStatuses.has(outcomeStatus)) content.outcome_status = outcomeStatus;
+    const displayedEventId = text(controls.eventId?.textContent);
+    const eventId = displayedEventId.startsWith('event_id=')
+      ? displayedEventId.slice('event_id='.length)
+      : displayedEventId || current?.eventId || newFeedbackEventId();
+    const expected = { recordId: row.recordId, eventId, kind, content };
+    updateFeedbackDraft(row.recordId, { eventId, kind, summary, outcomeStatus, phase: 'submitting', status: '' });
+    render();
+    try {
+      const response = await request(`${state.activeBasePath}/feedback`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          ...(token ? { 'x-brainbase-review-token': token } : {}),
+        },
+        body: JSON.stringify({ record_id: row.recordId, event_id: eventId, kind, content }),
+      });
+      if (!response || response.ok !== true) {
+        const statusCode = response?.status ?? 0;
+        const unavailable = [401, 403, 404, 405, 501, 503].includes(statusCode);
+        updateFeedbackDraft(row.recordId, {
+          phase: unavailable ? 'unavailable' : 'unconfirmed',
+          status: unavailable ? `正本へ接続できません（HTTP ${statusCode}）。` : `受付応答はHTTP ${statusCode}でした。`,
+        });
+        render();
+        return false;
+      }
+      let responsePayload = null;
+      if (typeof response.json === 'function') {
+        try { responsePayload = await response.json(); } catch { responsePayload = null; }
+      }
+      updateFeedbackDraft(row.recordId, { phase: 'readback', status: '' });
+      render();
+      const detail = await loadDetail(row);
+      const detailReadback = feedbackReadbackMatches(detail, expected);
+      const responseReadback = responseFeedbackReadback(responsePayload, expected);
+      if (detailReadback || responseReadback) {
+        updateFeedbackDraft(row.recordId, { phase: 'saved', status: '' });
+      } else if (state.detailPhase === 'error') {
+        updateFeedbackDraft(row.recordId, { phase: 'unavailable', status: '正本を読み戻せませんでした。' });
+      } else {
+        updateFeedbackDraft(row.recordId, { phase: 'unconfirmed', status: '同じevent_idの正本記録を確認できませんでした。' });
+      }
+      render();
+      return detailReadback || responseReadback;
+    } catch (error) {
+      updateFeedbackDraft(row.recordId, {
+        phase: 'unavailable',
+        status: `正本へ接続できません。${error instanceof Error ? error.message : String(error)}`,
+      });
+      render();
+      return false;
+    }
   }
 
   function historyPath(path, cursor = null) {
@@ -1219,7 +1606,12 @@ export function createJudgmentHistoryUI({
       if (!response || response.ok !== true) throw new Error(`http_${response?.status ?? 0}`);
       const payload = await response.json();
       if (generation !== state.detailGeneration || state.disposed) return null;
-      const rawRecord = isRecord(payload?.record) ? payload.record : isRecord(payload) && text(payload.record_id) ? payload : null;
+      let rawRecord = isRecord(payload?.record) ? { ...payload.record } : isRecord(payload) && text(payload.record_id) ? payload : null;
+      if (rawRecord && isRecord(payload)) {
+        for (const key of ['feedback_events', 'feedback', 'events', 'appended_events', 'event', 'feedback_event']) {
+          if (rawRecord[key] === undefined && payload[key] !== undefined) rawRecord[key] = payload[key];
+        }
+      }
       const detail = normalizeNormalRecord(rawRecord);
       if (!detail) throw new Error('record_response_invalid');
       state.details.set(row.recordId, detail);
@@ -1347,7 +1739,23 @@ export function createJudgmentHistoryUI({
       state.focusSearch = false;
     }
     const selected = aggregate.rows.find((row) => row.key === state.selectedKey) ?? null;
-    renderRail(doc, rail, selected, selected ? state.details.get(selected.recordId) ?? null : null, selected ? closeSelected : null);
+    const selectedDetail = selected ? state.details.get(selected.recordId) ?? null : null;
+    const railOptions = selected?.mode === 'normal'
+      ? {
+        detailReady: state.detailPhase === 'ready' && Boolean(selectedDetail),
+        detailPhase: state.detailPhase,
+        draft: feedbackDraft(selected.recordId),
+        onKindChange: (kind) => {
+          updateFeedbackDraft(selected.recordId, { kind: feedbackKind(kind) ?? 'feedback' });
+          render();
+        },
+        onSummaryChange: (summary) => updateFeedbackDraft(selected.recordId, { summary: String(summary ?? '') }),
+        onOutcomeStatusChange: (outcomeStatus) => updateFeedbackDraft(selected.recordId, { outcomeStatus: String(outcomeStatus ?? '') }),
+        onSubmitFeedback: (controls) => void submitFeedback(selected, controls),
+        onCopyReference: (payload) => void copyReference(payload),
+      }
+      : {};
+    renderRail(doc, rail, selected, selectedDetail, selected ? closeSelected : null, railOptions);
     if (state.lastFocusedKey) {
       const row = findFirst(root, (node) => attributeValue(node, 'data-key') === state.lastFocusedKey);
       row?.focus?.();

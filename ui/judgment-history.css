@@ -238,6 +238,105 @@
   line-height: 1.5;
 }
 
+.bb-jh-feedback-events,
+.bb-jh-feedback-composer {
+  display: grid;
+  gap: 10px;
+}
+
+.bb-jh-feedback-event {
+  display: grid;
+  gap: 5px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-jh-feedback-event:last-child {
+  border-bottom: 0;
+}
+
+.bb-jh-feedback-event strong {
+  color: var(--bb-color-ink);
+}
+
+.bb-jh-feedback-event code,
+.bb-jh-reference-export > code,
+.bb-jh-feedback-composer > code {
+  color: var(--bb-color-quiet);
+  font-family: var(--bb-font-mono);
+  font-size: 10px;
+  overflow-wrap: anywhere;
+}
+
+.bb-jh-feedback-event p,
+.bb-jh-reference-export p {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.bb-jh-reference-export {
+  display: grid;
+  gap: 7px;
+  margin-top: 7px;
+  padding: 9px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+  background: var(--bb-color-panel-muted, var(--bb-color-panel));
+}
+
+.bb-jh-reference-export label,
+.bb-jh-feedback-composer label {
+  color: var(--bb-color-muted);
+  font-size: 11px;
+}
+
+.bb-jh-reference-export textarea,
+.bb-jh-feedback-composer textarea,
+.bb-jh-feedback-composer select {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid var(--bb-color-border-strong);
+  border-radius: var(--bb-radius-sm);
+  padding: 8px 10px;
+  background: var(--bb-color-panel);
+  color: var(--bb-color-ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.bb-jh-reference-payload {
+  margin: 0;
+  padding: 8px;
+  border-radius: var(--bb-radius-sm);
+  background: var(--bb-color-code, var(--bb-color-panel));
+  color: var(--bb-color-quiet);
+  font-family: var(--bb-font-mono);
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bb-jh-copy-status,
+.bb-jh-feedback-status {
+  color: var(--bb-color-muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.bb-jh-feedback-status.is-saved {
+  color: var(--bb-color-success-strong, var(--bb-color-accent-strong));
+}
+
+.bb-jh-feedback-status.is-unavailable,
+.bb-jh-feedback-status.is-unconfirmed,
+.bb-jh-feedback-status.is-error {
+  color: var(--bb-color-warning-strong, var(--bb-color-muted));
+}
+
 @media (max-width: 760px) {
   .bb-jh-controls {
     align-items: stretch;
