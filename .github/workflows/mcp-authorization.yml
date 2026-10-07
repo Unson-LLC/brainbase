@@ -1,0 +1,29 @@
+# Owner: Brainbase MCP maintainers. PR/push validation only; no secrets or deployment.
+# Hosted Linux, contents:read, 10 minute timeout. Same-ref runs replace stale runs.
+# GitHub exposes failures on PR checks; rerun a failed job in Actions.
+# Rollback: revert this workflow. No scheduled or external writes.
+name: MCP authorization contract
+on:
+  pull_request:
+    paths: ["src/**", "tests/**", "package*.json", "tsconfig.json", ".github/workflows/mcp-authorization.yml"]
+  push:
+    branches: ["codex/agent-mcp-boundary"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: mcp-authorization-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx vitest run tests/mcp-authorization-hook.test.ts tests/mcp-contract.test.ts --testTimeout=30000
