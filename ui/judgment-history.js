@@ -459,10 +459,27 @@ function appendReferenceList(doc, references) {
   return list;
 }
 
+function evidenceIdentifier(entry) {
+  const direct = text(entry);
+  if (direct) return direct;
+  if (!isRecord(entry)) return '';
+  const label = text(entry.label);
+  const kind = text(entry.kind);
+  const reference = text(entry.ref);
+  const identity = [kind, reference].filter(Boolean).join(':');
+  if (label && identity) return `${label}（${identity}）`;
+  return label || identity;
+}
+
+function evidenceText(entry) {
+  const status = isRecord(entry) && entry.status === 'verified' ? '確認済み' : '未確認';
+  return `${evidenceIdentifier(entry) || '証拠の識別情報は未確認'}（${status}）`;
+}
+
 function appendSupplement(doc, proof) {
   const execution = isRecord(proof.execution) ? proof.execution : {};
   const outcome = isRecord(proof.outcome) ? proof.outcome : {};
-  const evidence = Array.isArray(outcome.evidence_refs) ? outcome.evidence_refs.filter(Boolean).join('、') : '';
+  const evidence = Array.isArray(outcome.evidence_refs) ? outcome.evidence_refs.filter(Boolean).map(evidenceText).join('、') : '';
   return workspaceDefinition(doc, [
     ['実行', [text(execution.status) || '未記録', text(execution.summary)]],
     ['結果', [text(outcome.status) || '未記録', text(outcome.summary), evidence ? `証拠: ${evidence}` : '']],
