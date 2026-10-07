@@ -781,7 +781,9 @@ function normalizeHostEpisodeRecord(
     schema_version: JUDGMENT_HISTORY_RECORD_SCHEMA,
     record_id: resolutionId,
     entrypoint: entrypoint(
-      adoption?.entrypoint ?? receipt.entrypoint ?? binding.turnInput.entrypoint,
+      adoption?.entrypoint ?? receipt.entrypoint ?? binding.turnInput.entrypoint
+        ?? (isObject(binding.turnInput.conversation_context) && isObject(binding.turnInput.conversation_context.runtime)
+          ? binding.turnInput.conversation_context.runtime.entrypoint ?? binding.turnInput.conversation_context.runtime.host : undefined),
       configuredEntrypoint
     ),
     recorded_at: recordedAt,
@@ -1136,6 +1138,7 @@ function normalizeFinalRecord(
   const blocks = [...sourceBlocks(final), ...eventBlocks];
   const explicitEntrypoint = entrypoint(
     final.entrypoint ?? final.source_entrypoint ?? turnInput?.entrypoint
+      ?? events.map(event => isObject(event.safe_metadata) && isObject(event.safe_metadata.runtime) ? event.safe_metadata.runtime.entrypoint : null).reverse().find(value => (JUDGMENT_HISTORY_ENTRYPOINTS as readonly unknown[]).includes(value))
       ?? (isObject(final.execution_outcome) && isObject(final.execution_outcome.host) ? final.execution_outcome.host.type : undefined),
     configuredEntrypoint
   );
