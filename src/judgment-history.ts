@@ -663,7 +663,7 @@ function validJournalEvent(value: JsonObject, sessionRef: string, key: string, e
       || !sha256Text(text(value.input_digest))
       || !sha256Text(text(value.response_digest))
       || !sha256Text(text(value.event_fingerprint))
-      || !text(value.display_line)) return false;
+      || !(text(value.display_line) || value.event_kind === 'turn_resolution' && value.display_line === null)) return false;
     return Boolean(eventKey && /^[a-f0-9]{64}$/u.test(eventKey)
       && sha256(text(value.tool_use_id)!) === eventKey);
   }
@@ -931,6 +931,26 @@ function sourceBlocks(value: JsonObject | undefined): JsonObject[] {
   for (const key of ['public_judgment', 'judgment', 'public_selection', 'selection', 'evaluation']) {
     if (isObject(value[key])) blocks.push(value[key] as JsonObject);
   }
+  // Host persists only the public frame projection in safe_metadata.
+  // Catalog metadata is not an individual reference version or digest.
+  const metadata = isObject(value.safe_metadata) ? value.safe_metadata : null;
+  if (value.success === true && metadata) {
+    const frame = isObject(metadata.judgment_frame) ? metadata.judgment_frame : null;
+    if (frame) blocks.push({
+      selected_references: frame.selected_references,
+      alternatives: Array.isArray(frame.alternatives) ? frame.alternatives.map((option) => isObject(option) ? {
+        label: option.label,
+        evaluation: null,
+        adopted: typeof frame.chosen_option === 'string' ? option.label === frame.chosen_option : null
+      } : option) : null
+    });
+    const contract = isObject(metadata.turn_contract) ? metadata.turn_contract : null;
+    if (contract && value.event_kind === 'turn_resolution') blocks.push({
+      status: contract.status,
+      summary: contract.status === 'resolved' ? '判断契約を確定' : null,
+      reason: null
+    });
+  }
   // Some writers put the public fields directly on the final/event envelope.
   if (['summary', 'reason', 'selected_references', 'selectedReferences', 'alternatives', 'status'].some((key) => key in value)) {
     blocks.push(value);
@@ -941,7 +961,7 @@ function sourceBlocks(value: JsonObject | undefined): JsonObject[] {
 function executionBlocks(value: JsonObject | undefined): JsonObject[] {
   if (!value) return [];
   const blocks: JsonObject[] = [];
-  for (const key of ['execution', 'public_execution']) {
+  for (const key of ['execution', 'public_execution', 'execution_outcome']) {
     if (isObject(value[key])) blocks.push(value[key] as JsonObject);
   }
   if (['result_summary', 'resultSummary', 'outcome_status', 'outcomeStatus'].some((key) => key in value)) blocks.push(value);
@@ -1115,7 +1135,8 @@ function normalizeFinalRecord(
   const eventBlocks = events.flatMap((event) => sourceBlocks(event)).reverse();
   const blocks = [...sourceBlocks(final), ...eventBlocks];
   const explicitEntrypoint = entrypoint(
-    final.entrypoint ?? final.source_entrypoint ?? turnInput?.entrypoint,
+    final.entrypoint ?? final.source_entrypoint ?? turnInput?.entrypoint
+      ?? (isObject(final.execution_outcome) && isObject(final.execution_outcome.host) ? final.execution_outcome.host.type : undefined),
     configuredEntrypoint
   );
   const projectCode = stringOrNull(final.project_code ?? final.project ?? turnInput?.project_code);
@@ -1230,6 +1251,7 @@ async function readLocalRecords(
       if (episodeMatch) return { entry, kind: 'episode' as const, key: episodeMatch[1] };
       const inputMatch = /^(.+)\.turn-input\.json$/u.exec(name);
       if (inputMatch) return { entry, kind: 'turnInput' as const, key: inputMatch[1] };
+      if (name.endsWith('.feedback.events')) return null;
       if (name.endsWith('.events')) return { entry, kind: 'events' as const, key: name.slice(0, -7) };
       return null;
     }).filter((candidate): candidate is { entry: typeof names[number]; kind: 'adoption' | 'final' | 'episode' | 'turnInput' | 'events'; key: string } => candidate !== null)

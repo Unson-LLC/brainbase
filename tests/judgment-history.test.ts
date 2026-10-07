@@ -447,6 +447,7 @@ describe('judgment history common reader', () => {
     };
     const event = {
       ...artifacts.event,
+      display_line: null,
       safe_metadata: { turn_contract: effectiveReceipt }
     };
     const final = {
