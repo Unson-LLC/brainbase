@@ -521,3 +521,12 @@ export async function handleJudgmentFrameToolCall(
     },
   };
 }
+
+export {
+  judgmentFrameReadTools,
+  handleJudgmentFrameReadToolCall,
+} from './judgment-frame-read.js';
+export type {
+  JudgmentFrameReadDependencies,
+  JudgmentFrameReadRecord,
+} from './judgment-frame-read.js';
