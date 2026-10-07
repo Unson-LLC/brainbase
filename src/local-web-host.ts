@@ -20,6 +20,13 @@ import {
   type FoundationStoreContext
 } from './foundation-store.js';
 import { createGraphWebHttpHandler } from './graph-web-http.js';
+import { createJudgmentHistoryHttpHandler, JUDGMENT_HISTORY_HTTP_PREFIX } from './judgment-history-http.js';
+import {
+  createJudgmentHistoryReader,
+  createLocalJudgmentHistoryFeedbackWriter,
+  createLocalJudgmentHistorySource
+} from './judgment-history.js';
+import type { JudgmentHistoryEntrypoint } from './judgment-history.js';
 import { defaultJudgmentJournalRoot, JudgmentValueProofJournalCache } from './judgment-value-proof-review.js';
 import { createMeetingMinutesHttpHandler } from './meeting-minutes-http.js';
 import { createMeetingMinutesLineageHttpHandler } from './meeting-minutes-lineage-http.js';
@@ -93,6 +100,7 @@ export const LOCAL_WEB_STATUS_PATH = '/api/local/status';
 export const LOCAL_WEB_WORLD_MODEL_PREFIX = '/api/world-model';
 export const LOCAL_WEB_GRAPH_PREFIX = '/api/graph';
 export const LOCAL_WEB_MEETING_MINUTES_PREFIX = '/api/meeting-minutes';
+export const LOCAL_WEB_JUDGMENT_HISTORY_PREFIX = JUDGMENT_HISTORY_HTTP_PREFIX;
 /**
  * An Objective is a few KB of text and criteria.  64 KiB leaves room for long
  * Japanese text (about 20k characters) while keeping a loopback request that
@@ -121,6 +129,8 @@ export interface LocalGraphState {
 export interface LocalWebModuleContext {
   readonly dataDir: string;
   readonly journalRoot: string;
+  /** Explicit source label for this host's configured owner journal. */
+  readonly judgmentHistoryEntrypoint?: JudgmentHistoryEntrypoint;
   readonly token: string;
   readonly now: () => Date;
   /** The host's one listing cache for the judgment journal, shared by every screen that reads it. */
@@ -178,6 +188,8 @@ export interface LocalWebHostOptions {
   readonly dataDir?: string;
   /** Judgment journal root. Defaults to the journal inside the data directory. */
   readonly journalRoot?: string;
+  /** Source label for the owner journal; defaults to the Codex local host. */
+  readonly judgmentHistoryEntrypoint?: JudgmentHistoryEntrypoint;
   readonly token?: string;
   /** Directory containing the packaged `ui/` files. */
   readonly uiDir?: string;
@@ -334,6 +346,37 @@ export function createLocalStatusModule(context: LocalWebModuleContext): LocalWe
       });
       return true;
     }
+  };
+}
+
+/** Common normal judgment history projection over the configured owner journal. */
+export function createJudgmentHistoryModule(context: LocalWebModuleContext): LocalWebModule {
+  const source = createLocalJudgmentHistorySource({
+    root: context.journalRoot,
+    entrypoint: context.judgmentHistoryEntrypoint ?? 'codex'
+  });
+  const reader = createJudgmentHistoryReader({
+    source,
+    now: context.now
+  });
+  const writeFeedback = createLocalJudgmentHistoryFeedbackWriter({
+    root: context.journalRoot,
+    reader,
+    now: context.now
+  });
+  return {
+    id: 'judgment-history',
+    uiFiles: [],
+    handle: createJudgmentHistoryHttpHandler({
+      reader,
+      basePath: LOCAL_WEB_JUDGMENT_HISTORY_PREFIX,
+      writeFeedback,
+      assertWriteAllowed(request) {
+        if (isTrustedLocalWrite(request, context.token)) return;
+        throw rejectUntrustedWrite(request, context.token)
+          ?? new LocalWebHttpError(403, 'web_token_required', 'A valid launch token is required');
+      }
+    })
   };
 }
 
@@ -1060,6 +1103,7 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
 export function defaultLocalWebModules(context: LocalWebModuleContext): LocalWebModule[] {
   return [
     createLocalStatusModule(context),
+    createJudgmentHistoryModule(context),
     createValueProofModule(context),
     createMeetingMinutesModule(context),
     createObjectiveFoundationModule(context),
@@ -1147,6 +1191,7 @@ export function createLocalWebHost(options: LocalWebHostOptions = {}): LocalWebH
   const context: LocalWebModuleContext = {
     dataDir,
     journalRoot,
+    judgmentHistoryEntrypoint: options.judgmentHistoryEntrypoint ?? 'codex',
     token,
     now,
     journalCache: new JudgmentValueProofJournalCache(),

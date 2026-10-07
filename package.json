@@ -31,6 +31,14 @@
       "types": "./dist/judgment-frame.d.ts",
       "import": "./dist/judgment-frame.js"
     },
+    "./judgment-history": {
+      "types": "./dist/judgment-history.d.ts",
+      "import": "./dist/judgment-history.js"
+    },
+    "./judgment-history-http": {
+      "types": "./dist/judgment-history-http.d.ts",
+      "import": "./dist/judgment-history-http.js"
+    },
     "./judgment-value-proof": {
       "types": "./dist/judgment-value-proof.d.ts",
       "import": "./dist/judgment-value-proof.js"
@@ -114,6 +122,10 @@
     "./company-os-learning-adoption": {
       "types": "./dist/company-os-learning-adoption.d.ts",
       "import": "./dist/company-os-learning-adoption.js"
+    },
+    "./company-os-judgment-history": {
+      "types": "./dist/company-os-judgment-history.d.ts",
+      "import": "./dist/company-os-judgment-history.js"
     },
     "./meeting-minutes-lineage": {
       "types": "./dist/meeting-minutes-lineage.d.ts",
