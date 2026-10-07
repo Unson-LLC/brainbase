@@ -1,6 +1,14 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import type { RequestHandlerExtra } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  type CallToolRequest,
+  type CallToolResult,
+  type ServerNotification,
+  type ServerRequest
+} from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { resolveDataDir } from './paths.js';
 import { loadPersonalOs } from './ssot.js';
@@ -12,6 +20,106 @@ const argsSchema = z.object({
   limit: z.number().int().positive().max(50).optional(),
   type: z.enum(['person', 'org', 'project', 'relationship', 'decision']).optional()
 });
+
+export type ToolCallAuthorizationRequest = {
+  name: string;
+  arguments: Record<string, unknown>;
+};
+
+export type ToolCallAuthorizationContext = RequestHandlerExtra<ServerRequest, ServerNotification>;
+
+export const toolCallAuthorizationRejectionCodes = [
+  'agent_credential_expired',
+  'agent_credential_revoked',
+  'agent_tenant_mismatch',
+  'agent_policy_stale',
+  'agent_scope_denied',
+  'tenant_mismatch',
+  'policy_stale',
+  'scope_denied'
+] as const;
+
+export type ToolCallAuthorizationRejectionCode =
+  (typeof toolCallAuthorizationRejectionCodes)[number];
+
+export type ToolCallAuthorizationDecision =
+  | boolean
+  | {
+      authorized: boolean;
+      code?: ToolCallAuthorizationRejectionCode;
+      correlationId?: string;
+    };
+
+export type AuthorizeToolCall = (
+  request: ToolCallAuthorizationRequest,
+  context: ToolCallAuthorizationContext
+) => ToolCallAuthorizationDecision | Promise<ToolCallAuthorizationDecision>;
+
+export type CreateServerOptions = {
+  authorizeToolCall?: AuthorizeToolCall;
+};
+
+const TOOL_CALL_NOT_AUTHORIZED_CODE = 'tool_call_not_authorized';
+const TOOL_CALL_NOT_AUTHORIZED_MESSAGE = 'Tool call was not authorized.';
+const SAFE_CORRELATION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const toolCallAuthorizationRejectionCodeSet = new Set<string>(
+  toolCallAuthorizationRejectionCodes
+);
+
+type SafeAuthorizationFailure = {
+  code?: ToolCallAuthorizationRejectionCode;
+  correlationId?: string;
+};
+
+function readSafeAuthorizationFailure(value: unknown): SafeAuthorizationFailure {
+  if ((typeof value !== 'object' || value === null) && typeof value !== 'function') {
+    return {};
+  }
+
+  try {
+    const candidate = value as {
+      code?: unknown;
+      correlationId?: unknown;
+    };
+    const code =
+      typeof candidate.code === 'string' && toolCallAuthorizationRejectionCodeSet.has(candidate.code)
+        ? (candidate.code as ToolCallAuthorizationRejectionCode)
+        : undefined;
+    const correlationId =
+      typeof candidate.correlationId === 'string' &&
+      SAFE_CORRELATION_ID_PATTERN.test(candidate.correlationId)
+        ? candidate.correlationId
+        : undefined;
+
+    return {
+      ...(code ? { code } : {}),
+      ...(correlationId ? { correlationId } : {})
+    };
+  } catch {
+    return {};
+  }
+}
+
+function toolCallAuthorizationError(value?: unknown): CallToolResult {
+  const failure = readSafeAuthorizationFailure(value);
+  const error = {
+    code: failure.code ?? TOOL_CALL_NOT_AUTHORIZED_CODE,
+    message: TOOL_CALL_NOT_AUTHORIZED_MESSAGE,
+    ...(failure.correlationId ? { correlationId: failure.correlationId } : {})
+  };
+  const structuredContent = { error };
+
+  return {
+    isError: true,
+    structuredContent,
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(structuredContent)
+      }
+    ]
+  };
+}
 
 export const toolDefinitions = [
   {
@@ -100,7 +208,43 @@ export async function callBrainbaseTool(name: string, rawArgs: unknown = {}): Pr
   }
 }
 
-export function createServer(): Server {
+export async function handleToolCall(
+  request: CallToolRequest['params'],
+  context: ToolCallAuthorizationContext,
+  options: CreateServerOptions = {}
+): Promise<CallToolResult> {
+  if (options.authorizeToolCall) {
+    try {
+      const authorized = await options.authorizeToolCall(
+        {
+          name: request.name,
+          arguments: request.arguments ?? {}
+        },
+        context
+      );
+
+      if (authorized === true || (typeof authorized === 'object' && authorized?.authorized === true)) {
+        // Continue to the local tool only after an explicit approval.
+      } else {
+        return toolCallAuthorizationError(authorized);
+      }
+    } catch (error) {
+      return toolCallAuthorizationError(error);
+    }
+  }
+
+  const result = await callBrainbaseTool(request.name, request.arguments);
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify(result, null, 2)
+      }
+    ]
+  };
+}
+
+export function createServer(options: CreateServerOptions = {}): Server {
   const server = new Server(
     {
       name: 'brainbase-mcp',
@@ -117,17 +261,9 @@ export function createServer(): Server {
     tools: [...toolDefinitions]
   }));
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    const result = await callBrainbaseTool(request.params.name, request.params.arguments);
-    return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result, null, 2)
-        }
-      ]
-    };
-  });
+  server.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
+    handleToolCall(request.params, extra, options)
+  );
 
   return server;
 }
