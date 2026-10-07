@@ -163,6 +163,7 @@ describe('Objective editor HTTP port', () => {
     expect(collectText(root)).toContain('正本と一致');
     const post = calls.find((call) => call.method === 'POST');
     expect(post.body).not.toHaveProperty('authorizedUses');
+    expect(post.body).not.toHaveProperty('evaluationPeriod');
     expect(stripObjectiveAuthorityFields({ a: 1, acl: {} })).toEqual({ a: 1 });
   });
 });
