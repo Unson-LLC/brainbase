@@ -4,12 +4,16 @@ import {
   createObjectiveFoundationRoute,
   type FoundationHttpCsrfVerifier,
   type FoundationHttpRoute,
-  type FoundationHttpRouter
+  type FoundationHttpRouter,
+  type ObjectiveDefinitionBuilder
 } from './foundation-http.js';
 import { checkObjectiveReadiness } from './company-os-objectives.js';
 import { createFoundationPublicProvider, createFoundationPublicRoute } from './foundation-public-provider.js';
 import { createGraphFoundationReaders, type GraphFoundationHistoryRow, type GraphFoundationReaders } from './graph-foundation-reader.js';
 import { FoundationStoreError, type FoundationStoreContext } from './foundation-store.js';
+import { digestFoundationDefinition, nextFoundationRevision, type FoundationRef } from './foundation-catalog.js';
+import { validateFoundationGraphWrite } from './foundation-graph-write.js';
+import type { ObjectiveDefinition } from './ontology-foundation.js';
 
 /**
  * Readiness probe for the Graph history contract used by the public adapter.
@@ -67,7 +71,63 @@ export interface FoundationGraphHttpOptions {
   ) => Promise<T>;
   /** Host-owned CSRF verification port for mutation requests. */
   readonly csrf?: FoundationHttpCsrfVerifier;
+  /** Canonical host writer, using this request's authenticated transaction.
+   * Must enforce current ACL, tenant/project access and expectedRevision CAS;
+   * null means create-only. Never connect a low-level or maintenance writer.
+   */
+  readonly writeObjectiveDraft?: (input: FoundationGraphObjectiveWriteInput) => Promise<void>;
   readonly bodyLimitBytes?: number;
+}
+
+export interface FoundationGraphObjectiveWriteInput {
+  readonly definition: ObjectiveDefinition;
+  readonly expectedRevision: string | null;
+  readonly projectCode: string;
+  readonly identity: FoundationGraphTrustedIdentity;
+  readonly client: FoundationGraphQueryClient;
+}
+
+class FoundationGraphResponseError extends Error {
+  constructor(readonly response: Response) {
+    super('Foundation mutation was rejected');
+  }
+}
+
+/** Domain proposals can never supply the host's authority or provenance. */
+function graphObjectiveBuilder(projectCode: string): ObjectiveDefinitionBuilder {
+  return ({ operation, body, context, current, expectedRevision }) => {
+    if (body.adoptionState !== undefined && body.adoptionState !== 'draft') {
+      throw new FoundationStoreError('invalid_input', 'Objective writes accept draft definitions only');
+    }
+    const domain: Record<string, unknown> = {};
+    for (const key of ['meaning', 'desiredState', 'beneficiaryIds', 'criteria', 'evaluationPeriod', 'accountableId', 'epistemicState']) {
+      if (body[key] !== undefined) domain[key] = body[key];
+    }
+    const blank = (value: unknown) => value === undefined || value === null || (typeof value === 'string' && !value.trim());
+    if (isRecord(domain.evaluationPeriod)
+      && blank(domain.evaluationPeriod.from) && blank(domain.evaluationPeriod.until)) delete domain.evaluationPeriod;
+    if (blank(domain.accountableId)) delete domain.accountableId;
+    if (operation === 'update') {
+      if (!current) throw new FoundationStoreError('not_found', 'The current Objective is required');
+      if (current.revision !== expectedRevision) {
+        throw new FoundationStoreError('revision_conflict', 'Objective changed; reload before saving', { currentRevision: current.revision });
+      }
+      return {
+        ...domain, id: current.id, type: 'objective', revision: nextFoundationRevision(current.revision),
+        adoptionState: 'draft', acl: current.acl, scope: current.scope, storage: current.storage,
+        provenance: current.provenance, authorizedUses: current.authorizedUses
+      } as unknown as ObjectiveDefinition;
+    }
+    const id = typeof body.id === 'string' ? body.id.trim() : '';
+    if (!id) throw new FoundationStoreError('invalid_input', 'id is required');
+    return {
+      ...domain, id, type: 'objective', revision: '1', adoptionState: 'draft',
+      acl: { ownerId: context.principal, visibility: 'private', readerIds: [], writerIds: [] },
+      scope: { subjectIds: [projectCode], validFrom: new Date().toISOString() },
+      storage: 'candidate', authorizedUses: ['draft'],
+      provenance: [{ sourceId: 'foundation-objective-editor', sourceKind: 'candidate', evidenceIds: [] }]
+    } as unknown as ObjectiveDefinition;
+  };
 }
 
 const DEFAULT_BODY_LIMIT_BYTES = 65_536;
@@ -363,19 +423,46 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
           const provider = createFoundationPublicProvider(readers);
           const route = createFoundationPublicRoute(provider);
           const catalogRoute = createFoundationCatalogRoute(readers, scopeId, context);
+          const writeObjective = async (definition: ObjectiveDefinition, expectedRevision: string | null): Promise<FoundationRef> => {
+            if (!options.writeObjectiveDraft) {
+              throw new FoundationStoreError('unsupported_graph', 'Objective writes are not configured');
+            }
+            const current = expectedRevision === null ? undefined
+              : await readers.store.readLatest('objective', definition.id, context);
+            if (expectedRevision !== null && !current) throw new FoundationStoreError('not_found', 'Objective was not found');
+            if (current && current.definition.revision !== expectedRevision) {
+              throw new FoundationStoreError('revision_conflict', 'Objective changed; reload before saving', { currentRevision: current.definition.revision });
+            }
+            const checked = validateFoundationGraphWrite({
+              context: { principal: identity.principal, projectCode: scopeId },
+              row: { id: definition.id, type: 'objective', projectCode: scopeId, revision: definition.revision, payload: { foundation: definition } },
+              expectedNextRevision: expectedRevision === null ? '1' : nextFoundationRevision(expectedRevision),
+              ...(current ? { currentDefinition: current.definition } : {})
+            });
+            if (!checked.valid || !checked.normalized) {
+              const denied = checked.issues.some((issue) => ['WRITER_NOT_AUTHORIZED', 'OWNER_MISMATCH', 'ACL_CHANGE_FORBIDDEN', 'SCOPE_VIOLATION'].includes(issue.code));
+              throw new FoundationStoreError(denied ? 'authorization_denied' : 'invalid_input', 'Objective draft validation failed');
+            }
+            const candidate = checked.normalized.definition as ObjectiveDefinition;
+            await options.writeObjectiveDraft({ definition: candidate, expectedRevision, projectCode: scopeId, identity, client });
+            const saved = await readers.store.read({ id: candidate.id, type: 'objective', revision: candidate.revision }, context);
+            const digest = digestFoundationDefinition(candidate);
+            if (!saved || saved.digest !== digest) {
+              throw new FoundationStoreError('readback_mismatch', 'The saved Objective revision could not be verified');
+            }
+            return { id: candidate.id, type: 'objective', revision: candidate.revision, digest };
+          };
           const objectiveRoute = createObjectiveFoundationRoute({
+            ...(options.writeObjectiveDraft ? { buildDefinition: graphObjectiveBuilder(scopeId) } : {}),
+            bodyLimitBytes,
             objectives: {
-              async createObjective() {
-                throw new FoundationStoreError('unsupported_graph', 'Objective writes are not configured for the Graph read adapter');
-              },
+              createObjective: (definition) => writeObjective(definition, null),
               async readObjective(id, objectiveContext, revision) {
                 return revision === undefined
                   ? readers.store.readLatest('objective', id, objectiveContext)
                   : readers.store.read({ id, type: 'objective', revision }, objectiveContext);
               },
-              async updateObjective() {
-                throw new FoundationStoreError('unsupported_graph', 'Objective writes are not configured for the Graph read adapter');
-              },
+              updateObjective: (_id, expectedRevision, definition) => writeObjective(definition, expectedRevision),
               async checkObjectiveReadiness(id, objectiveContext, revision) {
                 return checkObjectiveReadiness(readers.store, id, objectiveContext, revision);
               },
@@ -388,12 +475,19 @@ export function createFoundationGraphHttpHandler(options: FoundationGraphHttpOpt
             routes: [catalogRoute, route, objectiveRoute],
             bodyLimitBytes
           });
-          return handler.handle(request);
+          const result = await handler.handle(request);
+          // The common HTTP router renders domain errors. Re-throw the response
+          // until the host transaction rolls back, including failed readback.
+          if (!['GET', 'HEAD'].includes(request.method.toUpperCase()) && result.status >= 400) {
+            throw new FoundationGraphResponseError(result);
+          }
+          return result;
         });
         return response instanceof Response
           ? response
           : jsonResponse(503, { error: { code: 'foundation_provider_unavailable' } });
-      } catch {
+      } catch (error) {
+        if (error instanceof FoundationGraphResponseError) return error.response;
         return jsonResponse(503, { error: { code: 'foundation_provider_unavailable' } });
       }
     }

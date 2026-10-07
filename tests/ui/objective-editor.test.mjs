@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { validateFoundationDefinition } from '../../src/ontology-foundation.ts';
 
 import {
   createObjectiveEditorController,
@@ -60,6 +61,15 @@ function findAll(node, predicate, result = []) {
 function nodeName(node) {
   return node?.attributes?.name;
 }
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((yes, no) => { resolve = yes; reject = no; });
+  return { promise, resolve, reject };
+}
+
+const nextTick = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 function findButtons(node, result = []) {
   if (!node) return result;
@@ -330,6 +340,249 @@ describe('Objective editor common UI contract', () => {
     controller.state.view = 'list';
     await controller.loadObjectives();
     expect(collectText(root)).toContain('判断に使えない（不足1件）');
+  });
+
+  describe('draft submissions and interrupted requests', () => {
+    function mount(port, options = {}) {
+      globalThis.document = new FakeDocument();
+      const root = new FakeElement('div');
+      const rail = new FakeElement('aside');
+      const controller = createObjectiveEditorController({
+        root, rail, port, canEdit: true, autoLoad: false, constraintsEditable: false, ...options,
+      });
+      return { root, rail, controller };
+    }
+
+    function record(id, revision = '1') {
+      return objectiveRecord({
+        definition: { ...objectiveRecord().definition, id, revision },
+        digest: `sha256:${id}-${revision}`,
+      });
+    }
+
+    it('omits an unspecified evaluation period and sends a canonical-valid draft', async () => {
+      let submitted;
+      const { controller } = mount({ createObjective: async (definition) => {
+        submitted = definition;
+        return { id: definition.id, type: 'objective', revision: '1' };
+      } });
+      controller.beginCreate();
+      const draft = { ...objectiveRecord().definition, evaluationPeriod: { from: '', until: '' }, adoptionState: 'draft', authorizedUses: ['draft'] };
+      await controller.saveObjective(draft);
+      expect(submitted).not.toHaveProperty('evaluationPeriod');
+      expect(validateFoundationDefinition(submitted, { use: 'draft' })).toMatchObject({ valid: true });
+      expect(validateFoundationDefinition(submitted, { use: 'judgment' }).valid).toBe(false);
+      expect(draft.evaluationPeriod).toEqual({ from: '', until: '' });
+    });
+
+    it.each([
+      ['', '', undefined],
+      ['2026-10-01T09:00', '', { from: new Date('2026-10-01T09:00').toISOString(), until: '' }],
+      ['', '2026-10-07T18:00', { from: '', until: new Date('2026-10-07T18:00').toISOString() }],
+      ['2026-10-01T09:00', '2026-10-07T18:00', { from: new Date('2026-10-01T09:00').toISOString(), until: new Date('2026-10-07T18:00').toISOString() }],
+    ])('serializes form dates %s / %s without inventing missing boundaries', async (from, until, expected) => {
+      let submitted;
+      const { controller, rail } = mount({ createObjective: async (definition) => {
+        submitted = definition;
+        return { id: definition.id, type: 'objective', revision: '1' };
+      } });
+      controller.beginCreate();
+      const form = findAll(rail, (node) => node.className === 'objective-editor-form')[0];
+      for (const [name, value] of Object.entries({ id: 'objective-new', meaning: '新しい目的', desired_state: '望む状態', evaluation_from: from, evaluation_until: until })) {
+        findAll(form, (node) => nodeName(node) === name)[0].value = value;
+      }
+      form.dispatch('submit');
+      await nextTick();
+      expect(submitted.evaluationPeriod).toEqual(expected);
+      if (expected === undefined) expect(Object.hasOwn(submitted, 'evaluationPeriod')).toBe(false);
+    });
+
+    it('preserves malformed periods so canonical validation can reject them', async () => {
+      let submitted;
+      const { controller } = mount({ createObjective: async (definition) => {
+        submitted = definition;
+        return { id: definition.id, type: 'objective', revision: '1' };
+      } });
+      controller.beginCreate();
+      await controller.saveObjective({ ...objectiveRecord().definition, evaluationPeriod: { from: [], until: '' } });
+      expect(submitted.evaluationPeriod).toEqual({ from: [], until: '' });
+      expect(validateFoundationDefinition(submitted, { use: 'draft' }).issues).toEqual(expect.arrayContaining([
+        expect.objectContaining({ path: 'evaluationPeriod' }),
+      ]));
+    });
+
+    it('keeps typed fields when adding criteria, rendering again or clicking New twice', () => {
+      const { controller, rail } = mount({});
+      controller.beginCreate();
+      let form = findAll(rail, (node) => node.className === 'objective-editor-form')[0];
+      findAll(form, (node) => nodeName(node) === 'meaning')[0].value = '途中の入力を残す';
+      findButtons(form).find((button) => button.textContent === '基準を追加').dispatch('click');
+      expect(controller.state.editor.draft.meaning).toBe('途中の入力を残す');
+      expect(controller.state.editor.draft.criteria).toHaveLength(1);
+      form = findAll(rail, (node) => node.className === 'objective-editor-form')[0];
+      findAll(form, (node) => nodeName(node) === 'desired_state')[0].value = '入力した状態';
+      form.dispatch('input');
+      controller.beginCreate();
+      controller.render();
+      expect(controller.state.editor.draft.desiredState).toBe('入力した状態');
+      expect(controller.state.editor.draft.criteria).toHaveLength(1);
+      expect(findAll(rail, (node) => nodeName(node) === 'meaning')[0].value).toBe('途中の入力を残す');
+    });
+
+    it('allows only one write while pending, snapshots the draft, and does not reopen after Cancel', async () => {
+      const write = deferred();
+      const submitted = [];
+      const { controller, rail } = mount({ createObjective: async (definition) => {
+        submitted.push(definition);
+        return write.promise;
+      } });
+      controller.beginCreate();
+      const draft = { ...controller.state.editor.draft, id: 'objective-new', meaning: '送信時の入力' };
+      const first = controller.saveObjective(draft);
+      expect((await controller.saveObjective(draft)).state).toBe('saving');
+      const form = findAll(rail, (node) => node.className === 'objective-editor-form')[0];
+      expect(findAll(form, (node) => nodeName(node) === 'meaning')[0].disabled).toBe(true);
+      expect(findButtons(form).find((button) => button.textContent === 'キャンセル').disabled).toBe(false);
+      draft.meaning = '送信後の変更';
+      controller.cancelEdit();
+      controller.beginCreate();
+      controller.state.editor.draft.meaning = '次の目的';
+      expect((await controller.saveObjective({ ...draft, id: 'objective-next' })).state).toBe('saving');
+      write.resolve({ id: 'objective-new', type: 'objective', revision: '1' });
+      expect((await first).state).toBe('saved_unverified');
+      expect(submitted).toHaveLength(1);
+      expect(submitted[0].meaning).toBe('送信時の入力');
+      expect(controller.state.editor.mode).toBe('create');
+      expect(controller.state.editor.draft.meaning).toBe('次の目的');
+      expect(controller.state.save.state).toBe('idle');
+      expect(controller.state.selected).toBeNull();
+      expect(findButtons(rail).find((button) => button.textContent === '保存').disabled).toBe(false);
+    });
+
+    it('keeps a newer selection when an older read finishes or fails later', async () => {
+      const older = deferred();
+      const { controller } = mount({ readObjective: async (id) => id === 'older' ? older.promise : record(id) });
+      const first = controller.selectObjective({ id: 'older', revision: '1' });
+      await controller.selectObjective({ id: 'newer', revision: '1' });
+      older.resolve(record('older'));
+      await first;
+      expect(controller.state.selected.id).toBe('newer');
+      expect(controller.state.editor.draft.id).toBe('newer');
+
+      const failed = deferred();
+      const other = mount({ readObjective: async (id) => id === 'older' ? failed.promise : record(id) }).controller;
+      const pending = other.selectObjective({ id: 'older', revision: '1' });
+      await other.selectObjective({ id: 'newer', revision: '1' });
+      failed.reject(new Error('late failure'));
+      await pending;
+      expect(other.state.selected.id).toBe('newer');
+      expect(other.state.editor.state).toBe('ready');
+    });
+
+    it('does not replace a new draft with an earlier Objective read', async () => {
+      const read = deferred();
+      const { controller } = mount({ readObjective: () => read.promise });
+      const pending = controller.selectObjective({ id: 'older', revision: '1' });
+      controller.beginCreate();
+      controller.state.editor.draft.meaning = '入力中';
+      read.resolve(record('older'));
+      await pending;
+      expect(controller.state.selected).toBeNull();
+      expect(controller.state.editor.mode).toBe('create');
+      expect(controller.state.editor.draft.meaning).toBe('入力中');
+    });
+
+    it('ignores old readiness and constraints after selecting another Objective', async () => {
+      const readiness = deferred();
+      const constraints = deferred();
+      const { controller } = mount({
+        readObjective: async (id) => record(id),
+        checkObjectiveReadiness: (id) => id === 'older' ? readiness.promise : Promise.resolve({ ready: false, issues: [] }),
+        listObjectiveConstraintRefs: ({ id }) => id === 'older' ? constraints.promise : Promise.resolve({ refs: [], absence_confirmed: true }),
+      });
+      const first = controller.selectObjective({ id: 'older', revision: '1' });
+      await nextTick();
+      await controller.selectObjective({ id: 'newer', revision: '1' });
+      readiness.resolve({ ready: true, issues: [] });
+      constraints.resolve({ refs: [{ id: 'old-constraint', type: 'constraint', revision: '1' }], absence_confirmed: true });
+      await first;
+      expect(controller.state.selected.id).toBe('newer');
+      expect(controller.state.readiness.ready).toBe(false);
+      expect(controller.state.selected.readiness.ready).toBe(false);
+      expect(controller.state.editor.constraintRefs).toEqual([]);
+    });
+
+    it('does not replace a newer list with an earlier response', async () => {
+      const first = deferred();
+      let calls = 0;
+      const { controller } = mount({
+        listObjectives: () => ++calls === 1 ? first.promise : Promise.resolve({ records: [record('newer')], absence_confirmed: true }),
+        readObjective: async (id) => record(id),
+      });
+      const pending = controller.loadObjectives();
+      await controller.loadObjectives();
+      first.resolve({ records: [record('older')], absence_confirmed: true });
+      await pending;
+      expect(controller.state.objectives.records.map((item) => item.id)).toEqual(['newer']);
+      expect(controller.state.selected.id).toBe('newer');
+    });
+
+    it('does not overwrite a newer selection with an old save readback', async () => {
+      const readback = deferred();
+      const updates = [];
+      const { controller } = mount({
+        readObjective: async (id, _context, revision) => revision === '2' ? readback.promise : record(id),
+        updateObjective: async (id, revision) => { updates.push([id, revision]); return { id, type: 'objective', revision: '2' }; },
+      });
+      await controller.selectObjective({ id: 'older', revision: '1' });
+      controller.beginEdit();
+      const pending = controller.saveObjective({ ...controller.state.editor.draft, meaning: '更新' });
+      await nextTick();
+      await controller.selectObjective({ id: 'newer', revision: '1' });
+      readback.resolve(record('older', '2'));
+      await pending;
+      expect(updates).toEqual([['older', '1']]);
+      expect(controller.state.selected.id).toBe('newer');
+      expect(controller.state.editor.expectedRevision).toBe('1');
+      expect(controller.state.save.state).toBe('idle');
+    });
+
+    it('does not repeat a committed write after readback fails', async () => {
+      let writes = 0;
+      const { controller, rail } = mount({
+        createObjective: async (definition) => { writes += 1; return { id: definition.id, type: 'objective', revision: '1' }; },
+        readObjective: async () => { throw new Error('readback unavailable'); },
+      });
+      controller.beginCreate();
+      const draft = { ...controller.state.editor.draft, id: 'objective-new' };
+      expect((await controller.saveObjective(draft)).state).toBe('saved_unverified');
+      expect((await controller.saveObjective(draft)).state).toBe('saved_unverified');
+      expect(writes).toBe(1);
+      expect(findButtons(rail).some((button) => button.textContent === 'もう一度保存')).toBe(false);
+      expect(findButtons(rail).find((button) => button.textContent === '保存').disabled).toBe(true);
+    });
+
+    it('ignores a detached submit form after cancelling and reopening', async () => {
+      let writes = 0;
+      const { controller, rail } = mount({ createObjective: async () => { writes += 1; } });
+      controller.beginCreate();
+      const oldForm = findAll(rail, (node) => node.className === 'objective-editor-form')[0];
+      controller.cancelEdit();
+      controller.beginCreate();
+      controller.state.editor.draft.meaning = '新しい入力';
+      oldForm.dispatch('submit');
+      await nextTick();
+      expect(writes).toBe(0);
+      expect(controller.state.editor.draft.meaning).toBe('新しい入力');
+    });
+
+    it('does not write through a read-only controller', async () => {
+      let writes = 0;
+      const { controller } = mount({ createObjective: async () => { writes += 1; } }, { canEdit: false });
+      controller.beginCreate();
+      expect((await controller.saveObjective({ id: 'objective-new' })).state).toBe('permission_denied');
+      expect(writes).toBe(0);
+    });
   });
 
   describe('workspace layout (the host gives a rail)', () => {
