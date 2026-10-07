@@ -1121,7 +1121,7 @@ function renderObjectiveDetail(doc, state, callbacks) {
   parts.push(workspaceRailBlock(doc, { title: '制約の参照', className: 'bb-objective-constraints-block', content: constraintContent(doc, state, callbacks) }));
   parts.push(workspaceRailBlock(doc, { title: '判断に使えるか', className: 'bb-objective-readiness-block', content: readinessContent(doc, state.readiness) }));
   if (callbacks.canEdit) {
-    parts.push(makeElement('p', { className: 'objective-editor-muted', text: '直して保存すると同じ目的の新しい版を作ります。保存結果を読み戻して確認し、確認できない場合はその状態を表示します。' }));
+    parts.push(makeElement('p', { className: 'objective-editor-muted bb-objective-revision-note', text: '直して保存すると同じ目的の新しい版を作ります。保存結果を読み戻して確認し、確認できない場合はその状態を表示します。' }));
     parts.push(workspaceActions(doc, [{ text: '目的を直す', variant: 'primary', onClick: callbacks.onEdit }]));
   }
   return parts;
