@@ -20,3 +20,9 @@
 ## 導入と復帰
 
 組織版は既存BFFで本人のbearerのまま中継し、固定したOSSの部品を配信する。公開版の依存規則（npmの正確なversionとintegrity）は維持する。導入はOSSの公開と組織版のpin更新を別に検証し、本番配備は別の承認と稼働確認を必要とする。復帰は組織版の前のpinと画面構成へ戻す。DB migrationは不要。
+
+## Topic overview across catalogs
+
+`renderFoundationCollectionOverview(root, sources, options)` composes authenticated catalogs as one objective, philosophy, and world model overview. Each source provides `scopeId`, a display `label`, and `{status, catalog?, error?}` state. Ready catalogs are independently normalized against their source scope before composition. The host owns authorization, source selection, and retries; this renderer does not fetch or expand access.
+
+Record labels retain source names. Only records with an explicit organization/company storage scope and the same kind, scope, ID, revision, and digest collapse across catalogs. Project records remain separate even when IDs collide. Objective selection keys include source identity; variable references resolve against the originating catalog, never a combined cross-project variable map. Loading and failed sources remain visible and successful-subset counts are explicitly partial. Model search covers both content and source labels.

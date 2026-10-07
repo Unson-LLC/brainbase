@@ -4,6 +4,7 @@ import { test } from 'vitest';
 import {
   FOUNDATION_OVERVIEW_CONTRACT_VERSION,
   createFoundationOverview,
+  renderFoundationCollectionOverview,
   normalizeFoundationCatalog,
 } from '../../ui/foundation-overview.js';
 
@@ -28,6 +29,8 @@ class FakeElement {
       this.children.push(child);
     }
   }
+
+  prepend(...children) { this.children.unshift(...children); }
 
   replaceChildren(...children) {
     this.children = [];
@@ -316,4 +319,44 @@ test('keeps request failures visible and ignores stale responses after destroy',
   await failed.load();
   assert.match(textOf(failedRoot), /取得できません|connection failed/);
   assert.doesNotMatch(textOf(failedRoot), /登録された目的はありません/);
+});
+
+
+test('collection groups by topic, retains project provenance and resolves colliding variable IDs locally', () => {
+  const root = doc.createElement('div');
+  const a = catalog();
+  const b = catalog({ scopeId: 'project-beta' });
+  b.objectives[0].definition.desiredState = 'Betaの目標';
+  b.variables[0].definition.meaning = 'Beta固有の指標';
+  const sources = [a, b].map((value, i) => ({ scopeId: value.scopeId, label: i ? 'Beta' : 'Alpha', state: { status: 'ready', catalog: value } }));
+  const state = { query: '', page: 0 };
+  const draw = () => renderFoundationCollectionOverview(root, sources, { document: doc, viewState: state, callbacks: { render: draw } });
+  draw();
+  for (const name of ['目的', '哲学', '世界モデル']) assert.equal(byAttr(root, 'aria-label', name).length, 1);
+  assert.equal(byClass(root, 'bb-fov-objective-card').length, 0, 'overview stays compact until a purpose is selected');
+  assert.equal(byClass(root, 'bb-fov-model-card').length, 2);
+  assert.match(textOf(byClass(root, 'bb-fov-model-card')[0]), /Alpha.*利益改善/);
+  assert.match(textOf(byClass(root, 'bb-fov-model-card')[1]), /Beta.*Beta固有の指標/);
+  const rows = findAll(root, node => node.listeners.has('click') && textOf(node).includes('Betaの目標'));
+  assert.ok(rows.length);
+  rows[0].dispatch('click');
+  assert.match(textOf(byClass(root, 'bb-fov-objective-card')[0]), /Beta.*Beta固有の指標/);
+});
+
+test('collection deduplicates exact shared revisions, preserves conflicting digests and marks failed sources', () => {
+  const root = doc.createElement('div');
+  const shared = philosophyRecord('shared');
+  shared.currentScope = { type: 'organization', id: 'org-1' };
+  const a = catalog({ philosophies: [shared] });
+  const b = catalog({ scopeId: 'project-beta', philosophies: [structuredClone(shared)] });
+  const sources = [a, b].map((value, i) => ({ scopeId: value.scopeId, label: i ? 'Beta' : 'Alpha', state: { status: 'ready', catalog: value } }));
+  sources.push({ scopeId: 'denied', label: '未取得案件', state: { status: 'error', error: { message: '未確認。0件ではありません。' } } });
+  renderFoundationCollectionOverview(root, sources, { document: doc });
+  assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 1);
+  assert.match(textOf(root), /組織共通.*Alpha・Beta/);
+  assert.match(textOf(root), /未取得案件.*未確認/);
+  assert.match(textOf(root), /全体は未確認/);
+  b.philosophies[0].digest = 'sha256:different';
+  renderFoundationCollectionOverview(root, sources, { document: doc });
+  assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 2);
 });

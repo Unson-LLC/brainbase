@@ -234,3 +234,6 @@
     grid-template-columns: minmax(90px, .55fr) minmax(0, 1fr);
   }
 }
+
+/* Catalog provenance is secondary to the topic, but remains visible on every card. */
+.bb-fov-source { display: inline-block; margin: 0 0 12px; padding: 4px 10px; border-radius: 999px; background: var(--bb-surface-subtle, #f4f4f8); color: var(--bb-text-muted, #62626e); font-size: 12px; overflow-wrap: anywhere; }
