@@ -693,6 +693,7 @@ describe('Objective editor common UI contract', () => {
       const panel = byClass(rail, 'bb-objective-rail')[0];
       expect(collectText(byClass(panel, 'bb-ws-rail-head')[0])).toContain('睡眠を守る');
       expect(collectText(panel)).toContain('評価基準はまだありません。');
+      expect(collectText(panel)).toContain('直して保存すると同じ目的の新しい版を作ります。保存結果を読み戻して確認し、確認できない場合はその状態を表示します。');
       expect(collectText(panel)).toContain('criteria: 評価基準がありません');
     });
 

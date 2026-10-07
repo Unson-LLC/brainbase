@@ -243,6 +243,8 @@ textarea.objective-editor-input { min-height: 5.4rem; resize: vertical; }
 .bb-objective-rail { display: block; }
 .bb-objective-rail > .bb-ws-notice { margin: var(--bb-space-4) 0 0; }
 .bb-objective-rail > .bb-ws-actions { padding-top: 22px; }
+.bb-objective-rail > .bb-objective-revision-note { margin: var(--bb-space-4) 0 0; }
+.bb-objective-rail > .bb-objective-revision-note + .bb-ws-actions { padding-top: var(--bb-space-3); }
 .bb-objective-rail .bb-ws-rail-block > p + p,
 .bb-objective-rail .bb-objective-note { margin-top: var(--bb-space-2); }
 .bb-objective-rail .bb-objective-note { color: var(--bb-color-muted); font-size: 12px; }
