@@ -220,6 +220,17 @@ function canonicalDateTimeValue(value) {
   return Number.isNaN(date.getTime()) ? input : date.toISOString();
 }
 
+// Empty date inputs are an unspecified draft period. A partial or invalid
+// period must still reach canonical validation instead of being discarded.
+function definitionForSave(definition) {
+  const draft = JSON.parse(JSON.stringify(definition));
+  const period = objectValue(draft.evaluationPeriod);
+  const blankDate = (value) => value === null || value === undefined || (typeof value === 'string' && !value.trim());
+  if (period && Object.keys(period).every((key) => ['from', 'until'].includes(key))
+    && blankDate(period.from) && blankDate(period.until)) delete draft.evaluationPeriod;
+  return draft;
+}
+
 function normalizeReadiness(value) {
   const object = objectValue(value);
   if (!object || typeof object.ready !== 'boolean') return { state: 'unknown', ready: null, issues: null };
@@ -698,7 +709,7 @@ function renderCriteria(root, draft, callbacks) {
   return fieldset;
 }
 
-function collectDefinition(form, baseDraft) {
+function collectDefinition(form, baseDraft, { keepEmptyCriteria = false } = {}) {
   const draft = JSON.parse(JSON.stringify(baseDraft ?? {}));
   const value = (name) => findField(form, name)?.value ?? '';
   draft.id = optionalText(value('id')).trim();
@@ -719,7 +730,7 @@ function collectDefinition(form, baseDraft) {
     const variableRevision = value(`criteria.${index}.variable_revision`).trim();
     const operator = value(`criteria.${index}.operator`) || 'equals';
     const target = parseTarget(value(`criteria.${index}.target`));
-    if (!variableIdInput.value.trim() && !variableRevision) continue;
+    if (!keepEmptyCriteria && !variableIdInput.value.trim() && !variableRevision) continue;
     const criterion = {
       variableRef: { id: variableIdInput.value.trim(), type: 'variable', revision: variableRevision },
       operator,
@@ -727,7 +738,7 @@ function collectDefinition(form, baseDraft) {
     if (target !== undefined) criterion.target = target;
     draft.criteria.push(criterion);
   }
-  return draft;
+  return definitionForSave(draft);
 }
 
 function renderObjectiveForm(root, state, callbacks) {
@@ -742,7 +753,9 @@ function renderObjectiveForm(root, state, callbacks) {
     makeElement('div', { className: 'objective-editor-panel-heading', text: title }),
     makeElement('p', { className: 'objective-editor-muted', text: '保存すると新しい版になり、保存した版を読み戻して表示します。' }),
   );
-  if (state.save.state !== 'idle' && state.save.state !== 'saving') section.append(statusNotice(state.save, { onRetry: callbacks.onRetrySave }));
+  if (state.save.state !== 'idle' && state.save.state !== 'saving') section.append(statusNotice(state.save, {
+    onRetry: ['conflict', 'saved_unverified'].includes(state.save.state) ? null : callbacks.onRetrySave,
+  }));
   section.append(buildObjectiveForm(state, callbacks));
   return section;
 }
@@ -776,18 +789,36 @@ function buildObjectiveForm(state, callbacks, { workspace = false } = {}) {
     { value: 'retired', label: '終了' },
   ] }).label);
   form.append(governance);
-  form.append(renderCriteria(form, draft, callbacks));
+  const captureDraft = () => callbacks.onDraftChange?.(collectDefinition(form, draft, { keepEmptyCriteria: true }));
+  form.append(renderCriteria(form, draft, {
+    ...callbacks,
+    onAddCriterion: () => { captureDraft(); callbacks.onAddCriterion?.(); },
+    onRemoveCriterion: (index) => { captureDraft(); callbacks.onRemoveCriterion?.(index); },
+  }));
   form.append(renderReadiness(form, state.readiness));
   form.append(renderConstraintRefs(form, state, callbacks));
   const actions = makeElement('div', { className: 'objective-editor-actions' });
   actions.append(makeElement('span', { className: 'objective-editor-muted', text: callbacks.canEdit ? '保存後に同じID・新版を再取得して確認します。' : '読み取り専用です。書込み権限はホストから提供してください。' }));
-  const saving = state.save.state === 'saving';
-  if (callbacks.canEdit) actions.append(makeElement('button', { className: workspace ? 'bb-ws-button is-primary' : 'objective-editor-button-primary', text: saving ? '保存中…' : '保存', attrs: { type: 'submit' }, disabled: saving }));
-  if (workspace) actions.append(makeButton('キャンセル', callbacks.onCancelEdit, 'bb-ws-button'));
-  else actions.append(makeButton('一覧へ戻る', callbacks.onBack, 'objective-editor-button-secondary'));
+  const saving = callbacks.saving || state.save.state === 'saving';
+  const unverified = state.save.state === 'saved_unverified';
+  if (saving) actions.append(makeElement('span', { className: 'objective-editor-muted', text: '保存中の処理は、画面を閉じても続きます。' }));
+  if (unverified) actions.append(makeElement('span', { className: 'objective-editor-muted', text: '一覧を再読込し、保存した目的を選び直して確かめてください。' }));
+  if (callbacks.canEdit) actions.append(makeElement('button', { className: workspace ? 'bb-ws-button is-primary' : 'objective-editor-button-primary', text: saving ? '保存中…' : '保存', attrs: { type: 'submit' }, disabled: saving || unverified }));
+  const dismiss = workspace
+    ? makeButton('キャンセル', callbacks.onCancelEdit, 'bb-ws-button')
+    : makeButton('一覧へ戻る', callbacks.onBack, 'objective-editor-button-secondary');
+  actions.append(dismiss);
   form.append(actions);
+  if (saving) {
+    for (const control of findAll(form, (node) => ['INPUT', 'SELECT', 'TEXTAREA', 'BUTTON'].includes(node.tagName))) {
+      if (control !== dismiss) control.disabled = true;
+    }
+  }
+  form.addEventListener('input', captureDraft);
+  form.addEventListener('change', captureDraft);
   form.addEventListener('submit', (event) => {
     event.preventDefault();
+    if (saving || unverified) return;
     callbacks.onSubmit?.(collectDefinition(form, draft));
   });
   return form;
@@ -1107,7 +1138,7 @@ function renderObjectiveFormRail(doc, state, callbacks) {
     // A conflict keeps the input; saving again with the same revision would fail again, so no retry there.
     parts.push(workspaceStatusNotice(doc, state.save, {
       label: '保存',
-      onRetry: state.save.state === 'conflict' ? null : callbacks.onRetrySave,
+      onRetry: ['conflict', 'saved_unverified'].includes(state.save.state) ? null : callbacks.onRetrySave,
       retryLabel: 'もう一度保存',
     }));
   }
@@ -1219,20 +1250,35 @@ export function createObjectiveEditorController(options = {}) {
   };
   // The objective shown before 新しい目的, to return to when the owner cancels.
   let beforeCreate = null;
+  // Requests may finish after Cancel or a newer selection. Only the current
+  // screen may consume their results; the save lock survives those changes.
+  let selectionVersion = 0;
+  let editorVersion = 0;
+  let listRequest = 0;
+  let readinessRequest = 0;
+  let constraintRequest = 0;
+  let renderVersion = 0;
+  let activeSave = null;
 
   function render() {
     if (!root) return null;
+    const currentRender = ++renderVersion;
+    const currentEditor = editorVersion;
     const callbacks = {
       canEdit,
+      saving: activeSave !== null,
       constraintsEditable,
       storyLinks,
       onView: (view) => { state.view = view; render(); },
       onReload: loadObjectives,
       onCreate: beginCreate,
       onSelect: selectObjective,
-      onBack: () => { state.view = 'list'; render(); },
-      onSubmit: saveObjective,
-      onRetrySave: () => state.editor.mode === 'create' ? saveObjective(state.editor.draft) : saveObjective(state.editor.draft),
+      onBack: () => { cancelEdit(); state.view = 'list'; render(); },
+      onSubmit: (definition) => currentEditor === editorVersion && currentRender === renderVersion ? saveObjective(definition) : null,
+      onDraftChange: (definition) => {
+        if (currentEditor === editorVersion && currentRender === renderVersion && !activeSave) state.editor.draft = definition;
+      },
+      onRetrySave: () => saveObjective(state.editor.draft),
       onAddCriterion: () => { state.editor.draft.criteria = [...(state.editor.draft.criteria ?? []), { variableRef: { id: '', type: 'variable', revision: '' }, operator: 'equals' }]; render(); },
       onRemoveCriterion: (index) => { state.editor.draft.criteria = (state.editor.draft.criteria ?? []).filter((_, itemIndex) => itemIndex !== index); render(); },
       onAddConstraintRef: addConstraintRef,
@@ -1243,6 +1289,10 @@ export function createObjectiveEditorController(options = {}) {
       onEdit: beginEdit,
       onCancelEdit: cancelEdit,
     };
+    // Detached forms and buttons must not act on a newer editor session.
+    for (const [name, callback] of Object.entries(callbacks)) {
+      if (typeof callback === 'function') callbacks[name] = (...args) => currentRender === renderVersion ? callback(...args) : undefined;
+    }
     return rail ? renderObjectiveWorkspace(root, rail, state, callbacks, page, options) : renderObjectiveEditor(root, state, callbacks);
   }
 
@@ -1256,6 +1306,8 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   async function loadObjectives() {
+    const request = ++listRequest;
+    const version = editorVersion;
     state.objectives = { state: 'loading', records: null, absence_confirmed: false };
     state.connection = port ? 'ready' : 'api_unavailable';
     render();
@@ -1267,20 +1319,26 @@ export function createObjectiveEditorController(options = {}) {
       return state.objectives;
     }
     try {
-      state.objectives = normalizeObjectiveCollection(await method(context));
+      const payload = await method(context);
+      if (request !== listRequest) return state.objectives;
+      state.objectives = normalizeObjectiveCollection(payload);
       state.connection = state.objectives.state === 'ready' || state.objectives.state === 'empty' ? 'ready' : state.objectives.state;
     } catch (error) {
+      if (request !== listRequest) return state.objectives;
       state.objectives = { state: normalizeObjectiveError(error).state, records: null, absence_confirmed: false, ...normalizeObjectiveError(error) };
       state.connection = state.objectives.state;
     }
     render();
     // As on the organization screens, the workspace opens with the first row selected.
     const first = state.objectives.records?.[0];
-    if (rail && first && !state.selectedId && state.railMode !== 'form') await selectObjective(first);
+    if (rail && first && !state.selectedId && state.railMode !== 'form' && version === editorVersion) await selectObjective(first);
     return state.objectives;
   }
 
   async function loadConstraintRefs(objective) {
+    const version = selectionVersion;
+    const request = ++constraintRequest;
+    const current = () => version === selectionVersion && request === constraintRequest;
     state.constraints = { state: 'loading', refs: null, absence_confirmed: false };
     render();
     if (!objective) {
@@ -1297,13 +1355,15 @@ export function createObjectiveEditorController(options = {}) {
     }
     try {
       const payload = await method({ id: objective.id, type: 'objective', revision: objective.revision }, context);
+      if (!current()) return state.constraints;
       state.constraints = normalizeReferenceCollection(payload, ['refs', 'references', 'constraints', 'records', 'items', 'data']);
-      if (state.constraints.refs) {
+      if (state.constraints.refs && !state.editor.constraintRefsChanged) {
         state.editor.constraintRefs = state.constraints.refs;
         state.editor.originalConstraintRefs = JSON.parse(JSON.stringify(state.constraints.refs));
         state.editor.constraintRefsChanged = false;
       }
     } catch (error) {
+      if (!current()) return state.constraints;
       state.constraints = { state: normalizeObjectiveError(error).state, refs: null, absence_confirmed: false, ...normalizeObjectiveError(error) };
     }
     render();
@@ -1312,6 +1372,10 @@ export function createObjectiveEditorController(options = {}) {
 
   async function loadReadiness(objective) {
     if (!objective) return state.readiness;
+    const version = selectionVersion;
+    const request = ++readinessRequest;
+    const current = () => version === selectionVersion && request === readinessRequest
+      && state.selected?.id === objective.id && state.selected?.revision === objective.revision;
     const method = portMethod(port, 'checkObjectiveReadiness');
     if (!method) {
       state.readiness = { state: 'unknown', ready: null, issues: null, message: '判断に使える状態を確かめる経路がありません。' };
@@ -1319,8 +1383,11 @@ export function createObjectiveEditorController(options = {}) {
       return state.readiness;
     }
     try {
-      state.readiness = normalizeReadiness(await method(objective.id, context, objective.revision));
+      const payload = await method(objective.id, context, objective.revision);
+      if (!current()) return state.readiness;
+      state.readiness = normalizeReadiness(payload);
     } catch (error) {
+      if (!current()) return state.readiness;
       state.readiness = { state: normalizeObjectiveError(error).state, ready: null, issues: null, ...normalizeObjectiveError(error) };
     }
     if (state.selected) state.selected.readiness = state.readiness;
@@ -1333,10 +1400,13 @@ export function createObjectiveEditorController(options = {}) {
     const id = reference?.id;
     const revision = reference?.revision;
     if (!id) return null;
+    const version = ++selectionVersion;
+    editorVersion += 1;
+    state.selected = null;
     state.selectedId = id;
+    state.save = { state: 'idle' };
     if (rail) {
       state.railMode = 'detail';
-      state.save = { state: 'idle' };
       beforeCreate = null;
     }
     state.view = 'editor';
@@ -1353,6 +1423,7 @@ export function createObjectiveEditorController(options = {}) {
     }
     try {
       const payload = await method(id, context, revision);
+      if (version !== selectionVersion) return null;
       const objective = normalizeObjectiveRecord(payload);
       if (!objective) {
         state.editor = { ...state.editor, state: 'missing', message: '指定した目的を保存先から確認できません。' };
@@ -1370,6 +1441,7 @@ export function createObjectiveEditorController(options = {}) {
       await Promise.allSettled([loadReadiness(objective), loadConstraintRefs(objective)]);
       return objective;
     } catch (error) {
+      if (version !== selectionVersion) return null;
       const normalized = normalizeObjectiveError(error);
       state.editor = { ...state.editor, state: normalized.state, message: normalized.message, error: normalized.error };
       state.connection = normalized.state;
@@ -1379,6 +1451,10 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function beginCreate() {
+    // A repeated click on New must not throw away an in-progress draft.
+    if (state.editor.mode === 'create' && state.railMode === 'form') return;
+    selectionVersion += 1;
+    editorVersion += 1;
     if (rail && state.railMode !== 'form') beforeCreate = state.selected;
     state.railMode = 'form';
     state.view = 'editor';
@@ -1399,6 +1475,8 @@ export function createObjectiveEditorController(options = {}) {
   /** Workspace layout: open the edit form for the selected objective in the rail. */
   function beginEdit() {
     if (!state.selected) return;
+    if (state.railMode === 'form' && state.editor.mode === 'edit') return;
+    editorVersion += 1;
     state.editor = {
       ...state.editor,
       state: 'ready', mode: 'edit', draft: editorDraftFromObjective(state.selected), expectedRevision: state.selected.revision,
@@ -1411,12 +1489,14 @@ export function createObjectiveEditorController(options = {}) {
     render();
   }
 
-  /** Workspace layout: leave the form without saving and show the objective again. */
+  /** Discard unsaved input and leave the form; an already sent write cannot be undone. */
   function cancelEdit() {
+    editorVersion += 1;
     const creating = state.editor.mode === 'create';
     state.railMode = 'detail';
     state.save = { state: 'idle' };
     if (creating) {
+      selectionVersion += 1;
       const previous = beforeCreate;
       beforeCreate = null;
       state.editor = { state: 'idle', mode: 'edit', draft: null, expectedRevision: null, constraintRefs: null, originalConstraintRefs: null, constraintRefsChanged: false };
@@ -1438,7 +1518,7 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function addConstraintRef(reference) {
-    if (!constraintsEditable) return;
+    if (!canEdit || !constraintsEditable || activeSave) return;
     const normalized = normalizeReference(reference, 'constraint');
     if (!normalized || normalized.type !== 'constraint') return;
     const refs = state.editor.constraintRefs ?? [];
@@ -1449,7 +1529,7 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function removeConstraintRef(reference) {
-    if (!constraintsEditable) return;
+    if (!canEdit || !constraintsEditable || activeSave) return;
     state.editor.constraintRefs = (state.editor.constraintRefs ?? []).filter((item) => !(item.id === reference.id && item.revision === reference.revision));
     state.editor.constraintRefsChanged = true;
     render();
@@ -1457,7 +1537,16 @@ export function createObjectiveEditorController(options = {}) {
 
   async function saveObjective(definition) {
     if (!definition) return null;
+    if (!canEdit) return { state: 'permission_denied', message: 'この画面では目的を保存できません。' };
+    if (activeSave) return { state: 'saving', action: activeSave.mode };
+    // Once a mutation succeeded, repeating it is unsafe until the owner has
+    // reloaded and selected the canonical revision again.
+    if (state.save.state === 'saved_unverified') return state.save;
+    definition = definitionForSave(definition);
     const mode = state.editor.mode;
+    const expectedRevision = state.editor.expectedRevision;
+    const constraintRefsChanged = state.editor.constraintRefsChanged;
+    const constraintRefs = JSON.parse(JSON.stringify(state.editor.constraintRefs ?? []));
     const updateMethod = mode === 'create' ? null : portMethod(port, 'updateObjective');
     const createMethod = mode === 'create' ? portMethod(port, 'createObjective') : null;
     if ((mode === 'create' && !createMethod) || (mode !== 'create' && !updateMethod)) {
@@ -1465,80 +1554,93 @@ export function createObjectiveEditorController(options = {}) {
       render();
       return state.save;
     }
-    if (state.editor.constraintRefsChanged && !portMethod(port, 'replaceObjectiveConstraintRefs')) {
+    if (constraintRefsChanged && !portMethod(port, 'replaceObjectiveConstraintRefs')) {
       state.save = { state: 'api_unavailable', message: '制約の参照を保存する経路が無いため、目的の本文も保存していません。' };
       render();
       return state.save;
     }
+    const version = editorVersion;
+    const current = () => version === editorVersion;
+    const publish = (result) => {
+      if (current()) { state.save = result; render(); }
+      return result;
+    };
+    const saving = { mode };
+    activeSave = saving;
     state.editor.draft = definition;
     state.save = { state: 'saving', action: mode };
     render();
+    let mutation;
+    let mutationCompleted = false;
     try {
-      const mutation = mode === 'create'
+      mutation = mode === 'create'
         ? await createMethod(definition, context)
-        : await updateMethod(definition.id, state.editor.expectedRevision, definition, context);
+        : await updateMethod(definition.id, expectedRevision, definition, context);
+      mutationCompleted = true;
+      if (!current()) return { state: 'saved_unverified', action: mode, mutation };
       const savedRef = extractMutationRef(mutation);
       if (!savedRef || savedRef.id !== definition.id || savedRef.type !== 'objective' || !savedRef.revision) {
-        state.save = { state: 'saved_unverified', message: '保存の応答に、同じ目的の新しい版が含まれていません。', mutation };
-        render();
-        return state.save;
+        return publish({ state: 'saved_unverified', message: '保存の応答に、同じ目的の新しい版が含まれていません。', mutation });
       }
-      const expectedRevision = state.editor.expectedRevision;
       if (mode !== 'create' && (!expectedRevision || savedRef.revision === expectedRevision)) {
-        state.save = {
+        return publish({
           state: 'saved_unverified',
           message: '更新応答にexpectedRevisionとは異なる新版が含まれていません。',
           mutation,
           expectedRevision,
           reference: savedRef,
-        };
-        render();
-        return state.save;
+        });
       }
       const readMethod = portMethod(port, 'readObjective');
       const readback = readMethod ? normalizeObjectiveRecord(await readMethod(savedRef.id, context, savedRef.revision)) : null;
+      if (!current()) return { state: 'saved_unverified', action: mode, mutation, readback };
       const returnedDefinition = readback ? { id: readback.id, type: readback.type, revision: readback.revision, digest: readback.digest } : null;
       const referenceMatches = definitionsEqual(savedRef, returnedDefinition);
       if (!referenceMatches || !readback || (mode !== 'create' && (!expectedRevision || readback.revision === expectedRevision))) {
-        state.save = { state: 'saved_unverified', message: '保存した新しい版を読み戻して確かめられません。', mutation, readback };
-        render();
-        return state.save;
+        return publish({ state: 'saved_unverified', message: '保存した新しい版を読み戻して確かめられません。一覧を再読込して確かめてください。', mutation, readback });
       }
-      if (state.editor.constraintRefsChanged) {
+      if (constraintRefsChanged) {
         const replaceRefs = portMethod(port, 'replaceObjectiveConstraintRefs');
-        await replaceRefs(savedRef, state.editor.constraintRefs ?? [], context);
+        await replaceRefs(savedRef, constraintRefs, context);
+        if (!current()) return { state: 'saved_unverified', action: mode, mutation, readback };
         const readConstraintRefs = portMethod(port, 'listObjectiveConstraintRefs') ?? portMethod(port, 'listConstraintReferences');
         const constraintPayload = readConstraintRefs
           ? await readConstraintRefs(savedRef, context)
           : null;
+        if (!current()) return { state: 'saved_unverified', action: mode, mutation, readback };
         const verifiedRefs = normalizeReferenceCollection(constraintPayload).refs;
-        if (!verifiedRefs || !referencesEqual(verifiedRefs, state.editor.constraintRefs)) {
-          state.save = { state: 'saved_unverified', message: '目的は保存されましたが、制約の参照を読み戻した内容が一致しません。', mutation, readback, constraintRefs: verifiedRefs };
-          render();
-          return state.save;
+        if (!verifiedRefs || !referencesEqual(verifiedRefs, constraintRefs)) {
+          return publish({ state: 'saved_unverified', message: '目的は保存されましたが、制約の参照を読み戻した内容が一致しません。', mutation, readback, constraintRefs: verifiedRefs });
         }
       }
+      // Reads of the previous revision must not replace the saved revision's
+      // readiness or constraints when they finish out of order.
+      selectionVersion += 1;
       state.selected = readback;
       state.selectedId = readback.id;
       state.railMode = 'detail';
       beforeCreate = null;
       state.editor = {
         state: 'ready', mode: 'edit', draft: editorDraftFromObjective(readback), expectedRevision: readback.revision,
-        constraintRefs: state.editor.constraintRefs ?? [], originalConstraintRefs: state.editor.constraintRefs ?? [], constraintRefsChanged: false,
+        constraintRefs, originalConstraintRefs: constraintRefs, constraintRefsChanged: false,
       };
-      state.save = { state: 'verified', action: mode, reference: savedRef, readback };
+      const result = { state: 'verified', action: mode, reference: savedRef, readback };
+      state.save = result;
       state.connection = 'ready';
       // Readiness belongs to a revision; re-read it for the one just saved.
       state.readiness = { state: 'unknown', ready: null, issues: null };
       render();
       await loadReadiness(readback);
-      await loadObjectives();
-      return state.save;
+      if (current()) await loadObjectives();
+      return result;
     } catch (error) {
       const normalized = normalizeObjectiveError(error);
-      state.save = { state: normalized.state, message: normalized.message, currentRevision: normalized.currentRevision, error: normalized.error, draft: definition };
+      return publish(mutationCompleted
+        ? { state: 'saved_unverified', message: '目的は保存されましたが、保存結果を確かめられません。一覧を再読込して確かめてください。', mutation, error: normalized.error, draft: definition }
+        : { state: normalized.state, message: normalized.message, currentRevision: normalized.currentRevision, error: normalized.error, draft: definition });
+    } finally {
+      if (activeSave === saving) activeSave = null;
       render();
-      return state.save;
     }
   }
 

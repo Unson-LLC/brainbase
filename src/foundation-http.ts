@@ -159,7 +159,8 @@ const AUTHORITY_FIELDS = new Set([
   'permissions',
 ]);
 
-class FoundationHttpError extends Error {
+/** Typed, explicitly sanitized error for trusted host adapters. */
+export class FoundationHttpError extends Error {
   readonly status: number;
   readonly code: string;
   readonly currentRevision?: string;
