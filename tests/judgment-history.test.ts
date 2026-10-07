@@ -85,6 +85,110 @@ function finalArtifact(sessionRef: string, turnId: string, fields: Record<string
   return { ...withoutDigest, final_digest: digest(canonicalJson(withoutDigest)) };
 }
 
+function hostV2Artifacts(sessionRef: string, turnId: string): {
+  readonly key: string;
+  readonly episode: Record<string, unknown>;
+  readonly event: Record<string, unknown>;
+  readonly final: Record<string, unknown>;
+} {
+  const contextWithoutDigest = {
+    schema_version: 'brainbase-conversation-context-v1',
+    session_ref: sessionRef,
+    messages: [],
+    prior_receipts: [],
+    runtime: { host: 'codex', model: null, permission_mode: null, project_binding: 'project-host' },
+    instruction_bindings: [],
+    completeness: 'complete'
+  };
+  const context = {
+    ...contextWithoutDigest,
+    source_digest: digest(canonicalJson(contextWithoutDigest))
+  };
+  const turnInput = {
+    request: 'host request',
+    turn_id: turnId,
+    project_code: 'project-host',
+    conversation_context: context
+  };
+  const receipt = {
+    resolution_id: 'host-resolution-1',
+    status: 'resolved',
+    turn_id: turnId,
+    project_code: 'project-host',
+    request_digest: digest(canonicalJson(turnInput)),
+    context_digest: digest(canonicalJson(context)),
+    host_binding: { status: 'managed' },
+    active_node_definitions: [],
+    classification: { action_kind: 'none' },
+    selected_dag_ids: []
+  };
+  const displayLine = '🧠 判断参照: 「host request」を参照 → 通常回答 ✓';
+  const ownerAudit = {
+    schema_version: 'brainbase-owner-audit-v1',
+    source_receipt_digest: digest(canonicalJson(receipt)),
+    display_line: displayLine,
+    text_digest: digest(displayLine),
+    decision: '通常回答'
+  };
+  const auditContract = {
+    schema_version: 'brainbase-owner-audit-contract-v1',
+    zero_call_display_line: null,
+    zero_call_display_line_digest: null,
+    repair_body_policy: 'host_projection'
+  };
+  const episode = {
+    schema_version: 'brainbase-judgment-episode-v1',
+    state: 'open',
+    episode_origin: 'user_prompt_submit',
+    route_application: 'pre_generation',
+    started_at: '2026-10-07T01:00:00.000Z',
+    request_text_digest: digest(turnInput.request),
+    turn_input: turnInput,
+    initial_route_receipt_digest: digest(canonicalJson(receipt)),
+    initial_route_receipt: receipt,
+    owner_audit: ownerAudit,
+    audit_contract: auditContract
+  };
+  const event = {
+    schema_version: 'brainbase-judgment-tool-event-v1',
+    recorded_at: '2026-10-07T01:30:00.000Z',
+    event_sequence: 0,
+    tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+    tool_use_id: 'host-tool-use-1',
+    event_kind: 'turn_resolution',
+    success: true,
+    satisfies: ['judgment.resolve_turn'],
+    input_digest: digest(canonicalJson({ request: turnInput.request })),
+    response_digest: digest(canonicalJson(receipt)),
+    event_fingerprint: digest('host-event-fingerprint-1'),
+    display_line: displayLine
+  };
+  const final = {
+    schema_version: 'brainbase-judgment-episode-final-v2',
+    execution_outcome_schema_version: 'judgment_execution_outcome.v1',
+    finalized_at: '2026-10-07T02:00:00.000Z',
+    completion_status: 'complete',
+    protocol_status: 'audit_protocol_complete',
+    stop_decision: { protocol_status: 'complete' },
+    content_verification_status: 'not_required',
+    knowledge_evidence: { status: 'not_required' },
+    initial_route_receipt_digest: episode.initial_route_receipt_digest,
+    event_count: 1,
+    qualifying_event_count: 1,
+    event_set_digest: digest(canonicalJson([{
+      event_sequence: event.event_sequence,
+      event_fingerprint: event.event_fingerprint
+    }])),
+    owner_audit_complete: true,
+    owner_audit_line_count: 1,
+    owner_audit_source: 'assistant_answer',
+    assistant_audit_prefix_matched: true,
+    autonomy_compliance_status: 'not_required',
+    answer_digest: null
+  };
+  return { key: digest(turnId), episode, event, final };
+}
+
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
@@ -185,6 +289,92 @@ describe('judgment history common reader', () => {
     await expect(reader.home({ project: 'project-a', cursor: first.pagination.next_cursor!, entrypoint: 'mana' })).rejects.toMatchObject({ statusCode: 400 });
   });
 
+  it('authorizes every project in an unfiltered home and denies unknown project bindings', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'g'.repeat(64);
+    await save(root, sessionRef, `${'1'.repeat(64)}.json`, adoption(sessionRef, 'turn-a1', 'resolution-a1', {
+      receipt: { project_code: 'project-a' }
+    }));
+    await save(root, sessionRef, `${'2'.repeat(64)}.json`, adoption(sessionRef, 'turn-a2', 'resolution-a2', {
+      receipt: { project_code: 'project-a' }
+    }));
+    await save(root, sessionRef, `${'3'.repeat(64)}.json`, adoption(sessionRef, 'turn-b', 'resolution-b', {
+      receipt: { project_code: 'project-b' }
+    }));
+    await save(root, sessionRef, `${'4'.repeat(64)}.json`, adoption(sessionRef, 'turn-unknown', 'resolution-unknown'));
+    const reader = createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root }),
+      authorizeProject: (project) => project === 'project-a'
+    });
+    const home = await reader.home();
+    expect(home.records?.map((record) => record.project_code)).toEqual(['project-a', 'project-a']);
+    expect(home.records?.some((record) => record.record_id === 'resolution-b')).toBe(false);
+    expect(home.status).toBe('partial');
+    expect(home.coverage).toMatchObject({ complete: false, total: null, reason: 'project_scope_unverified' });
+    await expect(reader.detail('resolution-b')).rejects.toMatchObject({ statusCode: 403 });
+    const writer = createLocalJudgmentHistoryFeedbackWriter({ root, reader });
+    await expect(writer({
+      record_id: 'resolution-b',
+      event_id: 'event-b',
+      kind: 'feedback',
+      content: { summary: 'outside project' }
+    })).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('requires Host adoption bindings and rejects unbound schema-less or digest-less finals while allowing a bound canonical final without final_digest', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'h'.repeat(64);
+    const missingSchema = adoption(sessionRef, 'turn-missing-schema', 'resolution-missing-schema');
+    delete missingSchema.schema_version;
+    await save(root, sessionRef, `${'5'.repeat(64)}.json`, missingSchema);
+
+    const missingFinalSchema = finalArtifact(sessionRef, 'turn-missing-final-schema');
+    delete missingFinalSchema.schema_version;
+    await save(root, sessionRef, 'turn-missing-final-schema.final.json', missingFinalSchema);
+
+    const missingFinalDigest = finalArtifact(sessionRef, 'turn-missing-final-digest');
+    delete missingFinalDigest.final_digest;
+    await save(root, sessionRef, 'turn-missing-final-digest.final.json', missingFinalDigest);
+
+    const boundTurn = 'turn-bound-canonical';
+    const boundKey = digest(boundTurn);
+    const boundAdoption = adoption(sessionRef, boundTurn, 'resolution-bound');
+    await save(root, sessionRef, `${boundKey}.json`, boundAdoption);
+    const boundFinal = finalArtifact(sessionRef, boundTurn, {
+      initial_receipt_digest: digest(canonicalJson(boundAdoption.receipt))
+    });
+    delete boundFinal.final_digest;
+    await save(root, sessionRef, `${boundKey}.final.json`, boundFinal);
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root })
+    }).home();
+    expect(home.status).toBe('partial');
+    expect(home.records).toHaveLength(1);
+    expect(home.records?.[0].record_id).toBe('resolution-bound');
+    expect(home.coverage.total).toBeNull();
+  });
+
+  it('rejects a week cursor after the JST Monday effective-period boundary', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'i'.repeat(64);
+    await save(root, sessionRef, `${'7'.repeat(64)}.json`, adoption(sessionRef, 'turn-week-1', 'resolution-week-1'));
+    await save(root, sessionRef, `${'8'.repeat(64)}.json`, adoption(sessionRef, 'turn-week-2', 'resolution-week-2'));
+    let currentNow = new Date('2026-10-11T14:59:00.000Z');
+    const reader = createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root }),
+      now: () => currentNow
+    });
+    const beforeBoundary = await reader.home({ period: 'week', limit: 1 });
+    expect(beforeBoundary.pagination.next_cursor).toBeTruthy();
+    currentNow = new Date('2026-10-11T15:00:00.000Z');
+    await expect(reader.home({
+      period: 'week',
+      limit: 1,
+      cursor: beforeBoundary.pagination.next_cursor!
+    })).rejects.toMatchObject({ statusCode: 400, code: 'invalid_cursor' });
+  });
+
   it('projects a normal final without a value-proof sidecar and binds turn refs with a slash', async () => {
     const root = await makeRoot();
     const sessionRef = '1'.repeat(64);
@@ -212,6 +402,79 @@ describe('judgment history common reader', () => {
     });
   });
 
+  it('reads the Host v2 episode, event sequence, and final binding without a value-proof sidecar', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'h'.repeat(64);
+    const turnId = 'host-turn-v2';
+    const artifacts = hostV2Artifacts(sessionRef, turnId);
+    await save(root, sessionRef, `${artifacts.key}.episode.json`, artifacts.episode);
+    await save(root, sessionRef, `${artifacts.key}.turn-input.json`, artifacts.episode.turn_input);
+    await save(root, sessionRef, `${artifacts.key}.final.json`, artifacts.final);
+    await mkdir(join(root, sessionRef, `${artifacts.key}.events`), { recursive: true });
+    await writeFile(
+      join(root, sessionRef, `${artifacts.key}.events`, `${digest(String(artifacts.event.tool_use_id))}.json`),
+      `${JSON.stringify(artifacts.event)}\n`
+    );
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+
+    expect(home.status).toBe('available');
+    expect(home.records).toHaveLength(1);
+    expect(home.records?.[0]).toMatchObject({
+      record_id: 'host-resolution-1',
+      entrypoint: 'codex',
+      project_code: 'project-host',
+      execution: { status: 'completed' },
+      turn_ref: `${sessionRef}/${artifacts.key}`
+    });
+  });
+
+  it('accepts a Host v2 final bound to the effective resolver contract', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'j'.repeat(64);
+    const turnId = 'host-turn-effective-route';
+    const artifacts = hostV2Artifacts(sessionRef, turnId);
+    const bootstrapReceipt = artifacts.episode.initial_route_receipt as Record<string, unknown>;
+    const effectiveReceipt = {
+      ...bootstrapReceipt,
+      resolution_id: 'host-resolution-effective',
+      request_digest: digest('effective-turn-request'),
+      context_digest: bootstrapReceipt.context_digest,
+      host_binding: { status: 'managed' },
+      active_node_definitions: []
+    };
+    const event = {
+      ...artifacts.event,
+      safe_metadata: { turn_contract: effectiveReceipt }
+    };
+    const final = {
+      ...artifacts.final,
+      initial_route_receipt_digest: digest(canonicalJson(effectiveReceipt)),
+      event_set_digest: digest(canonicalJson([{
+        event_sequence: event.event_sequence,
+        event_fingerprint: event.event_fingerprint
+      }]))
+    };
+    await save(root, sessionRef, `${artifacts.key}.episode.json`, artifacts.episode);
+    await save(root, sessionRef, `${artifacts.key}.turn-input.json`, artifacts.episode.turn_input);
+    await save(root, sessionRef, `${artifacts.key}.final.json`, final);
+    await mkdir(join(root, sessionRef, `${artifacts.key}.events`), { recursive: true });
+    await writeFile(
+      join(root, sessionRef, `${artifacts.key}.events`, `${digest(String(event.tool_use_id))}.json`),
+      `${JSON.stringify(event)}\n`
+    );
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+
+    expect(home.status).toBe('available');
+    expect(home.records).toHaveLength(1);
+    expect(home.records?.[0].execution.status).toBe('completed');
+  });
+
   it('rejects a symlink root and reports a capped scan as partial', async () => {
     const root = await makeRoot();
     const linkedTarget = await makeRoot();
@@ -232,6 +495,42 @@ describe('judgment history common reader', () => {
     }).home();
     expect(capped.status).toBe('partial');
     expect(capped.coverage).toMatchObject({ complete: false, reason: 'journal_scan_capped', total: null });
+  });
+
+  it('keeps partial detail coverage in HTTP and refuses feedback when the record cannot be confirmed', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'j'.repeat(64);
+    await save(root, sessionRef, `${'9'.repeat(64)}.json`, adoption(sessionRef, 'turn-partial', 'resolution-partial', {
+      receipt: { project_code: 'project-partial' }
+    }));
+    await save(root, sessionRef, `${'a'.repeat(64)}.json`, { malformed: true });
+    const reader = createJudgmentHistoryReader({ source: createLocalJudgmentHistorySource({ root }) });
+    const writer = createLocalJudgmentHistoryFeedbackWriter({ root, reader });
+    const server = createServer((request, response) => {
+      void createJudgmentHistoryHttpHandler({
+        reader,
+        writeFeedback: writer,
+        assertWriteAllowed: () => undefined
+      })(request, response);
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const detail = await fetch(`${base}/api/judgment-history/records/unknown-partial`);
+    expect(detail.status).toBe(200);
+    expect(await detail.json()).toMatchObject({ status: 'partial', record: null, coverage: { total: null } });
+    const feedback = await fetch(`${base}/api/judgment-history/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        record_id: 'unknown-partial',
+        event_id: 'event-partial',
+        kind: 'feedback',
+        content: { summary: 'partial source' }
+      })
+    });
+    expect(feedback.status).toBe(503);
+    expect((await feedback.json()).error.code).toBe('judgment_history_partial');
   });
 
   it('appends normal feedback beside the journal, reads it back canonically, and is idempotent by event id', async () => {

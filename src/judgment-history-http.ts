@@ -154,7 +154,7 @@ export function createJudgmentHistoryHttpHandler(options: JudgmentHistoryHttpOpt
           const result = await reader.detail(route.recordId);
           if (result.status === 'unavailable') {
             writeJson(response, 200, result);
-          } else if (!result.record) {
+          } else if (result.status === 'available' && !result.record) {
             throw readerError(404, 'judgment_history_not_found', 'No judgment history record matches this id');
           } else {
             writeJson(response, 200, result);
