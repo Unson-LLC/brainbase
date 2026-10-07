@@ -189,6 +189,38 @@ describe('Company OS judgment history projection', () => {
     ]));
   });
 
+  it('does not treat one known empty reference section as proof that unknown sections are empty', async () => {
+    const historicalView = view({
+      problem: {
+        status: 'resolved',
+        value: {
+          snapshotId: 'snapshot-1',
+          problemId: 'problem-1',
+          revision: '4',
+          question: 'どの方式を採用するか',
+          references: [],
+        },
+      },
+      objective: { status: 'unknown', reason: 'not loaded' },
+      evidence: { status: 'resolved', items: [], absence_confirmed: true },
+    });
+    const snapshot = await createCompanyOsJudgmentHistorySource({
+      access,
+      sourcePort: port([sourceRun({
+        view: historicalView,
+        public_judgment: {
+          status: 'resolved',
+          summary: '保存済みの公開要約',
+          reason: '保存済みの理由',
+          alternatives: [],
+        },
+      })]),
+    }).read();
+
+    expect(snapshot.records?.[0]?.judgment.selected_references).toBeNull();
+    expect(snapshot.records?.[0]?.missing_fields).toContain('judgment.selected_references');
+  });
+
   it('binds the common source snapshot and downgrades contradictory host coverage to partial', async () => {
     const source = createCompanyOsJudgmentHistorySource({
       access,

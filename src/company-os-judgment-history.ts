@@ -376,9 +376,15 @@ function normalizeSourceResult(
     };
   }
 
-  const runs = Array.isArray(sourceResult.runs) ? sourceResult.runs : [];
-  const declaredStatus = sourceResult.status ?? 'available';
-  const declaredComplete = sourceResult.complete ?? (declaredStatus === 'available');
+  // TypeScript does not remove a readonly array from this union with
+  // Array.isArray alone. The runtime check above has already established the
+  // structured branch, so keep that fact explicit for the property reads.
+  const structuredSourceResult = sourceResult as
+    | CompanyOsJudgmentHistoryListRunSuccess
+    | CompanyOsJudgmentHistoryListRunUnavailable;
+  const runs = Array.isArray(structuredSourceResult.runs) ? structuredSourceResult.runs : [];
+  const declaredStatus = structuredSourceResult.status ?? 'available';
+  const declaredComplete = structuredSourceResult.complete ?? (declaredStatus === 'available');
   // A source cannot claim an available snapshot while also saying that its
   // scan is incomplete. Normalize contradictory host output to partial so
   // the common reader never advertises a complete count by accident.
@@ -386,14 +392,18 @@ function normalizeSourceResult(
     ? 'unavailable'
     : declaredStatus === 'available' && declaredComplete ? 'available' : 'partial';
   const complete = status === 'available' && declaredComplete;
+  const snapshotId = 'snapshot_id' in structuredSourceResult
+    && isNonEmptyString(structuredSourceResult.snapshot_id)
+    ? structuredSourceResult.snapshot_id
+    : undefined;
   return {
     status,
     runs,
     complete,
-    total: sourceResult.total ?? null,
-    storage: sourceResult.storage ?? null,
-    reason: sourceResult.reason ?? null,
-    snapshot_id: isNonEmptyString(sourceResult.snapshot_id) ? sourceResult.snapshot_id : undefined,
+    total: structuredSourceResult.total ?? null,
+    storage: structuredSourceResult.storage ?? null,
+    reason: structuredSourceResult.reason ?? null,
+    snapshot_id: snapshotId,
   };
 }
 
@@ -554,7 +564,11 @@ function historicalReferenceSectionsAreKnownEmpty(view: JudgmentViewDocument): b
   const problemKnown = view.problem.status === 'resolved' && Boolean(view.problem.value);
   const objectiveKnown = view.objective.status === 'resolved' && Boolean(view.objective.value);
   const evidenceKnown = view.evidence.status === 'resolved' && view.evidence.items !== null && view.evidence.absence_confirmed;
-  return problemKnown || objectiveKnown || evidenceKnown;
+  // This helper is called only after the historical projection found no
+  // references.  An empty list is safe only when every reference-bearing
+  // section was resolved; one resolved section cannot establish that an
+  // unknown section had no references.
+  return problemKnown && objectiveKnown && evidenceKnown;
 }
 
 function projectAlternatives(
