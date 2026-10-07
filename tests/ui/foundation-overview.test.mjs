@@ -333,6 +333,7 @@ test('collection groups by topic, retains project provenance and resolves collid
   const draw = () => renderFoundationCollectionOverview(root, sources, { document: doc, viewState: state, callbacks: { render: draw } });
   draw();
   for (const name of ['目的', '哲学', '世界モデル']) assert.equal(byAttr(root, 'aria-label', name).length, 1);
+  assert.equal(byClass(root, 'bb-fov-objective-card').length, 0, 'overview stays compact until a purpose is selected');
   assert.equal(byClass(root, 'bb-fov-model-card').length, 2);
   assert.match(textOf(byClass(root, 'bb-fov-model-card')[0]), /Alpha.*利益改善/);
   assert.match(textOf(byClass(root, 'bb-fov-model-card')[1]), /Beta.*Beta固有の指標/);

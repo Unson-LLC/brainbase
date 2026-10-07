@@ -453,7 +453,8 @@ function renderObjectives(doc, catalog, viewState, callbacks, recordContexts) {
   const selected = catalog.objectives.find((record) => {
     const definition = recordDefinition(record);
     return (recordContexts?.get(record)?.key ?? `${definition.id}@${definition.revision}`) === viewState.objectiveKey;
-  }) ?? catalog.objectives[0];
+  }) ?? (recordContexts ? null : catalog.objectives[0]);
+  if (!selected && recordContexts) section.append(makeElement(doc, 'p', { className: 'bb-fov-recorded-notice', text: '目的の行を選ぶと、評価基準と記録上の現状を確認できます。' }));
   if (selected) {
     const selectedDefinition = recordDefinition(selected);
     viewState.objectiveKey = recordContexts?.get(selected)?.key ?? `${selectedDefinition.id}@${selectedDefinition.revision}`;
@@ -683,7 +684,7 @@ export function renderFoundationOverview(root, state, {
       source: `正本: ${scopeId}`,
     }));
   }
-  surface.append(workspaceNotice(doc, {
+  if (!recordContexts) surface.append(workspaceNotice(doc, {
     label: '対象範囲',
     text: scopeId,
   }));
@@ -699,10 +700,9 @@ export function renderFoundationOverview(root, state, {
   }
   const catalog = state.catalog;
   if (partial) surface.append(workspaceNotice(doc, { label: '取得済みの範囲', text: '以下の件数・登録なし・検索結果は、取得できた記録だけを対象にしています。全体は未確認です。' }));
-  surface.append(workspaceNotice(doc, {
-    label: '読み方',
-    text: '登録は達成・採用・検証済みを意味しません。記録上の現状は保存時点の記述です。',
-  }));
+  surface.append(recordContexts
+    ? makeElement(doc, 'p', { className: 'bb-fov-recorded-notice', text: '記録上の現状は保存時点の記述です。登録状態と検証状態を分けて読みます。' })
+    : workspaceNotice(doc, { label: '読み方', text: '登録は達成・採用・検証済みを意味しません。記録上の現状は保存時点の記述です。' }));
   surface.append(workspaceMetrics(doc, [
     { label: '目的', value: catalog.objectives.length, note: partial ? '取得済みの定義（全体は未確認）' : '登録された定義' },
     { label: '哲学', value: catalog.philosophies.length, note: partial ? '取得済みの版（全体は未確認）' : '登録された版' },
