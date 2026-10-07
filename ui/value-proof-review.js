@@ -625,6 +625,42 @@ function basisTargetText(entry) {
   return version ? `${entityId}（版 ${version}）` : entityId;
 }
 
+// References are host-owned data.  Keep structured values readable at this
+// boundary instead of letting template interpolation turn them into
+// "[object Object]".  The fields below are identifiers already present in
+// the value-proof contract; they are never turned into links here.
+const REFERENCE_FIELDS = Object.freeze([
+  'label', 'name', 'title', 'kind', 'type', 'ref', 'id',
+  'entity_id', 'entityId', 'key', 'version', 'revision',
+]);
+
+function readableReferenceValue(value, depth = 0) {
+  const direct = text(value);
+  if (direct) return direct;
+  if (!isRecord(value) || depth >= 2) return null;
+  const parts = [];
+  for (const field of REFERENCE_FIELDS) {
+    const candidate = readableReferenceValue(value[field], depth + 1);
+    if (candidate && !parts.includes(candidate)) parts.push(candidate);
+  }
+  return parts.length > 0 ? parts.join(' / ') : null;
+}
+
+function formatStructuredReference(entry, unavailable) {
+  if (!isRecord(entry)) return unavailable;
+  const label = readableReferenceValue(entry.label);
+  const kind = readableReferenceValue(entry.kind);
+  const reference = readableReferenceValue(entry.ref);
+  const identity = [kind, reference].filter(Boolean).join(':');
+  if (label && identity) return `${label}（${identity}）`;
+  return label ?? identity ?? readableReferenceValue(entry) ?? unavailable;
+}
+
+function formatEvidenceReference(entry) {
+  const status = isRecord(entry) && entry.status === 'verified' ? '確認済み' : '未確認';
+  return `${formatStructuredReference(entry, '証拠の識別情報は未確認')} ${status}`;
+}
+
 const SOURCE_READ_STATES = Object.freeze(['loading', 'available', 'not_found', 'ambiguous', 'forbidden', 'unavailable']);
 const SOURCE_READ_LABELS = Object.freeze({
   loading: '出典を確認中…',
@@ -957,7 +993,7 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
   }));
   const evidence = Array.isArray(proof.outcome.evidence_refs) ? proof.outcome.evidence_refs : [];
   const evidenceText = evidence.length > 0
-    ? `（証拠: ${evidence.map((entry) => `${text(entry.label) ?? entry.kind} ${entry.status === 'verified' ? '確認済み' : '未確認'}`).join(' / ')}）`
+    ? `（証拠: ${evidence.map(formatEvidenceReference).join(' / ')}）`
     : '';
   const latestLayer = item.feedbackHistory.at(-1)?.target_layer;
   detail.push(workspaceRailBlock(doc, {
@@ -1019,9 +1055,13 @@ function renderJudgmentDetail(doc, state, item, callbacks) {
   ];
   if (text(proof.interruption.question_digest)) auditPairs.push(['question_digest', proof.interruption.question_digest]);
   if (basis.length > 0) auditPairs.push(['根拠の対象ID', basis.map((entry) => entry.entity_id).join(', ')]);
-  if (evidence.length > 0) auditPairs.push(['証拠参照', evidence.map((entry) => `${entry.kind}:${entry.ref}`).join(', ')]);
+  if (evidence.length > 0) {
+    auditPairs.push(['証拠参照', evidence.map((entry) => formatStructuredReference(entry, '証拠の識別情報は未確認')).join(', ')]);
+  }
   const artifacts = Array.isArray(proof.execution.artifact_refs) ? proof.execution.artifact_refs : [];
-  if (artifacts.length > 0) auditPairs.push(['成果物参照', artifacts.map((entry) => `${entry.kind}:${entry.ref}`).join(', ')]);
+  if (artifacts.length > 0) {
+    auditPairs.push(['成果物参照', artifacts.map((entry) => formatStructuredReference(entry, '成果物の識別情報は未確認')).join(', ')]);
+  }
   audit.append(workspaceDefinition(doc, auditPairs));
   detail.push(workspaceRailBlock(doc, { className: 'bb-vpr-audit-block', content: audit }));
 

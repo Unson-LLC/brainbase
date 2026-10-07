@@ -350,6 +350,38 @@ describe('value proof review UI contract', () => {
     expect(byClass(root, 'bb-vpr-detail')).toHaveLength(0);
   });
 
+  it('renders structured evidence identifiers without object coercion or invented links', () => {
+    const entry = proof();
+    entry.outcome = {
+      status: 'unconfirmed',
+      summary: '成果はまだ確認できない',
+      evidence_refs: [
+        { kind: { type: 'canonical_readback' }, ref: { id: 'github://run/1', revision: '2' }, status: 'verified' },
+        { kind: 'tool_event', ref: 'tool://run-2', status: 'unconfirmed', label: { title: '実行ログ' } },
+        { kind: {}, ref: {}, status: 'unconfirmed' },
+        null,
+      ],
+    };
+    entry.execution = {
+      ...entry.execution,
+      artifact_refs: [{ kind: { name: 'artifact' }, ref: { id: 'artifact-1' }, label: { name: '成果物' } }],
+    };
+
+    const { rail } = renderHome(home([entry]), { selectedKey: 'intent-1\u0000attempt-1', railView: 'judgment' });
+    const detailText = collectText(byClass(rail, 'bb-vpr-detail')[0]);
+
+    expect(detailText).toContain('canonical_readback');
+    expect(detailText).toContain('github://run/1');
+    expect(detailText).toContain('確認済み');
+    expect(detailText).toContain('実行ログ');
+    expect(detailText).toContain('未確認');
+    expect(detailText).toContain('証拠の識別情報は未確認');
+    expect(detailText).toContain('成果物');
+    expect(detailText).toContain('artifact-1');
+    expect(detailText).not.toContain('[object Object]');
+    expect(byTag(byClass(rail, 'bb-vpr-detail')[0], 'A')).toHaveLength(0);
+  });
+
   it('says the inheritance is unrecorded instead of inventing it, and shows it when recorded', () => {
     const render = (entry) => {
       const { rail } = renderHome(home([entry]), { selectedKey: 'intent-1\u0000attempt-1', railView: 'judgment' });
