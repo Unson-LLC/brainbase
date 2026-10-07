@@ -28,6 +28,14 @@ const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
 const PERIODS = Object.freeze({ week: 'week', past30days: 'past30days', all: 'all' });
 const PERIOD_LABELS = Object.freeze({ week: '今週', past30days: '過去30日', all: '全期間' });
 const SECTION_KEYS = Object.freeze(['needs_human', 'blocked', 'continued', 'other']);
+const NORMAL_ENTRYPOINTS = Object.freeze(['codex', 'claude_code', 'mana', 'company_os', 'unknown']);
+const NORMAL_ENTRYPOINT_LABELS = Object.freeze({
+  codex: 'Codex',
+  claude_code: 'Claude Code',
+  mana: 'Mana',
+  company_os: 'Company OS',
+  unknown: '入口不明',
+});
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -87,15 +95,144 @@ function normalizeCoverage(coverage, status) {
   const complete = source.complete !== false && state !== 'partial' && state !== 'unknown';
   const saved = nonNegativeInteger(source.saved ?? source.read ?? source.count);
   const rejected = nonNegativeInteger(source.rejected ?? source.rejected_count);
+  const total = nonNegativeInteger(source.total);
+  const storage = text(source.storage).toLowerCase() || null;
+  const sources = Array.isArray(source.sources)
+    ? source.sources.filter(isRecord).map((entry) => ({
+      entrypoint: text(entry.entrypoint) || 'unknown',
+      status: text(entry.status) || 'unknown',
+      reason: text(entry.reason) || null,
+    }))
+    : [];
   return {
     saved,
     rejected,
+    total,
+    storage,
+    sources,
     latestRecordedAt: text(source.latest_recorded_at ?? source.latestRecordedAt) || null,
     possiblyStalled: source.possibly_stalled === true || source.possiblyStalled === true,
     complete: status !== 'partial' && complete,
     reason: text(source.reason ?? source.message) || null,
     state: state || (status === 'partial' ? 'partial' : 'complete'),
   };
+}
+
+function normalEntrypoint(value) {
+  const candidate = text(value).toLowerCase();
+  return NORMAL_ENTRYPOINTS.includes(candidate) ? candidate : 'unknown';
+}
+
+function normalizeNormalReference(value) {
+  if (!isRecord(value)) return null;
+  const ref = text(value.ref ?? value.entity_id ?? value.id);
+  if (!ref) return null;
+  return {
+    ref,
+    id: ref,
+    kind: text(value.kind) || null,
+    version: text(value.version ?? value.revision) || null,
+    digest: text(value.digest) || null,
+    why: text(value.why) || null,
+    usage: text(value.usage) || null,
+    availability: text(value.availability).toLowerCase() || 'unknown',
+    label: text(value.label ?? value.name) || ref,
+  };
+}
+
+function normalizeNormalAlternative(value) {
+  if (!isRecord(value)) return null;
+  const adopted = typeof value.adopted === 'boolean' ? value.adopted : null;
+  return {
+    label: text(value.label ?? value.summary ?? value.option) || null,
+    evaluation: text(value.evaluation ?? value.impact ?? value.reason) || null,
+    adoption: text(value.adoption ?? value.adoption_status ?? value.selected) || null,
+    adopted,
+  };
+}
+
+function normalizeNormalRecord(value) {
+  if (!isRecord(value)) return null;
+  const recordId = text(value.record_id);
+  const recordedAt = text(value.recorded_at);
+  if (!recordId || timestamp(recordedAt) === null) return null;
+  const judgment = isRecord(value.judgment) ? value.judgment : {};
+  const execution = isRecord(value.execution) ? value.execution : {};
+  const invalidFields = [];
+  const normalizeCollection = (value, field, normalize) => {
+    if (value === null || value === undefined) return null;
+    if (!Array.isArray(value)) {
+      invalidFields.push(field);
+      return null;
+    }
+    const normalized = value.map(normalize);
+    if (normalized.some((entry) => entry === null)) invalidFields.push(field);
+    return normalized.filter(Boolean);
+  };
+  const selectedReferences = normalizeCollection(judgment.selected_references, 'judgment.selected_references', normalizeNormalReference);
+  const alternatives = normalizeCollection(judgment.alternatives, 'judgment.alternatives', normalizeNormalAlternative);
+  const missingFields = Array.isArray(value.missing_fields)
+    ? value.missing_fields.map((field) => text(field)).filter(Boolean)
+    : [];
+  for (const field of invalidFields) {
+    if (!missingFields.includes(field)) missingFields.push(field);
+  }
+  return {
+    record: value,
+    recordId,
+    entrypoint: normalEntrypoint(value.entrypoint),
+    recordedAt,
+    projectCode: value.project_code === null || value.project_code === undefined ? null : text(value.project_code) || null,
+    turnRef: value.turn_ref === null || value.turn_ref === undefined ? null : text(value.turn_ref) || null,
+    judgment,
+    execution,
+    selectedReferences,
+    alternatives,
+    missingFields,
+    invalidFields,
+  };
+}
+
+function normalizeNormalFilters(filters) {
+  if (!isRecord(filters)) return { period: null, project: null, entrypoint: null, projects: [], entrypoints: [] };
+  const normalizeOptions = (value) => {
+    if (!Array.isArray(value)) return [];
+    return value.map((entry) => {
+      if (typeof entry === 'string') return { value: entry, label: entry };
+      if (!isRecord(entry)) return null;
+      const option = text(entry.value ?? entry.code ?? entry.project ?? entry.entrypoint ?? entry.id);
+      return option ? { value: option, label: text(entry.label) || option } : null;
+    }).filter(Boolean);
+  };
+  const projects = normalizeOptions(filters.projects ?? filters.project_options ?? filters.projectCodes);
+  const entrypoints = normalizeOptions(filters.entrypoints ?? filters.entrypoint_options)
+    .filter((entry) => NORMAL_ENTRYPOINTS.includes(entry.value));
+  return {
+    period: text(filters.period) || null,
+    project: filters.project === null || filters.project === undefined ? null : text(filters.project) || null,
+    entrypoint: filters.entrypoint === null || filters.entrypoint === undefined ? null : normalEntrypoint(filters.entrypoint),
+    projects,
+    entrypoints,
+  };
+}
+
+function normalizePagination(pagination) {
+  if (!isRecord(pagination)) return { nextCursor: null, previousCursor: null, limit: null, hasNext: false };
+  const nextCursor = text(pagination.next_cursor ?? pagination.nextCursor) || null;
+  const previousCursor = text(pagination.previous_cursor ?? pagination.previousCursor) || null;
+  const limit = nonNegativeInteger(pagination.limit);
+  return {
+    nextCursor,
+    previousCursor,
+    limit,
+    hasNext: pagination.has_next === true || pagination.hasNext === true || Boolean(nextCursor),
+  };
+}
+
+function isNormalHistoryPayload(payload) {
+  return payload?.contract_version === 'brainbase.judgment-history.v1'
+    || Array.isArray(payload?.records)
+    || isRecord(payload?.record);
 }
 
 function isProof(value) {
@@ -140,18 +277,57 @@ function normalizeSectionItems(sections) {
  */
 export function normalizeJudgmentHistoryHome(payload) {
   if (!isRecord(payload)) return { status: 'invalid', reason: 'response_not_object' };
+  if (isNormalHistoryPayload(payload)) {
+    const rawStatus = text(payload.status).toLowerCase();
+    if (!['available', 'partial', 'unavailable', 'error'].includes(rawStatus)) {
+      return { mode: 'normal', status: 'invalid', reason: 'unsupported_status' };
+    }
+    const coverage = normalizeCoverage(payload.coverage, rawStatus);
+    if (rawStatus === 'unavailable' || rawStatus === 'error') {
+      return {
+        mode: 'normal',
+        status: rawStatus,
+        contractVersion: text(payload.contract_version) || 'brainbase.judgment-history.v1',
+        coverage,
+        filters: normalizeNormalFilters(payload.filters),
+        pagination: normalizePagination(payload.pagination),
+        records: [],
+        reason: text(payload.reason ?? coverage.reason) || null,
+      };
+    }
+    if (!Array.isArray(payload.records)) return { mode: 'normal', status: 'invalid', reason: 'records_missing' };
+    const records = payload.records.map(normalizeNormalRecord).filter(Boolean);
+    const invalidRecordCount = records.filter((record) => record.invalidFields.length > 0).length;
+    const invalidCount = payload.records.length - records.length + invalidRecordCount;
+    const sourceGaps = coverage.sources.filter((source) => ['partial', 'unavailable'].includes(source.status));
+    const status = rawStatus === 'partial' || coverage.complete === false || invalidCount > 0 || sourceGaps.length > 0 ? 'partial' : 'available';
+    const reason = text(payload.reason ?? coverage.reason)
+      || sourceGaps.find((source) => source.reason)?.reason
+      || (invalidCount > 0 ? 'record_invalid' : null);
+    return {
+      mode: 'normal',
+      status,
+      contractVersion: text(payload.contract_version) || 'brainbase.judgment-history.v1',
+      coverage: { ...coverage, complete: status === 'available' && coverage.complete !== false },
+      filters: normalizeNormalFilters(payload.filters),
+      pagination: normalizePagination(payload.pagination),
+      records,
+      invalidCount,
+      reason,
+    };
+  }
   if (payload.status === 'unavailable') {
-    return { status: 'unavailable', root: text(payload.root) || null, reason: text(payload.reason) || 'judgment_journal_unavailable' };
+    return { mode: 'legacy', status: 'unavailable', root: text(payload.root) || null, reason: text(payload.reason) || 'judgment_journal_unavailable' };
   }
   if (payload.status !== 'available' && payload.status !== 'partial') {
-    return { status: 'invalid', reason: 'unsupported_status' };
+    return { mode: 'legacy', status: 'invalid', reason: 'unsupported_status' };
   }
   const sectionResult = normalizeSectionItems(payload.sections);
-  if (!sectionResult) return { status: 'invalid', reason: 'sections_missing' };
+  if (!sectionResult) return { mode: 'legacy', status: 'invalid', reason: 'sections_missing' };
   const rawCoverage = isRecord(payload.coverage) ? payload.coverage : {};
   const saved = nonNegativeInteger(rawCoverage.saved);
   const rejectedCount = nonNegativeInteger(rawCoverage.rejected);
-  if (saved === null || rejectedCount === null) return { status: 'invalid', reason: 'coverage_incomplete' };
+  if (saved === null || rejectedCount === null) return { mode: 'legacy', status: 'invalid', reason: 'coverage_incomplete' };
   const coverageState = text(rawCoverage.status ?? rawCoverage.state).toLowerCase();
   const coverageMismatch = saved !== sectionResult.rawCount || rejectedCount !== (Array.isArray(payload.rejected) ? payload.rejected.length : 0);
   const status = payload.status === 'partial' || rawCoverage.complete === false || coverageState === 'partial' || coverageState === 'unknown'
@@ -162,6 +338,7 @@ export function normalizeJudgmentHistoryHome(payload) {
     ? payload.rejected.filter(isRecord).map((entry) => ({ file: text(entry.file) || null, reason: text(entry.reason) || 'record_rejected' }))
     : [];
   return {
+    mode: 'legacy',
     status,
     root: text(payload.root) || null,
     coverage: { ...normalizeCoverage(rawCoverage, status), saved, rejected: rejectedCount },
@@ -312,15 +489,148 @@ function isDelegated(proof) {
   return proof?.interruption?.resolution === 'continued_without_human' && Boolean(text(proof?.decision?.summary));
 }
 
+function normalReferenceSearchText(reference) {
+  if (!isRecord(reference)) return '';
+  return [
+    reference.ref,
+    reference.kind,
+    reference.version,
+    reference.digest,
+    reference.why,
+    reference.usage,
+    reference.availability,
+    reference.label,
+  ].filter(Boolean).join(' ');
+}
+
+function normalRecordSearchText(record) {
+  const judgment = isRecord(record.judgment) ? record.judgment : {};
+  const execution = isRecord(record.execution) ? record.execution : {};
+  const alternatives = Array.isArray(record.alternatives) ? record.alternatives : [];
+  const references = Array.isArray(record.selectedReferences) ? record.selectedReferences : [];
+  return [
+    record.recordId,
+    record.entrypoint,
+    NORMAL_ENTRYPOINT_LABELS[record.entrypoint],
+    record.projectCode,
+    record.turnRef,
+    record.recordedAt,
+    judgment.status,
+    judgment.summary,
+    judgment.reason,
+    execution.status,
+    execution.result_summary,
+    execution.outcome_status,
+    ...record.missingFields,
+    ...references.map(normalReferenceSearchText),
+    ...alternatives.flatMap((alternative) => [alternative.label, alternative.evaluation, alternative.adoption, alternative.adopted]),
+  ].filter(Boolean).join(' ').toLocaleLowerCase('ja-JP');
+}
+
+function aggregateNormalJudgmentHistory(home, { now = new Date(), period = PERIODS.past30days, query = '' } = {}) {
+  const empty = {
+    mode: 'normal',
+    rows: [],
+    stats: {
+      judgments: null,
+      references: null,
+      equivalent: null,
+      outcomes: null,
+      judgmentCount: null,
+      referenceCount: null,
+      equivalentJudgments: null,
+      confirmedOutcomes: null,
+    },
+    visibleCount: 0,
+    totalCount: home.coverage?.total ?? (home.coverage?.complete === true && home.records.length === 0 ? 0 : null),
+    period: normalizedPeriod(period),
+    query: text(query),
+    status: home.status,
+    coverage: home.coverage ?? null,
+    rejected: home.rejected ?? [],
+    reason: home.reason ?? null,
+    pagination: home.pagination ?? { nextCursor: null, previousCursor: null, limit: null, hasNext: false },
+    filters: home.filters ?? null,
+  };
+  if (home.status !== 'available' && home.status !== 'partial') return empty;
+  const nowMs = normalizedNow(now);
+  const start = periodStart(normalizedPeriod(period), nowMs);
+  const needle = text(query).toLocaleLowerCase('ja-JP');
+  const rows = [];
+  for (const record of home.records ?? []) {
+    const recorded = timestamp(record.recordedAt);
+    if (recorded === null || recorded < start || recorded > nowMs) continue;
+    const searchText = normalRecordSearchText(record);
+    if (needle && !searchText.includes(needle)) continue;
+    rows.push({
+      mode: 'normal',
+      key: record.recordId,
+      recordId: record.recordId,
+      recordedAt: record.recordedAt,
+      record: record.record,
+      entrypoint: record.entrypoint,
+      projectCode: record.projectCode,
+      turnRef: record.turnRef,
+      judgment: record.judgment,
+      execution: record.execution,
+      missingFields: record.missingFields,
+      alternatives: record.alternatives,
+      references: record.selectedReferences,
+      searchText,
+    });
+  }
+  rows.sort((left, right) => {
+    const date = timestamp(right.recordedAt) - timestamp(left.recordedAt);
+    return date || right.recordId.localeCompare(left.recordId);
+  });
+  const references = new Map();
+  let referencesUnconfirmed = false;
+  for (const row of rows) {
+    if (row.references === null) {
+      referencesUnconfirmed = true;
+      continue;
+    }
+    for (const reference of row.references) {
+      const key = `${reference.ref}\u0000${reference.version ?? ''}\u0000${reference.digest ?? ''}`;
+      if (!references.has(key)) references.set(key, reference);
+    }
+  }
+  const metricsUnconfirmed = home.status === 'partial' && rows.length === 0;
+  const judgments = metricsUnconfirmed ? null : rows.length;
+  const referenceCount = metricsUnconfirmed || referencesUnconfirmed ? null : references.size;
+  const confirmedOutcomes = metricsUnconfirmed
+    ? null
+    : rows.filter((row) => text(row.execution?.outcome_status).toLowerCase() === 'confirmed').length;
+  return {
+    ...empty,
+    rows,
+    stats: {
+      judgments,
+      references: referenceCount,
+      equivalent: judgments,
+      outcomes: confirmedOutcomes,
+      delegated: judgments,
+      judgmentCount: judgments,
+      referenceCount,
+      equivalentJudgments: judgments,
+      confirmedOutcomes,
+    },
+    visibleCount: rows.length,
+    totalCount: home.coverage?.total ?? (home.coverage?.complete === true && home.records.length === 0 ? 0 : null),
+  };
+}
+
 /**
  * Project a home read model into one newest-first judgment history.
  * `now`, `period` and `query` are options so the same data can be tested and
  * rendered consistently by a host.
  */
 export function aggregateJudgmentHistory(home, { now = new Date(), period = PERIODS.past30days, query = '' } = {}) {
-  const normalized = home?.items && (home.status === 'available' || home.status === 'partial')
+  const normalized = home?.mode === 'normal'
+    || (home?.items && (home.status === 'available' || home.status === 'partial'))
     ? home
     : normalizeJudgmentHistoryHome(home);
+  if (normalized.mode === 'normal') return aggregateNormalJudgmentHistory(normalized, { now, period, query });
   const empty = {
     rows: [],
     stats: {
@@ -427,7 +737,8 @@ function formatDate(value) {
 }
 
 function makeReferenceSummary(doc, references) {
-  if (!references.length) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照は未記録' });
+  if (references === null || references === undefined) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照は未記録' });
+  if (!references.length) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照はありません' });
   const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-summary' });
   const first = references.slice(0, 2).map((ref) => ref.label || ref.id).join('、');
   wrap.append(makeWorkspaceElement(doc, 'strong', { text: first }));
@@ -436,6 +747,14 @@ function makeReferenceSummary(doc, references) {
 }
 
 function makeDecisionSummary(doc, row) {
+  if (row.mode === 'normal') {
+    const summary = text(row.judgment?.summary);
+    const status = text(row.judgment?.status);
+    const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-decision is-normal' });
+    wrap.append(makeWorkspaceElement(doc, 'strong', { text: summary || '判断内容は未記録' }));
+    wrap.append(makeWorkspaceElement(doc, 'small', { text: `${NORMAL_ENTRYPOINT_LABELS[row.entrypoint] ?? '入口不明'}${status ? `・${status}` : ''}` }));
+    return wrap;
+  }
   const summary = text(row.proof?.decision?.summary);
   const wrap = makeWorkspaceElement(doc, 'span', { className: `bb-jh-decision${row.delegated ? ' is-delegated' : ''}` });
   wrap.append(makeWorkspaceElement(doc, 'strong', { text: summary || (row.proof?.interruption?.resolution === 'continued_without_human' ? '判断内容未記録' : '本人に確認') }));
@@ -445,13 +764,20 @@ function makeDecisionSummary(doc, row) {
 }
 
 function appendReferenceList(doc, references) {
-  if (!references.length) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '参照は記録されていません。' });
+  if (references === null || references === undefined) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '参照は記録されていません。' });
+  if (!references.length) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '参照はありません。' });
   const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-reference-list' });
   for (const ref of references) {
     const item = makeWorkspaceElement(doc, 'li');
     item.append(makeWorkspaceElement(doc, 'strong', { text: ref.label || ref.id }));
-    item.append(makeWorkspaceElement(doc, 'code', { text: `${ref.id}${ref.version ? `@${ref.version}` : ''}` }));
+    item.append(makeWorkspaceElement(doc, 'code', { text: `${ref.ref ?? ref.id}${ref.version ? `@${ref.version}` : ''}${ref.digest ? `#${ref.digest}` : ''}` }));
     if (ref.application && ref.application !== ref.label) item.append(makeWorkspaceElement(doc, 'span', { text: ref.application }));
+    if (ref.availability && ref.availability !== 'recorded') {
+      const availability = ref.availability === 'permission_denied' ? '権限がありません' : ref.availability === 'unavailable' ? '現在は参照できません' : '参照状態は未確認';
+      item.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-availability', text: availability }));
+    }
+    if (ref.why) item.append(makeWorkspaceElement(doc, 'span', { text: `理由: ${ref.why}` }));
+    if (ref.usage) item.append(makeWorkspaceElement(doc, 'span', { text: `用途: ${ref.usage}` }));
     const alternateLabels = (ref.labels ?? []).filter((label) => label && label !== ref.label);
     if (alternateLabels.length) item.append(makeWorkspaceElement(doc, 'span', { text: `別名: ${alternateLabels.join('、')}` }));
     list.append(item);
@@ -470,6 +796,49 @@ function appendSupplement(doc, proof) {
   ]);
 }
 
+function appendNormalAlternatives(doc, alternatives) {
+  if (alternatives === null || alternatives === undefined) {
+    return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '案は記録されていません。' });
+  }
+  if (!alternatives.length) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '保存された案はありません。' });
+  const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-alternative-list' });
+  for (const alternative of alternatives) {
+    const item = makeWorkspaceElement(doc, 'li');
+    item.append(makeWorkspaceElement(doc, 'strong', { text: alternative.label || '案の名称は未記録' }));
+    if (alternative.evaluation) item.append(makeWorkspaceElement(doc, 'span', { text: `評価: ${alternative.evaluation}` }));
+    if (alternative.adoption) item.append(makeWorkspaceElement(doc, 'span', { text: `採用状態: ${alternative.adoption}` }));
+    else if (alternative.adopted === true) item.append(makeWorkspaceElement(doc, 'span', { text: '採用状態: 採用' }));
+    else if (alternative.adopted === false) item.append(makeWorkspaceElement(doc, 'span', { text: '採用状態: 不採用' }));
+    else if (Object.prototype.hasOwnProperty.call(alternative, 'adopted')) item.append(makeWorkspaceElement(doc, 'span', { text: '採用状態: 記録なし' }));
+    list.append(item);
+  }
+  return list;
+}
+
+function normalExecutionLabel(execution) {
+  const status = text(execution?.status).toLowerCase();
+  const labels = { pending: '実行待ち', completed: '実行済み', failed: '実行失敗', held: '保留', cancelled: '取消', unknown: '実行状態未確認' };
+  return labels[status] ?? '実行状態未確認';
+}
+
+function normalOutcomeLabel(execution) {
+  const status = text(execution?.outcome_status).toLowerCase();
+  const labels = { confirmed: '結果確認済み', unconfirmed: '結果未確認', unknown: '結果未確認' };
+  return labels[status] ?? '結果未確認';
+}
+
+function appendNormalExecution(doc, execution) {
+  return workspaceDefinition(doc, [
+    ['実行', [normalExecutionLabel(execution), text(execution?.result_summary)]],
+    ['結果', normalOutcomeLabel(execution)],
+  ]);
+}
+
+function appendNormalMissingFields(doc, missingFields) {
+  if (!Array.isArray(missingFields) || missingFields.length === 0) return null;
+  return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-missing-fields', text: `未記録: ${missingFields.join('、')}` });
+}
+
 function appendTextParts(doc, values) {
   const wrap = makeWorkspaceElement(doc, 'div');
   for (const value of values) {
@@ -478,7 +847,50 @@ function appendTextParts(doc, values) {
   return wrap;
 }
 
-function renderRail(doc, rail, row, onClose) {
+function renderNormalRail(doc, rail, row, detail, onClose) {
+  if (!rail) return;
+  rail.replaceChildren();
+  const record = detail ?? row;
+  rail.append(workspaceRailHead(doc, {
+    kicker: `${NORMAL_ENTRYPOINT_LABELS[record.entrypoint] ?? '入口不明'}の判断`,
+    title: text(record.judgment?.summary) || '判断内容は未記録',
+    sub: formatDate(record.recordedAt),
+  }));
+  if (typeof onClose === 'function') {
+    rail.append(workspaceButton(doc, {
+      text: '詳細を閉じる',
+      variant: 'quiet',
+      onClick: onClose,
+      attrs: { 'aria-label': '判断の詳細を閉じる' },
+    }));
+  }
+  rail.append(workspaceRailBlock(doc, {
+    title: '使った参照（当時の記録）',
+    content: appendReferenceList(doc, record.selectedReferences),
+  }));
+  rail.append(workspaceRailBlock(doc, {
+    title: '判断の理由',
+    content: appendTextParts(doc, [text(record.judgment?.reason) || '理由は記録されていません。']),
+  }));
+  rail.append(workspaceRailBlock(doc, {
+    title: '保存された案',
+    content: appendNormalAlternatives(doc, record.alternatives),
+  }));
+  rail.append(workspaceRailBlock(doc, {
+    title: '実行と結果',
+    content: appendNormalExecution(doc, record.execution),
+  }));
+  const metadata = workspaceDefinition(doc, [
+    ['記録ID', record.recordId],
+    ['プロジェクト', record.projectCode],
+    ['Turn', record.turnRef],
+  ]);
+  const missing = appendNormalMissingFields(doc, record.missingFields);
+  if (missing) metadata.append(missing);
+  rail.append(workspaceRailBlock(doc, { title: '記録の範囲', content: metadata }));
+}
+
+function renderRail(doc, rail, row, detail, onClose) {
   if (!rail) return;
   rail.replaceChildren();
   if (!row) {
@@ -487,6 +899,10 @@ function renderRail(doc, rail, row, onClose) {
       title: '履歴を選択',
       text: '行を選ぶと、使った参照と行った判断を確認できます。',
     }));
+    return;
+  }
+  if (row.mode === 'normal') {
+    renderNormalRail(doc, rail, row, detail, onClose);
     return;
   }
   const proof = row.proof;
@@ -531,9 +947,16 @@ function statusNotice(doc, phase, error, home, onRetry) {
     tone: 'danger',
     role: 'alert',
   });
+  if (home?.status === 'error') return workspaceNotice(doc, {
+    label: '取得に失敗',
+    text: ['判断の記録を確認できません。データが0件とは確認できていません。', workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
+    tone: 'danger',
+    role: 'alert',
+  });
+  const sourceSummary = normalSourcesSummary(home);
   if (home?.status === 'unavailable') return workspaceNotice(doc, {
     label: '未接続',
-    text: ['保存された判断に接続できません。データが0件とは確認できていません。', workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
+    text: [`保存された判断に接続できません${home.coverage?.storage ? `（${normalStorageLabel(home.coverage.storage)}）` : ''}。データが0件とは確認できていません。`, sourceSummary ? `取得元: ${sourceSummary}` : null, workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
     tone: 'warning',
     role: 'alert',
   });
@@ -545,7 +968,7 @@ function statusNotice(doc, phase, error, home, onRetry) {
   });
   if (home?.status === 'partial') return workspaceNotice(doc, {
     label: '取得できた範囲',
-    text: [`読み取れた判断だけを表示しています。${home.coverage?.rejected ? `読み取れなかった記録は${home.coverage.rejected}件あります。` : ''}`, workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
+    text: [`読み取れた判断だけを表示しています。${home.coverage?.storage ? `（${normalStorageLabel(home.coverage.storage)}）` : ''}${home.coverage?.reason ? ` ${normalReasonLabel(home.coverage.reason)}` : ''}${home.coverage?.rejected ? ` 読み取れなかった記録は${home.coverage.rejected}件あります。` : ''}`, sourceSummary ? `取得元: ${sourceSummary}` : null, workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
     tone: 'warning',
     role: 'status',
   });
@@ -577,12 +1000,107 @@ function createSearch(doc, value, onInput) {
   return label;
 }
 
+function normalStorageLabel(storage) {
+  if (storage === 'local') return '端末';
+  if (storage === 'server') return 'サーバー';
+  return storage || '接続先不明';
+}
+
+function normalReasonLabel(reason) {
+  const labels = {
+    unconnected: '未接続',
+    mana_not_connected: '未接続（Mana）',
+    journal_unavailable: '判断記録がありません',
+    journal_unreadable: '判断記録を読み取れません',
+  };
+  return labels[reason] ?? reason;
+}
+
+function normalSourceStatusLabel(status) {
+  const labels = {
+    available: '接続済み',
+    partial: '一部取得',
+    unavailable: '未接続',
+  };
+  return labels[status] ?? '未確認';
+}
+
+function normalSourcesSummary(home) {
+  if (home?.mode !== 'normal' || !Array.isArray(home.coverage?.sources) || home.coverage.sources.length === 0) return '';
+  return home.coverage.sources.map((source) => {
+    const entrypoint = NORMAL_ENTRYPOINT_LABELS[normalEntrypoint(source.entrypoint)] ?? '入口不明';
+    const reason = source.reason ? `（${normalReasonLabel(source.reason)}）` : '';
+    return `${entrypoint}: ${normalSourceStatusLabel(source.status)}${reason}`;
+  }).join('、');
+}
+
+function createFilterSelect(doc, { label, value, options, onChange, className = '' }) {
+  const wrap = makeWorkspaceElement(doc, 'label', { className: `bb-jh-filter${className ? ` ${className}` : ''}` });
+  wrap.append(makeWorkspaceElement(doc, 'span', { text: label }));
+  const select = makeWorkspaceElement(doc, 'select', { attrs: { 'aria-label': label } });
+  const current = value ?? '';
+  const choices = [{ value: '', label: 'すべて' }, ...options];
+  for (const option of choices) {
+    const optionElement = makeWorkspaceElement(doc, 'option', { text: option.label, attrs: { value: option.value, selected: option.value === current ? 'selected' : undefined } });
+    optionElement.value = option.value;
+    select.append(optionElement);
+  }
+  select.value = current;
+  select.addEventListener('change', (event) => onChange(event?.target?.value ?? select.value ?? ''));
+  wrap.append(select);
+  return wrap;
+}
+
+function normalFilterControls(doc, home, state, onChange) {
+  const filters = home?.filters ?? {};
+  const projects = [...(filters.projects ?? [])];
+  const knownProjects = (home.records ?? []).map((record) => record.projectCode).filter(Boolean);
+  for (const project of knownProjects) {
+    if (!projects.some((option) => option.value === project)) projects.push({ value: project, label: project });
+  }
+  const entrypoints = [...(filters.entrypoints ?? [])];
+  const knownEntrypoints = (home.records ?? []).map((record) => record.entrypoint).filter(Boolean);
+  for (const entrypoint of [...NORMAL_ENTRYPOINTS, ...knownEntrypoints]) {
+    if (!entrypoints.some((option) => option.value === entrypoint)) {
+      entrypoints.push({ value: entrypoint, label: NORMAL_ENTRYPOINT_LABELS[entrypoint] ?? entrypoint });
+    }
+  }
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-normal-filters', attrs: { 'aria-label': '絞り込み' } });
+  wrap.append(createFilterSelect(doc, {
+    label: 'プロジェクト',
+    value: state.project,
+    options: projects,
+    onChange: (project) => onChange({ project: project || null }),
+  }));
+  wrap.append(createFilterSelect(doc, {
+    label: '入口',
+    value: state.entrypoint,
+    options: entrypoints,
+    onChange: (entrypoint) => onChange({ entrypoint: entrypoint || null }),
+  }));
+  return wrap;
+}
+
+function paginationControls(doc, aggregate, onNext) {
+  if (aggregate?.mode !== 'normal') return null;
+  const pagination = aggregate?.pagination;
+  const total = aggregate?.totalCount;
+  if (!pagination?.hasNext && total === null) return null;
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-pagination' });
+  const count = total === null ? '同じ範囲の件数は未確認' : `同じ範囲の件数: ${total}件`;
+  wrap.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-pagination-count', text: count }));
+  if (pagination?.hasNext) {
+    wrap.append(workspaceButton(doc, { text: '次のページ', variant: 'quiet', onClick: onNext, attrs: { 'data-action': 'next-page' } }));
+  }
+  return wrap;
+}
+
 function makeRows(doc, aggregate, selectedKey, onSelect) {
   return aggregate.rows.map((row) => ({
     key: row.key,
-    label: `${formatDate(row.recordedAt)} ${text(row.proof?.decision?.summary) || '判断履歴'}`,
+    label: `${formatDate(row.recordedAt)} ${row.mode === 'normal' ? text(row.judgment?.summary) || '判断履歴' : text(row.proof?.decision?.summary) || '判断履歴'}`,
     selected: row.key === selectedKey,
-    className: `bb-jh-row${row.delegated ? ' is-delegated' : ' is-returned'}`,
+    className: `bb-jh-row${row.mode === 'normal' ? ' is-normal' : row.delegated ? ' is-delegated' : ' is-returned'}`,
     onSelect,
     cells: [
       makeWorkspaceElement(doc, 'span', { className: 'bb-jh-date', text: formatDate(row.recordedAt) }),
@@ -599,7 +1117,7 @@ export function createJudgmentHistoryUI({
   document: explicitDocument,
   fetcher,
   token,
-  basePath = '/api/value-proofs',
+  basePath = '/api/judgment-history',
   page,
   autoLoad = true,
   pageHeader = true,
@@ -611,6 +1129,7 @@ export function createJudgmentHistoryUI({
     ? fetcher
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
   const normalizedBasePath = String(basePath).replace(/\/+$/u, '');
+  const legacyBasePath = normalizedBasePath === '/api/judgment-history' ? '/api/value-proofs' : null;
   const readNow = () => (typeof now === 'function' ? now() : now);
   const state = {
     phase: autoLoad ? 'loading' : 'idle',
@@ -619,9 +1138,18 @@ export function createJudgmentHistoryUI({
     aggregate: null,
     period: PERIODS.past30days,
     query: '',
+    project: null,
+    entrypoint: null,
+    cursor: null,
+    limit: 50,
     selectedKey: null,
+    details: new Map(),
+    detailPhase: 'idle',
+    detailError: null,
+    activeBasePath: normalizedBasePath,
     disposed: false,
     generation: 0,
+    detailGeneration: 0,
     focusSearch: false,
     lastFocusedKey: null,
     pendingDecisionId: null,
@@ -631,6 +1159,8 @@ export function createJudgmentHistoryUI({
     if (!state.selectedKey || state.disposed) return false;
     state.lastFocusedKey = state.selectedKey;
     state.selectedKey = null;
+    state.detailPhase = 'idle';
+    state.detailError = null;
     render();
     return true;
   }
@@ -648,6 +1178,61 @@ export function createJudgmentHistoryUI({
       crumbs,
       source: page?.source ?? '判断の記録',
     };
+  }
+
+  function historyPath(path, cursor = null) {
+    const params = new URLSearchParams();
+    params.set('period', state.period);
+    if (state.project) params.set('project', state.project);
+    if (state.entrypoint) params.set('entrypoint', state.entrypoint);
+    params.set('limit', String(state.limit));
+    if (cursor) params.set('cursor', cursor);
+    return `${path}/home?${params.toString()}`;
+  }
+
+  function normalMode() {
+    return state.home?.mode === 'normal' || state.aggregate?.mode === 'normal';
+  }
+
+  function handleNormalFilterChange(changes) {
+    if (!normalMode()) return;
+    if (Object.prototype.hasOwnProperty.call(changes, 'project')) state.project = changes.project;
+    if (Object.prototype.hasOwnProperty.call(changes, 'entrypoint')) state.entrypoint = changes.entrypoint;
+    state.cursor = null;
+    state.selectedKey = null;
+    state.details = new Map();
+    void load({ append: false });
+  }
+
+  async function loadDetail(row) {
+    if (!row || row.mode !== 'normal' || !request || state.disposed) return null;
+    const generation = ++state.detailGeneration;
+    state.detailPhase = 'loading';
+    state.detailError = null;
+    render();
+    try {
+      const response = await request(`${state.activeBasePath}/records/${encodeURIComponent(row.recordId)}`, {
+        method: 'GET',
+        headers: token ? { 'x-brainbase-review-token': token } : undefined,
+      });
+      if (generation !== state.detailGeneration || state.disposed) return null;
+      if (!response || response.ok !== true) throw new Error(`http_${response?.status ?? 0}`);
+      const payload = await response.json();
+      if (generation !== state.detailGeneration || state.disposed) return null;
+      const rawRecord = isRecord(payload?.record) ? payload.record : isRecord(payload) && text(payload.record_id) ? payload : null;
+      const detail = normalizeNormalRecord(rawRecord);
+      if (!detail) throw new Error('record_response_invalid');
+      state.details.set(row.recordId, detail);
+      state.detailPhase = 'ready';
+      render();
+      return detail;
+    } catch (error) {
+      if (generation !== state.detailGeneration || state.disposed) return null;
+      state.detailPhase = 'error';
+      state.detailError = error instanceof Error ? error.message : String(error);
+      render();
+      return null;
+    }
   }
 
   function render() {
@@ -672,19 +1257,24 @@ export function createJudgmentHistoryUI({
     }
     const notice = statusNotice(doc, state.phase, state.error, state.home, () => void load());
     if (notice) wrapper.append(notice);
-    if (state.phase === 'loading' || state.phase === 'error' || state.home?.status === 'unavailable' || state.home?.status === 'invalid') {
+    if (state.phase === 'loading' || state.phase === 'error' || state.home?.status === 'unavailable' || state.home?.status === 'error' || state.home?.status === 'invalid') {
       wrapper.append(workspaceDetailEmpty(doc, { mark: '…', title: state.phase === 'loading' ? '判断履歴を読み込んでいます' : '判断履歴を確認できません', text: '再試行すると最新の状態を確認します。' }));
       root.replaceChildren(wrapper);
-      renderRail(doc, rail, null);
+      renderRail(doc, rail, null, null);
       return;
     }
     const controls = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-controls' });
     controls.append(periodButtons(doc, state.period, (period) => {
       state.period = period;
       state.selectedKey = null;
-      state.aggregate = aggregateJudgmentHistory(state.home, { now: readNow(), period: state.period, query: state.query });
-      render();
+      state.cursor = null;
+      if (normalMode()) void load({ append: false });
+      else {
+        state.aggregate = aggregateJudgmentHistory(state.home, { now: readNow(), period: state.period, query: state.query });
+        render();
+      }
     }));
+    if (normalMode()) controls.append(normalFilterControls(doc, state.home, state, handleNormalFilterChange));
     controls.append(createSearch(doc, state.query, (query) => {
       state.query = String(query);
       state.focusSearch = true;
@@ -699,20 +1289,26 @@ export function createJudgmentHistoryUI({
       attrs: { 'aria-label': '判断履歴を再読み込み', 'data-action': 'reload' },
     }));
     wrapper.append(controls);
+    const normalSourceSummary = normalSourcesSummary(state.home);
     wrapper.append(makeWorkspaceElement(doc, 'p', {
       className: 'bb-jh-reference-note',
-      text: '判断に残った参照だけを表示しています。実行結果の証拠は参照件数に含めません。',
+      text: normalMode()
+        ? `保存された判断の理由、当時の参照、案、実行と結果を表示しています。参照の本文は現在の権限で確認できる場合だけ開きます。${normalSourceSummary ? ` 取得元: ${normalSourceSummary}` : ''}`
+        : '判断に残った参照だけを表示しています。実行結果の証拠は参照件数に含めません。',
     }));
-    if (state.home?.status === 'partial') wrapper.append(statusNotice(doc, 'ready', null, state.home, () => void load()));
     const stats = aggregate.stats ?? {};
     const metricCount = (value, suffix) => value === null || value === undefined ? '未確認' : `${value}${suffix}`;
-    wrapper.append(workspaceMetrics(doc, [
+    wrapper.append(workspaceMetrics(doc, normalMode() ? [
+      { label: '判断件数', value: metricCount(stats.judgments, '件'), note: 'この期間・絞り込みの履歴' },
+      { label: '使った参照', value: metricCount(stats.references, '件'), note: '当時の記録にある一意の参照' },
+      { label: '確認済みの結果', value: metricCount(stats.confirmedOutcomes, '件'), note: '成果が確認済みと記録された判断' },
+    ] : [
       { label: 'Brainbaseが代わりに判断した件数', value: metricCount(stats.judgments, '件'), note: 'この期間の履歴' },
       { label: 'そこで使った参照', value: metricCount(stats.references, '件'), note: '代理判断に含まれる一意の参照' },
       { label: '判断回数にすると', value: metricCount(stats.equivalent, '回分相当'), note: '代理判断1件を1回分として表示' },
     ], { ariaLabel: '判断履歴の集計' }));
     const emptyText = state.home?.status === 'partial'
-      ? 'この期間に取得できた判断履歴はありません。'
+      ? 'この期間に取得できた判断履歴はありません。未接続・一部取得のため0件とは確認できません。'
       : 'この期間の判断履歴はありません。';
     wrapper.append(workspaceLedger(doc, {
       className: 'bb-jh-ledger',
@@ -721,10 +1317,21 @@ export function createJudgmentHistoryUI({
       rows: makeRows(doc, aggregate, state.selectedKey, (key) => {
         state.lastFocusedKey = key;
         state.selectedKey = key;
+        state.detailPhase = 'idle';
+        state.detailError = null;
         render();
+        const selectedRow = aggregate.rows.find((row) => row.key === key);
+        if (selectedRow?.mode === 'normal') void loadDetail(selectedRow);
       }),
       empty: emptyText,
     }));
+    const pagination = paginationControls(doc, aggregate, () => {
+      if (aggregate.pagination?.nextCursor) {
+        state.cursor = aggregate.pagination.nextCursor;
+        void load({ cursor: state.cursor, append: true });
+      }
+    });
+    if (pagination) wrapper.append(pagination);
     const nextSearchInput = findFirst(wrapper, (node) => node.tagName === 'INPUT');
     if (previousSearchInput && nextSearchInput) {
       previousSearchInput.value = state.query;
@@ -740,7 +1347,7 @@ export function createJudgmentHistoryUI({
       state.focusSearch = false;
     }
     const selected = aggregate.rows.find((row) => row.key === state.selectedKey) ?? null;
-    renderRail(doc, rail, selected, selected ? closeSelected : null);
+    renderRail(doc, rail, selected, selected ? state.details.get(selected.recordId) ?? null : null, selected ? closeSelected : null);
     if (state.lastFocusedKey) {
       const row = findFirst(root, (node) => attributeValue(node, 'data-key') === state.lastFocusedKey);
       row?.focus?.();
@@ -748,13 +1355,15 @@ export function createJudgmentHistoryUI({
     }
   }
 
-  async function load() {
+  async function load({ cursor = null, append = false } = {}) {
     if (state.disposed) return null;
     const generation = ++state.generation;
     state.phase = 'loading';
     state.error = null;
-    state.home = null;
-    state.aggregate = null;
+    if (!append) {
+      state.home = null;
+      state.aggregate = null;
+    }
     render();
     if (!request) {
       if (generation !== state.generation || state.disposed) return null;
@@ -764,19 +1373,45 @@ export function createJudgmentHistoryUI({
       return null;
     }
     try {
-      const response = await request(`${normalizedBasePath}/home`, {
+      let activePath = normalizedBasePath;
+      let response = await request(historyPath(normalizedBasePath, cursor), {
         method: 'GET',
         headers: token ? { 'x-brainbase-review-token': token } : undefined,
       });
       if (generation !== state.generation || state.disposed) return null;
+      if (response?.status === 404 && legacyBasePath && !append && !state.project && !state.entrypoint && !state.cursor) {
+        activePath = legacyBasePath;
+        response = await request(`${legacyBasePath}/home`, {
+          method: 'GET',
+          headers: token ? { 'x-brainbase-review-token': token } : undefined,
+        });
+      }
       if (!response || response.ok !== true) throw new Error(`http_${response?.status ?? 0}`);
       const payload = await response.json();
       if (generation !== state.generation || state.disposed) return null;
-      state.home = normalizeJudgmentHistoryHome(payload);
+      const normalized = normalizeJudgmentHistoryHome(payload);
+      state.activeBasePath = activePath;
+      if (append && state.home?.mode === 'normal' && normalized.mode === 'normal') {
+        const records = [...state.home.records];
+        const knownRecordIds = new Set(records.map((record) => record.recordId));
+        for (const record of normalized.records) {
+          if (knownRecordIds.has(record.recordId)) continue;
+          knownRecordIds.add(record.recordId);
+          records.push(record);
+        }
+        state.home = { ...normalized, records, coverage: normalized.coverage ?? state.home.coverage };
+      } else {
+        state.home = normalized;
+      }
+      if (state.home.mode === 'normal') {
+        state.project = state.project ?? state.home.filters?.project ?? null;
+        state.entrypoint = state.entrypoint ?? state.home.filters?.entrypoint ?? null;
+        state.cursor = state.home.pagination?.nextCursor ?? null;
+      }
       state.phase = 'ready';
       state.aggregate = aggregateJudgmentHistory(state.home, { now: readNow(), period: state.period, query: state.query });
       if (state.pendingDecisionId) {
-        const pending = state.aggregate.rows.find((row) => row.decisionAttemptId === state.pendingDecisionId);
+        const pending = state.aggregate.rows.find((row) => row.decisionAttemptId === state.pendingDecisionId || row.recordId === state.pendingDecisionId);
         state.pendingDecisionId = null;
         if (pending) state.selectedKey = pending.key;
       }
@@ -798,11 +1433,12 @@ export function createJudgmentHistoryUI({
       state.pendingDecisionId = id;
       return true;
     }
-    const row = state.aggregate?.rows?.find((candidate) => candidate.decisionAttemptId === id);
+    const row = state.aggregate?.rows?.find((candidate) => candidate.decisionAttemptId === id || candidate.recordId === id);
     if (!row) return false;
     state.selectedKey = row.key;
     state.lastFocusedKey = row.key;
     render();
+    if (row.mode === 'normal') void loadDetail(row);
     return true;
   }
 
