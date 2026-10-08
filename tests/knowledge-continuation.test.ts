@@ -329,7 +329,8 @@ describe('knowledge retrieval continuation',()=>{
  it('explains the resolve_entity to read fallback in continuation context',()=>{
   const context=knowledgeLookupContext(create());
   expect(context).toContain('resolve_entityで名前をGraph IDに同定してから、そのIDをread');
-  expect(context).toContain('content');
+  expect(context).toContain('Graph本文はcontentを使い');
+  expect(context).toContain('bodyはソース投影が明示的に公開する場合だけ指定してください');
   expect(context).toContain('termination_reason');
  });
  it('tells the model which question and attempt_id the host will compare',()=>{
