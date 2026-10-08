@@ -169,7 +169,7 @@ type UnknownRecord = Record<string, unknown>;
 const TERMINAL = new Set<KnowledgeTerminalStatus>(['satisfied', 'unresolved', 'needs_user_input', 'cancelled']);
 const ACTION_KINDS = new Set<KnowledgeActionKind>(['search', 'read', 'follow_relation', 'finish']);
 const KNOWLEDGE_LOOKUP_FIELD_GUIDANCE =
-  `required_fieldsは自然文ではなく公開field pathを指定してください（例: content, body, statement, markdown, summary, name, environments.production.endpoint）。許可root: ${[...KNOWLEDGE_LOOKUP_ALLOWED_FIELD_ROOTS].join(', ')}`;
+  `required_fieldsは自然文ではなく公開field pathを指定してください。Graph本文はcontentを使い、bodyはソース投影が明示的に公開する場合だけ指定してください（例: content, body, statement, markdown, summary, name, environments.production.endpoint）。許可root: ${[...KNOWLEDGE_LOOKUP_ALLOWED_FIELD_ROOTS].join(', ')}`;
 
 const record = (value: unknown): value is UnknownRecord =>
   value !== null && typeof value === 'object' && !Array.isArray(value);

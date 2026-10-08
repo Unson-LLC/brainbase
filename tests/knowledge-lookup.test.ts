@@ -49,6 +49,8 @@ describe('purpose based knowledge lookup', () => {
     const properties = tool?.inputSchema.properties as Record<string, unknown>;
     expect(properties.project_code).toBeUndefined();
     expect((properties.required_fields as Record<string, unknown>).minItems).toBe(1);
+    expect((properties.required_fields as Record<string, unknown>).description).toContain('for Graph text use content');
+    expect((properties.required_fields as Record<string, unknown>).description).toContain('body only when the source projection explicitly exposes a body field');
     const nextAction = properties.next_action as Record<string, unknown>;
     const finishVariant = (nextAction.oneOf as Array<Record<string, unknown>>).find((variant) => {
       const variantProperties = variant.properties as Record<string, unknown>;

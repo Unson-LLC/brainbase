@@ -920,7 +920,7 @@ export const knowledgeLookupTools: Tool[] = [{
         type: 'array',
         minItems: 1,
         maxItems: MAX_FIELDS,
-        description: 'Public field paths only; use roots such as content, body, statement, markdown, summary, name, or environments.production.endpoint.',
+        description: 'Public field paths only; for Graph text use content. Use body only when the source projection explicitly exposes a body field. Other roots include statement, markdown, summary, name, or environments.production.endpoint.',
         items: { type: 'string', minLength: 1, maxLength: MAX_FIELD_LENGTH },
       },
       known_entity_id: { type: 'string', minLength: 1, maxLength: 1_000 },
