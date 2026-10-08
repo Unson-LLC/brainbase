@@ -683,6 +683,101 @@ describe('Objective editor common UI contract', () => {
       expect(findAll(root, (node) => node.tagName === 'FORM')).toHaveLength(0);
     });
 
+    it('removes a stale usable label after readiness fails and exposes the retry action', async () => {
+      let checks = 0;
+      const failure = Object.assign(new Error('正本の確認に失敗しました'), { code: 'foundation_refresh_failed' });
+      const { root, rail, controller } = await mountWorkspace({
+        port: {
+          checkObjectiveReadiness: async () => {
+            checks += 1;
+            if (checks === 1) throw failure;
+            return { ready: true, issues: [] };
+          },
+        },
+      });
+      const row = rowsOf(byClass(root, 'bb-objective-ledger')[0])[0];
+      expect(collectText(row)).toContain('未確認');
+      expect(collectText(row)).not.toContain('使える');
+      expect(controller.state.objectives.records[0].readiness).toMatchObject({ state: 'error_retryable', ready: null });
+
+      const panel = byClass(rail, 'bb-objective-rail')[0];
+      expect(collectText(panel)).toContain('取得失敗');
+      const retry = findButtons(panel).find((button) => button.textContent === '再読込');
+      expect(retry).toBeDefined();
+      retry.dispatch('click');
+      await nextTick();
+      expect(checks).toBe(2);
+      expect(controller.state.objectives.records[0].readiness).toMatchObject({ state: 'ready', ready: true });
+      expect(collectText(rowsOf(byClass(root, 'bb-objective-ledger')[0])[0])).toContain('使える');
+    });
+
+    it('reflects a successful readiness check in the matching list record', async () => {
+      const { root, controller } = await mountWorkspace({
+        port: {
+          listObjectives: async () => ({
+            records: [
+              { ...objectiveRecord(), readiness: { ready: false, issues: [{ code: 'MISSING', path: 'criteria', message: '評価基準がありません' }] } },
+              { ...second(), readiness: { ready: false, issues: [{ code: 'MISSING', path: 'criteria', message: '評価基準がありません' }] } },
+            ],
+            absence_confirmed: true,
+          }),
+          checkObjectiveReadiness: async (id) => id === 'objective-load' ? { ready: true, issues: [] } : { ready: false, issues: [] },
+        },
+      });
+      expect(controller.state.objectives.records[0].readiness).toMatchObject({ state: 'ready', ready: true });
+      expect(controller.state.objectives.records[1].readiness).toMatchObject({ state: 'ready', ready: false });
+      expect(collectText(rowsOf(byClass(root, 'bb-objective-ledger')[0])[0])).toContain('使える');
+    });
+
+    it('removes a usable label when no readiness check method is available', async () => {
+      const { root, rail, controller } = await mountWorkspace({ port: { checkObjectiveReadiness: undefined } });
+      const record = controller.state.objectives.records[0];
+      expect(record.readiness).toMatchObject({ state: 'unknown', ready: null });
+      const row = rowsOf(byClass(root, 'bb-objective-ledger')[0])[0];
+      expect(collectText(row)).toContain('未確認');
+      expect(collectText(row)).not.toContain('使える');
+      expect(findButtons(byClass(rail, 'bb-objective-rail')[0]).map((button) => button.textContent)).toEqual(['目的を直す']);
+    });
+
+    it('isolates readiness by objective ID and revision when an older request finishes late', async () => {
+      const olderCheck = deferred();
+      const other = objectiveRecord({
+        definition: { ...objectiveRecord().definition, id: 'objective-other', revision: '2' },
+        readiness: { ready: false, issues: [] },
+      });
+      const targetOld = objectiveRecord({
+        definition: { ...objectiveRecord().definition, id: 'objective-target', revision: '1' },
+        readiness: { ready: false, issues: [] },
+      });
+      const targetCurrent = objectiveRecord({
+        definition: { ...objectiveRecord().definition, id: 'objective-target', revision: '2' },
+        readiness: { ready: false, issues: [] },
+      });
+      globalThis.document = new FakeDocument();
+      const root = new FakeElement('div');
+      const rail = new FakeElement('aside');
+      const port = {
+        listObjectives: async () => ({ records: [other, targetOld, targetCurrent], absence_confirmed: true }),
+        readObjective: async (id, _context, revision) => [other, targetOld, targetCurrent].find((item) => item.definition.id === id && item.definition.revision === revision),
+        checkObjectiveReadiness: async (id, _context, revision) => id === 'objective-other'
+          ? olderCheck.promise
+          : { ready: true, issues: [] },
+        listObjectiveConstraintRefs: async () => ({ refs: [], absence_confirmed: true }),
+      };
+      const controller = createObjectiveEditorController({ root, rail, port, context: {}, canEdit: true, autoLoad: false, constraintsEditable: false });
+      const loading = controller.loadObjectives();
+      await nextTick();
+      await controller.selectObjective({ id: 'objective-target', type: 'objective', revision: '2' });
+      olderCheck.resolve({ ready: true, issues: [] });
+      await loading;
+
+      const readiness = new Map(controller.state.objectives.records.map((item) => [`${item.id}@${item.revision}`, item.readiness]));
+      expect(readiness.get('objective-other@2')).toMatchObject({ state: 'ready', ready: false });
+      expect(readiness.get('objective-target@1')).toMatchObject({ state: 'ready', ready: false });
+      expect(readiness.get('objective-target@2')).toMatchObject({ state: 'ready', ready: true });
+      expect(controller.state.selected).toMatchObject({ id: 'objective-target', revision: '2' });
+    });
+
     it('gives the rail the objective the owner selects', async () => {
       const { root, rail } = await mountWorkspace();
       rowsOf(byClass(root, 'bb-objective-ledger')[0])[1].dispatch('click');

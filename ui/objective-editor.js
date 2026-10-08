@@ -233,6 +233,18 @@ function definitionForSave(definition) {
 
 function normalizeReadiness(value) {
   const object = objectValue(value);
+  const explicitState = normalizeState(firstValue(object, 'state'));
+  if (['permission_denied', 'api_unavailable', 'missing', 'conflict', 'error_retryable'].includes(explicitState)) {
+    return {
+      state: explicitState,
+      ready: null,
+      issues: null,
+      code: nonEmptyText(firstValue(object, 'code')) ?? explicitState,
+      currentRevision: nonEmptyText(firstValue(object, 'currentRevision', 'current_revision')),
+      message: nonEmptyText(firstValue(object, 'message')) ?? STATUS_LABELS[explicitState],
+      error: firstValue(object, 'error'),
+    };
+  }
   if (!object || typeof object.ready !== 'boolean') return { state: 'unknown', ready: null, issues: null };
   const issues = asArray(object.issues);
   return {
@@ -627,11 +639,17 @@ function renderObjectiveList(root, state, callbacks) {
   return section;
 }
 
-function renderReadiness(root, readiness) {
+function renderReadiness(root, readiness, callbacks = {}) {
   const section = makeElement('section', { className: 'objective-editor-readiness', attrs: { 'aria-label': '判断利用可能性' } });
   const normalized = normalizeReadiness(readiness);
   section.append(makeElement('div', { className: 'objective-editor-subheading', text: '判断への利用' }));
   if (normalized.state !== 'ready') {
+    if (normalized.state !== 'unknown') {
+      section.append(statusNotice(normalized, {
+        onRetry: ['error_retryable', 'api_unavailable'].includes(normalized.state) ? callbacks.onRetryReadiness : null,
+      }));
+      return section;
+    }
     section.append(statusBadge('judgment_unknown'), makeElement('p', { className: 'objective-editor-muted', text: '判断に使える状態かどうかを、保存先から確認できていません。' }));
     return section;
   }
@@ -795,7 +813,7 @@ function buildObjectiveForm(state, callbacks, { workspace = false } = {}) {
     onAddCriterion: () => { captureDraft(); callbacks.onAddCriterion?.(); },
     onRemoveCriterion: (index) => { captureDraft(); callbacks.onRemoveCriterion?.(index); },
   }));
-  form.append(renderReadiness(form, state.readiness));
+  form.append(renderReadiness(form, state.readiness, callbacks));
   form.append(renderConstraintRefs(form, state, callbacks));
   const actions = makeElement('div', { className: 'objective-editor-actions' });
   actions.append(makeElement('span', { className: 'objective-editor-muted', text: callbacks.canEdit ? '保存後に同じID・新版を再取得して確認します。' : '読み取り専用です。書込み権限はホストから提供してください。' }));
@@ -1081,9 +1099,16 @@ function constraintContent(doc, state, callbacks) {
   return content;
 }
 
-function readinessContent(doc, readiness) {
+function readinessContent(doc, readiness, callbacks = {}) {
   const normalized = normalizeReadiness(readiness);
   if (normalized.state !== 'ready') {
+    if (normalized.state !== 'unknown') {
+      return [workspaceStatusNotice(doc, normalized, {
+        label: '判断',
+        onRetry: ['error_retryable', 'api_unavailable'].includes(normalized.state) ? callbacks.onRetryReadiness : null,
+        retryLabel: '再読込',
+      })];
+    }
     return [statusBadge('judgment_unknown'), makeElement('p', { text: '判断に使える状態かどうかを、保存先から確認できていません。' })];
   }
   if (normalized.ready) {
@@ -1119,7 +1144,7 @@ function renderObjectiveDetail(doc, state, callbacks) {
   }));
   parts.push(workspaceRailBlock(doc, { title: `評価基準${objective.criteria ? ` ${objective.criteria.length}件` : ''}`, className: 'bb-objective-criteria-block', content: criteriaContent(doc, objective.criteria) }));
   parts.push(workspaceRailBlock(doc, { title: '制約の参照', className: 'bb-objective-constraints-block', content: constraintContent(doc, state, callbacks) }));
-  parts.push(workspaceRailBlock(doc, { title: '判断に使えるか', className: 'bb-objective-readiness-block', content: readinessContent(doc, state.readiness) }));
+  parts.push(workspaceRailBlock(doc, { title: '判断に使えるか', className: 'bb-objective-readiness-block', content: readinessContent(doc, state.readiness, callbacks) }));
   if (callbacks.canEdit) {
     parts.push(makeElement('p', { className: 'objective-editor-muted bb-objective-revision-note', text: '直して保存すると同じ目的の新しい版を作ります。保存結果を読み戻して確認し、確認できない場合はその状態を表示します。' }));
     parts.push(workspaceActions(doc, [{ text: '目的を直す', variant: 'primary', onClick: callbacks.onEdit }]));
@@ -1285,6 +1310,7 @@ export function createObjectiveEditorController(options = {}) {
       onAddConstraintRef: addConstraintRef,
       onRemoveConstraintRef: removeConstraintRef,
       onReloadConstraints: () => loadConstraintRefs(state.selected),
+      onRetryReadiness: () => loadReadiness(state.selected),
       onLoadStoryLinks: loadStoryLinks,
       onRetryStory: () => loadStoryLinks(state.story.storyId),
       onEdit: beginEdit,
@@ -1377,22 +1403,31 @@ export function createObjectiveEditorController(options = {}) {
     const request = ++readinessRequest;
     const current = () => version === selectionVersion && request === readinessRequest
       && state.selected?.id === objective.id && state.selected?.revision === objective.revision;
+    const apply = (readiness) => {
+      if (!current()) return false;
+      state.readiness = readiness;
+      if (state.selected) state.selected.readiness = readiness;
+      if (Array.isArray(state.objectives.records)) {
+        state.objectives.records = state.objectives.records.map((record) => (
+          record?.id === objective.id && record?.revision === objective.revision
+            ? { ...record, readiness }
+            : record
+        ));
+      }
+      render();
+      return true;
+    };
     const method = portMethod(port, 'checkObjectiveReadiness');
     if (!method) {
-      state.readiness = { state: 'unknown', ready: null, issues: null, message: '判断に使える状態を確かめる経路がありません。' };
-      render();
+      apply({ state: 'unknown', ready: null, issues: null, message: '判断に使える状態を確かめる経路がありません。' });
       return state.readiness;
     }
     try {
       const payload = await method(objective.id, context, objective.revision);
-      if (!current()) return state.readiness;
-      state.readiness = normalizeReadiness(payload);
+      if (!apply(normalizeReadiness(payload))) return state.readiness;
     } catch (error) {
-      if (!current()) return state.readiness;
-      state.readiness = { state: normalizeObjectiveError(error).state, ready: null, issues: null, ...normalizeObjectiveError(error) };
+      if (!apply({ state: normalizeObjectiveError(error).state, ready: null, issues: null, ...normalizeObjectiveError(error) })) return state.readiness;
     }
-    if (state.selected) state.selected.readiness = state.readiness;
-    render();
     return state.readiness;
   }
 
