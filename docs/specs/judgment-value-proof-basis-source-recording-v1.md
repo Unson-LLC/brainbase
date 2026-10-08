@@ -1,0 +1,136 @@
+---
+spec_id: judgment-value-proof-basis-source-recording-v1
+story_id: story-judgment-value-proof-basis-source-recording-v1
+status: proposed
+spec_maturity: design_only
+owner_repository: brainbase
+---
+
+# 保存済み判断の根拠出典記録 v1 Spec（提案）
+
+## 1. 既存契約との関係
+
+このSpecは、`decision.basis[]`にある任意の`source`を将来のproducerが記録する条件だけを定める。現行のvalue-proof v1とUX-20261001-06のdescriptor/readback契約を置き換えず、次を不変とする。
+
+- `source`のない既存記録は有効であり、source-freeのまま読める。
+- source-free記録に出典リンクを作らない。実際のsource readbackが成功しない限り、存在・出典あり・確認済みとは表示しない。
+- producerがsourceを記録しなかった理由を、Graph不存在、判断receipt未発行、成果未確認、事業成果なしと推測しない。
+- このSpecの採用は、既存journalの記録・backfillや実Graphのreadback承認を意味しない。
+
+## 2. Descriptorと不変条件
+
+UX-20261001-06で定義済みのdescriptorを、producerが満たしたreadbackの結果からのみ生成する。
+
+```ts
+type LocalGraphBasisSource = {
+  kind: 'local_graph';
+  entity_id: string;
+  entity_type: 'person' | 'org' | 'project' | 'decision';
+  version?: string | null;
+  digest?: string | null;
+};
+```
+
+不変条件:
+
+1. `source.entity_id === basis.entity_id`。同じbasis entryの対象を指し、別の検索結果や表示名を参照しない。
+2. `entity_type`はCanonical Graphの`person`、`org`、`project`、`decision`の4型だけである。Foundationの`philosophy`や`objective`をこの列挙へ足さない。
+3. `source.version`は、認証済みreadbackが返した同じ対象entity recordの明示的なrevisionをそのまま固定する。`basis.version`が同じ対象record revisionを表すと確認できる場合は`source.version`との一致を必須とし、意味不明・不一致・対象record revision欠落時はsourceを記録しない。digestだけ、Graphファイル全体の版、`latest`、`as_of`、表示名、推測値を対象entityのrecord revisionの代用にしない。`digest`を保存する場合も、producerが成功したreadbackの値をそのまま固定する。
+4. `basis.layer`はdescriptorの一部ではなく、sourceの存在・型・IDを決めない。`philosophy`／`objective` layerだからといってFoundation sourceや`local_graph` sourceを生成しない。
+5. descriptorはURL、外部URL、任意path、project名、表示名、検索クエリを持たない。project/scopeは記録shapeへ推測で追加せず、Hostのtrusted contextで照合する。
+
+### 2.1 Reader Host契約（設計案、永続descriptorとは別）
+
+producerが直接組み立てる入力ではなく、将来のHost注入ポートが解決してreaderへ渡すcontextとreadback結果の概念契約を定める。フィールド名・wire format・永続化方式はこのSpecでは決めない。
+
+- **Host-owned context**: `authority: 'local_graph'`、Hostが解決した認証済みprincipal（opaqueな識別子）、現在のread ACLの判定、project scopeの解決状態（対象projectと一致／不明／不一致）を含む。producerが渡したprincipal、scope、project名、検索候補をcontextとして採用しない。
+- **Canonical record**: readerはbasisと同じentity ID・4型の`entity_type`に加え、Graphが返したentity recordの明示的なrevisionとdigestを返す。`source.version`はこの同じ対象entity recordのrevisionを記録し、`basis.version`が同じ対象record revisionを表すと確認できる場合は両者を一致させる。意味不明・不一致・revision欠落時はsourceを記録しない。revision/digestの未提供をGraph形式、Graphファイル全体の版、`as_of`、latest、表示名、推測値で補わない。
+- **`available`**: authority・principal・現在のACL・project scopeがHost境界で解決済みで、ID・型が一致し、record revision/digestをreadbackできた状態だけを表す。その他は`not_found`、`ambiguous`、`forbidden`、`unavailable`、または検証不能な失敗状態とする。
+- **永続descriptorとの分離**: 現行の`LocalGraphBasisSource`はkind・entity ID・型・任意のversion/digestだけを持つ。Host context（principal、ACL、scope）はdescriptorへ保存しない。`source.version`はD-20261002-03に従い対象entity recordの明示的なrevisionを表し、wire formatや永続化方式の追加はこのSpecでは決めない。
+
+### 2.2 現行Personal Webのowner-local GETとの境界
+
+現行`GET /api/graph/entities/:id`は、owner-localなPersonal Web routeとしてentityのID・型・digestを返し、`source.authority: 'local_graph'`というsource labelを示す。しかし、このrouteの応答には認証済みprincipal、現在のACL、project scope、entity record revisionを証明する契約がなく、`as_of`指定やdigestをそれらの代用にはできない。したがって、現行routeは将来の「Hostが解決した認証済みCanonical Graph reader」と別契約であり、単独の成功を§2.1の`available`へ昇格させない。ACL・scope・revisionを持つように現行GETを変更することも、この文書PRの対象外である。
+
+## 3. Producerがsourceを記録できる条件
+
+producerは次の全条件を満たした場合だけsourceを付ける。
+
+| 条件 | 必須の確認 | 記録する値 |
+| --- | --- | --- |
+| basisの対象 | 同じbasis entryの非空`entity_id` | `source.entity_id`へ同じ文字列 |
+| readerのauthority/principal | Host-owned readerが`local_graph` authorityと認証済みprincipalを解決し、producer入力では上書きできない | Hostが返したcontextだけ。principalをdescriptorへ推測保存しない |
+| 現在のACL | Hostが現在のread ACLを`allowed`として確認する | ACLの未確認・不一致はsourceなし |
+| project scope | Hostが対象scopeを解決し、要求されたproject scopeとの一致を確認する | scopeの未確認・不一致はsourceなし。basis入力のproject名では補完しない |
+| identity/type | readback IDとbasis IDが完全一致し、4型の`entity_type`である | 一致したID・型だけ |
+| entity record revision | Graphが返した同じ対象entityの明示的なrecord revisionをreadbackする。`basis.version`が同じ対象record revisionを表すと確認できる場合は一致を確認する | `source.version`へproviderが返したrevisionだけを記録する。意味不明・不一致・欠落はsourceなし。Graph形式、Graphファイル全体の版、`as_of`、latestをrevisionにしない |
+| entity digest | Graphが返した正規化済みrecord digestをreadbackする | providerが返した値だけ。digestだけをrecord revisionの代用にせず、推測・再計算値を採用しない |
+| 読取結果 | 上記contextとidentity/type、revision/digestの検証が完了した`available` | `kind: 'local_graph'`とreadback値 |
+
+呼出し元のproject、scope、URL、表示名、layer、application、過去の検索結果は、trusted readbackの代わりにならない。C509で観測された「source/projectなし」の現在入力を、producerが勝手に補完してはならない。
+
+## 4. 検証・反証・保存方針
+
+### 4.1 受け付けるもの
+
+- 4つのCanonical Graph型のいずれかで、basis IDとsource IDが一致する。
+- Hostが返すauthority、認証済みprincipal、現在のread ACL、project scopeが確認済みで、readerがentity recordのID・型・明示的なrevision・digestを返す。
+- `source.version`は同じ対象entity recordのreadback済みrevisionである。`basis.version`が同じ対象record revisionを表すと確認できる場合は同じ値で一致する。意味不明・不一致・revision欠落時はsourceを記録せず、digestだけやGraphファイル全体の版をrevisionの代用にしない。
+- sourceの有無とlayerの有無が独立しており、どちらも別の欄の意味を変更しない。
+
+### 4.2 拒否またはsourceを付けないもの
+
+- `not_found`、`ambiguous`、`forbidden`、`unavailable`、reader例外、不正payload。
+- ID、型、`source.version`、digest、authority、principal、現在のACL、scope、entity record revisionの不一致または未確認。`basis.version`の意味が不明、`source.version`との不一致、対象entityのrecord revision欠落も含む。
+- `source.entity_id`がbasis IDと異なるdescriptor。
+- `url`等の未定義kind、外部URL、任意path、Graph IDを推測したdescriptor。
+- `layer=philosophy`／`objective`だけを根拠にしたFoundation出典。
+
+上記のいずれかに該当した場合、sourceは記録しない。これはsource omissionの不変条件であり、source readback不能をGraph不存在、Receipt発行、`outcome_verified`へ変換しない。D-20261002-06により、失敗理由をvalue-proof本体と矛盾なく監査保存し、その保存結果をreadbackできる場合に限り、value-proof全体をsource-freeの「出典未確認」として残せる。失敗理由を保存できない、または保存結果をreadbackできない場合は新producerを保留し、value-proofを成功・出典未確認として確定しない。sourceを付けずに出典あり・存在確認済み・成果確認済みと表示してはならない。理由の正本、粒度、保持期間、value-proofとのatomicity、旧producerとの並走方法、保存shapeと実装は実装前の未決判断として§8に残す。
+
+### 4.3 D-20261002-06の失敗理由と「出典未確認」（設計のみ）
+
+- **保存を許す条件**: source readbackが`not_found`、`ambiguous`、`forbidden`、`unavailable`、例外、不正payload、ID/型/version/digest/authority/principal/ACL/scope/revision不一致などで安全に完了しない場合、source omissionを維持する。その失敗理由が記録本体と矛盾しない形で監査保存され、保存結果をreadbackできたときだけ、value-proofを「出典未確認」として残す。既存の4型、Host-ownedの認証済みReader、`basis.version`と対象entity record revisionの版照合は緩めない。
+- **保留条件**: 失敗理由を保存できない、保存結果をreadbackできない、または保存した理由が記録本体と矛盾する場合、新producerを保留する。保留時はsource-bearingにも「出典未確認」の成功記録にもせず、value-proofを確定したと扱わない。保留の状態名・再試行・journal shapeはこのSpecでは決めない。
+- **表示境界**: source omissionと監査済みの「出典未確認」は、Graphに存在しない、出典あり、存在確認済み、判断receipt発行、`outcome_verified`、成果確認済みを意味しない。sourceを付けずに出典あり・成果確認済みへ昇格させず、表示する未確認理由と未実施の範囲を混同しない。
+- **監査の未決部分**: 失敗理由の正本（reader結果、journal、sidecar／evidence）、1回の試行・basis entry・producer実行への結合粒度、保持期間、value-proof本体との同一atomic writeまたはsidecar境界は、実装前に決める。ここでは新しいschema、status enum、writer、journal変更を導入しない。
+
+## 5. Foundation（哲学・目的）の境界
+
+Foundationの哲学・目的は、現在のWeb Graph routeと認証済みGraph照会が同じ経路であること、正本・scope・ACL・revision/digest・失敗状態を照合できることが未確認である。よって本Specでは未対応とする。
+
+将来対応する場合も、`local_graph`の`entity_type`へ`philosophy`や`objective`を追加するだけの変更は禁止する。別provider/readerのsource kind、正本所有者、認証・scope境界、exact revision/digest、Web route、readback失敗状態、移行と表示の契約を別Storyで定義し、architecture判断を得る。
+
+## 6. 移行・後方互換
+
+- 現行schema/versionのsource任意性を保ち、source欠落の旧recordを再書込みしない。
+- 旧producerはsourceなしで継続できる。新producerはreadbackが`available`のときだけsourceを追加し、readerが失敗したときは必ずsourceを記録しない。D-20261002-06により、失敗理由を監査保存して保存結果をreadbackできる場合だけvalue-proofを「出典未確認」で残し、理由の保存またはreadbackに失敗した場合は新producerを保留する。旧producerのsource-free出力を新producerの「出典未確認」へ自動変換せず、旧producerと新producerの並走、writer所有権、理由の競合・上書き・欠落は実装前の未決判断とする。
+- readerに必要なproject/scopeが旧recordにないことを理由に、旧recordを0件・破損・Graph不存在としない。読めない出典は未確認として扱う。
+- sourceを既存journalへ一括追加するbackfill、ID検索による後付け、layer/applicationからの補完はこのSpecの移行に含めない。実施には別の承認済みStory、対象ごとのreadback、変更前後とauthorityの監査証跡が必要である。
+- source-bearingで不正なrecordを見つけた場合、正しいrecordへ黙って書き換えず、失敗理由を保ったまま読取・表示を成功扱いにしない。
+- value-proofと失敗理由の片側だけが保存された、保存後のreadbackが一致しない、またはcrash・部分commitで原子性を確認できない状態を、確定済みvalue-proof、「出典未確認」、出典あり、または成果確認済みとして読まない。回復・再試行・監査保持は別の実装判断とする。
+
+## 7. Receipt・成果・UX-06との接続
+
+- source descriptorは根拠対象のtyped identityであり、judgment receiptではない。
+- `canonical_readback`を含むevidence ref、実行artifact、outcome、human feedbackは、それぞれの既存契約で確認された場合だけ記録する。sourceのreadback成功から推測しない。
+- UX-20261001-06はreadback成功後に同一OriginのGraph routeへ遷移できる契約であり、source記録・backfill・Foundation接続を承認するものではない。
+- C509の20件、basis 6要素、source 0から、実データの出典記録、Receipt、画面遷移、事業成果を推定しない。
+
+## 8. Architecture判断待ち
+
+実装前に次を決めるまで、このSpecのstatusは`proposed`のままとする。
+
+1. producerが呼ぶ将来のReader Host注入ポートの所有Host、認証主体、project/scope、現在のACL、current/historical readの境界。現行Personal Webのowner-local GETをこの契約へ読み替えない。
+2. project/scope、principal、ACLをdescriptorへ保存するか、trusted contextだけで照合するか。現行入力にない値の推測は禁止。
+3. readback失敗理由をどの正本（reader結果、journal本体、sidecar／evidence）へ保存するか、not_found等の状態・例外・不一致をどの粒度（試行、basis entry、producer実行）で結ぶか、監査保持期間をいくつにするか。UI／Receiptへ未確認理由を表示する範囲も未決である。D-20261002-06の前提は理由を監査保存して保存結果をreadbackできることであり、shape・schema・実装は決めていない。
+4. readback失敗時のvalue-proof方針は、source omissionを維持し、監査保存と保存結果のreadbackが成立した場合だけ「出典未確認」で残し、理由の保存またはreadbackに失敗した場合は新producerを保留するところまで決定済みである。保留状態の命名、retry境界、旧producerのsource-free記録をどう扱うかは未決とする。
+5. Foundation provider/readerを別契約として設計するか、その正本・Web route・scope・revision/digest・失敗状態。
+6. 失敗理由、value-proof本体、source omissionを同一atomic writeにするか、source検証sidecarを別atomic writeにするか、保存結果のreadbackをどこで行うか。crash・部分commit・recoveryで理由だけ／proofだけ／sourceだけの片側状態を成功扱いにしない境界、旧producer併用時のwriter所有権・競合・上書き防止、backfillの承認・監査境界をどうするか。
+7. source readbackを判断カードへ表示する範囲と、判断レシート・`canonical_readback`・成果確認・事業成果の証拠を混ぜない表示規則。
+
+## 9. 実装時の検証項目（文書PRでは未実施）
+
+架空fixtureで、sourceなし旧record、4つのGraph entity type、ID一致、ID不一致、型不正、URL型、layer独立、Hostのauthority/principal/ACL/scope/revision欠落、現行owner-local GETをHost readbackと誤認しないこと、readerの4失敗、`basis.version`の意味不明・`source.version`との不一致・record revision欠落、digestだけやGraphファイル全体の版をrevisionとみなさないこと、Foundation型拒否、旧producer併用、backfill不実施を確認する。D-20261002-06の将来検証では、(1) 各readback失敗でsourceを付けず、理由を定めた正本・粒度で保存し、保存後readbackが一致した場合だけvalue-proofを「出典未確認」として残し、出典あり・`outcome_verified`・成果確認済みへ表示しないこと、(2) 理由の保存失敗または保存結果のreadback失敗時に新producerを保留し、value-proofを成功扱いにしないこと、(3) crash・部分commit・recoveryの各境界で理由だけ／proofだけ／sourceだけの片側状態を確定済みとして読まないこと、(4) 旧producer並走時も旧source-free記録を有効なまま保持し、backfill・理由の上書き・sourceの架空補完をしないことを確認する。実journal、実Graph、認証済みWeb、常駐host、判断receipt、事業成果はこの文書PRの検証対象にしない。
+
+この文書PRでは実成果未確認であり、設計記述・架空fixture・文書検証を、実journalの保存、認証済みreadback、Receipt発行、または事業成果の確認済み証拠に扱わない。
