@@ -318,6 +318,31 @@ describe('Graph philosophy history reader', () => {
     };
   }
 
+  it.each(['alice', 'bob', 'ceo'])('checks stored owner ACL in canonical and pinned reads for %s', async principal => {
+    const payload = { ...philosophyPayload(), acl: { ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: [] } };
+    const context = { ...trustedContext(), principal };
+    const { philosophyReader, listPhilosophies } = createGraphFoundationReaders({ context, selectedProjectCode: 'project-1', query: queryReturning(philosophyRow(payload, { currentPayload: payload })) });
+    const digest = philosophyRevisionDigest({ kind: 'philosophy', id: 'philosophy-1', revision: '4', payload, applicability: payload.judgmentApplicability });
+    const canonical = await philosophyReader.readCanonical!({ id: 'philosophy-1', revision: '4', context });
+    const pinned = await philosophyReader.read({ reference: { kind: 'philosophy', id: 'philosophy-1', revision: '4', digest, scope: projectScope, valid_from: validFrom }, phase: 'historical_read', context });
+    expect(canonical.status).toBe(principal === 'alice' ? 'resolved' : 'unauthorized');
+    expect(pinned.status).toBe(principal === 'alice' ? 'resolved' : 'unauthorized');
+    if (principal === 'alice') await expect(listPhilosophies(context)).resolves.toMatchObject([{ currentAcl: payload.acl }]);
+    else await expect(listPhilosophies(context)).rejects.toMatchObject({ code: 'authorization_denied' });
+  });
+
+  it('refuses history ACL downgrade, malformed ACL and historical owner mismatch', async () => {
+    for (const [historical, current] of [
+      [{ ...philosophyPayload(), acl: {ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: []} }, philosophyPayload()],
+      [{ ...philosophyPayload(), acl: null }, philosophyPayload()],
+      [{ ...philosophyPayload(), acl: {ownerId: 'bob', visibility: 'private', readerIds: [], writerIds: []} }, { ...philosophyPayload(), acl: {ownerId: 'alice', visibility: 'private', readerIds: [], writerIds: []} }]
+    ]) {
+      const { philosophyReader } = createGraphFoundationReaders({ context: trustedContext(), query: queryReturning(philosophyRow(historical!, {currentPayload: current})) });
+      const result = await philosophyReader.readCanonical!({id: 'philosophy-1', revision: '4', context: trustedContext()});
+      expect(result.status).not.toBe('resolved');
+    }
+  });
+
   it('resolves philosophy with fixed applicability and a current Graph ACL projection', async () => {
     const payload = philosophyPayload();
     const applicability = payload.judgmentApplicability;

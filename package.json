@@ -347,6 +347,10 @@
     "./meeting-minutes-storage-http": {
       "types": "./dist/meeting-minutes-storage-http.d.ts",
       "import": "./dist/meeting-minutes-storage-http.js"
+    },
+    "./private-philosophy-graph": {
+      "types": "./dist/private-philosophy-graph.d.ts",
+      "import": "./dist/private-philosophy-graph.js"
     }
   },
   "bin": {
