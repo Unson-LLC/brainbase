@@ -81,6 +81,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.23.2（npm公開前）
+
+Graph本文を読むための公開field pathとして`content`を明示し、`body`はソース投影が公開している場合だけ指定するよう、知識検索の案内を修正しました。npm公開、利用側Hostの依存更新、実行中のHostでの確認は別に実施します。
+
 ## Candidate — v0.23.1（npm公開前）
 
 知識検索の時間予算を、lookup生成時ではなく最初の有効な取得予約から開始します。時間切れの予約は結果不明として残し、遅延結果で終端を再開しません。npm公開、利用側Hostの依存更新、実行中のHostでの確認は別に実施します。
