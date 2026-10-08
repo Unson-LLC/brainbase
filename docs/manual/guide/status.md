@@ -81,6 +81,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.23.5（npm公開前）
+
+明示的にprivate ACLを持つ哲学は、保存済みの所有者と履歴のACLを照合して読み取ります。共通Graph writer契約は同じ所有者、空の追加reader/writer、正確なversion、選択済みprojectへの適用を要求します。ACLのない既存の哲学は従来の扱いを維持します。Host側の保存には独立した保護migrationの適用が必要です。
+
 ## Candidate — v0.23.4（npm公開前）
 
 判断履歴へ、呼び手が明示した公開用の要約と理由を厳密な入力として記録し、公開用digestを返す契約を追加しました。回答やツール出力から公開内容を推測せず、既存の全体digestにも公開入力を含めます。npm公開、利用側Hostの依存更新、実行中のHostでの確認は別に実施します。
