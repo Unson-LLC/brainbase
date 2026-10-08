@@ -138,6 +138,8 @@ export interface KnowledgeLookupState {
   revision: number;
   status: KnowledgeStatus;
   started_at: number;
+  /** Set when the first validated retrieval action is reserved. Old states may omit it. */
+  retrieval_started_at?: number | null;
   limits: KnowledgeLookupLimits;
   attempts: KnowledgeAttempt[];
   required_fields: string[] | null;
@@ -207,6 +209,7 @@ export function createKnowledgeLookup({
     revision: 0,
     status: 'resolving',
     started_at: now,
+    retrieval_started_at: null,
     limits: {
       attempts: bounded(limits.attempts, 8, 16),
       replans: bounded(limits.replans, 4, 8),
@@ -235,8 +238,52 @@ function terminate(
   return state;
 }
 
+const hasPendingRetrieval = (state: KnowledgeLookupState): boolean =>
+  state.pending !== null && state.pending.kind !== 'finish';
+
+const retrievalStartedAt = (state: KnowledgeLookupState): number | null => {
+  if (typeof state.retrieval_started_at === 'number' && Number.isFinite(state.retrieval_started_at)) {
+    return state.retrieval_started_at;
+  }
+  // States written before retrieval_started_at was introduced can still be
+  // bounded safely once they have evidence of a retrieval reservation.
+  if (state.attempts.length > 0 || hasPendingRetrieval(state)) return state.started_at;
+  return null;
+};
+
+type KnowledgeRetrievalPhase = 'not_started' | 'in_flight' | 'attempted';
+
+const retrievalPhase = (state: KnowledgeLookupState): KnowledgeRetrievalPhase => {
+  if (hasPendingRetrieval(state)) return 'in_flight';
+  if (state.attempts.length > 0) return 'attempted';
+  return 'not_started';
+};
+
+function recordTimedOutPendingRetrieval(state: KnowledgeLookupState): void {
+  const pending = state.pending;
+  if (!pending) return;
+  state.pending = null;
+  if (pending.kind === 'finish') return;
+  if (state.attempts.some((attempt) => attempt.attempt_id === pending.tool_use_id)) return;
+  // The host cannot tell whether a timed-out reservation reached the tool.
+  // Keep the reservation as an unknown transport attempt rather than treating
+  // a late or missing result as a successful read.
+  state.attempts.push({
+    attempt_id: pending.tool_use_id,
+    kind: pending.kind,
+    fingerprint: pending.fingerprint,
+    outcome: 'transport_error',
+    references: [],
+    searched_scope: {},
+    missing_fields: state.required_fields ?? []
+  });
+  state.revision += 1;
+}
+
 function expire(state: KnowledgeLookupState, now: number): KnowledgeLookupState {
-  if (!isKnowledgeLookupTerminal(state) && now - state.started_at >= state.limits.milliseconds) {
+  const startedAt = retrievalStartedAt(state);
+  if (startedAt !== null && !isKnowledgeLookupTerminal(state) && now - startedAt >= state.limits.milliseconds) {
+    recordTimedOutPendingRetrieval(state);
     terminate(state, 'time_budget_exhausted');
   }
   return state;
@@ -418,7 +465,10 @@ export function prepareKnowledgeAction(
   now = Date.now()
 ): KnowledgeActionDecision {
   const state = expire(structuredClone(previous) as KnowledgeLookupState, now);
-  if (isKnowledgeLookupTerminal(state)) return { state, allowed: false, reason: state.termination_reason ?? state.status };
+  if (isKnowledgeLookupTerminal(state)) {
+    recordTimedOutPendingRetrieval(state);
+    return { state, allowed: false, reason: state.termination_reason ?? state.status };
+  }
   if (state.pending) return { state, allowed: false, reason: 'attempt_in_flight' };
   if (!record(input)) return reject(state, 'input_shape_invalid');
   if (typeof toolUseId !== 'string' || !toolUseId.trim()) return reject(state, 'tool_use_id_invalid');
@@ -527,6 +577,9 @@ export function prepareKnowledgeAction(
     }
     state.replans += 1;
   }
+  if (state.retrieval_started_at == null && state.attempts.length === 0 && !hasPendingRetrieval(state)) {
+    state.retrieval_started_at = now;
+  }
   state.pending = {
     tool_use_id: toolUseId,
     kind: action.kind,
@@ -545,6 +598,13 @@ export function recordKnowledgeResult(
   now = Date.now()
 ): KnowledgeLookupState {
   const state = structuredClone(previous) as KnowledgeLookupState;
+  if (isKnowledgeLookupTerminal(state)) {
+    // A late PostToolUse must never reopen a finished lookup. Preserve a stale
+    // retrieval reservation as unknown while keeping the terminal state.
+    recordTimedOutPendingRetrieval(state);
+    return state;
+  }
+  if (isKnowledgeLookupTerminal(expire(state, now))) return state;
   if (typeof toolUseId === 'string' && state.finished_calls.includes(toolUseId)) return state;
   if (
     !state.pending ||
@@ -643,7 +703,10 @@ export function recordKnowledgeResult(
 
 export function stopKnowledgeLookup(previous: KnowledgeLookupState, now = Date.now()): KnowledgeStopDecision {
   const state = expire(structuredClone(previous) as KnowledgeLookupState, now);
-  if (isKnowledgeLookupTerminal(state)) return { state, block: false, reason: knowledgeLookupContext(state) };
+  if (isKnowledgeLookupTerminal(state)) {
+    recordTimedOutPendingRetrieval(state);
+    return { state, block: false, reason: knowledgeLookupContext(state) };
+  }
   state.stop_requests += 1;
   if (state.stop_requests > state.limits.replans) {
     terminate(state, 'model_did_not_produce_executable_plan');
@@ -677,6 +740,7 @@ export function knowledgeLookupContext(state: KnowledgeLookupState): string {
     revision: state.revision,
     question: state.question,
     status: state.status,
+    retrieval_phase: retrievalPhase(state),
     required_fields: state.required_fields,
     attempts: state.attempts,
     remaining_attempts: Math.max(0, state.limits.attempts - state.attempts.length),

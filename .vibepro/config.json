@@ -759,8 +759,20 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-knowledge-first-retrieval-budget",
+        "title": "初回取得の機会を守り未着手を明示する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-minutes-current-white-ui"
+    "current_story_id": "story-knowledge-first-retrieval-budget"
   }
 }
