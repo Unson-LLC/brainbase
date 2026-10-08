@@ -416,6 +416,72 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
+  it('renders four structured evidence references in the selected history detail', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const entry = proof({
+      outcome: {
+        status: 'unconfirmed',
+        summary: '結果はまだ確認できない',
+        evidence_refs: [
+          { kind: 'canonical_readback', ref: 'readback-1', status: 'verified', label: '正本の読み戻し' },
+          { kind: 'tool_event', ref: 'tool-2', status: 'unconfirmed', label: '実行イベント' },
+          { kind: 'artifact', ref: 'artifact-3', status: 'verified' },
+          { kind: 'human_feedback', ref: 'feedback-4', status: 'unconfirmed', label: '本人の反応' },
+        ],
+      },
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => home([item(entry)]) }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    row.listeners.get('click')();
+    const detailText = collectText(rail);
+
+    expect(detailText).toContain('正本の読み戻し（canonical_readback:readback-1）（確認済み）');
+    expect(detailText).toContain('実行イベント（tool_event:tool-2）（未確認）');
+    expect(detailText).toContain('artifact:artifact-3（確認済み）');
+    expect(detailText).toContain('本人の反応（human_feedback:feedback-4）（未確認）');
+    expect(detailText).not.toContain('[object Object]');
+    view.dispose();
+  });
+
+  it('labels an evidence reference without identifying information as unavailable', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const entry = proof({
+      outcome: { status: 'unconfirmed', summary: null, evidence_refs: [{}] },
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => home([item(entry)]) }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    row.listeners.get('click')();
+    const detailText = collectText(rail);
+
+    expect(detailText).toContain('証拠の識別情報は未確認（未確認）');
+    expect(detailText).not.toContain('[object Object]');
+    view.dispose();
+  });
+
   it('ignores a late response after dispose', async () => {
     let resolve;
     const response = new Promise((settle) => { resolve = settle; });
