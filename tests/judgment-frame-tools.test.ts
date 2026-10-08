@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   handleJudgmentFrameToolCall,
+  judgmentFramePublicFrameDigest,
   judgmentFrameTools,
   type JudgmentFrameKind,
   type JudgmentFrameSourceRecord,
@@ -145,10 +146,15 @@ describe('判断の枠組みのMCPツール', () => {
     expect(result).toMatchObject({
       status: 'ok',
       data: {
-        public_frame: input.public_frame,
+        public_frame: {
+          ...input.public_frame,
+          digest: judgmentFramePublicFrameDigest(input.public_frame as { summary: string; reason: string }),
+        },
         digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
       },
     });
+    expect(result.status === 'ok' && Object.keys(result.data.public_frame as object).sort())
+      .toEqual(['digest', 'reason', 'summary']);
 
     const changed = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', await frame({
       public_frame: {

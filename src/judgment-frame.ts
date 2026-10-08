@@ -46,6 +46,10 @@ export interface JudgmentFramePublicFrame {
   readonly reason: string;
 }
 
+export interface JudgmentFramePublicFrameResponse extends JudgmentFramePublicFrame {
+  readonly digest: `sha256:${string}`;
+}
+
 export interface JudgmentFrameSourceRecord {
   readonly id: string;
   readonly entity_type: string;
@@ -194,6 +198,15 @@ function publicFrameRecord(value: JudgmentFrameRecord): Record<string, unknown> 
     chosen_option: value.chosen_option,
     ...(value.public_frame === undefined ? {} : { public_frame: value.public_frame }),
   };
+}
+
+/**
+ * Compute the digest for the exact two-field public projection.
+ * The response adds this digest; it is intentionally separate from the
+ * full-record digest returned alongside the projection.
+ */
+export function judgmentFramePublicFrameDigest(value: JudgmentFramePublicFrame): `sha256:${string}` {
+  return `sha256:${createHash('sha256').update(canonicalJson({ summary: value.summary, reason: value.reason }), 'utf8').digest('hex')}`;
 }
 
 /**
@@ -601,7 +614,12 @@ export async function handleJudgmentFrameToolCall(
       option_count: (args.options as unknown[]).length,
       chosen_option: args.chosen_option,
       escalations: validation.escalations,
-      ...(args.public_frame === undefined ? {} : { public_frame: args.public_frame }),
+      ...(args.public_frame === undefined ? {} : {
+        public_frame: {
+          ...(args.public_frame as JudgmentFramePublicFrame),
+          digest: judgmentFramePublicFrameDigest(args.public_frame as JudgmentFramePublicFrame),
+        } satisfies JudgmentFramePublicFrameResponse,
+      }),
       digest: judgmentFrameRecordDigest(args as unknown as JudgmentFrameRecord),
     },
   };
