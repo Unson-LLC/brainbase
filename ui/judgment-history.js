@@ -1233,6 +1233,7 @@ function normalReasonLabel(reason) {
   const labels = {
     unconnected: '未接続',
     mana_not_connected: '未接続（Mana）',
+    company_os_native_source_not_connected: 'Company OSの判断実行履歴が未接続',
     journal_unavailable: '判断記録がありません',
     journal_unreadable: '判断記録を読み取れません',
   };

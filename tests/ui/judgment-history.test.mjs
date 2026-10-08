@@ -508,6 +508,43 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
+  it('labels an unconnected Company OS native source while keeping readable records visible', async () => {
+    const root = new FakeElement('div');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    const record = normalRecord({ entrypoint: 'company_os', record_id: 'company-os-partial-1' });
+    const view = createJudgmentHistoryUI({
+      root,
+      document: doc,
+      autoLoad: false,
+      fetcher: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => normalHome([record], {
+          status: 'partial',
+          coverage: {
+            complete: false,
+            storage: 'server',
+            total: null,
+            sources: [{
+              entrypoint: 'company_os',
+              status: 'partial',
+              reason: 'company_os_native_source_not_connected',
+            }],
+          },
+        }),
+      }),
+      now: OWNER_NOW,
+    });
+
+    await view.load();
+
+    const text = collectText(root);
+    expect(text).toContain('Company OS: 一部取得（Company OSの判断実行履歴が未接続）');
+    expect(text).toContain('既存の項目で進める');
+    view.dispose();
+  });
+
   it('posts a feedback event with an explicit result state and marks it saved only after canonical readback', async () => {
     const root = new FakeElement('div');
     const rail = new FakeElement('aside');
