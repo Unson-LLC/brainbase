@@ -6,6 +6,11 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.23.5 candidate — npm公開前
+
+- 明示的なprivate Philosophyの現在・履歴に保存されたowner ACLを読み取りへ適用し、呼び手を所有者として投影する問題を修正
+- 同じowner、private ACL、空の追加reader/writer、正確なversionとproject適用を検証する共通Graph writer契約を追加。ACLのない既存の哲学は互換を維持
+
 ## 0.23.4 candidate — npm公開前
 
 - 判断履歴へ、呼び手が明示した公開用の要約と理由を受け付ける厳密な入力契約を追加。公開用digestを返し、回答・ツール出力・内部推論から公開内容を生成せず、全体digestにも公開入力を含める
