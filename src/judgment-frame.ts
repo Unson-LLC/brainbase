@@ -35,6 +35,20 @@ const MAX_NOTE = 2_000;
 const MAX_SELECTIONS = 24;
 const MAX_OPTIONS = 8;
 const MAX_USES = 32;
+const MAX_PUBLIC_FRAME_TEXT = 2_000;
+
+/**
+ * A caller-provided summary that may be projected to an owner-only history.
+ * Core never derives this value from an answer, tool response, or body.
+ */
+export interface JudgmentFramePublicFrame {
+  readonly summary: string;
+  readonly reason: string;
+}
+
+export interface JudgmentFramePublicFrameResponse extends JudgmentFramePublicFrame {
+  readonly digest: `sha256:${string}`;
+}
 
 export interface JudgmentFrameSourceRecord {
   readonly id: string;
@@ -96,6 +110,8 @@ export interface JudgmentFrameRecord {
   readonly none?: Partial<Record<JudgmentFrameKind, string>>;
   readonly options: readonly JudgmentFrameOption[];
   readonly chosen_option: string;
+  /** Explicit opt-in for the future owner-only public projection. */
+  readonly public_frame?: JudgmentFramePublicFrame;
 }
 
 export type JudgmentFrameIssueCode =
@@ -110,7 +126,8 @@ export type JudgmentFrameIssueCode =
   | 'frame_role_mismatch'
   | 'frame_verdict_missing'
   | 'frame_selection_unused'
-  | 'frame_chosen_unknown';
+  | 'frame_chosen_unknown'
+  | 'frame_public_invalid';
 
 export interface JudgmentFrameIssue {
   readonly code: JudgmentFrameIssueCode;
@@ -155,6 +172,50 @@ function canonicalJson(value: unknown): string {
     return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+const PUBLIC_FRAME_KEYS = ['summary', 'reason'] as const;
+const PUBLIC_FRAME_SECRET_PATTERNS: readonly RegExp[] = [
+  /(?:^|[\s([{])Bearer\s+[A-Za-z0-9._~+\/-]{8,}(?=$|[\s)\]}.,;])/iu,
+  /\b(?:sk-[A-Za-z0-9_-]{16,}|gh[pousr]_[A-Za-z0-9_-]{16,}|github_pat_[A-Za-z0-9_-]{16,}|xox[baprs]-[A-Za-z0-9-]{16,}|AIza[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16})\b/u,
+  /(?:access[_-]?token|refresh[_-]?token|api[_-]?key|client[_-]?secret|secret|password|credential|authorization|cookie)\s*(?:=|:)\s*[^\s&#;,]+/iu,
+  /\b[a-z][a-z0-9+.-]*:\/\/[^\s/?#:@]+:[^\s/@]+@/iu,
+  /\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\b/u,
+];
+const PUBLIC_FRAME_CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
+
+function containsPublicFrameCredential(value: string): boolean {
+  return PUBLIC_FRAME_SECRET_PATTERNS.some((pattern) => pattern.test(value));
+}
+
+function publicFrameRecord(value: JudgmentFrameRecord): Record<string, unknown> {
+  return {
+    record_version: value.record_version,
+    catalog_digest: value.catalog_digest,
+    selections: value.selections,
+    ...(value.none === undefined ? {} : { none: value.none }),
+    options: value.options,
+    chosen_option: value.chosen_option,
+    ...(value.public_frame === undefined ? {} : { public_frame: value.public_frame }),
+  };
+}
+
+/**
+ * Compute the digest for the exact two-field public projection.
+ * The response adds this digest; it is intentionally separate from the
+ * full-record digest returned alongside the projection.
+ */
+export function judgmentFramePublicFrameDigest(value: JudgmentFramePublicFrame): `sha256:${string}` {
+  return `sha256:${createHash('sha256').update(canonicalJson({ summary: value.summary, reason: value.reason }), 'utf8').digest('hex')}`;
+}
+
+/**
+ * Compute the stable digest returned with an accepted frame record.
+ * The explicit public frame is part of the digest so a changed projection
+ * cannot be acknowledged as the same judgment.
+ */
+export function judgmentFrameRecordDigest(value: JudgmentFrameRecord): `sha256:${string}` {
+  return `sha256:${createHash('sha256').update(canonicalJson(publicFrameRecord(value)), 'utf8').digest('hex')}`;
 }
 
 function itemText(kind: JudgmentFrameKind, payload: Record<string, unknown>): string | undefined {
@@ -264,6 +325,30 @@ export function validateJudgmentFrameRecord(value: unknown, catalog: JudgmentFra
   if (!isRecord(value) || value.record_version !== JUDGMENT_FRAME_RECORD_VERSION) {
     issue('frame_record_invalid', '$', `record_version must be ${JUDGMENT_FRAME_RECORD_VERSION}`);
     return { valid: false, issues, escalations: [] };
+  }
+  if (value.public_frame !== undefined) {
+    if (!isRecord(value.public_frame)) {
+      issue('frame_public_invalid', 'public_frame', 'public_frame must be an object with summary and reason');
+    } else {
+      for (const key of Object.keys(value.public_frame)) {
+        if (!PUBLIC_FRAME_KEYS.includes(key as typeof PUBLIC_FRAME_KEYS[number])) {
+          issue('frame_public_invalid', `public_frame.${key}`, 'public_frame contains an unknown field');
+        }
+      }
+      for (const key of PUBLIC_FRAME_KEYS) {
+        const candidate = value.public_frame[key];
+        if (!nonEmpty(candidate, MAX_PUBLIC_FRAME_TEXT)) {
+          issue('frame_public_invalid', `public_frame.${key}`, `${key} must be a non-empty string of at most ${MAX_PUBLIC_FRAME_TEXT} characters`);
+          continue;
+        }
+        if (PUBLIC_FRAME_CONTROL_CHARACTERS.test(candidate)) {
+          issue('frame_public_invalid', `public_frame.${key}`, `${key} contains control characters`);
+        }
+        if (containsPublicFrameCredential(candidate)) {
+          issue('frame_public_invalid', `public_frame.${key}`, `${key} contains a credential-like value`);
+        }
+      }
+    }
   }
   if (value.catalog_digest !== catalog.digest) {
     issue('frame_catalog_mismatch', 'catalog_digest', 'catalog_digest does not match the catalog shown on this turn');
@@ -388,6 +473,16 @@ const frameUseSchema = {
   required: ['ref', 'role', 'note'],
 };
 
+const publicFrameSchema = {
+  type: 'object',
+  additionalProperties: false,
+  properties: {
+    summary: { type: 'string', minLength: 1, maxLength: MAX_PUBLIC_FRAME_TEXT },
+    reason: { type: 'string', minLength: 1, maxLength: MAX_PUBLIC_FRAME_TEXT },
+  },
+  required: [...PUBLIC_FRAME_KEYS],
+};
+
 export const judgmentFrameTools: Tool[] = [{
   name: 'brainbase_judgment_frame_catalog',
   description: 'On a judgment-bearing turn, read the catalog of philosophy, objectives, and world models visible to you. Select only what bears on this decision. Status is a label (draft objectives and adopted_unverified models are still usable as hypotheses); it is not a reason to skip them. Then call brainbase_judgment_frame_record with the returned catalog_digest.',
@@ -395,7 +490,7 @@ export const judgmentFrameTools: Tool[] = [{
   annotations: { readOnlyHint: true, destructiveHint: false },
 }, {
   name: 'brainbase_judgment_frame_record',
-  description: 'Record the judgment frame: which catalog references you selected and why, and for each evaluated option how each selected reference was used. Philosophy is a constraint (give verdict satisfied, violated, or tension), an objective is a criterion, a world model is a prediction. Every selection must be used by at least one option. For a kind with no applicable reference, give the reason in none instead of selecting. Name the option you chose. The tool rejects references outside the catalog; it does not judge semantic quality. If escalations are returned, ask the human before acting on the chosen option.',
+  description: 'Record the judgment frame: which catalog references you selected and why, and for each evaluated option how each selected reference was used. Philosophy is a constraint (give verdict satisfied, violated, or tension), an objective is a criterion, a world model is a prediction. Every selection must be used by at least one option. For a kind with no applicable reference, give the reason in none instead of selecting. Name the option you chose. The tool rejects references outside the catalog; it does not judge semantic quality. If escalations are returned, ask the human before acting on the chosen option. Include public_frame only when the caller explicitly intends this exact summary and reason for the future owner-only projection; Core never derives it from an answer, tool response, or internal reasoning. public_frame accepts only non-empty safe summary and reason strings up to 2000 characters.',
   inputSchema: {
     type: 'object',
     additionalProperties: false,
@@ -436,6 +531,7 @@ export const judgmentFrameTools: Tool[] = [{
         },
       },
       chosen_option: { type: 'string', minLength: 1, maxLength: 400 },
+      public_frame: publicFrameSchema,
     },
     required: ['record_version', 'catalog_digest', 'selections', 'options', 'chosen_option'],
   },
@@ -518,6 +614,13 @@ export async function handleJudgmentFrameToolCall(
       option_count: (args.options as unknown[]).length,
       chosen_option: args.chosen_option,
       escalations: validation.escalations,
+      ...(args.public_frame === undefined ? {} : {
+        public_frame: {
+          ...(args.public_frame as JudgmentFramePublicFrame),
+          digest: judgmentFramePublicFrameDigest(args.public_frame as JudgmentFramePublicFrame),
+        } satisfies JudgmentFramePublicFrameResponse,
+      }),
+      digest: judgmentFrameRecordDigest(args as unknown as JudgmentFrameRecord),
     },
   };
 }
