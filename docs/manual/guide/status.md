@@ -81,6 +81,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.23.3（npm公開前）
+
+通常の判断履歴を共通契約から読み取り、参照・行った判断・実行結果を期間と検索で確認できるAPIとUIを追加しました。未接続・取得失敗・確認済みの空は別状態で表示します。npm公開、利用側Hostの依存更新、実行中のHostでの確認は別に実施します。
+
 ## Candidate — v0.23.2（npm公開前）
 
 Graph本文を読むための公開field pathとして`content`を明示し、`body`はソース投影が公開している場合だけ指定するよう、知識検索の案内を修正しました。npm公開、利用側Hostの依存更新、実行中のHostでの確認は別に実施します。
