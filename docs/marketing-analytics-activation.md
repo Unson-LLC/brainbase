@@ -26,7 +26,7 @@ GAでイベントスコープの `site_name`, `page_group`, `acquisition_group`,
 
 ## 検証と受信確認の境界
 
-`node --test tests/marketing-analytics.test.cjs` はGoogleへ送信しないVMテストです。無効化、同意前、重複タグ、PII/query排除、拒否/撤回、SPAページ重複、未知ルート、CTA、成功イベントを検証します。これはブラウザでの実際のGA通信や受信を保証しません。
+`node --test tests/marketing-analytics.node.cjs` はGoogleへ送信しないVMテストです。無効化、同意前、重複タグ、PII/query排除、拒否/撤回、SPAページ重複、未知ルート、CTA、成功イベントを検証します。これはブラウザでの実際のGA通信や受信を保証しません。
 
 承認・配備後、Networkでg/collectを確認：拒否時0件、同意時page_view一回、SPA遷移一回、離脱クリック/フォーム値/URL/queryがないこと、設定撤回後0件を実測。フォームは実顧客データを使わずテスト用問い合わせ送信の許可を別途得る。DebugViewは承認されたデバッグ設定で固定値のみの受信を確認し、最後にRealtimeと翌日の標準レポートを確認する。未検証は未検証と記録し、debug_modeは本番常設しない。
 
