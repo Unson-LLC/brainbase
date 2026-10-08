@@ -156,7 +156,7 @@ function mountToday(container, context) {
     document: context.document,
     fetcher: context.fetcher,
     token: context.token,
-    basePath: '/api/value-proofs',
+    basePath: '/api/judgment-history',
   });
 }
 

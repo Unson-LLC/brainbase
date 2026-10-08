@@ -96,6 +96,58 @@ function home(items, overrides = {}) {
   };
 }
 
+function normalRecord(overrides = {}) {
+  return {
+    schema_version: 'brainbase-judgment-history-record-v1',
+    record_id: 'normal-record-1',
+    entrypoint: 'codex',
+    recorded_at: '2026-10-05T09:00:00.000Z',
+    project_code: 'project-atlas',
+    turn_ref: 'turn-1',
+    judgment: {
+      status: 'selected',
+      summary: '既存の項目で進める',
+      reason: '当時のプロジェクト基準に一致するため',
+      selected_references: [{
+        ref: 'objective-atlas',
+        kind: 'objective',
+        version: 'v2',
+        digest: 'sha256:old',
+        why: '当時の基準',
+        usage: '判断の根拠',
+        availability: 'recorded',
+      }],
+      alternatives: [{ label: '確認してから進める', evaluation: '時間がかかる', adopted: true }],
+    },
+    execution: { status: 'completed', result_summary: '処理を完了した', outcome_status: 'confirmed' },
+    missing_fields: [],
+    ...overrides,
+  };
+}
+
+function normalHome(records, overrides = {}) {
+  return {
+    contract_version: 'brainbase.judgment-history.v1',
+    status: 'available',
+    records,
+    coverage: {
+      complete: true,
+      storage: 'local',
+      sources: [{ entrypoint: 'codex', status: 'available', reason: null }],
+      total: records.length,
+    },
+    pagination: { next_cursor: null, previous_cursor: null, limit: 50, has_next: false },
+    filters: {
+      period: 'past30days',
+      project: null,
+      entrypoint: null,
+      projects: [{ value: 'project-atlas', label: 'Atlas' }],
+      entrypoints: [{ value: 'codex', label: 'Codex' }],
+    },
+    ...overrides,
+  };
+}
+
 const item = (value, section = 'continued') => ({ section, proof: value, feedback_history: [] });
 const OWNER_NOW = new Date('2026-10-06T09:00:00.000Z');
 
@@ -198,6 +250,63 @@ describe('judgment history projection', () => {
     expect(partial.status).toBe('partial');
     expect(result.rows).toHaveLength(1);
     expect(result.stats).toEqual(expect.objectContaining({ judgments: 1, references: 1, equivalent: 1 }));
+  });
+
+  it('projects normal judgment records without converting them into value proofs', () => {
+    const missing = normalRecord({
+      record_id: 'normal-record-2',
+      entrypoint: 'mana',
+      recorded_at: '2026-10-04T09:00:00.000Z',
+      project_code: null,
+      turn_ref: null,
+      judgment: {
+        status: 'unrecorded',
+        summary: null,
+        reason: null,
+        selected_references: null,
+        alternatives: null,
+      },
+      execution: { status: 'unknown', result_summary: null, outcome_status: 'unknown' },
+      missing_fields: ['judgment.reason', 'judgment.selected_references'],
+    });
+    const normalized = normalizeJudgmentHistoryHome(normalHome([normalRecord(), missing]));
+    const result = aggregateJudgmentHistory(normalized, { now: OWNER_NOW, period: 'all' });
+
+    expect(normalized.mode).toBe('normal');
+    expect(result.mode).toBe('normal');
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows[0].recordId).toBe('normal-record-1');
+    expect(result.rows[0].record).toBeTruthy();
+    expect(result.rows[0].proof).toBeUndefined();
+    expect(result.rows[0].references[0]).toEqual(expect.objectContaining({ version: 'v2', digest: 'sha256:old', why: '当時の基準' }));
+    expect(result.rows[1].references).toBeNull();
+    expect(result.rows[1].alternatives).toBeNull();
+    expect(result.stats).toEqual(expect.objectContaining({ judgments: 2, references: null, confirmedOutcomes: 1 }));
+  });
+
+  it('filters malformed normal collection entries while preserving the missing and partial state', () => {
+    const malformed = normalRecord({
+      judgment: {
+        ...normalRecord().judgment,
+        selected_references: [
+          { ref: '' },
+          { ref: 'objective-valid', version: 'v1', availability: 'recorded' },
+        ],
+        alternatives: [{ label: '候補', evaluation: '確認が必要', adopted: null }, null],
+      },
+    });
+    const normalized = normalizeJudgmentHistoryHome(normalHome([malformed]));
+
+    expect(normalized.status).toBe('partial');
+    expect(normalized.reason).toBe('record_invalid');
+    expect(normalized.records[0].selectedReferences).toHaveLength(1);
+    expect(normalized.records[0].selectedReferences[0].ref).toBe('objective-valid');
+    expect(normalized.records[0].alternatives).toHaveLength(1);
+    expect(normalized.records[0].alternatives[0].adopted).toBeNull();
+    expect(normalized.records[0].missingFields).toEqual(expect.arrayContaining([
+      'judgment.selected_references',
+      'judgment.alternatives',
+    ]));
   });
 });
 
@@ -335,5 +444,310 @@ describe('judgment history UI', () => {
     resolve({ ok: true, status: 200, json: async () => home([item(proof())]) });
     await view.load();
     expect(collectText(rail)).toContain('週次報告を既存の項目で進める');
+  });
+
+  it('uses the normal history endpoint, keeps partial warning singular, and reads record details separately', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({
+      record_id: 'normal-detail-1',
+      judgment: {
+        ...normalRecord().judgment,
+        alternatives: [
+          { label: '確認してから進める', evaluation: '時間がかかる', adopted: true },
+          { label: '別案を保留する', evaluation: '記録なし', adopted: null },
+        ],
+      },
+    });
+    const calls = [];
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        calls.push(path);
+        if (path.includes('/records/normal-detail-1')) return { ok: true, status: 200, json: async () => ({ status: 'available', record }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => normalHome([record], {
+            status: 'partial',
+            coverage: {
+              complete: false,
+              storage: 'server',
+              total: null,
+              reason: 'unconnected',
+              sources: [{ entrypoint: 'mana', status: 'unavailable', reason: 'unconnected' }],
+            },
+          }),
+        };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+
+    const text = collectText(root);
+    expect(calls[0]).toMatch(/^\/api\/judgment-history\/home\?period=past30days&limit=50$/u);
+    expect((text.match(/取得できた範囲/gu) ?? [])).toHaveLength(1);
+    expect(text).toContain('サーバー');
+    expect(text).toContain('Mana: 未接続');
+    expect(text).toContain('既存の項目で進める');
+
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    row.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls.some((path) => path === '/api/judgment-history/records/normal-detail-1')).toBe(true);
+    expect(collectText(rail)).toContain('当時の基準');
+    expect(collectText(rail)).toContain('保存された案');
+    expect(collectText(rail)).toContain('採用状態: 記録なし');
+    expect(collectText(rail)).toContain('結果確認済み');
+    view.dispose();
+  });
+
+  it('labels an unconnected Company OS native source while keeping readable records visible', async () => {
+    const root = new FakeElement('div');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    const record = normalRecord({ entrypoint: 'company_os', record_id: 'company-os-partial-1' });
+    const view = createJudgmentHistoryUI({
+      root,
+      document: doc,
+      autoLoad: false,
+      fetcher: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => normalHome([record], {
+          status: 'partial',
+          coverage: {
+            complete: false,
+            storage: 'server',
+            total: null,
+            sources: [{
+              entrypoint: 'company_os',
+              status: 'partial',
+              reason: 'company_os_native_source_not_connected',
+            }],
+          },
+        }),
+      }),
+      now: OWNER_NOW,
+    });
+
+    await view.load();
+
+    const text = collectText(root);
+    expect(text).toContain('Company OS: 一部取得（Company OSの判断実行履歴が未接続）');
+    expect(text).toContain('既存の項目で進める');
+    view.dispose();
+  });
+
+  it('posts a feedback event with an explicit result state and marks it saved only after canonical readback', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({ record_id: 'normal-feedback-1' });
+    const calls = [];
+    let detailReads = 0;
+    let posted;
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path, init = {}) => {
+        calls.push({ path, init });
+        if (path.endsWith('/feedback')) {
+          posted = JSON.parse(init.body);
+          return { ok: true, status: 201, json: async () => ({ status: 'accepted' }) };
+        }
+        if (path.endsWith('/records/normal-feedback-1')) {
+          detailReads += 1;
+          const detail = detailReads > 1
+            ? { ...record, feedback_events: [{
+              record_id: record.record_id,
+              event_id: posted?.event_id,
+              kind: posted?.kind,
+              content: posted?.content,
+            }] }
+            : record;
+          return { ok: true, status: 200, json: async () => ({ status: 'available', record: detail }) };
+        }
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    row.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const content = findAll(rail, (node) => node.attributes['aria-label'] === '追記の内容')[0];
+    const resultStatus = findAll(rail, (node) => node.attributes['aria-label'] === '結果の確認状態')[0];
+    expect(content).toBeTruthy();
+    content.value = '顧客の返信を確認した';
+    content.listeners.get('input')({ target: content });
+    resultStatus.value = 'confirmed';
+    resultStatus.listeners.get('change')({ target: resultStatus });
+    const submit = findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')[0];
+    submit.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(posted).toEqual(expect.objectContaining({
+      record_id: 'normal-feedback-1',
+      kind: 'feedback',
+      content: { summary: '顧客の返信を確認した', outcome_status: 'confirmed' },
+    }));
+    expect(posted.event_id).toBeTruthy();
+    expect(collectText(rail)).toContain('保存済み（正本で確認しました）。');
+    expect(calls.filter(({ path }) => path.endsWith('/feedback'))).toHaveLength(1);
+    expect(detailReads).toBeGreaterThanOrEqual(2);
+    view.dispose();
+  });
+
+  it('keeps an accepted feedback event unconfirmed when the canonical readback has no matching event', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({ record_id: 'normal-feedback-unconfirmed' });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        if (path.endsWith('/feedback')) return { ok: true, status: 201, json: async () => ({ status: 'accepted' }) };
+        if (path.includes('/records/')) return { ok: true, status: 200, json: async () => ({ status: 'available', record }) };
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const content = findAll(rail, (node) => node.attributes['aria-label'] === '追記の内容')[0];
+    content.value = '受付だけで正本にはまだ見えていない';
+    content.listeners.get('input')({ target: content });
+    findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(collectText(rail)).toContain('未確認。');
+    expect(collectText(rail)).not.toContain('保存済み（正本で確認しました）。');
+    view.dispose();
+  });
+
+  it('copies a stable record and feedback reference with the applicability reason without writing a new judgment', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({
+      record_id: 'normal-reference-1',
+      feedback_events: [{ record_id: 'normal-reference-1', event_id: 'event-reference-1', kind: 'result', content: { summary: '結果を確認した' } }],
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        if (path.includes('/records/')) return { ok: true, status: 200, json: async () => ({ status: 'available', record }) };
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(collectText(rail)).toContain('event_id=event-reference-1');
+    const reason = findAll(rail, (node) => node.attributes['aria-label'] === '適用理由（event-reference-1）')[0];
+    const copy = findAll(rail, (node) => node.attributes['data-action'] === 'copy-judgment-reference')[0];
+    reason.value = '同じ契約条件の判断なので参照する';
+    copy.listeners.get('click')();
+    let payload = findAll(rail, (node) => node.className === 'bb-jh-reference-payload')[0].textContent;
+    for (let attempt = 0; attempt < 20 && !/judgment-history-feedback:normal-reference-1:[a-f0-9]{64}/u.test(payload); attempt += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      payload = findAll(rail, (node) => node.className === 'bb-jh-reference-payload')[0].textContent;
+    }
+    expect(payload).toContain('"ref": "judgment-history:normal-reference-1"');
+    expect(payload).toContain('"event_id": "event-reference-1"');
+    expect(payload).toContain('"why": "同じ契約条件の判断なので参照する"');
+    expect(payload).toMatch(/judgment-history-feedback:normal-reference-1:[a-f0-9]{64}/u);
+    expect(findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')).toHaveLength(1);
+    view.dispose();
+  });
+
+  it('requests the next normal page and appends records while preserving the reported total', async () => {
+    const root = new FakeElement('div');
+    const doc = new FakeDocument();
+    const first = normalRecord({ record_id: 'normal-page-1' });
+    const second = normalRecord({ record_id: 'normal-page-2', recorded_at: '2026-10-04T09:00:00.000Z' });
+    const calls = [];
+    const view = createJudgmentHistoryUI({
+      root,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        calls.push(path);
+        const next = path.includes('cursor=next-page');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => normalHome(next ? [second, first] : [first], {
+            coverage: { complete: true, storage: 'local', total: 2 },
+            pagination: { next_cursor: next ? null : 'next-page', limit: 1, has_next: !next },
+          }),
+        };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const nextButton = findAll(root, (node) => node.attributes['data-action'] === 'next-page')[0];
+    expect(nextButton).toBeTruthy();
+    nextButton.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls[1]).toContain('cursor=next-page');
+    expect(findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')).toHaveLength(2);
+    expect(collectText(root)).toContain('同じ範囲の件数: 2件');
+    view.dispose();
+  });
+
+  it('sends normal period and entrypoint filters from the rendered controls', async () => {
+    const root = new FakeElement('div');
+    const doc = new FakeDocument();
+    const calls = [];
+    const view = createJudgmentHistoryUI({
+      root,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        calls.push(path);
+        return { ok: true, status: 200, json: async () => normalHome([normalRecord()]) };
+      },
+      now: OWNER_NOW,
+    });
+
+    await view.load();
+    const weekButton = findAll(root, (node) => node.attributes['data-period'] === 'week')[0];
+    weekButton.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls[1]).toContain('period=week');
+
+    const entrypoint = findAll(root, (node) => node.tagName === 'SELECT' && node.attributes['aria-label'] === '入口')[0];
+    entrypoint.value = 'mana';
+    entrypoint.listeners.get('change')({ target: entrypoint });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(calls[2]).toContain('period=week');
+    expect(calls[2]).toContain('entrypoint=mana');
+    view.dispose();
   });
 });
