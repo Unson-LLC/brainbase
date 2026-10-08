@@ -1,3 +1,4 @@
+import { assertPrivatePhilosophyRead, privatePhilosophyAcl } from './private-philosophy-graph.js';
 import {
   cloneFoundationDefinition,
   digestFoundationDefinition
@@ -401,7 +402,7 @@ function createPhilosophyRevisionRecord(
     applicability: validated.history.applicability,
     // This is a read-time projection of the current Graph permission. It
     // does not mutate the canonical philosophy payload or Graph ACL.
-    currentAcl: privateCurrentAcl(principal),
+    currentAcl: privatePhilosophyAcl(validated.current.payload) ?? privateCurrentAcl(principal),
     currentScope: cloneJudgmentScope(validated.history.applicability.scope)
   };
 }
@@ -447,7 +448,7 @@ async function readCanonicalPhilosophyRevision(
         applicability: validated.history.applicability,
         // This is a read-time projection of the current Graph permission. It
         // does not mutate the canonical philosophy payload or Graph ACL.
-        currentAcl: privateCurrentAcl(trustedContext.principal),
+        currentAcl: privatePhilosophyAcl(validated.current.payload) ?? privateCurrentAcl(trustedContext.principal),
         currentScope: cloneJudgmentScope(validated.history.applicability.scope)
       }
     };
@@ -511,7 +512,7 @@ async function readPhilosophyRevision(
         applicability: validated.history.applicability,
         // This is a read-time projection of the current Graph permission. It
         // does not mutate the canonical philosophy payload or Graph ACL.
-        currentAcl: privateCurrentAcl(trustedContext.principal),
+        currentAcl: privatePhilosophyAcl(validated.current.payload) ?? privateCurrentAcl(trustedContext.principal),
         currentScope: cloneJudgmentScope(reference.scope)
       }
     };
@@ -540,6 +541,9 @@ function validatePhilosophyHistoryAccess(
 ): ValidatedPhilosophyHistoryAccess {
   const history = validatePhilosophyHistoryRow(row, { id, revision });
   const current = validateCurrentRow(row, id, 'philosophy');
+  const historicalAcl = assertPrivatePhilosophyRead(history.payload, trustedContext.principal);
+  const currentAcl = assertPrivatePhilosophyRead(current.payload, trustedContext.principal);
+  if (historicalAcl && !currentAcl) throw new FoundationStoreError('authorization_denied', 'Private philosophy history cannot become legacy');
   const philosophy = current.philosophy;
   if (!philosophy) {
     throw corrupt('Current Graph philosophy applicability is missing');
