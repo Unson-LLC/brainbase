@@ -65,6 +65,19 @@ describe('判断の枠組みのMCPツール', () => {
     expect(judgmentFrameTools.every((tool) => tool.annotations?.readOnlyHint === true)).toBe(true);
     // Codex renders only oneOf variants into the model-facing type (Unson-LLC/brainbase#622).
     expect(JSON.stringify(judgmentFrameTools[1].inputSchema)).not.toContain('oneOf');
+    expect(judgmentFrameTools[1].inputSchema).toMatchObject({
+      properties: {
+        public_frame: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['summary', 'reason'],
+          properties: {
+            summary: { type: 'string', minLength: 1, maxLength: 2_000 },
+            reason: { type: 'string', minLength: 1, maxLength: 2_000 },
+          },
+        },
+      },
+    });
   });
 
   it('3種を上限付きで読み、ダイジェスト付きの一覧を返す', async () => {
@@ -116,8 +129,53 @@ describe('判断の枠組みのMCPツール', () => {
         option_count: 1,
         chosen_option: 'アーキテクチャ変更だけ承認を戻す',
         escalations: [],
+        digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
       },
     });
+  });
+
+  it('明示された公開frameだけを同じ値で返し、frameの変更をdigestへ含める', async () => {
+    const input = await frame({
+      public_frame: {
+        summary: '本番変更の承認境界を維持する',
+        reason: '無制御な自動化を避けるため',
+      },
+    });
+    const result = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', input, dependencies());
+    expect(result).toMatchObject({
+      status: 'ok',
+      data: {
+        public_frame: input.public_frame,
+        digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
+      },
+    });
+
+    const changed = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', await frame({
+      public_frame: {
+        summary: '本番変更の承認境界を維持する',
+        reason: '所有者に再確認してもらうため',
+      },
+    }), dependencies());
+    expect(result.status === 'ok' && changed.status === 'ok' && result.data.digest)
+      .not.toBe(changed.status === 'ok' && changed.data.digest);
+
+    const withoutFrame = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', await frame(), dependencies());
+    expect(withoutFrame?.status === 'ok' && withoutFrame.data).not.toHaveProperty('public_frame');
+  });
+
+  it('公開frameの未知key、credential、制御文字を拒否する', async () => {
+    for (const public_frame of [
+      { summary: '要約', reason: '理由', extra: '拒否' },
+      { summary: 'api_key=secret-value', reason: '理由' },
+      { summary: '要約', reason: '理由\n改行' },
+      { summary: ' '.repeat(2_001), reason: '理由' },
+      { summary: '   ', reason: '理由' },
+    ]) {
+      const result = await handleJudgmentFrameToolCall('brainbase_judgment_frame_record', await frame({ public_frame }), dependencies());
+      expect(result).toMatchObject({ status: 'error', error: { code: 'judgment_frame_invalid' } });
+      const details = (result as { error: { details: { issues: Array<{ code: string; path: string }> } } }).error.details;
+      expect(details.issues.some((issue) => issue.code === 'frame_public_invalid')).toBe(true);
+    }
   });
 
   it('一覧に無い参照と変わった一覧を拒否し、今の一覧のダイジェストを返す', async () => {
