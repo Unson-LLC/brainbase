@@ -255,7 +255,7 @@ describe('district host presentation contract', () => {
       expect(legend.hidden).toBe(!showChrome);
       expect(notice.hidden).toBe(!showChrome);
       expect(notice.textContent).toContain('upstream_timeout');
-      expect(notice.textContent).toContain('仕事が0件という意味ではありません');
+      expect(notice.textContent).toContain('仕事の件数は未確認です。0件とは確認できません');
       view.refresh(business, makeWork());
       expect(notice.hidden).toBe(true);
       view.hide();

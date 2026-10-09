@@ -48,7 +48,7 @@ describe('world work rail: facts, then what cannot be seen, then people, then so
 
   it('never shows unreadable or unconnected work as zero', () => {
     const unreadable = workCityBlocks(doc, { business, work: { status: 'unavailable', reason: 'HTTP 502' }, onReload: () => {} }).map(collectText).join('');
-    expect(unreadable).toContain('仕事の記録を読めません（HTTP 502）。仕事が0件という意味ではありません。');
+    expect(unreadable).toContain('仕事の記録を読めません（HTTP 502）。仕事の件数は未確認です。0件とは確認できません。');
     const notConnected = workCityBlocks(doc, { business, work: { status: 'not_connected', reason: 'task_store_not_connected' } }).map(collectText).join('');
     expect(notConnected).toContain('タスクの正本に接続していない');
     expect(workSignText({ state: 'failed' })).toBe('仕事を読めない');
@@ -98,7 +98,7 @@ describe('world work rail: a partial or failed read is said in words', () => {
     expect(workCityBlocks(doc, { business, work: partial }).map(collectText).join('')).toContain('一部だけ読めた（10/6 11:59）。案件の一部は、あなたのタスクの権限の範囲外のため読んでいません');
     const failed = projectWorldWork({ business, tasks: { state: 'failed', reason: 'upstream_timeout' } }, { now: NOW });
     const text = workCityBlocks(doc, { business, work: failed }).map(collectText).join('');
-    expect(text).toContain('仕事の記録を読めなかった（時間内に応答がありませんでした）。仕事が0件という意味ではありません。');
+    expect(text).toContain('仕事の記録を読めなかった（時間内に応答がありませんでした）。仕事の件数は未確認です。0件とは確認できません。');
     expect(text).not.toContain('未完了 null');
   });
 });

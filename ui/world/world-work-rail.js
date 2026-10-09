@@ -55,7 +55,7 @@ export function readReasonText(reason) {
 }
 
 const WORK_UNAVAILABLE_TEXT = Object.freeze({
-  task_store_not_connected: 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません',
+  task_store_not_connected: 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません。仕事の件数は未確認です。0件とは確認できません。',
 });
 
 function jst(value) {
@@ -182,7 +182,7 @@ function workStateBlocks(doc, { work, summary, onSelectGap, onSelectStatus }) {
 export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatus, onReload }) {
   if (!work) return [workspaceRailBlock(doc, { title: '仕事', content: { text: '仕事を読み込んでいます…' } })];
   if (work.status !== 'ok') {
-    const text = WORK_UNAVAILABLE_TEXT[work.reason] ?? `仕事の記録を読めません（${work.reason ?? work.status}）。仕事が0件という意味ではありません。`;
+    const text = WORK_UNAVAILABLE_TEXT[work.reason] ?? `仕事の記録を読めません（${work.reason ?? work.status}）。仕事の件数は未確認です。0件とは確認できません。`;
     const content = [{ text }];
     if (onReload && work.status !== 'not_connected') content.push(workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }));
     return [workspaceRailBlock(doc, { title: '仕事', content })];
@@ -209,7 +209,7 @@ export function workCityBlocks(doc, { business, work, onSelectGap, onSelectStatu
     blocks.push(workspaceRailBlock(doc, {
       title: '仕事',
       content: [
-        { text: `仕事の記録を${READ_STATE_TEXT[summary.state] ?? summary.state}（${readReasonText(summary.reason) ?? '理由不明'}）。仕事が0件という意味ではありません。` },
+        { text: `仕事の記録を${READ_STATE_TEXT[summary.state] ?? summary.state}（${readReasonText(summary.reason) ?? '理由不明'}）。仕事の件数は未確認です。0件とは確認できません。` },
         onReload ? workspaceButton(doc, { text: 'もう一度読む', onClick: onReload }) : null,
       ],
     }));

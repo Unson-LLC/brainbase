@@ -29,7 +29,7 @@ describe('canvas notices preserve the canonical read-state boundary', () => {
     expect(notes.map((note) => note.summary).filter(Boolean)).toEqual(['人物：権限がなく読めない', '方針の決定：読込失敗']);
   });
   it('keeps unavailable responses and missing timestamps explicit', () => {
-    expect(workCanvasNotes({ status: 'unavailable', reason: 'HTTP 502' })[0]).toMatchObject({ summary: '仕事：読めない（0件ではありません）' });
+    expect(workCanvasNotes({ status: 'unavailable', reason: 'HTTP 502' })[0]).toMatchObject({ summary: '仕事：読めない（0件とは確認できません）' });
     expect(workCanvasNotes(projected()).at(-1).text).toContain('時点不明');
   });
 });

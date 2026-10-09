@@ -1563,7 +1563,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     const noteOf = (business) => {
       const summary = workSummaries[business.code];
       if (!summary) return { text: workConnected === false ? '' : '仕事は区画で読みます', count: -1 };
-      if (summary.state !== 'complete' && summary.state !== 'partial') return { text: '仕事を読めない（0件ではありません）', count: -1, muted: true };
+      if (summary.state !== 'complete' && summary.state !== 'partial') return { text: '仕事を読めない（0件とは確認できません）', count: -1, muted: true };
       const needs = summary.needs_check?.length ?? 0;
       const parts = [needs ? `要確認 ${needs}` : Number.isInteger(summary.open) ? `未完了 ${summary.open}` : '未完了の件数は未確認'];
       if (summary.state === 'partial') parts.push('一部だけ読めた');
@@ -1705,7 +1705,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
 
   function workBlocksFor(business) {
     if (workConnected === false) {
-      return [workspaceRailBlock(doc, { title: '仕事', content: { text: 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません。仕事が0件という意味ではありません。' } })];
+      return [workspaceRailBlock(doc, { title: '仕事', content: { text: 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません。仕事の件数は未確認です。0件とは確認できません。' } })];
     }
     const work = workCache.get(business.code) ?? null;
     return workCityBlocks(doc, {
@@ -2055,16 +2055,16 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     const result = await readJson(fetcher, '/api/extensions/world/work-summary');
     if (disposed) return;
     if (!result.ok) {
-      note('仕事', `仕事の要約を読めません（${result.error}）。都市を選ぶと、その事業の仕事を読みにいきます。0件ではありません。`, 'warning', '仕事の要約：読込失敗');
+      note('仕事', `仕事の要約を読めません（${result.error}）。都市を選ぶと、その事業の仕事を読みにいきます。0件とは確認できません。`, 'warning', '仕事の要約：読込失敗');
       return;
     }
     if (result.data?.status === 'not_connected') {
       workConnected = false;
-      note('仕事', 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません（0件ではありません）。', 'warning', '仕事：未接続（0件ではありません）');
+      note('仕事', 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません（0件とは確認できません）。', 'warning', '仕事：未接続（0件とは確認できません）');
       return;
     }
     if (result.data?.status !== 'ok') {
-      note('仕事', `仕事の要約を読めません（${result.data?.reason ?? result.data?.status ?? '理由不明'}）。0件ではありません。`, 'warning', '仕事の要約：読めない');
+      note('仕事', `仕事の要約を読めません（${result.data?.reason ?? result.data?.status ?? '理由不明'}）。0件とは確認できません。`, 'warning', '仕事の要約：読めない');
       return;
     }
     workConnected = true;
@@ -2094,13 +2094,13 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
         ? `未完了の仕事${open === null ? '（件数未確認）' : `${open}件`}のうち${needs}件（${cities}事業）に、記録から把握できていないことがあります（？の札${kindText ? `。内訳：${kindText}` : ''}）`
         : '仕事の要約に記録の要確認件数がなく、件数は未確認です']
       : [];
-    if (unreadable) parts.push(`${readable.length ? '' : 'どの事業の仕事も読めませんでした。'}仕事を読めなかった事業${unreadable}件（灰色の札。0件ではありません）`);
+    if (unreadable) parts.push(`${readable.length ? '' : 'どの事業の仕事も読めませんでした。'}仕事を読めなかった事業${unreadable}件（灰色の札。0件とは確認できません）`);
     if (partial) parts.push(`一部だけ読めた事業${partial}件`);
     note('仕事', `${parts.join('。')}。「止まっている」という意味ではありません（${shortTimeText(result.data.as_of)}時点）。`);
     if (canvasMode) {
-      if (!needsKnown) note('記録の確認件数', '仕事の要約に記録の要確認件数がありません。確認事項が0件とは判断していません。', 'warning', '記録の要確認件数：未確認');
-      if (!openKnown) note('仕事の件数', '読めた仕事の要約に未完了件数の記録がありません。0件とは判断していません。', 'warning', '未完了の件数：未確認');
-      if (unreadable) note('仕事の読込', `仕事を読めなかった事業${unreadable}件。0件ではありません。`, 'warning', `仕事が読めない事業 ${unreadable}件`);
+      if (!needsKnown) note('記録の確認件数', '仕事の要約に記録の要確認件数がありません。確認事項が0件とは確認できません。', 'warning', '記録の要確認件数：未確認');
+      if (!openKnown) note('仕事の件数', '読めた仕事の要約に未完了件数の記録がありません。0件とは確認できません。', 'warning', '未完了の件数：未確認');
+      if (unreadable) note('仕事の読込', `仕事を読めなかった事業${unreadable}件。0件とは確認できません。`, 'warning', `仕事が読めない事業 ${unreadable}件`);
       if (partial) note('仕事の範囲', `一部だけ読めた事業${partial}件。件数は読めた範囲です。`, 'warning', `仕事が一部だけ読めた事業 ${partial}件`);
       if (needs) note('仕事の記録', `読めた未完了の仕事${needs}件（${cities}事業）に、記録から把握できていないことがあります。仕事の失敗や停止を意味しません。`, 'attention', `記録の要確認 ${needs}件・${cities}事業`);
     }
@@ -2242,7 +2242,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     if (businessPayload?.status === 'ok' && businessPayload.vocabulary) worldVocabulary = businessPayload.vocabulary;
     if (!businessesResult.ok || businessPayload?.status !== 'ok') {
       const reason = businessesResult.ok ? `${BUSINESS_STATE_TEXT[businessPayload?.status] ?? '状態不明'}（${businessPayload?.reason ?? '理由不明'}）` : `取得に失敗しました（${businessesResult.error}）`;
-      note('事業', `${reason}。事業は0件ではありません。`, 'warning', '事業：読めない（0件ではありません）');
+      note('事業', `${reason}。事業の件数は未確認です。0件とは確認できません。`, 'warning', '事業：読めない（0件とは確認できません）');
     } else {
       const extra = [];
       if (businessPayload.unplaced.length) extra.push(`親の事業がGraphに無い案件${businessPayload.unplaced.length}件は描いていません`);
@@ -2263,7 +2263,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     if (!homeResult.ok || !readable) {
       const reason = homeResult.ok ? home?.reason ?? home?.status ?? '状態不明' : homeResult.error;
       if (JUDGMENT_UNAVAILABLE_TEXT[reason]) note('判断', `${JUDGMENT_UNAVAILABLE_TEXT[reason]}。事業だけを描いています。`, 'warning', '判断の記録：未接続');
-      else note('判断', `判断の記録を読めません（${reason}）。0件ではありません。`, 'warning', '判断の記録：読めない');
+      else note('判断', `判断の記録を読めません（${reason}）。判断の記録の件数は未確認です。0件とは確認できません。`, 'warning', '判断の記録：読めない');
     } else {
       proofs = proofIndex(home);
       judgmentsConnected = true;
