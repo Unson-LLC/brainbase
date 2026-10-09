@@ -96,6 +96,10 @@
   margin-top: 22px;
 }
 
+.bb-jh .bb-ws-notice > .bb-ws-button {
+  justify-self: start;
+}
+
 .bb-jh-ledger {
   border-top-color: var(--bb-color-border-strong);
 }
