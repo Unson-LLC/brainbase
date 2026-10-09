@@ -20,7 +20,7 @@
  */
 
 import { THREE, MapControls } from './world-vendor.js';
-import { DISTRICT_STREETS, districtGroundPlan, districtStage, districtStreetLots, skyAt } from './world-placement.js';
+import { DISTRICT_STREETS, districtTaskActors, districtGroundPlan, districtStage, districtStreetLots, skyAt } from './world-placement.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { makeWorkspaceElement as el } from '../../workspace-kit.js';
 import { attentionSignText } from './world-exits.js';
@@ -46,7 +46,7 @@ export const DISTRICT_LEGEND = Object.freeze([
   ['is-stakes', '杭と縄の空き地＝未着手（記録上）'],
   ['is-house', '明かりのついた家＝完了して、出典・成果の記録がある（本設の建物）'],
   ['is-prefab', 'プレハブ＝完了したが、出典・成果の記録が無い'],
-  ['is-worker', 'ヘルメットの人＝担当欄の担当'],
+  ['is-worker', 'ヘルメットの人＝記録された担当。緑はAI担当、動きは進行中Taskと現在の稼働証跡が一致したときだけ'],
   ['is-empty', '誰もいない現場＝担当の記録なし'],
   ['is-outside', '柵の外の人（破線の輪）＝本文にだけ名前がある'],
   ['is-nopath', '通りへの道が無い＝出典リンクなし'],
@@ -381,6 +381,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
   }
 
   // --- people (records: worker, person named in the text; atmosphere: walkers) ---------------------
+  const taskActors = [];
   function person(clothes, { helmet = false } = {}) {
     const group = new THREE.Group();
     group.add(mesh(new THREE.CapsuleGeometry(0.2, 0.46, 4, 10), material(clothes), { y: 0.5 }));
@@ -511,6 +512,12 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
       worker.position.set(0.55, 0.06, 0.55);
       group.add(worker);
     }
+    districtTaskActors(site).forEach((actor, index) => {
+      const worker = person(0x2f9c8b, { helmet: true });
+      worker.position.set(-0.5 + index * 0.55, 0.06, 0.35);
+      group.add(worker);
+      taskActors.push({ worker, x: worker.position.x, moving: actor.moving, heartbeatAt: actor.activity?.heartbeat_at, phase: hash(actor.id + site.task_id) });
+    });
     if (named && status !== 'completed') {
       const outside = person(0x6b5b95);
       outside.position.set(-0.95, 0, half + 0.65);
@@ -665,6 +672,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     scene.add(root);
     root.add(selectionRing);
     const readable = work?.status === 'ok' && (work.reads.tasks.state === 'complete' || work.reads.tasks.state === 'partial');
+    taskActors.length = 0;
     const shown = readable ? work.sites.filter((site) => site.work.status !== 'cancelled') : [];
     const layout = districtStreetLots(shown.map((site) => ({ task_id: site.task_id, created_at: site.work.created_at, purpose_label: site.purpose_label })));
     const L = layout.length;
@@ -824,7 +832,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
       root.add(group);
       lots.set(site.task_id, group);
       const title = site.title.length > 15 ? `${site.title.slice(0, 14)}…` : site.title;
-      addLabel(title, new THREE.Vector3(lot.x, 2.6, lot.z), `is-site${site.gaps.length ? ' is-check' : ''}`, { owner: group, near: 15, priority: 6 });
+      const actorNames = districtTaskActors(site).map(actor => actor.name).join('・');
+      addLabel(actorNames ? `${title} / ${actorNames}` : title, new THREE.Vector3(lot.x, 2.6, lot.z), `is-site${site.gaps.length ? ' is-check' : ''}`, { owner: group, near: 15, priority: 6 });
     }
     // Atmosphere: walkers on the sidewalks and back streets, smoke from chimneys (no record behind them).
     const routes = [-1.55, 1.55, -DISTRICT_STREETS.backStreet + 0.6, DISTRICT_STREETS.backStreet - 0.6];
@@ -1037,6 +1046,12 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     }
     if (!reducedMotion) {
       const seconds = time / 1000;
+      for (const actor of taskActors) {
+        const age = Date.now() - Date.parse(actor.heartbeatAt ?? '');
+        if (!actor.moving || !Number.isFinite(age) || age < 0 || age > 300000) continue;
+        actor.worker.position.set(actor.x + Math.sin(seconds * 1.4 + actor.phase) * 0.12, 0.06 + Math.abs(Math.sin(seconds * 3 + actor.phase)) * 0.025, 0.35);
+        actor.worker.rotation.y = Math.sin(seconds * 1.4 + actor.phase) * 0.3;
+      }
       for (const walker of walkers) {
         const { x, from, to, speed, phase } = walker.userData;
         const span = to - from;
