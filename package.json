@@ -135,6 +135,10 @@
       "types": "./dist/meeting-minutes-lineage-adapters.d.ts",
       "import": "./dist/meeting-minutes-lineage-adapters.js"
     },
+    "./meeting-source-connection": {
+      "types": "./dist/meeting-source-connection.d.ts",
+      "import": "./dist/meeting-source-connection.js"
+    },
     "./meeting-source-reader": {
       "types": "./dist/meeting-source-reader.d.ts",
       "import": "./dist/meeting-source-reader.js"
