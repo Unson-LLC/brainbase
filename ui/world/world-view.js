@@ -24,7 +24,9 @@
 
 import { THREE, MapControls } from './world-vendor.js';
 import { changesSince, cityMeasures, districtChanges, districtLots, districtSnapshot, districtStage, groupJudgmentPlaces, skyAt, UNPLACED_REASON_TEXT } from './world-placement.js';
-import { createDistrictView } from './world-district.js';
+import { createDistrictView, DISTRICT_LEGEND } from './world-district.js';
+import { createWorldCanvasUI } from './world-canvas-ui.js';
+import { workCanvasNotes } from './world-canvas-notes.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, muted, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { WORK_STATES, workCityBlocks, workGrowthBlock, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
 import {
@@ -38,6 +40,8 @@ import {
 } from '../../workspace-kit.js';
 
 export const WORLD_VIEW_CONTRACT_VERSION = 'brainbase.world-view.v0';
+/** Optional full-canvas presentation; the standard host contract remains unchanged. */
+export const WORLD_CANVAS_PRESENTATION_VERSION = 'brainbase.world-canvas.v1';
 
 const STATE_LABELS = Object.freeze({ delegated: '任せている', verifying: '確かめ中', returned: '戻している' });
 const STATE_COLORS = Object.freeze({ delegated: 0x087d62, verifying: 0xc99a3a, returned: 0xd92335 });
@@ -1034,7 +1038,7 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
   });
   renderer.domElement.addEventListener('keydown', (event) => {
     // Escape goes one level up; the view decides what that level is.
-    if (event.key === 'Escape') onEscape();
+    if (event.key === 'Escape' && !event.defaultPrevented) onEscape();
   });
 
   let flight = null;
@@ -1431,12 +1435,32 @@ function addressSelection() {
  *   organization web passes its own route.
  * @param {(site: { task_id: string }) => string | null} [options.taskHref] Where a work site's task opens in the
  *   host's task screen (to check or correct it).  Without one the rail says it cannot be corrected here.
+ * @param {'standard' | 'canvas'} [options.presentation] Canvas owns its accessible overlays and ignores the host rail.
  * @param {{ read(): { business: string | null, site: string | null }, write(selection): void }} [options.selection]
  */
-export function createWorldView({ root, rail, page, document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, selection = addressSelection() }) {
+export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, selection = addressSelection() }) {
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
-  const wrap = el(doc, 'div', { className: 'bb-world' });
+  const canvasMode = presentation === 'canvas';
+  const wrap = el(doc, 'div', { className: `bb-world${canvasMode ? ' bb-world--canvas' : ''}` });
+  let disposed = false;
+  let canvasUI = null;
+  const canvasNotes = new Map();
+  const renderCanvasNotes = () => {
+    if (!canvasUI || disposed) return;
+    canvasUI.clearNotes();
+    for (const note of canvasNotes.values()) canvasUI.addNote(note);
+  };
+  const setCanvasNote = (key, note) => {
+    if (note) canvasNotes.set(key, note);
+    else canvasNotes.delete(key);
+    renderCanvasNotes();
+  };
+  function updateDistrictNotes(work) {
+    for (const key of canvasNotes.keys()) if (key.startsWith('district:')) canvasNotes.delete(key);
+    if (work) for (const [index, note] of workCanvasNotes(work).entries()) canvasNotes.set(`district:${index}`, note);
+    renderCanvasNotes();
+  }
   root.append(wrap);
   let scene = null;
 
@@ -1481,12 +1505,50 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   );
   const stage = el(doc, 'div', { className: 'bb-world-stage' });
   const labelsLayer = el(doc, 'div', { className: 'bb-world-labels' });
-  stage.append(labelsLayer, notices, legend, workLegend);
-  wrap.append(header, stage);
+  stage.append(labelsLayer);
+  if (canvasMode) {
+    wrap.append(stage);
+    canvasUI = createWorldCanvasUI({
+      doc, stage, reducedMotion,
+      onReset: () => { goToWorld(); clearAll(); },
+      onCity: (code) => {
+        if (!code) { goToWorld(); clearAll(); return; }
+        const business = businessOf(code);
+        if (business) openCity(business, scene?.selectKey({ code })?.center ?? null);
+      },
+      onSky: (mode) => {
+        skyIndex = Math.max(0, SKY_MODES.findIndex(([key]) => key === mode));
+        scene?.setSky(SKY_MODES[skyIndex][0]);
+        district?.setSky(SKY_MODES[skyIndex][0]);
+      },
+      onDismissTask: () => dismissTask(),
+    });
+    const help = el(doc, 'div');
+    help.append(el(doc, 'p', { text: 'ドラッグで移動、ホイールで寄る・離れる、右ドラッグで回転。都市を選ぶと区画に入ります。右端から詳細と絞り込みを開けます。Escで詳細を閉じ、その後は区画・全体の順に戻ります。ここから記録は書き換えません。' }));
+    help.append(legend, workLegend);
+    workLegend.hidden = false;
+    const list = el(doc, 'ul');
+    for (const [, text] of DISTRICT_LEGEND) list.append(el(doc, 'li', { text }));
+    help.append(list);
+    if (page?.source) help.append(el(doc, 'p', { text: page.source }));
+    canvasUI.setHelp([help]);
+  } else {
+    stage.append(notices, legend, workLegend);
+    wrap.append(header, stage);
+  }
+
+  const onRootEscape = (event) => {
+    if (!canvasMode || event.key !== 'Escape' || event.defaultPrevented) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!canvasUI.dismissOverlay()) goUp();
+  };
+  wrap.addEventListener('keydown', onRootEscape, true);
 
   function showRail(nodes) {
-    if (!rail) return;
-    rail.replaceChildren(...nodes);
+    if (disposed) return;
+    if (canvasUI) canvasUI.showRail(nodes);
+    else rail?.replaceChildren(...nodes);
   }
   /**
    * With nothing chosen, the rail lists the ways in (AC-19): one button per business, the ones with the
@@ -1503,7 +1565,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       if (!summary) return { text: workConnected === false ? '' : '仕事は区画で読みます', count: -1 };
       if (summary.state !== 'complete' && summary.state !== 'partial') return { text: '仕事を読めない（0件ではありません）', count: -1, muted: true };
       const needs = summary.needs_check?.length ?? 0;
-      const parts = [needs ? `要確認 ${needs}` : `未完了 ${summary.open ?? 0}`];
+      const parts = [needs ? `要確認 ${needs}` : Number.isInteger(summary.open) ? `未完了 ${summary.open}` : '未完了の件数は未確認'];
       if (summary.state === 'partial') parts.push('一部だけ読めた');
       return { text: parts.join('・'), count: needs };
     };
@@ -1593,17 +1655,21 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   /** Whether the host has a task store: true, false (not connected), or null (not known yet / unreadable). */
   let workConnected = null;
   const workCache = new Map();
-  const current = { code: null, siteId: null, level: 'world', focus: null, pendingSite: null };
+  const workRequests = new Map();
+  const current = { code: null, siteId: null, level: 'world', focus: null, pendingSite: null, detachedSiteId: null };
 
   /** Inside a city the notices fold away (they would cover it); its rail carries the sources and times. */
   function setLevel(level) {
     current.level = level;
     notices.hidden = level !== 'world';
+    if (canvasMode && level === 'world') updateDistrictNotes(null);
   }
 
   function setCurrent(code, siteId) {
     current.code = code;
     current.siteId = siteId;
+    if (!siteId) current.detachedSiteId = null;
+    canvasUI?.setCity(code);
     selection?.write?.({ business: code, site: siteId });
   }
 
@@ -1680,13 +1746,22 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         title: `${label} ${sites.length}件`,
         sites,
         note: '該当する仕事を街の中で濃く、ほかを薄く出しています。選ぶと、その仕事の根拠が開きます。',
-        onSelectSite: (taskId) => openSiteById(business, taskId),
+        onSelectSite: (taskId) => openSiteById(business, taskId, { focus: true }),
       }));
       blocks.push(workspaceRailBlock(doc, { title: '', content: workspaceButton(doc, { text: 'すべての仕事を表示', onClick: () => showFocus(business, null) }) }));
     }
     const growth = growthFor(business.code);
     if (growth) blocks.push(workGrowthBlock(doc, growth));
-    blocks.push(...workBlocksFor(business), ...cityRegistrationBlocks(business));
+    blocks.push(...workBlocksFor(business));
+    if (canvasMode && work?.status === 'ok' && ['complete', 'partial'].includes(work.reads.tasks.state)) {
+      // The canvas objects have an equivalent keyboard/touch entry for every
+      // actual record, including completed/cancelled work outside open-work filters.
+      const directory = el(doc, 'details', { className: 'bb-world-task-directory' });
+      directory.append(el(doc, 'summary', { text: `仕事を選ぶ（${work.reads.tasks.state === 'partial' ? '読めた範囲 ' : ''}${work.sites.length}件）` }));
+      directory.append(workPickBlock(doc, { title: '仕事の記録', sites: work.sites, onSelectSite: (taskId) => openSiteById(business, taskId, { focus: true }) }));
+      blocks.push(directory);
+    }
+    blocks.push(...cityRegistrationBlocks(business));
     showRail(blocks);
     if (revealFocus) reveal(focusBlock ?? blocks[0]);
   }
@@ -1723,7 +1798,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       // Without storage the district shows no changes next time.
     }
   }
-  const liveSites = (work) => (work?.status === 'ok' && work.reads.tasks.state !== 'unavailable' ? work.sites : null);
+  const liveSites = (work) => (work?.status === 'ok' && work.reads.tasks.state === 'complete' ? work.sites : null);
   /** Compares against what this viewer last saw, then remembers what they see now. */
   function noteGrowth(code, work, previous) {
     const sites = liveSites(work);
@@ -1742,22 +1817,34 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   // AC-23: coming back from the task screen with the district open, read its work again and answer.
   async function recheckDistrict() {
-    const business = districtCode ? businessOf(districtCode) : null;
-    if (!business || !district?.isOpen()) return;
-    const previous = growthFor(business.code)?.seen ?? readSnapshot(business.code);
-    const result = await readJson(fetcher, `/api/extensions/world/businesses/${encodeURIComponent(business.code)}/work`);
-    if (!result.ok || districtCode !== business.code) return;
-    const work = result.data;
-    const before = previous ? districtChanges(previous, liveSites(work) ?? [], new Date().toISOString()) : null;
-    if (!before || before.first || !before.items.length) return;
-    workCache.set(business.code, work);
-    scene?.showWork(business.code, work);
-    district.refresh(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
-    const growth = noteGrowth(business.code, work, previous);
-    district.celebrate(growth?.changes ?? null);
-    district.focus(focusIdsFor(work, current.focus));
-    if (current.level === 'city') renderCityRail(business);
+    const code = current.level !== 'world' ? current.code : null;
+    const business = code ? businessOf(code) : null;
+    if (!business || (!canvasMode && !district?.isOpen())) return;
+    const previous = growthFor(code)?.seen ?? readSnapshot(code);
+    const request = Symbol(code);
+    workRequests.set(code, request);
+    const result = await readJson(fetcher, `/api/extensions/world/businesses/${encodeURIComponent(code)}/work`);
+    if (disposed || workRequests.get(code) !== request) return;
+    const work = result.ok ? result.data : { status: 'unavailable', reason: result.error };
+    workCache.set(code, work);
+    if (current.code !== code || current.level === 'world') return;
+    updateDistrictNotes(work);
+    scene?.showWork(code, work);
+    if (districtCode === code && district?.isOpen()) {
+      district.refresh(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
+      const growth = noteGrowth(code, work, previous);
+      district.celebrate(growth?.changes ?? null);
+      district.focus(focusIdsFor(work, current.focus));
+    }
+    if (current.siteId) {
+      const siteId = current.siteId;
+      if (openSiteById(business, siteId, { select: false })) return;
+      dismissTask();
+      setCanvasNote('district:selection', { label: '選択中の仕事', tone: 'warning', summary: '選択中の仕事を現在の読込で確認できません', text: '選択中の仕事を現在の読み込み結果で確認できません。削除されたとは限りません。詳細から読み込み状態を確認してください。' });
+    }
+    renderCityRail(business);
   }
+
   const onVisible = () => {
     if (doc.visibilityState === 'visible') void recheckDistrict();
   };
@@ -1782,11 +1869,16 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         if (owner && current.level === 'site') openCity(owner, null);
       },
       onEscape: goUp,
+      focusSelection: !canvasMode,
+      showChrome: !canvasMode,
+      onProjectSelection: (anchor) => {
+        if (anchor.taskId === current.siteId && current.detachedSiteId !== current.siteId) canvasUI?.setTaskAnchor(anchor);
+        else if (!anchor.visible && !current.siteId) canvasUI?.setTaskAnchor({ visible: false });
+      },
     });
     district.setSky(SKY_MODES[skyIndex][0]);
     scene.setPaused(true);
-    legend.hidden = true;
-    workLegend.hidden = true;
+    if (!canvasMode) { legend.hidden = true; workLegend.hidden = true; }
     if (districtCode !== business.code || !district.isOpen()) {
       district.show(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
       districtCode = business.code;
@@ -1802,22 +1894,32 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     district.hide();
     districtCode = null;
     scene?.setPaused(false);
-    legend.hidden = false;
+    if (!canvasMode) legend.hidden = false;
   }
 
   async function loadWork(business) {
     if (workConnected === false || workCache.has(business.code)) return workCache.get(business.code) ?? null;
+    const request = Symbol(business.code);
+    workRequests.set(business.code, request);
     const result = await readJson(fetcher, `/api/extensions/world/businesses/${encodeURIComponent(business.code)}/work`);
+    if (disposed || workRequests.get(business.code) !== request) return null;
     const work = result.ok ? result.data : { status: 'unavailable', reason: result.error };
     if (work?.status === 'not_connected') workConnected = false;
     workCache.set(business.code, work);
     if (current.code !== business.code) return work;
+    if (current.level !== 'world') updateDistrictNotes(work);
     scene?.showWork(business.code, work);
-    if (current.level !== 'world') enterDistrict(business, work);
-    if (current.pendingSite) {
+    if (current.level !== 'world') {
+      if (districtCode === business.code && district?.isOpen()) {
+        district.refresh(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
+        district.focus(focusIdsFor(work, current.focus));
+      } else enterDistrict(business, work);
+    }
+    if (current.pendingSite && current.level !== 'world') {
       const siteId = current.pendingSite;
       current.pendingSite = null;
       if (openSiteById(business, siteId)) return work;
+      setCanvasNote('district:selection', { label: '選択中の仕事', tone: 'warning', summary: '保存された仕事を現在の読込で確認できません', text: '保存された仕事を現在の読み込みで確認できません。削除とは断定せず、区画の読み込み状態を確認してください。' });
     }
     if (current.level !== 'site') renderCityRail(business);
     return work;
@@ -1825,12 +1927,19 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   /** Opens a city: its rail, and its district once its work is read (the district is where its work is). */
   function openCity(business, center, { zoom = 2.8 } = {}) {
-    if (current.code !== business.code) current.focus = null;
+    canvasUI?.closeTask();
+    current.pendingSite = null;
+    if (current.code !== business.code) {
+      current.focus = null;
+      leaveDistrict();
+    }
     setCurrent(business.code, null);
     setLevel('city');
     const work = workCache.get(business.code);
+    updateDistrictNotes(work ?? null);
     if (districtCode === business.code && district?.isOpen()) {
-      district.home();
+      if (!canvasMode) district.home();
+      else district.clearSelection();
       district.focus(focusIdsFor(work, current.focus));
     } else {
       if (center) scene?.flyTo(new THREE.Vector3(center.x, 0, center.z), zoom);
@@ -1843,31 +1952,53 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (!work) void loadWork(business);
   }
 
-  function openSite(business, site) {
+  function openSite(business, site, { select = true, focus = false } = {}) {
     setCurrent(business.code, site.task_id);
     setLevel('site');
-    if (districtCode === business.code) district?.select(site.task_id);
+    const drawable = Boolean(scene && districtCode === business.code && site.work.status !== 'cancelled');
+    const detached = !drawable || focus || (!select && current.detachedSiteId === site.task_id);
+    current.detachedSiteId = detached ? site.task_id : null;
+    if (select && drawable) district?.select(site.task_id);
     const work = workCache.get(business.code);
     const back = workspaceButton(doc, { text: `← ${business.name}の区画に戻る`, onClick: () => goUp() });
     const head = workspaceRailHead(doc, { kicker: `${business.name} の仕事（タスク）`, title: site.title, sub: `記録上：${site.work.label}${site.gaps.length ? `・把握できていないこと${site.gaps.length}種` : ''}` });
-    showRail([
-      head,
-      workspaceRailBlock(doc, { title: '', content: back }),
-      ...workSiteBlocks(doc, { business, site, readAt: work?.reads?.tasks?.read_at ?? null, taskHref }),
-    ]);
-    reveal(head);
+    const nodes = [head, ...(canvasMode && detached ? [el(doc, 'p', { text: drawable ? '一覧から選んだ仕事の記録を、地図の位置とは独立して表示しています。' : 'この仕事は地図上に描いていません。記録の詳細を表示しています。' })] : []), ...workSiteBlocks(doc, { business, site, readAt: work?.reads?.tasks?.read_at ?? null, taskHref })];
+    if (canvasUI) {
+      renderCityRail(business);
+      // WebGL fallback keeps the complete task inspectable in the same nonmodal surface.
+      if (detached) {
+        const rect = stage.getBoundingClientRect();
+        canvasUI.setTaskAnchor({ x: rect.width / 2, y: rect.height / 2, visible: true, unanchored: true });
+      }
+      canvasUI.showTask(nodes, { focus });
+    } else {
+      showRail([head, workspaceRailBlock(doc, { title: '', content: back }), ...nodes.slice(1)]);
+      reveal(head);
+    }
   }
 
-  function openSiteById(business, taskId) {
+  function openSiteById(business, taskId, options) {
     const work = workCache.get(business.code);
     const site = work?.status === 'ok' ? work.sites.find((entry) => entry.task_id === taskId) : null;
     if (!site) return false;
-    openSite(business, site);
+    openSite(business, site, options);
     return true;
+  }
+
+  function dismissTask() {
+    canvasUI?.closeTask();
+    district?.clearSelection();
+    if (current.level !== 'site') return;
+    const business = businessOf(current.code);
+    setCurrent(current.code, null);
+    setLevel('city');
+    if (business) renderCityRail(business);
   }
 
   /** The whole world again, with the open city kept in hand (ring and rail stay). */
   function goToWorld() {
+    canvasUI?.closeTask();
+    current.pendingSite = null;
     leaveDistrict();
     setLevel('world');
     if (current.code) {
@@ -1883,6 +2014,9 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   }
 
   function clearAll() {
+    scene?.clearSelection();
+    canvasUI?.closeTask();
+    current.pendingSite = null;
     setCurrent(null, null);
     setLevel('world');
     current.focus = null;
@@ -1893,6 +2027,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   function goUp() {
     const business = current.code ? businessOf(current.code) : null;
     if (business && current.level === 'site') {
+      if (canvasMode) { dismissTask(); return; }
       district?.clearSelection();
       openCity(business, null);
       return;
@@ -1911,34 +2046,42 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     const business = saved.business ? businessOf(saved.business) : null;
     if (!business) return;
     const picked = scene?.selectKey({ code: business.code });
-    current.pendingSite = saved.site ?? null;
     openCity(business, picked?.center ?? null);
+    current.pendingSite = saved.site ?? null;
+    if (current.pendingSite && openSiteById(business, current.pendingSite)) current.pendingSite = null;
   }
 
   async function loadWorkSummary(note) {
     const result = await readJson(fetcher, '/api/extensions/world/work-summary');
+    if (disposed) return;
     if (!result.ok) {
-      note('仕事', `仕事の要約を読めません（${result.error}）。都市を選ぶと、その事業の仕事を読みにいきます。0件ではありません。`, 'warning');
+      note('仕事', `仕事の要約を読めません（${result.error}）。都市を選ぶと、その事業の仕事を読みにいきます。0件ではありません。`, 'warning', '仕事の要約：読込失敗');
       return;
     }
     if (result.data?.status === 'not_connected') {
       workConnected = false;
-      note('仕事', 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません（0件ではありません）。');
+      note('仕事', 'この画面はタスクの正本に接続していないため、都市の中の仕事は描いていません（0件ではありません）。', 'warning', '仕事：未接続（0件ではありません）');
       return;
     }
     if (result.data?.status !== 'ok') {
-      note('仕事', `仕事の要約を読めません（${result.data?.reason ?? result.data?.status ?? '理由不明'}）。0件ではありません。`, 'warning');
+      note('仕事', `仕事の要約を読めません（${result.data?.reason ?? result.data?.status ?? '理由不明'}）。0件ではありません。`, 'warning', '仕事の要約：読めない');
       return;
     }
     workConnected = true;
-    const summaries = result.data.businesses ?? {};
+    const summaries = { ...(result.data.businesses ?? {}) };
+    // An omitted business is missing data, not an unremarkable city with zero work.
+    for (const business of knownBusinesses) {
+      if (!summaries[business.code]) summaries[business.code] = { state: 'unavailable', reason: 'summary_missing', open: null, needs_check: null };
+    }
     workSummaries = summaries;
     if (current.level === 'world' && !current.code) showEmptyRail();
     scene?.setWorkSigns(summaries);
     const entries = Object.values(summaries);
     const readable = entries.filter((entry) => entry.state === 'complete' || entry.state === 'partial');
     const unreadable = entries.length - readable.length;
-    const open = readable.reduce((sum, entry) => sum + (entry.open ?? 0), 0);
+    const openKnown = readable.every((entry) => Number.isInteger(entry.open) && entry.open >= 0);
+    const open = openKnown ? readable.reduce((sum, entry) => sum + entry.open, 0) : null;
+    const needsKnown = readable.every((entry) => Array.isArray(entry.needs_check));
     const needs = readable.reduce((sum, entry) => sum + (entry.needs_check?.length ?? 0), 0);
     const cities = readable.filter((entry) => entry.needs_check?.length).length;
     const partial = readable.filter((entry) => entry.state === 'partial').length;
@@ -1947,11 +2090,20 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     for (const entry of readable) for (const [kind, ids] of Object.entries(entry.gaps ?? {})) kinds.set(kind, (kinds.get(kind) ?? 0) + ids.length);
     const kindText = [...kinds].sort((a, b) => b[1] - a[1]).map(([kind, count]) => `${GAP_SHORT_TEXT[kind] ?? kind}${count}`).join('・');
     const parts = readable.length
-      ? [`未完了の仕事${open}件のうち${needs}件（${cities}事業）に、記録から把握できていないことがあります（？の札${kindText ? `。内訳：${kindText}` : ''}）`]
+      ? [needsKnown
+        ? `未完了の仕事${open === null ? '（件数未確認）' : `${open}件`}のうち${needs}件（${cities}事業）に、記録から把握できていないことがあります（？の札${kindText ? `。内訳：${kindText}` : ''}）`
+        : '仕事の要約に記録の要確認件数がなく、件数は未確認です']
       : [];
     if (unreadable) parts.push(`${readable.length ? '' : 'どの事業の仕事も読めませんでした。'}仕事を読めなかった事業${unreadable}件（灰色の札。0件ではありません）`);
     if (partial) parts.push(`一部だけ読めた事業${partial}件`);
     note('仕事', `${parts.join('。')}。「止まっている」という意味ではありません（${shortTimeText(result.data.as_of)}時点）。`);
+    if (canvasMode) {
+      if (!needsKnown) note('記録の確認件数', '仕事の要約に記録の要確認件数がありません。確認事項が0件とは判断していません。', 'warning', '記録の要確認件数：未確認');
+      if (!openKnown) note('仕事の件数', '読めた仕事の要約に未完了件数の記録がありません。0件とは判断していません。', 'warning', '未完了の件数：未確認');
+      if (unreadable) note('仕事の読込', `仕事を読めなかった事業${unreadable}件。0件ではありません。`, 'warning', `仕事が読めない事業 ${unreadable}件`);
+      if (partial) note('仕事の範囲', `一部だけ読めた事業${partial}件。件数は読めた範囲です。`, 'warning', `仕事が一部だけ読めた事業 ${partial}件`);
+      if (needs) note('仕事の記録', `読めた未完了の仕事${needs}件（${cities}事業）に、記録から把握できていないことがあります。仕事の失敗や停止を意味しません。`, 'attention', `記録の要確認 ${needs}件・${cities}事業`);
+    }
   }
 
   function shortTimeText(value) {
@@ -2055,6 +2207,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
 
   async function load() {
     const businessesResult = await readJson(fetcher, '/api/extensions/world/businesses');
+    if (disposed) return;
     // A world drawn from an organization's Graph shows only that organization's judgments: the host keeps
     // the others (another company's work, or unknown) back and sends only how many it kept back.
     const organizationScoped = businessesResult.ok && businessesResult.data?.status === 'ok'
@@ -2073,8 +2226,13 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         readJson(fetcher, '/api/extensions/world/judgment-places'),
       ]);
     }
+    if (disposed) return;
     notices.replaceChildren();
-    const note = (label, textValue, tone = 'info') => {
+    const note = (label, textValue, tone = 'info', summary = null) => {
+      if (canvasUI) {
+        setCanvasNote(`${label}:${summary ?? 'detail'}`, { label, text: textValue, tone, summary });
+        return;
+      }
       const line = el(doc, 'p', { className: `bb-world-hud-line is-${tone}`, attrs: tone === 'info' ? {} : { role: 'alert' } });
       line.append(el(doc, 'strong', { text: label }), el(doc, 'span', { text: textValue }));
       notices.append(line);
@@ -2084,7 +2242,7 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     if (businessPayload?.status === 'ok' && businessPayload.vocabulary) worldVocabulary = businessPayload.vocabulary;
     if (!businessesResult.ok || businessPayload?.status !== 'ok') {
       const reason = businessesResult.ok ? `${BUSINESS_STATE_TEXT[businessPayload?.status] ?? '状態不明'}（${businessPayload?.reason ?? '理由不明'}）` : `取得に失敗しました（${businessesResult.error}）`;
-      note('事業', `${reason}。事業は0件ではありません。`, 'warning');
+      note('事業', `${reason}。事業は0件ではありません。`, 'warning', '事業：読めない（0件ではありません）');
     } else {
       const extra = [];
       if (businessPayload.unplaced.length) extra.push(`親の事業がGraphに無い案件${businessPayload.unplaced.length}件は描いていません`);
@@ -2092,7 +2250,11 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
       const sourceText = businessPayload.source.authority === 'organization_graph' ? `組織のGraph（${businessPayload.source.server}）` : 'このMacのGraph';
       const unclassified = businesses.filter((business) => !business.kind).length;
       if (unclassified) extra.push(`分類の無い事業${unclassified}件は「分類なし」として描いています`);
-      if (businessPayload.vocabulary?.terms === 'unavailable') extra.push('組織の用語を読めないため、分類の名前は語彙ファイルか値のままです');
+      if (businessPayload.vocabulary?.terms === 'unavailable') {
+        extra.push('組織の用語を読めないため、分類の名前は語彙ファイルか値のままです');
+        if (canvasMode) note('用語', '組織の用語を読めないため、分類の名前は語彙ファイルか値のままです。', 'warning', '組織の用語：読めない');
+      }
+      if (canvasMode && businessPayload.unplaced.length) note('案件', '親の事業がGraphに無い案件は描いていません。', 'warning', `親の事業が見つからない案件 ${businessPayload.unplaced.length}件`);
       note('事業', `${sourceText}の事業${businesses.length}件・案件${businesses.reduce((sum, business) => sum + business.engagements.length, 0)}件。${extra.join('。')}${extra.length ? '。' : ''}`);
     }
     const home = homeResult.ok ? homeResult.data : null;
@@ -2100,8 +2262,8 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
     const rows = readable ? home.delegation_map.rows : [];
     if (!homeResult.ok || !readable) {
       const reason = homeResult.ok ? home?.reason ?? home?.status ?? '状態不明' : homeResult.error;
-      if (JUDGMENT_UNAVAILABLE_TEXT[reason]) note('判断', `${JUDGMENT_UNAVAILABLE_TEXT[reason]}。事業だけを描いています。`);
-      else note('判断', `判断の記録を読めません（${reason}）。0件ではありません。`, 'warning');
+      if (JUDGMENT_UNAVAILABLE_TEXT[reason]) note('判断', `${JUDGMENT_UNAVAILABLE_TEXT[reason]}。事業だけを描いています。`, 'warning', '判断の記録：未接続');
+      else note('判断', `判断の記録を読めません（${reason}）。0件ではありません。`, 'warning', '判断の記録：読めない');
     } else {
       proofs = proofIndex(home);
       judgmentsConnected = true;
@@ -2113,20 +2275,30 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
         placement = groupJudgmentPlaces(known, businesses);
         const placed = known.length - placement.unplaced.length;
         const kept = withheld ? `この組織の事業で作業したと確かめられない判断${withheld}件は、この世界には出していません（「今日」で見られます）。` : '';
-        note('判断', `${home.delegation_map.judged}件のうち${placed}件を作業した事業の判断所に、${placement.unplaced.length}件は事業が分からないため広場に。${kept}今あなたを待っている判断${waiting}件${waiting ? '（光の柱）' : ''}。`, waiting ? 'attention' : 'info');
+        note('判断', `${home.delegation_map.judged}件のうち${placed}件を作業した事業の判断所に、${placement.unplaced.length}件は事業が分からないため広場に。${kept}今あなたを待っている判断${waiting}件${waiting ? '（光の柱）' : ''}。`, waiting ? 'attention' : 'info', waiting ? `あなたを待っている判断 ${waiting}件` : null);
       } else {
-        note('判断', `${home.delegation_map.judged}件。作業した場所を読めないため、事業には置かず広場の種類別だけで描いています（${placesResult.ok ? placesResult.data?.reason ?? '理由不明' : placesResult.error}）。今あなたを待っている判断${waiting}件。`, 'warning');
+        note('判断', `${home.delegation_map.judged}件。作業した場所を読めないため、事業には置かず広場の種類別だけで描いています（${placesResult.ok ? placesResult.data?.reason ?? '理由不明' : placesResult.error}）。今あなたを待っている判断${waiting}件。`, 'warning', '判断の作業場所：読めない');
       }
     }
     const rowItems = new Map(rows.map((row) => [row.key, Array.isArray(row.items) ? row.items : []]));
 
+    knownBusinesses = businesses;
+    canvasUI?.setCities(businesses, current.code);
     if (!webglAvailable(doc)) {
-      note('表示', 'この環境では3Dを表示できないため、一覧で出しています。', 'warning');
-      stage.hidden = true;
-      renderFallbackList(doc, wrap, businesses, rows);
+      note('表示', 'この環境では3Dを表示できないため、一覧で出しています。', 'warning', '3D表示を利用できません・一覧表示');
+      if (canvasMode) {
+        renderFallbackList(doc, stage, businesses, rows);
+        showEmptyRail();
+        restoreSelection();
+        void loadWorkSummary(note);
+      } else {
+        stage.hidden = true;
+        renderFallbackList(doc, wrap, businesses, rows);
+      }
       return;
     }
     scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: clearAll, onEscape: goUp });
+    scene.setSky(SKY_MODES[skyIndex][0]);
     scene.buildPlaza(rows, rowItems, (row) => (rowItems.get(row.key) ?? []).filter((ref) => isWaiting(proofs.get(ref.decision_attempt_id))).length, Date.now());
     scene.buildCities(layoutWorld(businesses), placement.byBusiness);
     showChangesSinceLastVisit(note, businesses, rows);
@@ -2178,7 +2350,11 @@ export function createWorldView({ root, rail, page, document: explicitDocument, 
   void load();
   return {
     dispose() {
+      disposed = true;
       doc.removeEventListener?.('visibilitychange', onVisible);
+      wrap.removeEventListener?.('keydown', onRootEscape, true);
+      canvasUI?.dispose();
+      district?.dispose();
       scene?.dispose();
     },
   };

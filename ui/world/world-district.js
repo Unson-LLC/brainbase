@@ -51,7 +51,39 @@ export const DISTRICT_LEGEND = Object.freeze([
   ['is-ambience', '通りを歩く人と煙＝街の雰囲気（記録とは関係しません）'],
 ]);
 
-export function createDistrictView({ doc, stage, reducedMotion = false, onPick, onClear, onEscape }) {
+/**
+ * A world-space anchor projected to CSS pixels relative to the district stage. The viewport may be
+ * inset within the stage. Invisible anchors retain their task id; a cleared selection has no anchor.
+ * Check camera space as well as every clip plane: a point behind a perspective camera can otherwise
+ * appear to have plausible screen coordinates.
+ */
+export function projectDistrictSelection({ taskId = null, anchor, camera, viewport, stage = viewport, visible = true }) {
+  const hidden = { taskId, x: null, y: null, visible: false };
+  if (!taskId || !anchor || !camera || !viewport?.width || !viewport?.height || !stage?.width || !stage?.height) return hidden;
+  camera.updateMatrixWorld(true);
+  const inCamera = anchor.clone().applyMatrix4(camera.matrixWorldInverse);
+  const point = anchor.clone().project(camera);
+  const x = ((point.x + 1) / 2) * viewport.width + (viewport.left ?? 0) - (stage.left ?? 0);
+  const y = ((1 - point.y) / 2) * viewport.height + (viewport.top ?? 0) - (stage.top ?? 0);
+  if (![x, y, point.z, inCamera.z].every(Number.isFinite)) return hidden;
+  return {
+    taskId,
+    x,
+    y,
+    visible: Boolean(visible && inCamera.z < 0 && point.z >= -1 && point.z <= 1
+      && Math.abs(point.x) <= 1 && Math.abs(point.y) <= 1
+      && x >= 0 && x <= stage.width && y >= 0 && y <= stage.height),
+  };
+}
+
+/**
+ * `showChrome: false` is for hosts that present DISTRICT_LEGEND and the work's read warnings in their
+ * own overlay. `focusSelection: false` leaves navigation with the viewer when selecting a work site.
+ * `onProjectSelection` receives { taskId, x, y, visible } on each rendered frame and immediately when
+ * selection, visibility, size or records change. Coordinates are stage-local CSS pixels, never device
+ * pixels; a cleared selection is { taskId: null, x: null, y: null, visible: false }.
+ */
+export function createDistrictView({ doc, stage, reducedMotion = false, focusSelection = true, showChrome = true, onPick, onClear, onEscape, onProjectSelection }) {
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
   renderer.shadowMap.enabled = true;
@@ -301,6 +333,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
   let walkers = [];
   let puffs = [];
   let open = false;
+  let noticeVisible = false;
   let selected = null;
   let hovered = null;
   let flight = null;
@@ -717,7 +750,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     scene.fog.color.set(sky.fog);
     scene.fog.near = readable ? 70 : 6;
     scene.fog.far = readable ? 170 : 34;
-    notice.hidden = readable;
+    noticeVisible = !readable;
+    notice.hidden = !showChrome || !open || !noticeVisible;
     if (!readable) {
       const reason = work?.status === 'ok' ? work.reads.tasks.reason ?? work.reads.tasks.state : work?.reason ?? work?.status ?? '理由不明';
       notice.textContent = `仕事の記録を読めないため、区画の中は霧で見えません（${reason}）。仕事が0件という意味ではありません。`;
@@ -738,10 +772,14 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
 
   function resize() {
     const rect = stage.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
+    if (!rect.width || !rect.height) {
+      projectSelection();
+      return;
+    }
     renderer.setSize(rect.width, rect.height, false);
     camera.aspect = rect.width / rect.height;
     camera.updateProjectionMatrix();
+    projectSelection();
   }
   const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
   observer?.observe(stage);
@@ -780,19 +818,41 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     }
   });
   renderer.domElement.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape') onEscape?.();
+    if (event.key !== 'Escape' || event.defaultPrevented || !onEscape) return;
+    event.preventDefault();
+    onEscape();
   });
 
-  function select(group) {
+  function projectSelection() {
+    if (!onProjectSelection) return;
+    // Use the site's actual world transform, including any rising-building animation.
+    const anchor = selected?.localToWorld(new THREE.Vector3(0, 2.6, 0));
+    onProjectSelection(projectDistrictSelection({
+      taskId: selected?.userData?.site?.task_id ?? null,
+      anchor,
+      camera,
+      viewport: renderer.domElement.getBoundingClientRect(),
+      stage: stage.getBoundingClientRect(),
+      visible: open && selected?.visible !== false,
+    }));
+  }
+
+  function select(group, { focus = focusSelection } = {}) {
     selected = group;
     if (!group) {
       selectionRing.visible = false;
+      projectSelection();
       return;
     }
     selectionRing.position.set(group.position.x, 0.3, group.position.z);
     selectionRing.visible = true;
-    const at = group.position.clone();
-    fly(new THREE.Vector3(at.x, 0, at.z), new THREE.Vector3(at.x + (at.x > 0 ? 9 : -9), 11, at.z + 12));
+    if (focus) {
+      const at = group.position.clone();
+      fly(new THREE.Vector3(at.x, 0, at.z), new THREE.Vector3(at.x + (at.x > 0 ? 9 : -9), 11, at.z + 12));
+      // A reduced-motion selection changes the camera immediately rather than during a frame.
+      if (reducedMotion) camera.lookAt(controls.target);
+    }
+    projectSelection();
   }
 
   function applyFocus() {
@@ -899,6 +959,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     if (selectionRing.visible) selectionRing.material.opacity = 0.6 + 0.3 * Math.sin(time / 300);
     renderer.render(scene, camera);
     placeLabels();
+    projectSelection();
   }
   requestAnimationFrame(frame);
 
@@ -906,8 +967,9 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     open = visible;
     renderer.domElement.hidden = !visible;
     labelsLayer.hidden = !visible;
-    legend.hidden = !visible;
-    if (!visible) notice.hidden = true;
+    legend.hidden = !visible || !showChrome;
+    notice.hidden = !visible || !showChrome || !noticeVisible;
+    projectSelection();
   }
 
   return {
@@ -921,6 +983,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
       controls.target.copy(home.target);
       camera.lookAt(home.target);
       fly(home.target.clone(), home.position.clone(), 1300);
+      if (reducedMotion) camera.lookAt(controls.target);
+      projectSelection();
       renderer.domElement.focus({ preventScroll: true });
     },
     hide() {
@@ -954,14 +1018,18 @@ export function createDistrictView({ doc, stage, reducedMotion = false, onPick, 
     celebrate,
     /** Rebuilds the open district from fresh records, keeping the camera where it is. */
     refresh(business, work, { neighbours = new Map() } = {}) {
-      const keep = { target: controls.target.clone(), position: camera.position.clone() };
+      const keep = { target: controls.target.clone(), position: camera.position.clone(), taskId: selected?.userData?.site?.task_id };
+      flight = null;
+      controls.enabled = true;
       build(business, work, neighbours);
       controls.target.copy(keep.target);
       camera.position.copy(keep.position);
       camera.lookAt(keep.target);
+      select(lots.get(keep.taskId) ?? null, { focus: false });
     },
     dispose() {
       running = false;
+      setVisible(false);
       observer?.disconnect();
       controls.dispose();
       renderer.dispose();
