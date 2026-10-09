@@ -26,7 +26,7 @@ depends_on: ["story-world-for-organization-web-v1"]
 
 - [x] AC-01: `createWorldView`に任意の`businessExits(business)`を渡せる。戻り値（Promise可）は`{ status, read_at, exits }`で、`status`は`complete`・`partial`・`failed`・`not_connected`のどれか。`exits`の各要素は次を持つ。
   - `id`・`label`（例：「Tech Knight HQ · 候補の審査」）
-  - `href`（`https:`だけ。ほかのスキームは描かずに捨て、捨てた件数を出す）
+  - `href`（`https:`と、ホスト内の相対リンク（`/`（`//`を除く）または`?`で始まるもの）だけ。`https:`は新しいタブ、相対リンクは同じタブで開く。ほかは描かずに捨て、捨てた件数を出す。`action.href`も同じ規則で、不正なら操作だけを捨てる）
   - `state`：`available`・`restricted`・`unknown`・`unavailable`
   - 任意の`note`（ログインの方式など、1行）
   - 任意の`action`（`{ label, href }`。ホストが与える。例：申請）
