@@ -36,7 +36,7 @@ DOM tests exercise the actual read pipeline and canonical task projection. Scene
 Before rollout:
 
 1. Review and merge the OSS change through normal repository checks. Do not assume a package was published just because this source was merged.
-2. Publish a genuinely new package version containing this exact reviewed source using the repository release workflow, with authorization. This change does not bump or publish the package.
+2. Publish a genuinely new package version containing this exact reviewed source using the repository release workflow, with authorization. This candidate prepares version 0.23.8. Its authorized merge triggers the existing validation/publication workflow; registry readback, not merge alone, establishes publication.
 3. Verify the registry tarball's source marker, all World assets and integrity. The package's previous version cannot be republished with new content.
 4. Update the organization host's exact dependency pin and lockfile to that real version; run its installed-package release gate and full CI. A source-override check is development evidence, not a production dependency pin.
 5. Perform supported browser QA against the integrated host at desktop and mobile sizes, including hover gap, touch/keyboard, camera pan, source failures, late data, selection restoration and back/forward transitions.
