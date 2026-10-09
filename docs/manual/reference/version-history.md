@@ -10,6 +10,11 @@
 
 - Graphの埋め込みの生成（Gemini、`gemini-embedding-001:768:v2`）の公開subpath `graph-embedding-provider` を追加。brainbase-unsonの部品を処理を変えずに移したもので、APIキーを渡したときだけ呼ぶ（`story-graph-embedding-provider-exit-v1`）
 
+## 0.26.1 candidate — npm公開前
+
+- `brainbase_judgment_frame_record` の予測のuseに任意の `check`（falsified_if・status held/failed/unchecked・evidence）を追加。held・failedはevidence必須。予測以外へのcheckや形の崩れは `frame_check_invalid`
+- 採用案が確かめて外れた予測に頼るとき `chosen_relies_on_failed_prediction` を返し、応答に採用案の予測の確認件数 `prediction_checks` を返す。記録の版は変えない
+
 ## 0.26.0 candidate — npm公開前
 
 - 世界に任意の `businessExits(business)` を追加。都市の詳細（canvasの右端・standardのrail）と3Dなしの一覧に「この事業の道具」の欄を出す（`story-world-business-exits-v1`）
