@@ -6,6 +6,11 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.24.1 candidate — npm公開前
+
+- `@unson/brainbase-mcp/judgment-frame` に、世界モデルへの結果記録の契約とopt-inのtool `brainbase_judgment_model_outcome_record` を追加（ADR-014 F6）。反証は測定誤差・実行差・外部変化を退けた理由を必須にし、世界モデル本体の版・検証状態・採用状態は変えない
+- 結果を読み込むhostでは、判断の枠組みの一覧に今の版への支持・反証・判定不能の件数と反証の条件を表示し、採用案が反証のある世界モデルで予測するとき `chosen_uses_refuted_model` を返す（F5）。一覧のdigestは定義だけから作る
+
 ## 0.24.0 candidate — npm公開前
 
 - 新しい出口 `@unson/brainbase-mcp/meeting-source-reader` を追加。Plaudの全文を `next_cursor` が無くなるまで、Tactiqの全文を `hasMore` が偽になるまで読み、最後まで読めたときだけ全文として返す
