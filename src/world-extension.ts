@@ -42,7 +42,13 @@ export type WorldBuildingForm = (typeof BUILDING_FORMS)[number];
 export interface WorldVocabularyConfig {
   readonly kinds?: Readonly<Record<string, { readonly label?: string; readonly form?: WorldBuildingForm; readonly color?: string }>>;
   readonly statuses?: Readonly<Record<string, { readonly label?: string; readonly phase?: WorldLifecyclePhase }>>;
+  /** The owner's words for the states of a business's tools (story-world-business-exits-v1 AC-04). */
+  readonly exit_states?: Readonly<Partial<Record<WorldExitState, { readonly label?: string }>>>;
 }
+
+const EXIT_STATES = ['available', 'restricted', 'unknown', 'unavailable'] as const;
+/** The state a host gives a tool of a business (`businessExits` in the world view). */
+export type WorldExitState = (typeof EXIT_STATES)[number];
 
 export interface WorldVocabulary {
   readonly kinds: readonly {
@@ -58,6 +64,8 @@ export interface WorldVocabulary {
   /** Whether the organization's terms were read: `unavailable` when they could not be, `none` without an organization Graph. */
   readonly terms: 'read' | 'unavailable' | 'none';
   readonly statuses: readonly { readonly key: string; readonly label: string; readonly phase: WorldLifecyclePhase }[];
+  /** The words for the four tool states, the owner's over the defaults, in a fixed order. */
+  readonly exit_states: readonly { readonly key: WorldExitState; readonly label: string }[];
 }
 
 /** Lifecycle words common to any Graph; a host vocabulary may relabel or add to them. */
@@ -68,6 +76,13 @@ const DEFAULT_STATUSES: Readonly<Record<string, { label: string; phase: WorldLif
   closed: { label: '終了', phase: 'finished' },
   archived: { label: '保管', phase: 'finished' },
   concept: { label: '構想', phase: 'concept' },
+});
+/** The words for the states of a business's tools when the owner gives none. */
+const DEFAULT_EXIT_STATES: Readonly<Record<WorldExitState, string>> = Object.freeze({
+  available: '使える',
+  restricted: '権限が必要',
+  unknown: '未確認',
+  unavailable: '読めない',
 });
 const KIND_PALETTE = ['#1261ad', '#b07a1f', '#35684c', '#6b4fa0', '#a8433a', '#2f7d86', '#7a6a2b', '#5b6470'];
 const UNCLASSIFIED_COLOR = '#69746d';
@@ -279,7 +294,8 @@ export function resolveWorldVocabulary(
       phase: entry.phase && (LIFECYCLE_PHASES as readonly string[]).includes(entry.phase) ? entry.phase : base?.phase ?? 'active',
     });
   }
-  return { kinds, statuses: [...statuses].map(([key, entry]) => ({ key, ...entry })), terms: terms === undefined ? 'none' : terms === null ? 'unavailable' : 'read' };
+  const exitStates = EXIT_STATES.map((key) => ({ key, label: text(config?.exit_states?.[key]?.label) ?? DEFAULT_EXIT_STATES[key] }));
+  return { kinds, statuses: [...statuses].map(([key, entry]) => ({ key, ...entry })), exit_states: exitStates, terms: terms === undefined ? 'none' : terms === null ? 'unavailable' : 'read' };
 }
 
 /** Reads and checks a vocabulary file; an invalid file is an error, never silently ignored. */
@@ -299,7 +315,15 @@ export async function readWorldVocabulary(path: string): Promise<WorldVocabulary
     if (entry.phase !== undefined && !(LIFECYCLE_PHASES as readonly unknown[]).includes(entry.phase)) throw new Error(`world vocabulary status ${key} has an unknown phase`);
     statuses[key] = { ...(text(entry.label) ? { label: text(entry.label)! } : {}), ...(entry.phase ? { phase: entry.phase as WorldLifecyclePhase } : {}) };
   }
-  return { kinds, statuses };
+  if (parsed.exit_states === undefined) return { kinds, statuses };
+  if (!isRecord(parsed.exit_states)) throw new Error('world vocabulary exit_states must be an object');
+  const exitStates: Partial<Record<WorldExitState, { label?: string }>> = {};
+  for (const [key, entry] of Object.entries(parsed.exit_states)) {
+    if (!(EXIT_STATES as readonly string[]).includes(key)) throw new Error(`world vocabulary has an unknown exit state ${key}`);
+    if (!isRecord(entry)) throw new Error(`world vocabulary exit state ${key} must be an object`);
+    exitStates[key as WorldExitState] = text(entry.label) ? { label: text(entry.label)! } : {};
+  }
+  return { kinds, statuses, exit_states: exitStates };
 }
 
 /**
@@ -440,7 +464,7 @@ export function createWorldExtension(options: { readonly vocabulary?: WorldVocab
   return {
     id: WORLD_EXTENSION_ID,
     uiDir: fileURLToPath(new URL('../ui/world/', import.meta.url)),
-    uiFiles: ['world-view.js', 'world-view.css', 'world-canvas-ui.js', 'world-canvas-ui.css', 'world-canvas-notes.js', 'world-vendor.js', 'world-placement.js', 'world-work-rail.js', 'world-district.js', 'world-scenery.js'],
+    uiFiles: ['world-view.js', 'world-view.css', 'world-canvas-ui.js', 'world-canvas-ui.css', 'world-canvas-notes.js', 'world-vendor.js', 'world-placement.js', 'world-work-rail.js', 'world-district.js', 'world-scenery.js', 'world-exits.js'],
     screenEntry: 'world-view.js',
     // P17: the world sits above the home and opens first.
     navPosition: 'first',

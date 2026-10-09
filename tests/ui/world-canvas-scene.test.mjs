@@ -87,7 +87,7 @@ function pickLot(taskId) {
 }
 
 const mounted = [];
-async function mount({ workFor = (code) => makeWork(code), selected = {} } = {}) {
+async function mount({ workFor = (code) => makeWork(code), selected = {}, businessExits, presentation = 'canvas' } = {}) {
   const doc = new FakeDocument();
   const create = doc.createElement.bind(doc);
   doc.createElement = (tag) => {
@@ -112,15 +112,17 @@ async function mount({ workFor = (code) => makeWork(code), selected = {} } = {})
     if (code) return jsonResponse(200, await workFor(code));
     throw new Error(`unexpected read ${path}`);
   };
-  const view = createWorldView({ root, document: doc, fetcher, selection, presentation: 'canvas' });
+  const rail = doc.createElement('aside');
+  doc.body.append(rail);
+  const view = createWorldView({ root, rail, document: doc, fetcher, selection, presentation, ...(businessExits ? { businessExits } : {}) });
   mounted.push(view);
   const stage = root.querySelector('.bb-world-stage');
   stage.setRect({ left: 50, top: 60, width: 960, height: 640 });
-  await waitFor(() => runtime.renderers.length > 0 && root.querySelector('.bb-world-canvas-city').children.length === 3);
+  await waitFor(() => runtime.renderers.length > 0 && (presentation !== 'canvas' || root.querySelector('.bb-world-canvas-city').children.length === 3));
   for (const observer of runtime.observers) observer.callback();
   frame();
   return {
-    root, stage, doc, view, selection, requests,
+    root, rail, stage, doc, view, selection, requests,
     selectCity(code) {
       const control = root.querySelector('.bb-world-canvas-city');
       control.value = code;
@@ -296,6 +298,120 @@ describe('full canvas scene integration without a browser renderer', () => {
     expect(districtRenderer()).toBeUndefined();
     expect(app.root.querySelector('.bb-world-canvas-ui')).toBeNull();
     expect(runtime.renderers[0].dispose).toHaveBeenCalled();
+  });
+});
+
+function stations() {
+  const found = [];
+  districtRenderer()?.scene?.traverse((object) => { if (object.userData.kind === 'exit') found.push(object); });
+  return found;
+}
+const partsOf = (station) => {
+  const names = new Set();
+  station.traverse((object) => { if (object.userData.part) names.add(object.userData.part); });
+  return names;
+};
+function pickStation(id) {
+  const renderer = districtRenderer();
+  const station = stations().find((entry) => entry.userData.exit.id === id);
+  expect(station, `rendered station ${id}`).toBeDefined();
+  const box = new THREE.Box3().setFromObject(station);
+  const point = new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y - 0.05, (box.min.z + box.max.z) / 2).project(renderer.camera);
+  const rect = renderer.domElement.getBoundingClientRect();
+  const event = { clientX: rect.left + (point.x + 1) * rect.width / 2, clientY: rect.top + (1 - point.y) * rect.height / 2 };
+  renderer.domElement.dispatch('pointerdown', event);
+  renderer.domElement.dispatch('pointerup', event);
+}
+/** Waits for a condition on the drawn scene, rendering a frame on each look (the scene is read from the last render). */
+const whenRendered = (check) => waitFor(() => { frame(); return districtRenderer()?.scene && check(); });
+const toolsFor = (code) => ({ status: 'complete', read_at: NOW.toISOString(), exits: [
+  { id: `${code}-hq`, label: `${code} HQ`, href: 'https://hq.example.test', state: 'available', attention: { count: 3, label: '未対応', as_of: NOW.toISOString() } },
+  { id: `${code}-drive`, label: `${code} Drive`, href: '/drive', state: 'restricted', attention: { label: '未読' } },
+  { id: `${code}-repo`, label: `${code} repo`, href: 'https://repo.example.test', state: 'unknown' },
+  { id: `${code}-old`, label: `${code} old`, href: 'https://old.example.test', state: 'unavailable' },
+] });
+
+describe('stations for the tools of a business (story-world-business-exits-v1 AC-07)', () => {
+  it('stands one station per tool outside the gate, its look saying its state and its sign the count', async () => {
+    const app = await mount({ businessExits: async (business) => toolsFor(business.code) });
+    app.selectCity('alpha');
+    await whenRendered(() => stations().length === 4);
+    frame();
+    const byId = new Map(stations().map((station) => [station.userData.exit.id, station]));
+    expect(partsOf(byId.get('alpha-hq')).has('light')).toBe(true);
+    expect(partsOf(byId.get('alpha-hq')).has('gate')).toBe(false);
+    expect(partsOf(byId.get('alpha-drive')).has('gate')).toBe(true);
+    expect(partsOf(byId.get('alpha-drive')).has('light')).toBe(false);
+    for (const id of ['alpha-repo', 'alpha-old']) {
+      expect(partsOf(byId.get(id)).has('fog')).toBe(true);
+      expect(partsOf(byId.get(id)).has('light')).toBe(false);
+    }
+    // Outside the gate: in front of every lot of the district.
+    const lotZ = Math.max(...lots().map((lot) => lot.position.z));
+    for (const station of stations()) expect(station.position.z).toBeGreaterThan(lotZ);
+    const signs = [...app.root.querySelectorAll('.bb-world-label.is-exit')].map((node) => node.textContent);
+    expect(signs).toEqual(['駅：alpha HQ・3件', '駅：alpha Drive・件数未確認', '駅：alpha repo', '駅：alpha old']);
+    const legend = app.root.querySelector('.bb-world-canvas-help-content').textContent;
+    expect(legend).toContain('明かりのついた駅＝使える');
+    expect(legend).toContain('改札が閉じた駅＝権限が必要');
+    expect(legend).toContain('霧の駅＝未確認・読めない');
+  });
+
+  it('a picked station opens the city details with its tool selected, without leaving the world', async () => {
+    const app = await mount({ businessExits: async (business) => toolsFor(business.code) });
+    app.selectCity('alpha');
+    await whenRendered(() => stations().length === 4);
+    frame();
+    const href = globalThis.location?.href;
+    pickStation('alpha-drive');
+    const drawer = app.root.querySelector('.bb-world-canvas-drawer');
+    expect(drawer.classList.contains('is-open')).toBe(true);
+    const selectedRow = app.root.querySelector('.bb-world-exit.is-selected');
+    expect(selectedRow.getAttribute('data-exit-id')).toBe('alpha-drive');
+    expect(selectedRow.getAttribute('aria-current')).toBe('true');
+    expect(app.root.querySelector('.bb-world-canvas-task').hidden).toBe(true);
+    expect(globalThis.location?.href).toBe(href);
+    expect(app.selection.write).toHaveBeenLastCalledWith({ business: 'alpha', site: null });
+    // From a task's details too: the task closes and the tool's row is selected.
+    pickLot('alpha-task');
+    expect(app.root.querySelector('.bb-world-canvas-task').hidden).toBe(false);
+    pickStation('alpha-hq');
+    expect(app.root.querySelector('.bb-world-canvas-task').hidden).toBe(true);
+    expect(app.root.querySelector('.bb-world-exit.is-selected').getAttribute('data-exit-id')).toBe('alpha-hq');
+  });
+
+  it('keeps a late answer of the previous city out of the open district', async () => {
+    const pendingAlpha = defer();
+    const app = await mount({ businessExits: (business) => (business.code === 'alpha' ? pendingAlpha.promise : toolsFor('beta')) });
+    app.selectCity('alpha');
+    app.selectCity('beta');
+    await whenRendered(() => stations().length === 4);
+    pendingAlpha.resolve(toolsFor('alpha'));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    frame(200);
+    expect(stations().map((station) => station.userData.exit.id)).toEqual(['beta-hq', 'beta-drive', 'beta-repo', 'beta-old']);
+    expect(app.root.querySelector('.bb-world-canvas-rail-body').textContent).not.toContain('alpha HQ');
+  });
+
+  it('puts the tools section in the host rail of the standard presentation, and a picked station selects its row there', async () => {
+    const app = await mount({ presentation: 'standard', selected: { business: 'alpha' }, businessExits: async (business) => toolsFor(business.code) });
+    await whenRendered(() => stations().length === 4);
+    const section = () => app.rail.querySelector('section[aria-label="この事業の道具"]');
+    expect(app.rail.children.at(-1)).toBe(section());
+    expect(section().querySelectorAll('.bb-world-exit')).toHaveLength(4);
+    pickStation('alpha-repo');
+    expect(section().querySelector('.bb-world-exit.is-selected').getAttribute('data-exit-id')).toBe('alpha-repo');
+    expect(app.root.querySelector('.bb-world-district-legend').textContent).toContain('霧の駅＝未確認・読めない');
+  });
+
+  it('draws no station and no yard without businessExits (AC-02)', async () => {
+    const app = await mount();
+    app.selectCity('alpha');
+    await whenRendered(() => lots().length === 1);
+    frame();
+    expect(stations()).toHaveLength(0);
+    expect(app.root.querySelectorAll('.bb-world-label.is-exit')).toHaveLength(0);
+    expect(app.root.textContent).not.toContain('駅');
   });
 });
 

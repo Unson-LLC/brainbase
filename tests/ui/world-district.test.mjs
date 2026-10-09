@@ -36,7 +36,8 @@ vi.mock('../../ui/world/world-vendor.js', async () => {
   return { THREE: { ...three, WebGLRenderer: Renderer }, MapControls: Controls };
 });
 import { THREE } from '../../ui/world/world-vendor.js';
-import { createDistrictView, projectDistrictSelection } from '../../ui/world/world-district.js';
+import { createDistrictView, districtStationSpot, projectDistrictSelection } from '../../ui/world/world-district.js';
+import { exitLegend, normalizeBusinessExits } from '../../ui/world/world-exits.js';
 
 class SceneElement extends FakeElement {
   constructor(tag) {
@@ -275,6 +276,45 @@ describe('district host presentation contract', () => {
     canvas.dispatch('keydown', { key: 'Escape', defaultPrevented: false, preventDefault });
     expect(onEscape).toHaveBeenCalledTimes(1);
     expect(preventDefault).toHaveBeenCalledTimes(1);
+    view.dispose();
+  });
+});
+
+describe('the station yard (story-world-business-exits-v1)', () => {
+  const tools = normalizeBusinessExits({ status: 'complete', exits: [
+    { id: 'hq', label: 'HQ', href: 'https://hq.example.test', state: 'available' },
+    { id: 'drive', label: 'Drive', href: '/drive', state: 'restricted' },
+  ] }).exits;
+  const stationsIn = (scene) => {
+    const found = [];
+    scene.traverse((object) => { if (object.userData.kind === 'exit') found.push(object); });
+    return found;
+  };
+  const legendText = (stage) => findAll(stage, (node) => node.tagName === 'LI').map((node) => node.textContent);
+
+  it('lists the stations in the district legend and stands them where the yard is', () => {
+    const { view, stage } = harness({ exitLegend: exitLegend(undefined) });
+    view.show(business, makeWork(), { exits: tools });
+    frame();
+    expect(legendText(stage)).toContain('明かりのついた駅＝使える');
+    const scene = runtime.renderer.scene;
+    expect(stationsIn(scene).map((station) => [station.userData.exit.id, station.userData.state])).toEqual([['hq', 'available'], ['drive', 'restricted']]);
+    const [first] = stationsIn(scene);
+    const gateZ = first.position.z - districtStationSpot(0, 0).z;
+    expect(first.position.x).toBe(districtStationSpot(0, gateZ).x);
+    view.setExits([]);
+    frame();
+    expect(stationsIn(runtime.renderer.scene)).toHaveLength(0);
+    view.dispose();
+  });
+
+  it('draws and lists nothing of the yard without exitLegend', () => {
+    const { view, stage } = harness();
+    view.show(business, makeWork(), { exits: tools });
+    view.setExits(tools);
+    frame();
+    expect(stationsIn(runtime.renderer.scene)).toHaveLength(0);
+    expect(legendText(stage).some((text) => text.includes('駅'))).toBe(false);
     view.dispose();
   });
 });
