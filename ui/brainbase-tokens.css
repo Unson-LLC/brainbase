@@ -1,10 +1,13 @@
 /*
- * Brainbase shared visual tokens (color, type, radius, spacing, rail).
- * Common UI parts and hosts read only these names so that the personal and
- * organization editions look the same. The values are the organization
- * edition's design (brainbase-organization apps/web/public/styles.css, final
- * :root layer and the outcome workspace rules), which is the visual source of
- * truth for every Brainbase Web surface.
+ * Brainbase shared UI-token contract (color, type, radius, spacing, rail).
+ * Common OSS UI parts and compatible hosts read these token names. The values
+ * below remain this repository's current token defaults; they are not the
+ * Brainbase brand palette and do not require every host to adopt one theme.
+ * For the organization Web app, the effective visual source is
+ * brainbase-organization/apps/web/public/styles.css (final :root layer and
+ * outcome workspace overrides). The brand palette is documented separately
+ * in brainbase-organization/docs/design/brainbase-brand-palette.md.
+ * This boundary clarification intentionally does not change any token value.
  */
 :root {
   --bb-color-ink: #202124;

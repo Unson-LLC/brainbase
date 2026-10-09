@@ -23,3 +23,9 @@
 移し替えは、組織版が同じ内容を自分の画面として持って`/oss/`からの配信をやめた後に、このrepoから`ui/outcome-mana.js`・`ui/outcome-mana.css`・`ui/icons/mana`、公開subpath（`./ui/outcome-mana`・`./ui/outcome-mana.css`・`./ui/icons/*`）、部品のテストと見た目の検査を外す順で行った。公開subpathを外す互換を壊す変更なので、0.8.0の次のminorで公開する。
 
 知識UIは、引き続きこのrepoが所有し、組織版が組み込む。
+
+## ブランドとUIトークンの境界
+
+Brainbaseのブランドパレットはロゴやfaviconなどの識別資産に適用し、共通UIトークンをまとめて置き換える指示とは分けて管理する。採用色と資産の正本はbrainbase-organization/docs/design/brainbase-brand-palette.mdに記録する。
+
+brainbase/ui/brainbase-tokens.cssは共通OSS部品が読むトークン名と現在の既定値を定義する。組織版Webの実際の見た目は、brainbase-organization/apps/web/public/styles.cssの最終 :root 層と画面固有の上書きが決める。ブランド資料、共有トークン、組織版の実効CSSはそれぞれ別の責務を持つ。
