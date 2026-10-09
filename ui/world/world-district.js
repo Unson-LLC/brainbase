@@ -11,12 +11,19 @@
  *     colours (a review date passed), fog (the work could not be read).
  * People walking the streets and chimney smoke are the town's atmosphere: they come from no record,
  * never enter a lot, and the legend says so.  Nothing here writes.
+ *
+ * When the host gives the tools a business uses (story-world-business-exits-v1), each stands as a
+ * station in a yard outside the gate: lit when usable, its wicket closed when a permission is needed,
+ * in fog when its state is unconfirmed or could not be read.  A station's sign carries the count its
+ * tool asks attention for.  Picking a station selects its row in the city details; it never leaves
+ * the world.
  */
 
 import { THREE, MapControls } from './world-vendor.js';
 import { DISTRICT_STREETS, districtGroundPlan, districtStage, districtStreetLots, skyAt } from './world-placement.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { makeWorkspaceElement as el } from '../../workspace-kit.js';
+import { attentionSignText } from './world-exits.js';
 
 export const WORLD_DISTRICT_CONTRACT_VERSION = 'brainbase.world-district.v0';
 
@@ -76,14 +83,24 @@ export function projectDistrictSelection({ taskId = null, anchor, camera, viewpo
   };
 }
 
+/** Where the station of the `index`th tool stands: rows of four in the yard outside the gate, to its right. */
+export function districtStationSpot(index, gateZ) {
+  return { x: 8 + (index % 4) * 3.4, z: gateZ + 3.6 + Math.floor(index / 4) * 3.2 };
+}
+const STATION_YARD = Object.freeze({ xFrom: 6, xTo: 21.5, zFrom: 1.5, zTo: 12.5 });
+
 /**
  * `showChrome: false` is for hosts that present DISTRICT_LEGEND and the work's read warnings in their
  * own overlay. `focusSelection: false` leaves navigation with the viewer when selecting a work site.
  * `onProjectSelection` receives { taskId, x, y, visible } on each rendered frame and immediately when
  * selection, visibility, size or records change. Coordinates are stage-local CSS pixels, never device
  * pixels; a cleared selection is { taskId: null, x: null, y: null, visible: false }.
+ * `exitLegend` (lines as DISTRICT_LEGEND) turns on the station yard for the tools of a business:
+ * stations come from `setExits`, and a picked station calls `onPickExit(id)`.  Without it nothing of
+ * the yard is drawn or listed.
  */
-export function createDistrictView({ doc, stage, reducedMotion = false, focusSelection = true, showChrome = true, onPick, onClear, onEscape, onProjectSelection }) {
+export function createDistrictView({ doc, stage, reducedMotion = false, focusSelection = true, showChrome = true, onPick, onClear, onEscape, onProjectSelection, exitLegend = null, onPickExit }) {
+  const stationsEnabled = Array.isArray(exitLegend);
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(globalThis.devicePixelRatio ?? 1, 2));
   renderer.shadowMap.enabled = true;
@@ -100,7 +117,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
   const legend = el(doc, 'details', { className: 'bb-world-district-legend', attrs: { open: true } });
   legend.append(el(doc, 'summary', { text: '区画の見方' }));
   const legendList = el(doc, 'ul');
-  for (const [className, text] of DISTRICT_LEGEND) legendList.append(el(doc, 'li', { className, text }));
+  for (const [className, text] of [...DISTRICT_LEGEND, ...(stationsEnabled ? exitLegend : [])]) legendList.append(el(doc, 'li', { className, text }));
   legend.append(legendList);
   legend.hidden = true;
   stage.append(legend);
@@ -329,6 +346,12 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
   let root = null;
   let fountainJet = null;
   let lots = new Map();
+  // The tools of the business (from the host), and their stations once the district is built.
+  let exitsData = [];
+  let stations = new Map();
+  let stationLayer = null;
+  let stationLabels = [];
+  let gateAt = 0;
   let labels = [];
   let walkers = [];
   let puffs = [];
@@ -503,6 +526,83 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     return group;
   }
 
+  // --- a station for a tool of the business, in local space: its front toward +z ------------------
+  function stationGroup(exit) {
+    const group = new THREE.Group();
+    const state = exit.state;
+    const lit = state === 'available';
+    const fogged = state === 'unknown' || state === 'unavailable';
+    const part = (object, name) => {
+      object.userData.part = name;
+      group.add(object);
+      return object;
+    };
+    group.add(mesh(roundedPlate(2.8, 1.9, 0.22, 0.2), material(0xd9d3c6, { roughness: 1 })));
+    group.add(mesh(new THREE.BoxGeometry(2.8, 0.04, 0.12), material(0xe9d27a, { roughness: 0.8 }), { y: 0.24, z: 0.86, shadow: false }));
+    const house = block(1.8, 1.15, 1.0, { style: 'civic', wall: fogged ? 0xcfd2d0 : 0xeee6d6, lit, roof: 0x8a6d55 });
+    house.position.set(0, 0.22, -0.35);
+    group.add(house);
+    const roof = mesh(gableRoof(1.0, 1.8, 0.5), material(fogged ? 0x9aa0a0 : 0x8a5a44, { roughness: 0.75 }), { y: 1.37, z: -0.35 });
+    roof.rotation.y = Math.PI / 2;
+    group.add(roof);
+    if (lit) {
+      // The station's lamp: always on, whatever the sky (its light is its state).
+      part(mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.7, 6), material(0x3f4844, { roughness: 0.6, metalness: 0.4 }), { x: 1.15, y: 1.07, z: 0.55 }), 'light-pole');
+      part(mesh(new THREE.SphereGeometry(0.2, 12, 10), material(0xfff3d6, { emissive: new THREE.Color(0xffc867), emissiveIntensity: 2.2 }), { x: 1.15, y: 1.98, z: 0.55, shadow: false }), 'light');
+      const pool = mesh(new THREE.CircleGeometry(1.1, 24), new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.45, depthWrite: false }), { x: 1.15, y: 0.25, z: 0.55, shadow: false });
+      pool.rotation.x = -Math.PI / 2;
+      part(pool, 'light-pool');
+    }
+    if (state === 'restricted') {
+      // The wicket closed: posts and a striped bar across the way in.
+      const post = material(0x4b524e, { roughness: 0.6, metalness: 0.3 });
+      for (const x of [-0.95, 0.95]) part(mesh(new THREE.BoxGeometry(0.14, 0.8, 0.14), post, { x, y: 0.62, z: 0.55 }), 'gate-post');
+      part(mesh(new THREE.BoxGeometry(1.9, 0.12, 0.08), material(0xc8323c, { roughness: 0.6, emissive: new THREE.Color(0x3a0a0e) }), { y: 0.86, z: 0.55 }), 'gate');
+      for (const x of [-0.5, 0.1, 0.7]) group.add(mesh(new THREE.BoxGeometry(0.22, 0.125, 0.085), material(0xf4f1e8), { x, y: 0.86, z: 0.55, shadow: false }));
+    }
+    if (fogged) {
+      // Fog round the station: its state could not be seen, which is not "unusable" or "usable".
+      const fogMaterial = new THREE.MeshBasicMaterial({ color: 0xe9edf0, transparent: true, opacity: 0.68, depthWrite: false });
+      const fog = mesh(new THREE.SphereGeometry(1.9, 18, 12), fogMaterial, { y: 0.9, shadow: false });
+      fog.scale.set(1, 0.72, 0.9);
+      part(fog, 'fog');
+    }
+    // The sign by the platform: what the tool asks attention for, if anything.
+    group.add(mesh(new THREE.CylinderGeometry(0.04, 0.05, 1.6, 6), material(0x4b524e), { x: -1.2, y: 1.0, z: 0.75 }));
+    group.add(mesh(new THREE.BoxGeometry(0.9, 0.42, 0.05), material(exit.attention ? 0x1f5f8b : 0x8e9a95, { roughness: 0.6 }), { x: -1.2, y: 1.85, z: 0.75 }));
+    group.userData = { kind: 'exit', exit, state };
+    return group;
+  }
+
+  function clearStations() {
+    if (stationLayer) root?.remove(stationLayer);
+    for (const label of stationLabels) {
+      label.node.remove();
+      labels = labels.filter((entry) => entry !== label);
+    }
+    stationLayer = null;
+    stationLabels = [];
+    if (selected?.userData?.kind === 'exit') select(null, { focus: false });
+    stations = new Map();
+  }
+
+  function placeStations() {
+    clearStations();
+    if (!stationsEnabled || !root || exitsData.length === 0) return;
+    stationLayer = new THREE.Group();
+    exitsData.forEach((exit, index) => {
+      const spot = districtStationSpot(index, gateAt);
+      const group = stationGroup(exit);
+      group.position.set(spot.x, 0, spot.z);
+      stationLayer.add(group);
+      stations.set(exit.id, group);
+      const sign = attentionSignText(exit.attention);
+      const name = exit.label.length > 16 ? `${exit.label.slice(0, 15)}…` : exit.label;
+      stationLabels.push(addLabel(`駅：${name}${sign ? `・${sign}` : ''}`, new THREE.Vector3(spot.x, 2.9, spot.z), `is-exit is-${exit.state}${exit.attention ? ' has-attention' : ''}`, { priority: 2 }));
+    });
+    root.add(stationLayer);
+  }
+
   // --- the district -------------------------------------------------------------------------------
   function clear() {
     if (root) scene.remove(root);
@@ -512,6 +612,9 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     for (const label of labels) label.node.remove();
     labels = [];
     lots = new Map();
+    stations = new Map();
+    stationLayer = null;
+    stationLabels = [];
     walkers = [];
     puffs = [];
     selected = null;
@@ -570,6 +673,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     const grown = stage.level;
     const plan = districtGroundPlan(L);
     const { gateZ, hallZ, plazaZ, plazaRadius } = plan;
+    gateAt = gateZ;
     // Land as in the world: gentle, non-repeating shades of grass (scenery).
     const grass = { low: new THREE.Color(0x9fbf8c), high: new THREE.Color(0xd3e4bd), warm: new THREE.Color(0xd9d6a6) };
     const land = mesh(paintVertices(new THREE.CircleGeometry(150, 96, 0, Math.PI * 2), (color, x, y) => {
@@ -618,7 +722,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
       const rz = pavingDepth / 2 + 3 + hashUnit(`belt${i}z`) * 8;
       trees.push([Math.cos(angle) * rx, (gateZ + hallZ) / 2 + Math.sin(angle) * rz, 0.8 + hashUnit(`belt${i}s`) * 0.6]);
     }
-    plantTrees(root, trees.filter(([x, z]) => !(Math.abs(x) < 4.2 && z > gateZ - 1)));
+    const inYard = (x, z) => stationsEnabled && x > STATION_YARD.xFrom && x < STATION_YARD.xTo && z > gateZ + STATION_YARD.zFrom && z < gateZ + STATION_YARD.zTo;
+    plantTrees(root, trees.filter(([x, z]) => !(Math.abs(x) < 4.2 && z > gateZ - 1) && !inYard(x, z)));
     // Lamps come with the district's growth: none on vacant land, every other one in a village.
     placeLamps(lift, grown === 0 ? [] : grown === 1 ? lamps.filter((_, i) => i % 4 === 0) : lamps);
     // The gate: stone pillars on plinths, a lintel with a cornice, lamps on its pillars.
@@ -731,6 +836,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
       root.add(walker);
       walkers.push(walker);
     }
+    placeStations();
     root.updateMatrixWorld(true);
     const chimneys = [hallChimney];
     for (const group of lots.values()) {
@@ -791,7 +897,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
     raycaster.setFromCamera(pointer, camera);
-    const targets = [...lots.values()];
+    const targets = [...lots.values(), ...stations.values()];
     for (const hit of raycaster.intersectObjects(targets, true)) {
       let object = hit.object;
       while (object && !targets.includes(object)) object = object.parent;
@@ -809,7 +915,11 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
   renderer.domElement.addEventListener('pointerup', (event) => {
     if (!downAt || Math.hypot(event.clientX - downAt.x, event.clientY - downAt.y) > 5) return;
     const group = pickAt(event.clientX, event.clientY);
-    if (group) {
+    if (group?.userData.kind === 'exit') {
+      // A station selects its tool in the city details; it never leaves the world.
+      select(group, { focus: false });
+      onPickExit?.(group.userData.exit.id);
+    } else if (group) {
       select(group);
       onPick?.(group.userData.site);
     } else {
@@ -973,8 +1083,12 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
   }
 
   return {
-    /** Enters the district of a business; `neighbours` maps other business codes to their names. */
-    show(business, work, { neighbours = new Map() } = {}) {
+    /**
+     * Enters the district of a business; `neighbours` maps other business codes to their names, and
+     * `exits` (normalized tools, see world-exits.js) are its stations when the yard is on.
+     */
+    show(business, work, { neighbours = new Map(), exits } = {}) {
+      if (exits !== undefined) exitsData = exits;
       build(business, work, neighbours);
       setVisible(true);
       resize();
@@ -1017,7 +1131,8 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     /** Shows what changed since the viewer's last visit (from `districtChanges`). */
     celebrate,
     /** Rebuilds the open district from fresh records, keeping the camera where it is. */
-    refresh(business, work, { neighbours = new Map() } = {}) {
+    refresh(business, work, { neighbours = new Map(), exits } = {}) {
+      if (exits !== undefined) exitsData = exits;
       const keep = { target: controls.target.clone(), position: camera.position.clone(), taskId: selected?.userData?.site?.task_id };
       flight = null;
       controls.enabled = true;
@@ -1026,6 +1141,18 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
       camera.position.copy(keep.position);
       camera.lookAt(keep.target);
       select(lots.get(keep.taskId) ?? null, { focus: false });
+    },
+    /** The tools of the open business arrived (or changed): redraws only its stations. */
+    setExits(exits) {
+      exitsData = Array.isArray(exits) ? exits : [];
+      if (root) placeStations();
+    },
+    /** Marks a tool's station as selected (without moving the camera); false when it has none. */
+    selectExit(id) {
+      const group = stations.get(id);
+      if (!group) return false;
+      select(group, { focus: false });
+      return true;
     },
     dispose() {
       running = false;

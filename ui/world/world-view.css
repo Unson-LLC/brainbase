@@ -563,3 +563,82 @@
 .bb-world-district-notice[hidden] {
   display: none;
 }
+
+/* --- the tools a business uses (story-world-business-exits-v1) ----------- */
+.bb-world-exit-list {
+  list-style: none;
+  padding-left: 0;
+}
+
+.bb-world-exit {
+  padding: 6px 8px;
+  border: 1px solid var(--bb-color-border);
+  border-left: 3px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm);
+}
+
+.bb-world-exit.is-available { border-left-color: #c99a3a; }
+.bb-world-exit.is-restricted { border-left-color: #c8323c; }
+.bb-world-exit.is-unknown,
+.bb-world-exit.is-unavailable { border-left-color: #9aa3a8; }
+
+.bb-world-exit.is-selected {
+  border-color: var(--bb-color-accent);
+  box-shadow: 0 0 0 2px rgb(8 125 98 / 18%);
+}
+
+.bb-world-exit-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.bb-world-exit-label {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.bb-world-exit-state {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--bb-color-border);
+  color: var(--bb-color-muted);
+}
+
+.bb-world-exit-state.is-available { color: #7a5a12; border-color: #e0c27a; }
+.bb-world-exit-state.is-restricted { color: #a1192a; border-color: #e3a1a7; }
+
+.bb-world-exit-attention {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--bb-color-ink);
+}
+
+.bb-world-exit-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.bb-world-exits-unreadable {
+  display: block;
+  color: var(--bb-color-warning);
+  font-weight: 600;
+}
+
+.bb-world-fallback-exits {
+  margin: 4px 0 10px;
+}
+
+.bb-world-label.is-exit {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.bb-world-label.is-exit.is-available { border-color: #e0c27a; }
+.bb-world-label.is-exit.is-restricted { border-color: #e3a1a7; color: #a1192a; }
+.bb-world-label.is-exit.is-unknown,
+.bb-world-label.is-exit.is-unavailable { color: var(--bb-color-muted); }

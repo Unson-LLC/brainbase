@@ -20,6 +20,10 @@
  * review date passed); a dashed ring says the text names a person the assignee
  * field does not.  Above the cities, a sign counts the open work with such a
  * gap, and a grey sign says the work could not be read (never zero).
+ *
+ * A host may also give the tools a business uses (`businessExits`, story-world-business-exits-v1):
+ * they are listed in the city details and stand as stations outside the district's gate.  The world
+ * only links out to them; it never changes them.
  */
 
 import { THREE, MapControls } from './world-vendor.js';
@@ -29,6 +33,7 @@ import { createWorldCanvasUI } from './world-canvas-ui.js';
 import { workCanvasNotes } from './world-canvas-notes.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, muted, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { WORK_STATES, workCityBlocks, workGrowthBlock, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
+import { exitLegend, exitsRailBlock, normalizeBusinessExits } from './world-exits.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -1380,12 +1385,15 @@ function createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear, 
   };
 }
 
-function renderFallbackList(doc, root, businesses, rows) {
+/** `exitSlot(business)` gives the node to show under a business for its tools, when the host gives them. */
+function renderFallbackList(doc, root, businesses, rows, exitSlot = null) {
   const list = el(doc, 'div', { className: 'bb-world-fallback' });
   list.append(el(doc, 'h2', { text: '事業' }));
   const ul = el(doc, 'ul');
   for (const business of businesses) {
-    ul.append(el(doc, 'li', { text: `${business.name}（${kindEntry(business.kind).label}・案件${business.engagements.length}件）` }));
+    const item = el(doc, 'li', { text: `${business.name}（${kindEntry(business.kind).label}・案件${business.engagements.length}件）` });
+    if (exitSlot) item.append(exitSlot(business));
+    ul.append(item);
   }
   list.append(ul, el(doc, 'h2', { text: '判断の種類' }));
   const ol = el(doc, 'ul');
@@ -1437,8 +1445,16 @@ function addressSelection() {
  *   host's task screen (to check or correct it).  Without one the rail says it cannot be corrected here.
  * @param {'standard' | 'canvas'} [options.presentation] Canvas owns its accessible overlays and ignores the host rail.
  * @param {{ read(): { business: string | null, site: string | null }, write(selection): void }} [options.selection]
+ * @param {(business: object) => (BusinessExitsAnswer | Promise<BusinessExitsAnswer>)} [options.businessExits] The tools
+ *   a business uses (story-world-business-exits-v1).  The answer is
+ *   `{ status: 'complete'|'partial'|'failed'|'not_connected', read_at?, reason?, exits: [{ id, label, href,
+ *   state: 'available'|'restricted'|'unknown'|'unavailable', note?, action?: { label, href }, attention?: { count?,
+ *   label?, as_of? } }] }`.  `href` and `action.href` must be `https:` or a link inside the host (`/…`, `?…`);
+ *   others are dropped and counted.  Without it the world is drawn exactly as before.
+ * @typedef {{ status: string, read_at?: string, reason?: string, exits: object[] }} BusinessExitsAnswer
  */
-export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, selection = addressSelection() }) {
+export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, selection = addressSelection(), businessExits = null }) {
+  const exitsEnabled = typeof businessExits === 'function';
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const canvasMode = presentation === 'canvas';
@@ -1503,6 +1519,10 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     el(doc, 'span', { className: 'bb-world-chip is-ring', text: '破線の輪＝本文に人物（担当欄は未接続）' }),
     el(doc, 'span', { className: 'bb-world-chip is-road', text: '実線＝記録された関係・破線＝推定' }),
   );
+  // The stations' legend, in the owner's words once the vocabulary is read (AC-08).
+  const exitLegendList = el(doc, 'ul', { className: 'bb-world-exit-legend', attrs: { 'aria-label': '駅の見方' } });
+  const renderExitLegend = () => exitLegendList.replaceChildren(...exitLegend(worldVocabulary).map(([className, text]) => el(doc, 'li', { className, text })));
+  if (exitsEnabled) renderExitLegend();
   const stage = el(doc, 'div', { className: 'bb-world-stage' });
   const labelsLayer = el(doc, 'div', { className: 'bb-world-labels' });
   stage.append(labelsLayer);
@@ -1530,6 +1550,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     const list = el(doc, 'ul');
     for (const [, text] of DISTRICT_LEGEND) list.append(el(doc, 'li', { text }));
     help.append(list);
+    if (exitsEnabled) help.append(exitLegendList);
     if (page?.source) help.append(el(doc, 'p', { text: page.source }));
     canvasUI.setHelp([help]);
   } else {
@@ -1656,7 +1677,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   let workConnected = null;
   const workCache = new Map();
   const workRequests = new Map();
-  const current = { code: null, siteId: null, level: 'world', focus: null, pendingSite: null, detachedSiteId: null };
+  const current = { code: null, siteId: null, level: 'world', focus: null, pendingSite: null, detachedSiteId: null, exitId: null };
 
   /** Inside a city the notices fold away (they would cover it); its rail carries the sources and times. */
   function setLevel(level) {
@@ -1675,6 +1696,58 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
 
   function businessOf(code) {
     return knownBusinesses.find((business) => business.code === code) ?? null;
+  }
+
+  // --- the tools a business uses (story-world-business-exits-v1) ----------------------------------
+  /** Normalized answers by business code; a read in flight is kept so it is asked only once. */
+  const exitsCache = new Map();
+  const exitsRequests = new Map();
+  /** Under each business in the list shown without 3D (AC-09). */
+  const fallbackExitSlots = new Map();
+  /** The stations of a business for the district: its read tools, or none until read. */
+  const stationsFor = (code) => (exitsEnabled ? exitsCache.get(code)?.exits ?? [] : undefined);
+
+  function fallbackExitSlot(business) {
+    const slot = el(doc, 'div', { className: 'bb-world-fallback-exits' });
+    fallbackExitSlots.set(business.code, slot);
+    slot.append(exitsRailBlock(doc, { result: exitsCache.get(business.code) ?? null, vocabulary: worldVocabulary }).block);
+    return slot;
+  }
+
+  function loadExits(business) {
+    if (!exitsEnabled || disposed) return;
+    const { code } = business;
+    if (exitsCache.has(code) || exitsRequests.has(code)) return;
+    const request = (async () => {
+      try {
+        return normalizeBusinessExits(await businessExits(business));
+      } catch (error) {
+        return { ...normalizeBusinessExits({ status: 'failed', exits: [] }), reason: error instanceof Error ? error.message : 'request_failed' };
+      }
+    })();
+    exitsRequests.set(code, request);
+    void request.then((result) => {
+      if (disposed || exitsRequests.get(code) !== request) return;
+      exitsRequests.delete(code);
+      exitsCache.set(code, result);
+      fallbackExitSlots.get(code)?.replaceChildren(exitsRailBlock(doc, { result, vocabulary: worldVocabulary }).block);
+      // AC-10: an answer for a city that is no longer open does not reopen it.
+      if (current.code !== code) return;
+      if (districtCode === code && district?.isOpen()) district.setExits(result.exits);
+      if (canvasMode || current.level !== 'site') renderCityRail(business);
+    });
+  }
+
+  /** A picked station: the city details open with that tool's row selected; nothing leaves the world. */
+  function selectExit(business, exitId) {
+    current.exitId = exitId;
+    if (current.level === 'site') {
+      canvasUI?.closeTask();
+      setCurrent(business.code, null);
+      setLevel('city');
+    }
+    renderCityRail(business, { revealExit: true });
+    canvasUI?.openRail();
   }
 
   /** The registration, engagements, link out and judgments of a city (as before the work layer). */
@@ -1730,7 +1803,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     }
   }
 
-  function renderCityRail(business, { revealFocus = false } = {}) {
+  function renderCityRail(business, { revealFocus = false, revealExit = false } = {}) {
     const blocks = [workspaceRailHead(doc, { kicker: `事業・${kindEntry(business.kind).label}`, title: business.name, lead: business.purpose ?? undefined })];
     let focusBlock = null;
     const work = workCache.get(business.code);
@@ -1762,8 +1835,15 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       blocks.push(directory);
     }
     blocks.push(...cityRegistrationBlocks(business));
+    let exitRow = null;
+    if (exitsEnabled) {
+      const tools = exitsRailBlock(doc, { result: exitsCache.get(business.code) ?? null, vocabulary: worldVocabulary, selectedId: current.exitId });
+      blocks.push(tools.block);
+      exitRow = tools.selectedRow;
+    }
     showRail(blocks);
     if (revealFocus) reveal(focusBlock ?? blocks[0]);
+    if (revealExit && exitRow) reveal(exitRow);
   }
 
   /** The open tasks a focus picks: a kind of gap, or a recorded state; null for all. */
@@ -1831,7 +1911,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     updateDistrictNotes(work);
     scene?.showWork(code, work);
     if (districtCode === code && district?.isOpen()) {
-      district.refresh(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
+      district.refresh(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])), exits: stationsFor(business.code) });
       const growth = noteGrowth(code, work, previous);
       district.celebrate(growth?.changes ?? null);
       district.focus(focusIdsFor(work, current.focus));
@@ -1875,12 +1955,19 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
         if (anchor.taskId === current.siteId && current.detachedSiteId !== current.siteId) canvasUI?.setTaskAnchor(anchor);
         else if (!anchor.visible && !current.siteId) canvasUI?.setTaskAnchor({ visible: false });
       },
+      ...(exitsEnabled ? {
+        exitLegend: exitLegend(worldVocabulary),
+        onPickExit: (exitId) => {
+          const owner = businessOf(current.code);
+          if (owner) selectExit(owner, exitId);
+        },
+      } : {}),
     });
     district.setSky(SKY_MODES[skyIndex][0]);
     scene.setPaused(true);
     if (!canvasMode) { legend.hidden = true; workLegend.hidden = true; }
     if (districtCode !== business.code || !district.isOpen()) {
-      district.show(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
+      district.show(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])), exits: stationsFor(business.code) });
       districtCode = business.code;
       const growth = growthFor(business.code) ?? noteGrowth(business.code, work, readSnapshot(business.code));
       district.celebrate(growth?.changes ?? null);
@@ -1911,7 +1998,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     scene?.showWork(business.code, work);
     if (current.level !== 'world') {
       if (districtCode === business.code && district?.isOpen()) {
-        district.refresh(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])) });
+        district.refresh(business, work, { neighbours: new Map(knownBusinesses.map((entry) => [entry.code, entry.name])), exits: stationsFor(business.code) });
         district.focus(focusIdsFor(work, current.focus));
       } else enterDistrict(business, work);
     }
@@ -1931,6 +2018,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     current.pendingSite = null;
     if (current.code !== business.code) {
       current.focus = null;
+      current.exitId = null;
       leaveDistrict();
     }
     setCurrent(business.code, null);
@@ -1949,6 +2037,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       }
     }
     renderCityRail(business);
+    loadExits(business);
     if (!work) void loadWork(business);
   }
 
@@ -2020,6 +2109,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     setCurrent(null, null);
     setLevel('world');
     current.focus = null;
+    current.exitId = null;
     showEmptyRail();
   }
 
@@ -2240,6 +2330,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     const businessPayload = businessesResult.ok ? businessesResult.data : null;
     const businesses = businessPayload?.status === 'ok' ? businessPayload.businesses : [];
     if (businessPayload?.status === 'ok' && businessPayload.vocabulary) worldVocabulary = businessPayload.vocabulary;
+    if (exitsEnabled) renderExitLegend();
     if (!businessesResult.ok || businessPayload?.status !== 'ok') {
       const reason = businessesResult.ok ? `${BUSINESS_STATE_TEXT[businessPayload?.status] ?? '状態不明'}（${businessPayload?.reason ?? '理由不明'}）` : `取得に失敗しました（${businessesResult.error}）`;
       note('事業', `${reason}。事業の件数は未確認です。0件とは確認できません。`, 'warning', '事業：読めない（0件とは確認できません）');
@@ -2286,15 +2377,17 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     canvasUI?.setCities(businesses, current.code);
     if (!webglAvailable(doc)) {
       note('表示', 'この環境では3Dを表示できないため、一覧で出しています。', 'warning', '3D表示を利用できません・一覧表示');
+      const exitSlot = exitsEnabled ? fallbackExitSlot : null;
       if (canvasMode) {
-        renderFallbackList(doc, stage, businesses, rows);
+        renderFallbackList(doc, stage, businesses, rows, exitSlot);
         showEmptyRail();
         restoreSelection();
         void loadWorkSummary(note);
       } else {
         stage.hidden = true;
-        renderFallbackList(doc, wrap, businesses, rows);
+        renderFallbackList(doc, wrap, businesses, rows, exitSlot);
       }
+      for (const business of exitsEnabled ? businesses : []) loadExits(business);
       return;
     }
     scene = createScene({ doc, stage, labelsLayer, reducedMotion, onPick, onClear: clearAll, onEscape: goUp });

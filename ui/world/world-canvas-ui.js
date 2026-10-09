@@ -28,7 +28,8 @@ const nodeList = (nodes) => (Array.isArray(nodes) ? nodes : [nodes]).filter((nod
  * @param {() => void} [options.onDismissTask] User dismissed task details.
  *
  * showRail/showTask/setHelp accept actual DOM nodes, preserving their events and
- * all source details. showRail never opens the drawer. showTask does not move
+ * all source details. showRail never opens the drawer; openRail opens it without
+ * moving focus (a picked station opens its city's details). showTask does not move
  * focus unless its optional second argument is { focus: true }.
  * addNote shows a quest only for an explicit nonempty summary; its full text
  * remains in help. No summary is inferred from a long or nonurgent notice.
@@ -451,7 +452,7 @@ export function createWorldCanvasUI({ doc, stage, reducedMotion = false, onReset
   setCities([]);
 
   return {
-    setCities, setCity, setSky, showRail, showTask, closeTask, setTaskAnchor,
+    setCities, setCity, setSky, showRail, openRail, showTask, closeTask, setTaskAnchor,
     setHelp(nodes) { if (!disposed) helpContent.replaceChildren(...nodeList(nodes)); },
     addNote, clearNotes, dismissOverlay,
     dispose() {
