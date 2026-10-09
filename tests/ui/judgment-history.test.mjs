@@ -618,6 +618,10 @@ describe('judgment history UI', () => {
     expect(text).toContain('サーバー');
     expect(text).toContain('Mana: 未接続');
     expect(text).toContain('既存の項目で進める');
+    const notice = findAll(root, (node) => node.className?.startsWith('bb-ws-notice'))[0];
+    const reload = findAll(notice, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')[0];
+    expect(reload).toBeTruthy();
+    expect(notice.children).toContain(reload);
 
     const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
     row.listeners.get('click')();
@@ -627,6 +631,85 @@ describe('judgment history UI', () => {
     expect(collectText(rail)).toContain('保存された案');
     expect(collectText(rail)).toContain('採用状態: 記録なし');
     expect(collectText(rail)).toContain('結果確認済み');
+    view.dispose();
+  });
+
+  it('keeps home references visible while the normal detail is loading and after it fails', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const record = normalRecord({ record_id: 'normal-detail-fallback-1' });
+    let resolveDetail;
+    const detailPending = new Promise((resolve) => { resolveDetail = resolve; });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        if (path.includes('/records/normal-detail-fallback-1')) return detailPending;
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    row.listeners.get('click')();
+    expect(collectText(rail)).toContain('当時の基準');
+    expect(collectText(rail)).toContain('正本の詳細を確認しています。');
+
+    resolveDetail({ ok: false, status: 503 });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(collectText(rail)).toContain('当時の基準');
+    expect(collectText(rail)).toContain('正本の詳細を確認できないため、追記は利用できません。');
+    view.dispose();
+  });
+
+  it('prefers refreshed detail references after a successful canonical readback', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const doc = new FakeDocument();
+    root.ownerDocument = doc;
+    rail.ownerDocument = doc;
+    const homeRecord = normalRecord({ record_id: 'normal-detail-updated-1' });
+    const detailRecord = normalRecord({
+      record_id: 'normal-detail-updated-1',
+      judgment: {
+        ...normalRecord().judgment,
+        selected_references: [{
+          ref: 'objective-updated',
+          kind: 'objective',
+          version: 'v3',
+          digest: 'sha256:new',
+          why: '更新後の基準',
+          usage: '更新後の判断の根拠',
+          availability: 'recorded',
+        }],
+      },
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: doc,
+      autoLoad: false,
+      fetcher: async (path) => {
+        if (path.includes('/records/normal-detail-updated-1')) {
+          return { ok: true, status: 200, json: async () => ({ status: 'available', record: detailRecord }) };
+        }
+        return { ok: true, status: 200, json: async () => normalHome([homeRecord]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    row.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(collectText(rail)).toContain('更新後の基準');
+    expect(collectText(rail)).not.toContain('当時の基準');
     view.dispose();
   });
 

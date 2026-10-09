@@ -1089,7 +1089,11 @@ function appendNormalFeedbackComposer(doc, record, {
 function renderNormalRail(doc, rail, row, detail, onClose, options = {}) {
   if (!rail) return;
   rail.replaceChildren();
-  const record = detail ?? row;
+  // The home row keeps the canonical raw record so the selected references
+  // remain readable while the detail request is pending or unavailable.
+  // Once the detail readback succeeds, its normalized record takes priority.
+  const homeRecord = row?.mode === 'normal' ? normalizeNormalRecord(row.record) : null;
+  const record = detail ?? homeRecord ?? row;
   rail.append(workspaceRailHead(doc, {
     kicker: `${NORMAL_ENTRYPOINT_LABELS[record.entrypoint] ?? '入口不明'}の判断`,
     title: text(record.judgment?.summary) || '判断内容は未記録',
