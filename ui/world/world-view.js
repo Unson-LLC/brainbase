@@ -165,12 +165,19 @@ function makeLabel(doc, text, className) {
   return label;
 }
 
-function webglAvailable(doc) {
+/**
+ * 'ok' when WebGL runs on a GPU, 'slow' when the browser would only draw it in software (building the
+ * scene then freezes the page for tens of seconds), 'none' when there is no WebGL at all.
+ */
+function webglSupport(doc) {
   try {
+    const strict = { failIfMajorPerformanceCaveat: true };
     const canvas = doc.createElement('canvas');
-    return Boolean(canvas.getContext('webgl2') || canvas.getContext('webgl'));
+    if (canvas.getContext('webgl2', strict) || canvas.getContext('webgl', strict)) return 'ok';
+    const fallback = doc.createElement('canvas');
+    return fallback.getContext('webgl2') || fallback.getContext('webgl') ? 'slow' : 'none';
   } catch {
-    return false;
+    return 'none';
   }
 }
 
@@ -2375,8 +2382,10 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
 
     knownBusinesses = businesses;
     canvasUI?.setCities(businesses, current.code);
-    if (!webglAvailable(doc)) {
-      note('表示', 'この環境では3Dを表示できないため、一覧で出しています。', 'warning', '3D表示を利用できません・一覧表示');
+    const webgl = webglSupport(doc);
+    if (webgl !== 'ok') {
+      if (webgl === 'slow') note('表示', 'この環境ではGPUを使えず、3Dの描画が非常に遅いため、一覧で出しています。', 'warning', '3D表示が遅い環境・一覧表示');
+      else note('表示', 'この環境では3Dを表示できないため、一覧で出しています。', 'warning', '3D表示を利用できません・一覧表示');
       const exitSlot = exitsEnabled ? fallbackExitSlot : null;
       if (canvasMode) {
         renderFallbackList(doc, stage, businesses, rows, exitSlot);
