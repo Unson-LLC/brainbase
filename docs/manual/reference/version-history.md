@@ -6,6 +6,13 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.25.0 candidate — npm公開前
+
+- 新しい出口 `@unson/brainbase-mcp/meeting-source-connection` を追加。接続の記録の型（接続IDはBrainbaseが発行、秘密値を拒否）、`ConnectionRuntime` とMCP SDKで呼ぶ `NativeMcpRuntime`、接続IDごとの資格情報の差し込み口（メモリ・0600のファイル）
+- 接続の確認は一覧と全文の1ページ目を実際に読み、読めたものだけを能力として返す。読み出しに1ページ目だけを読む `probeTranscript` を追加
+- 接続ごとの同期。全文待ちの保留、失敗の記録、`digest` での重複防止と版、Tactiqの1時間10件の枠、止まっていた期間の取り直し。別のproviderの同じ会議は同じテナント・持ち主の中だけで候補として示す
+- MCPのOAuth（RFC 9728/8414の探索・動的なクライアント登録・PKCE・token交換）を組織接続の共通部品の `providerAdapter` として差し込む
+
 ## 0.24.1 candidate — npm公開前
 
 - 判断履歴の通常判断で、詳細取得が待機中または失敗しても一覧で取得できた当時の参照を表示し、正本の詳細取得に成功した場合は詳細の参照を優先
