@@ -8,6 +8,8 @@
  * different marks.  Nothing here writes; corrections go to the host's own task screen.
  */
 
+import { districtTaskActors } from './world-placement.js';
+
 import {
   makeWorkspaceElement as el,
   workspaceRailBlock,
@@ -301,10 +303,14 @@ export function workSiteBlocks(doc, { business, site, readAt, taskHref }) {
     const how = person.link === 'recorded' ? '担当欄' : `${person.stated_as_assignee ? '本文が担当として記載' : '本文に記載'}（${person.basis === 'text_person_id' ? '人物IDつき' : '氏名の一致'}）・担当欄には未接続`;
     people.append(linkLine(doc, person.link, person.name, how));
   }
+  for (const actor of districtTaskActors(site)) {
+    people.append(linkLine(doc, 'recorded', actor.name, `${actor.kind === 'agent' ? 'AI担当' : '担当'}・Taskの記録上の状態: ${site.work.label ?? site.work.status}・実行: ${actor.moving ? '稼働証跡確認済み' : '未確認または停止'}`));
+  }
+  if (site.actors_state === 'unconfirmed') people.append(linkLine(doc, 'unreadable', 'AI担当未確認', '現在の登録とTask委任を確認できませんでした'));
   for (const mention of site.ambiguous_mentions ?? []) {
     people.append(linkLine(doc, 'inferred', `「${mention.text}」`, `組織のGraphの${mention.candidates.map((candidate) => candidate.name).join('・')}のどれか一意に決まりません`));
   }
-  blocks.push(workspaceRailBlock(doc, { title: '担当・関係者', content: site.people.length || site.ambiguous_mentions?.length ? people : { text: '担当欄も本文も、登録された人物を挙げていません。' } }));
+  blocks.push(workspaceRailBlock(doc, { title: '担当・関係者', content: site.people.length || site.ambiguous_mentions?.length || districtTaskActors(site).length || site.actors_state === 'unconfirmed' ? people : { text: '担当欄も本文も、登録された人物を挙げていません。' } }));
   const refs = el(doc, 'ul', { className: 'bb-world-rail-list' });
   for (const ref of site.source_refs) {
     const li = el(doc, 'li');

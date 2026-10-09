@@ -313,3 +313,16 @@ export function districtStage(sites) {
     next: following ? { label: following.label, needed: following.min - permanent } : null,
   };
 }
+
+/** Optional host-supplied actors. Movement needs current host-confirmed runtime evidence and an in-progress Task. */
+export function districtTaskActors(site, now = Date.now()) {
+  if (site?.actors_state !== 'confirmed' || !Array.isArray(site.actors)) return [];
+  const seen = new Set();
+  return site.actors.filter(actor => {
+    if (!actor || typeof actor.id !== 'string' || !actor.id || typeof actor.name !== 'string' || !actor.name || actor.task_id !== site.task_id || actor.state !== site.work?.status || seen.has(actor.id)) return false;
+    seen.add(actor.id); return true;
+  }).map(actor => {
+    const age = now - Date.parse(actor.activity?.heartbeat_at ?? '');
+    return { ...actor, moving: site.work.status === 'in_progress' && actor.activity?.moving === true && actor.activity?.state === 'running' && Number.isFinite(age) && age >= 0 && age <= 300000 };
+  });
+}
