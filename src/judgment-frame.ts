@@ -2,6 +2,17 @@ import { createHash } from 'node:crypto';
 
 import type { Tool } from '@modelcontextprotocol/sdk/types.js';
 
+import {
+  JUDGMENT_MODEL_OUTCOME_ALTERNATIVES,
+  JUDGMENT_MODEL_OUTCOME_RECORD_VERSION,
+  judgmentModelOutcomeDigest,
+  parseJudgmentModelOutcomeRecords,
+  summarizeJudgmentModelOutcomes,
+  validateJudgmentModelOutcome,
+  type JudgmentModelOutcome,
+  type JudgmentModelOutcomeSummary,
+} from './judgment-model-outcome.js';
+
 /**
  * Judgment frame (brainbase-project ADR-014).
  *
@@ -139,7 +150,9 @@ export interface JudgmentFrameIssue {
 export type JudgmentFrameEscalationCode =
   | 'objective_unanchored'
   | 'chosen_violates_philosophy'
-  | 'chosen_philosophy_tension';
+  | 'chosen_philosophy_tension'
+  /** The chosen option predicts with a world model refuted at its current revision (F5, F6). */
+  | 'chosen_uses_refuted_model';
 
 export interface JudgmentFrameEscalation {
   readonly code: JudgmentFrameEscalationCode;
@@ -184,7 +197,8 @@ const PUBLIC_FRAME_SECRET_PATTERNS: readonly RegExp[] = [
 ];
 const PUBLIC_FRAME_CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 
-function containsPublicFrameCredential(value: string): boolean {
+/** True when text looks like it carries a credential. Shared by public frames and outcome records. */
+export function containsJudgmentFrameCredential(value: string): boolean {
   return PUBLIC_FRAME_SECRET_PATTERNS.some((pattern) => pattern.test(value));
 }
 
@@ -303,13 +317,27 @@ const KIND_HEADINGS: Readonly<Record<JudgmentFrameKind, string>> = {
   model: '世界モデル（predictionとして使う。仮説であり、検証済みとは限らない）',
 };
 
-/** One line per item, grouped by kind, for the model-facing prompt. */
-export function renderJudgmentFrameCatalog(catalog: JudgmentFrameCatalog): string {
+function renderOutcomeSummary(summary: JudgmentModelOutcomeSummary | undefined): string {
+  if (!summary) return '';
+  const counts = `支持${summary.supports}・反証${summary.refutes}・判定不能${summary.inconclusive}`;
+  const refuted = summary.refuted_when.length > 0 ? `。反証の条件：${summary.refuted_when.join('／')}` : '';
+  return `（この版の結果：${counts}${refuted}）`;
+}
+
+/**
+ * One line per item, grouped by kind, for the model-facing prompt. Outcome
+ * summaries, when given, annotate world models; they are not part of the digest.
+ */
+export function renderJudgmentFrameCatalog(
+  catalog: JudgmentFrameCatalog,
+  outcomes: ReadonlyMap<string, JudgmentModelOutcomeSummary> = new Map(),
+): string {
   const lines = [`judgment frame catalog ${catalog.digest}`];
   for (const kind of KINDS) {
     lines.push('', `## ${KIND_HEADINGS[kind]}`);
     for (const item of catalog.items.filter((candidate) => candidate.kind === kind)) {
-      lines.push(`- ${item.id} [${item.status}] ${item.text}${item.applies_when ? `（適用：${item.applies_when}）` : ''}`);
+      const outcome = kind === 'model' ? renderOutcomeSummary(outcomes.get(item.id)) : '';
+      lines.push(`- ${item.id} [${item.status}] ${item.text}${item.applies_when ? `（適用：${item.applies_when}）` : ''}${outcome}`);
     }
   }
   return lines.join('\n');
@@ -319,7 +347,11 @@ export function renderJudgmentFrameCatalog(catalog: JudgmentFrameCatalog): strin
  * Check that a frame record only uses catalog references and that every
  * selection is used in at least one option with the role of its kind.
  */
-export function validateJudgmentFrameRecord(value: unknown, catalog: JudgmentFrameCatalog): JudgmentFrameValidation {
+export function validateJudgmentFrameRecord(
+  value: unknown,
+  catalog: JudgmentFrameCatalog,
+  outcomes: ReadonlyMap<string, JudgmentModelOutcomeSummary> = new Map(),
+): JudgmentFrameValidation {
   const issues: JudgmentFrameIssue[] = [];
   const issue = (code: JudgmentFrameIssueCode, path: string, message: string) => issues.push({ code, path, message });
   if (!isRecord(value) || value.record_version !== JUDGMENT_FRAME_RECORD_VERSION) {
@@ -344,7 +376,7 @@ export function validateJudgmentFrameRecord(value: unknown, catalog: JudgmentFra
         if (PUBLIC_FRAME_CONTROL_CHARACTERS.test(candidate)) {
           issue('frame_public_invalid', `public_frame.${key}`, `${key} contains control characters`);
         }
-        if (containsPublicFrameCredential(candidate)) {
+        if (containsJudgmentFrameCredential(candidate)) {
           issue('frame_public_invalid', `public_frame.${key}`, `${key} contains a credential-like value`);
         }
       }
@@ -451,6 +483,11 @@ export function validateJudgmentFrameRecord(value: unknown, catalog: JudgmentFra
     const tension = verdictRefs('tension');
     if (violated.length > 0) escalations.push({ code: 'chosen_violates_philosophy', refs: violated });
     if (tension.length > 0) escalations.push({ code: 'chosen_philosophy_tension', refs: tension });
+    const refuted = [...new Set(chosenUses
+      .filter((use): use is Record<string, unknown> => isRecord(use) && use.role === 'prediction'
+        && selected.get(String(use.ref)) === 'model' && (outcomes.get(String(use.ref))?.refutes ?? 0) > 0)
+      .map((use) => String(use.ref)))];
+    if (refuted.length > 0) escalations.push({ code: 'chosen_uses_refuted_model', refs: refuted });
   }
   return { valid: issues.length === 0, issues, escalations };
 }
@@ -542,9 +579,28 @@ export type JudgmentFrameRecordsPage =
   | { readonly status: 'ok'; readonly records: readonly JudgmentFrameSourceRecord[] }
   | { readonly status: 'unavailable' | 'error'; readonly code: string; readonly message: string };
 
+export type JudgmentModelOutcomesPage =
+  | { readonly status: 'ok'; readonly records: readonly unknown[] }
+  | { readonly status: 'unavailable' | 'error'; readonly code: string; readonly message: string };
+
+export type JudgmentModelOutcomeAppendResult =
+  | { readonly status: 'ok'; readonly id: string; readonly recorded_at: string }
+  | { readonly status: 'unavailable' | 'error'; readonly code: string; readonly message: string };
+
 export interface JudgmentFrameToolDependencies {
   /** Read every record of one kind visible to the caller, at most `limit`. */
   readonly loadRecords: (kind: JudgmentFrameKind, limit: number) => Promise<JudgmentFrameRecordsPage>;
+  /**
+   * Read every stored world-model outcome visible to the caller (ADR-014 F6).
+   * When omitted, the catalog and escalations behave as before.
+   */
+  readonly loadModelOutcomes?: () => Promise<JudgmentModelOutcomesPage>;
+}
+
+export interface JudgmentModelOutcomeToolDependencies extends JudgmentFrameToolDependencies {
+  readonly loadModelOutcomes: () => Promise<JudgmentModelOutcomesPage>;
+  /** Append one validated outcome. The host owns id, time, author, authorization, and storage. */
+  readonly appendModelOutcome: (outcome: JudgmentModelOutcome & { readonly digest: `sha256:${string}` }) => Promise<JudgmentModelOutcomeAppendResult>;
 }
 
 export type JudgmentFrameToolResult =
@@ -574,6 +630,25 @@ async function loadFrameCatalog(dependencies: JudgmentFrameToolDependencies): Pr
   return buildJudgmentFrameCatalog(records);
 }
 
+async function loadOutcomeSummaries(
+  dependencies: JudgmentFrameToolDependencies,
+  catalog: JudgmentFrameCatalog,
+): Promise<ReadonlyMap<string, JudgmentModelOutcomeSummary> | JudgmentFrameToolResult> {
+  if (!dependencies.loadModelOutcomes) return new Map();
+  let page: JudgmentModelOutcomesPage;
+  try {
+    page = await dependencies.loadModelOutcomes();
+  } catch (error) {
+    return toolError('unavailable', 'judgment_model_outcomes_unavailable', `World model outcomes could not be read: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (page.status !== 'ok') return toolError(page.status, page.code, page.message);
+  const parsed = parseJudgmentModelOutcomeRecords(page.records);
+  if (!parsed.ok) {
+    return toolError('error', 'judgment_model_outcomes_invalid', `Stored world model outcome ${parsed.index} is invalid: ${parsed.message}`);
+  }
+  return summarizeJudgmentModelOutcomes(parsed.records, catalog);
+}
+
 export async function handleJudgmentFrameToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -586,6 +661,8 @@ export async function handleJudgmentFrameToolCall(
   const loaded = await loadFrameCatalog(dependencies);
   if ('status' in loaded) return loaded;
   const { catalog, excluded } = loaded;
+  const outcomes = await loadOutcomeSummaries(dependencies, catalog);
+  if (!(outcomes instanceof Map)) return outcomes as JudgmentFrameToolResult;
   if (name === 'brainbase_judgment_frame_catalog') {
     return {
       status: 'ok',
@@ -594,11 +671,12 @@ export async function handleJudgmentFrameToolCall(
         catalog_digest: catalog.digest,
         counts: Object.fromEntries(KINDS.map((kind) => [kind, catalog.items.filter((item) => item.kind === kind).length])),
         excluded_count: excluded.length,
-        catalog: renderJudgmentFrameCatalog(catalog),
+        ...(dependencies.loadModelOutcomes ? { models_with_outcomes: outcomes.size } : {}),
+        catalog: renderJudgmentFrameCatalog(catalog, outcomes),
       },
     };
   }
-  const validation = validateJudgmentFrameRecord(args, catalog);
+  const validation = validateJudgmentFrameRecord(args, catalog, outcomes);
   if (!validation.valid) {
     return toolError('error', 'judgment_frame_invalid', 'The judgment frame does not match the catalog contract', {
       issues: validation.issues,
@@ -624,6 +702,125 @@ export async function handleJudgmentFrameToolCall(
     },
   };
 }
+
+const outcomeTextSchema = { type: 'string', minLength: 1, maxLength: 2_000 } as const;
+
+/**
+ * Opt-in tool for hosts that store world-model outcomes (ADR-014 F6).
+ * Published separately so a host without storage does not expose it.
+ */
+export const judgmentModelOutcomeTools: Tool[] = [{
+  name: 'brainbase_judgment_model_outcome_record',
+  description: 'After the result of a judgment is observed, record whether it supports or refutes a world model that the judgment used as a prediction. Read brainbase_judgment_frame_catalog first and pass its catalog_digest and the model id at its current revision. State the prediction made from the model, what was observed, the conditions (facility, period, state) under which the result holds, and at least one evidence reference. A refutation must say, for each of measurement_error, execution_difference, and external_change, why it does not explain the gap; a prediction gap alone is not a refutation. This does not change the model, its revision, or its adoption; adoption and verification stay human decisions. The tool does not judge whether the verdict is semantically right.',
+  inputSchema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      record_version: { type: 'string', const: JUDGMENT_MODEL_OUTCOME_RECORD_VERSION },
+      catalog_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' },
+      model: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          id: { type: 'string', minLength: 1, maxLength: 1_000 },
+          revision: { type: 'string', minLength: 1, maxLength: 64 },
+        },
+        required: ['id', 'revision'],
+      },
+      verdict: { type: 'string', enum: ['supports', 'refutes', 'inconclusive'] },
+      prediction: outcomeTextSchema,
+      observed: outcomeTextSchema,
+      conditions: outcomeTextSchema,
+      evidence_refs: {
+        type: 'array',
+        minItems: 1,
+        maxItems: 12,
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            kind: { type: 'string', enum: ['artifact', 'query', 'document', 'judgment'] },
+            ref: { type: 'string', minLength: 1, maxLength: 800 },
+            label: { type: 'string', minLength: 1, maxLength: 200 },
+          },
+          required: ['kind', 'ref', 'label'],
+        },
+      },
+      ruled_out: {
+        type: 'object',
+        additionalProperties: false,
+        description: 'Required only when verdict is refutes.',
+        properties: Object.fromEntries(JUDGMENT_MODEL_OUTCOME_ALTERNATIVES.map((key) => [key, { type: 'string', minLength: 1, maxLength: 1_000 }])),
+        required: [...JUDGMENT_MODEL_OUTCOME_ALTERNATIVES],
+      },
+      judgment_ref: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { frame_digest: { type: 'string', pattern: '^sha256:[a-f0-9]{64}$' } },
+        required: ['frame_digest'],
+      },
+    },
+    required: ['record_version', 'catalog_digest', 'model', 'verdict', 'prediction', 'observed', 'conditions', 'evidence_refs'],
+  },
+  annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
+}];
+
+export async function handleJudgmentModelOutcomeToolCall(
+  name: string,
+  args: Record<string, unknown>,
+  dependencies: JudgmentModelOutcomeToolDependencies,
+): Promise<JudgmentFrameToolResult | null> {
+  if (name !== 'brainbase_judgment_model_outcome_record') return null;
+  const loaded = await loadFrameCatalog(dependencies);
+  if ('status' in loaded) return loaded;
+  const validation = validateJudgmentModelOutcome(args, loaded.catalog, containsJudgmentFrameCredential);
+  if (!validation.valid) {
+    return toolError('error', 'judgment_model_outcome_invalid', 'The outcome does not match the current catalog contract', {
+      issues: validation.issues,
+      current_catalog_digest: loaded.catalog.digest,
+    });
+  }
+  const digest = judgmentModelOutcomeDigest(validation.outcome);
+  let appended: JudgmentModelOutcomeAppendResult;
+  try {
+    appended = await dependencies.appendModelOutcome({ ...validation.outcome, digest });
+  } catch (error) {
+    return toolError('unavailable', 'judgment_model_outcome_unavailable', `The outcome could not be stored: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (appended.status !== 'ok') return toolError(appended.status, appended.code, appended.message);
+  return {
+    status: 'ok',
+    data: {
+      schema_version: 'brainbase-judgment-model-outcome-v1',
+      id: appended.id,
+      recorded_at: appended.recorded_at,
+      model: validation.outcome.model,
+      verdict: validation.outcome.verdict,
+      digest,
+    },
+  };
+}
+
+export {
+  JUDGMENT_MODEL_OUTCOME_ALTERNATIVES,
+  JUDGMENT_MODEL_OUTCOME_RECORD_VERSION,
+  judgmentModelOutcomeDigest,
+  parseJudgmentModelOutcomeRecords,
+  summarizeJudgmentModelOutcomes,
+  validateJudgmentModelOutcome,
+} from './judgment-model-outcome.js';
+export type {
+  JudgmentModelOutcome,
+  JudgmentModelOutcomeAlternative,
+  JudgmentModelOutcomeEvidenceKind,
+  JudgmentModelOutcomeEvidenceRef,
+  JudgmentModelOutcomeIssue,
+  JudgmentModelOutcomeIssueCode,
+  JudgmentModelOutcomeStoredRecord,
+  JudgmentModelOutcomeSummary,
+  JudgmentModelOutcomeValidation,
+  JudgmentModelOutcomeVerdict,
+} from './judgment-model-outcome.js';
 
 export {
   judgmentFrameReadTools,
