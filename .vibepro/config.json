@@ -776,11 +776,11 @@
         "story_id": "story-meeting-source-full-transcript-v1",
         "title": "Plaud・Tactiqの会議を、途中で切れない全文として読み出せる",
         "ssot": "local",
-        "status": "planned",
+        "status": "active",
         "horizon": null,
         "view": null,
         "period": null,
-        "started_at": null,
+        "started_at": "2026-10-09",
         "due_at": null,
         "contract_type": null
       },
@@ -797,6 +797,6 @@
         "contract_type": null
       }
     ],
-    "current_story_id": "story-knowledge-first-retrieval-budget"
+    "current_story_id": "story-meeting-source-full-transcript-v1"
   }
 }
