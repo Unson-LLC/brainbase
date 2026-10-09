@@ -1,0 +1,352 @@
+/* Only the opt-in canvas presentation and overlay subtree are styled here. */
+.bb-world.bb-world--canvas {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  gap: 0;
+}
+.bb-world.bb-world--canvas > .bb-world-stage {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.bb-world.bb-world--canvas .bb-world-fallback {
+  position: absolute;
+  inset: 76px 24px 52px 16px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 12px 16px;
+  background: rgb(255 255 255 / 88%);
+  border-radius: 8px;
+}
+
+.bb-world-canvas-ui {
+  --bb-world-panel-width: min(360px, calc(100% - 24px));
+  --bb-world-right-inset: 16px;
+  --bb-world-toolbar-top: 16px;
+  --bb-world-panel-top: 76px;
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  color: #0d192e;
+  font-family: var(--bb-font-sans, sans-serif);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.bb-world-canvas-ui *,
+.bb-world-canvas-ui *::before,
+.bb-world-canvas-ui *::after { box-sizing: border-box; }
+.bb-world-canvas-ui [hidden] { display: none !important; }
+.bb-world-canvas-ui button,
+.bb-world-canvas-ui select { font-family: inherit; }
+.bb-world-canvas-ui button { cursor: pointer; }
+.bb-world-canvas-ui :focus-visible { outline: 2px solid #0d192e; outline-offset: 3px; }
+
+.bb-world-canvas-ui .bb-world-canvas-toolbar {
+  position: absolute;
+  top: var(--bb-world-toolbar-top);
+  right: 0;
+  width: var(--bb-world-panel-width);
+  padding-right: var(--bb-world-right-inset);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 40px;
+  gap: 8px;
+  align-items: center;
+  pointer-events: auto;
+}
+.bb-world-canvas-ui .bb-world-canvas-control {
+  min-width: 0;
+  height: 40px;
+  padding: 8px 10px;
+  border: 1px solid rgb(13 25 46 / 12%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 94%);
+  color: #0d192e;
+  font-size: 12px;
+  line-height: 20px;
+  box-shadow: 0 2px 8px #0d192e0a;
+}
+.bb-world-canvas-ui .bb-world-canvas-control:hover { background: #e5f8e1; }
+.bb-world-canvas-ui .bb-world-canvas-reset { white-space: nowrap; }
+.bb-world-canvas-ui .bb-world-canvas-city { width: 100%; text-overflow: ellipsis; }
+.bb-world-canvas-ui .bb-world-canvas-city:disabled { cursor: default; opacity: .65; }
+.bb-world-canvas-ui .bb-world-canvas-sky { display: grid; place-items: center; padding: 0; }
+.bb-world-canvas-ui .bb-world-canvas-sky-icon { font-size: 22px; line-height: 1; }
+.bb-world-canvas-ui .bb-world-canvas-sky-menu {
+  position: absolute;
+  top: calc(var(--bb-world-toolbar-top) + 48px);
+  right: var(--bb-world-right-inset);
+  min-width: 150px;
+  padding: 5px;
+  border: 1px solid rgb(13 25 46 / 18%);
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 8px 25px #0d192e22;
+  pointer-events: auto;
+}
+.bb-world-canvas-ui .bb-world-canvas-sky-option {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+.bb-world-canvas-ui .bb-world-canvas-sky-option:hover,
+.bb-world-canvas-ui .bb-world-canvas-sky-option[aria-checked="true"] { background: #e5f8e1; }
+
+.bb-world-canvas-ui .bb-world-canvas-quests {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  max-width: max(0px, calc(100% - 400px));
+  pointer-events: none;
+}
+.bb-world-canvas-ui .bb-world-canvas-quest {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 7px 10px 7px 8px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-left: 3px solid #9be891;
+  border-radius: 4px;
+  background: linear-gradient(110deg, rgb(13 25 46 / 88%), rgb(13 25 46 / 72%));
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  box-shadow: 0 3px 12px #0d192e18;
+  backdrop-filter: blur(5px);
+}
+.bb-world-canvas-ui .bb-world-canvas-quest-symbol {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border: 1px solid #9be89170;
+  border-radius: 3px;
+  background: #9be89112;
+  color: #b5f2ab;
+  font-size: 11px;
+  font-weight: 700;
+}
+.bb-world-canvas-ui .bb-world-canvas-quest-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+.bb-world-canvas-ui .bb-world-canvas-edge {
+  position: absolute;
+  top: calc(var(--bb-world-panel-top) + 8px);
+  right: 0;
+  bottom: 24px;
+  width: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  pointer-events: auto;
+}
+.bb-world-canvas-ui .bb-world-canvas-edge::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 3px;
+  height: 38px;
+  border-radius: 4px;
+  background: #0d192e50;
+}
+.bb-world-canvas-ui .bb-world-canvas-edge:focus-visible { outline-offset: -2px; background: #ffffff70; }
+.bb-world-canvas-ui .bb-world-canvas-drawer,
+.bb-world-canvas-ui .bb-world-canvas-help,
+.bb-world-canvas-ui .bb-world-canvas-task {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border: 1px solid rgb(13 25 46 / 16%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 98%);
+  box-shadow: 0 8px 35px #0d192e22;
+  pointer-events: none;
+  visibility: hidden;
+}
+.bb-world-canvas-ui .bb-world-canvas-drawer {
+  top: var(--bb-world-panel-top);
+  right: var(--bb-world-right-inset);
+  bottom: 14px;
+  width: calc(var(--bb-world-panel-width) - var(--bb-world-right-inset));
+  overflow: hidden;
+  transform: translateX(calc(100% + 20px));
+  transition: transform .24s ease, visibility .24s;
+}
+.bb-world-canvas-ui .bb-world-canvas-drawer.is-open { transform: translateX(0); }
+.bb-world-canvas-ui .bb-world-canvas-panel-top {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgb(13 25 46 / 12%);
+}
+.bb-world-canvas-ui .bb-world-canvas-panel-top h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.bb-world-canvas-ui .bb-world-canvas-close {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+  font-size: 22px;
+  line-height: 1;
+}
+.bb-world-canvas-ui .bb-world-canvas-close:hover { background: #e5f8e1; }
+.bb-world-canvas-ui .bb-world-canvas-rail-body,
+.bb-world-canvas-ui .bb-world-canvas-task-body,
+.bb-world-canvas-ui .bb-world-canvas-help-body {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  overflow-wrap: anywhere;
+  scrollbar-width: thin;
+  padding: 14px 18px;
+}
+.bb-world-canvas-ui .bb-world-canvas-rail-body h2 { font-size: 18px; }
+.bb-world-canvas-ui .bb-world-canvas-rail-body h3 { font-size: 13px; }
+.bb-world-canvas-ui .bb-world-canvas-rail-body .bb-ws-rail-block { padding: 14px 0; }
+.bb-world-canvas-ui .bb-world-canvas-rail-body .bb-ws-definition,
+.bb-world-canvas-ui .bb-world-canvas-rail-body .bb-world-rail-note,
+.bb-world-canvas-ui .bb-world-canvas-rail-body p,
+.bb-world-canvas-ui .bb-world-canvas-rail-body button { font-size: 12px; }
+
+.bb-world-canvas-ui .bb-world-canvas-task { width: 330px; background: #fffdf9; border-radius: 10px; }
+.bb-world-canvas-ui .bb-world-canvas-task::after {
+  content: '';
+  position: absolute;
+  left: var(--bb-world-task-pointer-x, 50%);
+  bottom: -7px;
+  width: 12px;
+  height: 12px;
+  background: #fffdf9;
+  border-right: 1px solid rgb(13 25 46 / 16%);
+  border-bottom: 1px solid rgb(13 25 46 / 16%);
+  transform: translateX(-50%) rotate(45deg);
+  pointer-events: none;
+}
+.bb-world-canvas-ui .bb-world-canvas-task.is-below::after { top: -7px; bottom: auto; transform: translateX(-50%) rotate(225deg); }
+.bb-world-canvas-ui .bb-world-canvas-task .bb-world-canvas-panel-top { padding: 3px 8px; border: 0; }
+.bb-world-canvas-ui .bb-world-canvas-task .bb-world-canvas-close { width: 28px; height: 28px; font-size: 20px; }
+.bb-world-canvas-ui .bb-world-canvas-task-body { padding: 0 16px 16px; }
+.bb-world-canvas-ui .bb-world-canvas-task-body h2 { font-size: 15px; line-height: 1.5; }
+.bb-world-canvas-ui .bb-world-canvas-task-body h3,
+.bb-world-canvas-ui .bb-world-canvas-task-body p,
+.bb-world-canvas-ui .bb-world-canvas-task-body .bb-ws-definition,
+.bb-world-canvas-ui .bb-world-canvas-task-body .bb-ws-rail-block { font-size: 12px; line-height: 1.65; }
+.bb-world-canvas-ui .bb-world-canvas-task-body .bb-ws-rail-block { padding: 12px 0; }
+.bb-world-canvas-ui .bb-world-canvas-task-body .bb-ws-kicker { font-size: 10px; }
+
+.bb-world-canvas-ui .bb-world-canvas-help-button {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid #0d192e20;
+  border-radius: 50%;
+  background: #ffffffb8;
+  color: #0d192eb3;
+  font-size: 14px;
+  pointer-events: auto;
+}
+.bb-world-canvas-ui .bb-world-canvas-help-button:hover { color: #0d192e; background: #fff; }
+.bb-world-canvas-ui .bb-world-canvas-help {
+  left: 14px;
+  bottom: 54px;
+  width: min(340px, calc(100% - 28px));
+  max-height: calc(100% - 138px);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(24px);
+  transition: transform .24s ease, opacity .24s ease, visibility .24s;
+}
+.bb-world-canvas-ui .bb-world-canvas-help.is-open { opacity: 1; transform: translateY(0); }
+.bb-world-canvas-ui .bb-world-canvas-help-body,
+.bb-world-canvas-ui .bb-world-canvas-help-body h3,
+.bb-world-canvas-ui .bb-world-canvas-help-body p { font-size: 12px; line-height: 1.7; }
+.bb-world-canvas-ui .bb-world-canvas-help-body h3 { margin: 14px 0 6px; }
+.bb-world-canvas-ui .bb-world-canvas-help-body p { margin: 0 0 10px; }
+.bb-world-canvas-ui .bb-world-canvas-note { margin-top: 14px; padding-top: 4px; border-top: 1px solid rgb(13 25 46 / 12%); }
+.bb-world-canvas-ui .bb-world-canvas-drawer.is-open,
+.bb-world-canvas-ui .bb-world-canvas-help.is-open,
+.bb-world-canvas-ui .bb-world-canvas-task.is-open { visibility: visible; pointer-events: auto; }
+
+@media (max-width: 900px) {
+  .bb-world-canvas-ui .bb-world-canvas-quests { top: 70px; left: 12px; max-width: calc(100% - 40px); }
+}
+@media (max-width: 460px) {
+  .bb-world-canvas-ui {
+    --bb-world-right-inset: 10px;
+    --bb-world-toolbar-top: 12px;
+    --bb-world-panel-top: 72px;
+  }
+  .bb-world-canvas-ui .bb-world-canvas-toolbar { grid-template-columns: auto minmax(0, 1fr) 34px; }
+  .bb-world-canvas-ui .bb-world-canvas-control { height: 36px; padding: 6px; font-size: 10px; }
+  .bb-world-canvas-ui .bb-world-canvas-sky { padding: 0; }
+  .bb-world-canvas-ui .bb-world-canvas-sky-icon { font-size: 20px; }
+  .bb-world-canvas-ui .bb-world-canvas-quest { font-size: 10px; gap: 6px; padding: 6px 8px; }
+  .bb-world-canvas-ui .bb-world-canvas-help-button { left: 12px; bottom: 12px; }
+  .bb-world-canvas-ui .bb-world-canvas-help { left: 12px; bottom: 52px; width: calc(100% - 24px); }
+}
+@media (hover: none) {
+  .bb-world-canvas-ui .bb-world-canvas-edge { width: 28px; }
+  .bb-world-canvas-ui .bb-world-canvas-edge::after { width: 4px; background: #0d192e70; }
+  .bb-world-canvas-ui .bb-world-canvas-help-button { width: 36px; height: 36px; }
+  .bb-world-canvas-ui .bb-world-canvas-close { width: 36px; height: 36px; }
+}
+.bb-world-canvas-ui.is-reduced-motion .bb-world-canvas-help,
+.bb-world-canvas-ui.is-reduced-motion .bb-world-canvas-drawer { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  .bb-world-canvas-ui .bb-world-canvas-help,
+  .bb-world-canvas-ui .bb-world-canvas-drawer { transition: none; }
+}
+
+/* The same real legend nodes also serve the standard presentation. */
+.bb-world-canvas-ui .bb-world-canvas-help-content .bb-world-legend,
+.bb-world-canvas-ui .bb-world-canvas-help-content .bb-world-district-legend {
+  position: static;
+  inset: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+  font-size: 12px;
+}
+.bb-world-canvas-ui .bb-world-canvas-help-content .bb-world-district-notice {
+  position: static;
+  inset: auto;
+  margin: 10px 0;
+  font-size: 12px;
+}
+
+/* A real record without a visible lot remains readable as detached details. */
+.bb-world-canvas-ui .bb-world-canvas-task.is-unanchored::after { display: none; }
