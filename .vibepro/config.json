@@ -771,6 +771,30 @@
         "started_at": null,
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-meeting-source-full-transcript-v1",
+        "title": "Plaud・Tactiqの会議を、途中で切れない全文として読み出せる",
+        "ssot": "local",
+        "status": "planned",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-meeting-source-connection-sync-v1",
+        "title": "同じサービスの複数のアカウントを、接続ごとに分かれた認証・読んだ位置・状態で同期できる",
+        "ssot": "local",
+        "status": "planned",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
     "current_story_id": "story-knowledge-first-retrieval-budget"
