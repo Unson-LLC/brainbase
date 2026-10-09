@@ -6,6 +6,13 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.26.0 candidate — npm公開前
+
+- 世界に任意の `businessExits(business)` を追加。都市の詳細（canvasの右端・standardのrail）と3Dなしの一覧に「この事業の道具」の欄を出す（`story-world-business-exits-v1`）
+- canvasの区画の門の外に、道具ごとの駅を置く。明かり＝使える、閉じた改札＝権限が必要、霧＝未確認・読めない。駅を選ぶと都市の詳細の該当行を選び、外へは直接移らない
+- 語彙に `exit_states` を追加。既定は「使える」「権限が必要」「未確認」「読めない」
+- `failIfMajorPerformanceCaveat` でWebGLを作れない環境（GPUなし）では一覧で出す
+
 ## 0.25.0 candidate — npm公開前
 
 - 新しい出口 `@unson/brainbase-mcp/meeting-source-connection` を追加。接続の記録の型（接続IDはBrainbaseが発行、秘密値を拒否）、`ConnectionRuntime` とMCP SDKで呼ぶ `NativeMcpRuntime`、接続IDごとの資格情報の差し込み口（メモリ・0600のファイル）
