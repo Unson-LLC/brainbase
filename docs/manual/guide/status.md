@@ -81,6 +81,12 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.27.0（npm公開前）
+
+Graphの意味検索に使う埋め込みの生成（Gemini、`gemini-embedding-001:768:v2`）を、新しい出口 `@unson/brainbase-mcp/graph-embedding-provider` として追加します。問いと文書を区別して頼み、長い文を分けて平均します。組織側が保存済みの索引をそのまま使えるよう、モデルIDと次元は版をまたいで変えません。APIキーを渡したときだけ外部のサービスを呼ぶので、OSSの既定の動作は変わりません。
+
+組織版への意味検索の本体の移設と、brainbase-unsonでの取り込みは別の段階です。
+
 ## Candidate — v0.26.0（npm公開前）
 
 世界の都市から、その事業で使う外の道具（社内の運用画面、Drive、GitHubなど）へ出られるようにします。`createWorldView` に任意の `businessExits(business)` を渡すと、都市の詳細と3Dを出せないときの一覧に「この事業の道具」の欄を足し、canvasでは状態を姿で表す駅（明かり・閉じた改札・霧）を区画の門の外に置きます。読めないときは0件として扱わず理由を出し、`https:` とホスト内の相対リンク以外は描きません。状態の言葉は語彙の `exit_states` で持ち主が与えられます。GPUを使えずWebGLがソフトウェア描画になる環境では、場面を作らず一覧で出します。
