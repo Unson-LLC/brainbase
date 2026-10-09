@@ -27,6 +27,10 @@ describe('Graphの検索コアの公開契約', () => {
         types: './dist/embedding-provider.d.ts',
         import: './dist/embedding-provider.js',
       },
+      './graph-embedding-provider': {
+        types: './dist/graph-embedding-provider.d.ts',
+        import: './dist/graph-embedding-provider.js',
+      },
     });
 
     const portableGraph = await importExport(manifest, './portable-graph');
@@ -43,6 +47,13 @@ describe('Graphの検索コアの公開契約', () => {
     expect(embeddingProvider.createEmbeddingProviderFromEnv({})).toBeUndefined();
     expect(() => embeddingProvider.createEmbeddingProviderFromEnv({ BRAINBASE_EMBEDDING_URL: 'https://embeddings.example/v1/embeddings' }))
       .toThrow(embeddingProvider.EmbeddingProviderConfigError);
+
+    // 組織側は保存済みの索引をこのモデルIDで照合するため、IDと次元は版をまたいで変えない。
+    const graphEmbeddingProvider = await importExport(manifest, './graph-embedding-provider');
+    expect(graphEmbeddingProvider.GRAPH_EMBEDDING_MODEL_ID).toBe('gemini-embedding-001:768:v2');
+    expect(graphEmbeddingProvider.GRAPH_EMBEDDING_DIMENSIONS).toBe(768);
+    expect(() => graphEmbeddingProvider.createGraphEmbeddingProvider({ apiKey: '' }))
+      .toThrow(graphEmbeddingProvider.GraphEmbeddingProviderError);
   });
 });
 

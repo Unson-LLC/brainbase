@@ -4,6 +4,7 @@
 
 ## Unreleased — develop
 
+- Graphの埋め込みの生成（Gemini、`gemini-embedding-001:768:v2`）の公開subpath `graph-embedding-provider` を追加。brainbase-unsonの部品を処理を変えずに移したもので、APIキーを渡したときだけ呼ぶ（`story-graph-embedding-provider-exit-v1`）
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
 ## 0.26.0 candidate — npm公開前
