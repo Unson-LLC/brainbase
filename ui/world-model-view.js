@@ -44,6 +44,12 @@ const UNREADABLE_LABELS = Object.freeze({
   invalid_input: '変数の定義と合わない',
   not_found: '参照先が見つからない',
 });
+const UNAVAILABLE_SECTION_LABELS = Object.freeze({
+  variables: '変数',
+  models: 'モデル',
+  observations: '観測',
+  adoptions: 'モデルの採用',
+});
 
 function getDocument(explicit) {
   const value = explicit ?? (typeof document === 'undefined' ? null : document);
@@ -185,20 +191,20 @@ function sectionStatus(doc, label, section, sectionState, callbacks, emptyText) 
   if (state === 'error' || state === 'invalid') {
     const retry = workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: () => void callbacks.onRetry?.(section) });
     return {
-      notice: workspaceNotice(doc, { label, tone: 'danger', text: noticeBody(doc, `読み取れませんでした（${sectionState.reason ?? '理由不明'}）。0件ではありません。`, retry) }),
+      notice: workspaceNotice(doc, { label, tone: 'danger', text: noticeBody(doc, `読み取れませんでした（${sectionState.reason ?? '理由不明'}）。0件とは確認できません。`, retry) }),
       rows: false,
     };
   }
   if (state === 'unavailable') {
     return {
-      notice: workspaceNotice(doc, { label, tone: 'warning', text: `このホストでは読めません（${sectionState.reason ?? '理由不明'}）。0件ではありません。` }),
+      notice: workspaceNotice(doc, { label, tone: 'warning', text: `このホストでは読めません（${sectionState.reason ?? '理由不明'}）。0件とは確認できません。` }),
       rows: false,
     };
   }
   if (state === 'unknown') {
     const message = sectionState.unreadable?.count
       ? unreadableMessage(sectionState.unreadable)
-      : '記録の有無を確かめられません。0件ではありません。';
+      : '記録の有無を確かめられません。0件とは確認できません。';
     return { notice: workspaceNotice(doc, { label, tone: 'warning', text: message }), rows: false };
   }
   if (state === 'empty') return { notice: workspaceNotice(doc, { label, text: emptyText }), rows: false };
@@ -326,11 +332,43 @@ function unavailableSummary(doc, state, unavailableNotice) {
   if (!isRecord(unavailableNotice) || !text(unavailableNotice.title)) return null;
   if (!WORLD_MODEL_SECTIONS.every((section) => state[section]?.state === 'unavailable')) return null;
   const labels = isRecord(unavailableNotice.reasonLabels) ? unavailableNotice.reasonLabels : {};
-  const reasonText = (reason) => (Object.hasOwn(labels, reason) && text(labels[reason])) || reason;
-  const reasons = [...new Set(WORLD_MODEL_SECTIONS.map((section) => state[section].reason).filter(Boolean).map(reasonText))];
+  const reasonText = (reason) => {
+    const value = text(reason);
+    return value && Object.hasOwn(labels, value) && text(labels[value]) ? text(labels[value]) : value ?? '理由不明';
+  };
+  const groupedReasons = [];
+  for (const section of WORLD_MODEL_SECTIONS) {
+    const reason = reasonText(state[section].reason);
+    const existing = groupedReasons.find((group) => group.reason === reason);
+    if (existing) existing.sections.push(UNAVAILABLE_SECTION_LABELS[section]);
+    else groupedReasons.push({ reason, sections: [UNAVAILABLE_SECTION_LABELS[section]] });
+  }
   const body = makeElement(doc, 'div', { className: 'bb-wm-notice-body' });
   if (text(unavailableNotice.guidance)) body.append(makeElement(doc, 'p', { text: text(unavailableNotice.guidance) }));
-  body.append(makeElement(doc, 'p', { text: `理由: ${reasons.length > 0 ? reasons.join('、') : '理由不明'}。0件ではありません。` }));
+  body.append(makeElement(doc, 'p', {
+    className: 'bb-wm-unavailable-status',
+    text: '記録件数は未確認です。0件とは確認できません。',
+  }));
+
+  const details = makeElement(doc, 'details', { className: 'bb-wm-unavailable-details' });
+  details.append(makeElement(doc, 'summary', {
+    className: 'bb-wm-unavailable-summary',
+    text: `理由と対象欄を確認（${WORLD_MODEL_SECTIONS.length}欄）`,
+  }));
+  const reasonList = makeElement(doc, 'ul', {
+    className: 'bb-wm-unavailable-reason-list',
+    attrs: { 'aria-label': '未接続の理由' },
+  });
+  for (const group of groupedReasons) {
+    const item = makeElement(doc, 'li', { className: 'bb-wm-unavailable-reason' });
+    item.append(
+      makeElement(doc, 'strong', { className: 'bb-wm-unavailable-reason-label', text: group.sections.join('・') }),
+      makeElement(doc, 'span', { className: 'bb-wm-unavailable-reason-copy', text: `理由: ${group.reason}` }),
+    );
+    reasonList.append(item);
+  }
+  details.append(reasonList);
+  body.append(details);
   return workspaceNotice(doc, { label: text(unavailableNotice.title), text: body, tone: 'info' });
 }
 

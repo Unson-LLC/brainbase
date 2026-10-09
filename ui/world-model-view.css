@@ -60,6 +60,58 @@
   justify-self: start;
 }
 
+/* Keep the host-level unavailable notice compact until its reason is requested. */
+.bb-wm-unavailable-status {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-wm-unavailable-details {
+  min-width: 0;
+}
+
+.bb-wm-unavailable-summary {
+  width: fit-content;
+  max-width: 100%;
+  color: var(--bb-color-accent-strong);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 680;
+}
+
+.bb-wm-unavailable-summary:focus-visible {
+  outline: 2px solid var(--bb-color-accent);
+  outline-offset: 2px;
+}
+
+.bb-wm-unavailable-reason-list {
+  display: grid;
+  gap: var(--bb-space-2);
+  margin: var(--bb-space-2) 0 0;
+  padding: var(--bb-space-2) 0 0;
+  border-top: 1px solid var(--bb-color-border);
+  list-style: none;
+}
+
+.bb-wm-unavailable-reason {
+  display: grid;
+  grid-template-columns: minmax(120px, .8fr) minmax(0, 2fr);
+  gap: var(--bb-space-2);
+  min-width: 0;
+  font-size: 12px;
+}
+
+.bb-wm-unavailable-reason-label {
+  color: var(--bb-color-ink);
+  font-weight: 680;
+}
+
+.bb-wm-unavailable-reason-copy {
+  min-width: 0;
+  color: var(--bb-color-muted);
+  overflow-wrap: anywhere;
+}
+
 /* First-user registration stays in the empty-state notice, beside the fact it affects. */
 .bb-wm-registration-form {
   display: grid;
@@ -214,6 +266,11 @@
 @media (max-width: 760px) {
   .bb-wm-registration-form {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .bb-wm-unavailable-reason {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
   }
 
   .bb-wm-registration-status {

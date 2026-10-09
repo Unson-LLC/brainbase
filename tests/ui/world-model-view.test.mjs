@@ -357,8 +357,8 @@ describe('World Model view', () => {
     });
     const text = collectText(root);
     expect(text).toContain('変数はまだ登録がありません。');
-    expect(text).toContain('記録の有無を確かめられません。0件ではありません。');
-    expect(text).toContain('読み取れませんでした（記録が壊れています）。0件ではありません。');
+    expect(text).toContain('記録の有無を確かめられません。0件とは確認できません。');
+    expect(text).toContain('読み取れませんでした（記録が壊れています）。0件とは確認できません。');
     expect(text).toContain('読めない記録が1件あります（読む権限がない）');
     expect(text).not.toContain('モデルはまだ登録がありません');
     expect(text).not.toContain('観測はまだ記録がありません');
@@ -398,7 +398,7 @@ describe('World Model view', () => {
       const { root, view } = await mount({ ...allUnavailable, '/api/world-model/variables': jsonResponse(200, variablesPayload) });
       expect(view.state.models.state).toBe('unavailable');
       const models = collectText(section(root, '変数とモデル'));
-      expect(models).toContain('このホストでは読めません（World Modelの読み取り元がありません）。0件ではありません。');
+      expect(models).toContain('このホストでは読めません（World Modelの読み取り元がありません）。0件とは確認できません。');
       expect(ledgerTable(section(root, '変数とモデル'))[1][0]).toContain('中断されない作業時間');
       const text = collectText(root);
       for (const wrong of ['まだ登録がありません', 'まだ記録がありません', 'まだありません', '形式が不正', '再試行']) expect(text).not.toContain(wrong);
@@ -410,7 +410,15 @@ describe('World Model view', () => {
       const notices = byClass(root, 'bb-ws-notice');
       expect(notices).toHaveLength(1);
       expect(notices[0].children[0].textContent).toBe('未接続');
-      expect(collectText(notices[0])).toBe('未接続この画面の現状と見通しは、まだどこにもつながっていません。理由: World Modelの読み取り元がありません。0件ではありません。');
+      expect(collectText(notices[0])).toContain('未接続この画面の現状と見通しは、まだどこにもつながっていません。');
+      expect(collectText(notices[0])).toContain('記録件数は未確認です。0件とは確認できません。');
+      const details = byClass(notices[0], 'bb-wm-unavailable-details')[0];
+      expect(details.tagName).toBe('DETAILS');
+      expect(details.children[0].tagName).toBe('SUMMARY');
+      expect(details.children[0].textContent).toBe('理由と対象欄を確認（4欄）');
+      const reason = byClass(details, 'bb-wm-unavailable-reason')[0];
+      expect(collectText(reason)).toBe('変数・モデル・観測・モデルの採用理由: World Modelの読み取り元がありません');
+      expect(byClass(details, 'bb-wm-unavailable-reason')).toHaveLength(1);
       for (const label of ['変数とモデル', '観測', 'モデルの採用']) expect(section(root, label)).toBeUndefined();
       expect(byClass(root, 'bb-ws-ledger')).toHaveLength(0);
       // The section title stays; nothing reads as zero items.
@@ -423,17 +431,29 @@ describe('World Model view', () => {
       const coded = Object.fromEntries(Object.keys(allUnavailable).map((path) => [path, unavailable(code)]));
       const named = await mount(coded, { unavailableNotice: { ...HOST_COPY, reasonLabels: { [code]: '組織版に現状と見通しの記録元がまだありません' } } });
       const namedText = collectText(byClass(named.root, 'bb-ws-notice')[0]);
-      expect(namedText).toContain('理由: 組織版に現状と見通しの記録元がまだありません。0件ではありません。');
+      expect(namedText).toContain('組織版に現状と見通しの記録元がまだありません');
       expect(namedText).not.toContain(code);
       // An own label only: a code that happens to name an Object method stays as it is.
       const unnamed = await mount(coded, { unavailableNotice: { ...HOST_COPY, reasonLabels: { toString: 'x' } } });
-      expect(collectText(byClass(unnamed.root, 'bb-ws-notice')[0])).toContain(`理由: ${code}。`);
+      expect(collectText(byClass(unnamed.root, 'bb-ws-notice')[0])).toContain(code);
+    });
+
+    it('keeps distinct reasons attached to their section labels without repeating the not-zero status', async () => {
+      const reasons = ['変数の読み取り元がありません', 'モデルの読み取り元がありません', '観測の読み取り元がありません', '採用の読み取り元がありません'];
+      const distinct = Object.fromEntries(Object.keys(allUnavailable).map((path, index) => [path, unavailable(reasons[index])]));
+      const { root } = await mount(distinct, { unavailableNotice: HOST_COPY });
+      const notice = byClass(root, 'bb-ws-notice')[0];
+      const items = byClass(notice, 'bb-wm-unavailable-reason');
+      expect(items).toHaveLength(4);
+      expect(items.map((item) => item.children[0].textContent)).toEqual(['変数', 'モデル', '観測', 'モデルの採用']);
+      expect(items.map((item) => item.children[1].textContent)).toEqual(reasons.map((reason) => `理由: ${reason}`));
+      expect(collectText(notice).match(/0件とは確認できません/g)).toHaveLength(1);
     });
 
     it('keeps reporting each block when only some sections are unavailable, or when the host passed no copy', async () => {
       const partial = await mount({ ...allUnavailable, '/api/world-model/adoptions': jsonResponse(500, { error: { code: 'boom', message: '読めません' } }) }, { unavailableNotice: HOST_COPY });
       expect(collectText(partial.root)).not.toContain('未接続');
-      expect(collectText(section(partial.root, 'モデルの採用'))).toContain('読み取れませんでした（読めません）。0件ではありません。');
+      expect(collectText(section(partial.root, 'モデルの採用'))).toContain('読み取れませんでした（読めません）。0件とは確認できません。');
       expect(collectText(section(partial.root, '観測'))).toContain('このホストでは読めません');
 
       const plain = await mount(allUnavailable);
