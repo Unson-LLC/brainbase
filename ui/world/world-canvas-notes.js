@@ -10,7 +10,7 @@ export function workCanvasNotes(work) {
   if (!work) return [];
   if (work.status !== 'ok') {
     const state = STATE_TEXT[work.status] ?? '読めない';
-    return [{ label: '区画の仕事', tone: 'warning', summary: `仕事：${state}（0件ではありません）`, text: `仕事は${state}。${readReasonText(work.reason) ?? '理由不明'}。仕事が0件という意味ではありません。` }];
+    return [{ label: '区画の仕事', tone: 'warning', summary: `仕事：${state}（0件とは確認できません）`, text: `仕事は${state}。${readReasonText(work.reason) ?? '理由不明'}。仕事の件数は未確認です。0件とは確認できません。` }];
   }
   const notes = [];
   for (const [key, label] of Object.entries(READ_LABELS)) {

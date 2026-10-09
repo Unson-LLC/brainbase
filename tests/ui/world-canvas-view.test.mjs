@@ -161,7 +161,7 @@ describe('World canvas source integration', () => {
   it('keeps a failed Graph visible without presenting a zero-business success', async () => {
     const app = mount({ routes: { '/api/extensions/world/businesses': response({}, 503) } });
     await waitFor(() => app.root.querySelector('.bb-world-canvas-quests').textContent.includes('事業：読めない'));
-    expect(app.root.querySelector('.bb-world-canvas-quests').textContent).toContain('0件ではありません');
+    expect(app.root.querySelector('.bb-world-canvas-quests').textContent).toContain('0件とは確認できません');
     expect(app.city().disabled).toBe(true);
   });
 

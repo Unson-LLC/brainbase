@@ -204,6 +204,242 @@ describe('outcome knowledge UI contract', () => {
     expect(collectText(detail)).toContain('rev_01JZ');
   });
 
+  it('localizes known applicability and source values while preserving raw records', () => {
+    globalThis.document = new FakeDocument();
+    const detail = new FakeElement('div');
+    const item = normalizeKnowledgeItem({
+      id: 'k-display-values',
+      title: '表示確認',
+      source: { kind: 'team_document', content_state: 'fetched' },
+      applicability: { state: 'unknown' },
+    });
+    renderKnowledgeDetail(detail, item);
+    expect(item.source.kind).toBe('team_document');
+    expect(item.applicability.state).toBe('unknown');
+    expect(collectText(detail)).toContain('チーム文書');
+    expect(collectText(detail)).toContain('未確認');
+    expect(collectText(detail)).not.toContain('team_document');
+  });
+
+  it('localizes searched scope values without changing their API values', () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    renderKnowledgeList(root, { state: 'ready', records: [], searched_scope: ['project', 'organization'] });
+    expect(collectText(root)).toContain('検索範囲: このプロジェクト / 組織共通');
+    expect(collectText(root)).not.toContain('organization');
+  });
+
+  it('gives the unselected inspector a clear next action and preserves long titles for native access', () => {
+    globalThis.document = new FakeDocument();
+    const detail = new FakeElement('div');
+    renderKnowledgeDetail(detail, null);
+    expect(collectText(detail)).toContain('一覧から知識・判断を選択');
+    expect(collectText(detail)).toContain('本文・出典・使える範囲・これまでの変更を確認できます。');
+    expect(collectText(detail)).toContain('内容を読む');
+    expect(collectText(detail)).toContain('出典と使える範囲を確かめる');
+    expect(collectText(detail)).toContain('変更の履歴を見る');
+
+    const longTitle = '初回提案では目的と判断期限を先に確認し、責任者と適用範囲を記録してから次の作業へ進む';
+    const list = new FakeElement('div');
+    renderKnowledgeList(list, {
+      state: 'ready',
+      records: [{ id: 'k-long', title: longTitle, type: 'decision', scope: 'project', lifecycle: { status: 'active' } }],
+    });
+    const row = findAll(list, 'button')[0];
+    const titleNode = findAll(row, 'span').find((node) => node.className.includes('knowledge-row-title'));
+    expect(row.attributes.title).toBe(longTitle);
+    expect(row.attributes['aria-label']).toBeUndefined();
+    expect(titleNode.attributes.title).toBe(longTitle);
+    expect(titleNode.attributes['aria-label']).toBeUndefined();
+    expect(collectText(row)).toContain('判断');
+    expect(collectText(row)).toContain('このプロジェクト');
+    expect(collectText(row)).toContain('有効');
+    expect(collectText(row)).not.toContain('org');
+    const chevron = findAll(row, 'span').find((node) => node.className.includes('knowledge-row-chevron'));
+    expect(chevron.attributes['aria-hidden']).toBe('true');
+
+    const statusOnlyDetail = new FakeElement('div');
+    renderKnowledgeDetail(statusOnlyDetail, null, { showSelectionGuide: false });
+    expect(collectText(statusOnlyDetail)).not.toContain('一覧から知識・判断を選択');
+
+    const dictionaryList = new FakeElement('div');
+    renderKnowledgeList(dictionaryList, {
+      state: 'ready',
+      records: [{ id: 'k-org', title: '組織の判断', type: 'judgment', scope: 'org', lifecycle: { status: 'active' } }],
+    });
+    expect(collectText(dictionaryList)).toContain('判断');
+    expect(collectText(dictionaryList)).toContain('組織共通');
+    expect(collectText(dictionaryList)).toContain('有効');
+    expect(collectText(dictionaryList)).not.toContain('org');
+  });
+
+  it('offers a mobile detail anchor only after a list item is selected', () => {
+    const focused = [];
+    globalThis.document = Object.assign(new FakeDocument(), {
+      getElementById: (id) => id === 'knowledge-selected-detail' ? { focus: (options) => focused.push(options) } : null,
+    });
+    const item = normalizeKnowledgeItem({ id: 'k-selected', title: '選択する知識', type: 'knowledge', scope: 'project', lifecycle: { status: 'active' } });
+    const selectedList = new FakeElement('div');
+    renderKnowledgeList(selectedList, { state: 'ready', records: [item] }, { selectedId: item.id });
+    const jump = findAll(selectedList, 'a').find((node) => node.className.includes('knowledge-detail-jump'));
+    expect(jump).toBeTruthy();
+    expect(jump.attributes.href).toBe('#knowledge-selected-detail');
+    expect(jump.attributes['aria-controls']).toBe('knowledge-selected-detail');
+    expect(collectText(jump)).toBe('選択した知識の詳細へ');
+    const selectedRow = findAll(selectedList, 'button').find((node) => node.attributes['aria-pressed'] === 'true');
+    expect(selectedRow.attributes['aria-controls']).toBe('knowledge-selected-detail');
+    expect(jump.parentNode).toBe(selectedRow.parentNode);
+    expect(selectedRow.parentNode.children.indexOf(jump)).toBe(selectedRow.parentNode.children.indexOf(selectedRow) + 1);
+    jump.dispatch('click');
+    expect(focused).toEqual([{ preventScroll: true }]);
+
+    const unselectedList = new FakeElement('div');
+    renderKnowledgeList(unselectedList, { state: 'ready', records: [item] });
+    expect(findAll(unselectedList, 'a')).toHaveLength(0);
+
+    const controllerRoot = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({
+      root: controllerRoot,
+      project: { code: 'proj-1' },
+      autoLoad: false,
+      api: async () => ({}),
+    });
+    controller.state.list = { state: 'ready', records: [item], absence_confirmed: true };
+    controller.state.selected = item;
+    controller.render();
+    const detailPane = findAll(controllerRoot, 'aside').find((node) => node.className.includes('knowledge-inspector'));
+    expect(detailPane.attributes.id).toBe('knowledge-selected-detail');
+    expect(detailPane.attributes.tabindex).toBe('-1');
+    expect(findAll(controllerRoot, 'a').some((node) => node.attributes.href === '#knowledge-selected-detail')).toBe(true);
+  });
+
+  it('loads canonical detail and history when a list row is selected', async () => {
+    globalThis.document = new FakeDocument();
+    const calls = [];
+    const root = new FakeElement('div');
+    const item = normalizeKnowledgeItem({ id: 'k-click', title: 'クリックで詳細を読む', type: 'decision', scope: 'project', lifecycle: { status: 'active' } });
+    const controller = createKnowledgeOutcomeController({
+      root,
+      project: { code: 'proj-1' },
+      autoLoad: false,
+      api: async (path) => {
+        calls.push(path);
+        if (path.endsWith('/history')) return { entries: [{ version: 'v1', reason: '初回登録' }] };
+        return { item: { ...item, content: '正本本文', version: 'v2' } };
+      },
+    });
+    controller.state.list = { state: 'ready', records: [item], absence_confirmed: true };
+    controller.render();
+    const row = findAll(root, 'button').find((node) => node.className.includes('knowledge-list-row'));
+    row.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(calls).toEqual([
+      '/api/projects/proj-1/knowledge/items/k-click',
+      '/api/projects/proj-1/knowledge/items/k-click/history',
+    ]);
+    expect(controller.state.detail.state).toBe('ready');
+    expect(controller.state.selected).toMatchObject({ id: 'k-click', content: '正本本文', version: 'v2', history: [{ version: 'v1', reason: '初回登録' }] });
+  });
+
+  it('shows detail loading and blocks lifecycle actions until canonical readback is ready', async () => {
+    globalThis.document = new FakeDocument();
+    let resolveDetail;
+    const detailResponse = new Promise((resolve) => { resolveDetail = resolve; });
+    const root = new FakeElement('div');
+    const item = normalizeKnowledgeItem({ id: 'k-loading', title: '詳細を待つ知識', type: 'decision', scope: 'project', lifecycle: { status: 'active' } });
+    const controller = createKnowledgeOutcomeController({
+      root,
+      project: { code: 'proj-1' },
+      session: { role: 'owner' },
+      autoLoad: false,
+      api: async (path) => path.endsWith('/history') ? { entries: [] } : detailResponse,
+    });
+    controller.state.list = { state: 'ready', records: [item], absence_confirmed: true };
+    controller.render();
+    const row = findAll(root, 'button').find((node) => node.className.includes('knowledge-list-row'));
+    row.dispatch('click');
+
+    expect(controller.state.detail.state).toBe('loading');
+    expect(collectText(root)).toContain('正本の詳細と履歴を読み込み中です。');
+    expect(findAll(root, 'form').some((node) => node.className.includes('knowledge-lifecycle-form'))).toBe(false);
+
+    resolveDetail({ item: { ...item, content: '正本本文', version: 'v2' } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(controller.state.detail.state).toBe('ready');
+    expect(findAll(root, 'form').some((node) => node.className.includes('knowledge-lifecycle-form'))).toBe(true);
+  });
+
+  it('shows canonical failure in the detail region and retries without exposing lifecycle mutations', async () => {
+    globalThis.document = new FakeDocument();
+    let detailAttempts = 0;
+    const root = new FakeElement('div');
+    const item = normalizeKnowledgeItem({ id: 'k-retry', title: '再試行する知識', type: 'decision', scope: 'project', lifecycle: { status: 'active' } });
+    const controller = createKnowledgeOutcomeController({
+      root,
+      project: { code: 'proj-1' },
+      session: { role: 'owner' },
+      autoLoad: false,
+      api: async (path) => {
+        if (path.endsWith('/history')) return { entries: [] };
+        detailAttempts += 1;
+        if (detailAttempts === 1) throw Object.assign(new Error('upstream_unavailable'), { code: 'upstream_unavailable' });
+        return { item: { ...item, content: '再取得した正本本文', version: 'v2' } };
+      },
+    });
+    controller.state.list = { state: 'ready', records: [item], absence_confirmed: true };
+    controller.render();
+    const row = findAll(root, 'button').find((node) => node.className.includes('knowledge-list-row'));
+    row.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(controller.state.detail.state).toBe('error_retryable');
+    expect(collectText(root)).toContain('正本の詳細を確認できないため、版の変更や失効は実行できません。');
+    expect(collectText(root)).toContain('知識APIに接続できません。入力を保持して再試行してください。');
+    expect(findAll(root, 'form').some((node) => node.className.includes('knowledge-lifecycle-form'))).toBe(false);
+
+    const detailPane = findAll(root, 'aside')[0];
+    const retry = findAll(detailPane, 'button').find((node) => collectText(node) === '再試行');
+    expect(retry).toBeTruthy();
+    retry.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(controller.state.detail.state).toBe('ready');
+    expect(controller.state.selected).toMatchObject({ content: '再取得した正本本文', version: 'v2' });
+    expect(findAll(root, 'form').some((node) => node.className.includes('knowledge-lifecycle-form'))).toBe(true);
+  });
+
+  it.each([
+    ['empty', { state: 'empty', records: [], absence_confirmed: true }],
+    ['unavailable', Object.assign(new Error('権限不足'), { status: 403, code: 'permission_denied' })],
+  ])('clears the selected inspector before a %s search result', async (_label, response) => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const stale = normalizeKnowledgeItem({ id: 'k-stale', title: '前の選択', version: 'v1', content: '前の本文', lifecycle: { status: 'active' } });
+    const controller = createKnowledgeOutcomeController({
+      root,
+      project: { code: 'proj-1' },
+      autoLoad: false,
+      api: async () => {
+        if (response instanceof Error) throw response;
+        return response;
+      },
+    });
+    controller.state.list = { state: 'ready', records: [stale], absence_confirmed: true };
+    controller.state.selected = stale;
+    controller.state.detail = { state: 'ready', item: stale };
+    controller.state.lifecycle = { state: 'ready', item: stale, revisionDraft: { content: '編集中の本文' } };
+    controller.render();
+    expect(collectText(root)).toContain('前の選択');
+
+    await controller.loadItems();
+
+    expect(controller.state.selected).toBeNull();
+    expect(controller.state.detail).toEqual({ state: 'idle' });
+    expect(controller.state.lifecycle).toEqual({ state: 'idle' });
+    expect(collectText(root)).not.toContain('前の選択');
+    expect(collectText(root)).not.toContain('編集中の本文');
+  });
+
   it('keeps natural-language input in the capture form and exposes candidate comparison', () => {
     globalThis.document = new FakeDocument();
     const captureRoot = new FakeElement('div');
@@ -364,6 +600,65 @@ describe('outcome knowledge UI contract', () => {
     expect(preview.hidden).toBe(false);
     expect(findAll(focusedBody, 'aside')).toHaveLength(1);
     expect(controller.state.view).toBe('preview');
+  });
+
+  it('shows the selection guide only when selectable records are ready and moves lifecycle detail after selection', () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({ project: { code: 'proj-1' }, root, autoLoad: false });
+    const inspectorText = () => collectText(findAll(root, 'aside')[0]);
+
+    expect(inspectorText()).not.toContain('一覧から知識・判断を選択');
+    expect(inspectorText()).not.toContain('版と失効');
+
+    controller.state.list = { state: 'ready', records: [{ id: 'k-ready', title: '選択可能な判断', type: 'decision', scope: 'project', lifecycle: { status: 'active' } }] };
+    controller.render();
+    expect(inspectorText()).toContain('一覧から知識・判断を選択');
+    expect(inspectorText()).not.toContain('版と失効');
+
+    controller.state.list = { state: 'empty', records: [] };
+    controller.render();
+    expect(inspectorText()).not.toContain('一覧から知識・判断を選択');
+    expect(collectText(root)).toContain('この条件に一致する知識はありません');
+
+    controller.state.list = { state: 'error_retryable', records: null, message: '再取得できます' };
+    controller.render();
+    expect(inspectorText()).not.toContain('一覧から知識・判断を選択');
+    expect(collectText(root)).toContain('再取得できます');
+
+    controller.state.selected = normalizeKnowledgeItem({ id: 'k-ready', title: '選択済みの判断', version: 'v1', lifecycle: { status: 'active' } });
+    controller.render();
+    expect(inspectorText()).toContain('版と失効');
+  });
+
+  it('uses Japanese region labels by default and allows hosts to override them', () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    createKnowledgeOutcomeController({
+      project: { code: 'proj-1' },
+      root,
+      autoLoad: false,
+      labels: {
+        discovery: '検索領域',
+        capture: '登録領域',
+        preview: '試験領域',
+        source: '保存先領域',
+        inspector: '詳細領域',
+        unselected: '未選択状態',
+      },
+    });
+    const rendered = collectText(root);
+    expect(rendered).toContain('検索領域');
+    expect(rendered).toContain('登録領域');
+    expect(rendered).toContain('試験領域');
+    expect(rendered).toContain('保存先領域');
+    expect(rendered).toContain('詳細領域');
+    expect(rendered).toContain('未選択状態');
+    expect(rendered).not.toContain('Discovery');
+    expect(rendered).not.toContain('Inspector');
+    expect(rendered).not.toContain('Capture');
+    expect(rendered).not.toContain('Preview');
+    expect(rendered).not.toContain('Source');
   });
 
   it('loads the confirmed project-scoped destination endpoint and treats a missing registration explicitly', async () => {

@@ -66,10 +66,65 @@ const STATE_LABELS = Object.freeze({
 const TYPE_LABELS = Object.freeze({
   fact: '事実',
   decision: '判断',
+  judgment: '判断',
+  knowledge: '知識',
   principle: '原則',
   procedure: '手順',
   term: '用語',
   policy: '方針',
+});
+
+const SCOPE_LABELS = Object.freeze({
+  project: 'このプロジェクト',
+  organization: '組織共通',
+  org: '組織共通',
+  all: 'すべて',
+  personal: '個人',
+});
+
+const LIFECYCLE_STATUS_LABELS = Object.freeze({
+  active: '有効',
+  inactive: '無効',
+  retired: '失効',
+  superseded: '置換済み',
+  draft: '下書き',
+  candidate: '未確定候補',
+});
+
+const SOURCE_KIND_LABELS = Object.freeze({
+  team_document: 'チーム文書',
+  document: '文書',
+  doc: '文書',
+  meeting: '会議',
+  repository: 'リポジトリ',
+  url: 'Webページ',
+  fixture: '検証用データ',
+});
+
+const APPLICABILITY_STATE_LABELS = Object.freeze({
+  unknown: '未確認',
+  conditional: '条件付き',
+  always: '常時適用',
+  unconditional: '常時適用',
+  applicable: '適用',
+  not_applicable: '対象外',
+});
+
+/**
+ * Generic labels for the knowledge workspace. Hosts may override these
+ * labels, but the shared UI remains usable without organization-specific
+ * wording.
+ */
+export const KNOWLEDGE_UI_LABELS = Object.freeze({
+  discovery: '探す',
+  capture: '登録案',
+  preview: '公開前テスト',
+  source: '保存先',
+  inspector: '選択中の知識',
+  selected: '選択中',
+  unselected: '未選択',
+  emptyInspectorTitle: '一覧から知識・判断を選択',
+  emptyInspectorDescription: '本文・出典・使える範囲・これまでの変更を確認できます。',
 });
 
 function getDocument() {
@@ -102,6 +157,11 @@ function clear(parent) {
   return parent;
 }
 
+function focusKnowledgeDetail() {
+  const detail = globalThis.document?.getElementById?.('knowledge-selected-detail');
+  detail?.focus?.({ preventScroll: true });
+}
+
 function text(value, fallback = UNKNOWN) {
   if (value === null || value === undefined) return fallback;
   if (typeof value === 'string') return value.trim() || fallback;
@@ -114,6 +174,14 @@ function optionalText(value) {
   return typeof value === 'string' ? value : String(value);
 }
 
+function resolveKnowledgeUiLabels(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return Object.fromEntries(Object.entries(KNOWLEDGE_UI_LABELS).map(([key, fallback]) => {
+    const candidate = optionalText(source[key]).trim();
+    return [key, candidate || fallback];
+  }));
+}
+
 function asArray(value) {
   return Array.isArray(value) ? value : null;
 }
@@ -121,6 +189,26 @@ function asArray(value) {
 function typeLabel(value) {
   const normalized = optionalText(value).toLowerCase();
   return TYPE_LABELS[normalized] ?? text(value);
+}
+
+function scopeLabel(value) {
+  const normalized = optionalText(value).trim().toLowerCase();
+  return SCOPE_LABELS[normalized] ?? text(value);
+}
+
+function lifecycleStatusLabel(value) {
+  const normalized = optionalText(value).trim().toLowerCase();
+  return LIFECYCLE_STATUS_LABELS[normalized] ?? text(value);
+}
+
+function sourceKindLabel(value) {
+  const normalized = optionalText(value).trim().toLowerCase();
+  return SOURCE_KIND_LABELS[normalized] ?? text(value);
+}
+
+function applicabilityStateLabel(value) {
+  const normalized = optionalText(value).trim().toLowerCase();
+  return APPLICABILITY_STATE_LABELS[normalized] ?? text(value);
 }
 
 function stateLabel(value) {
@@ -472,7 +560,7 @@ function renderSource(parent, source) {
     ? makeElement('a', { className: 'knowledge-source-link', text: source.pointer, attrs: { href: pointer, target: '_blank', rel: 'noopener noreferrer' } })
     : makeElement('span', { className: 'knowledge-source-link', text: source?.pointer || UNKNOWN });
   append(section, renderDefinitionList(makeElement('div'), [
-    ['種別', text(source?.kind)],
+    ['種別', sourceKindLabel(source?.kind)],
     ['本文', source?.state === 'fetched' ? '取得済み' : source?.state === 'pointer_only' ? '参照先のみ（本文未取得）' : '本文取得状態未確認'],
   ]));
   const pointerRow = makeElement('p', { className: 'knowledge-source-pointer' });
@@ -494,11 +582,11 @@ export function renderDiscoveryFilters(root, filters = {}, callbacks = {}) {
   const queryLabel = makeElement('label', { text: 'キーワード' });
   const query = makeElement('input', { className: 'knowledge-control', value: filters.q ?? filters.query ?? '', attrs: { type: 'search', name: 'q', maxlength: '200', placeholder: 'タイトル・要旨を検索' } });
   queryLabel.append(query);
-  const scopeLabel = makeElement('label', { text: '範囲' });
+  const scopeFieldLabel = makeElement('label', { text: '範囲' });
   const scope = makeElement('select', { className: 'knowledge-control', attrs: { name: 'scope' } });
-  for (const [value, label] of [['project', 'このプロジェクト'], ['organization', '組織から継承'], ['all', '両方']]) append(scope, makeElement('option', { text: label, value, attrs: { value, ...(filters.scope === value ? { selected: 'selected' } : {}) } }));
+  for (const value of ['project', 'organization', 'all']) append(scope, makeElement('option', { text: scopeLabel(value), value, attrs: { value, ...(filters.scope === value ? { selected: 'selected' } : {}) } }));
   scope.value = filters.scope || 'all';
-  scopeLabel.append(scope);
+  scopeFieldLabel.append(scope);
   const statusLabel = makeElement('label', { text: '状態' });
   const status = makeElement('select', { className: 'knowledge-control', attrs: { name: 'status' } });
   for (const [value, label] of [['active', '有効'], ['inactive', '失効を含む'], ['all', 'すべて']]) append(status, makeElement('option', { text: label, value, attrs: { value, ...(filters.status === value ? { selected: 'selected' } : {}) } }));
@@ -506,7 +594,7 @@ export function renderDiscoveryFilters(root, filters = {}, callbacks = {}) {
   statusLabel.append(status);
   const submit = makeElement('button', { className: 'knowledge-button primary', text: '探す', attrs: { type: 'submit' } });
   const reset = makeElement('button', { className: 'knowledge-button secondary', text: '条件をクリア', attrs: { type: 'button' } });
-  append(form, queryLabel, scopeLabel, statusLabel, makeElement('div', { className: 'knowledge-filter-actions' }));
+  append(form, queryLabel, scopeFieldLabel, statusLabel, makeElement('div', { className: 'knowledge-filter-actions' }));
   form.lastChild.append(submit, reset);
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -525,10 +613,13 @@ export function renderDiscoveryFilters(root, filters = {}, callbacks = {}) {
 export function renderKnowledgeList(root, model = {}, callbacks = {}) {
   clear(root);
   const collection = model.records === undefined && (model.items || model.results || model.state) ? normalizeKnowledgeCollection(model) : model;
+  const searchedScope = Array.isArray(collection.searched_scope) && collection.searched_scope.length
+    ? collection.searched_scope.map(scopeLabel).join(' / ')
+    : null;
   const section = makeElement('section', { className: 'knowledge-list-panel', attrs: { 'aria-labelledby': 'knowledge-list-title' } });
   const header = makeElement('div', { className: 'knowledge-panel-head' });
   append(header, makeElement('div', {},), makeElement('span', { className: 'knowledge-count', text: Array.isArray(collection.records) ? `${collection.records.length}件` : UNKNOWN }));
-  header.firstChild.append(makeElement('h3', { text: '知識・判断', attrs: { id: 'knowledge-list-title' } }), makeElement('p', { text: collection.searched_scope ? `検索範囲: ${collection.searched_scope.join(' / ')}` : '検索範囲: 未確認' }));
+  header.firstChild.append(makeElement('h3', { text: '知識・判断', attrs: { id: 'knowledge-list-title' } }), makeElement('p', { text: searchedScope ? `検索範囲: ${searchedScope}` : '検索範囲: 未確認' }));
   section.append(header);
   const state = normaliseStatus(collection.state);
   if (state === 'loading') {
@@ -545,18 +636,37 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
     section.append(statusNotice({ state: 'unknown', detail: '結果の有無を確認できません。空の一覧とは扱いません。' }, { retry: true, onRetry: callbacks.onRetry }));
   } else {
     const rows = makeElement('div', { className: 'knowledge-list-rows' });
+    const hasSelectedId = callbacks.selectedId !== undefined && callbacks.selectedId !== null;
     if (!collection.records.length) rows.append(makeElement('div', { className: 'knowledge-empty', text: '検索結果を確認できません。空の一覧とは扱いません。' }));
     for (const item of collection.records) {
-      const row = makeElement('button', { className: 'knowledge-list-row', attrs: { type: 'button', 'aria-pressed': String(item.id === callbacks.selectedId) } });
       const title = item.title ? text(item.title) : 'タイトル未確認';
-      append(row,
-        makeElement('span', { className: 'knowledge-row-title', text: title }),
+      const row = makeElement('button', { className: 'knowledge-list-row', attrs: { type: 'button', 'aria-pressed': String(item.id === callbacks.selectedId), 'aria-controls': 'knowledge-selected-detail', title } });
+      const main = makeElement('span', { className: 'knowledge-row-main' });
+      const meta = makeElement('span', { className: 'knowledge-row-meta' });
+      append(meta,
         makeElement('span', { className: 'knowledge-row-type', text: item.type ? typeLabel(item.type) : UNKNOWN }),
-        makeElement('span', { className: 'knowledge-row-scope', text: item.scope ? text(item.scope) : UNKNOWN }),
-        makeElement('span', { className: 'knowledge-row-state', text: item.lifecycle.status !== UNKNOWN ? text(item.lifecycle.status) : UNKNOWN }),
+        makeElement('span', { className: 'knowledge-row-scope', text: item.scope ? scopeLabel(item.scope) : UNKNOWN }),
+        makeElement('span', { className: 'knowledge-row-state', text: item.lifecycle.status !== UNKNOWN ? lifecycleStatusLabel(item.lifecycle.status) : UNKNOWN }),
+      );
+      append(main,
+        makeElement('span', { className: 'knowledge-row-title', text: title, attrs: { title } }),
+        meta,
+      );
+      append(row,
+        main,
+        makeElement('span', { className: 'knowledge-row-chevron', text: '›', attrs: { 'aria-hidden': 'true' } }),
       );
       row.addEventListener('click', () => callbacks.onSelect?.(item));
       rows.append(row);
+      if (hasSelectedId && item.id === callbacks.selectedId) {
+        const jump = makeElement('a', {
+          className: 'knowledge-detail-jump',
+          text: '選択した知識の詳細へ',
+          attrs: { href: '#knowledge-selected-detail', 'aria-controls': 'knowledge-selected-detail' },
+        });
+        jump.addEventListener('click', () => focusKnowledgeDetail());
+        rows.append(jump);
+      }
     }
     section.append(rows);
   }
@@ -566,9 +676,41 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
 
 export function renderKnowledgeDetail(root, item, callbacks = {}) {
   clear(root);
-  const section = makeElement('section', { className: 'knowledge-detail-panel', attrs: { 'aria-labelledby': 'knowledge-detail-title' } });
+  const labels = resolveKnowledgeUiLabels(callbacks.labels);
+  const showSelectionGuide = callbacks.showSelectionGuide !== false;
+  const detailState = callbacks.detailState === undefined
+    ? (item ? 'ready' : 'idle')
+    : normaliseStatus(callbacks.detailState?.state ?? callbacks.detailState);
+  const hasDetailHeading = (detailState === 'ready' && Boolean(item))
+    || (!item && showSelectionGuide);
+  const section = makeElement('section', {
+    className: `knowledge-detail-panel${!item && showSelectionGuide ? ' knowledge-detail-panel-empty' : ''}`,
+    attrs: hasDetailHeading ? { 'aria-labelledby': 'knowledge-detail-title' } : { 'aria-label': '知識の詳細' },
+  });
+  if (detailState === 'loading') {
+    section.append(makeElement('p', { className: 'knowledge-inline-status', text: '正本の詳細と履歴を読み込み中です。', attrs: { role: 'status' } }));
+    root.append(section);
+    return section;
+  }
+  if (['error', 'error_retryable', 'permission_denied', 'unknown'].includes(detailState)) {
+    section.append(statusNotice(callbacks.detailState, { retry: Boolean(callbacks.onRetry), onRetry: callbacks.onRetry }));
+    section.append(makeElement('p', { className: 'knowledge-warning-copy', text: '正本の詳細を確認できないため、版の変更や失効は実行できません。' }));
+    root.append(section);
+    return section;
+  }
   if (!item) {
-    append(section, makeElement('h3', { text: '詳細', attrs: { id: 'knowledge-detail-title' } }), makeElement('p', { className: 'knowledge-detail-empty', text: '一覧から知識を選ぶと、由来・適用範囲・履歴を確認できます。' }));
+    if (showSelectionGuide) {
+      const guide = makeElement('section', { className: 'knowledge-selection-guide', attrs: { 'aria-labelledby': 'knowledge-selection-guide-title' } });
+      append(guide,
+        makeElement('h3', { text: labels.emptyInspectorTitle, attrs: { id: 'knowledge-detail-title' } }),
+        makeElement('p', { className: 'knowledge-detail-empty', text: labels.emptyInspectorDescription }),
+        makeElement('h4', { text: '選択すると確認できること', attrs: { id: 'knowledge-selection-guide-title' } }),
+      );
+      const guideItems = makeElement('ul', { className: 'knowledge-selection-guide-list' });
+      for (const label of ['内容を読む', '出典と使える範囲を確かめる', '変更の履歴を見る']) guideItems.append(makeElement('li', { text: label }));
+      guide.append(guideItems);
+      section.append(guide);
+    }
     root.append(section);
     return section;
   }
@@ -581,10 +723,10 @@ export function renderKnowledgeDetail(root, item, callbacks = {}) {
   renderDefinitionList(section, [
     ['正本ID', item.id ? text(item.id) : UNKNOWN],
     ['版', item.version !== null && item.version !== undefined && String(item.version).trim() !== '' ? String(item.version) : UNKNOWN],
-    ['範囲', item.scope ? text(item.scope) : UNKNOWN],
+    ['範囲', item.scope ? scopeLabel(item.scope) : UNKNOWN],
     ['責任者', ownerValue(item.owner)],
-    ['有効状態', item.lifecycle.status],
-    ['適用', item.applicability.state ? text(item.applicability.state) : UNKNOWN],
+    ['有効状態', lifecycleStatusLabel(item.lifecycle.status)],
+    ['適用', item.applicability.state ? applicabilityStateLabel(item.applicability.state) : UNKNOWN],
     ['発効', displayDateTime(item.lifecycle.effective_at)],
     ['失効', displayDateTime(item.lifecycle.expires_at)],
     ['更新', displayDateTime(item.updated_at)],
@@ -822,7 +964,7 @@ export function renderLifecycle(root, item, callbacks = {}) {
   const section = makeElement('section', { className: 'knowledge-lifecycle-panel', attrs: { 'aria-labelledby': 'knowledge-lifecycle-title' } });
   append(section, makeElement('h3', { text: '版と失効', attrs: { id: 'knowledge-lifecycle-title' } }), makeElement('p', { text: '改訂・置換・失効は履歴を残し、正本のreadback確認後に状態を更新します。' }));
   if (!item) { section.append(makeElement('p', { text: '対象の判断を選択してください。' })); root.append(section); return section; }
-  renderDefinitionList(section, [['現在の版', item.version !== null && item.version !== undefined ? String(item.version) : UNKNOWN], ['状態', item.lifecycle?.status ?? UNKNOWN], ['正本ID', item.id ? text(item.id) : UNKNOWN]]);
+  renderDefinitionList(section, [['現在の版', item.version !== null && item.version !== undefined ? String(item.version) : UNKNOWN], ['状態', lifecycleStatusLabel(item.lifecycle?.status)], ['正本ID', item.id ? text(item.id) : UNKNOWN]]);
   const canEdit = callbacks.canEdit !== false && (typeof callbacks.canEdit !== 'function' || callbacks.canEdit(item));
   const actions = makeElement('div', { className: 'knowledge-lifecycle-actions' });
   if (canEdit && callbacks.onRevision) {
@@ -1053,11 +1195,15 @@ function defaultCandidateBody(values, context = {}) {
  *   project code; only a `true` result shows the registration form. Without
  *   it, the form follows `canManageKnowledge(session)`. Revision,
  *   supersession, and retirement always follow `canManageKnowledge`.
+ * @param {Partial<typeof KNOWLEDGE_UI_LABELS>} [options.labels]
+ *   Optional host labels for the workspace regions. Unspecified labels use
+ *   the generic Japanese defaults.
  */
 export function createKnowledgeOutcomeController(options = {}) {
   const { root, api, apiMutation, project, session, onStateChange, onCommitted, onRetired, resolveDecisionDomain, serializeDraftInput, serializeCandidate, serializeRevision, serializeRetire, serializePreview } = options;
   if (!root || typeof root.replaceChildren !== 'function') throw new Error('knowledge_root_unavailable');
   const code = projectCodeOf(project);
+  const labels = resolveKnowledgeUiLabels(options.labels);
   const canEditDestination = () => (typeof options.canEditDestination === 'function'
     ? options.canEditDestination((typeof session === 'function' ? session() : session) ?? null, code ?? null) === true
     : canManageKnowledge(session));
@@ -1082,6 +1228,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     authority: { state: 'loading', domains: null },
     destination: { state: 'unknown', registration: null, draft: {}, message: '保存先APIの契約を確認できていません。' },
   };
+  let selectionGeneration = 0;
 
   function resumeUrl(draftId) {
     const location = options.location ?? globalThis.location;
@@ -1121,20 +1268,20 @@ export function createKnowledgeOutcomeController(options = {}) {
     const discoveryHeader = makeElement('div', { className: 'knowledge-view-heading' });
     append(discoveryHeader,
       makeElement('div', {},),
-      makeElement('span', { className: 'knowledge-view-kicker', text: 'Discovery' }),
+      makeElement('span', { className: 'knowledge-view-kicker', text: labels.discovery }),
     );
-    discoveryHeader.firstChild.append(makeElement('h3', { id: 'knowledge-discovery-title', text: '知識・判断を探す' }), makeElement('p', { text: '検索結果を選ぶと、右側に正本とライフサイクルを表示します。' }));
+    discoveryHeader.firstChild.append(makeElement('h3', { id: 'knowledge-discovery-title', text: '知識・判断を探す' }), makeElement('p', { text: '選んだ知識の本文・出典・履歴を確認できます。' }));
     discovery.append(discoveryHeader);
     const filters = makeElement('div', { className: 'knowledge-filter-region knowledge-discovery-toolbar' });
     renderDiscoveryFilters(filters, state.filters, { onChange: (next) => { state.filters = next; void loadItems(); }, });
     discovery.append(filters);
     const list = makeElement('div', { className: 'knowledge-discovery-list' });
-    renderKnowledgeList(list, state.list, { selectedId: state.selected?.id, onSelect: (item) => { state.selected = item; state.detail = { state: 'ready', item }; state.lifecycle = { state: 'ready', item }; render(); }, onRetry: () => loadItems() });
+    renderKnowledgeList(list, state.list, { labels, selectedId: state.selected?.id, onSelect: (item) => { void selectItem(item); }, onRetry: () => loadItems() });
     discovery.append(list);
     primary.append(discovery);
     const captureWorkspace = makeElement('section', { className: 'knowledge-focused-view knowledge-capture-view', hidden: state.view !== 'capture', attrs: { 'aria-labelledby': 'knowledge-capture-workspace-title' } });
     const captureHeading = makeElement('div', { className: 'knowledge-view-heading' });
-    append(captureHeading, makeElement('div', {},), makeElement('span', { className: 'knowledge-view-kicker', text: 'Capture' }));
+    append(captureHeading, makeElement('div', {},), makeElement('span', { className: 'knowledge-view-kicker', text: labels.capture }));
     captureHeading.firstChild.append(makeElement('h3', { id: 'knowledge-capture-workspace-title', text: '登録案を作る' }), makeElement('p', { text: '自然文を候補へ整理し、正本へ保存する前に内容と根拠を確認します。' }));
     captureWorkspace.append(captureHeading);
     const capture = makeElement('div', { className: 'knowledge-capture-form-region' });
@@ -1154,7 +1301,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     primary.append(captureWorkspace);
     const preview = makeElement('section', { className: 'knowledge-focused-view knowledge-preview-view', hidden: state.view !== 'preview', attrs: { 'aria-labelledby': 'knowledge-preview-workspace-title' } });
     const previewHeading = makeElement('div', { className: 'knowledge-view-heading' });
-    append(previewHeading, makeElement('div', {},), makeElement('span', { className: 'knowledge-view-kicker', text: 'Preview' }));
+    append(previewHeading, makeElement('div', {},), makeElement('span', { className: 'knowledge-view-kicker', text: labels.preview }));
     previewHeading.firstChild.append(makeElement('h3', { id: 'knowledge-preview-workspace-title', text: '公開前テスト' }), makeElement('p', { text: '隔離した質問で候補の使われ方と根拠を確認します。' }));
     preview.append(previewHeading);
     const previewContent = makeElement('div', { className: 'knowledge-preview-content' });
@@ -1163,7 +1310,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     primary.append(preview);
     const destination = makeElement('section', { className: 'knowledge-focused-view knowledge-destination-view', hidden: state.view !== 'destination', attrs: { 'aria-labelledby': 'knowledge-destination-workspace-title' } });
     const destinationHeading = makeElement('div', { className: 'knowledge-view-heading' });
-    append(destinationHeading, makeElement('div', {},), makeElement('span', { className: 'knowledge-view-kicker', text: 'Source' }));
+    append(destinationHeading, makeElement('div', {},), makeElement('span', { className: 'knowledge-view-kicker', text: labels.source }));
     destinationHeading.firstChild.append(makeElement('h3', { id: 'knowledge-destination-workspace-title', text: '知識文書の保存先' }), makeElement('p', { text: '正本ドキュメントの場所を登録し、保存後の状態を再取得して確認します。' }));
     destination.append(destinationHeading);
     const destinationContent = makeElement('div', { className: 'knowledge-destination-content' });
@@ -1175,21 +1322,40 @@ export function createKnowledgeOutcomeController(options = {}) {
     destination.append(destinationContent);
     primary.append(destination);
     body.append(primary);
-    const detail = makeElement('aside', { className: 'knowledge-outcome-detail knowledge-inspector', attrs: { 'aria-label': '選択した知識の詳細' } });
+    const detail = makeElement('aside', {
+      className: 'knowledge-outcome-detail knowledge-inspector',
+      attrs: {
+        'aria-label': labels.inspector,
+        id: 'knowledge-selected-detail',
+        tabindex: '-1',
+      },
+    });
     const inspectorHeading = makeElement('div', { className: 'knowledge-inspector-heading' });
-    append(inspectorHeading, makeElement('span', { className: 'knowledge-view-kicker', text: 'Inspector' }), makeElement('span', { className: 'knowledge-inspector-state', text: state.selected ? '選択中' : '未選択' }));
+    append(inspectorHeading, makeElement('span', { className: 'knowledge-view-kicker', text: labels.inspector }), makeElement('span', { className: 'knowledge-inspector-state', text: state.selected ? labels.selected : labels.unselected }));
     detail.append(inspectorHeading);
     const detailContent = makeElement('div', { className: 'knowledge-inspector-detail' });
-    renderKnowledgeDetail(detailContent, state.selected, { onPreview: (item) => { state.preview = { state: 'idle', question: '', context: '', item_id: item.id, candidate_version: item.version, item_version: item.version }; state.view = 'preview'; render(); } });
+    const hasSelectableKnowledge = normaliseStatus(state.list.state) === 'ready' && Array.isArray(state.list.records) && state.list.records.length > 0;
+    renderKnowledgeDetail(detailContent, state.selected, {
+      labels,
+      detailState: state.detail,
+      showSelectionGuide: Boolean(state.selected) || hasSelectableKnowledge,
+      onRetry: state.selected ? () => void selectItem(state.selected.id) : null,
+      onPreview: (item) => { state.preview = { state: 'idle', question: '', context: '', item_id: item.id, candidate_version: item.version, item_version: item.version }; state.view = 'preview'; render(); },
+    });
     detail.append(detailContent);
     const lifecycle = makeElement('div', { className: 'knowledge-inspector-lifecycle' });
-    renderLifecycle(lifecycle, state.selected, { canEdit: canManageKnowledge(session), ownerCandidates, revisionDraft: state.lifecycle.revisionDraft, supersessionDraft: state.lifecycle.supersessionDraft, supersessionCandidates: state.list.records, onRevision: reviseItem, onSupersede: supersedeItem, onRetire: retireItem }); detail.append(lifecycle);
+    const detailUnavailable = ['loading', 'error', 'error_retryable', 'permission_denied', 'unknown'].includes(state.detail.state);
+    if (state.selected && !detailUnavailable) renderLifecycle(lifecycle, state.selected, { canEdit: canManageKnowledge(session), ownerCandidates, revisionDraft: state.lifecycle.revisionDraft, supersessionDraft: state.lifecycle.supersessionDraft, supersessionCandidates: state.list.records, onRevision: reviseItem, onSupersede: supersedeItem, onRetire: retireItem }); detail.append(lifecycle);
     if (state.commit.state !== 'idle') { const commit = makeElement('div'); renderCommitState(commit, state.commit, { onReadback: state.commit.pending_save ? retryPendingSave : readbackCommit }); detail.append(commit); }
     body.append(detail); shell.append(body); root.append(shell); notify();
     return shell;
   }
 
   async function loadItems() {
+    selectionGeneration += 1;
+    state.selected = null;
+    state.detail = { state: 'idle' };
+    state.lifecycle = { state: 'idle' };
     state.list = { ...state.list, state: 'loading' }; render();
     try { state.list = normalizeKnowledgeCollection(await callKnowledgeApi(api, buildKnowledgeItemsPath(code, state.filters))); }
     catch (error) { state.list = { state: error.code === 'permission_denied' || error.status === 403 ? 'permission_denied' : 'error_retryable', records: null, message: apiErrorText(error), error: error.code }; }
@@ -1251,17 +1417,26 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function selectItem(itemOrId) {
+    const requestGeneration = ++selectionGeneration;
     const id = typeof itemOrId === 'object' ? itemOrId?.id : itemOrId;
     const listItem = typeof itemOrId === 'object' ? itemOrId : state.list.records?.find((item) => item.id === id);
-    state.selected = listItem ?? null; state.detail = { state: 'loading' }; render();
-    if (!id) { state.detail = { state: 'unknown', message: '正本IDを確認できません。' }; render(); return null; }
+    state.selected = listItem ?? null; state.detail = { state: 'loading' }; state.lifecycle = { state: 'idle' }; render();
+    if (!id) {
+      if (requestGeneration !== selectionGeneration) return null;
+      state.detail = { state: 'unknown', message: '正本IDを確認できません。' }; render(); return null;
+    }
     try {
       const payload = await callKnowledgeApi(api, knowledgePath(code, `${KNOWLEDGE_ROUTES.items}/${encodeURIComponent(id)}`));
+      if (requestGeneration !== selectionGeneration) return null;
       const historyPayload = await callKnowledgeApi(api, knowledgePath(code, `${KNOWLEDGE_ROUTES.items}/${encodeURIComponent(id)}/${KNOWLEDGE_ROUTES.history}`));
+      if (requestGeneration !== selectionGeneration) return null;
       const item = normalizeKnowledgeItem(payload?.item ?? payload?.record ?? payload?.data ?? payload) ?? listItem;
       if (item) item.history = Array.isArray(historyPayload?.entries) ? historyPayload.entries : null;
       state.selected = item; state.detail = { state: 'ready', item }; state.lifecycle = { state: 'ready', item }; render(); return item;
-    } catch (error) { state.detail = { state: error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code }; render(); return null; }
+    } catch (error) {
+      if (requestGeneration !== selectionGeneration) return null;
+      state.detail = { state: error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code }; render(); return null;
+    }
   }
 
   async function createDraft(input) {

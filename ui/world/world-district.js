@@ -754,7 +754,7 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
     notice.hidden = !showChrome || !open || !noticeVisible;
     if (!readable) {
       const reason = work?.status === 'ok' ? work.reads.tasks.reason ?? work.reads.tasks.state : work?.reason ?? work?.status ?? '理由不明';
-      notice.textContent = `仕事の記録を読めないため、区画の中は霧で見えません（${reason}）。仕事が0件という意味ではありません。`;
+      notice.textContent = `仕事の記録を読めないため、区画の中は霧で見えません（${reason}）。仕事の件数は未確認です。0件とは確認できません。`;
     }
     home = { target: new THREE.Vector3(0, 0, -1.5), position: new THREE.Vector3(14, 30, gateZ + 24) };
   }
