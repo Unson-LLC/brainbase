@@ -326,6 +326,20 @@ describe('judgment history projection', () => {
     view.dispose();
   });
 
+  it('does not assert absence when an empty complete response lacks its total', async () => {
+    const root = new FakeElement('div');
+    const view = createJudgmentHistoryUI({
+      root, document: new FakeDocument(), autoLoad: false, now: OWNER_NOW,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => normalHome([], {
+        coverage: { complete: true, total: null },
+      }) }),
+    });
+    await view.load();
+    expect(collectText(root)).toContain('0件とは確認できません');
+    expect(collectText(root)).not.toContain('この期間の判断履歴はありません。');
+    view.dispose();
+  });
+
   it('filters malformed normal collection entries while preserving the missing and partial state', () => {
     const malformed = normalRecord({
       judgment: {

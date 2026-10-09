@@ -1729,8 +1729,8 @@ export function createJudgmentHistoryUI({
       { label: 'そこで使った参照', value: metricCount(stats.references, '件'), note: '代理判断に含まれる一意の参照' },
       { label: '判断回数にすると', value: metricCount(stats.equivalent, '回分相当'), note: '代理判断1件を1回分として表示' },
     ], { ariaLabel: '判断履歴の集計' }));
-    const emptyText = state.home?.status === 'partial'
-      ? 'この期間に取得できた判断履歴はありません。未接続・一部取得のため0件とは確認できません。'
+    const emptyText = state.home?.status === 'partial' || (normalMode() && !aggregate.countComplete)
+      ? 'この期間に取得できた判断履歴はありません。全件数が未確認のため0件とは確認できません。'
       : 'この期間の判断履歴はありません。';
     wrapper.append(workspaceLedger(doc, {
       className: 'bb-jh-ledger',
