@@ -57,6 +57,12 @@ export interface CanonicalTaskContext extends JsonRecord {
   storageScope?: string;
 }
 
+/** Conditions to review; this metadata is not evidence of completion. */
+export interface CanonicalTaskCompletionContract {
+  goal: string;
+  criteria: Array<{ id: string; condition: string }>;
+}
+
 export interface CanonicalTaskRecord extends JsonRecord {
   id: string;
   version: number;
@@ -74,12 +80,14 @@ export interface CanonicalTaskRecord extends JsonRecord {
   project_codes?: string[];
   /** What the work is for, in a few words (one per task); null when unlabelled. */
   purpose_label?: string | null;
+  completion_contract?: CanonicalTaskCompletionContract | null;
   created_at?: string | null;
   updated_at?: string | null;
   web_url?: string | null;
 }
 
 export interface CanonicalTaskCreateInput extends JsonRecord {
+  completion_contract?: unknown;
   title: string;
   description?: string | null;
   priority?: CanonicalTaskPriority | string | null;
@@ -93,6 +101,7 @@ export interface CanonicalTaskCreateInput extends JsonRecord {
 }
 
 export interface CanonicalTaskUpdateInput extends JsonRecord {
+  completion_contract?: unknown;
   title?: string;
   description?: string | null;
   priority?: CanonicalTaskPriority | string | null;
@@ -287,6 +296,7 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 const RESERVED_IDEMPOTENCY_PREFIXES = ['api:', 'workflow:'];
 const CREATE_FIELDS = new Set([
+  'completion_contract',
   'title',
   'description',
   'priority',
@@ -299,6 +309,7 @@ const CREATE_FIELDS = new Set([
   'purpose_label',
 ]);
 const MUTABLE_FIELDS = new Set([
+  'completion_contract',
   'expected_version',
   'title',
   'description',
@@ -352,6 +363,38 @@ function normalizeString(
 const MAX_PURPOSE_LABEL_LENGTH = 30;
 function normalizePurposeLabel(value: unknown): string | null {
   return normalizeString(value, 'purpose_label', { max: MAX_PURPOSE_LABEL_LENGTH });
+}
+
+function normalizeCompletionContract(value: unknown): CanonicalTaskCompletionContract | null {
+  if (value == null) return null;
+  const object = (candidate: unknown, keys: string[]): JsonRecord => {
+    if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)
+      || ![Object.prototype, null].includes(Object.getPrototypeOf(candidate))
+      || Object.keys(candidate).some((key) => !keys.includes(key))) {
+      fail('validation_error', 'completion_contract contains an invalid object');
+    }
+    return candidate as JsonRecord;
+  };
+  const text = (candidate: unknown, field: string): string => {
+    if (typeof candidate !== 'string') fail('validation_error', `${field} must be a string`);
+    return normalizeString(candidate, field, { required: true, max: 2000, multiline: true }) as string;
+  };
+  const contract = object(value, ['goal', 'criteria']);
+  const goal = text(contract.goal, 'completion_contract.goal');
+  if (!Array.isArray(contract.criteria) || contract.criteria.length < 1 || contract.criteria.length > 50) {
+    fail('validation_error', 'completion_contract.criteria must contain 1 to 50 conditions');
+  }
+  const ids = new Set<string>();
+  const criteria = Array.from(contract.criteria, (candidate) => {
+    const criterion = object(candidate, ['id', 'condition']);
+    if (typeof criterion.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/u.test(criterion.id)
+      || ids.has(criterion.id)) {
+      fail('validation_error', 'completion_contract criterion id is invalid or duplicated');
+    }
+    ids.add(criterion.id);
+    return { id: criterion.id, condition: text(criterion.condition, 'completion_contract.criteria.condition') };
+  });
+  return { goal, criteria };
 }
 
 function normalizeIsoDate(value: unknown, field: string): string | null {
@@ -946,7 +989,9 @@ export class CanonicalTaskService {
     const priority = input.priority == null || input.priority === '' ? 'medium' : String(input.priority);
     if (!isCanonicalTaskPriority(priority)) fail('validation_error', 'priority is invalid', 400, { field: 'priority' });
     const purposeLabel = normalizePurposeLabel(input.purpose_label);
+    const completionContract = normalizeCompletionContract(input.completion_contract);
     return {
+      ...(completionContract ? { completion_contract: completionContract } : {}),
       title,
       description: normalizeString(input.description, 'description', { max: 10000, multiline: true }),
       priority,
@@ -966,6 +1011,7 @@ export class CanonicalTaskService {
     const unknownFields = Object.keys(input).filter((field) => !MUTABLE_FIELDS.has(field));
     if (unknownFields.length > 0) fail('validation_error', 'Task update contains unsupported fields', 400, { fields: unknownFields });
     const patch: JsonRecord = {};
+    if ('completion_contract' in input) patch.completion_contract = normalizeCompletionContract(input.completion_contract);
     if ('title' in input) patch.title = normalizeString(input.title, 'title', { required: true, max: MAX_TITLE_LENGTH });
     if ('description' in input) patch.description = normalizeString(input.description, 'description', { max: 10000, multiline: true });
     if ('priority' in input) {
@@ -1166,6 +1212,11 @@ export class CanonicalTaskService {
     if (response.source_refs === undefined) response.source_refs = [];
     if (response.project_codes === undefined) response.project_codes = [];
     if (response.purpose_label === undefined) response.purpose_label = null;
+    try {
+      response.completion_contract = normalizeCompletionContract(response.completion_contract);
+    } catch {
+      fail('task_store_invalid', 'Stored Task completion contract is invalid', 503);
+    }
     return response;
   }
 }
