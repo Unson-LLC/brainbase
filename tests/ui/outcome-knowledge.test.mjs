@@ -342,6 +342,72 @@ describe('outcome knowledge UI contract', () => {
     expect(controller.state.selected).toMatchObject({ id: 'k-click', content: '正本本文', version: 'v2', history: [{ version: 'v1', reason: '初回登録' }] });
   });
 
+  it('shows detail loading and blocks lifecycle actions until canonical readback is ready', async () => {
+    globalThis.document = new FakeDocument();
+    let resolveDetail;
+    const detailResponse = new Promise((resolve) => { resolveDetail = resolve; });
+    const root = new FakeElement('div');
+    const item = normalizeKnowledgeItem({ id: 'k-loading', title: '詳細を待つ知識', type: 'decision', scope: 'project', lifecycle: { status: 'active' } });
+    const controller = createKnowledgeOutcomeController({
+      root,
+      project: { code: 'proj-1' },
+      session: { role: 'owner' },
+      autoLoad: false,
+      api: async (path) => path.endsWith('/history') ? { entries: [] } : detailResponse,
+    });
+    controller.state.list = { state: 'ready', records: [item], absence_confirmed: true };
+    controller.render();
+    const row = findAll(root, 'button').find((node) => node.className.includes('knowledge-list-row'));
+    row.dispatch('click');
+
+    expect(controller.state.detail.state).toBe('loading');
+    expect(collectText(root)).toContain('正本の詳細と履歴を読み込み中です。');
+    expect(findAll(root, 'form').some((node) => node.className.includes('knowledge-lifecycle-form'))).toBe(false);
+
+    resolveDetail({ item: { ...item, content: '正本本文', version: 'v2' } });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(controller.state.detail.state).toBe('ready');
+    expect(findAll(root, 'form').some((node) => node.className.includes('knowledge-lifecycle-form'))).toBe(true);
+  });
+
+  it('shows canonical failure in the detail region and retries without exposing lifecycle mutations', async () => {
+    globalThis.document = new FakeDocument();
+    let detailAttempts = 0;
+    const root = new FakeElement('div');
+    const item = normalizeKnowledgeItem({ id: 'k-retry', title: '再試行する知識', type: 'decision', scope: 'project', lifecycle: { status: 'active' } });
+    const controller = createKnowledgeOutcomeController({
+      root,
+      project: { code: 'proj-1' },
+      session: { role: 'owner' },
+      autoLoad: false,
+      api: async (path) => {
+        if (path.endsWith('/history')) return { entries: [] };
+        detailAttempts += 1;
+        if (detailAttempts === 1) throw Object.assign(new Error('upstream_unavailable'), { code: 'upstream_unavailable' });
+        return { item: { ...item, content: '再取得した正本本文', version: 'v2' } };
+      },
+    });
+    controller.state.list = { state: 'ready', records: [item], absence_confirmed: true };
+    controller.render();
+    const row = findAll(root, 'button').find((node) => node.className.includes('knowledge-list-row'));
+    row.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(controller.state.detail.state).toBe('error_retryable');
+    expect(collectText(root)).toContain('正本の詳細を確認できないため、版の変更や失効は実行できません。');
+    expect(collectText(root)).toContain('知識APIに接続できません。入力を保持して再試行してください。');
+    expect(findAll(root, 'form').some((node) => node.className.includes('knowledge-lifecycle-form'))).toBe(false);
+
+    const detailPane = findAll(root, 'aside')[0];
+    const retry = findAll(detailPane, 'button').find((node) => collectText(node) === '再試行');
+    expect(retry).toBeTruthy();
+    retry.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(controller.state.detail.state).toBe('ready');
+    expect(controller.state.selected).toMatchObject({ content: '再取得した正本本文', version: 'v2' });
+    expect(findAll(root, 'form').some((node) => node.className.includes('knowledge-lifecycle-form'))).toBe(true);
+  });
+
   it.each([
     ['empty', { state: 'empty', records: [], absence_confirmed: true }],
     ['unavailable', Object.assign(new Error('権限不足'), { status: 403, code: 'permission_denied' })],

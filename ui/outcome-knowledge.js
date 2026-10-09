@@ -678,10 +678,26 @@ export function renderKnowledgeDetail(root, item, callbacks = {}) {
   clear(root);
   const labels = resolveKnowledgeUiLabels(callbacks.labels);
   const showSelectionGuide = callbacks.showSelectionGuide !== false;
+  const detailState = callbacks.detailState === undefined
+    ? (item ? 'ready' : 'idle')
+    : normaliseStatus(callbacks.detailState?.state ?? callbacks.detailState);
+  const hasDetailHeading = (detailState === 'ready' && Boolean(item))
+    || (!item && showSelectionGuide);
   const section = makeElement('section', {
     className: `knowledge-detail-panel${!item && showSelectionGuide ? ' knowledge-detail-panel-empty' : ''}`,
-    attrs: !item && !showSelectionGuide ? { 'aria-label': '知識の詳細' } : { 'aria-labelledby': 'knowledge-detail-title' },
+    attrs: hasDetailHeading ? { 'aria-labelledby': 'knowledge-detail-title' } : { 'aria-label': '知識の詳細' },
   });
+  if (detailState === 'loading') {
+    section.append(makeElement('p', { className: 'knowledge-inline-status', text: '正本の詳細と履歴を読み込み中です。', attrs: { role: 'status' } }));
+    root.append(section);
+    return section;
+  }
+  if (['error', 'error_retryable', 'permission_denied', 'unknown'].includes(detailState)) {
+    section.append(statusNotice(callbacks.detailState, { retry: Boolean(callbacks.onRetry), onRetry: callbacks.onRetry }));
+    section.append(makeElement('p', { className: 'knowledge-warning-copy', text: '正本の詳細を確認できないため、版の変更や失効は実行できません。' }));
+    root.append(section);
+    return section;
+  }
   if (!item) {
     if (showSelectionGuide) {
       const guide = makeElement('section', { className: 'knowledge-selection-guide', attrs: { 'aria-labelledby': 'knowledge-selection-guide-title' } });
@@ -1319,10 +1335,17 @@ export function createKnowledgeOutcomeController(options = {}) {
     detail.append(inspectorHeading);
     const detailContent = makeElement('div', { className: 'knowledge-inspector-detail' });
     const hasSelectableKnowledge = normaliseStatus(state.list.state) === 'ready' && Array.isArray(state.list.records) && state.list.records.length > 0;
-    renderKnowledgeDetail(detailContent, state.selected, { labels, showSelectionGuide: Boolean(state.selected) || hasSelectableKnowledge, onPreview: (item) => { state.preview = { state: 'idle', question: '', context: '', item_id: item.id, candidate_version: item.version, item_version: item.version }; state.view = 'preview'; render(); } });
+    renderKnowledgeDetail(detailContent, state.selected, {
+      labels,
+      detailState: state.detail,
+      showSelectionGuide: Boolean(state.selected) || hasSelectableKnowledge,
+      onRetry: state.selected ? () => void selectItem(state.selected.id) : null,
+      onPreview: (item) => { state.preview = { state: 'idle', question: '', context: '', item_id: item.id, candidate_version: item.version, item_version: item.version }; state.view = 'preview'; render(); },
+    });
     detail.append(detailContent);
     const lifecycle = makeElement('div', { className: 'knowledge-inspector-lifecycle' });
-    if (state.selected) renderLifecycle(lifecycle, state.selected, { canEdit: canManageKnowledge(session), ownerCandidates, revisionDraft: state.lifecycle.revisionDraft, supersessionDraft: state.lifecycle.supersessionDraft, supersessionCandidates: state.list.records, onRevision: reviseItem, onSupersede: supersedeItem, onRetire: retireItem }); detail.append(lifecycle);
+    const detailUnavailable = ['loading', 'error', 'error_retryable', 'permission_denied', 'unknown'].includes(state.detail.state);
+    if (state.selected && !detailUnavailable) renderLifecycle(lifecycle, state.selected, { canEdit: canManageKnowledge(session), ownerCandidates, revisionDraft: state.lifecycle.revisionDraft, supersessionDraft: state.lifecycle.supersessionDraft, supersessionCandidates: state.list.records, onRevision: reviseItem, onSupersede: supersedeItem, onRetire: retireItem }); detail.append(lifecycle);
     if (state.commit.state !== 'idle') { const commit = makeElement('div'); renderCommitState(commit, state.commit, { onReadback: state.commit.pending_save ? retryPendingSave : readbackCommit }); detail.append(commit); }
     body.append(detail); shell.append(body); root.append(shell); notify();
     return shell;
