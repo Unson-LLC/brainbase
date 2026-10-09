@@ -79,6 +79,10 @@
       "types": "./dist/embedding-provider.d.ts",
       "import": "./dist/embedding-provider.js"
     },
+    "./graph-embedding-provider": {
+      "types": "./dist/graph-embedding-provider.d.ts",
+      "import": "./dist/graph-embedding-provider.js"
+    },
     "./graph-revision-reader": {
       "types": "./dist/graph-revision-reader.d.ts",
       "import": "./dist/graph-revision-reader.js"
