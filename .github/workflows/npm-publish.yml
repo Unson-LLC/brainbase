@@ -73,7 +73,7 @@ jobs:
         run: git checkout --detach "$RELEASE_SHA"
       - name: Install release dependencies
         if: ${{ steps.target.outputs.release_required == 'true' }}
-        run: npm ci
+        run: npm ci --ignore-scripts
       - name: Validate release without publication credential
         if: ${{ steps.target.outputs.release_required == 'true' }}
         run: >-
@@ -95,6 +95,43 @@ jobs:
       - name: Record skipped release
         if: ${{ steps.target.outputs.release_required != 'true' }}
         run: echo "npm publish skipped because package version did not increase" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize failed or cancelled release validation
+        if: ${{ always() && (failure() || cancelled()) }}
+        env:
+          RELEASE_VERSION: ${{ steps.target.outputs.version }}
+          RELEASE_SHA: ${{ steps.target.outputs.sha }}
+          PROOF_FILE: ${{ runner.temp }}/npm-release-validation.json
+          ARTIFACT_FILE: ${{ runner.temp }}/unson-brainbase-mcp-${{ steps.target.outputs.version }}.tgz
+        run: |
+          release_version="${RELEASE_VERSION:-unknown}"
+          release_sha="${RELEASE_SHA:-unknown}"
+          proof_file="${PROOF_FILE:-unknown}"
+          artifact_file="${ARTIFACT_FILE:-unknown}"
+          proof_state='unknown'
+          artifact_state='unknown'
+          if [ "$proof_file" != 'unknown' ] && [ -f "$proof_file" ]; then
+            proof_state='present'
+            if command -v jq >/dev/null 2>&1; then
+              proof_artifact=$(jq -r '.tarballPath // empty' "$proof_file" 2>/dev/null || true)
+              if [ -n "$proof_artifact" ]; then artifact_file="$proof_artifact"; fi
+            fi
+          fi
+          if [ "$release_version" = 'unknown' ]; then
+            artifact_file='unknown (release version unavailable)'
+          elif [ -f "$artifact_file" ]; then
+            artifact_state='present'
+          fi
+          {
+            echo '## npm release validation failure/cancellation summary'
+            echo
+            echo '- Protection: immutable release SHA, package artifact, validation proof, and trusted ref are checked before publication.'
+            echo "- Target: version \`$release_version\`, SHA \`$release_sha\`."
+            echo "- Proof: \`$proof_file\` ($proof_state); artifact: \`$artifact_file\` ($artifact_state)."
+            echo "- Reproduce: \`npm ci --ignore-scripts && node scripts/npm-release.mjs validate --version $release_version --sha $release_sha --trusted-ref origin/develop --proof-file $proof_file\`."
+            echo '- Expected: validation produces the proof and tarball consumed by the publish job; publication is skipped when no version increase is required.'
+            echo '- Unknown: inspect the failed step; artifact publication, npm readback, and GitHub Release state require separate confirmation.'
+          } >> "$GITHUB_STEP_SUMMARY"
 
   publish:
     needs: validate
@@ -157,3 +194,40 @@ jobs:
           else
             gh release create "v${VERSION}" --target "$RELEASE_SHA" --title "Brainbase MCP ${VERSION}" --generate-notes
           fi
+
+      - name: Summarize failed or cancelled publication
+        if: ${{ always() && (failure() || cancelled()) }}
+        env:
+          RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          RELEASE_SHA: ${{ needs.validate.outputs.sha }}
+          PROOF_FILE: ${{ runner.temp }}/npm-release/npm-release-validation.json
+          ARTIFACT_FILE: ${{ runner.temp }}/npm-release/unson-brainbase-mcp-${{ needs.validate.outputs.version }}.tgz
+        run: |
+          release_version="${RELEASE_VERSION:-unknown}"
+          release_sha="${RELEASE_SHA:-unknown}"
+          proof_file="${PROOF_FILE:-unknown}"
+          artifact_file="${ARTIFACT_FILE:-unknown}"
+          proof_state='unknown'
+          artifact_state='unknown'
+          if [ "$proof_file" != 'unknown' ] && [ -f "$proof_file" ]; then
+            proof_state='present'
+            if command -v jq >/dev/null 2>&1; then
+              proof_artifact=$(jq -r '.tarballPath // empty' "$proof_file" 2>/dev/null || true)
+              if [ -n "$proof_artifact" ]; then artifact_file="$proof_artifact"; fi
+            fi
+          fi
+          if [ "$release_version" = 'unknown' ]; then
+            artifact_file='unknown (release version unavailable)'
+          elif [ -f "$artifact_file" ]; then
+            artifact_state='present'
+          fi
+          {
+            echo '## npm publication failure/cancellation summary'
+            echo
+            echo '- Protection: only the validated immutable artifact is published with provenance, then npm and GitHub Release state are read back.'
+            echo "- Target: version \`$release_version\`, SHA \`$release_sha\`."
+            echo "- Proof: \`$proof_file\` ($proof_state); artifact: \`$artifact_file\` ($artifact_state)."
+            echo "- Reproduce preflight: \`npm ci --ignore-scripts && node scripts/npm-release.mjs validate --version $release_version --sha $release_sha --trusted-ref origin/develop --proof-file $proof_file\`."
+            echo '- Expected: the publish job consumes the transferred proof and tarball and verifies the published release identity.'
+            echo '- Unknown: npm registry and GitHub Release state are unconfirmed until their readback commands succeed; do not retry publication blindly.'
+          } >> "$GITHUB_STEP_SUMMARY"

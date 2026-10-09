@@ -63,10 +63,7 @@ jobs:
           test -s "$RUNNER_TEMP/public-message-candidate.json"
 
       - name: Install dependencies
-        run: npm ci
-
-      - name: Build package
-        run: npm run build
+        run: npm ci --ignore-scripts
 
       - name: Create dry-run promotion plan
         run: >-
@@ -163,3 +160,15 @@ jobs:
             --head "$BRANCH_NAME" \
             --title "docs: promote public message ${CANDIDATE_ID}" \
             --body-file "$RUNNER_TEMP/pr-body.md"
+
+      - name: Summarize failed or cancelled promotion
+        if: ${{ always() && (failure() || cancelled()) }}
+        run: |
+          {
+            echo '## Public-message promotion failure/cancellation summary'
+            echo
+            echo '- Protection: candidate identity, source approval, generated-path boundary, docs contracts, build, and smoke checks precede review PR creation.'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run docs:promotion:plan -- --candidate <candidate-json> --expected-candidate-id <candidate-id>`; then apply, docs:check, docs:build, and docs:smoke.'
+            echo '- Expected: only an approved review PR is created; this workflow does not merge or deploy.'
+            echo '- Unknown: inspect the failed step; generated files, branch, and PR state require separate readback before retrying.'
+          } >> "$GITHUB_STEP_SUMMARY"

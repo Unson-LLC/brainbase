@@ -795,8 +795,20 @@
         "started_at": "2026-10-09",
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-ci-impact-based-verification",
+        "title": "変更対象に応じたCI検証とリリース証明を両立する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": null,
+        "period": null,
+        "started_at": null,
+        "due_at": null,
+        "contract_type": null
       }
     ],
-    "current_story_id": "story-meeting-source-connection-sync-v1"
+    "current_story_id": "story-ci-impact-based-verification"
   }
 }
