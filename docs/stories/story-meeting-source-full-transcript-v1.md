@@ -1,9 +1,9 @@
 ---
 story_id: story-meeting-source-full-transcript-v1
 title: Plaud・Tactiqの会議を、途中で切れない全文として読み出せる
-status: planned
+status: active
 created_at: 2026-10-09
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 development_mode: SIMPLIFICATION
 depends_on: []
