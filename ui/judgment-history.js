@@ -606,7 +606,9 @@ function aggregateNormalJudgmentHistory(home, { now = new Date(), period = PERIO
       confirmedOutcomes: null,
     },
     visibleCount: 0,
-    totalCount: home.coverage?.total ?? (home.coverage?.complete === true && home.records.length === 0 ? 0 : null),
+    retrievedCount: 0,
+    countComplete: false,
+    totalCount: home.status === 'available' && home.coverage?.complete === true ? nonNegativeInteger(home.coverage?.total) : null,
     period: normalizedPeriod(period),
     query: text(query),
     status: home.status,
@@ -660,7 +662,10 @@ function aggregateNormalJudgmentHistory(home, { now = new Date(), period = PERIO
     }
   }
   const metricsUnconfirmed = home.status === 'partial' && rows.length === 0;
-  const judgments = metricsUnconfirmed ? null : rows.length;
+  // A page length is a retrieved count, never proof of the whole range.
+  const countComplete = home.status === 'available' && home.coverage?.complete === true
+    && nonNegativeInteger(home.coverage?.total) !== null && !needle;
+  const judgments = countComplete ? home.coverage.total : null;
   const referenceCount = metricsUnconfirmed || referencesUnconfirmed ? null : references.size;
   const confirmedOutcomes = metricsUnconfirmed
     ? null
@@ -680,7 +685,9 @@ function aggregateNormalJudgmentHistory(home, { now = new Date(), period = PERIO
       confirmedOutcomes,
     },
     visibleCount: rows.length,
-    totalCount: home.coverage?.total ?? (home.coverage?.complete === true && home.records.length === 0 ? 0 : null),
+    retrievedCount: rows.length,
+    countComplete,
+    totalCount: home.status === 'available' && home.coverage?.complete === true ? nonNegativeInteger(home.coverage?.total) : null,
   };
 }
 
@@ -1328,7 +1335,7 @@ function paginationControls(doc, aggregate, onNext) {
   const total = aggregate?.totalCount;
   if (!pagination?.hasNext && total === null) return null;
   const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-pagination' });
-  const count = total === null ? '同じ範囲の件数は未確認' : `同じ範囲の件数: ${total}件`;
+  const count = total === null ? '同じ範囲の件数は未確認' : `${aggregate.query ? '検索前の全件数' : '同じ範囲の件数'}: ${total}件`;
   wrap.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-pagination-count', text: count }));
   if (pagination?.hasNext) {
     wrap.append(workspaceButton(doc, { text: '次のページ', variant: 'quiet', onClick: onNext, attrs: { 'data-action': 'next-page' } }));
@@ -1709,7 +1716,12 @@ export function createJudgmentHistoryUI({
     const stats = aggregate.stats ?? {};
     const metricCount = (value, suffix) => value === null || value === undefined ? '未確認' : `${value}${suffix}`;
     wrapper.append(workspaceMetrics(doc, normalMode() ? [
-      { label: '判断件数', value: metricCount(stats.judgments, '件'), note: 'この期間・絞り込みの履歴' },
+      {
+        label: aggregate.query ? '表示対象' : aggregate.countComplete ? '判断件数' : '取得済み',
+        value: metricCount(aggregate.countComplete ? stats.judgments : aggregate.retrievedCount, '件'),
+        note: aggregate.countComplete ? 'この期間・絞り込みの全件数'
+          : aggregate.query ? '取得済み履歴の検索結果・全件数未確認' : '全件数未確認',
+      },
       { label: '使った参照', value: metricCount(stats.references, '件'), note: '当時の記録にある一意の参照' },
       { label: '確認済みの結果', value: metricCount(stats.confirmedOutcomes, '件'), note: '成果が確認済みと記録された判断' },
     ] : [
