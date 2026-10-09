@@ -284,6 +284,62 @@ describe('judgment history projection', () => {
     expect(result.stats).toEqual(expect.objectContaining({ judgments: 2, references: null, confirmedOutcomes: 1 }));
   });
 
+  it('keeps retrieved records separate from authoritative normal totals', () => {
+    const records = Array.from({ length: 5 }, (_, index) => normalRecord({ record_id: `count-${index}` }));
+    const partial = aggregateJudgmentHistory(normalHome(records, {
+      status: 'partial', coverage: { complete: false, total: null },
+    }), { now: OWNER_NOW });
+    expect(partial.stats.judgments).toBeNull();
+    expect(partial.retrievedCount).toBe(5);
+    expect(partial.countComplete).toBe(false);
+    const complete = aggregateJudgmentHistory(normalHome(records, {
+      coverage: { complete: true, total: 20 },
+      pagination: { next_cursor: 'next', has_next: true, limit: 5 },
+    }), { now: OWNER_NOW });
+    expect(complete.stats.judgments).toBe(20);
+    expect(complete.retrievedCount).toBe(5);
+    expect(complete.countComplete).toBe(true);
+    const searched = aggregateJudgmentHistory(normalHome(records, {
+      coverage: { complete: true, total: 20 },
+    }), { now: OWNER_NOW, query: '既存' });
+    expect(searched.stats.judgments).toBeNull();
+    expect(searched.countComplete).toBe(false);
+    const unknownEmpty = aggregateJudgmentHistory(normalHome([], {
+      coverage: { complete: true, total: null },
+    }), { now: OWNER_NOW });
+    expect(unknownEmpty.totalCount).toBeNull();
+    expect(unknownEmpty.stats.judgments).toBeNull();
+  });
+
+  it.each([0, 5])('labels a partial normal read of %i rows without claiming a total', async (count) => {
+    const root = new FakeElement('div');
+    const view = createJudgmentHistoryUI({
+      root, document: new FakeDocument(), autoLoad: false, now: OWNER_NOW,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => normalHome(
+        Array.from({ length: count }, (_, index) => normalRecord({ record_id: `partial-count-${index}` })),
+        { status: 'partial', coverage: { complete: false, total: null } },
+      ) }),
+    });
+    await view.load();
+    expect(collectText(root)).toContain(`取得済み${count}件全件数未確認`);
+    if (count === 0) expect(collectText(root)).toContain('0件とは確認できません');
+    view.dispose();
+  });
+
+  it('does not assert absence when an empty complete response lacks its total', async () => {
+    const root = new FakeElement('div');
+    const view = createJudgmentHistoryUI({
+      root, document: new FakeDocument(), autoLoad: false, now: OWNER_NOW,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => normalHome([], {
+        coverage: { complete: true, total: null },
+      }) }),
+    });
+    await view.load();
+    expect(collectText(root)).toContain('0件とは確認できません');
+    expect(collectText(root)).not.toContain('この期間の判断履歴はありません。');
+    view.dispose();
+  });
+
   it('filters malformed normal collection entries while preserving the missing and partial state', () => {
     const malformed = normalRecord({
       judgment: {
@@ -777,6 +833,7 @@ describe('judgment history UI', () => {
       now: OWNER_NOW,
     });
     await view.load();
+    expect(collectText(root)).toContain('判断件数2件この期間・絞り込みの全件数');
     const nextButton = findAll(root, (node) => node.attributes['data-action'] === 'next-page')[0];
     expect(nextButton).toBeTruthy();
     nextButton.listeners.get('click')();
