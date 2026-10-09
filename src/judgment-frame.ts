@@ -100,12 +100,28 @@ export interface JudgmentFrameSelection {
   readonly why: string;
 }
 
+export type JudgmentFramePredictionCheckStatus = 'held' | 'failed' | 'unchecked';
+
+/**
+ * How a world-model prediction was checked against data (ADR-014). The check is
+ * structural: whether the evidence really shows the result is not judged.
+ */
+export interface JudgmentFramePredictionCheck {
+  /** What observation would show the prediction wrong. */
+  readonly falsified_if: string;
+  readonly status: JudgmentFramePredictionCheckStatus;
+  /** Where the check was done. Required for held and failed. */
+  readonly evidence?: string;
+}
+
 export interface JudgmentFrameUse {
   readonly ref: string;
   readonly role: JudgmentFrameRole;
   readonly note: string;
   /** Required for constraint uses: how the option stands against the philosophy. */
   readonly verdict?: JudgmentFrameConstraintVerdict;
+  /** Optional for prediction uses only. */
+  readonly check?: JudgmentFramePredictionCheck;
 }
 
 export interface JudgmentFrameOption {
@@ -138,7 +154,8 @@ export type JudgmentFrameIssueCode =
   | 'frame_verdict_missing'
   | 'frame_selection_unused'
   | 'frame_chosen_unknown'
-  | 'frame_public_invalid';
+  | 'frame_public_invalid'
+  | 'frame_check_invalid';
 
 export interface JudgmentFrameIssue {
   readonly code: JudgmentFrameIssueCode;
@@ -152,7 +169,9 @@ export type JudgmentFrameEscalationCode =
   | 'chosen_violates_philosophy'
   | 'chosen_philosophy_tension'
   /** The chosen option predicts with a world model refuted at its current revision (F5, F6). */
-  | 'chosen_uses_refuted_model';
+  | 'chosen_uses_refuted_model'
+  /** The chosen option relies on a prediction that was checked against data and failed. */
+  | 'chosen_relies_on_failed_prediction';
 
 export interface JudgmentFrameEscalation {
   readonly code: JudgmentFrameEscalationCode;
@@ -343,6 +362,42 @@ export function renderJudgmentFrameCatalog(
   return lines.join('\n');
 }
 
+const PREDICTION_CHECK_STATUSES: readonly JudgmentFramePredictionCheckStatus[] = ['held', 'failed', 'unchecked'];
+const MAX_CHECK_EVIDENCE = 800;
+
+function predictionCheckProblem(value: unknown, role: unknown): string | null {
+  if (role !== 'prediction') return 'check is only for prediction uses';
+  if (!isRecord(value) || Object.keys(value).some((key) => !['falsified_if', 'status', 'evidence'].includes(key))) {
+    return 'check takes falsified_if, status, and evidence';
+  }
+  if (!nonEmpty(value.falsified_if, MAX_NOTE)) return 'check.falsified_if must say what observation would show the prediction wrong';
+  if (!PREDICTION_CHECK_STATUSES.includes(value.status as JudgmentFramePredictionCheckStatus)) {
+    return 'check.status must be held, failed, or unchecked';
+  }
+  if (value.evidence === undefined) {
+    return value.status === 'unchecked' ? null : 'a held or failed check needs evidence of where it was checked';
+  }
+  if (!nonEmpty(value.evidence, MAX_CHECK_EVIDENCE)) return `check.evidence must be at most ${MAX_CHECK_EVIDENCE} characters`;
+  for (const text of [value.falsified_if, value.evidence]) {
+    if (typeof text === 'string' && (PUBLIC_FRAME_CONTROL_CHARACTERS.test(text) || containsJudgmentFrameCredential(text))) {
+      return 'check contains control characters or a credential-like value';
+    }
+  }
+  return null;
+}
+
+/** Counts of the chosen option's predictions by check status. A prediction without a check is unchecked. */
+export function judgmentFramePredictionCheckCounts(record: JudgmentFrameRecord): { held: number; failed: number; unchecked: number } {
+  const chosen = record.options.find((option) => option.label === record.chosen_option);
+  const predictions = (chosen?.uses ?? []).filter((use) => use.role === 'prediction');
+  const status = (use: JudgmentFrameUse) => use.check?.status ?? 'unchecked';
+  return {
+    held: predictions.filter((use) => status(use) === 'held').length,
+    failed: predictions.filter((use) => status(use) === 'failed').length,
+    unchecked: predictions.filter((use) => status(use) === 'unchecked').length,
+  };
+}
+
 /**
  * Check that a frame record only uses catalog references and that every
  * selection is used in at least one option with the role of its kind.
@@ -458,6 +513,13 @@ export function validateJudgmentFrameRecord(
         issue('frame_verdict_missing', `${usePath}.verdict`, 'a constraint use needs verdict satisfied, violated, or tension');
         return;
       }
+      if (use.check !== undefined) {
+        const problem = predictionCheckProblem(use.check, use.role);
+        if (problem) {
+          issue('frame_check_invalid', `${usePath}.check`, problem);
+          return;
+        }
+      }
       used.add(use.ref);
     });
   });
@@ -488,6 +550,11 @@ export function validateJudgmentFrameRecord(
         && selected.get(String(use.ref)) === 'model' && (outcomes.get(String(use.ref))?.refutes ?? 0) > 0)
       .map((use) => String(use.ref)))];
     if (refuted.length > 0) escalations.push({ code: 'chosen_uses_refuted_model', refs: refuted });
+    const failed = [...new Set(chosenUses
+      .filter((use): use is Record<string, unknown> => isRecord(use) && use.role === 'prediction'
+        && isRecord(use.check) && use.check.status === 'failed')
+      .map((use) => String(use.ref)))];
+    if (failed.length > 0) escalations.push({ code: 'chosen_relies_on_failed_prediction', refs: failed });
   }
   return { valid: issues.length === 0, issues, escalations };
 }
@@ -506,6 +573,17 @@ const frameUseSchema = {
     role: { type: 'string', enum: ['constraint', 'criterion', 'prediction'] },
     note: { type: 'string', minLength: 1, maxLength: MAX_NOTE },
     verdict: { type: 'string', enum: ['satisfied', 'violated', 'tension'], description: 'Required when role is constraint.' },
+    check: {
+      type: 'object',
+      additionalProperties: false,
+      description: 'Only for prediction uses: what observation would show the prediction wrong, and whether it was checked against data. held and failed need evidence. A chosen option that relies on a failed prediction returns the choice to the human.',
+      properties: {
+        falsified_if: { type: 'string', minLength: 1, maxLength: MAX_NOTE },
+        status: { type: 'string', enum: ['held', 'failed', 'unchecked'] },
+        evidence: { type: 'string', minLength: 1, maxLength: 800 },
+      },
+      required: ['falsified_if', 'status'],
+    },
   },
   required: ['ref', 'role', 'note'],
 };
@@ -692,6 +770,7 @@ export async function handleJudgmentFrameToolCall(
       option_count: (args.options as unknown[]).length,
       chosen_option: args.chosen_option,
       escalations: validation.escalations,
+      prediction_checks: judgmentFramePredictionCheckCounts(args as unknown as JudgmentFrameRecord),
       ...(args.public_frame === undefined ? {} : {
         public_frame: {
           ...(args.public_frame as JudgmentFramePublicFrame),

@@ -130,6 +130,7 @@ describe('判断の枠組みのMCPツール', () => {
         option_count: 1,
         chosen_option: 'アーキテクチャ変更だけ承認を戻す',
         escalations: [],
+        prediction_checks: { held: 0, failed: 0, unchecked: 1 },
         digest: expect.stringMatching(/^sha256:[a-f0-9]{64}$/),
       },
     });
