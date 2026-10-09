@@ -788,15 +788,15 @@
         "story_id": "story-meeting-source-connection-sync-v1",
         "title": "同じサービスの複数のアカウントを、接続ごとに分かれた認証・読んだ位置・状態で同期できる",
         "ssot": "local",
-        "status": "planned",
+        "status": "active",
         "horizon": null,
         "view": null,
         "period": null,
-        "started_at": null,
+        "started_at": "2026-10-09",
         "due_at": null,
         "contract_type": null
       }
     ],
-    "current_story_id": "story-meeting-source-full-transcript-v1"
+    "current_story_id": "story-meeting-source-connection-sync-v1"
   }
 }

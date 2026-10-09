@@ -235,6 +235,45 @@ export async function readProviderSummary(input: {
   }
 }
 
+export type MeetingSourceTranscriptProbe =
+  | { status: 'readable'; segmentCount: number }
+  | { status: 'unavailable'; failure: MeetingSourceFailure };
+
+/**
+ * Reads only the first transcript page, to check that the connection may read
+ * full transcripts. A Tactiq probe spends one read of the hourly budget.
+ */
+export async function probeTranscript(input: {
+  provider: MeetingSourceProvider;
+  callTool: MeetingSourceCallTool;
+  meetingId: string;
+  budget?: TactiqTranscriptBudget;
+  now?: () => Date;
+}): Promise<MeetingSourceTranscriptProbe> {
+  const now = input.now ?? (() => new Date());
+  if (input.provider === 'tactiq') {
+    const slot = (input.budget ?? createTactiqTranscriptBudget()).tryAcquire(input.meetingId, now());
+    if (!slot.ok) {
+      return {
+        status: 'unavailable',
+        failure: { reason: 'rate_limited', scope: 'connection', message: 'Tactiq transcript read limit reached for this hour', retryAt: slot.retryAt },
+      };
+    }
+  }
+  try {
+    if (input.provider === 'plaud') {
+      const payload = asRecord(await invoke(input.callTool, 'get_transcript', { file_id: input.meetingId, block: 'transaction', limit: 10 }));
+      if (!payload || !Array.isArray(payload.segments)) throw new UnexpectedShapeError('Plaud get_transcript returned no segments');
+      return { status: 'readable', segmentCount: payload.segments.length };
+    }
+    const payload = asRecord(await invoke(input.callTool, 'get_transcript', { meetingId: input.meetingId, page: 1 }));
+    if (!payload || !Array.isArray(payload.entries)) throw new UnexpectedShapeError('Tactiq get_transcript returned no entries');
+    return { status: 'readable', segmentCount: payload.entries.length };
+  } catch (error) {
+    return { status: 'unavailable', failure: await classifyFailure(error, input.provider, input.callTool, 'meeting', now()) };
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Plaud
 

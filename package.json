@@ -1,6 +1,6 @@
 {
   "name": "@unson/brainbase-mcp",
-  "version": "0.24.1",
+  "version": "0.25.0",
   "description": "Local-first Brainbase judgment OS that lets supported AI agents reuse a user's approved goals, priorities, decisions, and judgment criteria.",
   "type": "module",
   "license": "MIT",
@@ -134,6 +134,10 @@
     "./meeting-minutes-lineage-adapters": {
       "types": "./dist/meeting-minutes-lineage-adapters.d.ts",
       "import": "./dist/meeting-minutes-lineage-adapters.js"
+    },
+    "./meeting-source-connection": {
+      "types": "./dist/meeting-source-connection.d.ts",
+      "import": "./dist/meeting-source-connection.js"
     },
     "./meeting-source-reader": {
       "types": "./dist/meeting-source-reader.d.ts",
