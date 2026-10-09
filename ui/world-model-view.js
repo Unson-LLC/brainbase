@@ -145,7 +145,7 @@ export function normalizeWorldModelSection(section, payload) {
 
 function unreadableMessage(unreadable) {
   const reasons = unreadable.codes.map((code) => UNREADABLE_LABELS[code] ?? code).join('、');
-  return `読めない記録が${unreadable.count}件あります${reasons ? `（${reasons}）` : ''}。読めた記録だけを表示しています。`;
+  return `記録件数は未確認です。0件とは確認できません。読めない記録が${unreadable.count}件あります${reasons ? `（${reasons}）` : ''}。読めた記録だけを表示しています。`;
 }
 
 function refLabel(ref, names) {

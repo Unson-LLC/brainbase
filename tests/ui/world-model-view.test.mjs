@@ -373,6 +373,27 @@ describe('World Model view', () => {
     expect(ledgerTable(section(root, '観測'))[1][1]).toBe('6観測「observation-2」で訂正済み');
   });
 
+  it('states that the total is unconfirmed when unreadable records accompany empty or partial results', async () => {
+    const adoption = {
+      adoptionId: 'adoption-partial',
+      modelRef: { id: 'model.meetings', type: 'model', revision: '2' },
+      candidate: { candidateId: 'c-partial', hypothesis: '会議が増えると深い仕事が減る', evidenceIds: [], acl, epistemicState: 'hypothesis' },
+      adoptionState: 'proposed',
+      authorizedUse: 'judgment',
+    };
+    const { root, view } = await mount({
+      '/api/world-model/variables': jsonResponse(200, variablesPayload),
+      '/api/world-model/models': jsonResponse(200, { records: [], absence_confirmed: false, unreadable: { count: 1, codes: ['authorization_denied'] } }),
+      '/api/world-model/observations': jsonResponse(200, observationsPayload),
+      '/api/world-model/adoptions': jsonResponse(200, { adoptions: [adoption], absence_confirmed: false, unreadable: { count: 1, codes: ['scope_violation'] } }),
+    });
+
+    expect(view.state.models).toMatchObject({ state: 'unknown', items: null, unreadable: { count: 1 } });
+    expect(collectText(section(root, '変数とモデル'))).toContain('記録件数は未確認です。0件とは確認できません。');
+    expect(collectText(section(root, 'モデルの採用'))).toContain('記録件数は未確認です。0件とは確認できません。');
+    expect(collectText(section(root, 'モデルの採用'))).toContain('読めた記録だけを表示しています。');
+  });
+
   it('treats a missing array or malformed record as invalid, not empty', () => {
     expect(normalizeWorldModelSection('variables', { state: 'ready' })).toMatchObject({ state: 'invalid', items: null });
     expect(normalizeWorldModelSection('observations', { observations: [{ id: 'x' }], absence_confirmed: true })).toMatchObject({ state: 'invalid' });

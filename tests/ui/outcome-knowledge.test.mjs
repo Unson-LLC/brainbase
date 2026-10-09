@@ -274,17 +274,24 @@ describe('outcome knowledge UI contract', () => {
   });
 
   it('offers a mobile detail anchor only after a list item is selected', () => {
-    globalThis.document = new FakeDocument();
+    const focused = [];
+    globalThis.document = Object.assign(new FakeDocument(), {
+      getElementById: (id) => id === 'knowledge-selected-detail' ? { focus: (options) => focused.push(options) } : null,
+    });
     const item = normalizeKnowledgeItem({ id: 'k-selected', title: '選択する知識', type: 'knowledge', scope: 'project', lifecycle: { status: 'active' } });
     const selectedList = new FakeElement('div');
     renderKnowledgeList(selectedList, { state: 'ready', records: [item] }, { selectedId: item.id });
     const jump = findAll(selectedList, 'a').find((node) => node.className.includes('knowledge-detail-jump'));
     expect(jump).toBeTruthy();
     expect(jump.attributes.href).toBe('#knowledge-selected-detail');
+    expect(jump.attributes['aria-controls']).toBe('knowledge-selected-detail');
     expect(collectText(jump)).toBe('選択した知識の詳細へ');
     const selectedRow = findAll(selectedList, 'button').find((node) => node.attributes['aria-pressed'] === 'true');
+    expect(selectedRow.attributes['aria-controls']).toBe('knowledge-selected-detail');
     expect(jump.parentNode).toBe(selectedRow.parentNode);
     expect(selectedRow.parentNode.children.indexOf(jump)).toBe(selectedRow.parentNode.children.indexOf(selectedRow) + 1);
+    jump.dispatch('click');
+    expect(focused).toEqual([{ preventScroll: true }]);
 
     const unselectedList = new FakeElement('div');
     renderKnowledgeList(unselectedList, { state: 'ready', records: [item] });
@@ -302,7 +309,69 @@ describe('outcome knowledge UI contract', () => {
     controller.render();
     const detailPane = findAll(controllerRoot, 'aside').find((node) => node.className.includes('knowledge-inspector'));
     expect(detailPane.attributes.id).toBe('knowledge-selected-detail');
+    expect(detailPane.attributes.tabindex).toBe('-1');
     expect(findAll(controllerRoot, 'a').some((node) => node.attributes.href === '#knowledge-selected-detail')).toBe(true);
+  });
+
+  it('loads canonical detail and history when a list row is selected', async () => {
+    globalThis.document = new FakeDocument();
+    const calls = [];
+    const root = new FakeElement('div');
+    const item = normalizeKnowledgeItem({ id: 'k-click', title: 'クリックで詳細を読む', type: 'decision', scope: 'project', lifecycle: { status: 'active' } });
+    const controller = createKnowledgeOutcomeController({
+      root,
+      project: { code: 'proj-1' },
+      autoLoad: false,
+      api: async (path) => {
+        calls.push(path);
+        if (path.endsWith('/history')) return { entries: [{ version: 'v1', reason: '初回登録' }] };
+        return { item: { ...item, content: '正本本文', version: 'v2' } };
+      },
+    });
+    controller.state.list = { state: 'ready', records: [item], absence_confirmed: true };
+    controller.render();
+    const row = findAll(root, 'button').find((node) => node.className.includes('knowledge-list-row'));
+    row.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(calls).toEqual([
+      '/api/projects/proj-1/knowledge/items/k-click',
+      '/api/projects/proj-1/knowledge/items/k-click/history',
+    ]);
+    expect(controller.state.detail.state).toBe('ready');
+    expect(controller.state.selected).toMatchObject({ id: 'k-click', content: '正本本文', version: 'v2', history: [{ version: 'v1', reason: '初回登録' }] });
+  });
+
+  it.each([
+    ['empty', { state: 'empty', records: [], absence_confirmed: true }],
+    ['unavailable', Object.assign(new Error('権限不足'), { status: 403, code: 'permission_denied' })],
+  ])('clears the selected inspector before a %s search result', async (_label, response) => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const stale = normalizeKnowledgeItem({ id: 'k-stale', title: '前の選択', version: 'v1', content: '前の本文', lifecycle: { status: 'active' } });
+    const controller = createKnowledgeOutcomeController({
+      root,
+      project: { code: 'proj-1' },
+      autoLoad: false,
+      api: async () => {
+        if (response instanceof Error) throw response;
+        return response;
+      },
+    });
+    controller.state.list = { state: 'ready', records: [stale], absence_confirmed: true };
+    controller.state.selected = stale;
+    controller.state.detail = { state: 'ready', item: stale };
+    controller.state.lifecycle = { state: 'ready', item: stale, revisionDraft: { content: '編集中の本文' } };
+    controller.render();
+    expect(collectText(root)).toContain('前の選択');
+
+    await controller.loadItems();
+
+    expect(controller.state.selected).toBeNull();
+    expect(controller.state.detail).toEqual({ state: 'idle' });
+    expect(controller.state.lifecycle).toEqual({ state: 'idle' });
+    expect(collectText(root)).not.toContain('前の選択');
+    expect(collectText(root)).not.toContain('編集中の本文');
   });
 
   it('keeps natural-language input in the capture form and exposes candidate comparison', () => {

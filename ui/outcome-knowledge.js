@@ -157,6 +157,11 @@ function clear(parent) {
   return parent;
 }
 
+function focusKnowledgeDetail() {
+  const detail = globalThis.document?.getElementById?.('knowledge-selected-detail');
+  detail?.focus?.({ preventScroll: true });
+}
+
 function text(value, fallback = UNKNOWN) {
   if (value === null || value === undefined) return fallback;
   if (typeof value === 'string') return value.trim() || fallback;
@@ -635,7 +640,7 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
     if (!collection.records.length) rows.append(makeElement('div', { className: 'knowledge-empty', text: '検索結果を確認できません。空の一覧とは扱いません。' }));
     for (const item of collection.records) {
       const title = item.title ? text(item.title) : 'タイトル未確認';
-      const row = makeElement('button', { className: 'knowledge-list-row', attrs: { type: 'button', 'aria-pressed': String(item.id === callbacks.selectedId), title } });
+      const row = makeElement('button', { className: 'knowledge-list-row', attrs: { type: 'button', 'aria-pressed': String(item.id === callbacks.selectedId), 'aria-controls': 'knowledge-selected-detail', title } });
       const main = makeElement('span', { className: 'knowledge-row-main' });
       const meta = makeElement('span', { className: 'knowledge-row-meta' });
       append(meta,
@@ -654,11 +659,13 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
       row.addEventListener('click', () => callbacks.onSelect?.(item));
       rows.append(row);
       if (hasSelectedId && item.id === callbacks.selectedId) {
-        rows.append(makeElement('a', {
+        const jump = makeElement('a', {
           className: 'knowledge-detail-jump',
           text: '選択した知識の詳細へ',
-          attrs: { href: '#knowledge-selected-detail' },
-        }));
+          attrs: { href: '#knowledge-selected-detail', 'aria-controls': 'knowledge-selected-detail' },
+        });
+        jump.addEventListener('click', () => focusKnowledgeDetail());
+        rows.append(jump);
       }
     }
     section.append(rows);
@@ -1205,6 +1212,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     authority: { state: 'loading', domains: null },
     destination: { state: 'unknown', registration: null, draft: {}, message: '保存先APIの契約を確認できていません。' },
   };
+  let selectionGeneration = 0;
 
   function resumeUrl(draftId) {
     const location = options.location ?? globalThis.location;
@@ -1252,7 +1260,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     renderDiscoveryFilters(filters, state.filters, { onChange: (next) => { state.filters = next; void loadItems(); }, });
     discovery.append(filters);
     const list = makeElement('div', { className: 'knowledge-discovery-list' });
-    renderKnowledgeList(list, state.list, { labels, selectedId: state.selected?.id, onSelect: (item) => { state.selected = item; state.detail = { state: 'ready', item }; state.lifecycle = { state: 'ready', item }; render(); }, onRetry: () => loadItems() });
+    renderKnowledgeList(list, state.list, { labels, selectedId: state.selected?.id, onSelect: (item) => { void selectItem(item); }, onRetry: () => loadItems() });
     discovery.append(list);
     primary.append(discovery);
     const captureWorkspace = makeElement('section', { className: 'knowledge-focused-view knowledge-capture-view', hidden: state.view !== 'capture', attrs: { 'aria-labelledby': 'knowledge-capture-workspace-title' } });
@@ -1302,7 +1310,8 @@ export function createKnowledgeOutcomeController(options = {}) {
       className: 'knowledge-outcome-detail knowledge-inspector',
       attrs: {
         'aria-label': labels.inspector,
-        ...(state.selected ? { id: 'knowledge-selected-detail' } : {}),
+        id: 'knowledge-selected-detail',
+        tabindex: '-1',
       },
     });
     const inspectorHeading = makeElement('div', { className: 'knowledge-inspector-heading' });
@@ -1320,6 +1329,10 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function loadItems() {
+    selectionGeneration += 1;
+    state.selected = null;
+    state.detail = { state: 'idle' };
+    state.lifecycle = { state: 'idle' };
     state.list = { ...state.list, state: 'loading' }; render();
     try { state.list = normalizeKnowledgeCollection(await callKnowledgeApi(api, buildKnowledgeItemsPath(code, state.filters))); }
     catch (error) { state.list = { state: error.code === 'permission_denied' || error.status === 403 ? 'permission_denied' : 'error_retryable', records: null, message: apiErrorText(error), error: error.code }; }
@@ -1381,17 +1394,26 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function selectItem(itemOrId) {
+    const requestGeneration = ++selectionGeneration;
     const id = typeof itemOrId === 'object' ? itemOrId?.id : itemOrId;
     const listItem = typeof itemOrId === 'object' ? itemOrId : state.list.records?.find((item) => item.id === id);
-    state.selected = listItem ?? null; state.detail = { state: 'loading' }; render();
-    if (!id) { state.detail = { state: 'unknown', message: '正本IDを確認できません。' }; render(); return null; }
+    state.selected = listItem ?? null; state.detail = { state: 'loading' }; state.lifecycle = { state: 'idle' }; render();
+    if (!id) {
+      if (requestGeneration !== selectionGeneration) return null;
+      state.detail = { state: 'unknown', message: '正本IDを確認できません。' }; render(); return null;
+    }
     try {
       const payload = await callKnowledgeApi(api, knowledgePath(code, `${KNOWLEDGE_ROUTES.items}/${encodeURIComponent(id)}`));
+      if (requestGeneration !== selectionGeneration) return null;
       const historyPayload = await callKnowledgeApi(api, knowledgePath(code, `${KNOWLEDGE_ROUTES.items}/${encodeURIComponent(id)}/${KNOWLEDGE_ROUTES.history}`));
+      if (requestGeneration !== selectionGeneration) return null;
       const item = normalizeKnowledgeItem(payload?.item ?? payload?.record ?? payload?.data ?? payload) ?? listItem;
       if (item) item.history = Array.isArray(historyPayload?.entries) ? historyPayload.entries : null;
       state.selected = item; state.detail = { state: 'ready', item }; state.lifecycle = { state: 'ready', item }; render(); return item;
-    } catch (error) { state.detail = { state: error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code }; render(); return null; }
+    } catch (error) {
+      if (requestGeneration !== selectionGeneration) return null;
+      state.detail = { state: error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code }; render(); return null;
+    }
   }
 
   async function createDraft(input) {
