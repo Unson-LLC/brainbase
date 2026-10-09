@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { districtTaskActors } from '../../ui/world/world-placement.js';
 const site = state => ({ task_id: 't1', work: { status: state }, actors_state: 'confirmed', actors: [{ id: 'agent_test', name: 'AI test', task_id: 't1', state, kind: 'agent', activity: { state: 'running', moving: true, heartbeat_at: new Date().toISOString() } }] });
