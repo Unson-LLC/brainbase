@@ -1,9 +1,9 @@
 ---
 story_id: story-world-business-exits-v1
 title: 世界の都市から、その事業で使う外の道具へ出られるようにする（OSS側）
-status: draft
+status: in_progress
 created_at: 2026-10-09
-implementation_started: false
+implementation_started: true
 owner_repository: brainbase
 depends_on: ["story-world-for-organization-web-v1"]
 ---
@@ -24,22 +24,22 @@ depends_on: ["story-world-for-organization-web-v1"]
 
 ## 受入条件
 
-- [ ] AC-01: `createWorldView`に任意の`businessExits(business)`を渡せる。戻り値（Promise可）は`{ status, read_at, exits }`で、`status`は`complete`・`partial`・`failed`・`not_connected`のどれか。`exits`の各要素は次を持つ。
+- [x] AC-01: `createWorldView`に任意の`businessExits(business)`を渡せる。戻り値（Promise可）は`{ status, read_at, exits }`で、`status`は`complete`・`partial`・`failed`・`not_connected`のどれか。`exits`の各要素は次を持つ。
   - `id`・`label`（例：「Tech Knight HQ · 候補の審査」）
   - `href`（`https:`だけ。ほかのスキームは描かずに捨て、捨てた件数を出す）
   - `state`：`available`・`restricted`・`unknown`・`unavailable`
   - 任意の`note`（ログインの方式など、1行）
   - 任意の`action`（`{ label, href }`。ホストが与える。例：申請）
   - 任意の`attention`（`{ count, label, as_of }`）
-- [ ] AC-02: `businessExits`を渡さなければ、今の世界と同じ表示・同じDOMになる（既存テストがそのまま通る）。
-- [ ] AC-03: 都市の詳細（canvasの右端のパネル、standardのrail）の既存の欄の後に「この事業の道具」の欄を足す。各行に`label`・状態の言葉・`note`・「開く」リンク（新しいタブ、`rel="noopener noreferrer"`）を出し、`action`があればその操作を並べる。
-- [ ] AC-04: 状態の言葉は持ち主が与えられる（`story-world-generic-graph-v1`の語彙と同じ仕組み）。既定は「使える」「権限が必要」「未確認」「読めない」とする。
-- [ ] AC-05: `status`が`failed`・`not_connected`のとき、欄は空にせず「道具を読めません（0件とは確認できません）」と理由を出す。`partial`のときは「一部だけ読めた」と出す。読めた0件だけを「この事業の道具は登録されていません」と出す。
-- [ ] AC-06: `attention`がある道具は、件数・`label`・`as_of`の時刻を並べて出す。`count`が無い、または数でないときは件数を出さず「件数は未確認」と出す。0として扱わない。
-- [ ] AC-07: canvasでは、都市の外れに道具の数だけ「駅」を置く。駅の姿で状態を表す（`available`＝明かり、`restricted`＝改札が閉じた駅、`unknown`・`unavailable`＝霧の駅）。`attention`があれば駅の看板に件数を出す。駅を選ぶと都市の詳細を開き、その道具の行を選んだ状態にする。駅からは直接外へ移らない。
-- [ ] AC-08: 世界の見方（凡例）に、駅の姿と状態の対応を足す。
-- [ ] AC-09: 3Dを表示できない環境の一覧表示でも、都市ごとに同じ「この事業の道具」の欄を出す。
-- [ ] AC-10: 世界は道具の情報を書き換えない。`businessExits`の応答が、別の都市を開いた後に届いたときは、古い都市の欄を開き直さない（既存の都市ごとの読み込みの保護と同じ）。
+- [x] AC-02: `businessExits`を渡さなければ、今の世界と同じ表示・同じDOMになる（既存テストがそのまま通る）。
+- [x] AC-03: 都市の詳細（canvasの右端のパネル、standardのrail）の既存の欄の後に「この事業の道具」の欄を足す。各行に`label`・状態の言葉・`note`・「開く」リンク（新しいタブ、`rel="noopener noreferrer"`）を出し、`action`があればその操作を並べる。
+- [x] AC-04: 状態の言葉は持ち主が与えられる（`story-world-generic-graph-v1`の語彙と同じ仕組み）。既定は「使える」「権限が必要」「未確認」「読めない」とする。
+- [x] AC-05: `status`が`failed`・`not_connected`のとき、欄は空にせず「道具を読めません（0件とは確認できません）」と理由を出す。`partial`のときは「一部だけ読めた」と出す。読めた0件だけを「この事業の道具は登録されていません」と出す。
+- [x] AC-06: `attention`がある道具は、件数・`label`・`as_of`の時刻を並べて出す。`count`が無い、または数でないときは件数を出さず「件数は未確認」と出す。0として扱わない。
+- [x] AC-07: canvasでは、都市の外れに道具の数だけ「駅」を置く。駅の姿で状態を表す（`available`＝明かり、`restricted`＝改札が閉じた駅、`unknown`・`unavailable`＝霧の駅）。`attention`があれば駅の看板に件数を出す。駅を選ぶと都市の詳細を開き、その道具の行を選んだ状態にする。駅からは直接外へ移らない。
+- [x] AC-08: 世界の見方（凡例）に、駅の姿と状態の対応を足す。
+- [x] AC-09: 3Dを表示できない環境の一覧表示でも、都市ごとに同じ「この事業の道具」の欄を出す。
+- [x] AC-10: 世界は道具の情報を書き換えない。`businessExits`の応答が、別の都市を開いた後に届いたときは、古い都市の欄を開き直さない（既存の都市ごとの読み込みの保護と同じ）。
 
 ## 対象外
 

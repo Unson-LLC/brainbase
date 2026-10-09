@@ -11,6 +11,7 @@ The package remains the sole renderer implementation. A host serving an explicit
 - `world-canvas-ui.js`
 - `world-canvas-ui.css` (imported by `world-view.css`)
 - `world-canvas-notes.js`
+- `world-exits.js` (the tools of a business; imported by `world-view.js` and `world-district.js`)
 
 The World extension's `uiFiles` contains these assets. No fixture data, prototype storage or second task store is used. Existing per-viewer camera-independent visit snapshots remain convenience state; they are not business records.
 
@@ -28,6 +29,17 @@ The World extension's `uiFiles` contains these assets. No fixture data, prototyp
 Compact notices are explicit summaries of source states. Task `needs_check` remains a gap in recorded information, not proof of failure or stopped work. Partial, forbidden, failed, not-connected and missing source states remain separate from counts. Long explanations and timestamps remain in help and the existing rail.
 
 Async work reads are guarded per business. A superseded response cannot reopen an old city or task. A visibility reread updates facts even if no growth event was detected. Failed rereads replace stale details with an explicit unavailable state; they do not retain old facts under a success label. Manual retry refreshes district geometry without resetting the camera. Only complete task reads can become a new growth comparison snapshot, preventing partial/failed reads from looking like removed work.
+
+## Tools of a business (optional `businessExits`)
+
+`createWorldView({ businessExits })` (story-world-business-exits-v1) lets a host give the tools a business uses. `businessExits(business)` may return a promise of `{ status: 'complete'|'partial'|'failed'|'not_connected', read_at?, reason?, exits }`; each exit has `id`, `label`, `href`, `state` (`available`, `restricted`, `unknown`, `unavailable`) and optional `note`, `action: { label, href }` and `attention: { count?, label?, as_of? }`. The world does not know organizations, members, roles or requests: `state` and `action` are whatever the host decided, and a single owner can pass the same callback.
+
+- Links: only `https:` URLs (new tab, `rel="noopener noreferrer"`) and links inside the host starting with a single `/` or `?` (same tab) are drawn. Anything else, a missing id/label or a repeated id drops the tool; a bad `action.href` drops only the action. Both are counted in the section. An unknown `state` is drawn as `unknown`, never as usable.
+- Details: a 「この事業の道具」 section follows the existing city sections in the canvas drawer and the standard rail. `failed` and `not_connected` say 「道具を読めません（0件とは確認できません）」 with the reason; `partial` says it was read in part; only a complete read of zero says none are registered. A missing or non-numeric `attention.count` is 「件数は未確認」, never 0.
+- Words: the state words come from the vocabulary's `exit_states` (`--world-vocabulary` file key `exit_states`, defaults 使える・権限が必要・未確認・読めない), the same mechanism as kinds and statuses.
+- Stations: inside a district, each read tool stands as a station in a yard outside the gate, to its right (rows of four). Lit lamp = `available`; a closed striped wicket = `restricted`; fog = `unknown` and `unavailable`. The sign label carries the attention count (or 件数未確認). Picking a station selects its row in the city details (the canvas drawer opens); it never navigates. The yard is reserved, and its legend shown (canvas help, standard district legend), only when `businessExits` is given. Stations stand only where the district can be entered: a host whose task store is `not_connected` shows the section without stations.
+- Reads: one call per business, kept for the view's life; a late answer for a city that is no longer open updates the cache but does not reopen that city's details or stations. Without 3D the list asks every business and shows the same section under each. The answer is copied, never changed.
+- Without `businessExits` the DOM, the district scene and the legends are unchanged.
 
 ## Validation and release boundary
 
