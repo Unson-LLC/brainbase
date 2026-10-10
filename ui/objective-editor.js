@@ -129,6 +129,19 @@ function firstValue(source, ...keys) {
   return undefined;
 }
 
+function sourceSummary(source) {
+  const object = objectValue(source);
+  if (!object) return '出典を確認できません。';
+  const fields = [
+    ['種別', firstValue(object, 'source_type', 'sourceType', 'kind', 'type')],
+    ['状態', firstValue(object, 'state', 'status', 'connection_status', 'connectionStatus')],
+    ['ID', firstValue(object, 'source_id', 'sourceId', 'id', 'reference')],
+    ['版', firstValue(object, 'source_version', 'sourceVersion', 'revision', 'version')],
+    ['確認日時', firstValue(object, 'checked_at', 'checkedAt', 'as_of', 'asOf')],
+  ];
+  return fields.map(([label, value]) => `${label}: ${text(value)}`).join(' ・ ');
+}
+
 function payloadValue(payload, ...keys) {
   const object = objectValue(payload);
   if (!object) return undefined;
@@ -141,7 +154,7 @@ function payloadValue(payload, ...keys) {
 function normalizeState(value, fallback = UNKNOWN) {
   const state = optionalText(value).trim().toLowerCase();
   if (!state) return fallback;
-  if (['forbidden', 'authorization_denied', 'permission_insufficient', 'not_allowed'].includes(state)) return 'permission_denied';
+  if (['forbidden', 'authorization_denied', 'permission_insufficient', 'not_allowed', 'permission_denied', 'foundation_permission_denied', 'project_not_allowed'].includes(state)) return 'permission_denied';
   if (['unavailable', 'upstream_unavailable', 'api_not_implemented', 'not_implemented'].includes(state)) return 'api_unavailable';
   if (['version_conflict', 'revision_conflict', 'cas_conflict'].includes(state)) return 'conflict';
   if (['persisted', 'saved'].includes(state)) return 'saved_unverified';
@@ -174,6 +187,7 @@ function normalizeReference(value, defaultType = null) {
     revision,
     digest: nonEmptyText(firstValue(object, 'digest', 'hash')),
     meaning: nonEmptyText(firstValue(object, 'meaning', 'label', 'name')),
+    source: objectValue(firstValue(object, 'source', 'provenance', 'origin')),
     raw: object,
   };
 }
@@ -281,6 +295,8 @@ export function normalizeObjectiveRecord(payload) {
   const readiness = normalizeReadiness(firstValue(source, 'readiness', 'judgmentReadiness', 'judgment_readiness'));
   const constraintRefsValue = firstValue(source, 'constraintRefs', 'constraint_refs', 'constraints');
   const constraintRefs = asArray(constraintRefsValue);
+  const objectiveSource = objectValue(firstValue(source, 'source', 'provenance', 'origin'))
+    ?? objectValue(firstValue(definition, 'source', 'provenance', 'origin'));
   const normalized = {
     id,
     type: type ?? 'objective',
@@ -301,6 +317,7 @@ export function normalizeObjectiveRecord(payload) {
     scope: objectValue(firstValue(definition, 'scope')),
     readiness,
     constraintRefs: constraintRefs ? constraintRefs.map((ref) => normalizeReference(ref, 'constraint')).filter(Boolean) : null,
+    source: objectiveSource,
     raw: source,
     definition,
   };
@@ -323,18 +340,20 @@ function collectionRecords(payload, keys) {
 export function normalizeObjectiveCollection(payload) {
   const recordsValue = collectionRecords(payload, ['records', 'objectives', 'items', 'data']);
   const explicitState = normalizeState(payloadValue(payload, 'state', 'status'), 'unknown');
+  const source = objectValue(payloadValue(payload, 'source', 'provenance', 'origin'));
+  const correctionGuidance = objectValue(payloadValue(payload, 'correction_guidance', 'correctionGuidance', 'correction'));
   const explicitFailure = explicitCollectionFailure(explicitState, 'records');
-  if (explicitFailure) return explicitFailure;
+  if (explicitFailure) return { ...explicitFailure, source, correctionGuidance };
   if (recordsValue === null) {
-    return { state: explicitState === 'empty' ? 'unknown' : explicitState, records: null, absence_confirmed: false };
+    return { state: explicitState === 'empty' ? 'unknown' : explicitState, records: null, absence_confirmed: false, source, correctionGuidance };
   }
   const records = recordsValue.map(normalizeObjectiveRecord);
   if (records.some((record) => !record || record.type !== 'objective')) {
-    return { state: 'unknown', records: null, absence_confirmed: false };
+    return { state: 'unknown', records: null, absence_confirmed: false, source, correctionGuidance };
   }
   const absenceConfirmed = payloadValue(payload, 'absence_confirmed', 'absenceConfirmed') === true;
   if (records.length === 0 && !absenceConfirmed) {
-    return { state: 'unknown', records: null, absence_confirmed: false };
+    return { state: 'unknown', records: null, absence_confirmed: false, source, correctionGuidance };
   }
   const state = explicitState === 'permission_denied' || explicitState === 'api_unavailable' || explicitState === 'conflict'
     ? explicitState
@@ -343,28 +362,32 @@ export function normalizeObjectiveCollection(payload) {
     state,
     records,
     absence_confirmed: absenceConfirmed,
+    source,
+    correctionGuidance,
   };
 }
 
 export function normalizeReferenceCollection(payload, keys = ['refs', 'references', 'constraints', 'records', 'items', 'data']) {
   const recordsValue = collectionRecords(payload, keys);
   const explicitState = normalizeState(payloadValue(payload, 'state', 'status'), 'unknown');
+  const source = objectValue(payloadValue(payload, 'source', 'provenance', 'origin'));
   const explicitFailure = explicitCollectionFailure(explicitState, 'refs');
-  if (explicitFailure) return explicitFailure;
-  if (recordsValue === null) return { state: explicitState, refs: null, absence_confirmed: false };
+  if (explicitFailure) return { ...explicitFailure, source };
+  if (recordsValue === null) return { state: explicitState, refs: null, absence_confirmed: false, source };
   const refs = recordsValue.map((value) => normalizeReference(value));
   if (refs.some((ref) => !ref)) {
-    return { state: 'unknown', refs: null, absence_confirmed: false };
+    return { state: 'unknown', refs: null, absence_confirmed: false, source };
   }
   const absenceConfirmed = payloadValue(payload, 'absence_confirmed', 'absenceConfirmed') === true;
   if (refs.length === 0 && !absenceConfirmed) {
-    return { state: 'unknown', refs: null, absence_confirmed: false };
+    return { state: 'unknown', refs: null, absence_confirmed: false, source };
   }
   return {
     state: explicitState === 'permission_denied' || explicitState === 'api_unavailable' || explicitState === 'conflict'
       ? explicitState : refs.length ? 'ready' : 'empty',
     refs,
     absence_confirmed: absenceConfirmed,
+    source,
   };
 }
 
@@ -427,7 +450,10 @@ export function statusLabel(value) {
 }
 
 export function normalizeObjectiveError(error) {
-  const code = optionalText(error?.code ?? error?.status ?? error?.name).trim().toLowerCase();
+  // Numeric HTTP status is interpreted below.  Do not turn a 403 into the
+  // literal state "403", otherwise the status mapping is skipped and a
+  // canonical Foundation denial is rendered as a retryable error.
+  const code = optionalText(error?.code ?? (typeof error?.status === 'string' ? error.status : undefined)).trim().toLowerCase();
   const status = Number(error?.statusCode ?? error?.status);
   let state = normalizeState(code);
   if (state === UNKNOWN || !state) {
@@ -605,6 +631,7 @@ function renderObjectiveList(root, state, callbacks) {
   }
   if (state.objectives.state === 'empty') {
     section.append(makeElement('div', { className: 'objective-editor-empty', text: '目的はまだ登録されていません。' }));
+    if (state.objectives.correctionGuidance) section.append(renderCorrectionGuidance(state.objectives.correctionGuidance));
     if (callbacks.onCreate) section.append(makeButton('目的を作成', callbacks.onCreate, 'objective-editor-button-primary'));
     return section;
   }
@@ -624,6 +651,23 @@ function renderObjectiveList(root, state, callbacks) {
     list.append(row);
   }
   section.append(list);
+  return section;
+}
+
+function renderCorrectionGuidance(guidance) {
+  const section = makeElement('section', {
+    className: 'objective-editor-correction-guidance',
+    attrs: { 'aria-label': '次に確認すること' },
+  });
+  section.append(makeElement('strong', { text: '確認が必要な項目' }));
+  if (guidance?.message) section.append(makeElement('p', { text: guidance.message }));
+  const issues = Array.isArray(guidance?.issues) ? guidance.issues : [];
+  if (issues.length) {
+    const list = makeElement('ul', { className: 'objective-editor-issue-list' });
+    for (const issue of issues) list.append(makeElement('li', { text: `${text(issue?.path, '定義')}: ${text(issue?.message, '内容を確認してください。')}` }));
+    section.append(list);
+  }
+  if (guidance?.next_action) section.append(makeElement('p', { className: 'objective-editor-muted', text: `次の対応: ${guidance.next_action}` }));
   return section;
 }
 
@@ -664,6 +708,7 @@ function renderConstraintRefs(root, state, callbacks) {
     const item = makeElement('li', { className: 'objective-editor-reference-item' });
     item.append(makeElement('span', { text: `${ref.id}@${ref.revision}` }));
     if (ref.meaning) item.append(makeElement('small', { text: ref.meaning }));
+    if (ref.source) item.append(makeElement('small', { className: 'objective-editor-reference-source', text: sourceSummary(ref.source) }));
     if (callbacks.canEdit && callbacks.constraintsEditable !== false && callbacks.onRemoveConstraintRef) item.append(makeButton('外す', () => callbacks.onRemoveConstraintRef(ref), 'objective-editor-button-danger'));
     list.append(item);
   }
@@ -979,7 +1024,7 @@ function renderObjectiveLedger(doc, state, callbacks) {
   }
   const loading = objectives.state === 'loading' || objectives.state === 'idle';
   const records = loading ? [] : objectives.records ?? [];
-  return workspaceLedger(doc, {
+  const ledger = workspaceLedger(doc, {
     className: 'bb-objective-ledger',
     ariaLabel: '目的の一覧',
     columns: OBJECTIVE_COLUMNS,
@@ -1000,6 +1045,12 @@ function renderObjectiveLedger(doc, state, callbacks) {
       };
     }),
   });
+  if (!loading && objectives.state === 'empty' && objectives.correctionGuidance) {
+    const wrapper = makeElement('div', { className: 'bb-objective-ledger-with-guidance' });
+    wrapper.append(ledger, renderCorrectionGuidance(objectives.correctionGuidance));
+    return wrapper;
+  }
+  return ledger;
 }
 
 /**
@@ -1068,9 +1119,13 @@ function constraintContent(doc, state, callbacks) {
       const item = makeElement('li');
       item.append(makeElement('code', { text: `${ref.id}@${ref.revision}` }));
       if (ref.meaning) item.append(makeElement('span', { text: ref.meaning }));
+      if (ref.source) item.append(makeElement('small', { className: 'bb-objective-reference-source', text: sourceSummary(ref.source) }));
       list.append(item);
     }
     content.push(list);
+  }
+  if (state.constraints.source) {
+    content.push(makeElement('p', { className: 'bb-objective-reference-source', text: `参照元: ${sourceSummary(state.constraints.source)}` }));
   }
   content.push(makeElement('p', {
     className: 'bb-objective-note',
@@ -1115,6 +1170,7 @@ function renderObjectiveDetail(doc, state, callbacks) {
       ['責任者', objective.accountableId],
       ['採用状態', objective.adoptionState ? (STATUS_LABELS[objective.adoptionState] ?? objective.adoptionState) : null],
       ['評価期間', periodText(objective.evaluationPeriod)],
+      ['出典', sourceSummary(objective.source)],
     ]),
   }));
   parts.push(workspaceRailBlock(doc, { title: `評価基準${objective.criteria ? ` ${objective.criteria.length}件` : ''}`, className: 'bb-objective-criteria-block', content: criteriaContent(doc, objective.criteria) }));
@@ -1237,6 +1293,10 @@ export function createObjectiveEditorController(options = {}) {
     view: options.initialView ?? 'list',
     connection: port ? 'ready' : 'api_unavailable',
     connectionMessage: port ? null : '目的を読み書きする経路が、この画面に渡されていません。',
+    // A project catalog grant is the initial write authority.  A canonical
+    // Foundation 403 is stronger evidence for this editor and must make the
+    // currently mounted controls read-only until the host remounts it.
+    permissionDenied: false,
     objectives: { state: 'idle', records: null, absence_confirmed: false },
     selected: null,
     readiness: { state: 'unknown', ready: null, issues: null },
@@ -1261,12 +1321,16 @@ export function createObjectiveEditorController(options = {}) {
   let renderVersion = 0;
   let activeSave = null;
 
+  function effectiveCanEdit() {
+    return canEdit && !state.permissionDenied;
+  }
+
   function render() {
     if (!root) return null;
     const currentRender = ++renderVersion;
     const currentEditor = editorVersion;
     const callbacks = {
-      canEdit,
+      canEdit: effectiveCanEdit(),
       saving: activeSave !== null,
       constraintsEditable,
       storyLinks,
@@ -1326,9 +1390,12 @@ export function createObjectiveEditorController(options = {}) {
       state.connection = state.objectives.state === 'ready' || state.objectives.state === 'empty' ? 'ready' : state.objectives.state;
     } catch (error) {
       if (request !== listRequest) return state.objectives;
-      state.objectives = { state: normalizeObjectiveError(error).state, records: null, absence_confirmed: false, ...normalizeObjectiveError(error) };
+      const normalized = normalizeObjectiveError(error);
+      state.permissionDenied ||= normalized.state === 'permission_denied';
+      state.objectives = { state: normalized.state, records: null, absence_confirmed: false, ...normalized };
       state.connection = state.objectives.state;
     }
+    if (state.objectives.state === 'permission_denied') state.permissionDenied = true;
     render();
     // As on the organization screens, the workspace opens with the first row selected.
     const first = state.objectives.records?.[0];
@@ -1365,7 +1432,9 @@ export function createObjectiveEditorController(options = {}) {
       }
     } catch (error) {
       if (!current()) return state.constraints;
-      state.constraints = { state: normalizeObjectiveError(error).state, refs: null, absence_confirmed: false, ...normalizeObjectiveError(error) };
+      const normalized = normalizeObjectiveError(error);
+      state.permissionDenied ||= normalized.state === 'permission_denied';
+      state.constraints = { state: normalized.state, refs: null, absence_confirmed: false, ...normalized };
     }
     render();
     return state.constraints;
@@ -1389,7 +1458,9 @@ export function createObjectiveEditorController(options = {}) {
       state.readiness = normalizeReadiness(payload);
     } catch (error) {
       if (!current()) return state.readiness;
-      state.readiness = { state: normalizeObjectiveError(error).state, ready: null, issues: null, ...normalizeObjectiveError(error) };
+      const normalized = normalizeObjectiveError(error);
+      state.permissionDenied ||= normalized.state === 'permission_denied';
+      state.readiness = { state: normalized.state, ready: null, issues: null, ...normalized };
     }
     if (state.selected) state.selected.readiness = state.readiness;
     render();
@@ -1444,6 +1515,7 @@ export function createObjectiveEditorController(options = {}) {
     } catch (error) {
       if (version !== selectionVersion) return null;
       const normalized = normalizeObjectiveError(error);
+      state.permissionDenied ||= normalized.state === 'permission_denied';
       state.editor = { ...state.editor, state: normalized.state, message: normalized.message, error: normalized.error };
       state.connection = normalized.state;
       render();
@@ -1452,6 +1524,7 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function beginCreate() {
+    if (!effectiveCanEdit()) return;
     // A repeated click on New must not throw away an in-progress draft.
     if (state.editor.mode === 'create' && state.railMode === 'form') return;
     selectionVersion += 1;
@@ -1475,6 +1548,7 @@ export function createObjectiveEditorController(options = {}) {
 
   /** Workspace layout: open the edit form for the selected objective in the rail. */
   function beginEdit() {
+    if (!effectiveCanEdit()) return;
     if (!state.selected) return;
     if (state.railMode === 'form' && state.editor.mode === 'edit') return;
     editorVersion += 1;
@@ -1519,7 +1593,7 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function addConstraintRef(reference) {
-    if (!canEdit || !constraintsEditable || activeSave) return;
+    if (!effectiveCanEdit() || !constraintsEditable || activeSave) return;
     const normalized = normalizeReference(reference, 'constraint');
     if (!normalized || normalized.type !== 'constraint') return;
     const refs = state.editor.constraintRefs ?? [];
@@ -1530,7 +1604,7 @@ export function createObjectiveEditorController(options = {}) {
   }
 
   function removeConstraintRef(reference) {
-    if (!canEdit || !constraintsEditable || activeSave) return;
+    if (!effectiveCanEdit() || !constraintsEditable || activeSave) return;
     state.editor.constraintRefs = (state.editor.constraintRefs ?? []).filter((item) => !(item.id === reference.id && item.revision === reference.revision));
     state.editor.constraintRefsChanged = true;
     render();
@@ -1538,7 +1612,7 @@ export function createObjectiveEditorController(options = {}) {
 
   async function saveObjective(definition) {
     if (!definition) return null;
-    if (!canEdit) return { state: 'permission_denied', message: 'この画面では目的を保存できません。' };
+    if (!effectiveCanEdit()) return { state: 'permission_denied', message: 'この画面では目的を保存できません。' };
     if (activeSave) return { state: 'saving', action: activeSave.mode };
     // Once a mutation succeeded, repeating it is unsafe until the owner has
     // reloaded and selected the canonical revision again.
@@ -1636,6 +1710,7 @@ export function createObjectiveEditorController(options = {}) {
       return result;
     } catch (error) {
       const normalized = normalizeObjectiveError(error);
+      state.permissionDenied ||= normalized.state === 'permission_denied';
       return publish(mutationCompleted
         ? { state: 'saved_unverified', message: '目的は保存されましたが、保存結果を確かめられません。一覧を再読込して確かめてください。', mutation, error: normalized.error, draft: definition }
         : { state: normalized.state, message: normalized.message, currentRevision: normalized.currentRevision, error: normalized.error, draft: definition });
@@ -1658,7 +1733,9 @@ export function createObjectiveEditorController(options = {}) {
     try {
       state.story = { ...normalizeStoryObjectiveLinks(await method(storyId, context)), storyId };
     } catch (error) {
-      state.story = { state: normalizeObjectiveError(error).state, storyId, links: null, absence_confirmed: false, ...normalizeObjectiveError(error) };
+      const normalized = normalizeObjectiveError(error);
+      state.permissionDenied ||= normalized.state === 'permission_denied';
+      state.story = { state: normalized.state, storyId, links: null, absence_confirmed: false, ...normalized };
     }
     render();
     return state.story;

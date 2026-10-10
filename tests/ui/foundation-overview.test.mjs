@@ -321,6 +321,34 @@ test('keeps request failures visible and ignores stale responses after destroy',
   assert.doesNotMatch(textOf(failedRoot), /登録された目的はありません/);
 });
 
+test('keeps an unreadable empty catalog unconfirmed instead of rendering zero records', async () => {
+  const root = new FakeElement('main');
+  const unknown = catalog({
+    objectives: [],
+    variables: [],
+    models: [],
+    philosophies: [],
+    read_status: 'unknown',
+    status: 'api_unavailable',
+    absence_confirmed: false,
+  });
+  const controller = createFoundationOverview({
+    root,
+    port: { readCatalog: async () => unknown },
+    scopeId: 'project-alpha',
+    document: doc,
+    autoLoad: false,
+  });
+  await controller.load();
+  const visible = textOf(root);
+
+  assert.equal(controller.state.status, 'unavailable');
+  assert.match(visible, /取得状態を確認できません/);
+  assert.match(visible, /登録なし・0件として表示していません/);
+  assert.match(visible, /再試行/);
+  assert.doesNotMatch(visible, /登録された目的がありません/);
+});
+
 
 test('collection groups by topic, retains project provenance and resolves colliding variable IDs locally', () => {
   const root = doc.createElement('div');

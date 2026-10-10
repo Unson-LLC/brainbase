@@ -583,6 +583,25 @@ describe('Objective editor common UI contract', () => {
       expect((await controller.saveObjective({ id: 'objective-new' })).state).toBe('permission_denied');
       expect(writes).toBe(0);
     });
+
+    it('turns an initially editable editor read-only after a canonical 403', async () => {
+      globalThis.document = new FakeDocument();
+      const root = new FakeElement('div');
+      const denied = Object.assign(new Error('foundation_permission_denied'), { status: 403 });
+      const controller = createObjectiveEditorController({
+        root,
+        port: { listObjectives: async () => { throw denied; } },
+        canEdit: true,
+        autoLoad: false,
+      });
+
+      await controller.loadObjectives();
+
+      expect(controller.state.permissionDenied).toBe(true);
+      expect(collectText(root)).toContain('権限不足');
+      expect(findButtons(root).map((button) => button.textContent)).not.toContain('新しい目的');
+      expect((await controller.saveObjective({ id: 'objective-new' })).state).toBe('permission_denied');
+    });
   });
 
   describe('workspace layout (the host gives a rail)', () => {
