@@ -1692,6 +1692,18 @@ export function createKnowledgeOutcomeController(options = {}) {
         render(); return state.commit;
       }
       const revision = previousDraftConflict?.latest_revision ?? state.candidate.version ?? state.draft.revision ?? state.draft.version ?? null;
+      // Capture every value currently visible in the proposal form before the
+      // request can fail. A conflict rerender must not reconstruct the form
+      // from the original AI proposal and discard edits made by the user.
+      state.candidate = {
+        ...state.candidate,
+        candidate: { ...(state.candidate.candidate ?? {}), ...values },
+        input_text: state.draft.input_text,
+        draft_id: draftId,
+        version: revision,
+        state: 'candidate',
+        proposal_applied: true,
+      };
       const draftUpdate = {
         draftId,
         body: { ...candidateBody, revision },

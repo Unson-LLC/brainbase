@@ -1024,17 +1024,19 @@ describe('outcome knowledge UI contract', () => {
     const inputText = '利用者が入力した原文';
     controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1', input_text: inputText, source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
     controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
-    const values = { type: 'decision', title: '判断', summary: '本文', scope: 'project', selection: 'create' };
+    const values = { type: 'decision', title: '利用者が編集したタイトル', summary: '利用者が編集した要旨', scope: 'project', selection: 'create' };
 
     expect((await controller.commitCandidate(values)).state).toBe('conflict');
     expect(controller.state.commit.pending_draft_update).toMatchObject({ draftId: 'draft-1', latest_revision: null });
     expect(controller.state.draft.input_text).toBe(inputText);
+    expect(controller.state.candidate.candidate).toMatchObject({ title: values.title, summary: values.summary, type: values.type, scope: values.scope });
     expect(mutations).toHaveLength(1);
 
     const checked = await controller.retryPendingSave();
     expect(checked).toMatchObject({ state: 'conflict', latest_revision: 'd2' });
     expect(reads).toContain('/api/projects/proj-1/knowledge/drafts/draft-1');
     expect(controller.state.draft.input_text).toBe(inputText);
+    expect(controller.state.candidate.candidate).toMatchObject({ title: values.title, summary: values.summary, type: values.type, scope: values.scope });
     expect(controller.state.commit.pending_draft_update.latest_draft_metadata).toMatchObject({ draft_id: 'draft-1', revision: 'd2', content: 'サーバー側の最新版' });
     expect(collectText(root)).toContain('確認した最新版');
     expect(collectText(root)).toContain('サーバー側の最新版');
@@ -1047,6 +1049,14 @@ describe('outcome knowledge UI contract', () => {
     const patches = mutations.filter((entry) => entry.init.method === 'PATCH');
     expect(patches).toHaveLength(2);
     expect(patches.at(-1).init.body.revision).toBe('d2');
+    expect(patches.at(-1).init.body).toMatchObject({
+      type: values.type,
+      title: values.title,
+      summary: values.summary,
+      scope: values.scope,
+      content: inputText,
+      source_pointer: { uri: 'fixture://knowledge' },
+    });
     expect(committed.state).toBe('verified');
     expect(controller.state.draft.input_text).toBe(inputText);
   });
