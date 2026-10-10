@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { applyGraphCorrection, graphRecordDigest } from '../../src/graph-corrections.js';
-import { createGraphProjectsView, GRAPH_PROJECT_LEDGER_COLUMNS, normalizeProjectList } from '../../ui/graph-projects-view.js';
+import { createGraphProjectsView, GRAPH_PROJECT_LEDGER_COLUMNS, normalizeProjectDetail, normalizeProjectList } from '../../ui/graph-projects-view.js';
 import { PROJECT_ICON_MAX_BYTES } from '../../ui/project-icon.js';
 import { EDGES, ENTITIES, FIXTURE_NOW, writeGraphV1, writeGraphV2 } from '../graph-web-fixture.js';
 import {
@@ -745,6 +745,176 @@ describe('プロジェクトと関係者: states', () => {
       expect(byClass(root, 'bb-ws-summary')).toEqual([]);
     }
     expect(normalizeProjectList({ state: 'ok', payload: { projects: [], absenceConfirmed: true } })).toMatchObject({ state: 'ok' });
+  });
+
+  describe('関係者の不在確認と取得状態', () => {
+    const project = {
+      id: 'project-x', type: 'project', name: 'X', aliases: [], summary: null, tags: [], validFrom: null, validTo: null,
+      active: true, digest: 'sha256:project-x', goal: 'g', status: '進行中', decisionPrinciples: [], metadata: {},
+      participantCount: 2, accountableCount: 1, people: [{ id: 'person-x', name: 'Xさん', accountable: true }],
+    };
+    const edge = {
+      id: 'edge-x', type: 'edge', fromId: 'person-x', toId: 'project-x', relation: 'accountable_for', direction: 'incoming',
+      counterpart: { id: 'person-x', type: 'person', name: 'Xさん', active: true }, role: '責任者', context: null,
+      validFrom: null, validTo: null, active: true, digest: 'sha256:edge-x', provenance: { reference: { sourceKind: 'fixture', sourceId: 'edge-x' } },
+    };
+    const source = { dataDir: '/data', graphFormat: 2, authority: 'local_preview' };
+    const payload = (detail = {}) => ({ status: 'ok', source, asOf: '2026-10-10T00:00:00Z', project, participants: [], relations: [], history: [], issues: [], ...detail });
+    const response = (detail) => async (path) => path.endsWith('/projects')
+      ? jsonResponse(200, { status: 'ok', source, asOf: '2026-10-10T00:00:00Z', projects: [project], absenceConfirmed: false })
+      : jsonResponse(200, payload(detail));
+
+    it('fails before the patch: unavailable plus an empty array must not become 登録なし', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({ participants_status: 'unavailable', participants_unavailable_reason: 'Graphの関係エッジが未提供です。' }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).not.toContain('まだ関係者の登録がありません');
+      expect(collectText(rail)).toContain('Graphの関係エッジが未提供です');
+      expect(buttonsNamed(rail, '再試行')[0]).toBeDefined();
+    });
+
+    it('fails before the patch: known rows remain visible while partial state explains the missing remainder', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({ participants_status: 'partial', participants: [edge], participants_unavailable_reason: '一部の関係エッジを取得できません。' }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).toContain('Xさん');
+      expect(collectText(rail)).toContain('一部の関係エッジを取得できません');
+      expect(collectText(rail)).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('fails before the patch: empty is reserved for the dedicated participant flag', async () => {
+      expect(normalizeProjectDetail({ state: 'ok', payload: payload({ participantsStatus: 'unknown' }) }).payload.participantStatus).toBe('unknown');
+      expect(normalizeProjectDetail({ state: 'ok', payload: payload({ participants_status: 'empty', participants: [] }) }).payload.participantStatus).toBe('empty');
+      expect(normalizeProjectDetail({ state: 'ok', payload: payload({ participants_status: 'unavailable', participantsStatus: 'unknown' }) })).toMatchObject({ state: 'invalid' });
+      expect(normalizeProjectDetail({ state: 'ok', payload: payload({ participants_status: 'never-a-status' }) })).toMatchObject({ state: 'invalid' });
+      const confirmed = normalizeProjectDetail({ state: 'ok', payload: payload({
+        participants_absence_confirmed: true,
+      }) });
+      expect(confirmed).toMatchObject({ state: 'ok', payload: { participantAbsenceConfirmed: true } });
+    });
+
+    it('fails before the patch: count or named people conflicts remain a discrepancy', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({ participants_status: 'unavailable' }), autoLoad: false });
+      await view.load();
+      const text = collectText(rail);
+      expect(text).toContain('件数が一致しません');
+      expect(text).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('accepts a complete local Graph v2 empty response as a confirmed empty state', async () => {
+      const completeSource = { dataDir: '/data', graphFormat: 2, authority: 'local_graph' };
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: async (path) => path.endsWith('/projects')
+        ? jsonResponse(200, { status: 'ok', source: completeSource, asOf: '2026-10-10T00:00:00Z', projects: [project], absenceConfirmed: false })
+        : jsonResponse(200, { ...payload({ source: completeSource, project: { ...project, participantCount: 0, accountableCount: 0, people: [] }, participants: [], issues: [], participants_absence_confirmed: true }) }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).toContain('まだ関係者の登録がありません');
+    });
+
+    it('does not let generic project absence or an empty status override unavailable data', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({
+        participants_status: 'unavailable',
+        absenceConfirmed: true,
+        participants_unavailable_reason: 'Graphの関係エッジが未提供です。',
+      }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).toContain('Graphの関係エッジが未提供です');
+      expect(collectText(rail)).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('keeps known rows when an empty status contradicts a non-empty participant array', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({
+        participants_status: 'empty', participants: [edge], participants_absence_confirmed: false,
+      }), autoLoad: false });
+      await view.load();
+      expect(collectText(rail)).toContain('Xさん');
+      expect(collectText(rail)).toContain('取得した関係者と件数が一致しません');
+      expect(collectText(rail)).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('keeps known rows when the dedicated absence flag contradicts a non-empty participant array', async () => {
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: response({
+        participants_status: 'available', participants: [edge], participants_absence_confirmed: true,
+      }), autoLoad: false });
+      await view.load();
+      const text = collectText(rail);
+      expect(text).toContain('Xさん');
+      expect(text).toContain('取得した関係者と件数が一致しません');
+      expect(text).toContain('確認済みの件数: 関係者2人、責任者1人');
+      expect(text).not.toContain('まだ関係者の登録がありません');
+    });
+
+    it('retries an unavailable participant read through the actual button and renders the returned row', async () => {
+      let reads = 0;
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({ root, rail, document: new FakeDocument(), fetcher: async (path) => {
+        if (path.endsWith('/projects')) return jsonResponse(200, { status: 'ok', source, asOf: '2026-10-10T00:00:00Z', projects: [project], absenceConfirmed: false });
+        reads += 1;
+        return jsonResponse(200, payload(reads === 1
+          ? { participants_status: 'unavailable', participants_unavailable_reason: '一時的にGraphを読めません。' }
+          : { participants_status: 'available', participants: [edge] }));
+      }, autoLoad: false });
+      await view.load();
+      const retry = buttonsNamed(rail, '再試行')[0];
+      expect(retry).toBeDefined();
+      await retry.dispatch('click');
+      expect(reads).toBe(2);
+      expect(collectText(rail)).toContain('Xさん');
+      expect(collectText(rail)).not.toContain('一時的にGraphを読めません');
+    });
+
+    it('does not let a stale retry button reload the newly selected project', async () => {
+      await writeGraphV2(dataDir);
+      api = await startGraphApi(dataDir);
+      let atlasReads = 0;
+      const fetcher = async (path, init) => {
+        if (path === '/api/graph/projects/project-atlas' && ++atlasReads === 1) {
+          const response = await api.fetcher(path, init);
+          const body = await response.json();
+          return jsonResponse(200, {
+            ...body,
+            participants_status: 'unavailable',
+            participants_unavailable_reason: '一時的に関係者を読み取れません。',
+          });
+        }
+        return api.fetcher(path, init);
+      };
+      const root = new FakeElement('div');
+      const rail = new FakeElement('div');
+      const view = createGraphProjectsView({
+        root,
+        rail,
+        page: PAGE,
+        document: new FakeDocument(),
+        fetcher,
+        token: TOKEN,
+        autoLoad: false,
+      });
+
+      await view.load();
+      const staleRetry = buttonsNamed(rail, '再試行')[0];
+      expect(staleRetry).toBeDefined();
+
+      await view.select('project-beta');
+      expect(view.state.selectedId).toBe('project-beta');
+      const requestsAfterSelection = api.requests.length;
+
+      await staleRetry.dispatch('click');
+      expect(api.requests.length).toBe(requestsAfterSelection);
+      expect(view.state.selectedId).toBe('project-beta');
+    });
   });
 
   it('shows the 関係者 count as 未確認, not zero, when the host does not name the people', async () => {

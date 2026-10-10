@@ -655,6 +655,123 @@ function todayActionItems(items, now = new Date()) {
   }));
 }
 
+const DENSE_PARTICIPANT_STATUS_VALUES = new Set(['available', 'empty', 'partial', 'unavailable', 'unknown', 'stale', 'failed']);
+const DENSE_PARTICIPANT_FRESHNESS_VALUES = new Set(['fresh', 'stale', 'unknown']);
+
+function denseParticipantStatus(payload) {
+  const raw = [payload?.participantStatus, payload?.participants_status, payload?.participantsStatus]
+    .find((value) => value !== undefined && value !== null);
+  if (raw === 'ready') return 'available';
+  if (typeof raw === 'string' && DENSE_PARTICIPANT_STATUS_VALUES.has(raw)) return raw;
+  return Array.isArray(payload?.participants) && payload.participants.length > 0 ? 'available' : 'unknown';
+}
+
+function denseParticipantFreshness(payload) {
+  const raw = [payload?.participantFreshness, payload?.participants_freshness, payload?.participantsFreshness]
+    .find((value) => value !== undefined && value !== null);
+  return typeof raw === 'string' && DENSE_PARTICIPANT_FRESHNESS_VALUES.has(raw) ? raw : null;
+}
+
+function denseParticipantAbsenceConfirmed(payload) {
+  return payload?.participantAbsenceConfirmed === true
+    || payload?.participants_absence_confirmed === true
+    || payload?.participantsAbsenceConfirmed === true;
+}
+
+function denseParticipantAsOf(payload) {
+  const raw = [
+    payload?.participantsAsOf,
+    payload?.participantAsOf,
+    payload?.participants_as_of,
+    payload?.participant_as_of,
+    payload?.participantsCheckedAt,
+    payload?.participants_checked_at,
+    payload?.participantCheckedAt,
+    payload?.participant_checked_at,
+  ].map(textOrNull).find(Boolean);
+  if (!raw || Number.isNaN(Date.parse(raw))) return null;
+  return formatDateTime(raw);
+}
+
+function denseParticipantReason(payload, state, freshness) {
+  const explicit = textOrNull(payload?.participantUnavailableReason)
+    ?? textOrNull(payload?.participants_unavailable_reason)
+    ?? textOrNull(payload?.participantsUnavailableReason);
+  if (explicit) return explicit;
+  if (Array.isArray(payload?.warnings)) {
+    const warning = payload.warnings
+      .map((item) => textOrNull(item) ?? textOrNull(item?.reason) ?? textOrNull(item?.message))
+      .find(Boolean);
+    if (warning) return warning;
+  }
+  if (state === 'failed') return '関係者の詳細を取得できませんでした。';
+  if (state === 'stale' || freshness === 'stale') {
+    const checkedAt = denseParticipantAsOf(payload);
+    return checkedAt
+      ? `以前の情報です（確認時点: ${checkedAt}）。現在の関係者の詳細を未確認です。`
+      : '以前の情報です。確認時点は未確認です。現在の関係者の詳細を未確認です。';
+  }
+  if (state === 'partial') return '一部の関係者だけを読み取っています。';
+  return '関係者の詳細を未確認です。登録なしとは判断できません。';
+}
+
+function denseParticipantCountsZero(payload) {
+  const project = payload?.project ?? {};
+  return Number.isInteger(project.participantCount)
+    && Number.isInteger(project.accountableCount)
+    && project.participantCount === 0
+    && project.accountableCount === 0;
+}
+
+function denseParticipantStrictZero(payload) {
+  return denseParticipantCountsZero(payload)
+    && Array.isArray(payload?.participants)
+    && payload.participants.length === 0;
+}
+
+function denseParticipantSnapshot(payload) {
+  const state = denseParticipantStatus(payload);
+  const freshness = denseParticipantFreshness(payload);
+  const absenceConfirmed = denseParticipantAbsenceConfirmed(payload);
+  const confirmedEmpty = absenceConfirmed
+    && (state === 'available' || state === 'empty')
+    && freshness === 'fresh'
+    && denseParticipantStrictZero(payload);
+  const uncertain = !confirmedEmpty && (state === 'unknown' || state === 'unavailable' || state === 'partial' || state === 'stale' || state === 'failed' || freshness === 'unknown' || freshness === 'stale');
+  return { state, freshness, absenceConfirmed, confirmedEmpty, uncertain, reason: denseParticipantReason(payload, state, freshness) };
+}
+
+function denseParticipantCountSummary(payload, snapshot) {
+  const project = payload?.project ?? {};
+  const counts = [];
+  if (Number.isInteger(project.participantCount) && project.participantCount > 0) counts.push(`関係者${project.participantCount}人`);
+  if (Number.isInteger(project.accountableCount) && project.accountableCount > 0) counts.push(`責任者${project.accountableCount}人`);
+  if (counts.length === 0) {
+    if (snapshot.confirmedEmpty && denseParticipantStrictZero(payload)) return '確認済みの件数: 関係者0人、責任者0人。';
+    return '件数は未確認です。';
+  }
+  if (snapshot.uncertain) return `既知の件数（現在未確認）: ${counts.join('、')}。`;
+  return `確認済みの件数: ${counts.join('、')}。`;
+}
+
+function denseParticipantMetricValue(payload, participantEdges, snapshot) {
+  const project = payload?.project ?? {};
+  if (Number.isInteger(project.participantCount) && project.participantCount > 0) return `${project.participantCount}人`;
+  if (snapshot.confirmedEmpty && denseParticipantStrictZero(payload)) return '0人';
+  if (participantEdges.length > 0) return `${participantEdges.length}人`;
+  return '未確認';
+}
+
+function denseParticipantCountMismatch(payload, participantEdges, snapshot) {
+  if (snapshot.uncertain) return false;
+  const project = payload?.project ?? {};
+  const declared = [project.participantCount, project.accountableCount]
+    .some((value) => Number.isInteger(value) && value > 0);
+  const named = Array.isArray(project.people) && project.people.length > 0;
+  if (denseParticipantCountsZero(payload) && participantEdges.length > 0) return true;
+  return participantEdges.length === 0 && (declared || named);
+}
+
 function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   const payload = projectDetailPayload(detail);
   const taskSection = contextTaskSection(context);
@@ -665,6 +782,9 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
     .filter((edge) => edge?.counterpart?.id && (edge.counterpart.name || edge.counterpart.title))
     .map((edge) => [edge.counterpart.id, edge])).values()];
   const participants = participantEdges.slice(0, 6);
+  const participantSnapshot = denseParticipantSnapshot(payload);
+  const participantCountSummary = denseParticipantCountSummary(payload, participantSnapshot);
+  const participantCountMismatch = denseParticipantCountMismatch(payload, participantEdges, participantSnapshot);
   const recentRecords = records.length > 0 ? sortDenseItems(records).slice(0, 4) : graphRecords.slice(0, 4);
   const updated = [...tasks, ...records]
     .filter((item) => item.updatedAt || item.eventAt)
@@ -683,7 +803,7 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
     denseMetric(doc, '仕事', taskMetric, taskNote),
     denseMetric(doc, '今日扱う仕事', taskSection?.state === 'ok' ? `${due.length}件` : '未確認', taskSection?.state === 'ok' ? '期限・更新が確認できる順' : 'タスクの状態を確認中'),
     denseMetric(doc, '前回からの変化', updated.length > 0 ? `${updated.length}件` : '未確認', updated.length > 0 ? '更新時点がある記録' : '更新時点が未確認'),
-    denseMetric(doc, '関係者', participantEdges.length > 0 ? `${participantEdges.length}人` : '未確認', 'Graphに記録された参加関係'),
+    denseMetric(doc, '関係者', denseParticipantMetricValue(payload, participantEdges, participantSnapshot), participantCountSummary ?? '現在の関係者の詳細を確認中'),
   );
   panel.append(metrics);
 
@@ -735,8 +855,25 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   const peopleHead = makeElement(doc, 'div', { className: 'bb-pkw-dense-card-head' });
   peopleHead.append(makeElement(doc, 'h4', { text: '関係者' }), makeElement(doc, 'span', { className: 'bb-pkw-muted', text: participants.length > 0 ? `${participants.length}人を表示` : '未確認' }));
   people.append(peopleHead);
-  if (participants.length === 0) people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: 'Graphで確認できる関係者は未確認です。' }));
-  else {
+  if (participantCountSummary) people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: participantCountSummary }));
+  if (participantSnapshot.uncertain) {
+    people.append(workspaceNotice(doc, {
+      label: participantSnapshot.state === 'failed' ? '読み取り失敗' : '未確認',
+      text: participantSnapshot.reason,
+      tone: participantSnapshot.state === 'failed' ? 'danger' : 'info',
+    }));
+  } else if (participantCountMismatch) {
+    people.append(workspaceNotice(doc, {
+      label: '詳細未確認',
+      text: '既知の件数と取得した関係者が一致しません。現在の関係者の詳細を読み取れていません。',
+      tone: 'warning',
+    }));
+  } else if (participants.length === 0 && !participantSnapshot.confirmedEmpty) {
+    people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '関係者の詳細を未確認です。登録なしとは判断できません。' }));
+  } else if (participants.length === 0 && participantSnapshot.confirmedEmpty) {
+    people.append(makeElement(doc, 'p', { className: 'bb-pkw-muted', text: '確認できた関係者はありません。' }));
+  }
+  if (participants.length > 0) {
     const list = makeElement(doc, 'ul', { className: 'bb-pkw-dense-list' });
     for (const edge of participants) {
       const person = edge.counterpart;
@@ -748,6 +885,9 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
       list.append(row);
     }
     people.append(list);
+  }
+  if (typeof actions.retryParticipants === 'function' && (participantSnapshot.uncertain || participantCountMismatch || (participants.length === 0 && !participantSnapshot.confirmedEmpty))) {
+    people.append(denseButton(doc, '再試行', 'bb-pkw-dense-action', actions.retryParticipants, { 'aria-label': '関係者の読み取りを再試行' }));
   }
   supportingGrid.append(people);
   panel.append(supportingGrid);
@@ -1033,11 +1173,13 @@ export function createProjectKnowledgeWorkspace({
   mountGraph,
   readEntity,
   onTabChange,
+  onRetryProject,
 } = {}) {
   const doc = getDocument(explicitDocument);
   const payload = projectDetailPayload(detail);
   const project = payload?.project;
   if (!project) throw new TypeError('project detail is required');
+  const workspaceProjectId = cleanId(project.id);
   // Keep the project-bound projection separate from the mutable exploration
   // graph.  Reading a related entity may reveal arbitrary neighboring records,
   // but those records are not evidence that they belong to this project.
@@ -1390,6 +1532,7 @@ export function createProjectKnowledgeWorkspace({
     tabs.replaceChildren(tabButton('概要', 'overview'), tabButton('情報を探す', 'graph'));
     panels.replaceChildren();
     const actions = { openOverview, openWorkList, openWorkDetail, openRecordDetail, openSectionList, openGraphEntity: selectAndExplore,
+      retryParticipants: typeof onRetryProject === 'function' ? () => onRetryProject(workspaceProjectId) : null,
       recordSectionId: selectedSectionId,
       recordSectionTitle: CONTEXT_CATEGORIES.find(([id]) => id === selectedSectionId)?.[1] ?? contextSectionById(currentContext, [selectedSectionId])?.title,
     };

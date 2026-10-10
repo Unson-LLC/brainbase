@@ -107,8 +107,27 @@ describe('local Graph web reads', () => {
       candidateId: 'cand-sato', candidateKind: 'relationship', label: '佐藤 花子'
     });
     expect(detail.participants[1]!.provenance.reference).toEqual({ status: 'unresolved', sourceId: 'relationship-reg1' });
+    expect(detail.participantsAbsenceConfirmed).toBe(false);
     expect(detail.issues).toEqual([]);
     await expect(readGraphProject(dataDir, 'person-sato')).rejects.toMatchObject({ kind: 'not_found', code: 'project_not_found' });
+  });
+
+  it('confirms participant absence only for a strictly validated Graph snapshot', async () => {
+    await writeGraphV2(dataDir, { edges: Object.values(EDGES).filter((edge) => edge.toId !== 'project-atlas') });
+    const empty = await readGraphProject(dataDir, 'project-atlas', { now: FIXTURE_NOW });
+    if (empty.status !== 'ok') throw new Error('expected ok');
+    expect(empty.participants).toEqual([]);
+    expect(empty.participantsAbsenceConfirmed).toBe(true);
+
+    const graph = await readGraph();
+    await writeFile(join(dataDir, 'graph.json'), `${JSON.stringify({
+      ...graph,
+      entities: [...graph.entities, ENTITIES.atlas]
+    }, null, 2)}\n`);
+    await expect(readGraphProject(dataDir, 'project-atlas', { now: FIXTURE_NOW })).rejects.toMatchObject({
+      kind: 'unavailable',
+      code: 'graph_unavailable'
+    });
   });
 
   it('reads an entity with incoming and outgoing relations and resolves onboarding run references', async () => {
