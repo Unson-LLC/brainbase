@@ -658,12 +658,25 @@ function todayActionItems(items, now = new Date()) {
 const DENSE_PARTICIPANT_STATUS_VALUES = new Set(['available', 'empty', 'partial', 'unavailable', 'unknown', 'stale', 'failed']);
 const DENSE_PARTICIPANT_FRESHNESS_VALUES = new Set(['fresh', 'stale', 'unknown']);
 
+function denseProjectPeople(payload) {
+  const people = payload?.project?.people;
+  if (!Array.isArray(people)) return [];
+  return people.map((person) => {
+    const id = textOrNull(person?.id);
+    const name = textOrNull(person?.name) ?? textOrNull(person?.title);
+    if (!id || !name || typeof person?.accountable !== 'boolean') return null;
+    return { ...person, id, name };
+  }).filter(Boolean);
+}
+
 function denseParticipantStatus(payload) {
   const raw = [payload?.participantStatus, payload?.participants_status, payload?.participantsStatus]
     .find((value) => value !== undefined && value !== null);
   if (raw === 'ready') return 'available';
   if (typeof raw === 'string' && DENSE_PARTICIPANT_STATUS_VALUES.has(raw)) return raw;
-  return Array.isArray(payload?.participants) && payload.participants.length > 0 ? 'available' : 'unknown';
+  return (Array.isArray(payload?.participants) && payload.participants.length > 0) || denseProjectPeople(payload).length > 0
+    ? 'available'
+    : 'unknown';
 }
 
 function denseParticipantFreshness(payload) {
@@ -767,9 +780,18 @@ function denseParticipantCountMismatch(payload, participantEdges, snapshot) {
   const project = payload?.project ?? {};
   const declared = [project.participantCount, project.accountableCount]
     .some((value) => Number.isInteger(value) && value > 0);
-  const named = Array.isArray(project.people) && project.people.length > 0;
+  const namedPeople = denseProjectPeople(payload);
   if (denseParticipantCountsZero(payload) && participantEdges.length > 0) return true;
-  return participantEdges.length === 0 && (declared || named);
+  if (participantEdges.length === 0 && namedPeople.length > 0) {
+    const participantMismatch = Number.isInteger(project.participantCount)
+      && project.participantCount >= 0
+      && project.participantCount !== namedPeople.length;
+    const accountableMismatch = Number.isInteger(project.accountableCount)
+      && project.accountableCount >= 0
+      && project.accountableCount !== namedPeople.filter((person) => person.accountable).length;
+    return participantMismatch || accountableMismatch;
+  }
+  return participantEdges.length === 0 && declared;
 }
 
 function renderDenseOverview(doc, detail, context, entities, actions = {}) {
@@ -781,7 +803,15 @@ function renderDenseOverview(doc, detail, context, entities, actions = {}) {
   const participantEdges = [...new Map((payload?.participants ?? [])
     .filter((edge) => edge?.counterpart?.id && (edge.counterpart.name || edge.counterpart.title))
     .map((edge) => [edge.counterpart.id, edge])).values()];
-  const participants = participantEdges.slice(0, 6);
+  const participantStatus = denseParticipantStatus(payload);
+  const participantPeople = participantStatus === 'available'
+    ? denseProjectPeople(payload).map((person) => ({
+      counterpart: person,
+      relation: person.accountable ? 'accountable_for' : 'participates_in',
+      role: person.accountable ? '責任者' : null,
+    }))
+    : [];
+  const participants = (participantEdges.length > 0 ? participantEdges : participantPeople).slice(0, 6);
   const participantSnapshot = denseParticipantSnapshot(payload);
   const participantCountSummary = denseParticipantCountSummary(payload, participantSnapshot);
   const participantCountMismatch = denseParticipantCountMismatch(payload, participantEdges, participantSnapshot);
