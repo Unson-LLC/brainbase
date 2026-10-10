@@ -502,7 +502,7 @@ describe('情報と関係: kinds of information', () => {
 describe('情報と関係: counts another host could not finish', () => {
   // A host whose Graph is larger than one read (the organization Graph) sends
   // null counts with a status instead of a number it cannot vouch for.
-  async function mountPartial() {
+  async function mountPartial({ missingOntologyMetadata = false, omitOntologyFreshness = false, ontologyUpToDate } = {}) {
     await writeGraphV2(dataDir);
     api = await startGraphApi(dataDir);
     const fetcher = async (url, init) => {
@@ -511,6 +511,14 @@ describe('情報と関係: counts another host could not finish', () => {
       if (!path.includes('/ontology') && !path.includes('/search')) return response;
       const payload = await response.json();
       if (path.includes('/ontology')) {
+        if (missingOntologyMetadata) {
+          delete payload.ontology.id;
+          delete payload.ontology.version;
+          delete payload.ontology.currentVersion;
+          delete payload.ontology.releaseDigest;
+        }
+        if (omitOntologyFreshness) delete payload.ontology.upToDate;
+        if (ontologyUpToDate !== undefined) payload.ontology.upToDate = ontologyUpToDate;
         payload.entityTypes = payload.entityTypes.map((item, index) => (index === 0
           ? { ...item, count: null, countStatus: 'at_least', atLeast: 500 }
           : { ...item, count: null, countStatus: 'unknown' }));
@@ -545,6 +553,31 @@ describe('情報と関係: counts another host could not finish', () => {
     expect(results).toContain('ほかにもある可能性があります。条件を絞って探してください。');
     expect(results).not.toContain('null');
     expect(results).not.toContain('NaN');
+  });
+
+  it('labels missing ontology metadata as unconfirmed instead of rendering undefined', async () => {
+    const root = await mountPartial({ missingOntologyMetadata: true });
+    const panel = section(root, '情報の種類とつながり方');
+    const text = collectText(panel);
+    expect(text).toContain('定義の版 未確認（最新性は未確認）');
+    expect(text).toContain('定義ID未確認');
+    expect(text).toContain('release digest未確認');
+    expect(text).not.toContain('undefined');
+    expect(text).not.toContain('null');
+  });
+
+  it('does not infer latestness from a version when the host omits its freshness flag', async () => {
+    const root = await mountPartial({ omitOntologyFreshness: true });
+    const text = collectText(section(root, '情報の種類とつながり方'));
+    expect(text).toContain('最新性は未確認');
+    expect(text).not.toContain('（最新）');
+  });
+
+  it('labels a version as latest only when the host explicitly confirms it', async () => {
+    const root = await mountPartial({ ontologyUpToDate: true });
+    const text = collectText(section(root, '情報の種類とつながり方'));
+    expect(text).toContain('（最新）');
+    expect(text).not.toContain('最新性は未確認');
   });
 });
 

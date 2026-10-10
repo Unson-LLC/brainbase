@@ -495,11 +495,18 @@ function draftReadbackFrom(value, expectedDraftId = null) {
 function errorFromPayload(payload, status = null) {
   const body = isRecord(payload) ? payload : {};
   const source = isRecord(body.error) ? body.error : body;
-  const code = optionalText(fieldValue(source, 'code', 'error_code', 'type')) || (status === 403 ? 'permission_denied' : 'unknown_upstream_error');
+  const rawCode = optionalText(fieldValue(source, 'code', 'error_code', 'type')).trim();
+  const rawState = optionalText(fieldValue(source, 'state', 'status')).trim().toLowerCase();
+  const permissionFailure = Number(status) === 403
+    || ['forbidden', 'permission_denied', 'permission_insufficient', 'not_allowed', 'read_only_permission_denied', 'permission_decision_denied'].includes(rawCode.toLowerCase())
+    || ['forbidden', 'permission_denied', 'permission_insufficient', 'not_allowed', 'read_only_permission_denied', 'permission_decision_denied'].includes(rawState);
+  const code = permissionFailure ? 'permission_denied' : rawCode || 'unknown_upstream_error';
   const error = new Error(code);
   error.code = code;
   error.status = status ?? fieldValue(source, 'status', 'http_status') ?? fieldValue(body, 'status', 'http_status');
   error.detail = fieldValue(source, 'message', 'detail', 'reason');
+  error.next_action = fieldValue(source, 'next_action', 'nextAction') ?? fieldValue(body, 'next_action', 'nextAction');
+  error.payload = body;
   Object.assign(error, conflictMetadataFrom({ ...body, ...source, code, payload: body, details: source.details ?? body.details, conflict: source.conflict ?? body.conflict }));
   return error;
 }
@@ -582,12 +589,15 @@ function operationKey(name, id, version, body = {}) {
 function apiErrorText(error) {
   const code = optionalText(error?.code || error?.message) || 'unknown_upstream_error';
   if (isVersionConflict(error)) return '保存先の最新版と競合しました。';
+  const reason = optionalText(error?.detail).trim();
+  const nextAction = optionalText(error?.next_action ?? error?.nextAction).trim();
+  const appendNextAction = (message) => `${message}${nextAction ? ` 次の操作: ${nextAction}` : ''}`;
   const messages = {
     authentication_required: 'ログインが必要です。セッションを確認してください。',
     project_not_allowed: 'このプロジェクトを確認する権限がありません。',
     knowledge_project_not_accessible: 'このプロジェクトの知識を確認する権限がありません。',
-    permission_denied: '知識の変更権限がありません。現在の役割では実行できません。',
-    forbidden: '知識の変更権限がありません。現在の役割では実行できません。',
+    permission_denied: 'この役割では対象範囲の知識を確認できません。',
+    forbidden: 'この役割では対象範囲の知識を確認できません。',
     version_conflict: '保存先の最新版と競合しました。',
     readback_mismatch: '保存後の正本確認が一致しませんでした。未完了として再確認してください。',
     upstream_unavailable: '知識APIに接続できません。入力を保持して再試行してください。',
@@ -595,7 +605,9 @@ function apiErrorText(error) {
     api_unavailable: '知識APIが未接続です。接続を確認してください。',
     project_context_missing: 'プロジェクトが選択されていません。',
   };
-  return messages[code] ?? `知識APIを確認できません（${code}）。入力を保持して再試行してください。`;
+  const message = messages[code] ?? `知識APIを確認できません（${code}）。入力を保持して再試行してください。`;
+  if (code === 'permission_denied' || code === 'forbidden') return appendNextAction(reason ? `${message} ${reason}` : message);
+  return appendNextAction(message);
 }
 
 function isVersionConflict(error) {
@@ -736,12 +748,14 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
   const searchedScope = Array.isArray(collection.searched_scope) && collection.searched_scope.length
     ? collection.searched_scope.map(scopeLabel).join(' / ')
     : null;
+  const state = normaliseStatus(collection.state);
+  const countKnown = Array.isArray(collection.records)
+    && ['ready', 'results', EMPTY].includes(state);
   const section = makeElement('section', { className: 'knowledge-list-panel', attrs: { 'aria-labelledby': 'knowledge-list-title' } });
   const header = makeElement('div', { className: 'knowledge-panel-head' });
-  append(header, makeElement('div', {},), makeElement('span', { className: 'knowledge-count', text: Array.isArray(collection.records) ? `${collection.records.length}件` : UNKNOWN }));
+  append(header, makeElement('div', {},), makeElement('span', { className: 'knowledge-count', text: countKnown ? `${collection.records.length}件` : UNKNOWN }));
   header.firstChild.append(makeElement('h3', { text: '知識・判断', attrs: { id: 'knowledge-list-title' } }), makeElement('p', { text: searchedScope ? `検索範囲: ${searchedScope}` : '検索範囲: 未確認' }));
   section.append(header);
-  const state = normaliseStatus(collection.state);
   if (state === 'loading') {
     const skeleton = makeElement('div', { className: 'knowledge-list-rows', attrs: { 'aria-label': '知識を読み込み中' } });
     for (let index = 0; index < 4; index += 1) skeleton.append(skeletonRow());
@@ -749,7 +763,13 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
   } else if (state === EMPTY) {
     section.append(makeElement('div', { className: 'knowledge-empty', text: 'この条件に一致する知識はありません。自然文から登録案を作成できます。' }));
   } else if (state === 'permission_denied') {
-    section.append(statusNotice({ state, detail: '必要なプロジェクト権限を確認してください。' }, { retry: true, onRetry: callbacks.onRetry }));
+    // Keep the upstream reason and recovery action visible.  Replacing the
+    // payload with a generic detail makes a denied scope look like an
+    // unexplained empty result and leaves the user without a next step.
+    const permissionModel = collection.message
+      ? collection
+      : { ...collection, message: '必要なプロジェクト権限を確認してください。' };
+    section.append(statusNotice(permissionModel, { retry: true, onRetry: callbacks.onRetry }));
   } else if (['error', 'error_retryable'].includes(state)) {
     section.append(statusNotice(collection, { retry: true, onRetry: callbacks.onRetry }));
   } else if (state === 'unknown' || !Array.isArray(collection.records)) {
@@ -1693,7 +1713,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       }
       const revision = previousDraftConflict?.latest_revision ?? state.candidate.version ?? state.draft.revision ?? state.draft.version ?? null;
       // Capture every value currently visible in the proposal form before the
-      // request can fail. A conflict rerender must not reconstruct the form
+      // request can fail.  A conflict rerender must not reconstruct the form
       // from the original AI proposal and discard edits made by the user.
       state.candidate = {
         ...state.candidate,

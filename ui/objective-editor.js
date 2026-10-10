@@ -249,9 +249,13 @@ function normalizeReadiness(value) {
   const object = objectValue(value);
   if (!object || typeof object.ready !== 'boolean') return { state: 'unknown', ready: null, issues: null };
   const issues = asArray(object.issues);
+  const messageValue = firstValue(object, 'message', 'reason');
+  const nextActionValue = firstValue(object, 'next_action', 'nextAction');
   return {
     state: 'ready',
     ready: object.ready,
+    message: typeof messageValue === 'string' && messageValue.trim() ? messageValue.trim() : null,
+    next_action: typeof nextActionValue === 'string' && nextActionValue.trim() ? nextActionValue.trim() : null,
     issues: issues ? issues.map((issue) => ({
       code: text(firstValue(issue, 'code'), 'UNKNOWN'),
       path: text(firstValue(issue, 'path'), 'definition'),
@@ -684,7 +688,14 @@ function renderReadiness(root, readiness) {
     const list = makeElement('ul', { className: 'objective-editor-issue-list' });
     for (const issue of normalized.issues) list.append(makeElement('li', { text: `${issue.path}: ${issue.message}` }));
     section.append(list);
-  } else {
+  }
+  if (!normalized.ready && normalized.message) {
+    section.append(makeElement('p', { className: 'objective-editor-muted', text: normalized.message }));
+  }
+  if (!normalized.ready && normalized.next_action) {
+    section.append(makeElement('p', { className: 'objective-editor-muted', text: `次の対応: ${normalized.next_action}` }));
+  }
+  if (normalized.ready) {
     section.append(makeElement('p', { className: 'objective-editor-muted', text: '必要な定義・基準・参照が揃っています。観測値の存在は別途確認します。' }));
   }
   return section;
@@ -1150,6 +1161,8 @@ function readinessContent(doc, readiness) {
     for (const issue of normalized.issues) list.append(makeElement('li', { text: `${issue.path}: ${issue.message}` }));
     content.push(list);
   }
+  if (normalized.message) content.push(makeElement('p', { className: 'bb-objective-note', text: normalized.message }));
+  if (normalized.next_action) content.push(makeElement('p', { className: 'bb-objective-note', text: `次の対応: ${normalized.next_action}` }));
   return content;
 }
 

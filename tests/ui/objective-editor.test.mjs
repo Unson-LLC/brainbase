@@ -342,6 +342,32 @@ describe('Objective editor common UI contract', () => {
     expect(collectText(root)).toContain('判断に使えない（不足1件）');
   });
 
+  it('shows the host readiness message and next action when judgment is unavailable', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const port = {
+      readObjective: async () => objectiveRecord(),
+      checkObjectiveReadiness: async () => ({
+        ready: false,
+        issues: [],
+        message: '評価に必要な変数の版を確認できません。',
+        next_action: '変数を読み直してから再確認してください。',
+      }),
+    };
+    const controller = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false });
+
+    await controller.selectObjective({ id: 'objective-load', type: 'objective', revision: '1' });
+
+    expect(controller.state.readiness).toMatchObject({
+      state: 'ready',
+      ready: false,
+      message: '評価に必要な変数の版を確認できません。',
+      next_action: '変数を読み直してから再確認してください。',
+    });
+    expect(collectText(root)).toContain('評価に必要な変数の版を確認できません。');
+    expect(collectText(root)).toContain('次の対応: 変数を読み直してから再確認してください。');
+  });
+
   describe('draft submissions and interrupted requests', () => {
     function mount(port, options = {}) {
       globalThis.document = new FakeDocument();

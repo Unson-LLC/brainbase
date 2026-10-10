@@ -504,11 +504,14 @@ export function createGraphRegistryView({
     }
     const { payload } = state.ontology;
     const ontology = payload.ontology;
+    const version = textOrNull(ontology.version);
+    const currentVersion = textOrNull(ontology.currentVersion);
+    const freshness = ontology.upToDate === false && currentVersion
+      ? `最新ではありません。最新は ${currentVersion}`
+      : ontology.upToDate === true && version ? '最新' : '最新性は未確認';
     section.append(makeElement(doc, 'p', {
       className: 'bb-gr-caption',
-      text: `定義の版 ${ontology.upToDate === false
-        ? `${String(ontology.version)}（最新ではありません。最新は ${String(ontology.currentVersion)}）`
-        : `${String(ontology.version)}（最新）`}`,
+      text: `定義の版 ${version ?? '未確認'}（${freshness}）`,
     }));
     section.append(makeElement(doc, 'h3', { className: 'bb-gr-subheading', text: 'つながり方' }));
     section.append(workspaceLedger(doc, {
@@ -549,7 +552,11 @@ export function createGraphRegistryView({
       );
       section.append(list);
     }
-    section.append(recordDetails(doc, [['定義ID', ontology.id], ['定義の版', ontology.version], ['release digest', ontology.releaseDigest]]));
+    section.append(recordDetails(doc, [
+      ['定義ID', textOrNull(ontology.id) ?? '未確認'],
+      ['定義の版', version ?? '未確認'],
+      ['release digest', textOrNull(ontology.releaseDigest) ?? '未確認'],
+    ]));
     return section;
   }
 
