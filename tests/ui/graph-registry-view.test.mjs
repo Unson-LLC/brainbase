@@ -240,6 +240,52 @@ describe('情報と関係: the record in the rail', () => {
     expect(collectText(root)).not.toContain('出る関係');
   });
 
+  it('keeps an empty relation result unconfirmed when the selected project still has known participants, and offers a retry', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    let detailReads = 0;
+    const fetcher = async (path) => {
+      const response = await api.fetcher(path);
+      if (!String(path).includes('/api/graph/entities/project-atlas')) return response;
+      const body = await response.json();
+      detailReads += 1;
+      if (detailReads > 1) return jsonResponse(200, body);
+      return jsonResponse(200, {
+        ...body,
+        entity: {
+          ...body.entity,
+          participantCount: 2,
+          accountableCount: 1,
+          people: [{ id: 'person-a', name: '担当A', accountable: true }, { id: 'person-b', name: '担当B', accountable: false }],
+        },
+        outgoing: [],
+        incoming: [],
+        participants_status: 'unavailable',
+        participants_reason: '関係者の記録元を確認できません。',
+        absenceConfirmed: false,
+        source: { ...body.source, edges_not_provided: true },
+      });
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
+    await view.load();
+    await view.openEntity('project-atlas');
+
+    const outgoing = section(rail, '出る関係');
+    expect(collectText(outgoing)).toContain('未確認');
+    expect(collectText(outgoing)).toContain('関係者の記録元を確認できません。');
+    expect(collectText(outgoing)).toContain('登録なしとは判断できません。');
+    expect(collectText(outgoing)).not.toContain('この記録から出る関係はありません。');
+    expect(buttonsNamed(outgoing, '再試行')).toHaveLength(1);
+    expect(buttonsNamed(section(rail, '入る関係'), '再試行')).toHaveLength(1);
+
+    buttonsNamed(outgoing, '再試行')[0].dispatch('click');
+    await waitFor(() => detailReads === 2 && collectText(section(rail, '入る関係')).includes('田中 太郎が参加'));
+    expect(collectText(section(rail, '出る関係'))).toContain('この記録から出る関係はありません。');
+    expect(collectText(section(rail, '出る関係'))).not.toContain('登録なしとは判断できません。');
+  });
+
   it('moves the rail with the selected row', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView();

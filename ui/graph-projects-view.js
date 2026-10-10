@@ -160,6 +160,10 @@ function participantCountSummary(payload) {
   return known.length > 0 ? `確認済みの件数: ${known.join('、')}。` : '';
 }
 
+function projectCorrectionSubject(name, fields) {
+  return `プロジェクト「${name}」の${fields.map((field) => GRAPH_CORRECTION_FIELDS[field].label).join('・')}`;
+}
+
 function isProjectPerson(value) {
   return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.accountable === 'boolean';
 }
@@ -397,7 +401,19 @@ export function createGraphProjectsView({
     now,
     scope: correctionScope,
     rerender: () => controller.render(),
-    onSaved: async () => {
+    onSaved: async (payload, form) => {
+      // The save response is the authoritative read-back.  A project name
+      // may have changed, so refresh the sentence above the saved form before
+      // the list/detail reloads redraw the rail.  Otherwise the old name
+      // remains visible while the read-back values already show the new one.
+      if (form?.kind === 'update_entity'
+        && form.recordType === 'project'
+        && payload?.record?.id === form.targetId
+        && typeof payload.record.name === 'string'
+        && Array.isArray(form.fields)) {
+        form.subject = projectCorrectionSubject(payload.record.name, form.fields);
+        controller.render();
+      }
       await Promise.all([
         state.detail ? controller.loadDetail(state.detail.id, { keep: true }) : null,
         controller.load({ keep: true }),
@@ -927,7 +943,7 @@ export function createGraphProjectsView({
           onClick: () => openCorrection('project', () => correction.openEntity(project, {
             fields: projectFields,
             title: 'プロジェクトを直す',
-            subject: `プロジェクト「${project.name}」の${projectFields.map((field) => GRAPH_CORRECTION_FIELDS[field].label).join('・')}`,
+            subject: projectCorrectionSubject(project.name, projectFields),
           })),
         }) : null,
       ].filter(Boolean);

@@ -1110,6 +1110,20 @@ describe('プロジェクトと関係者: corrections in the rail', () => {
     expect(ledgerRow(root, 'project-atlas').className).toContain('is-selected');
   });
 
+  it('updates the project correction subject from the saved name read back for the same id', async () => {
+    await writeGraphV2(dataDir);
+    const { rail } = await mountView();
+    buttonsNamed(rail, 'プロジェクトを直す')[0].dispatch('click');
+    type(rail, 'name', 'Atlas導入（更新後）');
+    type(rail, 'reason', '表示名を現在の名称にそろえる。');
+    await submit(rail);
+
+    const panel = collectText(section(rail, 'プロジェクトを直す'));
+    expect(panel).toContain('プロジェクト「Atlas導入（更新後）」の名前・目的・状態・アイコン');
+    expect(panel).not.toContain('プロジェクト「Atlas導入」の名前・目的・状態・アイコン');
+    expect(panel).toContain('読み直した内容名前Atlas導入（更新後）');
+  });
+
   it('registers, previews, removes and reads back a project icon through the correction form', async () => {
     await writeGraphV2(dataDir);
     const { root, rail, view } = await mountView();

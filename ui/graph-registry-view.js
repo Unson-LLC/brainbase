@@ -119,6 +119,111 @@ export function normalizeEntityDetail(result) {
   return { state: 'ok', payload };
 }
 
+const RELATION_UNAVAILABLE_STATES = new Set(['failed', 'incomplete', 'partial', 'stale', 'unknown', 'unavailable']);
+const RELATION_EMPTY_STATES = new Set(['confirmed_empty', 'empty', 'none']);
+
+function normalizedRelationState(value) {
+  if (typeof value !== 'string') return null;
+  const state = value.trim().toLowerCase().replace(/[- ]/gu, '_');
+  if (RELATION_UNAVAILABLE_STATES.has(state)) return 'unknown';
+  if (RELATION_EMPTY_STATES.has(state)) return 'confirmed_empty';
+  if (['available', 'complete', 'ready'].includes(state)) return 'available';
+  return null;
+}
+
+function firstText(...values) {
+  for (const value of values) {
+    const text = textOrNull(value);
+    if (text) return text;
+  }
+  return null;
+}
+
+function relationStatusFrom(payload, direction) {
+  const direct = [
+    payload[`${direction}_status`],
+    payload[`${direction}Status`],
+    payload[`${direction}_availability`],
+    payload[`${direction}Availability`],
+  ].map(normalizedRelationState).find(Boolean);
+  if (direct) return direct;
+  return [
+    payload.relations_status,
+    payload.relationsStatus,
+    payload.relation_status,
+    payload.relationStatus,
+    payload.edges_status,
+    payload.edgesStatus,
+  ].map(normalizedRelationState).find(Boolean) ?? null;
+}
+
+function participantStatusFrom(payload) {
+  return [
+    payload.participants_status,
+    payload.participantsStatus,
+    payload.participant_status,
+    payload.participantStatus,
+  ].map(normalizedRelationState).find(Boolean) ?? null;
+}
+
+function knownParticipantCount(payload) {
+  const entity = payload.entity ?? {};
+  const count = [
+    entity.participantCount,
+    entity.participant_count,
+    entity.accountableCount,
+    entity.accountable_count,
+    payload.actual_known_count,
+    payload.actualKnownCount,
+  ].find((value) => Number.isInteger(value) && value > 0);
+  if (count) return count;
+  if (Array.isArray(entity.people) && entity.people.length > 0) return entity.people.length;
+  if (Array.isArray(payload.people) && payload.people.length > 0) return payload.people.length;
+  return null;
+}
+
+function relationUnavailableReason(payload) {
+  const explicit = firstText(
+    payload.relations_reason,
+    payload.relationsReason,
+    payload.relation_reason,
+    payload.relationReason,
+    payload.edges_reason,
+    payload.edgesReason,
+    payload.participants_reason,
+    payload.participantsReason,
+    payload.participants_unavailable_reason,
+    payload.participantsUnavailableReason,
+    payload.reason,
+    payload.source?.reason,
+    payload.source?.message,
+  );
+  if (explicit) return `${explicit} 関係の有無は確認できません。登録なしとは判断できません。`;
+  const count = knownParticipantCount(payload);
+  const known = count ? `関係者の件数（${count}人）は確認できていますが、` : '';
+  return `${known}関係の有無を確認できません。関係の詳細が未取得のため、登録なしとは判断できません。`;
+}
+
+/**
+ * Empty edge arrays are a confirmed empty result only when the host says so.
+ * A project can carry a known participant count while its relation edges are
+ * unavailable; rendering the empty copy in that case turns unknown data into
+ * a product assertion.
+ */
+function relationAvailability(payload, direction) {
+  if (payload[direction].length > 0) return { state: 'available' };
+  const direct = relationStatusFrom(payload, direction);
+  if (direct === 'unknown') return { state: 'unknown', reason: relationUnavailableReason(payload) };
+  if (direct === 'confirmed_empty') return { state: 'confirmed_empty' };
+  if (payload.source?.edges_not_provided === true || payload.source?.edgesNotProvided === true) {
+    return { state: 'unknown', reason: relationUnavailableReason(payload) };
+  }
+  if (participantStatusFrom(payload) === 'unknown' || knownParticipantCount(payload)) {
+    return { state: 'unknown', reason: relationUnavailableReason(payload) };
+  }
+  return { state: 'confirmed_empty' };
+}
+
 // A host that could not finish counting sends null (with countStatus
 // 'unknown', or 'at_least' plus atLeast) rather than a number it cannot vouch for.
 function isCount(value) {
@@ -573,7 +678,22 @@ export function createGraphRegistryView({
     })];
     const edges = payload[direction];
     if (edges.length === 0) {
-      content.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: outgoing ? 'この記録から出る関係はありません。' : 'この記録へ入る関係はありません。' }));
+      const availability = relationAvailability(payload, direction);
+      if (availability.state === 'unknown') {
+        content.push(workspaceNotice(doc, {
+          label: '未確認',
+          tone: 'warning',
+          role: 'status',
+          text: availability.reason,
+        }));
+        content.push(workspaceActions(doc, [workspaceButton(doc, {
+          text: '再試行',
+          variant: 'quiet',
+          onClick: () => controller.loadEntity(entity.id, { keep: true }),
+        })]));
+      } else {
+        content.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: outgoing ? 'この記録から出る関係はありません。' : 'この記録へ入る関係はありません。' }));
+      }
     } else {
       const list = makeElement(doc, 'ul', { className: 'bb-graph-compact-list' });
       for (const edge of edges) list.append(relationItem(edge, entity, payload.asOf));
