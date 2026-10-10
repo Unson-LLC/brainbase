@@ -35,7 +35,7 @@ depends_on: [meeting-source-reader-v1]
 
 ### `ConnectionRuntime`と`NativeMcpRuntime`（AC-02・AC-03）
 
-- `callTool(connection, tool, args)`：接続ごとの資格情報でMCPのSDKのクライアントを作り、ツールを1回呼んで閉じる。認可が要るとき（SDKが認可の画面へ送ろうとしたとき）は`OAuth authorization is required`のエラーにする（URLは含めない）。エラーの文言から、その接続のtoken・refresh token・client secretの値を伏せる。
+- `callTool(connection, tool, args)`：接続ごとの資格情報でMCPのSDKのクライアントを作り、ツールを1回呼んで閉じる。アクセストークンの期限が切れたら、保存したrefresh tokenで更新し、新しいtokenを資格情報の置き場へ書き戻す（SDKは戻り先の無い提供者を非対話のクライアントとみなし更新しないため、提供者は対話しない印の戻り先を持つ）。更新が拒まれて認可が要るとき（SDKが認可の画面へ送ろうとしたとき）は`OAuth authorization is required`のエラーにする（URLは含めない）。エラーの文言から、その接続のtoken・refresh token・client secretの値を伏せる。
 - `verify(connection, { budget? })`：`probeMeetingSourceConnection`で、直近30日の一覧と、最新の会議の全文の1ページ目を実際に読む。
   - 一覧が読めたときだけ`status: 'connected'`と`meetings:list`。認可切れは`reauth_required`、それ以外の失敗は`error`で、どちらも能力は空。
   - 全文の1ページ目が読めたときだけ`transcript:read`を足す。読めなければ能力に入れず、理由（Tactiqの`access_required`では`get_access_options`の内容）を`notes`に残す。会議が無ければ`transcript:read`は`no_meetings`として未確認のまま。
