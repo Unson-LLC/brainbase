@@ -82,6 +82,12 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.28.0（npm公開前）
+
+知識を探す正本（Graph・所有repo・チームのDrive・個人KG・作業場）を、内容の種類と相手から決める部品を、新しい出口 `@unson/brainbase-mcp/knowledge-resolution-service` として追加します。brainbase-unsonの部品を処理を変えずに移したもので、外部のサービスを呼ばず、OSSの既定の動作は変わりません。
+
+組織版への会社権限の部品の移設と、brainbase-unsonでの取り込みは別の段階です。
+
 ## Candidate — v0.27.0（npm公開前）
 
 Graphの意味検索に使う埋め込みの生成（Gemini、`gemini-embedding-001:768:v2`）を、新しい出口 `@unson/brainbase-mcp/graph-embedding-provider` として追加します。問いと文書を区別して頼み、長い文を分けて平均します。組織側が保存済みの索引をそのまま使えるよう、モデルIDと次元は版をまたいで変えません。APIキーを渡したときだけ外部のサービスを呼ぶので、OSSの既定の動作は変わりません。
