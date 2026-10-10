@@ -183,6 +183,18 @@
       "types": "./dist/knowledge-resolution-service.d.ts",
       "import": "./dist/knowledge-resolution-service.js"
     },
+    "./canonical-document-writer": {
+      "types": "./dist/canonical-document-writer.d.ts",
+      "import": "./dist/canonical-document-writer.js"
+    },
+    "./knowledge-capture-preview": {
+      "types": "./dist/knowledge-capture-preview.d.ts",
+      "import": "./dist/knowledge-capture-preview.js"
+    },
+    "./meeting-source-integration-catalog": {
+      "types": "./dist/meeting-source-integration-catalog.d.ts",
+      "import": "./dist/meeting-source-integration-catalog.js"
+    },
     "./knowledge-adapter": {
       "types": "./dist/knowledge-adapter.d.ts",
       "import": "./dist/knowledge-adapter.js"
