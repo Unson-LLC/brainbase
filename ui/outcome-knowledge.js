@@ -423,6 +423,10 @@ function isRecord(value) {
 
 function conflictMetadataFrom(value) {
   if (!isRecord(value)) return {};
+  // A request body or locally retained draft is not evidence of the server's
+  // current version.  Only explicit latest/current fields from the response
+  // may be rendered as the latest value.  This keeps a submitted revision
+  // from being relabelled as the server's current revision after a 409.
   const sources = [
     value,
     value.details,
@@ -430,9 +434,6 @@ function conflictMetadataFrom(value) {
     value.payload,
     value.latest,
     value.current,
-    value.pending_save,
-    value.pending_save?.body,
-    value.draft,
   ].filter(isRecord);
   const read = (...keys) => {
     for (const source of sources) {
@@ -441,8 +442,16 @@ function conflictMetadataFrom(value) {
     }
     return undefined;
   };
-  const latestVersion = read('latest_version', 'latestVersion', 'current_version', 'currentVersion', 'version');
-  const latestRevision = read('latest_revision', 'latestRevision', 'current_revision', 'currentRevision', 'revision');
+  const readNestedCurrent = (key) => {
+    for (const source of [value.latest, value.current]) {
+      if (!isRecord(source)) continue;
+      const found = fieldValue(source, key);
+      if (found !== undefined && found !== null && optionalText(found).trim() !== '') return found;
+    }
+    return undefined;
+  };
+  const latestVersion = read('latest_version', 'latestVersion', 'current_version', 'currentVersion') ?? readNestedCurrent('version');
+  const latestRevision = read('latest_revision', 'latestRevision', 'current_revision', 'currentRevision') ?? readNestedCurrent('revision');
   const expectedVersion = read('expected_version', 'expectedVersion');
   const expectedRevision = read('expected_revision', 'expectedRevision');
   const reason = read('conflict_reason', 'conflictReason', 'reason', 'detail', 'message');
@@ -453,6 +462,19 @@ function conflictMetadataFrom(value) {
   if (expectedRevision !== undefined) result.expected_revision = expectedRevision;
   if (reason !== undefined && optionalText(reason).trim() !== optionalText(value.code ?? value.message).trim()) result.conflict_reason = reason;
   return result;
+}
+
+function draftRevisionFrom(value) {
+  if (!isRecord(value)) return null;
+  const draft = isRecord(value.draft)
+    ? value.draft
+    : isRecord(value.data?.draft)
+      ? value.data.draft
+      : isRecord(value.data)
+        ? value.data
+        : value;
+  const revision = fieldValue(draft, 'revision', 'version');
+  return revision === undefined || revision === null || optionalText(revision).trim() === '' ? null : revision;
 }
 
 function errorFromPayload(payload, status = null) {
@@ -1323,7 +1345,10 @@ export function createKnowledgeOutcomeController(options = {}) {
     }
     header.append(nav); shell.append(header);
     const body = makeElement('div', { className: 'knowledge-outcome-body knowledge-workspace', attrs: { 'data-view': state.view } });
-    const primary = makeElement('main', { className: 'knowledge-outcome-primary knowledge-master', attrs: { 'aria-label': state.view === 'discovery' ? '知識の一覧' : '知識の操作' } });
+    // The host application owns the page-level main landmark.  Keeping the
+    // outcome workspace as a labelled section avoids a duplicate main when
+    // this module is mounted inside that page.
+    const primary = makeElement('section', { className: 'knowledge-outcome-primary knowledge-master', attrs: { 'aria-label': state.view === 'discovery' ? '知識の一覧' : '知識の操作' } });
     const discovery = makeElement('section', { className: 'knowledge-discovery-view', hidden: state.view !== 'discovery', attrs: { 'aria-labelledby': 'knowledge-discovery-title' } });
     const discoveryHeader = makeElement('div', { className: 'knowledge-view-heading' });
     append(discoveryHeader,
@@ -1349,10 +1374,13 @@ export function createKnowledgeOutcomeController(options = {}) {
     captureWorkspace.append(capture);
     const review = makeElement('div', { className: 'knowledge-review-region', hidden: state.view !== 'capture' || state.candidate.state === 'idle' });
     if (state.candidate.state !== 'idle') {
-      const commitLocked = state.commit.state === 'saving' || Boolean(state.commit.pending_save) || ['verified', 'saved_unverified'].includes(state.commit.state);
+      const pendingDraftUpdate = state.commit.pending_draft_update;
+      const draftConflictNeedsRead = Boolean(pendingDraftUpdate && (pendingDraftUpdate.latest_revision === undefined || pendingDraftUpdate.latest_revision === null));
+      const commitLocked = state.commit.state === 'saving' || Boolean(state.commit.pending_save) || draftConflictNeedsRead || ['verified', 'saved_unverified'].includes(state.commit.state);
+      const candidateEditLocked = commitLocked || Boolean(pendingDraftUpdate);
       renderCandidateReview(review, { ...state.candidate, decision_domains: state.authority.domains ?? [] }, {
-        onApply: commitLocked ? null : applyProposal,
-        onSave: commitLocked ? null : saveCandidate,
+        onApply: candidateEditLocked ? null : applyProposal,
+        onSave: candidateEditLocked ? null : saveCandidate,
         onCommit: commitLocked || !(state.candidate.draft_id ?? state.draft.id) ? null : commitCandidate,
         onRetry: state.commit.pending_save ? retryPendingSave : () => createDraft({ input_text: state.draft.input_text, source: state.draft.source }),
       });
@@ -1406,7 +1434,18 @@ export function createKnowledgeOutcomeController(options = {}) {
     const lifecycle = makeElement('div', { className: 'knowledge-inspector-lifecycle' });
     const detailUnavailable = ['loading', 'error', 'error_retryable', 'permission_denied', 'unknown'].includes(state.detail.state);
     if (state.selected && !detailUnavailable) renderLifecycle(lifecycle, state.selected, { canEdit: canManageKnowledge(session), ownerCandidates, revisionDraft: state.lifecycle.revisionDraft, supersessionDraft: state.lifecycle.supersessionDraft, supersessionCandidates: state.list.records, onRevision: reviseItem, onSupersede: supersedeItem, onRetire: retireItem }); detail.append(lifecycle);
-    if (state.commit.state !== 'idle') { const commit = makeElement('div'); renderCommitState(commit, state.commit, { onReadback: state.commit.pending_save ? retryPendingSave : readbackCommit }); detail.append(commit); }
+    if (state.commit.state !== 'idle') {
+      const commit = makeElement('div');
+      const pendingDraftUpdate = state.commit.pending_draft_update;
+      const draftConflictNeedsRead = Boolean(pendingDraftUpdate && (pendingDraftUpdate.latest_revision === undefined || pendingDraftUpdate.latest_revision === null));
+      const onReadback = state.commit.pending_save || draftConflictNeedsRead
+        ? retryPendingSave
+        : state.commit.state === 'conflict' && pendingDraftUpdate
+          ? null
+          : readbackCommit;
+      renderCommitState(commit, state.commit, { onReadback });
+      detail.append(commit);
+    }
     body.append(detail); shell.append(body); root.append(shell); notify();
     return shell;
   }
@@ -1590,9 +1629,10 @@ export function createKnowledgeOutcomeController(options = {}) {
 
   async function commitCandidate(values) {
     if (state.commit.state === 'saving' || state.commit.pending_save || ['verified', 'saved_unverified'].includes(state.commit.state)) return state.commit;
+    const previousDraftConflict = state.commit.pending_draft_update;
     const draftId = state.candidate.draft_id ?? state.draft.id;
     if (!draftId) { state.commit = { state: 'unknown', message: '下書きIDを確認できません。' }; render(); return null; }
-    state.commit = { state: 'saving', item_id: null, version: null }; render();
+    state.commit = { state: 'saving', item_id: null, version: null, ...(previousDraftConflict ? { pending_draft_update: previousDraftConflict } : {}) }; render();
     try {
       const resolvedDomain = await resolveDecisionDomain?.({ project, session: typeof session === 'function' ? session() : session, candidate: values });
       const decisionDomain = resolvedDomain ?? values.decision_domain ?? null;
@@ -1613,25 +1653,97 @@ export function createKnowledgeOutcomeController(options = {}) {
         state.commit = { state: 'unknown', message: '再利用する正本IDと現在版を確認できません。' };
         render(); return state.commit;
       }
-      const revision = state.candidate.version ?? state.draft.revision ?? state.draft.version ?? null;
-      const updated = await callKnowledgeApi(apiMutation, knowledgePath(code, `${KNOWLEDGE_ROUTES.drafts}/${encodeURIComponent(draftId)}`), { method: 'PATCH', body: { ...candidateBody, revision }, key: operationKey('draft-update', draftId, revision, candidateBody) });
+      const revision = previousDraftConflict?.latest_revision ?? state.candidate.version ?? state.draft.revision ?? state.draft.version ?? null;
+      const draftUpdate = {
+        draftId,
+        body: { ...candidateBody, revision },
+        key: operationKey('draft-update', draftId, revision, candidateBody),
+        latest_revision: previousDraftConflict?.latest_revision ?? null,
+        local_input_text: state.draft.input_text,
+        local_source: state.draft.source,
+      };
+      state.commit = { ...state.commit, pending_draft_update: draftUpdate };
+      const updated = await callKnowledgeApi(apiMutation, knowledgePath(code, `${KNOWLEDGE_ROUTES.drafts}/${encodeURIComponent(draftId)}`), { method: 'PATCH', body: draftUpdate.body, key: draftUpdate.key });
       const savedRevision = updated?.revision ?? revision;
       state.candidate = { ...state.candidate, ...updated, candidate: updated?.candidate ?? values, draft_id: updated?.draft_id ?? updated?.id ?? draftId, version: savedRevision };
-      state.draft = { ...state.draft, ...updated, id: updated?.draft_id ?? updated?.id ?? draftId, revision: savedRevision };
+      state.draft = {
+        ...state.draft,
+        ...updated,
+        id: updated?.draft_id ?? updated?.id ?? draftId,
+        revision: savedRevision,
+        input_text: draftUpdate.local_input_text,
+        ...(draftUpdate.local_source !== undefined ? { source: draftUpdate.local_source } : {}),
+      };
       const body = { revision: savedRevision, decision_domain: decisionDomain, ...(selection === 'reuse' ? { canonical_id: canonicalId, expected_version: canonicalVersion } : {}) };
       const action = selection === 'reuse' ? 'reuse' : 'save';
       const key = operationKey(action, draftId, savedRevision, body);
-      state.commit = { ...state.commit, pending_save: { draftId, body, key, action, expected_relations: candidateBody.relations } };
+      state.commit = { ...state.commit, pending_save: { draftId, body, key, action, expected_relations: candidateBody.relations }, pending_draft_update: null };
       const payload = await callKnowledgeApi(apiMutation, knowledgePath(code, `${KNOWLEDGE_ROUTES.drafts}/${encodeURIComponent(draftId)}/${action}`), { method: 'POST', body, key });
       const readback = await verifyMutationReadback(payload, candidateBody.relations, action);
       state.commit = readback;
       if (readback.item) { state.selected = readback.item; state.detail = { state: 'ready', item: readback.item }; state.lifecycle = { state: 'ready', item: readback.item }; }
       onCommitted?.(readback);
-    } catch (error) { state.commit = { ...state.commit, state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) }; }
+    } catch (error) {
+      const pendingDraftUpdate = state.commit.pending_draft_update;
+      const nextPendingDraftUpdate = pendingDraftUpdate && isVersionConflict(error)
+        ? { ...pendingDraftUpdate, latest_revision: null }
+        : pendingDraftUpdate;
+      state.commit = {
+        ...state.commit,
+        ...(nextPendingDraftUpdate ? { pending_draft_update: nextPendingDraftUpdate } : {}),
+        state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable',
+        message: apiErrorText(error),
+        error: error.code,
+        ...conflictMetadataFrom(error),
+      };
+    }
+    render(); return state.commit;
+  }
+
+  async function retryDraftConflictReadback() {
+    const pending = state.commit.pending_draft_update;
+    if (!pending) return readbackCommit();
+    state.commit = { ...state.commit, state: 'saving', message: '下書きの最新版を確認しています。入力と出典は保持されます。' }; render();
+    try {
+      const payload = await callKnowledgeApi(api, knowledgePath(code, `${KNOWLEDGE_ROUTES.drafts}/${encodeURIComponent(pending.draftId)}`));
+      const latestRevision = draftRevisionFrom(payload);
+      if (latestRevision === null) {
+        state.commit = {
+          ...state.commit,
+          state: 'conflict',
+          latest_revision: null,
+          pending_draft_update: { ...pending, latest_revision: null },
+          message: '下書きの最新版の版を確認できません。入力と出典は保持しています。再試行してください。',
+        };
+      } else {
+        state.commit = {
+          ...state.commit,
+          state: 'conflict',
+          latest_revision: latestRevision,
+          pending_draft_update: { ...pending, latest_revision: latestRevision, latest_draft_metadata: { revision: latestRevision } },
+          message: '下書きの最新版を確認しました。入力と出典は保持しています。内容を確認してから再適用してください。',
+        };
+      }
+    } catch (error) {
+      state.commit = {
+        ...state.commit,
+        state: 'conflict',
+        latest_revision: null,
+        pending_draft_update: { ...pending, latest_revision: null },
+        message: `下書きの最新版を確認できません。入力と出典は保持しています。${apiErrorText(error)}`,
+        error: error.code,
+        ...conflictMetadataFrom(error),
+      };
+    }
     render(); return state.commit;
   }
 
   async function retryPendingSave() {
+    const pendingDraftUpdate = state.commit.pending_draft_update;
+    if (pendingDraftUpdate) {
+      if (pendingDraftUpdate.latest_revision === undefined || pendingDraftUpdate.latest_revision === null) return retryDraftConflictReadback();
+      return state.commit;
+    }
     const pending = state.commit.pending_save;
     if (!pending) return readbackCommit();
     state.commit = { ...state.commit, state: 'saving' }; render();

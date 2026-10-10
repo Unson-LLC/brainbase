@@ -494,6 +494,31 @@ describe('outcome knowledge UI contract', () => {
     });
   });
 
+  it('does not label a pending draft revision as the server latest after a 409', async () => {
+    let captured;
+    try {
+      await callKnowledgeApi(async () => ({
+        ok: false,
+        status: 409,
+        error: {
+          code: 'version_conflict',
+          expected_revision: 'd1',
+          pending_save: { body: { revision: 'submitted-d1' } },
+          draft: { revision: 'submitted-d1' },
+        },
+      }), '/test');
+    } catch (error) {
+      captured = error;
+    }
+    expect(captured).toMatchObject({ code: 'version_conflict', expected_revision: 'd1' });
+    expect(captured.latest_revision).toBeUndefined();
+
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    renderCommitState(root, { ...captured, state: 'conflict' }, { onReadback() {} });
+    expect(collectText(root)).not.toContain('最新版: 版 submitted-d1');
+  });
+
   it('gives the registration authoring surface practical desktop width and keeps comparison usable on mobile', async () => {
     const css = await readFile(new URL('../../ui/outcome-knowledge.css', import.meta.url), 'utf8');
     expect(css).toContain('.knowledge-outcome .knowledge-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));');
@@ -619,7 +644,7 @@ describe('outcome knowledge UI contract', () => {
     const shell = root.firstChild;
     const header = findAll(shell, 'header')[0];
     const body = findAll(shell, 'div').find((node) => node.className.includes('knowledge-outcome-body'));
-    const primary = findAll(body, 'main')[0];
+    const primary = findAll(body, 'section').find((node) => node.className.includes('knowledge-outcome-primary'));
     const inspector = findAll(body, 'aside')[0];
     const discovery = findAll(primary, 'section').find((node) => node.className.includes('knowledge-discovery-view'));
 
@@ -627,6 +652,9 @@ describe('outcome knowledge UI contract', () => {
     expect(findAll(header, 'nav')[0].className).toBe('knowledge-outcome-nav');
     expect(body.attributes['data-view']).toBe('discovery');
     expect(primary.className).toContain('knowledge-master');
+    expect(primary.tagName).toBe('SECTION');
+    expect(primary.attributes['aria-label']).toBe('知識の一覧');
+    expect(findAll(body, 'main')).toHaveLength(0);
     expect(inspector.className).toContain('knowledge-inspector');
     expect(findAll(inspector, 'div').some((node) => node.className.includes('knowledge-inspector-heading'))).toBe(true);
     expect(findAll(inspector, 'div').some((node) => node.className.includes('knowledge-inspector-detail'))).toBe(true);
@@ -638,10 +666,12 @@ describe('outcome knowledge UI contract', () => {
     const previewTab = findAll(header, 'button').find((node) => node.textContent === '公開前テスト');
     previewTab.dispatch('click');
     const focusedBody = findAll(root.firstChild, 'div').find((node) => node.className.includes('knowledge-outcome-body'));
-    const focusedPrimary = findAll(focusedBody, 'main')[0];
+    const focusedPrimary = findAll(focusedBody, 'section').find((node) => node.className.includes('knowledge-outcome-primary'));
     const preview = findAll(focusedPrimary, 'section').find((node) => node.className.includes('knowledge-preview-view'));
 
     expect(focusedBody.attributes['data-view']).toBe('preview');
+    expect(focusedPrimary.tagName).toBe('SECTION');
+    expect(focusedPrimary.attributes['aria-label']).toBe('知識の操作');
     expect(preview.hidden).toBe(false);
     expect(findAll(focusedBody, 'aside')).toHaveLength(1);
     expect(controller.state.view).toBe('preview');
@@ -958,6 +988,60 @@ describe('outcome knowledge UI contract', () => {
     expect(mutations.at(-1).init.body.decision_domain).toBe('knowledge-canonical');
     expect(commit.state).toBe('verified');
     expect(controller.state.selected.id).toBe('k-1');
+  });
+
+  it('reads the latest draft after a PATCH conflict while retaining local input until explicit reapply', async () => {
+    globalThis.document = new FakeDocument();
+    const reads = [];
+    const mutations = [];
+    let patchAttempts = 0;
+    const api = async (path) => {
+      reads.push(path);
+      if (path.endsWith('/drafts/draft-1')) return { draft: { draft_id: 'draft-1', revision: 'd2', content: 'サーバー側の最新版' } };
+      if (path.endsWith('/items/k-1')) return {
+        item: { id: 'k-1', version: 'k2', content_hash: 'sha256:ok', source: { content_state: 'fetched' }, relations: [] },
+        canonical_saved: true, graph_saved: true, content_hash: 'sha256:ok',
+      };
+      return { records: [] };
+    };
+    const apiMutation = async (path, init) => {
+      mutations.push({ path, init });
+      if (path.endsWith('/drafts/draft-1') && init.method === 'PATCH') {
+        patchAttempts += 1;
+        if (patchAttempts === 1) throw Object.assign(new Error('version_conflict'), { status: 409, code: 'version_conflict' });
+        return { draft_id: 'draft-1', revision: 'd2' };
+      }
+      if (path.endsWith('/save')) return {
+        canonical: { id: 'k-1', version: 'k2' },
+        expected_version: 'k2',
+        canonical_content_hash: 'sha256:ok',
+        persistence: { event_saved: true, graph_saved: true, readback_verified: true },
+      };
+      throw new Error(`unexpected mutation: ${path}`);
+    };
+    const controller = createKnowledgeOutcomeController({ root: new FakeElement('div'), project: { code: 'proj-1' }, api, apiMutation, autoLoad: false, resolveDecisionDomain: () => 'knowledge-canonical' });
+    const inputText = '利用者が入力した原文';
+    controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1', input_text: inputText, source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
+    controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
+    const values = { type: 'decision', title: '判断', summary: '本文', scope: 'project', selection: 'create' };
+
+    expect((await controller.commitCandidate(values)).state).toBe('conflict');
+    expect(controller.state.commit.pending_draft_update).toMatchObject({ draftId: 'draft-1', latest_revision: null });
+    expect(controller.state.draft.input_text).toBe(inputText);
+    expect(mutations).toHaveLength(1);
+
+    const checked = await controller.retryPendingSave();
+    expect(checked).toMatchObject({ state: 'conflict', latest_revision: 'd2' });
+    expect(reads).toContain('/api/projects/proj-1/knowledge/drafts/draft-1');
+    expect(controller.state.draft.input_text).toBe(inputText);
+    expect(mutations).toHaveLength(1);
+
+    const committed = await controller.commitCandidate(values);
+    const patches = mutations.filter((entry) => entry.init.method === 'PATCH');
+    expect(patches).toHaveLength(2);
+    expect(patches.at(-1).init.body.revision).toBe('d2');
+    expect(committed.state).toBe('verified');
+    expect(controller.state.draft.input_text).toBe(inputText);
   });
 
   it('keeps capture source kind and pointer in the proposal request', async () => {
