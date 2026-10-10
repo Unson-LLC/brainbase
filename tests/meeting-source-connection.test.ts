@@ -2,6 +2,7 @@ import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { auth } from '@modelcontextprotocol/sdk/client/auth.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
@@ -616,5 +617,76 @@ describe('MCP OAuth through the organization connection kernel (AC-09)', () => {
     expect(await service.readConnection({ provider: 'plaud', binding: { tenantId: 'tenant-unson', personId: 'per_other' }, connectionId: completed.connection.connectionId })).toBeNull();
 
     await expect(service.completeAuthorization({ provider: 'plaud', binding, state: started.state, code: 'good-code' })).rejects.toMatchObject({ code: 'oauth_state_replayed' });
+  });
+});
+
+describe('NativeMcpRuntime refreshes an expired access token (production 2026-10-10)', () => {
+  // The SDK treats a provider without a redirect URL as a non-interactive client and never uses
+  // the refresh token, so a sync after the access token expired failed with
+  // "Either provider.prepareTokenRequest() or authorizationCode is required".
+  function refreshServer(refresh: 'ok' | 'invalid_grant') {
+    const requests: Array<{ url: string; body: string }> = [];
+    const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+    const fetchFn = (async (input: string | URL | Request, init?: RequestInit) => {
+      const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
+      const body = typeof init?.body === 'string' ? init.body : init?.body ? String(init.body) : '';
+      requests.push({ url: url.toString(), body });
+      if (url.href === 'https://mcp.plaud.test/.well-known/oauth-protected-resource/mcp') {
+        return json({ resource: 'https://mcp.plaud.test/mcp', authorization_servers: ['https://auth.plaud.test'] });
+      }
+      if (url.href === 'https://auth.plaud.test/.well-known/oauth-authorization-server') {
+        return json({
+          issuer: 'https://auth.plaud.test',
+          authorization_endpoint: 'https://auth.plaud.test/authorize',
+          token_endpoint: 'https://auth.plaud.test/token',
+          response_types_supported: ['code'],
+          grant_types_supported: ['authorization_code', 'refresh_token'],
+          code_challenge_methods_supported: ['S256'],
+          token_endpoint_auth_methods_supported: ['none'],
+        });
+      }
+      if (url.href === 'https://auth.plaud.test/token') {
+        const form = new URLSearchParams(body);
+        if (refresh === 'ok' && form.get('grant_type') === 'refresh_token' && form.get('refresh_token') === 'token-old-refresh') {
+          return json({ access_token: 'token-renewed', refresh_token: 'token-renewed-refresh', token_type: 'Bearer', expires_in: 3600 });
+        }
+        return json({ error: 'invalid_grant' }, 400);
+      }
+      return new Response('not found', { status: 404 });
+    }) as typeof fetch;
+    return { fetchFn, requests };
+  }
+
+  async function providerFor(credentials: MemoryMeetingSourceCredentialStore) {
+    const a = connection();
+    await credentials.write(a.connectionId, storedCredentials('token-old'));
+    let captured: Parameters<NonNullable<ConstructorParameters<typeof NativeMcpRuntime>[0]['createTransport']>>[0]['authProvider'] | null = null;
+    const runtime = new NativeMcpRuntime({
+      credentials,
+      createTransport: ({ authProvider }) => {
+        captured = authProvider;
+        return inMemoryServer(plaudHandler({ files: [], calls: [] }));
+      },
+    });
+    await runtime.callTool(a, 'list_files', {});
+    return { provider: captured!, connectionId: a.connectionId };
+  }
+
+  it('uses the stored refresh token and keeps the renewed tokens', async () => {
+    const credentials = new MemoryMeetingSourceCredentialStore();
+    const { provider, connectionId } = await providerFor(credentials);
+    const { fetchFn, requests } = refreshServer('ok');
+    await expect(auth(provider, { serverUrl: 'https://mcp.plaud.test/mcp', fetchFn })).resolves.toBe('AUTHORIZED');
+    const tokenRequest = requests.find((request) => request.url === 'https://auth.plaud.test/token');
+    expect(new URLSearchParams(tokenRequest!.body).get('grant_type')).toBe('refresh_token');
+    expect((await credentials.read(connectionId))?.tokens?.access_token).toBe('token-renewed');
+    expect((await credentials.read(connectionId))?.tokens?.refresh_token).toBe('token-renewed-refresh');
+  });
+
+  it('asks for a new authorization when the refresh token is refused, without starting a login', async () => {
+    const credentials = new MemoryMeetingSourceCredentialStore();
+    const { provider } = await providerFor(credentials);
+    const { fetchFn } = refreshServer('invalid_grant');
+    await expect(auth(provider, { serverUrl: 'https://mcp.plaud.test/mcp', fetchFn })).rejects.toMatchObject({ code: 'reauth_required' });
   });
 });

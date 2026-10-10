@@ -435,15 +435,25 @@ export class NativeMcpRuntime implements ConnectionRuntime {
   }
 }
 
-/** The SDK's OAuth provider for one connection. It never starts an interactive authorization. */
+/**
+ * Marks this provider as an authorization-code client without a reachable redirect. The SDK
+ * treats a provider with no redirect URL as a non-interactive (client-credentials) client and
+ * then never uses the refresh token, so an expired access token could not be renewed.
+ */
+const NO_INTERACTIVE_REDIRECT = 'urn:brainbase:meeting-source:no-interactive-redirect';
+
+/**
+ * The SDK's OAuth provider for one connection. It renews tokens with the stored refresh token
+ * and never starts an interactive authorization: that path ends in `reauth_required`.
+ */
 class ConnectionOAuthProvider implements OAuthClientProvider {
   constructor(
     private readonly store: MeetingSourceCredentialStore,
     private readonly connection: MeetingSourceConnectionRecord,
   ) {}
 
-  get redirectUrl(): string | undefined {
-    return undefined;
+  get redirectUrl(): string {
+    return NO_INTERACTIVE_REDIRECT;
   }
 
   get clientMetadata(): OAuthClientMetadata {
