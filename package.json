@@ -179,6 +179,10 @@
       "types": "./dist/decision-adapter.d.ts",
       "import": "./dist/decision-adapter.js"
     },
+    "./knowledge-resolution-service": {
+      "types": "./dist/knowledge-resolution-service.d.ts",
+      "import": "./dist/knowledge-resolution-service.js"
+    },
     "./knowledge-adapter": {
       "types": "./dist/knowledge-adapter.d.ts",
       "import": "./dist/knowledge-adapter.js"
