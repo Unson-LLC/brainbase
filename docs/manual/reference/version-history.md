@@ -4,8 +4,12 @@
 
 ## Unreleased — develop
 
-- 所有repoへのチームの文書の書き込みの検査と読み戻しの照合（`canonical-document-writer`）、知識の取り込みの提案と下書きの回答の検証（`knowledge-capture-preview`）、会議ソースのカタログ（`meeting-source-integration-catalog`）の公開subpathを追加。brainbase-unsonの部品を処理を変えずに移したもので、Node.jsの標準モジュール以外に依存しない（`story-document-and-meeting-source-exits-v1`）
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+
+## 0.29.0 candidate — npm公開前
+
+- 所有repoへのチームの文書の書き込みの検査と読み戻しの照合（`canonical-document-writer`）、知識の取り込みの提案と下書きの回答の検証（`knowledge-capture-preview`）、会議ソースのカタログ（`meeting-source-integration-catalog`）の公開subpathを追加。brainbase-unsonの部品を処理を変えずに移したもので、Node.jsの標準モジュール以外に依存しない（`story-document-and-meeting-source-exits-v1`）
+- 会議ソースの接続ごとの同期で、期限の切れたアクセストークンをrefresh tokenで更新するよう修正。これまでは更新せずに同期が失敗していた（`meeting-source-connection`）
 
 ## 0.28.0 candidate — npm公開前
 

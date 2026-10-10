@@ -83,6 +83,12 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.29.0（npm公開前）
+
+所有repoへのチームの文書の書き込みの検査（`canonical-document-writer`）、知識の取り込みの提案の検証（`knowledge-capture-preview`）、会議ソースのカタログ（`meeting-source-integration-catalog`）を、新しい出口として追加します。brainbase-unsonの部品を処理を変えずに移したもので、外部のサービスを呼ばず、OSSの既定の動作は変わりません。
+
+あわせて、会議ソースの接続ごとの同期（`meeting-source-connection`）が、期限の切れたアクセストークンをrefresh tokenで更新するよう直します。これまでは更新せずに同期が失敗していました。
+
 ## Candidate — v0.28.0（npm公開前）
 
 知識を探す正本（Graph・所有repo・チームのDrive・個人KG・作業場）を、内容の種類と相手から決める部品を、新しい出口 `@unson/brainbase-mcp/knowledge-resolution-service` として追加します。brainbase-unsonの部品を処理を変えずに移したもので、外部のサービスを呼ばず、OSSの既定の動作は変わりません。
