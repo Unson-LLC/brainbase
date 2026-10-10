@@ -380,6 +380,8 @@
 .knowledge-outcome .knowledge-notice.warning { border-left-color: var(--knowledge-amber); background: var(--knowledge-amber-soft); }
 .knowledge-outcome .knowledge-notice.error { border-left-color: var(--knowledge-red); background: var(--knowledge-red-soft); }
 .knowledge-outcome .knowledge-conflict-detail { flex-basis: 100%; color: var(--knowledge-muted); }
+.knowledge-outcome .knowledge-conflict-comparison { flex-basis: 100%; align-items: stretch; }
+.knowledge-outcome .knowledge-conflict-comparison .knowledge-long-text { min-height: 3rem; max-height: 18rem; overflow: auto; }
 .knowledge-outcome .knowledge-inline-status { color: var(--knowledge-muted); font-size: .78rem; }
 .knowledge-outcome .knowledge-warning-copy { color: var(--knowledge-amber); font-size: .78rem; }
 .knowledge-outcome .knowledge-success-copy { color: var(--knowledge-green); font-size: .78rem; }

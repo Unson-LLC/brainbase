@@ -1019,7 +1019,8 @@ describe('outcome knowledge UI contract', () => {
       };
       throw new Error(`unexpected mutation: ${path}`);
     };
-    const controller = createKnowledgeOutcomeController({ root: new FakeElement('div'), project: { code: 'proj-1' }, api, apiMutation, autoLoad: false, resolveDecisionDomain: () => 'knowledge-canonical' });
+    const root = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({ root, project: { code: 'proj-1' }, api, apiMutation, autoLoad: false, resolveDecisionDomain: () => 'knowledge-canonical' });
     const inputText = '利用者が入力した原文';
     controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1', input_text: inputText, source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
     controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
@@ -1034,6 +1035,12 @@ describe('outcome knowledge UI contract', () => {
     expect(checked).toMatchObject({ state: 'conflict', latest_revision: 'd2' });
     expect(reads).toContain('/api/projects/proj-1/knowledge/drafts/draft-1');
     expect(controller.state.draft.input_text).toBe(inputText);
+    expect(controller.state.commit.pending_draft_update.latest_draft_metadata).toMatchObject({ draft_id: 'draft-1', revision: 'd2', content: 'サーバー側の最新版' });
+    expect(collectText(root)).toContain('確認した最新版');
+    expect(collectText(root)).toContain('サーバー側の最新版');
+    expect(collectText(root)).toContain('入力中の原文（保持）');
+    expect(collectText(root)).toContain(inputText);
+    expect(collectText(root)).toContain('保持中の出典: 検証用データ / fixture://knowledge');
     expect(mutations).toHaveLength(1);
 
     const committed = await controller.commitCandidate(values);
@@ -1042,6 +1049,35 @@ describe('outcome knowledge UI contract', () => {
     expect(patches.at(-1).init.body.revision).toBe('d2');
     expect(committed.state).toBe('verified');
     expect(controller.state.draft.input_text).toBe(inputText);
+  });
+
+  it('does not accept a different draft identity as the latest conflict revision', async () => {
+    globalThis.document = new FakeDocument();
+    const reads = [];
+    const mutations = [];
+    const api = async (path) => {
+      reads.push(path);
+      if (path.endsWith('/drafts/draft-1')) return { draft: { draft_id: 'draft-other', revision: 'd9', content: '別の下書き' } };
+      return { records: [] };
+    };
+    const apiMutation = async (path, init) => {
+      mutations.push({ path, init });
+      if (path.endsWith('/drafts/draft-1') && init.method === 'PATCH') throw Object.assign(new Error('version_conflict'), { status: 409, code: 'version_conflict' });
+      throw new Error(`unexpected mutation: ${path}`);
+    };
+    const root = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({ root, project: { code: 'proj-1' }, api, apiMutation, autoLoad: false, resolveDecisionDomain: () => 'knowledge-canonical' });
+    controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1', input_text: '保持する本文', source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
+    controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
+
+    expect((await controller.commitCandidate({ type: 'decision', title: '判断', summary: '本文', scope: 'project', selection: 'create' })).state).toBe('conflict');
+    const checked = await controller.retryPendingSave();
+    expect(checked).toMatchObject({ state: 'conflict', latest_revision: null });
+    expect(checked.pending_draft_update).toMatchObject({ draftId: 'draft-1', latest_revision: null, latest_draft_metadata: null });
+    expect(reads).toContain('/api/projects/proj-1/knowledge/drafts/draft-1');
+    expect(mutations).toHaveLength(1);
+    expect(collectText(root)).toContain('下書きの対象を確認できません');
+    expect(collectText(root)).not.toContain('最新版: 版 d9');
   });
 
   it('keeps capture source kind and pointer in the proposal request', async () => {

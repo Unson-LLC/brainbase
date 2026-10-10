@@ -464,18 +464,33 @@ function conflictMetadataFrom(value) {
   return result;
 }
 
-function draftRevisionFrom(value) {
+function draftRecordFrom(value) {
   if (!isRecord(value)) return null;
-  const draft = isRecord(value.draft)
-    ? value.draft
-    : isRecord(value.data?.draft)
-      ? value.data.draft
-      : isRecord(value.data)
-        ? value.data
-        : value;
-  const revision = fieldValue(draft, 'revision', 'version');
-  return revision === undefined || revision === null || optionalText(revision).trim() === '' ? null : revision;
+  if (isRecord(value.draft)) return value.draft;
+  if (isRecord(value.data?.draft)) return value.data.draft;
+  if (isRecord(value.data)) return value.data;
+  return value;
 }
+
+function draftReadbackFrom(value, expectedDraftId = null) {
+  const draft = draftRecordFrom(value);
+  if (!draft) return { valid: false, reason: 'payload_missing' };
+  const draftId = fieldValue(draft, 'draft_id', 'draftId', 'id');
+  if (expectedDraftId === null || expectedDraftId === undefined || optionalText(expectedDraftId).trim() === '') return { valid: false, reason: 'expected_id_missing', draftId };
+  if (draftId === undefined || draftId === null || optionalText(draftId).trim() === '') return { valid: false, reason: 'response_id_missing', draftId: null };
+  if (String(draftId) !== String(expectedDraftId)) return { valid: false, reason: 'response_id_mismatch', draftId };
+  const revision = fieldValue(draft, 'revision', 'version');
+  const content = fieldValue(draft, 'content', 'input_text', 'text');
+  const source = fieldValue(draft, 'source', 'provenance');
+  return {
+    valid: true,
+    draft_id: String(draftId),
+    revision: revision === undefined || revision === null || optionalText(revision).trim() === '' ? null : revision,
+    ...(content !== undefined && content !== null ? { content: String(content) } : {}),
+    ...(isRecord(source) ? { source } : {}),
+  };
+}
+
 
 function errorFromPayload(payload, status = null) {
   const body = isRecord(payload) ? payload : {};
@@ -612,6 +627,29 @@ function statusNotice(model, options = {}) {
     if (conflict.latest !== null) notice.append(makeElement('span', { className: 'knowledge-conflict-detail', text: `最新版: 版 ${text(conflict.latest)}` }));
     if (conflict.expected !== null) notice.append(makeElement('span', { className: 'knowledge-conflict-detail', text: `送信時の版: 版 ${text(conflict.expected)}` }));
     notice.append(makeElement('span', { className: 'knowledge-conflict-detail', text: '入力と出典は保持しています。最新版を確認してから、必要なら再適用してください。' }));
+    const pending = model?.pending_draft_update;
+    const latest = pending?.latest_draft_metadata;
+    const localInput = pending?.local_input_text;
+    if (latest && (latest.content !== undefined || localInput !== undefined)) {
+      const comparison = makeElement('div', { className: 'knowledge-comparison knowledge-conflict-comparison' });
+      const latestColumn = makeElement('section', { className: 'knowledge-source-column' });
+      append(latestColumn,
+        makeElement('h4', { text: `確認した最新版${latest.revision !== undefined && latest.revision !== null ? `（版 ${text(latest.revision)}）` : ''}` }),
+        makeElement('p', { className: 'knowledge-long-text', text: latest.content !== undefined ? latest.content : '最新版の本文を確認できません。' }),
+      );
+      const localColumn = makeElement('section', { className: 'knowledge-proposal-column' });
+      append(localColumn,
+        makeElement('h4', { text: '入力中の原文（保持）' }),
+        makeElement('p', { className: 'knowledge-long-text', text: localInput !== undefined ? localInput : '入力中の原文を確認できません。' }),
+      );
+      const localSource = pending.local_source;
+      const sourceLabelText = localSource && typeof localSource === 'object'
+        ? [sourceKindLabel(localSource.kind), sourcePointer(localSource)].filter((value) => optionalText(value).trim()).join(' / ')
+        : optionalText(localSource).trim();
+      if (sourceLabelText) localColumn.append(makeElement('p', { className: 'knowledge-conflict-detail', text: `保持中の出典: ${sourceLabelText}` }));
+      append(comparison, latestColumn, localColumn);
+      notice.append(comparison);
+    }
   }
   if (options.retry && typeof options.onRetry === 'function') {
     const retry = makeElement('button', { className: 'knowledge-button secondary', text: options.retryLabel ?? '再試行', attrs: { type: 'button' } });
@@ -1706,22 +1744,34 @@ export function createKnowledgeOutcomeController(options = {}) {
     state.commit = { ...state.commit, state: 'saving', message: '下書きの最新版を確認しています。入力と出典は保持されます。' }; render();
     try {
       const payload = await callKnowledgeApi(api, knowledgePath(code, `${KNOWLEDGE_ROUTES.drafts}/${encodeURIComponent(pending.draftId)}`));
-      const latestRevision = draftRevisionFrom(payload);
-      if (latestRevision === null) {
+      const latestDraft = draftReadbackFrom(payload, pending.draftId);
+      const latestRevision = latestDraft.valid ? latestDraft.revision : null;
+      if (!latestDraft.valid) {
         state.commit = {
           ...state.commit,
           state: 'conflict',
           latest_revision: null,
-          pending_draft_update: { ...pending, latest_revision: null },
-          message: '下書きの最新版の版を確認できません。入力と出典は保持しています。再試行してください。',
+          pending_draft_update: { ...pending, latest_revision: null, latest_draft_metadata: null },
+          message: '下書きの対象を確認できません。入力と出典は保持しています。対象を確認してから再試行してください。',
         };
       } else {
         state.commit = {
           ...state.commit,
           state: 'conflict',
           latest_revision: latestRevision,
-          pending_draft_update: { ...pending, latest_revision: latestRevision, latest_draft_metadata: { revision: latestRevision } },
-          message: '下書きの最新版を確認しました。入力と出典は保持しています。内容を確認してから再適用してください。',
+          pending_draft_update: {
+            ...pending,
+            latest_revision: latestRevision,
+            latest_draft_metadata: {
+              draft_id: latestDraft.draft_id,
+              revision: latestRevision,
+              ...(latestDraft.content !== undefined ? { content: latestDraft.content } : {}),
+              ...(latestDraft.source ? { source: latestDraft.source } : {}),
+            },
+          },
+          message: latestRevision === null
+            ? '下書きの対象は確認しましたが、最新版の版を確認できません。入力と出典は保持しています。再試行してください。'
+            : '下書きの最新版を確認しました。入力と出典は保持しています。内容を比較してから再適用してください。',
         };
       }
     } catch (error) {
