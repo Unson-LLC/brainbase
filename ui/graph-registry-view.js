@@ -214,13 +214,16 @@ function relationAvailability(payload, direction) {
   if (payload[direction].length > 0) return { state: 'available' };
   const direct = relationStatusFrom(payload, direction);
   if (direct === 'unknown') return { state: 'unknown', reason: relationUnavailableReason(payload) };
+  // A host may accidentally include a stale confirmed-empty status alongside
+  // an incomplete relation payload. Completeness signals take precedence so
+  // the UI cannot turn a known participant count into a false "none" claim.
+  const edgesNotProvided = payload.source?.edges_not_provided === true || payload.source?.edgesNotProvided === true;
+  const participantsUnknown = participantStatusFrom(payload) === 'unknown';
+  const knownCount = knownParticipantCount(payload);
+  if (edgesNotProvided || participantsUnknown || knownCount) {
+    return { state: 'unknown', reason: relationUnavailableReason(payload) };
+  }
   if (direct === 'confirmed_empty') return { state: 'confirmed_empty' };
-  if (payload.source?.edges_not_provided === true || payload.source?.edgesNotProvided === true) {
-    return { state: 'unknown', reason: relationUnavailableReason(payload) };
-  }
-  if (participantStatusFrom(payload) === 'unknown' || knownParticipantCount(payload)) {
-    return { state: 'unknown', reason: relationUnavailableReason(payload) };
-  }
   return { state: 'confirmed_empty' };
 }
 

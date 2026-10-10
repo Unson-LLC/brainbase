@@ -286,6 +286,46 @@ describe('情報と関係: the record in the rail', () => {
     expect(collectText(section(rail, '出る関係'))).not.toContain('登録なしとは判断できません。');
   });
 
+  it('prioritizes incomplete source signals over a contradictory confirmed-empty relation status', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const fetcher = async (path) => {
+      const response = await api.fetcher(path);
+      if (!String(path).includes('/api/graph/entities/project-atlas')) return response;
+      const body = await response.json();
+      return jsonResponse(200, {
+        ...body,
+        entity: {
+          ...body.entity,
+          participantCount: 2,
+          accountableCount: 1,
+          people: [{ id: 'person-a', name: '担当A', accountable: true }, { id: 'person-b', name: '担当B', accountable: false }],
+        },
+        outgoing: [],
+        incoming: [],
+        relations_status: 'confirmed_empty',
+        participants_status: 'unavailable',
+        participants_reason: '関係者の記録元を確認できません。',
+        absenceConfirmed: false,
+        source: { ...body.source, edges_not_provided: true },
+      });
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
+    await view.load();
+    await view.openEntity('project-atlas');
+
+    for (const label of ['出る関係', '入る関係']) {
+      const relation = section(rail, label);
+      expect(collectText(relation)).toContain('未確認');
+      expect(collectText(relation)).toContain('関係者の記録元を確認できません。');
+      expect(collectText(relation)).toContain('登録なしとは判断できません。');
+      expect(collectText(relation)).not.toContain(`この記録${label === '出る関係' ? 'から出る' : 'へ入る'}関係はありません。`);
+      expect(buttonsNamed(relation, '再試行')).toHaveLength(1);
+    }
+  });
+
   it('moves the rail with the selected row', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView();
