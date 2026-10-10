@@ -4,8 +4,11 @@
 
 ## Unreleased — develop
 
-- 知識を探す正本（Graph・所有repo・チームのDrive・個人KG・作業場）を内容の種類と相手から決める部品の公開subpath `knowledge-resolution-service` を追加。brainbase-unsonの部品を処理を変えずに移したもので、外部サービスを呼ばない（`story-knowledge-resolution-service-exit-v1`）
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+
+## 0.28.0 candidate — npm公開前
+
+- 知識を探す正本（Graph・所有repo・チームのDrive・個人KG・作業場）を内容の種類と相手から決める部品の公開subpath `knowledge-resolution-service` を追加。brainbase-unsonの部品を処理を変えずに移したもので、外部サービスを呼ばない（`story-knowledge-resolution-service-exit-v1`）
 
 ## 0.27.0 candidate — npm公開前
 
