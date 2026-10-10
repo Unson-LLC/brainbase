@@ -1,7 +1,9 @@
+import { readFile } from 'node:fs/promises';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   buildKnowledgeItemsPath,
+  callKnowledgeApi,
   createKnowledgeOutcomeController,
   fromLocalDateTimeValue,
   normalizeKnowledgeCollection,
@@ -455,6 +457,49 @@ describe('outcome knowledge UI contract', () => {
     expect(reviewText).toContain('入力原文');
     expect(reviewText).toContain('提案（未確定）');
     expect(reviewText).toContain('未確認');
+  });
+
+  it('keeps conflict metadata visible while preserving the safe re-entry path', () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    renderCommitState(root, {
+      state: 'conflict',
+      item_id: 'knowledge-1',
+      message: '保存先の最新版と競合しました。',
+      conflict_reason: '別の変更が先に保存されています。',
+      latest_version: 'v9',
+      expected_version: 'v8',
+      pending_save: { body: { expected_version: 'v8' } },
+    }, { onReadback() {} });
+    const rendered = collectText(root);
+    expect(rendered).toContain('版の競合');
+    expect(rendered).toContain('競合理由: 別の変更が先に保存されています。');
+    expect(rendered).toContain('最新版: 版 v9');
+    expect(rendered).toContain('送信時の版: 版 v8');
+    expect(rendered).toContain('入力と出典は保持しています');
+    expect(rendered).toContain('再試行（入力を保持）');
+  });
+
+  it('retains 409 conflict reason and versions from an API error payload', async () => {
+    await expect(callKnowledgeApi(async () => ({
+      ok: false,
+      status: 409,
+      error: { code: 'version_conflict', reason: '最新版が先に保存されました。', current_version: 'v9', expected_version: 'v8' },
+    }), '/test')).rejects.toMatchObject({
+      code: 'version_conflict',
+      status: 409,
+      conflict_reason: '最新版が先に保存されました。',
+      latest_version: 'v9',
+      expected_version: 'v8',
+    });
+  });
+
+  it('gives the registration authoring surface practical desktop width and keeps comparison usable on mobile', async () => {
+    const css = await readFile(new URL('../../ui/outcome-knowledge.css', import.meta.url), 'utf8');
+    expect(css).toContain('.knowledge-outcome .knowledge-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));');
+    expect(css).toContain('.knowledge-outcome .knowledge-outcome-body[data-view="capture"] { grid-template-columns: minmax(0, 1fr); }');
+    expect(css).toContain('.knowledge-outcome .knowledge-outcome-body[data-view="capture"] .knowledge-outcome-detail');
+    expect(css).toContain('.knowledge-outcome .knowledge-comparison { grid-template-columns: minmax(0, 1fr); }');
   });
 
   it('renders an unconfigured knowledge destination without inventing repository defaults and preserves edits', () => {

@@ -379,11 +379,12 @@
 .knowledge-outcome .knowledge-notice { display: flex; flex-wrap: wrap; gap: .4rem .65rem; align-items: center; margin-top: .65rem; padding: .65rem .7rem; border-left: 3px solid var(--knowledge-green); background: var(--knowledge-green-soft); font-size: .78rem; }
 .knowledge-outcome .knowledge-notice.warning { border-left-color: var(--knowledge-amber); background: var(--knowledge-amber-soft); }
 .knowledge-outcome .knowledge-notice.error { border-left-color: var(--knowledge-red); background: var(--knowledge-red-soft); }
+.knowledge-outcome .knowledge-conflict-detail { flex-basis: 100%; color: var(--knowledge-muted); }
 .knowledge-outcome .knowledge-inline-status { color: var(--knowledge-muted); font-size: .78rem; }
 .knowledge-outcome .knowledge-warning-copy { color: var(--knowledge-amber); font-size: .78rem; }
 .knowledge-outcome .knowledge-success-copy { color: var(--knowledge-green); font-size: .78rem; }
 .knowledge-outcome .knowledge-permission-copy { color: var(--knowledge-muted); font-size: .78rem; }
-.knowledge-outcome .knowledge-comparison { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: .7rem; margin-top: .55rem; }
+.knowledge-outcome .knowledge-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin-top: .55rem; }
 .knowledge-outcome .knowledge-source-column,
 .knowledge-outcome .knowledge-proposal-column { min-width: 0; border: 1px solid var(--knowledge-line); border-radius: .45rem; padding: .75rem; }
 .knowledge-outcome .knowledge-source-column { background: var(--knowledge-canvas); }
@@ -407,6 +408,20 @@
 .knowledge-outcome .knowledge-preview-result p { grid-column: 1 / -1; color: var(--knowledge-muted); }
 .knowledge-outcome .knowledge-evidence-adopted { color: var(--knowledge-green); }
 .knowledge-outcome .knowledge-evidence-excluded { color: var(--knowledge-muted); }
+
+/* Registration is an authoring task. Give the source and proposal practical
+   width on desktop, then keep the inspector below the work instead of
+   leaving a narrow authoring column beside unused rail space. */
+@media (min-width: 881px) {
+  .knowledge-outcome .knowledge-outcome-body[data-view="capture"] { grid-template-columns: minmax(0, 1fr); }
+  .knowledge-outcome .knowledge-outcome-body[data-view="capture"] .knowledge-outcome-primary { padding-right: 0; }
+  .knowledge-outcome .knowledge-outcome-body[data-view="capture"] .knowledge-outcome-detail {
+    margin-top: 1.4rem;
+    padding-left: 0;
+    border-top: 1px solid var(--knowledge-line);
+    border-left: 0;
+  }
+}
 
 @media (max-width: 880px) {
   .knowledge-outcome .knowledge-outcome-body { grid-template-columns: minmax(0, 1fr); }

@@ -296,7 +296,7 @@ export function renderKnowledgeDestination(root, model = {}, callbacks = {}) {
     section.append(makeElement('p', { className: 'knowledge-inline-status', text: '保存先を読み込んでいます。', attrs: { role: 'status' } }));
   }
   if (model.state === 'conflict') {
-    section.append(statusNotice({ state: 'conflict', detail: model.message || '別の変更が先に保存されました。入力は保持しています。' }, { retry: Boolean(callbacks.onReload), onRetry: callbacks.onReload }));
+    section.append(statusNotice(model, { retry: Boolean(callbacks.onReload), onRetry: callbacks.onReload, retryLabel: '最新版を確認' }));
   } else if (['permission_denied', 'error_retryable', 'unknown'].includes(model.state)) {
     section.append(statusNotice(model, { retry: Boolean(callbacks.onReload), onRetry: callbacks.onReload }));
   } else if (model.state === 'verified') {
@@ -417,13 +417,53 @@ export function normalizeKnowledgeCollection(payload) {
   };
 }
 
+function isRecord(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function conflictMetadataFrom(value) {
+  if (!isRecord(value)) return {};
+  const sources = [
+    value,
+    value.details,
+    value.conflict,
+    value.payload,
+    value.latest,
+    value.current,
+    value.pending_save,
+    value.pending_save?.body,
+    value.draft,
+  ].filter(isRecord);
+  const read = (...keys) => {
+    for (const source of sources) {
+      const found = fieldValue(source, ...keys);
+      if (found !== undefined && found !== null && optionalText(found).trim() !== '') return found;
+    }
+    return undefined;
+  };
+  const latestVersion = read('latest_version', 'latestVersion', 'current_version', 'currentVersion', 'version');
+  const latestRevision = read('latest_revision', 'latestRevision', 'current_revision', 'currentRevision', 'revision');
+  const expectedVersion = read('expected_version', 'expectedVersion');
+  const expectedRevision = read('expected_revision', 'expectedRevision');
+  const reason = read('conflict_reason', 'conflictReason', 'reason', 'detail', 'message');
+  const result = {};
+  if (latestVersion !== undefined) result.latest_version = latestVersion;
+  if (latestRevision !== undefined) result.latest_revision = latestRevision;
+  if (expectedVersion !== undefined) result.expected_version = expectedVersion;
+  if (expectedRevision !== undefined) result.expected_revision = expectedRevision;
+  if (reason !== undefined && optionalText(reason).trim() !== optionalText(value.code ?? value.message).trim()) result.conflict_reason = reason;
+  return result;
+}
+
 function errorFromPayload(payload, status = null) {
-  const source = payload && typeof payload === 'object' ? payload.error ?? payload : {};
+  const body = isRecord(payload) ? payload : {};
+  const source = isRecord(body.error) ? body.error : body;
   const code = optionalText(fieldValue(source, 'code', 'error_code', 'type')) || (status === 403 ? 'permission_denied' : 'unknown_upstream_error');
   const error = new Error(code);
   error.code = code;
-  error.status = status ?? fieldValue(source, 'status', 'http_status');
+  error.status = status ?? fieldValue(source, 'status', 'http_status') ?? fieldValue(body, 'status', 'http_status');
   error.detail = fieldValue(source, 'message', 'detail', 'reason');
+  Object.assign(error, conflictMetadataFrom({ ...body, ...source, code, payload: body, details: source.details ?? body.details, conflict: source.conflict ?? body.conflict }));
   return error;
 }
 
@@ -504,13 +544,14 @@ function operationKey(name, id, version, body = {}) {
 
 function apiErrorText(error) {
   const code = optionalText(error?.code || error?.message) || 'unknown_upstream_error';
+  if (isVersionConflict(error)) return '保存先の最新版と競合しました。';
   const messages = {
     authentication_required: 'ログインが必要です。セッションを確認してください。',
     project_not_allowed: 'このプロジェクトを確認する権限がありません。',
     knowledge_project_not_accessible: 'このプロジェクトの知識を確認する権限がありません。',
     permission_denied: '知識の変更権限がありません。現在の役割では実行できません。',
     forbidden: '知識の変更権限がありません。現在の役割では実行できません。',
-    version_conflict: '最新の版と競合しました。入力内容を残したまま、最新情報を再取得してください。',
+    version_conflict: '保存先の最新版と競合しました。',
     readback_mismatch: '保存後の正本確認が一致しませんでした。未完了として再確認してください。',
     upstream_unavailable: '知識APIに接続できません。入力を保持して再試行してください。',
     unknown_upstream_error: '知識APIの結果を確認できません。入力を保持して再試行してください。',
@@ -521,7 +562,19 @@ function apiErrorText(error) {
 }
 
 function isVersionConflict(error) {
-  return ['version_conflict', 'knowledge_draft_revision_conflict', 'knowledge_lifecycle_version_conflict', 'knowledge_save_idempotency_conflict', 'knowledge_draft_not_editable'].includes(error?.code);
+  return Number(error?.status) === 409
+    || ['version_conflict', 'knowledge_draft_revision_conflict', 'knowledge_lifecycle_version_conflict', 'knowledge_save_idempotency_conflict', 'knowledge_draft_not_editable', 'destination_revision_conflict'].includes(error?.code);
+}
+
+function conflictNoticeVersion(model) {
+  const metadata = conflictMetadataFrom(model);
+  const latest = metadata.latest_version ?? metadata.latest_revision;
+  const expected = metadata.expected_version ?? metadata.expected_revision;
+  return {
+    latest: latest === undefined ? null : latest,
+    expected: expected === undefined ? null : expected,
+    reason: metadata.conflict_reason,
+  };
 }
 
 function statusNotice(model, options = {}) {
@@ -531,8 +584,15 @@ function statusNotice(model, options = {}) {
   const title = stateLabel(state);
   const detail = model?.message || model?.error || model?.reason;
   append(notice, makeElement('strong', { text: title }), makeElement('span', { text: detail || options.detail || '' }));
+  if (state === 'conflict') {
+    const conflict = conflictNoticeVersion(model);
+    if (conflict.reason && conflict.reason !== detail) notice.append(makeElement('span', { className: 'knowledge-conflict-detail', text: `競合理由: ${text(conflict.reason)}` }));
+    if (conflict.latest !== null) notice.append(makeElement('span', { className: 'knowledge-conflict-detail', text: `最新版: 版 ${text(conflict.latest)}` }));
+    if (conflict.expected !== null) notice.append(makeElement('span', { className: 'knowledge-conflict-detail', text: `送信時の版: 版 ${text(conflict.expected)}` }));
+    notice.append(makeElement('span', { className: 'knowledge-conflict-detail', text: '入力と出典は保持しています。最新版を確認してから、必要なら再適用してください。' }));
+  }
   if (options.retry && typeof options.onRetry === 'function') {
-    const retry = makeElement('button', { className: 'knowledge-button secondary', text: '再試行', attrs: { type: 'button' } });
+    const retry = makeElement('button', { className: 'knowledge-button secondary', text: options.retryLabel ?? '再試行', attrs: { type: 'button' } });
     retry.addEventListener('click', () => options.onRetry());
     notice.append(retry);
   }
@@ -793,7 +853,7 @@ export function renderDraftCapture(root, model = {}, callbacks = {}) {
   discard.addEventListener('click', () => callbacks.onDiscard?.());
   actions.append(submit, discard);
   form.append(actions);
-  if (['error', 'error_retryable', 'permission_denied', 'conflict', 'unknown'].includes(normaliseStatus(draft.state))) form.append(statusNotice({ state: draft.state, detail: draft.message || draft.error }, { retry: Boolean(callbacks.onRetry), onRetry: callbacks.onRetry }));
+  if (['error', 'error_retryable', 'permission_denied', 'conflict', 'unknown'].includes(normaliseStatus(draft.state))) form.append(statusNotice(draft, { retry: Boolean(callbacks.onRetry), onRetry: callbacks.onRetry }));
   if (draft.state === 'saving') form.append(makeElement('p', { className: 'knowledge-inline-status', text: '候補生成の応答を待っています。入力は保持されます。', attrs: { role: 'status' } }));
   form.addEventListener('submit', (event) => {
     event.preventDefault();
@@ -946,7 +1006,7 @@ export function renderCommitState(root, model = {}, callbacks = {}) {
       retry.addEventListener('click', () => callbacks.onReadback()); section.append(retry);
     }
   } else if (state === 'verified') section.append(makeElement('p', { className: 'knowledge-success-copy', text: '正本と関係のreadbackが一致しました。検索反映の状態は別に確認します。', attrs: { role: 'status' } }));
-  else if (state === 'conflict') section.append(statusNotice({ state, detail: '最新の版を取得して差分を確認してください。' }, { retry: Boolean(callbacks.onReadback), onRetry: callbacks.onReadback }));
+  else if (state === 'conflict') section.append(statusNotice(model, { detail: '最新版を確認してから、必要なら再適用してください。', retry: Boolean(callbacks.onReadback), onRetry: callbacks.onReadback, retryLabel: '再試行（入力を保持）' }));
   else if (['error', 'error_retryable', 'permission_denied', 'unknown'].includes(state)) section.append(statusNotice(model, { retry: Boolean(callbacks.onReadback), onRetry: callbacks.onReadback }));
   renderDefinitionList(section, [
     ['正本ID', model.item_id ?? model.item?.id ?? UNKNOWN],
@@ -1411,7 +1471,7 @@ export function createKnowledgeOutcomeController(options = {}) {
         message: matches ? null : '保存後の再取得結果が保存先の契約と一致しません。入力内容は保持します。',
       };
     } catch (error) {
-      state.destination = { ...state.destination, state: isVersionConflict(error) || error.status === 409 ? 'conflict' : error.status === 403 ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code, draft: { ...input } };
+      state.destination = { ...state.destination, state: isVersionConflict(error) || error.status === 409 ? 'conflict' : error.status === 403 ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error), draft: { ...input } };
     }
     render(); return state.destination;
   }
@@ -1448,7 +1508,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       const proposed = payload?.proposal ?? {};
       state.draft = { ...state.draft, ...preserved, state: 'candidate' };
       state.candidate = { ...payload, candidate: proposed, input_text: preserved.input_text, source: preserved.source, state: 'candidate', proposal_applied: false, draft_id: null, version: null };
-    } catch (error) { state.draft = { ...state.draft, state: error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code }; }
+    } catch (error) { state.draft = { ...state.draft, state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) }; }
     render(); return state.candidate;
   }
 
@@ -1469,7 +1529,7 @@ export function createKnowledgeOutcomeController(options = {}) {
         : error.code === 'knowledge_draft_not_found' || error.status === 404
           ? 'unknown'
           : error.status === 409 || isVersionConflict(error) ? 'conflict' : 'error_retryable';
-      state.draft = { ...state.draft, state: failureState, message: apiErrorText(error), error: error.code };
+      state.draft = { ...state.draft, state: failureState, message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) };
     }
     render(); return state.candidate;
   }
@@ -1484,7 +1544,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       await callKnowledgeApi(apiMutation, knowledgePath(code, `${KNOWLEDGE_ROUTES.drafts}/${encodeURIComponent(draftId)}/discard`), { method: 'POST', body: { revision }, key: operationKey('draft-discard', draftId, revision, { revision }) });
       state.draft = { state: 'idle', input_text: '' }; state.candidate = { state: 'idle' };
     } catch (error) {
-      state.draft = { ...preservedDraft, state: isVersionConflict(error) ? 'conflict' : 'error_retryable', message: apiErrorText(error), error: error.code };
+      state.draft = { ...preservedDraft, state: isVersionConflict(error) ? 'conflict' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) };
       state.candidate = preservedCandidate;
     }
     render(); return state.draft;
@@ -1524,7 +1584,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       state.candidate = { ...state.candidate, ...draft, candidate: { ...editedCandidate, ...(draft?.candidate ?? {}) }, state: 'candidate', proposal_applied: true, draft_id: draft?.draft_id ?? draft?.id ?? draftId, version: draft?.revision ?? draft?.version ?? state.candidate.version };
       const savedId = draft?.draft_id ?? draft?.id ?? draftId;
       state.draft = { ...state.draft, ...draft, id: savedId, draft_id: savedId, resume_url: resumeUrl(savedId), state: 'candidate' };
-    } catch (error) { state.candidate = { ...state.candidate, state: isVersionConflict(error) ? 'conflict' : 'error_retryable', message: apiErrorText(error), error: error.code }; }
+    } catch (error) { state.candidate = { ...state.candidate, state: isVersionConflict(error) ? 'conflict' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) }; }
     render(); return state.candidate;
   }
 
@@ -1567,7 +1627,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       state.commit = readback;
       if (readback.item) { state.selected = readback.item; state.detail = { state: 'ready', item: readback.item }; state.lifecycle = { state: 'ready', item: readback.item }; }
       onCommitted?.(readback);
-    } catch (error) { state.commit = { ...state.commit, state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code }; }
+    } catch (error) { state.commit = { ...state.commit, state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) }; }
     render(); return state.commit;
   }
 
@@ -1581,7 +1641,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       if (state.commit.item) state.selected = state.commit.item;
       onCommitted?.(state.commit);
     } catch (error) {
-      state.commit = { ...state.commit, pending_save: pending, state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code };
+      state.commit = { ...state.commit, pending_save: pending, state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) };
     }
     render(); return state.commit;
   }
@@ -1651,7 +1711,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       const matches = expected?.id === state.selected.id && expected.version !== null && item?.id === expected.id && item?.version === expected.version && expectedHash !== null && actualHash === expectedHash && sameReturnedFields;
       if (item) { state.selected = item; state.detail = { state: 'ready', item }; }
       state.lifecycle = { state: matches ? 'verified' : 'saved_unverified', action: 'revision', item_id: expected?.id ?? state.selected?.id, version: item?.version, expected_version: expected?.version, expected_hash: expectedHash, item };
-    } catch (error) { state.lifecycle = { state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', action: 'revision', revisionDraft: supplied, message: apiErrorText(error), error: error.code }; }
+    } catch (error) { state.lifecycle = { state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', action: 'revision', revisionDraft: supplied, message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) }; }
     render(); return state.lifecycle;
   }
 
@@ -1666,7 +1726,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       const item = normalizeKnowledgeItem(current?.item ?? current?.record ?? current?.data ?? current);
       const result = { state: item?.id === state.selected.id && item.lifecycle.status === 'retired' ? 'verified' : 'saved_unverified', item_id: state.selected.id, version: item?.version ?? state.selected.version, item };
       state.lifecycle = { ...result, action: 'retire' }; if (result.item) { state.selected = result.item; state.detail = { state: 'ready', item: result.item }; } onRetired?.(result);
-    } catch (error) { state.lifecycle = { state: error.code === 'version_conflict' ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code }; }
+    } catch (error) { state.lifecycle = { state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) }; }
     render(); return state.lifecycle;
   }
 
@@ -1693,7 +1753,7 @@ export function createKnowledgeOutcomeController(options = {}) {
       if (replacement) { state.selected = replacement; state.detail = { state: 'ready', item: replacement }; }
       state.lifecycle = { state: matches ? 'verified' : 'saved_unverified', action: 'supersession', item_id: replacement?.id, version: replacement?.version, superseded_item_id: superseded?.id, item: replacement };
     } catch (error) {
-      state.lifecycle = { state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', action: 'supersession', supersessionDraft: supplied, message: apiErrorText(error), error: error.code };
+      state.lifecycle = { state: isVersionConflict(error) ? 'conflict' : error.code === 'permission_denied' ? 'permission_denied' : 'error_retryable', action: 'supersession', supersessionDraft: supplied, message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) };
     }
     render(); return state.lifecycle;
   }
