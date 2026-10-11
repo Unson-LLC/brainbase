@@ -110,6 +110,7 @@ export interface CanonicalTaskUpdateInput extends JsonRecord {
   waiting_on?: string | null;
   review_at?: string | null;
   source_refs?: unknown[];
+  source_refs_append?: unknown[];
   project_codes?: unknown;
   purpose_label?: string | null;
 }
@@ -294,6 +295,7 @@ const MAX_TITLE_LENGTH = 200;
 const MAX_SEARCH_LENGTH = 200;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
+const MAX_SOURCE_REFS_APPEND_JSON_DEPTH = 128;
 const RESERVED_IDEMPOTENCY_PREFIXES = ['api:', 'workflow:'];
 const CREATE_FIELDS = new Set([
   'completion_contract',
@@ -319,6 +321,7 @@ const MUTABLE_FIELDS = new Set([
   'waiting_on',
   'review_at',
   'source_refs',
+  'source_refs_append',
   'project_codes',
   'purpose_label',
 ]);
@@ -445,6 +448,86 @@ function normalizeSourceRefs(value: unknown): unknown[] | undefined {
   return value;
 }
 
+function isPlainJsonObject(value: unknown): value is JsonRecord {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function assertJsonValue(value: unknown, field: string, ancestors = new Set<object>(), depth = 0): void {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
+  if (typeof value === 'number') {
+    if (Number.isFinite(value)) return;
+    fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+  }
+  if (typeof value !== 'object') {
+    fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+  }
+  if (depth >= MAX_SOURCE_REFS_APPEND_JSON_DEPTH) {
+    fail('validation_error', `${field} exceeds the maximum JSON nesting depth`, 400, { field });
+  }
+  if (ancestors.has(value)) {
+    fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+  }
+  ancestors.add(value);
+  if (Array.isArray(value)) {
+    for (const key of Reflect.ownKeys(value)) {
+      if (key === 'length') continue;
+      if (typeof key !== 'string' || !/^(?:0|[1-9]\d*)$/u.test(key)
+        || Number(key) >= value.length
+        || !Object.prototype.propertyIsEnumerable.call(value, key)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+    }
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.prototype.hasOwnProperty.call(value, index)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+      if (!descriptor || !('value' in descriptor)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+      assertJsonValue(descriptor.value, `${field}[${index}]`, ancestors, depth + 1);
+    }
+  } else if (isPlainJsonObject(value)) {
+    for (const key of Reflect.ownKeys(value)) {
+      if (typeof key !== 'string' || !Object.prototype.propertyIsEnumerable.call(value, key)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!descriptor || !('value' in descriptor)) {
+        fail('validation_error', `${field} must contain JSON-serializable values`, 400, { field });
+      }
+      assertJsonValue(descriptor.value, `${field}.${key}`, ancestors, depth + 1);
+    }
+  } else {
+    fail('validation_error', `${field} must contain plain JSON objects`, 400, { field });
+  }
+  ancestors.delete(value);
+}
+
+function normalizeSourceRefsAppend(value: unknown): unknown[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) {
+    fail('validation_error', 'source_refs_append must be an array of plain JSON objects', 400, { field: 'source_refs_append' });
+  }
+  // Validate the array container itself so sparse, symbol-keyed, accessor, or
+  // otherwise non-JSON properties cannot bypass the per-reference checks.
+  assertJsonValue(value, 'source_refs_append');
+  for (let index = 0; index < value.length; index += 1) {
+    if (!Object.prototype.hasOwnProperty.call(value, index)) {
+      fail('validation_error', 'source_refs_append must be an array of plain JSON objects', 400, { field: 'source_refs_append' });
+    }
+    const ref = value[index];
+    const field = `source_refs_append[${index}]`;
+    if (!isPlainJsonObject(ref)) {
+      fail('validation_error', 'source_refs_append must be an array of plain JSON objects', 400, { field: 'source_refs_append' });
+    }
+    assertJsonValue(ref, field);
+  }
+  return value;
+}
+
 function canonicalize(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalize);
   if (value && typeof value === 'object') {
@@ -458,6 +541,50 @@ function canonicalize(value: unknown): unknown {
 
 function fingerprint(value: unknown): string {
   return createHash('sha256').update(JSON.stringify(canonicalize(value))).digest('hex');
+}
+
+/**
+ * Appended source references use code-unit key ordering so the same JSON
+ * object has one fingerprint across runtimes and locale settings. Keep the
+ * existing canonicalizer above unchanged because its fingerprints are already
+ * persisted for older create/update/transition operations.
+ */
+function canonicalizeSourceRefsAppend(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalizeSourceRefsAppend);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as JsonRecord)
+      .filter(([, entry]) => entry !== undefined)
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([key, entry]) => [key, canonicalizeSourceRefsAppend(entry)]));
+  }
+  return value;
+}
+
+function sourceRefsAppendFingerprint(value: unknown): string {
+  return createHash('sha256').update(JSON.stringify(canonicalizeSourceRefsAppend(value))).digest('hex');
+}
+
+function mergeSourceRefs(existing: unknown, additions: unknown[]): unknown[] {
+  if (existing != null && !Array.isArray(existing)) {
+    fail('validation_error', 'source_refs must be an array', 400, { field: 'source_refs' });
+  }
+  const existingRefs = Array.isArray(existing) ? existing : [];
+  const merged = [...existingRefs];
+  const known = new Set<string>();
+  for (const ref of existingRefs) {
+    try {
+      known.add(sourceRefsAppendFingerprint(ref));
+    } catch {
+      // Preserve legacy references exactly, but do not block valid additions.
+    }
+  }
+  for (const addition of additions) {
+    const key = sourceRefsAppendFingerprint(addition);
+    if (known.has(key)) continue;
+    known.add(key);
+    merged.push(addition);
+  }
+  return merged;
 }
 
 function validHttpUrl(value: unknown): string | null {
@@ -895,7 +1022,11 @@ export class CanonicalTaskService {
     // Keep this fingerprint independent of the wall clock. A restart may
     // reconstruct the same command at a different instant, while the marker
     // must still identify the already-applied mutation.
-    const operationFingerprint = fingerprint({
+    const fingerprintOperation = input.action === 'update'
+      && Object.prototype.hasOwnProperty.call(input.patch, 'source_refs_append')
+      ? sourceRefsAppendFingerprint
+      : fingerprint;
+    const operationFingerprint = fingerprintOperation({
       action: input.action,
       taskId,
       expectedVersion,
@@ -942,8 +1073,17 @@ export class CanonicalTaskService {
           to: input.transitionStatus,
         }, { currentTask: this.normalizeResponse(latest) });
       }
+      const persistedPatch: JsonRecord = { ...patch };
+      if (input.action === 'update' && 'source_refs_append' in input.patch) {
+        const additions = input.patch.source_refs_append;
+        if (!Array.isArray(additions)) {
+          fail('validation_error', 'source_refs_append must be an array of plain JSON objects', 400, { field: 'source_refs_append' });
+        }
+        delete persistedPatch.source_refs_append;
+        persistedPatch.source_refs = mergeSourceRefs(latest.source_refs, additions);
+      }
       const updated = await this.read(() => this.repository.update(taskId, {
-        ...patch,
+        ...persistedPatch,
         _last_operation_key: operation,
         _last_operation_fingerprint: operationFingerprint,
       }, ...this.scopeArgs(input.context)));
@@ -1008,6 +1148,13 @@ export class CanonicalTaskService {
 
   private normalizeUpdateInput(input: CanonicalTaskUpdateInput): JsonRecord {
     if (!input || typeof input !== 'object') fail('validation_error', 'Task update is required');
+    const hasSourceRefsAppend = Object.prototype.hasOwnProperty.call(input, 'source_refs_append');
+    if ('source_refs_append' in input) {
+      const descriptor = Object.getOwnPropertyDescriptor(input, 'source_refs_append');
+      if (!hasSourceRefsAppend || !descriptor || !('value' in descriptor)) {
+        fail('validation_error', 'source_refs_append must be an own data property', 400, { field: 'source_refs_append' });
+      }
+    }
     const unknownFields = Object.keys(input).filter((field) => !MUTABLE_FIELDS.has(field));
     if (unknownFields.length > 0) fail('validation_error', 'Task update contains unsupported fields', 400, { fields: unknownFields });
     const patch: JsonRecord = {};
@@ -1023,7 +1170,18 @@ export class CanonicalTaskService {
     if ('due_at' in input) patch.due_at = normalizeIsoDate(input.due_at, 'due_at');
     if ('waiting_on' in input) patch.waiting_on = normalizeString(input.waiting_on, 'waiting_on', { max: 500 });
     if ('review_at' in input) patch.review_at = normalizeIsoDate(input.review_at, 'review_at');
+    if ('source_refs' in input && hasSourceRefsAppend) {
+      fail('validation_error', 'source_refs and source_refs_append cannot be combined', 400, {
+        fields: ['source_refs', 'source_refs_append'],
+      });
+    }
     if ('source_refs' in input) patch.source_refs = normalizeSourceRefs(input.source_refs) ?? [];
+    if (hasSourceRefsAppend) {
+      const descriptor = Object.getOwnPropertyDescriptor(input, 'source_refs_append');
+      // The descriptor was checked above before any value access. Reuse its
+      // data value so a getter cannot run between validation and normalization.
+      patch.source_refs_append = normalizeSourceRefsAppend(descriptor?.value) ?? [];
+    }
     if ('project_codes' in input) patch.project_codes = normalizeProjectCodes(input.project_codes) ?? [];
     if ('purpose_label' in input) patch.purpose_label = normalizePurposeLabel(input.purpose_label);
     if (Object.keys(patch).length === 0) fail('validation_error', 'Task update must include at least one mutable field');
