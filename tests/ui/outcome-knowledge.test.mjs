@@ -446,10 +446,21 @@ describe('outcome knowledge UI contract', () => {
     globalThis.document = new FakeDocument();
     const captureRoot = new FakeElement('div');
     const inputText = '長い入力\n改行を保持する';
-    const captureForm = renderDraftCapture(captureRoot, { state: 'error_retryable', input_text: inputText, message: '失敗' }, { onRetry() {} });
+    const inputChanges = [];
+    const captureForm = renderDraftCapture(captureRoot, { state: 'error_retryable', input_text: inputText, message: '失敗' }, { onInput: (value) => inputChanges.push(value), onRetry() {} });
     expect(captureForm.children.some((child) => child.tagName === 'LABEL')).toBe(true);
     expect(findAll(captureRoot, 'textarea').some((textarea) => textarea.value === inputText)).toBe(true);
     expect(collectText(captureRoot)).toContain('失敗');
+    const sourcePointer = findAll(captureRoot, 'input').find((control) => control.attributes.name === 'source_pointer');
+    const sourceKind = findAll(captureRoot, 'input').find((control) => control.attributes.name === 'source_kind');
+    const textarea = findAll(captureRoot, 'textarea').find((control) => control.attributes.name === 'input_text');
+    textarea.value = '編集後の本文';
+    textarea.dispatch('input');
+    sourcePointer.value = 'fixture://edited';
+    sourcePointer.dispatch('change');
+    sourceKind.value = 'fixture';
+    sourceKind.dispatch('input');
+    expect(inputChanges.at(-1)).toEqual({ input_text: '編集後の本文', source: { pointer: 'fixture://edited', kind: 'fixture' } });
 
     const reviewRoot = new FakeElement('div');
     renderCandidateReview(reviewRoot, { state: 'candidate', input_text: inputText, candidate: { type: 'decision', title: '候補', summary: '提案', scope: 'project', source: { content_state: 'unknown' } } });
@@ -1025,24 +1036,37 @@ describe('outcome knowledge UI contract', () => {
     controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1', input_text: inputText, source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
     controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
     const values = { type: 'decision', title: '利用者が編集したタイトル', summary: '利用者が編集した要旨', scope: 'project', selection: 'create' };
+    const editedInput = `${inputText} / 編集済み`;
+    const editedPointer = 'fixture://knowledge/edited';
+    controller.render();
+    const captureInput = findAll(root, 'textarea').find((control) => control.attributes.name === 'input_text');
+    const sourcePointer = findAll(root, 'input').find((control) => control.attributes.name === 'source_pointer');
+    const sourceKind = findAll(root, 'input').find((control) => control.attributes.name === 'source_kind');
+    captureInput.value = editedInput;
+    captureInput.dispatch('input');
+    sourcePointer.value = editedPointer;
+    sourcePointer.dispatch('change');
+    sourceKind.value = 'fixture';
+    sourceKind.dispatch('input');
+    expect(controller.state.draft).toMatchObject({ input_text: editedInput, source: { kind: 'fixture', pointer: editedPointer } });
 
     expect((await controller.commitCandidate(values)).state).toBe('conflict');
     expect(controller.state.commit.pending_draft_update).toMatchObject({ draftId: 'draft-1', latest_revision: null });
-    expect(controller.state.draft.input_text).toBe(inputText);
+    expect(controller.state.draft.input_text).toBe(editedInput);
     expect(controller.state.candidate.candidate).toMatchObject({ title: values.title, summary: values.summary });
     expect(mutations).toHaveLength(1);
 
     const checked = await controller.retryPendingSave();
     expect(checked).toMatchObject({ state: 'conflict', latest_revision: 'd2' });
     expect(reads).toContain('/api/projects/proj-1/knowledge/drafts/draft-1');
-    expect(controller.state.draft.input_text).toBe(inputText);
+    expect(controller.state.draft.input_text).toBe(editedInput);
     expect(controller.state.candidate.candidate).toMatchObject({ title: values.title, summary: values.summary });
     expect(controller.state.commit.pending_draft_update.latest_draft_metadata).toMatchObject({ draft_id: 'draft-1', revision: 'd2', content: 'サーバー側の最新版' });
     expect(collectText(root)).toContain('確認した最新版');
     expect(collectText(root)).toContain('サーバー側の最新版');
     expect(collectText(root)).toContain('入力中の原文（保持）');
-    expect(collectText(root)).toContain(inputText);
-    expect(collectText(root)).toContain('保持中の出典: 検証用データ / fixture://knowledge');
+    expect(collectText(root)).toContain(editedInput);
+    expect(collectText(root)).toContain(`保持中の出典: 検証用データ / ${editedPointer}`);
     expect(mutations).toHaveLength(1);
 
     const committed = await controller.commitCandidate(values);
@@ -1052,11 +1076,11 @@ describe('outcome knowledge UI contract', () => {
     expect(patches.at(-1).init.body).toMatchObject({
       title: values.title,
       summary: values.summary,
-      content: inputText,
-      source_pointer: { uri: 'fixture://knowledge' },
+      content: editedInput,
+      source_pointer: { uri: editedPointer },
     });
     expect(committed.state).toBe('verified');
-    expect(controller.state.draft.input_text).toBe(inputText);
+    expect(controller.state.draft.input_text).toBe(editedInput);
   });
 
   it('does not accept a different draft identity as the latest conflict revision', async () => {

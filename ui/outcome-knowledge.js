@@ -917,6 +917,15 @@ export function renderDraftCapture(root, model = {}, callbacks = {}) {
   const input = makeElement('textarea', { className: 'knowledge-control knowledge-textarea', value: sourceText, attrs: { name: 'input_text', rows: '8', maxlength: '20000', required: 'required', placeholder: '例: 顧客への初回提案では、まず利用目的と判断期限を確認する。' } });
   const sourcePointerInput = makeElement('input', { className: 'knowledge-control', value: draft.source?.pointer ?? draft.source_pointer ?? '', attrs: { name: 'source_pointer', maxlength: '2048', placeholder: '許可された資料のURLまたはrepo相対参照（任意）' } });
   const sourceKindInput = makeElement('input', { className: 'knowledge-control', value: draft.source?.kind ?? draft.source_kind ?? '', attrs: { name: 'source_kind', maxlength: '120', placeholder: '資料種別（任意）' } });
+  const readDraftInput = () => ({
+    input_text: input.value,
+    source: { pointer: sourcePointerInput.value.trim(), kind: sourceKindInput.value.trim() },
+  });
+  for (const control of [input, sourcePointerInput, sourceKindInput]) {
+    const syncInput = () => callbacks.onInput?.(readDraftInput());
+    control.addEventListener('input', syncInput);
+    control.addEventListener('change', syncInput);
+  }
   append(form,
     formField('保存済み下書きを再開', resumeId, '一覧APIはないため、保存時に表示された下書きIDを入力してください。'),
     resumeRow,
@@ -938,10 +947,7 @@ export function renderDraftCapture(root, model = {}, callbacks = {}) {
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (typeof form.reportValidity === 'function' && !form.reportValidity()) return;
-    callbacks.onSubmit?.({
-      input_text: input.value,
-      source: { pointer: sourcePointerInput.value.trim(), kind: sourceKindInput.value.trim() },
-    });
+    callbacks.onSubmit?.(readDraftInput());
   });
   section.append(form);
   root.append(section);
@@ -1428,7 +1434,16 @@ export function createKnowledgeOutcomeController(options = {}) {
     captureHeading.firstChild.append(makeElement('h3', { id: 'knowledge-capture-workspace-title', text: '登録案を作る' }), makeElement('p', { text: '自然文を候補へ整理し、正本へ保存する前に内容と根拠を確認します。' }));
     captureWorkspace.append(captureHeading);
     const capture = makeElement('div', { className: 'knowledge-capture-form-region' });
-    renderDraftCapture(capture, state.draft, { onSubmit: createDraft, onResume: resumeDraft, onDiscard: discardDraft, onRetry: () => createDraft({ input_text: state.draft.input_text, source: state.draft.source }) });
+    renderDraftCapture(capture, state.draft, {
+      onSubmit: createDraft,
+      onResume: resumeDraft,
+      onDiscard: discardDraft,
+      onInput: (next) => {
+        state.draft = { ...state.draft, ...next };
+        if (state.candidate.state !== 'idle') state.candidate = { ...state.candidate, ...next };
+      },
+      onRetry: () => createDraft({ input_text: state.draft.input_text, source: state.draft.source }),
+    });
     captureWorkspace.append(capture);
     const review = makeElement('div', { className: 'knowledge-review-region', hidden: state.view !== 'capture' || state.candidate.state === 'idle' });
     if (state.candidate.state !== 'idle') {
