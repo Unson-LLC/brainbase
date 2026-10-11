@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.32.0 candidate — npm公開前
+
+- 世界の部品に、夜の記憶の整理の状態と記憶の候補の件数を受け取る `memoryStatus` を追加。整理できなかった夜を目立たせ、候補があれば「候補の確認」へのリンクを出す。渡されなければ「記憶の整理：未接続」（前提台帳P18、`story-world-memory-status-v1`）
+
 ## 0.31.0 candidate — npm公開前
 
 - 判断の解決のエラーの型・正規JSON（キーを符号位置の順に並べる）・要求digestの公開subpath `judgment-resolution-contract` を追加。brainbase-unsonの判断のサービスと同じ実装で、判断Hookの同じ写しもここから読む（`story-judgment-resolution-contract-exit-v1`）

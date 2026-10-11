@@ -84,6 +84,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.32.0（npm公開前）
+
+世界の部品が、夜の記憶の整理の状態と、本人が決める記憶の候補の件数を `memoryStatus` で受け取り、「候補の確認」へ降りるリンクを出せるようになります（前提台帳P18）。渡されなければ「記憶の整理：未接続」と出し、候補の件数を0件とは出しません。Personal Webは結果を受け取る置き場が無いため、この表示になります。
+
 ## Candidate — v0.31.0（npm公開前）
 
 判断の解決で、判断Hookと解決の経路・サービスが共有するエラーの型・正規JSON・要求digestを、新しい出口 `@unson/brainbase-mcp/judgment-resolution-contract` として追加します。brainbase-unsonの判断のサービスと同じ実装で、判断Hookの同じ写しもここから読むようにまとめました。OSSの既定の動作は変わりません。
