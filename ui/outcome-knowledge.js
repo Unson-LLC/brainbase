@@ -905,24 +905,26 @@ function formField(labelText, control, hint = '') {
 export function renderDraftCapture(root, model = {}, callbacks = {}) {
   clear(root);
   const draft = model.draft ?? model;
+  const editLocked = callbacks.editLocked === true;
   const section = makeElement('section', { className: 'knowledge-capture-panel', attrs: { 'aria-labelledby': 'knowledge-capture-title' } });
   append(section, makeElement('span', { className: 'knowledge-eyebrow', text: '登録案を作る' }), makeElement('h3', { text: '自然文から未確定候補を作成', attrs: { id: 'knowledge-capture-title' } }), makeElement('p', { text: '入力した文章や許可資料から提案を作ります。提案は確認が終わるまで正本へ保存されません。' }));
   const form = makeElement('form', { className: 'knowledge-capture-form', attrs: { 'aria-busy': ['loading', 'saving'].includes(normaliseStatus(draft.state)) ? 'true' : 'false' } });
   const resumeId = makeElement('input', { className: 'knowledge-control', value: draft.resume_id ?? '', attrs: { name: 'resume_id', maxlength: '200', placeholder: '保存済み下書きID' } });
-  const resume = makeElement('button', { className: 'knowledge-button secondary', text: '下書きを再開', attrs: { type: 'button' } });
-  resume.addEventListener('click', () => callbacks.onResume?.(resumeId.value.trim()));
+  const resume = makeElement('button', { className: 'knowledge-button secondary', text: '下書きを再開', attrs: { type: 'button' }, disabled: editLocked });
+  resume.addEventListener('click', () => { if (!editLocked) callbacks.onResume?.(resumeId.value.trim()); });
   const resumeRow = makeElement('div', { className: 'knowledge-form-actions' });
   resumeRow.append(resume);
   const sourceText = optionalText(draft.input_text ?? draft.text ?? model.input_text);
   const input = makeElement('textarea', { className: 'knowledge-control knowledge-textarea', value: sourceText, attrs: { name: 'input_text', rows: '8', maxlength: '20000', required: 'required', placeholder: '例: 顧客への初回提案では、まず利用目的と判断期限を確認する。' } });
   const sourcePointerInput = makeElement('input', { className: 'knowledge-control', value: draft.source?.pointer ?? draft.source_pointer ?? '', attrs: { name: 'source_pointer', maxlength: '2048', placeholder: '許可された資料のURLまたはrepo相対参照（任意）' } });
   const sourceKindInput = makeElement('input', { className: 'knowledge-control', value: draft.source?.kind ?? draft.source_kind ?? '', attrs: { name: 'source_kind', maxlength: '120', placeholder: '資料種別（任意）' } });
+  for (const control of [resumeId, input, sourcePointerInput, sourceKindInput]) control.disabled = editLocked;
   const readDraftInput = () => ({
     input_text: input.value,
     source: { pointer: sourcePointerInput.value.trim(), kind: sourceKindInput.value.trim() },
   });
   for (const control of [input, sourcePointerInput, sourceKindInput]) {
-    const syncInput = () => callbacks.onInput?.(readDraftInput());
+    const syncInput = () => { if (!editLocked) callbacks.onInput?.(readDraftInput()); };
     control.addEventListener('input', syncInput);
     control.addEventListener('change', syncInput);
   }
@@ -937,17 +939,17 @@ export function renderDraftCapture(root, model = {}, callbacks = {}) {
   if (savedId) form.append(makeElement('p', { className: 'knowledge-inline-status', text: `保存済み下書きID: ${savedId}${draft.revision ?? draft.version ? ` / 版: ${draft.revision ?? draft.version}` : ''}` }));
   if (savedId && draft.resume_url) form.append(makeElement('a', { className: 'knowledge-button secondary', text: 'この下書きの再開リンク', attrs: { href: draft.resume_url } }));
   const actions = makeElement('div', { className: 'knowledge-form-actions' });
-  const submit = makeElement('button', { className: 'knowledge-button primary', text: normaliseStatus(draft.state) === 'saving' ? 'AIで整理中…' : 'AIで整理', attrs: { type: 'submit' }, disabled: normaliseStatus(draft.state) === 'saving' });
-  const discard = makeElement('button', { className: 'knowledge-button secondary', text: '入力を破棄', attrs: { type: 'button' } });
+  const submit = makeElement('button', { className: 'knowledge-button primary', text: normaliseStatus(draft.state) === 'saving' ? 'AIで整理中…' : 'AIで整理', attrs: { type: 'submit' }, disabled: editLocked || normaliseStatus(draft.state) === 'saving' });
+  const discard = makeElement('button', { className: 'knowledge-button secondary', text: '入力を破棄', attrs: { type: 'button' }, disabled: editLocked });
   discard.addEventListener('click', () => callbacks.onDiscard?.());
   actions.append(submit, discard);
   form.append(actions);
-  if (['error', 'error_retryable', 'permission_denied', 'conflict', 'unknown'].includes(normaliseStatus(draft.state))) form.append(statusNotice(draft, { retry: Boolean(callbacks.onRetry), onRetry: callbacks.onRetry }));
+  if (['error', 'error_retryable', 'permission_denied', 'conflict', 'unknown'].includes(normaliseStatus(draft.state))) form.append(statusNotice(draft, { retry: !editLocked && Boolean(callbacks.onRetry), onRetry: editLocked ? null : callbacks.onRetry }));
   if (draft.state === 'saving') form.append(makeElement('p', { className: 'knowledge-inline-status', text: '候補生成の応答を待っています。入力は保持されます。', attrs: { role: 'status' } }));
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     if (typeof form.reportValidity === 'function' && !form.reportValidity()) return;
-    callbacks.onSubmit?.(readDraftInput());
+    if (!editLocked) callbacks.onSubmit?.(readDraftInput());
   });
   section.append(form);
   root.append(section);
@@ -962,6 +964,7 @@ function candidateShape(model) {
 export function renderCandidateReview(root, model = {}, callbacks = {}) {
   clear(root);
   const candidate = candidateShape(model);
+  const editLocked = callbacks.editLocked === true;
   const section = makeElement('section', { className: 'knowledge-review-panel', attrs: { 'aria-labelledby': 'knowledge-review-title' } });
   append(section, makeElement('span', { className: 'knowledge-eyebrow', text: '確認が必要です' }), makeElement('h3', { text: '未確定候補を確認', attrs: { id: 'knowledge-review-title' } }), makeElement('p', { text: '候補はAIの提案です。根拠のない責任者・事実を確定せず、原文と提案の差分を確認してください。' }));
   if (model.canonical === false || model.persisted === false || model.readback?.state === 'proposal_only') {
@@ -1021,17 +1024,20 @@ export function renderCandidateReview(root, model = {}, callbacks = {}) {
   createLabel.append(create, makeElement('span', { text: '別の正本項目として作成' }));
   const canonicalId = makeElement('input', { className: 'knowledge-control', value: candidate.canonical_id ?? model.canonical_id ?? '', attrs: { name: 'canonical_id', maxlength: '240', placeholder: '再利用する正本ID' } });
   const canonicalVersion = makeElement('input', { className: 'knowledge-control', value: candidate.canonical_version ?? candidate.expected_version ?? model.canonical_version ?? '', attrs: { name: 'canonical_version', maxlength: '240', placeholder: '再利用する正本の現在版' } });
-  for (const control of [type, title, summary, scope, decisionDomain, owner, applicability, relationType, relations, reuse, create, canonicalId, canonicalVersion]) control.disabled = !proposalApplied;
+  for (const control of [type, title, summary, scope, decisionDomain, owner, applicability, relationType, relations, reuse, create, canonicalId, canonicalVersion]) control.disabled = !proposalApplied || editLocked;
   append(form, makeElement('fieldset', { className: 'knowledge-choice-group' }));
   form.lastChild.append(makeElement('legend', { text: '保存方法' }), reuseLabel, createLabel);
   form.append(formField('再利用する正本', canonicalId, '既存の正本候補を再利用する場合は正本IDが必要です。'));
   form.append(formField('再利用する正本の版', canonicalVersion, '並行更新を見逃さないよう、確認した現在版を指定します。'));
   const actions = makeElement('div', { className: 'knowledge-form-actions' });
-  const apply = makeElement('button', { className: 'knowledge-button secondary', text: proposalApplied ? '入力欄へ反映済み' : '入力欄に反映', attrs: { type: 'button' }, disabled: proposalApplied || !callbacks.onApply });
-  apply.addEventListener('click', () => callbacks.onApply?.());
-  const save = makeElement('button', { className: 'knowledge-button secondary', text: '下書き保存', attrs: { type: 'submit' }, disabled: !proposalApplied || !callbacks.onSave });
-  const commit = makeElement('button', { className: 'knowledge-button primary', text: '確認して正本へ保存', attrs: { type: 'button' }, disabled: !callbacks.onCommit });
+  const apply = makeElement('button', { className: 'knowledge-button secondary', text: proposalApplied ? '入力欄へ反映済み' : '入力欄に反映', attrs: { type: 'button' }, disabled: editLocked || proposalApplied || !callbacks.onApply });
+  apply.addEventListener('click', () => { if (!editLocked) callbacks.onApply?.(); });
+  const save = makeElement('button', { className: 'knowledge-button secondary', text: '下書き保存', attrs: { type: 'submit' }, disabled: editLocked || !proposalApplied || !callbacks.onSave });
+  const commit = makeElement('button', { className: 'knowledge-button primary', text: '確認して正本へ保存', attrs: { type: 'button' }, disabled: editLocked || !callbacks.onCommit });
   actions.append(apply, save, commit); form.append(actions);
+  // The retry action is a recovery control, not an editor.  Keep it available
+  // while the fields and mutation buttons are locked so the user can finish a
+  // same-draft readback without losing the local candidate edits.
   if (model.state && !['candidate', 'ready'].includes(normaliseStatus(model.state))) form.append(statusNotice(model, { retry: Boolean(callbacks.onRetry), onRetry: callbacks.onRetry }));
   const collect = () => ({
     type: type.value,
@@ -1055,8 +1061,8 @@ export function renderCandidateReview(root, model = {}, callbacks = {}) {
     relationType.setCustomValidity?.('');
     return collect();
   };
-  form.addEventListener('submit', (event) => { event.preventDefault(); if (typeof form.reportValidity === 'function' && !form.reportValidity()) return; const values = collectValid(); if (values) callbacks.onSave?.(values); });
-  commit.addEventListener('click', () => { const values = collectValid(); if (values) callbacks.onCommit?.(values); });
+  form.addEventListener('submit', (event) => { event.preventDefault(); if (editLocked) return; if (typeof form.reportValidity === 'function' && !form.reportValidity()) return; const values = collectValid(); if (values) callbacks.onSave?.(values); });
+  commit.addEventListener('click', () => { if (editLocked) return; const values = collectValid(); if (values) callbacks.onCommit?.(values); });
   proposal.append(form); comparison.append(original, proposal); section.append(comparison);
   const evidence = asArray(model.evidence);
   const exclusions = asArray(model.exclusions);
@@ -1434,6 +1440,12 @@ export function createKnowledgeOutcomeController(options = {}) {
     captureHeading.firstChild.append(makeElement('h3', { id: 'knowledge-capture-workspace-title', text: '登録案を作る' }), makeElement('p', { text: '自然文を候補へ整理し、正本へ保存する前に内容と根拠を確認します。' }));
     captureWorkspace.append(captureHeading);
     const capture = makeElement('div', { className: 'knowledge-capture-form-region' });
+    const pendingDraftUpdate = state.commit.pending_draft_update;
+    const draftConflictNeedsRead = Boolean(pendingDraftUpdate && (pendingDraftUpdate.latest_revision === undefined || pendingDraftUpdate.latest_revision === null));
+    const commitLocked = state.commit.state === 'saving' || Boolean(state.commit.pending_save) || draftConflictNeedsRead || ['verified', 'saved_unverified'].includes(state.commit.state);
+    const candidateReadbackPending = state.candidate.candidate_readback_pending === true;
+    const candidateInteractionLocked = state.candidate.state !== 'idle'
+      && (commitLocked || Boolean(pendingDraftUpdate) || candidateReadbackPending || state.candidate.state === 'saving');
     renderDraftCapture(capture, state.draft, {
       onSubmit: createDraft,
       onResume: resumeDraft,
@@ -1442,20 +1454,27 @@ export function createKnowledgeOutcomeController(options = {}) {
         state.draft = { ...state.draft, ...next };
         if (state.candidate.state !== 'idle') state.candidate = { ...state.candidate, ...next };
       },
-      onRetry: () => createDraft({ input_text: state.draft.input_text, source: state.draft.source }),
+      editLocked: candidateInteractionLocked,
+      onRetry: state.candidate.state === 'idle' && !candidateInteractionLocked
+        ? () => createDraft({ input_text: state.draft.input_text, source: state.draft.source })
+        : null,
     });
     captureWorkspace.append(capture);
     const review = makeElement('div', { className: 'knowledge-review-region', hidden: state.view !== 'capture' || state.candidate.state === 'idle' });
     if (state.candidate.state !== 'idle') {
-      const pendingDraftUpdate = state.commit.pending_draft_update;
-      const draftConflictNeedsRead = Boolean(pendingDraftUpdate && (pendingDraftUpdate.latest_revision === undefined || pendingDraftUpdate.latest_revision === null));
-      const commitLocked = state.commit.state === 'saving' || Boolean(state.commit.pending_save) || draftConflictNeedsRead || ['verified', 'saved_unverified'].includes(state.commit.state);
-      const candidateEditLocked = commitLocked || Boolean(pendingDraftUpdate);
+      const candidateEditLocked = commitLocked || Boolean(pendingDraftUpdate) || candidateReadbackPending || state.candidate.state === 'saving';
+      const candidateCommitLocked = candidateEditLocked || state.candidate.state === 'conflict';
+      const persistedCandidateDraftId = state.candidate.draft_id ?? state.draft.draft_id ?? state.draft.id;
       renderCandidateReview(review, { ...state.candidate, decision_domains: state.authority.domains ?? [] }, {
+        editLocked: candidateEditLocked,
         onApply: candidateEditLocked ? null : applyProposal,
         onSave: candidateEditLocked ? null : saveCandidate,
-        onCommit: commitLocked || !(state.candidate.draft_id ?? state.draft.id) ? null : commitCandidate,
-        onRetry: state.commit.pending_save ? retryPendingSave : () => createDraft({ input_text: state.draft.input_text, source: state.draft.source }),
+        onCommit: candidateCommitLocked || !(state.candidate.draft_id ?? state.draft.id) ? null : commitCandidate,
+        onRetry: state.commit.pending_save
+          ? retryPendingSave
+          : persistedCandidateDraftId
+            ? retryCandidateDraftReadback
+            : () => createDraft({ input_text: state.draft.input_text, source: state.draft.source }),
       });
     }
     captureWorkspace.append(review);
@@ -1682,6 +1701,11 @@ export function createKnowledgeOutcomeController(options = {}) {
   }
 
   async function saveCandidate(values) {
+    if (state.candidate.state === 'saving'
+      || state.candidate.candidate_readback_pending === true
+      || state.commit.state === 'saving'
+      || state.commit.pending_save
+      || state.commit.pending_draft_update) return state.candidate;
     const draftId = state.candidate.draft_id ?? state.draft.id;
     if (!state.candidate.proposal_applied) { state.candidate = { ...state.candidate, state: 'unknown', message: 'AI提案を入力欄へ反映してから下書きを保存してください。' }; render(); return null; }
     const editedCandidate = { ...(state.candidate.candidate ?? {}), ...values };
@@ -1689,19 +1713,118 @@ export function createKnowledgeOutcomeController(options = {}) {
     try {
       const candidateBody = serializeCandidate ? serializeCandidate(values, state.candidate) : defaultCandidateBody(values, state.draft);
       const revision = state.candidate.version ?? state.draft.revision ?? state.draft.version;
+      if (draftId && (revision === null || revision === undefined || optionalText(revision).trim() === '')) {
+        state.candidate = {
+          ...state.candidate,
+          candidate: editedCandidate,
+          state: 'conflict',
+          candidate_readback_pending: true,
+          version: null,
+          latest_revision: null,
+          message: '下書きの版を確認できないため、保存を停止しました。最新版を確認してから再試行してください。',
+        };
+        state.draft = { ...state.draft, state: 'conflict', id: draftId, draft_id: draftId };
+        render(); return state.candidate;
+      }
       const body = draftId ? { ...candidateBody, revision } : candidateBody;
       const path = draftId ? `${KNOWLEDGE_ROUTES.drafts}/${encodeURIComponent(draftId)}` : KNOWLEDGE_ROUTES.drafts;
       const payload = await callKnowledgeApi(apiMutation, knowledgePath(code, path), { method: draftId ? 'PATCH' : 'POST', body, key: operationKey(draftId ? 'draft-update' : 'draft', draftId ?? 'new', revision, body) });
       const draft = payload?.draft ?? payload?.data ?? payload;
-      state.candidate = { ...state.candidate, ...draft, candidate: { ...editedCandidate, ...(draft?.candidate ?? {}) }, state: 'candidate', proposal_applied: true, draft_id: draft?.draft_id ?? draft?.id ?? draftId, version: draft?.revision ?? draft?.version ?? state.candidate.version };
+      state.candidate = { ...state.candidate, ...draft, candidate: { ...editedCandidate, ...(draft?.candidate ?? {}) }, state: 'candidate', proposal_applied: true, candidate_readback_pending: false, draft_id: draft?.draft_id ?? draft?.id ?? draftId, version: draft?.revision ?? draft?.version ?? state.candidate.version };
       const savedId = draft?.draft_id ?? draft?.id ?? draftId;
       state.draft = { ...state.draft, ...draft, id: savedId, draft_id: savedId, resume_url: resumeUrl(savedId), state: 'candidate' };
-    } catch (error) { state.candidate = { ...state.candidate, state: isVersionConflict(error) ? 'conflict' : 'error_retryable', message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) }; }
+    } catch (error) { state.candidate = { ...state.candidate, state: isVersionConflict(error) ? 'conflict' : 'error_retryable', candidate_readback_pending: Boolean(draftId), message: apiErrorText(error), error: error.code, ...conflictMetadataFrom(error) }; }
+    render(); return state.candidate;
+  }
+
+  async function retryCandidateDraftReadback() {
+    if (state.candidate.state === 'saving') return state.candidate;
+    const draftId = state.candidate.draft_id ?? state.draft.draft_id ?? state.draft.id;
+    if (!draftId) return createDraft({ input_text: state.draft.input_text, source: state.draft.source });
+
+    // Keep the user's candidate edits separate from the server response.  The
+    // response is used only to refresh the draft identity/version; replacing
+    // the candidate here would turn a recoverable save conflict into a silent
+    // loss of the title and summary the user just edited.
+    const localCandidate = { ...(state.candidate.candidate ?? {}) };
+    const localInput = state.draft.input_text ?? state.candidate.input_text ?? '';
+    const localSource = state.draft.source ?? state.candidate.source ?? null;
+    state.candidate = {
+      ...state.candidate,
+      state: 'saving',
+      candidate_readback_pending: true,
+      candidate: localCandidate,
+      input_text: localInput,
+      source: localSource,
+      message: '下書きの最新版を確認しています。入力と提案は保持されます。',
+    };
+    render();
+    try {
+      const payload = await callKnowledgeApi(api, knowledgePath(code, `${KNOWLEDGE_ROUTES.drafts}/${encodeURIComponent(draftId)}`));
+      const latestDraft = draftReadbackFrom(payload, draftId);
+      if (!latestDraft.valid) {
+        state.candidate = {
+          ...state.candidate,
+          state: 'conflict',
+          candidate_readback_pending: true,
+          draft_id: draftId,
+          version: null,
+          latest_revision: null,
+          candidate: localCandidate,
+          input_text: localInput,
+          source: localSource,
+          message: '下書きの対象を確認できません。入力と提案は保持しています。対象を確認してから再試行してください。',
+        };
+        state.draft = { ...state.draft, state: 'conflict', id: draftId, draft_id: draftId, input_text: localInput, source: localSource };
+      } else {
+        const latestRevision = latestDraft.revision;
+        state.candidate = {
+          ...state.candidate,
+          state: 'conflict',
+          candidate_readback_pending: latestRevision === null,
+          draft_id: latestDraft.draft_id,
+          version: latestRevision,
+          latest_revision: latestRevision,
+          candidate: localCandidate,
+          input_text: localInput,
+          source: localSource,
+          message: latestRevision === null
+            ? '下書きの最新版は確認しましたが、版を確認できません。入力と提案は保持しています。再試行してください。'
+            : '下書きの最新版を確認しました。入力と提案は保持しています。確認後に下書きを保存してください。',
+        };
+        state.draft = {
+          ...state.draft,
+          state: 'candidate',
+          id: latestDraft.draft_id,
+          draft_id: latestDraft.draft_id,
+          revision: latestRevision,
+          input_text: localInput,
+          source: localSource,
+        };
+      }
+    } catch (error) {
+      state.candidate = {
+        ...state.candidate,
+        state: 'conflict',
+        candidate_readback_pending: true,
+        draft_id: draftId,
+        version: null,
+        latest_revision: null,
+        candidate: localCandidate,
+        input_text: localInput,
+        source: localSource,
+        message: `下書きの最新版を確認できません。入力と提案は保持しています。${apiErrorText(error)}`,
+        error: error.code,
+        ...conflictMetadataFrom(error),
+      };
+      state.draft = { ...state.draft, state: 'conflict', id: draftId, draft_id: draftId, input_text: localInput, source: localSource };
+    }
     render(); return state.candidate;
   }
 
   async function commitCandidate(values) {
     if (state.commit.state === 'saving' || state.commit.pending_save || ['verified', 'saved_unverified'].includes(state.commit.state)) return state.commit;
+    if (state.candidate.state === 'saving' || state.candidate.candidate_readback_pending === true) return state.commit;
     const previousDraftConflict = state.commit.pending_draft_update;
     const draftId = state.candidate.draft_id ?? state.draft.id;
     if (!draftId) { state.commit = { state: 'unknown', message: '下書きIDを確認できません。' }; render(); return null; }
@@ -1726,7 +1849,18 @@ export function createKnowledgeOutcomeController(options = {}) {
         state.commit = { state: 'unknown', message: '再利用する正本IDと現在版を確認できません。' };
         render(); return state.commit;
       }
-      const revision = previousDraftConflict?.latest_revision ?? state.candidate.version ?? state.draft.revision ?? state.draft.version ?? null;
+      const revision = previousDraftConflict
+        ? previousDraftConflict.latest_revision
+        : state.candidate.version ?? state.draft.revision ?? state.draft.version ?? null;
+      if (draftId && (revision === null || revision === undefined || optionalText(revision).trim() === '')) {
+        state.commit = {
+          state: 'unknown',
+          item_id: null,
+          version: null,
+          message: '下書きの版を確認できないため、保存を停止しました。最新版を確認してから再試行してください。',
+        };
+        render(); return state.commit;
+      }
       // Capture every value currently visible in the proposal form before the
       // request can fail.  A conflict rerender must not reconstruct the form
       // from the original AI proposal and discard edits made by the user.

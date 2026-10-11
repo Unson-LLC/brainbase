@@ -1001,6 +1001,197 @@ describe('outcome knowledge UI contract', () => {
     expect(controller.state.selected.id).toBe('k-1');
   });
 
+  it('checks the persisted draft after a candidate save conflict without regenerating the proposal', async () => {
+    globalThis.document = new FakeDocument();
+    const reads = [];
+    const mutations = [];
+    let patchAttempts = 0;
+    const api = async (path) => {
+      reads.push(path);
+      if (path.endsWith('/drafts/draft-1')) {
+        return { draft: { draft_id: 'draft-1', revision: 'd2', content: 'サーバー側の原文', candidate: { title: 'サーバー側のタイトル', summary: 'サーバー側の要旨' } } };
+      }
+      return { records: [] };
+    };
+    const apiMutation = async (path, init) => {
+      mutations.push({ path, init });
+      if (path.endsWith('/drafts/draft-1') && init.method === 'PATCH') {
+        patchAttempts += 1;
+        if (patchAttempts === 1) throw Object.assign(new Error('version_conflict'), { status: 409, code: 'version_conflict' });
+        return { draft_id: 'draft-1', revision: 'd3', candidate: { title: '利用者が編集したタイトル', summary: '利用者が編集した要旨' } };
+      }
+      if (path.endsWith('/capture/proposal')) throw new Error('proposal regeneration must not run');
+      throw new Error(`unexpected mutation: ${path}`);
+    };
+    const root = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({ root, project: { code: 'proj-1' }, api, apiMutation, autoLoad: false });
+    controller.state.draft = {
+      state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1',
+      input_text: '利用者が入力した原文', source: { kind: 'fixture', pointer: 'fixture://knowledge' },
+    };
+    controller.state.candidate = {
+      state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true,
+      candidate: { type: 'decision', title: '元タイトル', summary: '元要旨', scope: 'project' },
+    };
+    controller.render();
+
+    const values = { type: 'decision', title: '利用者が編集したタイトル', summary: '利用者が編集した要旨', scope: 'project', selection: 'create' };
+    expect((await controller.saveCandidate(values)).state).toBe('conflict');
+    expect(mutations).toHaveLength(1);
+    expect(controller.state.candidate.candidate).toMatchObject({ title: values.title, summary: values.summary });
+    expect(findAll(root, 'button').find((node) => node.textContent === '下書き保存').disabled).toBe(true);
+    expect(findAll(root, 'button').find((node) => node.textContent === '確認して正本へ保存').disabled).toBe(true);
+
+    const retry = findAll(root, 'button').find((node) => collectText(node) === '再試行');
+    expect(retry).toBeTruthy();
+    retry.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(reads).toContain('/api/projects/proj-1/knowledge/drafts/draft-1');
+    expect(mutations).toHaveLength(1);
+    expect(controller.state.candidate).toMatchObject({ state: 'conflict', draft_id: 'draft-1', version: 'd2', latest_revision: 'd2' });
+    expect(controller.state.candidate.candidate).toMatchObject({ title: values.title, summary: values.summary });
+    expect(findAll(root, 'input').find((node) => node.attributes.name === 'title').value).toBe(values.title);
+    expect(findAll(root, 'textarea').find((node) => node.attributes.name === 'summary').value).toBe(values.summary);
+    expect(findAll(root, 'button').find((node) => node.textContent === '下書き保存').disabled).toBe(false);
+    expect(findAll(root, 'button').find((node) => node.textContent === '確認して正本へ保存').disabled).toBe(true);
+
+    expect((await controller.saveCandidate(values)).state).toBe('candidate');
+    const patches = mutations.filter((entry) => entry.init.method === 'PATCH');
+    expect(patches).toHaveLength(2);
+    expect(patches.at(-1).init.body.revision).toBe('d2');
+  });
+
+  it('locks candidate save and commit while the conflict draft readback is pending or unavailable', async () => {
+    globalThis.document = new FakeDocument();
+    const reads = [];
+    const mutations = [];
+    let resolveReadback;
+    const api = async (path) => {
+      reads.push(path);
+      if (path.endsWith('/drafts/draft-1')) return new Promise((resolve) => { resolveReadback = () => resolve({}); });
+      return { records: [] };
+    };
+    const apiMutation = async (path, init) => {
+      mutations.push({ path, init });
+      if (path.endsWith('/drafts/draft-1') && init.method === 'PATCH') throw Object.assign(new Error('version_conflict'), { status: 409, code: 'version_conflict' });
+      throw new Error(`unexpected mutation: ${path}`);
+    };
+    const root = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({ root, project: { code: 'proj-1' }, api, apiMutation, autoLoad: false });
+    controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1', input_text: '原文', source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
+    controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
+    controller.render();
+    const values = { type: 'decision', title: '編集後', summary: '要旨', scope: 'project', selection: 'create' };
+
+    expect((await controller.saveCandidate(values)).state).toBe('conflict');
+    const retry = findAll(root, 'button').find((node) => node.textContent === '再試行');
+    retry.dispatch('click');
+    expect(controller.state.candidate.state).toBe('saving');
+    expect(findAll(root, 'button').find((node) => node.textContent === '下書き保存').disabled).toBe(true);
+    expect(findAll(root, 'button').find((node) => node.textContent === '確認して正本へ保存').disabled).toBe(true);
+    const editableControls = [...findAll(root, 'input'), ...findAll(root, 'textarea')];
+    for (const name of ['input_text', 'source_pointer', 'source_kind', 'title', 'summary']) {
+      expect(editableControls.find((node) => node.attributes.name === name).disabled).toBe(true);
+    }
+    retry.dispatch('click');
+    expect(reads.filter((path) => path.endsWith('/drafts/draft-1'))).toHaveLength(1);
+    resolveReadback();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(controller.state.candidate.candidate_readback_pending).toBe(true);
+    expect(findAll(root, 'button').find((node) => node.textContent === '下書き保存').disabled).toBe(true);
+    expect(findAll(root, 'button').find((node) => node.textContent === '確認して正本へ保存').disabled).toBe(true);
+    expect(mutations).toHaveLength(1);
+  });
+
+  it('keeps local candidate edits and all mutation controls locked when conflict readback is unavailable', async () => {
+    globalThis.document = new FakeDocument();
+    const reads = [];
+    const mutations = [];
+    const api = async (path) => {
+      reads.push(path);
+      if (path.endsWith('/drafts/draft-1')) throw Object.assign(new Error('upstream_unavailable'), { code: 'upstream_unavailable' });
+      return { records: [] };
+    };
+    const apiMutation = async (path, init) => {
+      mutations.push({ path, init });
+      if (path.endsWith('/drafts/draft-1') && init.method === 'PATCH') throw Object.assign(new Error('version_conflict'), { status: 409, code: 'version_conflict' });
+      throw new Error(`unexpected mutation: ${path}`);
+    };
+    const root = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({ root, project: { code: 'proj-1' }, api, apiMutation, autoLoad: false });
+    controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1', input_text: '原文', source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
+    controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
+    controller.render();
+    const values = { type: 'decision', title: '編集後', summary: '要旨', scope: 'project', selection: 'create' };
+
+    expect((await controller.saveCandidate(values)).state).toBe('conflict');
+    findAll(root, 'button').find((node) => node.textContent === '再試行').dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(reads).toContain('/api/projects/proj-1/knowledge/drafts/draft-1');
+    expect(controller.state.candidate).toMatchObject({ state: 'conflict', candidate_readback_pending: true, version: null, latest_revision: null });
+    expect(controller.state.candidate.candidate).toMatchObject({ title: values.title, summary: values.summary });
+    expect(controller.state.candidate.message).toContain('最新版を確認できません');
+    const editableControls = [...findAll(root, 'input'), ...findAll(root, 'textarea')];
+    for (const name of ['input_text', 'source_pointer', 'source_kind', 'title', 'summary']) {
+      expect(editableControls.find((node) => node.attributes.name === name).disabled).toBe(true);
+    }
+    expect(findAll(root, 'button').find((node) => node.textContent === '下書き保存').disabled).toBe(true);
+    expect(findAll(root, 'button').find((node) => node.textContent === '確認して正本へ保存').disabled).toBe(true);
+    expect(mutations).toHaveLength(1);
+  });
+
+  it('prevents duplicate candidate saves while the first PATCH is in flight', async () => {
+    globalThis.document = new FakeDocument();
+    const mutations = [];
+    let resolvePatch;
+    const api = async () => ({ records: [] });
+    const apiMutation = async (path, init) => {
+      mutations.push({ path, init });
+      if (path.endsWith('/drafts/draft-1') && init.method === 'PATCH') return new Promise((resolve) => { resolvePatch = () => resolve({ draft_id: 'draft-1', revision: 'd2' }); });
+      throw new Error(`unexpected mutation: ${path}`);
+    };
+    const root = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({ root, project: { code: 'proj-1' }, api, apiMutation, autoLoad: false });
+    controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: 'd1', input_text: '原文', source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
+    controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: 'd1', proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
+    controller.render();
+    const values = { type: 'decision', title: '編集後', summary: '要旨', scope: 'project', selection: 'create' };
+    const firstSave = controller.saveCandidate(values);
+    const duplicateSave = controller.saveCandidate(values);
+    expect(controller.state.candidate.state).toBe('saving');
+    expect(mutations.filter((entry) => entry.init.method === 'PATCH')).toHaveLength(1);
+    resolvePatch();
+    await firstSave;
+    await duplicateSave;
+    expect(controller.state.candidate.state).toBe('candidate');
+    expect(mutations.filter((entry) => entry.init.method === 'PATCH')).toHaveLength(1);
+  });
+
+  it('fails closed when a persisted draft has no revision before save or commit mutation', async () => {
+    globalThis.document = new FakeDocument();
+    const mutations = [];
+    const api = async () => ({ records: [] });
+    const apiMutation = async (path, init) => { mutations.push({ path, init }); return { draft_id: 'draft-1', revision: 'd2' }; };
+    const root = new FakeElement('div');
+    const values = { type: 'decision', title: '編集後', summary: '要旨', scope: 'project', selection: 'create' };
+    const controller = createKnowledgeOutcomeController({ root, project: { code: 'proj-1' }, api, apiMutation, resolveDecisionDomain: () => 'knowledge-canonical', autoLoad: false });
+    controller.state.draft = { state: 'candidate', id: 'draft-1', draft_id: 'draft-1', revision: null, input_text: '原文', source: { kind: 'fixture', pointer: 'fixture://knowledge' } };
+    controller.state.candidate = { state: 'candidate', draft_id: 'draft-1', version: null, proposal_applied: true, candidate: { type: 'decision', title: '判断', summary: '本文', scope: 'project' } };
+    controller.render();
+
+    expect((await controller.saveCandidate(values)).state).toBe('conflict');
+    expect(mutations).toHaveLength(0);
+
+    controller.state.candidate = { ...controller.state.candidate, state: 'candidate', candidate_readback_pending: false };
+    controller.state.commit = { state: 'idle' };
+    expect((await controller.commitCandidate(values)).state).toBe('unknown');
+    expect(controller.state.commit.message).toContain('版を確認できない');
+    expect(mutations).toHaveLength(0);
+  });
+
   it('reads the latest draft after a PATCH conflict while retaining local input until explicit reapply', async () => {
     globalThis.document = new FakeDocument();
     const reads = [];
