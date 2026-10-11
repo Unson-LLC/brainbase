@@ -160,7 +160,7 @@ describe('情報と関係: workspace', () => {
     const good = await readFile(join(dataDir, 'graph.json'), 'utf8');
     await writeFile(join(dataDir, 'graph.json'), '{ broken');
     const { root } = await mountView();
-    expect(collectText(section(root, '検索結果'))).toContain('読み取れませんでした');
+    expect(collectText(section(root, '検索結果'))).toContain('記録を取得できませんでした');
     expect(byClass(section(root, '検索結果'), 'bb-ws-notice')[0].className).toBe('bb-ws-notice is-danger');
     expect(collectText(section(root, '情報の種類とつながり方'))).toContain('0件ではありません');
     await writeFile(join(dataDir, 'graph.json'), good);

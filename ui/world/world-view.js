@@ -1658,6 +1658,11 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     wrap.append(stage);
     canvasUI = createWorldCanvasUI({
       doc, stage, reducedMotion,
+      context: {
+        purpose: '事業と案件、関連する仕事を地図で確認します。',
+        knownCityAction: '都市を選ぶと、その事業の区画に入ります。',
+        unavailableCity: '現在、選べる事業を確認できません。詳しい状況は「世界の見方」で確認できます。',
+      },
       onReset: () => { goToWorld(); clearAll(); },
       onCity: (code) => {
         if (!code) { goToWorld(); clearAll(); return; }

@@ -1194,7 +1194,11 @@ function statusNotice(doc, phase, error, home, onRetry) {
   if (phase === 'loading') return workspaceNotice(doc, { label: '読み込み中', text: '判断履歴を確認しています。', tone: 'info' });
   if (phase === 'error') return workspaceNotice(doc, {
     label: '取得できません',
-    text: [`判断の記録を確認できません。${error ? `理由: ${error}` : ''} `, workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
+    text: [
+      { className: 'bb-jh-error-primary', text: '判断履歴を取得できませんでした。' },
+      error ? { className: 'bb-jh-error-detail', text: `詳細: ${error}` } : null,
+      workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry }),
+    ],
     tone: 'danger',
     role: 'alert',
   });

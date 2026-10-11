@@ -584,7 +584,12 @@ export function graphStateNotice(doc, readState, { onRetry, loadingText = '読�
   return workspaceNotice(doc, {
     label: '読み取り失敗',
     tone: 'danger',
-    text: noticeBody(doc, makeElement(doc, 'p', { text: `読み取れませんでした（${readState.reason ?? '理由不明'}）。0件ではありません。` }), retryButton(doc, onRetry)),
+    text: noticeBody(
+      doc,
+      makeElement(doc, 'p', { className: 'bb-graph-error-primary', text: '記録を取得できませんでした。' }),
+      makeElement(doc, 'small', { className: 'bb-graph-error-detail', text: `詳細: ${readState.reason ?? '理由不明'}。0件ではありません。` }),
+      retryButton(doc, onRetry),
+    ),
   });
 }
 
