@@ -183,6 +183,10 @@
       "types": "./dist/knowledge-resolution-service.d.ts",
       "import": "./dist/knowledge-resolution-service.js"
     },
+    "./judgment-resolution-contract": {
+      "types": "./dist/judgment-resolution-contract.d.ts",
+      "import": "./dist/judgment-resolution-contract.js"
+    },
     "./canonical-document-writer": {
       "types": "./dist/canonical-document-writer.d.ts",
       "import": "./dist/canonical-document-writer.js"

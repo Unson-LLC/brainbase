@@ -5,6 +5,7 @@
 ## Unreleased — develop
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+- 判断の解決のエラーの型・正規JSON（キーを符号位置の順に並べる）・要求digestの公開subpath `judgment-resolution-contract` を追加。brainbase-unsonの判断のサービスと同じ実装で、判断Hookの同じ写しもここから読む（`story-judgment-resolution-contract-exit-v1`）
 
 ## 0.30.0 candidate — npm公開前
 

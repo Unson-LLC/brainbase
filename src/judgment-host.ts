@@ -21,6 +21,7 @@ import {
   type JudgmentAutonomyEvaluation,
   type JudgmentAutonomyResolver
 } from './judgment-autonomy.js';
+import { canonicalJson } from './judgment-resolution-contract.js';
 
 type Environment = Record<string, string | undefined>;
 
@@ -317,31 +318,8 @@ const DOMAIN_TERMS: Array<[JudgmentClassification['domains'][number], string[]]>
 const FOLLOW_UP_TERMS = ['that', 'it', 'continue', 'do that', 'それ', 'その形', 'これ', 'こちら', '続けて', 'もう一度', 'では', 'それでいい', 'そうして'];
 const AUTHORITY_INTENTS = new Set<JudgmentClassification['intent']>(['implement', 'operate']);
 
-export function canonicalJson(value: unknown): string {
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return JSON.stringify(value);
-  if (typeof value === 'number') {
-    if (!Number.isFinite(value)) throw new TypeError('canonical JSON only supports finite numbers');
-    return JSON.stringify(value);
-  }
-  if (Array.isArray(value)) return `[${value.map((entry) => canonicalJson(entry)).join(',')}]`;
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value).sort(compareCodePoints).map((key) => {
-      const entry = (value as Record<string, unknown>)[key];
-      if (entry === undefined) throw new TypeError('canonical JSON does not support undefined');
-      return `${JSON.stringify(key)}:${canonicalJson(entry)}`;
-    }).join(',')}}`;
-  }
-  throw new TypeError(`canonical JSON does not support ${typeof value}`);
-}
-
-function compareCodePoints(left: string, right: string): number {
-  const a = Array.from(left, (value) => value.codePointAt(0) as number);
-  const b = Array.from(right, (value) => value.codePointAt(0) as number);
-  for (let index = 0; index < Math.min(a.length, b.length); index += 1) {
-    if (a[index] !== b[index]) return a[index] - b[index];
-  }
-  return a.length - b.length;
-}
+// canonicalJson is the shared judgment resolution contract; re-exported so existing importers keep working.
+export { canonicalJson };
 
 function sha256(value: string | Buffer): string {
   return createHash('sha256').update(value).digest('hex');

@@ -73,6 +73,7 @@
 - Graphの束の検証・検索に使う関係IDと埋め込みの生成の公開subpath（`canonical-graph`、`embedding-provider`、`graph-embedding-provider`）
 - 知識を探す正本を内容の種類と相手から決める部品の公開subpath（`knowledge-resolution-service`）
 - チームの文書を所有repoへ書き込むときの検査と読み戻しの照合、知識の取り込みと下書きの回答の検証、会議ソース（Tactiq・Plaud.ai）のカタログの公開subpath（`canonical-document-writer`、`knowledge-capture-preview`、`meeting-source-integration-catalog`）
+- 判断の解決で判断Hookと解決の経路・サービスが共有するエラーの型・正規JSON・要求digestの公開subpath（`judgment-resolution-contract`）
 
 - Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。0.8.0の公開subpathのうちこの3件を削除する互換を壊す変更なので、0.8.0からのminorにした。そのほかの0.8.0公開subpathは削除・変更していない
 
