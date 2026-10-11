@@ -42,7 +42,7 @@ const UNREADABLE_LABELS = Object.freeze({
 
 // Stroke icons from the organization edition's sprite (apps/web/public/index.html).
 const NAV_ICON_PATHS = Object.freeze({
-  today: ['M5 20V10m7 10V4m7 16v-7'],
+  'value-proofs': ['M5 20V10m7 10V4m7 16v-7'],
   objectives: ['M12 4 3 20h18z', 'M12 9v5m0 3h.01'],
   projects: ['M3 6.5h7l2 2h9v10H3z', 'M3 6.5v-2h7l2 2'],
   graph: ['M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2', 'M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2'],
@@ -53,7 +53,7 @@ const NAV_ICON_PATHS = Object.freeze({
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
 function makeIcon(doc, id) {
-  const paths = NAV_ICON_PATHS[id] ?? NAV_ICON_PATHS.today;
+  const paths = NAV_ICON_PATHS[id] ?? NAV_ICON_PATHS['value-proofs'];
   const create = (tag) => (typeof doc.createElementNS === 'function' ? doc.createElementNS(SVG_NS, tag) : doc.createElement(tag));
   const svg = create('svg');
   svg.setAttribute('class', 'bb-shell-icon');
@@ -90,13 +90,15 @@ function isRecord(value) {
 export function parseLocalWebTarget(target) {
   const raw = typeof target === 'string' ? target.replace(/^#/, '') : '';
   const separator = raw.indexOf('?');
-  const screenId = separator < 0 ? raw : raw.slice(0, separator);
-  if (!screenId) return { screenId: null, entityId: null };
+  const requested = separator < 0 ? raw : raw.slice(0, separator);
+  if (!requested) return { screenId: null, entityId: null };
+  // 判断の履歴 was called 今日 (`#today`) until 2026-10-11; old links still open it.
+  const screenId = requested === 'today' ? 'value-proofs' : requested;
   const query = separator < 0 ? '' : raw.slice(separator + 1);
   const params = new URLSearchParams(query);
-  // 今日 accepts one judgment to open (`decision` = decision_attempt_id) and
+  // 判断の履歴 accepts one judgment to open (`decision` = decision_attempt_id) and
   // プロジェクトと関係者 one project (`project` = Graph project id); other screens ignore them.
-  const decisionId = screenId === 'today' ? params.get('decision')?.trim() || null : null;
+  const decisionId = screenId === 'value-proofs' ? params.get('decision')?.trim() || null : null;
   const projectId = screenId === 'projects' ? params.get('project')?.trim() || null : null;
   return {
     screenId,
@@ -250,7 +252,7 @@ function mountGraphScreen(screenId, createView) {
 }
 
 export const LOCAL_WEB_SCREENS = Object.freeze([
-  Object.freeze({ id: 'today', label: '今日', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
+  Object.freeze({ id: 'value-proofs', label: '判断の履歴', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
   Object.freeze({ id: 'minutes', label: '議事録', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
   Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
   Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
@@ -419,7 +421,7 @@ export function createLocalWebShell({
     if (mounted.has(screen.id)) {
       const view = mounted.get(screen.id);
       if (entityId && screen.id === 'graph' && typeof view?.openEntity === 'function') void view.openEntity(entityId);
-      if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
+      if (entityId && screen.id === 'value-proofs' && typeof view?.openDecision === 'function') view.openDecision(entityId);
       if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
       return;
     }
@@ -434,7 +436,7 @@ export function createLocalWebShell({
     const page = Object.freeze({ crumbs: Object.freeze(['あなたのBrainbase', screen.label]), source: screen.source ?? null });
     const view = screen.mount(slot, Object.freeze({ ...context, rail, page, initialEntityId: entityId })) ?? true;
     mounted.set(screen.id, view);
-    if (entityId && screen.id === 'today' && typeof view?.openDecision === 'function') view.openDecision(entityId);
+    if (entityId && screen.id === 'value-proofs' && typeof view?.openDecision === 'function') view.openDecision(entityId);
     if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
     updateRail();
   }
@@ -447,7 +449,7 @@ export function createLocalWebShell({
       const parsed = parseLocalWebTarget(target);
       const screen = screens.find((candidate) => candidate.id === parsed.screenId) ?? screens[0];
       pendingEntityIds.set(screen.id, screen.id === 'graph' ? parsed.entityId
-        : screen.id === 'today' ? parsed.decisionId ?? null
+        : screen.id === 'value-proofs' ? parsed.decisionId ?? null
           : screen.id === 'projects' ? parsed.projectId ?? null : null);
       active = screen.id;
       for (const [screenId, slot] of slots) slot.hidden = screenId !== screen.id;

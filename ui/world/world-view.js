@@ -1450,6 +1450,9 @@ function addressSelection() {
  *   organization web passes its own route.
  * @param {(site: { task_id: string }) => string | null} [options.taskHref] Where a work site's task opens in the
  *   host's task screen (to check or correct it).  Without one the rail says it cannot be corrected here.
+ * @param {(decisionAttemptId: string | null) => string} [options.judgmentHref] Where a judgment (or, with null,
+ *   the list) opens in the host's 判断の履歴.  The local web opens `#value-proofs?decision=<id>`; an organization
+ *   web passes its own route.
  * @param {'standard' | 'canvas'} [options.presentation] Canvas owns its accessible overlays and ignores the host rail.
  * @param {{ read(): { business: string | null, site: string | null }, write(selection): void }} [options.selection]
  * @param {(business: object) => (BusinessExitsAnswer | Promise<BusinessExitsAnswer>)} [options.businessExits] The tools
@@ -1460,7 +1463,12 @@ function addressSelection() {
  *   others are dropped and counted.  Without it the world is drawn exactly as before.
  * @typedef {{ status: string, read_at?: string, reason?: string, exits: object[] }} BusinessExitsAnswer
  */
-export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, selection = addressSelection(), businessExits = null }) {
+/** 判断の履歴 in the local web (it was 今日, `#today`, until 2026-10-11; the shell still opens old links). */
+function defaultJudgmentHref(decisionAttemptId) {
+  return decisionAttemptId ? `#value-proofs?decision=${encodeURIComponent(decisionAttemptId)}` : '#value-proofs';
+}
+
+export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, judgmentHref = defaultJudgmentHref, selection = addressSelection(), businessExits = null }) {
   const exitsEnabled = typeof businessExits === 'function';
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
@@ -1634,9 +1642,9 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     return `${textValue}${suffix}`;
   }
 
-  /** Descends to the same judgment in 今日 (the shell opens `#today?decision=`). */
+  /** Descends to the same judgment in the host's 判断の履歴. */
   function decisionLink(decisionAttemptId) {
-    const link = el(doc, 'a', { className: 'bb-world-rail-link', text: '「今日」でこの判断を開く', attrs: { href: `#today?decision=${encodeURIComponent(decisionAttemptId)}` } });
+    const link = el(doc, 'a', { className: 'bb-world-rail-link', text: '「判断の履歴」でこの判断を開く', attrs: { href: judgmentHref(decisionAttemptId) } });
     return link;
   }
 
@@ -2242,7 +2250,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       showRail([
         workspaceRailHead(doc, { kicker: `${business.name} の判断所`, title: `判断 ${data.judgments.length}件`, lead: business.purpose ?? undefined }),
         cityJudgmentBlock(business),
-        workspaceRailBlock(doc, { title: '詳しく見る', content: workspaceButton(doc, { text: '「今日」で開く', variant: 'primary', onClick: () => { globalThis.location.hash = '#today'; } }) }),
+        workspaceRailBlock(doc, { title: '詳しく見る', content: workspaceButton(doc, { text: '「判断の履歴」で開く', variant: 'primary', onClick: () => { globalThis.location.hash = judgmentHref(null); } }) }),
       ]);
       return;
     }
@@ -2273,7 +2281,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       blocks.push(workspaceRailBlock(doc, { title: '判断（新しい順）', content: items.length ? ul : { text: '判断はありません' } }));
       blocks.push(workspaceRailBlock(doc, {
         title: '詳しく見る',
-        content: workspaceButton(doc, { text: '「今日」で開く', variant: 'primary', onClick: () => { globalThis.location.hash = '#today'; } }),
+        content: workspaceButton(doc, { text: '「判断の履歴」で開く', variant: 'primary', onClick: () => { globalThis.location.hash = judgmentHref(null); } }),
       }));
       showRail(blocks);
       return;
@@ -2295,7 +2303,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       if (withheld) {
         blocks.push(workspaceRailBlock(doc, {
           title: `この世界に出していない判断（${withheld}件）`,
-          content: { text: 'この組織の事業で作業したと確かめられない判断です。ほかの会社の仕事が混ざるため、内容も作業場所も出しません。「今日」では見られます。' },
+          content: { text: 'この組織の事業で作業したと確かめられない判断です。ほかの会社の仕事が混ざるため、内容も作業場所も出しません。「判断の履歴」では見られます。' },
         }));
       }
       showRail(blocks);
@@ -2368,11 +2376,11 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       const waiting = [...proofs.values()].filter(isWaiting).length;
       const places = placesResult.ok && placesResult.data?.status === 'available' ? placesResult.data.places : null;
       if (places) {
-        // Only judgments the home lists are placed, so the world and 今日 count the same judgments.
+        // Only judgments the home lists are placed, so the world and 判断の履歴 count the same judgments.
         const known = places.filter((place) => proofs.has(place.decision_attempt_id)).map((place) => ({ ...place, item: proofs.get(place.decision_attempt_id) }));
         placement = groupJudgmentPlaces(known, businesses);
         const placed = known.length - placement.unplaced.length;
-        const kept = withheld ? `この組織の事業で作業したと確かめられない判断${withheld}件は、この世界には出していません（「今日」で見られます）。` : '';
+        const kept = withheld ? `この組織の事業で作業したと確かめられない判断${withheld}件は、この世界には出していません（「判断の履歴」で見られます）。` : '';
         note('判断', `${home.delegation_map.judged}件のうち${placed}件を作業した事業の判断所に、${placement.unplaced.length}件は事業が分からないため広場に。${kept}今あなたを待っている判断${waiting}件${waiting ? '（光の柱）' : ''}。`, waiting ? 'attention' : 'info', waiting ? `あなたを待っている判断 ${waiting}件` : null);
       } else {
         note('判断', `${home.delegation_map.judged}件。作業した場所を読めないため、事業には置かず広場の種類別だけで描いています（${placesResult.ok ? placesResult.data?.reason ?? '理由不明' : placesResult.error}）。今あなたを待っている判断${waiting}件。`, 'warning', '判断の作業場所：読めない');
