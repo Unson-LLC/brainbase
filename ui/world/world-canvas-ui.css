@@ -146,6 +146,14 @@
   font-weight: 700;
 }
 .bb-world-canvas-ui .bb-world-canvas-quest-text { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* A quest with a way down (候補の確認) is clickable even though the quest list lets the map take the pointer. */
+.bb-world-canvas-ui .bb-world-canvas-quest a {
+  flex: none;
+  color: #b5f2ab;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  pointer-events: auto;
+}
 
 .bb-world-canvas-ui .bb-world-canvas-edge {
   position: absolute;

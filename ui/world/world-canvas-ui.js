@@ -357,13 +357,14 @@ export function createWorldCanvasUI({ doc, stage, reducedMotion = false, onReset
     activate('help', help);
     focus(helpTitle);
   }
-  function addNote({ label = '', text = '', tone = '', summary } = {}) {
+  function addNote({ label = '', text = '', tone = '', summary, link = null } = {}) {
     if (disposed) return;
     const note = element('section', 'bb-world-canvas-note');
     if (label) note.append(element('h3', '', label));
     if (text || summary) note.append(element('p', '', text || summary));
     if (label || text || summary) notes.append(note);
     if (typeof summary !== 'string' || !summary.trim()) return;
+    // A link (already checked by the caller) follows the summary so the quest is a way down, not only a sign.
     const quest = element('p', 'bb-world-canvas-quest');
     const icon = tone === 'attention' || tone === 'warning' ? '!' : 'i';
     quest.append(
@@ -373,6 +374,7 @@ export function createWorldCanvasUI({ doc, stage, reducedMotion = false, onReset
     // The accessible name contains the unabridged summary even when visual text
     // is ellipsized on a narrow canvas; the long explanation remains in help.
     quest.setAttribute('aria-label', summary.trim());
+    if (link?.href) quest.append(element('a', link.className ?? '', link.label ?? summary.trim(), { href: link.href }));
     quests.append(quest);
   }
   function clearNotes() {
