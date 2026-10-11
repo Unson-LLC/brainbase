@@ -83,6 +83,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.30.0（npm公開前）
+
+Personal Webのナビの「今日」を「判断の履歴」に改め、組織版と同じ名前にします（前提台帳U1）。古いリンク `#today` と `#today?decision=<id>` は、判断の履歴の同じ判断へ転送します。世界の部品は、判断を開くリンクの行き先を `judgmentHref` で差し替えられるようになり、既定は `#value-proofs?decision=<id>` です。
+
 ## Candidate — v0.29.0（npm公開前）
 
 所有repoへのチームの文書の書き込みの検査（`canonical-document-writer`）、知識の取り込みの提案の検証（`knowledge-capture-preview`）、会議ソースのカタログ（`meeting-source-integration-catalog`）を、新しい出口として追加します。brainbase-unsonの部品を処理を変えずに移したもので、外部のサービスを呼ばず、OSSの既定の動作は変わりません。
