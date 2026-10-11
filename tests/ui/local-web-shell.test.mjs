@@ -118,16 +118,21 @@ describe('local Web shell', () => {
   it('parses a Graph entity target from the same-origin hash and ignores queries on other screens', () => {
     expect(parseLocalWebTarget('#graph?entity_id=project-atlas')).toEqual({ screenId: 'graph', entityId: 'project-atlas' });
     expect(parseLocalWebTarget('graph?entity_id=project%2Datlas')).toEqual({ screenId: 'graph', entityId: 'project-atlas' });
-    expect(parseLocalWebTarget('#today?entity_id=project-atlas')).toEqual({ screenId: 'today', entityId: null });
+    expect(parseLocalWebTarget('#value-proofs?entity_id=project-atlas')).toEqual({ screenId: 'value-proofs', entityId: null });
     expect(parseLocalWebTarget(undefined)).toEqual({ screenId: null, entityId: null });
   });
 
-  it('carries one judgment to open into 今日 and nowhere else', () => {
-    expect(parseLocalWebTarget('#today?decision=decision_abc')).toEqual({ screenId: 'today', entityId: null, decisionId: 'decision_abc' });
+  it('carries one judgment to open into 判断の履歴 and nowhere else', () => {
+    expect(parseLocalWebTarget('#value-proofs?decision=decision_abc')).toEqual({ screenId: 'value-proofs', entityId: null, decisionId: 'decision_abc' });
     expect(parseLocalWebTarget('#graph?decision=decision_abc')).toEqual({ screenId: 'graph', entityId: null });
-    expect(parseLocalWebTarget('#today?decision=')).toEqual({ screenId: 'today', entityId: null });
+    expect(parseLocalWebTarget('#value-proofs?decision=')).toEqual({ screenId: 'value-proofs', entityId: null });
     expect(parseLocalWebTarget('#projects?project=prj_baao')).toEqual({ screenId: 'projects', entityId: null, projectId: 'prj_baao' });
-    expect(parseLocalWebTarget('#today?project=prj_baao')).toEqual({ screenId: 'today', entityId: null });
+    expect(parseLocalWebTarget('#value-proofs?project=prj_baao')).toEqual({ screenId: 'value-proofs', entityId: null });
+  });
+
+  it('forwards the retired 今日 links (#today) to 判断の履歴 with the same judgment', () => {
+    expect(parseLocalWebTarget('#today')).toEqual({ screenId: 'value-proofs', entityId: null });
+    expect(parseLocalWebTarget('#today?decision=decision_abc')).toEqual({ screenId: 'value-proofs', entityId: null, decisionId: 'decision_abc' });
   });
 
   it('gives each screen its own right rail and the page context, and shows the rail column only for the mounted screen', async () => {
@@ -168,19 +173,19 @@ describe('local Web shell', () => {
     await flush();
     const links = findAll(root, (node) => node.tagName === 'A');
     expect(links.map((link) => [link.textContent, link.attributes.href])).toEqual([
-      ['今日', '#today'], ['議事録', '#minutes'], ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['情報と関係', '#graph'],
+      ['判断の履歴', '#value-proofs'], ['議事録', '#minutes'], ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['情報と関係', '#graph'],
     ]);
     expect(LOCAL_WEB_SCREENS.map((entry) => [entry.id, entry.usesGraph])).toEqual([
-      ['today', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true],
+      ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true],
     ]);
     expect(links[0].attributes['aria-current']).toBe('page');
-    expect(shell.state.active).toBe('today');
+    expect(shell.state.active).toBe('value-proofs');
 
     const source = collectText(findAll(root, (node) => node.attributes?.['aria-label'] === '出典')[0]);
     expect(source).toContain('/home/owner/.brainbase/personal-os');
     expect(source).toContain('Graphv2');
     expect(source).not.toContain('組織のGraph');
-    expect(collectText(screen(root, 'today'))).toContain('保存された判断に接続できません');
+    expect(collectText(screen(root, 'value-proofs'))).toContain('保存された判断に接続できません');
   });
 
   it('mounts the Objective editor and the World Model view for 目的と現状 on Graph v2', async () => {
@@ -189,7 +194,7 @@ describe('local Web shell', () => {
     await flush();
     shell.show('objectives');
     await flush();
-    expect(screen(root, 'today').hidden).toBe(true);
+    expect(screen(root, 'value-proofs').hidden).toBe(true);
     expect(screen(root, 'objectives').hidden).toBe(false);
     const text = collectText(screen(root, 'objectives'));
     expect(text).toContain('目的はまだ登録されていません。');
@@ -202,7 +207,7 @@ describe('local Web shell', () => {
     expect(calls).toEqual(expect.arrayContaining(['/api/foundation/objectives', '/api/world-model/variables', '/api/world-model/adoptions']));
     const links = findAll(root, (node) => node.tagName === 'A');
     const objectiveLink = links.find((link) => link.attributes.href === '#objectives');
-    const todayLink = links.find((link) => link.attributes.href === '#today');
+    const todayLink = links.find((link) => link.attributes.href === '#value-proofs');
     expect(objectiveLink?.attributes['aria-current']).toBe('page');
     expect(todayLink?.attributes['aria-current']).toBeUndefined();
   });
@@ -341,13 +346,13 @@ describe('local Web shell', () => {
     expect(collectText(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0])).toContain(UX06_GRAPH_ENTITY.id);
   });
 
-  it('mounts 今日の判断履歴 with summary metrics and a selectable detail rail', async () => {
+  it('mounts 判断の履歴 with summary metrics and a selectable detail rail', async () => {
     const { fetcher, calls } = hostFetcher(V2, {
       '/api/value-proofs/home': () => jsonResponse(200, sourceBearingHome()),
     });
-    const { root } = mount(fetcher, 'today');
+    const { root } = mount(fetcher, 'value-proofs');
     await flushMany(2);
-    const today = screen(root, 'today');
+    const today = screen(root, 'value-proofs');
     const text = collectText(today);
     expect(calls).toContain('/api/value-proofs/home');
     expect(text).toContain('判断の履歴');
@@ -361,7 +366,7 @@ describe('local Web shell', () => {
     const row = findAll(ledger, (node) => node.tagName === 'BUTTON' && node.attributes?.role === 'row')[0];
     expect(row).toBeTruthy();
     row.listeners.get('click')();
-    const rail = findAll(root, (node) => node.attributes?.['data-rail'] === 'today')[0];
+    const rail = findAll(root, (node) => node.attributes?.['data-rail'] === 'value-proofs')[0];
     expect(collectText(rail)).toContain('使った参照');
     expect(collectText(rail)).toContain('project-atlas');
   });
@@ -373,9 +378,9 @@ describe('local Web shell', () => {
         ? jsonResponse(200, { status: 'unavailable', root: '/journal', reason: 'judgment_journal_not_found' })
         : jsonResponse(200, sourceBearingHome()),
     });
-    const { root } = mount(fetcher, 'today');
+    const { root } = mount(fetcher, 'value-proofs');
     await flushMany(2);
-    const today = screen(root, 'today');
+    const today = screen(root, 'value-proofs');
     expect(collectText(today)).toContain('保存された判断に接続できません');
     const retry = findAll(today, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')[0];
     expect(retry).toBeTruthy();
@@ -383,11 +388,11 @@ describe('local Web shell', () => {
     unavailable = false;
     retry.listeners.get('click')();
     await flushMany(2);
-    expect(collectText(screen(root, 'today'))).toContain('1件');
-    expect(collectText(screen(root, 'today'))).not.toContain('保存された判断に接続できません');
+    expect(collectText(screen(root, 'value-proofs'))).toContain('1件');
+    expect(collectText(screen(root, 'value-proofs'))).not.toContain('保存された判断に接続できません');
   });
 
-  it('puts the selected judgment detail of 今日 and the selected objective of 目的と現状 in each screen\'s rail', async () => {
+  it('puts the selected judgment detail of 判断の履歴 and the selected objective of 目的と現状 in each screen\'s rail', async () => {
     const proof = {
       schema_version: 'brainbase-judgment-value-proof-v1', intent_id: 'intent-1', decision_attempt_id: 'attempt-1',
       recorded_at: '2026-09-20T00:00:00.000Z', state: 'unconfirmed',
@@ -415,19 +420,19 @@ describe('local Web shell', () => {
     });
     const originalFetcher = fetcher;
     const routed = async (path, init) => (path.startsWith('/api/foundation/objectives/objective-focus') ? jsonResponse(200, record) : originalFetcher(path, init));
-    const { root, shell } = mount(routed, 'today');
+    const { root, shell } = mount(routed, 'value-proofs');
     await flushMany(2);
     const rail = (id) => findAll(root, (node) => node.attributes?.['data-rail'] === id)[0];
-    const row = findAll(screen(root, 'today'), (node) => node.tagName === 'BUTTON' && node.attributes?.role === 'row')[0];
+    const row = findAll(screen(root, 'value-proofs'), (node) => node.tagName === 'BUTTON' && node.attributes?.role === 'row')[0];
     expect(row).toBeTruthy();
     row.listeners.get('click')();
-    expect(collectText(rail('today'))).toContain('反映する');
-    expect(collectText(rail('today'))).toContain('行った判断');
-    expect(collectText(screen(root, 'today'))).toContain('反映する');
+    expect(collectText(rail('value-proofs'))).toContain('反映する');
+    expect(collectText(rail('value-proofs'))).toContain('行った判断');
+    expect(collectText(screen(root, 'value-proofs'))).toContain('反映する');
 
     shell.show('objectives');
     await flush();
-    expect(rail('today').hidden).toBe(true);
+    expect(rail('value-proofs').hidden).toBe(true);
     expect(rail('objectives').hidden).toBe(false);
     expect(collectText(rail('objectives'))).toContain('深い仕事の時間を確保する');
     expect(collectText(rail('objectives'))).toContain('objective-focus@1');
