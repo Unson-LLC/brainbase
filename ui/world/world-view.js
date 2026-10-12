@@ -1514,6 +1514,47 @@ function memoryLines(answer) {
   return lines;
 }
 
+/**
+ * @param {() => (WaitingQueuesAnswer | Promise<WaitingQueuesAnswer>)} [options.waitingQueues] Other queues of things
+ *   the owner decides, listed next to the waiting judgments (story-world-waiting-queues-v1, ledger P17 / D9).  The
+ *   world knows nothing about them beyond `{ status: 'available', queues: [{ id, label, count, href, link_label? }] }`.
+ *   A queue with zero is not shown; an unreadable one is never shown as zero.  `href` must be `https:` or a link
+ *   inside the host (`/…`, `?…`); others get no link.  Without it the world is drawn exactly as before.
+ * @typedef {{ status: string, reason?: string, queues?: object[] }} WaitingQueuesAnswer
+ */
+async function readWaitingQueues(waitingQueues) {
+  if (typeof waitingQueues !== 'function') return null;
+  try {
+    const answer = await waitingQueues();
+    return answer && typeof answer === 'object' ? answer : { status: 'failed', reason: 'invalid_answer' };
+  } catch (error) {
+    return { status: 'failed', reason: error instanceof Error ? error.message : 'request_failed' };
+  }
+}
+
+/** The waiting queues as world notes.  Zero is quiet; unknown is said out loud and never counted as zero. */
+function waitingQueueLines(answer) {
+  if (!answer) return [];
+  if (answer.status !== 'available' || !Array.isArray(answer.queues)) {
+    return [{ text: `ほかの待っているもの：読めない（${answer.reason ?? answer.status ?? '理由不明'}）。件数は0件とは確認できません。`, tone: 'warning', summary: 'ほかの待っているもの：読めない', link: null }];
+  }
+  const lines = [];
+  for (const queue of answer.queues) {
+    const label = typeof queue?.label === 'string' && queue.label.trim() ? queue.label.trim() : null;
+    if (!label) continue;
+    const count = queue.count;
+    if (!Number.isInteger(count) || count < 0) {
+      lines.push({ text: `${label}：読めない（${queue.reason ?? '理由不明'}）。件数は0件とは確認できません。`, tone: 'warning', summary: `${label}：読めない`, link: null });
+      continue;
+    }
+    if (count === 0) continue;
+    const href = exitHrefKind(queue.href) ? queue.href : null;
+    const linkLabel = typeof queue.link_label === 'string' && queue.link_label.trim() ? queue.link_label.trim() : `${label}を開く`;
+    lines.push({ text: `${label} ${count}件。`, tone: 'attention', summary: `${label} ${count}件`, link: href ? { href, label: linkLabel, className: 'bb-world-waiting-queue-link' } : null });
+  }
+  return lines;
+}
+
 /** At most this many waiting judgments are listed in the world; the rest are counted, never hidden. */
 const WAITING_LIST_LIMIT = 3;
 
@@ -1540,7 +1581,7 @@ function defaultJudgmentHref(decisionAttemptId) {
   return decisionAttemptId ? `#value-proofs?decision=${encodeURIComponent(decisionAttemptId)}` : '#value-proofs';
 }
 
-export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, judgmentHref = defaultJudgmentHref, selection = addressSelection(), businessExits = null, memoryStatus = null }) {
+export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, judgmentHref = defaultJudgmentHref, selection = addressSelection(), businessExits = null, memoryStatus = null, waitingQueues = null }) {
   const exitsEnabled = typeof businessExits === 'function';
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
@@ -2384,6 +2425,7 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
 
   async function load() {
     const memoryRead = readMemoryStatus(memoryStatus);
+    const queuesRead = readWaitingQueues(waitingQueues);
     const businessesResult = await readJson(fetcher, '/api/extensions/world/businesses');
     if (disposed) return;
     // A world drawn from an organization's Graph shows only that organization's judgments: the host keeps
@@ -2463,6 +2505,9 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     if (judgmentsConnected) {
       for (const line of waitingLines(proofs, judgmentHref)) note('待っている判断', line.text, 'attention', line.summary, line.link);
     }
+    const queues = await queuesRead;
+    if (disposed) return;
+    for (const line of waitingQueueLines(queues)) note('待っている', line.text, line.tone, line.summary, line.link);
     const rowItems = new Map(rows.map((row) => [row.key, Array.isArray(row.items) ? row.items : []]));
     const memory = await memoryRead;
     if (disposed) return;
