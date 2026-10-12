@@ -30,6 +30,13 @@ class FakeElement {
     }
   }
 
+  prepend(...children) {
+    const rest = this.children;
+    this.children = [];
+    this.append(...children);
+    this.children.push(...rest);
+  }
+
   replaceChildren(...children) { this.children = []; this.append(...children); }
   setAttribute(name, value) { this.attributes[name] = String(value); if (name === 'value') this.value = String(value); }
   removeAttribute(name) { delete this.attributes[name]; }
@@ -167,19 +174,54 @@ describe('local Web shell', () => {
     expect(findAll(root, (node) => node.attributes?.['aria-label'] === '選択中の項目')[0].hidden).toBe(true);
   });
 
+  it('keeps extension screens without an area where the host put them: a leading one first, the others last', async () => {
+    const { fetcher } = hostFetcher(V2);
+    const doc = new FakeDocument();
+    globalThis.document = doc;
+    const root = new FakeElement('div');
+    const extension = (id, label) => Object.freeze({ id, label, usesGraph: false, rail: false, mount: (slot) => { slot.append(doc.createElement('p')); return true; } });
+    const shell = createLocalWebShell({
+      root, document: doc, fetcher, token: 'launch-token-0123456789',
+      screens: [extension('world', '世界'), ...LOCAL_WEB_SCREENS, extension('extra', '追加')],
+    });
+    await flush();
+    const links = findAll(root, (node) => node.tagName === 'A').map((link) => link.attributes.href);
+    expect(links).toEqual(['#world', '#objectives', '#projects', '#minutes', '#value-proofs', '#graph', '#extra']);
+    // The first screen is still the first of the given screens.
+    expect(shell.state.active).toBe('world');
+  });
+
   it('lists only the screens that exist and shows where the data comes from', async () => {
     const { fetcher } = hostFetcher(V2);
     const { root, shell } = mount(fetcher);
     await flush();
     const links = findAll(root, (node) => node.tagName === 'A');
+    // The menu follows the six areas (ledger D10): 目的と現状, then 仕事, 成果 and 情報と関係.
     expect(links.map((link) => [link.textContent, link.attributes.href])).toEqual([
-      ['判断の履歴', '#value-proofs'], ['議事録', '#minutes'], ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['情報と関係', '#graph'],
+      ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['議事録', '#minutes'], ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'],
     ]);
+    // The screen order, and so the first screen, does not change.
     expect(LOCAL_WEB_SCREENS.map((entry) => [entry.id, entry.usesGraph])).toEqual([
       ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true],
     ]);
-    expect(links[0].attributes['aria-current']).toBe('page');
+    expect(links.find((link) => link.attributes.href === '#value-proofs').attributes['aria-current']).toBe('page');
     expect(shell.state.active).toBe('value-proofs');
+    const nav = findAll(root, (node) => node.tagName === 'NAV')[0];
+    const groups = findAll(nav, (node) => node.attributes?.role === 'group');
+    expect(groups.map((group) => {
+      const head = group.children[0];
+      return [head.textContent, group.attributes['aria-labelledby'] === head.attributes.id, findAll(group, (node) => node.tagName === 'A').map((link) => link.attributes.href)];
+    })).toEqual([
+      ['仕事', true, ['#projects', '#minutes']],
+      ['成果', true, ['#value-proofs']],
+      ['情報と関係', true, ['#graph']],
+    ]);
+    // 目的と現状 sits above the headings.
+    expect(nav.children[0].attributes?.href).toBe('#objectives');
+    // One icon per item.
+    const icons = links.map((link) => JSON.stringify((link.children[0]?.children ?? []).map((path) => path.attributes?.d)));
+    expect(icons.every((icon) => icon !== '[]')).toBe(true);
+    expect(new Set(icons).size).toBe(icons.length);
 
     const source = collectText(findAll(root, (node) => node.attributes?.['aria-label'] === '出典')[0]);
     expect(source).toContain('/home/owner/.brainbase/personal-os');
