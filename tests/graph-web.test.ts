@@ -466,6 +466,119 @@ describe('local Graph corrections', () => {
   });
 });
 
+describe('local Graph creation of people and companies', () => {
+  it('creates a person or a company with its reason in history, reads it back and keeps where it came from', async () => {
+    await writeGraphV2(dataDir);
+    const result = await applyGraphCorrection(dataDir, {
+      kind: 'create_entity',
+      reason: '取引先として記録する。',
+      entity: { type: 'org', name: '  Globex株式会社 ', aliases: ['Globex', 'Globex株式会社'], summary: '新しい取引先', validFrom: '2026-09-01T00:00:00Z' }
+    }, { now: FIXTURE_NOW });
+
+    expect(result.status).toBe('saved');
+    expect(result.recordType).toBe('entity');
+    const created = result.record as GraphFileV2['entities'][number];
+    expect(created).toEqual({
+      id: created.id,
+      type: 'org',
+      name: 'Globex株式会社',
+      aliases: ['Globex'],
+      summary: '新しい取引先',
+      validFrom: '2026-09-01T00:00:00Z',
+      metadata: { source: 'user_approved', sourceId: result.correction.id }
+    });
+    expect(created.id).toMatch(/^org-/u);
+    expect(result.readback).toEqual({ verified: true, digest: graphRecordDigest(created), historyRecorded: true });
+    expect(result.correction).toMatchObject({
+      kind: 'create_entity',
+      target: { recordType: 'entity', id: created.id },
+      reason: '取引先として記録する。',
+      beforeDigest: null,
+      afterDigest: graphRecordDigest(created),
+      projections: []
+    });
+    expect(result.correction.changes.name).toEqual({ before: null, after: 'Globex株式会社' });
+    expect((await readGraph()).entities.find((entity) => entity.id === created.id)).toEqual(created);
+    expect((await readGraphCorrectionHistory(dataDir)).records.map((record) => record.kind)).toEqual(['create_entity']);
+
+    const person = await applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '新しく関わる人。', entity: { type: 'person', name: '山田 次郎' }
+    }, { now: FIXTURE_NOW });
+    expect(person.record).toMatchObject({ type: 'person', name: '山田 次郎' });
+    // The new records are what the next read and membership use.
+    const membership = await applyGraphCorrection(dataDir, {
+      kind: 'create_edge', reason: 'Globexの人。', edge: { fromId: person.record.id, relation: 'member_of', toId: created.id }
+    }, { now: FIXTURE_NOW });
+    expect(membership.record).toMatchObject({ relation: 'member_of' });
+    const read = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    if (read.status !== 'ok') throw new Error('expected ok');
+    expect(read.people.find((item) => item.id === person.record.id)?.companyIds).toEqual([created.id]);
+    const detail = await readGraphEntity(dataDir, created.id, { now: FIXTURE_NOW });
+    if (detail.status !== 'ok') throw new Error('expected ok');
+    // Newest first: the membership added to it, then its creation.
+    expect(detail.history.map((record) => record.id)).toEqual([membership.correction.id, result.correction.id]);
+  });
+
+  it('creates only people and companies and refuses fields outside the creation contract', async () => {
+    await writeGraphV2(dataDir);
+    const graphBefore = await readFile(join(dataDir, 'graph.json'), 'utf8');
+    const cases: Array<[unknown, string]> = [
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'project', name: '新しい案件' } }, 'correction_entity_type_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'decision', name: '新しい判断' } }, 'correction_entity_type_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { name: '種類なし' } }, 'correction_entity_type_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'person', name: '  ' } }, 'correction_name_required'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'person', name: 'ID指定', id: 'person-x' } }, 'correction_id_change_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '属性', metadata: { orgType: 'customer' } } }, 'correction_field_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '終了', validTo: '2026-01-01T00:00:00Z' } }, 'correction_field_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '印', tags: ['x'] } }, 'correction_field_not_allowed'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '日付', validFrom: '9月1日' } }, 'correction_invalid'],
+      [{ kind: 'create_entity', entity: { type: 'org', name: '理由なし' } }, 'correction_reason_required'],
+      [{ kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: '余計' }, expectedDigest: 'x' }, 'correction_field_not_allowed']
+    ];
+    for (const [input, code] of cases) {
+      await expectCorrectionError(applyGraphCorrection(dataDir, input, { now: FIXTURE_NOW }), 'invalid', code);
+    }
+    expect(await readFile(join(dataDir, 'graph.json'), 'utf8')).toBe(graphBefore);
+    expect(await historyLines()).toEqual([]);
+  });
+
+  it('returns the existing record instead of creating a second one with the same name or alias', async () => {
+    await writeGraphV2(dataDir);
+    const graphBefore = await readFile(join(dataDir, 'graph.json'), 'utf8');
+    const byName = await expectCorrectionError(applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: 'ＡＣＭＥ' }
+    }, { now: FIXTURE_NOW }), 'conflict', 'entity_already_exists');
+    expect(byName.current).toEqual({ recordType: 'entity', record: ENTITIES.acme, digest: graphRecordDigest(ENTITIES.acme) });
+    // An alias and an ended record count too; a person and a company never collide.
+    await expectCorrectionError(applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '作る。', entity: { type: 'person', name: 'tanaka' }
+    }, { now: FIXTURE_NOW }), 'conflict', 'entity_already_exists');
+    await expectCorrectionError(applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '作る。', entity: { type: 'person', name: '鈴木一郎' }
+    }, { now: FIXTURE_NOW }), 'conflict', 'entity_already_exists');
+    expect(await readFile(join(dataDir, 'graph.json'), 'utf8')).toBe(graphBefore);
+    expect(await historyLines()).toEqual([]);
+    const company = await applyGraphCorrection(dataDir, {
+      kind: 'create_entity', reason: '同名の会社。', entity: { type: 'org', name: '田中 太郎' }
+    }, { now: FIXTURE_NOW });
+    expect(company.record).toMatchObject({ type: 'org', name: '田中 太郎' });
+  });
+
+  it('gives a new id when the name-based id is taken by a renamed record', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), { id: 'org-renamed', type: 'org', name: '改名後' }],
+      edges: Object.values(EDGES)
+    });
+    const first = await applyGraphCorrection(dataDir, { kind: 'create_entity', reason: '作る。', entity: { type: 'org', name: 'Initech' } }, { now: FIXTURE_NOW });
+    await applyGraphCorrection(dataDir, {
+      kind: 'update_entity', entityId: first.record.id, expectedDigest: first.digest, reason: '社名変更。', changes: { name: 'Initech Holdings' }
+    }, { now: FIXTURE_NOW });
+    const second = await applyGraphCorrection(dataDir, { kind: 'create_entity', reason: 'もう一度作る。', entity: { type: 'org', name: 'Initech' } }, { now: new Date('2026-09-27T00:00:00Z') });
+    expect(second.record.id).not.toBe(first.record.id);
+    expect(second.record.id.startsWith(`${first.record.id}-`)).toBe(true);
+  });
+});
+
 describe('local Graph people and companies', () => {
   const globex = { id: 'org-globex', type: 'org', name: 'Globex' } as const;
   const oldCo = { id: 'org-old', type: 'org', name: '旧社', validTo: '2026-01-01T00:00:00Z' } as const;
@@ -542,6 +655,24 @@ describe('local Graph people and companies', () => {
     // Values outside the known kinds are returned as recorded but give no kind.
     expect(byId.get('org-lead')).toMatchObject({ lifecycleStage: 'lead', orgType: 'vendor', deals: [], kinds: [] });
     expect(byId.get('org-plain')).toMatchObject({ orgType: null, lifecycleStage: null, deals: [], kinds: [] });
+  });
+
+  it('returns the company text recorded on a person as a note only, never as a membership', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [
+        ...Object.values(ENTITIES).map((entity) => entity.id === 'person-sato' ? { ...entity, metadata: { org: ' 雲孫 / BAAO ', organization: '別の会社' } }
+          : entity.id === 'person-tanaka' ? { ...entity, metadata: { organization: 'Acme株式会社' } } : entity)
+      ],
+      edges: Object.values(EDGES)
+    });
+    const result = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    if (result.status !== 'ok') throw new Error('expected ok');
+    const byId = new Map(result.people.map((person) => [person.id, person]));
+    expect(byId.get('person-sato')).toMatchObject({ orgNote: '雲孫 / BAAO', companyIds: [] });
+    expect(byId.get('person-tanaka')).toMatchObject({ orgNote: 'Acme株式会社', companyIds: ['org-acme'] });
+    expect(byId.get('self')).toMatchObject({ orgNote: null });
+    // The note does not decide the own company.
+    expect(result.ownCompany).toEqual({ id: null, reason: 'owner_has_no_company', candidateIds: [] });
   });
 
   it('leaves the own company unset with the reason instead of guessing it', async () => {

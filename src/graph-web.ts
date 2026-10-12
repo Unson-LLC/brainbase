@@ -6,6 +6,7 @@ import {
   GRAPH_CORRECTION_EDGE_FIELDS,
   GRAPH_CORRECTION_ENTITY_FIELDS,
   GRAPH_CORRECTION_NEW_EDGE_RELATIONS,
+  GRAPH_CORRECTION_NEW_ENTITY_TYPES,
   GRAPH_CORRECTION_PROJECT_FIELDS,
   GRAPH_CORRECTIONS_FILE,
   graphRecordDigest,
@@ -316,6 +317,8 @@ export interface GraphOntologySummary<S extends GraphWebAnySource = GraphWebSour
     projectFields: readonly string[];
     edgeFields: readonly string[];
     newEdgeRelations: readonly string[];
+    /** Kinds a correction may create (`create_entity`). */
+    newEntityTypes: readonly string[];
   };
 }
 
@@ -399,6 +402,12 @@ export interface GraphPersonSummaryView extends GraphEntityView {
   /** Distinct active projects with an active participates_in or accountable_for relation. */
   projectCount: number;
   accountableProjectCount: number;
+  /**
+   * The company text recorded on the person (`org`, or `organization` when
+   * `org` is absent), as written; null when none.  A note only: it never
+   * decides the companies, the own company or internal / external.
+   */
+  orgNote: string | null;
 }
 
 export type GraphCompanyKind = 'customer' | 'partner' | 'prospect';
@@ -483,7 +492,8 @@ function peopleAndCompaniesOf<S extends GraphWebAnySource>(graph: GraphFileV2, s
       isOwner: person.id === ownerId,
       companyIds: companiesOf(person.id),
       projectCount: new Set(work.map((edge) => edge.toId)).size,
-      accountableProjectCount: new Set(work.filter((edge) => edge.relation === 'accountable_for').map((edge) => edge.toId)).size
+      accountableProjectCount: new Set(work.filter((edge) => edge.relation === 'accountable_for').map((edge) => edge.toId)).size,
+      orgNote: metadataString(person, 'org')?.trim() || metadataString(person, 'organization')?.trim() || null
     } satisfies GraphPersonSummaryView;
   }).sort((left, right) => Number(right.active) - Number(left.active) || Number(right.isOwner) - Number(left.isOwner) || byActiveThenName(left, right));
 
@@ -710,7 +720,8 @@ function ontologyOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, 
       entityFields: GRAPH_CORRECTION_ENTITY_FIELDS,
       projectFields: GRAPH_CORRECTION_PROJECT_FIELDS,
       edgeFields: GRAPH_CORRECTION_EDGE_FIELDS,
-      newEdgeRelations: GRAPH_CORRECTION_NEW_EDGE_RELATIONS
+      newEdgeRelations: GRAPH_CORRECTION_NEW_EDGE_RELATIONS,
+      newEntityTypes: GRAPH_CORRECTION_NEW_ENTITY_TYPES
     }
   };
 }

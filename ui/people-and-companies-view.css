@@ -1,7 +1,8 @@
 /*
  * 「人と会社」. Load after workspace-kit.css and graph-view-shared.css.
- * Column templates of the people and company ledgers, the group titles and
- * the relations in the right rail, with a 760px variant.
+ * Column templates of the people and company ledgers, the group titles,
+ * the write buttons, the recorded company note and the relations in the
+ * right rail, with a 760px variant.
  * Uses only the shared tokens in brainbase-tokens.css.
  */
 .bb-pc-people,
@@ -72,6 +73,32 @@
   margin: 16px 0 0;
   color: var(--bb-color-muted);
   font-size: 12px;
+}
+
+.bb-pc-actions,
+.bb-pc-relation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bb-pc-actions {
+  margin: 0 0 12px;
+}
+
+.bb-pc-company-cell {
+  display: grid;
+  gap: 2px;
+}
+
+/* A note recorded as text on the person, never a membership: muted and dashed. */
+.bb-pc-org-note {
+  justify-self: start;
+  padding: 1px 6px;
+  border: 1px dashed var(--bb-color-border);
+  border-radius: 4px;
+  color: var(--bb-color-muted);
+  font-size: 11px;
 }
 
 @media (max-width: 760px) {
