@@ -86,6 +86,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.34.0（npm公開前）
+
+Graphのオントロジー（型と関係の定義の検査、決定の推論、版の候補の組み立て、署名つき公開の受領証の検証、版の登録簿）を公開subpath `ontology-kernel`・`ontology-registry`・`ontology-publication`・`ontology-release-trust` として出します。brainbase-unsonの実装と同じ振る舞いで、版の登録簿は渡された設定フォルダから読みます。
+
 ## Candidate — v0.33.0（npm公開前）
 
 世界に「あなたを待っている」判断の短い一覧が出ます（前提台帳U2）。新しい順に最大3件、本来の質問と「判断の履歴」への降り口を出し、超えた分は「ほかN件」と数えます。待っている判断が無ければ一覧を出さず、判断の記録を読めないときは0件とも出しません。あわせて、Graphの保守エンジンと記憶の範囲の判定を公開subpath `graph-maintenance-engine`・`memory-scope-policy` として出します。

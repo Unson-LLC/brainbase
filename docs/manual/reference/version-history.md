@@ -5,6 +5,9 @@
 ## Unreleased — develop
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+
+## 0.34.0 candidate — npm公開前
+
 - Graphのオントロジーの公開subpath `ontology-kernel`・`ontology-registry`・`ontology-publication`・`ontology-release-trust` を追加。brainbase-unsonの実装と同じ振る舞いで、版の登録簿は渡された設定フォルダから読む（`story-ontology-kernel-registry-exit-v1`）
 
 ## 0.33.0 candidate — npm公開前
