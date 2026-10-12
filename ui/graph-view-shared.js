@@ -834,6 +834,11 @@ export function buildCorrectionRequest(form) {
     const name = String(form.draft.name ?? '').trim();
     if (!name) return { ok: false, message: GRAPH_CORRECTION_ERROR_MESSAGES.correction_name_required };
     const entity = { type, name };
+    if (form.projects.length > 0) {
+      const projectCode = String(form.draft.projectCode ?? '');
+      if (!form.projects.some((project) => project.code === projectCode)) return { ok: false, message: '人を加えるプロジェクトを選んでください。' };
+      entity.projectCode = projectCode;
+    }
     const aliases = splitAliases(form.draft.aliases ?? '').filter((alias) => alias !== name);
     const summary = String(form.draft.summary ?? '').trim();
     if (aliases.length > 0) entity.aliases = aliases;
@@ -894,7 +899,11 @@ function readBackFields(form, payload) {
 
 /** What a new record is, as rows shown before its values. */
 function createdEntityRows(form, record) {
-  return [['種類', form.typeNames[record?.type] ?? typeLabel(record?.type)]];
+  const project = form.projects.find((candidate) => candidate.code === form.draft.projectCode);
+  return [
+    ['種類', form.typeNames[record?.type] ?? typeLabel(record?.type)],
+    ...(project ? [['関わるプロジェクト', project.name ?? project.code]] : []),
+  ];
 }
 
 /** What a new relation connects, as rows shown before its values. */
@@ -1059,8 +1068,34 @@ function renderCreateEntityFields(doc, form, callbacks) {
       onChange: (value) => callbacks.onInput('type', value),
     }));
   }
+  if (form.projects.length > 0) {
+    group.append(selectControl(doc, {
+      id: `${form.formId}-project`,
+      name: 'projectCode',
+      label: '関わるプロジェクト',
+      value: String(form.draft.projectCode ?? ''),
+      options: [
+        { value: '', label: 'プロジェクトを選んでください' },
+        ...form.projects.map((project) => ({ value: project.code, label: project.name ?? project.code })),
+      ],
+      onChange: (value) => callbacks.onInput('projectCode', value),
+    }));
+    group.append(notice(doc, 'muted', '人はこのプロジェクトの関係者として記録されます。会社への所属は、作った後に加えてください。'));
+  }
   for (const field of form.fields) group.append(fieldControl(doc, form, field, callbacks));
   return group;
+}
+
+/** The projects a host offers for a new person, as `{ code, name }`, without duplicates. */
+function creationProjects(projects) {
+  const seen = new Set();
+  return (Array.isArray(projects) ? projects : []).flatMap((project) => {
+    const code = typeof project?.code === 'string' ? project.code.trim() : '';
+    if (!code || seen.has(code)) return [];
+    seen.add(code);
+    const name = typeof project.name === 'string' && project.name.trim() ? project.name.trim() : null;
+    return [{ code, name }];
+  });
 }
 
 /**
@@ -1360,7 +1395,7 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
      * `person` and `org` are created; others are dropped), `typeNames` their
      * labels.  Null outside the scope.
      */
-    openCreateEntity({ types = ['person', 'org'], type, typeNames = {}, title = '記録を加える', subject } = {}) {
+    openCreateEntity({ types = ['person', 'org'], type, typeNames = {}, title = '記録を加える', subject, projects = [] } = {}) {
       const entityTypes = allowed.createEntities
         ? types.filter((candidate) => (candidate === 'person' || candidate === 'org') && allowed.entity(candidate))
         : [];
@@ -1372,8 +1407,9 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
         entityTypes,
         typeNames,
         fields,
+        projects: entityTypes.length === 1 && entityTypes[0] === 'person' ? creationProjects(projects) : [],
         original: Object.fromEntries(fields.map((field) => [field, ''])),
-        draft: { type: entityTypes.includes(type) ? type : entityTypes[0], name: '', aliases: '', summary: '', validFrom: '' },
+        draft: { type: entityTypes.includes(type) ? type : entityTypes[0], name: '', aliases: '', summary: '', validFrom: '', projectCode: '' },
       });
       redraw();
       return form;

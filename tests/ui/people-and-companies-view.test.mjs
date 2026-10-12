@@ -323,6 +323,52 @@ describe('人と会社: writing (情報契約S3)', () => {
     expect(text).not.toContain('保存しました');
   });
 
+  it('asks which project a new person joins when the host lists projects, and sends the chosen one', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const posts = [];
+    const fetcher = async (path, init = {}) => {
+      if (init.method === 'POST') {
+        posts.push(JSON.parse(init.body));
+        return jsonResponse(500, { error: { code: 'readback_mismatch', message: 'not saved in this test' } });
+      }
+      const response = await api.fetcher(path, init);
+      if (!String(path).includes('/people-and-companies')) return response;
+      const body = await response.json();
+      return jsonResponse(response.status, { ...body, personProjects: [{ code: 'proj-a', name: 'プロジェクトA' }, { code: 'proj-b', name: null }] });
+    };
+    const { root, rail } = await mountView({ ...writable, fetcher });
+    buttonsNamed(root, '人を加える')[0].dispatch('click');
+    expect(control(rail, 'projectCode').children.map((option) => option.textContent))
+      .toEqual(['プロジェクトを選んでください', 'プロジェクトA', 'proj-b']);
+    type(rail, 'name', '山田 次郎');
+    type(rail, 'reason', '新しく関わる人。');
+    // A person is placed in a project as one of its people; without a choice nothing is sent.
+    await submit(rail);
+    expect(posts).toEqual([]);
+    expect(visibleText(section(rail, '人を加える'))).toContain('人を加えるプロジェクトを選んでください。');
+    type(rail, 'projectCode', 'proj-a');
+    await submit(rail);
+    expect(posts).toEqual([{ kind: 'create_entity', reason: '新しく関わる人。', entity: { type: 'person', name: '山田 次郎', projectCode: 'proj-a' } }]);
+
+    // A company is not placed by this choice.
+    buttonsNamed(root, '会社を加える')[0].dispatch('click');
+    expect(control(rail, 'projectCode')).toBeUndefined();
+  });
+
+  it('offers no project choice and sends no project when the host lists none', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail } = await mountView(writable);
+    buttonsNamed(root, '人を加える')[0].dispatch('click');
+    expect(control(rail, 'projectCode')).toBeUndefined();
+  });
+
+  it('treats a malformed project list as a failed read instead of guessing', () => {
+    const payload = { ownCompany: { id: null, reason: 'owner_not_found', candidateIds: [] }, people: [], companies: [], absenceConfirmed: true };
+    expect(normalizePeopleAndCompanies({ state: 'ok', payload: { ...payload, personProjects: [{ code: '' }] } }).state).toBe('invalid');
+    expect(normalizePeopleAndCompanies({ state: 'ok', payload: { ...payload, personProjects: [{ code: 'proj-a', name: 'A' }] } }).state).toBe('ok');
+  });
+
   it('shows the company text on a person whose company is not known as a note, not as a membership', async () => {
     await writeGraphV2(dataDir, {
       entities: [
