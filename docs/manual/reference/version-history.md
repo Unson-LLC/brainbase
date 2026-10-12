@@ -5,6 +5,10 @@
 ## Unreleased — develop
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+
+## 0.33.0 candidate — npm公開前
+
+- 世界に「あなたを待っている」判断の短い一覧を追加。新しい順に最大3件、本来の質問と「判断の履歴」への降り口を出し、超えた分は「ほかN件」と数える。0件なら出さず、判断の記録を読めないときは0件とも出さない（前提台帳U2、`story-world-waiting-list-v1`）
 - Graphの保守エンジン（変更計画の組み立て・適用・スナップショットの検査とハッシュ）の公開subpath `graph-maintenance-engine` と、記憶の記録を見てよい範囲の判定の公開subpath `memory-scope-policy` を追加。brainbase-unsonの実装と同じ振る舞い（`story-graph-maintenance-memory-scope-exit-v1`）
 
 ## 0.32.0 candidate — npm公開前
