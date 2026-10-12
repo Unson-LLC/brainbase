@@ -86,6 +86,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.35.0（npm公開前）
+
+世界の部品に `waitingQueues` を足し、判断のほかの待ち行列（会議の振り分けなど）の件数と降り口を「待っている」に出せるようにします（前提台帳P17・D9）。件数が0の行列は出さず、読めない行列は0件と出しません。
+
 ## Candidate — v0.34.0（npm公開前）
 
 Graphのオントロジー（型と関係の定義の検査、決定の推論、版の候補の組み立て、署名つき公開の受領証の検証、版の登録簿）を公開subpath `ontology-kernel`・`ontology-registry`・`ontology-publication`・`ontology-release-trust` として出します。brainbase-unsonの実装と同じ振る舞いで、版の登録簿は渡された設定フォルダから読みます。

@@ -6,10 +6,13 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.35.0 candidate — npm公開前
+
+- 世界の部品に、判断のほかの待ち行列（会議の振り分けなど）の件数と降り口を受け取る `waitingQueues` を追加。件数が1以上の行列だけを「待っている」に出し、読めない行列は0件と出さない。渡されなければ今までと同じ（前提台帳P17・D9、`story-world-waiting-queues-v1`）
+
 ## 0.34.0 candidate — npm公開前
 
 - Graphのオントロジーの公開subpath `ontology-kernel`・`ontology-registry`・`ontology-publication`・`ontology-release-trust` を追加。brainbase-unsonの実装と同じ振る舞いで、版の登録簿は渡された設定フォルダから読む（`story-ontology-kernel-registry-exit-v1`）
-- 世界の部品に、判断のほかの待ち行列（会議の振り分けなど）の件数と降り口を受け取る `waitingQueues` を追加。件数が1以上の行列だけを「待っている」に出し、読めない行列は0件と出さない。渡されなければ今までと同じ（前提台帳P17・D9、`story-world-waiting-queues-v1`）
 
 ## 0.33.0 candidate — npm公開前
 
