@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.37.0 candidate — npm公開前
+
+- Taskの更新で既存の参照を保持したまま参照を追加する `source_refs_append` を追加。Unicodeを含むキーの順序だけが違う同じ参照は重複させず、同じ操作の再送では版を増やさない。置換の `source_refs` との同時指定は断る（`story-canonical-task-source-refs-append`）
+
 ## 0.36.0 candidate — npm公開前
 
 - 議事録の文書を取り下げる `withdraw_minutes` を追加。版と本文は消さず、取り下げた人と時刻を記録する。取り下げた文書は一覧の要約から外れ、詳細では履歴として読め、新しい版の保存と確定は断る（`story-meeting-minutes-withdraw-v1`）
