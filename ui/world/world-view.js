@@ -1514,6 +1514,27 @@ function memoryLines(answer) {
   return lines;
 }
 
+/** At most this many waiting judgments are listed in the world; the rest are counted, never hidden. */
+const WAITING_LIST_LIMIT = 3;
+
+/**
+ * The judgments waiting for the owner now, newest first, each a way down to the same judgment in
+ * 判断の履歴 (ledger P17 / U2).  The world stays an overview: only the exceptions become a short list.
+ */
+function waitingLines(proofs, judgmentHref) {
+  const waiting = [...proofs.values()]
+    .filter(isWaiting)
+    .sort((a, b) => String(b.proof?.recorded_at ?? '').localeCompare(String(a.proof?.recorded_at ?? '')));
+  const lines = waiting.slice(0, WAITING_LIST_LIMIT).map((item) => {
+    const id = item.proof.decision_attempt_id;
+    const question = item.proof.interruption?.question_display_text ?? item.proof.decision?.summary ?? id;
+    return { text: question, summary: question, link: { href: judgmentHref(id), label: '「判断の履歴」で開く', className: 'bb-world-waiting-link' } };
+  });
+  const rest = waiting.length - lines.length;
+  if (rest > 0) lines.push({ text: `ほか${rest}件は「判断の履歴」で見られます。`, summary: `ほか${rest}件の待っている判断`, link: null });
+  return lines;
+}
+
 /** 判断の履歴 in the local web (it was 今日, `#today`, until 2026-10-11; the shell still opens old links). */
 function defaultJudgmentHref(decisionAttemptId) {
   return decisionAttemptId ? `#value-proofs?decision=${encodeURIComponent(decisionAttemptId)}` : '#value-proofs';
@@ -2438,6 +2459,9 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
       } else {
         note('判断', `${home.delegation_map.judged}件。作業した場所を読めないため、事業には置かず広場の種類別だけで描いています（${placesResult.ok ? placesResult.data?.reason ?? '理由不明' : placesResult.error}）。今あなたを待っている判断${waiting}件。`, 'warning', '判断の作業場所：読めない');
       }
+    }
+    if (judgmentsConnected) {
+      for (const line of waitingLines(proofs, judgmentHref)) note('待っている判断', line.text, 'attention', line.summary, line.link);
     }
     const rowItems = new Map(rows.map((row) => [row.key, Array.isArray(row.items) ? row.items : []]));
     const memory = await memoryRead;
