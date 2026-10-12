@@ -86,6 +86,10 @@
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
 
+## Candidate — v0.37.0（npm公開前）
+
+Taskの更新に `source_refs_append` を足します。今ある参照を上書きせずに新しい参照を追加でき、同じ参照は重複させません。同じ操作を再送しても版は増えません。
+
 ## Candidate — v0.36.0（npm公開前）
 
 議事録の文書を取り下げる `withdraw_minutes` を足します。版と本文は消さず、取り下げた人と時刻を記録します。取り下げた文書は一覧の要約から外れ、詳細では履歴として読めます。
