@@ -35,7 +35,7 @@
 }
 
 .bb-pc-company-ledger .bb-ws-ledger-row {
-  grid-template-columns: minmax(0, 1.4fr) 96px 96px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, .8fr) 84px minmax(0, 1fr) minmax(0, 1fr);
 }
 
 .bb-pc-relation-list {
@@ -84,10 +84,11 @@
   }
 
   .bb-pc-company-ledger .bb-ws-ledger-row {
-    grid-template-columns: minmax(0, 1fr) 64px 64px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, .7fr) 64px;
   }
 
-  .bb-pc-company-ledger .bb-ws-ledger-row > :nth-child(4) {
+  .bb-pc-company-ledger .bb-ws-ledger-row > :nth-child(4),
+  .bb-pc-company-ledger .bb-ws-ledger-row > :nth-child(5) {
     display: none;
   }
 }

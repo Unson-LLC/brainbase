@@ -42,7 +42,7 @@ const argsSchema = z.object({
   as_of: z.string().datetime({ offset: true }).optional(),
   seedIds: z.array(z.string().min(1)).min(1).max(10).optional(),
   steps: z.array(z.object({
-    relation: z.enum(['member_of', 'participates_in', 'accountable_for', 'owned_by', 'governs', 'supersedes']),
+    relation: z.enum(['member_of', 'participates_in', 'accountable_for', 'owned_by', 'related_to', 'governs', 'supersedes']),
     direction: z.enum(['incoming', 'outgoing']),
     targetType: z.enum(['person', 'org', 'project', 'decision']).optional()
   }).strict()).min(1).max(3).optional(),
@@ -210,7 +210,7 @@ export const toolDefinitions = [
         seedIds: { type: 'array', minItems: 1, maxItems: 10, items: { type: 'string' }, description: 'Canonical IDs chosen by the calling model; no embeddings needed.' },
         steps: { type: 'array', minItems: 1, maxItems: 3, items: {
           type: 'object', additionalProperties: false, required: ['relation', 'direction'], properties: {
-            relation: { enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'governs', 'supersedes'] },
+            relation: { enum: ['member_of', 'participates_in', 'accountable_for', 'owned_by', 'related_to', 'governs', 'supersedes'] },
             direction: { enum: ['incoming', 'outgoing'] },
             targetType: { enum: ['person', 'org', 'project', 'decision'] }
           }

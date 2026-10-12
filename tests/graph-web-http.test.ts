@@ -92,6 +92,7 @@ describe('local Graph web HTTP handler', () => {
     const people = await (await fetch(`${base}/api/graph/people-and-companies`)).json();
     expect(people).toMatchObject({ status: 'ok', ownCompany: { id: null, reason: 'owner_has_no_company' } });
     expect(people.companies.map((company: { id: string }) => company.id)).toEqual(['org-acme']);
+    expect(people.companies[0]).toMatchObject({ projectIds: [], relatedProjects: [], deals: [], kinds: [] });
 
     const ontology = await (await fetch(`${base}/api/graph/ontology`)).json();
     expect(ontology.relations.find((relation: { id: string }) => relation.id === 'participates_in')).toMatchObject({ count: 2, activeCount: 1 });

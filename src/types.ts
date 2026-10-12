@@ -11,6 +11,7 @@ export type CoreRelation =
   | 'participates_in'
   | 'accountable_for'
   | 'owned_by'
+  | 'related_to'
   | 'governs'
   | 'supersedes';
 
