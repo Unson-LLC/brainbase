@@ -186,7 +186,7 @@ describe('local Web shell', () => {
     });
     await flush();
     const links = findAll(root, (node) => node.tagName === 'A').map((link) => link.attributes.href);
-    expect(links).toEqual(['#world', '#objectives', '#projects', '#minutes', '#value-proofs', '#graph', '#extra']);
+    expect(links).toEqual(['#world', '#objectives', '#projects', '#minutes', '#value-proofs', '#graph', '#people', '#extra']);
     // The first screen is still the first of the given screens.
     expect(shell.state.active).toBe('world');
   });
@@ -198,11 +198,11 @@ describe('local Web shell', () => {
     const links = findAll(root, (node) => node.tagName === 'A');
     // The menu follows the six areas (ledger D10): 目的と現状, then 仕事, 成果 and 情報と関係.
     expect(links.map((link) => [link.textContent, link.attributes.href])).toEqual([
-      ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['議事録', '#minutes'], ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'],
+      ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['議事録', '#minutes'], ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'], ['人と会社', '#people'],
     ]);
     // The screen order, and so the first screen, does not change.
     expect(LOCAL_WEB_SCREENS.map((entry) => [entry.id, entry.usesGraph])).toEqual([
-      ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true],
+      ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true], ['people', true],
     ]);
     expect(links.find((link) => link.attributes.href === '#value-proofs').attributes['aria-current']).toBe('page');
     expect(shell.state.active).toBe('value-proofs');
@@ -214,7 +214,7 @@ describe('local Web shell', () => {
     })).toEqual([
       ['仕事', true, ['#projects', '#minutes']],
       ['成果', true, ['#value-proofs']],
-      ['情報と関係', true, ['#graph']],
+      ['情報と関係', true, ['#graph', '#people']],
     ]);
     // 目的と現状 sits above the headings.
     expect(nav.children[0].attributes?.href).toBe('#objectives');

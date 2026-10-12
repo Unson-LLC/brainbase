@@ -14,12 +14,14 @@ import {
   listGraphProjects,
   readGraphEntity,
   readGraphOntology,
+  readGraphPeopleAndCompanies,
   readGraphProject,
   readGraphWebStatus,
   searchGraphEntities
 } from '../src/graph-web.js';
+import { canonicalEdgeId } from '../src/canonical-graph.js';
 import { initializePersonalOs, loadPersonalOs } from '../src/ssot.js';
-import type { CanonicalEdge, GraphFileV2, RelationshipsFile } from '../src/types.js';
+import type { CanonicalEdge, CoreRelation, GraphFileV2, RelationshipsFile } from '../src/types.js';
 import { EDGES, ENTITIES, FIXTURE_NOW, REGISTRATION_PROJECTION, writeGraphV1, writeGraphV2 } from './graph-web-fixture.js';
 
 let root: string;
@@ -211,7 +213,8 @@ describe('local Graph web reads', () => {
       readGraphProject(dataDir, 'project-legacy'),
       searchGraphEntities(dataDir, { q: 'Legacy' }),
       readGraphEntity(dataDir, 'person-legacy'),
-      readGraphOntology(dataDir)
+      readGraphOntology(dataDir),
+      readGraphPeopleAndCompanies(dataDir)
     ]);
     for (const result of reads) {
       expect(result).toMatchObject({
@@ -222,6 +225,7 @@ describe('local Graph web reads', () => {
       });
       expect(result).not.toHaveProperty('projects');
       expect(result).not.toHaveProperty('results');
+      expect(result).not.toHaveProperty('people');
       expect((result as { command: string }).command).toContain('brainbase ontology:migrate');
       expect((result as { writeCommand: string }).writeCommand).toContain('--write --expected-input-digest');
     }
@@ -458,5 +462,71 @@ describe('local Graph corrections', () => {
     expect(await readFile(join(dataDir, 'graph.json'), 'utf8')).toBe(graphBefore);
     expect(await readFile(join(dataDir, 'relationships.json'), 'utf8')).toBe(relationshipsBefore);
     expect(await readGraphCorrectionHistory(dataDir)).toEqual({ records: [], issues: [] });
+  });
+});
+
+describe('local Graph people and companies', () => {
+  const globex = { id: 'org-globex', type: 'org', name: 'Globex' } as const;
+  const oldCo = { id: 'org-old', type: 'org', name: '旧社', validTo: '2026-01-01T00:00:00Z' } as const;
+  const link = (fromId: string, relation: CoreRelation, toId: string): CanonicalEdge => ({ id: canonicalEdgeId({ fromId, relation, toId }), fromId, relation, toId });
+  const selfAcme = link('self', 'member_of', 'org-acme');
+
+  it('lists people with their active companies and project counts, and companies with members and owned projects', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), globex, oldCo],
+      edges: [
+        ...Object.values(EDGES),
+        selfAcme,
+        link('person-sato', 'member_of', 'org-globex'),
+        link('person-sato', 'member_of', 'org-old'),
+        link('person-suzuki', 'member_of', 'org-acme'),
+        link('project-atlas', 'owned_by', 'org-acme')
+      ]
+    });
+    const result = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    if (result.status !== 'ok') throw new Error('expected ok');
+    expect(result.source).toEqual({ dataDir, graphFormat: 2, authority: 'local_graph' });
+    expect(result.ownCompany).toEqual({ id: 'org-acme', reason: 'resolved', candidateIds: ['org-acme'] });
+    expect(result.absenceConfirmed).toBe(false);
+    // No internal / external mark is stored or returned; the screen derives it.
+    expect(JSON.stringify(result)).not.toMatch(/internal|external/u);
+    expect(result.people.map((person) => [person.id, person.active, person.isOwner, person.companyIds, person.projectCount, person.accountableProjectCount])).toEqual([
+      ['self', true, true, ['org-acme'], 0, 0],
+      ['person-sato', true, false, ['org-globex'], 1, 1],
+      ['person-tanaka', true, false, ['org-acme'], 1, 0],
+      ['person-suzuki', false, false, [], 0, 0]
+    ]);
+    expect(result.companies.map((company) => [company.id, company.active, company.memberIds, company.projectIds])).toEqual([
+      ['org-acme', true, ['self', 'person-tanaka'], ['project-atlas']],
+      ['org-globex', true, ['person-sato'], []],
+      ['org-old', false, [], []]
+    ]);
+  });
+
+  it('leaves the own company unset with the reason instead of guessing it', async () => {
+    await writeGraphV2(dataDir);
+    const none = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    expect(none).toMatchObject({ status: 'ok', ownCompany: { id: null, reason: 'owner_has_no_company', candidateIds: [] } });
+
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), globex],
+      edges: [...Object.values(EDGES), selfAcme, link('self', 'member_of', 'org-globex')]
+    });
+    const several = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    expect(several).toMatchObject({ ownCompany: { id: null, reason: 'owner_has_several_companies', candidateIds: ['org-acme', 'org-globex'] } });
+
+    await writeGraphV2(dataDir, { entities: [ENTITIES.tanaka, ENTITIES.acme], edges: [EDGES.tanakaAcme] });
+    const ownerMissing = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    expect(ownerMissing).toMatchObject({ ownCompany: { id: null, reason: 'owner_not_found', candidateIds: [] } });
+  });
+
+  it('confirms absence only for a Graph v2 without people and companies, and never for a missing data set', async () => {
+    expect(await readGraphPeopleAndCompanies(join(root, 'missing'))).toMatchObject({ status: 'not_initialized' });
+    await writeGraphV2(dataDir, { entities: [ENTITIES.atlas], edges: [] });
+    expect(await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW })).toMatchObject({
+      status: 'ok', people: [], companies: [], absenceConfirmed: true, ownCompany: { id: null, reason: 'owner_not_found' }
+    });
+    await writeFile(join(dataDir, 'graph.json'), '{ broken');
+    await expect(readGraphPeopleAndCompanies(dataDir)).rejects.toMatchObject({ kind: 'unavailable', code: 'graph_unavailable' });
   });
 });
