@@ -5,6 +5,7 @@
 ## Unreleased — develop
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
+- Graphの保守エンジン（変更計画の組み立て・適用・スナップショットの検査とハッシュ）の公開subpath `graph-maintenance-engine` と、記憶の記録を見てよい範囲の判定の公開subpath `memory-scope-policy` を追加。brainbase-unsonの実装と同じ振る舞い（`story-graph-maintenance-memory-scope-exit-v1`）
 
 ## 0.32.0 candidate — npm公開前
 

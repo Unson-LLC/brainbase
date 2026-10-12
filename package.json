@@ -187,6 +187,14 @@
       "types": "./dist/judgment-resolution-contract.d.ts",
       "import": "./dist/judgment-resolution-contract.js"
     },
+    "./graph-maintenance-engine": {
+      "types": "./dist/graph-maintenance-engine.d.ts",
+      "import": "./dist/graph-maintenance-engine.js"
+    },
+    "./memory-scope-policy": {
+      "types": "./dist/memory-scope-policy.d.ts",
+      "import": "./dist/memory-scope-policy.js"
+    },
     "./canonical-document-writer": {
       "types": "./dist/canonical-document-writer.d.ts",
       "import": "./dist/canonical-document-writer.js"
