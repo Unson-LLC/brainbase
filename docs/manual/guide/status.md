@@ -73,6 +73,9 @@
 - Graphの束の検証・検索に使う関係IDと埋め込みの生成の公開subpath（`canonical-graph`、`embedding-provider`、`graph-embedding-provider`）
 - 知識を探す正本を内容の種類と相手から決める部品の公開subpath（`knowledge-resolution-service`）
 - チームの文書を所有repoへ書き込むときの検査と読み戻しの照合、知識の取り込みと下書きの回答の検証、会議ソース（Tactiq・Plaud.ai）のカタログの公開subpath（`canonical-document-writer`、`knowledge-capture-preview`、`meeting-source-integration-catalog`）
+- 判断の解決で判断Hookと解決の経路・サービスが共有するエラーの型・正規JSON・要求digestの公開subpath（`judgment-resolution-contract`）
+- Graphの変更計画の組み立て・適用・スナップショットの検査とハッシュ、記憶の記録を見てよい範囲の判定の公開subpath（`graph-maintenance-engine`、`memory-scope-policy`）
+- Graphのオントロジー（型と関係の定義の検査、決定の推論、版の候補の組み立て、署名つき公開の受領証の検証、版の登録簿）の公開subpath（`ontology-kernel`、`ontology-registry`、`ontology-publication`、`ontology-release-trust`）
 
 - Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。0.8.0の公開subpathのうちこの3件を削除する互換を壊す変更なので、0.8.0からのminorにした。そのほかの0.8.0公開subpathは削除・変更していない
 
@@ -82,6 +85,30 @@
 - 保存された判断を、使われた参照・行った判断・実行・結果の履歴として読み返せる判断履歴UI。期間と検索で絞り込み、取得できた範囲と未接続・取得失敗・確認済みの空を区別して表示する
 
 ここで示す公開確認はnpm packageとGitHub Releaseの配布状態を対象にします。公開manualのCloudflare Pages配信、Organization / Manaの本番接続、実案件での継続利用は、それぞれ別の確認対象です。
+
+## Candidate — v0.35.0（npm公開前）
+
+世界の部品に `waitingQueues` を足し、判断のほかの待ち行列（会議の振り分けなど）の件数と降り口を「待っている」に出せるようにします（前提台帳P17・D9）。件数が0の行列は出さず、読めない行列は0件と出しません。
+
+## Candidate — v0.34.0（npm公開前）
+
+Graphのオントロジー（型と関係の定義の検査、決定の推論、版の候補の組み立て、署名つき公開の受領証の検証、版の登録簿）を公開subpath `ontology-kernel`・`ontology-registry`・`ontology-publication`・`ontology-release-trust` として出します。brainbase-unsonの実装と同じ振る舞いで、版の登録簿は渡された設定フォルダから読みます。
+
+## Candidate — v0.33.0（npm公開前）
+
+世界に「あなたを待っている」判断の短い一覧が出ます（前提台帳U2）。新しい順に最大3件、本来の質問と「判断の履歴」への降り口を出し、超えた分は「ほかN件」と数えます。待っている判断が無ければ一覧を出さず、判断の記録を読めないときは0件とも出しません。あわせて、Graphの保守エンジンと記憶の範囲の判定を公開subpath `graph-maintenance-engine`・`memory-scope-policy` として出します。
+
+## Candidate — v0.32.0（npm公開前）
+
+世界の部品が、夜の記憶の整理の状態と、本人が決める記憶の候補の件数を `memoryStatus` で受け取り、「候補の確認」へ降りるリンクを出せるようになります（前提台帳P18）。渡されなければ「記憶の整理：未接続」と出し、候補の件数を0件とは出しません。Personal Webは結果を受け取る置き場が無いため、この表示になります。
+
+## Candidate — v0.31.0（npm公開前）
+
+判断の解決で、判断Hookと解決の経路・サービスが共有するエラーの型・正規JSON・要求digestを、新しい出口 `@unson/brainbase-mcp/judgment-resolution-contract` として追加します。brainbase-unsonの判断のサービスと同じ実装で、判断Hookの同じ写しもここから読むようにまとめました。OSSの既定の動作は変わりません。
+
+## Candidate — v0.30.0（npm公開前）
+
+Personal Webのナビの「今日」を「判断の履歴」に改め、組織版と同じ名前にします（前提台帳U1）。古いリンク `#today` と `#today?decision=<id>` は、判断の履歴の同じ判断へ転送します。世界の部品は、判断を開くリンクの行き先を `judgmentHref` で差し替えられるようになり、既定は `#value-proofs?decision=<id>` です。
 
 ## Candidate — v0.29.0（npm公開前）
 

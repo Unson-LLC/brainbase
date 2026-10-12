@@ -6,6 +6,32 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.35.0 candidate — npm公開前
+
+- 世界の部品に、判断のほかの待ち行列（会議の振り分けなど）の件数と降り口を受け取る `waitingQueues` を追加。件数が1以上の行列だけを「待っている」に出し、読めない行列は0件と出さない。渡されなければ今までと同じ（前提台帳P17・D9、`story-world-waiting-queues-v1`）
+
+## 0.34.0 candidate — npm公開前
+
+- Graphのオントロジーの公開subpath `ontology-kernel`・`ontology-registry`・`ontology-publication`・`ontology-release-trust` を追加。brainbase-unsonの実装と同じ振る舞いで、版の登録簿は渡された設定フォルダから読む（`story-ontology-kernel-registry-exit-v1`）
+
+## 0.33.0 candidate — npm公開前
+
+- 世界に「あなたを待っている」判断の短い一覧を追加。新しい順に最大3件、本来の質問と「判断の履歴」への降り口を出し、超えた分は「ほかN件」と数える。0件なら出さず、判断の記録を読めないときは0件とも出さない（前提台帳U2、`story-world-waiting-list-v1`）
+- Graphの保守エンジン（変更計画の組み立て・適用・スナップショットの検査とハッシュ）の公開subpath `graph-maintenance-engine` と、記憶の記録を見てよい範囲の判定の公開subpath `memory-scope-policy` を追加。brainbase-unsonの実装と同じ振る舞い（`story-graph-maintenance-memory-scope-exit-v1`）
+
+## 0.32.0 candidate — npm公開前
+
+- 世界の部品に、夜の記憶の整理の状態と記憶の候補の件数を受け取る `memoryStatus` を追加。整理できなかった夜を目立たせ、候補があれば「候補の確認」へのリンクを出す。渡されなければ「記憶の整理：未接続」（前提台帳P18、`story-world-memory-status-v1`）
+
+## 0.31.0 candidate — npm公開前
+
+- 判断の解決のエラーの型・正規JSON（キーを符号位置の順に並べる）・要求digestの公開subpath `judgment-resolution-contract` を追加。brainbase-unsonの判断のサービスと同じ実装で、判断Hookの同じ写しもここから読む（`story-judgment-resolution-contract-exit-v1`）
+
+## 0.30.0 candidate — npm公開前
+
+- Personal Webのナビの「今日」を「判断の履歴」（画面ID `value-proofs`）に改め、組織版と表示語をそろえる。古い `#today`・`#today?decision=<id>` は同じ判断へ転送する（前提台帳U1）
+- 世界の部品に、判断を開くリンクの行き先を差し替える `judgmentHref` を追加。既定は `#value-proofs?decision=<id>`
+
 ## 0.29.0 candidate — npm公開前
 
 - 所有repoへのチームの文書の書き込みの検査と読み戻しの照合（`canonical-document-writer`）、知識の取り込みの提案と下書きの回答の検証（`knowledge-capture-preview`）、会議ソースのカタログ（`meeting-source-integration-catalog`）の公開subpathを追加。brainbase-unsonの部品を処理を変えずに移したもので、Node.jsの標準モジュール以外に依存しない（`story-document-and-meeting-source-exits-v1`）

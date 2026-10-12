@@ -33,7 +33,7 @@ import { createWorldCanvasUI } from './world-canvas-ui.js';
 import { workCanvasNotes } from './world-canvas-notes.js';
 import { canvasTexture, drawFacade, FACADE_SIZES, FACADE_UNITS, gableRoof, hashUnit, muted, paintVertices, roundedPlate, valueNoise } from './world-scenery.js';
 import { WORK_STATES, workCityBlocks, workGrowthBlock, workPickBlock, workSign, workSiteBlocks } from './world-work-rail.js';
-import { exitLegend, exitsRailBlock, normalizeBusinessExits } from './world-exits.js';
+import { exitHrefKind, exitLegend, exitsRailBlock, normalizeBusinessExits } from './world-exits.js';
 import {
   makeWorkspaceElement as el,
   workspacePageHeader,
@@ -1462,13 +1462,126 @@ function addressSelection() {
  *   label?, as_of? } }] }`.  `href` and `action.href` must be `https:` or a link inside the host (`/…`, `?…`);
  *   others are dropped and counted.  Without it the world is drawn exactly as before.
  * @typedef {{ status: string, read_at?: string, reason?: string, exits: object[] }} BusinessExitsAnswer
+ * @param {() => (MemoryStatusAnswer | Promise<MemoryStatusAnswer>)} [options.memoryStatus] How the memory loop stands
+ *   (story-world-memory-status-v1, ledger P18): last night's organizing and the memory candidates that wait for the
+ *   owner.  The answer is `{ status: 'available'|'partial'|'not_connected', night?: { status:
+ *   'completed'|'partial'|'failed'|'missing', finished_at? } | null, candidates?: { count } | null, review_href? }`.
+ *   A part that is null was not read and is shown as unknown, never as zero.  Without it the world says 未接続.
+ * @typedef {{ status: string, night?: object | null, candidates?: object | null, review_href?: string }} MemoryStatusAnswer
  */
+async function readMemoryStatus(memoryStatus) {
+  if (typeof memoryStatus !== 'function') return { status: 'not_connected' };
+  try {
+    const answer = await memoryStatus();
+    return answer && typeof answer === 'object' ? answer : { status: 'failed', reason: 'invalid_answer' };
+  } catch (error) {
+    return { status: 'failed', reason: error instanceof Error ? error.message : 'request_failed' };
+  }
+}
+
+const NIGHT_STATES = {
+  completed: { text: '済み', tone: 'info' },
+  partial: { text: '一部だけ（確かめられていない範囲があります）', tone: 'warning' },
+  failed: { text: 'できなかった（整理できなかった夜）', tone: 'attention' },
+  missing: { text: '動いていない（整理できなかった夜）', tone: 'attention' },
+};
+
+/** The memory loop as world notes (story-world-memory-status-v1).  Unknown is never shown as zero. */
+function memoryLines(answer) {
+  if (answer.status === 'not_connected') {
+    return [{ text: '記憶の整理：未接続。この画面は夜の整理の結果と記憶の候補を受け取れません。候補の件数は0件とは確認できません。', tone: 'info', summary: '記憶の整理：未接続' }];
+  }
+  if (answer.status !== 'available' && answer.status !== 'partial') {
+    return [{ text: `記憶の整理：読めない（${answer.reason ?? '理由不明'}）。候補の件数は0件とは確認できません。`, tone: 'warning', summary: '記憶の整理：読めない' }];
+  }
+  const lines = [];
+  const night = answer.night && NIGHT_STATES[answer.night.status];
+  if (night) {
+    const label = `昨夜の記憶の整理：${night.text}`;
+    lines.push({ text: `${label}。`, tone: night.tone, summary: night.tone === 'attention' ? '整理できなかった夜' : label });
+  } else {
+    lines.push({ text: '昨夜の記憶の整理：読めない。', tone: 'warning', summary: '昨夜の記憶の整理：読めない' });
+  }
+  const count = answer.candidates?.count;
+  if (Number.isInteger(count) && count >= 0) {
+    const href = typeof answer.review_href === 'string' && exitHrefKind(answer.review_href) ? answer.review_href : null;
+    const link = href && count > 0 ? { href, label: '候補の確認を開く', className: 'bb-world-memory-link' } : null;
+    if (count > 0) lines.push({ text: `あなたが決める記憶の候補 ${count}件。昇格したものだけが正本になります。`, tone: 'attention', summary: `あなたが決める記憶の候補 ${count}件`, link });
+    else lines.push({ text: 'あなたが決める記憶の候補はありません。', tone: 'info', summary: null });
+  } else {
+    lines.push({ text: '記憶の候補：読めない。件数は0件とは確認できません。', tone: 'warning', summary: '記憶の候補：読めない' });
+  }
+  return lines;
+}
+
+/**
+ * @param {() => (WaitingQueuesAnswer | Promise<WaitingQueuesAnswer>)} [options.waitingQueues] Other queues of things
+ *   the owner decides, listed next to the waiting judgments (story-world-waiting-queues-v1, ledger P17 / D9).  The
+ *   world knows nothing about them beyond `{ status: 'available', queues: [{ id, label, count, href, link_label? }] }`.
+ *   A queue with zero is not shown; an unreadable one is never shown as zero.  `href` must be `https:` or a link
+ *   inside the host (`/…`, `?…`); others get no link.  Without it the world is drawn exactly as before.
+ * @typedef {{ status: string, reason?: string, queues?: object[] }} WaitingQueuesAnswer
+ */
+async function readWaitingQueues(waitingQueues) {
+  if (typeof waitingQueues !== 'function') return null;
+  try {
+    const answer = await waitingQueues();
+    return answer && typeof answer === 'object' ? answer : { status: 'failed', reason: 'invalid_answer' };
+  } catch (error) {
+    return { status: 'failed', reason: error instanceof Error ? error.message : 'request_failed' };
+  }
+}
+
+/** The waiting queues as world notes.  Zero is quiet; unknown is said out loud and never counted as zero. */
+function waitingQueueLines(answer) {
+  if (!answer) return [];
+  if (answer.status !== 'available' || !Array.isArray(answer.queues)) {
+    return [{ text: `ほかの待っているもの：読めない（${answer.reason ?? answer.status ?? '理由不明'}）。件数は0件とは確認できません。`, tone: 'warning', summary: 'ほかの待っているもの：読めない', link: null }];
+  }
+  const lines = [];
+  for (const queue of answer.queues) {
+    const label = typeof queue?.label === 'string' && queue.label.trim() ? queue.label.trim() : null;
+    if (!label) continue;
+    const count = queue.count;
+    if (!Number.isInteger(count) || count < 0) {
+      lines.push({ text: `${label}：読めない（${queue.reason ?? '理由不明'}）。件数は0件とは確認できません。`, tone: 'warning', summary: `${label}：読めない`, link: null });
+      continue;
+    }
+    if (count === 0) continue;
+    const href = exitHrefKind(queue.href) ? queue.href : null;
+    const linkLabel = typeof queue.link_label === 'string' && queue.link_label.trim() ? queue.link_label.trim() : `${label}を開く`;
+    lines.push({ text: `${label} ${count}件。`, tone: 'attention', summary: `${label} ${count}件`, link: href ? { href, label: linkLabel, className: 'bb-world-waiting-queue-link' } : null });
+  }
+  return lines;
+}
+
+/** At most this many waiting judgments are listed in the world; the rest are counted, never hidden. */
+const WAITING_LIST_LIMIT = 3;
+
+/**
+ * The judgments waiting for the owner now, newest first, each a way down to the same judgment in
+ * 判断の履歴 (ledger P17 / U2).  The world stays an overview: only the exceptions become a short list.
+ */
+function waitingLines(proofs, judgmentHref) {
+  const waiting = [...proofs.values()]
+    .filter(isWaiting)
+    .sort((a, b) => String(b.proof?.recorded_at ?? '').localeCompare(String(a.proof?.recorded_at ?? '')));
+  const lines = waiting.slice(0, WAITING_LIST_LIMIT).map((item) => {
+    const id = item.proof.decision_attempt_id;
+    const question = item.proof.interruption?.question_display_text ?? item.proof.decision?.summary ?? id;
+    return { text: question, summary: question, link: { href: judgmentHref(id), label: '「判断の履歴」で開く', className: 'bb-world-waiting-link' } };
+  });
+  const rest = waiting.length - lines.length;
+  if (rest > 0) lines.push({ text: `ほか${rest}件は「判断の履歴」で見られます。`, summary: `ほか${rest}件の待っている判断`, link: null });
+  return lines;
+}
+
 /** 判断の履歴 in the local web (it was 今日, `#today`, until 2026-10-11; the shell still opens old links). */
 function defaultJudgmentHref(decisionAttemptId) {
   return decisionAttemptId ? `#value-proofs?decision=${encodeURIComponent(decisionAttemptId)}` : '#value-proofs';
 }
 
-export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, judgmentHref = defaultJudgmentHref, selection = addressSelection(), businessExits = null }) {
+export function createWorldView({ root, rail, page, presentation = 'standard', document: explicitDocument, fetcher, projectHref = (project) => `#projects?project=${encodeURIComponent(project.id)}`, taskHref = null, judgmentHref = defaultJudgmentHref, selection = addressSelection(), businessExits = null, memoryStatus = null, waitingQueues = null }) {
   const exitsEnabled = typeof businessExits === 'function';
   const doc = explicitDocument ?? globalThis.document;
   const reducedMotion = Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
@@ -2311,6 +2424,8 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
   }
 
   async function load() {
+    const memoryRead = readMemoryStatus(memoryStatus);
+    const queuesRead = readWaitingQueues(waitingQueues);
     const businessesResult = await readJson(fetcher, '/api/extensions/world/businesses');
     if (disposed) return;
     // A world drawn from an organization's Graph shows only that organization's judgments: the host keeps
@@ -2333,13 +2448,14 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
     }
     if (disposed) return;
     notices.replaceChildren();
-    const note = (label, textValue, tone = 'info', summary = null) => {
+    const note = (label, textValue, tone = 'info', summary = null, link = null) => {
       if (canvasUI) {
-        setCanvasNote(`${label}:${summary ?? 'detail'}`, { label, text: textValue, tone, summary });
+        setCanvasNote(`${label}:${summary ?? 'detail'}`, { label, text: textValue, tone, summary, link });
         return;
       }
       const line = el(doc, 'p', { className: `bb-world-hud-line is-${tone}`, attrs: tone === 'info' ? {} : { role: 'alert' } });
       line.append(el(doc, 'strong', { text: label }), el(doc, 'span', { text: textValue }));
+      if (link) line.append(el(doc, 'a', { className: link.className, text: link.label, attrs: { href: link.href } }));
       notices.append(line);
     };
     const businessPayload = businessesResult.ok ? businessesResult.data : null;
@@ -2386,7 +2502,16 @@ export function createWorldView({ root, rail, page, presentation = 'standard', d
         note('判断', `${home.delegation_map.judged}件。作業した場所を読めないため、事業には置かず広場の種類別だけで描いています（${placesResult.ok ? placesResult.data?.reason ?? '理由不明' : placesResult.error}）。今あなたを待っている判断${waiting}件。`, 'warning', '判断の作業場所：読めない');
       }
     }
+    if (judgmentsConnected) {
+      for (const line of waitingLines(proofs, judgmentHref)) note('待っている判断', line.text, 'attention', line.summary, line.link);
+    }
+    const queues = await queuesRead;
+    if (disposed) return;
+    for (const line of waitingQueueLines(queues)) note('待っている', line.text, line.tone, line.summary, line.link);
     const rowItems = new Map(rows.map((row) => [row.key, Array.isArray(row.items) ? row.items : []]));
+    const memory = await memoryRead;
+    if (disposed) return;
+    for (const line of memoryLines(memory)) note('記憶', line.text, line.tone, line.summary, line.link);
 
     knownBusinesses = businesses;
     canvasUI?.setCities(businesses, current.code);
