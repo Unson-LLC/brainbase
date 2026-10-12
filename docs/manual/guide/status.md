@@ -75,6 +75,7 @@
 - チームの文書を所有repoへ書き込むときの検査と読み戻しの照合、知識の取り込みと下書きの回答の検証、会議ソース（Tactiq・Plaud.ai）のカタログの公開subpath（`canonical-document-writer`、`knowledge-capture-preview`、`meeting-source-integration-catalog`）
 - 判断の解決で判断Hookと解決の経路・サービスが共有するエラーの型・正規JSON・要求digestの公開subpath（`judgment-resolution-contract`）
 - Graphの変更計画の組み立て・適用・スナップショットの検査とハッシュ、記憶の記録を見てよい範囲の判定の公開subpath（`graph-maintenance-engine`、`memory-scope-policy`）
+- Graphのオントロジー（型と関係の定義の検査、決定の推論、版の候補の組み立て、署名つき公開の受領証の検証、版の登録簿）の公開subpath（`ontology-kernel`、`ontology-registry`、`ontology-publication`、`ontology-release-trust`）
 
 - Mana委任UI（`ui/outcome-mana`、`ui/icons/mana`）と公開subpath（`./ui/outcome-mana`、`./ui/outcome-mana.css`、`./ui/icons/*`）を共通UIから外した。Unsonの実行基盤（Mana）に結びつくため、組織版の画面として組織版が持つ。0.8.0の公開subpathのうちこの3件を削除する互換を壊す変更なので、0.8.0からのminorにした。そのほかの0.8.0公開subpathは削除・変更していない
 
