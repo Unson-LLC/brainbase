@@ -42,7 +42,7 @@ const UNREADABLE_LABELS = Object.freeze({
 
 // Stroke icons from the organization edition's sprite (apps/web/public/index.html).
 const NAV_ICON_PATHS = Object.freeze({
-  'value-proofs': ['M5 20V10m7 10V4m7 16v-7'],
+  'value-proofs': ['M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8', 'M3 3v5h5', 'M12 7v5l4 2'],
   objectives: ['M12 4 3 20h18z', 'M12 9v5m0 3h.01'],
   projects: ['M3 6.5h7l2 2h9v10H3z', 'M3 6.5v-2h7l2 2'],
   graph: ['M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.2 1.2', 'M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.2-1.2'],
@@ -50,10 +50,42 @@ const NAV_ICON_PATHS = Object.freeze({
   // World view (extension id `world`, ledger P17).
   world: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'],
 });
+// Screens without their own icon (for example a private product's extension).
+const DEFAULT_NAV_ICON_PATHS = Object.freeze(['M5 20V10m7 10V4m7 16v-7']);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
+// The menu's areas (brainbase-project ledger D10): the same order and headings
+// as the organization edition. 目的と現状 is the only item of its area, so it
+// has no heading. Inside an area, `order` lists the screens first in that order.
+const NAV_AREAS = Object.freeze([
+  Object.freeze({ id: 'purpose', label: null, order: ['objectives'] }),
+  Object.freeze({ id: 'work', label: '仕事', order: ['projects', 'minutes'] }),
+  Object.freeze({ id: 'outcomes', label: '成果', order: ['value-proofs'] }),
+  Object.freeze({ id: 'information', label: '情報と関係', order: ['graph'] }),
+  Object.freeze({ id: 'settings', label: '設定', order: [] }),
+]);
+
+// Menu order only: the screens' own order (and so the first screen) stays as given.
+// Screens without an area keep their place — those before the first area-bound
+// screen come first (a leading extension such as the world), the rest come last.
+function navLayout(screens) {
+  const firstInArea = screens.findIndex((screen) => NAV_AREAS.some((area) => area.id === screen.area));
+  if (firstInArea === -1) return { leading: [...screens], areas: [], trailing: [] };
+  const leading = screens.slice(0, firstInArea);
+  const trailing = screens.slice(firstInArea).filter((screen) => !NAV_AREAS.some((area) => area.id === screen.area));
+  const areas = NAV_AREAS.map((area) => {
+    const members = screens.filter((screen) => screen.area === area.id);
+    const rank = (screen) => {
+      const index = area.order.indexOf(screen.id);
+      return index === -1 ? area.order.length + members.indexOf(screen) : index;
+    };
+    return { area, screens: [...members].sort((a, b) => rank(a) - rank(b)) };
+  }).filter((entry) => entry.screens.length > 0);
+  return { leading, areas, trailing };
+}
+
 function makeIcon(doc, id) {
-  const paths = NAV_ICON_PATHS[id] ?? NAV_ICON_PATHS['value-proofs'];
+  const paths = NAV_ICON_PATHS[id] ?? DEFAULT_NAV_ICON_PATHS;
   const create = (tag) => (typeof doc.createElementNS === 'function' ? doc.createElementNS(SVG_NS, tag) : doc.createElement(tag));
   const svg = create('svg');
   svg.setAttribute('class', 'bb-shell-icon');
@@ -252,11 +284,11 @@ function mountGraphScreen(screenId, createView) {
 }
 
 export const LOCAL_WEB_SCREENS = Object.freeze([
-  Object.freeze({ id: 'value-proofs', label: '判断の履歴', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
-  Object.freeze({ id: 'minutes', label: '議事録', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
-  Object.freeze({ id: 'objectives', label: '目的と現状', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
-  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
-  Object.freeze({ id: 'graph', label: '情報と関係', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),
+  Object.freeze({ id: 'value-proofs', label: '判断の履歴', area: 'outcomes', usesGraph: false, rail: true, source: '判断の記録', mount: mountToday }),
+  Object.freeze({ id: 'minutes', label: '議事録', area: 'work', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
+  Object.freeze({ id: 'objectives', label: '目的と現状', area: 'purpose', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
+  Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', area: 'work', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
+  Object.freeze({ id: 'graph', label: '情報と関係', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),
 ]);
 
 function renderGraphGate(doc, slot, status, onRecheck, label) {
@@ -373,7 +405,7 @@ export function createLocalWebShell({
   };
   menuButton.addEventListener('click', () => setMenuOpen(!sidebar.className.includes('is-open')));
   backdrop.addEventListener('click', () => setMenuOpen(false));
-  for (const screen of screens) {
+  const navLink = (screen) => {
     const link = makeElement(doc, 'a', { className: 'bb-shell-nav-link', text: screen.label, attrs: { href: `#${screen.id}` } });
     // The label stays the link's own text; the icon goes in front where the DOM allows it.
     if (typeof link.prepend === 'function') link.prepend(makeIcon(doc, screen.id));
@@ -382,8 +414,22 @@ export function createLocalWebShell({
       controller.show(screen.id);
     });
     links.set(screen.id, link);
-    nav.append(link);
+    return link;
+  };
+  const layout = navLayout(screens);
+  for (const screen of layout.leading) nav.append(navLink(screen));
+  for (const { area, screens: members } of layout.areas) {
+    if (!area.label) {
+      for (const screen of members) nav.append(navLink(screen));
+      continue;
+    }
+    const headId = `bb-shell-nav-area-${area.id}`;
+    const group = makeElement(doc, 'div', { className: 'bb-shell-nav-group', attrs: { role: 'group', 'aria-labelledby': headId } });
+    group.append(makeElement(doc, 'div', { className: 'bb-shell-nav-group-head', text: area.label, attrs: { id: headId } }));
+    for (const screen of members) group.append(navLink(screen));
+    nav.append(group);
   }
+  for (const screen of layout.trailing) nav.append(navLink(screen));
   const source = makeElement(doc, 'section', { className: 'bb-shell-source', attrs: { 'aria-label': '出典' } });
   sidebar.append(brand, nav, source);
   const workspace = makeElement(doc, 'div', { className: 'bb-shell-workspace' });
