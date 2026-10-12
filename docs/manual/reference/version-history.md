@@ -6,6 +6,11 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.38.0 candidate — npm公開前
+
+- Personal Web のメニューを組織版と同じ6つの領域（目的と現状・仕事・成果・情報と関係）の見出しで束ねる。画面IDと初期画面は変えない（`story-shell-nav-six-areas-v1`）
+- 読み取り `GET /api/graph/people-and-companies` と共通部品 `ui/people-and-companies-view`（「人と会社」）を追加。人を所属（`member_of`）と自社から社内・社外・所属未確認に分け、自社は本人の所属がちょうど1社のときだけ決める。社内・社外の印は持たない（`story-people-and-companies-read-v1`）
+
 ## 0.37.0 candidate — npm公開前
 
 - Taskの更新で既存の参照を保持したまま参照を追加する `source_refs_append` を追加。Unicodeを含むキーの順序だけが違う同じ参照は重複させず、同じ操作の再送では版を増やさない。置換の `source_refs` との同時指定は断る（`story-canonical-task-source-refs-append`）
