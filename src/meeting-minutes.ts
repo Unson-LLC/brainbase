@@ -78,6 +78,13 @@ export interface MinutesDocumentRecord {
   readonly created_actor_id: string;
   readonly updated_at: string;
   readonly revision: number;
+  /** Set when the document was taken back from its readers.  Versions and bodies are kept. */
+  readonly withdrawal?: MinutesWithdrawalReceipt;
+}
+
+export interface MinutesWithdrawalReceipt {
+  readonly actor_id: string;
+  readonly withdrawn_at: string;
 }
 
 export interface MeetingMinutesSnapshot {
@@ -90,7 +97,7 @@ export interface MeetingMinutesSnapshot {
   readonly idempotency: readonly MeetingMinutesIdempotencyRecord[];
 }
 
-export type MeetingMinutesIdempotencyOperation = 'create_meeting' | 'create_minutes' | 'save_version' | 'confirm_version';
+export type MeetingMinutesIdempotencyOperation = 'create_meeting' | 'create_minutes' | 'save_version' | 'confirm_version' | 'withdraw_minutes';
 
 /** Durable write receipt.  It lets a retried mutation find its exact target after restart. */
 export interface MeetingMinutesIdempotencyRecord {
@@ -168,6 +175,13 @@ export interface ConfirmMinutesVersionInput {
   readonly idempotency_fingerprint?: string;
 }
 
+export interface WithdrawMinutesInput {
+  readonly minutes_id: MinutesId;
+  readonly expected_revision: number;
+  readonly idempotency_key?: string;
+  readonly idempotency_fingerprint?: string;
+}
+
 export interface MeetingMinutesSummary {
   readonly meeting: MeetingRecord;
   readonly minutes: readonly MinutesDocumentRecord[];
@@ -235,6 +249,8 @@ export interface MeetingMinutesStore {
   ): Promise<MinutesVersionRecord>;
   save_version(input: SaveMinutesVersionInput, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
   confirm_version(input: ConfirmMinutesVersionInput, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
+  /** Takes a document back from its readers (story-meeting-minutes-withdraw-v1).  Nothing is deleted. */
+  withdraw_minutes(input: WithdrawMinutesInput, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail>;
 }
 
 /**
@@ -546,6 +562,12 @@ function assertSnapshotShape(value: unknown): MeetingMinutesSnapshot {
     checkDate(raw.created_at, `Minutes document ${minutesId}.created_at`);
     checkDate(raw.updated_at, `Minutes document ${minutesId}.updated_at`);
     if (typeof raw.created_actor_id !== 'string' || !raw.created_actor_id.trim()) throw new MeetingMinutesError('corrupt_record', `Minutes document ${minutesId}.created_actor_id is invalid`);
+    if (raw.withdrawal !== undefined) {
+      if (!isRecord(raw.withdrawal) || typeof raw.withdrawal.actor_id !== 'string' || !raw.withdrawal.actor_id.trim()) {
+        throw new MeetingMinutesError('corrupt_record', `Minutes document ${minutesId}.withdrawal is invalid`);
+      }
+      checkDate(raw.withdrawal.withdrawn_at, `Minutes document ${minutesId}.withdrawal.withdrawn_at`);
+    }
   }
   const versionIds = new Set<string>();
   const versionById = new Map<string, Record<string, unknown>>();
@@ -649,7 +671,8 @@ function assertSnapshotShape(value: unknown): MeetingMinutesSnapshot {
     if (typeof key !== 'string' || key.trim() === '' || key.length > 200
       || typeof principalId !== 'string' || principalId.trim() === ''
       || typeof fingerprint !== 'string' || fingerprint.trim() === '' || fingerprint.length > 512
-      || (operation !== 'create_meeting' && operation !== 'create_minutes' && operation !== 'save_version' && operation !== 'confirm_version')
+      || (operation !== 'create_meeting' && operation !== 'create_minutes' && operation !== 'save_version' && operation !== 'confirm_version'
+        && operation !== 'withdraw_minutes')
       || typeof meetingId !== 'string' || !meetingIds.has(meetingId)) {
       throw new MeetingMinutesError('corrupt_record', 'Idempotency record is invalid');
     }
@@ -668,8 +691,8 @@ function assertSnapshotShape(value: unknown): MeetingMinutesSnapshot {
       || documentById.get(minutesId)?.meeting_id !== meetingId) {
       throw new MeetingMinutesError('corrupt_record', 'Idempotency record minutes_id is invalid');
     }
-    if (operation === 'create_minutes') {
-      if (versionId !== undefined) throw new MeetingMinutesError('corrupt_record', 'create_minutes idempotency record has an unexpected version_id');
+    if (operation === 'create_minutes' || operation === 'withdraw_minutes') {
+      if (versionId !== undefined) throw new MeetingMinutesError('corrupt_record', `${operation} idempotency record has an unexpected version_id`);
       continue;
     }
     if (typeof versionId !== 'string' || !versionIds.has(versionId)
@@ -848,7 +871,15 @@ function detail(snapshot: MeetingMinutesSnapshot, meeting: MeetingRecord): Meeti
 }
 
 function summary(snapshot: MeetingMinutesSnapshot, meeting: MeetingRecord): MeetingMinutesSummary {
-  return freezeClone({ meeting, minutes: snapshot.documents.filter((candidate) => candidate.meeting_id === meeting.meeting_id) });
+  // A withdrawn document is taken back from listings; its detail stays readable for history.
+  return freezeClone({
+    meeting,
+    minutes: snapshot.documents.filter((candidate) => candidate.meeting_id === meeting.meeting_id && !candidate.withdrawal)
+  });
+}
+
+function assertNotWithdrawn(document: MinutesDocumentRecord): void {
+  if (document.withdrawal) throw invalid(`Minutes document ${document.minutes_id} was withdrawn`);
 }
 
 function ensureRevision(actual: number, expected: number): void {
@@ -1224,6 +1255,7 @@ export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): 
     const meeting = findMeeting(snapshot, document.meeting_id);
     await authorized(authorizer, 'write', meeting, context);
     await authorized(authorizer, 'write', document, context);
+    assertNotWithdrawn(document);
     ensureRevision(document.revision, input.expected_revision);
     const predecessor = input.predecessor_version_id === undefined ? document.current_version_id : nonEmptyString(input.predecessor_version_id, 'predecessor_version_id');
     if (predecessor !== document.current_version_id) throw invalid('predecessor_version_id must be the current version');
@@ -1291,6 +1323,7 @@ export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): 
     await authorized(authorizer, 'write', document, context);
     const version = snapshot.versions.find((candidate) => candidate.version_id === versionId && candidate.minutes_id === minutesId);
     if (!version) throw new MeetingMinutesError('not_found', `Minutes version ${versionId} was not found`);
+    assertNotWithdrawn(document);
     ensureRevision(document.revision, input.expected_revision);
     if (version.confirmation) {
       if (!idempotency.token) return detailForCaller(snapshot, meeting, context);
@@ -1342,7 +1375,46 @@ export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): 
     return detailForCaller(readback, savedMeeting, context);
   }
 
-  return { list_meetings, create_meeting, create_minutes, get_meeting, get_version, save_version, confirm_version };
+  async function withdraw_minutes(input: WithdrawMinutesInput, context: MeetingMinutesRequestContext): Promise<MeetingMinutesDetail> {
+    const principal = assertPrincipal(context);
+    if (!isRecord(input)) throw invalid('withdrawal input must be an object');
+    const minutesId = nonEmptyString(input.minutes_id, 'minutes_id');
+    const snapshot = await readSnapshot();
+    const idempotency = await resolveIdempotency(snapshot, principal, input, 'withdraw_minutes', context, { minutes_id: minutesId });
+    if (idempotency.replay) return idempotency.replay;
+    const document = findDocument(snapshot, minutesId);
+    const meeting = findMeeting(snapshot, document.meeting_id);
+    await authorized(authorizer, 'write', meeting, context);
+    await authorized(authorizer, 'write', document, context);
+    // Withdrawing twice keeps the first record; a retry is not a second withdrawal.
+    if (document.withdrawal && !idempotency.token) return detailForCaller(snapshot, meeting, context);
+    if (!document.withdrawal) ensureRevision(document.revision, input.expected_revision);
+    const timestamp = isoNow(now);
+    const next: MutableSnapshot = snapshotMutable(snapshot);
+    next.revision += 1;
+    if (!document.withdrawal) {
+      next.documents = next.documents.map((candidate) => candidate.minutes_id === minutesId
+        ? { ...candidate, withdrawal: { actor_id: principal, withdrawn_at: timestamp }, updated_at: timestamp, revision: candidate.revision + 1 }
+        : candidate);
+    }
+    addIdempotencyRecord(next, idempotency.token, 'withdraw_minutes', {
+      meeting_id: meeting.meeting_id,
+      minutes_id: minutesId
+    }, principal);
+    let readback: MeetingMinutesSnapshot;
+    try {
+      readback = await writeSnapshot(next, snapshot.revision);
+    } catch (error) {
+      const replay = await replayAfterConflict(error, idempotency.token, principal, 'withdraw_minutes', context, { minutes_id: minutesId });
+      if (replay) return replay;
+      throw error;
+    }
+    const saved = findDocument(readback, minutesId);
+    if (!saved.withdrawal) throw new MeetingMinutesError('readback_mismatch', 'Withdrawal did not read back');
+    return detailForCaller(readback, findMeeting(readback, meeting.meeting_id), context);
+  }
+
+  return { list_meetings, create_meeting, create_minutes, get_meeting, get_version, save_version, confirm_version, withdraw_minutes };
 }
 
 function participantIdsInput(value: unknown): readonly string[] {
