@@ -28,6 +28,7 @@ import {
   workspaceRailBlock,
   workspaceRailHead,
 } from './workspace-kit.js';
+import { normalizeObjectiveReadback } from './objective-readback-contract.js';
 
 export const OBJECTIVE_EDITOR_CONTRACT_VERSION = 'brainbase.objective-editor.v1';
 
@@ -63,6 +64,16 @@ const STATUS_LABELS = Object.freeze({
   verified: '正本と一致',
   error_retryable: '取得失敗',
   unknown: '確認できません',
+});
+
+const OBJECTIVE_READBACK_STATUS_LABELS = Object.freeze({
+  ready: '確認済み',
+  error: '取得失敗',
+  unknown: '確認できません',
+});
+
+const OBJECTIVE_READBACK_REASON_MESSAGES = Object.freeze({
+  readback_identity_mismatch: '取得した目的が選択中の目的と一致しません。読み直してください。',
 });
 
 const RELATION_LABELS = Object.freeze(Object.fromEntries(OBJECTIVE_EDITOR_RELATION_TYPES));
@@ -137,6 +148,8 @@ function sourceSummary(source) {
     ['状態', firstValue(object, 'state', 'status', 'connection_status', 'connectionStatus')],
     ['ID', firstValue(object, 'source_id', 'sourceId', 'id', 'reference')],
     ['版', firstValue(object, 'source_version', 'sourceVersion', 'revision', 'version')],
+    ['ダイジェスト', firstValue(object, 'digest', 'hash')],
+    ['根拠', Array.isArray(object.provenance) ? String(object.provenance.length) + '件' : null],
     ['確認日時', firstValue(object, 'checked_at', 'checkedAt', 'as_of', 'asOf')],
   ];
   return fields.map(([label, value]) => `${label}: ${text(value)}`).join(' ・ ');
@@ -281,7 +294,12 @@ function recordPayload(payload) {
  * without filling missing fields with guessed values.
  */
 export function normalizeObjectiveRecord(payload) {
-  const source = recordPayload(payload);
+  const readback = normalizeObjectiveReadback(payload);
+  const payloadObject = objectValue(payload);
+  // An explicit readback envelope must pass its contract guard.  Raw records
+  // remain accepted for non-HTTP host adapters and existing unit consumers.
+  if (payloadObject?.contract_version && !readback) return null;
+  const source = recordPayload(readback ?? payload);
   if (!source) return null;
   const definition = objectValue(source.definition) ?? source;
   const type = nonEmptyText(firstValue(definition, 'type')) ?? nonEmptyText(firstValue(source, 'type'));
@@ -299,12 +317,16 @@ export function normalizeObjectiveRecord(payload) {
   const readiness = normalizeReadiness(firstValue(source, 'readiness', 'judgmentReadiness', 'judgment_readiness'));
   const constraintRefsValue = firstValue(source, 'constraintRefs', 'constraint_refs', 'constraints');
   const constraintRefs = asArray(constraintRefsValue);
-  const objectiveSource = objectValue(firstValue(source, 'source', 'provenance', 'origin'))
+  const objectiveSource = objectValue(readback?.source)
+    ?? objectValue(firstValue(source, 'source', 'provenance', 'origin'))
     ?? objectValue(firstValue(definition, 'source', 'provenance', 'origin'));
   const normalized = {
     id,
     type: type ?? 'objective',
     revision,
+    readback_status: readback?.status ?? null,
+    checked_at: readback?.checked_at ?? null,
+    readback_reason: readback?.reason ?? null,
     digest: nonEmptyText(firstValue(source, 'digest', 'hash')),
     meaning: nonEmptyText(firstValue(definition, 'meaning')),
     beneficiaryIds: asArray(firstValue(definition, 'beneficiaryIds', 'beneficiary_ids')),
@@ -490,6 +512,12 @@ function statusNotice(state, callbacks = {}) {
   );
   if (status === 'conflict' && normalized.currentRevision) {
     notice.append(makeElement('small', { text: `現在の版: ${normalized.currentRevision}。入力を保持したまま再読込してください。` }));
+  }
+  if (normalized.checked_at) {
+    notice.append(
+      makeElement('small', { className: 'objective-editor-readback-meta', text: `正本の確認日時: ${normalized.checked_at}` }),
+      makeElement('small', { className: 'objective-editor-readback-meta', text: `出典: ${sourceSummary(normalized.readback_source)}` }),
+    );
   }
   if (callbacks.onRetry) notice.append(makeButton('再読込', callbacks.onRetry, 'objective-editor-button-secondary'));
   return notice;
@@ -801,6 +829,9 @@ function renderObjectiveForm(root, state, callbacks) {
   const section = makeElement('section', { className: 'objective-editor-panel', attrs: { 'aria-label': '目的を編集' } });
   const draft = state.editor.draft;
   if (!draft) {
+    if (FAILED_STATES.includes(state.editor.state)) {
+      section.append(statusNotice(state.editor, { onRetry: callbacks.onReload }));
+    }
     section.append(makeElement('div', { className: 'objective-editor-empty', text: '編集する目的を選択してください。' }));
     return section;
   }
@@ -809,6 +840,16 @@ function renderObjectiveForm(root, state, callbacks) {
     makeElement('div', { className: 'objective-editor-panel-heading', text: title }),
     makeElement('p', { className: 'objective-editor-muted', text: '保存すると新しい版になり、保存した版を読み戻して表示します。' }),
   );
+  if (state.selected) {
+    const status = OBJECTIVE_READBACK_STATUS_LABELS[state.selected.readback_status] ?? '未確認';
+    const readback = makeElement('div', { className: 'objective-editor-readback', attrs: { 'aria-label': '正本の確認情報' } });
+    readback.append(
+      makeElement('p', { className: 'objective-editor-muted', text: `正本の状態: ${status}` }),
+      makeElement('p', { className: 'objective-editor-muted', text: `確認日時: ${text(state.selected.checked_at)}` }),
+      makeElement('p', { className: 'objective-editor-muted', text: `出典: ${sourceSummary(state.selected.source)}` }),
+    );
+    section.append(readback);
+  }
   if (state.save.state !== 'idle' && state.save.state !== 'saving') section.append(statusNotice(state.save, {
     onRetry: ['conflict', 'saved_unverified'].includes(state.save.state) ? null : callbacks.onRetrySave,
   }));
@@ -987,6 +1028,12 @@ function workspaceStatusNotice(doc, value, { label, onRetry, retryLabel = '再�
   body.append(makeElement('p', { text: `${STATUS_LABELS[status] ?? STATUS_LABELS.unknown}：${normalized.message ?? STATUS_LABELS[status] ?? '状態を確認できません。'}` }));
   if (status === 'conflict' && normalized.currentRevision) {
     body.append(makeElement('p', { text: `現在の版: ${normalized.currentRevision}。入力は残しています。現在の版を確かめてから直してください。` }));
+  }
+  if (normalized.checked_at) {
+    body.append(
+      makeElement('p', { className: 'bb-objective-readback-meta', text: `正本の確認日時: ${normalized.checked_at}` }),
+      makeElement('p', { className: 'bb-objective-readback-meta', text: `出典: ${sourceSummary(normalized.readback_source)}` }),
+    );
   }
   if (onRetry) body.append(workspaceButton(doc, { text: retryLabel, variant: 'quiet', onClick: onRetry }));
   return workspaceNotice(doc, { label, text: body, tone });
@@ -1183,6 +1230,8 @@ function renderObjectiveDetail(doc, state, callbacks) {
       ['責任者', objective.accountableId],
       ['採用状態', objective.adoptionState ? (STATUS_LABELS[objective.adoptionState] ?? objective.adoptionState) : null],
       ['評価期間', periodText(objective.evaluationPeriod)],
+      ['正本の状態', OBJECTIVE_READBACK_STATUS_LABELS[objective.readback_status] ?? '未確認'],
+      ['確認日時', objective.checked_at],
       ['出典', sourceSummary(objective.source)],
     ]),
   }));
@@ -1509,6 +1558,23 @@ export function createObjectiveEditorController(options = {}) {
     try {
       const payload = await method(id, context, revision);
       if (version !== selectionVersion) return null;
+      const readback = normalizeObjectiveReadback(payload);
+      if (readback && readback.status !== 'ready') {
+        const readbackState = readback.status === 'error' ? 'error_retryable' : 'unknown';
+        const message = OBJECTIVE_READBACK_REASON_MESSAGES[readback.reason?.code] ?? OBJECTIVE_READBACK_STATUS_LABELS[readback.status];
+        state.editor = {
+          ...state.editor,
+          state: readbackState,
+          message,
+          readback_status: readback.status,
+          checked_at: readback.checked_at,
+          readback_source: readback.source,
+          readback_reason: readback.reason,
+        };
+        state.connection = readbackState;
+        render();
+        return null;
+      }
       const objective = normalizeObjectiveRecord(payload);
       if (!objective) {
         state.editor = { ...state.editor, state: 'missing', message: '指定した目的を保存先から確認できません。' };

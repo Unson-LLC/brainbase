@@ -6,7 +6,13 @@ import type {
   FoundationRevision,
   ObjectiveDefinition,
 } from './ontology-foundation.js';
-import type { FoundationCatalogRecord } from './types.js';
+import type {
+  FoundationCatalogRecord,
+  ObjectiveReadback,
+  ObjectiveReadbackReason,
+  ObjectiveReadbackSource,
+  ObjectiveReadbackStatus,
+} from './types.js';
 
 /**
  * HTTP boundary shared by the OSS Objective UI and organization adapters.
@@ -20,6 +26,7 @@ import type { FoundationCatalogRecord } from './types.js';
 export const FOUNDATION_HTTP_CONTRACT_VERSION = 'brainbase.foundation-http.v1' as const;
 export const FOUNDATION_HTTP_PREFIX = '/api/foundation' as const;
 export const FOUNDATION_OBJECTIVE_ROUTE_PREFIX = `${FOUNDATION_HTTP_PREFIX}/objectives` as const;
+export const FOUNDATION_OBJECTIVE_READBACK_CONTRACT_VERSION = 'brainbase.objective-readback.v1' as const;
 export const FOUNDATION_OBJECTIVE_ROUTES = Object.freeze([
   'GET /api/foundation/objectives',
   'GET /api/foundation/objectives/:id',
@@ -111,11 +118,15 @@ export interface ObjectiveFoundationHttpRouteOptions {
     refs: readonly FoundationRevision[],
     context: FoundationStoreContext
   ) => MaybePromise<unknown>;
+  /** Injectable clock for deterministic readback evidence; production uses the real clock. */
+  clock?: () => Date;
   bodyLimitBytes?: number;
 }
 
 const DEFAULT_BODY_LIMIT_BYTES = 1024 * 1024;
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const OBJECTIVE_READBACK_STATUSES: readonly ObjectiveReadbackStatus[] = ['ready', 'error', 'unknown'];
+const FOUNDATION_PROVENANCE_KINDS = new Set(['candidate', 'document', 'observation', 'decision', 'import']);
 const AUTHORITY_FIELDS = new Set([
   'acl',
   'scope',
@@ -172,6 +183,137 @@ export class FoundationHttpError extends Error {
     this.code = code;
     this.currentRevision = options.currentRevision;
   }
+}
+
+/**
+ * Runtime guard for the Objective detail contract.  It is exported so a BFF
+ * can fail closed when a canonical host returns an old or malformed payload.
+ * The guard only accepts source metadata that agrees with the returned
+ * FoundationCatalogRecord; it never creates a source from request data.
+ */
+export function isObjectiveReadbackPayload(value: unknown): value is ObjectiveReadback {
+  const object = asRecord(value);
+  if (!object
+    || object.contract_version !== FOUNDATION_OBJECTIVE_READBACK_CONTRACT_VERSION
+    || !OBJECTIVE_READBACK_STATUSES.includes(object.status)
+    || !isCanonicalIsoTimestamp(object.checked_at)) {
+    return false;
+  }
+
+  if (object.status === 'ready') {
+    if (object.reason !== null) return false;
+    const record = objectiveReadbackRecord(object.record);
+    const objective = objectiveReadbackRecord(object.objective);
+    const source = objectiveReadbackSourceValue(object.source);
+    if (!record || !objective || !source) return false;
+    return sameObjectiveIdentity(record, objective)
+      && source.source_id === record.definition.id
+      && source.source_version === record.definition.revision
+      && source.digest === record.digest
+      && JSON.stringify(source.provenance) === JSON.stringify(record.definition.provenance);
+  }
+
+  return object.source === null
+    && object.record === null
+    && object.objective === null
+    && objectiveReadbackReason(object.reason) !== null;
+}
+
+function objectiveReadbackSourceFromRecord(record: FoundationCatalogRecord): ObjectiveReadbackSource | null {
+  const normalized = objectiveReadbackRecord(record);
+  if (!normalized) return null;
+  return {
+    source_type: 'foundation_revision_store',
+    source_id: normalized.definition.id,
+    source_version: normalized.definition.revision,
+    digest: normalized.digest,
+    // Keep the exact canonical provenance array.  Do not derive it from the
+    // request, a UI label, or a BFF projection.
+    provenance: normalized.definition.provenance,
+  };
+}
+
+function objectiveReadbackPayload(
+  status: ObjectiveReadbackStatus,
+  checkedAt: string,
+  record: FoundationCatalogRecord | null,
+  reason: ObjectiveReadbackReason | null,
+): ObjectiveReadback {
+  const source = status === 'ready' && record ? objectiveReadbackSourceFromRecord(record) : null;
+  if (status === 'ready' && (!source || !record)) {
+    throw new Error('objective_readback_source_unavailable');
+  }
+  return {
+    contract_version: FOUNDATION_OBJECTIVE_READBACK_CONTRACT_VERSION,
+    status,
+    source,
+    checked_at: checkedAt,
+    record: status === 'ready' ? record : null,
+    objective: status === 'ready' ? record : null,
+    reason: status === 'ready' ? null : reason,
+  };
+}
+
+function objectiveReadbackReason(value: unknown): ObjectiveReadbackReason | null {
+  const object = asRecord(value);
+  if (!object || typeof object.code !== 'string' || !object.code.trim()
+    || typeof object.message !== 'string' || !object.message.trim()) return null;
+  return { code: object.code, message: object.message };
+}
+
+function objectiveReadbackRecord(value: unknown): FoundationCatalogRecord | null {
+  const object = asRecord(value);
+  const definition = asRecord(object?.definition);
+  if (!object || !definition || definition.type !== 'objective'
+    || typeof definition.id !== 'string' || !definition.id.trim()
+    || typeof definition.revision !== 'string' || !definition.revision.trim()
+    || typeof object.digest !== 'string' || !object.digest.trim()
+    || !Array.isArray(definition.provenance)
+    || !definition.provenance.every(isFoundationProvenance)) return null;
+  return object as FoundationCatalogRecord;
+}
+
+function objectiveReadbackMatchesRequest(
+  record: FoundationCatalogRecord,
+  requestedId: string,
+  requestedRevision?: string,
+): boolean {
+  return record.definition.id === requestedId
+    && (!requestedRevision || record.definition.revision === requestedRevision);
+}
+
+function objectiveReadbackSourceValue(value: unknown): ObjectiveReadbackSource | null {
+  const object = asRecord(value);
+  if (!object || object.source_type !== 'foundation_revision_store'
+    || typeof object.source_id !== 'string' || !object.source_id.trim()
+    || typeof object.source_version !== 'string' || !object.source_version.trim()
+    || typeof object.digest !== 'string' || !object.digest.trim()
+    || !Array.isArray(object.provenance)
+    || !object.provenance.every(isFoundationProvenance)) return null;
+  return object as ObjectiveReadbackSource;
+}
+
+function isFoundationProvenance(value: unknown): boolean {
+  const object = asRecord(value);
+  if (!object) return false;
+  return typeof object.sourceId === 'string'
+    && object.sourceId.trim().length > 0
+    && typeof object.sourceKind === 'string'
+    && FOUNDATION_PROVENANCE_KINDS.has(object.sourceKind)
+    && Array.isArray(object.evidenceIds)
+    && object.evidenceIds.every((id: unknown) => typeof id === 'string');
+}
+
+function sameObjectiveIdentity(left: FoundationCatalogRecord, right: FoundationCatalogRecord): boolean {
+  return left.definition.id === right.definition.id
+    && left.definition.revision === right.definition.revision
+    && left.digest === right.digest;
+}
+
+function isCanonicalIsoTimestamp(value: unknown): value is string {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  const parsed = new Date(value);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString() === value;
 }
 
 /**
@@ -329,9 +471,48 @@ export function createObjectiveFoundationRoute(options: ObjectiveFoundationHttpR
       }
 
       if (method === 'GET') {
-        const record = await options.objectives.readObjective(id, input.context, revision);
-        if (!record) throw new FoundationHttpError(404, 'not_found', `Objective ${id} was not found`);
-        return jsonResponse(200, { state: 'ready', record, objective: record });
+        try {
+          const record = await options.objectives.readObjective(id, input.context, revision);
+          const checkedAt = objectiveReadbackCheckedAt(options.clock);
+          if (!record) {
+            return jsonResponse(404, objectiveReadbackPayload(
+              'unknown',
+              checkedAt,
+              null,
+              { code: 'not_found', message: `Objective ${id} was not found` },
+            ));
+          }
+          const canonicalRecord = objectiveReadbackRecord(record);
+          if (!canonicalRecord) {
+            return jsonResponse(502, objectiveReadbackPayload(
+              'error',
+              checkedAt,
+              null,
+              { code: 'invalid_canonical_record', message: 'The canonical Objective readback is incomplete' },
+            ));
+          }
+          if (!objectiveReadbackMatchesRequest(canonicalRecord, id, revision)) {
+            return jsonResponse(502, objectiveReadbackPayload(
+              'error',
+              checkedAt,
+              null,
+              { code: 'readback_identity_mismatch', message: 'The canonical Objective readback does not match the requested id or revision' },
+            ));
+          }
+          return jsonResponse(200, objectiveReadbackPayload('ready', checkedAt, canonicalRecord, null));
+        } catch (error) {
+          const normalized = normalizeHttpError(error);
+          const checkedAt = objectiveReadbackCheckedAt(options.clock);
+          const status: ObjectiveReadbackStatus = normalized.status === 404 || normalized.code === 'not_found'
+            ? 'unknown'
+            : 'error';
+          return jsonResponse(normalized.status, objectiveReadbackPayload(
+            status,
+            checkedAt,
+            null,
+            { code: normalized.code, message: normalized.message },
+          ));
+        }
       }
       if (method === 'PUT') {
         const current = await options.objectives.readObjective(id, input.context, revision);
@@ -452,6 +633,10 @@ function parseConstraintReferences(payload: unknown): FoundationRevision[] {
 
 function readinessPayload(readiness: ObjectiveReadiness): ObjectiveReadiness & { state: string } {
   return { state: 'ready', ready: readiness.ready, issues: readiness.issues };
+}
+
+function objectiveReadbackCheckedAt(clock?: () => Date): string {
+  return (clock?.() ?? new Date()).toISOString();
 }
 
 function normalizeCollectionPayload(value: unknown, key: 'links' | 'refs'): Record<string, unknown> {
