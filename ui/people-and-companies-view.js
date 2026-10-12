@@ -127,6 +127,8 @@ export function normalizePeopleAndCompanies(result) {
     && isIdList(person.companyIds) && Number.isInteger(person.projectCount) && Number.isInteger(person.accountableProjectCount)
     && (person.orgNote === undefined || isTextOrNull(person.orgNote)))) return INVALID;
   if (!Array.isArray(payload.companies) || !payload.companies.every(isCompanySummary)) return INVALID;
+  if (payload.personProjects !== undefined && !(Array.isArray(payload.personProjects) && payload.personProjects.every((project) => isRecord(project)
+    && typeof project.code === 'string' && project.code.trim() && isTextOrNull(project.name)))) return INVALID;
   if (payload.people.length === 0 && payload.companies.length === 0 && payload.absenceConfirmed !== true) return { state: 'unknown' };
   return { state: 'ok', payload };
 }
@@ -189,6 +191,9 @@ export function personOrgNote(person, ownCompanyId) {
  *   With writes allowed, only these (see `graphCorrectionScope`): `createEntities: false` withholds
  *   人を加える・会社を加える, `createEdges: false` withholds 所属を付ける・所属する人を加える, `edges: false`
  *   withholds 所属を終える, and `entityTypes` limits the kinds that may be created.
+ *   A host that places people in projects lists the projects a new person may join as
+ *   `personProjects` (`[{ code, name }]`) in its read; 人を加える then requires one and sends it as
+ *   `entity.projectCode`.  Without that list (the local host) no project is asked or sent.
  * @param {string} [options.token] Launch token sent with a correction.
  * @param {string} [options.tokenHeader] Header name for the token.
  */
@@ -297,11 +302,14 @@ export function createPeopleAndCompaniesView({
   }
 
   function openCreateEntity(type) {
+    // A host that places people in projects lists the ones a new person may join (`personProjects`).
+    const projects = type === 'person' && state.list.state === 'ok' ? state.list.payload.personProjects ?? [] : [];
     correction.openCreateEntity({
       types: [type],
       typeNames: { person: '人', org: '会社' },
       title: type === 'org' ? '会社を加える' : '人を加える',
       subject: type === 'org' ? 'Graphに会社の記録を作ります。' : 'Graphに人の記録を作ります。',
+      projects,
     });
   }
 
