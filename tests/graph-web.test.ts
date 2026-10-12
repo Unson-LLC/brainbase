@@ -181,6 +181,7 @@ describe('local Graph web reads', () => {
       participates_in: ['person', 'project', 2, 1],
       accountable_for: ['person', 'project', 1, 1],
       owned_by: ['project', 'org', 0, 0],
+      related_to: ['org', 'project', 0, 0],
       governs: ['decision', 'project', 1, 1],
       supersedes: ['decision', 'decision', 0, 0]
     });
@@ -501,6 +502,46 @@ describe('local Graph people and companies', () => {
       ['org-globex', true, ['person-sato'], []],
       ['org-old', false, [], []]
     ]);
+  });
+
+  it('splits a company\'s projects into owned_by and related_to with the role, and derives its kind only from records', async () => {
+    const withRole = (fromId: string, toId: string, role: string, extra: Partial<CanonicalEdge> = {}): CanonicalEdge => ({ ...link(fromId, 'related_to', toId), role, ...extra });
+    const companies = [
+      { id: 'org-globex', type: 'org', name: 'Globex', metadata: { orgType: 'customer' } },
+      { id: 'org-hooli', type: 'org', name: 'Hooli' },
+      { id: 'org-initech', type: 'org', name: 'Initech', metadata: { lifecycle_stage: 'opportunity', deals: [{ name: 'PoCの提案', stage: '提案中' }, '保守の相談', 42, { amount: 100 }] } },
+      { id: 'org-lead', type: 'org', name: 'Lead社', metadata: { lifecycle_stage: 'lead', orgType: 'vendor' } },
+      { id: 'org-plain', type: 'org', name: 'Plain社' }
+    ] as const;
+    await writeGraphV2(dataDir, {
+      entities: [...Object.values(ENTITIES), ...companies],
+      edges: [
+        ...Object.values(EDGES),
+        selfAcme,
+        link('project-atlas', 'owned_by', 'org-acme'),
+        withRole('org-globex', 'project-atlas', 'customer'),
+        withRole('org-hooli', 'project-atlas', 'partner'),
+        // An ended relation and a relation to an ended project are not counted.
+        withRole('org-plain', 'project-atlas', 'customer', { validTo: '2026-01-01T00:00:00Z' }),
+        withRole('org-lead', 'project-beta', 'customer')
+      ]
+    });
+    const result = await readGraphPeopleAndCompanies(dataDir, { now: FIXTURE_NOW });
+    if (result.status !== 'ok') throw new Error('expected ok');
+    // The own company first, then the companies with a recorded kind, then the rest.
+    expect(result.companies.map((company) => [company.id, company.projectIds, company.relatedProjects, company.kinds])).toEqual([
+      ['org-acme', ['project-atlas'], [], []],
+      ['org-globex', [], [{ projectId: 'project-atlas', role: 'customer' }], [{ kind: 'customer', sources: ['orgType', 'related_to'] }]],
+      ['org-hooli', [], [{ projectId: 'project-atlas', role: 'partner' }], [{ kind: 'partner', sources: ['related_to'] }]],
+      ['org-initech', [], [], [{ kind: 'prospect', sources: ['lifecycle_stage', 'deals'] }]],
+      ['org-lead', [], [], []],
+      ['org-plain', [], [], []]
+    ]);
+    const byId = new Map(result.companies.map((company) => [company.id, company]));
+    expect(byId.get('org-initech')).toMatchObject({ lifecycleStage: 'opportunity', orgType: null, deals: [{ name: 'PoCの提案', stage: '提案中' }, { name: '保守の相談', stage: null }, { name: null, stage: null }] });
+    // Values outside the known kinds are returned as recorded but give no kind.
+    expect(byId.get('org-lead')).toMatchObject({ lifecycleStage: 'lead', orgType: 'vendor', deals: [], kinds: [] });
+    expect(byId.get('org-plain')).toMatchObject({ orgType: null, lifecycleStage: null, deals: [], kinds: [] });
   });
 
   it('leaves the own company unset with the reason instead of guessing it', async () => {

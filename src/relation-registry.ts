@@ -42,6 +42,14 @@ const definitions = {
     scopeTraversal: 'project_direct',
     traversalDirection: 'reverse'
   },
+  related_to: {
+    id: 'related_to',
+    from: 'org',
+    to: 'project',
+    meaning: 'An organization is involved in a project it does not own, such as a customer or a partner; the edge role names how.',
+    scopeTraversal: 'project_direct',
+    traversalDirection: 'forward'
+  },
   governs: {
     id: 'governs',
     from: 'decision',

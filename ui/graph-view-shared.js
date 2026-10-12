@@ -56,6 +56,7 @@ export const GRAPH_RELATION_LABELS = Object.freeze({
   participates_in: Object.freeze({ label: '参加', meaning: '人物がプロジェクトに参加している', outgoing: 'に参加', incoming: 'が参加' }),
   accountable_for: Object.freeze({ label: '責任', meaning: '人物がプロジェクトの成果や判断に責任を持つ', outgoing: 'に責任を持つ', incoming: 'が責任を持つ' }),
   owned_by: Object.freeze({ label: '所有', meaning: 'プロジェクトを組織が所有している', outgoing: 'が所有', incoming: 'を所有' }),
+  related_to: Object.freeze({ label: '関わる', meaning: '会社が顧客・協業先などとしてプロジェクトに関わっている', outgoing: 'に関わる', incoming: 'が関わる' }),
   governs: Object.freeze({ label: '方針', meaning: '判断や原則がプロジェクトの進め方を決める', outgoing: 'の進め方を決める', incoming: 'が進め方を決める' }),
   supersedes: Object.freeze({ label: '置き換え', meaning: '判断が以前の判断を置き換える', outgoing: 'を置き換える', incoming: 'に置き換えられた' }),
 });

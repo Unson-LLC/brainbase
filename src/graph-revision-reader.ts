@@ -91,6 +91,7 @@ const CORE_RELATIONS: readonly CoreRelation[] = [
   'participates_in',
   'accountable_for',
   'owned_by',
+  'related_to',
   'governs',
   'supersedes'
 ];

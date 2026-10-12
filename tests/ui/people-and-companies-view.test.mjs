@@ -101,7 +101,48 @@ describe('人と会社', () => {
     await view.openEntity('org-acme');
     await waitFor(() => view.state.detail?.state === 'ok');
     expect(visibleText(section(rail, '所属する人'))).toContain('田中 太郎');
-    expect(visibleText(section(rail, 'プロジェクト'))).toContain('Atlas導入');
+    expect(visibleText(section(rail, 'この会社のプロジェクト'))).toContain('Atlas導入');
+    expect(visibleText(section(rail, '顧客・協業先として関わるプロジェクト'))).toContain('記録はありません');
+    // No kind, stage or deal is recorded for Acme, so none is shown.
+    expect(visibleText(rail)).not.toContain('種類');
+    expect(section(rail, '提案中の案件')).toBeUndefined();
+  });
+
+  it('lists companies with the kind from records and opens related projects with the role and the deals', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [
+        ...Object.values(ENTITIES),
+        { ...GLOBEX, metadata: { orgType: 'customer' } },
+        { id: 'org-initech', type: 'org', name: 'Initech', metadata: { lifecycle_stage: 'opportunity', deals: [{ name: 'PoCの提案', stage: '提案中' }] } },
+        { id: 'org-plain', type: 'org', name: 'Plain社' },
+      ],
+      edges: [
+        ...Object.values(EDGES),
+        link('self', 'member_of', 'org-acme'),
+        { ...link('org-globex', 'related_to', 'project-atlas'), role: 'customer', provenance: { sourceKind: 'user_approved' } },
+      ],
+    });
+    const { root, rail, view } = await mountView();
+    const companies = ledgerByLabel(root, '会社の一覧');
+    expect(ledgerNames(companies)).toEqual(['Acme（自社）', 'Globex', 'Initech', 'Plain社']);
+    const kindCells = findAll(companies, (node) => node.attributes?.role === 'row' && node.tagName === 'BUTTON').map((row) => row.children[1].textContent);
+    expect(kindCells).toEqual(['', '顧客', '提案中', '']);
+    expect(visibleText(companies)).toContain('0件（関わる 1件）');
+
+    await view.openEntity('org-globex');
+    await waitFor(() => view.state.detail?.state === 'ok');
+    expect(visibleText(rail)).toContain('顧客（会社の属性・プロジェクトとの関係の役割から）');
+    const related = visibleText(section(rail, '顧客・協業先として関わるプロジェクト'));
+    expect(related).toContain('Atlas導入');
+    expect(related).toContain('役割: 顧客');
+    expect(visibleText(section(rail, 'この会社のプロジェクト'))).toContain('記録はありません');
+
+    await view.openEntity('org-initech');
+    await waitFor(() => view.state.detail?.state === 'ok');
+    expect(visibleText(rail)).toContain('記録上の段階');
+    expect(visibleText(rail)).toContain('opportunity');
+    expect(visibleText(section(rail, '提案中の案件'))).toContain('PoCの提案');
+    expect(visibleText(section(rail, '提案中の案件'))).toContain('段階: 提案中');
   });
 
   it('never shows a failed or malformed read as zero people', async () => {
@@ -112,6 +153,12 @@ describe('人と会社', () => {
     expect(section(root, '人')).toBeUndefined();
 
     expect(normalizePeopleAndCompanies({ state: 'ok', payload: { ownCompany: null, people: [], companies: [] } })).toMatchObject({ state: 'invalid' });
+    // A company without the related projects, deals or kinds is malformed, not a company without them.
+    const company = { id: 'org-a', type: 'org', name: 'A', aliases: [], summary: null, tags: [], validFrom: null, validTo: null, active: true, digest: 'd', memberIds: [], projectIds: [] };
+    const own = { id: null, reason: 'owner_not_found', candidateIds: [] };
+    expect(normalizePeopleAndCompanies({ state: 'ok', payload: { ownCompany: own, people: [], companies: [company] } })).toMatchObject({ state: 'invalid' });
+    expect(normalizePeopleAndCompanies({ state: 'ok', payload: { ownCompany: own, people: [], companies: [{ ...company, relatedProjects: [], orgType: null, lifecycleStage: null, deals: [], kinds: [] }] } }))
+      .toMatchObject({ state: 'ok' });
     expect(normalizePeopleAndCompanies({ state: 'ok', payload: { ownCompany: { id: null, reason: 'owner_not_found', candidateIds: [] }, people: [], companies: [] } }))
       .toEqual({ state: 'unknown' });
   });
