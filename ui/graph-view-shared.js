@@ -102,6 +102,7 @@ const CORRECTION_KIND_LABELS = Object.freeze({
   update_entity: '記録を直した',
   update_edge: '関係を直した',
   create_edge: '関係を加えた',
+  create_entity: '記録を加えた',
 });
 
 /** Inputs of the correction form. `date` inputs hold a local day (YYYY-MM-DD). */
@@ -128,6 +129,9 @@ export const GRAPH_CORRECTION_ERROR_MESSAGES = Object.freeze({
   correction_relation_change_not_allowed: '関係の種類は変えられません。今の関係を終えてから、新しい関係を加えてください。',
   correction_endpoint_change_not_allowed: '関係の相手は変えられません。今の関係を終えてから、新しい関係を加えてください。',
   correction_endpoint_type_invalid: 'この組み合わせの関係は加えられません。',
+  correction_entity_type_not_allowed: 'ここで作れるのは人と会社だけです。',
+  correction_name_required: '名前を書いてください。',
+  entity_already_exists: '同じ名前の記録がすでにあります。今の記録を開いて確かめてください。',
   correction_field_not_allowed: 'この項目は、ここでは直せません。',
   correction_changes_required: '変更がありません。直したい項目を書き換えてください。',
   correction_scope_not_allowed: 'この画面では、この記録や関係は直せません。',
@@ -443,6 +447,7 @@ export function readOnlyGraphClient(client) {
  *   `GRAPH_CORRECTION_FIELDS` such as `name` or `goal` (default: every field).
  * - `edges: false`: relations cannot be corrected or ended.
  * - `createEdges: false`: relations cannot be added.
+ * - `createEntities: false`: people and companies cannot be created.
  */
 export function graphCorrectionScope(scope) {
   const given = isRecord(scope) ? scope : {};
@@ -452,6 +457,7 @@ export function graphCorrectionScope(scope) {
   return Object.freeze({
     edges: given.edges !== false,
     createEdges: given.createEdges !== false,
+    createEntities: given.createEntities !== false,
     /** Whether a record of this kind may be corrected. */
     entity: (type) => types === null || types.has(type),
     /** The given record fields that may be corrected, in their order. */
@@ -467,6 +473,7 @@ export function graphEntityCorrectionFields(type) {
 /** Whether a built correction request stays inside the scope (`recordType` is the corrected entity's kind). */
 function withinCorrectionScope(scope, body, recordType) {
   if (body.kind === 'create_edge') return scope.createEdges;
+  if (body.kind === 'create_entity') return scope.createEntities && scope.entity(body.entity?.type);
   if (body.kind === 'update_edge') return scope.edges;
   const changed = Object.keys(body.changes ?? {});
   return scope.entity(recordType) && scope.fields(changed).length === changed.length;
@@ -821,6 +828,24 @@ export function buildCorrectionRequest(form) {
     return { ok: true, body: { kind: 'create_edge', reason, edge } };
   }
 
+  if (form.kind === 'create_entity') {
+    const type = String(form.draft.type ?? '');
+    if (!form.entityTypes.includes(type)) return { ok: false, message: '作る記録の種類を選んでください。' };
+    const name = String(form.draft.name ?? '').trim();
+    if (!name) return { ok: false, message: GRAPH_CORRECTION_ERROR_MESSAGES.correction_name_required };
+    const entity = { type, name };
+    const aliases = splitAliases(form.draft.aliases ?? '').filter((alias) => alias !== name);
+    const summary = String(form.draft.summary ?? '').trim();
+    if (aliases.length > 0) entity.aliases = aliases;
+    if (summary) entity.summary = summary;
+    if (form.draft.validFrom) {
+      const validFrom = dayToRfc3339(form.draft.validFrom);
+      if (!validFrom) return { ok: false, message: '開始日の形式が正しくありません。' };
+      entity.validFrom = validFrom;
+    }
+    return { ok: true, body: { kind: 'create_entity', reason, entity } };
+  }
+
   const changes = {};
   for (const field of form.fields) {
     if (field === 'icon') {
@@ -861,9 +886,15 @@ export function buildCorrectionRequest(form) {
 
 function readBackFields(form, payload) {
   if (form.kind === 'create_edge') return ['role', 'context', 'validFrom', 'validTo'];
+  if (form.kind === 'create_entity') return ['name', 'aliases', 'summary', 'validFrom'];
   const changed = Array.isArray(payload?.correction?.changedFields) ? payload.correction.changedFields : [];
   const fields = changed.map((field) => field.replace(/^metadata\./u, '')).filter((field) => GRAPH_CORRECTION_FIELDS[field]);
   return fields.length > 0 ? fields : form.fields;
+}
+
+/** What a new record is, as rows shown before its values. */
+function createdEntityRows(form, record) {
+  return [['種類', form.typeNames[record?.type] ?? typeLabel(record?.type)]];
 }
 
 /** What a new relation connects, as rows shown before its values. */
@@ -1016,6 +1047,22 @@ function renderCreateFields(doc, form, callbacks) {
   return group;
 }
 
+function renderCreateEntityFields(doc, form, callbacks) {
+  const group = makeElement(doc, 'div', { className: 'bb-graph-fields' });
+  if (form.entityTypes.length > 1) {
+    group.append(selectControl(doc, {
+      id: `${form.formId}-type`,
+      name: 'type',
+      label: '種類',
+      value: form.draft.type,
+      options: form.entityTypes.map((type) => ({ value: type, label: form.typeNames[type] ?? typeLabel(type) })),
+      onChange: (value) => callbacks.onInput('type', value),
+    }));
+  }
+  for (const field of form.fields) group.append(fieldControl(doc, form, field, callbacks));
+  return group;
+}
+
 /**
  * The correction panel.  `form` is the state held by `createGraphCorrection`;
  * callbacks are the controller's handlers.
@@ -1036,7 +1083,9 @@ export function renderCorrectionPanel(doc, form, callbacks) {
     const readBack = makeElement(doc, 'div', { className: 'bb-graph-readback', attrs: { 'aria-label': '読み直した内容' } });
     readBack.append(
       makeElement(doc, 'strong', { text: '読み直した内容' }),
-      renderValues(doc, payload.record, readBackFields(form, payload), form.kind === 'create_edge' ? createdRows(form, payload.record) : []),
+      renderValues(doc, payload.record, readBackFields(form, payload), form.kind === 'create_edge'
+        ? createdRows(form, payload.record)
+        : form.kind === 'create_entity' ? createdEntityRows(form, payload.record) : []),
     );
     panel.append(readBack, notice(doc, 'accent', mcpNote(payload)));
     panel.append(recordDetails(doc, [['記録ID', payload.record?.id], ['保存した内容のdigest', payload.digest], ['訂正ID', payload.correction?.id]]));
@@ -1046,12 +1095,17 @@ export function renderCorrectionPanel(doc, form, callbacks) {
 
   if (form.phase === 'conflict') {
     const exists = form.conflictCode === 'edge_already_exists';
-    panel.append(notice(doc, 'warning', exists
-      ? 'この関わりはすでに登録されているため、加えませんでした。今の内容を下に示します。終わった関わりをもう一度始めるときは、その関わりの終了日を消してください。入力は残しています。'
-      : 'ほかの保存で内容が変わっていたため、保存しませんでした。今の内容を下に示します。入力は残しています。今の内容を確かめてから、もう一度保存してください。', 'alert'));
+    const entityExists = form.conflictCode === 'entity_already_exists';
+    panel.append(notice(doc, 'warning', entityExists
+      ? '同じ名前の記録がすでにあるため、作りませんでした。今の記録を下に示します。同じ人や会社なら、今の記録を使ってください（終わっている記録は、終了日を消すと戻せます）。入力は残しています。'
+      : exists
+        ? 'この関わりはすでに登録されているため、加えませんでした。今の内容を下に示します。終わった関わりをもう一度始めるときは、その関わりの終了日を消してください。入力は残しています。'
+        : 'ほかの保存で内容が変わっていたため、保存しませんでした。今の内容を下に示します。入力は残しています。今の内容を確かめてから、もう一度保存してください。', 'alert'));
     const current = makeElement(doc, 'div', { className: 'bb-graph-current', attrs: { 'aria-label': '今の内容' } });
-    const fields = exists ? ['role', 'context', 'validFrom', 'validTo'] : form.fields;
-    current.append(makeElement(doc, 'strong', { text: '今の内容' }), renderValues(doc, form.current.record, fields));
+    const fields = exists ? ['role', 'context', 'validFrom', 'validTo'] : entityExists ? ['name', 'aliases', 'summary', 'validFrom', 'validTo'] : form.fields;
+    current.append(makeElement(doc, 'strong', { text: '今の内容' }), renderValues(doc, form.current.record, fields, entityExists
+      ? [['種類', form.typeNames[form.current.record?.type] ?? typeLabel(form.current.record?.type)]]
+      : []));
     current.append(recordDetails(doc, [['記録ID', form.current.record?.id], ['今の内容のdigest', form.current.digest]]));
     panel.append(current);
   } else if (form.message) {
@@ -1066,6 +1120,8 @@ export function renderCorrectionPanel(doc, form, callbacks) {
   });
   if (form.kind === 'create_edge') {
     formElement.append(renderCreateFields(doc, form, callbacks));
+  } else if (form.kind === 'create_entity') {
+    formElement.append(renderCreateEntityFields(doc, form, callbacks));
   } else {
     const group = makeElement(doc, 'div', { className: 'bb-graph-fields' });
     for (const field of form.fields) group.append(fieldControl(doc, form, field, callbacks));
@@ -1299,6 +1355,29 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
       void searchCandidates('');
       return form;
     },
+    /**
+     * Create a person or a company.  `types` lists the kinds offered (only
+     * `person` and `org` are created; others are dropped), `typeNames` their
+     * labels.  Null outside the scope.
+     */
+    openCreateEntity({ types = ['person', 'org'], type, typeNames = {}, title = '記録を加える', subject } = {}) {
+      const entityTypes = allowed.createEntities
+        ? types.filter((candidate) => (candidate === 'person' || candidate === 'org') && allowed.entity(candidate))
+        : [];
+      if (entityTypes.length === 0) return null;
+      const fields = ['name', 'aliases', 'summary', 'validFrom'];
+      form = baseForm('create_entity', {
+        title,
+        subject: subject ?? null,
+        entityTypes,
+        typeNames,
+        fields,
+        original: Object.fromEntries(fields.map((field) => [field, ''])),
+        draft: { type: entityTypes.includes(type) ? type : entityTypes[0], name: '', aliases: '', summary: '', validFrom: '' },
+      });
+      redraw();
+      return form;
+    },
     close() {
       iconReadGeneration += 1;
       form = null;
@@ -1354,7 +1433,7 @@ export function createGraphCorrection({ client, rerender, onSaved, onConflict, n
         // The owner now sees the current record; the next save is based on it
         // and still sends only the fields the owner changed.  Untouched fields
         // show the current values so the form never suggests reverting them.
-        if (target.kind !== 'create_edge' && typeof result.current.digest === 'string') {
+        if (target.kind !== 'create_edge' && target.kind !== 'create_entity' && typeof result.current.digest === 'string') {
           target.expectedDigest = result.current.digest;
           const currentValues = graphRecordValues(result.current.record);
           for (const field of target.fields) {

@@ -359,6 +359,23 @@ describe('local Web shell', () => {
     expect(calls).toEqual(expect.arrayContaining(['/api/graph/projects', '/api/graph/search?limit=50', '/api/graph/ontology']));
   });
 
+  it('opens 人と会社 as a screen the owner can write to', async () => {
+    const person = { id: 'self', type: 'person', name: 'Owner', aliases: [], summary: null, tags: [], validFrom: null, validTo: null, active: true, digest: 'sha256:x',
+      isOwner: true, companyIds: [], projectCount: 0, accountableProjectCount: 0, orgNote: null };
+    const { fetcher } = hostFetcher(V2, {
+      '/api/graph/people-and-companies': () => jsonResponse(200, {
+        status: 'ok', asOf: '2026-09-26T00:00:00.000Z', ownCompany: { id: null, reason: 'owner_has_no_company', candidateIds: [] },
+        people: [person], companies: [], absenceConfirmed: false,
+      }),
+    });
+    const { root } = mount(fetcher, 'people');
+    await flushMany();
+    const people = screen(root, 'people');
+    expect(collectText(people)).toContain('自社が未設定');
+    expect(findAll(people, (node) => node.tagName === 'BUTTON' && ['人を加える', '会社を加える'].includes(node.textContent)).map((node) => node.textContent))
+      .toEqual(['人を加える', '会社を加える']);
+  });
+
   it('shows the migration commands on the Graph screens for Graph v1 and never reads the Graph', async () => {
     for (const [id, label] of [['projects', 'プロジェクトと関係者'], ['graph', '情報と関係']]) {
       const { fetcher, calls } = hostFetcher(V1);

@@ -199,6 +199,24 @@ describe('local Graph web HTTP handler', () => {
     });
   });
 
+  it('creates a company over HTTP, shows it on the next people read and refuses another kind or a duplicate', async () => {
+    await writeGraphV2(dataDir);
+    const base = await start();
+    const created = await postCorrection(base, { kind: 'create_entity', reason: '取引先として記録する。', entity: { type: 'org', name: 'Globex' } });
+    expect(created.status).toBe(201);
+    const body = await created.json();
+    expect(body).toMatchObject({ status: 'saved', recordType: 'entity', record: { type: 'org', name: 'Globex' }, readback: { verified: true, historyRecorded: true } });
+    const people = await (await fetch(`${base}/api/graph/people-and-companies`)).json();
+    expect(people.companies.map((company: { id: string }) => company.id)).toContain(body.record.id);
+
+    const project = await postCorrection(base, { kind: 'create_entity', reason: '作る。', entity: { type: 'project', name: '新案件' } });
+    expect(project.status).toBe(400);
+    expect(await project.json()).toMatchObject({ error: { code: 'correction_entity_type_not_allowed' } });
+    const duplicate = await postCorrection(base, { kind: 'create_entity', reason: 'もう一度。', entity: { type: 'org', name: 'globex' } });
+    expect(duplicate.status).toBe(409);
+    expect((await duplicate.json()).error).toMatchObject({ code: 'entity_already_exists', current: { recordType: 'entity', record: { id: body.record.id } } });
+  });
+
   it('answers invalid corrections with 400 and the specific rule', async () => {
     await writeGraphV2(dataDir);
     const base = await start();

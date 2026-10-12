@@ -270,7 +270,7 @@ function mountObjectives(container, context) {
   return { editor, worldModel };
 }
 
-function mountGraphScreen(screenId, createView) {
+function mountGraphScreen(screenId, createView, extra = {}) {
   return (container, context) => {
     const viewRoot = makeElement(context.document, 'div');
     makePage(container, context).append(viewRoot);
@@ -282,6 +282,7 @@ function mountGraphScreen(screenId, createView) {
       fetcher: context.fetcher,
       token: context.token,
       initialEntityId: context.initialEntityId,
+      ...extra,
     });
   };
 }
@@ -292,7 +293,7 @@ export const LOCAL_WEB_SCREENS = Object.freeze([
   Object.freeze({ id: 'objectives', label: '目的と現状', area: 'purpose', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
   Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', area: 'work', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
   Object.freeze({ id: 'graph', label: '情報と関係', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),
-  Object.freeze({ id: 'people', label: '人と会社', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView) }),
+  Object.freeze({ id: 'people', label: '人と会社', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView, { canCorrect: true }) }),
 ]);
 
 function renderGraphGate(doc, slot, status, onRecheck, label) {

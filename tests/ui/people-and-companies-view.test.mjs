@@ -11,7 +11,22 @@ import {
   PEOPLE_LEDGER_COLUMNS,
 } from '../../ui/people-and-companies-view.js';
 import { EDGES, ENTITIES, writeGraphV2 } from '../graph-web-fixture.js';
-import { FakeDocument, FakeElement, findAll, jsonResponse, section, startGraphApi, visibleText, waitFor } from './graph-ui-harness.mjs';
+import { dayToRfc3339 } from '../../ui/graph-view-shared.js';
+import {
+  buttonsNamed,
+  control,
+  FakeDocument,
+  FakeElement,
+  findAll,
+  jsonResponse,
+  section,
+  startGraphApi,
+  submit,
+  TOKEN,
+  type,
+  visibleText,
+  waitFor,
+} from './graph-ui-harness.mjs';
 
 let directory;
 let dataDir;
@@ -32,11 +47,11 @@ const PAGE = { crumbs: ['あなたのBrainbase', '人と会社'], source: '手�
 const link = (fromId, relation, toId) => ({ id: canonicalEdgeId({ fromId, relation, toId }), fromId, relation, toId });
 const GLOBEX = { id: 'org-globex', type: 'org', name: 'Globex' };
 
-async function mountView({ fetcher } = {}) {
+async function mountView({ fetcher, ...options } = {}) {
   if (!fetcher) api = await startGraphApi(dataDir);
   const root = new FakeElement('div');
   const rail = new FakeElement('div');
-  const view = createPeopleAndCompaniesView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher: fetcher ?? api.fetcher, autoLoad: false, now: () => new Date(2026, 8, 26, 12) });
+  const view = createPeopleAndCompaniesView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher: fetcher ?? api.fetcher, autoLoad: false, now: () => new Date(2026, 8, 26, 12), ...options });
   await view.load();
   return { root, rail, view };
 }
@@ -90,8 +105,18 @@ describe('人と会社', () => {
     expect(visibleText(section(rail, '関わるプロジェクト'))).toContain('出典: オンボーディング');
     const fix = findAll(rail, (node) => node.tagName === 'A')[0];
     expect(fix.attributes.href).toBe('#graph?entity_id=person-tanaka');
-    // Read only: no correction control in this screen.
+    // Read only unless the host says it can write: no write control anywhere.
     expect(findAll(root, (node) => ['INPUT', 'TEXTAREA', 'SELECT', 'FORM'].includes(node.tagName))).toEqual([]);
+    for (const label of ['人を加える', '会社を加える', '所属を付ける', '所属を終える']) {
+      expect(buttonsNamed(root, label)).toEqual([]);
+      expect(buttonsNamed(rail, label)).toEqual([]);
+    }
+    // Even a form opened from code is refused before anything is sent.
+    view.correction.openCreateEntity({ types: ['org'] });
+    type(rail, 'name', 'Globex');
+    type(rail, 'reason', '作る。');
+    await submit(rail);
+    expect(visibleText(rail)).toContain('このホストでは保存できません。');
     expect(api.requests.every((request) => request.method === 'GET')).toBe(true);
   });
 
@@ -173,5 +198,149 @@ describe('人と会社', () => {
     expect(groups.internal.map((item) => item.id)).toEqual(['p1']);
     expect(groups.external.map((group) => [group.company.id, group.people.map((item) => item.id)])).toEqual([['org-a', ['p3']], ['org-b', ['p2']]]);
     expect(groups.unknown.map((item) => item.id)).toEqual(['p4']);
+  });
+});
+
+describe('人と会社: writing (情報契約S3)', () => {
+  const writable = { canCorrect: true, token: TOKEN };
+  const company = (root, name) => findAll(ledgerByLabel(root, '会社の一覧'), (node) => node.tagName === 'BUTTON' && visibleText(node).startsWith(name))[0];
+
+  it('creates a company from the screen, reads it back and opens it, with the reason sent to the host', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView(writable);
+    expect(buttonsNamed(root, '人を加える')).toHaveLength(1);
+    buttonsNamed(root, '会社を加える')[0].dispatch('click');
+    expect(visibleText(section(rail, '会社を加える'))).toContain('Graphに会社の記録を作ります。');
+    // Only the kind the button names is offered.
+    expect(control(rail, 'type')).toBeUndefined();
+    type(rail, 'name', 'Globex');
+    type(rail, 'aliases', 'グローベックス');
+    type(rail, 'reason', '新しい取引先として記録する。');
+    await submit(rail);
+    const post = api.posts()[0];
+    expect(post.body).toEqual({ kind: 'create_entity', reason: '新しい取引先として記録する。', entity: { type: 'org', name: 'Globex', aliases: ['グローベックス'] } });
+    expect(post.headers['X-Brainbase-Review-Token']).toBe(TOKEN);
+    await waitFor(() => company(root, 'Globex') && view.state.detail?.state === 'ok' && view.state.detail.payload.entity.name === 'Globex');
+    const saved = visibleText(section(rail, '会社を加える'));
+    expect(saved).toContain('保存しました。保存後に読み直し');
+    expect(saved).toContain('種類会社');
+    expect(saved).toContain('名前Globex');
+    expect(visibleText(rail)).toContain('所属する人');
+  });
+
+  it('refuses a second company with the same name and shows the existing record', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail } = await mountView(writable);
+    buttonsNamed(root, '会社を加える')[0].dispatch('click');
+    type(rail, 'name', 'acme');
+    type(rail, 'reason', '作る。');
+    await submit(rail);
+    const text = visibleText(section(rail, '会社を加える'));
+    expect(text).toContain('同じ名前の記録がすでにあるため、作りませんでした。');
+    expect(text).toContain('Acme');
+    expect(text).not.toContain('保存しました');
+  });
+
+  it('adds a membership to a person, then ends it with an end date instead of deleting it', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView(writable);
+    await view.openEntity('person-sato');
+    await waitFor(() => view.state.detail?.state === 'ok');
+    buttonsNamed(rail, '所属を付ける')[0].dispatch('click');
+    await waitFor(() => findAll(control(rail, 'counterpartId'), (node) => node.tagName === 'OPTION').some((node) => node.textContent === 'Acme'));
+    expect(findAll(control(rail, 'relation'), (node) => node.tagName === 'OPTION').map((node) => node.attributes.value)).toEqual(['member_of']);
+    expect(api.requests.some((request) => request.path === '/api/graph/search?type=org&limit=100')).toBe(true);
+    type(rail, 'counterpartId', 'org-acme');
+    type(rail, 'reason', 'Acmeの社員だと確かめた。');
+    await submit(rail);
+    expect(api.posts()[0].body).toEqual({ kind: 'create_edge', reason: 'Acmeの社員だと確かめた。', edge: { fromId: 'person-sato', relation: 'member_of', toId: 'org-acme' } });
+    // Read back from the host: the ledger and the rail show the new membership.
+    await waitFor(() => visibleText(section(rail, '所属')).includes('Acme')
+      && view.state.list.payload.people.find((person) => person.id === 'person-sato').companyIds.includes('org-acme'));
+    expect(visibleText(rail)).toContain('保存しました。保存後に読み直し');
+
+    const end = buttonsNamed(section(rail, '所属'), '所属を終える');
+    expect(end).toHaveLength(1);
+    end[0].dispatch('click');
+    expect(control(rail, 'validTo').value).toBe('2026-09-26');
+    type(rail, 'validTo', '2026-09-01');
+    type(rail, 'reason', '9月に退職した。');
+    await submit(rail);
+    const ended = api.posts()[1].body;
+    expect(ended).toMatchObject({ kind: 'update_edge', reason: '9月に退職した。', changes: { validTo: dayToRfc3339('2026-09-01') } });
+    await waitFor(() => visibleText(section(rail, '所属')).includes('2026-09-01 に終了')
+      && !view.state.list.payload.people.find((person) => person.id === 'person-sato').companyIds.includes('org-acme'));
+    // An ended membership offers no button, and nothing deletes a record.
+    expect(buttonsNamed(section(rail, '所属'), '所属を終える').filter((node) => visibleText(node.parentNode?.parentNode).includes('Acme'))).toHaveLength(0);
+    expect(findAll(root, (node) => node.tagName === 'BUTTON' && /削除|消す/u.test(node.textContent))).toEqual([]);
+    expect(findAll(rail, (node) => node.tagName === 'BUTTON' && /削除|消す/u.test(node.textContent))).toEqual([]);
+    expect(api.posts().every((request) => !/delete/u.test(request.body.kind))).toBe(true);
+  });
+
+  it('adds a person to a company from the company rail', async () => {
+    await writeGraphV2(dataDir);
+    const { rail, view } = await mountView(writable);
+    await view.openEntity('org-acme');
+    await waitFor(() => view.state.detail?.state === 'ok');
+    expect(buttonsNamed(section(rail, '所属する人'), '所属を終える')).toHaveLength(1);
+    buttonsNamed(rail, '所属する人を加える')[0].dispatch('click');
+    await waitFor(() => findAll(control(rail, 'counterpartId'), (node) => node.tagName === 'OPTION').some((node) => node.textContent === '佐藤 花子'));
+    type(rail, 'counterpartId', 'person-sato');
+    type(rail, 'reason', 'Acmeに入った。');
+    await submit(rail);
+    expect(api.posts()[0].body.edge).toEqual({ fromId: 'person-sato', relation: 'member_of', toId: 'org-acme' });
+    await waitFor(() => visibleText(section(rail, '所属する人')).includes('佐藤 花子'));
+  });
+
+  it('withholds what the host scope does not allow, without any role name in the part', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView({ ...writable, correctionScope: { createEntities: false, edges: false } });
+    expect(buttonsNamed(root, '人を加える')).toEqual([]);
+    expect(buttonsNamed(root, '会社を加える')).toEqual([]);
+    await view.openEntity('person-tanaka');
+    await waitFor(() => view.state.detail?.state === 'ok');
+    expect(buttonsNamed(rail, '所属を付ける')).toHaveLength(1);
+    expect(buttonsNamed(rail, '所属を終える')).toEqual([]);
+    expect(view.correction.openCreateEntity({ types: ['org'] })).toBeNull();
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile(new URL('../../ui/people-and-companies-view.js', import.meta.url), 'utf8');
+    expect(source).not.toMatch(/\b(gm|ceo|admin|owner_role|member_role)\b/u);
+  });
+
+  it('does not say saved when the host could not read the record back', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const fetcher = async (path, init = {}) => (init.method === 'POST'
+      ? jsonResponse(500, { error: { code: 'readback_mismatch', message: 'The saved record does not match' } })
+      : api.fetcher(path, init));
+    const { root, rail } = await mountView({ ...writable, fetcher });
+    buttonsNamed(root, '人を加える')[0].dispatch('click');
+    type(rail, 'name', '山田 次郎');
+    type(rail, 'reason', '新しく関わる人。');
+    await submit(rail);
+    const text = visibleText(section(rail, '人を加える'));
+    expect(text).toContain('保存後に読み直した内容が一致しませんでした');
+    expect(text).not.toContain('保存しました');
+  });
+
+  it('shows the company text on a person whose company is not known as a note, not as a membership', async () => {
+    await writeGraphV2(dataDir, {
+      entities: [
+        ...Object.values(ENTITIES).map((entity) => entity.id === 'person-sato' ? { ...entity, metadata: { org: '雲孫 / BAAO' } }
+          : entity.id === 'person-tanaka' ? { ...entity, metadata: { organization: 'Acme株式会社' } } : entity),
+      ],
+      edges: [...Object.values(EDGES), link('self', 'member_of', 'org-acme')],
+    });
+    const { root, rail, view } = await mountView();
+    const unknown = visibleText(ledgerByLabel(root, '所属未確認の人'));
+    expect(unknown).toContain('所属の記録なし');
+    expect(unknown).toContain('記録上のメモ: 雲孫 / BAAO（所属ではありません）');
+    // Tanaka is internal through his membership; his text is not shown.
+    expect(visibleText(ledgerByLabel(root, '社内の人'))).not.toContain('記録上のメモ');
+    expect(view.state.list.payload.people.find((person) => person.id === 'person-sato').companyIds).toEqual([]);
+    await view.openEntity('person-sato');
+    await waitFor(() => view.state.detail?.state === 'ok');
+    expect(visibleText(rail)).toContain('記録上のメモ雲孫 / BAAO（人物の記録に文字で残っている会社名です。所属の記録ではありません）');
+    expect(visibleText(section(rail, '所属'))).toContain('会社への所属の記録はありません。');
   });
 });
