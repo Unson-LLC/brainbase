@@ -6,6 +6,12 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.39.0 candidate — npm公開前
+
+- 関係の定義に `related_to`（会社→プロジェクト、役割は関係の `role`）を追加。「人と会社」の読み取りは、会社ごとに `related_to` で関わるプロジェクトと役割、記録どおりの `orgType`・`lifecycle_stage`・`deals`、記録だけから導いた種類（顧客・協業先・提案中）を返す（`story-people-and-companies-read-v1`）
+- 訂正に `create_entity` を追加。作れるのは人（`person`）と会社（`org`）だけで、理由と履歴を残し、保存後に読み戻して確かめる。同じ名前か別名の記録があれば作らず、今の記録を返す。共通部品「人と会社」は、ホストが `canCorrect: true` を渡したときだけ、人・会社を作る、所属を付ける、所属を終える（終了日）を出す。読み取りは人ごとに文字の属性 `org`（無ければ `organization`）を `orgNote` として返し、画面は所属未確認の人にだけ「記録上のメモ」として出す（`story-people-and-companies-write-v1`）
+- 保守の計画の `upsert_edge` で、同じ組織の人→会社の所属（`member_of`）をプロジェクトが違っても張れるようにする。別の組織の参照・終わった記録・人以外・会社以外は今までどおり断る（`story-people-and-companies-write-v1` AC-10）
+
 ## 0.38.0 candidate — npm公開前
 
 - Personal Web のメニューを組織版と同じ6つの領域（目的と現状・仕事・成果・情報と関係）の見出しで束ねる。画面IDと初期画面は変えない（`story-shell-nav-six-areas-v1`）
