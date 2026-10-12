@@ -6,6 +6,10 @@
 
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 
+## 0.40.0 candidate — npm公開前
+
+- 共通部品「人と会社」は、読み取り結果に `personProjects`（`[{ code, name }]`）があるとき、「人を加える」に「関わるプロジェクト」の選択欄を出し、選んだものを `entity.projectCode` で送る。選ばないと送らない。`personProjects` の形が正しくなければ読み取りを失敗として扱う。無いとき（手元のホスト）は選択欄も `projectCode` も出さない（`story-people-and-companies-person-project-v1`）
+
 ## 0.39.0 candidate — npm公開前
 
 - 関係の定義に `related_to`（会社→プロジェクト、役割は関係の `role`）を追加。「人と会社」の読み取りは、会社ごとに `related_to` で関わるプロジェクトと役割、記録どおりの `orgType`・`lifecycle_stage`・`deals`、記録だけから導いた種類（顧客・協業先・提案中）を返す（`story-people-and-companies-read-v1`）
