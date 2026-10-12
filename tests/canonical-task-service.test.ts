@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { CanonicalTaskError, CanonicalTaskService } from '../src/canonical-task-service.js';
 import { createCanonicalTaskServiceFixture } from './fixtures/canonical-task-service.js';
 
@@ -127,6 +127,203 @@ describe('CanonicalTaskService', () => {
     expect(completed).toMatchObject({ status: 'completed', version: 3 });
     await expect(fixture.service.deleteTask('task-1', { expected_version: 3 }, fixture.context('delete-1')))
       .resolves.toMatchObject({ task_id: 'task-1', deleted: true, version: 4 });
+  });
+
+  it('keeps source_refs replacement compatibility and appends source_refs_append idempotently', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const existing = [
+      { type: 'manual', id: 'keep' },
+      { id: 'keep', type: 'manual' },
+    ];
+    const created = await fixture.service.createTask({ title: 'Source refs task', source_refs: existing }, fixture.context('source-create'));
+
+    const appended = await fixture.service.updateTask(created.id, {
+      source_refs_append: [
+        { id: 'new', type: 'manual' },
+        { type: 'manual', id: 'new' },
+        { id: 'keep', type: 'manual' },
+      ],
+    }, created.version, fixture.context());
+
+    expect(appended).toMatchObject({ version: 2 });
+    expect(appended.source_refs).toEqual([
+      existing[0],
+      existing[1],
+      { id: 'new', type: 'manual' },
+    ]);
+
+    const replayed = await fixture.service.updateTask(created.id, {
+      source_refs_append: [
+        { id: 'new', type: 'manual' },
+        { type: 'manual', id: 'new' },
+        { id: 'keep', type: 'manual' },
+      ],
+    }, created.version, fixture.context());
+    expect(replayed.source_refs).toEqual(appended.source_refs);
+
+    const replaced = await fixture.service.updateTask(created.id, {
+      source_refs: [{ type: 'replacement', id: 'only' }],
+    }, appended.version, fixture.context());
+    expect(replaced.source_refs).toEqual([{ type: 'replacement', id: 'only' }]);
+  });
+
+  it('uses code-unit key order for Unicode source ref deduplication and append replay', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Unicode source refs task' }, fixture.context('unicode-source-create'));
+    const firstRef = {
+      'K': { nested: { 'K': 1, K: 2 } },
+      K: { nested: { 'K': 1, K: 2 } },
+    };
+    const reorderedRef = {
+      K: { nested: { K: 2, 'K': 1 } },
+      'K': { nested: { K: 2, 'K': 1 } },
+    };
+
+    const appended = await fixture.service.updateTask(created.id, {
+      source_refs_append: [firstRef, reorderedRef],
+    }, created.version, fixture.context());
+    expect(appended.source_refs).toEqual([firstRef]);
+
+    const replayed = await fixture.service.updateTask(created.id, {
+      source_refs_append: [reorderedRef, reorderedRef],
+    }, created.version, fixture.context());
+    expect(replayed.source_refs).toEqual(appended.source_refs);
+    expect(replayed.version).toBe(appended.version);
+  });
+
+  it('rejects invalid or ambiguous source_refs_append before mutation', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({
+      title: 'Validated source refs task',
+      source_refs: [{ type: 'manual', id: 'keep' }],
+    }, fixture.context('source-validation-create'));
+    const before = structuredClone(fixture.tasks.get(created.id));
+    const update = vi.spyOn(fixture.repository, 'update');
+    const sparse: unknown[] = [];
+    sparse.length = 1;
+    const symbolRef = { type: 'manual' };
+    Object.defineProperty(symbolRef, Symbol('hidden'), { value: 'x', enumerable: true });
+    const nonEnumerableRef = { type: 'manual' };
+    Object.defineProperty(nonEnumerableRef, 'hidden', { value: 'x', enumerable: false });
+    const accessorRef = { type: 'manual' };
+    Object.defineProperty(accessorRef, 'hidden', { get: () => 'x', enumerable: true });
+    const symbolArray: unknown[] = [{ type: 'manual' }];
+    Object.defineProperty(symbolArray, Symbol('hidden'), { value: 'x', enumerable: true });
+    let accessorArrayReads = 0;
+    const accessorArray: unknown[] = [];
+    Object.defineProperty(accessorArray, 0, {
+      enumerable: true,
+      get: () => {
+        accessorArrayReads += 1;
+        return { type: 'manual' };
+      },
+    });
+    let topLevelAccessorReads = 0;
+    const topLevelAccessorInput = {} as { source_refs_append: unknown[] };
+    Object.defineProperty(topLevelAccessorInput, 'source_refs_append', {
+      enumerable: true,
+      get: () => {
+        topLevelAccessorReads += 1;
+        return [{ type: 'manual' }];
+      },
+    });
+    const deeplyNested: Record<string, unknown> = {};
+    let nestedCursor = deeplyNested;
+    for (let depth = 0; depth < 130; depth += 1) {
+      const next: Record<string, unknown> = {};
+      nestedCursor.nested = next;
+      nestedCursor = next;
+    }
+
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [null],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [{ nested: undefined }],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: sparse,
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [symbolRef],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [nonEnumerableRef],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [accessorRef],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: symbolArray,
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: accessorArray,
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, topLevelAccessorInput, created.version, fixture.context()))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [deeplyNested],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    expect(accessorArrayReads).toBe(0);
+    expect(topLevelAccessorReads).toBe(0);
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs: [],
+      source_refs_append: [],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'validation_error', status: 400 });
+
+    expect(update).not.toHaveBeenCalled();
+    expect(fixture.tasks.get(created.id)).toEqual(before);
+    update.mockRestore();
+  });
+
+  it('treats nullish legacy source_refs as empty and rejects other non-array legacy state', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Legacy source refs state' }, fixture.context('legacy-source-create'));
+    const stored = fixture.tasks.get(created.id) as Record<string, unknown>;
+
+    stored.source_refs = null;
+    const appendedFromNull = await fixture.service.updateTask(created.id, {
+      source_refs_append: [{ type: 'manual', id: 'from-null' }],
+    }, created.version, fixture.context());
+    expect(appendedFromNull.source_refs).toEqual([{ type: 'manual', id: 'from-null' }]);
+
+    (fixture.tasks.get(created.id) as Record<string, unknown>).source_refs = undefined;
+    const appendedFromUndefined = await fixture.service.updateTask(created.id, {
+      source_refs_append: [{ type: 'manual', id: 'from-undefined' }],
+    }, appendedFromNull.version, fixture.context());
+    expect(appendedFromUndefined.source_refs).toEqual([{ type: 'manual', id: 'from-undefined' }]);
+
+    const currentStored = fixture.tasks.get(created.id) as Record<string, unknown>;
+    currentStored.source_refs = 'legacy-invalid';
+    const before = structuredClone(currentStored);
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [{ type: 'manual', id: 'must-not-write' }],
+    }, appendedFromUndefined.version, fixture.context()))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+    expect(fixture.tasks.get(created.id)).toEqual(before);
+  });
+
+  it('rejects stale source_refs_append without changing the task', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Stale append task' }, fixture.context('stale-append-create'));
+    const current = await fixture.service.updateTask(created.id, { title: 'Current title' }, created.version, fixture.context());
+    await expect(fixture.service.updateTask(created.id, {
+      source_refs_append: [{ type: 'manual', id: 'late' }],
+    }, created.version, fixture.context())).rejects.toMatchObject({ code: 'version_conflict', status: 409 });
+    expect(fixture.tasks.get(created.id)).toMatchObject({ version: current.version, title: 'Current title', source_refs: [] });
+  });
+
+  it('preserves the existing nullable source_refs replacement validator', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({
+      title: 'Nullable source refs task',
+      source_refs: null as unknown as unknown[],
+    }, fixture.context('nullable-source-create'));
+    expect(created.source_refs).toEqual([]);
+    const updated = await fixture.service.updateTask(created.id, {
+      source_refs: null as unknown as unknown[],
+    }, created.version, fixture.context());
+    expect(updated.source_refs).toEqual([]);
   });
 
   it('lets injected policy own authorization and tenant/scoping decisions', async () => {
