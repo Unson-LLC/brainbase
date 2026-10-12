@@ -1093,7 +1093,9 @@ export function createGraphWebModule(context: LocalWebModuleContext): LocalWebMo
       'project-graph-entry.js',
       'project-graph-vendor.js',
       'graph-registry-view.js',
-      'graph-registry-view.css'
+      'graph-registry-view.css',
+      'people-and-companies-view.js',
+      'people-and-companies-view.css'
     ],
     handle: handler
   };

@@ -89,6 +89,10 @@ describe('local Graph web HTTP handler', () => {
     expect(entity.entity.digest).toBe(graphRecordDigest(ENTITIES.tanaka));
     expect(entity.outgoing.map((edge: { relation: string }) => edge.relation)).toEqual(['member_of', 'participates_in']);
 
+    const people = await (await fetch(`${base}/api/graph/people-and-companies`)).json();
+    expect(people).toMatchObject({ status: 'ok', ownCompany: { id: null, reason: 'owner_has_no_company' } });
+    expect(people.companies.map((company: { id: string }) => company.id)).toEqual(['org-acme']);
+
     const ontology = await (await fetch(`${base}/api/graph/ontology`)).json();
     expect(ontology.relations.find((relation: { id: string }) => relation.id === 'participates_in')).toMatchObject({ count: 2, activeCount: 1 });
   });
@@ -115,7 +119,7 @@ describe('local Graph web HTTP handler', () => {
     await writeGraphV1(dataDir);
     const before = await readFile(join(dataDir, 'graph.json'), 'utf8');
     const base = await start();
-    for (const path of ['status', 'projects', 'projects/project-legacy', 'search?q=Legacy', 'entities/person-legacy', 'ontology']) {
+    for (const path of ['status', 'projects', 'projects/project-legacy', 'search?q=Legacy', 'entities/person-legacy', 'ontology', 'people-and-companies']) {
       const response = await fetch(`${base}/api/graph/${path}`);
       expect(response.status).toBe(200);
       const body = await response.json();

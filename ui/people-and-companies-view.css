@@ -1,0 +1,93 @@
+/*
+ * 「人と会社」. Load after workspace-kit.css and graph-view-shared.css.
+ * Column templates of the people and company ledgers, the group titles and
+ * the relations in the right rail, with a 760px variant.
+ * Uses only the shared tokens in brainbase-tokens.css.
+ */
+.bb-pc-people,
+.bb-pc-companies {
+  margin-bottom: 30px;
+}
+
+.bb-graph .bb-pc-group-title {
+  margin: 22px 0 10px;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+}
+
+.bb-graph .bb-pc-company-title {
+  margin: 14px 0 8px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.bb-graph .bb-pc-empty,
+.bb-graph .bb-pc-ended,
+.bb-graph-rail .bb-pc-empty {
+  margin: 0 0 10px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pc-people-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.bb-pc-company-ledger .bb-ws-ledger-row {
+  grid-template-columns: minmax(0, 1.4fr) 96px 96px minmax(0, 1fr);
+}
+
+.bb-pc-relation-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bb-pc-relation {
+  display: grid;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-pc-relation.is-ended {
+  opacity: .62;
+}
+
+.bb-pc-relation-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bb-pc-relation-meta {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-graph-rail .bb-pc-fix {
+  display: grid;
+  gap: 6px;
+  margin: 16px 0 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 760px) {
+  .bb-pc-people-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
+  }
+
+  .bb-pc-people-ledger .bb-ws-ledger-row > :nth-child(4) {
+    display: none;
+  }
+
+  .bb-pc-company-ledger .bb-ws-ledger-row {
+    grid-template-columns: minmax(0, 1fr) 64px 64px;
+  }
+
+  .bb-pc-company-ledger .bb-ws-ledger-row > :nth-child(4) {
+    display: none;
+  }
+}

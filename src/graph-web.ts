@@ -388,6 +388,96 @@ function projectListOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: 
   return { status: 'ok', source, asOf, projects, absenceConfirmed: projects.length === 0 };
 }
 
+export type GraphOwnCompanyReason = 'resolved' | 'owner_not_found' | 'owner_has_no_company' | 'owner_has_several_companies';
+
+export interface GraphPersonSummaryView extends GraphEntityView {
+  type: 'person';
+  /** The owner of this Graph (the person whose companies decide the own company). */
+  isOwner: boolean;
+  /** Active companies of the person (active member_of to an active org), by company name. */
+  companyIds: string[];
+  /** Distinct active projects with an active participates_in or accountable_for relation. */
+  projectCount: number;
+  accountableProjectCount: number;
+}
+
+export interface GraphCompanySummaryView extends GraphEntityView {
+  type: 'org';
+  /** Active people with an active member_of to the company, by name. */
+  memberIds: string[];
+  /** Active projects with an active owned_by to the company, by name. */
+  projectIds: string[];
+}
+
+export interface GraphPeopleAndCompanies<S extends GraphWebAnySource = GraphWebSource> {
+  status: 'ok';
+  source: S;
+  asOf: string;
+  /**
+   * The company the owner belongs to.  Null with the reason when the owner has
+   * no active company, several, or no record: the screen then does not tell
+   * internal from external people.  No internal / external mark is stored.
+   */
+  ownCompany: { id: string | null; reason: GraphOwnCompanyReason; candidateIds: string[] };
+  people: GraphPersonSummaryView[];
+  companies: GraphCompanySummaryView[];
+  /** True only when the readable Graph v2 holds no person and no company. */
+  absenceConfirmed: boolean;
+}
+
+export async function readGraphPeopleAndCompanies(
+  dataDir: string,
+  options: GraphWebReadOptions = {}
+): Promise<GraphPeopleAndCompanies | GraphWebUnavailable> {
+  const loaded = await loadForRead(dataDir);
+  if ('status' in loaded) return loaded;
+  return peopleAndCompaniesOf(loaded.graph, loaded.source, resolveAsOf(options));
+}
+
+function peopleAndCompaniesOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, asOf: string): GraphPeopleAndCompanies<S> {
+  const entities = entityIndex(graph);
+  const name = (id: string) => entities.get(id)?.name ?? id;
+  const byName = (left: string, right: string) => name(left).localeCompare(name(right), 'ja') || left.localeCompare(right, 'en');
+  const live = graph.edges.filter((edge) => isActiveAt(edge, asOf)
+    && isEntityActive(entities.get(edge.fromId), asOf) && isEntityActive(entities.get(edge.toId), asOf));
+  const membership = live.filter((edge) => edge.relation === 'member_of' && entities.get(edge.toId)?.type === 'org');
+  const companiesOf = (personId: string) => [...new Set(membership.filter((edge) => edge.fromId === personId).map((edge) => edge.toId))].sort(byName);
+
+  const ownerId = graph.owner?.id ?? 'self';
+  const owner = entities.get(ownerId);
+  const ownCandidates = owner?.type === 'person' && isActiveAt(owner, asOf) ? companiesOf(ownerId) : [];
+  const ownCompany: GraphPeopleAndCompanies<S>['ownCompany'] = owner?.type !== 'person' || !isActiveAt(owner, asOf)
+    ? { id: null, reason: 'owner_not_found', candidateIds: [] }
+    : ownCandidates.length === 1
+      ? { id: ownCandidates[0]!, reason: 'resolved', candidateIds: ownCandidates }
+      : { id: null, reason: ownCandidates.length === 0 ? 'owner_has_no_company' : 'owner_has_several_companies', candidateIds: ownCandidates };
+
+  const people = graph.entities.filter((entity) => entity.type === 'person').map((person) => {
+    const work = live.filter((edge) => edge.fromId === person.id && PARTICIPATION.has(edge.relation) && entities.get(edge.toId)?.type === 'project');
+    return {
+      ...entityView(person, asOf),
+      type: 'person',
+      isOwner: person.id === ownerId,
+      companyIds: companiesOf(person.id),
+      projectCount: new Set(work.map((edge) => edge.toId)).size,
+      accountableProjectCount: new Set(work.filter((edge) => edge.relation === 'accountable_for').map((edge) => edge.toId)).size
+    } satisfies GraphPersonSummaryView;
+  }).sort((left, right) => Number(right.active) - Number(left.active) || Number(right.isOwner) - Number(left.isOwner) || byActiveThenName(left, right));
+
+  const companies = graph.entities.filter((entity) => entity.type === 'org').map((company) => ({
+    ...entityView(company, asOf),
+    type: 'org',
+    memberIds: [...new Set(membership.filter((edge) => edge.toId === company.id).map((edge) => edge.fromId))]
+      .sort((left, right) => Number(left !== ownerId) - Number(right !== ownerId) || byName(left, right)),
+    projectIds: [...new Set(live.filter((edge) => edge.relation === 'owned_by' && edge.toId === company.id
+      && entities.get(edge.fromId)?.type === 'project').map((edge) => edge.fromId))].sort(byName)
+  } satisfies GraphCompanySummaryView)).sort((left, right) => Number(right.active) - Number(left.active)
+    || Number(right.id === ownCompany.id) - Number(left.id === ownCompany.id)
+    || byActiveThenName(left, right));
+
+  return { status: 'ok', source, asOf, ownCompany, people, companies, absenceConfirmed: people.length === 0 && companies.length === 0 };
+}
+
 export async function readGraphProject(dataDir: string, projectId: string, options: GraphWebReadOptions = {}): Promise<GraphProjectDetail | GraphWebUnavailable> {
   const loaded = await loadForRead(dataDir);
   if ('status' in loaded) return loaded;
