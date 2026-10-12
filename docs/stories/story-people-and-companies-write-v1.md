@@ -30,13 +30,14 @@ Personal Web を開く本人として、「人と会社」で所属未確認の�
 - [ ] AC-07: 人を開くと「所属を付ける」（相手は会社）、会社を開くと「所属する人を加える」（相手は人）を出し、`create_edge`（`member_of`）で保存する。有効な所属ごとに「所属を終える」を出し、`update_edge` で終了日（既定は今日）を入れる。消すボタンは無い。保存後は一覧と右の欄を正本から読み直し、読み戻せなかったときは「保存できた」と出さない。
 - [ ] AC-08: 所属未確認の人の行と右の欄に、`orgNote` を「記録上のメモ: …（所属ではありません）」として出す。社内・社外の段の人には出さない。メモから所属を自動で作らない。
 - [ ] AC-09: Personal Web は「人と会社」を書ける画面として開き、起動ごとのトークンを訂正に付ける。
+- [ ] AC-10: 共通の保守の計画（`src/graph-maintenance-engine.ts` の `upsert_edge`）は、`member_of` の人→会社を、両端が有効で、それぞれが計画の写しの中にあるか同じ組織の参照（`reference_scope: same_organization`）のときに限り、プロジェクトが違っても通す（`sameOrganizationPersonMembership`）。関係は、会社が写しの中にあれば会社のプロジェクトに、無ければ人のプロジェクトに置く。別の組織の参照、終わった記録、人以外・会社以外・`member_of` 以外は今までどおり断る。組織版が「所属を付ける」を正本の保守の計画へ中継するための前提（S3-2）。
 
 ## 範囲外
 
-- 組織版の中継（保守の計画 `create_entity`・`upsert_edge` への中継と gm・ceo の制限）は brainbase-organization の S3-2。
+- 組織版の中継（保守の計画 `create_entity`・`upsert_edge` への中継と gm・ceo の制限）は brainbase-organization の S3-2。共通の保守の計画で所属が通ること（AC-10）だけをここで行う。
 - 名刺の表示と昇格（S4）。
 - 会社の属性（`orgType`・`lifecycle_stage`・`deals`）の編集。
 
 ## 検証
 
-- `tests/graph-web.test.ts`（create_entity・orgNote）、`tests/graph-web-http.test.ts`、`tests/ui/people-and-companies-view.test.mjs`、`tests/ui/graph-registry-view.test.mjs`、`tests/ui/local-web-shell.test.mjs`。
+- `tests/graph-maintenance-engine.test.ts`（AC-10）、`tests/graph-web.test.ts`（create_entity・orgNote）、`tests/graph-web-http.test.ts`、`tests/ui/people-and-companies-view.test.mjs`、`tests/ui/graph-registry-view.test.mjs`、`tests/ui/local-web-shell.test.mjs`。

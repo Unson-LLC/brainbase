@@ -405,7 +405,20 @@ export function applyGraphOperations(
                 && !externalIds.has(toEntity.id)
                 && toEntity.entity_type === 'app'
                 && toEntity.lifecycle_status === 'active';
-            if (!localFrom && !sameOrganizationToolAccountable) throw new Error(`Unknown entity: ${operation.from_id}`);
+            // A person's membership of a company: both active, each either in this
+            // snapshot or a same-organization reference.  Cross-organization
+            // references are never a membership endpoint.
+            const membershipFrom = localFrom || externalFrom;
+            const sameOrganizationPersonMembership = operation.rel_type === 'member_of'
+                && membershipFrom?.entity_type === 'person'
+                && membershipFrom.lifecycle_status === 'active'
+                && (Boolean(localFrom) || (externalIds.has(membershipFrom.id) && membershipFrom.reference_scope === 'same_organization'))
+                && toEntity.entity_type === 'org'
+                && toEntity.lifecycle_status === 'active'
+                && (!externalIds.has(toEntity.id) || toEntity.reference_scope === 'same_organization');
+            if (!localFrom && !sameOrganizationToolAccountable && !sameOrganizationPersonMembership) {
+                throw new Error(`Unknown entity: ${operation.from_id}`);
+            }
             const fromEntity = (localFrom || externalFrom) as GraphEntity;
             // A project of this scope using a same-organization tool of another project.
             const sameOrganizationProjectUsesApp = operation.rel_type === 'uses_app'
@@ -434,7 +447,7 @@ export function applyGraphOperations(
                 throw new Error('decision_id must match the Decision owner source');
             }
             if (fromEntity.project_code !== toEntity.project_code && !sameOrganizationAppOwner && !sameOrganizationDecisionOwner
-                && !sameOrganizationToolAccountable && !sameOrganizationProjectUsesApp) {
+                && !sameOrganizationToolAccountable && !sameOrganizationProjectUsesApp && !sameOrganizationPersonMembership) {
                 throw new Error('edge endpoint project scope mismatch');
             }
             if (!String(operation.rel_type || '').trim()) throw new Error('rel_type is required');
@@ -462,7 +475,12 @@ export function applyGraphOperations(
                     id: operation.edge_id,
                     from_id: operation.from_id, to_id: operation.to_id, rel_type: operation.rel_type,
                     // The accountable person lives in another project; the edge belongs to the tool's project.
-                    project_code: sameOrganizationToolAccountable ? toEntity.project_code : fromEntity.project_code,
+                    // A membership belongs to the company's project when the company is
+                    // in this snapshot, else to the person's, else to the plan's.
+                    project_code: sameOrganizationToolAccountable ? toEntity.project_code
+                        : sameOrganizationPersonMembership
+                            ? (!externalIds.has(toEntity.id) ? toEntity.project_code : localFrom ? fromEntity.project_code : state.project_code)
+                            : fromEntity.project_code,
                     payload: operation.payload || {}, role_min: roleMin,
                     sensitivity, lifecycle_status: 'active', version: 1
                 });

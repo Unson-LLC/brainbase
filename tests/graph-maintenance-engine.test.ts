@@ -214,6 +214,71 @@ describe('Graph maintenance Phase 0 contract', () => {
         }
     });
 
+    it('同一組織の人→会社の所属（member_of）だけを跨Projectで許可する', () => {
+        const entity = (id: string, entityType: string, projectCode: string, extra: Record<string, unknown> = {}) => ({
+            id, entity_type: entityType, project_code: projectCode, payload: {},
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1, ...extra
+        });
+        const reference = (id: string, entityType: string, projectCode: string, extra: Record<string, unknown> = {}) => ({
+            id, entity_type: entityType, project_code: projectCode, reference_scope: 'same_organization',
+            role_min: 'member', sensitivity: 'internal', lifecycle_status: 'active', version: 1, ...extra
+        });
+        const membershipSnapshot = {
+            project_code: 'unson',
+            entities: [
+                entity('org_unson', 'org', 'unson'),
+                entity('per_local', 'person', 'shared_people'),
+                entity('proj_unson', 'project', 'unson')
+            ],
+            external_entities: [
+                reference('per_sato', 'person', 'brainbase'),
+                reference('org_partner', 'org', 'partner_project'),
+                reference('app_other', 'app', 'other')
+            ],
+            edges: []
+        };
+        const membership = (fromId: string, toId: string, extra: Record<string, unknown> = {}) => ({
+            operation: 'upsert_edge', edge_id: `edge_${fromId}_${toId}`, from_id: fromId, to_id: toId,
+            rel_type: 'member_of', expected_version: 0, ...extra
+        });
+
+        // A local person of another project, and a same-organization reference person, join a local company.
+        const local = applyGraphOperations(membershipSnapshot, [membership('per_local', 'org_unson')], { projectCode: 'unson' });
+        expect(local.edges[0]).toMatchObject({ from_id: 'per_local', to_id: 'org_unson', rel_type: 'member_of', project_code: 'unson', lifecycle_status: 'active' });
+        expect(validateGraphSnapshot(local).valid).toBe(true);
+        const referenced = applyGraphOperations(membershipSnapshot, [membership('per_sato', 'org_unson')], { projectCode: 'unson' });
+        expect(referenced.edges[0]).toMatchObject({ from_id: 'per_sato', to_id: 'org_unson', project_code: 'unson' });
+        expect(validateGraphSnapshot(referenced).valid).toBe(true);
+        // A same-organization company of another project; the edge stays with the local person.
+        const otherCompany = applyGraphOperations(membershipSnapshot, [membership('per_local', 'org_partner')], { projectCode: 'unson' });
+        expect(otherCompany.edges[0]).toMatchObject({ to_id: 'org_partner', project_code: 'shared_people' });
+
+        // Not a membership of a person in a company: refused as before.
+        expect(() => applyGraphOperations(membershipSnapshot, [membership('per_sato', 'org_unson', { rel_type: 'knows' })], { projectCode: 'unson' }))
+            .toThrow('Unknown entity: per_sato');
+        expect(() => applyGraphOperations(membershipSnapshot, [membership('per_local', 'org_partner', { rel_type: 'related_to' })], { projectCode: 'unson' }))
+            .toThrow('edge endpoint project scope mismatch');
+        expect(() => applyGraphOperations(membershipSnapshot, [membership('per_local', 'proj_unson')], { projectCode: 'unson' }))
+            .toThrow('edge endpoint project scope mismatch');
+        expect(() => applyGraphOperations(membershipSnapshot, [membership('per_local', 'app_other')], { projectCode: 'unson' }))
+            .toThrow('edge endpoint project scope mismatch');
+        expect(() => applyGraphOperations(membershipSnapshot, [membership('app_other', 'org_unson')], { projectCode: 'unson' }))
+            .toThrow('Unknown entity: app_other');
+
+        // Another organization's person or company, or an ended one, is never a membership endpoint.
+        for (const [id, changed, message] of [
+            ['per_sato', { reference_scope: 'cross_tenant' }, 'Unknown entity: per_sato'],
+            ['per_sato', { lifecycle_status: 'retired' }, 'Unknown entity: per_sato'],
+            ['org_partner', { reference_scope: 'cross_tenant' }, 'edge endpoint project scope mismatch'],
+            ['org_partner', { lifecycle_status: 'retired' }, 'edge endpoint project scope mismatch']
+        ] as const) {
+            const invalid = structuredClone(membershipSnapshot);
+            Object.assign(invalid.external_entities.find((item) => item.id === id)!, changed);
+            const operation = id === 'per_sato' ? membership('per_sato', 'org_unson') : membership('per_local', 'org_partner');
+            expect(() => applyGraphOperations(invalid, [operation], { projectCode: 'unson' })).toThrow(message);
+        }
+    });
+
     it('mergeでsourceのsensitivityをtargetの低い水準へ落とさず、rewire後のduplicate keyを拒否する', () => {
         const mergeSnapshot = {
             project_code: 'brainbase',
