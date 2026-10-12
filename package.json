@@ -195,6 +195,22 @@
       "types": "./dist/memory-scope-policy.d.ts",
       "import": "./dist/memory-scope-policy.js"
     },
+    "./ontology-kernel": {
+      "types": "./dist/ontology-kernel.d.ts",
+      "import": "./dist/ontology-kernel.js"
+    },
+    "./ontology-registry": {
+      "types": "./dist/ontology-registry.d.ts",
+      "import": "./dist/ontology-registry.js"
+    },
+    "./ontology-publication": {
+      "types": "./dist/ontology-publication.d.ts",
+      "import": "./dist/ontology-publication.js"
+    },
+    "./ontology-release-trust": {
+      "types": "./dist/ontology-release-trust.d.ts",
+      "import": "./dist/ontology-release-trust.js"
+    },
     "./canonical-document-writer": {
       "types": "./dist/canonical-document-writer.d.ts",
       "import": "./dist/canonical-document-writer.js"
