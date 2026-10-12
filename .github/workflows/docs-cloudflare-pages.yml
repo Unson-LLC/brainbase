@@ -54,7 +54,7 @@ permissions:
 
 jobs:
   validate-and-publish:
-    runs-on: [self-hosted, Linux, X64, nucbox-evo-x2]
+    runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

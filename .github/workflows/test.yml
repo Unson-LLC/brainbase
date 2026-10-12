@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: [self-hosted, Linux, X64, nucbox-evo-x2]
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -52,12 +52,11 @@ jobs:
 
       - name: Run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
-        # EVO-X2 hosts multiple runner processes; limit each suite's CPU/I/O fan-out.
-        run: npm test -- --maxWorkers=4
+        run: npm test
 
       - name: Run representative integration suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
-        run: npm run test:integration -- --maxWorkers=4
+        run: npm run test:integration
 
       - name: Summarize failed or cancelled package validation
         if: ${{ always() && (failure() || cancelled()) }}
@@ -66,7 +65,7 @@ jobs:
             echo '## Package CI failure/cancellation summary'
             echo
             echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=4` (Node 20).'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration` (Node 20).'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"

@@ -194,25 +194,19 @@ describe('reading the judgment journal with a remembered folder listing', () => 
       .toMatchObject({ status: 'unavailable', reason: 'judgment_journal_not_found' });
   });
 
-  // File modes are not reliable on Windows, and permission checks do not apply to root.
-  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('does not reuse a remembered proof when it can no longer be read', async () => {
+  // chmod does not stop listing on Windows, and permission checks do not apply to root.
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('fails instead of reusing the remembered listing when a folder can no longer be listed', async () => {
     const folder = join(journal, 'session-a');
-    const file = await writeProof(folder, 'turn', continuedProof('1'));
+    await writeProof(folder, 'turn', continuedProof('1'));
     await quiet(folder);
     const cache = new JudgmentValueProofJournalCache();
     expect(await attempts(cache)).toEqual(['attempt-1']);
 
-    await chmod(file, 0o000);
+    await chmod(folder, 0o000);
     try {
-      const result = await readJudgmentValueProofJournal({ root: journal, cache });
-      expect(result).toMatchObject({
-        status: 'available',
-        entries: [],
-        latest_recorded_at: null,
-        rejected: [{ file, reason: expect.stringContaining('EACCES') }]
-      });
+      await expect(readJudgmentValueProofJournal({ root: journal, cache })).rejects.toMatchObject({ code: 'EACCES' });
     } finally {
-      await chmod(file, 0o600);
+      await chmod(folder, 0o700);
     }
   });
 
