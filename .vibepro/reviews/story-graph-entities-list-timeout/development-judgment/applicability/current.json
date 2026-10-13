@@ -1,0 +1,12 @@
+{
+  "schema_version": "0.1.0",
+  "record_id": "applicability-2026-10-13T21-20-23-913Z-ff43fd13",
+  "story_id": "story-graph-entities-list-timeout",
+  "applicable": true,
+  "reason": "可視条件を関数のサブクエリに閉じる案と、ポリシーに置いてスカラーなロール判定だけをインライン化する案が両方残っている。本番のJIT 1.2秒と行見積もり52対6702は未再現で、介入の効果が確定していない。VALUE、SIMPLIFY、VALIDATEの選択が残る。",
+  "recorded_by": "cursor-cloud",
+  "recorded_at": "2026-10-13T21:20:23.913Z",
+  "artifact": ".vibepro/reviews/story-graph-entities-list-timeout/development-judgment/applicability/history/applicability-2026-10-13T21-20-23-913Z-ff43fd13.json",
+  "advisory": true,
+  "blocking": false
+}

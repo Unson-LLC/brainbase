@@ -1,0 +1,59 @@
+{
+  "schema_version": "vibepro-brainbase-context.v1",
+  "story_id": "story-graph-entities-list-timeout",
+  "project_code": "brainbase",
+  "source": {
+    "handoff_digest": "3c5c3c794e053a7175719d9cfe6912cece888a1b2f56feb835e111175cd695ce"
+  },
+  "judgment": {
+    "authority": "brainbase",
+    "snapshot_not_authority": true,
+    "episode_id": "episode-graph-entities-list-timeout",
+    "resolution_id": "resolution-graph-entities-list-timeout",
+    "turn_id": "turn-graph-entities-list-timeout",
+    "receipt_digest": "fff9ec883fea6242a02941e4efcff10b15c2b26e59659d865ecbf9da0dbc677a",
+    "plan_digest": "28babf51d1c4b23698c61d0ed5ad471985d2fc14d1bc72a847bc1e370cd70450",
+    "runtime_version": "vibepro@0.2.0-beta.29",
+    "manifest_digest": "0a545e8d5bc5c353e114150d5fdc8f83911d9f89bee2d40af52c9f584645d396",
+    "autonomy_decision": "continue",
+    "autonomy_policy_ids": [],
+    "selected_dag_ids": [
+      "dag-graph-entities-list"
+    ],
+    "applicable_policy_ids": [],
+    "active_node_ids": [
+      "fix-rls-inline"
+    ]
+  },
+  "knowledge": [
+    {
+      "capability_input": {
+        "intent": "lookup",
+        "audience": "team",
+        "content_type": "canonical_fact",
+        "project_code": "brainbase"
+      },
+      "routing": {
+        "resolution_id": "resolution-graph-entities-requirement",
+        "source_class": "graph",
+        "canonical_location": {
+          "source": "postgres",
+          "record_id": "8b43e8b4-7cd7-4c77-94bb-9cf6336c1391"
+        },
+        "retrieval_capability": "graph.search",
+        "confidence": 0.6
+      },
+      "references": [
+        {
+          "source_class": "graph",
+          "retrieval_capability": "graph.search",
+          "source_ref": "graph://canonical-tasks/8b43e8b4-7cd7-4c77-94bb-9cf6336c1391",
+          "content_digest": "01fc50d53dcfce0723d6831bd88ff1a88585b6f52f64a0c16cc13c30223e6bfa",
+          "title": "Graph entities list timeout requirement"
+        }
+      ]
+    }
+  ],
+  "context_digest": "9b653fb5a3c0cd26ae3f4edc3518aa30c34bcb343f42ca79d3308b05385d4b51",
+  "bound_at": "2026-10-13T21:07:08.876Z"
+}
