@@ -89,6 +89,24 @@ describe('CanonicalTaskService', () => {
     expect(page.warnings).toEqual(['assignee_unresolved', 'legacy_warning']);
   });
 
+  it('lists tasks with an assignee when no optional filter is given', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const assigned = await fixture.service.createTask({ title: 'Assigned', assignee_person_id: 'per_owner' }, fixture.context('assigned'));
+    const unassigned = await fixture.service.createTask({ title: 'Unassigned' }, fixture.context('unassigned'));
+    let seen: Record<string, unknown> = {};
+    const original = fixture.repository.list.bind(fixture.repository);
+    fixture.repository.list = async (filters, ...rest) => { seen = filters as Record<string, unknown>; return original(filters, ...rest); };
+
+    for (const filters of [{}, { assigneePersonId: '' }, { assigneePersonId: null, dueAfter: '', dueBefore: null, cursor: '' }]) {
+      const page = await fixture.service.listTasks(filters as never, fixture.context());
+      expect(page.items.map((task) => task.id).sort()).toEqual([assigned.id, unassigned.id].sort());
+      for (const key of ['assigneePersonId', 'dueAfter', 'dueBefore', 'cursor']) expect(seen).not.toHaveProperty(key);
+    }
+
+    const filtered = await fixture.service.listTasks({ assigneePersonId: 'per_owner' }, fixture.context());
+    expect(filtered.items.map((task) => task.id)).toEqual([assigned.id]);
+  });
+
   it('replays the same idempotent create and rejects a changed payload', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const first = await fixture.service.createTask({ title: 'One task' }, fixture.context('same-key'));

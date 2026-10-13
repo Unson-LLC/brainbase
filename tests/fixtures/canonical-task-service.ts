@@ -23,8 +23,12 @@ export function createCanonicalTaskServiceFixture(options: { operationRepository
       const items = [...tasks.values()].filter((task) => {
         const statuses = Array.isArray(filters.statuses) ? filters.statuses : [];
         const priorities = Array.isArray(filters.priorities) ? filters.priorities : [];
+        // Mirrors the production stores: any key that is present (even null) filters.
         return (statuses.length === 0 || statuses.includes(task.status))
-          && (priorities.length === 0 || priorities.includes(task.priority));
+          && (priorities.length === 0 || priorities.includes(task.priority))
+          && (!('assigneePersonId' in filters) || task.assignee_person_id === filters.assigneePersonId)
+          && (!('dueAfter' in filters) || (task.due_at != null && String(task.due_at) >= String(filters.dueAfter)))
+          && (!('dueBefore' in filters) || (task.due_at != null && String(task.due_at) <= String(filters.dueBefore)));
       });
       return { items: clone(items), totalCount: items.length, readStatus: 'read' };
     },

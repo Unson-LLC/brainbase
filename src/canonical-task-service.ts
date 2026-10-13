@@ -417,6 +417,12 @@ function normalizeLimit(value: unknown, max = MAX_LIMIT): number {
   return limit;
 }
 
+// Optional list filters are only sent to the repository when they carry a value.
+// An empty value must mean "no filter", never "match IS NULL".
+function optionalFilter<K extends string>(key: K, value: string | null): Partial<Record<K, string>> {
+  return value == null ? {} : ({ [key]: value } as Record<K, string>);
+}
+
 function normalizeCursor(value: unknown): string | null {
   return normalizeString(value, 'cursor', { max: 500 });
 }
@@ -1194,6 +1200,10 @@ export class CanonicalTaskService {
       priority: _priority,
       projectCode: _projectCode,
       project_code: _project_code,
+      assigneePersonId: _assigneePersonId,
+      dueAfter: _dueAfter,
+      dueBefore: _dueBefore,
+      cursor: _cursor,
       ...canonicalFilters
     } = filters;
     const statuses = normalizeCollection(filters.statuses ?? filters.status, 'statuses');
@@ -1204,11 +1214,11 @@ export class CanonicalTaskService {
       statuses,
       priorities,
       projectCodes,
-      assigneePersonId: normalizeString(filters.assigneePersonId, 'assigneePersonId', { max: 200 }),
-      dueAfter: normalizeIsoDate(filters.dueAfter, 'dueAfter'),
-      dueBefore: normalizeIsoDate(filters.dueBefore, 'dueBefore'),
+      ...optionalFilter('assigneePersonId', normalizeString(filters.assigneePersonId, 'assigneePersonId', { max: 200 })),
+      ...optionalFilter('dueAfter', normalizeIsoDate(filters.dueAfter, 'dueAfter')),
+      ...optionalFilter('dueBefore', normalizeIsoDate(filters.dueBefore, 'dueBefore')),
       limit: normalizeLimit(filters.limit),
-      cursor: normalizeCursor(filters.cursor),
+      ...optionalFilter('cursor', normalizeCursor(filters.cursor)),
     };
   }
 
