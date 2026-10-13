@@ -16,10 +16,29 @@
 .bb-minutes-eyebrow,
 .bb-minutes-label,
 .bb-minutes-item-meta,
+.bb-minutes-meeting-label,
 .bb-minutes-rail-title,
 .bb-minutes-revision {
   color: var(--bb-color-muted);
   font-size: 0.82rem;
+}
+
+.bb-minutes-meeting-label {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-minutes-create-guard {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--bb-color-danger, var(--bb-color-ink));
+}
+
+.bb-minutes-edit-guard {
+  display: grid;
+  gap: var(--bb-space-2);
+  margin: 0;
+  color: var(--bb-color-danger, var(--bb-color-ink));
 }
 
 .bb-minutes-heading h1,
