@@ -80,7 +80,8 @@ export function graphOwnShareSource(option, { fetcher } = {}) {
 export function ownShareHandoverText(handover) {
   if (!isRecord(handover) || !textOrNull(handover.graphId)) return null;
   const where = textOrNull(handover.projectCode);
-  return `束 ${handover.graphId}（${where ? `置き場所 ${where}、` : ''}${formatDateTime(handover.createdAt)} に送信）`;
+  const digest = textOrNull(handover.digest) ?? '未確認';
+  return `束 ${handover.graphId}（${where ? `置き場所 ${where}、` : ''}digest ${digest}、${formatDateTime(handover.createdAt)} に送信）`;
 }
 
 /**
@@ -216,7 +217,8 @@ export function ownEntityDetail(doc, detail, { onClose, onRetry, onOpen } = {}) 
       ...(entity.type === 'project' ? [['目的', textOrNull(entity.goal)], ['状態', textOrNull(entity.status)]] : []),
     ]),
   }));
-  wrap.append(decisionRecordBlock(doc, entity, loaded.decisionRecord));
+  const decisionBlock = decisionRecordBlock(doc, entity, loaded.decisionRecord);
+  if (decisionBlock) wrap.append(decisionBlock);
   for (const [key, title, empty] of [['outgoing', '出る関係', 'この記録から出る関係はありません。'], ['incoming', '入る関係', 'この記録へ入る関係はありません。']]) {
     const edges = Array.isArray(loaded[key]) ? loaded[key] : [];
     wrap.append(workspaceRailBlock(doc, {

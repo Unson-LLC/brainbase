@@ -160,7 +160,7 @@ describe('情報と関係: workspace', () => {
     const good = await readFile(join(dataDir, 'graph.json'), 'utf8');
     await writeFile(join(dataDir, 'graph.json'), '{ broken');
     const { root } = await mountView();
-    expect(collectText(section(root, '検索結果'))).toContain('読み取れませんでした');
+    expect(collectText(section(root, '検索結果'))).toContain('記録を取得できませんでした');
     expect(byClass(section(root, '検索結果'), 'bb-ws-notice')[0].className).toBe('bb-ws-notice is-danger');
     expect(collectText(section(root, '情報の種類とつながり方'))).toContain('0件ではありません');
     await writeFile(join(dataDir, 'graph.json'), good);
@@ -238,6 +238,92 @@ describe('情報と関係: the record in the rail', () => {
     expect(collectText(relationItem(rail, '出る関係', 'Acme'))).toContain(EDGES.tanakaAcme.id);
     // The record itself is not repeated in the workspace.
     expect(collectText(root)).not.toContain('出る関係');
+  });
+
+  it('keeps an empty relation result unconfirmed when the selected project still has known participants, and offers a retry', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    let detailReads = 0;
+    const fetcher = async (path) => {
+      const response = await api.fetcher(path);
+      if (!String(path).includes('/api/graph/entities/project-atlas')) return response;
+      const body = await response.json();
+      detailReads += 1;
+      if (detailReads > 1) return jsonResponse(200, body);
+      return jsonResponse(200, {
+        ...body,
+        entity: {
+          ...body.entity,
+          participantCount: 2,
+          accountableCount: 1,
+          people: [{ id: 'person-a', name: '担当A', accountable: true }, { id: 'person-b', name: '担当B', accountable: false }],
+        },
+        outgoing: [],
+        incoming: [],
+        participants_status: 'unavailable',
+        participants_reason: '関係者の記録元を確認できません。',
+        absenceConfirmed: false,
+        source: { ...body.source, edges_not_provided: true },
+      });
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
+    await view.load();
+    await view.openEntity('project-atlas');
+
+    const outgoing = section(rail, '出る関係');
+    expect(collectText(outgoing)).toContain('未確認');
+    expect(collectText(outgoing)).toContain('関係者の記録元を確認できません。');
+    expect(collectText(outgoing)).toContain('登録なしとは判断できません。');
+    expect(collectText(outgoing)).not.toContain('この記録から出る関係はありません。');
+    expect(buttonsNamed(outgoing, '再試行')).toHaveLength(1);
+    expect(buttonsNamed(section(rail, '入る関係'), '再試行')).toHaveLength(1);
+
+    buttonsNamed(outgoing, '再試行')[0].dispatch('click');
+    await waitFor(() => detailReads === 2 && collectText(section(rail, '入る関係')).includes('田中 太郎が参加'));
+    expect(collectText(section(rail, '出る関係'))).toContain('この記録から出る関係はありません。');
+    expect(collectText(section(rail, '出る関係'))).not.toContain('登録なしとは判断できません。');
+  });
+
+  it('prioritizes incomplete source signals over a contradictory confirmed-empty relation status', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    const fetcher = async (path) => {
+      const response = await api.fetcher(path);
+      if (!String(path).includes('/api/graph/entities/project-atlas')) return response;
+      const body = await response.json();
+      return jsonResponse(200, {
+        ...body,
+        entity: {
+          ...body.entity,
+          participantCount: 2,
+          accountableCount: 1,
+          people: [{ id: 'person-a', name: '担当A', accountable: true }, { id: 'person-b', name: '担当B', accountable: false }],
+        },
+        outgoing: [],
+        incoming: [],
+        relations_status: 'confirmed_empty',
+        participants_status: 'unavailable',
+        participants_reason: '関係者の記録元を確認できません。',
+        absenceConfirmed: false,
+        source: { ...body.source, edges_not_provided: true },
+      });
+    };
+    const root = new FakeElement('div');
+    const rail = new FakeElement('div');
+    const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
+    await view.load();
+    await view.openEntity('project-atlas');
+
+    for (const label of ['出る関係', '入る関係']) {
+      const relation = section(rail, label);
+      expect(collectText(relation)).toContain('未確認');
+      expect(collectText(relation)).toContain('関係者の記録元を確認できません。');
+      expect(collectText(relation)).toContain('登録なしとは判断できません。');
+      expect(collectText(relation)).not.toContain(`この記録${label === '出る関係' ? 'から出る' : 'へ入る'}関係はありません。`);
+      expect(buttonsNamed(relation, '再試行')).toHaveLength(1);
+    }
   });
 
   it('moves the rail with the selected row', async () => {
@@ -416,7 +502,7 @@ describe('情報と関係: kinds of information', () => {
 describe('情報と関係: counts another host could not finish', () => {
   // A host whose Graph is larger than one read (the organization Graph) sends
   // null counts with a status instead of a number it cannot vouch for.
-  async function mountPartial() {
+  async function mountPartial({ missingOntologyMetadata = false, omitOntologyFreshness = false, ontologyUpToDate } = {}) {
     await writeGraphV2(dataDir);
     api = await startGraphApi(dataDir);
     const fetcher = async (url, init) => {
@@ -425,6 +511,14 @@ describe('情報と関係: counts another host could not finish', () => {
       if (!path.includes('/ontology') && !path.includes('/search')) return response;
       const payload = await response.json();
       if (path.includes('/ontology')) {
+        if (missingOntologyMetadata) {
+          delete payload.ontology.id;
+          delete payload.ontology.version;
+          delete payload.ontology.currentVersion;
+          delete payload.ontology.releaseDigest;
+        }
+        if (omitOntologyFreshness) delete payload.ontology.upToDate;
+        if (ontologyUpToDate !== undefined) payload.ontology.upToDate = ontologyUpToDate;
         payload.entityTypes = payload.entityTypes.map((item, index) => (index === 0
           ? { ...item, count: null, countStatus: 'at_least', atLeast: 500 }
           : { ...item, count: null, countStatus: 'unknown' }));
@@ -459,6 +553,31 @@ describe('情報と関係: counts another host could not finish', () => {
     expect(results).toContain('ほかにもある可能性があります。条件を絞って探してください。');
     expect(results).not.toContain('null');
     expect(results).not.toContain('NaN');
+  });
+
+  it('labels missing ontology metadata as unconfirmed instead of rendering undefined', async () => {
+    const root = await mountPartial({ missingOntologyMetadata: true });
+    const panel = section(root, '情報の種類とつながり方');
+    const text = collectText(panel);
+    expect(text).toContain('定義の版 未確認（最新性は未確認）');
+    expect(text).toContain('定義ID未確認');
+    expect(text).toContain('release digest未確認');
+    expect(text).not.toContain('undefined');
+    expect(text).not.toContain('null');
+  });
+
+  it('does not infer latestness from a version when the host omits its freshness flag', async () => {
+    const root = await mountPartial({ omitOntologyFreshness: true });
+    const text = collectText(section(root, '情報の種類とつながり方'));
+    expect(text).toContain('最新性は未確認');
+    expect(text).not.toContain('（最新）');
+  });
+
+  it('labels a version as latest only when the host explicitly confirms it', async () => {
+    const root = await mountPartial({ ontologyUpToDate: true });
+    const text = collectText(section(root, '情報の種類とつながり方'));
+    expect(text).toContain('（最新）');
+    expect(text).not.toContain('最新性は未確認');
   });
 });
 

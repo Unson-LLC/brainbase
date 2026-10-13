@@ -88,6 +88,82 @@ export const GRAPH_PROJECT_LEDGER_COLUMNS = Object.freeze(['プロジェクト',
 
 const INVALID = Object.freeze({ state: 'invalid', reason: '応答の形式が不正です' });
 
+const PARTICIPANT_STATUS_VALUES = new Set(['available', 'empty', 'partial', 'unavailable', 'unknown', 'stale', 'failed']);
+const PARTICIPANT_FRESHNESS_VALUES = new Set(['fresh', 'stale', 'unknown']);
+
+/**
+ * Detail adapters may expose either wire-style snake_case or JS-style camelCase.
+ * `ready` is the existing host spelling for an available read.  Conflicting
+ * aliases and unknown values are invalid instead of silently becoming empty.
+ */
+function normalizeParticipantStatus(payload) {
+  const raw = [payload?.participants_status, payload?.participantsStatus].filter((value) => value !== undefined);
+  if (raw.length === 0) return { value: null, explicit: false };
+  const values = raw.map((value) => value === 'ready' ? 'available' : value);
+  if (values.some((value) => typeof value !== 'string' || !PARTICIPANT_STATUS_VALUES.has(value)) || new Set(values).size !== 1) {
+    return { invalid: true };
+  }
+  return { value: values[0], explicit: true };
+}
+
+function normalizeParticipantFreshness(payload) {
+  const raw = [payload?.participants_freshness, payload?.participantsFreshness].filter((value) => value !== undefined);
+  if (raw.length === 0) return { value: null, explicit: false };
+  if (raw.some((value) => typeof value !== 'string' || !PARTICIPANT_FRESHNESS_VALUES.has(value)) || new Set(raw).size !== 1) {
+    return { invalid: true };
+  }
+  return { value: raw[0], explicit: true };
+}
+
+function normalizeParticipantAbsence(payload) {
+  const raw = [payload?.participants_absence_confirmed, payload?.participantsAbsenceConfirmed]
+    .filter((value) => value !== undefined);
+  if (raw.length === 0) return { confirmed: false, explicit: false };
+  if (raw.some((value) => typeof value !== 'boolean') || new Set(raw).size !== 1) return { invalid: true };
+  return { confirmed: raw[0] === true, explicit: true };
+}
+
+function confirmsParticipantAbsence(payload) {
+  // `absenceConfirmed` describes a project-list miss, not participant absence;
+  // `participants_status=empty` is only a label. The native server owns the
+  // same-Graph strict-validation gate before setting this dedicated flag.
+  return payload.participantAbsenceConfirmed === true;
+}
+
+function participantReason(payload) {
+  const explicit = textOrNull(payload.participants_unavailable_reason)
+    ?? textOrNull(payload.participantsUnavailableReason);
+  if (explicit) return explicit;
+  if (Array.isArray(payload.warnings)) {
+    const warning = payload.warnings
+      .map((item) => textOrNull(item) ?? textOrNull(item?.reason) ?? textOrNull(item?.message))
+      .find(Boolean);
+    if (warning) return warning;
+  }
+  if (payload.participantStatus === 'partial') return '一部の関係者だけを読み取っています。';
+  return '関係者の有無を確認できません。登録なしとは判断できません。';
+}
+
+function participantCountConflict(payload) {
+  const project = payload.project;
+  const declared = [project.participantCount, project.accountableCount]
+    .some((value) => Number.isInteger(value) && value > 0);
+  const named = Array.isArray(project.people) && project.people.length > 0;
+  return payload.participants.length === 0 && (declared || named);
+}
+
+function participantCountSummary(payload) {
+  const { participantCount, accountableCount } = payload.project;
+  const known = [];
+  if (Number.isInteger(participantCount) && participantCount > 0) known.push(`関係者${participantCount}人`);
+  if (Number.isInteger(accountableCount) && accountableCount > 0) known.push(`責任者${accountableCount}人`);
+  return known.length > 0 ? `確認済みの件数: ${known.join('、')}。` : '';
+}
+
+function projectCorrectionSubject(name, fields) {
+  return `プロジェクト「${name}」の${fields.map((field) => GRAPH_CORRECTION_FIELDS[field].label).join('・')}`;
+}
+
 function isProjectPerson(value) {
   return isRecord(value) && typeof value.id === 'string' && typeof value.name === 'string' && typeof value.accountable === 'boolean';
 }
@@ -118,7 +194,24 @@ export function normalizeProjectDetail(result) {
   if (!isEntityView(project) || project.type !== 'project') return INVALID;
   if (!Array.isArray(payload.participants) || !payload.participants.every(isEdgeView)) return INVALID;
   if (payload.relations !== undefined && (!Array.isArray(payload.relations) || !payload.relations.every(isEdgeView))) return INVALID;
-  return { state: 'ok', payload };
+  const participantStatus = normalizeParticipantStatus(payload);
+  if (participantStatus.invalid) return INVALID;
+  const participantFreshness = normalizeParticipantFreshness(payload);
+  if (participantFreshness.invalid) return INVALID;
+  const participantAbsence = normalizeParticipantAbsence({ ...payload, project });
+  if (participantAbsence.invalid) return INVALID;
+  return {
+    state: 'ok',
+    payload: {
+      ...payload,
+      participantStatus: participantStatus.value,
+      participantStatusExplicit: participantStatus.explicit,
+      participantFreshness: participantFreshness.value,
+      participantFreshnessExplicit: participantFreshness.explicit,
+      participantAbsenceConfirmed: participantAbsence.confirmed,
+      participantAbsenceExplicit: participantAbsence.explicit,
+    },
+  };
 }
 
 /**
@@ -308,7 +401,19 @@ export function createGraphProjectsView({
     now,
     scope: correctionScope,
     rerender: () => controller.render(),
-    onSaved: async () => {
+    onSaved: async (payload, form) => {
+      // The save response is the authoritative read-back.  A project name
+      // may have changed, so refresh the sentence above the saved form before
+      // the list/detail reloads redraw the rail.  Otherwise the old name
+      // remains visible while the read-back values already show the new one.
+      if (form?.kind === 'update_entity'
+        && form.recordType === 'project'
+        && payload?.record?.id === form.targetId
+        && typeof payload.record.name === 'string'
+        && Array.isArray(form.fields)) {
+        form.subject = projectCorrectionSubject(payload.record.name, form.fields);
+        controller.render();
+      }
       await Promise.all([
         state.detail ? controller.loadDetail(state.detail.id, { keep: true }) : null,
         controller.load({ keep: true }),
@@ -591,11 +696,16 @@ export function createGraphProjectsView({
         mountGraph: projectGraphMount,
         readEntity: (id) => graphClient.read(`/entities/${encodeURIComponent(id)}`),
         onTabChange: setKnowledgeTabChrome,
+        onRetryProject: (projectId) => controller.loadDetail(projectId),
       });
       children.push(knowledgeWorkspace.element);
     } else if (state.selectedId) {
-      children.push(renderProjectKnowledgeLoading(state.selectedId, state.detail ?? { state: 'loading' }, {
-        onRetry: () => controller.loadDetail(state.selectedId),
+      const projectId = state.selectedId;
+      children.push(renderProjectKnowledgeLoading(projectId, state.detail ?? { state: 'loading' }, {
+        onRetry: () => {
+          if (state.selectedId !== projectId) return state.detail;
+          return controller.loadDetail(projectId);
+        },
       }));
     }
 
@@ -679,15 +789,51 @@ export function createGraphProjectsView({
     return item;
   }
 
-  function renderParticipants(payload) {
+  function renderParticipants(payload, { onRetry } = {}) {
     const { project } = payload;
     const content = [makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '参加している人と、責任を持つ人です。終わった関わりも、終了日つきで残ります。' })];
-    if (payload.participants.length === 0) {
+    const hasParticipants = payload.participants.length > 0;
+    const state = payload.participantStatus;
+    const unavailable = ['partial', 'unavailable', 'unknown'].includes(state);
+    const contradictory = participantCountConflict(payload)
+      || (state === 'empty' && hasParticipants)
+      || (confirmsParticipantAbsence(payload) && hasParticipants);
+    // Retrieval uncertainty has precedence over the empty/contradictory
+    // branch so the host's reason is never discarded.  A contradiction may
+    // still be shown below and known rows are always retained.
+    if (unavailable) {
+      content.push(workspaceNotice(doc, {
+        label: state === 'partial' ? '一部取得' : '未確認',
+        tone: 'warning',
+        role: 'status',
+        text: participantReason(payload),
+      }));
+    }
+    if (contradictory) {
+      content.push(workspaceNotice(doc, {
+        label: '関係者を確認できません',
+        tone: 'warning',
+        role: 'status',
+        text: `${participantCountSummary(payload)}取得した関係者と件数が一致しません。登録なしとは判断せず、読み直してください。`,
+      }));
+    }
+    if (!hasParticipants && !unavailable && !contradictory && confirmsParticipantAbsence(payload)) {
       content.push(makeElement(doc, 'p', { className: 'bb-graph-empty', text: 'このプロジェクトには、まだ関係者の登録がありません。' }));
-    } else {
+    } else if (!hasParticipants && !unavailable && !contradictory) {
+      content.push(workspaceNotice(doc, {
+        label: '関係者を確認できません',
+        tone: 'warning',
+        role: 'status',
+        text: participantReason(payload),
+      }));
+    }
+    if (hasParticipants) {
       const list = makeElement(doc, 'ul', { className: 'bb-graph-compact-list' });
       for (const edge of payload.participants) list.append(participantItem(edge, project, payload.asOf));
       content.push(list);
+    }
+    if (onRetry && (contradictory || unavailable || (!hasParticipants && !confirmsParticipantAbsence(payload)))) {
+      content.push(workspaceActions(doc, [workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: onRetry })]));
     }
     return workspaceRailBlock(doc, { title: '関係者', content });
   }
@@ -736,14 +882,18 @@ export function createGraphProjectsView({
     const noteSubject = { id: project.id, type: 'project', metadata: loaded?.project?.metadata ?? {} };
     const children = [workspaceRailHead(doc, { kicker: 'プロジェクト', title: project.name, sub: project.id, leading: renderProjectIcon(doc, project.icon, project.name) })];
     if (!loaded) {
+      const projectId = state.selectedId;
       const readState = detail?.id === state.selectedId
         ? detail
         : state.list.state === 'ok' ? { state: 'loading' } : state.list;
       children.push(graphStateNotice(doc, readState, {
-        onRetry: () => controller.loadDetail(state.selectedId),
+        onRetry: () => {
+          if (state.selectedId !== projectId) return state.detail;
+          return controller.loadDetail(projectId);
+        },
         loadingText: 'このプロジェクトの関係者を読み込んでいます。',
       }));
-      children.push(...railExtensions(state.selectedId, null));
+      children.push(...railExtensions(projectId, null));
       return children;
     }
     const principles = Array.isArray(project.decisionPrinciples) ? project.decisionPrinciples.filter((item) => typeof item === 'string' && item.trim()) : [];
@@ -766,7 +916,13 @@ export function createGraphProjectsView({
         recordDetails(doc, [['プロジェクトID', project.id], ['digest', project.digest], ['読み取った時点', loaded.asOf]]),
       ],
     }));
-    children.push(renderParticipants(loaded));
+    const projectId = state.selectedId;
+    children.push(renderParticipants(loaded, {
+      onRetry: () => {
+        if (state.selectedId !== projectId) return state.detail;
+        return controller.loadDetail(projectId);
+      },
+    }));
     if (writable) {
       const canAdd = scope.createEdges;
       const projectFields = scope.entity('project') ? scope.fields(['name', 'goal', 'status', 'icon']) : [];
@@ -787,7 +943,7 @@ export function createGraphProjectsView({
           onClick: () => openCorrection('project', () => correction.openEntity(project, {
             fields: projectFields,
             title: 'プロジェクトを直す',
-            subject: `プロジェクト「${project.name}」の${projectFields.map((field) => GRAPH_CORRECTION_FIELDS[field].label).join('・')}`,
+            subject: projectCorrectionSubject(project.name, projectFields),
           })),
         }) : null,
       ].filter(Boolean);

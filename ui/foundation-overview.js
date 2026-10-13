@@ -148,6 +148,17 @@ export function normalizeFoundationCatalog(value, expectedScopeId) {
   if (scopeId !== expectedScopeId) {
     throw error('scope_mismatch', '選択した対象範囲と応答の対象範囲が一致しません。');
   }
+  const readStatus = nonEmpty(firstValue(value, 'read_status', 'readStatus'));
+  const catalogStatus = nonEmpty(value.status);
+  const knownReadableStatuses = new Set(['complete', 'ready', 'resolved', 'empty']);
+  const unreadableStatus = (readStatus && !knownReadableStatuses.has(readStatus))
+    || (catalogStatus && !knownReadableStatuses.has(catalogStatus));
+  const collections = [value.objectives, value.variables, value.models, value.philosophies];
+  const hasRecords = collections.some((records) => Array.isArray(records) && records.length > 0);
+  const absenceConfirmed = value.absence_confirmed === true;
+  if (unreadableStatus || (!hasRecords && ('absence_confirmed' in value || readStatus || catalogStatus) && !absenceConfirmed)) {
+    throw error('unavailable', '目的・哲学・世界モデルの取得状態を確認できません。');
+  }
   validateFoundationRecords(value.objectives, 'objective', '目的');
   validateFoundationRecords(value.variables, 'variable', '変数');
   validateFoundationRecords(value.models, 'model', '世界モデル');
@@ -159,6 +170,10 @@ export function normalizeFoundationCatalog(value, expectedScopeId) {
     variables: value.variables,
     models: value.models,
     philosophies: value.philosophies,
+    ...(readStatus ? { read_status: readStatus } : {}),
+    ...(catalogStatus ? { status: catalogStatus } : {}),
+    ...(typeof value.absence_confirmed === 'boolean' ? { absence_confirmed: value.absence_confirmed } : {}),
+    ...(value.source !== undefined ? { source: value.source } : {}),
   };
 }
 
@@ -818,7 +833,8 @@ export function createFoundationOverview({ root, port, scopeId, document: explic
         if (destroyed || requestGeneration !== generation) return state;
         const code = cause?.code === 'scope_mismatch' ? 'scope_mismatch'
           : cause?.code === 'invalid_schema' ? 'invalid'
-            : cause?.code === 'authorization_denied' || cause?.code === 'forbidden' ? 'denied' : 'error';
+            : cause?.code === 'authorization_denied' || cause?.code === 'forbidden' ? 'denied'
+              : cause?.code === 'unavailable' ? 'unavailable' : 'error';
         state.status = code;
         state.error = {
           code,

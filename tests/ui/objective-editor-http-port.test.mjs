@@ -72,6 +72,38 @@ const draft = {
   provenance: [],
 };
 
+const READBACK_AT = '2026-10-12T01:02:03.000Z';
+const VALID_DIGEST = `sha256:${'1'.repeat(64)}`;
+
+function objectiveReadback(record, status = 'ready', reason = null) {
+  if (status !== 'ready') {
+    return {
+      contract_version: 'brainbase.objective-readback.v1',
+      status,
+      source: null,
+      checked_at: READBACK_AT,
+      record: null,
+      objective: null,
+      reason: reason ?? { code: status === 'unknown' ? 'not_found' : 'unsupported_graph', message: 'canonical read unresolved' },
+    };
+  }
+  return {
+    contract_version: 'brainbase.objective-readback.v1',
+    status: 'ready',
+    source: {
+      source_type: 'foundation_revision_store',
+      source_id: record.definition.id,
+      source_version: record.definition.revision,
+      digest: record.digest,
+      provenance: record.definition.provenance,
+    },
+    checked_at: READBACK_AT,
+    record,
+    objective: record,
+    reason: null,
+  };
+}
+
 const previousDocument = globalThis.document;
 afterEach(() => {
   if (previousDocument === undefined) delete globalThis.document;
@@ -103,14 +135,21 @@ describe('Objective editor HTTP port', () => {
     const listPayload = { state: 'partial', records: [], absence_confirmed: false, unreadable: { count: 1, codes: ['authorization_denied'] } };
     const { fetcher, calls } = recordingFetcher(({ path }) => {
       if (path === '/api/foundation/objectives') return jsonResponse(200, listPayload);
-      if (path.startsWith('/api/foundation/objectives/missing')) return jsonResponse(404, { error: { code: 'not_found', message: 'Objective missing was not found' } });
+      if (path.startsWith('/api/foundation/objectives/missing')) {
+        return jsonResponse(404, objectiveReadback(null, 'unknown', { code: 'not_found', message: 'Objective missing was not found' }));
+      }
       return jsonResponse(200, { state: 'ready', refs: [], absence_confirmed: true });
     });
     const seen = [];
     const port = createObjectiveEditorHttpPort({ fetcher, token: TOKEN, onListResult: (payload) => seen.push(payload) });
     expect(await port.listObjectives({})).toBe(listPayload);
     expect(seen).toEqual([listPayload]);
-    expect(await port.readObjective('missing', {}, '2')).toBeNull();
+    const missing = await port.readObjective('missing', {}, '2');
+    expect(missing).toMatchObject({
+      status: 'unknown',
+      checked_at: READBACK_AT,
+      reason: { code: 'not_found' },
+    });
     await port.listObjectiveConstraintRefs({ id: 'objective-focus', type: 'objective', revision: '3' }, {});
     await port.checkObjectiveReadiness('objective-focus', {}, '3');
     expect(calls.map((call) => call.path)).toEqual([
@@ -144,13 +183,27 @@ describe('Objective editor HTTP port', () => {
     const stored = new Map();
     const { fetcher, calls } = recordingFetcher(({ path, method, body }) => {
       if (method === 'POST') {
-        const record = { definition: { ...body, revision: '1', acl: { ownerId: 'self' } }, digest: 'sha256:1' };
+        const record = {
+          definition: {
+            ...body,
+            revision: '1',
+            adoptionState: body.adoptionState ?? 'draft',
+            authorizedUses: ['draft'],
+            acl: { ownerId: 'self', visibility: 'private', readerIds: [], writerIds: [] },
+            scope: { subjectIds: ['self'], validFrom: '2026-01-01T00:00:00.000Z' },
+            storage: 'ontology',
+            provenance: [{ sourceId: 'story-objective-editor', sourceKind: 'document', evidenceIds: [] }],
+          },
+          digest: VALID_DIGEST,
+        };
         stored.set(body.id, record);
-        return jsonResponse(201, { state: 'saved_unverified', ref: { id: body.id, type: 'objective', revision: '1', digest: 'sha256:1' } });
+        return jsonResponse(201, { state: 'saved_unverified', ref: { id: body.id, type: 'objective', revision: '1', digest: VALID_DIGEST } });
       }
       if (path === '/api/foundation/objectives') return jsonResponse(200, { state: 'ready', records: [...stored.values()], absence_confirmed: true });
       const id = decodeURIComponent(path.split('/')[4].split('?')[0]);
-      return stored.has(id) ? jsonResponse(200, { state: 'ready', record: stored.get(id) }) : jsonResponse(404, { error: { code: 'not_found' } });
+      return stored.has(id)
+        ? jsonResponse(200, objectiveReadback(stored.get(id)))
+        : jsonResponse(404, objectiveReadback(null, 'unknown', { code: 'not_found', message: 'Objective was not found' }));
     });
     const root = new FakeElement('div');
     const controller = createObjectiveEditorController({

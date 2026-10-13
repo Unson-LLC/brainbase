@@ -1,7 +1,8 @@
 import type {
   FoundationDefinition,
   FoundationRelationReference,
-  FoundationRevision
+  FoundationRevision,
+  FoundationProvenance,
 } from './ontology-foundation.js';
 
 export type EntityKind = 'person' | 'org' | 'project' | 'relationship' | 'decision';
@@ -72,6 +73,41 @@ export interface CanonicalEdge {
 export interface FoundationCatalogRecord {
   definition: FoundationDefinition;
   digest: string;
+}
+
+/**
+ * A detail read is useful only when the host can show which canonical record
+ * was actually read.  This envelope deliberately keeps the source separate
+ * from the record so a UI cannot mistake a client supplied proposal for a
+ * canonical provenance.
+ */
+export type ObjectiveReadbackStatus = 'ready' | 'error' | 'unknown';
+
+export interface ObjectiveReadbackReason {
+  code: string;
+  message: string;
+}
+
+export interface ObjectiveReadbackSource {
+  source_type: 'foundation_revision_store';
+  source_id: string;
+  source_version: string;
+  digest: string;
+  provenance: readonly FoundationProvenance[];
+}
+
+export interface ObjectiveReadback {
+  contract_version: 'brainbase.objective-readback.v1';
+  status: ObjectiveReadbackStatus;
+  /** Null means that no canonical record was established by this read. */
+  source: ObjectiveReadbackSource | null;
+  /** The time at which the canonical read completed (or failed). */
+  checked_at: string;
+  record: FoundationCatalogRecord | null;
+  /** Compatibility alias retained for existing Objective UI consumers. */
+  objective: FoundationCatalogRecord | null;
+  /** Ready has no reason; error/unknown must explain the unresolved result. */
+  reason: ObjectiveReadbackReason | null;
 }
 
 export interface FoundationCatalog {

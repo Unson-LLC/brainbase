@@ -794,7 +794,7 @@ export function createObjectiveFoundationModule(context: LocalWebModuleContext):
 
   return {
     id: 'foundation-objectives',
-    uiFiles: ['objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js'],
+    uiFiles: ['objective-editor.js', 'objective-editor.css', 'objective-editor-http-port.js', 'objective-readback-contract.js'],
     async handle(request, response) {
       const path = requestUrl(request).pathname;
       if (path !== FOUNDATION_HTTP_PREFIX && !path.startsWith(`${FOUNDATION_HTTP_PREFIX}/`)) return false;

@@ -663,7 +663,9 @@ function validJournalEvent(value: JsonObject, sessionRef: string, key: string, e
       || !sha256Text(text(value.input_digest))
       || !sha256Text(text(value.response_digest))
       || !sha256Text(text(value.event_fingerprint))
-      || !(text(value.display_line) || value.event_kind === 'turn_resolution' && value.display_line === null)) return false;
+      || !(value.display_line === undefined
+        || value.display_line === null
+        || text(value.display_line))) return false;
     return Boolean(eventKey && /^[a-f0-9]{64}$/u.test(eventKey)
       && sha256(text(value.tool_use_id)!) === eventKey);
   }

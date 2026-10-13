@@ -572,6 +572,59 @@ describe('project knowledge workspace lifecycle', () => {
     workspace.destroy();
   });
 
+  it('uses canonical people from the same project detail when participant edges are absent', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail({
+        project: {
+          ...project,
+          participantCount: 2,
+          accountableCount: 1,
+          people: [
+            { id: 'person-a', name: '佐藤 花子', accountable: true },
+            { id: 'person-b', name: '鈴木 次郎', accountable: false },
+          ],
+        },
+        participants: [],
+      }),
+    });
+
+    const people = section(workspace.element, '関係者');
+    const text = collectText(people);
+    expect(text).toContain('2人を表示');
+    expect(text).toContain('確認済みの件数: 関係者2人、責任者1人');
+    expect(text).toContain('佐藤 花子');
+    expect(text).toContain('鈴木 次郎');
+    expect(text).toContain('責任者');
+    expect(text).not.toContain('現在の関係者の詳細を未確認');
+    workspace.destroy();
+  });
+
+  it('keeps an explicit unavailable participant status even when canonical people are present', () => {
+    const workspace = createProjectKnowledgeWorkspace({
+      document: new FakeDocument(),
+      detail: detail({
+        project: {
+          ...project,
+          participantCount: 2,
+          accountableCount: 1,
+          people: [{ id: 'person-a', name: '佐藤 花子', accountable: true }],
+        },
+        participants: [],
+        participantStatus: 'unavailable',
+        participantUnavailableReason: 'Graphの関係者読み取りが失敗しました。',
+      }),
+    });
+
+    const people = section(workspace.element, '関係者');
+    const text = collectText(people);
+    expect(text).toContain('未確認');
+    expect(text).toContain('Graphの関係者読み取りが失敗しました');
+    expect(text).not.toContain('佐藤 花子');
+    expect(text).not.toContain('1人を表示');
+    workspace.destroy();
+  });
+
   it('keeps loading and failed reads renderable, then shows the fetched entity summary and metadata', async () => {
     let resolveRead;
     const readEntity = vi.fn(() => new Promise((resolve) => { resolveRead = resolve; }));

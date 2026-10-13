@@ -26,6 +26,7 @@ const nodeList = (nodes) => (Array.isArray(nodes) ? nodes : [nodes]).filter((nod
  * @param {(code: string) => void} [options.onCity] Enter a known business.
  * @param {(mode: 'auto'|'day'|'dusk'|'night') => void} [options.onSky]
  * @param {() => void} [options.onDismissTask] User dismissed task details.
+ * @param {{purpose?: string, knownCityAction?: string, unavailableCity?: string}} [options.context]
  *
  * showRail/showTask/setHelp accept actual DOM nodes, preserving their events and
  * all source details. showRail never opens the drawer; openRail opens it without
@@ -34,7 +35,16 @@ const nodeList = (nodes) => (Array.isArray(nodes) ? nodes : [nodes]).filter((nod
  * addNote shows a quest only for an explicit nonempty summary; its full text
  * remains in help. No summary is inferred from a long or nonurgent notice.
  */
-export function createWorldCanvasUI({ doc, stage, reducedMotion = false, onReset, onCity, onSky, onDismissTask }) {
+export function createWorldCanvasUI({
+  doc,
+  stage,
+  reducedMotion = false,
+  onReset,
+  onCity,
+  onSky,
+  onDismissTask,
+  context = {},
+}) {
   const id = `bb-world-canvas-${++instanceId}`;
   const listeners = [];
   let disposed = false;
@@ -50,6 +60,11 @@ export function createWorldCanvasUI({ doc, stage, reducedMotion = false, onReset
   let businesses = new Set();
   let overlayOrder = [];
   let overlayLayer = 10;
+  const worldContext = {
+    purpose: context.purpose ?? '事業と案件、関連する仕事を地図で確認します。',
+    knownCityAction: context.knownCityAction ?? '都市を選ぶと、その事業の区画に入ります。',
+    unavailableCity: context.unavailableCity ?? '現在、選べる事業を確認できません。',
+  };
 
   function element(tag, className, text, attrs = {}) {
     const node = doc.createElement(tag);
@@ -127,6 +142,16 @@ export function createWorldCanvasUI({ doc, stage, reducedMotion = false, onReset
   const skyIcon = element('span', 'bb-world-canvas-sky-icon', SKY_MODES[0].icon, { 'aria-hidden': 'true' });
   sky.append(skyIcon);
   toolbar.append(reset, city, sky);
+  const contextRoot = element('div', 'bb-world-canvas-context', null, {
+    'aria-label': 'この画面で確認できること',
+  });
+  const contextPurpose = element('p', 'bb-world-canvas-context-purpose', worldContext.purpose, {
+    'data-world-context': 'purpose',
+  });
+  const contextNextAction = element('p', 'bb-world-canvas-context-next-action', worldContext.unavailableCity, {
+    'data-world-context': 'next-action',
+  });
+  contextRoot.append(contextPurpose, contextNextAction);
   const skyMenu = element('div', 'bb-world-canvas-sky-menu', null, { id: `${id}-sky`, role: 'menu', 'aria-label': '空の時間帯' });
   skyMenu.hidden = true;
   const skyOptions = SKY_MODES.map((mode) => {
@@ -176,7 +201,7 @@ export function createWorldCanvasUI({ doc, stage, reducedMotion = false, onReset
   const notes = element('div', 'bb-world-canvas-notes');
   helpBody.append(helpContent, notes);
   help.append(helpTop, helpBody);
-  root.append(toolbar, skyMenu, quests, edge, rail, task, helpButton, help);
+  root.append(toolbar, contextRoot, skyMenu, quests, edge, rail, task, helpButton, help);
   stage.append(root);
 
   function setCities(items = [], selectedCode = null) {
@@ -195,6 +220,9 @@ export function createWorldCanvasUI({ doc, stage, reducedMotion = false, onReset
     }
     city.replaceChildren(...options);
     city.disabled = businesses.size === 0;
+    contextNextAction.textContent = businesses.size === 0
+      ? worldContext.unavailableCity
+      : worldContext.knownCityAction;
     setCity(selectedCode);
   }
   function setCity(code) {
