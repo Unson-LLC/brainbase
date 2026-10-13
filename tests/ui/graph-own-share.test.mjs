@@ -10,6 +10,7 @@ import {
   GRAPH_OWN_OBJECTIVES_LABEL,
   GRAPH_OWN_SHARE_COMMANDS,
   GRAPH_OWN_SHARE_LABEL,
+  ownShareHandoverText,
 } from '../../ui/graph-own-share.js';
 import { FIXTURE_NOW, writeGraphV2 } from '../graph-web-fixture.js';
 import { OWNER_NAME, OWNER_PERSON_ID, ownerPrivateBundle } from '../owner-private-graph-fixture.js';
@@ -140,6 +141,7 @@ describe('プロジェクトと関係者 with the owner\'s own share', () => {
     const text = visibleText(own);
     expect(text).toContain('読み取りのみ');
     expect(text).toContain('束 snapshot-1（置き場所 project-a、');
+    expect(text).toContain('digest sha256:fixture');
     expect(text).toContain(OWNER_NAME);
     expect(text).not.toContain('self');
 
@@ -158,10 +160,15 @@ describe('プロジェクトと関係者 with the owner\'s own share', () => {
     const detail = byClass(ownSection(root), 'bb-graph-own-detail')[0];
     expect(visibleText(detail)).toContain('プロジェクト（引き継いだ自分の分）');
     expect(visibleText(detail)).toContain(`責任${OWNER_NAME}`);
+    expect(visibleText(detail)).not.toContain('null');
     expect(visibleText(detail)).not.toContain('self');
     expect(collectText(rail)).toBe(railBefore);
     buttonsNamed(detail, '閉じる')[0].dispatch('click');
     expect(byClass(ownSection(root), 'bb-graph-own-detail')).toEqual([]);
+  });
+
+  it('labels a missing handover digest as unconfirmed instead of hiding it', () => {
+    expect(ownShareHandoverText({ graphId: 'snapshot-1', projectCode: 'project-a' })).toContain('digest 未確認');
   });
 
   it('says it has not been handed over yet, with the commands that send and list it', async () => {

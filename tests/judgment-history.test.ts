@@ -188,6 +188,43 @@ function hostV2Artifacts(sessionRef: string, turnId: string): {
   };
   return { key: digest(turnId), episode, event, final };
 }
+async function saveHostV2Artifacts(
+  root: string,
+  sessionRef: string,
+  artifacts: ReturnType<typeof hostV2Artifacts>,
+  options: { event?: Record<string, unknown>; final?: Record<string, unknown>; eventFile?: string } = {}
+): Promise<void> {
+  const event = options.event ?? artifacts.event;
+  const final = options.final ?? artifacts.final;
+  await save(root, sessionRef, `${artifacts.key}.episode.json`, artifacts.episode);
+  await save(root, sessionRef, `${artifacts.key}.turn-input.json`, artifacts.episode.turn_input);
+  await save(root, sessionRef, `${artifacts.key}.final.json`, final);
+  const events = join(root, sessionRef, `${artifacts.key}.events`);
+  await mkdir(events, { recursive: true });
+  const eventFile = options.eventFile ?? digest(String(event.tool_use_id));
+  await writeFile(join(events, `${eventFile}.json`), `${JSON.stringify(event)}\n`);
+}
+
+function legacyEvent(sessionRef: string, turnId: string, displayLine?: string): Record<string, unknown> {
+  const withoutDigest = {
+    schema_version: 'brainbase-judgment-tool-event-v1',
+    session_ref: sessionRef,
+    turn_id: turnId,
+    recorded_at: '2026-10-07T01:30:00.000Z',
+    sequence: 1,
+    tool_name: 'mcp__brainbase__brainbase_resolve_turn',
+    tool_use_id: 'legacy-tool-use-1',
+    tool_input: { request: 'legacy request' },
+    tool_response: { status: 'resolved' },
+    audit_kind: 'search',
+    success: true,
+    satisfies: ['judgment.search'],
+    event_fingerprint: 'legacy-event-fingerprint',
+    ...(displayLine === undefined ? {} : { display_line: displayLine })
+  };
+  return { ...withoutDigest, event_digest: digest(canonicalJson(withoutDigest)) };
+}
+
 
 afterEach(async () => {
   await Promise.all(servers.splice(0).map((server) => new Promise<void>((resolve) => server.close(() => resolve()))));
@@ -474,6 +511,124 @@ describe('judgment history common reader', () => {
     expect(home.status).toBe('available');
     expect(home.records).toHaveLength(1);
     expect(home.records?.[0].execution.status).toBe('completed');
+  });
+
+
+  it.each([
+    ['null', null],
+    ['omitted', undefined]
+  ] as const)('accepts a Host v2 event with a $0 display_line value', async (_label, displayLine) => {
+    const root = await makeRoot();
+    const sessionRef = 'v'.repeat(64);
+    const artifacts = hostV2Artifacts(sessionRef, `host-v2-display-${_label}`);
+    const event = {
+      ...artifacts.event,
+      event_kind: 'execution',
+      ...(displayLine === undefined ? {} : { display_line: displayLine })
+    };
+    await saveHostV2Artifacts(root, sessionRef, artifacts, { event });
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+
+    expect(home.status).toBe('available');
+    expect(home.records).toHaveLength(1);
+    expect(home.records?.[0].execution.status).toBe('completed');
+  });
+
+  const malformedDisplayLines: Array<[string, unknown]> = [
+    ['object', { display: 'invalid' }],
+    ['array', ['invalid']],
+    ['empty', '']
+  ];
+
+  it.each(malformedDisplayLines)('rejects a Host v2 event with malformed display_line: %s', async (_label, displayLine) => {
+    const root = await makeRoot();
+    const sessionRef = 'w'.repeat(64);
+    const artifacts = hostV2Artifacts(sessionRef, `host-v2-malformed-${_label}`);
+    const event = { ...artifacts.event, event_kind: 'execution', display_line: displayLine };
+    await saveHostV2Artifacts(root, sessionRef, artifacts, { event });
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+
+    expect(home.status).toBe('partial');
+    expect(home.coverage.complete).toBe(false);
+    expect(home.records).toHaveLength(1);
+    expect(home.records?.[0].execution.status).toBe('unknown');
+  });
+
+  const integrityFailures = [
+    'event_sequence_gap',
+    'event_fingerprint_shape',
+    'input_digest_shape',
+    'event_filename_binding',
+    'final_event_count',
+    'final_event_set_digest',
+    'owner_audit_complete'
+  ] as const;
+
+  it.each(integrityFailures)('keeps Host v2 incomplete when %s is tampered', async (failure) => {
+    const root = await makeRoot();
+    const sessionRef = 'x'.repeat(64);
+    const artifacts = hostV2Artifacts(sessionRef, `host-v2-integrity-${failure}`);
+    let event = { ...artifacts.event };
+    let final = { ...artifacts.final };
+    let eventFile: string | undefined;
+    if (failure === 'event_sequence_gap') {
+      event = { ...event, event_sequence: 1 };
+      final = {
+        ...final,
+        event_set_digest: digest(canonicalJson([{ event_sequence: 1, event_fingerprint: event.event_fingerprint }]))
+      };
+    } else if (failure === 'event_fingerprint_shape') {
+      event = { ...event, event_fingerprint: 'not-a-sha256' };
+    } else if (failure === 'input_digest_shape') {
+      event = { ...event, input_digest: 'not-a-sha256' };
+    } else if (failure === 'event_filename_binding') {
+      eventFile = '0'.repeat(64);
+    } else if (failure === 'final_event_count') {
+      final = { ...final, event_count: 2 };
+    } else if (failure === 'final_event_set_digest') {
+      final = { ...final, event_set_digest: 'f'.repeat(64) };
+    } else if (failure === 'owner_audit_complete') {
+      final = { ...final, owner_audit_complete: false };
+    }
+    await saveHostV2Artifacts(root, sessionRef, artifacts, { event, final, eventFile });
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+
+    expect(home.status).toBe('partial');
+    expect(home.coverage.complete).toBe(false);
+    expect(home.records).toHaveLength(1);
+    expect(home.records?.[0].execution.status).toBe('unknown');
+  });
+
+  it.each([
+    ['present', 'Legacy display line'],
+    ['omitted', undefined]
+  ] as const)('keeps the legacy display_line requirement when it is %s', async (_label, displayLine) => {
+    const root = await makeRoot();
+    const sessionRef = 'y'.repeat(64);
+    const turnId = `legacy-display-${_label}`;
+    const key = digest(turnId);
+    await save(root, sessionRef, `${key}.json`, adoption(sessionRef, turnId, `legacy-resolution-${_label}`));
+    const events = join(root, sessionRef, `${key}.events`);
+    await mkdir(events, { recursive: true });
+    const event = legacyEvent(sessionRef, turnId, displayLine);
+    await writeFile(join(events, 'legacy-event.json'), `${JSON.stringify(event)}\n`);
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+
+    expect(home.records).toHaveLength(1);
+    expect(home.status).toBe(displayLine === undefined ? 'partial' : 'available');
+    expect(home.coverage.complete).toBe(displayLine !== undefined);
   });
 
   it('rejects a symlink root and reports a capped scan as partial', async () => {

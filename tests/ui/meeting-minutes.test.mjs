@@ -11,6 +11,7 @@ class FakeElement {
     this.textContent = '';
     this.value = '';
     this.disabled = false;
+    this.focusCalls = [];
   }
 
   append(...children) {
@@ -28,6 +29,7 @@ class FakeElement {
 
   setAttribute(name, value) { this.attributes[name] = String(value); }
   addEventListener(name, callback) { this.listeners.set(name, callback); }
+  focus(options) { this.focusCalls.push(options); }
 }
 
 class FakeDocument {
@@ -124,6 +126,9 @@ describe('meeting minutes UI loading states', () => {
     });
     await flush();
     expect(view.state.meetings).toEqual([]);
+    const listPane = findAll(root, (node) => node.className === 'bb-minutes-list-pane')[0];
+    expect(listPane.attributes.tabindex).toBe('-1');
+    expect(listPane.focusCalls).toEqual([]);
     expect(collectText(root)).toContain('会議一覧を読み込めませんでした。理由: 一時的に保存先を読めません');
     expect(collectText(root)).toContain('再試行');
     expect(collectText(root)).not.toContain('保存された会議はありません');
@@ -132,8 +137,12 @@ describe('meeting minutes UI loading states', () => {
     retry.listeners.get('click')();
     await flush();
     expect(view.state.meetings).toHaveLength(1);
+    expect(listPane.focusCalls).toEqual([{ preventScroll: true }]);
     expect(collectText(root)).toContain('週次定例');
     expect(collectText(root)).not.toContain('一時的に保存先を読めません');
+
+    await view.refresh();
+    expect(listPane.focusCalls).toEqual([{ preventScroll: true }]);
   });
 
   it('keeps a successful detail through transient failure, but clears it after access denial', async () => {

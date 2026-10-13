@@ -60,6 +60,31 @@
   align-items: center;
   pointer-events: auto;
 }
+.bb-world-canvas-ui .bb-world-canvas-context {
+  position: absolute;
+  top: calc(var(--bb-world-toolbar-top) + 50px);
+  right: var(--bb-world-right-inset);
+  width: min(360px, calc(100% - var(--bb-world-right-inset) - 8px));
+  max-width: calc(100% - var(--bb-world-right-inset));
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid rgb(13 25 46 / 14%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 92%);
+  color: #0d192e;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  pointer-events: none;
+}
+.bb-world-canvas-ui .bb-world-canvas-context p {
+  margin: 0;
+}
+.bb-world-canvas-ui .bb-world-canvas-context-next-action {
+  margin-top: 3px;
+  color: rgb(13 25 46 / 72%);
+}
 .bb-world-canvas-ui .bb-world-canvas-control {
   min-width: 0;
   height: 40px;
@@ -318,6 +343,13 @@
     --bb-world-panel-top: 72px;
   }
   .bb-world-canvas-ui .bb-world-canvas-toolbar { grid-template-columns: auto minmax(0, 1fr) 34px; }
+  .bb-world-canvas-ui .bb-world-canvas-context {
+    top: calc(var(--bb-world-toolbar-top) + 46px);
+    width: calc(100% - var(--bb-world-right-inset) - 4px);
+    max-width: calc(100% - var(--bb-world-right-inset));
+    padding: 5px 8px;
+    font-size: 10px;
+  }
   .bb-world-canvas-ui .bb-world-canvas-control { height: 36px; padding: 6px; font-size: 10px; }
   .bb-world-canvas-ui .bb-world-canvas-sky { padding: 0; }
   .bb-world-canvas-ui .bb-world-canvas-sky-icon { font-size: 20px; }

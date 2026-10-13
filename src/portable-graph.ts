@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { validateCanonicalGraph } from './canonical-graph.js';
+import { canonicalEdgeId, validateCanonicalGraph } from './canonical-graph.js';
 import { retrieveGraph, type GraphRetrievalInput, type GraphRetrievalResponse } from './graph-retrieval.js';
 import type { EmbeddingProvider } from './embedding-provider.js';
 import type { DecisionRecord, GraphFileV2, PersonalOs } from './types.js';
@@ -139,8 +139,8 @@ export interface PortableGraphOwner {
  * `applicability`, constraint exception scopes).
  *
  * The result is a read projection, not a bundle to store or send: the input
- * is not changed, relation IDs stay those of the stored bundle (they name the
- * relation there) and foundation digests are not recomputed.  A bundle that
+ * is not changed, endpoint-dependent edge IDs are re-derived for the bound
+ * projection, and foundation digests are not recomputed.  A bundle that
  * already has another record with the owner's person ID is refused rather
  * than merged.
  */
@@ -178,6 +178,7 @@ export function bindPortableGraphOwner(bundle: PortableGraphBundle, owner: Porta
   for (const edge of graph.edges) {
     edge.fromId = swap(edge.fromId);
     edge.toId = swap(edge.toId);
+    edge.id = canonicalEdgeId(edge);
   }
   for (const record of graph.foundation?.records ?? []) {
     const definition = record.definition as unknown as Record<string, any>;

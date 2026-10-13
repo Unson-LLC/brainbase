@@ -3,8 +3,10 @@ import {
   createFoundationHttpRouter,
   createObjectiveFoundationHttpHandler,
   createObjectiveFoundationRoute,
+  isObjectiveReadbackPayload,
   type FoundationHttpRoute,
 } from '../src/foundation-http.js';
+import { digestFoundationDefinition } from '../src/foundation-catalog.js';
 import { FoundationStoreError } from '../src/foundation-store.js';
 import type { ObjectiveDefinition } from '../src/ontology-foundation.js';
 
@@ -31,7 +33,7 @@ function objectiveDefinition(id = 'objective-1', revision = '1', overrides: Part
 }
 
 function record(definition: ObjectiveDefinition) {
-  return { definition, digest: `sha256:${definition.revision.padStart(64, '0')}` };
+  return { definition, digest: digestFoundationDefinition(definition) };
 }
 
 function jsonRequest(path: string, init: RequestInit = {}) {
@@ -215,6 +217,220 @@ describe('Foundation Objective HTTP boundary', () => {
     const refs = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1/constraints'));
     expect(refs.status).toBe(500);
     expect((await responseJson(refs)).error.code).toBe('readback_mismatch');
+  });
+
+  it('returns a canonical ready readback with provenance, digest and checked_at', async () => {
+    const fake = fakeObjectiveOptions();
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:03.000Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1?revision=1'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'ready',
+      checked_at: '2026-10-12T01:02:03.000Z',
+      source: {
+        source_type: 'foundation_revision_store',
+        source_id: 'objective-1',
+        source_version: '1',
+        digest: fake.getCurrent().digest,
+        provenance: fake.getCurrent().definition.provenance,
+      },
+      reason: null,
+    });
+    expect(payload.record).toEqual(payload.objective);
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('returns unknown with an explicit reason when the canonical record is absent', async () => {
+    const fake = fakeObjectiveOptions();
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:04.000Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/missing'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(404);
+    expect(payload).toMatchObject({
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'unknown',
+      checked_at: '2026-10-12T01:02:04.000Z',
+      source: null,
+      record: null,
+      objective: null,
+      reason: { code: 'not_found' },
+    });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('fails closed when the canonical Objective record is malformed', async () => {
+    const fake = fakeObjectiveOptions();
+    fake.objectives.readObjective = vi.fn(async () => ({
+      definition: { type: 'objective', id: 'objective-1', revision: '1', provenance: [] },
+      digest: '',
+    } as never));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:04.500Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload).toMatchObject({
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'error',
+      checked_at: '2026-10-12T01:02:04.500Z',
+      source: null,
+      record: null,
+      objective: null,
+      reason: { code: 'invalid_canonical_record' },
+    });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('fails closed when a canonical record has a valid-looking digest but omits required definition fields', async () => {
+    const fake = fakeObjectiveOptions();
+    const incomplete = {
+      id: 'objective-1',
+      type: 'objective',
+      revision: '1',
+      provenance: [],
+    } as unknown as ObjectiveDefinition;
+    fake.objectives.readObjective = vi.fn(async () => ({
+      definition: incomplete,
+      digest: digestFoundationDefinition(incomplete),
+    } as never));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:04.600Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload.reason).toMatchObject({ code: 'invalid_canonical_record' });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('fails closed when a canonical record digest does not match its definition', async () => {
+    const fake = fakeObjectiveOptions();
+    const current = record(objectiveDefinition());
+    fake.objectives.readObjective = vi.fn(async () => ({
+      ...current,
+      digest: `sha256:${'0'.repeat(64)}`,
+    }));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:04.650Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload.reason).toMatchObject({ code: 'invalid_canonical_record' });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('fails closed when the canonical record id differs from the requested URL id', async () => {
+    const fake = fakeObjectiveOptions();
+    fake.objectives.readObjective = vi.fn(async () => record(objectiveDefinition('objective-other', '1')));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:04.750Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1?revision=1'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload).toMatchObject({
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'error',
+      checked_at: '2026-10-12T01:02:04.750Z',
+      source: null,
+      record: null,
+      objective: null,
+      reason: { code: 'readback_identity_mismatch' },
+    });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('fails closed when the canonical record revision differs from the requested query revision', async () => {
+    const fake = fakeObjectiveOptions();
+    fake.objectives.readObjective = vi.fn(async () => record(objectiveDefinition('objective-1', '1')));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:04.875Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1?revision=2'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload).toMatchObject({
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'error',
+      checked_at: '2026-10-12T01:02:04.875Z',
+      source: null,
+      record: null,
+      objective: null,
+      reason: { code: 'readback_identity_mismatch' },
+    });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('fails closed when a constraint relation adapter returns a different Objective', async () => {
+    const fake = fakeObjectiveOptions();
+    fake.objectives.readObjective = vi.fn(async () => record(objectiveDefinition('objective-other', '1')));
+    const listObjectiveConstraintRefs = vi.fn(async () => ({ refs: [], absence_confirmed: true }));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      listObjectiveConstraintRefs,
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1/constraints'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload.error).toMatchObject({ code: 'readback_identity_mismatch' });
+    expect(listObjectiveConstraintRefs).not.toHaveBeenCalled();
+  });
+
+  it('returns error with an explicit reason when the canonical read fails', async () => {
+    const fake = fakeObjectiveOptions();
+    fake.objectives.readObjective = vi.fn(async () => {
+      throw new FoundationStoreError('unsupported_graph', 'canonical graph is unavailable');
+    });
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:05.000Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(503);
+    expect(payload).toMatchObject({
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'error',
+      checked_at: '2026-10-12T01:02:05.000Z',
+      source: null,
+      record: null,
+      objective: null,
+      reason: { code: 'unsupported_graph', message: 'canonical graph is unavailable' },
+    });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
   });
 
   it('composes an additional route under the same local router and trusted context', async () => {

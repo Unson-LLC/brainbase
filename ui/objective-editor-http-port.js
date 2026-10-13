@@ -10,6 +10,8 @@
  * Constraint links are only read here; there is no replace method.
  */
 
+import { normalizeObjectiveReadback } from './objective-readback-contract.js';
+
 export const OBJECTIVE_EDITOR_HTTP_PORT_VERSION = 'brainbase.objective-editor-http-port.v1';
 
 /** Top-level fields the Foundation route rejects with `authority_field_in_body`. */
@@ -93,7 +95,7 @@ export function createObjectiveEditorHttpPort({
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
   const base = String(basePath).replace(/\/+$/u, '');
 
-  async function call(path, init) {
+  async function call(path, init, { allowObjectiveReadback = false, expected } = {}) {
     if (!request) throw new ObjectiveEditorHttpError({ code: 'network_error', status: 0, message: ERROR_MESSAGES.network_error });
     let response;
     try {
@@ -107,7 +109,14 @@ export function createObjectiveEditorHttpPort({
     } catch {
       payload = null;
     }
-    if (!response.ok) throw errorFromResponse(response.status, payload);
+    // Detail GETs use a typed envelope for both a canonical record and a
+    // confirmed miss/read failure.  Accept that envelope even when its HTTP
+    // status is 404/5xx; every other non-2xx response remains an error.
+    if (!response.ok) {
+      const readback = allowObjectiveReadback ? normalizeObjectiveReadback(payload, expected) : null;
+      if (readback) return readback;
+      throw errorFromResponse(response.status, payload);
+    }
     if (payload === null) throw new ObjectiveEditorHttpError({ code: 'invalid_response', status: response.status, message: ERROR_MESSAGES.invalid_response });
     return payload;
   }
@@ -128,13 +137,17 @@ export function createObjectiveEditorHttpPort({
       return payload;
     },
     async readObjective(id, _context, revision) {
-      try {
-        return await call(withRevision(objectivePath(id), revision));
-      } catch (error) {
-        // A missing Objective is a readback miss, not a failure of the request.
-        if (error instanceof ObjectiveEditorHttpError && error.status === 404 && error.code === 'not_found') return null;
-        throw error;
+      const expected = { id, revision };
+      const payload = await call(withRevision(objectivePath(id), revision), undefined, { allowObjectiveReadback: true, expected });
+      const readback = normalizeObjectiveReadback(payload, expected);
+      if (!readback) {
+        throw new ObjectiveEditorHttpError({
+          code: 'invalid_response',
+          status: 200,
+          message: ERROR_MESSAGES.invalid_response,
+        });
       }
+      return readback;
     },
     checkObjectiveReadiness(id, _context, revision) {
       return call(withRevision(objectivePath(id, '/readiness'), revision));

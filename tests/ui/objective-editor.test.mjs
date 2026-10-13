@@ -96,7 +96,7 @@ function objectiveRecord(overrides = {}) {
       provenance: [],
       scope: { subjectIds: ['org-1'], validFrom: '2026-01-01T00:00:00.000Z' },
     },
-    digest: 'sha256:objective-1',
+    digest: `sha256:${'1'.repeat(64)}`,
     ...overrides,
   };
 }
@@ -118,6 +118,118 @@ describe('Objective editor common UI contract', () => {
     for (const copy of visible) {
       expect(copy).not.toMatch(/Objective|Variable|Constraint|readiness|readback|FoundationRevisionStore|COMPANY OS|\bport\b|\bAPI\b|typed relation|Story/);
     }
+  });
+
+  it('carries canonical readback status, checked_at and source into the detail view', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const record = objectiveRecord();
+    const readback = {
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'ready',
+      checked_at: '2026-10-12T01:02:03.000Z',
+      source: {
+        source_type: 'foundation_revision_store',
+        source_id: record.definition.id,
+        source_version: record.definition.revision,
+        digest: record.digest,
+        provenance: record.definition.provenance,
+      },
+      record,
+      objective: record,
+      reason: null,
+    };
+    const normalized = normalizeObjectiveRecord(readback);
+    expect(normalized).toMatchObject({
+      id: record.definition.id,
+      readback_status: 'ready',
+      checked_at: '2026-10-12T01:02:03.000Z',
+      source: { source_id: record.definition.id, source_version: record.definition.revision },
+    });
+
+    const controller = createObjectiveEditorController({
+      root,
+      port: { readObjective: async () => readback },
+      context: {},
+      canEdit: false,
+      autoLoad: false,
+    });
+    await controller.selectObjective({ id: record.definition.id, type: 'objective', revision: record.definition.revision });
+    expect(collectText(root)).toContain('確認済み');
+    expect(collectText(root)).toContain('2026-10-12T01:02:03.000Z');
+    expect(collectText(root)).toContain(record.definition.id);
+  });
+
+  it('shows checked_at and an explicit unconfirmed source when canonical readback is unknown', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const readback = {
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'unknown',
+      checked_at: '2026-10-12T01:02:04.000Z',
+      source: null,
+      record: null,
+      objective: null,
+      reason: { code: 'not_found', message: '正本の目的を確認できません。' },
+    };
+    const controller = createObjectiveEditorController({
+      root,
+      port: { readObjective: async () => readback },
+      context: {},
+      canEdit: false,
+      autoLoad: false,
+    });
+    await controller.selectObjective({ id: 'objective-missing', type: 'objective', revision: '1' });
+    const visible = collectText(root);
+    expect(visible).toContain('確認できません');
+    expect(visible).toContain('正本の確認日時: 2026-10-12T01:02:04.000Z');
+    expect(visible).toContain('出典: 出典を確認できません。');
+  });
+
+  it('rejects a malformed canonical readback envelope instead of rendering a record', () => {
+    const record = objectiveRecord();
+    expect(normalizeObjectiveRecord({
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'ready',
+      checked_at: 'not-a-timestamp',
+      source: null,
+      record,
+      objective: record,
+      reason: null,
+    })).toBeNull();
+  });
+
+  it('does not select a ready readback whose identity differs from the requested Objective', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const record = objectiveRecord({
+      definition: { ...objectiveRecord().definition, id: 'objective-other' },
+    });
+    const readback = {
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'ready',
+      checked_at: '2026-10-12T01:02:03.000Z',
+      source: {
+        source_type: 'foundation_revision_store',
+        source_id: record.definition.id,
+        source_version: record.definition.revision,
+        digest: record.digest,
+        provenance: record.definition.provenance,
+      },
+      record,
+      objective: record,
+      reason: null,
+    };
+    const controller = createObjectiveEditorController({
+      root,
+      port: { readObjective: async () => readback },
+      context: {},
+      canEdit: false,
+      autoLoad: false,
+    });
+
+    expect(await controller.selectObjective({ id: 'objective-requested', type: 'objective', revision: '1' })).toBeNull();
+    expect(controller.state.editor.state).toBe('missing');
   });
 
   it('keeps unknown, draft, and judgment-ready states distinct', () => {
@@ -340,6 +452,32 @@ describe('Objective editor common UI contract', () => {
     controller.state.view = 'list';
     await controller.loadObjectives();
     expect(collectText(root)).toContain('判断に使えない（不足1件）');
+  });
+
+  it('shows the host readiness message and next action when judgment is unavailable', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const port = {
+      readObjective: async () => objectiveRecord(),
+      checkObjectiveReadiness: async () => ({
+        ready: false,
+        issues: [],
+        message: '評価に必要な変数の版を確認できません。',
+        next_action: '変数を読み直してから再確認してください。',
+      }),
+    };
+    const controller = createObjectiveEditorController({ root, port, context: {}, canEdit: true, autoLoad: false });
+
+    await controller.selectObjective({ id: 'objective-load', type: 'objective', revision: '1' });
+
+    expect(controller.state.readiness).toMatchObject({
+      state: 'ready',
+      ready: false,
+      message: '評価に必要な変数の版を確認できません。',
+      next_action: '変数を読み直してから再確認してください。',
+    });
+    expect(collectText(root)).toContain('評価に必要な変数の版を確認できません。');
+    expect(collectText(root)).toContain('次の対応: 変数を読み直してから再確認してください。');
   });
 
   describe('draft submissions and interrupted requests', () => {
@@ -582,6 +720,25 @@ describe('Objective editor common UI contract', () => {
       controller.beginCreate();
       expect((await controller.saveObjective({ id: 'objective-new' })).state).toBe('permission_denied');
       expect(writes).toBe(0);
+    });
+
+    it('turns an initially editable editor read-only after a canonical 403', async () => {
+      globalThis.document = new FakeDocument();
+      const root = new FakeElement('div');
+      const denied = Object.assign(new Error('foundation_permission_denied'), { status: 403 });
+      const controller = createObjectiveEditorController({
+        root,
+        port: { listObjectives: async () => { throw denied; } },
+        canEdit: true,
+        autoLoad: false,
+      });
+
+      await controller.loadObjectives();
+
+      expect(controller.state.permissionDenied).toBe(true);
+      expect(collectText(root)).toContain('権限不足');
+      expect(findButtons(root).map((button) => button.textContent)).not.toContain('新しい目的');
+      expect((await controller.saveObjective({ id: 'objective-new' })).state).toBe('permission_denied');
     });
   });
 

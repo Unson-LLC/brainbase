@@ -249,7 +249,10 @@ export function createMeetingMinutesUI({
   );
   const status = makeElement(doc, 'p', { className: 'bb-minutes-status', attrs: { role: 'status', 'aria-live': 'polite' } });
   const columns = makeElement(doc, 'div', { className: 'bb-minutes-columns' });
-  const listPane = makeElement(doc, 'section', { className: 'bb-minutes-list-pane', attrs: { 'aria-label': '会議一覧' } });
+  const listPane = makeElement(doc, 'section', {
+    className: 'bb-minutes-list-pane',
+    attrs: { 'aria-label': '会議一覧', tabindex: '-1' },
+  });
   const detailPane = makeElement(doc, 'section', { className: 'bb-minutes-detail-pane', attrs: { 'aria-label': '会議詳細' } });
   columns.append(listPane, detailPane);
   screen.append(heading, status, columns);
@@ -352,7 +355,7 @@ export function createMeetingMinutesUI({
     if (!createAllowed) appendCreateBlockedNotice(head);
     listPane.append(head);
     if (state.listError) {
-      appendLoadError(listPane, `会議一覧を読み込めませんでした。理由: ${state.listError}`, loadMeetings);
+      appendLoadError(listPane, `会議一覧を読み込めませんでした。理由: ${state.listError}`, () => loadMeetings({ restoreFocus: true }));
     }
     if (state.meetings.length === 0) {
       if (state.listError) return;
@@ -641,7 +644,7 @@ export function createMeetingMinutesUI({
     detailPane.append(form);
   }
 
-  async function loadMeetings() {
+  async function loadMeetings({ restoreFocus = false } = {}) {
     const requestGeneration = ++listRequestGeneration;
     const isCurrentRequest = () => requestGeneration === listRequestGeneration;
     state.loading = true;
@@ -669,6 +672,7 @@ export function createMeetingMinutesUI({
       renderList();
       if (state.detailError && state.detail === null) renderDetail(null);
       setStatus(state.meetings.length ? `${state.meetings.length}件の会議を読み込みました。` : '保存された会議はありません。');
+      if (restoreFocus && typeof listPane.focus === 'function') listPane.focus({ preventScroll: true });
     } catch (error) {
       if (!isCurrentRequest()) return state.meetings;
       state.listError = loadErrorMessage(error, '会議一覧を読み込めませんでした。');

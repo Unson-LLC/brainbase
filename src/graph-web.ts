@@ -1,6 +1,6 @@
 import { access, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { isActiveAt } from './canonical-graph.js';
+import { isActiveAt, validateCanonicalGraph } from './canonical-graph.js';
 import { assertFoundationCatalog, findFoundationRecord } from './foundation-catalog.js';
 import {
   GRAPH_CORRECTION_EDGE_FIELDS,
@@ -217,6 +217,8 @@ export interface GraphProjectDetail<S extends GraphWebAnySource = GraphWebSource
   participants: GraphEdgeView[];
   /** Other relations of the project (governs, owned_by, ...). */
   relations: GraphEdgeView[];
+  /** True only after the same Graph v2 was fully read and strictly validated with no participant edge. */
+  participantsAbsenceConfirmed: boolean;
   history: GraphCorrectionRecord[];
   issues: GraphReadIssue[];
 }
@@ -581,6 +583,13 @@ export async function readGraphProject(dataDir: string, projectId: string, optio
 }
 
 function projectDetailOf<S extends GraphWebAnySource>(graph: GraphFileV2, source: S, projectId: string, asOf: string, references: ReferenceIndex): GraphProjectDetail<S> {
+  try {
+    // loadPersonalOs intentionally preserves duplicate entity IDs for audit reads;
+    // participant absence must use a strict, same-snapshot Graph validation.
+    validateCanonicalGraph(graph);
+  } catch (error) {
+    throw new GraphWebError('unavailable', 'graph_unavailable', errorMessage(error));
+  }
   const project = graph.entities.find((entity) => entity.id === projectId && entity.type === 'project');
   if (!project) throw new GraphWebError('not_found', 'project_not_found', `No project ${projectId}`);
   const entities = entityIndex(graph);
@@ -599,6 +608,7 @@ function projectDetailOf<S extends GraphWebAnySource>(graph: GraphFileV2, source
     },
     participants,
     relations,
+    participantsAbsenceConfirmed: participants.length === 0,
     history: historyFor(references.history, touched),
     issues: references.issues
   };
