@@ -95,7 +95,7 @@ export function createObjectiveEditorHttpPort({
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
   const base = String(basePath).replace(/\/+$/u, '');
 
-  async function call(path, init, { allowObjectiveReadback = false } = {}) {
+  async function call(path, init, { allowObjectiveReadback = false, expected } = {}) {
     if (!request) throw new ObjectiveEditorHttpError({ code: 'network_error', status: 0, message: ERROR_MESSAGES.network_error });
     let response;
     try {
@@ -113,7 +113,7 @@ export function createObjectiveEditorHttpPort({
     // confirmed miss/read failure.  Accept that envelope even when its HTTP
     // status is 404/5xx; every other non-2xx response remains an error.
     if (!response.ok) {
-      const readback = allowObjectiveReadback ? normalizeObjectiveReadback(payload) : null;
+      const readback = allowObjectiveReadback ? normalizeObjectiveReadback(payload, expected) : null;
       if (readback) return readback;
       throw errorFromResponse(response.status, payload);
     }
@@ -137,8 +137,9 @@ export function createObjectiveEditorHttpPort({
       return payload;
     },
     async readObjective(id, _context, revision) {
-      const payload = await call(withRevision(objectivePath(id), revision), undefined, { allowObjectiveReadback: true });
-      const readback = normalizeObjectiveReadback(payload);
+      const expected = { id, revision };
+      const payload = await call(withRevision(objectivePath(id), revision), undefined, { allowObjectiveReadback: true, expected });
+      const readback = normalizeObjectiveReadback(payload, expected);
       if (!readback) {
         throw new ObjectiveEditorHttpError({
           code: 'invalid_response',

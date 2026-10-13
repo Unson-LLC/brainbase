@@ -1,6 +1,6 @@
 import type { CompanyOsObjectives, ObjectiveReadiness } from './company-os-objectives.js';
 import { FoundationStoreError, type FoundationRevisionStore, type FoundationStoreContext } from './foundation-store.js';
-import type { FoundationRef } from './foundation-catalog.js';
+import { assertFoundationCatalog, foundationKey, type FoundationRef } from './foundation-catalog.js';
 import type {
   FoundationDefinition,
   FoundationRevision,
@@ -265,11 +265,29 @@ function objectiveReadbackRecord(value: unknown): FoundationCatalogRecord | null
   const object = asRecord(value);
   const definition = asRecord(object?.definition);
   if (!object || !definition || definition.type !== 'objective'
-    || typeof definition.id !== 'string' || !definition.id.trim()
-    || typeof definition.revision !== 'string' || !definition.revision.trim()
-    || typeof object.digest !== 'string' || !object.digest.trim()
-    || !Array.isArray(definition.provenance)
-    || !definition.provenance.every(isFoundationProvenance)) return null;
+    || typeof definition.id !== 'string' || !definition.id.trim()) return null;
+  const logicalKey = foundationKey({ type: 'objective', id: definition.id });
+  try {
+    // Reuse the canonical catalog guard so the readback cannot accept a
+    // partial draft shape, an arbitrary digest, or a non-canonical revision.
+    // The catalog guard deliberately validates definitions with `use: draft`:
+    // displayable draft/adopted Objectives remain readable without turning
+    // this transport check into a judgment/evaluation gate.
+    assertFoundationCatalog({
+      version: 1,
+      records: [object as FoundationCatalogRecord],
+      latest: {
+        [logicalKey]: {
+          id: definition.id,
+          type: 'objective',
+          revision: definition.revision,
+        },
+      },
+      relations: [],
+    });
+  } catch {
+    return null;
+  }
   return object as FoundationCatalogRecord;
 }
 
@@ -546,12 +564,19 @@ async function readObjectiveReference(
   context: FoundationStoreContext
 ): Promise<FoundationRef> {
   const record = await options.objectives.readObjective(id, context, revision);
-  if (!record || record.definition.type !== 'objective') throw new FoundationHttpError(404, 'not_found', `Objective ${id} was not found`);
+  if (!record) throw new FoundationHttpError(404, 'not_found', `Objective ${id} was not found`);
+  const canonicalRecord = objectiveReadbackRecord(record);
+  if (!canonicalRecord) {
+    throw new FoundationHttpError(502, 'invalid_canonical_record', 'The canonical Objective readback is incomplete');
+  }
+  if (!objectiveReadbackMatchesRequest(canonicalRecord, id, revision)) {
+    throw new FoundationHttpError(502, 'readback_identity_mismatch', 'The canonical Objective readback does not match the requested id or revision');
+  }
   return {
-    id: record.definition.id,
+    id: canonicalRecord.definition.id,
     type: 'objective',
-    revision: record.definition.revision,
-    digest: record.digest,
+    revision: canonicalRecord.definition.revision,
+    digest: canonicalRecord.digest,
   };
 }
 

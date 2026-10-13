@@ -73,6 +73,7 @@ const draft = {
 };
 
 const READBACK_AT = '2026-10-12T01:02:03.000Z';
+const VALID_DIGEST = `sha256:${'1'.repeat(64)}`;
 
 function objectiveReadback(record, status = 'ready', reason = null) {
   if (status !== 'ready') {
@@ -186,13 +187,17 @@ describe('Objective editor HTTP port', () => {
           definition: {
             ...body,
             revision: '1',
-            acl: { ownerId: 'self' },
+            adoptionState: body.adoptionState ?? 'draft',
+            authorizedUses: ['draft'],
+            acl: { ownerId: 'self', visibility: 'private', readerIds: [], writerIds: [] },
+            scope: { subjectIds: ['self'], validFrom: '2026-01-01T00:00:00.000Z' },
+            storage: 'ontology',
             provenance: [{ sourceId: 'story-objective-editor', sourceKind: 'document', evidenceIds: [] }],
           },
-          digest: 'sha256:1',
+          digest: VALID_DIGEST,
         };
         stored.set(body.id, record);
-        return jsonResponse(201, { state: 'saved_unverified', ref: { id: body.id, type: 'objective', revision: '1', digest: 'sha256:1' } });
+        return jsonResponse(201, { state: 'saved_unverified', ref: { id: body.id, type: 'objective', revision: '1', digest: VALID_DIGEST } });
       }
       if (path === '/api/foundation/objectives') return jsonResponse(200, { state: 'ready', records: [...stored.values()], absence_confirmed: true });
       const id = decodeURIComponent(path.split('/')[4].split('?')[0]);

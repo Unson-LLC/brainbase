@@ -293,8 +293,8 @@ function recordPayload(payload) {
  * Converts a canonical FoundationCatalogRecord (or a host projection of it)
  * without filling missing fields with guessed values.
  */
-export function normalizeObjectiveRecord(payload) {
-  const readback = normalizeObjectiveReadback(payload);
+export function normalizeObjectiveRecord(payload, expected) {
+  const readback = normalizeObjectiveReadback(payload, expected);
   const payloadObject = objectValue(payload);
   // An explicit readback envelope must pass its contract guard.  Raw records
   // remain accepted for non-HTTP host adapters and existing unit consumers.
@@ -306,6 +306,8 @@ export function normalizeObjectiveRecord(payload) {
   const id = nonEmptyText(firstValue(definition, 'id')) ?? nonEmptyText(firstValue(source, 'id'));
   const revision = normalizeRevision(firstValue(definition, 'revision', 'version')) ?? normalizeRevision(firstValue(source, 'revision', 'version'));
   if (!id || !revision) return null;
+  if (expected && (id !== expected.id
+    || (expected.revision !== undefined && expected.revision !== null && revision !== expected.revision))) return null;
   const criteriaValue = firstValue(definition, 'criteria');
   const criteria = asArray(criteriaValue);
   // A malformed criterion must invalidate the whole Objective readback.  It
@@ -373,7 +375,10 @@ export function normalizeObjectiveCollection(payload) {
   if (recordsValue === null) {
     return { state: explicitState === 'empty' ? 'unknown' : explicitState, records: null, absence_confirmed: false, source, correctionGuidance };
   }
-  const records = recordsValue.map(normalizeObjectiveRecord);
+  // Do not pass Array#map's index as the readback identity expectation.
+  // `normalizeObjectiveRecord` accepts an optional expected `{ id, revision }`
+  // only for a specific read operation.
+  const records = recordsValue.map((record) => normalizeObjectiveRecord(record));
   if (records.some((record) => !record || record.type !== 'objective')) {
     return { state: 'unknown', records: null, absence_confirmed: false, source, correctionGuidance };
   }
@@ -1558,7 +1563,8 @@ export function createObjectiveEditorController(options = {}) {
     try {
       const payload = await method(id, context, revision);
       if (version !== selectionVersion) return null;
-      const readback = normalizeObjectiveReadback(payload);
+      const expected = { id, revision };
+      const readback = normalizeObjectiveReadback(payload, expected);
       if (readback && readback.status !== 'ready') {
         const readbackState = readback.status === 'error' ? 'error_retryable' : 'unknown';
         const message = OBJECTIVE_READBACK_REASON_MESSAGES[readback.reason?.code] ?? OBJECTIVE_READBACK_STATUS_LABELS[readback.status];
@@ -1575,7 +1581,7 @@ export function createObjectiveEditorController(options = {}) {
         render();
         return null;
       }
-      const objective = normalizeObjectiveRecord(payload);
+      const objective = normalizeObjectiveRecord(payload, expected);
       if (!objective) {
         state.editor = { ...state.editor, state: 'missing', message: '指定した目的を保存先から確認できません。' };
         state.connection = 'missing';

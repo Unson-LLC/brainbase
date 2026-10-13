@@ -96,7 +96,7 @@ function objectiveRecord(overrides = {}) {
       provenance: [],
       scope: { subjectIds: ['org-1'], validFrom: '2026-01-01T00:00:00.000Z' },
     },
-    digest: 'sha256:objective-1',
+    digest: `sha256:${'1'.repeat(64)}`,
     ...overrides,
   };
 }
@@ -197,6 +197,39 @@ describe('Objective editor common UI contract', () => {
       objective: record,
       reason: null,
     })).toBeNull();
+  });
+
+  it('does not select a ready readback whose identity differs from the requested Objective', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const record = objectiveRecord({
+      definition: { ...objectiveRecord().definition, id: 'objective-other' },
+    });
+    const readback = {
+      contract_version: 'brainbase.objective-readback.v1',
+      status: 'ready',
+      checked_at: '2026-10-12T01:02:03.000Z',
+      source: {
+        source_type: 'foundation_revision_store',
+        source_id: record.definition.id,
+        source_version: record.definition.revision,
+        digest: record.digest,
+        provenance: record.definition.provenance,
+      },
+      record,
+      objective: record,
+      reason: null,
+    };
+    const controller = createObjectiveEditorController({
+      root,
+      port: { readObjective: async () => readback },
+      context: {},
+      canEdit: false,
+      autoLoad: false,
+    });
+
+    expect(await controller.selectObjective({ id: 'objective-requested', type: 'objective', revision: '1' })).toBeNull();
+    expect(controller.state.editor.state).toBe('missing');
   });
 
   it('keeps unknown, draft, and judgment-ready states distinct', () => {

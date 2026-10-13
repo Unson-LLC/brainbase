@@ -6,6 +6,7 @@ import {
   isObjectiveReadbackPayload,
   type FoundationHttpRoute,
 } from '../src/foundation-http.js';
+import { digestFoundationDefinition } from '../src/foundation-catalog.js';
 import { FoundationStoreError } from '../src/foundation-store.js';
 import type { ObjectiveDefinition } from '../src/ontology-foundation.js';
 
@@ -32,7 +33,7 @@ function objectiveDefinition(id = 'objective-1', revision = '1', overrides: Part
 }
 
 function record(definition: ObjectiveDefinition) {
-  return { definition, digest: `sha256:${definition.revision.padStart(64, '0')}` };
+  return { definition, digest: digestFoundationDefinition(definition) };
 }
 
 function jsonRequest(path: string, init: RequestInit = {}) {
@@ -296,6 +297,51 @@ describe('Foundation Objective HTTP boundary', () => {
     expect(isObjectiveReadbackPayload(payload)).toBe(true);
   });
 
+  it('fails closed when a canonical record has a valid-looking digest but omits required definition fields', async () => {
+    const fake = fakeObjectiveOptions();
+    const incomplete = {
+      id: 'objective-1',
+      type: 'objective',
+      revision: '1',
+      provenance: [],
+    } as unknown as ObjectiveDefinition;
+    fake.objectives.readObjective = vi.fn(async () => ({
+      definition: incomplete,
+      digest: digestFoundationDefinition(incomplete),
+    } as never));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:04.600Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload.reason).toMatchObject({ code: 'invalid_canonical_record' });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('fails closed when a canonical record digest does not match its definition', async () => {
+    const fake = fakeObjectiveOptions();
+    const current = record(objectiveDefinition());
+    fake.objectives.readObjective = vi.fn(async () => ({
+      ...current,
+      digest: `sha256:${'0'.repeat(64)}`,
+    }));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      clock: () => new Date('2026-10-12T01:02:04.650Z'),
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload.reason).toMatchObject({ code: 'invalid_canonical_record' });
+    expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
   it('fails closed when the canonical record id differs from the requested URL id', async () => {
     const fake = fakeObjectiveOptions();
     fake.objectives.readObjective = vi.fn(async () => record(objectiveDefinition('objective-other', '1')));
@@ -342,6 +388,23 @@ describe('Foundation Objective HTTP boundary', () => {
       reason: { code: 'readback_identity_mismatch' },
     });
     expect(isObjectiveReadbackPayload(payload)).toBe(true);
+  });
+
+  it('fails closed when a constraint relation adapter returns a different Objective', async () => {
+    const fake = fakeObjectiveOptions();
+    fake.objectives.readObjective = vi.fn(async () => record(objectiveDefinition('objective-other', '1')));
+    const listObjectiveConstraintRefs = vi.fn(async () => ({ refs: [], absence_confirmed: true }));
+    const handler = createObjectiveFoundationHttpHandler({
+      objectives: fake.objectives,
+      resolveContext: async () => context,
+      listObjectiveConstraintRefs,
+    });
+
+    const response = await handler.handle(new Request('http://localhost/api/foundation/objectives/objective-1/constraints'));
+    const payload = await responseJson(response);
+    expect(response.status).toBe(502);
+    expect(payload.error).toMatchObject({ code: 'readback_identity_mismatch' });
+    expect(listObjectiveConstraintRefs).not.toHaveBeenCalled();
   });
 
   it('returns error with an explicit reason when the canonical read fails', async () => {
