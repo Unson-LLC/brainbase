@@ -505,6 +505,40 @@ describe('outcome knowledge UI contract', () => {
     });
   });
 
+  it('reconstructs conflict and permission errors when the mutation adapter throws status and payload without a code', async () => {
+    const conflictCause = Object.assign(new Error('HTTP 409'), {
+      status: 409,
+      payload: { error: { reason: '別の保存が先に完了しました。', current_revision: 'd9', expected_revision: 'd8' } },
+    });
+    let conflict;
+    try {
+      await callKnowledgeApi(async () => { throw conflictCause; }, '/test');
+    } catch (error) {
+      conflict = error;
+    }
+    expect(conflict).toMatchObject({
+      code: 'unknown_upstream_error',
+      status: 409,
+      latest_revision: 'd9',
+      expected_revision: 'd8',
+      conflict_reason: '別の保存が先に完了しました。',
+      payload: conflictCause.payload,
+      cause: conflictCause,
+    });
+
+    const permissionCause = Object.assign(new Error('HTTP 403'), {
+      status: 403,
+      payload: { error: { reason: '権限がありません。' } },
+    });
+    let permission;
+    try {
+      await callKnowledgeApi(async () => { throw permissionCause; }, '/test');
+    } catch (error) {
+      permission = error;
+    }
+    expect(permission).toMatchObject({ code: 'permission_denied', status: 403, payload: permissionCause.payload, cause: permissionCause });
+  });
+
   it('does not label a pending draft revision as the server latest after a 409', async () => {
     let captured;
     try {
@@ -1260,7 +1294,13 @@ describe('outcome knowledge UI contract', () => {
     expect(collectText(root)).toContain(`保持中の出典: 検証用データ / ${editedPointer}`);
     expect(mutations).toHaveLength(1);
 
-    const committed = await controller.commitCandidate(values);
+    const reapply = findAll(root, 'button').find((node) => collectText(node) === '保持した内容を再適用して保存');
+    expect(reapply).toBeTruthy();
+    expect(reapply.disabled).toBe(false);
+    reapply.dispatch('click');
+    reapply.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const committed = controller.state.commit;
     const patches = mutations.filter((entry) => entry.init.method === 'PATCH');
     expect(patches).toHaveLength(2);
     expect(patches.at(-1).init.body.revision).toBe('d2');
@@ -1301,6 +1341,79 @@ describe('outcome knowledge UI contract', () => {
     expect(mutations).toHaveLength(1);
     expect(collectText(root)).toContain('下書きの対象を確認できません');
     expect(collectText(root)).not.toContain('最新版: 版 d9');
+  });
+
+  it('does not render reapply when the same-draft readback revision is blank', () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    renderCommitState(root, {
+      state: 'conflict',
+      pending_draft_update: {
+        draftId: 'draft-1',
+        latest_revision: '',
+        latest_draft_metadata: { draft_id: 'draft-1', revision: '', content: '最新版' },
+        local_input_text: '保持する入力',
+      },
+    }, { onReapply() {} });
+    expect(findAll(root, 'button').find((node) => collectText(node) === '保持した内容を再適用して保存')).toBeUndefined();
+  });
+
+  it('preserves reuse selection and canonical fields through explicit conflict reapply', async () => {
+    globalThis.document = new FakeDocument();
+    const reads = [];
+    const mutations = [];
+    let patchAttempts = 0;
+    const api = async (path) => {
+      reads.push(path);
+      if (path.endsWith('/drafts/draft-reuse')) return { draft: { draft_id: 'draft-reuse', revision: 'r2', content: 'サーバー側の最新版' } };
+      if (path.endsWith('/items/k-existing')) return {
+        item: { id: 'k-existing', version: 'k5', content: '再利用した本文', content_hash: 'sha256:reuse', source: { state: 'fetched', kind: 'fixture', pointer: 'fixture://reuse' }, relations: [] },
+        canonical_saved: true,
+        graph_saved: true,
+        canonical_content_hash: 'sha256:reuse',
+      };
+      return { records: [] };
+    };
+    const apiMutation = async (path, init) => {
+      mutations.push({ path, init });
+      if (path.endsWith('/drafts/draft-reuse') && init.method === 'PATCH') {
+        patchAttempts += 1;
+        if (patchAttempts === 1) throw Object.assign(new Error('version_conflict'), { status: 409, code: 'version_conflict' });
+        return { draft_id: 'draft-reuse', revision: 'r2' };
+      }
+      if (path.endsWith('/reuse')) return {
+        canonical: { id: 'k-existing', version: 'k5' },
+        expected_version: 'k5',
+        canonical_content_hash: 'sha256:reuse',
+        persistence: { event_saved: true, graph_saved: true, readback_verified: true },
+      };
+      throw new Error(`unexpected mutation: ${path}`);
+    };
+    const root = new FakeElement('div');
+    const controller = createKnowledgeOutcomeController({ root, project: { code: 'proj-1' }, api, apiMutation, autoLoad: false, resolveDecisionDomain: () => 'knowledge-canonical' });
+    controller.state.draft = { state: 'candidate', id: 'draft-reuse', draft_id: 'draft-reuse', revision: 'r1', input_text: '保持する本文', source: { kind: 'fixture', pointer: 'fixture://reuse' } };
+    controller.state.candidate = { state: 'candidate', draft_id: 'draft-reuse', version: 'r1', proposal_applied: true, candidate: { type: 'decision', title: '元タイトル', summary: '元要旨', scope: 'project' } };
+    controller.render();
+    const values = {
+      type: 'decision', title: '保持するタイトル', summary: '保持する要旨', scope: 'project', selection: 'reuse',
+      canonical_id: 'k-existing', canonical_version: 'k4', decision_domain: 'knowledge-canonical',
+    };
+
+    expect((await controller.commitCandidate(values)).state).toBe('conflict');
+    expect((await controller.retryPendingSave()).latest_revision).toBe('r2');
+    const reapply = findAll(root, 'button').find((node) => collectText(node) === '保持した内容を再適用して保存');
+    expect(reapply).toBeTruthy();
+    reapply.dispatch('click');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const patches = mutations.filter((entry) => entry.init.method === 'PATCH');
+    const reuse = mutations.find((entry) => entry.path.endsWith('/reuse'));
+    expect(patches).toHaveLength(2);
+    expect(patches.at(-1).init.body).toMatchObject({ title: values.title, summary: values.summary, revision: 'r2' });
+    expect(reuse).toBeTruthy();
+    expect(reuse.init.body).toEqual({ revision: 'r2', decision_domain: values.decision_domain, canonical_id: values.canonical_id, expected_version: values.canonical_version });
+    expect(controller.state.commit).toMatchObject({ state: 'verified', action: 'reuse', item_id: 'k-existing' });
+    expect(reads).toContain('/api/projects/proj-1/knowledge/items/k-existing');
   });
 
   it('keeps capture source kind and pointer in the proposal request', async () => {

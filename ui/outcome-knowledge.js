@@ -527,6 +527,25 @@ export async function callKnowledgeApi(api, path, init = {}) {
     return await unwrapResponse(await api(path, init));
   } catch (caught) {
     if (caught?.code) throw caught;
+    const status = caught?.status ?? caught?.response?.status ?? null;
+    const rawPayload = caught?.payload
+      ?? caught?.response?.data
+      ?? caught?.response?.payload
+      ?? caught?.body;
+    const hasStatus = status !== null && status !== undefined;
+    if (hasStatus || rawPayload !== undefined) {
+      const payload = isRecord(rawPayload)
+        ? rawPayload
+        : { message: caught instanceof Error ? caught.message : String(caught) };
+      const error = errorFromPayload(payload, status);
+      if (!error.detail && caught instanceof Error && caught.message) error.detail = caught.message;
+      // ORG apiMutation throws a plain Error with status/payload but no code.
+      // Keep the original object so callers can inspect the upstream failure
+      // while the normalized error preserves conflict/permission metadata.
+      error.cause = caught;
+      if (rawPayload !== undefined) error.payload = rawPayload;
+      throw error;
+    }
     const error = new Error(caught instanceof Error ? caught.message : String(caught));
     error.code = 'unknown_upstream_error';
     error.cause = caught;
@@ -626,6 +645,16 @@ function conflictNoticeVersion(model) {
   };
 }
 
+function pendingDraftUpdateReadyForReapply(pending) {
+  if (!isRecord(pending)) return false;
+  const draftId = optionalText(pending.draftId ?? pending.draft_id).trim();
+  const revision = optionalText(pending.latest_revision).trim();
+  const latest = pending.latest_draft_metadata;
+  const latestDraftId = optionalText(latest?.draft_id ?? latest?.draftId).trim();
+  const latestRevision = optionalText(latest?.revision).trim();
+  return Boolean(draftId && revision && latestDraftId && latestDraftId === draftId && latestRevision === revision);
+}
+
 function statusNotice(model, options = {}) {
   const state = normaliseStatus(model?.state ?? model?.status);
   const noticeClass = ['permission_denied', 'error', 'error_retryable', 'conflict'].includes(state) ? 'knowledge-notice error' : state === 'unknown' ? 'knowledge-notice warning' : 'knowledge-notice';
@@ -649,6 +678,11 @@ function statusNotice(model, options = {}) {
         makeElement('h4', { text: `確認した最新版${latest.revision !== undefined && latest.revision !== null ? `（版 ${text(latest.revision)}）` : ''}` }),
         makeElement('p', { className: 'knowledge-long-text', text: latest.content !== undefined ? latest.content : '最新版の本文を確認できません。' }),
       );
+      const latestSource = latest.source;
+      const latestSourceLabel = latestSource && typeof latestSource === 'object'
+        ? [sourceKindLabel(latestSource.kind), sourcePointer(latestSource)].filter((value) => optionalText(value).trim()).join(' / ')
+        : optionalText(latestSource).trim();
+      if (latestSourceLabel) latestColumn.append(makeElement('p', { className: 'knowledge-conflict-detail', text: `確認した最新版の出典: ${latestSourceLabel}` }));
       const localColumn = makeElement('section', { className: 'knowledge-proposal-column' });
       append(localColumn,
         makeElement('h4', { text: '入力中の原文（保持）' }),
@@ -661,6 +695,11 @@ function statusNotice(model, options = {}) {
       if (sourceLabelText) localColumn.append(makeElement('p', { className: 'knowledge-conflict-detail', text: `保持中の出典: ${sourceLabelText}` }));
       append(comparison, latestColumn, localColumn);
       notice.append(comparison);
+    }
+    if (pendingDraftUpdateReadyForReapply(pending) && typeof options.onReapply === 'function') {
+      const reapply = makeElement('button', { className: 'knowledge-button primary', text: options.reapplyLabel ?? '保持した内容を再適用して保存', attrs: { type: 'button' } });
+      reapply.addEventListener('click', () => options.onReapply());
+      notice.append(reapply);
     }
   }
   if (options.retry && typeof options.onRetry === 'function') {
@@ -1098,7 +1137,14 @@ export function renderCommitState(root, model = {}, callbacks = {}) {
       retry.addEventListener('click', () => callbacks.onReadback()); section.append(retry);
     }
   } else if (state === 'verified') section.append(makeElement('p', { className: 'knowledge-success-copy', text: '正本と関係のreadbackが一致しました。検索反映の状態は別に確認します。', attrs: { role: 'status' } }));
-  else if (state === 'conflict') section.append(statusNotice(model, { detail: '最新版を確認してから、必要なら再適用してください。', retry: Boolean(callbacks.onReadback), onRetry: callbacks.onReadback, retryLabel: '再試行（入力を保持）' }));
+  else if (state === 'conflict') section.append(statusNotice(model, {
+    detail: '最新版を確認してから、必要なら再適用してください。',
+    retry: Boolean(callbacks.onReadback),
+    onRetry: callbacks.onReadback,
+    retryLabel: '再試行（入力を保持）',
+    onReapply: callbacks.onReapply,
+    reapplyLabel: '保持した内容を再適用して保存',
+  }));
   else if (['error', 'error_retryable', 'permission_denied', 'unknown'].includes(state)) section.append(statusNotice(model, { retry: Boolean(callbacks.onReadback), onRetry: callbacks.onReadback }));
   renderDefinitionList(section, [
     ['正本ID', model.item_id ?? model.item?.id ?? UNKNOWN],
@@ -1535,7 +1581,10 @@ export function createKnowledgeOutcomeController(options = {}) {
         : state.commit.state === 'conflict' && pendingDraftUpdate
           ? null
           : readbackCommit;
-      renderCommitState(commit, state.commit, { onReadback });
+      const onReapply = state.commit.state === 'conflict' && pendingDraftUpdateReadyForReapply(pendingDraftUpdate)
+        ? reapplyPendingDraftUpdate
+        : null;
+      renderCommitState(commit, state.commit, { onReadback, onReapply });
       detail.append(commit);
     }
     body.append(detail); shell.append(body); root.append(shell); notify();
@@ -1969,6 +2018,22 @@ export function createKnowledgeOutcomeController(options = {}) {
     render(); return state.commit;
   }
 
+  async function reapplyPendingDraftUpdate() {
+    const pending = state.commit.pending_draft_update;
+    if (!pendingDraftUpdateReadyForReapply(pending)) return state.commit;
+    // commitCandidate marks the commit as saving before its first await. This
+    // also makes a second click on a detached button a no-op.
+    if (state.commit.state === 'saving' || state.commit.pending_save) return state.commit;
+    const candidateValues = { ...(state.candidate.candidate ?? {}) };
+    if (!Object.keys(candidateValues).length) return state.commit;
+    state.draft = {
+      ...state.draft,
+      input_text: pending.local_input_text ?? state.draft.input_text,
+      ...(Object.prototype.hasOwnProperty.call(pending, 'local_source') ? { source: pending.local_source } : {}),
+    };
+    return commitCandidate(candidateValues);
+  }
+
   async function retryPendingSave() {
     const pendingDraftUpdate = state.commit.pending_draft_update;
     if (pendingDraftUpdate) {
@@ -2145,7 +2210,7 @@ export function createKnowledgeOutcomeController(options = {}) {
     render(); return state.preview;
   }
 
-  const controller = { state, render, loadItems, loadAuthorityDomains, loadDestination, saveDestination, selectItem, createDraft, resumeDraft, discardDraft, applyProposal, saveCandidate, commitCandidate, retryPendingSave, readbackCommit, reviseItem, supersedeItem, retireItem, runPreview, paths: { items: () => buildKnowledgeItemsPath(code, state.filters), drafts: () => knowledgePath(code, KNOWLEDGE_ROUTES.drafts), destination: destinationPath } };
+  const controller = { state, render, loadItems, loadAuthorityDomains, loadDestination, saveDestination, selectItem, createDraft, resumeDraft, discardDraft, applyProposal, saveCandidate, commitCandidate, retryPendingSave, reapplyPendingDraftUpdate, readbackCommit, reviseItem, supersedeItem, retireItem, runPreview, paths: { items: () => buildKnowledgeItemsPath(code, state.filters), drafts: () => knowledgePath(code, KNOWLEDGE_ROUTES.drafts), destination: destinationPath } };
   render();
   const initialLocation = options.location ?? globalThis.location;
   if (initialLocation?.href) {
