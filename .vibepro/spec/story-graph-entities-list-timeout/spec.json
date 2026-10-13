@@ -1,0 +1,470 @@
+{
+  "schema_version": "0.1.0",
+  "story_id": "story-graph-entities-list-timeout",
+  "generated_by": {
+    "caller": "cursor-cloud",
+    "stage": "ai_synthesis"
+  },
+  "semantic_contract": {
+    "semantic_owner": "The list response answers whether the caller receives the next visible graph-entity page.",
+    "deterministic_owner": "Keyset order, page size, jit setting, and the RLS policy text are deterministic in this repository.",
+    "core_hypothesis": "Disabling jit for the access transaction, inlining the role check, and returning a 50-row keyset page removes the opaque RLS function from the list plan.",
+    "strongest_counterexample": "A SQL function body that contains a subquery stays in the plan filter, so putting membership inside app_foundation_row_visible does not inline.",
+    "false_success_mode": "A passing unit test that never runs EXPLAIN, or a PGlite timing, treated as proof that bb.unson.jp no longer returns HTTP 500.",
+    "unknown_representation": "Production jit time and the 52-versus-6702 estimate stay unknown until EXPLAIN ANALYZE runs on that database.",
+    "operational_definitions": [
+      {
+        "term": "sufficient",
+        "definition": "The clause names a repository file and a test that checks the same behavior."
+      },
+      {
+        "term": "relevant",
+        "definition": "The clause is about the graph entity list timeout, its plan, or its page response."
+      },
+      {
+        "term": "directly_answers",
+        "definition": "The clause states the behavior a caller or planner can observe."
+      },
+      {
+        "term": "applicable",
+        "definition": "The clause applies to GET /api/info/graph/entities in this repository."
+      },
+      {
+        "term": "current",
+        "definition": "The cited code and tests exist on this branch."
+      },
+      {
+        "term": "non_conflicting",
+        "definition": "The clause does not contradict the RLS policy or the keyset SQL."
+      },
+      {
+        "term": "unambiguous",
+        "definition": "The clause names one setting, one function, or one response field."
+      }
+    ],
+    "unresolved_behavior": {
+      "action": "ask_once",
+      "max_questions": 1,
+      "automatic_continuation": false
+    }
+  },
+  "clauses": [
+    {
+      "id": "INV-001",
+      "type": "invariant",
+      "statement": "withAccessContext sets jit off as the first local setting inside the access transaction.",
+      "rationale": "The measured list spent about 1.2s of 2.5s in jit inside a 4s gateway timeout.",
+      "outcome_kind": "internal_output",
+      "case_kind": "positive",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-1",
+            "text_snippet": "set_config('jit','off',true)"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/info-ssot-service.js",
+            "anchor": "set_config('jit', 'off', true)"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/info-ssot-access-context.test.js",
+            "case": "turns jit off inside the local transaction before the handler"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/info-ssot-service.js",
+            "must_contain": "set_config('jit', 'off', true)"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/info-ssot-access-context.test.js",
+            "must_cover": "turns jit off inside the local transaction before the handler"
+          }
+        ]
+      },
+      "semantic_evaluation": {
+        "answer_status": "resolved",
+        "checks": {
+          "relevant": true,
+          "directly_answers": true,
+          "applicable": true,
+          "current": true,
+          "non_conflicting": true,
+          "unambiguous": true,
+          "sufficient": true
+        },
+        "question_digest": "Does the access transaction disable jit before the list query?",
+        "relevance_explanation": "The gateway timeout included about 1.2s of jit.",
+        "applicability_scope": "GET /api/info/graph/entities access transaction",
+        "confidence": 0.9,
+        "conflict_check": "clear",
+        "freshness_check": "current",
+        "supporting_record_ids": [
+          "tests/server/services/info-ssot-access-context.test.js"
+        ],
+        "derived_answer": "jit is set off before the handler runs."
+      },
+      "first_seen_at": "2026-10-13T21:20:31.349Z",
+      "last_revised_at": "2026-10-13T21:20:31.349Z"
+    },
+    {
+      "id": "INV-002",
+      "type": "invariant",
+      "statement": "public.app_foundation_row_visible is a scalar role and clearance check with COST 1 and no subquery, so the planner can inline it.",
+      "rationale": "SET search_path blocked inlining. A subquery inside the same function also blocks inlining on PostgreSQL 18.",
+      "outcome_kind": "internal_output",
+      "case_kind": "positive",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-2",
+            "text_snippet": "SET search_path を持たず"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/info-ssot-rls.sql",
+            "anchor": "FUNCTION public.app_foundation_row_visible"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/sql/info-ssot-rls.test.js",
+            "case": "keeps app_foundation_row_visible inlineable and puts membership only in the policy"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/sql/info-ssot-rls.sql",
+            "must_contain": "COST 1"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/sql/info-ssot-rls.test.js",
+            "must_cover": "keeps app_foundation_row_visible inlineable and puts membership only in the policy"
+          }
+        ]
+      },
+      "semantic_evaluation": {
+        "answer_status": "resolved",
+        "checks": {
+          "relevant": true,
+          "directly_answers": true,
+          "applicable": true,
+          "current": true,
+          "non_conflicting": true,
+          "unambiguous": true,
+          "sufficient": true
+        },
+        "question_digest": "Can the role check be inlined?",
+        "relevance_explanation": "The opaque function produced the bad row estimate.",
+        "applicability_scope": "RLS function public.app_foundation_row_visible",
+        "confidence": 0.86,
+        "conflict_check": "clear",
+        "freshness_check": "current",
+        "supporting_record_ids": [
+          "tests/server/sql/info-ssot-explain.test.js"
+        ],
+        "derived_answer": "The scalar function body is inlined and the membership predicate stays in the policy."
+      },
+      "first_seen_at": "2026-10-13T21:20:31.349Z",
+      "last_revised_at": "2026-10-13T21:20:31.349Z"
+    },
+    {
+      "id": "INV-003",
+      "type": "invariant",
+      "statement": "Policy info_graph_entities_select is the only copy of project and member_of visibility.",
+      "rationale": "Application SQL used to repeat the predicate beside RLS.",
+      "outcome_kind": "internal_output",
+      "case_kind": "positive",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-4",
+            "text_snippet": "可視条件は RLS ポリシー"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/info-ssot-rls.sql",
+            "anchor": "CREATE POLICY info_graph_entities_select"
+          },
+          {
+            "file": "server/services/info-ssot-service.js",
+            "anchor": "GRAPH_ENTITY_LIST_SQL"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/sql/info-ssot-rls.test.js",
+            "case": "keeps app_foundation_row_visible inlineable and puts membership only in the policy"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/sql/info-ssot-rls.sql",
+            "must_contain": "CREATE POLICY info_graph_entities_select"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/sql/info-ssot-rls.test.js",
+            "must_cover": "member_of"
+          }
+        ]
+      },
+      "semantic_evaluation": {
+        "answer_status": "resolved",
+        "checks": {
+          "relevant": true,
+          "directly_answers": true,
+          "applicable": true,
+          "current": true,
+          "non_conflicting": true,
+          "unambiguous": true,
+          "sufficient": true
+        },
+        "question_digest": "Where does the visibility predicate live?",
+        "relevance_explanation": "Duplication kept the opaque function in the list plan.",
+        "applicability_scope": "graph entity SELECT policy and list SQL",
+        "confidence": 0.88,
+        "conflict_check": "clear",
+        "freshness_check": "current",
+        "supporting_record_ids": [
+          "server/sql/info-ssot-rls.sql"
+        ],
+        "derived_answer": "Membership visibility is written only in the SELECT policy."
+      },
+      "first_seen_at": "2026-10-13T21:20:31.349Z",
+      "last_revised_at": "2026-10-13T21:20:31.349Z"
+    },
+    {
+      "id": "C-001",
+      "type": "contract",
+      "statement": "GET /api/info/graph/entities accepts a cursor and returns next_cursor for an updated_at, id keyset whose default page size is 50.",
+      "rationale": "The previous limit scan exceeded the gateway timeout.",
+      "outcome_kind": "internal_output",
+      "case_kind": "positive",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-5",
+            "text_snippet": "既定件数は50"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/info-ssot-service.js",
+            "anchor": "ORDER BY ge.updated_at DESC, ge.id DESC"
+          },
+          {
+            "file": "server/controllers/info-ssot-controller.js",
+            "anchor": "next_cursor"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/info-ssot-graph-page.test.js",
+            "case": "uses a default page of 50 and returns the next cursor from the query"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/services/info-ssot-service.js",
+            "must_contain": "GRAPH_ENTITY_PAGE_DEFAULT = 50"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/info-ssot-graph-page.test.js",
+            "must_cover": "passes the cursor and returns the next cursor"
+          }
+        ]
+      },
+      "semantic_evaluation": {
+        "answer_status": "resolved",
+        "checks": {
+          "relevant": true,
+          "directly_answers": true,
+          "applicable": true,
+          "current": true,
+          "non_conflicting": true,
+          "unambiguous": true,
+          "sufficient": true
+        },
+        "question_digest": "How does the list page move forward?",
+        "relevance_explanation": "Keyset paging avoids scanning the whole visible set.",
+        "applicability_scope": "GET /api/info/graph/entities",
+        "confidence": 0.9,
+        "conflict_check": "clear",
+        "freshness_check": "current",
+        "supporting_record_ids": [
+          "tests/server/services/info-ssot-graph-page.test.js"
+        ],
+        "derived_answer": "The response includes next_cursor and the default page size is 50."
+      },
+      "first_seen_at": "2026-10-13T21:20:31.349Z",
+      "last_revised_at": "2026-10-13T21:20:31.349Z"
+    },
+    {
+      "id": "S-001",
+      "type": "scenario",
+      "statement": "A cursor that is not a keyset token is rejected before the list query runs.",
+      "rationale": "An invalid cursor must not fall through into a full scan.",
+      "outcome_kind": "internal_output",
+      "case_kind": "negative",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-5",
+            "text_snippet": "キーセット"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/services/info-ssot-service.js",
+            "anchor": "cursor is invalid"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/services/info-ssot-graph-page.test.js",
+            "case": "rejects a cursor that is not a keyset token"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/services/info-ssot-graph-page.test.js",
+            "must_cover": "rejects a cursor that is not a keyset token"
+          }
+        ]
+      },
+      "semantic_evaluation": {
+        "answer_status": "no_answer",
+        "checks": {
+          "relevant": true,
+          "directly_answers": false,
+          "applicable": true,
+          "current": true,
+          "non_conflicting": true,
+          "unambiguous": true,
+          "sufficient": false
+        },
+        "question_digest": "Does an invalid cursor still return a page?",
+        "relevance_explanation": "This case checks rejection, not a successful page.",
+        "applicability_scope": "cursor query parameter",
+        "confidence": 0.8,
+        "conflict_check": "clear",
+        "freshness_check": "current",
+        "supporting_record_ids": [
+          "tests/server/services/info-ssot-graph-page.test.js"
+        ],
+        "derived_answer": "The invalid cursor does not produce a page."
+      },
+      "first_seen_at": "2026-10-13T21:20:31.349Z",
+      "last_revised_at": "2026-10-13T21:20:31.349Z"
+    },
+    {
+      "id": "INV-004",
+      "type": "invariant",
+      "statement": "graph_entities updated_at and active member_of graph_edges indexes are created concurrently, and the deploy procedure analyzes both tables.",
+      "rationale": "The keyset and membership lookup need current statistics and those indexes.",
+      "outcome_kind": "internal_output",
+      "case_kind": "positive",
+      "origin": {
+        "story_refs": [
+          {
+            "kind": "acceptance_criteria",
+            "ac_id": "AC-6",
+            "text_snippet": "CONCURRENTLY"
+          }
+        ],
+        "code_refs": [
+          {
+            "file": "server/sql/info-ssot-graph-indexes.sql",
+            "anchor": "CREATE INDEX CONCURRENTLY IF NOT EXISTS graph_entities_updated_at_desc_idx"
+          },
+          {
+            "file": "scripts/info-ssot-apply.sh",
+            "anchor": "ANALYZE public.graph_entities"
+          }
+        ],
+        "test_refs": [
+          {
+            "file": "tests/server/sql/info-ssot-rls.test.js",
+            "case": "creates the list indexes concurrently and analyzes both tables outside that transaction"
+          }
+        ]
+      },
+      "verifiable_by": {
+        "code_pattern": [
+          {
+            "file_glob": "server/sql/info-ssot-graph-indexes.sql",
+            "must_contain": "CREATE INDEX CONCURRENTLY"
+          }
+        ],
+        "test_pattern": [
+          {
+            "file_glob": "tests/server/sql/info-ssot-rls.test.js",
+            "must_cover": "creates the list indexes concurrently and analyzes both tables outside that transaction"
+          }
+        ]
+      },
+      "semantic_evaluation": {
+        "answer_status": "resolved",
+        "checks": {
+          "relevant": true,
+          "directly_answers": true,
+          "applicable": true,
+          "current": true,
+          "non_conflicting": true,
+          "unambiguous": true,
+          "sufficient": true
+        },
+        "question_digest": "Are the list indexes and statistics part of the deploy procedure?",
+        "relevance_explanation": "The keyset and membership lookup depend on them.",
+        "applicability_scope": "info SSOT deploy procedure",
+        "confidence": 0.84,
+        "conflict_check": "clear",
+        "freshness_check": "current",
+        "supporting_record_ids": [
+          "scripts/info-ssot-apply.sh"
+        ],
+        "derived_answer": "Indexes are concurrent and ANALYZE covers both tables."
+      },
+      "first_seen_at": "2026-10-13T21:20:31.349Z",
+      "last_revised_at": "2026-10-13T21:20:31.349Z"
+    }
+  ],
+  "open_questions": [
+    {
+      "id": "Q-1",
+      "question": "PGlite measured inlining and a faster plan on 6702 rows. The production 1.2s jit time and the 52-versus-6702 estimate were not reproduced here.",
+      "blocker": false
+    }
+  ],
+  "generated_at": "2026-10-13T21:20:31.349Z",
+  "previous_spec_id": null
+}
