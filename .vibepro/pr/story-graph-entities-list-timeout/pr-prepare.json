@@ -1,0 +1,1217 @@
+{
+  "schema_version": "0.2.0",
+  "created_at": "2026-10-13T21:25:40.934Z",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-10-13T21:25:40.860Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.29",
+      "exact_version": "0.2.0-beta.29",
+      "root": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/.bin/vibepro",
+      "runtime_module": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.29",
+          "package_json_sha256": "1dd0e32f2e98c21b32d94d9a267371b92f07d7b4cb7fce2867f50d45f268a25b",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "b82a4aef0f26937f172bdfe72080ce43a30880d8066a32a999c206bc96a4b66a",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "pr_judgment",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "story": {
+    "story_id": "story-graph-entities-list-timeout",
+    "title": "GET /api/info/graph/entities が4秒で500にならない",
+    "ssot": "local",
+    "status": "active",
+    "horizon": "now",
+    "view": "product",
+    "period": "2026-10",
+    "started_at": "2026-10-13",
+    "due_at": null,
+    "category": null,
+    "contract_type": "bug_fix"
+  },
+  "outcome_case_status": "none",
+  "outcome_case_reason_code": "not_linked",
+  "task_context": null,
+  "task_authorities": {
+    "human": {
+      "authority": "human_authored",
+      "path": null,
+      "present": false,
+      "task_count": 0,
+      "status_counts": {},
+      "tasks": []
+    },
+    "accepted": {
+      "authority": "accepted",
+      "path": null,
+      "present": false,
+      "task_count": 0,
+      "status_counts": {},
+      "tasks": []
+    },
+    "generated": {
+      "authority": "generated_proposal",
+      "path": ".vibepro/stories/story-graph-entities-list-timeout/tasks/tasks.md",
+      "present": true,
+      "task_count": 3,
+      "status_counts": {
+        "todo": 3
+      },
+      "execution_policies": [],
+      "mutates_repository": [],
+      "tasks": [
+        {
+          "id": "VP-TASK-NET-001",
+          "status": "todo",
+          "execution_policy": null,
+          "mutates_repository": null
+        },
+        {
+          "id": "VP-TASK-STATIC-002-REVIEW",
+          "status": "todo",
+          "execution_policy": null,
+          "mutates_repository": null
+        },
+        {
+          "id": "VP-TASK-ARCH-001",
+          "status": "todo",
+          "execution_policy": null,
+          "mutates_repository": null
+        }
+      ]
+    }
+  },
+  "output": {
+    "language": "ja"
+  },
+  "git": {
+    "current_branch": "cursor/graph-entities-list-timeout-42de",
+    "head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+    "base_ref": "origin/develop",
+    "head_ref": "HEAD",
+    "changed_files": [
+      {
+        "status": "M",
+        "path": ".vibepro/config.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/integrations/brainbase/story-graph-entities-list-timeout/context.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-graph-entities-list-timeout/development-judgment/applicability/current.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/reviews/story-graph-entities-list-timeout/senior-judgment/input-draft.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-graph-entities-list-timeout/pre-spec-readiness.json"
+      },
+      {
+        "status": "A",
+        "path": ".vibepro/spec/story-graph-entities-list-timeout/spec.json"
+      },
+      {
+        "status": "A",
+        "path": "docs/stories/story-graph-entities-list-timeout.md"
+      },
+      {
+        "status": "A",
+        "path": "scripts/info-ssot-apply.sh"
+      },
+      {
+        "status": "A",
+        "path": "server/controllers/info-ssot-controller.js"
+      },
+      {
+        "status": "A",
+        "path": "server/services/info-ssot-service.js"
+      },
+      {
+        "status": "A",
+        "path": "server/sql/info-ssot-graph-indexes.sql"
+      },
+      {
+        "status": "A",
+        "path": "server/sql/info-ssot-rls.sql"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/info-ssot-access-context.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/services/info-ssot-graph-page.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/sql/info-ssot-explain.test.js"
+      },
+      {
+        "status": "A",
+        "path": "tests/server/sql/info-ssot-rls.test.js"
+      }
+    ],
+    "dirty_files": [],
+    "commit_count": 1
+  },
+  "spec": {
+    "present": true,
+    "story_id": "story-graph-entities-list-timeout",
+    "clause_count": 6
+  },
+  "spec_drift": null,
+  "verification": {
+    "recorded": true,
+    "updated_at": "2026-10-13T21:24:47.495Z",
+    "artifact": ".vibepro/pr/story-graph-entities-list-timeout/verification-evidence.json",
+    "commands": [
+      {
+        "kind": "unit",
+        "status": "pass",
+        "command": "npx vitest run tests/server/services/info-ssot-access-context.test.js tests/server/services/info-ssot-graph-page.test.js tests/server/sql/info-ssot-rls.test.js tests/server/sql/info-ssot-explain.test.js",
+        "summary": "vibepro verify run executed the unit command: exit_code=0, duration_ms=2259, status=pass computed from the exit code | agent summary: paging, access context, RLS shape, and PGlite EXPLAIN",
+        "summary_authority": "agent_provided_non_authoritative",
+        "evidence_source": "runner_direct",
+        "observation": {
+          "targets": [
+            "tests/server/services/info-ssot-access-context.test.js",
+            "tests/server/services/info-ssot-graph-page.test.js",
+            "tests/server/sql/info-ssot-rls.test.js",
+            "tests/server/sql/info-ssot-explain.test.js"
+          ],
+          "scenarios": [],
+          "values": {
+            "status": "pass",
+            "exit_code": "0",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.json",
+            "run_log": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.log",
+            "duration_ms": "2259",
+            "started_at": "2026-10-13T21:24:45.175Z",
+            "finished_at": "2026-10-13T21:24:47.434Z",
+            "head_sha_before": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+            "head_sha_after": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+            "head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "stdout_sha256": "1cbd234beefb6d09fda4bd76317bfc0bde1a2d77b3c350adb80e502c2825c93d",
+            "output_sha256": "1cbd234beefb6d09fda4bd76317bfc0bde1a2d77b3c350adb80e502c2825c93d",
+            "output_bytes": "193",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "7200000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v22.14.0",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          }
+        },
+        "computed_observation": {
+          "producer": "vibepro verify run",
+          "computed_keys": [
+            "status",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "exit_code",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "values": {
+            "status": "pass",
+            "evidence_source": "runner_direct",
+            "run_artifact": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.json",
+            "run_log": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.log",
+            "exit_code": "0",
+            "duration_ms": "2259",
+            "started_at": "2026-10-13T21:24:45.175Z",
+            "finished_at": "2026-10-13T21:24:47.434Z",
+            "head_sha_before": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+            "head_sha_after": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+            "head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+            "worktree_sampled": "true",
+            "worktree_sampling_complete": "true",
+            "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+            "stdout_sha256": "1cbd234beefb6d09fda4bd76317bfc0bde1a2d77b3c350adb80e502c2825c93d",
+            "output_sha256": "1cbd234beefb6d09fda4bd76317bfc0bde1a2d77b3c350adb80e502c2825c93d",
+            "output_bytes": "193",
+            "log_truncated": "false",
+            "output_metrics": "none",
+            "timed_out": "false",
+            "output_limit_exceeded": "false",
+            "external_kill_signal": "none",
+            "timeout_ms": "7200000",
+            "max_output_bytes": "67108864",
+            "harness_env_removed": "none",
+            "runner_node_version": "v22.14.0",
+            "tree_mutated_during_run": "false",
+            "head_moved_during_run": "false",
+            "worktree_changed_during_run": "false",
+            "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+          },
+          "artifact_derived_keys": [
+            "status",
+            "exit_code",
+            "evidence_source",
+            "run_artifact",
+            "run_log",
+            "duration_ms",
+            "started_at",
+            "finished_at",
+            "head_sha_before",
+            "head_sha_after",
+            "head_sha",
+            "worktree_sampled",
+            "worktree_sampling_complete",
+            "worktree_sha256_before",
+            "worktree_sha256_after",
+            "stdout_sha256",
+            "output_sha256",
+            "output_bytes",
+            "log_truncated",
+            "output_metrics",
+            "timed_out",
+            "output_limit_exceeded",
+            "external_kill_signal",
+            "timeout_ms",
+            "max_output_bytes",
+            "harness_env_removed",
+            "runner_node_version",
+            "tree_mutated_during_run",
+            "head_moved_during_run",
+            "worktree_changed_during_run",
+            "worktree_status_sha256_before",
+            "worktree_status_sha256_after",
+            "worktree_diff_sha256_before",
+            "worktree_diff_sha256_after"
+          ],
+          "run_artifact": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.json",
+          "run_log": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.log",
+          "tree_mutated_during_run": false,
+          "head_moved_during_run": false,
+          "worktree_changed_during_run": false,
+          "worktree_sampled": true,
+          "worktree_sampling_complete": true,
+          "output_metrics": "none"
+        },
+        "computed_counts": null,
+        "artifact_check": {
+          "status": "verified",
+          "format": "generic_status",
+          "artifact_outcome": "pass",
+          "reason": "generic_status artifact outcome matches the claimed status (status=pass)"
+        },
+        "observation_check": {
+          "status": "recorded",
+          "reason": "observation states the inspected targets and what was observed"
+        },
+        "git_context": {
+          "head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+          "current_branch": "cursor/graph-entities-list-timeout-42de",
+          "dirty": false,
+          "raw_dirty": false,
+          "status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "user_status_fingerprint_hash": "3d8bca82f1c86d670864ef67509f8f3f641a2c525a5190fe39abd56126532574",
+          "fingerprint_scope": {
+            "user_excludes": [
+              ".vibepro/",
+              ".worktrees/vibepro/"
+            ]
+          },
+          "recorded_at": "2026-10-13T21:24:47.486Z"
+        },
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "content_surface",
+          "status": "recorded",
+          "reason": "content surface recorded for 4 file(s)",
+          "recorded_head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+          "surface_files": [
+            {
+              "path": "tests/server/services/info-ssot-access-context.test.js",
+              "sha256": "c60ea5b4b424079a1368f8bf019c4cbfd3b664f485a9517dcceb984f4a871a6b",
+              "size": 2134
+            },
+            {
+              "path": "tests/server/services/info-ssot-graph-page.test.js",
+              "sha256": "f7d6d13558bc10d5ee033f374432bcbd1b70afbddc6bb8e42e2731676bb0130b",
+              "size": 3931
+            },
+            {
+              "path": "tests/server/sql/info-ssot-explain.test.js",
+              "sha256": "2a358dccf947b470e16cc7290ee581c168a1fd4ad60272f5964aa1f521769636",
+              "size": 5154
+            },
+            {
+              "path": "tests/server/sql/info-ssot-rls.test.js",
+              "sha256": "d4ba56ebb84c04b4ce2a5892839ee6c547bd6b395eaae9902b23a5a7f8bc1ba5",
+              "size": 3483
+            }
+          ],
+          "missing_files": [],
+          "surface_hash": "321fd7af15b96354431061055cb0648767dbefc41411434336b0ec8628840426"
+        },
+        "warnings": [
+          {
+            "id": "verification_run_counts_not_parsed",
+            "command_name": "verify run",
+            "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+          }
+        ],
+        "runtime_identity": {
+          "schema_version": "0.2.0",
+          "collected_at": "2026-10-13T21:24:47.458Z",
+          "mode": "normal",
+          "source_kind": "npm_package",
+          "test_context": null,
+          "package": {
+            "name": "vibepro",
+            "version": "0.2.0-beta.29",
+            "exact_version": "0.2.0-beta.29",
+            "root": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro"
+          },
+          "cli": {
+            "entrypoint": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro/bin/vibepro.js",
+            "invoked_as": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/.bin/vibepro",
+            "runtime_module": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro/src/runtime-info.js"
+          },
+          "release_manifest": {
+            "status": "valid",
+            "manifest": {
+              "schema_version": "0.1.0",
+              "package": {
+                "name": "vibepro",
+                "version": "0.2.0-beta.29",
+                "package_json_sha256": "1dd0e32f2e98c21b32d94d9a267371b92f07d7b4cb7fce2867f50d45f268a25b",
+                "entrypoint": "bin/vibepro.js"
+              },
+              "source_git": {
+                "commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+                "origin_url": "https://github.com/Unson-LLC/vibepro",
+                "origin_main_commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+                "origin_main_relation": "same",
+                "dirty": false
+              }
+            },
+            "errors": []
+          },
+          "source_git": {
+            "is_git_repo": false,
+            "commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+            "branch": null,
+            "origin_url": "https://github.com/Unson-LLC/vibepro",
+            "origin_main_commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+            "origin_main_relation": "published",
+            "dirty": false,
+            "dirty_summary": []
+          },
+          "identity_digest": "b82a4aef0f26937f172bdfe72080ce43a30880d8066a32a999c206bc96a4b66a",
+          "integrity": {
+            "status": "trusted",
+            "code": null,
+            "purpose": "evidence_generation",
+            "reasons": [
+              "manifested immutable npm runtime"
+            ]
+          }
+        },
+        "executed_at": "2026-10-13T21:24:47.434Z",
+        "trust_status": "trusted"
+      }
+    ]
+  },
+  "review": {
+    "recorded": true,
+    "complete": true,
+    "status": "pass",
+    "records": [
+      {
+        "schema_version": "1.0.0",
+        "story_id": "story-graph-entities-list-timeout",
+        "role": "reviewer",
+        "status": "pass",
+        "summary": "一覧の jit 無効化、スカラーなロール判定、ポリシーだけの所属条件、キーセット50件を確認した。本番 EXPLAIN は未測定。",
+        "recorded_at": "2026-10-13T21:25:40.368Z",
+        "findings": [],
+        "content_binding": {
+          "schema_version": "0.1.0",
+          "model": "vibepro-content-scoped-evidence-freshness-v1",
+          "mode": "content_surface",
+          "status": "recorded",
+          "reason": "content surface recorded for 3 file(s)",
+          "recorded_head_sha": null,
+          "surface_files": [
+            {
+              "path": "server/services/info-ssot-service.js",
+              "sha256": "823a6f0f1f6947b80521024223243f82866588b16ebb53b4dc7b7383cd9f303f",
+              "size": 5524
+            },
+            {
+              "path": "server/sql/info-ssot-rls.sql",
+              "sha256": "a037e9b79c1929527370456a4538f8f8f995682ab1d23b81c32416be29274625",
+              "size": 4099
+            },
+            {
+              "path": "tests/server/sql/info-ssot-explain.test.js",
+              "sha256": "2a358dccf947b470e16cc7290ee581c168a1fd4ad60272f5964aa1f521769636",
+              "size": 5154
+            }
+          ],
+          "missing_files": [],
+          "surface_hash": "caa44408346176c32b45c0631d77fe4a1629ff5d936474a908f5c9bf81ee245c"
+        },
+        "reviewer": {
+          "system": null,
+          "id": null
+        },
+        "artifact": "/workspace/.vibepro/reviews/story-graph-entities-list-timeout/lightweight/review-reviewer.json",
+        "binding_status": "current"
+      }
+    ],
+    "blocking_findings": []
+  },
+  "development_judgment": {
+    "available": false,
+    "status": "not_recorded",
+    "story_id": null,
+    "run_id": null,
+    "development_mode": null,
+    "recommendation": null,
+    "unknown_count": 0,
+    "investigation_context": null,
+    "investigation_unresolved_questions": [],
+    "investigation_unresolved_count": 0,
+    "outcome_count": 0,
+    "latest_outcome_status": null,
+    "artifact": null,
+    "advisory": true,
+    "blocking": false,
+    "error": null,
+    "lifecycle": "draft_prepared",
+    "applicable": true,
+    "input_adopted": false,
+    "actionable": false,
+    "plan_binding": null,
+    "disposition": null,
+    "pending_disposition": false,
+    "pending_outcome": false,
+    "outcome": null,
+    "next_actions": [
+      "Review and edit .vibepro/reviews/story-graph-entities-list-timeout/senior-judgment/input-draft.json",
+      "vibepro judgment input adopt . --id story-graph-entities-list-timeout --input .vibepro/reviews/story-graph-entities-list-timeout/senior-judgment/input-draft.json --reviewed-by <actor> --authority <source> --summary <text>"
+    ],
+    "operational_status": {
+      "schema_version": "0.1.0",
+      "story_id": "story-graph-entities-list-timeout",
+      "lifecycle": "draft_prepared",
+      "applicable": true,
+      "applicability": {
+        "schema_version": "0.1.0",
+        "record_id": "applicability-2026-10-13T21-20-23-913Z-ff43fd13",
+        "story_id": "story-graph-entities-list-timeout",
+        "applicable": true,
+        "reason": "可視条件を関数のサブクエリに閉じる案と、ポリシーに置いてスカラーなロール判定だけをインライン化する案が両方残っている。本番のJIT 1.2秒と行見積もり52対6702は未再現で、介入の効果が確定していない。VALUE、SIMPLIFY、VALIDATEの選択が残る。",
+        "recorded_by": "cursor-cloud",
+        "recorded_at": "2026-10-13T21:20:23.913Z",
+        "artifact": ".vibepro/reviews/story-graph-entities-list-timeout/development-judgment/applicability/history/applicability-2026-10-13T21-20-23-913Z-ff43fd13.json",
+        "advisory": true,
+        "blocking": false
+      },
+      "run_id": "judgment-20261013212254-9141ad1b",
+      "draft": {
+        "schema_version": "0.1.0",
+        "story_id": "story-graph-entities-list-timeout",
+        "run_id": "judgment-20261013212254-9141ad1b",
+        "artifact": ".vibepro/reviews/story-graph-entities-list-timeout/senior-judgment/input-draft.json",
+        "source_head_sha": "23300b79aa7fc5e1f38467bd4016c50ce791f007",
+        "feedback": null,
+        "prepared_at": "2026-10-13T21:22:54.256Z",
+        "advisory": true,
+        "blocking": false
+      },
+      "adoption": null,
+      "evaluation": null,
+      "actionable": false,
+      "plan_binding": null,
+      "disposition": null,
+      "outcome": null,
+      "pending_disposition": false,
+      "pending_outcome": false,
+      "next_actions": [
+        "Review and edit .vibepro/reviews/story-graph-entities-list-timeout/senior-judgment/input-draft.json",
+        "vibepro judgment input adopt . --id story-graph-entities-list-timeout --input .vibepro/reviews/story-graph-entities-list-timeout/senior-judgment/input-draft.json --reviewed-by <actor> --authority <source> --summary <text>"
+      ],
+      "advisory": true,
+      "blocking": false
+    }
+  },
+  "multi_tenant_architecture": {
+    "applicable": true,
+    "activation_reasons": [
+      "boundary_without_tenant_actor"
+    ],
+    "mode": "final",
+    "status": "needs_review",
+    "findings": [
+      {
+        "severity": "review",
+        "code": "applicability_ambiguous",
+        "path": "story_context",
+        "message": "マルチテナント適用要否を確定できる境界シグナルが不足しています"
+      }
+    ],
+    "coverage": {
+      "status": "inconclusive",
+      "scanners": {}
+    },
+    "views": {},
+    "implementation_readiness": {
+      "status": "needs_review",
+      "evidence_status": "inconclusive",
+      "required_surfaces": [
+        "story",
+        "spec",
+        "implementation"
+      ],
+      "reasons": [
+        "explicit_non_applicability_required"
+      ]
+    },
+    "review_lenses": [
+      {
+        "id": "tenant_architecture",
+        "question": "tenant identityは入口から全実行面と資源境界まで一意に伝播するか",
+        "status": "needs_review",
+        "findings": [],
+        "unconfirmed": [
+          {
+            "code": "applicability_ambiguous",
+            "path": "story_context"
+          }
+        ]
+      },
+      {
+        "id": "security_boundary",
+        "question": "credential、secret、dataにcross-tenant fallbackまたは混線経路がないか",
+        "status": "needs_review",
+        "findings": [],
+        "unconfirmed": [
+          {
+            "code": "applicability_ambiguous",
+            "path": "story_context"
+          }
+        ]
+      },
+      {
+        "id": "operations_and_migration",
+        "question": "各配備形態で移行・rollback・削除・接続不能の意味が維持されるか",
+        "status": "needs_review",
+        "findings": [],
+        "unconfirmed": [
+          {
+            "code": "applicability_ambiguous",
+            "path": "story_context"
+          }
+        ]
+      }
+    ]
+  },
+  "fix_scope": {
+    "status": "partial_fix",
+    "original_problem": "GET /api/info/graph/entities が4秒で500にならない",
+    "affected_stages": [
+      "internal_output"
+    ],
+    "confirmed_boundaries": [],
+    "unconfirmed_boundaries": [
+      "internal_output",
+      "downstream_outcome",
+      "canonical_readback"
+    ],
+    "completion_claim": "implementation_verified_external_outcome_unknown"
+  },
+  "execution_dag": {
+    "schema_version": "0.1.0",
+    "nodes": [
+      {
+        "id": "story_selected",
+        "status": "passed",
+        "required": true,
+        "reason": "Story id is bound to this execution state"
+      },
+      {
+        "id": "worktree_created",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree mode is disabled",
+        "evidence": null
+      },
+      {
+        "id": "branch_bound",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "no managed branch recorded",
+        "evidence": null
+      },
+      {
+        "id": "head_bound",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree HEAD binding is not recorded",
+        "evidence": null
+      },
+      {
+        "id": "implementation_started",
+        "status": "passed",
+        "required": false,
+        "reason": "implementation starts in the current checkout because managed worktree mode is disabled"
+      },
+      {
+        "id": "implementation_complete",
+        "status": "passed",
+        "required": false,
+        "reason": "implementation has produced PR preparation or verification evidence"
+      },
+      {
+        "id": "verification_recorded",
+        "status": "passed",
+        "required": false,
+        "reason": "verification evidence exists"
+      },
+      {
+        "id": "pr_prepare_ready",
+        "status": "passed",
+        "required": true,
+        "reason": "PR summary has no unresolved blockers"
+      },
+      {
+        "id": "pr_created",
+        "status": "pending",
+        "required": true,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "merge_ready",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "merged_or_closed",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "PR has not been created yet"
+      },
+      {
+        "id": "delivery_reconciliation",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "delivery has not been observed"
+      },
+      {
+        "id": "worktree_cleaned",
+        "status": "not_applicable",
+        "required": false,
+        "reason": "managed worktree cleanup is outside this MVP implementation scope"
+      }
+    ],
+    "edges": [
+      {
+        "from": "story_selected",
+        "to": "worktree_created"
+      },
+      {
+        "from": "worktree_created",
+        "to": "branch_bound"
+      },
+      {
+        "from": "branch_bound",
+        "to": "head_bound"
+      },
+      {
+        "from": "head_bound",
+        "to": "implementation_started"
+      },
+      {
+        "from": "implementation_started",
+        "to": "implementation_complete"
+      },
+      {
+        "from": "implementation_complete",
+        "to": "verification_recorded"
+      },
+      {
+        "from": "verification_recorded",
+        "to": "pr_prepare_ready"
+      },
+      {
+        "from": "pr_prepare_ready",
+        "to": "pr_created"
+      },
+      {
+        "from": "pr_created",
+        "to": "merge_ready"
+      },
+      {
+        "from": "merge_ready",
+        "to": "merged_or_closed"
+      },
+      {
+        "from": "merged_or_closed",
+        "to": "delivery_reconciliation"
+      },
+      {
+        "from": "delivery_reconciliation",
+        "to": "worktree_cleaned"
+      }
+    ]
+  },
+  "gate_status": "ready",
+  "blocking_reasons": [],
+  "story_source": {
+    "path": "docs/stories/story-graph-entities-list-timeout.md",
+    "title": "GET /api/info/graph/entities が4秒で500にならない",
+    "found": true,
+    "acceptance_criteria_count": 8
+  },
+  "traceability": {
+    "acceptance_criteria": [],
+    "scenario_clauses": [],
+    "scenario_lineage": null,
+    "accepted_spec_lineage": {
+      "status": "invalid",
+      "head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+      "spec_path": ".vibepro/spec/story-graph-entities-list-timeout/spec.json",
+      "spec_blob_oid": "8567865c472ed675468e90be097a7e6717860051",
+      "story_path": "docs/management/stories/active/story-graph-entities-list-timeout.md",
+      "story_blob_oid": null,
+      "mapping_source": "accepted_spec",
+      "clause_count": 6,
+      "resolved_clause_count": 0,
+      "reason_codes": [
+        "story_not_in_head",
+        "unknown_story_ac"
+      ],
+      "failures": [
+        {
+          "clause_id": "INV-001",
+          "reason_codes": [
+            "unknown_story_ac"
+          ]
+        },
+        {
+          "clause_id": "INV-002",
+          "reason_codes": [
+            "unknown_story_ac"
+          ]
+        },
+        {
+          "clause_id": "INV-003",
+          "reason_codes": [
+            "unknown_story_ac"
+          ]
+        },
+        {
+          "clause_id": "C-001",
+          "reason_codes": [
+            "unknown_story_ac"
+          ]
+        },
+        {
+          "clause_id": "S-001",
+          "reason_codes": [
+            "unknown_story_ac"
+          ]
+        },
+        {
+          "clause_id": "INV-004",
+          "reason_codes": [
+            "unknown_story_ac"
+          ]
+        }
+      ]
+    },
+    "summary": {
+      "clause_count": 0,
+      "acceptance_criteria_count": 0,
+      "scenario_clause_count": 0,
+      "mapped_count": 0,
+      "weakly_mapped_count": 0,
+      "unmapped_count": 0,
+      "semantic_assessment": {
+        "status": "available",
+        "semantic_contract_status": "available",
+        "semantic_contract_present": true,
+        "answer_status": "mixed",
+        "answer_resolution": "unresolved",
+        "automatic_continuation": false,
+        "unresolved_behavior": {
+          "action": "ask_once",
+          "max_questions": 1,
+          "automatic_continuation": false
+        },
+        "counterexample": {
+          "status": "verified",
+          "declared": true,
+          "verified": true,
+          "happy_path_resolutions": [
+            "INV-001",
+            "INV-002",
+            "INV-003",
+            "C-001",
+            "INV-004"
+          ]
+        },
+        "clause_assessments": [
+          {
+            "index": 0,
+            "clause_id": "INV-001",
+            "status": "resolved",
+            "outcome_kind": "internal_output",
+            "case_kind": "positive",
+            "answer_status": "resolved",
+            "answer_resolution": "resolved",
+            "evaluation_declared": true,
+            "checks": {
+              "relevant": true,
+              "directly_answers": true,
+              "applicable": true,
+              "current": true,
+              "non_conflicting": true,
+              "unambiguous": true,
+              "sufficient": true
+            },
+            "supporting_record_ids": [
+              "tests/server/services/info-ssot-access-context.test.js"
+            ],
+            "verification_status": "unknown",
+            "reason_codes": [],
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "index": 1,
+            "clause_id": "INV-002",
+            "status": "resolved",
+            "outcome_kind": "internal_output",
+            "case_kind": "positive",
+            "answer_status": "resolved",
+            "answer_resolution": "resolved",
+            "evaluation_declared": true,
+            "checks": {
+              "relevant": true,
+              "directly_answers": true,
+              "applicable": true,
+              "current": true,
+              "non_conflicting": true,
+              "unambiguous": true,
+              "sufficient": true
+            },
+            "supporting_record_ids": [
+              "tests/server/sql/info-ssot-explain.test.js"
+            ],
+            "verification_status": "unknown",
+            "reason_codes": [],
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "index": 2,
+            "clause_id": "INV-003",
+            "status": "resolved",
+            "outcome_kind": "internal_output",
+            "case_kind": "positive",
+            "answer_status": "resolved",
+            "answer_resolution": "resolved",
+            "evaluation_declared": true,
+            "checks": {
+              "relevant": true,
+              "directly_answers": true,
+              "applicable": true,
+              "current": true,
+              "non_conflicting": true,
+              "unambiguous": true,
+              "sufficient": true
+            },
+            "supporting_record_ids": [
+              "server/sql/info-ssot-rls.sql"
+            ],
+            "verification_status": "unknown",
+            "reason_codes": [],
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "index": 3,
+            "clause_id": "C-001",
+            "status": "resolved",
+            "outcome_kind": "internal_output",
+            "case_kind": "positive",
+            "answer_status": "resolved",
+            "answer_resolution": "resolved",
+            "evaluation_declared": true,
+            "checks": {
+              "relevant": true,
+              "directly_answers": true,
+              "applicable": true,
+              "current": true,
+              "non_conflicting": true,
+              "unambiguous": true,
+              "sufficient": true
+            },
+            "supporting_record_ids": [
+              "tests/server/services/info-ssot-graph-page.test.js"
+            ],
+            "verification_status": "unknown",
+            "reason_codes": [],
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "index": 4,
+            "clause_id": "S-001",
+            "status": "unresolved",
+            "outcome_kind": "internal_output",
+            "case_kind": "negative",
+            "answer_status": "no_answer",
+            "answer_resolution": "unresolved",
+            "evaluation_declared": true,
+            "checks": {
+              "relevant": true,
+              "directly_answers": false,
+              "applicable": true,
+              "current": true,
+              "non_conflicting": true,
+              "unambiguous": true,
+              "sufficient": false
+            },
+            "supporting_record_ids": [
+              "tests/server/services/info-ssot-graph-page.test.js"
+            ],
+            "verification_status": "unknown",
+            "reason_codes": [
+              "semantic_answer_no_answer"
+            ],
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "index": 5,
+            "clause_id": "INV-004",
+            "status": "resolved",
+            "outcome_kind": "internal_output",
+            "case_kind": "positive",
+            "answer_status": "resolved",
+            "answer_resolution": "resolved",
+            "evaluation_declared": true,
+            "checks": {
+              "relevant": true,
+              "directly_answers": true,
+              "applicable": true,
+              "current": true,
+              "non_conflicting": true,
+              "unambiguous": true,
+              "sufficient": true
+            },
+            "supporting_record_ids": [
+              "scripts/info-ssot-apply.sh"
+            ],
+            "verification_status": "unknown",
+            "reason_codes": [],
+            "errors": [],
+            "warnings": []
+          }
+        ],
+        "outcome_coverage": {
+          "status": "partial",
+          "internal_output": {
+            "status": "unknown",
+            "declared_count": 6,
+            "answer_resolved_count": 5,
+            "answer_unresolved_count": 1,
+            "invalid_count": 0,
+            "verification_status": "unknown",
+            "clause_ids": [
+              "INV-001",
+              "INV-002",
+              "INV-003",
+              "C-001",
+              "S-001",
+              "INV-004"
+            ]
+          },
+          "downstream_outcome": {
+            "status": "unknown",
+            "declared_count": 0,
+            "answer_resolved_count": 0,
+            "answer_unresolved_count": 0,
+            "invalid_count": 0,
+            "verification_status": "unknown",
+            "clause_ids": []
+          },
+          "canonical_readback": {
+            "status": "unknown",
+            "declared_count": 0,
+            "answer_resolved_count": 0,
+            "answer_unresolved_count": 0,
+            "invalid_count": 0,
+            "verification_status": "unknown",
+            "clause_ids": []
+          },
+          "unknown": {
+            "status": "unknown",
+            "declared_count": 0,
+            "answer_resolved_count": 0,
+            "answer_unresolved_count": 0,
+            "invalid_count": 0,
+            "verification_status": "unknown",
+            "clause_ids": []
+          }
+        },
+        "reason_codes": [
+          "semantic_answer_no_answer"
+        ],
+        "errors": [],
+        "warnings": []
+      },
+      "semantic_assessments": [],
+      "outcome_coverage": {
+        "status": "partial",
+        "internal_output": {
+          "status": "unknown",
+          "declared_count": 6,
+          "answer_resolved_count": 5,
+          "answer_unresolved_count": 1,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": [
+            "INV-001",
+            "INV-002",
+            "INV-003",
+            "C-001",
+            "S-001",
+            "INV-004"
+          ]
+        },
+        "downstream_outcome": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        },
+        "canonical_readback": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        },
+        "unknown": {
+          "status": "unknown",
+          "declared_count": 0,
+          "answer_resolved_count": 0,
+          "answer_unresolved_count": 0,
+          "invalid_count": 0,
+          "verification_status": "unknown",
+          "clause_ids": []
+        }
+      },
+      "scenario_lineage": null,
+      "examples": []
+    }
+  }
+}

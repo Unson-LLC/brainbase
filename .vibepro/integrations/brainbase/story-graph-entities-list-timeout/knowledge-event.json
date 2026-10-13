@@ -1,0 +1,64 @@
+{
+  "schema_version": "knowledge_event.v1",
+  "event_id": "kev_50ad5a9e8b8d447bfecc562d961f0e46865f70be5c6bca1c635e5394d079914a",
+  "occurred_at": "2026-10-13T21:24:47.434Z",
+  "captured_at": "2026-10-13T21:25:41.442Z",
+  "source": {
+    "type": "vibepro",
+    "ref": "repo://workspace@4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f#story-graph-entities-list-timeout"
+  },
+  "subject": {
+    "type": "development_learning",
+    "id": "vibepro:story-graph-entities-list-timeout:4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f"
+  },
+  "decision_authority": {
+    "kind": "development_learning_candidate",
+    "authorized": false,
+    "graph_promotion_allowed": false
+  },
+  "applicability_scope": {
+    "scope": "project",
+    "project_code": "brainbase"
+  },
+  "permission_snapshot": {
+    "knowledge_registration": true,
+    "external_action": false,
+    "graph_promotion": false,
+    "visibility": "team",
+    "sensitivity": "internal"
+  },
+  "source_pointer": {
+    "uri": "vibepro://workspace/story-graph-entities-list-timeout?sha=4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f"
+  },
+  "trace": {
+    "turn_id": "turn-graph-entities-list-timeout",
+    "resolution_id": "resolution-graph-entities-list-timeout",
+    "story_id": "story-graph-entities-list-timeout",
+    "verified_head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+    "knowledge_event_id": "kev_50ad5a9e8b8d447bfecc562d961f0e46865f70be5c6bca1c635e5394d079914a",
+    "reuse_receipt": {
+      "status": "unknown",
+      "implementation": "unimplemented",
+      "reason": "reuse receipt contract is not implemented by VibePro"
+    }
+  },
+  "body_hash": "e5bae1966b05e1e4a80681b9236305f59f85e5051467f10537bd59abc9ca360c",
+  "parent_episode_id": "episode-graph-entities-list-timeout",
+  "payload": {
+    "schema_version": "vibepro-development-learning.v1",
+    "story_id": "story-graph-entities-list-timeout",
+    "summary": "Graph entity list now disables jit in the access transaction, keeps membership visibility only in the SELECT policy, and returns a 50-row updated_at/id keyset. PGlite inlined the scalar role check. Production EXPLAIN and the 4s gateway result remain unconfirmed.",
+    "context_digest": "9b653fb5a3c0cd26ae3f4edc3518aa30c34bcb343f42ca79d3308b05385d4b51",
+    "verification_evidence": {
+      "artifact_digest": "841b9f865d9fff9eaf547c1bd58d094b9b2939845a7ba45cbf279aecbe153a8c",
+      "head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+      "passing_kinds": [
+        "unit"
+      ],
+      "evidence_sources": [
+        "runner_direct"
+      ]
+    },
+    "knowledge_reference_count": 1
+  }
+}

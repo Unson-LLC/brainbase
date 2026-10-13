@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0.0",
+  "story_id": "story-graph-entities-list-timeout",
+  "role": "reviewer",
+  "status": "pass",
+  "summary": "一覧の jit 無効化、スカラーなロール判定、ポリシーだけの所属条件、キーセット50件を確認した。本番 EXPLAIN は未測定。",
+  "recorded_at": "2026-10-13T21:25:40.368Z",
+  "findings": [],
+  "content_binding": {
+    "schema_version": "0.1.0",
+    "model": "vibepro-content-scoped-evidence-freshness-v1",
+    "mode": "content_surface",
+    "status": "recorded",
+    "reason": "content surface recorded for 3 file(s)",
+    "recorded_head_sha": null,
+    "surface_files": [
+      {
+        "path": "server/services/info-ssot-service.js",
+        "sha256": "823a6f0f1f6947b80521024223243f82866588b16ebb53b4dc7b7383cd9f303f",
+        "size": 5524
+      },
+      {
+        "path": "server/sql/info-ssot-rls.sql",
+        "sha256": "a037e9b79c1929527370456a4538f8f8f995682ab1d23b81c32416be29274625",
+        "size": 4099
+      },
+      {
+        "path": "tests/server/sql/info-ssot-explain.test.js",
+        "sha256": "2a358dccf947b470e16cc7290ee581c168a1fd4ad60272f5964aa1f521769636",
+        "size": 5154
+      }
+    ],
+    "missing_files": [],
+    "surface_hash": "caa44408346176c32b45c0631d77fe4a1629ff5d936474a908f5c9bf81ee245c"
+  },
+  "reviewer": {
+    "system": null,
+    "id": null
+  }
+}

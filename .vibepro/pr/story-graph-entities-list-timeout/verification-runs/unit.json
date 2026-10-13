@@ -1,0 +1,149 @@
+{
+  "schema_version": "0.1.0",
+  "status": "pass",
+  "exit_code": 0,
+  "evidence_source": "runner_direct",
+  "producer": "vibepro verify run",
+  "kind": "unit",
+  "story_id": "story-graph-entities-list-timeout",
+  "runtime_identity": {
+    "schema_version": "0.2.0",
+    "collected_at": "2026-10-13T21:24:45.160Z",
+    "mode": "normal",
+    "source_kind": "npm_package",
+    "test_context": null,
+    "package": {
+      "name": "vibepro",
+      "version": "0.2.0-beta.29",
+      "exact_version": "0.2.0-beta.29",
+      "root": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro"
+    },
+    "cli": {
+      "entrypoint": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro/bin/vibepro.js",
+      "invoked_as": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/.bin/vibepro",
+      "runtime_module": "/home/ubuntu/.npm/_npx/e0f82dd780a6134d/node_modules/vibepro/src/runtime-info.js"
+    },
+    "release_manifest": {
+      "status": "valid",
+      "manifest": {
+        "schema_version": "0.1.0",
+        "package": {
+          "name": "vibepro",
+          "version": "0.2.0-beta.29",
+          "package_json_sha256": "1dd0e32f2e98c21b32d94d9a267371b92f07d7b4cb7fce2867f50d45f268a25b",
+          "entrypoint": "bin/vibepro.js"
+        },
+        "source_git": {
+          "commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+          "origin_url": "https://github.com/Unson-LLC/vibepro",
+          "origin_main_commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+          "origin_main_relation": "same",
+          "dirty": false
+        }
+      },
+      "errors": []
+    },
+    "source_git": {
+      "is_git_repo": false,
+      "commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+      "branch": null,
+      "origin_url": "https://github.com/Unson-LLC/vibepro",
+      "origin_main_commit": "02934659e8a91a23c2ee8dc0b57ad768ae7c4b45",
+      "origin_main_relation": "published",
+      "dirty": false,
+      "dirty_summary": []
+    },
+    "identity_digest": "b82a4aef0f26937f172bdfe72080ce43a30880d8066a32a999c206bc96a4b66a",
+    "integrity": {
+      "status": "trusted",
+      "code": null,
+      "purpose": "evidence_generation",
+      "reasons": [
+        "manifested immutable npm runtime"
+      ]
+    }
+  },
+  "head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+  "observed": {
+    "status": "pass",
+    "evidence_source": "runner_direct",
+    "run_artifact": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.json",
+    "run_log": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.log",
+    "exit_code": "0",
+    "duration_ms": "2259",
+    "started_at": "2026-10-13T21:24:45.175Z",
+    "finished_at": "2026-10-13T21:24:47.434Z",
+    "head_sha_before": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+    "head_sha_after": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+    "head_sha": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+    "worktree_sampled": "true",
+    "worktree_sampling_complete": "true",
+    "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+    "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+    "stdout_sha256": "1cbd234beefb6d09fda4bd76317bfc0bde1a2d77b3c350adb80e502c2825c93d",
+    "output_sha256": "1cbd234beefb6d09fda4bd76317bfc0bde1a2d77b3c350adb80e502c2825c93d",
+    "output_bytes": "193",
+    "log_truncated": "false",
+    "output_metrics": "none",
+    "timed_out": "false",
+    "output_limit_exceeded": "false",
+    "external_kill_signal": "none",
+    "timeout_ms": "7200000",
+    "max_output_bytes": "67108864",
+    "harness_env_removed": "none",
+    "runner_node_version": "v22.14.0",
+    "tree_mutated_during_run": "false",
+    "head_moved_during_run": "false",
+    "worktree_changed_during_run": "false",
+    "worktree_status_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "worktree_status_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "worktree_diff_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "worktree_diff_sha256_after": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "run": {
+    "argv": [
+      "npx",
+      "vitest",
+      "run",
+      "tests/server/services/info-ssot-access-context.test.js",
+      "tests/server/services/info-ssot-graph-page.test.js",
+      "tests/server/sql/info-ssot-rls.test.js",
+      "tests/server/sql/info-ssot-explain.test.js"
+    ],
+    "command": "npx vitest run tests/server/services/info-ssot-access-context.test.js tests/server/services/info-ssot-graph-page.test.js tests/server/sql/info-ssot-rls.test.js tests/server/sql/info-ssot-explain.test.js",
+    "cwd": ".",
+    "started_at": "2026-10-13T21:24:45.175Z",
+    "finished_at": "2026-10-13T21:24:47.434Z",
+    "duration_ms": 2259,
+    "exit_code": 0,
+    "signal": null,
+    "timed_out": false,
+    "output_limit_exceeded": false,
+    "external_kill_signal": null,
+    "timeout_ms": 7200000,
+    "max_output_bytes": 67108864,
+    "head_sha_before": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+    "head_sha_after": "4346d5cb8aa8f96ac2e13bd35ba548d62b07cf9f",
+    "worktree_sha256_before": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+    "worktree_sha256_after": "af60ab5be9ad4965eaa1059028902dc21b4b010385fbd5bfd03807f26e68aaf3",
+    "tree_mutated_during_run": false,
+    "head_moved_during_run": false,
+    "worktree_changed_during_run": false,
+    "worktree_sampled": true,
+    "worktree_sampling_complete": true,
+    "output_metrics": "none",
+    "counts": null,
+    "node_version": "v22.14.0",
+    "harness_env_removed": [],
+    "log": ".vibepro/pr/story-graph-entities-list-timeout/verification-runs/unit.log",
+    "log_truncated": false
+  },
+  "discarded_agent_observations": [],
+  "warnings": [
+    {
+      "id": "verification_run_counts_not_parsed",
+      "command_name": "verify run",
+      "reason": "the command exited 0 but no test counts could be parsed from its output; the record proves the command did not fail, not how much it checked"
+    }
+  ]
+}
