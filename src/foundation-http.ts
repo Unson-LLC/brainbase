@@ -499,7 +499,12 @@ export function createObjectiveFoundationRoute(options: ObjectiveFoundationHttpR
               { code: 'readback_identity_mismatch', message: 'The canonical Objective readback does not match the requested id or revision' },
             ));
           }
-          return jsonResponse(200, objectiveReadbackPayload('ready', checkedAt, canonicalRecord, null));
+          // Keep the pre-readback `state` field for existing OSS consumers while
+          // the canonical envelope is adopted by newer clients.
+          return jsonResponse(200, {
+            ...objectiveReadbackPayload('ready', checkedAt, canonicalRecord, null),
+            state: 'ready',
+          });
         } catch (error) {
           const normalized = normalizeHttpError(error);
           const checkedAt = objectiveReadbackCheckedAt(options.clock);
