@@ -250,7 +250,7 @@
 .bb-fov-reading .bb-fov-current-state { padding: 16px; border: 1px solid var(--bb-color-border); border-radius: 10px; background: var(--bb-color-canvas); gap: 12px; }
 .bb-fov-original { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--bb-color-border); font-size: 12px; color: var(--bb-color-muted); }
 .bb-fov-original > summary { cursor: pointer; }
-.bb-fov-missing { color: #80601c; }
+.bb-fov-missing { color: var(--bb-color-record-missing); }
 @media (max-width: 760px) { .bb-fov-objective-ledger { overflow-x: auto; } .bb-fov-objective-ledger .bb-ws-ledger-row { min-width: 760px; } }
 @media (max-width: 480px) { .bb-fov-reading .bb-ws-definition { grid-template-columns: 1fr; gap: 4px; } .bb-fov-reading dd { margin-bottom: 12px; } }
 .bb-fov-philosophy-card .bb-fov-original { border-top: 0; padding-top: 0; }
