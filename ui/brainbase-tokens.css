@@ -26,8 +26,6 @@
   --bb-color-accent: #5b4bd8;
   --bb-color-accent-soft: #efedff;
   --bb-color-accent-strong: #4939b8;
-  /* Minutes screen remaps its accent to this indigo. Shared accent stays purple. */
-  --bb-color-brand-indigo: #0F2A43;
   --bb-color-action: #5b4bd8;
   --bb-color-action-hover: #4939b8;
   --bb-color-action-text: #ffffff;
