@@ -1644,13 +1644,21 @@ describe('プロジェクトと関係者: host extensions', () => {
     await writeGraphV2(dataDir);
     api = await startGraphApi(dataDir);
     const detailGate = deferred();
+    const firstListGate = deferred();
     let detailStarted = false;
+    let firstListReturned = false;
     let listReads = 0;
     const fetcher = async (path, init) => {
       if (path === '/api/graph/projects') {
-        const response = await api.fetcher(path, init);
+        // Count before the read. Two loads can be in flight together, and
+        // incrementing after the response lets the refresh see the full list
+        // and wait on the still-gated detail.
         listReads += 1;
-        if (listReads === 2) {
+        const read = listReads;
+        if (read === 1) await firstListGate.promise;
+        const response = await api.fetcher(path, init);
+        if (read === 1) firstListReturned = true;
+        if (read !== 1) {
           const payload = await response.json();
           return jsonResponse(200, { ...payload, projects: payload.projects.filter((project) => project.id !== 'project-atlas') });
         }
@@ -1677,6 +1685,11 @@ describe('プロジェクトと関係者: host extensions', () => {
 
     const initial = view.load();
     await waitFor(() => detailStarted);
+    firstListGate.resolve();
+    // The first load must apply the full list and park on the detail read
+    // before the refresh. waitFor wakes on a timer, after that apply.
+    await waitFor(() => firstListReturned);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     await view.load({ keep: true });
     expect(view.state.detail).toMatchObject({ id: 'project-atlas', state: 'not_found' });
 
