@@ -17,7 +17,7 @@ vi.mock('node:fs/promises', async () => {
   };
 });
 
-const { canonicalJson, createJudgmentHistoryReader, createLocalJudgmentHistorySource } = await import('../src/judgment-history.js');
+const { JudgmentHistoryJournalScanCache, canonicalJson, createJudgmentHistoryReader, createLocalJudgmentHistorySource } = await import('../src/judgment-history.js');
 
 const roots: string[] = [];
 
@@ -95,5 +95,31 @@ describe('judgment history journal scan cache', () => {
     expect(readPaths.filter((path) => path === filePath).length).toBeGreaterThan(0);
     expect(source.timings?.()?.cache_hits).toBe(0);
     expect(source.timings?.()?.cache_misses).toBe(1);
+  });
+
+  it('drops the least recently used artifact after the cache limit', () => {
+    const parsed = (name: string) => ({ value: { name }, missing: false, invalid: false });
+    const first = parsed('first');
+    const second = parsed('second');
+    const third = parsed('third');
+    const cache = new JudgmentHistoryJournalScanCache(2);
+    cache.store('session', 'turn-1', 'a.json', 1n, first);
+    cache.store('session', 'turn-2', 'b.json', 1n, second);
+    expect(cache.size).toBe(2);
+    cache.store('session', 'turn-3', 'c.json', 1n, third);
+    expect(cache.size).toBe(2);
+    expect(cache.lookup('session', 'turn-1', 'a.json', 1n)).toBeNull();
+    expect(cache.lookup('session', 'turn-2', 'b.json', 1n)).toBe(second);
+    expect(cache.lookup('session', 'turn-3', 'c.json', 1n)).toBe(third);
+
+    const refreshed = new JudgmentHistoryJournalScanCache(2);
+    refreshed.store('session', 'turn-1', 'a.json', 1n, first);
+    refreshed.store('session', 'turn-2', 'b.json', 1n, second);
+    expect(refreshed.lookup('session', 'turn-1', 'a.json', 1n)).toBe(first);
+    refreshed.store('session', 'turn-3', 'c.json', 1n, third);
+    expect(refreshed.lookup('session', 'turn-2', 'b.json', 1n)).toBeNull();
+    expect(refreshed.lookup('session', 'turn-1', 'a.json', 1n)).toBe(first);
+    expect(refreshed.lookup('session', 'turn-3', 'c.json', 1n)).toBe(third);
+    expect(refreshed.size).toBe(2);
   });
 });

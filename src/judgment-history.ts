@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
@@ -108,6 +109,8 @@ export interface JudgmentHistorySourceSnapshot {
   readonly coverage: JudgmentHistoryCoverage;
   /** Stable source revision used to bind pagination cursors. */
   readonly snapshot_id?: string;
+  /** Measurements for this read. Concurrent reads each carry their own. */
+  readonly timings?: JudgmentHistoryReadTimings;
 }
 
 export interface JudgmentHistoryReadTimings {
@@ -126,8 +129,31 @@ export interface JudgmentHistoryReadTimings {
 export interface JudgmentHistorySource {
   readonly storage: JudgmentHistoryStorage;
   readonly read: () => Promise<JudgmentHistorySourceSnapshot>;
-  /** Timings of the latest `read`, when the adapter measured one. */
+  /** Timings of the latest completed `read`. Overlapping reads use `snapshot.timings`. */
   readonly timings?: () => JudgmentHistoryReadTimings | null;
+}
+
+interface JudgmentHistoryTimingSlot {
+  current: JudgmentHistoryReadTimings | null;
+}
+
+const judgmentHistoryTimingSlots = new AsyncLocalStorage<JudgmentHistoryTimingSlot>();
+
+/** Isolates Server-Timing for one HTTP request from other in-flight reads. */
+export function withJudgmentHistoryRequestTimings<T>(fn: () => Promise<T>): Promise<T> {
+  return judgmentHistoryTimingSlots.run({ current: null }, fn);
+}
+
+/** Timings published by the in-flight request, when one is bound. */
+export function judgmentHistoryRequestTimings(): { readonly bound: boolean; readonly timings: JudgmentHistoryReadTimings | null } {
+  const slot = judgmentHistoryTimingSlots.getStore();
+  if (!slot) return { bound: false, timings: null };
+  return { bound: true, timings: slot.current };
+}
+
+function publishJudgmentHistoryReadTimings(timings: JudgmentHistoryReadTimings): void {
+  const slot = judgmentHistoryTimingSlots.getStore();
+  if (slot) slot.current = timings;
 }
 
 export interface JudgmentHistoryQuery {
@@ -215,26 +241,56 @@ export interface LocalJudgmentHistorySourceOptions {
 
 export const DEFAULT_LOCAL_JUDGMENT_HISTORY_READ_PARALLEL = 8;
 export const MAX_JUDGMENT_HISTORY_RESOLUTION_BATCH = 100;
+/** Parsed artifacts kept for one local source. The oldest entry is dropped past this. */
+export const DEFAULT_JUDGMENT_HISTORY_JOURNAL_CACHE_LIMIT = 4_096;
 
 /**
  * Remembers parsed journal artifacts for one local source.
  * The key is (session, turn, file name, mtime). A later read of the same turn
  * misses when that file's mtime changes, and the previous bytes are not reused.
+ * A lookup refreshes recency. Past `limit`, the least recently used entry is dropped.
  */
 export class JudgmentHistoryJournalScanCache {
   readonly #files = new Map<string, { readonly mtimeNs: bigint; readonly result: BoundedJsonResult }>();
+  readonly #limit: number;
   #hits = 0;
   #misses = 0;
 
+  constructor(limit = DEFAULT_JUDGMENT_HISTORY_JOURNAL_CACHE_LIMIT) {
+    if (!Number.isInteger(limit) || limit < 1) throw new TypeError('cache limit must be a positive integer');
+    this.#limit = limit;
+  }
+
+  get limit(): number {
+    return this.#limit;
+  }
+
+  get size(): number {
+    return this.#files.size;
+  }
+
   lookup(session: string, turn: string, fileName: string, mtimeNs: bigint): BoundedJsonResult | null {
-    const entry = this.#files.get(`${session}\0${turn}\0${fileName}`);
-    if (!entry || entry.mtimeNs !== mtimeNs) return null;
+    const key = `${session}\0${turn}\0${fileName}`;
+    const entry = this.#files.get(key);
+    if (!entry || entry.mtimeNs !== mtimeNs) {
+      if (entry) this.#files.delete(key);
+      return null;
+    }
+    this.#files.delete(key);
+    this.#files.set(key, entry);
     this.#hits += 1;
     return entry.result;
   }
 
   store(session: string, turn: string, fileName: string, mtimeNs: bigint, result: BoundedJsonResult): void {
-    this.#files.set(`${session}\0${turn}\0${fileName}`, { mtimeNs, result });
+    const key = `${session}\0${turn}\0${fileName}`;
+    this.#files.delete(key);
+    this.#files.set(key, { mtimeNs, result });
+    while (this.#files.size > this.#limit) {
+      const oldest = this.#files.keys().next().value;
+      if (oldest === undefined) break;
+      this.#files.delete(oldest);
+    }
   }
 
   noteMiss(): void {
@@ -306,6 +362,8 @@ interface LocalSourceReadResult {
   readonly candidateCount: number;
   readonly capped: boolean;
   readonly contentDigest: string;
+  readonly cacheHits: number;
+  readonly cacheMisses: number;
 }
 
 interface StoredFeedbackEvent extends JudgmentHistoryFeedbackEvent {
@@ -1317,7 +1375,7 @@ async function loadNewestJournalGroups(
   maxRecordBytes: number,
   cache: JudgmentHistoryJournalScanCache,
   readParallel: number
-): Promise<{ groups: Map<string, JournalGroup>; invalidCount: number; candidateCount: number; capped: boolean }> {
+): Promise<{ groups: Map<string, JournalGroup>; invalidCount: number; candidateCount: number; capped: boolean; cacheHits: number; cacheMisses: number }> {
   const sessions = await readdir(root, { withFileTypes: true });
   const groups = new Map<string, JournalGroup>();
   const discovered: DiscoveredJournalFile[] = [];
@@ -1411,9 +1469,15 @@ async function loadNewestJournalGroups(
   const capped = newestFirst.length > maxFiles;
   const selectedPaths = new Set(newestFirst.slice(0, maxFiles).map((candidate) => candidate.path));
   const selected = stated.filter((candidate) => selectedPaths.has(candidate.path));
+  let cacheHits = 0;
+  let cacheMisses = 0;
   const loaded = await mapWithConcurrencyLimit(selected, readParallel, async (candidate) => {
     const hit = cache.lookup(candidate.session, candidate.key, candidate.name, candidate.mtimeNs);
-    if (hit) return { path: candidate.path, result: hit };
+    if (hit) {
+      cacheHits += 1;
+      return { path: candidate.path, result: hit };
+    }
+    cacheMisses += 1;
     cache.noteMiss();
     const result = await readBoundedJson(candidate.path, maxRecordBytes);
     cache.store(candidate.session, candidate.key, candidate.name, candidate.mtimeNs, result);
@@ -1445,7 +1509,7 @@ async function loadNewestJournalGroups(
     else if (candidate.kind === 'episode') group.episode = result.value;
     else group.turnInput = result.value;
   }
-  return { groups, invalidCount, candidateCount: selected.length, capped };
+  return { groups, invalidCount, candidateCount: selected.length, capped, cacheHits, cacheMisses };
 }
 
 async function readLocalRecords(
@@ -1566,7 +1630,7 @@ async function readLocalRecords(
   }
   records.sort(compareRecords);
   const contentDigest = sha256(canonicalJson({ records, candidateCount, invalidCount, capped }));
-  return { records, invalidCount, candidateCount, capped, contentDigest };
+  return { records, invalidCount, candidateCount, capped, contentDigest, cacheHits: loaded.cacheHits, cacheMisses: loaded.cacheMisses };
 }
 
 function compareRecords(left: JudgmentHistoryRecord, right: JudgmentHistoryRecord): number {
@@ -1609,45 +1673,38 @@ export function createLocalJudgmentHistorySource(options: LocalJudgmentHistorySo
     timings: () => lastTimings,
     async read(): Promise<JudgmentHistorySourceSnapshot> {
       const started = performance.now();
-      const hitsBefore = cache.hits;
-      const missesBefore = cache.misses;
-      const finish = (scanned: number): void => {
+      const finish = (scanned: number, cacheHits = 0, cacheMisses = 0, snapshot: Omit<JudgmentHistorySourceSnapshot, 'timings'>): JudgmentHistorySourceSnapshot => {
         const journalMs = performance.now() - started;
-        lastTimings = {
+        const timings: JudgmentHistoryReadTimings = {
           total_ms: journalMs,
           journal_ms: journalMs,
           page_ms: 0,
-          cache_hits: cache.hits - hitsBefore,
-          cache_misses: cache.misses - missesBefore,
+          cache_hits: cacheHits,
+          cache_misses: cacheMisses,
           parallel_limit: readParallel,
           scanned_files: scanned
         };
+        lastTimings = timings;
+        return { ...snapshot, timings };
       };
       try {
         const rootStats = await lstat(root);
         if (rootStats.isSymbolicLink()) {
-          finish(0);
-          return { status: 'unavailable', records: null, coverage: unavailableCoverage('local', 'journal_symlink_rejected') };
+          return finish(0, 0, 0, { status: 'unavailable', records: null, coverage: unavailableCoverage('local', 'journal_symlink_rejected') });
         }
         if (!rootStats.isDirectory()) {
-          finish(0);
-          return { status: 'unavailable', records: null, coverage: unavailableCoverage('local', 'journal_not_directory') };
+          return finish(0, 0, 0, { status: 'unavailable', records: null, coverage: unavailableCoverage('local', 'journal_not_directory') });
         }
       } catch (error) {
-        finish(0);
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-          return { status: 'unavailable', records: null, coverage: unavailableCoverage('local', 'journal_unavailable') };
-        }
-        return { status: 'unavailable', records: null, coverage: unavailableCoverage('local', 'journal_unreadable') };
+        const reason = (error as NodeJS.ErrnoException).code === 'ENOENT' ? 'journal_unavailable' : 'journal_unreadable';
+        return finish(0, 0, 0, { status: 'unavailable', records: null, coverage: unavailableCoverage('local', reason) });
       }
       let result: LocalSourceReadResult;
       try {
         result = await readLocalRecords(root, configuredEntrypoint, maxFiles, maxRecordBytes, cache, readParallel);
       } catch {
-        finish(0);
-        return { status: 'unavailable', records: null, coverage: unavailableCoverage('local', 'journal_unreadable') };
+        return finish(0, 0, 0, { status: 'unavailable', records: null, coverage: unavailableCoverage('local', 'journal_unreadable') });
       }
-      finish(result.candidateCount);
       const status: JudgmentHistoryStatus = result.invalidCount > 0 || result.capped ? 'partial' : 'available';
       const reason = result.capped ? 'journal_scan_capped' : result.invalidCount > 0 ? 'some_journal_records_unreadable' : null;
       const entrypoints = [...new Set(result.records.map((record) => record.entrypoint))];
@@ -1663,7 +1720,7 @@ export function createLocalJudgmentHistorySource(options: LocalJudgmentHistorySo
         sources,
         total: status === 'available' ? result.records.length : null
       };
-      return {
+      return finish(result.candidateCount, result.cacheHits, result.cacheMisses, {
         status,
         records: result.records,
         coverage,
@@ -1676,7 +1733,7 @@ export function createLocalJudgmentHistorySource(options: LocalJudgmentHistorySo
           capped: result.capped,
           content_digest: result.contentDigest
         })
-      };
+      });
     }
   };
 }
@@ -1883,10 +1940,19 @@ export function createJudgmentHistoryReader(options: JudgmentHistoryReaderOption
   if (!options?.source || typeof options.source.read !== 'function') throw new TypeError('source is required');
   const now = options.now ?? (() => new Date());
   let lastTimings: JudgmentHistoryReadTimings | null = null;
-  const remember = (readStarted: number, pageStarted: number): void => {
-    const sourceTimings = options.source.timings?.() ?? null;
+  const takeSource = async (): Promise<{
+    readonly source: ReturnType<typeof buildSourceSnapshot>;
+    readonly sourceTimings: JudgmentHistoryReadTimings | null;
+  }> => {
+    const snapshot = await options.source.read();
+    return {
+      source: buildSourceSnapshot(snapshot),
+      sourceTimings: snapshot.timings ?? options.source.timings?.() ?? null
+    };
+  };
+  const remember = (readStarted: number, pageStarted: number, sourceTimings: JudgmentHistoryReadTimings | null): void => {
     const finished = performance.now();
-    lastTimings = {
+    const timings: JudgmentHistoryReadTimings = {
       total_ms: finished - readStarted,
       journal_ms: sourceTimings?.journal_ms ?? Math.max(0, pageStarted - readStarted),
       page_ms: Math.max(0, finished - pageStarted),
@@ -1895,6 +1961,8 @@ export function createJudgmentHistoryReader(options: JudgmentHistoryReaderOption
       parallel_limit: sourceTimings?.parallel_limit ?? 0,
       scanned_files: sourceTimings?.scanned_files ?? 0
     };
+    lastTimings = timings;
+    publishJudgmentHistoryReadTimings(timings);
   };
   return {
     timings: () => lastTimings,
@@ -1904,7 +1972,8 @@ export function createJudgmentHistoryReader(options: JudgmentHistoryReaderOption
         throw new JudgmentHistoryReaderError(403, 'project_scope_forbidden', 'project is outside the trusted scope');
       }
       const readStarted = performance.now();
-      const source = buildSourceSnapshot(await options.source.read());
+      const loaded = await takeSource();
+      const source = loaded.source;
       const pageStarted = performance.now();
       try {
       let records = source.records;
@@ -1970,14 +2039,15 @@ export function createJudgmentHistoryReader(options: JudgmentHistoryReaderOption
         pagination: { cursor: query.cursor, next_cursor: nextCursor, limit: query.limit, has_more: hasMore }
       };
       } finally {
-        remember(readStarted, pageStarted);
+        remember(readStarted, pageStarted, loaded.sourceTimings);
       }
     },
     async detail(recordId: string): Promise<JudgmentHistoryDetail> {
       const safeRecordId = safeId(recordId);
       if (!safeRecordId) throw new JudgmentHistoryReaderError(400, 'invalid_record_id', 'record_id is invalid');
       const readStarted = performance.now();
-      const source = buildSourceSnapshot(await options.source.read());
+      const loaded = await takeSource();
+      const source = loaded.source;
       const pageStarted = performance.now();
       try {
       if (source.status === 'unavailable' || source.records === null) {
@@ -2001,7 +2071,7 @@ export function createJudgmentHistoryReader(options: JudgmentHistoryReaderOption
         coverage: { ...source.coverage, total: source.coverage.complete ? source.records.length : null }
       };
       } finally {
-        remember(readStarted, pageStarted);
+        remember(readStarted, pageStarted, loaded.sourceTimings);
       }
     },
     async findByResolutionIds(resolutionIds: readonly string[]): Promise<JudgmentHistoryResolutionBatch> {
@@ -2014,7 +2084,8 @@ export function createJudgmentHistoryReader(options: JudgmentHistoryReaderOption
         return safe;
       });
       const readStarted = performance.now();
-      const source = buildSourceSnapshot(await options.source.read());
+      const loaded = await takeSource();
+      const source = loaded.source;
       const pageStarted = performance.now();
       try {
         if (source.status === 'unavailable' || source.records === null) {
@@ -2026,12 +2097,16 @@ export function createJudgmentHistoryReader(options: JudgmentHistoryReaderOption
           };
         }
         const byId = new Map(source.records.map((record) => [record.record_id, record]));
-        const records = ids.map((id) => byId.get(id) ?? null);
-        for (const record of records) {
-          if (!record || !options.authorizeProject) continue;
-          if (record.project_code === null || !(await options.authorizeProject(record.project_code))) {
-            throw new JudgmentHistoryReaderError(403, 'project_scope_forbidden', 'record is outside the trusted scope');
+        const records: (JudgmentHistoryRecord | null)[] = [];
+        for (const id of ids) {
+          const record = byId.get(id) ?? null;
+          if (!record || !options.authorizeProject) {
+            records.push(record);
+            continue;
           }
+          // A forbidden or unbound project is indistinguishable from a missing id.
+          const allowed = record.project_code !== null && await options.authorizeProject(record.project_code);
+          records.push(allowed ? record : null);
         }
         return {
           contract_version: JUDGMENT_HISTORY_CONTRACT_VERSION,
@@ -2040,7 +2115,7 @@ export function createJudgmentHistoryReader(options: JudgmentHistoryReaderOption
           coverage: { ...source.coverage, total: source.coverage.complete ? source.records.length : null }
         };
       } finally {
-        remember(readStarted, pageStarted);
+        remember(readStarted, pageStarted, loaded.sourceTimings);
       }
     }
   };

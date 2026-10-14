@@ -851,6 +851,27 @@ describe('judgment history common reader', () => {
     expect(batch.records.map((record) => record?.record_id ?? null)).toEqual(['resolution-b', 'resolution-a', null]);
   });
 
+  it('returns null for an out-of-scope resolution id and a missing id alike', async () => {
+    const root = await makeRoot();
+    const sessionRef = 's'.repeat(64);
+    await save(root, sessionRef, `${'e'.repeat(64)}.json`, adoption(sessionRef, 'turn-in', 'resolution-in', {
+      receipt: { project_code: 'project-in' }
+    }));
+    await save(root, sessionRef, `${'f'.repeat(64)}.json`, adoption(sessionRef, 'turn-out', 'resolution-out', {
+      receipt: { project_code: 'project-out' }
+    }));
+    const reader = createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' }),
+      authorizeProject: (project) => project === 'project-in'
+    });
+    const batch = await reader.findByResolutionIds(['resolution-in', 'resolution-out', 'resolution-missing']);
+    expect(batch.status).toBe('available');
+    expect(batch.records.map((record) => record?.record_id ?? null)).toEqual(['resolution-in', null, null]);
+    expect(JSON.stringify(batch)).not.toContain('resolution-out');
+    expect(JSON.stringify(batch)).not.toContain('project-out');
+    await expect(reader.detail('resolution-out')).rejects.toMatchObject({ statusCode: 403, code: 'project_scope_forbidden' });
+  });
+
   it('sends Server-Timing for a newest-first home read', async () => {
     const root = await makeRoot();
     const reader = createJudgmentHistoryReader({ source: createLocalJudgmentHistorySource({ root }) });
@@ -866,6 +887,84 @@ describe('judgment history common reader', () => {
     expect(timing).toMatch(/journal;dur=\d/);
     expect(timing).toMatch(/page;dur=\d/);
     expect(timing).toContain('order;desc="newest-first"');
+  });
+
+  it('keeps Server-Timing on the request that measured it', async () => {
+    let releaseSlow: () => void = () => {};
+    const slowGate = new Promise<void>((resolve) => { releaseSlow = resolve; });
+    let reads = 0;
+    let sharedJournal = 0;
+    const coverage = {
+      complete: true,
+      storage: 'local' as const,
+      reason: null,
+      sources: [{ entrypoint: 'unknown' as const, status: 'available' as const, reason: null }],
+      total: 0
+    };
+    const source = {
+      storage: 'local' as const,
+      timings: () => ({
+        total_ms: sharedJournal,
+        journal_ms: sharedJournal,
+        page_ms: 0,
+        cache_hits: sharedJournal,
+        cache_misses: 0,
+        parallel_limit: sharedJournal,
+        scanned_files: sharedJournal
+      }),
+      async read() {
+        const mine = ++reads;
+        const slow = mine === 1;
+        if (slow) await slowGate;
+        const journal = slow ? 40 : 5;
+        sharedJournal = journal;
+        if (!slow) {
+          releaseSlow();
+          await Promise.resolve();
+        }
+        return {
+          status: 'available' as const,
+          records: [],
+          coverage,
+          timings: {
+            total_ms: journal,
+            journal_ms: journal,
+            page_ms: 0,
+            cache_hits: journal,
+            cache_misses: 0,
+            parallel_limit: journal,
+            scanned_files: journal
+          }
+        };
+      }
+    };
+    const reader = createJudgmentHistoryReader({ source });
+    const server = createServer((request, response) => {
+      void createJudgmentHistoryHttpHandler({ reader })(request, response);
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const slowResponse = fetch(`${base}/api/judgment-history/home`);
+    await new Promise<void>((resolve, reject) => {
+      const deadline = Date.now() + 1000;
+      const tick = (): void => {
+        if (reads >= 1) resolve();
+        else if (Date.now() > deadline) reject(new Error('the slow read did not start'));
+        else setTimeout(tick, 5);
+      };
+      tick();
+    });
+    const fastResponse = fetch(`${base}/api/judgment-history/home`);
+    const [slow, fast] = await Promise.all([slowResponse, fastResponse]);
+    expect(slow.status).toBe(200);
+    expect(fast.status).toBe(200);
+    expect(slow.headers.get('server-timing')).toContain('journal;dur=40.0');
+    expect(slow.headers.get('server-timing')).toContain('cache;desc="hits=40,misses=0"');
+    expect(slow.headers.get('server-timing')).toContain('parallel;desc="40"');
+    expect(fast.headers.get('server-timing')).toContain('journal;dur=5.0');
+    expect(fast.headers.get('server-timing')).toContain('cache;desc="hits=5,misses=0"');
+    expect(fast.headers.get('server-timing')).toContain('parallel;desc="5"');
   });
 
   it('never runs more journal reads than the parallel limit', async () => {

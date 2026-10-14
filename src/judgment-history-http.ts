@@ -3,12 +3,14 @@ import {
   JUDGMENT_HISTORY_ENTRYPOINTS,
   MAX_JUDGMENT_HISTORY_RESOLUTION_BATCH,
   createJudgmentHistoryReader,
+  judgmentHistoryRequestTimings,
   JudgmentHistoryFeedbackConflictError,
   type JudgmentHistoryFeedbackWriter,
   type JudgmentHistoryEntrypoint,
   type JudgmentHistoryReadTimings,
   type JudgmentHistoryReader,
-  type JudgmentHistoryQuery
+  type JudgmentHistoryQuery,
+  withJudgmentHistoryRequestTimings
 } from './judgment-history.js';
 import { LocalWebHttpError, readJsonObjectBody, writeJson } from './local-web-security.js';
 
@@ -139,11 +141,14 @@ export function createJudgmentHistoryHttpHandler(options: JudgmentHistoryHttpOpt
   }
   const basePath = (options.basePath ?? JUDGMENT_HISTORY_HTTP_PREFIX).replace(/\/+$/u, '');
   const reader = options.reader;
-  return async (request, response): Promise<boolean> => {
+  return (request, response): Promise<boolean> => withJudgmentHistoryRequestTimings(async () => {
     const started = performance.now();
     const writeTimed = (statusCode: number, body: unknown): void => {
       if (!response.headersSent) {
-        const timings = typeof reader.timings === 'function' ? reader.timings() : null;
+        const scoped = judgmentHistoryRequestTimings();
+        const timings = scoped.bound
+          ? scoped.timings
+          : (typeof reader.timings === 'function' ? reader.timings() : null);
         response.setHeader('Server-Timing', serverTimingHeader(timings, performance.now() - started));
       }
       writeJson(response, statusCode, body);
@@ -214,7 +219,7 @@ export function createJudgmentHistoryHttpHandler(options: JudgmentHistoryHttpOpt
       }
     }
     return true;
-  };
+  });
 }
 
 /** Convenience composition seam for adapters that want the HTTP contract without a local journal. */
