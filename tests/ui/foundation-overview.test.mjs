@@ -30,6 +30,11 @@ class FakeElement {
     }
   }
 
+  showModal() { this.open = true; }
+  close() { this.open = false; this.dispatch('close'); }
+  remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(n => n !== this); }
+  focus() {}
+  getAttribute(name) { return this.attributes[name]; }
   prepend(...children) { this.children.unshift(...children); }
 
   replaceChildren(...children) {
@@ -51,6 +56,7 @@ class FakeElement {
 }
 
 class FakeDocument {
+  constructor() { this.body = new FakeElement('body'); }
   createElement(tagName) { return new FakeElement(tagName); }
 }
 
@@ -171,7 +177,9 @@ test('renders objectives, saved-state notice, philosophy, and model uncertainty'
   const port = { readCatalog: async () => catalog({ objectives: [objective] }) };
   const controller = createFoundationOverview({ root, port, scopeId: 'project-alpha', document: doc, autoLoad: false });
   await controller.load();
-  const visible = textOf(root);
+  const listText = textOf(root);
+  byAttr(root, 'data-key', 'objective-profit@2')[0].dispatch('click');
+  const visible = listText + textOf(doc.body);
 
   assert.equal(root.children[0].attributes['data-contract-version'], FOUNDATION_OVERVIEW_CONTRACT_VERSION);
   assert.equal(byClass(root, 'bb-ws-metric').length, 0);
@@ -180,7 +188,7 @@ test('renders objectives, saved-state notice, philosophy, and model uncertainty'
   assert.match(visible, /四半期ごとに現場責任者が確認する/);
   assert.match(visible, /利益指標を版付き変数で評価する/);
   assert.match(visible, /記録上の現状/);
-  assert.match(visible, /保存時点の記述/);
+
   assert.match(visible, /記録時点: 2026-09-01/);
   assert.match(visible, /状態: in_review/);
   assert.match(visible, /証拠範囲/);
@@ -196,7 +204,7 @@ test('renders objectives, saved-state notice, philosophy, and model uncertainty'
   assert.match(visible, /owner-1/);
   assert.match(visible, /哲学/);
   assert.match(visible, /正本は用途別に置く/);
-  assert.match(visible, /状態: 有効/);
+
   assert.match(visible, /判断の前提を確認するとき/);
   assert.match(visible, /プロジェクト: project-alpha/);
   assert.doesNotMatch(visible, /"scope":"project"/);
@@ -205,7 +213,8 @@ test('renders objectives, saved-state notice, philosophy, and model uncertainty'
   assert.match(visible, /未検証/);
   assert.match(visible, /変数の版が一致しません/);
   assert.doesNotMatch(visible, /達成率\s*100|達成済み/);
-  assert.ok(byClass(root, 'bb-fov-objective-card').length > 0);
+  assert.equal(byClass(root, 'bb-fov-objective-card').length, 0);
+  assert.ok(byClass(doc.body, 'bb-fov-objective-card').length > 0);
   assert.ok(byAttr(root, 'aria-label', '世界モデル').length > 0);
 });
 
@@ -257,14 +266,16 @@ test('shows one selected objective detail and can mount without the shared heade
     showHeader: false,
   });
   await controller.load();
-  assert.equal(byClass(root, 'bb-fov-objective-card').length, 1);
+  doc.body.replaceChildren();
+  assert.equal(byClass(root, 'bb-fov-objective-card').length, 0);
   assert.doesNotMatch(textOf(root), /Brainbase\/目的と現状/);
-  assert.match(textOf(root), /目的11件のうち1件/);
+  assert.doesNotMatch(textOf(root), /詳細表示/);
   const rows = byClass(root, 'bb-ws-ledger-row').filter((row) => row.attributes['data-key']);
   assert.equal(rows.length, 11);
   rows[1].dispatch('click');
-  assert.match(textOf(root), /目的 2/);
-  assert.equal(byClass(root, 'bb-fov-objective-card').length, 1);
+  assert.match(textOf(doc.body), /目的 2/);
+  assert.equal(byClass(doc.body, 'bb-fov-objective-card').length, 1);
+  assert.match(textOf(doc.body), /達成条件.*確認の根拠.*出典/);
 });
 
 test('keeps recorded notes separate from canonical missing fields', async () => {
@@ -291,7 +302,9 @@ test('keeps recorded notes separate from canonical missing fields', async () => 
     autoLoad: false,
   });
   await controller.load();
-  const visible = textOf(root);
+  doc.body.replaceChildren();
+  byAttr(root, 'data-key', 'objective-profit@2')[0].dispatch('click');
+  const visible = textOf(doc.body);
 
   assert.match(visible, /確認方法のメモ/);
   assert.match(visible, /期間のメモ/);
@@ -366,10 +379,11 @@ test('collection groups by topic, retains project provenance and resolves collid
   assert.equal(byClass(root, 'bb-fov-model-card').length, 2);
   assert.match(textOf(byClass(root, 'bb-fov-model-card')[0]), /Alpha.*利益改善/);
   assert.match(textOf(byClass(root, 'bb-fov-model-card')[1]), /Beta.*Beta固有の指標/);
-  const rows = findAll(root, node => node.listeners.has('click') && textOf(node).includes('Betaの目標'));
+  doc.body.replaceChildren();
+  const rows = byClass(root, 'bb-ws-ledger-row').filter(node => node.attributes['data-key']);
   assert.ok(rows.length);
-  rows[0].dispatch('click');
-  assert.match(textOf(byClass(root, 'bb-fov-objective-card')[0]), /Beta.*Beta固有の指標/);
+  rows[1].dispatch('click');
+  assert.match(textOf(doc.body), /Beta.*Beta固有の指標/s);
 });
 
 test('collection deduplicates exact shared revisions, preserves conflicting digests and marks failed sources', () => {

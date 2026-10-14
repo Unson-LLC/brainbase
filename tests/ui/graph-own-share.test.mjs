@@ -290,3 +290,24 @@ describe('引き継いだ自分の目的', () => {
     expect(failed).toContain('0件ではありません');
   });
 });
+
+
+it('compact own objectives preserve bundle provenance and never convert unavailable provenance to absence', async () => {
+  const root = new FakeElement('div'), host = ownHost(); const notices = [];
+  const view = createOwnObjectivesView({ root, document: new FakeDocument(), fetcher: host.fetch, compact: true, autoLoad: false, onNotice: n => notices.push(n) });
+  await view.load();
+  expect(collectText(root)).toContain('snapshot-1'); expect(collectText(root)).toContain('sha256:fixture');
+  host.mode = 'failed'; await view.load();
+  expect(collectText(root)).toContain('取得できません'); expect(collectText(root)).toContain('出典は確認できません');
+  expect(collectText(root)).not.toContain('まだ引き継いでいません'); expect(notices.at(-1).message).toContain('0件ではありません');
+  host.mode = 'none'; await view.load(); expect(collectText(root)).toContain('まだ引き継いだ目的はありません');
+  view.destroy();
+});
+
+it('destroy ignores late compact own objectives and does not notify a discarded host', async () => {
+  const root = new FakeElement('div'); let resolveRead; const states = [];
+  const view = createOwnObjectivesView({ root, document: new FakeDocument(), fetcher: () => new Promise(r => { resolveRead = r; }), compact: true, autoLoad: false, onState: s => states.push(s) });
+  const pending = view.load(); const count = states.length; view.destroy();
+  resolveRead(jsonResponse(200, { status: 'not_handed_over', source: OWN_SOURCE })); await pending;
+  expect(states.length).toBe(count); expect(root.children.length).toBe(0);
+});

@@ -265,3 +265,12 @@ After the workflow succeeds, verify npm `gitHead`, `dist.integrity`, and dist-ta
 - [Judgment DAG milestones](docs/management/judgment-dag-milestones.md)
 
 MIT License
+
+
+### Shared purpose overview presentation
+
+The read-only foundation overview uses a four-column ledger (purpose, recorded state, outstanding checks and check date). A row opens the shared native detail dialog. Philosophy starts expanded; world models start folded. Hosts can receive failure and partial-coverage notification descriptors through `onNotice` without replacing authenticated readers or catalog validation. Owner-private objectives support an optional compact view and preserve bundle provenance.
+
+Load `ui/native-scrollbars.css` and initialize `installNativeScrollbars(document)` from `ui/native-scrollbars.js` for native scrollbars that appear during scrolling and fade after inactivity. Dispose the returned callback when the host is destroyed. The local Web host serves and initializes this shared module.
+
+See [the presentation contract](docs/specs/story-foundation-overview-readability.md) for acceptance conditions. Display fixtures belong in tests and local previews; they are never inserted into canonical records.
