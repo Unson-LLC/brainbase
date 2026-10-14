@@ -1,10 +1,11 @@
 .bb-minutes-screen {
-  --bb-color-accent: #0F2A43;
-  --bb-color-accent-soft: rgba(15, 42, 67, 0.06);
-  --bb-color-accent-strong: #0F2A43;
+  --bb-color-accent: var(--bb-color-brand-indigo);
+  --bb-color-accent-soft: color-mix(in srgb, var(--bb-color-brand-indigo) 6%, transparent);
+  --bb-color-accent-strong: var(--bb-color-brand-indigo);
+  --bb-color-action: var(--bb-color-brand-indigo);
   display: grid;
   gap: 8px;
-  color: var(--bb-color-ink, #1c1c1c);
+  color: var(--bb-color-ink);
   font-size: 14px;
   line-height: 1.6;
 }
@@ -13,9 +14,9 @@
   display: grid;
   gap: 2px;
   padding: 8px 12px;
-  border: 1px solid var(--bb-color-border, #d7d7d7);
+  border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-lg, 8px);
-  background: var(--bb-color-surface, #fff);
+  background: var(--bb-color-surface);
 }
 
 .bb-minutes-eyebrow,
@@ -23,7 +24,7 @@
 .bb-minutes-item-meta,
 .bb-minutes-rail-title,
 .bb-minutes-revision {
-  color: var(--bb-color-muted, #5c6570);
+  color: var(--bb-color-muted);
   font-size: 12px;
 }
 
@@ -38,7 +39,7 @@
   display: grid;
   gap: 4px;
   margin: 0;
-  color: #5c6570;
+  color: var(--bb-color-muted);
   background: none;
   font-size: 13px;
   line-height: 1.6;
@@ -50,7 +51,7 @@
 }
 
 .bb-minutes-source-link {
-  color: #0F2A43;
+  color: var(--bb-color-brand-indigo);
   margin-left: 4px;
 }
 
@@ -72,7 +73,7 @@
 
 .bb-minutes-lead {
   margin: 0;
-  color: var(--bb-color-muted, #5c6570);
+  color: var(--bb-color-muted);
   font-size: 13px;
   line-height: 1.4;
 }
@@ -80,16 +81,16 @@
 .bb-minutes-status {
   min-height: 1.4em;
   margin: 0;
-  color: var(--bb-color-muted, #5c6570);
+  color: var(--bb-color-muted);
 }
 
 .bb-minutes-status.is-success {
-  color: var(--bb-color-success, #1d6b32);
+  color: var(--bb-color-success);
 }
 
 .bb-minutes-status.is-error,
 .bb-minutes-warning {
-  color: var(--bb-color-danger, #9b2c2c);
+  color: var(--bb-color-danger);
 }
 
 .bb-minutes-columns {
@@ -106,9 +107,9 @@
   display: grid;
   gap: 8px;
   padding: 8px;
-  border: 1px solid var(--bb-color-border, #d7d7d7);
+  border: 1px solid var(--bb-color-border);
   border-radius: var(--bb-radius-md, 6px);
-  background: var(--bb-color-surface, #fff);
+  background: var(--bb-color-surface);
 }
 
 .bb-minutes-list-pane {
@@ -134,7 +135,7 @@
 
 .bb-minutes-sort-note {
   margin: 0;
-  color: var(--bb-color-muted, #5c6570);
+  color: var(--bb-color-muted);
   font-size: 12px;
 }
 
@@ -156,11 +157,11 @@
   box-sizing: border-box;
   padding: 3px 10px 3px 8px;
   border: 0;
-  border-bottom: 1px solid var(--bb-color-border, #e4e4e4);
+  border-bottom: 1px solid var(--bb-color-border);
   border-left: 3px solid transparent;
   border-radius: 0;
   background: transparent;
-  color: var(--bb-color-ink, #1c1c1c);
+  color: var(--bb-color-ink);
   text-align: left;
   cursor: pointer;
   font: inherit;
@@ -169,8 +170,8 @@
 .bb-minutes-date-heading {
   min-height: 22px;
   padding: 2px 12px;
-  border-bottom: 1px solid var(--bb-color-border, #e4e4e4);
-  color: var(--bb-color-ink, #1c1c1c);
+  border-bottom: 1px solid var(--bb-color-border);
+  color: var(--bb-color-ink);
   font-size: 12px;
   font-weight: 650;
   line-height: 18px;
@@ -178,13 +179,13 @@
 
 .bb-minutes-meeting-item:hover,
 .bb-minutes-version:hover {
-  background: rgba(15, 42, 67, 0.04);
+  background: color-mix(in srgb, var(--bb-color-brand-indigo) 4%, transparent);
 }
 
 .bb-minutes-meeting-item.is-selected,
 .bb-minutes-version.is-selected {
-  border-left-color: #0F2A43;
-  background: rgba(15, 42, 67, 0.06);
+  border-left-color: var(--bb-color-brand-indigo);
+  background: var(--bb-color-accent-soft);
 }
 
 .bb-minutes-item-title,
@@ -204,7 +205,7 @@
 }
 
 .bb-minutes-item-line {
-  color: var(--bb-color-muted, #5c6570);
+  color: var(--bb-color-muted);
   font-size: 12px;
   line-height: 16px;
 }
@@ -227,18 +228,18 @@
 }
 
 .bb-minutes-state.is-wait {
-  background: #fff4d6;
-  color: #8a5a00;
+  background: var(--bb-color-warning-soft);
+  color: var(--bb-color-warning);
 }
 
 .bb-minutes-state.is-ok {
-  background: #e5f6ea;
-  color: #1d6b32;
+  background: var(--bb-color-success-soft);
+  color: var(--bb-color-success);
 }
 
 .bb-minutes-state.is-muted {
-  background: #eef0f2;
-  color: #5c6570;
+  background: var(--bb-color-surface);
+  color: var(--bb-color-muted);
 }
 
 .bb-minutes-old-version {
@@ -248,8 +249,8 @@
   justify-content: space-between;
   flex-wrap: wrap;
   padding: 8px 12px;
-  background: #fff4d6;
-  color: #5c4300;
+  background: var(--bb-color-warning-soft);
+  color: var(--bb-color-warning);
 }
 
 .bb-minutes-old-version p {
@@ -300,7 +301,7 @@
   margin: 0;
   padding: 8px;
   border-radius: var(--bb-radius-sm, 4px);
-  background: rgba(15, 42, 67, 0.06);
+  background: var(--bb-color-accent-soft);
   overflow-wrap: anywhere;
 }
 
@@ -314,33 +315,33 @@
   min-height: 2.4rem;
   box-sizing: border-box;
   padding: 6px 8px;
-  border: 1px solid var(--bb-color-border-strong, #b7b7b7);
+  border: 1px solid var(--bb-color-border-strong);
   border-radius: var(--bb-radius-sm, 4px);
-  background: var(--bb-color-paper, #fff);
-  color: var(--bb-color-ink, #1c1c1c);
+  background: var(--bb-color-paper);
+  color: var(--bb-color-ink);
   font: inherit;
 }
 
 .bb-minutes-button {
   min-height: 2rem;
   padding: 4px 10px;
-  border: 1px solid var(--bb-color-border-strong, #b7b7b7);
+  border: 1px solid var(--bb-color-border-strong);
   border-radius: var(--bb-radius-sm, 4px);
-  background: var(--bb-color-paper, #fff);
-  color: var(--bb-color-ink, #1c1c1c);
+  background: var(--bb-color-paper);
+  color: var(--bb-color-ink);
   font: inherit;
   cursor: pointer;
 }
 
 .bb-minutes-button:hover {
-  border-color: #0F2A43;
+  border-color: var(--bb-color-brand-indigo);
 }
 
 .bb-minutes-button.is-primary,
 .bb-minutes-button.is-primary:hover {
-  border-color: #0F2A43;
-  background: #0F2A43;
-  color: #ffffff;
+  border-color: var(--bb-color-brand-indigo);
+  background: var(--bb-color-brand-indigo);
+  color: var(--bb-color-action-text);
 }
 
 .bb-minutes-button:disabled {
@@ -351,7 +352,7 @@
 .bb-minutes-empty {
   margin: 0;
   padding: 12px;
-  color: var(--bb-color-muted, #5c6570);
+  color: var(--bb-color-muted);
 }
 
 .bb-minutes-rail-block {
@@ -371,7 +372,7 @@
 }
 
 .bb-minutes-identifiers {
-  color: var(--bb-color-muted, #5c6570);
+  color: var(--bb-color-muted);
   font-size: 12px;
 }
 

@@ -780,12 +780,15 @@ describe('meeting minutes page review', () => {
     }
     const css = readFileSync(new URL('../../ui/meeting-minutes.css', import.meta.url), 'utf8');
     const source = readFileSync(new URL('../../ui/meeting-minutes.js', import.meta.url), 'utf8');
-    expect(css).toContain('#0F2A43');
+    expect(css).toContain('var(--bb-color-brand-indigo)');
+    expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
+    const tokens = readFileSync(new URL('../../ui/brainbase-tokens.css', import.meta.url), 'utf8');
+    expect(tokens).toContain('--bb-color-brand-indigo: #0F2A43;');
     expect(css).toContain('min-height: 44px');
     expect(css).toContain('max-height: 52px');
     expect(css).not.toContain('box-shadow');
     const guard = css.slice(css.indexOf('.bb-minutes-edit-guard'), css.indexOf('.bb-minutes-source-link'));
-    expect(guard).toContain('#5c6570');
+    expect(guard).toContain('var(--bb-color-muted)');
     expect(guard).not.toContain('danger');
     expect(source).not.toContain('未確認');
     const pageHeading = 96;
