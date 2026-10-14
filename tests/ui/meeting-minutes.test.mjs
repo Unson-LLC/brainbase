@@ -765,7 +765,63 @@ describe('meeting minutes page review', () => {
     expect(collectText(root)).not.toContain('この版を確認済みにする');
   });
 
-  it('keeps the previous list layout and does not lock a brand color', async () => {
+  it('shows creator, relative time, and confirmer on each version history row', async () => {
+    const versions = [
+      {
+        version_id: 'version-1',
+        minutes_id: 'minutes-1',
+        body: '古い本文',
+        created_at: at(2026, 10, 13, 11, 20),
+        created_actor_id: 'Worker',
+      },
+      {
+        version_id: 'version-2',
+        minutes_id: 'minutes-1',
+        body: '新しい本文',
+        created_at: at(2026, 10, 13, 16, 5),
+        created_actor_id: 'Worker',
+        predecessor_version_id: 'version-1',
+        confirmation: { version_id: 'version-2', actor_id: '佐藤圭吾', confirmed_at: at(2026, 10, 13, 18, 10) },
+      },
+    ];
+    const { root, view } = mount([entry({ id: 'meeting-1', title: '履歴のある会議', scheduledAt: at(2026, 10, 14, 10, 0) })], {
+      detailFor: () => ({
+        meeting: { meeting_id: 'meeting-1', title: '履歴のある会議', scheduled_at: at(2026, 10, 14, 10, 0), participant_ids: [] },
+        minutes: [{ minutes_id: 'minutes-1', title: '議事録', current_version_id: 'version-2', revision: 2 }],
+        versions,
+        snapshot_revision: 2,
+      }),
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    const history = findAll(root, (node) => node.className.includes('bb-minutes-version-history'))[0];
+    const rows = history.children.map((child) => collectText(child));
+    expect(rows[0]).toContain('10/13 16:05 作成（昨日）・作成 Worker・10/13 18:10 佐藤圭吾が確認');
+    expect(rows[1]).toContain('10/13 11:20 作成（昨日）・作成 Worker・確認されないまま第2版に置き換え');
+    expect(collectText(history)).not.toContain('未確認');
+  });
+
+  it('says the creator is unrecorded when created_actor_id is missing', async () => {
+    const { root, view } = mount([entry({ id: 'meeting-1', title: '作成者のない会議', scheduledAt: at(2026, 10, 14, 10, 0) })], {
+      detailFor: () => ({
+        meeting: { meeting_id: 'meeting-1', title: '作成者のない会議', scheduled_at: at(2026, 10, 14, 10, 0), participant_ids: [] },
+        minutes: [{ minutes_id: 'minutes-1', title: '議事録', current_version_id: 'version-1', revision: 1 }],
+        versions: [{
+          version_id: 'version-1',
+          minutes_id: 'minutes-1',
+          body: '本文',
+          created_at: at(2026, 10, 14, 9, 0),
+        }],
+        snapshot_revision: 1,
+      }),
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    expect(collectText(root)).toContain('10/14 09:00 作成（今日）・作成者は未記録・確認待ち');
+    expect(collectText(root)).not.toContain('未確認');
+  });
+
+  it('keeps twelve two-line rows inside the 1280×800 list budget', async () => {
     const meetings = Array.from({ length: 12 }, (_, index) => entry({
       id: `row-${index + 1}`,
       title: `行${index + 1}`,
@@ -781,15 +837,17 @@ describe('meeting minutes page review', () => {
     const css = readFileSync(new URL('../../ui/meeting-minutes.css', import.meta.url), 'utf8');
     const source = readFileSync(new URL('../../ui/meeting-minutes.js', import.meta.url), 'utf8');
     const tokens = readFileSync(new URL('../../ui/brainbase-tokens.css', import.meta.url), 'utf8');
-    expect(css).toContain('grid-template-columns: minmax(15rem, 0.85fr) minmax(20rem, 1.5fr)');
-    expect(css).toContain('box-shadow: var(--bb-shadow)');
-    expect(css).not.toContain('min-height: 44px');
-    expect(css).not.toContain('max-height: 52px');
-    expect(css).not.toMatch(/#0F2A43/i);
-    expect(tokens).not.toContain('--bb-color-brand-indigo');
-    const info = css.slice(css.indexOf('.bb-minutes-edit-guard.is-info'));
-    expect(info).toContain('var(--bb-color-muted)');
+    expect(css).toContain('var(--bb-color-brand-indigo)');
+    expect(css).toContain('minmax(340px, 380px)');
+    expect(css).toContain('min-height: 44px');
+    expect(css).toContain('max-height: 52px');
+    expect(css).not.toContain('box-shadow');
+    expect(tokens).toContain('--bb-color-brand-indigo: #0F2A43;');
+    const guard = css.slice(css.indexOf('.bb-minutes-edit-guard.is-info'), css.indexOf('.bb-minutes-source-link'));
+    expect(guard).toContain('var(--bb-color-muted)');
+    expect(guard).not.toContain('danger');
     expect(source).not.toContain('未確認');
+    expect(800 - 96 - 28).toBeGreaterThanOrEqual((12 * 44) + 22);
   });
 
   it('uses the empty-list sentence and keeps a failed list distinct from it', async () => {

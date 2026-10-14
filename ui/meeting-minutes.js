@@ -102,6 +102,19 @@ function dateKey(date) {
   return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
 }
 
+function startOfLocalDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function relativeDay(date, today) {
+  const days = Math.round((startOfLocalDay(today).getTime() - startOfLocalDay(date).getTime()) / 86400000);
+  if (days === 0) return '今日';
+  if (days === 1) return '昨日';
+  if (days > 1) return `${days}日前`;
+  if (days === -1) return '明日';
+  return `${Math.abs(days)}日後`;
+}
+
 function httpUrl(value) {
   const raw = text(value);
   if (!/^https?:\/\//i.test(raw)) return '';
@@ -327,6 +340,21 @@ function versionState(version, versions, latest) {
     return { code: 'replaced', label: `確認されないまま${versionLabel(versions, latest)}に置き換え`, tone: 'muted' };
   }
   return { code: 'pending', label: '確認待ち', tone: 'wait' };
+}
+
+function creatorFact(version) {
+  const creator = text(version?.created_actor_id);
+  return creator ? `作成 ${creator}` : '作成者は未記録';
+}
+
+function historyFacts(version, versions, latest, today) {
+  const created = parseDate(version?.created_at);
+  const stamp = created ? `${formatMonthDay(created)} ${formatClock(created)} 作成（${relativeDay(created, today)}）` : '作成日時は未記録';
+  const state = versionState(version, versions, latest);
+  const confirmed = state.code === 'confirmed'
+    ? (state.detail || confirmationDetail(version.confirmation))
+    : state.label;
+  return `${stamp}・${creatorFact(version)}・${confirmed}`;
 }
 
 function listedVersionNumber(entry) {
@@ -733,7 +761,7 @@ export function createMeetingMinutesUI({
       versionButton.append(
         makeElement(doc, 'strong', { textContent: versionLabel(versions, version) }),
         stateChip(itemState),
-        makeElement(doc, 'span', { className: 'bb-minutes-item-meta', textContent: formatStamp(version.created_at) }),
+        makeElement(doc, 'span', { className: 'bb-minutes-version-facts', textContent: historyFacts(version, versions, latest, clock()) }),
       );
       if (version.predecessor_version_id) {
         const predecessor = versions.find((candidate) => candidate.version_id === version.predecessor_version_id);
