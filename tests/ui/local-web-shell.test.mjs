@@ -405,7 +405,7 @@ describe('local Web shell', () => {
     expect(collectText(findAll(root, (node) => node.attributes?.['data-rail'] === 'graph')[0])).toContain(UX06_GRAPH_ENTITY.id);
   });
 
-  it('mounts 判断の履歴 with summary metrics and a selectable detail rail', async () => {
+  it('mounts 判断の履歴 without a summary band and keeps a selectable detail rail', async () => {
     const { fetcher, calls } = hostFetcher(V2, {
       '/api/value-proofs/home': () => jsonResponse(200, sourceBearingHome()),
     });
@@ -415,9 +415,7 @@ describe('local Web shell', () => {
     const text = collectText(today);
     expect(calls).toContain('/api/value-proofs/home');
     expect(text).toContain('判断の履歴');
-    expect(text).toContain('Brainbaseが代わりに判断した件数');
-    expect(text).toContain('1件');
-    expect(text).toContain('1回分相当');
+    expect(findAll(today, (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
     expect(text).toContain('架空fixtureの対象を確認する');
     expect(text).toContain('架空fixtureの出典を確認できた場合だけ対象へ移動する');
 
@@ -447,7 +445,8 @@ describe('local Web shell', () => {
     unavailable = false;
     retry.listeners.get('click')();
     await flushMany(2);
-    expect(collectText(screen(root, 'value-proofs'))).toContain('1件');
+    expect(collectText(screen(root, 'value-proofs'))).toContain('架空fixtureの対象を確認する');
+    expect(findAll(screen(root, 'value-proofs'), (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
     expect(collectText(screen(root, 'value-proofs'))).not.toContain('保存された判断に接続できません');
   });
 

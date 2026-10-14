@@ -14,7 +14,6 @@ import {
   workspaceDefinition,
   workspaceDetailEmpty,
   workspaceLedger,
-  workspaceMetrics,
   workspaceNotice,
   workspacePageHeader,
   workspaceRailBlock,
@@ -1721,22 +1720,6 @@ export function createJudgmentHistoryUI({
         ? `保存された判断の理由、当時の参照、案、実行と結果を表示しています。参照の本文は現在の権限で確認できる場合だけ開きます。${normalSourceSummary ? ` 取得元: ${normalSourceSummary}` : ''}`
         : '判断に残った参照だけを表示しています。実行結果の証拠は参照件数に含めません。',
     }));
-    const stats = aggregate.stats ?? {};
-    const metricCount = (value, suffix) => value === null || value === undefined ? '未確認' : `${value}${suffix}`;
-    wrapper.append(workspaceMetrics(doc, normalMode() ? [
-      {
-        label: aggregate.query ? '表示対象' : aggregate.countComplete ? '判断件数' : '取得済み',
-        value: metricCount(aggregate.countComplete ? stats.judgments : aggregate.retrievedCount, '件'),
-        note: aggregate.countComplete ? 'この期間・絞り込みの全件数'
-          : aggregate.query ? '取得済み履歴の検索結果・全件数未確認' : '全件数未確認',
-      },
-      { label: '使った参照', value: metricCount(stats.references, '件'), note: '当時の記録にある一意の参照' },
-      { label: '確認済みの結果', value: metricCount(stats.confirmedOutcomes, '件'), note: '成果が確認済みと記録された判断' },
-    ] : [
-      { label: 'Brainbaseが代わりに判断した件数', value: metricCount(stats.judgments, '件'), note: 'この期間の履歴' },
-      { label: 'そこで使った参照', value: metricCount(stats.references, '件'), note: '代理判断に含まれる一意の参照' },
-      { label: '判断回数にすると', value: metricCount(stats.equivalent, '回分相当'), note: '代理判断1件を1回分として表示' },
-    ], { ariaLabel: '判断履歴の集計' }));
     const emptyText = state.home?.status === 'partial' || (normalMode() && !aggregate.countComplete)
       ? 'この期間に取得できた判断履歴はありません。全件数が未確認のため0件とは確認できません。'
       : 'この期間の判断履歴はありません。';

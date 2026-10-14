@@ -11,7 +11,6 @@ import {
   workspaceButton,
   workspaceDefinition,
   workspaceLedger,
-  workspaceMetrics,
   workspaceNotice,
   workspacePageHeader,
   workspaceSectionTitle,
@@ -718,11 +717,6 @@ export function renderFoundationOverview(root, state, {
   surface.append(recordContexts
     ? makeElement(doc, 'p', { className: 'bb-fov-recorded-notice', text: '記録上の現状は保存時点の記述です。登録状態と検証状態を分けて読みます。' })
     : workspaceNotice(doc, { label: '読み方', text: '登録は達成・採用・検証済みを意味しません。記録上の現状は保存時点の記述です。' }));
-  surface.append(workspaceMetrics(doc, [
-    { label: '目的', value: catalog.objectives.length, note: partial ? '取得済みの定義（全体は未確認）' : '登録された定義' },
-    { label: '哲学', value: catalog.philosophies.length, note: partial ? '取得済みの版（全体は未確認）' : '登録された版' },
-    { label: '世界モデル', value: catalog.models.length, note: partial ? '取得済みの検索対象（全体は未確認）' : '検索対象' },
-  ], { ariaLabel: 'Foundationの登録数' }));
   surface.append(renderObjectives(doc, catalog, viewState, callbacks, recordContexts));
   surface.append(renderPhilosophies(doc, catalog, recordContexts));
   surface.append(renderModels(doc, catalog, viewState, callbacks, recordContexts));
