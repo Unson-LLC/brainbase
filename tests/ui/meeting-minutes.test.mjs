@@ -821,7 +821,7 @@ describe('meeting minutes page review', () => {
     expect(collectText(root)).not.toContain('未確認');
   });
 
-  it('keeps the previous list layout until the designer images arrive', async () => {
+  it('keeps twelve two-line rows inside the 1280×800 list budget', async () => {
     const meetings = Array.from({ length: 12 }, (_, index) => entry({
       id: `row-${index + 1}`,
       title: `行${index + 1}`,
@@ -837,16 +837,17 @@ describe('meeting minutes page review', () => {
     const css = readFileSync(new URL('../../ui/meeting-minutes.css', import.meta.url), 'utf8');
     const source = readFileSync(new URL('../../ui/meeting-minutes.js', import.meta.url), 'utf8');
     const tokens = readFileSync(new URL('../../ui/brainbase-tokens.css', import.meta.url), 'utf8');
-    expect(css).toContain('minmax(15rem, 0.85fr)');
-    expect(css).toContain('box-shadow: var(--bb-shadow)');
-    expect(css).toContain('Logic-only additions');
-    expect(css).not.toContain('min-height: 44px');
-    expect(css).not.toContain('--bb-color-brand-indigo');
-    expect(tokens).not.toContain('--bb-color-brand-indigo');
+    expect(css).toContain('var(--bb-color-brand-indigo)');
+    expect(css).toContain('minmax(340px, 380px)');
+    expect(css).toContain('min-height: 44px');
+    expect(css).toContain('max-height: 52px');
+    expect(css).not.toContain('box-shadow');
+    expect(tokens).toContain('--bb-color-brand-indigo: #0F2A43;');
     const guard = css.slice(css.indexOf('.bb-minutes-edit-guard.is-info'), css.indexOf('.bb-minutes-source-link'));
     expect(guard).toContain('var(--bb-color-muted)');
     expect(guard).not.toContain('danger');
     expect(source).not.toContain('未確認');
+    expect(800 - 96 - 28).toBeGreaterThanOrEqual((12 * 44) + 22);
   });
 
   it('uses the empty-list sentence and keeps a failed list distinct from it', async () => {

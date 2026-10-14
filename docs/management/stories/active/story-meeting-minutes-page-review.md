@@ -2,7 +2,7 @@
 
 台帳 UUID: 10e31eef-21ee-4e83-9da5-0810e2b82980
 
-依頼は佐藤さん（2026-10-14）。文面は Designer の 2026-10-14 16:40 版。DevDirector が 16:46 に、16:45 の「設計確定」を取り消した。配色・レイアウト・配置は、新しい画像が届くまで確定しない。差し替えは `ui/meeting-minutes.css` 末尾の Logic-only additions にまとめる。
+依頼は佐藤さん（2026-10-14）。正式な仕様は Designer の 2026-10-14 16:40 版で、DevDirector が 17:09 に見た目を確定した。寸法と文言は html と design.md、主色は藍 `#0F2A43`。完成形の画像は `01-minutes-list-gen.png`、`02-version-readonly-gen.png`、`03-calendar-to-minutes-gen.png`。
 
 実装先は `ui/meeting-minutes.js` と `ui/meeting-minutes.css`。予定と議事録の相互リンク（受け入れ条件 9・10・11）は、会議に予定 id があるかを Maintainer が調査中のため今回の実装対象外。
 
@@ -22,5 +22,5 @@
 - Given カレンダーで議事録のある予定, Then 予定に「議事録」の印があり、詳細の［議事録を開く］で議事録ページのその議事録が選ばれた状態で開く。今回未対応（予定idの有無をMaintainerが調査中）。
 - Given つながっていない予定, When 候補の［この予定につなぐ］を押す, Then 予定の詳細と議事録ページの両方に、つながりが出る。今回未対応（予定idの有無をMaintainerが調査中）。
 - Given 本文が Markdown, Then 見出しと箇条書きが整って出て、「#」や「------」の文字は出ない。
-- Given 1280×800の画面, Then 一覧で2行の行が10行以上、切れずに見える（01の実測は12行）。今回未対応（Designerの画像待ち）。
+- Given 1280×800の画面, Then 一覧で2行の行が10行以上、切れずに見える（01の実測は12行）。
 - Given 版の履歴を開く, Then 各版に作成日時・相対表現・作った人（または「作成者は未記録」）・確認した人が出る。
