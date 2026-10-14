@@ -1017,10 +1017,18 @@ export function createDistrictView({ doc, stage, reducedMotion = false, focusSel
   }
 
   let running = true;
+  let lastSkyMinute = -1;
   function frame(time) {
     if (!running) return;
     requestAnimationFrame(frame);
     if (!open) return;
+    // Use wall time so an open district also catches up after a suspended tab.
+    const now = new Date();
+    const minute = Math.floor(now.getTime() / 60_000);
+    if (skyMode === 'auto' && minute !== lastSkyMinute) {
+      if (skyAt(now.getHours(), 'auto').phase !== sky.phase) applySky();
+      lastSkyMinute = minute;
+    }
     if (flight) {
       flight.started ??= time;
       const t = Math.min((time - flight.started) / flight.duration, 1);
