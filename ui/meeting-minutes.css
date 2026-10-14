@@ -130,8 +130,10 @@
 
 .bb-minutes-list-pane,
 .bb-minutes-detail-pane {
+  min-width: 0;
   min-height: 0;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .bb-minutes-list-pane {
@@ -153,7 +155,18 @@
 }
 
 .bb-minutes-pane-head {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   padding: 8px 16px 4px;
+}
+
+.bb-minutes-sort-note,
+.bb-minutes-status,
+.bb-minutes-create-guard {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .bb-minutes-sort-note {

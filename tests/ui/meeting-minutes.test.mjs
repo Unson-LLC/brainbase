@@ -496,7 +496,7 @@ describe('meeting minutes UI editing guard', () => {
     expect(findAll(root, (node) => node.className === 'bb-minutes-edit-guard is-info')).toHaveLength(1);
   });
 
-  it('rechecks editing permission before saving a version or adding a document', async () => {
+  it('rechecks editing permission before confirming a version', async () => {
     let allowed = true;
     const methods = [];
     const root = new FakeElement('div');
@@ -514,17 +514,15 @@ describe('meeting minutes UI editing guard', () => {
     await flush();
     await view.openMeeting('meeting-1');
 
-    const saveForm = findAll(root, (node) => node.tagName === 'FORM' && node.className === 'bb-minutes-save-form')[0];
-    const createForm = findAll(root, (node) => node.tagName === 'FORM' && node.className === 'bb-minutes-create-form')[0];
+    expect(findAll(root, (node) => node.tagName === 'FORM' && node.className === 'bb-minutes-save-form')).toHaveLength(0);
+    expect(collectText(root)).not.toContain('訂正版を保存');
+    expect(collectText(root)).not.toContain('新しい版を保存');
+    expect(collectText(root)).not.toContain('議事録文書を追加');
     const confirm = findAll(root, (node) => node.tagName === 'BUTTON' && node.textContent === 'この版を確認済みにする')[0];
-    expect(saveForm).toBeTruthy();
-    expect(createForm).toBeTruthy();
     expect(confirm).toBeTruthy();
     expect(confirm.disabled).toBe(false);
 
     allowed = false;
-    saveForm.listeners.get('submit')({ preventDefault() {} });
-    createForm.listeners.get('submit')({ preventDefault() {} });
     confirm.listeners.get('click')();
     await flush();
 
@@ -535,7 +533,8 @@ describe('meeting minutes UI editing guard', () => {
 });
 
 function at(year, month, day, hour = 0, minute = 0) {
-  return new Date(year, month - 1, day, hour, minute).toISOString();
+  const pad = (part) => String(part).padStart(2, '0');
+  return new Date(`${year}-${pad(month)}-${pad(day)}T${pad(hour)}:${pad(minute)}:00+09:00`).toISOString();
 }
 
 function entry({ id, title, scheduledAt, createdAt, minutes = 1, versionIds = 1, versions, calendarStart, latestVersionCreatedAt }) {
@@ -562,15 +561,16 @@ function entry({ id, title, scheduledAt, createdAt, minutes = 1, versionIds = 1,
 }
 
 describe('meeting minutes page review', () => {
-  const today = new Date(2026, 9, 14, 12, 0, 0);
+  const today = new Date('2026-10-14T12:00:00+09:00');
 
-  function mount(meetings, { detailFor, canEditMinutes = true } = {}) {
+  function mount(meetings, { detailFor, canEditMinutes = true, now = () => today, canCreateMeeting } = {}) {
     const root = new FakeElement('div');
     const view = createMeetingMinutesUI({
       root,
       document: new FakeDocument(),
-      now: () => today,
+      now,
       canEditMinutes,
+      ...(canCreateMeeting === undefined ? {} : { canCreateMeeting }),
       fetcher: async (path) => {
         if (path === '/api/meeting-minutes') return jsonResponse(200, { absence_confirmed: true, meetings });
         const id = decodeURIComponent(path.split('/').pop());
@@ -615,10 +615,12 @@ describe('meeting minutes page review', () => {
       '古い取り込み',
     ]);
     expect(sequence[0]).toBe('今日 10/14（水）');
-    expect(collectText(list.children[5])).toContain('日時未登録・取り込み 10/12');
+    expect(collectText(list.children[5])).toContain('日時未登録・版の作成 10/12');
     expect(collectText(list.children[5])).not.toMatch(/\d{1,2}:\d{2}/);
     expect(collectText(list.children[5])).not.toContain('9:30');
-    expect(collectText(list.children[7])).not.toContain('日時未登録・取り込み');
+    expect(collectText(list.children[5])).not.toContain('日時未登録・取り込み');
+    expect(collectText(list.children[7])).toContain('日時未登録・取り込み 10/14');
+    expect(collectText(list.children[8])).toContain('日時未登録・取り込み 10/1');
     expect(collectText(root)).toContain('新しい順・5件');
     expect(collectText(root)).not.toContain('1件の議事録');
     expect(collectText(root)).not.toContain('件の議事録');
@@ -653,9 +655,10 @@ describe('meeting minutes page review', () => {
     const list = findAll(root, (node) => node.className === 'bb-minutes-meeting-list')[0];
     const rows = list.children.filter((child) => child.tagName === 'BUTTON');
     expect(rows.map((child) => child.children[0].textContent)).toEqual(['同時刻A', '同時刻B', '予定の開始だけ', '壊れた日時']);
-    expect(collectText(rows[2])).toContain('日時未登録・取り込み 10/13');
+    expect(collectText(rows[2])).toContain('日時未登録・予定の開始 10/13');
     expect(collectText(rows[2])).not.toContain('18:00');
-    expect(collectText(rows[3])).toContain('日時未登録・取り込み 10/12');
+    expect(collectText(rows[2])).not.toContain('日時未登録・取り込み');
+    expect(collectText(rows[3])).toContain('日時未登録・版の作成 10/12');
     expect(collectText(rows[3])).not.toContain('not-a-date');
     expect(collectText(root)).not.toContain('未確認');
   });
@@ -858,7 +861,82 @@ describe('meeting minutes page review', () => {
     expect(source).not.toContain('未確認');
     expect(source).toContain('function historyStamp');
     expect(source).toContain('function historySecondLine');
+    expect(source).toContain("const TOKYO = 'Asia/Tokyo'");
+    expect(css).toContain('overflow-wrap: anywhere');
     expect(1200 - 160).toBeGreaterThanOrEqual(12 * 85);
+  });
+
+  it('shows guidance in the detail pane before a meeting is selected', async () => {
+    const { root } = mount([entry({ id: 'meeting-1', title: '未選択', scheduledAt: at(2026, 10, 14, 10, 0) })]);
+    await flush();
+    const detail = findAll(root, (node) => node.className.includes('bb-minutes-detail-pane'))[0];
+    expect(collectText(detail)).toContain('議事録を選ぶと、ここに本文が出ます。');
+  });
+
+  it('does not show version save or document add forms on the readonly version screen', async () => {
+    const { root, view } = mount([entry({ id: 'meeting-1', title: '読み取り', scheduledAt: at(2026, 10, 14, 10, 0) })], {
+      detailFor: () => ({
+        meeting: { meeting_id: 'meeting-1', title: '読み取り', scheduled_at: at(2026, 10, 14, 10, 0), participant_ids: [] },
+        minutes: [{ minutes_id: 'minutes-1', title: '議事録', current_version_id: 'version-1', revision: 1 }],
+        versions: [{ version_id: 'version-1', minutes_id: 'minutes-1', body: '本文', created_at: at(2026, 10, 14, 10, 0), created_actor_id: 'Worker' }],
+        snapshot_revision: 1,
+      }),
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    expect(collectText(root)).not.toContain('訂正版を保存');
+    expect(collectText(root)).not.toContain('新しい版を保存');
+    expect(collectText(root)).not.toContain('議事録文書を追加');
+    expect(findAll(root, (node) => node.tagName === 'FORM' && node.className === 'bb-minutes-save-form')).toHaveLength(0);
+  });
+
+  it('orders version history by created_at when the payload order is mixed', async () => {
+    const versions = [
+      { version_id: 'version-2', minutes_id: 'minutes-1', body: '中', created_at: at(2026, 10, 13, 11, 20), created_actor_id: 'Worker' },
+      { version_id: 'version-3', minutes_id: 'minutes-1', body: '新', created_at: at(2026, 10, 13, 16, 5), created_actor_id: 'Worker', predecessor_version_id: 'version-2' },
+      { version_id: 'version-1', minutes_id: 'minutes-1', body: '古', created_at: at(2026, 10, 12, 9, 0), created_actor_id: 'Worker' },
+    ];
+    const { root, view } = mount([entry({ id: 'meeting-1', title: '順不同', scheduledAt: at(2026, 10, 14, 10, 0) })], {
+      detailFor: () => ({
+        meeting: { meeting_id: 'meeting-1', title: '順不同', scheduled_at: at(2026, 10, 14, 10, 0), participant_ids: [] },
+        minutes: [{ minutes_id: 'minutes-1', title: '議事録', current_version_id: 'version-3', revision: 3 }],
+        versions,
+        snapshot_revision: 3,
+      }),
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    const history = findAll(root, (node) => node.className.includes('bb-minutes-version-history'))[0];
+    const rows = history.children.map((child) => collectText(child));
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toContain('第3版（最新）');
+    expect(rows[0]).toContain('10/13 16:05');
+    expect(rows[1]).toContain('第2版');
+    expect(rows[2]).toContain('第1版');
+    expect(rows[2]).toContain('10/12 09:00');
+  });
+
+  it('treats today as the Asia/Tokyo calendar date', async () => {
+    const { root } = mount([
+      entry({ id: 'line', title: '日付変更線の会議', scheduledAt: '2026-10-13T16:00:00.000Z' }),
+    ], { now: () => new Date('2026-10-14T01:00:00.000Z') });
+    await flush();
+    const list = findAll(root, (node) => node.className === 'bb-minutes-meeting-list')[0];
+    expect(collectText(list)).toContain('今日 10/14（水）');
+    expect(collectText(list)).toContain('日付変更線の会議');
+    expect(collectText(list)).not.toContain('10/13（火）');
+  });
+
+  it('explains why creation is unavailable when the host denies it', async () => {
+    const { root } = mount([
+      entry({ id: 'meeting-1', title: '権限のない会議', scheduledAt: at(2026, 10, 14, 10, 0) }),
+    ], { canCreateMeeting: false });
+    await flush();
+    expect(findAll(root, (node) => node.tagName === 'BUTTON' && node.textContent === '会議を作成')).toHaveLength(0);
+    const pane = findAll(root, (node) => node.className.includes('bb-minutes-list-pane'))[0];
+    expect(collectText(pane)).toContain('新しい順・1件');
+    expect(collectText(pane)).toContain('会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。');
+    expect(collectText(root)).not.toContain('この画面では会議を作成できません。');
   });
 
   it('uses the empty-list sentence and keeps a failed list distinct from it', async () => {

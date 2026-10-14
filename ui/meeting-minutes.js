@@ -12,6 +12,34 @@
 export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui.v1';
 
 const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+const TOKYO = 'Asia/Tokyo';
+
+function tokyoParts(date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TOKYO,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const value = (type) => parts.find((part) => part.type === type)?.value ?? '';
+  let hour = Number(value('hour'));
+  if (hour === 24) hour = 0;
+  return {
+    year: Number(value('year')),
+    month: Number(value('month')),
+    day: Number(value('day')),
+    hour,
+    minute: Number(value('minute')),
+  };
+}
+
+function tokyoDayNumber(date) {
+  const { year, month, day } = tokyoParts(date);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+}
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -78,11 +106,13 @@ function pad(part) {
 }
 
 function formatClock(date) {
-  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  const { hour, minute } = tokyoParts(date);
+  return `${pad(hour)}:${pad(minute)}`;
 }
 
 function formatMonthDay(date) {
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  const { month, day } = tokyoParts(date);
+  return `${month}/${day}`;
 }
 
 function formatStamp(value) {
@@ -91,23 +121,19 @@ function formatStamp(value) {
 }
 
 function dayHeading(date, today) {
-  const label = `${formatMonthDay(date)}（${WEEKDAYS[date.getDay()]}）`;
-  const sameDay = date.getFullYear() === today.getFullYear()
-    && date.getMonth() === today.getMonth()
-    && date.getDate() === today.getDate();
-  return sameDay ? `今日 ${label}` : label;
+  const { year, month, day } = tokyoParts(date);
+  const weekday = WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  const label = `${month}/${day}（${weekday}）`;
+  return tokyoDayNumber(date) === tokyoDayNumber(today) ? `今日 ${label}` : label;
 }
 
 function dateKey(date) {
-  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
-}
-
-function startOfLocalDay(date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const { year, month, day } = tokyoParts(date);
+  return `${year}-${month}-${day}`;
 }
 
 function relativeDay(date, today) {
-  const days = Math.round((startOfLocalDay(today).getTime() - startOfLocalDay(date).getTime()) / 86400000);
+  const days = tokyoDayNumber(today) - tokyoDayNumber(date);
   if (days === 0) return '今日';
   if (days === 1) return '昨日';
   if (days > 1) return `${days}日前`;
@@ -184,13 +210,33 @@ function importTime(entry) {
 function meetingTiming(entry) {
   const meeting = isRecord(entry?.meeting) ? entry.meeting : {};
   const scheduled = parseDate(meeting.scheduled_at);
-  if (scheduled) return { kind: 'scheduled', at: scheduled.getTime(), date: scheduled };
+  if (scheduled) return { kind: 'scheduled', source: 'scheduled', at: scheduled.getTime(), date: scheduled };
   const calendar = calendarStart(meeting);
-  if (calendar) return { kind: 'fallback', at: calendar.getTime(), date: calendar };
+  if (calendar) return { kind: 'fallback', source: 'calendar', at: calendar.getTime(), date: calendar };
   const versionAt = latestVersionTime(entry);
-  if (versionAt) return { kind: 'fallback', at: versionAt.getTime(), date: versionAt };
+  if (versionAt) return { kind: 'fallback', source: 'version', at: versionAt.getTime(), date: versionAt };
   const imported = importTime(entry);
-  return { kind: 'unregistered', at: imported ? imported.getTime() : Number.NEGATIVE_INFINITY, date: imported };
+  return { kind: 'unregistered', source: 'import', at: imported ? imported.getTime() : Number.NEGATIVE_INFINITY, date: imported };
+}
+
+function unscheduledLabel(timing) {
+  if (!timing?.date) return '会議の日時が未登録';
+  const day = formatMonthDay(timing.date);
+  if (timing.source === 'calendar') return `日時未登録・予定の開始 ${day}`;
+  if (timing.source === 'version') return `日時未登録・版の作成 ${day}`;
+  return `日時未登録・取り込み ${day}`;
+}
+
+function byCreatedAt(versions) {
+  return versions
+    .map((version, index) => ({ version, index }))
+    .sort((left, right) => {
+      const leftTime = parseDate(left.version?.created_at)?.getTime() ?? Number.NEGATIVE_INFINITY;
+      const rightTime = parseDate(right.version?.created_at)?.getTime() ?? Number.NEGATIVE_INFINITY;
+      if (leftTime !== rightTime) return leftTime - rightTime;
+      return left.index - right.index;
+    })
+    .map((item) => item.version);
 }
 
 function sortMeetings(meetings) {
@@ -307,7 +353,7 @@ function versionContent(doc, version) {
 
 function detailVersions(detail, minutesId) {
   if (!isRecord(detail) || !Array.isArray(detail.versions)) return [];
-  return detail.versions.filter((version) => version?.minutes_id === minutesId);
+  return byCreatedAt(detail.versions.filter((version) => version?.minutes_id === minutesId));
 }
 
 function versionLabel(versions, version) {
@@ -635,8 +681,8 @@ export function createMeetingMinutesUI({
     const line = makeElement(doc, 'span', { className: 'bb-minutes-item-line' });
     if (timing.kind === 'scheduled') {
       appendLinePart(line, makeElement(doc, 'span', { textContent: formatClock(timing.date) }));
-    } else if (timing.kind === 'fallback') {
-      appendLinePart(line, makeElement(doc, 'span', { textContent: `日時未登録・取り込み ${formatMonthDay(timing.date)}` }));
+    } else if (timing.kind === 'fallback' || (timing.kind === 'unregistered' && timing.date)) {
+      appendLinePart(line, makeElement(doc, 'span', { textContent: unscheduledLabel(timing) }));
     }
     const label = meetingLabelText(meetingLabel, meeting);
     if (label) appendLinePart(line, makeElement(doc, 'span', { className: 'bb-minutes-meeting-label', textContent: label }));
@@ -660,6 +706,12 @@ export function createMeetingMinutesUI({
     }
     head.append(makeElement(doc, 'p', { className: 'bb-minutes-sort-note', textContent: `新しい順・${meetings.length}件` }));
     listPane.append(head);
+    if (!canCreate()) {
+      listPane.append(makeElement(doc, 'p', {
+        className: 'bb-minutes-create-guard',
+        textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
+      }));
+    }
     if (state.listError) {
       appendLoadError(listPane, `会議一覧を読み込めませんでした。理由: ${state.listError}`, () => loadMeetings({ restoreFocus: true }));
     }
@@ -834,40 +886,8 @@ export function createMeetingMinutesUI({
       minutesId: documentRecord.minutes_id,
       versionId: selected?.version_id,
     });
-    appendSaveForm(section, detail, documentRecord, selected);
     renderRail(selected, documentRecord, detail.meeting);
     return section;
-  }
-
-  function appendSaveForm(section, detail, documentRecord, selected) {
-    if (!canEdit()) return;
-    const form = makeElement(doc, 'form', { className: 'bb-minutes-save-form' });
-    form.append(makeElement(doc, 'h4', { textContent: '訂正版を保存' }));
-    const field = labelInput(doc, '本文（保存すると新しい版になります）', { type: 'textarea', name: 'body', placeholder: '議事録の本文を入力' });
-    field.input.rows = 8;
-    const save = makeElement(doc, 'button', { className: 'bb-minutes-button is-primary', textContent: '新しい版を保存', type: 'submit' });
-    form.append(field.wrapper, save);
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (!canEdit()) {
-        clear(detailPane);
-        renderDetail(detail, documentRecord, selected);
-        return;
-      }
-      save.disabled = true;
-      try {
-        await mutate(`/${encodeURIComponent(detail.meeting.meeting_id)}/minutes/${encodeURIComponent(documentRecord.minutes_id)}`, {
-          body: field.input.value,
-          expected_revision: documentRecord.revision,
-        });
-        setStatus('新しい版を保存しました。', 'success');
-        await loadDetail(detail.meeting.meeting_id);
-      } catch (error) {
-        save.disabled = false;
-        setStatus(error instanceof Error ? error.message : '版を保存できませんでした。', 'error');
-      }
-    });
-    section.append(form);
   }
 
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
@@ -895,9 +915,7 @@ export function createMeetingMinutesUI({
     const timing = meetingTiming({ meeting, minutes: detail.minutes, versions: detail.versions });
     const when = timing.kind === 'scheduled'
       ? `${formatMonthDay(timing.date)} ${formatClock(timing.date)}`
-      : timing.kind === 'fallback'
-        ? `日時未登録・取り込み ${formatMonthDay(timing.date)}`
-        : '会議の日時が未登録';
+      : unscheduledLabel(timing);
     const participants = Array.isArray(meeting.participant_ids) && meeting.participant_ids.length
       ? meeting.participant_ids.join('、')
       : '';
@@ -921,48 +939,16 @@ export function createMeetingMinutesUI({
         noticeState,
       ));
     }
-    const createForm = renderCreateMinutesForm(detail);
-    if (createForm) detailPane.append(createForm);
-  }
-
-  function renderCreateMinutesForm(detail) {
-    if (!canEdit()) return null;
-    const form = makeElement(doc, 'form', { className: 'bb-minutes-create-form' });
-    form.append(makeElement(doc, 'h3', { textContent: '議事録文書を追加' }));
-    const title = labelInput(doc, '議事録の名前', { name: 'title', value: '議事録' });
-    const body = labelInput(doc, '本文', { type: 'textarea', name: 'body', placeholder: '本文を入力' });
-    body.input.rows = 5;
-    const save = makeElement(doc, 'button', { className: 'bb-minutes-button', textContent: '議事録を追加', type: 'submit' });
-    form.append(title.wrapper, body.wrapper, save);
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (!canEdit()) {
-        clear(detailPane);
-        renderDetail(detail);
-        return;
-      }
-      save.disabled = true;
-      try {
-        await mutate(`/${encodeURIComponent(detail.meeting.meeting_id)}/minutes`, {
-          title: title.input.value,
-          body: body.input.value,
-          expected_revision: detail.snapshot_revision,
-        });
-        setStatus('議事録文書を追加しました。', 'success');
-        await loadMeetings();
-        await loadDetail(detail.meeting.meeting_id);
-      } catch (error) {
-        save.disabled = false;
-        setStatus(error instanceof Error ? error.message : '議事録を追加できませんでした。', 'error');
-      }
-    });
-    return form;
   }
 
   function renderCreateForm() {
     clear(detailPane);
     if (!canCreate()) {
       detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '議事録を選ぶと、ここに本文が出ます。' }));
+      detailPane.append(makeElement(doc, 'p', {
+        className: 'bb-minutes-create-guard',
+        textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
+      }));
       return;
     }
     const form = makeElement(doc, 'form', { className: 'bb-minutes-create-form' });
@@ -982,6 +968,10 @@ export function createMeetingMinutesUI({
         renderList();
         clear(detailPane);
         detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '議事録を選ぶと、ここに本文が出ます。' }));
+        detailPane.append(makeElement(doc, 'p', {
+          className: 'bb-minutes-create-guard',
+          textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
+        }));
         return;
       }
       save.disabled = true;
@@ -1033,7 +1023,7 @@ export function createMeetingMinutesUI({
         if (hadDetailError) renderDetail(null);
       }
       renderList();
-      if (state.detailError && state.detail === null) renderDetail(null);
+      if (!state.detail) renderDetail(null);
       setStatus(state.meetings.length ? `${state.meetings.length}件の会議を読み込みました。` : 'まだ議事録はありません。');
       if (restoreFocus && typeof listPane.focus === 'function') listPane.focus({ preventScroll: true });
     } catch (error) {
@@ -1091,6 +1081,7 @@ export function createMeetingMinutesUI({
     return state.detail;
   }
 
+  renderDetail(null);
   void loadMeetings();
   return {
     contractVersion: MEETING_MINUTES_UI_CONTRACT_VERSION,
