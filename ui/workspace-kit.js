@@ -230,3 +230,68 @@ export function workspaceSectionTitle(doc, { title, lead } = {}) {
   if (lead) wrap.append(el(doc, 'p', { text: lead }));
   return wrap;
 }
+
+
+let workspaceSequence = 0;
+/** Shared explanatory help: hover/focus above the control, click for touch. */
+export function workspaceHelp(doc, { text, label } = {}) {
+  const wrap = el(doc, 'span', { className: 'bb-ws-help' });
+  const control = workspaceButton(doc, { text: 'i', attrs: { 'aria-label': `${label}の説明`, 'aria-expanded': 'false' } });
+  control.className = 'bb-ws-help-button';
+  const bubble = el(doc, 'span', { className: 'bb-ws-help-bubble', text, attrs: { id: `bb-ws-help-${++workspaceSequence}`, role: 'tooltip' } });
+  control.setAttribute('aria-describedby', bubble.id || bubble.getAttribute?.('id') || bubble.attributes?.id);
+  control.addEventListener('click', event => {
+    event.stopPropagation(); event.preventDefault();
+    const opened = wrap.classList.toggle('is-open');
+    wrap.classList.remove('is-dismissed');
+    control.setAttribute('aria-expanded', String(opened));
+  });
+  wrap.addEventListener('mouseleave', () => wrap.classList.remove('is-dismissed'));
+  control.addEventListener('blur', () => { wrap.classList.remove('is-open', 'is-dismissed'); control.setAttribute('aria-expanded', 'false'); });
+  control.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    wrap.classList.remove('is-open'); wrap.classList.add('is-dismissed');
+    control.setAttribute('aria-expanded', 'false'); event.stopPropagation();
+  });
+  wrap.append(control, bubble); return wrap;
+}
+
+/** Native dialog keeps focus trapped, Escape close and focus restoration. */
+export function workspaceDialog(doc, { title, content, opener } = {}) {
+  const dialog = el(doc, 'dialog', { className: 'bb-ws-dialog' });
+  const headingId = `bb-ws-dialog-${++workspaceSequence}`;
+  dialog.setAttribute('aria-labelledby', headingId);
+  const head = el(doc, 'header', { className: 'bb-ws-dialog-head' });
+  const close = workspaceButton(doc, { text: '×', attrs: { 'aria-label': '閉じる' }, onClick: () => dialog.close() });
+  head.append(el(doc, 'h2', { text: title, attrs: { id: headingId } }), close);
+  const body = el(doc, 'div', { className: 'bb-ws-dialog-body' }); appendContent(body, doc, content);
+  dialog.append(head, body); doc.body.append(dialog);
+  dialog.addEventListener('click', event => {
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
+  });
+  dialog.addEventListener('close', () => { dialog.remove(); if (opener?.isConnected) opener.focus(); }, { once: true });
+  dialog.showModal(); close.focus(); return dialog;
+}
+
+/** Persistent, initially closed notification. The caller owns its lifecycle. */
+export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRetry } = {}) {
+  const card = el(doc, 'section', { className: `bb-ws-error-card is-${tone}`, attrs: { role: 'listitem' } });
+  const details = el(doc, 'details');
+  const summary = el(doc, 'summary', { attrs: { 'aria-label': `${title}の通知` } });
+  summary.append(el(doc, 'span', { className: 'bb-ws-error-symbol', text: '!', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
+  details.append(summary, el(doc, 'p', { text: message })); card.append(details);
+  if (onRetry) card.append(workspaceButton(doc, { text: '再試行', attrs: { 'aria-label': `${title}を再試行` }, onClick: onRetry }));
+  return card;
+}
+
+export function workspaceDisclosure(doc, { title, help, content, open = false, onToggle } = {}) {
+  const details = el(doc, 'details', { className: 'bb-ws-disclosure' }); details.open = open;
+  const summary = el(doc, 'summary');
+  summary.append(el(doc, 'h2', { text: title }));
+  if (help) summary.append(workspaceHelp(doc, { label: title, text: help }));
+  details.append(summary, content);
+  if (onToggle) details.addEventListener('toggle', () => onToggle(details.open));
+  return details;
+}

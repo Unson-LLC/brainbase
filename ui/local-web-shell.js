@@ -26,6 +26,7 @@ import { createMeetingMinutesStorageExtension } from './meeting-minutes-storage.
 import { createMeetingMinutesLineageExtension } from './meeting-minutes-lineage-http.js';
 import { createWorldModelView } from './world-model-view.js';
 import { createGraphClient } from './graph-view-shared.js';
+import { installNativeScrollbars } from './native-scrollbars.js';
 
 export const LOCAL_WEB_SHELL_CONTRACT_VERSION = 'brainbase.local-web-shell.v1';
 
@@ -459,6 +460,7 @@ export function createLocalWebShell({
   }
   shell.append(sidebar, backdrop, workspace, railAside);
   root.replaceChildren(shell);
+  const stopScrollbars = doc.documentElement?.classList && doc.addEventListener ? installNativeScrollbars(doc) : () => {};
 
   // The rail column shows only while the active screen is mounted and has one.
   function updateRail() {
@@ -493,6 +495,7 @@ export function createLocalWebShell({
   }
 
   const controller = {
+    destroy() { stopScrollbars(); for (const view of mounted.values()) view?.destroy?.(); root.replaceChildren(); },
     get state() {
       return { active, status, mounted: [...mounted.keys()] };
     },

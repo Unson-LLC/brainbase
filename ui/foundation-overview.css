@@ -237,3 +237,21 @@
 
 /* Catalog provenance is secondary to the topic, but remains visible on every card. */
 .bb-fov-source { display: inline-block; margin: 0 0 12px; padding: 4px 10px; border-radius: 999px; background: var(--bb-surface-subtle, #f4f4f8); color: var(--bb-text-muted, #62626e); font-size: 12px; overflow-wrap: anywhere; }
+
+.bb-fov-objective-ledger .bb-ws-ledger-row { grid-template-columns: minmax(180px,1.2fr) minmax(200px,1.3fr) minmax(150px,1fr) 110px; }
+.bb-fov-objective-ledger .bb-ws-ledger-row > span { white-space: normal; line-height: 1.7; }
+.bb-fov-objective-ledger .bb-ws-ledger-row:is(.is-selected,:hover) { background: var(--bb-color-accent-soft); box-shadow: inset 3px 0 var(--bb-color-accent); }
+.bb-fov .bb-ws-section-title { display: flex; align-items: center; gap: 8px; }
+.bb-fov-philosophy-grid { grid-template-columns: minmax(0,1fr); }
+.bb-fov-philosophy-card { border-top: 0; width: 100%; box-sizing: border-box; }
+.bb-fov-reading { display: grid; gap: 26px; }
+.bb-fov-reading > section > h3 { margin: 0 0 10px; color: var(--bb-color-muted); font-size: 12px; font-weight: 600; line-height: 1.5; }
+.bb-fov-reading .bb-ws-definition { margin: 0; grid-template-columns: 100px minmax(0,1fr); gap: 10px 20px; font-size: 14px; line-height: 1.8; }
+.bb-fov-reading .bb-fov-current-state { padding: 16px; border: 1px solid var(--bb-color-border); border-radius: 10px; background: var(--bb-color-canvas); gap: 12px; }
+.bb-fov-original { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--bb-color-border); font-size: 12px; color: var(--bb-color-muted); }
+.bb-fov-original > summary { cursor: pointer; }
+.bb-fov-missing { color: #80601c; }
+@media (max-width: 760px) { .bb-fov-objective-ledger { overflow-x: auto; } .bb-fov-objective-ledger .bb-ws-ledger-row { min-width: 760px; } }
+@media (max-width: 480px) { .bb-fov-reading .bb-ws-definition { grid-template-columns: 1fr; gap: 4px; } .bb-fov-reading dd { margin-bottom: 12px; } }
+.bb-fov-philosophy-card .bb-fov-original { border-top: 0; padding-top: 0; }
+.bb-fov-objective-ledger .bb-ws-ledger-row:focus-visible { outline: 2px solid var(--bb-color-focus); outline-offset: 2px; }
