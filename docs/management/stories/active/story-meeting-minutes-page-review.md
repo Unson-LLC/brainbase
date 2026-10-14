@@ -24,3 +24,18 @@
 - Given 本文が Markdown, Then 見出しと箇条書きが整って出て、「#」や「------」の文字は出ない。
 - Given 約 1920×1200 の比較領域, Then 会議行のピッチは 85（許容 75〜100）で、2行の行が 12 行以上切れずに見える（許容 10 以上）。「今日」は Asia/Tokyo の暦日。design.md §8 の 1280×800 は measure.md でやめた。
 - Given 版の履歴を開く, Then 各版は 2 行で、1 行目に版・状態・作成日時と相対表現、2 行目に作った人（または「作成者は未記録」）・確認した人・訂正元が出る。版の行ピッチは 79（許容 69〜89）。
+
+## Problem Frame
+
+`judgment-20261014091656-41240c9a` の採択は、prepare が置いた uncertain の下書きへ項目を書き足したうえで採られている。佐藤さん（2026-10-14 18:24）は「書き足しは許可しない」と決めた。この採択は無効で、判断の根拠に使わない。画面の修正は続ける。新しい judgment は回さない。
+
+## Constraints
+
+- 書き足しは許可しない（佐藤さん 18:24）。
+- drafts の受領証、採択、評価、disposition の既存記録は削除も改変もしない。
+- 再実行は VibePro の prepare 修正の後。それまで新しい judgment は回さない。
+
+## Options
+
+- 採択の根拠から外した（佐藤さん18:24の決定により）。supersession は `.vibepro/reviews/story-meeting-minutes-page-review/development-judgment/supersessions/judgment-20261014091656-41240c9a.json`（`supersession-2026-10-14T09-36-33-132Z`）。既存の採択ファイルは残す。
+- 次の判断は、VibePro の prepare が書き足しなしで下書きを出せるようになってから再実行する。
