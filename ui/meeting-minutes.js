@@ -347,14 +347,24 @@ function creatorFact(version) {
   return creator ? `作成 ${creator}` : '作成者は未記録';
 }
 
-function historyFacts(version, versions, latest, today) {
+function historyStamp(version, today) {
   const created = parseDate(version?.created_at);
-  const stamp = created ? `${formatMonthDay(created)} ${formatClock(created)} 作成（${relativeDay(created, today)}）` : '作成日時は未記録';
+  return created
+    ? `${formatMonthDay(created)} ${formatClock(created)} 作成（${relativeDay(created, today)}）`
+    : '作成日時は未記録';
+}
+
+function historySecondLine(version, versions, latest) {
   const state = versionState(version, versions, latest);
   const confirmed = state.code === 'confirmed'
     ? (state.detail || confirmationDetail(version.confirmation))
     : state.label;
-  return `${stamp}・${creatorFact(version)}・${confirmed}`;
+  const parts = [creatorFact(version), confirmed];
+  if (version?.predecessor_version_id) {
+    const predecessor = versions.find((candidate) => candidate.version_id === version.predecessor_version_id);
+    parts.push(`${versionLabel(versions, predecessor)}を訂正`);
+  }
+  return parts.join('・');
 }
 
 function listedVersionNumber(entry) {
@@ -758,15 +768,20 @@ export function createMeetingMinutesUI({
         attrs: { type: 'button' },
       });
       const itemState = versionState(version, versions, latest);
-      versionButton.append(
-        makeElement(doc, 'strong', { textContent: versionLabel(versions, version) }),
+      const isLatest = Boolean(latest) && version.version_id === latest.version_id;
+      const line1 = makeElement(doc, 'span', { className: 'bb-minutes-version-line' });
+      line1.append(
+        makeElement(doc, 'strong', { textContent: `${versionLabel(versions, version)}${isLatest ? '（最新）' : ''}` }),
         stateChip(itemState),
-        makeElement(doc, 'span', { className: 'bb-minutes-version-facts', textContent: historyFacts(version, versions, latest, clock()) }),
+        makeElement(doc, 'span', { className: 'bb-minutes-version-stamp', textContent: historyStamp(version, clock()) }),
       );
-      if (version.predecessor_version_id) {
-        const predecessor = versions.find((candidate) => candidate.version_id === version.predecessor_version_id);
-        versionButton.append(makeElement(doc, 'span', { textContent: `${versionLabel(versions, predecessor)}を訂正` }));
-      }
+      versionButton.append(
+        line1,
+        makeElement(doc, 'span', {
+          className: 'bb-minutes-version-line is-secondary',
+          textContent: historySecondLine(version, versions, latest),
+        }),
+      );
       versionButton.addEventListener('click', () => {
         clear(detailPane);
         renderDetail(detail, documentRecord, version);

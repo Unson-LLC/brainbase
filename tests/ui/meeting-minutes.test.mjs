@@ -796,8 +796,15 @@ describe('meeting minutes page review', () => {
     await view.openMeeting('meeting-1');
     const history = findAll(root, (node) => node.className.includes('bb-minutes-version-history'))[0];
     const rows = history.children.map((child) => collectText(child));
-    expect(rows[0]).toContain('10/13 16:05 作成（昨日）・作成 Worker・10/13 18:10 佐藤圭吾が確認');
-    expect(rows[1]).toContain('10/13 11:20 作成（昨日）・作成 Worker・確認されないまま第2版に置き換え');
+    expect(rows[0]).toContain('第2版（最新）');
+    expect(rows[0]).toContain('10/13 16:05 作成（昨日）');
+    expect(rows[0]).toContain('作成 Worker・10/13 18:10 佐藤圭吾が確認・第1版を訂正');
+    expect(rows[1]).toContain('10/13 11:20 作成（昨日）');
+    expect(rows[1]).toContain('作成 Worker・確認されないまま第2版に置き換え');
+    expect(history.children[0].children.map((child) => child.className)).toEqual([
+      'bb-minutes-version-line',
+      'bb-minutes-version-line is-secondary',
+    ]);
     expect(collectText(history)).not.toContain('未確認');
   });
 
@@ -817,11 +824,12 @@ describe('meeting minutes page review', () => {
     });
     await flush();
     await view.openMeeting('meeting-1');
-    expect(collectText(root)).toContain('10/14 09:00 作成（今日）・作成者は未記録・確認待ち');
+    expect(collectText(root)).toContain('10/14 09:00 作成（今日）');
+    expect(collectText(root)).toContain('作成者は未記録・確認待ち');
     expect(collectText(root)).not.toContain('未確認');
   });
 
-  it('keeps twelve two-line rows inside the 1280×800 list budget', async () => {
+  it('keeps meeting rows on an 85px pitch so twelve fit in the 1920×1200 area', async () => {
     const meetings = Array.from({ length: 12 }, (_, index) => entry({
       id: `row-${index + 1}`,
       title: `行${index + 1}`,
@@ -839,15 +847,18 @@ describe('meeting minutes page review', () => {
     const tokens = readFileSync(new URL('../../ui/brainbase-tokens.css', import.meta.url), 'utf8');
     expect(css).toContain('var(--bb-color-brand-indigo)');
     expect(css).toContain('minmax(340px, 380px)');
-    expect(css).toContain('min-height: 44px');
-    expect(css).toContain('max-height: 52px');
+    expect(css).toContain('height: 85px');
+    expect(css).toContain('height: 79px');
+    expect(css).not.toContain('max-height: 52px');
     expect(css).not.toContain('box-shadow');
     expect(tokens).toContain('--bb-color-brand-indigo: #0F2A43;');
     const guard = css.slice(css.indexOf('.bb-minutes-edit-guard.is-info'), css.indexOf('.bb-minutes-source-link'));
     expect(guard).toContain('var(--bb-color-muted)');
     expect(guard).not.toContain('danger');
     expect(source).not.toContain('未確認');
-    expect(800 - 96 - 28).toBeGreaterThanOrEqual((12 * 44) + 22);
+    expect(source).toContain('function historyStamp');
+    expect(source).toContain('function historySecondLine');
+    expect(1200 - 160).toBeGreaterThanOrEqual(12 * 85);
   });
 
   it('uses the empty-list sentence and keeps a failed list distinct from it', async () => {
