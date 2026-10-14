@@ -765,7 +765,7 @@ describe('meeting minutes page review', () => {
     expect(collectText(root)).not.toContain('この版を確認済みにする');
   });
 
-  it('keeps twelve two-line rows inside the 1280×800 list budget', async () => {
+  it('keeps the previous list layout and does not lock a brand color', async () => {
     const meetings = Array.from({ length: 12 }, (_, index) => entry({
       id: `row-${index + 1}`,
       title: `行${index + 1}`,
@@ -780,21 +780,16 @@ describe('meeting minutes page review', () => {
     }
     const css = readFileSync(new URL('../../ui/meeting-minutes.css', import.meta.url), 'utf8');
     const source = readFileSync(new URL('../../ui/meeting-minutes.js', import.meta.url), 'utf8');
-    expect(css).toContain('var(--bb-color-brand-indigo)');
-    expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\(|hsla?\(/i);
     const tokens = readFileSync(new URL('../../ui/brainbase-tokens.css', import.meta.url), 'utf8');
-    expect(tokens).toContain('--bb-color-brand-indigo: #0F2A43;');
-    expect(css).toContain('min-height: 44px');
-    expect(css).toContain('max-height: 52px');
-    expect(css).not.toContain('box-shadow');
-    const guard = css.slice(css.indexOf('.bb-minutes-edit-guard'), css.indexOf('.bb-minutes-source-link'));
-    expect(guard).toContain('var(--bb-color-muted)');
-    expect(guard).not.toContain('danger');
+    expect(css).toContain('grid-template-columns: minmax(15rem, 0.85fr) minmax(20rem, 1.5fr)');
+    expect(css).toContain('box-shadow: var(--bb-shadow)');
+    expect(css).not.toContain('min-height: 44px');
+    expect(css).not.toContain('max-height: 52px');
+    expect(css).not.toMatch(/#0F2A43/i);
+    expect(tokens).not.toContain('--bb-color-brand-indigo');
+    const info = css.slice(css.indexOf('.bb-minutes-edit-guard.is-info'));
+    expect(info).toContain('var(--bb-color-muted)');
     expect(source).not.toContain('未確認');
-    const pageHeading = 96;
-    const sortNote = 28;
-    expect(800 - pageHeading - sortNote).toBeGreaterThanOrEqual((12 * 44) + 22);
-    expect(800 - pageHeading - sortNote).toBeGreaterThanOrEqual((10 * 52) + 22);
   });
 
   it('uses the empty-list sentence and keeps a failed list distinct from it', async () => {
