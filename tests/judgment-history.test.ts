@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -11,6 +11,7 @@ import {
   createJudgmentHistoryReader,
   createLocalJudgmentHistoryFeedbackWriter,
   createLocalJudgmentHistorySource,
+  mapWithConcurrencyLimit,
   type JudgmentHistoryRecord
 } from '../src/judgment-history.js';
 import { createJudgmentHistoryHttpHandler } from '../src/judgment-history-http.js';
@@ -776,5 +777,110 @@ describe('judgment history common reader', () => {
     });
     expect(conflict.status).toBe(409);
     expect((await conflict.json()).error.code).toBe('feedback_conflict');
+  });
+
+  it('reports an empty journal as zero records without a next page', async () => {
+    const root = await makeRoot();
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+    expect(home.status).toBe('available');
+    expect(home.records).toEqual([]);
+    expect(home.coverage).toMatchObject({ complete: true, total: 0, reason: null });
+    expect(home.pagination).toMatchObject({ has_more: false, next_cursor: null, limit: 50 });
+  });
+
+  it('ends the newest-first page when the filtered records fill it exactly', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'p'.repeat(64);
+    await save(root, sessionRef, `${'1'.repeat(64)}.json`, adoption(sessionRef, 'turn-older', 'resolution-older', {
+      receipt: { resolved_at: '2026-10-01T00:00:00.000Z' }
+    }));
+    await save(root, sessionRef, `${'2'.repeat(64)}.json`, adoption(sessionRef, 'turn-newer', 'resolution-newer', {
+      receipt: { resolved_at: '2026-10-14T00:00:00.000Z' }
+    }));
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home({ limit: 2 });
+    expect(home.records?.map((record) => record.record_id)).toEqual(['resolution-newer', 'resolution-older']);
+    expect(home.pagination).toMatchObject({ has_more: false, next_cursor: null, limit: 2 });
+    expect(home.coverage.total).toBe(2);
+  });
+
+  it('keeps the newest artifact when the scan cap stops after one file', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'q'.repeat(64);
+    const olderName = `${'a'.repeat(64)}.json`;
+    const newerName = `${'b'.repeat(64)}.json`;
+    await save(root, sessionRef, olderName, adoption(sessionRef, 'turn-old', 'resolution-old', {
+      receipt: { resolved_at: '2026-01-01T00:00:00.000Z' }
+    }));
+    await save(root, sessionRef, newerName, adoption(sessionRef, 'turn-new', 'resolution-new', {
+      receipt: { resolved_at: '2026-10-14T00:00:00.000Z' }
+    }));
+    await utimes(join(root, sessionRef, olderName), new Date('2020-01-01T00:00:00Z'), new Date('2020-01-01T00:00:00Z'));
+    await utimes(join(root, sessionRef, newerName), new Date('2026-10-14T00:00:00Z'), new Date('2026-10-14T00:00:00Z'));
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex', max_files: 1 })
+    }).home({ limit: 1 });
+    expect(home.status).toBe('partial');
+    expect(home.coverage.reason).toBe('journal_scan_capped');
+    expect(home.records?.map((record) => record.record_id)).toEqual(['resolution-new']);
+    expect(home.pagination.has_more).toBe(false);
+  });
+
+  it('looks up many resolution ids with one journal read', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'r'.repeat(64);
+    await save(root, sessionRef, `${'c'.repeat(64)}.json`, adoption(sessionRef, 'turn-a', 'resolution-a'));
+    await save(root, sessionRef, `${'d'.repeat(64)}.json`, adoption(sessionRef, 'turn-b', 'resolution-b'));
+    const inner = createLocalJudgmentHistorySource({ root, entrypoint: 'codex' });
+    let reads = 0;
+    const reader = createJudgmentHistoryReader({
+      source: {
+        storage: 'local',
+        timings: () => inner.timings?.() ?? null,
+        async read() {
+          reads += 1;
+          return inner.read();
+        }
+      }
+    });
+    const batch = await reader.findByResolutionIds(['resolution-b', 'resolution-a', 'missing-resolution']);
+    expect(reads).toBe(1);
+    expect(batch.records.map((record) => record?.record_id ?? null)).toEqual(['resolution-b', 'resolution-a', null]);
+  });
+
+  it('sends Server-Timing for a newest-first home read', async () => {
+    const root = await makeRoot();
+    const reader = createJudgmentHistoryReader({ source: createLocalJudgmentHistorySource({ root }) });
+    const server = createServer((request, response) => {
+      void createJudgmentHistoryHttpHandler({ reader })(request, response);
+    });
+    servers.push(server);
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', () => resolve()));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const response = await fetch(`${base}/api/judgment-history/home`);
+    expect(response.status).toBe(200);
+    const timing = response.headers.get('server-timing') ?? '';
+    expect(timing).toMatch(/journal;dur=\d/);
+    expect(timing).toMatch(/page;dur=\d/);
+    expect(timing).toContain('order;desc="newest-first"');
+  });
+
+  it('never runs more journal reads than the parallel limit', async () => {
+    let active = 0;
+    let maxActive = 0;
+    await mapWithConcurrencyLimit(Array.from({ length: 8 }, (_, index) => index), 2, async () => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      active -= 1;
+    });
+    expect(maxActive).toBe(2);
+    const root = await makeRoot();
+    const source = createLocalJudgmentHistorySource({ root, read_parallel: 2 });
+    await createJudgmentHistoryReader({ source }).home();
+    expect(source.timings?.()?.parallel_limit).toBe(2);
   });
 });

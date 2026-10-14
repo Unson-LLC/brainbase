@@ -322,7 +322,7 @@ describe('judgment history projection', () => {
     });
     await view.load();
     expect(findAll(root, (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
-    expect(collectText(root)).toContain('読み取れた判断だけを表示');
+    expect(collectText(root)).toContain('一部の記録だけを表示中');
     if (count === 0) expect(collectText(root)).toContain('0件とは確認できません');
     view.dispose();
   });
@@ -381,7 +381,7 @@ describe('judgment history UI', () => {
     });
     await view.load();
     expect(findAll(root, (node) => node.attributes['role'] === 'table')).toHaveLength(1);
-    expect(findAll(root, (node) => node.attributes['role'] === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '使った参照', '行った判断']);
+    expect(findAll(root, (node) => node.attributes['role'] === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '行った判断', '使った参照', '入口・状態']);
     expect(findAll(root, (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
     expect(collectText(root)).toContain('週次報告の項目');
     expect(collectText(rail)).toContain('使った参照');
@@ -412,7 +412,7 @@ describe('judgment history UI', () => {
     const metrics = findAll(root, (node) => node.className === 'bb-ws-metric');
     expect(metrics).toHaveLength(0);
     expect(collectText(root)).toContain('再読み込み');
-    expect(collectText(root)).toContain('取得できた範囲');
+    expect(collectText(root)).toContain('一部の記録だけを表示中');
     expect(collectText(root)).not.toContain('0回分相当');
     view.dispose();
   });
@@ -440,7 +440,7 @@ describe('judgment history UI', () => {
     const metrics = findAll(root, (node) => node.className === 'bb-ws-metric');
     expect(metrics).toHaveLength(0);
     expect(collectText(root)).toContain('週次報告の項目');
-    expect(collectText(root)).toContain('取得できた範囲');
+    expect(collectText(root)).toContain('一部の記録だけを表示中');
     view.dispose();
   });
 
@@ -617,14 +617,16 @@ describe('judgment history UI', () => {
 
     const text = collectText(root);
     expect(calls[0]).toMatch(/^\/api\/judgment-history\/home\?period=past30days&limit=50$/u);
-    expect((text.match(/取得できた範囲/gu) ?? [])).toHaveLength(1);
-    expect(text).toContain('サーバー');
-    expect(text).toContain('Mana: 未接続');
+    expect((text.match(/一部の記録だけを表示中/gu) ?? [])).toHaveLength(1);
+    expect(text).toContain('Mana：未接続');
+    expect(text).toContain('18:00に確認');
     expect(text).toContain('既存の項目で進める');
-    const notice = findAll(root, (node) => node.className?.startsWith('bb-ws-notice'))[0];
-    const reload = findAll(notice, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')[0];
-    expect(reload).toBeTruthy();
-    expect(notice.children).toContain(reload);
+    const banner = findAll(root, (node) => node.className?.startsWith('bb-jh-banner'))[0];
+    expect(findAll(banner, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')).toHaveLength(0);
+    expect(findAll(root, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')).toHaveLength(1);
+    const detail = findAll(root, (node) => node.tagName === 'DETAILS')[0];
+    expect(collectText(detail)).toContain('組織のサーバー');
+    expect(collectText(detail)).toContain('理由コード: unconnected');
 
     const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
     row.listeners.get('click')();
@@ -748,7 +750,7 @@ describe('judgment history UI', () => {
     await view.load();
 
     const text = collectText(root);
-    expect(text).toContain('Company OS: 一部取得（Company OSの判断実行履歴が未接続）');
+    expect(text).toContain('Company OS：一部（実行履歴は未接続）');
     expect(text).toContain('既存の項目で進める');
     view.dispose();
   });
@@ -958,6 +960,184 @@ describe('judgment history UI', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(calls[2]).toContain('period=week');
     expect(calls[2]).toContain('entrypoint=mana');
+    view.dispose();
+  });
+
+  it('hides an unknown reason code outside the source detail', async () => {
+    const root = new FakeElement('div');
+    const view = createJudgmentHistoryUI({
+      root,
+      document: new FakeDocument(),
+      autoLoad: false,
+      fetcher: async () => ({
+        ok: true,
+        status: 200,
+        json: async () => normalHome([normalRecord()], {
+          status: 'partial',
+          coverage: {
+            complete: false,
+            storage: 'local',
+            total: null,
+            sources: [{ entrypoint: 'codex', status: 'partial', reason: 'totally_unknown_code' }],
+          },
+        }),
+      }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const banner = findAll(root, (node) => node.className?.startsWith('bb-jh-banner'))[0];
+    const chips = collectText(findAll(banner, (node) => node.className === 'bb-jh-banner-sources')[0]);
+    expect(chips).toContain('Codex：一部（理由を確かめられません）');
+    expect(chips).not.toContain('totally_unknown_code');
+    expect(collectText(findAll(root, (node) => node.tagName === 'DETAILS')[0])).toContain('理由コード: totally_unknown_code');
+    view.dispose();
+  });
+
+  it('shows unlabeled references as a count and keeps the id in the rail', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const record = normalRecord({
+      record_id: 'unlabeled-1',
+      judgment: {
+        ...normalRecord().judgment,
+        status: 'unknown',
+        selected_references: [{ ref: 'phi_visible_or_not_value', availability: 'recorded', why: '当時の基準' }],
+      },
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: new FakeDocument(),
+      autoLoad: false,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => normalHome([record]) }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    expect(collectText(row)).toContain('名前のない参照 1件');
+    expect(collectText(row)).toContain('状態は未記録');
+    expect(collectText(row)).not.toContain('phi_visible_or_not_value');
+    expect(collectText(row)).not.toContain('unknown');
+    row.listeners.get('click')();
+    expect(collectText(rail)).toContain('記録ID：phi_visible_or_not_value（コピー）');
+    view.dispose();
+  });
+
+  it('shows a skeleton, disables reload, and names each source while loading', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    let resolve;
+    const pending = new Promise((settle) => { resolve = settle; });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: new FakeDocument(),
+      autoLoad: false,
+      skeletonDelayMs: 0,
+      slowDelayMs: 60000,
+      fetcher: async () => pending,
+      now: OWNER_NOW,
+    });
+    const loading = view.load();
+    await Promise.resolve();
+    expect(collectText(root)).toContain('読み込み中');
+    expect(collectText(root)).toContain('Codex：確認中…');
+    expect(collectText(root)).toContain('Claude Code：確認中…');
+    expect(findAll(root, (node) => node.className?.includes('bb-jh-skeleton-row'))).toHaveLength(5);
+    expect(findAll(root, (node) => node.attributes.role === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '行った判断', '使った参照', '入口・状態']);
+    const reload = findAll(root, (node) => node.attributes['data-action'] === 'reload')[0];
+    expect(reload.attributes.disabled).toBe('');
+    const status = findAll(root, (node) => node.attributes.role === 'status' && node.textContent === '確認しています…')[0];
+    expect(status).toBeTruthy();
+    expect(collectText(root)).not.toMatch(/0件/u);
+    expect(collectText(rail)).toContain('読み込み中の行も、届いたものから選べます。');
+    resolve({ ok: true, status: 200, json: async () => normalHome([normalRecord()]) });
+    await loading;
+    expect(findAll(root, (node) => node.className?.includes('bb-jh-skeleton-row'))).toHaveLength(0);
+    view.dispose();
+  });
+
+  it('keeps arrived rows selectable and marks the other sources as still loading', async () => {
+    const root = new FakeElement('div');
+    let resolve;
+    const pending = new Promise((settle) => { resolve = settle; });
+    const arrived = normalHome([normalRecord({ record_id: 'arrived-1' })], {
+      status: 'partial',
+      coverage: {
+        complete: false,
+        total: null,
+        sources: [
+          { entrypoint: 'codex', status: 'partial', reason: null },
+          { entrypoint: 'claude_code', status: 'pending', reason: null },
+        ],
+      },
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      document: new FakeDocument(),
+      autoLoad: false,
+      skeletonDelayMs: 60000,
+      slowDelayMs: 60000,
+      fetcher: async (_path, _init, context) => {
+        context.report(arrived);
+        return pending;
+      },
+      now: OWNER_NOW,
+    });
+    const loading = view.load();
+    await Promise.resolve();
+    expect(collectText(root)).toContain('既存の項目で進める');
+    expect(collectText(root)).toContain('Codex：1件まで届きました');
+    expect(collectText(root)).toContain('Claude Code：確認中…');
+    expect(collectText(root)).toContain('1件');
+    expect(collectText(root)).toContain('読み込み中・全件数は未確認');
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    expect(row).toBeTruthy();
+    resolve({ ok: true, status: 200, json: async () => arrived });
+    await loading;
+    view.dispose();
+  });
+
+  it('says the read is slow after the delay and stays still when motion is reduced', async () => {
+    const root = new FakeElement('div');
+    const previous = globalThis.matchMedia;
+    globalThis.matchMedia = (query) => ({ matches: String(query).includes('prefers-reduced-motion'), media: query });
+    let resolve;
+    const pending = new Promise((settle) => { resolve = settle; });
+    const view = createJudgmentHistoryUI({
+      root,
+      document: new FakeDocument(),
+      autoLoad: false,
+      skeletonDelayMs: 60000,
+      slowDelayMs: 0,
+      fetcher: async () => pending,
+      now: OWNER_NOW,
+    });
+    const loading = view.load();
+    await Promise.resolve();
+    expect(collectText(root)).toContain('時間がかかっています。届いた分だけ先に見られます。');
+    expect(findAll(root, (node) => node.className?.includes('is-reduced-motion'))).toHaveLength(1);
+    resolve({ ok: false, status: 503 });
+    await loading;
+    globalThis.matchMedia = previous;
+    view.dispose();
+  });
+
+  it('puts reload inside the alert when the history cannot be read', async () => {
+    const root = new FakeElement('div');
+    const view = createJudgmentHistoryUI({
+      root,
+      document: new FakeDocument(),
+      autoLoad: false,
+      fetcher: async () => ({ ok: false, status: 503 }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const banner = findAll(root, (node) => node.className?.includes('bb-jh-banner') && node.className.includes('is-danger'))[0];
+    expect(banner.attributes.role).toBe('alert');
+    expect(collectText(banner)).toContain('データが0件とは確認できていません');
+    expect(findAll(banner, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')).toHaveLength(1);
+    expect(findAll(root, (node) => node.attributes.role === 'table')).toHaveLength(0);
     view.dispose();
   });
 });

@@ -14,7 +14,6 @@ import {
   workspaceDefinition,
   workspaceDetailEmpty,
   workspaceLedger,
-  workspaceNotice,
   workspacePageHeader,
   workspaceRailBlock,
   workspaceRailHead,
@@ -198,7 +197,7 @@ function normalizeNormalReference(value) {
     why: text(value.why) || null,
     usage: text(value.usage) || null,
     availability: text(value.availability).toLowerCase() || 'unknown',
-    label: text(value.label ?? value.name) || ref,
+    label: text(value.label ?? value.name) || null,
   };
 }
 
@@ -806,23 +805,50 @@ function formatDate(value) {
   }
 }
 
+function referenceLabel(ref) {
+  const label = text(ref?.label);
+  const id = text(ref?.id ?? ref?.ref);
+  if (!label || (id && label === id)) return '';
+  return label;
+}
+
 function makeReferenceSummary(doc, references) {
   if (references === null || references === undefined) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照は未記録' });
   if (!references.length) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照はありません' });
+  const labeled = [];
+  let unlabeled = 0;
+  for (const ref of references) {
+    const label = referenceLabel(ref);
+    if (label) labeled.push(label);
+    else unlabeled += 1;
+  }
   const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-summary' });
-  const first = references.slice(0, 2).map((ref) => ref.label || ref.id).join('、');
-  wrap.append(makeWorkspaceElement(doc, 'strong', { text: first }));
-  if (references.length > 2) wrap.append(makeWorkspaceElement(doc, 'small', { text: `ほか${references.length - 2}件` }));
+  if (labeled.length) {
+    wrap.append(makeWorkspaceElement(doc, 'strong', { text: labeled.slice(0, 2).join('、') }));
+    if (labeled.length > 2) wrap.append(makeWorkspaceElement(doc, 'small', { text: `ほか${labeled.length - 2}件` }));
+  }
+  if (unlabeled > 0) wrap.append(makeWorkspaceElement(doc, 'strong', { text: `名前のない参照 ${unlabeled}件` }));
   return wrap;
+}
+
+function judgmentStatusLabel(status) {
+  const labels = {
+    resolved: '解決済み',
+    needs_clarification: '確認が必要',
+    needs_classification: '分類待ち',
+    needs_policy_resolution: '方針の確認待ち',
+    unknown: '状態は未記録',
+  };
+  const key = text(status);
+  if (!key) return '状態は未記録';
+  return labels[key] ?? '状態は未記録';
 }
 
 function makeDecisionSummary(doc, row) {
   if (row.mode === 'normal') {
     const summary = text(row.judgment?.summary);
-    const status = text(row.judgment?.status);
     const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-decision is-normal' });
     wrap.append(makeWorkspaceElement(doc, 'strong', { text: summary || '判断内容は未記録' }));
-    wrap.append(makeWorkspaceElement(doc, 'small', { text: `${NORMAL_ENTRYPOINT_LABELS[row.entrypoint] ?? '入口不明'}${status ? `・${status}` : ''}` }));
     return wrap;
   }
   const summary = text(row.proof?.decision?.summary);
@@ -833,19 +859,28 @@ function makeDecisionSummary(doc, row) {
   return wrap;
 }
 
+const REFERENCE_AVAILABILITY_LABELS = Object.freeze({
+  recorded: '今の権限で開けます',
+  permission_denied: '開く権限がありません',
+  unavailable: '本文はもうありません',
+  unknown: '未確認',
+});
+
 function appendReferenceList(doc, references) {
   if (references === null || references === undefined) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '参照は記録されていません。' });
   if (!references.length) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '参照はありません。' });
   const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-reference-list' });
   for (const ref of references) {
     const item = makeWorkspaceElement(doc, 'li');
-    item.append(makeWorkspaceElement(doc, 'strong', { text: ref.label || ref.id }));
-    item.append(makeWorkspaceElement(doc, 'code', { text: `${ref.ref ?? ref.id}${ref.version ? `@${ref.version}` : ''}${ref.digest ? `#${ref.digest}` : ''}` }));
-    if (ref.application && ref.application !== ref.label) item.append(makeWorkspaceElement(doc, 'span', { text: ref.application }));
-    if (ref.availability && ref.availability !== 'recorded') {
-      const availability = ref.availability === 'permission_denied' ? '権限がありません' : ref.availability === 'unavailable' ? '現在は参照できません' : '参照状態は未確認';
-      item.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-availability', text: availability }));
+    const label = referenceLabel(ref);
+    item.append(makeWorkspaceElement(doc, 'strong', { text: label || '名前のない参照' }));
+    const recordId = text(ref.ref ?? ref.id);
+    if (recordId) {
+      item.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-record-id', text: `記録ID：${recordId}（コピー）` }));
     }
+    if (ref.application && ref.application !== ref.label && ref.application !== label) item.append(makeWorkspaceElement(doc, 'span', { text: ref.application }));
+    const availability = REFERENCE_AVAILABILITY_LABELS[text(ref.availability)] ?? REFERENCE_AVAILABILITY_LABELS.unknown;
+    item.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-availability', text: availability }));
     if (ref.why) item.append(makeWorkspaceElement(doc, 'span', { text: `理由: ${ref.why}` }));
     if (ref.usage) item.append(makeWorkspaceElement(doc, 'span', { text: `用途: ${ref.usage}` }));
     const alternateLabels = (ref.labels ?? []).filter((label) => label && label !== ref.label);
@@ -1147,7 +1182,9 @@ function renderRail(doc, rail, row, detail, onClose, options = {}) {
     rail.append(workspaceDetailEmpty(doc, {
       mark: '↗',
       title: '履歴を選択',
-      text: '行を選ぶと、使った参照と行った判断を確認できます。',
+      text: options.loading
+        ? '行を選ぶと、使った参照と行った判断を確認できます。読み込み中の行も、届いたものから選べます。'
+        : '行を選ぶと、使った参照と行った判断を確認できます。',
     }));
     return;
   }
@@ -1189,43 +1226,129 @@ function safeDocument(explicit) {
   return doc;
 }
 
-function statusNotice(doc, phase, error, home, onRetry) {
-  if (phase === 'loading') return workspaceNotice(doc, { label: '読み込み中', text: '判断履歴を確認しています。', tone: 'info' });
-  if (phase === 'error') return workspaceNotice(doc, {
-    label: '取得できません',
-    text: [
-      { className: 'bb-jh-error-primary', text: '判断履歴を取得できませんでした。' },
-      error ? { className: 'bb-jh-error-detail', text: `詳細: ${error}` } : null,
-      workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry }),
-    ],
-    tone: 'danger',
-    role: 'alert',
+const RESPONSE_ERROR_CODES = new Set([
+  'response_not_object', 'records_missing', 'sections_missing', 'unsupported_status',
+  'coverage_incomplete', 'record_rejected', 'record_invalid',
+]);
+
+function publicErrorText(error) {
+  const code = text(error);
+  if (!code) return '';
+  if (RESPONSE_ERROR_CODES.has(code)) return '応答を読み取れませんでした';
+  return '';
+}
+
+function prefersReducedMotion() {
+  try {
+    return globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+  } catch {
+    return false;
+  }
+}
+
+function sourceDetail(doc, home) {
+  const details = makeWorkspaceElement(doc, 'details', { className: 'bb-jh-source-detail' });
+  details.append(makeWorkspaceElement(doc, 'summary', { text: '取得元の詳細' }));
+  const body = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-source-detail-body' });
+  const storage = home?.coverage?.storage;
+  if (storage) body.append(makeWorkspaceElement(doc, 'p', { text: `保存先: ${normalStorageLabel(storage)}` }));
+  const sources = Array.isArray(home?.coverage?.sources) ? home.coverage.sources : [];
+  for (const source of sources) {
+    if (!source?.reason) continue;
+    body.append(makeWorkspaceElement(doc, 'p', { text: `理由コード: ${source.reason}` }));
+  }
+  if (home?.coverage?.reason && !sources.some((source) => source?.reason === home.coverage.reason)) {
+    body.append(makeWorkspaceElement(doc, 'p', { text: `理由コード: ${home.coverage.reason}` }));
+  }
+  const rejected = home?.coverage?.rejected;
+  if (Number.isInteger(rejected) && rejected > 0) {
+    body.append(makeWorkspaceElement(doc, 'p', { text: `読めなかった件数: ${rejected}` }));
+  }
+  if (text(home?.coverage?.reason) === 'journal_scan_capped') {
+    body.append(makeWorkspaceElement(doc, 'p', { text: '記録が多いため、新しい順に上限まで読みました。古い判断が抜けている可能性があります。' }));
+  }
+  details.append(body);
+  return details;
+}
+
+function sourceChips(doc, sources) {
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-banner-sources' });
+  for (const source of sources) wrap.append(makeWorkspaceElement(doc, 'span', { text: sourceChipText(source) }));
+  return wrap;
+}
+
+function historyBanner(doc, { label, tone, role, sources, home, note, reload }) {
+  const banner = makeWorkspaceElement(doc, 'div', {
+    className: `bb-jh-banner is-${tone}`,
+    attrs: { role: role ?? 'status' },
   });
-  if (home?.status === 'error') return workspaceNotice(doc, {
-    label: '取得に失敗',
-    text: ['判断の記録を確認できません。データが0件とは確認できていません。', workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
-    tone: 'danger',
-    role: 'alert',
-  });
-  const sourceSummary = normalSourcesSummary(home);
-  if (home?.status === 'unavailable') return workspaceNotice(doc, {
-    label: '未接続',
-    text: [`保存された判断に接続できません${home.coverage?.storage ? `（${normalStorageLabel(home.coverage.storage)}）` : ''}。データが0件とは確認できていません。`, sourceSummary ? `取得元: ${sourceSummary}` : null, workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
-    tone: 'warning',
-    role: 'alert',
-  });
-  if (home?.status === 'invalid') return workspaceNotice(doc, {
-    label: '未確認',
-    text: ['判断の記録の応答を読み取れません。データが0件とは確認できていません。', workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
-    tone: 'danger',
-    role: 'alert',
-  });
-  if (home?.status === 'partial') return workspaceNotice(doc, {
-    label: '取得できた範囲',
-    text: [`読み取れた判断だけを表示しています。${home.coverage?.storage ? `（${normalStorageLabel(home.coverage.storage)}）` : ''}${home.coverage?.reason ? ` ${normalReasonLabel(home.coverage.reason)}` : ''}${home.coverage?.rejected ? ` 読み取れなかった記録は${home.coverage.rejected}件あります。` : ''}`, sourceSummary ? `取得元: ${sourceSummary}` : null, workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry })],
-    tone: 'warning',
-    role: 'status',
-  });
+  banner.append(makeWorkspaceElement(doc, 'strong', { text: label }));
+  if (sources?.length) banner.append(sourceChips(doc, sources));
+  if (note) banner.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-banner-note', text: note }));
+  if (home) banner.append(sourceDetail(doc, home));
+  if (reload) banner.append(reload);
+  return banner;
+}
+
+function statusNotice(doc, phase, error, home, onRetry, { loading = false, slow = false, arrived = null } = {}) {
+  const reload = workspaceButton(doc, { text: '再読み込み', variant: 'quiet', onClick: onRetry, attrs: { 'data-action': 'reload' } });
+  if (phase === 'error' || home?.status === 'error' || home?.status === 'invalid') {
+    const detail = publicErrorText(error);
+    return historyBanner(doc, {
+      label: '取得できません',
+      tone: 'danger',
+      role: 'alert',
+      note: `判断履歴を取得できませんでした。データが0件とは確認できていません。${detail ? ` ${detail}` : ''}`,
+      home: error ? { coverage: { reason: text(error) } } : home,
+      reload,
+    });
+  }
+  if (home?.status === 'unavailable') {
+    return historyBanner(doc, {
+      label: '取得できません',
+      tone: 'danger',
+      role: 'alert',
+      sources: home.coverage?.sources,
+      home,
+      note: '判断の記録に接続できません。データが0件とは確認できていません。',
+      reload,
+    });
+  }
+  if (loading) {
+    const progressHome = arrived ?? home;
+    const counts = new Map();
+    for (const record of progressHome?.records ?? []) {
+      const key = normalEntrypoint(record.entrypoint);
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const known = Array.isArray(progressHome?.coverage?.sources) && progressHome.coverage.sources.length
+      ? progressHome.coverage.sources
+      : NORMAL_ENTRYPOINTS.filter((entrypoint) => entrypoint !== 'unknown').map((entrypoint) => ({ entrypoint, status: 'pending', reason: null }));
+    const sources = known.map((source) => {
+      const count = counts.get(normalEntrypoint(source.entrypoint)) ?? 0;
+      if (count > 0) return { entrypoint: source.entrypoint, status: 'partial', retrieved: count, reason: null };
+      if (source.status === 'unavailable') return { entrypoint: source.entrypoint, status: 'unavailable', reason: source.reason ?? null };
+      return { entrypoint: source.entrypoint, status: 'pending', reason: null };
+    });
+    return historyBanner(doc, {
+      label: '読み込み中',
+      tone: 'info',
+      role: 'status',
+      sources,
+      note: slow
+        ? '時間がかかっています。届いた分だけ先に見られます。'
+        : '取得元ごとに届いた順に表示します',
+    });
+  }
+  if (home?.status === 'partial') {
+    return historyBanner(doc, {
+      label: '一部の記録だけを表示中',
+      tone: 'warning',
+      role: 'status',
+      sources: home.coverage?.sources,
+      home,
+    });
+  }
   return null;
 }
 
@@ -1255,38 +1378,51 @@ function createSearch(doc, value, onInput) {
 }
 
 function normalStorageLabel(storage) {
-  if (storage === 'local') return '端末';
-  if (storage === 'server') return 'サーバー';
-  return storage || '接続先不明';
+  if (storage === 'local') return 'この端末';
+  if (storage === 'server') return '組織のサーバー';
+  return '接続先不明';
 }
 
 function normalReasonLabel(reason) {
   const labels = {
+    journal_scan_capped: '読み込み上限まで',
+    source_not_connected: '未接続',
     unconnected: '未接続',
-    mana_not_connected: '未接続（Mana）',
-    company_os_native_source_not_connected: 'Company OSの判断実行履歴が未接続',
-    journal_unavailable: '判断記録がありません',
-    journal_unreadable: '判断記録を読み取れません',
+    mana_not_connected: '未接続',
+    company_os_native_source_not_connected: '実行履歴は未接続',
+    journal_unavailable: '判断の記録が見つかりません',
+    journal_unreadable: '判断の記録を読み取れません',
+    some_journal_records_unreadable: '一部の記録を読み取れません',
+    project_scope_unverified: 'プロジェクトの範囲を確かめられていません',
+    project_scope_forbidden: 'このプロジェクトを見る権限がありません',
+    journal_not_directory: '記録の保存場所が正しくありません',
+    journal_symlink_rejected: '記録の保存場所が正しくありません',
+    permission_denied: '見る権限がありません',
+    judgment_history_partial: '一部だけ取得',
+    judgment_history_unavailable: '取得できません',
+    judgment_journal_unavailable: '判断の記録に接続できません',
   };
-  return labels[reason] ?? reason;
+  if (!reason) return '';
+  return labels[reason] ?? '理由を確かめられません';
 }
 
 function normalSourceStatusLabel(status) {
   const labels = {
-    available: '接続済み',
-    partial: '一部取得',
+    available: '取得済み',
+    partial: '一部',
     unavailable: '未接続',
   };
   return labels[status] ?? '未確認';
 }
 
-function normalSourcesSummary(home) {
-  if (home?.mode !== 'normal' || !Array.isArray(home.coverage?.sources) || home.coverage.sources.length === 0) return '';
-  return home.coverage.sources.map((source) => {
-    const entrypoint = NORMAL_ENTRYPOINT_LABELS[normalEntrypoint(source.entrypoint)] ?? '入口不明';
-    const reason = source.reason ? `（${normalReasonLabel(source.reason)}）` : '';
-    return `${entrypoint}: ${normalSourceStatusLabel(source.status)}${reason}`;
-  }).join('、');
+function sourceChipText(source) {
+  const name = NORMAL_ENTRYPOINT_LABELS[normalEntrypoint(source.entrypoint)] ?? '入口不明';
+  if (source?.status === 'pending' || source?.status === 'loading') return `${name}：確認中…`;
+  if (Number.isInteger(source?.retrieved)) return `${name}：${source.retrieved}件まで届きました`;
+  const statusLabel = normalSourceStatusLabel(source.status);
+  const reasonLabel = source.reason ? normalReasonLabel(source.reason) : '';
+  const reason = reasonLabel && reasonLabel !== statusLabel ? `（${reasonLabel}）` : '';
+  return `${name}：${statusLabel}${reason}`;
 }
 
 function createFilterSelect(doc, { label, value, options, onChange, className = '' }) {
@@ -1309,12 +1445,12 @@ function createFilterSelect(doc, { label, value, options, onChange, className = 
 function normalFilterControls(doc, home, state, onChange) {
   const filters = home?.filters ?? {};
   const projects = [...(filters.projects ?? [])];
-  const knownProjects = (home.records ?? []).map((record) => record.projectCode).filter(Boolean);
+  const knownProjects = (home?.records ?? []).map((record) => record.projectCode).filter(Boolean);
   for (const project of knownProjects) {
     if (!projects.some((option) => option.value === project)) projects.push({ value: project, label: project });
   }
   const entrypoints = [...(filters.entrypoints ?? [])];
-  const knownEntrypoints = (home.records ?? []).map((record) => record.entrypoint).filter(Boolean);
+  const knownEntrypoints = (home?.records ?? []).map((record) => record.entrypoint).filter(Boolean);
   for (const entrypoint of [...NORMAL_ENTRYPOINTS, ...knownEntrypoints]) {
     if (!entrypoints.some((option) => option.value === entrypoint)) {
       entrypoints.push({ value: entrypoint, label: NORMAL_ENTRYPOINT_LABELS[entrypoint] ?? entrypoint });
@@ -1350,6 +1486,71 @@ function paginationControls(doc, aggregate, onNext) {
   return wrap;
 }
 
+function makeEntrypointStatus(doc, row) {
+  const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-entrypoint' });
+  if (row.mode !== 'normal') {
+    wrap.append(makeWorkspaceElement(doc, 'strong', { text: row.delegated ? 'Brainbase' : '本人' }));
+    return wrap;
+  }
+  wrap.append(makeWorkspaceElement(doc, 'strong', { text: NORMAL_ENTRYPOINT_LABELS[row.entrypoint] ?? '入口不明' }));
+  wrap.append(makeWorkspaceElement(doc, 'small', { text: judgmentStatusLabel(row.judgment?.status) }));
+  return wrap;
+}
+
+function skeletonRows(doc, count = 5) {
+  return Array.from({ length: count }, (_, index) => ({
+    key: `skeleton-${index}`,
+    className: 'bb-jh-skeleton-row',
+    cells: [
+      makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-date' }),
+      makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-decision' }),
+      makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-reference' }),
+      makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-status' }),
+    ],
+  }));
+}
+
+function summaryLine(doc, aggregate, { loading = false } = {}) {
+  const line = makeWorkspaceElement(doc, 'p', { className: 'bb-jh-summary' });
+  const retrieved = Number.isInteger(aggregate?.retrievedCount) ? aggregate.retrievedCount : (aggregate?.rows?.length ?? 0);
+  const complete = aggregate?.countComplete === true && Number.isInteger(aggregate?.totalCount);
+  const showCount = complete || retrieved > 0;
+  if (showCount) {
+    line.append(makeWorkspaceElement(doc, 'strong', { text: `${complete ? aggregate.totalCount : retrieved}件` }));
+    line.append(makeWorkspaceElement(doc, 'span', { text: ' 取得済み' }));
+  } else {
+    line.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-inline', attrs: { 'aria-hidden': 'true' } }));
+    line.append(makeWorkspaceElement(doc, 'span', { text: ' 取得済み' }));
+  }
+  if (!complete) {
+    line.append(makeWorkspaceElement(doc, 'span', {
+      className: 'bb-jh-summary-note',
+      text: loading ? '（読み込み中・全件数は未確認）' : '（全件数は未確認）',
+    }));
+  }
+  const references = loading ? null : (aggregate?.stats?.referenceCount ?? aggregate?.stats?.references);
+  const confirmed = loading ? null : (aggregate?.stats?.confirmedOutcomes ?? aggregate?.stats?.outcomes);
+  line.append(makeWorkspaceElement(doc, 'span', { text: '　・　使った参照 ' }));
+  if (Number.isInteger(references)) line.append(makeWorkspaceElement(doc, 'strong', { text: `${references}件` }));
+  else line.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-inline', attrs: { 'aria-hidden': 'true' } }));
+  line.append(makeWorkspaceElement(doc, 'span', { text: '　・　結果を確認済み ' }));
+  if (Number.isInteger(confirmed)) line.append(makeWorkspaceElement(doc, 'strong', { text: `${confirmed}件` }));
+  else line.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-inline', attrs: { 'aria-hidden': 'true' } }));
+  return line;
+}
+
+function formatCheckedAt(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '';
+  try {
+    return new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hour12: false,
+    }).format(date);
+  } catch {
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
+}
+
 function makeRows(doc, aggregate, selectedKey, onSelect) {
   return aggregate.rows.map((row) => ({
     key: row.key,
@@ -1359,8 +1560,9 @@ function makeRows(doc, aggregate, selectedKey, onSelect) {
     onSelect,
     cells: [
       makeWorkspaceElement(doc, 'span', { className: 'bb-jh-date', text: formatDate(row.recordedAt) }),
-      makeReferenceSummary(doc, row.references),
       makeDecisionSummary(doc, row),
+      makeReferenceSummary(doc, row.references),
+      makeEntrypointStatus(doc, row),
     ],
   }));
 }
@@ -1377,6 +1579,8 @@ export function createJudgmentHistoryUI({
   autoLoad = true,
   pageHeader = true,
   now = new Date(),
+  skeletonDelayMs = 300,
+  slowDelayMs = 10000,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = safeDocument(explicitDocument);
@@ -1409,7 +1613,50 @@ export function createJudgmentHistoryUI({
     focusSearch: false,
     lastFocusedKey: null,
     pendingDecisionId: null,
+    showSkeleton: false,
+    slow: false,
+    arrived: null,
+    checkedAt: null,
+    skeletonTimer: null,
+    slowTimer: null,
   };
+
+  function clearLoadTimers() {
+    if (state.skeletonTimer !== null) {
+      clearTimeout(state.skeletonTimer);
+      state.skeletonTimer = null;
+    }
+    if (state.slowTimer !== null) {
+      clearTimeout(state.slowTimer);
+      state.slowTimer = null;
+    }
+  }
+
+  function scheduleLoadTimers(generation) {
+    clearLoadTimers();
+    const skeletonDelay = Number.isFinite(skeletonDelayMs) ? Math.max(0, skeletonDelayMs) : 300;
+    const slowDelay = Number.isFinite(slowDelayMs) ? Math.max(0, slowDelayMs) : 10000;
+    const stillLoading = () => generation === state.generation && !state.disposed && state.phase === 'loading';
+    if (skeletonDelay === 0) state.showSkeleton = true;
+    else {
+      state.skeletonTimer = setTimeout(() => {
+        if (!stillLoading()) return;
+        state.showSkeleton = true;
+        render();
+      }, skeletonDelay);
+    }
+    if (slowDelay === 0) {
+      state.slow = true;
+      state.showSkeleton = true;
+    } else {
+      state.slowTimer = setTimeout(() => {
+        if (!stillLoading()) return;
+        state.slow = true;
+        state.showSkeleton = true;
+        render();
+      }, slowDelay);
+    }
+  }
 
   function closeSelected() {
     if (!state.selectedKey || state.disposed) return false;
@@ -1661,28 +1908,43 @@ export function createJudgmentHistoryUI({
 
   function render() {
     if (state.disposed) return;
+    if (state.phase === 'loading' && !state.showSkeleton && !state.arrived) return;
     const previousSearchInput = findFirst(root, (node) => node.tagName === 'INPUT');
     const previousSearchSelection = previousSearchInput && Number.isInteger(previousSearchInput.selectionStart)
       ? { start: previousSearchInput.selectionStart, end: previousSearchInput.selectionEnd ?? previousSearchInput.selectionStart }
       : null;
     const previousSearchFocused = previousSearchInput && doc.activeElement === previousSearchInput;
-    const aggregate = state.aggregate ?? {
-      status: state.home?.status ?? 'unavailable', rows: [], visibleCount: 0, stats: {}, coverage: state.home?.coverage ?? null,
-    };
-    const wrapper = makeWorkspaceElement(doc, 'div', { className: 'bb-jh', attrs: { 'data-contract-version': JUDGMENT_HISTORY_UI_CONTRACT_VERSION } });
+    const loading = state.phase === 'loading';
+    const sourceHome = loading ? state.arrived : state.home;
+    const aggregate = loading
+      ? (sourceHome
+        ? aggregateJudgmentHistory(sourceHome, { now: readNow(), period: state.period, query: state.query })
+        : { status: 'partial', rows: [], visibleCount: 0, stats: {}, coverage: null, countComplete: false, retrievedCount: 0, mode: 'normal' })
+      : (state.aggregate ?? {
+        status: state.home?.status ?? 'unavailable', rows: [], visibleCount: 0, stats: {}, coverage: state.home?.coverage ?? null,
+      });
+    const wrapper = makeWorkspaceElement(doc, 'div', {
+      className: `bb-jh${prefersReducedMotion() ? ' is-reduced-motion' : ''}`,
+      attrs: { 'data-contract-version': JUDGMENT_HISTORY_UI_CONTRACT_VERSION, 'aria-busy': loading ? 'true' : 'false' },
+    });
     if (pageHeader) {
       const context = currentPage();
       wrapper.append(workspacePageHeader(doc, {
         crumbs: context.crumbs,
         title: '判断の履歴',
-        lead: 'Brainbaseにどんな参照が入り、どんな判断を代わりに行ったかを見返せます。',
+        lead: '参照した内容と、Brainbaseが代わりに行った判断を見返す',
         source: context.source,
       }));
     }
-    const notice = statusNotice(doc, state.phase, state.error, state.home, () => void load());
+    const notice = statusNotice(doc, state.phase, state.error, loading ? (state.arrived ?? state.home) : state.home, () => void load(), {
+      loading,
+      slow: state.slow,
+      arrived: state.arrived,
+    });
     if (notice) wrapper.append(notice);
-    if (state.phase === 'loading' || state.phase === 'error' || state.home?.status === 'unavailable' || state.home?.status === 'error' || state.home?.status === 'invalid') {
-      wrapper.append(workspaceDetailEmpty(doc, { mark: '…', title: state.phase === 'loading' ? '判断履歴を読み込んでいます' : '判断履歴を確認できません', text: '再試行すると最新の状態を確認します。' }));
+    const failed = state.phase === 'error' || state.home?.status === 'unavailable' || state.home?.status === 'error' || state.home?.status === 'invalid';
+    if (failed) {
+      wrapper.append(workspaceDetailEmpty(doc, { mark: '…', title: '判断履歴を確認できません', text: '再試行すると最新の状態を確認します。' }));
       root.replaceChildren(wrapper);
       renderRail(doc, rail, null, null);
       return;
@@ -1692,53 +1954,63 @@ export function createJudgmentHistoryUI({
       state.period = period;
       state.selectedKey = null;
       state.cursor = null;
-      if (normalMode()) void load({ append: false });
+      if (loading || normalMode()) void load({ append: false });
       else {
         state.aggregate = aggregateJudgmentHistory(state.home, { now: readNow(), period: state.period, query: state.query });
         render();
       }
     }));
-    if (normalMode()) controls.append(normalFilterControls(doc, state.home, state, handleNormalFilterChange));
+    const showNormalFilters = loading ? sourceHome?.mode !== 'legacy' : normalMode();
+    if (showNormalFilters) controls.append(normalFilterControls(doc, sourceHome ?? state.home, state, handleNormalFilterChange));
     controls.append(createSearch(doc, state.query, (query) => {
       state.query = String(query);
       state.focusSearch = true;
       state.selectedKey = null;
-      state.aggregate = aggregateJudgmentHistory(state.home, { now: readNow(), period: state.period, query: state.query });
+      const searchable = loading ? sourceHome : state.home;
+      if (searchable) state.aggregate = aggregateJudgmentHistory(searchable, { now: readNow(), period: state.period, query: state.query });
       render();
     }));
-    controls.append(workspaceButton(doc, {
+    const toolbarStatus = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-toolbar-status' });
+    if (loading) {
+      toolbarStatus.append(makeWorkspaceElement(doc, 'span', {
+        className: 'bb-jh-checked',
+        text: '確認しています…',
+        attrs: { role: 'status' },
+      }));
+    } else if (state.checkedAt) {
+      const stamp = formatCheckedAt(state.checkedAt);
+      if (stamp) toolbarStatus.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-checked', text: `${stamp}に確認` }));
+    }
+    toolbarStatus.append(workspaceButton(doc, {
       text: '再読み込み',
       variant: 'quiet',
+      disabled: loading,
       onClick: () => void load(),
       attrs: { 'aria-label': '判断履歴を再読み込み', 'data-action': 'reload' },
     }));
+    controls.append(toolbarStatus);
     wrapper.append(controls);
-    const normalSourceSummary = normalSourcesSummary(state.home);
-    wrapper.append(makeWorkspaceElement(doc, 'p', {
-      className: 'bb-jh-reference-note',
-      text: normalMode()
-        ? `保存された判断の理由、当時の参照、案、実行と結果を表示しています。参照の本文は現在の権限で確認できる場合だけ開きます。${normalSourceSummary ? ` 取得元: ${normalSourceSummary}` : ''}`
-        : '判断に残った参照だけを表示しています。実行結果の証拠は参照件数に含めません。',
-    }));
+    wrapper.append(summaryLine(doc, aggregate, { loading }));
     const emptyText = state.home?.status === 'partial' || (normalMode() && !aggregate.countComplete)
       ? 'この期間に取得できた判断履歴はありません。全件数が未確認のため0件とは確認できません。'
       : 'この期間の判断履歴はありません。';
+    const dataRows = makeRows(doc, aggregate, state.selectedKey, (key) => {
+      state.lastFocusedKey = key;
+      state.selectedKey = key;
+      state.detailPhase = 'idle';
+      state.detailError = null;
+      render();
+      const selectedRow = aggregate.rows.find((row) => row.key === key);
+      if (selectedRow?.mode === 'normal') void loadDetail(selectedRow);
+    });
     wrapper.append(workspaceLedger(doc, {
       className: 'bb-jh-ledger',
       ariaLabel: '判断履歴',
-      columns: ['日時', '使った参照', '行った判断'],
-      rows: makeRows(doc, aggregate, state.selectedKey, (key) => {
-        state.lastFocusedKey = key;
-        state.selectedKey = key;
-        state.detailPhase = 'idle';
-        state.detailError = null;
-        render();
-        const selectedRow = aggregate.rows.find((row) => row.key === key);
-        if (selectedRow?.mode === 'normal') void loadDetail(selectedRow);
-      }),
+      columns: ['日時', '行った判断', '使った参照', '入口・状態'],
+      rows: loading ? [...dataRows, ...skeletonRows(doc)] : dataRows,
       empty: emptyText,
     }));
-    const pagination = paginationControls(doc, aggregate, () => {
+    const pagination = loading ? null : paginationControls(doc, aggregate, () => {
       if (aggregate.pagination?.nextCursor) {
         state.cursor = aggregate.pagination.nextCursor;
         void load({ cursor: state.cursor, append: true });
@@ -1776,7 +2048,7 @@ export function createJudgmentHistoryUI({
         onCopyReference: (payload) => void copyReference(payload),
       }
       : {};
-    renderRail(doc, rail, selected, selectedDetail, selected ? closeSelected : null, railOptions);
+    renderRail(doc, rail, selected, selectedDetail, selected ? closeSelected : null, { ...railOptions, loading });
     if (state.lastFocusedKey) {
       const row = findFirst(root, (node) => attributeValue(node, 'data-key') === state.lastFocusedKey);
       row?.focus?.();
@@ -1787,26 +2059,39 @@ export function createJudgmentHistoryUI({
   async function load({ cursor = null, append = false } = {}) {
     if (state.disposed) return null;
     const generation = ++state.generation;
-    state.phase = 'loading';
     state.error = null;
     if (!append) {
+      state.phase = 'loading';
       state.home = null;
       state.aggregate = null;
+      state.arrived = null;
+      state.showSkeleton = false;
+      state.slow = false;
+      scheduleLoadTimers(generation);
+      render();
     }
-    render();
     if (!request) {
       if (generation !== state.generation || state.disposed) return null;
+      clearLoadTimers();
+      state.showSkeleton = false;
       state.phase = 'error';
       state.error = 'fetch_unavailable';
       render();
       return null;
     }
     try {
+      const report = (payload) => {
+        if (generation !== state.generation || state.disposed || state.phase !== 'loading') return;
+        const normalized = normalizeJudgmentHistoryHome(payload);
+        if (!normalized || normalized.status === 'invalid') return;
+        state.arrived = normalized;
+        render();
+      };
       let activePath = normalizedBasePath;
       let response = await request(historyPath(normalizedBasePath, cursor), {
         method: 'GET',
         headers: token ? { 'x-brainbase-review-token': token } : undefined,
-      });
+      }, { report });
       if (generation !== state.generation || state.disposed) return null;
       if (response?.status === 404 && legacyBasePath && !append && !state.project && !state.entrypoint && !state.cursor) {
         activePath = legacyBasePath;
@@ -1837,6 +2122,11 @@ export function createJudgmentHistoryUI({
         state.entrypoint = state.entrypoint ?? state.home.filters?.entrypoint ?? null;
         state.cursor = state.home.pagination?.nextCursor ?? null;
       }
+      clearLoadTimers();
+      state.showSkeleton = false;
+      state.slow = false;
+      state.arrived = null;
+      state.checkedAt = readNow();
       state.phase = 'ready';
       state.aggregate = aggregateJudgmentHistory(state.home, { now: readNow(), period: state.period, query: state.query });
       if (state.pendingDecisionId) {
@@ -1848,6 +2138,9 @@ export function createJudgmentHistoryUI({
       return state.aggregate;
     } catch (error) {
       if (generation !== state.generation || state.disposed) return null;
+      clearLoadTimers();
+      state.showSkeleton = false;
+      state.slow = false;
       state.phase = 'error';
       state.error = error instanceof Error ? error.message : String(error);
       render();
@@ -1875,6 +2168,7 @@ export function createJudgmentHistoryUI({
     if (state.disposed) return;
     state.disposed = true;
     state.generation += 1;
+    clearLoadTimers();
     root.removeEventListener?.('keydown', handleKeyDown);
     rail?.removeEventListener?.('keydown', handleKeyDown);
     root.replaceChildren();

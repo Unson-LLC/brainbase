@@ -1,10 +1,12 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import {
   JUDGMENT_HISTORY_ENTRYPOINTS,
+  MAX_JUDGMENT_HISTORY_RESOLUTION_BATCH,
   createJudgmentHistoryReader,
   JudgmentHistoryFeedbackConflictError,
   type JudgmentHistoryFeedbackWriter,
   type JudgmentHistoryEntrypoint,
+  type JudgmentHistoryReadTimings,
   type JudgmentHistoryReader,
   type JudgmentHistoryQuery
 } from './judgment-history.js';
@@ -25,7 +27,19 @@ export interface JudgmentHistoryHttpOptions {
 
 export type JudgmentHistoryHttpHandler = (request: IncomingMessage, response: ServerResponse) => Promise<boolean>;
 
-type Route = { readonly name: 'home' } | { readonly name: 'detail'; readonly recordId: string } | { readonly name: 'feedback' };
+type Route = { readonly name: 'home' } | { readonly name: 'detail'; readonly recordId: string } | { readonly name: 'feedback' } | { readonly name: 'resolutions' };
+
+function serverTimingHeader(timings: JudgmentHistoryReadTimings | null, handlerMs: number): string {
+  const parts = [`total;dur=${handlerMs.toFixed(1)}`];
+  if (timings) {
+    parts.push(`journal;dur=${timings.journal_ms.toFixed(1)}`);
+    parts.push(`page;dur=${timings.page_ms.toFixed(1)}`);
+    parts.push(`cache;desc="hits=${timings.cache_hits},misses=${timings.cache_misses}"`);
+    parts.push(`parallel;desc="${timings.parallel_limit}"`);
+  }
+  parts.push('order;desc="newest-first"');
+  return parts.join(', ');
+}
 
 function methodNotAllowed(): Error & { statusCode: number; code: string } {
   const error = new Error('Use GET or POST') as Error & { statusCode: number; code: string };
@@ -37,6 +51,7 @@ function methodNotAllowed(): Error & { statusCode: number; code: string } {
 function matchRoute(pathname: string, basePath: string): Route | null {
   if (pathname === `${basePath}/home`) return { name: 'home' };
   if (pathname === `${basePath}/feedback`) return { name: 'feedback' };
+  if (pathname === `${basePath}/resolutions`) return { name: 'resolutions' };
   if (!pathname.startsWith(`${basePath}/records/`)) return null;
   const encoded = pathname.slice(`${basePath}/records/`.length);
   if (!encoded || encoded.includes('/')) return null;
@@ -68,6 +83,17 @@ function readerError(statusCode: number, code: string, message: string): Error &
   error.statusCode = statusCode;
   error.code = code;
   return error;
+}
+
+function parseResolutionIds(url: URL): string[] {
+  for (const key of url.searchParams.keys()) {
+    if (key !== 'id') throw readerError(400, 'unknown_query', `Unknown query parameter: ${key}`);
+  }
+  const ids = url.searchParams.getAll('id');
+  if (ids.length < 1 || ids.length > MAX_JUDGMENT_HISTORY_RESOLUTION_BATCH) {
+    throw readerError(400, 'invalid_resolution_ids', `id must be repeated between 1 and ${MAX_JUDGMENT_HISTORY_RESOLUTION_BATCH} times`);
+  }
+  return ids;
 }
 
 function parseQuery(url: URL): JudgmentHistoryQuery {
@@ -114,13 +140,21 @@ export function createJudgmentHistoryHttpHandler(options: JudgmentHistoryHttpOpt
   const basePath = (options.basePath ?? JUDGMENT_HISTORY_HTTP_PREFIX).replace(/\/+$/u, '');
   const reader = options.reader;
   return async (request, response): Promise<boolean> => {
+    const started = performance.now();
+    const writeTimed = (statusCode: number, body: unknown): void => {
+      if (!response.headersSent) {
+        const timings = typeof reader.timings === 'function' ? reader.timings() : null;
+        response.setHeader('Server-Timing', serverTimingHeader(timings, performance.now() - started));
+      }
+      writeJson(response, statusCode, body);
+    };
     const url = new URL(request.url ?? '/', 'http://localhost');
     let route: Route | null;
     try {
       route = matchRoute(url.pathname, basePath);
     } catch (error) {
       const normalized = toError(error);
-      writeJson(response, normalized.statusCode, {
+      writeTimed(normalized.statusCode, {
         error: { code: normalized.code, message: normalized.message }
       });
       return true;
@@ -145,31 +179,36 @@ export function createJudgmentHistoryHttpHandler(options: JudgmentHistoryHttpOpt
           feedback_event: result.event,
           ...result.event
         };
-        writeJson(response, result.created ? 201 : 200, responseBody);
+        writeTimed(result.created ? 201 : 200, responseBody);
       } else {
         if (request.method !== 'GET') throw methodNotAllowed();
-        if (route.name === 'home') {
-          writeJson(response, 200, await reader.home(parseQuery(url)));
+        if (route.name === 'resolutions') {
+          if (typeof reader.findByResolutionIds !== 'function') {
+            throw readerError(501, 'resolution_batch_unavailable', 'This reader cannot look up resolution ids in one read');
+          }
+          writeTimed(200, await reader.findByResolutionIds(parseResolutionIds(url)));
+        } else if (route.name === 'home') {
+          writeTimed(200, await reader.home(parseQuery(url)));
         } else {
           const result = await reader.detail(route.recordId);
           if (result.status === 'unavailable') {
-            writeJson(response, 200, result);
+            writeTimed(200, result);
           } else if (result.status === 'available' && !result.record) {
             throw readerError(404, 'judgment_history_not_found', 'No judgment history record matches this id');
           } else {
-            writeJson(response, 200, result);
+            writeTimed(200, result);
           }
         }
       }
     } catch (error) {
       const normalized = toError(error);
       if (error instanceof JudgmentHistoryFeedbackConflictError) {
-        writeJson(response, normalized.statusCode, {
+        writeTimed(normalized.statusCode, {
           error: { code: normalized.code, message: normalized.message },
           feedback_event: error.existing
         });
       } else {
-        writeJson(response, normalized.statusCode, {
+        writeTimed(normalized.statusCode, {
           error: { code: normalized.code, message: normalized.message }
         });
       }
