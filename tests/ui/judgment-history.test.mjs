@@ -321,7 +321,8 @@ describe('judgment history projection', () => {
       ) }),
     });
     await view.load();
-    expect(collectText(root)).toContain(`取得済み${count}件全件数未確認`);
+    expect(findAll(root, (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
+    expect(collectText(root)).toContain('読み取れた判断だけを表示');
     if (count === 0) expect(collectText(root)).toContain('0件とは確認できません');
     view.dispose();
   });
@@ -367,7 +368,7 @@ describe('judgment history projection', () => {
 });
 
 describe('judgment history UI', () => {
-  it('renders the three-column history, metrics and read-only detail without an evaluation control', async () => {
+  it('renders the three-column history and read-only detail without a summary band', async () => {
     const root = new FakeElement('div');
     const rail = new FakeElement('aside');
     const doc = new FakeDocument();
@@ -381,7 +382,7 @@ describe('judgment history UI', () => {
     await view.load();
     expect(findAll(root, (node) => node.attributes['role'] === 'table')).toHaveLength(1);
     expect(findAll(root, (node) => node.attributes['role'] === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '使った参照', '行った判断']);
-    expect(collectText(root)).toContain('Brainbaseが代わりに判断した件数');
+    expect(findAll(root, (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
     expect(collectText(root)).toContain('週次報告の項目');
     expect(collectText(rail)).toContain('使った参照');
     expect(findAll(root, (node) => node.tagName === 'FORM')).toHaveLength(0);
@@ -389,7 +390,7 @@ describe('judgment history UI', () => {
     expect(root.children).toHaveLength(0);
   });
 
-  it('shows unconfirmed metrics for an empty partial read and labels the readable range', async () => {
+  it('retains the warning and retry for an empty partial read without a summary band', async () => {
     const root = new FakeElement('div');
     const doc = new FakeDocument();
     root.ownerDocument = doc;
@@ -409,13 +410,14 @@ describe('judgment history UI', () => {
     });
     await view.load();
     const metrics = findAll(root, (node) => node.className === 'bb-ws-metric');
-    expect(metrics.map((metric) => metric.children[1]?.textContent)).toEqual(['未確認', '未確認', '未確認']);
+    expect(metrics).toHaveLength(0);
+    expect(collectText(root)).toContain('再読み込み');
     expect(collectText(root)).toContain('取得できた範囲');
     expect(collectText(root)).not.toContain('0回分相当');
     view.dispose();
   });
 
-  it('labels the readable range beside numeric metrics when a partial read has rows', async () => {
+  it('labels the readable range and keeps records when a partial read has rows', async () => {
     const root = new FakeElement('div');
     const doc = new FakeDocument();
     root.ownerDocument = doc;
@@ -436,7 +438,8 @@ describe('judgment history UI', () => {
     });
     await view.load();
     const metrics = findAll(root, (node) => node.className === 'bb-ws-metric');
-    expect(metrics.map((metric) => metric.children[1]?.textContent)).toEqual(['1件', '1件', '1回分相当']);
+    expect(metrics).toHaveLength(0);
+    expect(collectText(root)).toContain('週次報告の項目');
     expect(collectText(root)).toContain('取得できた範囲');
     view.dispose();
   });
@@ -916,7 +919,8 @@ describe('judgment history UI', () => {
       now: OWNER_NOW,
     });
     await view.load();
-    expect(collectText(root)).toContain('判断件数2件この期間・絞り込みの全件数');
+    expect(findAll(root, (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
+    expect(collectText(root)).toContain('同じ範囲の件数: 2件');
     const nextButton = findAll(root, (node) => node.attributes['data-action'] === 'next-page')[0];
     expect(nextButton).toBeTruthy();
     nextButton.listeners.get('click')();

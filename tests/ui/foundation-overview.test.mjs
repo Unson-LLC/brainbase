@@ -174,6 +174,7 @@ test('renders objectives, saved-state notice, philosophy, and model uncertainty'
   const visible = textOf(root);
 
   assert.equal(root.children[0].attributes['data-contract-version'], FOUNDATION_OVERVIEW_CONTRACT_VERSION);
+  assert.equal(byClass(root, 'bb-ws-metric').length, 0);
   assert.match(visible, /目的と現状/);
   assert.match(visible, /利益改善を現場の行動へつなぐ/);
   assert.match(visible, /四半期ごとに現場責任者が確認する/);
@@ -384,6 +385,7 @@ test('collection deduplicates exact shared revisions, preserves conflicting dige
   assert.match(textOf(root), /組織共通.*Alpha・Beta/);
   assert.match(textOf(root), /未取得案件.*未確認/);
   assert.match(textOf(root), /全体は未確認/);
+  assert.equal(byClass(root, 'bb-ws-metric').length, 0);
   b.philosophies[0].digest = 'sha256:different';
   renderFoundationCollectionOverview(root, sources, { document: doc });
   assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 2);
