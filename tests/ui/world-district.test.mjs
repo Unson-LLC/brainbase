@@ -318,3 +318,45 @@ describe('the station yard (story-world-business-exits-v1)', () => {
     view.dispose();
   });
 });
+
+
+describe('district automatic sky', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('follows local hour boundaries while open, including reduced motion and resumed frames', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 14, 16, 59));
+    const { view } = harness();
+    view.show(business, makeWork());
+    frame();
+    expect(runtime.renderer.toneMappingExposure).toBe(1.05);
+    vi.setSystemTime(new Date(2026, 9, 14, 17, 0));
+    frame(200);
+    expect(runtime.renderer.toneMappingExposure).toBe(0.95);
+    vi.setSystemTime(new Date(2026, 9, 14, 19, 0));
+    frame(300);
+    expect(runtime.renderer.toneMappingExposure).toBe(0.9);
+    view.hide();
+    vi.setSystemTime(new Date(2026, 9, 15, 7, 0));
+    view.show(business, makeWork());
+    frame(400);
+    expect(runtime.renderer.toneMappingExposure).toBe(1.05);
+    view.dispose();
+  });
+
+  it('keeps a manually selected sky through an hour boundary and resumes auto on request', () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 14, 16, 59));
+    const { view } = harness();
+    view.show(business, makeWork());
+    view.setSky('day');
+    frame();
+    vi.setSystemTime(new Date(2026, 9, 14, 19, 0));
+    frame(200);
+    expect(runtime.renderer.toneMappingExposure).toBe(1.05);
+    view.setSky('auto');
+    frame(300);
+    expect(runtime.renderer.toneMappingExposure).toBe(0.9);
+    view.dispose();
+  });
+});
