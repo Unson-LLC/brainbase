@@ -72,6 +72,7 @@ describe('public CI self-hosted runner policy', () => {
     const guide = await readRepoFile('docs/guides/github-actions-cicd-operating-guide.md');
     expect(guide).toContain('GitHub-hosted runnerを使わない');
     expect(guide).toContain('例外は`npm-publish.yml`のpublish jobだけで、`runs-on: ubuntu-latest`で実行する。');
+    expect(guide).toContain('`actions/setup-node`の`cache: npm`を使わない');
     expect(guide).toContain(selfHostedRunner);
     expect(guide).toContain('github.event.pull_request.head.repo.full_name == github.repository');
     expect(guide).toContain('author_association');
@@ -80,6 +81,16 @@ describe('public CI self-hosted runner policy', () => {
     expect(guide).toContain('persist-credentials: false');
     expect(guide).toContain('http.extraheader');
     expect(guide).toContain('40文字のcommit SHA');
+  });
+
+  it('AC-010 does not round-trip the shared npm cache through the Actions cache on the self-hosted runner', async () => {
+    const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
+    for (const [index, workflow] of workflows.entries()) {
+      expect(workflow, workflowPaths[index]).not.toMatch(/^[ \t]*cache: npm\b/mu);
+    }
+    const packageJson = JSON.parse(await readRepoFile('package.json')) as Record<string, unknown>;
+    // setup-node caches automatically when packageManager is set.
+    expect(packageJson.packageManager).toBeUndefined();
   });
 
   it('AC-008 caps the Vitest workers so concurrent EVO-X2 jobs do not time out', async () => {

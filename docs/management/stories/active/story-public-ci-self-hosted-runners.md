@@ -57,3 +57,4 @@ started_at: 2026-10-15
 - [x] AC-007: すべての `uses` は公式タグと一致する 40 文字の commit SHA に固定され、行末にタグコメントがある。
 - [ ] AC-008: `test.yml` のテストは Vitest の並列数を `--maxWorkers=4` に固定する。EVO-X2 の複数の runner が同時に動いても、変更と無関係なテストが時間切れで落ちない（2026-10-15、PR #786 で既定の並列数のまま3回続けて時間切れが起きたための追加）。
 - [ ] AC-009: `npm-publish.yml` の publish job だけは `runs-on: ubuntu-latest` で実行し、`--provenance` と `id-token: write` を保つ。npm は self-hosted runner からの provenance を `E422 Unsupported GitHub Actions runner environment: "self-hosted"` で拒否する（2026-10-15、0.41.5 の run 38713407935 で公開が止まったための追加。佐藤さん判断：publish job だけ GitHub-hosted に戻す）。
+- [ ] AC-010: self-hosted runner で動く workflow は `actions/setup-node` の `cache: npm` を使わず、`package.json` に `packageManager` を置かない。EVO-X2 の runner が共有する `~/.npm` を Actions cache で往復させると、cache が 1GB を超えて復元と保存だけで job が 20 分の上限を超える（2026-10-15、PR #791 で2回）。
