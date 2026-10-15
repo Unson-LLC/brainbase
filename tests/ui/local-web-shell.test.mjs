@@ -166,6 +166,25 @@ describe('local Web shell', () => {
     expect(rail.hidden).toBe(true);
   });
 
+  it('does not reserve a rail column for native judgment-history drawers', () => {
+    const doc = new FakeDocument();
+    doc.body = new FakeElement('body');
+    const createElement = doc.createElement.bind(doc);
+    doc.createElement = tag => {
+      const element = createElement(tag);
+      if (tag === 'dialog') element.showModal = () => {};
+      return element;
+    };
+    const root = doc.createElement('div');
+    const shell = createLocalWebShell({ root, document: doc, fetcher: () => new Promise(() => {}), initialScreen: 'value-proofs' });
+    const shellElement = findAll(root, node => node.className === 'bb-shell')[0];
+    const rail = findAll(root, node => node.attributes?.['aria-label'] === '選択中の項目')[0];
+    expect(shellElement).toBeDefined();
+    expect(rail.hidden).toBe(true);
+    expect(findAll(root, node => node.attributes?.['data-rail'] === 'value-proofs')).toHaveLength(0);
+    shell.destroy();
+  });
+
   it('keeps the rail column hidden while a Graph screen waits behind the migration notice', async () => {
     const { fetcher } = hostFetcher(V1);
     const { root } = mount(fetcher, 'projects');

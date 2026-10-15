@@ -583,3 +583,37 @@
   .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(3)::before { content: '使った参照'; }
   .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(4)::before { content: '入口・状態'; }
 }
+
+/* Compact workspace header, search controls and shared floating notifications. */
+.bb-jh { position: relative; }
+.bb-jh > .bb-ws-page { margin-bottom: var(--bb-space-6, 32px); }
+.bb-jh .bb-ws-page-head h1 { font-size: 24px; line-height: 1.4; font-weight: 600; letter-spacing: .02em; }
+.bb-jh-controls { margin-bottom: var(--bb-space-4, 16px); }
+.bb-jh-checked { font-size: 11px; font-variant-numeric: tabular-nums; }
+.bb-jh-filter-fields { display: grid; gap: 16px; }
+.bb-jh-filter-fields .bb-jh-periods { flex-wrap: wrap; gap: 6px; }
+.bb-jh-filter-fields .bb-jh-normal-filters { display: grid; flex: none; gap: 16px; }
+.bb-jh-filter-fields .bb-jh-filter { display: grid; gap: 6px; }
+.bb-jh-filter-fields select { width: 100%; }
+.bb-jh-refresh { display: grid; place-items: center; flex: none; width: 32px; height: 32px; padding: 6px; }
+.bb-jh-refresh-mark { display: block; width: 16px; height: 16px; }
+.bb-jh-notifications { display: grid; gap: 8px; }
+.bb-jh-notifications .bb-jh-banner { margin: 0; }
+.bb-jh-notifications .bb-jh-banner-sources { display: grid; gap: 4px; margin-top: 8px; }
+.bb-jh-notifications .bb-jh-source-detail { margin: 8px 0 0; }
+.bb-jh-notifications .bb-jh-source-detail summary { color: inherit; }
+.bb-jh-notifications .bb-jh-source-detail-body { position: static; max-width: none; background: transparent; border-color: var(--bb-color-notice-border); color: inherit; }
+.bb-jh-detail .bb-ws-rail-head { margin-top: 0; }
+@media (max-width: 760px) {
+  .bb-jh-controls { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .bb-jh-search { flex: 1 1 150px; }
+  .bb-jh-toolbar-status { margin-left: auto; }
+}
+.bb-jh-notifications .bb-jh-banner {
+  border-color: var(--bb-color-notice-border);
+  background: var(--bb-color-notice-background);
+  color: var(--bb-color-notice-text);
+  border-left-color: var(--bb-color-notice-warning);
+}
+.bb-jh-notifications .bb-jh-banner.is-danger { border-left-color: var(--bb-color-notice-danger); }
+.bb-jh-notifications .bb-jh-banner-sources > span { white-space: normal; }
