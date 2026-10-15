@@ -325,8 +325,9 @@ function pilotSnapshot(input: {
 }
 
 describe('company OS hotel pilot', () => {
-  // This fixture persists and reloads several real stores; under full-suite
-  // concurrency it can exceed Vitest's 5s default, so bound only this test.
+  // Measured 30197ms on run 38662528051, runner nucbox-evo-x2-wsl-linux-6
+  // (Node 22 complete). Run 38661339112 hit the 30s bound before this finished.
+  // 90s stays above that shared-runner measurement.
   it('starts from an isolated local fixture', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'brainbase-company-os-hotel-pilot-'));
     dataDirs.push(dataDir);
@@ -1215,5 +1216,5 @@ describe('company OS hotel pilot', () => {
     expect(executionV2.effect.status).toBe('started');
     expect(executionV2.intent.problem).toEqual(reservationProblemV2);
     expect(fixtureEffectCalls).toBe(2);
-  }, 30_000);
+  }, 90_000);
 });
