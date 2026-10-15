@@ -202,11 +202,13 @@ export function assertPublishedMetadata(metadata, packageName, version, expected
 
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-// Window: 1+2+4+8+16 s backoff, then 30 s steps; 15 attempts wait 331 s in
-// total. The registry packument is served with `Cache-Control: max-age=300`
+// Window: 15 attempts with 14 waits (1+2+4+8+16 s backoff, then 9x30 s)
+// wait 301 s in total. The registry packument is served with
+// `Cache-Control: max-age=300`
 // (CDN can keep the pre-publish document for up to 300 s), and run
 // 38726775296 saw 0.41.6 appear ~96 s after `npm publish` while the old
-// 8-attempt window (91 s) had already given up. 331 s covers max-age plus margin.
+// 8-attempt window (91 s) had already given up. 301 s is just over
+// the 300 s max-age.
 export const NPM_REGISTRY_CONVERGENCE_ATTEMPTS = 15;
 export const NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS = 30_000;
 
