@@ -855,6 +855,18 @@
         "started_at": "2026-10-15",
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-npm-release-readback-convergence",
+        "title": "npm公開後のreadbackがregistryのcacheと遅延で収束しない問題を直す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": "dev",
+        "period": "2026-10",
+        "started_at": "2026-10-15",
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
     "current_story_id": "story-ci-impact-based-verification"
