@@ -10,7 +10,7 @@ describe('npm publish workflow', () => {
     expect(workflow).toMatch(/git checkout --detach/u);
     expect(workflow).toMatch(/--trusted-ref origin\/develop/u);
     expect(workflow).toMatch(/NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/u);
-    expect(workflow).toMatch(/--provenance/u);
+    expect(workflow).not.toMatch(/--provenance/u);
     expect(packageManifest.repository).toEqual({
       type: 'git',
       url: 'git+https://github.com/Unson-LLC/brainbase.git'
@@ -23,14 +23,14 @@ describe('npm publish workflow', () => {
     expect(validationJob).not.toMatch(/id-token: write/u);
     expect(validationJob).not.toMatch(/NODE_AUTH_TOKEN/u);
     expect(publishJob).toMatch(/needs: validate/u);
-    expect(publishJob).toMatch(/id-token: write/u);
+    expect(publishJob).not.toMatch(/id-token: write/u);
     expect(publishJob).toMatch(/actions\/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4/u);
     expect(publishJob).toMatch(/--tarball-file/u);
     expect(publishJob).toMatch(/node scripts\/npm-release\.mjs publish/u);
     expect(publishJob).toMatch(/BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'/u);
     expect(publishJob).not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
     expect(publishJob).toMatch(/npm install --global npm@11\.5\.1/u);
-    expect(publishJob).toMatch(/id-token: write/u);
+    expect(workflow).not.toMatch(/id-token: write/u);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
     expect(validationJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
     expect(publishJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
