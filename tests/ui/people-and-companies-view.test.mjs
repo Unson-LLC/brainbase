@@ -57,7 +57,8 @@ async function mountView({ fetcher, ...options } = {}) {
 }
 
 const ledgerNames = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && String(item.className).includes('bb-ws-ledger-row'))
-  .map((row) => row.children[0].children[0].textContent);
+  // The name is the row's first strong; a person or company mark sits before it.
+  .map((row) => findAll(row.children[0], (node) => node.tagName === 'STRONG')[0].textContent);
 const ledgerByLabel = (root, label) => findAll(root, (node) => node.attributes?.['aria-label'] === label && node.attributes?.role === 'table')[0];
 
 describe('人と会社', () => {
@@ -150,8 +151,10 @@ describe('人と会社', () => {
     const { root, rail, view } = await mountView();
     const companies = ledgerByLabel(root, '会社の一覧');
     expect(ledgerNames(companies)).toEqual(['Acme（自社）', 'Globex', 'Initech', 'Plain社']);
-    const kindCells = findAll(companies, (node) => node.attributes?.role === 'row' && node.tagName === 'BUTTON').map((row) => row.children[1].textContent);
+    const kindCells = findAll(companies, (node) => node.attributes?.role === 'row' && node.tagName === 'BUTTON').map((row) => visibleText(row.children[1]).trim());
     expect(kindCells).toEqual(['', '顧客', '提案中', '']);
+    // Kinds are badges with one class per recorded kind.
+    expect(findAll(companies, (node) => String(node.className).includes('bb-pc-kind-customer')).map((node) => node.textContent)).toEqual(['顧客']);
     expect(visibleText(companies)).toContain('0件（関わる 1件）');
 
     await view.openEntity('org-globex');
@@ -203,7 +206,8 @@ describe('人と会社', () => {
 
 describe('人と会社: writing (情報契約S3)', () => {
   const writable = { canCorrect: true, token: TOKEN };
-  const company = (root, name) => findAll(ledgerByLabel(root, '会社の一覧'), (node) => node.tagName === 'BUTTON' && visibleText(node).startsWith(name))[0];
+  const company = (root, name) => findAll(ledgerByLabel(root, '会社の一覧'), (node) => node.tagName === 'BUTTON'
+    && findAll(node, (item) => item.tagName === 'STRONG')[0]?.textContent.startsWith(name))[0];
 
   it('creates a company from the screen, reads it back and opens it, with the reason sent to the host', async () => {
     await writeGraphV2(dataDir);

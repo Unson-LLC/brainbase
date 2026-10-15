@@ -119,3 +119,146 @@
     display: none;
   }
 }
+
+/* Marks, counts and badges (2026-10). A person is a round mark, a company a
+   rounded square; both keep one tone per id. Counts sit next to each group
+   title, and the jump links at the top move to the people or company part. */
+.bb-pc-jump {
+  display: flex;
+  gap: 4px;
+  margin: 4px 0 18px;
+  padding: 3px;
+  width: max-content;
+  border-radius: 9px;
+  background: var(--bb-color-canvas);
+}
+
+.bb-pc-jump-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bb-pc-jump-link:hover {
+  background: var(--bb-color-paper);
+  box-shadow: 0 1px 2px rgb(32 33 36 / 10%);
+}
+
+.bb-pc-count {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.bb-graph .bb-pc-group-title,
+.bb-graph .bb-pc-company-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bb-graph .bb-pc-company-title {
+  color: var(--bb-color-ink);
+  font-weight: 600;
+}
+
+.bb-pc-mark {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-right: 10px;
+  color: var(--bb-pc-mark-ink);
+  background: var(--bb-pc-mark-bg);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.bb-pc-person-mark { border-radius: 50%; }
+.bb-pc-company-mark { border-radius: 6px; }
+.bb-pc-company-title .bb-pc-mark,
+.bb-pc-company-chip .bb-pc-mark { width: 18px; height: 18px; margin-right: 0; border-radius: 5px; font-size: 10px; }
+
+.bb-pc-tone-0 { --bb-pc-mark-bg: #fde7e9; --bb-pc-mark-ink: #b4233a; }
+.bb-pc-tone-1 { --bb-pc-mark-bg: #e3effd; --bb-pc-mark-ink: #1f5fbf; }
+.bb-pc-tone-2 { --bb-pc-mark-bg: #e2f5ea; --bb-pc-mark-ink: #157046; }
+.bb-pc-tone-3 { --bb-pc-mark-bg: #fff1d6; --bb-pc-mark-ink: #9a5a00; }
+.bb-pc-tone-4 { --bb-pc-mark-bg: #efe7fd; --bb-pc-mark-ink: #6d36c9; }
+.bb-pc-tone-5 { --bb-pc-mark-bg: #e0f4f6; --bb-pc-mark-ink: #0d6e7a; }
+
+.bb-pc-people-ledger .bb-ws-ledger-object,
+.bb-pc-company-ledger .bb-ws-ledger-object {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.bb-pc-people-ledger .bb-ws-ledger-object strong,
+.bb-pc-company-ledger .bb-ws-ledger-object strong {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-pc-company-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.bb-pc-company-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.bb-pc-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.bb-pc-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 5px;
+  background: var(--bb-color-canvas);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.bb-pc-kind::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.bb-pc-kind-customer { background: #e2f5ea; color: #157046; }
+.bb-pc-kind-partner { background: #e3effd; color: #1f5fbf; }
+.bb-pc-kind-prospect { background: #fff1d6; color: #9a5a00; }
+
+.bb-pc-people-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head),
+.bb-pc-company-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) {
+  align-items: center;
+  min-height: 46px;
+}
