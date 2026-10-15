@@ -26,6 +26,7 @@ import { createMeetingMinutesStorageExtension } from './meeting-minutes-storage.
 import { createMeetingMinutesLineageExtension } from './meeting-minutes-lineage-http.js';
 import { createWorldModelView } from './world-model-view.js';
 import { createGraphClient } from './graph-view-shared.js';
+import { installNativeScrollbars } from './native-scrollbars.js';
 
 export const LOCAL_WEB_SHELL_CONTRACT_VERSION = 'brainbase.local-web-shell.v1';
 
@@ -450,8 +451,11 @@ export function createLocalWebShell({
   workspace.append(mobileBar, main);
   const railAside = makeElement(doc, 'aside', { className: 'bb-shell-rail', attrs: { 'aria-label': '選択中の項目' } });
   const rails = new Map();
+  const nativeDrawers = Boolean(doc.body && typeof doc.createElement('dialog').showModal === 'function');
   for (const screen of screens) {
-    if (!screen.rail) continue;
+    // The built-in history uses a modal drawer in browsers, with a rail fallback
+    // for minimal hosts. Do not reserve an empty desktop column for the drawer.
+    if (!screen.rail || (nativeDrawers && screen.mount === mountToday)) continue;
     const railSlot = makeElement(doc, 'div', { className: 'bb-shell-rail-slot', attrs: { 'data-rail': screen.id } });
     railSlot.hidden = true;
     rails.set(screen.id, railSlot);
@@ -459,6 +463,7 @@ export function createLocalWebShell({
   }
   shell.append(sidebar, backdrop, workspace, railAside);
   root.replaceChildren(shell);
+  const stopScrollbars = doc.documentElement?.classList && doc.addEventListener ? installNativeScrollbars(doc) : () => {};
 
   // The rail column shows only while the active screen is mounted and has one.
   function updateRail() {
@@ -493,6 +498,7 @@ export function createLocalWebShell({
   }
 
   const controller = {
+    destroy() { stopScrollbars(); for (const view of mounted.values()) view?.destroy?.(); root.replaceChildren(); },
     get state() {
       return { active, status, mounted: [...mounted.keys()] };
     },

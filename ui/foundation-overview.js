@@ -14,6 +14,7 @@ import {
   workspaceNotice,
   workspacePageHeader,
   workspaceSectionTitle,
+  workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard, workspaceLoadingCard, workspaceDismissNotification,
 } from './workspace-kit.js';
 
 export const FOUNDATION_OVERVIEW_CONTRACT_VERSION = 'foundation-overview.v1';
@@ -429,59 +430,66 @@ function objectiveCard(doc, record, variableMap) {
   return card;
 }
 
+function objectiveReading(doc, record, variableMap, recordContexts) {
+  const definition = recordDefinition(record), details = detailsFor(record);
+  const body = makeElement(doc, 'div', { className: 'bb-fov-reading' });
+  const section = (title, content) => {
+    const part = makeElement(doc, 'section');
+    part.append(makeElement(doc, 'h3', { text: title }), content); body.append(part);
+  };
+  section('達成条件', workspaceDefinition(doc, [
+    ['目指す状態', formatAny(definition.desiredState)],
+    ['評価基準', criteriaElement(doc, definition, details, variableMap)],
+    ['評価期間', formatAny(firstValue(details, 'evaluation_period_note', 'evaluationPeriodNote')) ?? formatPeriod(definition.evaluationPeriod)],
+  ]));
+  section('確認の根拠', recordedStateElement(doc, record));
+  const provenance = Array.isArray(definition.provenance) ? definition.provenance : [];
+  section('出典', workspaceDefinition(doc, [
+    ['記録元', recordContexts?.get(record)?.label ?? formatAny(record.source) ?? '未記録'],
+    ['根拠', provenance.length ? formatStructuredValue(provenance) : '未記録'],
+  ]));
+  const original = makeElement(doc, 'details', { className: 'bb-fov-original' });
+  original.append(makeElement(doc, 'summary', { text: '記録の詳細・参照・原文' }), objectiveCard(doc, record, variableMap),
+    workspaceDefinition(doc, [['目的ID', definition.id], ['版', definition.revision], ['digest', record.digest]]));
+  body.append(original); return body;
+}
+
+function topicTitle(doc, title, text) {
+  const head = workspaceSectionTitle(doc, { title });
+  head.append(workspaceHelp(doc, { label: title, text })); return head;
+}
+
 function renderObjectives(doc, catalog, viewState, callbacks, recordContexts) {
   const section = makeElement(doc, 'section', { className: 'bb-fov-section', attrs: { 'aria-label': '目的' } });
-  section.append(workspaceSectionTitle(doc, {
-    title: '目的',
-    lead: '目指す状態、評価の定義、記録上の現状を分けて確認します。',
-  }));
+  section.append(topicTitle(doc, '目的', '目指す状態、評価の定義、記録上の現状を分けて確認します。'));
   if (catalog.objectives.length === 0) {
     section.append(workspaceNotice(doc, { label: '目的', text: 'この対象範囲には登録された目的がありません。' }));
     return section;
   }
-  const variableMap = new Map(catalog.variables.map((record) => [foundationKey(recordDefinition(record)), record]));
-  const rows = catalog.objectives.map((record) => {
-    const definition = recordDefinition(record);
-    const details = detailsFor(record);
+  const variableMap = new Map(catalog.variables.map(record => [foundationKey(recordDefinition(record)), record]));
+  const rows = catalog.objectives.map(record => {
+    const definition = recordDefinition(record), details = detailsFor(record), current = currentStateFor(record);
     const key = recordContexts?.get(record)?.key ?? `${definition.id}@${definition.revision}`;
     return {
-      key,
-      selected: key === viewState.objectiveKey,
+      key, selected: key === viewState.objectiveKey,
       onSelect: () => {
         viewState.objectiveKey = key;
-        callbacks.render?.();
+        const opener = doc.activeElement;
+        viewState.dialog?.close();
+        viewState.dialog = workspaceDialog(doc, {
+          title: formatAny(details.title) ?? formatAny(definition.meaning) ?? definition.id, opener,
+          content: objectiveReading(doc, record, recordContexts?.get(record)?.variableMap ?? variableMap, recordContexts),
+        });
       },
       cells: [
-        { primary: formatAny(firstValue(details, 'title')) ?? formatAny(definition.meaning) ?? definition.id, secondary: recordContexts?.get(record)?.label ?? `${definition.id}@${definition.revision}` },
-        formatAny(definition.desiredState) ?? '目指す状態: 未記録',
-        formatAny(definition.adoptionState) ? (ADOPTION_LABELS[definition.adoptionState] ?? definition.adoptionState) : '状態未確認',
+        { primary: formatAny(details.title) ?? formatAny(definition.meaning) ?? definition.id },
+        current.text ?? current.status ?? '未記録',
+        { text: current.missing.length ? current.missing.join('・') : missingObjectiveFields(record).join('・') || '記録なし', className: 'bb-fov-missing' },
+        formatDate(current.asOf),
       ],
     };
   });
-  section.append(workspaceLedger(doc, {
-    className: 'bb-fov-objective-ledger',
-    ariaLabel: '登録された目的',
-    columns: ['目的', '目指す状態', '登録状態'],
-    rows,
-  }));
-  const selected = catalog.objectives.find((record) => {
-    const definition = recordDefinition(record);
-    return (recordContexts?.get(record)?.key ?? `${definition.id}@${definition.revision}`) === viewState.objectiveKey;
-  }) ?? (recordContexts ? null : catalog.objectives[0]);
-  if (!selected && recordContexts) section.append(makeElement(doc, 'p', { className: 'bb-fov-recorded-notice', text: '目的の行を選ぶと、評価基準と記録上の現状を確認できます。' }));
-  if (selected) {
-    const selectedDefinition = recordDefinition(selected);
-    viewState.objectiveKey = recordContexts?.get(selected)?.key ?? `${selectedDefinition.id}@${selectedDefinition.revision}`;
-    if (catalog.objectives.length > 1) {
-      section.append(workspaceNotice(doc, {
-        label: '詳細表示',
-        text: `目的${catalog.objectives.length}件のうち1件を選択して詳細を表示しています。`,
-      }));
-    }
-    const card = objectiveCard(doc, selected, recordContexts?.get(selected)?.variableMap ?? variableMap);
-    appendRecordSource(doc, card, selected, recordContexts);
-    section.append(card);
-  }
+  section.append(workspaceLedger(doc, { className: 'bb-fov-objective-ledger', ariaLabel: '登録された目的', columns: ['目的', '現状', '確認待ち', '確認日'], rows }));
   return section;
 }
 
@@ -506,9 +514,7 @@ function philosophyCard(doc, record) {
   const card = makeElement(doc, 'article', { className: 'bb-fov-philosophy-card' });
   const title = formatAny(payload.title) ?? record.id;
   card.append(makeElement(doc, 'h3', { text: title }));
-  const rawStatus = formatAny(payload.status);
-  const status = rawStatus ? (PHILOSOPHY_STATUS_LABELS[rawStatus] ?? `未確認（${rawStatus}）`) : '状態未確認';
-  card.append(makeElement(doc, 'p', { className: 'bb-fov-status', text: `状態: ${status} ／ 版: ${record.revision}` }));
+
   if (formatAny(payload.statement)) card.append(makeElement(doc, 'p', { className: 'bb-fov-philosophy-statement', text: formatAny(payload.statement) }));
   if (formatAny(payload.summary)) card.append(makeElement(doc, 'p', { text: formatAny(payload.summary) }));
   const applicability = record.applicability?.scope
@@ -523,10 +529,7 @@ function philosophyCard(doc, record) {
 
 function renderPhilosophies(doc, catalog, recordContexts) {
   const section = makeElement(doc, 'section', { className: 'bb-fov-section', attrs: { 'aria-label': '哲学' } });
-  section.append(workspaceSectionTitle(doc, {
-    title: '哲学',
-    lead: '判断の前提となる考え方です。登録された本文と、判断への適用範囲を分けて表示します。',
-  }));
+
   if (catalog.philosophies.length === 0) {
     section.append(workspaceNotice(doc, { label: '哲学', text: 'この対象範囲には登録された哲学がありません。' }));
     return section;
@@ -534,8 +537,9 @@ function renderPhilosophies(doc, catalog, recordContexts) {
   const grid = makeElement(doc, 'div', { className: 'bb-fov-philosophy-grid' });
   for (const record of catalog.philosophies) {
     const card = philosophyCard(doc, record);
-    appendRecordSource(doc, card, record, recordContexts);
-    grid.append(card);
+    const refs = makeElement(doc, 'details', { className: 'bb-fov-original' });
+    refs.append(makeElement(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['出典', recordContexts?.get(record)?.label ?? '未記録'], ['状態', record.payload.status], ['版', record.revision], ['記録ID', record.id], ['digest', record.digest]]));
+    card.append(refs); grid.append(card);
   }
   section.append(grid);
   return section;
@@ -592,10 +596,7 @@ function modelCard(doc, record, variableMap) {
 
 function renderModels(doc, catalog, viewState, callbacks, recordContexts) {
   const section = makeElement(doc, 'section', { className: 'bb-fov-section', attrs: { 'aria-label': '世界モデル' } });
-  section.append(workspaceSectionTitle(doc, {
-    title: '世界モデル',
-    lead: '変数の関係として登録された見方です。仮説・未検証・許可用途を、それぞれの状態として表示します。',
-  }));
+
   const searchWrap = makeElement(doc, 'div', { className: 'bb-fov-model-search' });
   const label = makeElement(doc, 'label', { text: 'モデルを検索', attrs: { for: 'bb-fov-model-search' } });
   const input = makeElement(doc, 'input', {
@@ -659,10 +660,25 @@ function renderModels(doc, catalog, viewState, callbacks, recordContexts) {
   return section;
 }
 
-function renderLoading(doc, state, callbacks) {
-  const notice = workspaceNotice(doc, { label: '読み込み', text: '目的・哲学・世界モデルを読み込んでいます。' });
-  notice.append(workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: callbacks.load }));
-  return notice;
+/** Keep one loading card across redraws so completion can leave visibly. */
+function renderLoadingState(doc, root, viewState, loading, onLoading) {
+  if (onLoading) { onLoading(loading); return; }
+  if (loading) {
+    viewState.cancelLoadingDismiss?.();
+    viewState.cancelLoadingDismiss = null;
+    viewState.loadingCard ??= workspaceLoadingCard(doc);
+  }
+  const card = viewState.loadingCard;
+  if (!card) return;
+  const stack = viewState.loadingStack ??= makeElement(doc, 'aside', { className: 'bb-ws-error-stack', attrs: { 'aria-label': '読み込み状況' } });
+  stack.append(card); root.append(stack);
+  if (!loading && !viewState.cancelLoadingDismiss) {
+    const cancel = workspaceDismissNotification(card, () => {
+      if (viewState.loadingCard !== card) return;
+      viewState.loadingCard = null; viewState.cancelLoadingDismiss = null; viewState.loadingStack = null; stack.remove();
+    });
+    if (viewState.loadingCard === card) viewState.cancelLoadingDismiss = cancel;
+  }
 }
 
 function renderFailure(doc, state, callbacks) {
@@ -682,6 +698,8 @@ export function renderFoundationOverview(root, state, {
   showHeader = true,
   recordContexts,
   partial = false,
+  onNotice,
+  onLoading,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
@@ -698,29 +716,27 @@ export function renderFoundationOverview(root, state, {
       source: `正本: ${scopeId}`,
     }));
   }
-  if (!recordContexts) surface.append(workspaceNotice(doc, {
-    label: '対象範囲',
-    text: scopeId,
-  }));
+  const notify = notice => {
+    if (onNotice) onNotice(notice);
+    else surface.append(workspaceErrorCard(doc, notice));
+  };
   if (state.status === 'loading') {
-    surface.append(renderLoading(doc, state, callbacks));
-    root.append(surface);
-    return surface;
+    root.append(surface); renderLoadingState(doc, root, viewState, true, onLoading); return surface;
   }
   if (state.status !== 'ready') {
-    surface.append(renderFailure(doc, state, callbacks));
-    root.append(surface);
-    return surface;
+    notify({ title: '取得失敗', message: `${state.error?.message ?? '目的・哲学・世界モデルを確認できません。'} 登録なし・0件として表示していません。`, onRetry: callbacks.load });
+    root.append(surface); renderLoadingState(doc, root, viewState, false, onLoading); return surface;
   }
   const catalog = state.catalog;
-  if (partial) surface.append(workspaceNotice(doc, { label: '取得済みの範囲', text: '以下の件数・登録なし・検索結果は、取得できた記録だけを対象にしています。全体は未確認です。' }));
-  surface.append(recordContexts
-    ? makeElement(doc, 'p', { className: 'bb-fov-recorded-notice', text: '記録上の現状は保存時点の記述です。登録状態と検証状態を分けて読みます。' })
-    : workspaceNotice(doc, { label: '読み方', text: '登録は達成・採用・検証済みを意味しません。記録上の現状は保存時点の記述です。' }));
   surface.append(renderObjectives(doc, catalog, viewState, callbacks, recordContexts));
-  surface.append(renderPhilosophies(doc, catalog, recordContexts));
-  surface.append(renderModels(doc, catalog, viewState, callbacks, recordContexts));
+  const fold = (title, help, content, initialOpen) => {
+    const key = title === '哲学' ? 'philosophyOpen' : 'modelsOpen';
+    return workspaceDisclosure(doc, { title, help, content, open: viewState[key] ?? initialOpen, onToggle: open => { viewState[key] = open; } });
+  };
+  surface.append(fold('哲学', '判断の前提となる考え方です。登録された本文と、判断への適用範囲を分けて表示します。', renderPhilosophies(doc, catalog, recordContexts), true));
+  surface.append(fold('世界モデル', '何をすると結果が変わるか、という仮説。未検証・許可用途を分けて確認します。', renderModels(doc, catalog, viewState, callbacks, recordContexts), false));
   root.append(surface);
+  renderLoadingState(doc, root, viewState, false, onLoading);
   return surface;
 }
 
@@ -731,7 +747,7 @@ function appendRecordSource(doc, card, record, contexts) {
 
 /** Compose independently validated catalogs by topic, preserving each reference's source context. */
 export function renderFoundationCollectionOverview(root, sources, {
-  document: explicitDocument, viewState = { query: '', page: 0 }, callbacks = {}, scopeLabel = '全体',
+  document: explicitDocument, viewState = { query: '', page: 0 }, callbacks = {}, scopeLabel = '全体', onNotice, onLoading,
 } = {}) {
   const doc = getDocument(explicitDocument);
   root.replaceChildren();
@@ -741,14 +757,12 @@ export function renderFoundationCollectionOverview(root, sources, {
   let ready = 0;
   for (const source of sources) {
     if (source.state.status !== 'ready') {
-      const notice = workspaceNotice(doc, {
-        label: source.label,
-        text: source.state.status === 'loading' ? '目的・哲学・世界モデルを読み込んでいます。'
-          : `取得失敗: ${source.state.error?.message ?? 'この対象は未確認です。0件ではありません。'}`,
-        tone: source.state.status === 'loading' ? 'info' : 'danger',
-      });
-      notice.append(workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: callbacks.load }));
-      root.append(notice);
+      if (source.state.status === 'loading') {
+        // A single shared loading card is rendered after the available catalogs.
+      } else {
+        const notice = { title: source.label, message: `取得失敗: ${source.state.error?.message ?? 'この対象は未確認です。0件ではありません。'}`, onRetry: callbacks.load };
+        if (onNotice) onNotice(notice); else root.append(workspaceErrorCard(doc, notice));
+      }
       continue;
     }
     const value = normalizeFoundationCatalog(source.state.catalog, source.scopeId);
@@ -780,10 +794,11 @@ export function renderFoundationCollectionOverview(root, sources, {
     const mount = makeElement(doc, 'div');
     renderFoundationOverview(mount, { status: 'ready', catalog }, {
       document: doc, scopeId: scopeLabel, showHeader: false, viewState, callbacks,
-      recordContexts: contexts, partial: ready !== sources.length,
+      recordContexts: contexts, partial: ready !== sources.length, onNotice, onLoading: () => {},
     });
     root.append(mount);
   }
+  renderLoadingState(doc, root, viewState, sources.some(source => source.state.status === 'loading'), onLoading);
   return root;
 }
 
@@ -813,6 +828,7 @@ export function createFoundationOverview({ root, port, scopeId, document: explic
     },
     async load() {
       if (destroyed) return state;
+      viewState.dialog?.close();
       const requestGeneration = ++generation;
       state.status = 'loading';
       state.catalog = null;
@@ -841,6 +857,9 @@ export function createFoundationOverview({ root, port, scopeId, document: explic
     destroy() {
       destroyed = true;
       generation += 1;
+      viewState.dialog?.close();
+      viewState.cancelLoadingDismiss?.();
+      viewState.loadingCard = null;
       root.replaceChildren();
     },
   };

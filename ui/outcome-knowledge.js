@@ -1168,7 +1168,7 @@ export function renderLifecycle(root, item, callbacks = {}) {
   if (canEdit && callbacks.onRevision) {
     const revisionDraft = callbacks.revisionDraft && typeof callbacks.revisionDraft === 'object' ? callbacks.revisionDraft : null;
     const draftValue = (key, fallback) => revisionDraft && Object.prototype.hasOwnProperty.call(revisionDraft, key) ? revisionDraft[key] : fallback;
-    const revisionDetails = makeElement('details', { className: 'knowledge-action-details' });
+    const revisionDetails = makeElement('details', { className: 'knowledge-action-details knowledge-revision-details' });
     const summary = makeElement('summary', { text: 'この判断を改訂' });
     const form = makeElement('form', { className: 'knowledge-lifecycle-form' });
     const title = makeElement('input', { className: 'knowledge-control', value: draftValue('title', item.title ?? ''), attrs: { name: 'title', maxlength: '240', required: 'required' } });

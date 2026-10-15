@@ -216,6 +216,11 @@
 .knowledge-outcome .knowledge-form-actions,
 .knowledge-outcome .knowledge-detail-actions,
 .knowledge-outcome .knowledge-lifecycle-actions { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; }
+.knowledge-outcome .knowledge-lifecycle-actions > .knowledge-revision-details {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.knowledge-outcome .knowledge-revision-details .knowledge-lifecycle-form { width: 100%; }
 .knowledge-outcome .knowledge-filter-actions {
   grid-column: 1 / -1;
   align-self: end;

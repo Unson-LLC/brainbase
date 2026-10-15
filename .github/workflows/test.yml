@@ -22,7 +22,8 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -34,15 +35,15 @@ jobs:
             suite: representative
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: ${{ matrix.node_version }}
-          cache: npm
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -50,13 +51,16 @@ jobs:
       - name: Build and typecheck package
         run: npm run build
 
+      # EVO-X2 shares one machine between several runner slots. Vitest's
+      # default worker count follows the machine's cores, so concurrent jobs
+      # oversubscribe it and unrelated tests hit the 5s timeout.
       - name: Run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
-        run: npm test
+        run: npm test -- --maxWorkers=4
 
       - name: Run representative integration suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
-        run: npm run test:integration
+        run: npm run test:integration -- --maxWorkers=4
 
       - name: Summarize failed or cancelled package validation
         if: ${{ always() && (failure() || cancelled()) }}
@@ -65,7 +69,7 @@ jobs:
             echo '## Package CI failure/cancellation summary'
             echo
             echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration` (Node 20).'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=4` (Node 20).'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"

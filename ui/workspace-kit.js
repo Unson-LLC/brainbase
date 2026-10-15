@@ -230,3 +230,195 @@ export function workspaceSectionTitle(doc, { title, lead } = {}) {
   if (lead) wrap.append(el(doc, 'p', { text: lead }));
   return wrap;
 }
+
+
+let workspaceSequence = 0;
+/** Shared explanatory help: hover/focus above the control, click for touch. */
+export function workspaceHelp(doc, { text, label } = {}) {
+  const wrap = el(doc, 'span', { className: 'bb-ws-help' });
+  const control = workspaceButton(doc, { text: 'i', attrs: { 'aria-label': `${label}の説明`, 'aria-expanded': 'false' } });
+  control.className = 'bb-ws-help-button';
+  const bubble = el(doc, 'span', { className: 'bb-ws-help-bubble', text, attrs: { id: `bb-ws-help-${++workspaceSequence}`, role: 'tooltip' } });
+  control.setAttribute('aria-describedby', bubble.id || bubble.getAttribute?.('id') || bubble.attributes?.id);
+  control.addEventListener('click', event => {
+    event.stopPropagation(); event.preventDefault();
+    const opened = wrap.classList.toggle('is-open');
+    wrap.classList.remove('is-dismissed');
+    control.setAttribute('aria-expanded', String(opened));
+  });
+  wrap.addEventListener('mouseleave', () => wrap.classList.remove('is-dismissed'));
+  control.addEventListener('blur', () => { wrap.classList.remove('is-open', 'is-dismissed'); control.setAttribute('aria-expanded', 'false'); });
+  control.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    wrap.classList.remove('is-open'); wrap.classList.add('is-dismissed');
+    control.setAttribute('aria-expanded', 'false'); event.stopPropagation();
+  });
+  wrap.append(control, bubble); return wrap;
+}
+
+const drawerClosings = new WeakMap();
+const notificationClosings = new WeakMap();
+const reducedMotion = node => node.ownerDocument?.defaultView?.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+
+/** Apply the same native-dialog presentation to host-owned and kit drawers. */
+export function workspaceApplyDrawer(dialog) {
+  dialog.classList.add('bb-ws-drawer');
+  return dialog;
+}
+
+/** Keep the modal/focus trap alive until the exit motion finishes. Returns cancellation cleanup. */
+export function workspaceCloseDrawer(dialog, finish) {
+  if (drawerClosings.has(dialog)) return drawerClosings.get(dialog);
+  if (!dialog.open || reducedMotion(dialog)) { finish(); return () => {}; }
+  let timer;
+  let active = true;
+  const cancel = () => {
+    if (!active) return;
+    active = false;
+    clearTimeout(timer);
+    dialog.removeEventListener('animationend', ended);
+    dialog.removeEventListener('close', cancel);
+    dialog.classList.remove('is-closing');
+    drawerClosings.delete(dialog);
+  };
+  const complete = () => { if (!active) return; cancel(); finish(); };
+  const ended = event => {
+    if (event.target === dialog && event.animationName === 'bb-ws-drawer-out') complete();
+  };
+  drawerClosings.set(dialog, cancel);
+  dialog.addEventListener('animationend', ended);
+  dialog.addEventListener('close', cancel);
+  dialog.classList.add('is-closing');
+  timer = setTimeout(complete, 360); // Animation cancellation / background-tab fallback.
+  return cancel;
+}
+
+/** Native modal, optionally a right drawer. close() animates; dispose() tears down immediately. */
+export function workspaceDialog(doc, { title, content, opener, presentation = 'center', onClose } = {}) {
+  const dialog = el(doc, 'dialog', { className: 'bb-ws-dialog' });
+  if (presentation === 'drawer') workspaceApplyDrawer(dialog);
+  const headingId = `bb-ws-dialog-${++workspaceSequence}`;
+  dialog.setAttribute('aria-labelledby', headingId);
+  const head = el(doc, 'header', { className: 'bb-ws-dialog-head' });
+  const nativeClose = dialog.close.bind(dialog);
+  let disposed = false;
+  const cleanup = () => {
+    if (disposed) return;
+    disposed = true;
+    drawerClosings.get(dialog)?.();
+    dialog.remove();
+    try { onClose?.(); } finally {
+      const target = typeof opener === 'function' ? opener() : opener;
+      if (target?.isConnected) target.focus();
+    }
+  };
+  dialog.close = value => {
+    if (disposed) return;
+    const finish = () => { nativeClose(value); cleanup(); };
+    if (presentation === 'drawer') workspaceCloseDrawer(dialog, finish);
+    else finish();
+  };
+  dialog.dispose = () => {
+    if (disposed) return;
+    drawerClosings.get(dialog)?.();
+    nativeClose(); cleanup();
+  };
+  const close = workspaceButton(doc, { text: '×', attrs: { 'aria-label': '閉じる' }, onClick: () => dialog.close() });
+  head.append(el(doc, 'h2', { text: title, attrs: { id: headingId } }), close);
+  const body = el(doc, 'div', { className: 'bb-ws-dialog-body' }); appendContent(body, doc, content);
+  dialog.append(head, body); doc.body.append(dialog);
+  dialog.addEventListener('cancel', event => { event.preventDefault(); dialog.close(); });
+  dialog.addEventListener('click', event => {
+    if (event.target !== dialog) return;
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
+  });
+  dialog.addEventListener('close', cleanup, { once: true });
+  try { dialog.showModal(); close.focus(); } catch (error) { cleanup(); throw error; }
+  return dialog;
+}
+
+/** Anchored advanced search. Hosts destroy it before replacing its controls. */
+export function workspaceFilterPopover(doc, { content, open = false, onToggle, trigger, panel: suppliedPanel, initialFocus } = {}) {
+  const root = el(doc, 'span', { className: 'bb-ws-filter-anchor' });
+  const panel = suppliedPanel || el(doc, 'div', { className: 'bb-ws-filter-popover', attrs: { id: `bb-ws-filter-${++workspaceSequence}`, role: 'region', 'aria-label': '詳細検索' } });
+  if (!panel.id && !panel.getAttribute?.('id')) panel.setAttribute('id', `bb-ws-filter-${++workspaceSequence}`);
+  panel.classList?.add('bb-ws-filter-popover');
+  const control = trigger || workspaceButton(doc, { text: '詳細検索', variant: 'quiet' });
+  control.setAttribute('aria-controls', panel.id || panel.getAttribute?.('id') || panel.attributes?.id);
+  appendContent(panel, doc, content); root.append(control, panel);
+  let destroyed = false;
+  const removeListeners = () => { doc.removeEventListener?.('pointerdown', outside); doc.removeEventListener?.('keydown', escape); };
+  const setOpen = (value, focus = false) => {
+    if (destroyed) return;
+    removeListeners(); panel.hidden = !value; control.setAttribute('aria-expanded', String(value));
+    onToggle?.(value);
+    if (value) {
+      doc.addEventListener?.('pointerdown', outside); doc.addEventListener?.('keydown', escape);
+      if (focus) (typeof initialFocus === 'function' ? initialFocus() : initialFocus || panel.querySelector?.('input:not(:disabled),select:not(:disabled),button:not(:disabled)'))?.focus();
+    }
+  };
+  const outside = event => { if (!root.contains?.(event.target)) setOpen(false); };
+  const escape = event => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault(); event.stopPropagation(); setOpen(false); control.focus();
+  };
+  const toggle = () => setOpen(panel.hidden, true);
+  control.addEventListener('click', toggle); setOpen(open);
+  return { root, control, panel, destroy() {
+    destroyed = true; removeListeners(); control.removeEventListener?.('click', toggle);
+    panel.hidden = true; control.setAttribute('aria-expanded', 'false');
+  } };
+}
+
+/** Compact notification with a fixed-center, purely visual spinner. */
+export function workspaceLoadingCard(doc, { title = 'ロード中' } = {}) {
+  const card = el(doc, 'section', { className: 'bb-ws-error-card bb-ws-loading-card', attrs: { role: 'status', 'aria-live': 'polite' } });
+  card.append(el(doc, 'span', { className: 'bb-ws-loading-spinner', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
+  return card;
+}
+
+/** Fade right then remove. Calling the returned cancel function restores a reusable card. */
+export function workspaceDismissNotification(card, onDismiss) {
+  const remove = () => {
+    if (typeof card.remove === 'function') card.remove();
+    else if (card.parentNode?.removeChild) card.parentNode.removeChild(card);
+    else if (card.parentNode?.replaceChildren) card.parentNode.replaceChildren(...Array.from(card.parentNode.children).filter(node => node !== card));
+  };
+  if (notificationClosings.has(card)) return notificationClosings.get(card);
+  if (!card.classList || reducedMotion(card)) { remove(); onDismiss?.(); return () => {}; }
+  let timer;
+  let active = true;
+  const cancel = () => {
+    if (!active) return;
+    active = false; clearTimeout(timer);
+    card.removeEventListener('animationend', ended);
+    card.classList.remove('is-dismissing'); notificationClosings.delete(card);
+  };
+  const complete = () => { if (!active) return; cancel(); remove(); onDismiss?.(); };
+  const ended = event => { if (event.target === card && event.animationName === 'bb-ws-notification-out') complete(); };
+  notificationClosings.set(card, cancel); card.addEventListener('animationend', ended);
+  card.classList.add('is-dismissing'); timer = setTimeout(complete, 500);
+  return cancel;
+}
+
+/** Persistent, initially closed notification. The caller owns its lifecycle. */
+export function workspaceErrorCard(doc, { title, message, tone = 'danger', onRetry } = {}) {
+  const card = el(doc, 'section', { className: `bb-ws-error-card is-${tone}`, attrs: { role: 'listitem' } });
+  const details = el(doc, 'details');
+  const summary = el(doc, 'summary', { attrs: { 'aria-label': `${title}の通知` } });
+  summary.append(el(doc, 'span', { className: 'bb-ws-error-symbol', text: '!', attrs: { 'aria-hidden': 'true' } }), el(doc, 'span', { text: title }));
+  details.append(summary, el(doc, 'p', { text: message })); card.append(details);
+  if (onRetry) card.append(workspaceButton(doc, { text: '再試行', attrs: { 'aria-label': `${title}を再試行` }, onClick: onRetry }));
+  return card;
+}
+
+export function workspaceDisclosure(doc, { title, help, content, open = false, onToggle } = {}) {
+  const details = el(doc, 'details', { className: 'bb-ws-disclosure' }); details.open = open;
+  const summary = el(doc, 'summary');
+  summary.append(el(doc, 'h2', { text: title }));
+  if (help) summary.append(workspaceHelp(doc, { label: title, text: help }));
+  details.append(summary, content);
+  if (onToggle) details.addEventListener('toggle', () => onToggle(details.open));
+  return details;
+}

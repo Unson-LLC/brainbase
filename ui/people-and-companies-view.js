@@ -117,6 +117,21 @@ function ownKey(table, key) {
   return typeof key === 'string' && Object.hasOwn(table, key) ? table[key] : undefined;
 }
 
+/** First visible character of a name for its mark, or a placeholder. */
+function nameInitial(name) {
+  const text = String(name ?? '').trim();
+  const latin = text.split(/\s+/u).filter(Boolean);
+  if (/^[A-Za-z]/u.test(text) && latin.length > 1) return `${latin[0][0]}${latin[1][0]}`.toUpperCase();
+  return ([...text][0] ?? '?').toUpperCase();
+}
+
+/** A stable tone (0-5) per id so a person or company keeps its color. */
+function markTone(id) {
+  let hash = 0;
+  for (const character of String(id ?? '')) hash = (hash * 31 + character.codePointAt(0)) >>> 0;
+  return hash % 6;
+}
+
 /** The read is `ok` only when every person and company is well formed. */
 export function normalizePeopleAndCompanies(result) {
   if (result?.state !== 'ok') return result ?? INVALID;
@@ -269,8 +284,8 @@ export function createPeopleAndCompaniesView({
       selected: person.id === state.detail?.id,
       onSelect: (id) => void controller.openEntity(id),
       cells: [
-        { primary: person.isOwner ? `${person.name}（あなた）` : person.name, secondary: person.id },
-        person.companyIds.length > 0 ? person.companyIds.map(nameOf).join('、') : companyCell(person, ownId),
+        { primary: person.isOwner ? `${person.name}（あなた）` : person.name, leading: personMark(person) },
+        person.companyIds.length > 0 ? companyChips(person.companyIds) : companyCell(person, ownId),
         person.accountableProjectCount > 0
           ? `${person.projectCount}件（うち責任 ${person.accountableProjectCount}件）`
           : `${person.projectCount}件`,
@@ -278,6 +293,67 @@ export function createPeopleAndCompaniesView({
       ],
       label: `${person.name}、${personStanding(person, ownId)}`,
     }));
+  }
+
+  function personMark(person) {
+    return makeElement(doc, 'span', {
+      className: `bb-pc-mark bb-pc-person-mark bb-pc-tone-${markTone(person.id)}`,
+      text: nameInitial(person.name),
+      attrs: { 'aria-hidden': 'true' },
+    });
+  }
+
+  function companyMark(id, name) {
+    return makeElement(doc, 'span', {
+      className: `bb-pc-mark bb-pc-company-mark bb-pc-tone-${markTone(id)}`,
+      text: nameInitial(name),
+      attrs: { 'aria-hidden': 'true' },
+    });
+  }
+
+  function companyChips(ids) {
+    const list = makeElement(doc, 'span', { className: 'bb-pc-company-chips' });
+    for (const id of ids) {
+      const chip = makeElement(doc, 'span', { className: 'bb-pc-company-chip' });
+      chip.append(companyMark(id, nameOf(id)), makeElement(doc, 'span', { text: nameOf(id) }));
+      list.append(chip);
+    }
+    return list;
+  }
+
+  function kindBadges(company) {
+    const kinds = company.kinds ?? [];
+    if (kinds.length === 0) return '';
+    const list = makeElement(doc, 'span', { className: 'bb-pc-kinds' });
+    for (const item of kinds) {
+      list.append(makeElement(doc, 'span', {
+        className: `bb-pc-kind bb-pc-kind-${Object.hasOwn(COMPANY_KIND_LABELS, item.kind) ? item.kind : 'other'}`,
+        text: ownKey(COMPANY_KIND_LABELS, item.kind) ?? item.kind,
+      }));
+    }
+    return list;
+  }
+
+  function groupTitle(tag, text, count, { className = 'bb-pc-group-title', leading } = {}) {
+    const title = makeElement(doc, tag, { className });
+    if (leading) title.append(leading);
+    title.append(makeElement(doc, 'span', { text }), makeElement(doc, 'span', { className: 'bb-pc-count', text: String(count) }));
+    return title;
+  }
+
+  function jumpLinks(payload) {
+    const people = payload.people.filter((person) => person.active).length;
+    const companies = payload.companies.filter((company) => company.active).length;
+    const nav = makeElement(doc, 'nav', { className: 'bb-pc-jump', attrs: { 'aria-label': '人と会社の段' } });
+    for (const [label, count, target] of [['人', people, 'bb-pc-people'], ['会社', companies, 'bb-pc-companies']]) {
+      const link = button(doc, '', () => {
+        const node = typeof doc.getElementById === 'function' ? doc.getElementById(target) : null;
+        node?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+      }, { className: 'bb-pc-jump-link', attrs: { 'aria-label': `${label} ${count}件の段へ移る` } });
+      link.append(makeElement(doc, 'span', { text: label }), makeElement(doc, 'span', { className: 'bb-pc-count', text: String(count) }));
+      nav.append(link);
+    }
+    return nav;
   }
 
   function orgNoteText(note) {
@@ -324,7 +400,7 @@ export function createPeopleAndCompaniesView({
   }
 
   function peopleSection(payload) {
-    const section = makeElement(doc, 'section', { className: 'bb-pc-people', attrs: { 'aria-label': '人' } });
+    const section = makeElement(doc, 'section', { className: 'bb-pc-people', attrs: { 'aria-label': '人', id: 'bb-pc-people' } });
     section.append(workspaceSectionTitle(doc, { title: '人', lead: '社内か社外かは、所属（会社への所属の関係）と自社から決めています。印は別に持っていません。' }));
     if (can.createPerson) section.append(sectionActions('人を加える', () => openCreateEntity('person')));
     const groups = groupPeople(payload);
@@ -337,22 +413,22 @@ export function createPeopleAndCompaniesView({
       }));
     }
     if (groups.ownCompanyId) {
-      section.append(makeElement(doc, 'h3', { className: 'bb-pc-group-title', text: `社内（${nameOf(groups.ownCompanyId)}）` }));
+      section.append(groupTitle('h3', `社内（${nameOf(groups.ownCompanyId)}）`, groups.internal.length));
       section.append(peopleLedger('社内の人', groups.internal, '自社に所属する人の記録はありません。'));
-      section.append(makeElement(doc, 'h3', { className: 'bb-pc-group-title', text: '社外' }));
+      section.append(groupTitle('h3', '社外', groups.external.reduce((sum, group) => sum + group.people.length, 0)));
       if (groups.external.length === 0) section.append(makeElement(doc, 'p', { className: 'bb-pc-empty', text: 'ほかの会社に所属する人の記録はありません。' }));
       for (const group of groups.external) {
-        section.append(makeElement(doc, 'h4', { className: 'bb-pc-company-title', text: group.company.name }));
+        section.append(groupTitle('h4', group.company.name, group.people.length, { className: 'bb-pc-company-title', leading: companyMark(group.company.id, group.company.name) }));
         section.append(peopleLedger(`${group.company.name}の人`, group.people));
       }
     }
-    section.append(makeElement(doc, 'h3', { className: 'bb-pc-group-title', text: '所属未確認' }));
+    section.append(groupTitle('h3', '所属未確認', groups.unknown.length));
     section.append(peopleLedger('所属未確認の人', groups.unknown, '所属が分からない人はいません。'));
     return section;
   }
 
   function companySection(payload) {
-    const section = makeElement(doc, 'section', { className: 'bb-pc-companies', attrs: { 'aria-label': '会社' } });
+    const section = makeElement(doc, 'section', { className: 'bb-pc-companies', attrs: { 'aria-label': '会社', id: 'bb-pc-companies' } });
     section.append(workspaceSectionTitle(doc, {
       title: '会社',
       lead: '自社を先頭に、顧客・協業先など関わる会社を並べています。種類は、会社の属性、プロジェクトとの関係の役割、提案中の案件の記録から出しています。記録が無い会社には種類を出しません。',
@@ -369,8 +445,8 @@ export function createPeopleAndCompaniesView({
         selected: company.id === state.detail?.id,
         onSelect: (id) => void controller.openEntity(id),
         cells: [
-          { primary: company.id === payload.ownCompany.id ? `${company.name}（自社）` : company.name, secondary: company.id },
-          companyKindLabel(company),
+          { primary: company.id === payload.ownCompany.id ? `${company.name}（自社）` : company.name, leading: companyMark(company.id, company.name) },
+          kindBadges(company),
           `${company.memberIds.length}人`,
           company.relatedProjects.length > 0
             ? `${company.projectIds.length}件（関わる ${company.relatedProjects.length}件）`
@@ -408,7 +484,7 @@ export function createPeopleAndCompaniesView({
       return [...children, graphHostEmptyNotice(doc, emptyNotice)
         ?? workspaceNotice(doc, { label: '未登録', tone: 'info', role: 'status', text: 'Graphに人と会社の記録はまだありません。' })];
     }
-    return [...children, peopleSection(payload), companySection(payload), endedNote(payload)];
+    return [...children, jumpLinks(payload), peopleSection(payload), companySection(payload), endedNote(payload)];
   }
 
   // -------------------------------------------------------------------------

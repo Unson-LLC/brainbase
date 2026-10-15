@@ -38,7 +38,10 @@ is rejected so every supported registry mutation shares one package queue.
 GitHub Actions puts validation in a read-only job without OIDC or npm
 credentials. The immutable tarball and proof cross into a separate publication
 job through a one-day Actions artifact; only that job has `id-token: write` and
-`NPM_TOKEN`. The manual recovery path resolves an immutable SHA and rejects
+`NPM_TOKEN`. `id-token: write` exists only for the pre-publish OIDC guard
+(`assertSerializedPublicationContext()`); npm provenance is not used because npm
+rejects it on self-hosted runners, so the publish step sets
+`NPM_CONFIG_PROVENANCE=false` and passes no `--provenance`. The manual recovery path resolves an immutable SHA and rejects
 it unless it is reachable from `origin/develop`. It also fixes the package
 identity to `@unson/brainbase-mcp`. Only after those checks and validation does
 the workflow inject `NPM_TOKEN` into the publication step.

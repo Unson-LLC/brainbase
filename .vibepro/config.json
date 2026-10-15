@@ -819,6 +819,66 @@
         "started_at": "2026-10-14",
         "due_at": null,
         "contract_type": "local_single_owner_non_hosted"
+      },
+      {
+        "story_id": "story-judgment-history-speed-ui",
+        "title": "判断の履歴の読み込みを速くし、見た目を作り直す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-10",
+        "started_at": "2026-10-14",
+        "due_at": null,
+        "contract_type": null
+      },
+      {
+        "story_id": "story-public-ci-self-hosted-runners",
+        "title": "公開CIをself-hosted runnerだけで実行する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": "dev",
+        "period": "2026-10",
+        "started_at": "2026-10-15",
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-npm-publish-without-provenance",
+        "title": "npm公開をprovenanceなしでself-hosted runnerから行う",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": "dev",
+        "period": "2026-10",
+        "started_at": "2026-10-15",
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-npm-publish-oidc-guard-restore",
+        "title": "npm公開ジョブにid-token: writeを戻しprovenanceなしでOIDCガードを通す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": "dev",
+        "period": "2026-10",
+        "started_at": "2026-10-15",
+        "due_at": null,
+        "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-npm-release-readback-convergence",
+        "title": "npm公開後のreadbackがregistryのcacheと遅延で収束しない問題を直す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": "dev",
+        "period": "2026-10",
+        "started_at": "2026-10-15",
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
     "current_story_id": "story-ci-impact-based-verification"

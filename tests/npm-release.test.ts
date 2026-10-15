@@ -11,6 +11,9 @@ import {
   classifyOidcEndpoint,
   commandFailureMessage,
   compareSemver,
+  NPM_REGISTRY_CONVERGENCE_ATTEMPTS,
+  NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS,
+  npmRegistryConvergenceDelays,
   createReleaseArtifact,
   npmDistTag,
   releaseStagingTag,
@@ -315,6 +318,73 @@ describe('npm release CLI', () => {
     expect(reconcileTag).not.toHaveBeenCalled();
   });
 
+  it('queries npm view with --prefer-online so readback revalidates the registry', () => {
+    const spawn = vi.fn().mockReturnValue({ status: 0, stdout: '{"version":"0.1.0"}', stderr: '' });
+    readNpmMetadata('@unson/brainbase-mcp', '0.1.0', '.', spawn);
+    const args = spawn.mock.calls[0][1] as string[];
+    expect(args).toContain('--prefer-online');
+    expect(args).not.toContain('--cache');
+  });
+
+  it('bypasses the local npm cache with a throwaway cache directory when asked', async () => {
+    const { existsSync } = await import('node:fs');
+    let cacheDirectory = '';
+    const spawn = vi.fn((_command: string, args: string[]) => {
+      cacheDirectory = args[args.indexOf('--cache') + 1];
+      expect(existsSync(cacheDirectory)).toBe(true);
+      return { status: 1, stderr: 'npm error code E404\nNo match found for version 0.1.0', stdout: '' };
+    });
+    expect(readNpmMetadata('@unson/brainbase-mcp', '0.1.0', '.', spawn, { bypassCache: true })).toBeNull();
+    expect(spawn.mock.calls[0][1]).toEqual(expect.arrayContaining(['--prefer-online', '--cache']));
+    expect(cacheDirectory).toContain('brainbase-npm-readback-cache-');
+    expect(existsSync(cacheDirectory)).toBe(false);
+  });
+
+  it('uses a convergence window longer than the registry packument max-age of 300 s', () => {
+    const delays = npmRegistryConvergenceDelays();
+    expect(delays).toHaveLength(NPM_REGISTRY_CONVERGENCE_ATTEMPTS - 1);
+    expect(Math.max(...delays)).toBe(NPM_REGISTRY_CONVERGENCE_MAX_DELAY_MS);
+    const total = delays.reduce((sum, value) => sum + value, 0);
+    expect(total).toBeGreaterThan(300_000);
+    expect(total).toBeLessThanOrEqual(10 * 60_000);
+  });
+
+  it('retries past a cached pre-publish 404 by bypassing the cache after the first readback', async () => {
+    const { root, sha } = await releaseRoot();
+    const proof = await releaseProof(sha);
+    const metadata = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ version: '0.1.0', gitHead: sha, 'dist.integrity': proof.tarballIntegrity });
+    await reconcileNpmRelease({
+      root,
+      packageName: '@unson/brainbase-mcp',
+      version: '0.1.0',
+      expectedSha: sha,
+      trustedRef: 'trusted/develop',
+      metadata,
+      execute: vi.fn(() => ''),
+      delay: async () => undefined,
+      validationProof: proof,
+      reconcileTag: vi.fn().mockResolvedValue({ tag: 'latest', version: '0.1.0' }),
+      cleanupStagingTag: vi.fn().mockResolvedValue(undefined)
+    });
+    expect(metadata).toHaveBeenCalledTimes(4);
+    expect(metadata.mock.calls[0][4]).toBeUndefined();
+    expect(metadata.mock.calls[1][4]).toEqual({ bypassCache: false });
+    expect(metadata.mock.calls[2][4]).toEqual({ bypassCache: true });
+    expect(metadata.mock.calls[3][4]).toEqual({ bypassCache: true });
+  });
+
+  it('reads versions and dist-tags with --prefer-online when reconciling the dist-tag', async () => {
+    const execute = vi.fn((_command: string, args: string[]) => args[1] === '@unson/brainbase-mcp' && args.includes('versions') ? '["0.1.0"]' : '{"latest":"0.1.0"}');
+    await reconcileDistTag('@unson/brainbase-mcp', '0.1.0', '.', execute);
+    const views = execute.mock.calls.filter(([, args]) => args[0] === 'view');
+    expect(views.length).toBeGreaterThan(0);
+    for (const [, args] of views) expect(args).toContain('--prefer-online');
+  });
+
   it('treats only npm 404 as unpublished', () => {
     const spawn = vi.fn()
       .mockReturnValueOnce({ status: 1, stderr: 'npm error code E404\n404 Not Found', stdout: '' })
@@ -500,7 +570,7 @@ describe('npm release CLI', () => {
       cleanupStagingTag
     })).rejects.toThrow(/registry integrity does not match/u);
 
-    expect(metadata).toHaveBeenCalledTimes(9);
+    expect(metadata).toHaveBeenCalledTimes(1 + NPM_REGISTRY_CONVERGENCE_ATTEMPTS);
     expect(reconcileTag).not.toHaveBeenCalled();
     expect(cleanupStagingTag).not.toHaveBeenCalled();
   });

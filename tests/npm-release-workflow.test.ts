@@ -19,19 +19,27 @@ describe('npm publish workflow', () => {
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
     expect(validationJob).toMatch(/contents: read/u);
     expect(validationJob).toMatch(/npm-release\.mjs validate/u);
-    expect(validationJob).toMatch(/actions\/upload-artifact@v4/u);
+    expect(validationJob).toMatch(/actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4/u);
     expect(validationJob).not.toMatch(/id-token: write/u);
     expect(validationJob).not.toMatch(/NODE_AUTH_TOKEN/u);
     expect(publishJob).toMatch(/needs: validate/u);
-    expect(publishJob).toMatch(/id-token: write/u);
-    expect(publishJob).toMatch(/actions\/download-artifact@v4/u);
+    expect(publishJob).toMatch(/permissions:\n      contents: write\n(?:      #.*\n)*      id-token: write\n/u);
+    expect(publishJob).not.toMatch(/NPM_CONFIG_PROVENANCE/u);
+    expect(publishJob).toMatch(/Install trusted-publishing npm CLI/u);
+    expect(publishJob).toMatch(/published with provenance/u);
+    expect(publishJob).toMatch(/actions\/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4/u);
     expect(publishJob).toMatch(/--tarball-file/u);
     expect(publishJob).toMatch(/node scripts\/npm-release\.mjs publish/u);
     expect(publishJob).toMatch(/BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'/u);
     expect(publishJob).not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
     expect(publishJob).toMatch(/npm install --global npm@11\.5\.1/u);
-    expect(publishJob).toMatch(/id-token: write/u);
+    expect(workflow.match(/id-token: write/gu)).toHaveLength(1);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
+    expect(validationJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
+    // npm rejects provenance from self-hosted runners, so only the publish job runs GitHub-hosted.
+    expect(publishJob).toMatch(/runs-on: ubuntu-latest/u);
+    expect(validationJob).not.toMatch(/ubuntu-latest/u);
+    expect(workflow).not.toMatch(/github\.event\.pull_request\.head\.(sha|ref)/u);
   });
 
   it('supports manual recovery and creates a release only after npm publish', async () => {

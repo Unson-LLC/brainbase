@@ -1,5 +1,8 @@
 name: Publish npm package
 
+# pull_request_target is closed-only, and the validate job requires a develop
+# merge. Both jobs check out develop, then the merge commit or a develop
+# ancestor. They do not check out the pull request head.
 on:
   pull_request_target:
     types:
@@ -22,7 +25,7 @@ jobs:
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
           (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'develop') }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
     permissions:
       contents: read
@@ -33,11 +36,12 @@ jobs:
       sha: ${{ steps.target.outputs.sha }}
     steps:
       - name: Check out trusted release tooling
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: develop
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
       - name: Resolve release target
@@ -84,7 +88,7 @@ jobs:
           --proof-file "$RUNNER_TEMP/npm-release-validation.json"
       - name: Transfer validated release artifact
         if: ${{ steps.target.outputs.release_required == 'true' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: npm-release-${{ steps.target.outputs.sha }}
           path: |
@@ -136,18 +140,23 @@ jobs:
   publish:
     needs: validate
     if: ${{ needs.validate.outputs.release_required == 'true' }}
+    # npm accepts provenance only from GitHub-hosted runners (E422 on self-hosted, run 38713407935).
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
+      # Required by assertSerializedPublicationContext() in scripts/npm-release.mjs,
+      # which verifies the GitHub Actions OIDC token before publishing, and by
+      # npm provenance.
       id-token: write
     steps:
       - name: Check out trusted release tooling
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: develop
           fetch-depth: 0
-      - uses: actions/setup-node@v7
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
@@ -158,7 +167,7 @@ jobs:
           RELEASE_SHA: ${{ needs.validate.outputs.sha }}
         run: git checkout --detach "$RELEASE_SHA"
       - name: Restore validated release artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: npm-release-${{ needs.validate.outputs.sha }}
           path: ${{ runner.temp }}/npm-release
@@ -224,7 +233,7 @@ jobs:
           {
             echo '## npm publication failure/cancellation summary'
             echo
-            echo '- Protection: only the validated immutable artifact is published with provenance, then npm and GitHub Release state are read back.'
+            echo '- Protection: only the validated immutable artifact is published with provenance from a GitHub-hosted runner, then npm and GitHub Release state are read back.'
             echo "- Target: version \`$release_version\`, SHA \`$release_sha\`."
             echo "- Proof: \`$proof_file\` ($proof_state); artifact: \`$artifact_file\` ($artifact_state)."
             echo "- Reproduce preflight: \`npm ci --ignore-scripts && node scripts/npm-release.mjs validate --version $release_version --sha $release_sha --trusted-ref origin/develop --proof-file $proof_file\`."

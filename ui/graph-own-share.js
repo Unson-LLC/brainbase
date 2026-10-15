@@ -282,11 +282,15 @@ export function createOwnObjectivesView({
   basePath = '/api/graph/own',
   label = GRAPH_OWN_OBJECTIVES_LABEL,
   autoLoad = true,
+  compact = false,
+  onState,
+  onNotice,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? globalThis.document;
   const source = graphOwnShareSource({ basePath, label }, { fetcher });
   const state = { list: { state: 'loading' }, selectedId: null };
+  let destroyed = false, generation = 0;
 
   function detail(objective) {
     const wrap = makeElement(doc, 'div', { className: 'bb-graph-own-detail', attrs: { 'aria-label': '選んだ目的（引き継いだ自分の分）' } });
@@ -316,7 +320,17 @@ export function createOwnObjectivesView({
 
   function body() {
     const notice = ownShareStateNotice(doc, state.list, { onRetry: () => controller.load(), loadingText: '引き継いだ自分の目的を読み込んでいます。' });
-    if (notice) return [notice];
+    if (notice) {
+      if (compact && state.list.state !== 'loading' && state.list.state !== 'not_handed_over') {
+        onNotice?.({ title: label, message: `${state.list.reason ?? '引き継いだ自分の目的を取得できません。'} 0件ではありません。`, onRetry: () => controller.load() });
+        return [makeElement(doc, 'p', { className: 'bb-ws-inline-error', text: '取得できません' })];
+      }
+      if (compact && state.list.state === 'not_handed_over') {
+        const guide = makeElement(doc, 'details'); guide.append(makeElement(doc, 'summary', { text: '引き継ぎの案内' }), notice);
+        return [makeElement(doc, 'p', { text: 'まだ引き継いだ目的はありません。' }), guide];
+      }
+      return [notice];
+    }
     const { payload } = state.list;
     if (payload.objectives.length === 0) {
       return [makeElement(doc, 'p', { className: 'bb-graph-empty', text: payload.foundation === 'none' ? 'この束には、目的の定義がありません。' : 'この束には、目的がありません。' })];
@@ -346,18 +360,31 @@ export function createOwnObjectivesView({
   const controller = {
     get state() { return state; },
     render() {
+      if (destroyed) return controller;
       const handover = state.list.state === 'ok' ? state.list.payload.handover : null;
-      root.replaceChildren(ownShareSection(doc, { label: source.label, lead: OBJECTIVES_LEAD, handover, children: body(), className: 'bb-graph-own-objectives' }));
+      if (compact) {
+        const facts = makeElement(doc, 'p', { className: 'bb-graph-own-facts', text: '読み取りのみ' });
+        const refs = makeElement(doc, 'details');
+        refs.append(makeElement(doc, 'summary', { text: '出典' }), makeElement(doc, 'p', { text: ownShareHandoverText(handover) ?? (state.list.state === 'not_handed_over' ? 'まだ引き継いでいません。' : '出典は確認できません。') }));
+        root.replaceChildren(facts, ...body(), refs);
+      }
+      else root.replaceChildren(ownShareSection(doc, { label: source.label, lead: OBJECTIVES_LEAD, handover, children: body(), className: 'bb-graph-own-objectives' }));
+      onState?.(state.list);
       return controller;
     },
     async load() {
+      if (destroyed) return state.list;
+      const requestGeneration = ++generation;
       state.list = { state: 'loading' };
       controller.render();
-      state.list = normalizeOwnObjectives(await source.client.read('/objectives'));
+      const result = await source.client.read('/objectives');
+      if (destroyed || requestGeneration !== generation) return state.list;
+      state.list = normalizeOwnObjectives(result);
       if (state.list.state !== 'ok' || !state.list.payload.objectives.some((objective) => objective.id === state.selectedId)) state.selectedId = null;
       controller.render();
       return state.list;
     },
+    destroy() { destroyed = true; generation++; root.replaceChildren(); },
     select(id) {
       state.selectedId = textOrNull(id);
       return controller.render();

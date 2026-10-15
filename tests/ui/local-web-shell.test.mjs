@@ -166,6 +166,25 @@ describe('local Web shell', () => {
     expect(rail.hidden).toBe(true);
   });
 
+  it('does not reserve a rail column for native judgment-history drawers', () => {
+    const doc = new FakeDocument();
+    doc.body = new FakeElement('body');
+    const createElement = doc.createElement.bind(doc);
+    doc.createElement = tag => {
+      const element = createElement(tag);
+      if (tag === 'dialog') element.showModal = () => {};
+      return element;
+    };
+    const root = doc.createElement('div');
+    const shell = createLocalWebShell({ root, document: doc, fetcher: () => new Promise(() => {}), initialScreen: 'value-proofs' });
+    const shellElement = findAll(root, node => node.className === 'bb-shell')[0];
+    const rail = findAll(root, node => node.attributes?.['aria-label'] === '選択中の項目')[0];
+    expect(shellElement).toBeDefined();
+    expect(rail.hidden).toBe(true);
+    expect(findAll(root, node => node.attributes?.['data-rail'] === 'value-proofs')).toHaveLength(0);
+    shell.destroy();
+  });
+
   it('keeps the rail column hidden while a Graph screen waits behind the migration notice', async () => {
     const { fetcher } = hostFetcher(V1);
     const { root } = mount(fetcher, 'projects');
@@ -227,7 +246,7 @@ describe('local Web shell', () => {
     expect(source).toContain('/home/owner/.brainbase/personal-os');
     expect(source).toContain('Graphv2');
     expect(source).not.toContain('組織のGraph');
-    expect(collectText(screen(root, 'value-proofs'))).toContain('保存された判断に接続できません');
+    expect(collectText(screen(root, 'value-proofs'))).toContain('判断の記録に接続できません');
   });
 
   it('mounts the Objective editor and the World Model view for 目的と現状 on Graph v2', async () => {
@@ -438,7 +457,7 @@ describe('local Web shell', () => {
     const { root } = mount(fetcher, 'value-proofs');
     await flushMany(2);
     const today = screen(root, 'value-proofs');
-    expect(collectText(today)).toContain('保存された判断に接続できません');
+    expect(collectText(today)).toContain('判断の記録に接続できません');
     const retry = findAll(today, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')[0];
     expect(retry).toBeTruthy();
 
@@ -447,7 +466,7 @@ describe('local Web shell', () => {
     await flushMany(2);
     expect(collectText(screen(root, 'value-proofs'))).toContain('架空fixtureの対象を確認する');
     expect(findAll(screen(root, 'value-proofs'), (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
-    expect(collectText(screen(root, 'value-proofs'))).not.toContain('保存された判断に接続できません');
+    expect(collectText(screen(root, 'value-proofs'))).not.toContain('判断の記録に接続できません');
   });
 
   it('puts the selected judgment detail of 判断の履歴 and the selected objective of 目的と現状 in each screen\'s rail', async () => {

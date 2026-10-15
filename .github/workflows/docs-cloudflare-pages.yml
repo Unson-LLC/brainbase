@@ -54,23 +54,20 @@ permissions:
 
 jobs:
   validate-and-publish:
-    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
-    env:
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      BRAINBASE_SERVICE_JWT: ${{ secrets.BRAINBASE_SERVICE_JWT }}
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
-          cache: npm
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -91,6 +88,9 @@ jobs:
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_service_jwt == true }}
         env:
           EXPECTED_ACCOUNT_ID: ${{ inputs.expected_account_id }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BRAINBASE_SERVICE_JWT: ${{ secrets.BRAINBASE_SERVICE_JWT }}
         run: |
           set -euo pipefail
           test -n "$CLOUDFLARE_ACCOUNT_ID"
@@ -100,6 +100,10 @@ jobs:
 
       - name: Sync and verify Worker service token
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.sync_service_jwt == true }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BRAINBASE_SERVICE_JWT: ${{ secrets.BRAINBASE_SERVICE_JWT }}
         run: |
           set -euo pipefail
           printf '%s' "$BRAINBASE_SERVICE_JWT" | npx --yes wrangler@4.37.1 secret put BRAINBASE_SERVICE_JWT --name brainbase-tenant-runtime
@@ -121,6 +125,9 @@ jobs:
 
       - name: Require Cloudflare deployment credentials
         if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           test -n "$CLOUDFLARE_ACCOUNT_ID" || {
             echo "CLOUDFLARE_ACCOUNT_ID is not configured" >&2
@@ -133,10 +140,10 @@ jobs:
 
       - name: Deploy verified build to Cloudflare Pages
         if: ${{ steps.deployment.outputs.should_deploy == 'true' }}
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@9acf94ace14e7dc412b076f2c5c20b8ce93c79cd # v3
         with:
-          apiToken: ${{ env.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ env.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy docs/.vitepress/dist --project-name=brainbase --branch=develop --commit-dirty=true
 
       - name: Read back the public site
