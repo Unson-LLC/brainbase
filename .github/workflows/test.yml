@@ -52,13 +52,16 @@ jobs:
       - name: Build and typecheck package
         run: npm run build
 
+      # EVO-X2 shares one machine between several runner slots. Vitest's
+      # default worker count follows the machine's cores, so concurrent jobs
+      # oversubscribe it and unrelated tests hit the 5s timeout.
       - name: Run complete package suite on Node 22
         if: ${{ matrix.suite == 'complete' }}
-        run: npm test
+        run: npm test -- --maxWorkers=4
 
       - name: Run representative integration suite on Node 20
         if: ${{ matrix.suite == 'representative' }}
-        run: npm run test:integration
+        run: npm run test:integration -- --maxWorkers=4
 
       - name: Summarize failed or cancelled package validation
         if: ${{ always() && (failure() || cancelled()) }}
@@ -67,7 +70,7 @@ jobs:
             echo '## Package CI failure/cancellation summary'
             echo
             echo '- Protection: Node 22 complete package validation and Node 20 representative integration validation.'
-            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration` (Node 20).'
+            echo '- Reproduce: `npm ci --ignore-scripts && npm run build && npm test -- --maxWorkers=4` (Node 22), or `npm ci --ignore-scripts && npm run build && npm run test:integration -- --maxWorkers=4` (Node 20).'
             echo '- Expected: package changes pass the build and required suite; docs-only changes use the docs workflow.'
             echo '- Unknown: inspect the failed step and runner log; this workflow has no release or deployment side effect.'
           } >> "$GITHUB_STEP_SUMMARY"
