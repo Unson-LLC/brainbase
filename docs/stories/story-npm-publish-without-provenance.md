@@ -19,6 +19,6 @@
 
 ## Acceptance Criteria
 
-- AC-1: `npm-publish.yml` に `--provenance` と `id-token: write` がない。
+- AC-1: `npm-publish.yml` に `--provenance` と `id-token: write` がない。（`id-token: write` の部分は story-npm-publish-oidc-guard-restore で置き換え済み。OIDC ガードのため publish ジョブにだけ戻す。provenance なしは維持）
 - AC-2: validate と publish の両ジョブが `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` で動き、`ubuntu-latest` がない。
 - AC-3: `tests/npm-release-workflow.test.ts` と `tests/github-actions-runner-policy.test.ts` が通る。

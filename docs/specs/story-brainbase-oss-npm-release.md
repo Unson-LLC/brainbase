@@ -38,7 +38,7 @@ npm run release:validate -- --version <semver> --sha <full-commit-sha> --trusted
 npm run release:publish -- --version <semver> --sha <full-commit-sha> --trusted-ref <default-branch-ref> --proof-file <validated-proof> [--provenance]
 ```
 
-現在の固定package name/version、cleanなgit HEAD、trusted ref到達性、validation proofとtarballの両digestを再照合する。publishはupstream GitHub Actionsのrepository/run/serialization contextに加え、runner endpointから取得したGitHub発行OIDC tokenのaudience、repository、run ID、workflow ref、ref claimが一致する場合だけ許可する。workflow refはreview済み`Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop`、ref claimは`refs/heads/develop`へ完全固定し、ローカル直接実行、環境変数だけの偽装、別branch/tag上の同名workflowを拒否する。未公開versionだけ同じtarballを`npm publish <tarball> --ignore-scripts --access public --tag release-<commit>`で非consumer staging tagへ公開する。registry `dist.integrity`がproofのSHA-512 integrityと一致した後だけconsumer tagを同系列の最大versionへ前進させ、staging tagを除去する。workflowはpackage単位で公開処理を直列化し、CLIも変更直前に現在tagを再取得して、既に新しい同系列versionへ進んだtagを巻き戻さない。`--provenance`はGitHub Actionsなどnpmが対応するtrusted CI環境でのみ渡す。
+現在の固定package name/version、cleanなgit HEAD、trusted ref到達性、validation proofとtarballの両digestを再照合する。publishはupstream GitHub Actionsのrepository/run/serialization contextに加え、runner endpointから取得したGitHub発行OIDC tokenのaudience、repository、run ID、workflow ref、ref claimが一致する場合だけ許可する。workflow refはreview済み`Unson-LLC/brainbase/.github/workflows/npm-publish.yml@refs/heads/develop`、ref claimは`refs/heads/develop`へ完全固定し、ローカル直接実行、環境変数だけの偽装、別branch/tag上の同名workflowを拒否する。未公開versionだけ同じtarballを`npm publish <tarball> --ignore-scripts --access public --tag release-<commit>`で非consumer staging tagへ公開する。registry `dist.integrity`がproofのSHA-512 integrityと一致した後だけconsumer tagを同系列の最大versionへ前進させ、staging tagを除去する。workflowはpackage単位で公開処理を直列化し、CLIも変更直前に現在tagを再取得して、既に新しい同系列versionへ進んだtagを巻き戻さない。CLIの`--provenance`はnpmが対応するGitHub-hosted環境向けのoptionで、self-hosted runnerで動く現行workflowでは渡さない。
 
 ### Verify
 
@@ -64,7 +64,7 @@ npm metadataの`version`と`gitHead`、期待するdist-tagをread-onlyで検証
 - PR merge: base SHAとmerge SHAのversion差分が増加した場合だけ公開する。
 - Manual dispatch: `origin/develop`の履歴内にある指定refのpackage versionだけを公開・照合する。初回公開と復旧に使う。
 - Validation: `contents: read`だけのjobで`npm ci`、build、test、`npm audit --omit=dev`を完了し、実tarballと両digest-bound proofを作る。OIDCとnpm credentialは許可しない。
-- Publication: Actions artifactから同じtarball/proofを復元する別jobだけへ`id-token: write`と`NODE_AUTH_TOKEN=${{ secrets.NPM_TOKEN }}`を許可し、CLIとnpm provenanceを使用する。
+- Publication: Actions artifactから同じtarball/proofを復元する別jobだけへ`id-token: write`と`NODE_AUTH_TOKEN=${{ secrets.NPM_TOKEN }}`を許可する。`id-token: write`はpublish前のOIDCガード（`assertSerializedPublicationContext()`）のためだけに残す。npm provenanceは使わない（self-hosted runnerではnpmが422で拒否するため）。publish stepは`NPM_CONFIG_PROVENANCE=false`を明示し、`--provenance`を渡さない（story-npm-publish-oidc-guard-restore）。
 - Completion: npm metadata照合後に`v<version>` GitHub Releaseを作成または既存tagのcommitを照合する。
 
 ## Release operations
