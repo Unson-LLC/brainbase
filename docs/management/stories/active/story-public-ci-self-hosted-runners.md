@@ -55,3 +55,4 @@ started_at: 2026-10-15
 - [x] AC-005: job の env は secret を参照しない。`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`BRAINBASE_SERVICE_JWT` は、それらを使う step の env だけに置く。wrangler-action の `with` は `secrets.*` を直接参照する。
 - [x] AC-006: 5 件の `actions/checkout` はすべて `persist-credentials: false` である。`public-message-promotion.yml` の `git push` は、そのコマンドだけで `GH_TOKEN` を渡す。
 - [x] AC-007: すべての `uses` は公式タグと一致する 40 文字の commit SHA に固定され、行末にタグコメントがある。
+- [ ] AC-008: `test.yml` のテストは Vitest の並列数を `--maxWorkers=4` に固定する。EVO-X2 の複数の runner が同時に動いても、変更と無関係なテストが時間切れで落ちない（2026-10-15、PR #786 で既定の並列数のまま3回続けて時間切れが起きたための追加）。
