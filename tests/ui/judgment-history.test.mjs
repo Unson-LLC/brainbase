@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   aggregateJudgmentHistory,
   createJudgmentHistoryUI,
@@ -12,6 +12,11 @@ class FakeElement {
     this.attributes = {};
     this.listeners = new Map();
     this.className = '';
+    this.classList = {
+      add: (...names) => { this.className = [...new Set([...this.className.split(' ').filter(Boolean), ...names])].join(' '); },
+      remove: (...names) => { this.className = this.className.split(' ').filter(name => !names.includes(name)).join(' '); },
+      contains: name => this.className.split(' ').includes(name),
+    };
     this.textContent = '';
     this.value = '';
     this.hidden = false;
@@ -23,17 +28,22 @@ class FakeElement {
   append(...children) {
     for (const child of children) {
       if (child === null || child === undefined) continue;
+      if (child.parentNode) child.parentNode.children = child.parentNode.children.filter(entry => entry !== child);
       child.parentNode = this;
       this.children.push(child);
     }
   }
 
-  replaceChildren(...children) { this.children = []; this.append(...children); }
+  remove() { if (this.parentNode) this.parentNode.children = this.parentNode.children.filter(child => child !== this); this.parentNode = null; }
+  replaceChildren(...children) { for (const child of this.children) child.parentNode = null; this.children = []; this.append(...children); }
   setAttribute(name, value) { this.attributes[name] = String(value); if (name === 'value') this.value = String(value); }
   getAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null; }
   removeAttribute(name) { delete this.attributes[name]; }
   addEventListener(name, callback) { this.listeners.set(name, callback); }
   removeEventListener(name, callback) { if (this.listeners.get(name) === callback) this.listeners.delete(name); }
+  get isConnected() { return Boolean(this.parentNode) || this === this.ownerDocument?.body; }
+  contains(target) { return this === target || this.children.some(child => child.contains?.(target)); }
+  querySelector() { return findAll(this, node => ['BUTTON', 'SELECT', 'INPUT'].includes(node.tagName))[0] ?? null; }
   focus() { if (this.ownerDocument) this.ownerDocument.activeElement = this; }
   setSelectionRange(start, end) { this.selectionStart = start; this.selectionEnd = end; }
 }
@@ -43,6 +53,23 @@ class FakeDocument {
   createElement(tagName) {
     const element = new FakeElement(tagName);
     element.ownerDocument = this;
+    return element;
+  }
+}
+
+class DialogDocument extends FakeDocument {
+  constructor() {
+    super(); this.body = this.createElement('body'); this.listeners = new Map();
+  }
+  addEventListener(name, callback) { this.listeners.set(name, callback); }
+  removeEventListener(name, callback) { if (this.listeners.get(name) === callback) this.listeners.delete(name); }
+  createElement(tag) {
+    const element = super.createElement(tag);
+    if (tag === 'dialog') {
+      element.open = false;
+      element.showModal = () => { element.open = true; };
+      element.close = () => { element.open = false; element.listeners.get('close')?.(); };
+    }
     return element;
   }
 }
@@ -411,7 +438,7 @@ describe('judgment history UI', () => {
     await view.load();
     const metrics = findAll(root, (node) => node.className === 'bb-ws-metric');
     expect(metrics).toHaveLength(0);
-    expect(collectText(root)).toContain('再読み込み');
+    expect(findAll(root, node => node.attributes['aria-label'] === '判断履歴を再読み込み')).toHaveLength(1);
     expect(collectText(root)).toContain('一部の記録だけを表示中');
     expect(collectText(root)).not.toContain('0回分相当');
     view.dispose();
@@ -619,11 +646,12 @@ describe('judgment history UI', () => {
     expect(calls[0]).toMatch(/^\/api\/judgment-history\/home\?period=past30days&limit=50$/u);
     expect((text.match(/一部の記録だけを表示中/gu) ?? [])).toHaveLength(1);
     expect(text).toContain('Mana：未接続');
-    expect(text).toContain('18:00に確認');
+    expect(text).toContain('18:00');
+    expect(text).not.toContain('18:00に確認');
     expect(text).toContain('既存の項目で進める');
-    const banner = findAll(root, (node) => node.className?.startsWith('bb-jh-banner'))[0];
+    const banner = findAll(root, (node) => node.className?.split(' ').includes('bb-jh-banner'))[0];
     expect(findAll(banner, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')).toHaveLength(0);
-    expect(findAll(root, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')).toHaveLength(1);
+    expect(findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes['aria-label'] === '判断履歴を再読み込み')).toHaveLength(1);
     const detail = findAll(root, (node) => node.tagName === 'DETAILS')[0];
     expect(collectText(detail)).toContain('組織のサーバー');
     expect(collectText(detail)).toContain('理由コード: unconnected');
@@ -985,7 +1013,7 @@ describe('judgment history UI', () => {
       now: OWNER_NOW,
     });
     await view.load();
-    const banner = findAll(root, (node) => node.className?.startsWith('bb-jh-banner'))[0];
+    const banner = findAll(root, (node) => node.className?.split(' ').includes('bb-jh-banner'))[0];
     const chips = collectText(findAll(banner, (node) => node.className === 'bb-jh-banner-sources')[0]);
     expect(chips).toContain('Codex：一部（理由を確かめられません）');
     expect(chips).not.toContain('totally_unknown_code');
@@ -1023,7 +1051,7 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
-  it('shows a skeleton, disables reload, and names each source while loading', async () => {
+  it('shows a skeleton with one compact loading notification and disables reload', async () => {
     const root = new FakeElement('div');
     const rail = new FakeElement('aside');
     let resolve;
@@ -1040,16 +1068,16 @@ describe('judgment history UI', () => {
     });
     const loading = view.load();
     await Promise.resolve();
-    expect(collectText(root)).toContain('読み込み中');
-    expect(collectText(root)).toContain('Codex：確認中…');
-    expect(collectText(root)).toContain('Claude Code：確認中…');
+    expect(collectText(root)).toContain('ロード中');
+    expect(findAll(root, node => node.className?.split(' ').includes('bb-ws-loading-card'))).toHaveLength(1);
     expect(findAll(root, (node) => node.className?.includes('bb-jh-skeleton-row'))).toHaveLength(5);
     expect(findAll(root, (node) => node.attributes.role === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '行った判断', '使った参照', '入口・状態']);
     const reload = findAll(root, (node) => node.attributes['data-action'] === 'reload')[0];
     expect(reload.attributes.disabled).toBe('');
-    const status = findAll(root, (node) => node.attributes.role === 'status' && node.textContent === '確認しています…')[0];
-    expect(status).toBeTruthy();
+    expect(collectText(root)).not.toContain('確認しています…');
     expect(collectText(root)).not.toMatch(/0件/u);
+    expect(collectText(root)).not.toContain('この期間の判断履歴はありません。');
+    expect(collectText(root)).not.toContain('この期間に取得できた判断履歴はありません。');
     expect(collectText(rail)).toContain('読み込み中の行も、届いたものから選べます。');
     resolve({ ok: true, status: 200, json: async () => normalHome([normalRecord()]) });
     await loading;
@@ -1087,10 +1115,9 @@ describe('judgment history UI', () => {
     const loading = view.load();
     await Promise.resolve();
     expect(collectText(root)).toContain('既存の項目で進める');
-    expect(collectText(root)).toContain('Codex：1件まで届きました');
-    expect(collectText(root)).toContain('Claude Code：確認中…');
+    expect(collectText(root)).toContain('ロード中');
     expect(collectText(root)).toContain('1件');
-    expect(collectText(root)).toContain('読み込み中・全件数は未確認');
+    expect(collectText(root)).not.toContain('全件数は未確認');
     const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
     expect(row).toBeTruthy();
     resolve({ ok: true, status: 200, json: async () => arrived });
@@ -1098,7 +1125,7 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
-  it('says the read is slow after the delay and stays still when motion is reduced', async () => {
+  it('keeps a compact loading notification after the slow delay with reduced motion', async () => {
     const root = new FakeElement('div');
     const previous = globalThis.matchMedia;
     globalThis.matchMedia = (query) => ({ matches: String(query).includes('prefers-reduced-motion'), media: query });
@@ -1115,7 +1142,7 @@ describe('judgment history UI', () => {
     });
     const loading = view.load();
     await Promise.resolve();
-    expect(collectText(root)).toContain('時間がかかっています。届いた分だけ先に見られます。');
+    expect(collectText(root)).toContain('ロード中');
     expect(findAll(root, (node) => node.className?.includes('is-reduced-motion'))).toHaveLength(1);
     resolve({ ok: false, status: 503 });
     await loading;
@@ -1139,5 +1166,127 @@ describe('judgment history UI', () => {
     expect(findAll(banner, (node) => node.tagName === 'BUTTON' && node.textContent === '再読み込み')).toHaveLength(1);
     expect(findAll(root, (node) => node.attributes.role === 'table')).toHaveLength(0);
     view.dispose();
+  });
+});
+
+
+describe('judgment history shared drawer and filter lifecycle', () => {
+  it('keeps one drawer during asynchronous canonical detail updates and restores the current row on animated close', async () => {
+    const doc = new DialogDocument();
+    const root = doc.createElement('main'); doc.body.append(root);
+    const rail = doc.createElement('aside'); doc.body.append(rail);
+    let finishDetail;
+    const detail = new Promise(resolve => { finishDetail = resolve; });
+    const record = normalRecord();
+    const view = createJudgmentHistoryUI({
+      root, rail, document: doc, autoLoad: false, now: OWNER_NOW,
+      fetcher: async path => path.includes('/records/') ? detail
+        : { ok: true, json: async () => normalHome([record]) },
+    });
+    await view.load();
+    const row = findAll(root, node => node.attributes.role === 'row' && node.tagName === 'BUTTON')[0];
+    row.listeners.get('click')();
+    const dialog = findAll(doc.body, node => node.tagName === 'DIALOG')[0];
+    expect(rail.hidden).toBe(true);
+    expect(dialog.classList.contains('bb-ws-drawer')).toBe(true);
+    expect(collectText(dialog)).toContain('当時の基準');
+    finishDetail({ ok: true, json: async () => ({ record: { ...record, judgment: { ...record.judgment, reason: '詳細から届いた理由' } } }) });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(findAll(doc.body, node => node.tagName === 'DIALOG')).toEqual([dialog]);
+    expect(collectText(dialog)).toContain('詳細から届いた理由');
+    dialog.listeners.get('cancel')({ preventDefault() {} });
+    expect(dialog.open).toBe(true);
+    expect(dialog.classList.contains('is-closing')).toBe(true);
+    dialog.listeners.get('animationend')({ target: dialog, animationName: 'bb-ws-drawer-out' });
+    expect(findAll(doc.body, node => node.tagName === 'DIALOG')).toHaveLength(0);
+    expect(doc.activeElement.attributes['data-key']).toBe(row.attributes['data-key']);
+    view.openDecision(record.record_id);
+    expect(findAll(doc.body, node => node.tagName === 'DIALOG')).toHaveLength(1);
+    view.dispose();
+    expect(findAll(doc.body, node => node.tagName === 'DIALOG')).toHaveLength(0);
+  });
+
+  it('does not announce an empty history while loading and shows verified absence only after completion', async () => {
+    const doc = new DialogDocument(); const root = doc.createElement('main'); doc.body.append(root);
+    let finish;
+    const pending = new Promise(resolve => { finish = resolve; });
+    const view = createJudgmentHistoryUI({ root, document: doc, autoLoad: false, now: OWNER_NOW,
+      skeletonDelayMs: 0, fetcher: async () => pending,
+    });
+    const loading = view.load();
+    expect(collectText(root)).not.toContain('この期間の判断履歴はありません。');
+    expect(collectText(root)).not.toContain('この期間に取得できた判断履歴はありません。');
+    finish({ ok: true, json: async () => normalHome([], { coverage: { complete: true, total: 0 } }) });
+    await loading;
+    expect(collectText(root)).toContain('この期間の判断履歴はありません。');
+    view.dispose();
+  });
+
+  it('anchors notifications in the host page without putting them inside the search content and removes them on dispose', async () => {
+    const doc = new DialogDocument(); const page = doc.createElement('section'); doc.body.append(page);
+    const root = doc.createElement('main'); page.append(root);
+    const view = createJudgmentHistoryUI({ root, notificationRoot: page, document: doc, autoLoad: false, now: OWNER_NOW,
+      fetcher: async () => ({ ok: true, json: async () => normalHome([normalRecord()], {
+        status: 'partial', coverage: { complete: false },
+      }) }),
+    });
+    await view.load();
+    const stack = findAll(page, node => node.classList?.contains('bb-jh-notifications'))[0];
+    expect(stack.parentNode).toBe(page);
+    expect(root.contains(stack)).toBe(false);
+    expect(findAll(stack, node => node.classList?.contains('bb-jh-banner'))).toHaveLength(1);
+    view.dispose(); expect(page.contains(stack)).toBe(false);
+  });
+
+  it('reuses a fading loading notification on retry and leaves one collapsed source warning', async () => {
+    vi.useFakeTimers();
+    const doc = new DialogDocument(); const root = doc.createElement('main'); doc.body.append(root);
+    const pending = [];
+    const view = createJudgmentHistoryUI({ root, document: doc, autoLoad: false, now: OWNER_NOW,
+      fetcher: () => new Promise(resolve => pending.push(resolve)),
+    });
+    try {
+      const first = view.load();
+      pending.shift()({ ok: true, json: async () => normalHome([normalRecord()]) }); await first;
+      expect(findAll(root, node => node.classList?.contains('bb-ws-loading-card'))).toHaveLength(1);
+      const retry = view.load(); view.render();
+      expect(findAll(root, node => node.classList?.contains('bb-ws-loading-card'))).toHaveLength(1);
+      pending.shift()({ ok: true, json: async () => normalHome([normalRecord()], {
+        status: 'partial', coverage: { complete: false, sources: [{ entrypoint: 'mana', status: 'unavailable', reason: 'mana_not_connected' }] },
+      }) }); await retry;
+      view.render();
+      vi.advanceTimersByTime(500);
+      expect(findAll(root, node => node.classList?.contains('bb-ws-loading-card'))).toHaveLength(0);
+      const cards = findAll(root, node => node.classList?.contains('bb-jh-banner'));
+      expect(cards).toHaveLength(1);
+      const details = findAll(cards[0], node => node.tagName === 'DETAILS')[0];
+      expect(details.open).not.toBe(true);
+      expect(collectText(details)).toContain('理由コード: mana_not_connected');
+    } finally { view.dispose(); vi.useRealTimers(); }
+  });
+
+  it('keeps advanced search open and the selected filter focused after reload, without stealing external search focus', async () => {
+    const doc = new DialogDocument(); const root = doc.createElement('main'); doc.body.append(root);
+    const requests = [];
+    const view = createJudgmentHistoryUI({
+      root, document: doc, autoLoad: false, now: OWNER_NOW,
+      fetcher: async path => { requests.push(path); return { ok: true, json: async () => normalHome([normalRecord()]) }; },
+    });
+    await view.load();
+    findAll(root, node => node.tagName === 'BUTTON' && node.textContent === '詳細検索')[0].listeners.get('click')();
+    let select = findAll(root, node => node.tagName === 'SELECT' && node.attributes['aria-label'] === 'プロジェクト')[0];
+    select.focus(); select.value = 'project-atlas'; select.listeners.get('change')({ target: select });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(requests.at(-1)).toContain('project=project-atlas');
+    expect(findAll(root, node => node.attributes.role === 'region')[0].hidden).toBe(false);
+    expect(doc.activeElement.attributes['aria-label']).toBe('プロジェクト');
+    const search = findAll(root, node => node.tagName === 'INPUT')[0]; search.focus();
+    search.value = '既存'; search.listeners.get('input')({ target: search });
+    expect(doc.activeElement).toBe(search);
+    expect(collectText(root)).not.toContain('全件数は未確認');
+    const toolbar = findAll(root, node => node.className === 'bb-jh-toolbar-status')[0];
+    expect(toolbar.children[0].textContent).toBe('18:00');
+    expect(toolbar.children.at(-1).attributes['aria-label']).toBe('判断履歴を再読み込み');
+    view.dispose(); expect(doc.listeners.size).toBe(0);
   });
 });

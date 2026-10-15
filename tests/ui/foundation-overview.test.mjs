@@ -20,6 +20,10 @@ class FakeElement {
     this.disabled = false;
     this.hidden = false;
     this.parentNode = null;
+    this.classList = {
+      add: (...names) => { this.className = [...new Set([...this.className.split(' ').filter(Boolean), ...names])].join(' '); },
+      remove: (...names) => { this.className = this.className.split(' ').filter(name => !names.includes(name)).join(' '); },
+    };
   }
 
   append(...children) {
@@ -48,6 +52,7 @@ class FakeElement {
     if (name === 'disabled') this.disabled = true;
   }
 
+  removeEventListener(name, callback) { if (this.listeners.get(name) === callback) this.listeners.delete(name); }
   addEventListener(name, callback) { this.listeners.set(name, callback); }
 
   dispatch(name, event = {}) {
@@ -56,8 +61,8 @@ class FakeElement {
 }
 
 class FakeDocument {
-  constructor() { this.body = new FakeElement('body'); }
-  createElement(tagName) { return new FakeElement(tagName); }
+  constructor() { this.defaultView = { matchMedia: () => ({ matches: true }) }; this.body = this.createElement('body'); }
+  createElement(tagName) { const node = new FakeElement(tagName); node.ownerDocument = this; return node; }
 }
 
 const doc = new FakeDocument();
@@ -398,9 +403,28 @@ test('collection deduplicates exact shared revisions, preserves conflicting dige
   assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 1);
   assert.match(textOf(root), /組織共通.*Alpha・Beta/);
   assert.match(textOf(root), /未取得案件.*未確認/);
-  assert.match(textOf(root), /全体は未確認/);
+  assert.equal(textOf(root).includes('取得済みの範囲'), false);
+  assert.equal(textOf(root).includes('全体は未確認'), false);
   assert.equal(byClass(root, 'bb-ws-metric').length, 0);
   b.philosophies[0].digest = 'sha256:different';
   renderFoundationCollectionOverview(root, sources, { document: doc });
   assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 2);
+});
+
+
+test('collection reports one pending state without per-project loading bands or false empty sections', () => {
+  const root = doc.createElement('div');
+  const loading = [];
+  const sources = ['Alpha', 'Beta'].map(label => ({ label, scopeId: label, state: { status: 'loading' } }));
+  renderFoundationCollectionOverview(root, sources, { document: doc, onLoading: value => loading.push(value) });
+  assert.deepEqual(loading, [true]);
+  assert.equal(root.children.length, 0, 'pending catalogs have no empty-state content');
+  sources[0].state = { status: 'ready', catalog: catalog({ scopeId: 'Alpha' }) };
+  renderFoundationCollectionOverview(root, sources, { document: doc, onLoading: value => loading.push(value) });
+  assert.equal(loading.at(-1), true, 'one slow scope keeps the aggregate loading state');
+  sources[1].state = { status: 'error', error: { message: 'catalog unavailable' } };
+  renderFoundationCollectionOverview(root, sources, { document: doc, onLoading: value => loading.push(value) });
+  assert.equal(loading.at(-1), false);
+  assert.match(textOf(root), /catalog unavailable/);
+  assert.doesNotMatch(textOf(root), /取得済みの範囲|読み込んでいます/);
 });

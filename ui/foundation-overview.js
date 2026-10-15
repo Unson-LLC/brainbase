@@ -14,7 +14,7 @@ import {
   workspaceNotice,
   workspacePageHeader,
   workspaceSectionTitle,
-  workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard,
+  workspaceHelp, workspaceDialog, workspaceDisclosure, workspaceErrorCard, workspaceLoadingCard, workspaceDismissNotification,
 } from './workspace-kit.js';
 
 export const FOUNDATION_OVERVIEW_CONTRACT_VERSION = 'foundation-overview.v1';
@@ -660,10 +660,25 @@ function renderModels(doc, catalog, viewState, callbacks, recordContexts) {
   return section;
 }
 
-function renderLoading(doc, state, callbacks) {
-  const notice = workspaceNotice(doc, { label: '読み込み', text: '目的・哲学・世界モデルを読み込んでいます。' });
-  notice.append(workspaceButton(doc, { text: '再試行', variant: 'quiet', onClick: callbacks.load }));
-  return notice;
+/** Keep one loading card across redraws so completion can leave visibly. */
+function renderLoadingState(doc, root, viewState, loading, onLoading) {
+  if (onLoading) { onLoading(loading); return; }
+  if (loading) {
+    viewState.cancelLoadingDismiss?.();
+    viewState.cancelLoadingDismiss = null;
+    viewState.loadingCard ??= workspaceLoadingCard(doc);
+  }
+  const card = viewState.loadingCard;
+  if (!card) return;
+  const stack = viewState.loadingStack ??= makeElement(doc, 'aside', { className: 'bb-ws-error-stack', attrs: { 'aria-label': '読み込み状況' } });
+  stack.append(card); root.append(stack);
+  if (!loading && !viewState.cancelLoadingDismiss) {
+    const cancel = workspaceDismissNotification(card, () => {
+      if (viewState.loadingCard !== card) return;
+      viewState.loadingCard = null; viewState.cancelLoadingDismiss = null; viewState.loadingStack = null; stack.remove();
+    });
+    if (viewState.loadingCard === card) viewState.cancelLoadingDismiss = cancel;
+  }
 }
 
 function renderFailure(doc, state, callbacks) {
@@ -684,6 +699,7 @@ export function renderFoundationOverview(root, state, {
   recordContexts,
   partial = false,
   onNotice,
+  onLoading,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = getDocument(explicitDocument);
@@ -705,14 +721,13 @@ export function renderFoundationOverview(root, state, {
     else surface.append(workspaceErrorCard(doc, notice));
   };
   if (state.status === 'loading') {
-    surface.append(renderLoading(doc, state, callbacks)); root.append(surface); return surface;
+    root.append(surface); renderLoadingState(doc, root, viewState, true, onLoading); return surface;
   }
   if (state.status !== 'ready') {
     notify({ title: '取得失敗', message: `${state.error?.message ?? '目的・哲学・世界モデルを確認できません。'} 登録なし・0件として表示していません。`, onRetry: callbacks.load });
-    root.append(surface); return surface;
+    root.append(surface); renderLoadingState(doc, root, viewState, false, onLoading); return surface;
   }
   const catalog = state.catalog;
-  if (partial) notify({ title: '取得済みの範囲', tone: 'warning', message: '以下の登録なし・検索結果は取得できた記録だけが対象です。全体は未確認です。' });
   surface.append(renderObjectives(doc, catalog, viewState, callbacks, recordContexts));
   const fold = (title, help, content, initialOpen) => {
     const key = title === '哲学' ? 'philosophyOpen' : 'modelsOpen';
@@ -721,6 +736,7 @@ export function renderFoundationOverview(root, state, {
   surface.append(fold('哲学', '判断の前提となる考え方です。登録された本文と、判断への適用範囲を分けて表示します。', renderPhilosophies(doc, catalog, recordContexts), true));
   surface.append(fold('世界モデル', '何をすると結果が変わるか、という仮説。未検証・許可用途を分けて確認します。', renderModels(doc, catalog, viewState, callbacks, recordContexts), false));
   root.append(surface);
+  renderLoadingState(doc, root, viewState, false, onLoading);
   return surface;
 }
 
@@ -731,7 +747,7 @@ function appendRecordSource(doc, card, record, contexts) {
 
 /** Compose independently validated catalogs by topic, preserving each reference's source context. */
 export function renderFoundationCollectionOverview(root, sources, {
-  document: explicitDocument, viewState = { query: '', page: 0 }, callbacks = {}, scopeLabel = '全体', onNotice,
+  document: explicitDocument, viewState = { query: '', page: 0 }, callbacks = {}, scopeLabel = '全体', onNotice, onLoading,
 } = {}) {
   const doc = getDocument(explicitDocument);
   root.replaceChildren();
@@ -742,7 +758,7 @@ export function renderFoundationCollectionOverview(root, sources, {
   for (const source of sources) {
     if (source.state.status !== 'ready') {
       if (source.state.status === 'loading') {
-        root.append(workspaceNotice(doc, { label: source.label, text: '目的・哲学・世界モデルを読み込んでいます。' }));
+        // A single shared loading card is rendered after the available catalogs.
       } else {
         const notice = { title: source.label, message: `取得失敗: ${source.state.error?.message ?? 'この対象は未確認です。0件ではありません。'}`, onRetry: callbacks.load };
         if (onNotice) onNotice(notice); else root.append(workspaceErrorCard(doc, notice));
@@ -778,10 +794,11 @@ export function renderFoundationCollectionOverview(root, sources, {
     const mount = makeElement(doc, 'div');
     renderFoundationOverview(mount, { status: 'ready', catalog }, {
       document: doc, scopeId: scopeLabel, showHeader: false, viewState, callbacks,
-      recordContexts: contexts, partial: ready !== sources.length, onNotice,
+      recordContexts: contexts, partial: ready !== sources.length, onNotice, onLoading: () => {},
     });
     root.append(mount);
   }
+  renderLoadingState(doc, root, viewState, sources.some(source => source.state.status === 'loading'), onLoading);
   return root;
 }
 
@@ -841,6 +858,8 @@ export function createFoundationOverview({ root, port, scopeId, document: explic
       destroyed = true;
       generation += 1;
       viewState.dialog?.close();
+      viewState.cancelLoadingDismiss?.();
+      viewState.loadingCard = null;
       root.replaceChildren();
     },
   };

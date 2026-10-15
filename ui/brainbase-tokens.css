@@ -62,6 +62,10 @@
   --bb-color-notice-control-border: #ffffff45;
   --bb-color-inline-error: #9b3d3d;
   --bb-color-record-missing: #80601c;
+  --bb-color-drawer-overlay: rgb(13 25 46 / 6%);
+  --bb-color-drawer-overlay-clear: rgb(13 25 46 / 0%);
+  --bb-shadow-drawer: -18px 0 48px rgb(13 25 46 / 10%);
+  --bb-shadow-popover: 0 8px 28px rgb(13 25 46 / 14%);
   --bb-color-dialog-overlay: #0d192e66;
   --bb-color-scrollbar-rgb: 36,50,75;
   --bb-color-scrollbar-dark-rgb: 203,212,225;

@@ -11,6 +11,11 @@
 import {
   makeWorkspaceElement,
   workspaceButton,
+  workspaceDialog,
+  workspaceFilterPopover,
+  workspaceErrorCard,
+  workspaceLoadingCard,
+  workspaceDismissNotification,
   workspaceDefinition,
   workspaceDetailEmpty,
   workspaceLedger,
@@ -1278,14 +1283,16 @@ function sourceChips(doc, sources) {
 }
 
 function historyBanner(doc, { label, tone, role, sources, home, note, reload }) {
-  const banner = makeWorkspaceElement(doc, 'div', {
-    className: `bb-jh-banner is-${tone}`,
-    attrs: { role: role ?? 'status' },
+  const banner = workspaceErrorCard(doc, {
+    title: label,
+    tone,
+    message: note || '取得できた記録だけを表示しています。全体の取得状態は通知の詳細で確認できます。',
   });
-  banner.append(makeWorkspaceElement(doc, 'strong', { text: label }));
-  if (sources?.length) banner.append(sourceChips(doc, sources));
-  if (note) banner.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-banner-note', text: note }));
-  if (home) banner.append(sourceDetail(doc, home));
+  banner.className += ` bb-jh-banner is-${tone}`;
+  banner.setAttribute('role', role ?? 'status');
+  const details = findFirst(banner, node => node.tagName === 'DETAILS');
+  if (sources?.length) details.append(sourceChips(doc, sources));
+  if (home) details.append(sourceDetail(doc, home));
   if (reload) banner.append(reload);
   return banner;
 }
@@ -1315,30 +1322,7 @@ function statusNotice(doc, phase, error, home, onRetry, { loading = false, slow 
     });
   }
   if (loading) {
-    const progressHome = arrived ?? home;
-    const counts = new Map();
-    for (const record of progressHome?.records ?? []) {
-      const key = normalEntrypoint(record.entrypoint);
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    const known = Array.isArray(progressHome?.coverage?.sources) && progressHome.coverage.sources.length
-      ? progressHome.coverage.sources
-      : NORMAL_ENTRYPOINTS.filter((entrypoint) => entrypoint !== 'unknown').map((entrypoint) => ({ entrypoint, status: 'pending', reason: null }));
-    const sources = known.map((source) => {
-      const count = counts.get(normalEntrypoint(source.entrypoint)) ?? 0;
-      if (count > 0) return { entrypoint: source.entrypoint, status: 'partial', retrieved: count, reason: null };
-      if (source.status === 'unavailable') return { entrypoint: source.entrypoint, status: 'unavailable', reason: source.reason ?? null };
-      return { entrypoint: source.entrypoint, status: 'pending', reason: null };
-    });
-    return historyBanner(doc, {
-      label: '読み込み中',
-      tone: 'info',
-      role: 'status',
-      sources,
-      note: slow
-        ? '時間がかかっています。届いた分だけ先に見られます。'
-        : '取得元ごとに届いた順に表示します',
-    });
+    return workspaceLoadingCard(doc, { title: 'ロード中' });
   }
   if (home?.status === 'partial') {
     return historyBanner(doc, {
@@ -1522,12 +1506,6 @@ function summaryLine(doc, aggregate, { loading = false } = {}) {
     line.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-inline', attrs: { 'aria-hidden': 'true' } }));
     line.append(makeWorkspaceElement(doc, 'span', { text: ' 取得済み' }));
   }
-  if (!complete) {
-    line.append(makeWorkspaceElement(doc, 'span', {
-      className: 'bb-jh-summary-note',
-      text: loading ? '（読み込み中・全件数は未確認）' : '（全件数は未確認）',
-    }));
-  }
   const references = loading ? null : (aggregate?.stats?.referenceCount ?? aggregate?.stats?.references);
   const confirmed = loading ? null : (aggregate?.stats?.confirmedOutcomes ?? aggregate?.stats?.outcomes);
   line.append(makeWorkspaceElement(doc, 'span', { text: '　・　使った参照 ' }));
@@ -1578,6 +1556,7 @@ export function createJudgmentHistoryUI({
   page,
   autoLoad = true,
   pageHeader = true,
+  notificationRoot = null,
   now = new Date(),
   skeletonDelayMs = 300,
   slowDelayMs = 10000,
@@ -1620,6 +1599,52 @@ export function createJudgmentHistoryUI({
     skeletonTimer: null,
     slowTimer: null,
   };
+
+  let filterPopover = null;
+  let filterExpanded = false;
+  let drawer = null;
+  let drawerContent = null;
+  let drawerKey = null;
+  let suppressDrawerClose = false;
+  function disposeDrawer() {
+    suppressDrawerClose = true;
+    drawer?.dispose();
+    drawer = null; drawerContent = null; drawerKey = null;
+    suppressDrawerClose = false;
+  }
+  const nativeDrawer = Boolean(doc.body && typeof doc.createElement('dialog').showModal === 'function');
+  const previousRailHidden = rail?.hidden;
+  if (nativeDrawer && rail) rail.hidden = true;
+  const notifications = makeWorkspaceElement(doc, 'div', {
+    className: 'bb-ws-error-stack bb-jh-notifications', attrs: { 'aria-label': '判断履歴の通知' },
+  });
+  if (notificationRoot) notificationRoot.append(notifications);
+  let loadingCard = null;
+  let dismissLoading = null;
+  let statusCard = null;
+  let statusKey = null;
+
+  function updateNotifications(loading) {
+    if (loading) {
+      dismissLoading?.(); dismissLoading = null;
+      if (!loadingCard) loadingCard = workspaceLoadingCard(doc, { title: 'ロード中' });
+      if (loadingCard.parentNode !== notifications) notifications.append(loadingCard);
+    } else if (loadingCard && !dismissLoading) {
+      dismissLoading = workspaceDismissNotification(loadingCard);
+    }
+    const home = state.home;
+    const key = loading ? null : JSON.stringify([state.phase, state.error, home?.status, home?.coverage]);
+    if (statusKey !== key) {
+      statusCard?.remove?.();
+      // Small host DOM adapters may not implement Element.remove().
+      if (statusCard?.parentNode === notifications && typeof statusCard.remove !== 'function') {
+        notifications.replaceChildren(...notifications.children.filter(node => node !== statusCard));
+      }
+      statusKey = key;
+      statusCard = loading ? null : statusNotice(doc, state.phase, state.error, home, () => void load());
+      if (statusCard) notifications.append(statusCard);
+    }
+  }
 
   function clearLoadTimers() {
     if (state.skeletonTimer !== null) {
@@ -1664,12 +1689,13 @@ export function createJudgmentHistoryUI({
     state.selectedKey = null;
     state.detailPhase = 'idle';
     state.detailError = null;
+    if (drawer) drawer.close();
     render();
     return true;
   }
 
   function handleKeyDown(event) {
-    if (event?.key === 'Escape') closeSelected();
+    if (event?.key === 'Escape' && !drawer) closeSelected();
   }
 
   root.addEventListener?.('keydown', handleKeyDown);
@@ -1908,7 +1934,18 @@ export function createJudgmentHistoryUI({
 
   function render() {
     if (state.disposed) return;
-    if (state.phase === 'loading' && !state.showSkeleton && !state.arrived) return;
+    updateNotifications(state.phase === 'loading');
+    if (state.phase === 'loading' && !state.showSkeleton && !state.arrived) {
+      if (!notificationRoot && notifications.parentNode !== root) root.append(notifications);
+      return;
+    }
+    const focusedFilter = filterExpanded && filterPopover
+      ? findFirst(filterPopover.panel, node => node === doc.activeElement) : null;
+    const filterFocus = focusedFilter && {
+      label: attributeValue(focusedFilter, 'aria-label'), period: attributeValue(focusedFilter, 'data-period'),
+    };
+    filterPopover?.destroy();
+    filterPopover = null;
     const previousSearchInput = findFirst(root, (node) => node.tagName === 'INPUT');
     const previousSearchSelection = previousSearchInput && Number.isInteger(previousSearchInput.selectionStart)
       ? { start: previousSearchInput.selectionStart, end: previousSearchInput.selectionEnd ?? previousSearchInput.selectionStart }
@@ -1936,21 +1973,18 @@ export function createJudgmentHistoryUI({
         source: context.source,
       }));
     }
-    const notice = statusNotice(doc, state.phase, state.error, loading ? (state.arrived ?? state.home) : state.home, () => void load(), {
-      loading,
-      slow: state.slow,
-      arrived: state.arrived,
-    });
-    if (notice) wrapper.append(notice);
+    if (!notificationRoot) wrapper.append(notifications);
     const failed = state.phase === 'error' || state.home?.status === 'unavailable' || state.home?.status === 'error' || state.home?.status === 'invalid';
     if (failed) {
       wrapper.append(workspaceDetailEmpty(doc, { mark: '…', title: '判断履歴を確認できません', text: '再試行すると最新の状態を確認します。' }));
       root.replaceChildren(wrapper);
-      renderRail(doc, rail, null, null);
+      if (drawer) disposeDrawer();
+      if (!nativeDrawer) renderRail(doc, rail, null, null);
       return;
     }
     const controls = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-controls' });
-    controls.append(periodButtons(doc, state.period, (period) => {
+    const filterFields = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-filter-fields' });
+    filterFields.append(periodButtons(doc, state.period, (period) => {
       state.period = period;
       state.selectedKey = null;
       state.cursor = null;
@@ -1961,7 +1995,7 @@ export function createJudgmentHistoryUI({
       }
     }));
     const showNormalFilters = loading ? sourceHome?.mode !== 'legacy' : normalMode();
-    if (showNormalFilters) controls.append(normalFilterControls(doc, sourceHome ?? state.home, state, handleNormalFilterChange));
+    if (showNormalFilters) filterFields.append(normalFilterControls(doc, sourceHome ?? state.home, state, handleNormalFilterChange));
     controls.append(createSearch(doc, state.query, (query) => {
       state.query = String(query);
       state.focusSearch = true;
@@ -1970,28 +2004,41 @@ export function createJudgmentHistoryUI({
       if (searchable) state.aggregate = aggregateJudgmentHistory(searchable, { now: readNow(), period: state.period, query: state.query });
       render();
     }));
+    filterPopover = workspaceFilterPopover(doc, {
+      content: filterFields, open: filterExpanded,
+      onToggle: value => { filterExpanded = value; },
+    });
+    controls.append(filterPopover.root);
     const toolbarStatus = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-toolbar-status' });
-    if (loading) {
-      toolbarStatus.append(makeWorkspaceElement(doc, 'span', {
-        className: 'bb-jh-checked',
-        text: '確認しています…',
-        attrs: { role: 'status' },
-      }));
-    } else if (state.checkedAt) {
+    if (state.checkedAt) {
       const stamp = formatCheckedAt(state.checkedAt);
-      if (stamp) toolbarStatus.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-checked', text: `${stamp}に確認` }));
+      if (stamp) toolbarStatus.append(makeWorkspaceElement(doc, 'span', {
+        className: 'bb-jh-checked', text: stamp, attrs: { 'aria-label': `${stamp}に確認` },
+      }));
     }
-    toolbarStatus.append(workspaceButton(doc, {
-      text: '再読み込み',
-      variant: 'quiet',
-      disabled: loading,
-      onClick: () => void load(),
-      attrs: { 'aria-label': '判断履歴を再読み込み', 'data-action': 'reload' },
-    }));
+    const reloadButton = workspaceButton(doc, {
+      variant: 'quiet', disabled: loading, onClick: () => void load(),
+      attrs: { 'aria-label': '判断履歴を再読み込み', title: '再読み込み', 'data-action': 'reload' },
+    });
+    reloadButton.className += ' bb-jh-refresh';
+    // Text-independent vector keeps the refresh control available in standalone hosts.
+    const refreshMark = doc.createElementNS?.('http://www.w3.org/2000/svg', 'svg')
+      ?? makeWorkspaceElement(doc, 'span', { text: '↻' });
+    refreshMark.setAttribute('class', 'bb-jh-refresh-mark'); refreshMark.setAttribute('aria-hidden', 'true');
+    if (doc.createElementNS) {
+      refreshMark.setAttribute('viewBox', '0 0 24 24'); refreshMark.setAttribute('fill', 'none');
+      refreshMark.setAttribute('stroke', 'currentColor'); refreshMark.setAttribute('stroke-width', '1.7');
+      refreshMark.setAttribute('stroke-linecap', 'round'); refreshMark.setAttribute('stroke-linejoin', 'round');
+      const path = doc.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', 'M20 7v5h-5M4 17v-5h5M6.1 6.1a8 8 0 0 1 13.2 3.2M4.7 14.7a8 8 0 0 0 13.2 3.2');
+      refreshMark.append(path);
+    }
+    reloadButton.append(refreshMark);
+    toolbarStatus.append(reloadButton);
     controls.append(toolbarStatus);
     wrapper.append(controls);
     wrapper.append(summaryLine(doc, aggregate, { loading }));
-    const emptyText = state.home?.status === 'partial' || (normalMode() && !aggregate.countComplete)
+    const emptyText = loading ? '' : state.home?.status === 'partial' || (normalMode() && !aggregate.countComplete)
       ? 'この期間に取得できた判断履歴はありません。全件数が未確認のため0件とは確認できません。'
       : 'この期間の判断履歴はありません。';
     const dataRows = makeRows(doc, aggregate, state.selectedKey, (key) => {
@@ -2023,6 +2070,12 @@ export function createJudgmentHistoryUI({
       replaceNode(nextSearchInput, previousSearchInput);
     }
     root.replaceChildren(wrapper);
+    if (filterExpanded && filterFocus) {
+      const field = findFirst(filterPopover.panel, node => filterFocus.label
+        ? attributeValue(node, 'aria-label') === filterFocus.label
+        : filterFocus.period && attributeValue(node, 'data-period') === filterFocus.period);
+      field?.focus?.();
+    }
     if (state.focusSearch || previousSearchFocused) {
       const input = findFirst(root, (node) => node.tagName === 'INPUT');
       input?.focus?.();
@@ -2048,8 +2101,38 @@ export function createJudgmentHistoryUI({
         onCopyReference: (payload) => void copyReference(payload),
       }
       : {};
-    renderRail(doc, rail, selected, selectedDetail, selected ? closeSelected : null, { ...railOptions, loading });
-    if (state.lastFocusedKey) {
+    if (nativeDrawer) {
+      if (selected) {
+        if (!drawer || drawerKey !== selected.key) {
+          if (drawer) disposeDrawer();
+          drawerKey = selected.key;
+          drawerContent = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-detail' });
+          const selectedKey = selected.key;
+          drawer = workspaceDialog(doc, {
+            title: '判断の詳細', content: drawerContent, presentation: 'drawer',
+            opener: () => findFirst(root, node => attributeValue(node, 'data-key') === selectedKey),
+            onClose: () => {
+              if (suppressDrawerClose) return;
+              drawer = null; drawerContent = null; drawerKey = null;
+              if (state.disposed) return;
+              state.selectedKey = null; state.detailPhase = 'idle'; state.detailError = null;
+              state.lastFocusedKey = selectedKey; render();
+            },
+          });
+        }
+        const detailFocus = findFirst(drawerContent, node => node === doc.activeElement);
+        const detailLabel = attributeValue(detailFocus, 'aria-label');
+        const detailSelection = Number.isInteger(detailFocus?.selectionStart)
+          ? [detailFocus.selectionStart, detailFocus.selectionEnd] : null;
+        renderRail(doc, drawerContent, selected, selectedDetail, null, { ...railOptions, loading });
+        if (detailLabel) {
+          const field = findFirst(drawerContent, node => attributeValue(node, 'aria-label') === detailLabel);
+          field?.focus?.();
+          if (detailSelection) field?.setSelectionRange?.(...detailSelection);
+        }
+      } else if (drawer) drawer.close();
+    } else renderRail(doc, rail, selected, selectedDetail, selected ? closeSelected : null, { ...railOptions, loading });
+    if (state.lastFocusedKey && !drawer) {
       const row = findFirst(root, (node) => attributeValue(node, 'data-key') === state.lastFocusedKey);
       row?.focus?.();
       state.lastFocusedKey = null;
@@ -2169,10 +2252,15 @@ export function createJudgmentHistoryUI({
     state.disposed = true;
     state.generation += 1;
     clearLoadTimers();
+    filterPopover?.destroy();
+    dismissLoading?.();
+    notifications.remove?.();
+    disposeDrawer();
     root.removeEventListener?.('keydown', handleKeyDown);
     rail?.removeEventListener?.('keydown', handleKeyDown);
     root.replaceChildren();
     rail?.replaceChildren();
+    if (nativeDrawer && rail) rail.hidden = previousRailHidden;
   }
 
   const controller = { load, render, dispose, openDecision, get state() { return { ...state }; } };
