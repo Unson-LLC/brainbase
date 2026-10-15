@@ -59,7 +59,8 @@ describe('npm publish guard with the workflow-supplied environment', () => {
     const job = await publishJob();
     const stepEnv = publishStepEnv(job);
     expect(stepEnv.BRAINBASE_NPM_PUBLISH_SERIALIZED).toBe('true');
-    expect(stepEnv.NPM_CONFIG_PROVENANCE).toBe('false');
+    expect(stepEnv.NPM_CONFIG_PROVENANCE).toBeUndefined();
+    expect(job).toMatch(/^          --provenance$/mu);
     const request = vi.fn(async (url: URL) => {
       expect(url.searchParams.get('audience')).toBe('brainbase-npm-publish');
       return new Response(JSON.stringify({ value: oidcToken() }), { status: 200 });
