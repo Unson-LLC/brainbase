@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readdir, rm, utimes, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readdir, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,20 +15,19 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...actual, readdir: vi.fn(actual.readdir) };
 });
 
-/** Whether this process is refused when it lists a folder whose permissions are removed. */
-async function folderPermissionsAreEnforced(parent: string): Promise<boolean> {
-  const probe = join(parent, 'permission-probe');
-  await mkdir(probe, { recursive: true });
-  await chmod(probe, 0o000);
-  try {
-    await readdir(probe);
-    return false;
-  } catch {
-    return true;
-  } finally {
-    await chmod(probe, 0o700);
-    await rm(probe, { recursive: true, force: true });
+/**
+ * Changes a folder's mode and waits until its ctime moves. Linux file times
+ * advance in coarse ticks, so a chmod right after an earlier change can keep
+ * the same ctime, and the cache would then rightly see an unchanged folder.
+ */
+async function chmodWithNewCtime(path: string, mode: number): Promise<void> {
+  const before = (await stat(path, { bigint: true })).ctimeNs;
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    await chmod(path, mode);
+    if ((await stat(path, { bigint: true })).ctimeNs !== before) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
   }
+  throw new Error('the folder ctime did not change after chmod');
 }
 
 function continuedProof(id: string): JudgmentValueProof {
@@ -211,21 +210,14 @@ describe('reading the judgment journal with a remembered folder listing', () => 
   });
 
   // chmod does not stop listing on Windows, and permission checks do not apply to root.
-  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('fails instead of reusing the remembered listing when a folder can no longer be listed', async (context) => {
-    // Some CI runners can still list a 0o000 folder without being root (for
-    // example with a capability that overrides permissions). There the
-    // precondition of this test does not hold, so skip instead of failing.
-    if (!(await folderPermissionsAreEnforced(journal))) {
-      context.skip();
-      return;
-    }
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('fails instead of reusing the remembered listing when a folder can no longer be listed', async () => {
     const folder = join(journal, 'session-a');
     await writeProof(folder, 'turn', continuedProof('1'));
     await quiet(folder);
     const cache = new JudgmentValueProofJournalCache();
     expect(await attempts(cache)).toEqual(['attempt-1']);
 
-    await chmod(folder, 0o000);
+    await chmodWithNewCtime(folder, 0o000);
     try {
       await expect(readJudgmentValueProofJournal({ root: journal, cache })).rejects.toMatchObject({ code: 'EACCES' });
     } finally {
