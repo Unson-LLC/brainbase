@@ -11,6 +11,11 @@ Brainbaseは、あなたの目的、優先順位、判断基準、過去の決�
 AIは、それらを参照して探索・反証し、許可された範囲の仕事を進める。
 <!-- brainbase:public-message:end -->
 
+Operators who work across multiple Cloudflare organizations can use the explicit,
+fail-closed [Cloudflare CLI profile wrapper](docs/runbooks/cloudflare-cli-profiles.md).
+It keeps credentials in Wrangler while binding each local alias to an expected
+Cloudflare Account ID.
+
 ## なぜ必要か
 
 会社では、資料や議事録が残っていても、次のものは人の頭の中に残りがちです。
