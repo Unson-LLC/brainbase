@@ -144,6 +144,10 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: write
+      # Required by assertSerializedPublicationContext() in scripts/npm-release.mjs,
+      # which verifies the GitHub Actions OIDC token before publishing. Provenance
+      # stays disabled because npm rejects it on self-hosted runners.
+      id-token: write
     steps:
       - name: Check out trusted release tooling
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -155,7 +159,7 @@ jobs:
         with:
           node-version: 22
           registry-url: https://registry.npmjs.org
-      - name: Install trusted-publishing npm CLI
+      - name: Install pinned npm CLI
         run: npm install --global npm@11.5.1
       - name: Check out immutable release commit
         env:
@@ -170,6 +174,7 @@ jobs:
         env:
           BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: 'false'
           VERSION: ${{ needs.validate.outputs.version }}
           RELEASE_SHA: ${{ needs.validate.outputs.sha }}
         run: >-
@@ -227,7 +232,7 @@ jobs:
           {
             echo '## npm publication failure/cancellation summary'
             echo
-            echo '- Protection: only the validated immutable artifact is published with provenance, then npm and GitHub Release state are read back.'
+            echo '- Protection: only the validated immutable artifact is published (without provenance, which npm rejects on self-hosted runners), then npm and GitHub Release state are read back.'
             echo "- Target: version \`$release_version\`, SHA \`$release_sha\`."
             echo "- Proof: \`$proof_file\` ($proof_state); artifact: \`$artifact_file\` ($artifact_state)."
             echo "- Reproduce preflight: \`npm ci --ignore-scripts && node scripts/npm-release.mjs validate --version $release_version --sha $release_sha --trusted-ref origin/develop --proof-file $proof_file\`."
