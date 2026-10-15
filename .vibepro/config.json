@@ -843,6 +843,18 @@
         "started_at": "2026-10-15",
         "due_at": null,
         "contract_type": "bug_fix"
+      },
+      {
+        "story_id": "story-npm-publish-oidc-guard-restore",
+        "title": "npm公開ジョブにid-token: writeを戻しprovenanceなしでOIDCガードを通す",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": "dev",
+        "period": "2026-10",
+        "started_at": "2026-10-15",
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
     "current_story_id": "story-ci-impact-based-verification"

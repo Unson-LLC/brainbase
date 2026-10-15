@@ -9,7 +9,7 @@
 | パッケージ関連のPull Request | Node 22の`npm test`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
 | ドキュメント関連のPull Request | `docs:check`、公開契約テスト、VitePress build、built HTML smoke | deployなし |
 | `develop`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pages deploy、`docs:verify-public`による公開後readback | 公開サイトのみ |
-| npm公開 | immutable commitのrelease validation、artifact/proofの受け渡し、provenanceなしpublish（self-hosted runnerではnpmのprovenanceが使えないため）、GitHub Release確認 | npm公開権限はrelease workflowだけが使用 |
+| npm公開 | immutable commitのrelease validation、artifact/proofの受け渡し、provenanceなしpublish（self-hosted runnerではnpmのprovenanceが使えないため。publishジョブだけがOIDCガード用に`id-token: write`を持ち、`NPM_CONFIG_PROVENANCE=false`を明示）、GitHub Release確認 | npm公開権限はrelease workflowだけが使用 |
 | public-message promotion | 候補の契約検証とドキュメント検証を済ませたreview PRの作成 | 自動merge・自動deployなし |
 
 `docs-cloudflare-pages.yml`のpush deploy入力は、`docs/manual/**`、`docs/.vitepress/**`、`docs/publication/public-message.json`、`docs/publication/organization-teaser.json`、`package.json`、`package-lock.json`、同workflow自身に限定する。CIガイドやStoryなど内部文書だけの変更ではdeployしない。
