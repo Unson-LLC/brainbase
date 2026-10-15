@@ -32,6 +32,10 @@ describe('npm publish workflow', () => {
     expect(publishJob).toMatch(/npm install --global npm@11\.5\.1/u);
     expect(publishJob).toMatch(/id-token: write/u);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
+    expect(validationJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
+    expect(publishJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
+    expect(workflow).not.toMatch(/ubuntu-latest/u);
+    expect(workflow).not.toMatch(/github\.event\.pull_request\.head\.(sha|ref)/u);
   });
 
   it('supports manual recovery and creates a release only after npm publish', async () => {

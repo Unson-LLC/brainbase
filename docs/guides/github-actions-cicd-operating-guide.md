@@ -24,7 +24,33 @@
 
 | ジョブ名 | 目的 | ワークフロー | ランナー |
 | --- | --- | --- | --- |
-| Cloudflare Worker secret同期 | 対象account IDを固定確認し、`brainbase-tenant-runtime`の`BRAINBASE_SERVICE_JWT`を1件だけ更新する | `.github/workflows/docs-cloudflare-pages.yml` | `ubuntu-latest` |
+| Cloudflare Worker secret同期 | 対象account IDを固定確認し、`brainbase-tenant-runtime`の`BRAINBASE_SERVICE_JWT`を1件だけ更新する | `.github/workflows/docs-cloudflare-pages.yml` | `[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]` |
+
+## ランナー
+
+CIはGitHub-hosted runnerを使わない。`ubuntu-latest`を含むGitHub-hostedラベルは置かない。各workflowのjobは、組織のself-hosted runnerである次のラベルだけで実行する。
+
+```yaml
+runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+```
+
+このリポジトリは公開されている。forkのpull requestをself-hosted runnerで実行すると、未信頼のworkflowとコードが組織のマシンに載る。`pull_request`で動くjobは、headがこのリポジトリ自身のときだけ実行する。
+
+```yaml
+if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+```
+
+`docs-cloudflare-pages.yml`は同一jobで`push`と`workflow_dispatch`も扱う。そのjobの条件は次のとおり。
+
+```yaml
+if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+```
+
+`author_association`が`MEMBER`または`OWNER`であることだけを許可条件にしない。その条件を`head`リポジトリ一致とORで結ぶと、メンバーがforkから開いたpull requestもrunnerへ入る。ANDだけにすると、`author_association`が`NONE`の同一リポジトリ自動化（public-message promotionが開くreview PRなど）が止まる。forkを止める条件は、headリポジトリが`github.repository`と一致することに固定する。
+
+`pull_request_target`でpull requestのheadをcheckoutしない。`npm-publish.yml`の`pull_request_target`は、developへmerge済みのときと`workflow_dispatch`のときだけ動く。checkoutは`develop`と、merge commitまたは`origin/develop`の祖先である。`NODE_AUTH_TOKEN`はpublish jobだけが読む。validate jobは公開用secretを持たない。
+
+`pull_request`のworkflow定義は、対象PRの内容が使われる。forkが`if`を消したworkflowを送った場合、GitHubが外部コラボレーターのworkflow承認を維持していることが残りの境界になる。承認後も、このリポジトリの既定workflowはfork headをself-hostedで実行しない。
 
 ## 必要なSecrets
 

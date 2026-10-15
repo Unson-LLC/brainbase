@@ -1,5 +1,8 @@
 name: Publish npm package
 
+# pull_request_target is closed-only, and the validate job requires a develop
+# merge. Both jobs check out develop, then the merge commit or a develop
+# ancestor. They do not check out the pull request head.
 on:
   pull_request_target:
     types:
@@ -22,7 +25,7 @@ jobs:
     if: >-
       ${{ github.event_name == 'workflow_dispatch' ||
           (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'develop') }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 30
     permissions:
       contents: read
@@ -136,7 +139,7 @@ jobs:
   publish:
     needs: validate
     if: ${{ needs.validate.outputs.release_required == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 15
     permissions:
       contents: write

@@ -819,6 +819,18 @@
         "started_at": "2026-10-14",
         "due_at": null,
         "contract_type": null
+      },
+      {
+        "story_id": "story-public-ci-self-hosted-runners",
+        "title": "公開CIをself-hosted runnerだけで実行する",
+        "ssot": "local",
+        "status": "active",
+        "horizon": null,
+        "view": "dev",
+        "period": "2026-10",
+        "started_at": "2026-10-15",
+        "due_at": null,
+        "contract_type": "bug_fix"
       }
     ],
     "current_story_id": "story-ci-impact-based-verification"

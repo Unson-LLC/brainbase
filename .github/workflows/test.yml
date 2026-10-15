@@ -22,7 +22,8 @@ permissions:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
     timeout-minutes: 20
     strategy:
       fail-fast: false
