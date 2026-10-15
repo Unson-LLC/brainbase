@@ -809,6 +809,18 @@
         "contract_type": null
       },
       {
+        "story_id": "story-meeting-minutes-page-review",
+        "title": "議事録ページの見直し",
+        "ssot": "local",
+        "status": "active",
+        "horizon": "now",
+        "view": "product",
+        "period": "2026-10",
+        "started_at": "2026-10-14",
+        "due_at": null,
+        "contract_type": "local_single_owner_non_hosted"
+      },
+      {
         "story_id": "story-judgment-history-speed-ui",
         "title": "判断の履歴の読み込みを速くし、見た目を作り直す",
         "ssot": "local",

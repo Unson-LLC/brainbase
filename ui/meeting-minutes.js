@@ -4,9 +4,42 @@
  * The screen only speaks the provider-independent HTTP contract.  A host
  * supplies the fetcher, token and base path; no calendar, repository, or
  * organization connector is assumed here.
+ *
+ * List order and labels are a projection. Canonical records are not rewritten.
+ * Calendar links stay out until a meeting-side event id is verified.
  */
 
 export const MEETING_MINUTES_UI_CONTRACT_VERSION = 'brainbase.meeting-minutes-ui.v1';
+
+const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
+const TOKYO = 'Asia/Tokyo';
+
+function tokyoParts(date) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: TOKYO,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date);
+  const value = (type) => parts.find((part) => part.type === type)?.value ?? '';
+  let hour = Number(value('hour'));
+  if (hour === 24) hour = 0;
+  return {
+    year: Number(value('year')),
+    month: Number(value('month')),
+    day: Number(value('day')),
+    hour,
+    minute: Number(value('minute')),
+  };
+}
+
+function tokyoDayNumber(date) {
+  const { year, month, day } = tokyoParts(date);
+  return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+}
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -62,18 +95,161 @@ function labelInput(doc, label, { type = 'text', value = '', name, placeholder }
   return { wrapper, input };
 }
 
-function displayDate(value) {
-  if (!value) return '日時未登録';
+function parseDate(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ja-JP');
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function localDateTime(value) {
-  if (!value) return '';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '';
-  const pad = (part) => String(part).padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+function pad(part) {
+  return String(part).padStart(2, '0');
+}
+
+function formatClock(date) {
+  const { hour, minute } = tokyoParts(date);
+  return `${pad(hour)}:${pad(minute)}`;
+}
+
+function formatMonthDay(date) {
+  const { month, day } = tokyoParts(date);
+  return `${month}/${day}`;
+}
+
+function formatStamp(value) {
+  const date = parseDate(value);
+  return date ? `${formatMonthDay(date)} ${formatClock(date)}` : '';
+}
+
+function dayHeading(date, today) {
+  const { year, month, day } = tokyoParts(date);
+  const weekday = WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()];
+  const label = `${month}/${day}（${weekday}）`;
+  return tokyoDayNumber(date) === tokyoDayNumber(today) ? `今日 ${label}` : label;
+}
+
+function dateKey(date) {
+  const { year, month, day } = tokyoParts(date);
+  return `${year}-${month}-${day}`;
+}
+
+function relativeDay(date, today) {
+  const days = tokyoDayNumber(today) - tokyoDayNumber(date);
+  if (days === 0) return '今日';
+  if (days === 1) return '昨日';
+  if (days > 1) return `${days}日前`;
+  if (days === -1) return '明日';
+  return `${Math.abs(days)}日後`;
+}
+
+function httpUrl(value) {
+  const raw = text(value);
+  if (!/^https?:\/\//i.test(raw)) return '';
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return '';
+    return url.href;
+  } catch {
+    return '';
+  }
+}
+
+function firstDate(values) {
+  for (const value of values) {
+    const date = parseDate(value);
+    if (date) return date;
+  }
+  return null;
+}
+
+function calendarStart(meeting) {
+  const meta = isRecord(meeting?.metadata) ? meeting.metadata : {};
+  const event = isRecord(meeting?.calendar_event) ? meeting.calendar_event
+    : isRecord(meta.calendar_event) ? meta.calendar_event : null;
+  return firstDate([
+    meeting?.calendar_start,
+    event?.start,
+    event?.starts_at,
+    event?.start_at,
+    meta.calendar_start,
+    meta.event_start,
+    meta.scheduled_start,
+  ]);
+}
+
+function listedVersions(entry) {
+  const versions = [];
+  if (Array.isArray(entry?.versions)) versions.push(...entry.versions.filter(isRecord));
+  for (const documentRecord of Array.isArray(entry?.minutes) ? entry.minutes : []) {
+    if (Array.isArray(documentRecord?.versions)) versions.push(...documentRecord.versions.filter(isRecord));
+  }
+  return versions;
+}
+
+function latestVersionTime(entry) {
+  let latest = null;
+  for (const version of listedVersions(entry)) {
+    const date = parseDate(version.created_at);
+    if (date && (!latest || date > latest)) latest = date;
+  }
+  return latest ?? firstDate([
+    entry?.latest_version_created_at,
+    entry?.meeting?.latest_version_created_at,
+    isRecord(entry?.meeting?.metadata) ? entry.meeting.metadata.latest_version_created_at : null,
+  ]);
+}
+
+function importTime(entry) {
+  let latest = parseDate(entry?.meeting?.created_at);
+  for (const documentRecord of Array.isArray(entry?.minutes) ? entry.minutes : []) {
+    const date = parseDate(documentRecord?.created_at);
+    if (date && (!latest || date > latest)) latest = date;
+  }
+  return latest;
+}
+
+function meetingTiming(entry) {
+  const meeting = isRecord(entry?.meeting) ? entry.meeting : {};
+  const scheduled = parseDate(meeting.scheduled_at);
+  if (scheduled) return { kind: 'scheduled', source: 'scheduled', at: scheduled.getTime(), date: scheduled };
+  const calendar = calendarStart(meeting);
+  if (calendar) return { kind: 'fallback', source: 'calendar', at: calendar.getTime(), date: calendar };
+  const versionAt = latestVersionTime(entry);
+  if (versionAt) return { kind: 'fallback', source: 'version', at: versionAt.getTime(), date: versionAt };
+  const imported = importTime(entry);
+  return { kind: 'unregistered', source: 'import', at: imported ? imported.getTime() : Number.NEGATIVE_INFINITY, date: imported };
+}
+
+function unscheduledLabel(timing) {
+  if (!timing?.date) return '会議の日時が未登録';
+  const day = formatMonthDay(timing.date);
+  if (timing.source === 'calendar') return `日時未登録・予定の開始 ${day}`;
+  if (timing.source === 'version') return `日時未登録・版の作成 ${day}`;
+  return `日時未登録・取り込み ${day}`;
+}
+
+function byCreatedAt(versions) {
+  return versions
+    .map((version, index) => ({ version, index }))
+    .sort((left, right) => {
+      const leftTime = parseDate(left.version?.created_at)?.getTime() ?? Number.NEGATIVE_INFINITY;
+      const rightTime = parseDate(right.version?.created_at)?.getTime() ?? Number.NEGATIVE_INFINITY;
+      if (leftTime !== rightTime) return leftTime - rightTime;
+      return left.index - right.index;
+    })
+    .map((item) => item.version);
+}
+
+function sortMeetings(meetings) {
+  return meetings
+    .map((entry, index) => ({ entry, index, timing: meetingTiming(entry) }))
+    .sort((left, right) => {
+      const leftBottom = left.timing.kind === 'unregistered';
+      const rightBottom = right.timing.kind === 'unregistered';
+      if (leftBottom !== rightBottom) return leftBottom ? 1 : -1;
+      if (left.timing.at !== right.timing.at) return right.timing.at - left.timing.at;
+      return left.index - right.index;
+    })
+    .map((item) => item.entry);
 }
 
 function idempotencyKey() {
@@ -113,30 +289,152 @@ function preserveLoadedStateOnFailure(error) {
 function sourceLabel(source) {
   if (!isRecord(source)) return '';
   const provider = text(source.provider, '外部ソース');
-  const locator = text(source.locator, '場所未確認');
-  const revision = text(source.revision, '版未確認');
+  const locator = text(source.locator, '場所は記録されていません');
+  const revision = text(source.revision, '版は記録されていません');
   return `${provider} / ${locator} / ${revision}`;
+}
+
+function renderMarkdown(doc, body) {
+  const root = makeElement(doc, 'div', { className: 'bb-minutes-markdown' });
+  const lines = String(body).replace(/\r\n/g, '\n').split('\n');
+  let list = null;
+  let listKind = null;
+  const closeList = () => {
+    if (list) root.append(list);
+    list = null;
+    listKind = null;
+  };
+  for (const line of lines) {
+    if (/^\s*[-*_]{3,}\s*$/u.test(line)) {
+      closeList();
+      continue;
+    }
+    const heading = /^(#{1,6})\s+(.+)$/u.exec(line);
+    if (heading) {
+      closeList();
+      const level = Math.min(heading[1].length, 3);
+      root.append(makeElement(doc, `h${level + 2}`, {
+        className: 'bb-minutes-md-heading',
+        textContent: heading[2].trim(),
+      }));
+      continue;
+    }
+    const bullet = /^\s*[-*]\s+(.+)$/u.exec(line);
+    const numbered = /^\s*\d+[.)]\s+(.+)$/u.exec(line);
+    if (bullet || numbered) {
+      const kind = bullet ? 'ul' : 'ol';
+      if (!list || listKind !== kind) {
+        closeList();
+        list = makeElement(doc, kind, { className: 'bb-minutes-md-list' });
+        listKind = kind;
+      }
+      list.append(makeElement(doc, 'li', { textContent: (bullet ?? numbered)[1].trim() }));
+      continue;
+    }
+    if (!line.trim()) {
+      closeList();
+      continue;
+    }
+    closeList();
+    root.append(makeElement(doc, 'p', { className: 'bb-minutes-md-paragraph', textContent: line }));
+  }
+  closeList();
+  return root;
 }
 
 function versionContent(doc, version) {
   if (!isRecord(version)) return makeElement(doc, 'p', { textContent: '版の形式を確認できません。', className: 'bb-minutes-warning' });
   if (isRecord(version.source_ref)) {
-    return makeElement(doc, 'p', { className: 'bb-minutes-source', textContent: `外部参照: ${sourceLabel(version.source_ref)}` });
+    return makeElement(doc, 'p', { className: 'bb-minutes-source', textContent: `本文は元の記録にあります。${sourceLabel(version.source_ref)}` });
   }
-  if (typeof version.body === 'string') {
-    return makeElement(doc, 'pre', { className: 'bb-minutes-body', textContent: version.body });
-  }
+  if (typeof version.body === 'string') return renderMarkdown(doc, version.body);
   return makeElement(doc, 'p', { className: 'bb-minutes-warning', textContent: '本文または外部参照を確認できません。' });
 }
 
 function detailVersions(detail, minutesId) {
   if (!isRecord(detail) || !Array.isArray(detail.versions)) return [];
-  return detail.versions.filter((version) => version?.minutes_id === minutesId);
+  return byCreatedAt(detail.versions.filter((version) => version?.minutes_id === minutesId));
 }
 
 function versionLabel(versions, version) {
   const index = versions.findIndex((candidate) => candidate?.version_id === version?.version_id);
   return index >= 0 ? `第${index + 1}版` : '版';
+}
+
+function confirmationDetail(confirmation) {
+  const when = formatStamp(confirmation?.confirmed_at) || text(confirmation?.confirmed_at);
+  const person = text(confirmation?.actor_id);
+  if (when && person) return `${when} ${person}が確認`;
+  if (when) return `${when} 確認した人の記録がありません`;
+  if (person) return `${person}が確認`;
+  return '確認済み';
+}
+
+function versionState(version, versions, latest) {
+  if (!isRecord(version)) return { code: 'unknown', label: '確認の状態を確かめられません', tone: 'muted' };
+  if (version.creating === true || version.status === 'creating') {
+    return { code: 'creating', label: '版の作成中', tone: 'muted' };
+  }
+  if (version.confirmation != null && !isRecord(version.confirmation)) {
+    return { code: 'unknown', label: '確認の状態を確かめられません', tone: 'muted' };
+  }
+  const isLatest = Boolean(latest) && version.version_id === latest.version_id;
+  if (isRecord(version.confirmation)) {
+    return { code: 'confirmed', label: '確認済み', tone: 'ok', detail: confirmationDetail(version.confirmation) };
+  }
+  if (!isLatest && latest) {
+    return { code: 'replaced', label: `確認されないまま${versionLabel(versions, latest)}に置き換え`, tone: 'muted' };
+  }
+  return { code: 'pending', label: '確認待ち', tone: 'wait' };
+}
+
+function creatorFact(version) {
+  const creator = text(version?.created_actor_id);
+  return creator ? `作成 ${creator}` : '作成者は未記録';
+}
+
+function historyStamp(version, today) {
+  const created = parseDate(version?.created_at);
+  return created
+    ? `${formatMonthDay(created)} ${formatClock(created)} 作成（${relativeDay(created, today)}）`
+    : '作成日時は未記録';
+}
+
+function historySecondLine(version, versions, latest) {
+  const state = versionState(version, versions, latest);
+  const confirmed = state.code === 'confirmed'
+    ? (state.detail || confirmationDetail(version.confirmation))
+    : state.label;
+  const parts = [creatorFact(version), confirmed];
+  if (version?.predecessor_version_id) {
+    const predecessor = versions.find((candidate) => candidate.version_id === version.predecessor_version_id);
+    parts.push(`${versionLabel(versions, predecessor)}を訂正`);
+  }
+  return parts.join('・');
+}
+
+function listedVersionNumber(entry) {
+  const versions = listedVersions(entry);
+  const documents = Array.isArray(entry?.minutes) ? entry.minutes : [];
+  if (versions.length >= 2) {
+    const currentId = documents.map((documentRecord) => text(documentRecord?.current_version_id)).find(Boolean);
+    const index = versions.findIndex((version) => version.version_id === currentId);
+    return index >= 0 ? index + 1 : versions.length;
+  }
+  const count = documents.reduce((max, documentRecord) => Math.max(
+    max,
+    Array.isArray(documentRecord?.version_ids) ? documentRecord.version_ids.length : 0,
+  ), 0);
+  return count >= 2 ? count : 0;
+}
+
+function listState(entry) {
+  const versions = listedVersions(entry);
+  if (!versions.length) return null;
+  const documents = Array.isArray(entry?.minutes) ? entry.minutes : [];
+  const currentId = documents.map((documentRecord) => text(documentRecord?.current_version_id)).find(Boolean);
+  const latest = versions.find((version) => version.version_id === currentId) ?? versions[versions.length - 1];
+  return versionState(latest, versions, latest);
 }
 
 function appendIdentifiers(doc, parent, { meetingId, minutesId, versionId } = {}) {
@@ -217,6 +515,7 @@ export function createMeetingMinutesUI({
   meetingLabel,
   canCreateMeeting,
   canEditMinutes,
+  now = () => new Date(),
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
@@ -225,8 +524,6 @@ export function createMeetingMinutesUI({
     ? fetcher
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
   const base = String(basePath).replace(/\/+$/u, '');
-  const createBlockedMessage = 'この画面では会議を作成できません。';
-  const editBlockedMessage = 'この画面では議事録を編集できません。';
   const state = {
     meetings: [],
     detail: null,
@@ -245,18 +542,28 @@ export function createMeetingMinutesUI({
   heading.append(
     makeElement(doc, 'div', { className: 'bb-minutes-eyebrow', textContent: page?.source ?? '正本の議事録' }),
     makeElement(doc, 'h1', { textContent: '議事録' }),
-    makeElement(doc, 'p', { className: 'bb-minutes-lead', textContent: '会議と議事録を保存し、版と確認履歴を同じ場所で確かめます。' }),
+    makeElement(doc, 'p', { className: 'bb-minutes-lead', textContent: '新しい会議から読み、確認待ちを見つけて確認します。' }),
   );
   const status = makeElement(doc, 'p', { className: 'bb-minutes-status', attrs: { role: 'status', 'aria-live': 'polite' } });
   const columns = makeElement(doc, 'div', { className: 'bb-minutes-columns' });
   const listPane = makeElement(doc, 'section', {
     className: 'bb-minutes-list-pane',
-    attrs: { 'aria-label': '会議一覧', tabindex: '-1' },
+    attrs: { 'aria-label': '議事録', tabindex: '-1' },
   });
-  const detailPane = makeElement(doc, 'section', { className: 'bb-minutes-detail-pane', attrs: { 'aria-label': '会議詳細' } });
+  const detailPane = makeElement(doc, 'section', { className: 'bb-minutes-detail-pane', attrs: { 'aria-label': '議事録詳細' } });
   columns.append(listPane, detailPane);
   screen.append(heading, status, columns);
   root.replaceChildren(screen);
+
+  function clock() {
+    try {
+      const value = typeof now === 'function' ? now() : new Date();
+      if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+    } catch {
+      /* use the runtime clock */
+    }
+    return new Date();
+  }
 
   function setStatus(message, kind = '') {
     status.textContent = message;
@@ -312,25 +619,41 @@ export function createMeetingMinutesUI({
     return canEditMinutes !== false;
   }
 
-  function appendCreateBlockedNotice(parent, { alert = false } = {}) {
-    parent.append(makeElement(doc, 'p', {
-      className: 'bb-minutes-create-guard',
-      textContent: createBlockedMessage,
-      attrs: alert ? { role: 'alert' } : {},
-    }));
+  function stateChip(versionStatus, { detailed = false } = {}) {
+    const label = detailed && versionStatus.detail ? versionStatus.detail : versionStatus.label;
+    return makeElement(doc, 'span', {
+      className: `bb-minutes-state is-${versionStatus.tone}`,
+      textContent: label,
+    });
   }
 
-  function appendEditBlockedNotice(parent, { alert = false } = {}) {
-    const existing = [...(parent.children ?? [])].find((child) => child?.className === 'bb-minutes-edit-guard');
-    if (existing) {
-      if (alert) existing.setAttribute('role', 'alert');
-      return existing;
-    }
-    parent.append(makeElement(doc, 'p', {
-      className: 'bb-minutes-edit-guard',
-      textContent: editBlockedMessage,
-      attrs: alert ? { role: 'alert' } : {},
+  function appendLinePart(line, node) {
+    if (line.children.length) line.append(makeElement(doc, 'span', { className: 'bb-minutes-line-sep', textContent: ' · ' }));
+    line.append(node);
+  }
+
+  function appendReadOnlyNotice(parent, version) {
+    const source = isRecord(version?.source_ref) ? version.source_ref : null;
+    const url = httpUrl(source?.locator);
+    const provider = text(source?.provider, '元の記録');
+    const notice = makeElement(doc, 'div', { className: 'bb-minutes-edit-guard is-info' });
+    notice.append(makeElement(doc, 'p', {
+      textContent: canEdit()
+        ? 'この画面では読むことと確認だけができます。'
+        : 'この画面では読むことだけができます。確認はプロジェクトの編集権限がある人が行います。',
     }));
+    if (url) {
+      const line = makeElement(doc, 'p', { textContent: '本文を直すときは、元の記録で編集してください。' });
+      line.append(makeElement(doc, 'a', {
+        className: 'bb-minutes-source-link',
+        textContent: `元の記録を開く（${provider}）`,
+        attrs: { href: url, target: '_blank', rel: 'noopener noreferrer' },
+      }));
+      notice.append(line);
+    } else {
+      notice.append(makeElement(doc, 'p', { textContent: '本文を直すときは、議事録を取り込んだ元で編集してください。' }));
+    }
+    parent.append(notice);
   }
 
   function appendLoadError(parent, message, retry) {
@@ -343,92 +666,178 @@ export function createMeetingMinutesUI({
     parent.append(notice);
   }
 
+  function renderMeetingRow(entry) {
+    const meeting = entry.meeting;
+    const timing = meetingTiming(entry);
+    const item = makeElement(doc, 'button', {
+      className: `bb-minutes-meeting-item${state.meetingId === meeting.meeting_id ? ' is-selected' : ''}`,
+      type: 'button',
+      attrs: { type: 'button' },
+    });
+    item.append(makeElement(doc, 'strong', {
+      className: 'bb-minutes-item-title',
+      textContent: text(meeting.title, '無題の会議'),
+    }));
+    const line = makeElement(doc, 'span', { className: 'bb-minutes-item-line' });
+    if (timing.kind === 'scheduled') {
+      appendLinePart(line, makeElement(doc, 'span', { textContent: formatClock(timing.date) }));
+    } else if (timing.kind === 'fallback' || (timing.kind === 'unregistered' && timing.date)) {
+      appendLinePart(line, makeElement(doc, 'span', { textContent: unscheduledLabel(timing) }));
+    }
+    const label = meetingLabelText(meetingLabel, meeting);
+    if (label) appendLinePart(line, makeElement(doc, 'span', { className: 'bb-minutes-meeting-label', textContent: label }));
+    const rowState = listState(entry);
+    if (rowState) appendLinePart(line, stateChip(rowState));
+    const versionNumber = listedVersionNumber(entry);
+    if (versionNumber >= 2) appendLinePart(line, makeElement(doc, 'span', { textContent: `第${versionNumber}版` }));
+    const minutesCount = Array.isArray(entry.minutes) ? entry.minutes.length : 0;
+    if (minutesCount >= 2) appendLinePart(line, makeElement(doc, 'span', { textContent: `議事録 ${minutesCount}件` }));
+    item.append(line);
+    item.addEventListener('click', () => void loadDetail(meeting.meeting_id));
+    return item;
+  }
+
   function renderList() {
     clear(listPane);
     const head = makeElement(doc, 'div', { className: 'bb-minutes-pane-head' });
-    head.append(makeElement(doc, 'h2', { textContent: '会議一覧' }));
-    const createAllowed = canCreate();
-    head.append(button(doc, '会議を作成', () => renderCreateForm(), {
-      className: 'bb-minutes-button is-primary',
-      disabled: !createAllowed,
-    }));
-    if (!createAllowed) appendCreateBlockedNotice(head);
+    const meetings = state.meetings.filter((entry) => isRecord(entry?.meeting) && typeof entry.meeting.meeting_id === 'string');
+    if (canCreate()) {
+      head.append(button(doc, '会議を作成', () => renderCreateForm(), { className: 'bb-minutes-button is-primary' }));
+    }
+    head.append(makeElement(doc, 'p', { className: 'bb-minutes-sort-note', textContent: `新しい順・${meetings.length}件` }));
     listPane.append(head);
+    if (!canCreate()) {
+      listPane.append(makeElement(doc, 'p', {
+        className: 'bb-minutes-create-guard',
+        textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
+      }));
+    }
     if (state.listError) {
       appendLoadError(listPane, `会議一覧を読み込めませんでした。理由: ${state.listError}`, () => loadMeetings({ restoreFocus: true }));
     }
-    if (state.meetings.length === 0) {
+    if (meetings.length === 0) {
       if (state.listError) return;
-      listPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '保存された会議はありません。会議を作成するとここに表示されます。' }));
+      listPane.append(makeElement(doc, 'p', {
+        className: 'bb-minutes-empty',
+        textContent: 'まだ議事録はありません。会議を取り込むと、ここに新しい順で並びます。',
+      }));
       return;
     }
     const list = makeElement(doc, 'div', { className: 'bb-minutes-meeting-list' });
-    for (const entry of state.meetings) {
-      const meeting = entry?.meeting;
-      if (!isRecord(meeting) || typeof meeting.meeting_id !== 'string') continue;
-      const item = makeElement(doc, 'button', {
-        className: `bb-minutes-meeting-item${state.meetingId === meeting.meeting_id ? ' is-selected' : ''}`,
-        type: 'button',
-        attrs: { type: 'button' },
-      });
-      const label = meetingLabelText(meetingLabel, meeting);
-      item.append(
-        makeElement(doc, 'strong', { textContent: text(meeting.title, '無題の会議') }),
-        ...(label ? [makeElement(doc, 'span', { className: 'bb-minutes-meeting-label', textContent: label })] : []),
-        makeElement(doc, 'span', { className: 'bb-minutes-item-meta', textContent: displayDate(meeting.scheduled_at) }),
-        makeElement(doc, 'span', { className: 'bb-minutes-item-meta', textContent: `${Array.isArray(entry.minutes) ? entry.minutes.length : 0}件の議事録` }),
-      );
-      item.addEventListener('click', () => void loadDetail(meeting.meeting_id));
-      list.append(item);
+    const today = clock();
+    let currentKey = null;
+    for (const entry of meetings) {
+      const timing = meetingTiming(entry);
+      if (timing.kind === 'unregistered') continue;
+      const key = dateKey(timing.date);
+      if (key !== currentKey) {
+        currentKey = key;
+        list.append(makeElement(doc, 'h3', {
+          className: 'bb-minutes-date-heading',
+          textContent: dayHeading(timing.date, today),
+        }));
+      }
+      list.append(renderMeetingRow(entry));
+    }
+    const unregistered = meetings.filter((entry) => meetingTiming(entry).kind === 'unregistered');
+    if (unregistered.length) {
+      list.append(makeElement(doc, 'h3', {
+        className: 'bb-minutes-date-heading',
+        textContent: '会議の日時が未登録（取り込んだ日の新しい順）',
+      }));
+      for (const entry of unregistered) list.append(renderMeetingRow(entry));
     }
     listPane.append(list);
   }
 
-  function selectedDetail() {
-    return state.detail && state.detail.meeting?.meeting_id === state.meetingId ? state.detail : null;
-  }
-
-  function renderRail(version, documentRecord) {
+  function renderRail(version, documentRecord, meeting) {
     if (!rail) return;
     clear(rail);
     const block = makeElement(doc, 'section', { className: 'bb-minutes-rail-block' });
-    block.append(makeElement(doc, 'h2', { textContent: '確認対象' }));
-    if (!version) {
-      block.append(makeElement(doc, 'p', { textContent: '版を選ぶと、本文と確認状態をここに表示します。' }));
-    } else {
-      const versions = detailVersions(state.detail, documentRecord?.minutes_id);
-      block.append(
-        makeElement(doc, 'p', { className: 'bb-minutes-rail-title', textContent: text(documentRecord?.title, '議事録') }),
-        makeElement(doc, 'p', { textContent: versionLabel(versions, version) }),
-        makeElement(doc, 'p', { textContent: version.confirmation ? `確認済み（${displayDate(version.confirmation.confirmed_at)}）` : '未確認' }),
-      );
+    block.append(makeElement(doc, 'h2', { textContent: '関連' }));
+    if (!meeting && !version) {
+      block.append(makeElement(doc, 'p', { textContent: '議事録を選ぶと、ここに本文が出ます。' }));
+      rail.append(block);
+      return;
     }
+    block.append(makeElement(doc, 'h3', { textContent: '予定' }));
+    block.append(makeElement(doc, 'p', { className: 'bb-minutes-rail-note', textContent: '予定とのつながりは未対応です。' }));
+    block.append(makeElement(doc, 'h3', { textContent: 'プロジェクト' }));
+    const label = meetingLabelText(meetingLabel, meeting);
+    block.append(makeElement(doc, 'p', { textContent: label || 'プロジェクトは記録されていません' }));
+    appendIdentifiers(doc, block, {
+      meetingId: meeting?.meeting_id,
+      minutesId: documentRecord?.minutes_id,
+      versionId: version?.version_id,
+    });
     rail.append(block);
   }
 
-  function renderVersion(detail, documentRecord, selectedVersion) {
+  function renderVersion(detail, documentRecord, selectedVersion, noticeState) {
     const versions = detailVersions(detail, documentRecord.minutes_id);
-    const selected = selectedVersion ?? versions.find((version) => version.version_id === documentRecord.current_version_id) ?? versions[versions.length - 1];
+    const latest = versions.find((version) => version.version_id === documentRecord.current_version_id) ?? versions[versions.length - 1] ?? null;
+    const selected = selectedVersion ?? latest;
     state.versionId = selected?.version_id ?? null;
     const selectedLabel = versionLabel(versions, selected);
+    const selectedState = versionState(selected, versions, latest);
+    const latestState = versionState(latest, versions, latest);
+    const viewingOld = Boolean(selected && latest && selected.version_id !== latest.version_id);
     const section = makeElement(doc, 'section', { className: 'bb-minutes-document' });
-    const header = makeElement(doc, 'div', { className: 'bb-minutes-document-head' });
-    header.append(
-      makeElement(doc, 'div', { className: 'bb-minutes-document-title', textContent: text(documentRecord.title, '議事録') }),
-      makeElement(doc, 'span', { className: 'bb-minutes-revision', textContent: `現在 ${selectedLabel}` }),
-    );
-    section.append(header);
-    const history = makeElement(doc, 'div', { className: 'bb-minutes-version-history', attrs: { 'aria-label': '版履歴' } });
-    history.append(makeElement(doc, 'h4', { textContent: '版履歴' }));
+    if (viewingOld) {
+      const banner = makeElement(doc, 'div', { className: 'bb-minutes-old-version' });
+      const latestName = latestState.code === 'confirmed' ? '確認済み' : latestState.label;
+      banner.append(makeElement(doc, 'p', {
+        textContent: `古い版を表示しています。最新は${versionLabel(versions, latest)}（${latestName}）です。`,
+      }));
+      banner.append(button(doc, '最新の版を見る', () => {
+        clear(detailPane);
+        renderDetail(detail, documentRecord, latest);
+      }));
+      section.append(banner);
+    }
+    const band = makeElement(doc, 'div', { className: 'bb-minutes-version-band' });
+    const latestMark = selected && latest && selected.version_id === latest.version_id ? '（最新）' : '';
+    band.append(makeElement(doc, 'strong', { textContent: `${selectedLabel}${latestMark}` }));
+    const created = formatStamp(selected?.created_at);
+    if (created) band.append(makeElement(doc, 'span', { className: 'bb-minutes-item-meta', textContent: created }));
+    band.append(stateChip(selectedState, { detailed: true }));
+    const history = makeElement(doc, 'div', { className: 'bb-minutes-version-history is-collapsed', attrs: { 'aria-label': '版の履歴' } });
+    const historyButton = button(doc, `版の履歴（${versions.length}件）`, () => {
+      const collapsed = history.className.includes('is-collapsed');
+      history.className = collapsed ? 'bb-minutes-version-history' : 'bb-minutes-version-history is-collapsed';
+      historyButton.textContent = collapsed ? `版の履歴を閉じる（${versions.length}件）` : `版の履歴（${versions.length}件）`;
+    });
+    band.append(historyButton);
+    section.append(band);
+    if (!noticeState.placed) {
+      noticeState.placed = true;
+      appendReadOnlyNotice(section, selected);
+    }
     for (const version of [...versions].reverse()) {
-      const selectedClass = version.version_id === selected?.version_id ? ' is-selected' : '';
-      const versionButton = makeElement(doc, 'button', { className: `bb-minutes-version${selectedClass}`, type: 'button', attrs: { type: 'button' } });
-      versionButton.append(
-        makeElement(doc, 'strong', { textContent: versionLabel(versions, version) }),
-        makeElement(doc, 'span', { textContent: version.confirmation ? '確認済み' : '未確認' }),
-        makeElement(doc, 'span', { className: 'bb-minutes-item-meta', textContent: displayDate(version.created_at) }),
+      const versionButton = makeElement(doc, 'button', {
+        className: `bb-minutes-version${version.version_id === selected?.version_id ? ' is-selected' : ''}`,
+        type: 'button',
+        attrs: { type: 'button' },
+      });
+      const itemState = versionState(version, versions, latest);
+      const isLatest = Boolean(latest) && version.version_id === latest.version_id;
+      const line1 = makeElement(doc, 'span', { className: 'bb-minutes-version-line' });
+      line1.append(
+        makeElement(doc, 'strong', { textContent: `${versionLabel(versions, version)}${isLatest ? '（最新）' : ''}` }),
+        stateChip(itemState),
+        makeElement(doc, 'span', { className: 'bb-minutes-version-stamp', textContent: historyStamp(version, clock()) }),
       );
-      versionButton.addEventListener('click', () => { clear(detailPane); renderDetail(detail, documentRecord, version); });
+      versionButton.append(
+        line1,
+        makeElement(doc, 'span', {
+          className: 'bb-minutes-version-line is-secondary',
+          textContent: historySecondLine(version, versions, latest),
+        }),
+      );
+      versionButton.addEventListener('click', () => {
+        clear(detailPane);
+        renderDetail(detail, documentRecord, version);
+      });
       history.append(versionButton);
     }
     section.append(history);
@@ -437,23 +846,13 @@ export function createMeetingMinutesUI({
       className: 'bb-minutes-external-body-slot',
       attrs: { 'data-minutes-external-body': 'true' },
     });
-    content.append(makeElement(doc, 'h4', { textContent: `${selectedLabel}の本文` }), versionContent(doc, selected), bodyRoot);
-    if (selected?.predecessor_version_id) {
-      const predecessor = versions.find((version) => version.version_id === selected.predecessor_version_id);
-      content.append(makeElement(doc, 'p', {
-        className: 'bb-minutes-item-meta',
-        textContent: `訂正元: ${versionLabel(versions, predecessor)}`,
-      }));
-    }
+    content.append(versionContent(doc, selected), bodyRoot);
     section.append(content);
-    if (selected) {
-      const actions = makeElement(doc, 'div', { className: 'bb-minutes-actions' });
-      const editAllowed = canEdit();
-      const confirm = button(doc, selected.confirmation ? '確認済み' : 'この版を確認', async () => {
-        if (selected.confirmation) return;
+    if (selected && canEdit() && !isRecord(selected.confirmation) && selectedState.code !== 'unknown' && selectedState.code !== 'creating') {
+      const confirm = button(doc, 'この版を確認済みにする', async () => {
         if (!canEdit()) {
-          confirm.disabled = true;
-          appendEditBlockedNotice(section, { alert: true });
+          clear(detailPane);
+          renderDetail(detail, documentRecord, selected);
           return;
         }
         confirm.disabled = true;
@@ -462,16 +861,14 @@ export function createMeetingMinutesUI({
             version_id: selected.version_id,
             expected_revision: documentRecord.revision,
           });
-          setStatus('確認を保存しました。', 'success');
           await loadDetail(detail.meeting.meeting_id);
+          if (!state.detailError) setStatus(`${selectedLabel}を確認済みにしました。`, 'success');
         } catch (error) {
           confirm.disabled = false;
           setStatus(error instanceof Error ? error.message : '確認を保存できませんでした。', 'error');
         }
-      }, { className: 'bb-minutes-button is-primary', disabled: Boolean(selected.confirmation) || !editAllowed });
-      actions.append(confirm);
-      section.append(actions);
-      if (!editAllowed) appendEditBlockedNotice(section);
+      }, { className: 'bb-minutes-button is-primary' });
+      band.append(confirm);
     }
     appendVersionActionExtensions(doc, section, {
       extensions: versionActionExtensions,
@@ -489,43 +886,8 @@ export function createMeetingMinutesUI({
       minutesId: documentRecord.minutes_id,
       versionId: selected?.version_id,
     });
-    appendSaveForm(section, detail, documentRecord);
-    renderRail(selected, documentRecord);
+    renderRail(selected, documentRecord, detail.meeting);
     return section;
-  }
-
-  function appendSaveForm(section, detail, documentRecord) {
-    if (!canEdit()) {
-      appendEditBlockedNotice(section);
-      return;
-    }
-    const form = makeElement(doc, 'form', { className: 'bb-minutes-save-form' });
-    form.append(makeElement(doc, 'h4', { textContent: '訂正版を保存' }));
-    const field = labelInput(doc, '本文（保存すると新しい版になります）', { type: 'textarea', name: 'body', placeholder: '議事録の本文を入力' });
-    field.input.rows = 8;
-    const save = makeElement(doc, 'button', { className: 'bb-minutes-button is-primary', textContent: '新しい版を保存', type: 'submit' });
-    form.append(field.wrapper, save);
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (!canEdit()) {
-        save.disabled = false;
-        appendEditBlockedNotice(section, { alert: true });
-        return;
-      }
-      save.disabled = true;
-      try {
-        await mutate(`/${encodeURIComponent(detail.meeting.meeting_id)}/minutes/${encodeURIComponent(documentRecord.minutes_id)}`, {
-          body: field.input.value,
-          expected_revision: documentRecord.revision,
-        });
-        setStatus('新しい版を保存しました。', 'success');
-        await loadDetail(detail.meeting.meeting_id);
-      } catch (error) {
-        save.disabled = false;
-        setStatus(error instanceof Error ? error.message : '版を保存できませんでした。', 'error');
-      }
-    });
-    section.append(form);
   }
 
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
@@ -538,11 +900,11 @@ export function createMeetingMinutesUI({
     }
     if (!detail || !isRecord(detail.meeting)) {
       if (state.detailError) {
-        renderRail(null, null);
+        renderRail(null, null, null);
         return;
       }
-      detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '会議を選ぶと詳細を表示します。' }));
-      renderRail(null, null);
+      detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '議事録を選ぶと、ここに本文が出ます。' }));
+      renderRail(null, null, null);
       return;
     }
     const meeting = detail.meeting;
@@ -550,58 +912,43 @@ export function createMeetingMinutesUI({
     header.append(makeElement(doc, 'h2', { textContent: text(meeting.title, '無題の会議') }));
     const label = meetingLabelText(meetingLabel, meeting);
     if (label) header.append(makeElement(doc, 'p', { className: 'bb-minutes-meeting-label', textContent: label }));
-    header.append(makeElement(doc, 'p', { className: 'bb-minutes-item-meta', textContent: `${displayDate(meeting.scheduled_at)} / ${Array.isArray(meeting.participant_ids) && meeting.participant_ids.length ? meeting.participant_ids.join('、') : '参加者未登録'}` }));
+    const timing = meetingTiming({ meeting, minutes: detail.minutes, versions: detail.versions });
+    const when = timing.kind === 'scheduled'
+      ? `${formatMonthDay(timing.date)} ${formatClock(timing.date)}`
+      : unscheduledLabel(timing);
+    const participants = Array.isArray(meeting.participant_ids) && meeting.participant_ids.length
+      ? meeting.participant_ids.join('、')
+      : '';
+    header.append(makeElement(doc, 'p', {
+      className: 'bb-minutes-item-meta',
+      textContent: participants ? `${when} / ${participants}` : when,
+    }));
     detailPane.append(header);
     const documents = Array.isArray(detail.minutes) ? detail.minutes : [];
-    if (documents.length === 0) detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-warning', textContent: '議事録文書を読み取れません。' }));
+    const noticeState = { placed: false };
+    if (documents.length === 0) {
+      detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-warning', textContent: '議事録文書を読み取れません。' }));
+      appendReadOnlyNotice(detailPane, null);
+      noticeState.placed = true;
+    }
     for (const documentRecordValue of documents) {
-      detailPane.append(renderVersion(detail, documentRecordValue, documentRecordValue.minutes_id === documentRecord?.minutes_id ? selectedVersion : null));
+      detailPane.append(renderVersion(
+        detail,
+        documentRecordValue,
+        documentRecordValue.minutes_id === documentRecord?.minutes_id ? selectedVersion : null,
+        noticeState,
+      ));
     }
-    detailPane.append(renderCreateMinutesForm(detail));
-  }
-
-  function renderCreateMinutesForm(detail) {
-    if (!canEdit()) {
-      const guard = makeElement(doc, 'section', { className: 'bb-minutes-edit-guard' });
-      appendEditBlockedNotice(guard);
-      return guard;
-    }
-    const form = makeElement(doc, 'form', { className: 'bb-minutes-create-form' });
-    form.append(makeElement(doc, 'h3', { textContent: '議事録文書を追加' }));
-    const title = labelInput(doc, '議事録の名前', { name: 'title', value: '議事録' });
-    const body = labelInput(doc, '本文', { type: 'textarea', name: 'body', placeholder: '本文を入力' });
-    body.input.rows = 5;
-    const save = makeElement(doc, 'button', { className: 'bb-minutes-button', textContent: '議事録を追加', type: 'submit' });
-    form.append(title.wrapper, body.wrapper, save);
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (!canEdit()) {
-        save.disabled = false;
-        appendEditBlockedNotice(form, { alert: true });
-        return;
-      }
-      save.disabled = true;
-      try {
-        await mutate(`/${encodeURIComponent(detail.meeting.meeting_id)}/minutes`, {
-          title: title.input.value,
-          body: body.input.value,
-          expected_revision: detail.snapshot_revision,
-        });
-        setStatus('議事録文書を追加しました。', 'success');
-        await loadMeetings();
-        await loadDetail(detail.meeting.meeting_id);
-      } catch (error) {
-        save.disabled = false;
-        setStatus(error instanceof Error ? error.message : '議事録を追加できませんでした。', 'error');
-      }
-    });
-    return form;
   }
 
   function renderCreateForm() {
     clear(detailPane);
     if (!canCreate()) {
-      appendCreateBlockedNotice(detailPane, { alert: true });
+      detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '議事録を選ぶと、ここに本文が出ます。' }));
+      detailPane.append(makeElement(doc, 'p', {
+        className: 'bb-minutes-create-guard',
+        textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
+      }));
       return;
     }
     const form = makeElement(doc, 'form', { className: 'bb-minutes-create-form' });
@@ -617,8 +964,14 @@ export function createMeetingMinutesUI({
     form.addEventListener('submit', async (event) => {
       event.preventDefault();
       if (!canCreate()) {
-        save.disabled = false;
-        appendCreateBlockedNotice(detailPane, { alert: true });
+        save.disabled = true;
+        renderList();
+        clear(detailPane);
+        detailPane.append(makeElement(doc, 'p', { className: 'bb-minutes-empty', textContent: '議事録を選ぶと、ここに本文が出ます。' }));
+        detailPane.append(makeElement(doc, 'p', {
+          className: 'bb-minutes-create-guard',
+          textContent: '会議を作成する権限がありません。作成はプロジェクトの編集権限がある人が行います。',
+        }));
         return;
       }
       save.disabled = true;
@@ -653,7 +1006,7 @@ export function createMeetingMinutesUI({
       const payload = await call('');
       if (!isCurrentRequest()) return state.meetings;
       if (!isRecord(payload) || !Array.isArray(payload.meetings) || payload.absence_confirmed !== true) throw new Error('会議一覧の形式を確認できません。');
-      state.meetings = payload.meetings;
+      state.meetings = sortMeetings(payload.meetings);
       state.listError = null;
       const selectedMeetingStillListed = state.meetingId !== null
         && state.meetings.some((entry) => entry?.meeting?.meeting_id === state.meetingId);
@@ -670,8 +1023,8 @@ export function createMeetingMinutesUI({
         if (hadDetailError) renderDetail(null);
       }
       renderList();
-      if (state.detailError && state.detail === null) renderDetail(null);
-      setStatus(state.meetings.length ? `${state.meetings.length}件の会議を読み込みました。` : '保存された会議はありません。');
+      if (!state.detail) renderDetail(null);
+      setStatus(state.meetings.length ? `${state.meetings.length}件の会議を読み込みました。` : 'まだ議事録はありません。');
       if (restoreFocus && typeof listPane.focus === 'function') listPane.focus({ preventScroll: true });
     } catch (error) {
       if (!isCurrentRequest()) return state.meetings;
@@ -728,6 +1081,7 @@ export function createMeetingMinutesUI({
     return state.detail;
   }
 
+  renderDetail(null);
   void loadMeetings();
   return {
     contractVersion: MEETING_MINUTES_UI_CONTRACT_VERSION,
