@@ -1,5 +1,7 @@
 # npm公開をprovenanceなしでself-hosted runnerから行う
 
+> **置き換え済み（2026-10-15）:** 佐藤さんの判断で A'（publish ジョブだけ GitHub-hosted に戻し、`--provenance` と `id-token: write` を戻す）に一本化した。現在の契約は story-public-ci-self-hosted-runners の AC-009・AC-010。このStoryの方式で 0.41.6 だけが provenance なしで公開された。
+
 ## Problem Frame
 
 0.41.5 の npm 公開（run 38713407935）は、publish ジョブが self-hosted runner（EVO-X2）で動いているため、`npm publish --provenance` が npm registry に 422（`Unsupported GitHub Actions runner environment: "self-hosted"`）で拒否されて止まった。npm の provenance は GitHub-hosted runner でしか使えない。直さないと、以後の公開もすべて同じ理由で止まる。

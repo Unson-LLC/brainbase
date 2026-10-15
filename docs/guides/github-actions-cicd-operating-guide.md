@@ -9,7 +9,7 @@
 | パッケージ関連のPull Request | Node 22の`npm test`（Vitestの完全収集）とbuild、Node 20の代表統合スイート | deployなし |
 | ドキュメント関連のPull Request | `docs:check`、公開契約テスト、VitePress build、built HTML smoke | deployなし |
 | `develop`への公開サイト入力のpush | 上記ドキュメント検証、Cloudflare Pages deploy、`docs:verify-public`による公開後readback | 公開サイトのみ |
-| npm公開 | immutable commitのrelease validation、artifact/proofの受け渡し、provenanceなしpublish（self-hosted runnerではnpmのprovenanceが使えないため。publishジョブだけがOIDCガード用に`id-token: write`を持ち、`NPM_CONFIG_PROVENANCE=false`を明示）、GitHub Release確認 | npm公開権限はrelease workflowだけが使用 |
+| npm公開 | immutable commitのrelease validation、artifact/proofの受け渡し、GitHub-hosted runnerでのprovenance付きpublish（publishジョブだけが`id-token: write`を持つ）、GitHub Release確認 | npm公開権限はrelease workflowだけが使用 |
 | public-message promotion | 候補の契約検証とドキュメント検証を済ませたreview PRの作成 | 自動merge・自動deployなし |
 
 `docs-cloudflare-pages.yml`のpush deploy入力は、`docs/manual/**`、`docs/.vitepress/**`、`docs/publication/public-message.json`、`docs/publication/organization-teaser.json`、`package.json`、`package-lock.json`、同workflow自身に限定する。CIガイドやStoryなど内部文書だけの変更ではdeployしない。
@@ -34,7 +34,7 @@ CIはGitHub-hosted runnerを使わない。`ubuntu-latest`を含むGitHub-hosted
 runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
 ```
 
-例外は`npm-publish.yml`のpublish jobだけで、`runs-on: ubuntu-latest`で実行する。npmはprovenance（sigstoreの来歴署名）をGitHub-hosted runnerからしか受け付けず、self-hosted runnerでは`npm publish --provenance`が`E422 Unsupported GitHub Actions runner environment: "self-hosted"`で拒否される（2026-10-15、0.41.5のrun 38713407935）。provenanceを外さずに公開するため、佐藤さんの判断（2026-10-15）でpublish jobだけを戻した。validate jobを含むほかのjobはself-hosted runnerのままである。publish jobはpull requestのheadを読まず、developとvalidate jobが作ったartifactだけを使う。
+例外は`npm-publish.yml`のpublish jobだけで、`runs-on: ubuntu-latest`で実行する。npmはprovenance（sigstoreの来歴署名）をGitHub-hosted runnerからしか受け付けず、self-hosted runnerでは`npm publish --provenance`が`E422 Unsupported GitHub Actions runner environment: "self-hosted"`で拒否される（2026-10-15、0.41.5のrun 38713407935）。provenanceを外さずに公開するため、佐藤さんの判断（2026-10-15、A'に一本化）でpublish jobだけを戻した。0.41.6は一時的にprovenanceなしで公開された（#793・#794）。validate jobを含むほかのjobはself-hosted runnerのままである。publish jobはpull requestのheadを読まず、developとvalidate jobが作ったartifactだけを使う。
 
 EVO-X2は1台の機械に複数のrunnerを載せている。Vitestは既定で機械のコア数に合わせて並列数を決めるため、複数のjobが同時に動くと機械が飽和し、変更と無関係なテストが5秒の上限で落ちる（2026-10-15、PR #786で3回続けて発生）。`test.yml`のテストは`--maxWorkers=4`で並列数を固定する。手元で全テストを3本同時に走らせると、既定では各9〜10件が時間切れになり、4に固定すると全件合格した。
 
