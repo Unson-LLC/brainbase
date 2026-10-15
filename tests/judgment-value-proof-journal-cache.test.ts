@@ -15,6 +15,22 @@ vi.mock('node:fs/promises', async (importOriginal) => {
   return { ...actual, readdir: vi.fn(actual.readdir) };
 });
 
+/** Whether this process is refused when it lists a folder whose permissions are removed. */
+async function folderPermissionsAreEnforced(parent: string): Promise<boolean> {
+  const probe = join(parent, 'permission-probe');
+  await mkdir(probe, { recursive: true });
+  await chmod(probe, 0o000);
+  try {
+    await readdir(probe);
+    return false;
+  } catch {
+    return true;
+  } finally {
+    await chmod(probe, 0o700);
+    await rm(probe, { recursive: true, force: true });
+  }
+}
+
 function continuedProof(id: string): JudgmentValueProof {
   return {
     schema_version: 'brainbase-judgment-value-proof-v1',
@@ -195,7 +211,14 @@ describe('reading the judgment journal with a remembered folder listing', () => 
   });
 
   // chmod does not stop listing on Windows, and permission checks do not apply to root.
-  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('fails instead of reusing the remembered listing when a folder can no longer be listed', async () => {
+  it.skipIf(process.platform === 'win32' || process.getuid?.() === 0)('fails instead of reusing the remembered listing when a folder can no longer be listed', async (context) => {
+    // Some CI runners can still list a 0o000 folder without being root (for
+    // example with a capability that overrides permissions). There the
+    // precondition of this test does not hold, so skip instead of failing.
+    if (!(await folderPermissionsAreEnforced(journal))) {
+      context.skip();
+      return;
+    }
     const folder = join(journal, 'session-a');
     await writeProof(folder, 'turn', continuedProof('1'));
     await quiet(folder);
