@@ -14,14 +14,26 @@ async function readRepoFile(path: string): Promise<string> {
 }
 
 describe('public CI self-hosted runner policy', () => {
-  it('AC-001 runs every workflow job on the EVO-X2 self-hosted labels', async () => {
+  it('AC-001 runs every workflow job on the EVO-X2 self-hosted labels except the npm publish job', async () => {
     const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
     for (const [index, workflow] of workflows.entries()) {
-      const runsOn = workflow.match(/^[ \t]*runs-on:.*$/gmu) ?? [];
+      const jobs = workflowPaths[index] === '.github/workflows/npm-publish.yml'
+        ? workflow.slice(0, workflow.indexOf('  publish:'))
+        : workflow;
+      const runsOn = jobs.match(/^[ \t]*runs-on:.*$/gmu) ?? [];
       expect(runsOn, workflowPaths[index]).not.toHaveLength(0);
       expect(runsOn.every((line) => line.trim() === selfHostedRunner), workflowPaths[index]).toBe(true);
-      expect(workflow, workflowPaths[index]).not.toMatch(/ubuntu-latest|windows-latest|macos-latest/u);
+      expect(jobs, workflowPaths[index]).not.toMatch(/ubuntu-latest|windows-latest|macos-latest/u);
     }
+  });
+
+  it('AC-009 runs only the npm publish job on a GitHub-hosted runner, because npm rejects provenance from self-hosted runners', async () => {
+    const workflow = await readRepoFile('.github/workflows/npm-publish.yml');
+    const publishJob = workflow.slice(workflow.indexOf('  publish:'));
+    expect(publishJob.match(/^[ \t]*runs-on:.*$/gmu)?.map((line) => line.trim())).toEqual(['runs-on: ubuntu-latest']);
+    expect(publishJob).toMatch(/--provenance/u);
+    expect(publishJob).toMatch(/id-token: write/u);
+    expect(publishJob).not.toMatch(/github\.event\.pull_request/u);
   });
 
   it('AC-002 runs pull_request jobs only for a head in this repository', async () => {
@@ -59,6 +71,7 @@ describe('public CI self-hosted runner policy', () => {
   it('AC-004 documents the runner labels and the fork pull request boundary', async () => {
     const guide = await readRepoFile('docs/guides/github-actions-cicd-operating-guide.md');
     expect(guide).toContain('GitHub-hosted runnerを使わない');
+    expect(guide).toContain('例外は`npm-publish.yml`のpublish jobだけで、`runs-on: ubuntu-latest`で実行する。');
     expect(guide).toContain(selfHostedRunner);
     expect(guide).toContain('github.event.pull_request.head.repo.full_name == github.repository');
     expect(guide).toContain('author_association');

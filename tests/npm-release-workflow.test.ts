@@ -36,8 +36,9 @@ describe('npm publish workflow', () => {
     expect(workflow.match(/id-token: write/gu)).toHaveLength(1);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
     expect(validationJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
-    expect(publishJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
-    expect(workflow).not.toMatch(/ubuntu-latest/u);
+    // npm rejects provenance from self-hosted runners, so only the publish job runs GitHub-hosted.
+    expect(publishJob).toMatch(/runs-on: ubuntu-latest/u);
+    expect(validationJob).not.toMatch(/ubuntu-latest/u);
     expect(workflow).not.toMatch(/github\.event\.pull_request\.head\.(sha|ref)/u);
   });
 
