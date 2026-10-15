@@ -63,5 +63,84 @@ describe('public CI self-hosted runner policy', () => {
     expect(guide).toContain('github.event.pull_request.head.repo.full_name == github.repository');
     expect(guide).toContain('author_association');
     expect(guide).toContain('pull requestのheadをcheckoutしない');
+    expect(guide).toContain('CLOUDFLARE_API_TOKEN');
+    expect(guide).toContain('persist-credentials: false');
+    expect(guide).toContain('http.extraheader');
+    expect(guide).toContain('40文字のcommit SHA');
+  });
+
+  it('AC-005 keeps secrets out of job env and on the steps that use them', async () => {
+    const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
+    for (const [index, workflow] of workflows.entries()) {
+      for (const block of jobLevelEnvBlocks(workflow)) {
+        expect(block, workflowPaths[index]).not.toMatch(/secrets\./u);
+      }
+    }
+
+    const docsWorkflow = workflows[workflowPaths.indexOf('.github/workflows/docs-cloudflare-pages.yml')];
+    const jobHeader = docsWorkflow.slice(docsWorkflow.indexOf('  validate-and-publish:'), docsWorkflow.indexOf('    steps:'));
+    expect(jobHeader).not.toMatch(/^\s*env:/mu);
+    const validateStep = sliceStep(docsWorkflow, 'Validate bounded Worker secret target', 'Sync and verify Worker service token');
+    const syncStep = sliceStep(docsWorkflow, 'Sync and verify Worker service token', 'Decide whether to deploy');
+    const requireStep = sliceStep(docsWorkflow, 'Require Cloudflare deployment credentials', 'Deploy verified build to Cloudflare Pages');
+    const deployStep = sliceStep(docsWorkflow, 'Deploy verified build to Cloudflare Pages', 'Read back the public site');
+    for (const step of [validateStep, syncStep, requireStep]) {
+      expect(step).toMatch(/CLOUDFLARE_ACCOUNT_ID: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/u);
+      expect(step).toMatch(/CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/u);
+    }
+    expect(validateStep).toMatch(/BRAINBASE_SERVICE_JWT: \$\{\{ secrets\.BRAINBASE_SERVICE_JWT \}\}/u);
+    expect(syncStep).toMatch(/BRAINBASE_SERVICE_JWT: \$\{\{ secrets\.BRAINBASE_SERVICE_JWT \}\}/u);
+    expect(requireStep).not.toMatch(/BRAINBASE_SERVICE_JWT/u);
+    expect(deployStep).toMatch(/apiToken: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN \}\}/u);
+    expect(deployStep).toMatch(/accountId: \$\{\{ secrets\.CLOUDFLARE_ACCOUNT_ID \}\}/u);
+    expect(deployStep).not.toMatch(/BRAINBASE_SERVICE_JWT/u);
+  });
+
+  it('AC-006 sets persist-credentials false on every checkout', async () => {
+    const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
+    const checkouts = workflows.flatMap((workflow) => checkoutSections(workflow));
+    expect(checkouts).toHaveLength(5);
+    for (const section of checkouts) {
+      expect(section).toMatch(/persist-credentials: false/u);
+    }
+    const promotion = workflows[workflowPaths.indexOf('.github/workflows/public-message-promotion.yml')];
+    expect(promotion).toMatch(/git -c http\.extraheader="AUTHORIZATION: bearer \$\{GH_TOKEN\}" push --set-upstream origin "\$BRANCH_NAME"/u);
+  });
+
+  it('AC-007 pins every action use to a 40-character SHA and tag comment', async () => {
+    const workflows = await Promise.all(workflowPaths.map((path) => readRepoFile(path)));
+    const uses = workflows.flatMap((workflow) => workflow.match(/^[ \t]*-?[ \t]*uses:.*$/gmu) ?? []);
+    expect(uses.length).toBeGreaterThan(0);
+    for (const line of uses) {
+      expect(line).toMatch(/uses: [A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+@[0-9a-f]{40} # v\d+(?:\.\d+)*$/u);
+    }
   });
 });
+
+function jobLevelEnvBlocks(workflow: string): string[] {
+  const lines = workflow.split('\n');
+  const blocks: string[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^    env:\s*$/u.test(lines[index])) continue;
+    const block = [lines[index]];
+    for (let next = index + 1; next < lines.length; next += 1) {
+      if (lines[next].trim() === '' || lines[next].startsWith('      ')) {
+        block.push(lines[next]);
+        continue;
+      }
+      break;
+    }
+    blocks.push(block.join('\n'));
+  }
+  return blocks;
+}
+
+function checkoutSections(workflow: string): string[] {
+  return workflow.split(/uses: actions\/checkout@/u).slice(1).map((part) => part.split(/\n[ \t]*- /u)[0]);
+}
+
+function sliceStep(workflow: string, startName: string, endName: string): string {
+  const start = workflow.indexOf(`      - name: ${startName}`);
+  const end = workflow.indexOf(`      - name: ${endName}`);
+  return workflow.slice(start, end);
+}

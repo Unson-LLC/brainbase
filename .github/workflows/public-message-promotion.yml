@@ -34,13 +34,14 @@ jobs:
       CANDIDATE_JSON_BASE64: ${{ github.event_name == 'workflow_dispatch' && inputs.candidate_json_base64 || github.event.client_payload.candidate_json_base64 }}
     steps:
       - name: Check out authoritative develop branch
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: develop
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
           cache: npm
@@ -118,7 +119,7 @@ jobs:
           git switch -c "$BRANCH_NAME"
           git add -- README.md AGENTS.md CLAUDE.md package.json docs/core-philosophy.md docs/manual/index.md docs/manual/guide/grand-design.md docs/manual/guide/judgment-system.md docs/publication/public-message.json "docs/publication/history/${CANDIDATE_ID}.json"
           git commit -m "docs: promote public message ${CANDIDATE_ID}"
-          git push --set-upstream origin "$BRANCH_NAME"
+          git -c http.extraheader="AUTHORIZATION: bearer ${GH_TOKEN}" push --set-upstream origin "$BRANCH_NAME"
           HEAD_SHA=$(git rev-parse HEAD)
           {
             echo "branch=$BRANCH_NAME"

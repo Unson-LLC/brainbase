@@ -19,12 +19,12 @@ describe('npm publish workflow', () => {
     const publishJob = workflow.slice(workflow.indexOf('  publish:'));
     expect(validationJob).toMatch(/contents: read/u);
     expect(validationJob).toMatch(/npm-release\.mjs validate/u);
-    expect(validationJob).toMatch(/actions\/upload-artifact@v4/u);
+    expect(validationJob).toMatch(/actions\/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4/u);
     expect(validationJob).not.toMatch(/id-token: write/u);
     expect(validationJob).not.toMatch(/NODE_AUTH_TOKEN/u);
     expect(publishJob).toMatch(/needs: validate/u);
     expect(publishJob).toMatch(/id-token: write/u);
-    expect(publishJob).toMatch(/actions\/download-artifact@v4/u);
+    expect(publishJob).toMatch(/actions\/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4/u);
     expect(publishJob).toMatch(/--tarball-file/u);
     expect(publishJob).toMatch(/node scripts\/npm-release\.mjs publish/u);
     expect(publishJob).toMatch(/BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'/u);

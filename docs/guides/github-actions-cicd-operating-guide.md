@@ -50,6 +50,12 @@ if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.re
 
 `pull_request_target`でpull requestのheadをcheckoutしない。`npm-publish.yml`の`pull_request_target`は、developへmerge済みのときと`workflow_dispatch`のときだけ動く。checkoutは`develop`と、merge commitまたは`origin/develop`の祖先である。`NODE_AUTH_TOKEN`はpublish jobだけが読む。validate jobは公開用secretを持たない。
 
+`CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`BRAINBASE_SERVICE_JWT`はjobのenvに置かない。対象確認、Worker secret同期、deploy前確認の各stepのenvだけが、そのstepが使うsecretを読む。Cloudflare Pages deployのwrangler-actionは`with`で`secrets.*`を直接参照する。
+
+すべての`actions/checkout`は`persist-credentials: false`である。`public-message-promotion.yml`のreview branch pushは、そのコマンドだけで`GH_TOKEN`を`http.extraheader`に渡す。checkoutには資格情報を残さない。
+
+各`uses`は、公式リポジトリのタグと一致する40文字のcommit SHAに固定し、行末にそのタグのコメントを付ける。
+
 `pull_request`のworkflow定義は、対象PRの内容が使われる。forkが`if`を消したworkflowを送った場合、GitHubが外部コラボレーターのworkflow承認を維持していることが残りの境界になる。承認後も、このリポジトリの既定workflowはfork headをself-hostedで実行しない。
 
 ## 必要なSecrets
