@@ -140,7 +140,8 @@ jobs:
   publish:
     needs: validate
     if: ${{ needs.validate.outputs.release_required == 'true' }}
-    runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
+    # npm accepts provenance only from GitHub-hosted runners (E422 on self-hosted, run 38713407935).
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write

@@ -34,6 +34,8 @@ CIはGitHub-hosted runnerを使わない。`ubuntu-latest`を含むGitHub-hosted
 runs-on: [self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2]
 ```
 
+例外は`npm-publish.yml`のpublish jobだけで、`runs-on: ubuntu-latest`で実行する。npmはprovenance（sigstoreの来歴署名）をGitHub-hosted runnerからしか受け付けず、self-hosted runnerでは`npm publish --provenance`が`E422 Unsupported GitHub Actions runner environment: "self-hosted"`で拒否される（2026-10-15、0.41.5のrun 38713407935）。provenanceを外さずに公開するため、佐藤さんの判断（2026-10-15）でpublish jobだけを戻した。validate jobを含むほかのjobはself-hosted runnerのままである。publish jobはpull requestのheadを読まず、developとvalidate jobが作ったartifactだけを使う。
+
 EVO-X2は1台の機械に複数のrunnerを載せている。Vitestは既定で機械のコア数に合わせて並列数を決めるため、複数のjobが同時に動くと機械が飽和し、変更と無関係なテストが5秒の上限で落ちる（2026-10-15、PR #786で3回続けて発生）。`test.yml`のテストは`--maxWorkers=4`で並列数を固定する。手元で全テストを3本同時に走らせると、既定では各9〜10件が時間切れになり、4に固定すると全件合格した。
 
 このリポジトリは公開されている。forkのpull requestをself-hosted runnerで実行すると、未信頼のworkflowとコードが組織のマシンに載る。`pull_request`で動くjobは、headがこのリポジトリ自身のときだけ実行する。
