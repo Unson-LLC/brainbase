@@ -10,7 +10,7 @@ describe('npm publish workflow', () => {
     expect(workflow).toMatch(/git checkout --detach/u);
     expect(workflow).toMatch(/--trusted-ref origin\/develop/u);
     expect(workflow).toMatch(/NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/u);
-    expect(workflow).not.toMatch(/--provenance/u);
+    expect(workflow).toMatch(/--provenance/u);
     expect(packageManifest.repository).toEqual({
       type: 'git',
       url: 'git+https://github.com/Unson-LLC/brainbase.git'
@@ -24,9 +24,9 @@ describe('npm publish workflow', () => {
     expect(validationJob).not.toMatch(/NODE_AUTH_TOKEN/u);
     expect(publishJob).toMatch(/needs: validate/u);
     expect(publishJob).toMatch(/permissions:\n      contents: write\n(?:      #.*\n)*      id-token: write\n/u);
-    expect(publishJob).toMatch(/NPM_CONFIG_PROVENANCE: 'false'/u);
-    expect(publishJob).not.toMatch(/Install trusted-publishing npm CLI/u);
-    expect(publishJob).not.toMatch(/published with provenance/u);
+    expect(publishJob).not.toMatch(/NPM_CONFIG_PROVENANCE/u);
+    expect(publishJob).toMatch(/Install trusted-publishing npm CLI/u);
+    expect(publishJob).toMatch(/published with provenance/u);
     expect(publishJob).toMatch(/actions\/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4/u);
     expect(publishJob).toMatch(/--tarball-file/u);
     expect(publishJob).toMatch(/node scripts\/npm-release\.mjs publish/u);
@@ -36,8 +36,9 @@ describe('npm publish workflow', () => {
     expect(workflow.match(/id-token: write/gu)).toHaveLength(1);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
     expect(validationJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
-    expect(publishJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
-    expect(workflow).not.toMatch(/ubuntu-latest/u);
+    // npm rejects provenance from self-hosted runners, so only the publish job runs GitHub-hosted.
+    expect(publishJob).toMatch(/runs-on: ubuntu-latest/u);
+    expect(validationJob).not.toMatch(/ubuntu-latest/u);
     expect(workflow).not.toMatch(/github\.event\.pull_request\.head\.(sha|ref)/u);
   });
 
