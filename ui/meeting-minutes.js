@@ -153,6 +153,46 @@ function httpUrl(value) {
   }
 }
 
+// Only http(s) URLs and same-site absolute paths become links.
+function connectionHref(value) {
+  const raw = text(value);
+  if (raw.startsWith('/') && !raw.startsWith('//') && !raw.startsWith('/\\')) return raw;
+  return httpUrl(raw);
+}
+
+const CONNECTION_ROWS = Object.freeze([
+  ['project', 'プロジェクト'],
+  ['tasks', 'タスク'],
+  ['decisions', '判断'],
+  ['stored', '保存先'],
+  ['shared', '共有先'],
+]);
+
+// A host answer is trusted only for what it states.  Anything missing or
+// malformed reads as unrecorded, never as a confirmed empty list (P9).
+function normalizeConnectionRow(row) {
+  if (!isRecord(row)) return { status: 'unrecorded', reason: '' };
+  const reason = text(row.reason);
+  if (row.status === 'none') return { status: 'none', reason: '' };
+  if (row.status === 'unavailable') return { status: 'unavailable', reason };
+  if (row.status === 'recorded') {
+    const items = (Array.isArray(row.items) ? row.items : [])
+      .filter(isRecord)
+      .map((item) => ({ label: text(item.label), href: connectionHref(item.href), detail: text(item.detail) }))
+      .filter((item) => item.label);
+    if (items.length) return { status: 'recorded', items };
+  }
+  return { status: 'unrecorded', reason };
+}
+
+function normalizeConnections(value) {
+  const unreadable = !isRecord(value);
+  return Object.fromEntries(CONNECTION_ROWS.map(([key]) => [
+    key,
+    unreadable ? { status: 'unavailable', reason: '' } : normalizeConnectionRow(value[key]),
+  ]));
+}
+
 function firstDate(values) {
   for (const value of values) {
     const date = parseDate(value);
@@ -513,6 +553,7 @@ export function createMeetingMinutesUI({
   basePath = '/api/meeting-minutes',
   versionActionExtensions = [],
   meetingLabel,
+  meetingConnections,
   canCreateMeeting,
   canEditMinutes,
   now = () => new Date(),
@@ -533,9 +574,14 @@ export function createMeetingMinutesUI({
     loading: false,
     listError: null,
     detailError: null,
+    // { meetingId, rows } where rows is null while the host is answering.
+    connections: null,
   };
   let listRequestGeneration = 0;
   let detailRequestGeneration = 0;
+  let connectionsSlot = null;
+  let railProjectSlot = null;
+  let railProjectMeeting = null;
 
   const screen = makeElement(doc, 'div', { className: 'bb-minutes-screen', attrs: { 'data-contract-version': MEETING_MINUTES_UI_CONTRACT_VERSION } });
   const heading = makeElement(doc, 'header', { className: 'bb-minutes-heading' });
@@ -656,6 +702,94 @@ export function createMeetingMinutesUI({
     parent.append(notice);
   }
 
+  function hasConnections() {
+    return typeof meetingConnections === 'function';
+  }
+
+  function currentConnections(meeting) {
+    const value = state.connections;
+    return value && value.meetingId === meeting?.meeting_id ? value.rows : null;
+  }
+
+  function connectionLink(item, className) {
+    if (!item.href) return makeElement(doc, 'span', { className, textContent: item.label });
+    const external = /^https?:/iu.test(item.href);
+    return makeElement(doc, 'a', {
+      className,
+      textContent: item.label,
+      attrs: {
+        href: item.href,
+        target: external ? '_blank' : undefined,
+        rel: external ? 'noopener noreferrer' : undefined,
+      },
+    });
+  }
+
+  function connectionValue(row) {
+    if (!row) return makeElement(doc, 'p', { className: 'bb-minutes-connection-note', textContent: '読み込んでいます' });
+    if (row.status === 'recorded') {
+      const list = makeElement(doc, 'ul', { className: 'bb-minutes-connection-items' });
+      for (const item of row.items) {
+        const entry = makeElement(doc, 'li');
+        entry.append(connectionLink(item, 'bb-minutes-connection-link'));
+        if (item.detail) entry.append(makeElement(doc, 'span', { className: 'bb-minutes-connection-detail', textContent: item.detail }));
+        list.append(entry);
+      }
+      return list;
+    }
+    const label = row.status === 'none' ? 'なし' : row.status === 'unavailable' ? '読み込めません' : '記録なし';
+    return makeElement(doc, 'p', {
+      className: `bb-minutes-connection-note is-${row.status}`,
+      textContent: row.reason ? `${label}（${row.reason}）` : label,
+    });
+  }
+
+  function fillConnections(slot, rows) {
+    slot.replaceChildren(makeElement(doc, 'h3', { className: 'bb-minutes-connections-title', textContent: 'この会議から' }));
+    const list = makeElement(doc, 'div', { className: 'bb-minutes-connection-list' });
+    for (const [key, label] of CONNECTION_ROWS) {
+      const row = makeElement(doc, 'div', { className: 'bb-minutes-connection-row', attrs: { 'data-connection': key } });
+      row.append(
+        makeElement(doc, 'span', { className: 'bb-minutes-connection-label', textContent: label }),
+        connectionValue(rows ? rows[key] : null),
+      );
+      list.append(row);
+    }
+    slot.append(list);
+  }
+
+  function fillRailProject(slot, meeting) {
+    const project = currentConnections(meeting)?.project;
+    const item = project?.status === 'recorded' ? project.items.find((candidate) => candidate.href) : null;
+    if (item) {
+      slot.textContent = '';
+      slot.replaceChildren(connectionLink(item, 'bb-minutes-source-link'));
+      return;
+    }
+    const label = meetingLabelText(meetingLabel, meeting);
+    slot.replaceChildren();
+    slot.textContent = label || 'プロジェクトは記録されていません';
+  }
+
+  async function loadConnections(detail, isCurrentRequest) {
+    const meetingId = detail.meeting.meeting_id;
+    state.connections = { meetingId, rows: null };
+    let rows;
+    try {
+      rows = normalizeConnections(await meetingConnections({
+        meeting: detail.meeting,
+        minutes: detail.minutes,
+        versions: detail.versions,
+      }));
+    } catch {
+      rows = normalizeConnections(null);
+    }
+    if (!isCurrentRequest() || state.connections?.meetingId !== meetingId) return;
+    state.connections = { meetingId, rows };
+    if (connectionsSlot) fillConnections(connectionsSlot, rows);
+    if (railProjectSlot && railProjectMeeting?.meeting_id === meetingId) fillRailProject(railProjectSlot, railProjectMeeting);
+  }
+
   function appendLoadError(parent, message, retry) {
     const notice = makeElement(doc, 'div', {
       className: 'bb-minutes-load-error',
@@ -753,6 +887,8 @@ export function createMeetingMinutesUI({
   function renderRail(version, documentRecord, meeting) {
     if (!rail) return;
     clear(rail);
+    railProjectSlot = null;
+    railProjectMeeting = null;
     const block = makeElement(doc, 'section', { className: 'bb-minutes-rail-block' });
     block.append(makeElement(doc, 'h2', { textContent: '関連' }));
     if (!meeting && !version) {
@@ -763,8 +899,10 @@ export function createMeetingMinutesUI({
     block.append(makeElement(doc, 'h3', { textContent: '予定' }));
     block.append(makeElement(doc, 'p', { className: 'bb-minutes-rail-note', textContent: '予定とのつながりは未対応です。' }));
     block.append(makeElement(doc, 'h3', { textContent: 'プロジェクト' }));
-    const label = meetingLabelText(meetingLabel, meeting);
-    block.append(makeElement(doc, 'p', { textContent: label || 'プロジェクトは記録されていません' }));
+    railProjectSlot = makeElement(doc, 'p', { className: 'bb-minutes-rail-project' });
+    railProjectMeeting = meeting;
+    fillRailProject(railProjectSlot, meeting);
+    block.append(railProjectSlot);
     appendIdentifiers(doc, block, {
       meetingId: meeting?.meeting_id,
       minutesId: documentRecord?.minutes_id,
@@ -892,6 +1030,7 @@ export function createMeetingMinutesUI({
 
   function renderDetail(detail, documentRecord = null, selectedVersion = null) {
     clear(detailPane);
+    connectionsSlot = null;
     if (state.detailError) {
       const retry = state.meetingId === null ? loadMeetings : () => loadDetail(state.meetingId);
       appendLoadError(detailPane, state.detailError.startsWith('会議詳細を読み込めませんでした。')
@@ -924,6 +1063,14 @@ export function createMeetingMinutesUI({
       textContent: participants ? `${when} / ${participants}` : when,
     }));
     detailPane.append(header);
+    if (hasConnections()) {
+      connectionsSlot = makeElement(doc, 'section', {
+        className: 'bb-minutes-connections',
+        attrs: { 'aria-label': 'この会議から' },
+      });
+      fillConnections(connectionsSlot, currentConnections(meeting));
+      detailPane.append(connectionsSlot);
+    }
     const documents = Array.isArray(detail.minutes) ? detail.minutes : [];
     const noticeState = { placed: false };
     if (documents.length === 0) {
@@ -1066,8 +1213,10 @@ export function createMeetingMinutesUI({
       if (!isRecord(detail) || !isRecord(detail.meeting) || !Array.isArray(detail.minutes) || !Array.isArray(detail.versions)) throw new Error('会議詳細の形式を確認できません。');
       state.detail = detail;
       state.detailError = null;
+      if (hasConnections()) state.connections = { meetingId, rows: null };
       renderDetail(detail);
       setStatus('会議詳細を読み込みました。');
+      if (hasConnections()) void loadConnections(detail, isCurrentRequest);
     } catch (error) {
       if (!isCurrentRequest()) return state.detail;
       const preserved = preserveLoadedStateOnFailure(error) && state.detail?.meeting?.meeting_id === meetingId
