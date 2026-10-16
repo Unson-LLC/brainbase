@@ -322,13 +322,17 @@ function createFoundationCatalogRoute(
       const variables = await readers.store.list('variable', context);
       const models = await readers.store.list('model', context);
       const philosophies = await readers.listPhilosophies(context);
+      // Philosophies without recorded applicability are still read by the
+      // judgment frame catalog; report them separately rather than as absent.
+      const philosophiesWithoutApplicability = await readers.listUnscopedPhilosophies(context);
       return jsonResponse(200, {
         contractVersion: FOUNDATION_OVERVIEW_CONTRACT_VERSION,
         scopeId,
         objectives,
         variables,
         models,
-        philosophies
+        philosophies,
+        philosophies_without_applicability: philosophiesWithoutApplicability
       });
     }
   };

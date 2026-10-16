@@ -148,6 +148,22 @@ function validatePhilosophyRecords(value) {
   return value;
 }
 
+function validateUnscopedPhilosophyRecords(value) {
+  if (!Array.isArray(value)) throw error('invalid_schema', '適用範囲が未記録の哲学の形式を確認できません。');
+  for (const [index, item] of value.entries()) {
+    if (!isObject(item)
+      || item.kind !== 'philosophy'
+      || !nonEmpty(item.id)
+      || !Number.isSafeInteger(item.version) || item.version < 1
+      || item.applicability_state !== 'unrecorded'
+      || !isObject(item.payload)
+      || !nonEmpty(item.payload.statement)) {
+      throw error('invalid_schema', `適用範囲が未記録の哲学の${index + 1}件目の形式が不正です。`);
+    }
+  }
+  return value;
+}
+
 /** Validate the host contract without converting an unreadable response into an empty catalog. */
 export function normalizeFoundationCatalog(value, expectedScopeId) {
   if (!isObject(value) || value.contractVersion !== FOUNDATION_OVERVIEW_CONTRACT_VERSION) {
@@ -163,7 +179,10 @@ export function normalizeFoundationCatalog(value, expectedScopeId) {
   const knownReadableStatuses = new Set(['complete', 'ready', 'resolved', 'empty']);
   const unreadableStatus = (readStatus && !knownReadableStatuses.has(readStatus))
     || (catalogStatus && !knownReadableStatuses.has(catalogStatus));
-  const collections = [value.objectives, value.variables, value.models, value.philosophies];
+  // Older hosts omit this field; then it stays unknown instead of becoming [].
+  const unscopedPhilosophies = value.philosophies_without_applicability === undefined
+    ? undefined : validateUnscopedPhilosophyRecords(value.philosophies_without_applicability);
+  const collections = [value.objectives, value.variables, value.models, value.philosophies, unscopedPhilosophies];
   const hasRecords = collections.some((records) => Array.isArray(records) && records.length > 0);
   const absenceConfirmed = value.absence_confirmed === true;
   if (unreadableStatus || (!hasRecords && ('absence_confirmed' in value || readStatus || catalogStatus) && !absenceConfirmed)) {
@@ -180,6 +199,7 @@ export function normalizeFoundationCatalog(value, expectedScopeId) {
     variables: value.variables,
     models: value.models,
     philosophies: value.philosophies,
+    ...(unscopedPhilosophies ? { philosophies_without_applicability: unscopedPhilosophies } : {}),
     ...(readStatus ? { read_status: readStatus } : {}),
     ...(catalogStatus ? { status: catalogStatus } : {}),
     ...(typeof value.absence_confirmed === 'boolean' ? { absence_confirmed: value.absence_confirmed } : {}),
@@ -589,21 +609,53 @@ function philosophyCard(doc, record) {
   return card;
 }
 
+function unscopedPhilosophyCard(doc, record, recordContexts) {
+  const payload = record.payload;
+  const card = makeElement(doc, 'article', { className: 'bb-fov-philosophy-card is-unscoped' });
+  card.append(makeElement(doc, 'h3', { text: formatAny(payload.title) ?? UNNAMED_RECORD }));
+  card.append(makeElement(doc, 'p', { className: 'bb-fov-philosophy-statement', text: payload.statement }));
+  if (formatAny(payload.summary) && payload.summary !== payload.statement) card.append(makeElement(doc, 'p', { text: payload.summary }));
+  // The section notice explains what an unrecorded applicability means.
+  card.append(workspaceDefinition(doc, [['適用範囲', '未記録']]));
+  const refs = makeElement(doc, 'details', { className: 'bb-fov-original' });
+  refs.append(makeElement(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['出典', recordContexts?.get(record)?.label ?? '未記録'], ['状態', payload.status], ['Graphの版', record.version], ['記録ID', record.id]]));
+  card.append(refs);
+  return card;
+}
+
 function renderPhilosophies(doc, catalog, recordContexts) {
   const section = makeElement(doc, 'section', { className: 'bb-fov-section', attrs: { 'aria-label': '哲学' } });
+  const unscoped = catalog.philosophies_without_applicability;
 
-  if (catalog.philosophies.length === 0) {
-    section.append(workspaceNotice(doc, { label: '哲学', text: 'この対象範囲には登録された哲学がありません。' }));
+  if (catalog.philosophies.length === 0 && !unscoped?.length) {
+    section.append(workspaceNotice(doc, {
+      label: '哲学',
+      text: unscoped
+        ? 'この対象範囲には登録された哲学がありません。'
+        // Without the unscoped list, only the verified list is known to be empty.
+        : '適用範囲が記録された哲学はありません。適用範囲が未記録の哲学があるかは確認できていません。',
+    }));
     return section;
   }
-  const grid = makeElement(doc, 'div', { className: 'bb-fov-philosophy-grid' });
-  for (const record of catalog.philosophies) {
-    const card = philosophyCard(doc, record);
-    const refs = makeElement(doc, 'details', { className: 'bb-fov-original' });
-    refs.append(makeElement(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['出典', recordContexts?.get(record)?.label ?? '未記録'], ['状態', record.payload.status], ['版', record.revision], ['記録ID', record.id], ['digest', record.digest]]));
-    card.append(refs); grid.append(card);
+  if (catalog.philosophies.length) {
+    const grid = makeElement(doc, 'div', { className: 'bb-fov-philosophy-grid' });
+    for (const record of catalog.philosophies) {
+      const card = philosophyCard(doc, record);
+      const refs = makeElement(doc, 'details', { className: 'bb-fov-original' });
+      refs.append(makeElement(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['出典', recordContexts?.get(record)?.label ?? '未記録'], ['状態', record.payload.status], ['版', record.revision], ['記録ID', record.id], ['digest', record.digest]]));
+      card.append(refs); grid.append(card);
+    }
+    section.append(grid);
   }
-  section.append(grid);
+  if (unscoped?.length) {
+    section.append(workspaceNotice(doc, {
+      label: '適用範囲が未記録',
+      text: `次の${unscoped.length}件は、判断への適用範囲が記録されていない哲学です。判断では参照されますが、どの範囲に当てはまるかは確かめられていません。`,
+    }));
+    const grid = makeElement(doc, 'div', { className: 'bb-fov-philosophy-grid' });
+    for (const record of unscoped) grid.append(unscopedPhilosophyCard(doc, record, recordContexts));
+    section.append(grid);
+  }
   return section;
 }
 
@@ -829,10 +881,11 @@ export function renderFoundationCollectionOverview(root, sources, {
 } = {}) {
   const doc = getDocument(explicitDocument);
   root.replaceChildren();
-  const catalog = { objectives: [], variables: [], models: [], philosophies: [] };
+  const catalog = { objectives: [], variables: [], models: [], philosophies: [], philosophies_without_applicability: [] };
   const contexts = new WeakMap();
   const seen = new Map();
   let ready = 0;
+  let unscopedUnknown = false;
   for (const source of sources) {
     if (source.state.status !== 'ready') {
       if (source.state.status === 'loading') {
@@ -846,8 +899,9 @@ export function renderFoundationCollectionOverview(root, sources, {
     const value = normalizeFoundationCatalog(source.state.catalog, source.scopeId);
     ready++;
     const variableMap = new Map(value.variables.map((record) => [foundationKey(recordDefinition(record)), record]));
-    for (const kind of ['objectives', 'models', 'philosophies']) {
-      for (const original of value[kind]) {
+    if (!value.philosophies_without_applicability) unscopedUnknown = true;
+    for (const kind of ['objectives', 'models', 'philosophies', 'philosophies_without_applicability']) {
+      for (const original of value[kind] ?? []) {
         const definition = original.definition ?? original;
         const scope = original.scope ?? original.currentScope ?? definition.scope;
         // Scope-less/project records remain tied to their authenticated catalog.
@@ -868,6 +922,8 @@ export function renderFoundationCollectionOverview(root, sources, {
       }
     }
   }
+  // A host that did not report unscoped philosophies leaves the absence unknown.
+  if (unscopedUnknown && catalog.philosophies_without_applicability.length === 0) delete catalog.philosophies_without_applicability;
   if (ready) {
     const mount = makeElement(doc, 'div');
     renderFoundationOverview(mount, { status: 'ready', catalog }, {

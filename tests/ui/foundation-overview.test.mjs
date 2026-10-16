@@ -429,6 +429,67 @@ test('collection reports one pending state without per-project loading bands or 
   assert.doesNotMatch(textOf(root), /取得済みの範囲|読み込んでいます/);
 });
 
+function unscopedPhilosophy(id, overrides = {}) {
+  return {
+    kind: 'philosophy', id, version: 1, applicability: null, applicability_state: 'unrecorded',
+    payload: { title: '見えなければ価値ではない', statement: '利用者の画面に見えなければ価値ではない。', status: 'active' },
+    ...overrides,
+  };
+}
+
+test('shows philosophies without recorded applicability instead of reporting none registered', async () => {
+  const root = new FakeElement('main');
+  const port = { readCatalog: async () => catalog({ philosophies: [], philosophies_without_applicability: [unscopedPhilosophy('phi_visible_or_not_value')] }) };
+  const controller = createFoundationOverview({ root, port, scopeId: 'project-alpha', document: doc, autoLoad: false });
+  await controller.load();
+  const visible = textOf(root);
+
+  assert.doesNotMatch(visible, /登録された哲学がありません/);
+  assert.match(visible, /次の1件は、判断への適用範囲が記録されていない哲学です/);
+  assert.match(visible, /見えなければ価値ではない/);
+  assert.match(visible, /利用者の画面に見えなければ価値ではない。/);
+  assert.match(visible, /適用範囲.*未記録/s);
+  assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 1);
+});
+
+test('keeps an older host without the unscoped list from claiming no philosophy exists', async () => {
+  const root = new FakeElement('main');
+  const port = { readCatalog: async () => catalog({ philosophies: [] }) };
+  const controller = createFoundationOverview({ root, port, scopeId: 'project-alpha', document: doc, autoLoad: false });
+  await controller.load();
+  const visible = textOf(root);
+  assert.doesNotMatch(visible, /この対象範囲には登録された哲学がありません/);
+  assert.match(visible, /適用範囲が未記録の哲学があるかは確認できていません/);
+
+  const known = new FakeElement('main');
+  const empty = createFoundationOverview({ root: known, port: { readCatalog: async () => catalog({ philosophies: [], philosophies_without_applicability: [] }) }, scopeId: 'project-alpha', document: doc, autoLoad: false });
+  await empty.load();
+  assert.match(textOf(known), /この対象範囲には登録された哲学がありません/);
+});
+
+test('rejects a malformed unscoped philosophy instead of dropping it', () => {
+  assert.throws(
+    () => normalizeFoundationCatalog(catalog({ philosophies_without_applicability: [unscopedPhilosophy('x', { applicability_state: 'recorded' })] }), 'project-alpha'),
+    /適用範囲が未記録の哲学/,
+  );
+  assert.throws(
+    () => normalizeFoundationCatalog(catalog({ philosophies_without_applicability: [unscopedPhilosophy('x', { payload: { statement: '' } })] }), 'project-alpha'),
+    /適用範囲が未記録の哲学/,
+  );
+});
+
+test('collection merges unscoped philosophies with their project provenance', () => {
+  const root = doc.createElement('div');
+  const a = catalog({ philosophies: [], philosophies_without_applicability: [unscopedPhilosophy('phi-a')] });
+  const b = catalog({ scopeId: 'project-beta', philosophies: [], philosophies_without_applicability: [unscopedPhilosophy('phi-b', { payload: { title: 'Beta哲学', statement: 'Betaの本文' } })] });
+  const sources = [a, b].map((value, i) => ({ scopeId: value.scopeId, label: i ? 'Beta' : 'Alpha', state: { status: 'ready', catalog: value } }));
+  renderFoundationCollectionOverview(root, sources, { document: doc });
+  assert.equal(byClass(root, 'bb-fov-philosophy-card').length, 2);
+  assert.match(textOf(root), /次の2件は/);
+  assert.match(textOf(root), /Beta哲学/);
+  assert.doesNotMatch(textOf(root), /登録された哲学がありません/);
+});
+
 // What a reader sees without opening a record's details: section disclosures count as open,
 // the per-record "記録の詳細" disclosures do not.
 const frontText = (node) => {
@@ -496,4 +557,15 @@ test('keeps record ids, digests, field names and secondary states behind the rec
   assert.match(front, /確からしさ: 仮説/);
   assert.match(front, /名前の記録がない変数/);
   assert.match(front, /名前の記録なし/);
+});
+
+test('keeps the id of an unnamed unscoped philosophy in its record details', () => {
+  const root = doc.createElement('div');
+  const unnamed = unscopedPhilosophy('phi_internal_id', { payload: { statement: '名前の無い哲学の本文' } });
+  const sources = [{ scopeId: 'project-alpha', label: 'Alpha', state: { status: 'ready', catalog: catalog({ philosophies: [], philosophies_without_applicability: [unnamed] }) } }];
+  renderFoundationCollectionOverview(root, sources, { document: doc });
+  const heading = textOf(byClass(root, 'bb-fov-philosophy-card')[0].children.find((child) => child.tagName === 'H3'));
+  assert.equal(heading, '名前の記録なし');
+  assert.doesNotMatch(frontText(root), /phi_internal_id/);
+  assert.match(textOf(root), /phi_internal_id/);
 });
