@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   aggregateJudgmentHistory,
   createJudgmentHistoryUI,
+  describeJudgmentBasis,
   normalizeJudgmentHistoryHome,
+  parseJudgmentFrameUsage,
 } from '../../ui/judgment-history.js';
 
 class FakeElement {
@@ -1060,7 +1062,8 @@ describe('judgment history UI', () => {
     const details = findAll(rail, (node) => node.className === 'bb-jh-record-details')[0];
     expect(collectText(details)).toContain('phi_visible_or_not_value（哲学・開ける）');
     const outsideDetails = rail.children.filter((child) => !child.contains(details)).map(collectText).join('');
-    expect(outsideDetails).toContain('選んだ理由: 当時の基準');
+    expect(outsideDetails).toContain('選んだ理由：当時の基準');
+    expect(outsideDetails).toContain('名前を確かめられません');
     expect(outsideDetails).not.toContain('phi_visible_or_not_value');
     expect(collectText(rail)).not.toContain('（コピー）');
     view.dispose();
@@ -1431,5 +1434,123 @@ describe('judgment history shared drawer and filter lifecycle', () => {
     expect(toolbar.children[0].textContent).toBe('18:00');
     expect(toolbar.children.at(-1).attributes['aria-label']).toBe('判断履歴を再読み込み');
     view.dispose(); expect(doc.listeners.size).toBe(0);
+  });
+});
+
+describe('judgment basis (story-judgment-history-frame-basis-v1)', () => {
+  const frameReferences = [
+    { ref: 'phi_visible_or_not_value', kind: 'philosophy', usage: 'constraint:satisfied', why: '画面で見えることが条件', availability: 'unknown' },
+    { ref: 'fnd_objective_phi_remove_human_bottleneck_v1_c1', kind: 'objective', usage: 'criterion', availability: 'unknown' },
+    { ref: 'fnd_model_sato_world_model_20260928_wm_034_v1', kind: 'model', usage: 'prediction:failed', availability: 'unknown' },
+  ];
+  const personalReference = { ref: 'adopt_sato_world_model_20260928_wm_055_v1', kind: 'personal_knowledge', usage: 'applied', availability: 'unknown' };
+  // Production records relayed today carry only the ref (kind/usage are null).
+  const productionShapeReferences = [
+    { ref: 'phi_human_decides_ai_runs', kind: null, version: null, digest: null, why: null, usage: null, availability: 'unknown' },
+    { ref: 'fnd_model_phi_ui_is_projection_v1_c2', kind: null, version: null, digest: null, why: null, usage: null, availability: 'unknown' },
+  ];
+
+  it('parses only the shared usage values', () => {
+    expect(parseJudgmentFrameUsage('constraint:violated')).toEqual({ role: 'constraint', detail: 'violated' });
+    expect(parseJudgmentFrameUsage('criterion')).toEqual({ role: 'criterion', detail: null });
+    expect(parseJudgmentFrameUsage('prediction:held')).toEqual({ role: 'prediction', detail: 'held' });
+    expect(parseJudgmentFrameUsage('constraint')).toBeNull();
+    expect(parseJudgmentFrameUsage('problem_snapshot')).toBeNull();
+    expect(parseJudgmentFrameUsage('判断の根拠')).toBeNull();
+  });
+
+  it('claims the owner judgment was not used only when the writer records usage', () => {
+    expect(describeJudgmentBasis([...frameReferences, personalReference]).owner).toEqual({ state: 'applied', count: 1 });
+    expect(describeJudgmentBasis(frameReferences).owner.state).toBe('not_applied');
+    expect(describeJudgmentBasis(productionShapeReferences).owner.state).toBe('unrecorded');
+    expect(describeJudgmentBasis(null).owner.state).toBe('unrecorded');
+    const groups = describeJudgmentBasis(productionShapeReferences).groups;
+    expect(groups.philosophy.map((entry) => entry.reference.ref)).toEqual(['phi_human_decides_ai_runs']);
+    expect(groups.model.map((entry) => entry.reference.ref)).toEqual(['fnd_model_phi_ui_is_projection_v1_c2']);
+  });
+
+  async function openRecord(references, options = {}) {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const record = normalRecord({ judgment: { ...normalRecord().judgment, selected_references: references } });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: new FakeDocument(),
+      autoLoad: false,
+      fetcher: async (path) => ({
+        ok: true,
+        status: 200,
+        json: async () => (String(path).includes('/records/') ? { record } : normalHome([record])),
+      }),
+      now: OWNER_NOW,
+      ...options,
+    });
+    await view.load();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
+    const rowText = collectText(row);
+    row.listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return { view, rowText, rail };
+  }
+
+  it('shows the frame by name with how it was used, and the owner judgment, before anything else', async () => {
+    const names = { phi_visible_or_not_value: '見えなければ価値ではない', fnd_objective_phi_remove_human_bottleneck_v1_c1: '定型判断は自動化され、人は非定型判断を担う。' };
+    const resolveReferenceLabels = vi.fn(async (references) => Object.fromEntries(references.map(({ ref }) => [ref, names[ref] ?? ''])));
+    const { view, rowText, rail } = await openRecord([...frameReferences, personalReference], { resolveReferenceLabels });
+
+    expect(resolveReferenceLabels).toHaveBeenCalledTimes(1);
+    expect(resolveReferenceLabels.mock.calls[0][0].map((entry) => entry.ref)).not.toContain(personalReference.ref);
+    expect(rowText).toContain('本人の考えあり');
+    expect(rowText).toContain('見えなければ価値ではない');
+
+    const text = collectText(rail);
+    expect(text.indexOf('判断の根拠')).toBeLessThan(text.indexOf('判断の理由'));
+    expect(text).toContain('見えなければ価値ではない守る制約として使った・守れた');
+    expect(text).toContain('照らした基準として使った');
+    expect(text).toContain('名前を確かめられません置いた予測として使った・データで外れた');
+    expect(text).toContain('あなたの判断の材料（個人KG）を1件使いました。');
+    expect(text).not.toContain(personalReference.ref);
+    const outsideDetails = (node) => (node.tagName === 'DETAILS' ? '' : `${node.textContent ?? ''}${(node.children ?? []).map(outsideDetails).join('')}`);
+    expect(text).toContain('phi_visible_or_not_value');
+    expect(outsideDetails(rail)).not.toContain('phi_visible_or_not_value');
+    expect(outsideDetails(rail)).not.toContain('fnd_model_sato_world_model_20260928_wm_034_v1');
+    view.dispose();
+  });
+
+  it('marks a recorded frame without Personal KG as not used', async () => {
+    const { view, rowText, rail } = await openRecord(frameReferences);
+    expect(rowText).toContain('本人の考えなし');
+    expect(collectText(rail)).toContain('あなたの判断の材料（個人KG）は使っていません。');
+    view.dispose();
+  });
+
+  it('keeps production-shaped records without usage as unrecorded, never as not used', async () => {
+    const { view, rowText, rail } = await openRecord(productionShapeReferences);
+    expect(rowText).toContain('本人の考え：記録なし');
+    expect(rowText).toContain('哲学 1・世界モデル 1');
+    const text = collectText(rail);
+    expect(text).toContain('個人KGを使ったかどうかは記録されていません。');
+    expect(text).toContain('使い方の記録なし');
+    expect(text).toContain('名前を確かめられません');
+    expect(text).not.toContain('使っていません。');
+    view.dispose();
+  });
+
+  it('does not call a Personal KG-only record free of references', async () => {
+    const { view, rowText } = await openRecord([personalReference]);
+    expect(rowText).toContain('本人の考えあり');
+    expect(rowText).toContain('判断の枠組みは記録されていません');
+    expect(rowText).not.toContain('参照はありません');
+    view.dispose();
+  });
+
+  it('treats a failed name lookup as unconfirmed, not as the id', async () => {
+    const resolveReferenceLabels = vi.fn(async () => { throw new Error('forbidden'); });
+    const { view, rail } = await openRecord(frameReferences, { resolveReferenceLabels });
+    const text = collectText(rail);
+    expect(text).toContain('名前を確かめられません守る制約として使った・守れた');
+    view.dispose();
   });
 });

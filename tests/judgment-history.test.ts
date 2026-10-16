@@ -983,3 +983,134 @@ describe('judgment history common reader', () => {
     expect(source.timings?.()?.parallel_limit).toBe(2);
   });
 });
+
+describe('judgment frame basis (story-judgment-history-frame-basis-v1)', () => {
+  async function saveHostV2WithEvents(
+    root: string,
+    sessionRef: string,
+    turnId: string,
+    extraEvents: ReadonlyArray<Record<string, unknown>>
+  ): Promise<void> {
+    const artifacts = hostV2Artifacts(sessionRef, turnId);
+    const events = [artifacts.event, ...extraEvents].map((event, index) => ({
+      ...event,
+      event_sequence: index,
+      tool_use_id: `${turnId}-tool-${index}`,
+      event_fingerprint: digest(`${turnId}-fingerprint-${index}`),
+      input_digest: digest(`${turnId}-input-${index}`)
+    }));
+    const final = {
+      ...artifacts.final,
+      event_count: events.length,
+      qualifying_event_count: events.length,
+      event_set_digest: digest(canonicalJson(events.map((event) => ({
+        event_sequence: event.event_sequence,
+        event_fingerprint: event.event_fingerprint
+      }))))
+    };
+    await saveHostV2Artifacts(root, sessionRef, artifacts, { event: events[0], final });
+    const directory = join(root, sessionRef, `${artifacts.key}.events`);
+    for (const event of events.slice(1)) {
+      await writeFile(join(directory, `${digest(String(event.tool_use_id))}.json`), `${JSON.stringify(event)}\n`);
+    }
+  }
+
+  const frameEvent = {
+    schema_version: 'brainbase-judgment-tool-event-v1',
+    recorded_at: '2026-10-07T01:40:00.000Z',
+    tool_name: 'mcp__brainbase__brainbase_judgment_frame_record',
+    event_kind: 'frame',
+    success: true,
+    satisfies: ['judgment.frame'],
+    response_digest: digest('frame-response'),
+    safe_metadata: {
+      judgment_frame: {
+        selected_references: [
+          { ref: 'phi_visible_or_not_value', kind: 'philosophy', why: '画面で見えることが価値の条件' },
+          { ref: 'fnd_objective_phi_remove_human_bottleneck_v1_c1', kind: 'objective', why: '定型判断を任せる' },
+          { ref: 'fnd_model_sato_world_model_20260928_wm_034_v1', kind: 'model', why: '記録の無い判断の扱い' }
+        ],
+        alternatives: [
+          {
+            label: '画面で根拠を見せる',
+            uses: [
+              { ref: 'phi_visible_or_not_value', role: 'constraint', note: 'n', verdict: 'satisfied' },
+              { ref: 'fnd_objective_phi_remove_human_bottleneck_v1_c1', role: 'criterion', note: 'n' },
+              { ref: 'fnd_model_sato_world_model_20260928_wm_034_v1', role: 'prediction', note: 'n', check: { falsified_if: 'x', status: 'held', evidence: 'e' } }
+            ]
+          },
+          {
+            label: '何もしない',
+            uses: [
+              { ref: 'phi_visible_or_not_value', role: 'constraint', note: 'n', verdict: 'violated' },
+              { ref: 'fnd_objective_phi_remove_human_bottleneck_v1_c1', role: 'criterion', note: 'n' },
+              { ref: 'fnd_model_sato_world_model_20260928_wm_034_v1', role: 'prediction', note: 'n' }
+            ]
+          }
+        ],
+        chosen_option: '画面で根拠を見せる'
+      }
+    }
+  };
+
+  function personalAnswerEvent(status: string, referenceIds: string[]): Record<string, unknown> {
+    return {
+      schema_version: 'brainbase-judgment-tool-event-v1',
+      recorded_at: '2026-10-07T01:35:00.000Z',
+      tool_name: 'mcp__brainbase__brainbase_personal_kg_answer_record',
+      event_kind: 'personal_answer',
+      success: true,
+      satisfies: [],
+      response_digest: digest(`answer-${status}`),
+      safe_metadata: {
+        personal_answer: {
+          schema_version: 'brainbase-personal-kg-answer-v1',
+          question_digest: `sha256:${digest('q')}`,
+          status,
+          reference_ids: referenceIds,
+          answer: '本人だけが読める回答',
+          reason: 'r'
+        }
+      }
+    };
+  }
+
+  it('carries the chosen option usage and the applied Personal KG records without their content', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'f'.repeat(64);
+    await saveHostV2WithEvents(root, sessionRef, 'frame-basis-applied', [
+      personalAnswerEvent('resolved', ['adopt_sato_world_model_20260928_wm_055_v1', 'adopt_sato_world_model_20260928_wm_055_v1']),
+      frameEvent
+    ]);
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+
+    expect(home.status).toBe('available');
+    const references = home.records?.[0].judgment.selected_references ?? [];
+    expect(references.map(({ ref, kind, usage }) => ({ ref, kind, usage }))).toEqual([
+      { ref: 'phi_visible_or_not_value', kind: 'philosophy', usage: 'constraint:satisfied' },
+      { ref: 'fnd_objective_phi_remove_human_bottleneck_v1_c1', kind: 'objective', usage: 'criterion' },
+      { ref: 'fnd_model_sato_world_model_20260928_wm_034_v1', kind: 'model', usage: 'prediction:held' },
+      { ref: 'adopt_sato_world_model_20260928_wm_055_v1', kind: 'personal_knowledge', usage: 'applied' }
+    ]);
+    expect(JSON.stringify(home.records?.[0])).not.toContain('本人だけが読める回答');
+  });
+
+  it('does not count an unresolved Personal KG answer as applied', async () => {
+    const root = await makeRoot();
+    const sessionRef = 'g'.repeat(64);
+    await saveHostV2WithEvents(root, sessionRef, 'frame-basis-no-answer', [
+      personalAnswerEvent('no_answer', ['adopt_sato_world_model_20260928_wm_001_v1']),
+      frameEvent
+    ]);
+
+    const home = await createJudgmentHistoryReader({
+      source: createLocalJudgmentHistorySource({ root, entrypoint: 'codex' })
+    }).home();
+
+    const kinds = (home.records?.[0].judgment.selected_references ?? []).map((reference) => reference.kind);
+    expect(kinds).toEqual(['philosophy', 'objective', 'model']);
+  });
+});

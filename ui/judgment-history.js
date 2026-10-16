@@ -69,6 +69,7 @@ const REFERENCE_KIND_LABELS = Object.freeze({
 // record left `kind` empty; an unknown prefix stays "その他".
 const REFERENCE_ID_PREFIXES = Object.freeze([
   ['fnd_philosophy_', 'philosophy'],
+  ['fnd_unson_philosophy_', 'philosophy'],
   ['phi_', 'philosophy'],
   ['fnd_objective_', 'objective'],
   ['fnd_unson_objective_', 'objective'],
@@ -897,14 +898,21 @@ function referenceKindCounts(references) {
   return [...counts].map(([kind, count]) => `${kind} ${count}`).join('・');
 }
 
-function makeReferenceSummary(doc, references) {
+function makeReferenceSummary(doc, references, labels = null) {
   if (references === null || references === undefined) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照は記録されていません' });
-  if (!references.length) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照はありません' });
+  // Personal KG records are summarized by the owner badge only, never by name.
+  const shown = references.filter((ref) => judgmentReferenceKind(ref) !== PERSONAL_KNOWLEDGE_KIND);
+  if (!shown.length) {
+    return makeWorkspaceElement(doc, 'span', {
+      className: 'bb-jh-unrecorded',
+      text: references.length ? '判断の枠組みは記録されていません' : '参照はありません',
+    });
+  }
   const labeled = [];
   const unlabeled = [];
-  for (const ref of references) {
-    const label = referenceLabel(ref);
-    if (label) labeled.push(label);
+  for (const ref of shown) {
+    const name = referenceDisplayName(ref, labels);
+    if (name.known) labeled.push(name.text);
     else unlabeled.push(ref);
   }
   const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-summary' });
@@ -941,6 +949,7 @@ function makeDecisionSummary(doc, row) {
     const summary = text(row.judgment?.summary);
     const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-decision is-normal' });
     wrap.append(makeWorkspaceElement(doc, 'strong', { text: summary || '判断の内容は記録されていません' }));
+    wrap.append(makeOwnerJudgmentBadge(doc, row.references));
     return wrap;
   }
   const summary = text(row.proof?.decision?.summary);
@@ -950,6 +959,74 @@ function makeDecisionSummary(doc, row) {
   else if (row.proof?.interruption?.resolution !== 'continued_without_human') wrap.append(makeWorkspaceElement(doc, 'small', { text: '本人に戻した判断' }));
   return wrap;
 }
+
+// docs/specs/judgment-history-frame-basis.md: the shared kind/usage values.
+const FRAME_KINDS = Object.freeze(['philosophy', 'objective', 'model']);
+const FRAME_KIND_LABELS = Object.freeze({ philosophy: '哲学', objective: '目的', model: '世界モデル' });
+const FRAME_ROLE_LABELS = Object.freeze({
+  constraint: '守る制約として使った',
+  criterion: '照らした基準として使った',
+  prediction: '置いた予測として使った',
+});
+const FRAME_ROLE_DETAIL_LABELS = Object.freeze({
+  constraint: { satisfied: '守れた', violated: '反した', tension: 'ぶつかった' },
+  criterion: { satisfied: '満たした', violated: '満たさない', tension: '一部ぶつかる' },
+  prediction: { held: 'データで当たった', failed: 'データで外れた', unchecked: 'まだデータで確かめていない' },
+});
+const PERSONAL_KNOWLEDGE_KIND = 'personal_knowledge';
+
+/** Kind of a selected reference: the recorded kind, or the Graph id prefix for older records. */
+export function judgmentReferenceKind(reference) {
+  const kind = text(reference?.kind);
+  if (kind) return kind;
+  const ref = text(reference?.ref ?? reference?.id);
+  return REFERENCE_ID_PREFIXES.find(([prefix]) => ref.startsWith(prefix))?.[1] ?? null;
+}
+
+/** Parse the shared usage value; values from other writers stay unparsed. */
+export function parseJudgmentFrameUsage(usage) {
+  const [role, detail = null, ...rest] = text(usage).split(':');
+  if (rest.length || !FRAME_ROLE_LABELS[role]) return null;
+  if (detail !== null && !FRAME_ROLE_DETAIL_LABELS[role][detail]) return null;
+  if (role === 'constraint' && detail === null) return null;
+  return { role, detail };
+}
+
+/**
+ * Group one judgment's references into the frame it used and whether the
+ * owner's Personal KG entered it.  "Not used" is claimed only for a writer
+ * that records usage; anything else stays "unrecorded" (P9).
+ */
+export function describeJudgmentBasis(references) {
+  const groups = { philosophy: [], objective: [], model: [] };
+  const others = [];
+  let personal = 0;
+  let usageRecorded = false;
+  for (const reference of Array.isArray(references) ? references : []) {
+    const kind = judgmentReferenceKind(reference);
+    if (kind === PERSONAL_KNOWLEDGE_KIND) {
+      personal += 1;
+      continue;
+    }
+    const usage = parseJudgmentFrameUsage(reference?.usage);
+    if (FRAME_KINDS.includes(kind)) {
+      if (usage) usageRecorded = true;
+      groups[kind].push({ reference, usage });
+    } else {
+      others.push(reference);
+    }
+  }
+  const owner = personal > 0
+    ? { state: 'applied', count: personal }
+    : usageRecorded ? { state: 'not_applied', count: 0 } : { state: 'unrecorded', count: 0 };
+  return { groups, others, owner, recorded: Array.isArray(references) };
+}
+
+const OWNER_JUDGMENT_BADGES = Object.freeze({
+  applied: '本人の考えあり',
+  not_applied: '本人の考えなし',
+  unrecorded: '本人の考え：記録なし',
+});
 
 // "recorded" is the normal case and "unknown" means nobody checked; neither
 // needs the person's attention, so only the two blocking states are shown.
@@ -998,6 +1075,101 @@ function appendReferenceList(doc, references) {
     }));
   }
   return wrap;
+}
+
+/** Name for a frame reference, resolved by the host under the viewer's current permission. */
+function referenceDisplayName(reference, labels) {
+  const recorded = referenceLabel(reference);
+  if (recorded) return { text: recorded, known: true };
+  const entry = labels?.get?.(text(reference?.ref ?? reference?.id));
+  if (entry?.status === 'found' && text(entry.label)) return { text: text(entry.label), known: true };
+  if (entry?.status === 'loading') return { text: '名前を確認中', known: false };
+  return { text: '名前を確かめられません', known: false };
+}
+
+function frameUsageText(usage) {
+  if (!usage) return '使い方の記録なし';
+  const detail = usage.detail ? FRAME_ROLE_DETAIL_LABELS[usage.role][usage.detail] : '';
+  return detail ? `${FRAME_ROLE_LABELS[usage.role]}・${detail}` : FRAME_ROLE_LABELS[usage.role];
+}
+
+function referenceWhy(doc, reference) {
+  const why = text(reference?.why);
+  return why ? makeWorkspaceElement(doc, 'span', { className: 'bb-jh-basis-why', text: `選んだ理由：${why}` }) : null;
+}
+
+function appendJudgmentBasis(doc, references, labels) {
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-basis' });
+  if (references === null || references === undefined) {
+    wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '判断の枠組み（哲学・目的・世界モデル）の記録はありません。使っていないとは限りません。' }));
+    return wrap;
+  }
+  const basis = describeJudgmentBasis(references);
+  for (const kind of FRAME_KINDS) {
+    const section = makeWorkspaceElement(doc, 'section', { className: `bb-jh-basis-group is-${kind}` });
+    section.append(makeWorkspaceElement(doc, 'h4', { text: FRAME_KIND_LABELS[kind] }));
+    const entries = basis.groups[kind];
+    if (!entries.length) {
+      section.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: 'この判断では記録されていません。' }));
+    } else {
+      const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-basis-list' });
+      for (const { reference, usage } of entries) {
+        const item = makeWorkspaceElement(doc, 'li');
+        const name = referenceDisplayName(reference, labels);
+        item.append(makeWorkspaceElement(doc, 'strong', { className: name.known ? '' : 'bb-jh-unrecorded', text: name.text }));
+        item.append(makeWorkspaceElement(doc, 'span', {
+          className: `bb-jh-basis-usage${usage ? ` is-${usage.role}${usage.detail ? ` is-${usage.detail}` : ''}` : ' is-unrecorded'}`,
+          text: frameUsageText(usage),
+        }));
+        const why = referenceWhy(doc, reference);
+        if (why) item.append(why);
+        list.append(item);
+      }
+      section.append(list);
+    }
+    wrap.append(section);
+  }
+  if (basis.others.length) {
+    const section = makeWorkspaceElement(doc, 'section', { className: 'bb-jh-basis-group is-other' });
+    section.append(makeWorkspaceElement(doc, 'h4', { text: 'そのほかの参照' }));
+    const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-basis-list' });
+    for (const reference of basis.others) {
+      const item = makeWorkspaceElement(doc, 'li');
+      const name = referenceDisplayName(reference, labels);
+      item.append(makeWorkspaceElement(doc, 'strong', { className: name.known ? '' : 'bb-jh-unrecorded', text: name.text }));
+      item.append(makeWorkspaceElement(doc, 'small', { text: referenceKindLabel(reference) }));
+      const why = referenceWhy(doc, reference);
+      if (why) item.append(why);
+      list.append(item);
+    }
+    section.append(list);
+    wrap.append(section);
+  }
+  return wrap;
+}
+
+function appendOwnerJudgment(doc, references) {
+  const { owner } = describeJudgmentBasis(references);
+  const wrap = makeWorkspaceElement(doc, 'div', { className: `bb-jh-owner is-${owner.state}` });
+  if (owner.state === 'applied') {
+    wrap.append(makeWorkspaceElement(doc, 'strong', { text: `あなたの判断の材料（個人KG）を${owner.count}件使いました。` }));
+    wrap.append(makeWorkspaceElement(doc, 'p', { text: 'この判断には、あなたの考えが入っています。個人KGの中身はここには出しません。' }));
+  } else if (owner.state === 'not_applied') {
+    wrap.append(makeWorkspaceElement(doc, 'strong', { text: 'あなたの判断の材料（個人KG）は使っていません。' }));
+    wrap.append(makeWorkspaceElement(doc, 'p', { text: 'Graphの哲学・目的・世界モデルと、AIの判断で進めました。' }));
+  } else {
+    wrap.append(makeWorkspaceElement(doc, 'strong', { text: '個人KGを使ったかどうかは記録されていません。' }));
+    wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: 'この記録の書き手は使い方を残していません。使っていないとは限りません。' }));
+  }
+  return wrap;
+}
+
+function makeOwnerJudgmentBadge(doc, references) {
+  const { owner } = describeJudgmentBasis(references);
+  return makeWorkspaceElement(doc, 'span', {
+    className: `bb-jh-owner-badge is-${owner.state}`,
+    text: OWNER_JUDGMENT_BADGES[owner.state],
+  });
 }
 
 function evidenceIdentifier(entry) {
@@ -1226,7 +1398,8 @@ function referenceIdList(doc, references) {
   const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-id-list' });
   for (const ref of references) {
     const id = text(ref.ref ?? ref.id);
-    if (!id) continue;
+    // Personal KG records are shown only as "used" and a count, never by id.
+    if (!id || judgmentReferenceKind(ref) === PERSONAL_KNOWLEDGE_KIND) continue;
     const availability = REFERENCE_AVAILABILITY_DETAIL[text(ref.availability)] ?? REFERENCE_AVAILABILITY_DETAIL.unknown;
     const version = text(ref.version) ? `・版 ${text(ref.version)}` : '';
     list.append(makeWorkspaceElement(doc, 'li', { text: `${id}（${referenceKindLabel(ref)}${version}・${availability}）` }));
@@ -1288,12 +1461,17 @@ function renderNormalRail(doc, rail, row, detail, onClose, options = {}) {
     }));
   }
   rail.append(workspaceRailBlock(doc, {
-    title: '判断の理由',
-    content: appendTextParts(doc, [text(record.judgment?.reason) || '理由は記録されていません。']),
+    title: '判断の根拠',
+    className: 'bb-jh-basis-block',
+    content: appendJudgmentBasis(doc, record.selectedReferences, options.labels),
   }));
   rail.append(workspaceRailBlock(doc, {
-    title: '判断に使った参照',
-    content: appendReferenceList(doc, record.selectedReferences),
+    title: '本人の考え',
+    content: appendOwnerJudgment(doc, record.selectedReferences),
+  }));
+  rail.append(workspaceRailBlock(doc, {
+    title: '判断の理由',
+    content: appendTextParts(doc, [text(record.judgment?.reason) || '理由は記録されていません。']),
   }));
   rail.append(workspaceRailBlock(doc, {
     title: '比べた案',
@@ -1695,7 +1873,7 @@ function formatCheckedAt(value) {
   }
 }
 
-function makeRows(doc, aggregate, selectedKey, onSelect) {
+function makeRows(doc, aggregate, selectedKey, onSelect, labels = null) {
   return aggregate.rows.map((row) => ({
     key: row.key,
     label: `${formatDate(row.recordedAt)} ${row.mode === 'normal' ? text(row.judgment?.summary) || '判断履歴' : text(row.proof?.decision?.summary) || '判断履歴'}`,
@@ -1705,7 +1883,7 @@ function makeRows(doc, aggregate, selectedKey, onSelect) {
     cells: [
       makeWorkspaceElement(doc, 'span', { className: 'bb-jh-date', text: formatDate(row.recordedAt) }),
       makeDecisionSummary(doc, row),
-      makeReferenceSummary(doc, row.references),
+      makeReferenceSummary(doc, row.references, row.mode === 'normal' ? labels : null),
       makeEntrypointStatus(doc, row),
     ],
   }));
@@ -1726,6 +1904,9 @@ export function createJudgmentHistoryUI({
   now = new Date(),
   skeletonDelayMs = 300,
   slowDelayMs = 10000,
+  // Optional host port: (references: {ref, kind}[]) => Promise<Map|object of ref -> name>.
+  // The host resolves names under the viewer's current permission.
+  resolveReferenceLabels = null,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = safeDocument(explicitDocument);
@@ -1764,6 +1945,7 @@ export function createJudgmentHistoryUI({
     checkedAt: null,
     skeletonTimer: null,
     slowTimer: null,
+    labels: new Map(),
   };
 
   let filterPopover = null;
@@ -2072,6 +2254,35 @@ export function createJudgmentHistoryUI({
     void load({ append: false });
   }
 
+  function requestReferenceLabels(rows) {
+    const pending = [];
+    for (const row of rows) {
+      if (row.mode !== 'normal' || !Array.isArray(row.references)) continue;
+      for (const reference of row.references) {
+        const ref = text(reference?.ref);
+        const kind = judgmentReferenceKind(reference);
+        if (!ref || kind === PERSONAL_KNOWLEDGE_KIND || referenceLabel(reference) || state.labels.has(ref)) continue;
+        state.labels.set(ref, { status: typeof resolveReferenceLabels === 'function' ? 'loading' : 'missing' });
+        pending.push({ ref, kind });
+      }
+    }
+    if (!pending.length || typeof resolveReferenceLabels !== 'function') return;
+    const settle = (resolved) => {
+      if (state.disposed) return;
+      const lookup = resolved instanceof Map
+        ? (ref) => resolved.get(ref)
+        : isRecord(resolved) ? (ref) => resolved[ref] : () => null;
+      for (const { ref } of pending) {
+        const label = text(lookup(ref));
+        state.labels.set(ref, label ? { status: 'found', label } : { status: 'missing' });
+      }
+      render();
+    };
+    Promise.resolve()
+      .then(() => resolveReferenceLabels(pending.map((entry) => ({ ...entry }))))
+      .then(settle, () => settle(null));
+  }
+
   async function loadDetail(row) {
     if (!row || row.mode !== 'normal' || !request || state.disposed) return null;
     const generation = ++state.detailGeneration;
@@ -2228,6 +2439,7 @@ export function createJudgmentHistoryUI({
     const emptyText = loading ? '' : state.home?.status === 'partial' || (normalMode() && !aggregate.countComplete)
       ? 'この期間に取得できた判断履歴はありません。全件数が未確認のため0件とは確認できません。'
       : 'この期間の判断履歴はありません。';
+    requestReferenceLabels(aggregate.rows);
     const dataRows = makeRows(doc, aggregate, state.selectedKey, (key) => {
       state.lastFocusedKey = key;
       state.selectedKey = key;
@@ -2236,7 +2448,7 @@ export function createJudgmentHistoryUI({
       render();
       const selectedRow = aggregate.rows.find((row) => row.key === key);
       if (selectedRow?.mode === 'normal') void loadDetail(selectedRow);
-    });
+    }, state.labels);
     wrapper.append(workspaceLedger(doc, {
       className: 'bb-jh-ledger',
       ariaLabel: '判断履歴',
@@ -2294,6 +2506,7 @@ export function createJudgmentHistoryUI({
         onRecordDetailsToggle: (open) => { recordDetailsOpen = open; },
         onSubmitFeedback: (controls) => void submitFeedback(selected, controls),
         onCopyReference: (payload) => void copyReference(payload),
+        labels: state.labels,
       }
       : {};
     if (nativeDrawer) {
