@@ -1386,6 +1386,10 @@ export function createMeetingMinutesStore(options: MeetingMinutesStoreOptions): 
     const meeting = findMeeting(snapshot, document.meeting_id);
     await authorized(authorizer, 'write', meeting, context);
     await authorized(authorizer, 'write', document, context);
+    // Only the person who made the document takes it back (story-meeting-minutes-edit-and-withdraw-ui-v1).
+    if (document.created_actor_id !== principal) {
+      throw new MeetingMinutesError('authorization_denied', 'Only the person who made this minutes document can withdraw it');
+    }
     // Withdrawing twice keeps the first record; a retry is not a second withdrawal.
     if (document.withdrawal && !idempotency.token) return detailForCaller(snapshot, meeting, context);
     if (!document.withdrawal) ensureRevision(document.revision, input.expected_revision);
