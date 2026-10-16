@@ -25,3 +25,12 @@ AND current_entity.payload ? 'judgmentApplicability'
 ## 検証方針
 
 PGliteを使った実DB互換テストで、旧行（キーなし）と有効行を同一プロジェクトへ置き、一覧SQLが有効行だけを返すことを確認する。reader単体テストでは、明示されたnull・不正metadataが拒否されることと、個別読込の欠損payloadが厳格に失敗することを確認する。
+
+## 追記: 適用範囲が未記録の哲学（story-philosophy-catalog-unscoped-visible）
+
+判断の一覧（`brainbase_judgment_frame_catalog`）は適用範囲の無い哲学も参照する。そのため、一覧から外した旧行を画面で「無い」と見せない。`GET /api/foundation/catalog` は `philosophies` と別に `philosophies_without_applicability` を返す。
+
+- 入力は `GRAPH_UNSCOPED_PHILOSOPHY_LIST_SQL`。選択プロジェクト・`lifecycle_status = 'active'`・`judgmentApplicability` キーなしの現行行だけを読む。
+- 判断の一覧と同じく、`payload.status` が superseded・retired・rejected で始まる行と、`statement` の無い行は含めない。
+- 各項目は `{ kind: 'philosophy', id, version, applicability: null, applicability_state: 'unrecorded', payload: { title?, statement, summary?, status? } }`。`version` は現行Graph行の版で、検証済みの改訂版ではない。payload の他の項目は返さない。
+- 共通UIはこの項目を「適用範囲: 未記録」として区別して表示する。項目が無い応答（古いホスト）では、未記録の哲学の有無を確認できていないと表示する。
