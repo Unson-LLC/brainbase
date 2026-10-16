@@ -653,7 +653,7 @@ export function createMeetingMinutesUI({
   toInput.addEventListener('change', () => { state.filters.to = toInput.value; renderList(); });
   const period = makeElement(doc, 'span', { className: 'bb-minutes-filter-period' });
   period.append(fromInput, makeElement(doc, 'span', { className: 'bb-minutes-filter-period-sep', textContent: '〜', attrs: { 'aria-hidden': 'true' } }), toInput);
-  const participantBox = filterCombobox('参加者', [], '', (value) => { state.filters.participant = value; renderList(); });
+  const participantBox = filterCombobox('参加者', [{ value: '', label: 'すべての参加者' }], '', (value) => { state.filters.participant = value; renderList(); });
   const statusBox = filterCombobox('確認の状態', STATE_FILTERS, '', (value) => { state.filters.status = value; renderList(); });
   const sortBox = filterCombobox('並べ替え', SORTS, state.sort, (value) => { state.sort = value; renderList(); });
   const hostSlot = makeElement(doc, 'div', { className: 'bb-minutes-filter-host' });
@@ -663,7 +663,7 @@ export function createMeetingMinutesUI({
   toolbar.append(
     filterField('キーワード', keyword, 'is-keyword'),
     hostSlot,
-    filterField('期間', period),
+    filterField('期間', period, 'is-period'),
     participantField,
     statusField,
     filterField('並べ替え', sortBox.root),
@@ -1325,6 +1325,7 @@ export function createMeetingMinutesUI({
     return state.detail;
   }
 
+  renderToolbar([]);
   renderDetail(null);
   void loadMeetings();
   return {

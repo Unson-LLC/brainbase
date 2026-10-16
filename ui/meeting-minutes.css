@@ -137,8 +137,8 @@
 }
 
 .bb-minutes-filter-field.is-keyword {
-  flex: 1 1 200px;
-  max-width: 320px;
+  flex: 1 1 180px;
+  max-width: 260px;
 }
 
 .bb-minutes-filter-field .bb-minutes-input {
@@ -154,7 +154,7 @@
 }
 
 .bb-minutes-filter-period .bb-minutes-input {
-  width: 9.5rem;
+  width: 8.75rem;
 }
 
 .bb-minutes-filter-period-sep {
@@ -162,8 +162,8 @@
 }
 
 .bb-minutes-filter-combobox {
-  min-width: 10rem;
-  max-width: 18rem;
+  min-width: 11rem;
+  max-width: 16rem;
 }
 
 .bb-minutes-create-reason {
@@ -529,9 +529,14 @@
     grid-template-columns: 1fr;
   }
 
-  .bb-minutes-filter-field,
-  .bb-minutes-filter-field.is-keyword {
-    flex: 1 1 100%;
+  .bb-minutes-filter-field {
+    flex: 1 1 calc(50% - 6px);
+    max-width: none;
+  }
+
+  .bb-minutes-filter-field.is-keyword,
+  .bb-minutes-filter-field.is-period {
+    flex-basis: 100%;
     max-width: none;
   }
 
@@ -542,6 +547,7 @@
   }
 
   .bb-minutes-filter-combobox {
+    min-width: 0;
     max-width: none;
   }
 }
