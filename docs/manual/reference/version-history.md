@@ -7,6 +7,13 @@
 - 0.10.0公開後の配布状態に合わせ、公開manualの状態表示を現行化
 - 「人と会社」で人・会社を選ぶと、一覧が詳細のページに切り替わる。上に一覧へ戻る道と「何件中の何件目」・前後の移動、見出しの下にできる操作（所属を付ける・所属を終える・所属する人を加える）をまとめ、「消す操作は無く、終了日を入れて終える」ことを添える。書けない閲覧者には操作を押せない状態で出し、理由を出す（ホストの `readOnlyNote`）。名前の訂正の案内はホストの `recordFixNote` で差し替えられる。区分・種類・有効期間・IDはホストの右の欄（無ければページの中）に出す。一覧の上に「人を加える」「会社を加える」を並べる。書き込みの経路と規則、段の構成は変えない（`story-people-and-companies-detail-page-v1`）。
 
+## 0.41.12 candidate — npm公開前
+
+- 情報と関係を「調べる」画面に作り直す。一覧はその場で絞り込み、押した記録は1画面の詳細で開く。根拠と履歴は詳細の中の共通の欄（`renderEvidenceAndHistory`）に出す（`story-graph-registry-immediate-feedback-v1`、#816）。
+- 情報と関係から、引き継いだ自分の分（`createOwnShareView`）と、情報の種類とつながり方の定義（新しい部品 `createGraphOntologyView`、`ui/graph-ontology-view.js`）を別の画面へ移す。記録の出典と読めない記録の案内は、記録の中へ下げる。つながりと種類の名前は日本語で出し、同じ意味のつながりは1行にまとめる（`story-graph-registry-move-ontology-own-share-v1`、#817）。
+- 人と会社で、選んだ人・会社を詳細のページで開き、できる操作を見出しの下に置く。書けない閲覧者には操作を押せない状態で理由を出す（`readOnlyNote`）。名前の訂正の案内はホストが `recordFixNote` で差し替えられる（`story-people-and-companies-detail-page-v1`、#818）。
+- 知識の組織全体の一覧で、経路の既存の条件を保ち、Graphの状態を日本語で出す（`story-knowledge-organization-overview-v1` AC-07・AC-08、#819）。
+
 ## 0.41.11 candidate — npm公開前
 
 - 議事録の一覧の上に、会議名・議事録名のキーワード、期間、並べ替え（会議の日時の新旧・議事録の更新順）を足す。参加者と確認の状態の絞り込みは、その記録がある会議があるときだけ出す。ホストは `hostFilters` で自分の絞り込み（組織版ではプロジェクト）を足せる。会議を作れないときは、ホストが渡した理由を一言だけ添える。プルダウンは共通の `workspaceCombobox` を使う（`story-meeting-minutes-list-filters-v1`、#810）。
