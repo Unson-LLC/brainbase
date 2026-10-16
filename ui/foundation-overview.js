@@ -55,6 +55,16 @@ const PHILOSOPHY_STATUS_LABELS = Object.freeze({
   archived: '終了',
 });
 const OPERATOR_LABELS = Object.freeze({ at_least: '以上', at_most: '以下', equals: '一致' });
+const SOURCE_KIND_LABELS = Object.freeze({
+  candidate: '候補からの登録',
+  document: '文書',
+  observation: '観察',
+  decision: '決定',
+  import: '取り込み',
+});
+// A record without a name is said to have none; its id stays in the record details (P9).
+const UNNAMED_RECORD = '名前の記録なし';
+const UNNAMED_VARIABLE = '名前の記録がない変数';
 
 export class FoundationOverviewError extends Error {
   constructor(code, message) {
@@ -245,12 +255,52 @@ const SCOPE_LABELS = Object.freeze({
   company: '組織',
 });
 
+function formatValidity(from, until) {
+  if (!from && !until) return null;
+  if (!from) return `${formatDate(until)} まで`;
+  return `${formatDate(from)} から ${until ? `${formatDate(until)} まで` : '（終了日の記録なし）'}`;
+}
+
+/**
+ * A scope in words: `{ type, id }` names the project or organization, and a validity scope
+ * (`subjectIds`, `validFrom`, `validUntil`) becomes its period and the number of subjects.  The
+ * subject ids themselves belong to the record details.
+ */
 function formatScope(value) {
   if (!isObject(value)) return formatStructuredValue(value);
   const type = formatAny(value.type);
   const id = formatAny(value.id);
   if (type && id) return `${SCOPE_LABELS[type] ?? type}: ${id}`;
-  return formatStructuredValue(value);
+  const subjects = firstValue(value, 'subjectIds', 'subject_ids');
+  const period = formatValidity(firstValue(value, 'validFrom', 'valid_from'), firstValue(value, 'validUntil', 'valid_until'));
+  const parts = [
+    Array.isArray(subjects) && subjects.length > 0 ? `対象 ${subjects.length}件` : null,
+    period ? `適用期間: ${period}` : null,
+  ].filter(Boolean);
+  if (parts.length > 0) return parts.join(' ／ ');
+  return formatAny(firstValue(value, 'text', 'description', 'statement', 'label', 'name'))
+    ?? '読める形の記録がありません（記録の詳細を参照）';
+}
+
+/** Where a definition came from, as kinds of source; the source and evidence ids stay in the details. */
+function formatProvenance(provenance) {
+  if (!Array.isArray(provenance) || provenance.length === 0) return null;
+  return provenance.map((item) => {
+    const kind = SOURCE_KIND_LABELS[item?.sourceKind] ?? '種類の記録なし';
+    const evidence = Array.isArray(item?.evidenceIds) ? item.evidenceIds.length : 0;
+    return evidence > 0 ? `${kind}（証拠${evidence}件）` : kind;
+  }).join('、');
+}
+
+/** Ids, revisions and digests of one record, for the "記録の詳細" disclosure only. */
+function recordDetailsElement(doc, rows, summary = '記録の詳細') {
+  const details = makeElement(doc, 'details', { className: 'bb-fov-original' });
+  details.append(makeElement(doc, 'summary', { text: summary }), workspaceDefinition(doc, rows));
+  return details;
+}
+
+function referenceLabels(refs) {
+  return Array.isArray(refs) && refs.length > 0 ? refs.map(referenceLabel).join('、') : null;
 }
 
 function recordDefinition(record) { return isObject(record?.definition) ? record.definition : {}; }
@@ -283,6 +333,15 @@ function statusText(definition) {
 
 function statusElement(doc, definition, className = '') {
   return makeElement(doc, 'p', { className: `bb-fov-status${className ? ` ${className}` : ''}`, text: statusText(definition) });
+}
+
+/**
+ * The one state a reader needs in front of a model: whether it is held as verified or as a
+ * hypothesis.  Adoption, validation and authorized uses stay in the record details.
+ */
+function certaintyText(definition) {
+  const label = EPISTEMIC_LABELS[definition.epistemicState] ?? VALIDATION_LABELS[definition.validationState];
+  return `確からしさ: ${label ?? '記録なし'}`;
 }
 
 function detailsFor(record) {
@@ -330,9 +389,7 @@ function criteriaList(doc, definition, variableMap) {
     const ref = criterion?.variableRef;
     const exact = variableMap.get(foundationKey(ref));
     const exactDefinition = exact ? recordDefinition(exact) : null;
-    const name = exactDefinition
-      ? (formatAny(exactDefinition.meaning) ?? referenceLabel(ref))
-      : referenceLabel(ref);
+    const name = (exactDefinition ? formatAny(exactDefinition.meaning) : null) ?? UNNAMED_VARIABLE;
     const variableDetails = exactDefinition
       ? [
         ['定義', exactDefinition.definition],
@@ -348,7 +405,7 @@ function criteriaList(doc, definition, variableMap) {
     const status = exact ? '参照確認済み' : '参照未確認（基準変数の版が一致しません）';
     list.append(makeElement(doc, 'li', {
       className: exact ? '' : 'is-unrecorded',
-      text: `${name}${variableDetails.length > 0 ? `（${variableDetails.join(' ／ ')}）` : ''}（${referenceLabel(ref)}） ${operator}${target === null ? '' : ` ${target}`} — ${status}`,
+      text: `${name}${variableDetails.length > 0 ? `（${variableDetails.join(' ／ ')}）` : ''} ${operator}${target === null ? '' : ` ${target}`} — ${status}`,
     }));
   }
   return list;
@@ -415,7 +472,7 @@ function recordedStateElement(doc, record) {
 function objectiveCard(doc, record, variableMap) {
   const definition = recordDefinition(record);
   const details = detailsFor(record);
-  const title = formatAny(firstValue(details, 'title')) ?? formatAny(definition.meaning) ?? definition.id;
+  const title = formatAny(firstValue(details, 'title')) ?? formatAny(definition.meaning) ?? UNNAMED_RECORD;
   const gaps = missingObjectiveFields(record);
   const current = currentStateFor(record);
   const evaluationPeriod = formatAny(firstValue(details, 'evaluation_period_note', 'evaluationPeriodNote'))
@@ -466,11 +523,16 @@ function objectiveReading(doc, record, variableMap, recordContexts) {
   const provenance = Array.isArray(definition.provenance) ? definition.provenance : [];
   section('出典', workspaceDefinition(doc, [
     ['記録元', recordContexts?.get(record)?.label ?? formatAny(record.source) ?? '未記録'],
-    ['根拠', provenance.length ? formatStructuredValue(provenance) : '未記録'],
+    ['根拠', formatProvenance(provenance) ?? '未記録'],
   ]));
+  const criteriaRefs = Array.isArray(definition.criteria) ? definition.criteria.map((criterion) => criterion?.variableRef) : [];
   const original = makeElement(doc, 'details', { className: 'bb-fov-original' });
   original.append(makeElement(doc, 'summary', { text: '記録の詳細・参照・原文' }), objectiveCard(doc, record, variableMap),
-    workspaceDefinition(doc, [['目的ID', definition.id], ['版', definition.revision], ['digest', record.digest]]));
+    workspaceDefinition(doc, [
+      ['目的ID', definition.id], ['版', definition.revision], ['digest', record.digest],
+      ['基準変数の参照', referenceLabels(criteriaRefs)],
+      ['根拠の記録', provenance.length ? formatStructuredValue(provenance) : null],
+    ]));
   body.append(original); return body;
 }
 
@@ -497,12 +559,12 @@ function renderObjectives(doc, catalog, viewState, callbacks, recordContexts) {
         const opener = doc.activeElement;
         viewState.dialog?.close();
         viewState.dialog = workspaceDialog(doc, {
-          title: formatAny(details.title) ?? formatAny(definition.meaning) ?? definition.id, opener,
+          title: formatAny(details.title) ?? formatAny(definition.meaning) ?? UNNAMED_RECORD, opener,
           content: objectiveReading(doc, record, recordContexts?.get(record)?.variableMap ?? variableMap, recordContexts),
         });
       },
       cells: [
-        { primary: formatAny(details.title) ?? formatAny(definition.meaning) ?? definition.id },
+        { primary: formatAny(details.title) ?? formatAny(definition.meaning) ?? UNNAMED_RECORD },
         current.text ?? current.status ?? '未記録',
         { text: current.missing.length ? current.missing.join('・') : missingObjectiveFields(record).join('・') || '記録なし', className: 'bb-fov-missing' },
         formatDate(current.asOf),
@@ -526,13 +588,13 @@ function philosophyApplicability(payload) {
   const period = validFrom
     ? `${formatDate(validFrom)}から${validUntil ? ` ${formatDate(validUntil)}まで` : ''}`
     : null;
-  return [scope, period ? `適用期間: ${period}` : null].filter(Boolean).join(' ／ ') || formatStructuredValue(legacy);
+  return [scope, period ? `適用期間: ${period}` : null].filter(Boolean).join(' ／ ') || formatScope(legacy);
 }
 
 function philosophyCard(doc, record) {
   const payload = record.payload;
   const card = makeElement(doc, 'article', { className: 'bb-fov-philosophy-card' });
-  const title = formatAny(payload.title) ?? record.id;
+  const title = formatAny(payload.title) ?? UNNAMED_RECORD;
   card.append(makeElement(doc, 'h3', { text: title }));
 
   if (formatAny(payload.statement)) card.append(makeElement(doc, 'p', { className: 'bb-fov-philosophy-statement', text: formatAny(payload.statement) }));
@@ -621,10 +683,10 @@ function renderReferenceList(doc, refs, variableMap, label) {
   }
   for (const ref of refs) {
     const exact = variableMap.get(foundationKey(ref));
-    const name = exact ? formatAny(recordDefinition(exact).meaning) ?? referenceLabel(ref) : referenceLabel(ref);
+    const name = (exact ? formatAny(recordDefinition(exact).meaning) : null) ?? UNNAMED_VARIABLE;
     list.append(makeElement(doc, 'li', {
       className: exact ? '' : 'is-unrecorded',
-      text: exact ? `${name}（${referenceLabel(ref)}）` : `${referenceLabel(ref)} — 未接続（変数の版が一致しません）`,
+      text: exact ? name : `${name} — 未接続（変数の版が一致しません）`,
     }));
   }
   return list;
@@ -633,15 +695,31 @@ function renderReferenceList(doc, refs, variableMap, label) {
 function modelCard(doc, record, variableMap) {
   const definition = recordDefinition(record);
   const card = makeElement(doc, 'article', { className: 'bb-fov-model-card' });
-  card.append(makeElement(doc, 'h3', { text: formatAny(definition.meaning) ?? definition.id }));
-  card.append(makeElement(doc, 'code', { className: 'bb-fov-record-id', text: `${definition.id}@${definition.revision}` }));
-  card.append(statusElement(doc, definition));
+  // The stored scope is ids and a registration time, not the reader's "where it applies"; the
+  // record's own words go in front, and the stored scope waits in the details.
+  const applicability = definition.applicability ?? definition.scope;
+  const registered = isObject(applicability) ? applicability : {};
+  const subjects = firstValue(registered, 'subjectIds', 'subject_ids');
+  const applicabilityText = formatAny(firstValue(detailsFor(record), 'applicability_text', 'applicabilityText'))
+    ?? (isObject(applicability) ? null : formatAny(applicability));
+  card.append(makeElement(doc, 'h3', { text: formatAny(definition.meaning) ?? UNNAMED_RECORD }));
+  card.append(makeElement(doc, 'p', { className: 'bb-fov-status', text: certaintyText(definition) }));
   card.append(workspaceDefinition(doc, [
     ['関係', formatAny(definition.relationship)],
-    ['適用範囲', formatAny(definition.applicability ?? definition.scope)],
+    ['適用範囲', applicabilityText ?? { text: '範囲の説明は記録されていません', className: 'is-unrecorded' }],
     ['不確かさ', formatAny(definition.uncertainty)],
     ['入力変数', renderReferenceList(doc, definition.inputVariableRefs, variableMap, '入力変数')],
     ['出力変数', renderReferenceList(doc, definition.outputVariableRefs, variableMap, '出力変数')],
+  ]));
+  card.append(recordDetailsElement(doc, [
+    ['状態の内訳', statusText(definition)],
+    ['記録ID', definition.id],
+    ['版', definition.revision],
+    ['digest', record.digest],
+    ['登録上の対象', Array.isArray(subjects) && subjects.length > 0 ? subjects.join('、') : null],
+    ['登録上の開始日時', formatValidity(firstValue(registered, 'validFrom', 'valid_from'), firstValue(registered, 'validUntil', 'valid_until'))],
+    ['入力変数の参照', referenceLabels(definition.inputVariableRefs)],
+    ['出力変数の参照', referenceLabels(definition.outputVariableRefs)],
   ]));
   return card;
 }
@@ -764,7 +842,7 @@ export function renderFoundationOverview(root, state, {
     surface.append(workspacePageHeader(doc, {
       crumbs: ['Brainbase', '目的と現状'],
       title: '目的と現状',
-      lead: '選択したプロジェクトの目的、哲学、世界モデルを、登録状態と未確認の点を分けて読みます。',
+      lead: '選択したプロジェクトの目的、哲学、世界モデルを、記録された内容と未確認の点を分けて読みます。',
       source: `正本: ${scopeId}`,
     }));
   }
@@ -786,7 +864,7 @@ export function renderFoundationOverview(root, state, {
     return workspaceDisclosure(doc, { title, help, content, open: viewState[key] ?? initialOpen, onToggle: open => { viewState[key] = open; } });
   };
   surface.append(fold('哲学', '判断の前提となる考え方です。登録された本文と、判断への適用範囲を分けて表示します。', renderPhilosophies(doc, catalog, recordContexts), true));
-  surface.append(fold('世界モデル', '何をすると結果が変わるか、という仮説。未検証・許可用途を分けて確認します。', renderModels(doc, catalog, viewState, callbacks, recordContexts), false));
+  surface.append(fold('世界モデル', '何をすると結果が変わるか、という仮説。検証済みか仮説かを先に示し、ほかの状態や記録の番号は各モデルの「記録の詳細」で確認できます。', renderModels(doc, catalog, viewState, callbacks, recordContexts), false));
   root.append(surface);
   renderLoadingState(doc, root, viewState, false, onLoading);
   return surface;

@@ -10,6 +10,7 @@ import {
   GRAPH_OWN_OBJECTIVES_LABEL,
   GRAPH_OWN_SHARE_COMMANDS,
   GRAPH_OWN_SHARE_LABEL,
+  ownShareHandoverRows,
   ownShareHandoverText,
 } from '../../ui/graph-own-share.js';
 import { FIXTURE_NOW, writeGraphV2 } from '../graph-web-fixture.js';
@@ -140,8 +141,13 @@ describe('プロジェクトと関係者 with the owner\'s own share', () => {
     expect(own.attributes['data-authority']).toBe('owner_private');
     const text = visibleText(own);
     expect(text).toContain('読み取りのみ');
-    expect(text).toContain('束 snapshot-1（置き場所 project-a、');
-    expect(text).toContain('digest sha256:fixture');
+    expect(text).toContain(`${ownShareHandoverText(HANDOVER)}`);
+    expect(text).toContain('に手元のOSSから送った束');
+    // The snapshot ID and digest stay reachable in the record details, not in the visible copy.
+    expect(text).not.toContain('snapshot-1');
+    expect(text).not.toContain('sha256:fixture');
+    expect(collectText(own)).toContain('snapshot-1');
+    expect(collectText(own)).toContain('sha256:fixture');
     expect(text).toContain(OWNER_NAME);
     expect(text).not.toContain('self');
 
@@ -168,7 +174,7 @@ describe('プロジェクトと関係者 with the owner\'s own share', () => {
   });
 
   it('labels a missing handover digest as unconfirmed instead of hiding it', () => {
-    expect(ownShareHandoverText({ graphId: 'snapshot-1', projectCode: 'project-a' })).toContain('digest 未確認');
+    expect(ownShareHandoverRows({ graphId: 'snapshot-1', projectCode: 'project-a' })).toContainEqual(['digest', '未確認']);
   });
 
   it('says it has not been handed over yet, with the commands that send and list it', async () => {
@@ -271,8 +277,12 @@ describe('引き継いだ自分の目的', () => {
     expect(keysIn(own)).toEqual(['objective-protect-focus']);
     expect(visibleText(own)).toContain(OWNER_NAME);
     expect(visibleText(own)).not.toContain('self');
+    expect(visibleText(own)).not.toContain('objective-protect-focus');
     view.select('objective-protect-focus');
-    const detail = visibleText(byClass(section(root, GRAPH_OWN_OBJECTIVES_LABEL), 'bb-graph-own-detail')[0]);
+    const detailNode = byClass(section(root, GRAPH_OWN_OBJECTIVES_LABEL), 'bb-graph-own-detail')[0];
+    const detail = visibleText(detailNode);
+    expect(detail).not.toContain('objective-protect-focus');
+    expect(collectText(detailNode)).toContain('objective-protect-focus');
     expect(detail).toContain('目指す状態毎週10時間以上の集中時間を守る');
     expect(detail).toContain('週ごとの集中時間: 10 hours以上');
     expect(detail).toContain(`受益者${OWNER_NAME}、田中 太郎`);

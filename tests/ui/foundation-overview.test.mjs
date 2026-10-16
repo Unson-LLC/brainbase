@@ -489,3 +489,72 @@ test('collection merges unscoped philosophies with their project provenance', ()
   assert.match(textOf(root), /Beta哲学/);
   assert.doesNotMatch(textOf(root), /登録された哲学がありません/);
 });
+
+// What a reader sees without opening a record's details: section disclosures count as open,
+// the per-record "記録の詳細" disclosures do not.
+const frontText = (node) => {
+  if (!node) return '';
+  if (node.tagName === 'DETAILS' && !String(node.className).split(' ').includes('bb-ws-disclosure')) {
+    return textOf(node.children.find((child) => child.tagName === 'SUMMARY'));
+  }
+  return `${node.textContent ?? ''}${(node.children ?? []).map(frontText).join('')}`;
+};
+
+test('keeps record ids, digests, field names and secondary states behind the record details', async () => {
+  const root = new FakeElement('main');
+  const objective = objectiveRecord({
+    id: 'fnd_objective_7f3a',
+    provenance: [
+      { sourceId: 'foundation-objective-editor', sourceKind: 'candidate', evidenceIds: [] },
+      { sourceId: 'foundation-adoption:fnd_objective_7f3a@1', sourceKind: 'decision', evidenceIds: ['dec_91ab'] },
+    ],
+  });
+  const model = foundationRecord('model', 'fnd_model_c0ffee', '3', {
+    meaning: '施策が利益に影響する',
+    adoptionState: 'approved',
+    authorizedUses: ['judgment', 'evaluation'],
+    epistemicState: 'hypothesis',
+    validationState: 'in_progress',
+    inputVariableRefs: [{ id: 'variable-profit', type: 'variable', revision: '1' }],
+    outputVariableRefs: [{ id: 'fnd_variable_missing', type: 'variable', revision: '2' }],
+    applicability: { subjectIds: ['prj_8d2e'], validFrom: '2026-01-01T00:00:00.000Z', validUntil: '2026-12-31T00:00:00.000Z' },
+    relationship: '施策が利益へ影響する',
+    uncertainty: '因果関係は未検証',
+  });
+  model.details = { applicability_text: 'AI生成資料・要約・提案書' };
+  const unnamed = foundationRecord('model', 'fnd_model_unnamed', '1', { meaning: undefined });
+  delete unnamed.definition.meaning;
+  const controller = createFoundationOverview({
+    root,
+    port: { readCatalog: async () => catalog({ objectives: [objective], models: [model, unnamed] }) },
+    scopeId: 'project-alpha',
+    document: doc,
+    autoLoad: false,
+  });
+  await controller.load();
+  doc.body.replaceChildren();
+  byAttr(root, 'data-key', 'fnd_objective_7f3a@2')[0].dispatch('click');
+  const front = frontText(root) + frontText(doc.body);
+  const everything = textOf(root) + textOf(doc.body);
+
+  // Ids and secondary states move behind the details, where correction and tracing still find them.
+  for (const internal of ['fnd_objective_7f3a', 'fnd_model_c0ffee', 'fnd_variable_missing', 'variable-profit@1', 'sha256:', 'prj_8d2e',
+    'foundation-adoption', 'dec_91ab', '許可用途', '登録状態']) {
+    assert.equal(front.includes(internal), false, `${internal} is visible before opening the record details: ${front.slice(Math.max(0, front.indexOf(internal) - 80), front.indexOf(internal) + 40)}`);
+    assert.equal(everything.includes(internal), true, `${internal} stays reachable in the record details`);
+  }
+  // Field names of the stored shape are never the words of the screen.
+  for (const field of ['validFrom', 'validUntil', 'subjectIds', '{"']) {
+    assert.equal(front.includes(field), false, `${field} is visible before opening the record details`);
+  }
+  assert.match(front, /候補からの登録/);
+  assert.match(front, /決定（証拠1件）/);
+  // The record's own words say where it applies; the stored scope is ids and a registration time.
+  assert.match(front, /適用範囲AI生成資料・要約・提案書/);
+  assert.match(front, /範囲の説明は記録されていません/);
+  assert.doesNotMatch(front, /2026-01-01 から/);
+  assert.match(everything, /登録上の開始日時2026-01-01 から 2026-12-31 まで/);
+  assert.match(front, /確からしさ: 仮説/);
+  assert.match(front, /名前の記録がない変数/);
+  assert.match(front, /名前の記録なし/);
+});

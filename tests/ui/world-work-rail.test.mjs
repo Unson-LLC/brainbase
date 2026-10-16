@@ -71,7 +71,7 @@ describe('world work rail: facts, then what cannot be seen, then people, then so
     const blocks = workSiteBlocks(doc, { business, site, readAt: work.reads.tasks.read_at, taskHref: (entry) => `?screen=tasks&task=${entry.task_id}` });
     const text = blocks.map(visibleText).join('\n');
     expect(text).toContain('分かっている事実本文は担当として「山田 太郎」を挙げています（人物IDつき）。担当欄は空です。');
-    expect(text).toContain('出典と確認時点タスクの記録の assignee_person_id・description（10/6 11:59に読み込み）。確認時点：9/18（本文の確認メモ）');
+    expect(text).toContain('出典と確認時点タスクの記録の 担当欄・本文（10/6 11:59に読み込み）。確認時点：9/18（本文の確認メモ）');
     expect(text).toContain('次に確認すること担当欄に山田 太郎を接続できるか');
     expect(text).toContain('確認先山田 太郎');
     expect(text).toContain('山田 太郎本文が担当として記載（人物IDつき）・担当欄には未接続');
@@ -79,6 +79,10 @@ describe('world work rail: facts, then what cannot be seen, then people, then so
     expect(link.attributes.href).toBe('?screen=tasks&task=t-video');
     // The original text is there, behind a disclosure.
     expect(blocks.map(collectText).join('')).toContain('2026-09-18監査');
+    // The task's id and version are kept for tracing, behind the record details; the visible source is in words.
+    expect(text).not.toMatch(/assignee_person_id|description|t-video|版 /u);
+    expect(visibleText(blocks.at(-1))).toContain('記録タスクの記録');
+    expect(collectText(blocks.at(-1))).toContain('t-video');
     const withoutHost = workSiteBlocks(doc, { business, site, readAt: null }).map(collectText).join('');
     expect(withoutHost).toContain('この画面からは直せません');
   });

@@ -108,10 +108,20 @@ function linkLine(doc, link, label, extra) {
   return li;
 }
 
+/** The record fields a gap is read from, in the words of the task screen. */
+const SOURCE_FIELD_TEXT = Object.freeze({
+  assignee_person_id: '担当欄',
+  description: '本文',
+  source_refs: '出典リンク',
+  review_at: '見直し予定',
+  updated_at: '最終更新',
+  relation: '関係',
+});
+
 function sourceText(source, readAt) {
   if (!source) return null;
   const system = source.system === 'task_api' ? 'タスクの記録' : '組織のGraph';
-  const fields = source.fields?.length && !source.fields.includes('*') ? `の ${source.fields.join('・')}` : '';
+  const fields = source.fields?.length && !source.fields.includes('*') ? `の ${source.fields.map((field) => SOURCE_FIELD_TEXT[field] ?? '記録の欄').join('・')}` : '';
   const at = readAt ? `（${shortTime(readAt)}に読み込み）` : '';
   return `${system}${fields}${at}`;
 }
@@ -332,7 +342,10 @@ export function workSiteBlocks(doc, { business, site, readAt, taskHref }) {
       ? [el(doc, 'a', { className: 'bb-world-rail-link', text: '「タスク」でこの仕事を開く', attrs: { href } }), { text: '担当・期限・状態はタスク画面で直せます。保存先はタスクの正本で、世界にはもう一度読むと反映されます。本文の人物を担当欄へ接続するのも、そこで行います。', className: 'bb-world-rail-note' }]
       : { text: 'この画面からは直せません。タスクを管理している画面で直してください。', className: 'bb-world-rail-note' },
   }));
-  blocks.push(workspaceRailBlock(doc, { title: '出典', content: workspaceDefinition(doc, [['記録', `${site.task_id}（版 ${site.source.version ?? '不明'}）`], ['事業', business.name]]) }));
+  // The task's id and version are for tracing, so they wait behind the record details.
+  const record = el(doc, 'details', { className: 'bb-world-original' });
+  record.append(el(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['タスクID', site.task_id], ['版', site.source.version ?? '不明']]));
+  blocks.push(workspaceRailBlock(doc, { title: '出典', content: [workspaceDefinition(doc, [['記録', 'タスクの記録'], ['事業', business.name]]), record] }));
   return blocks;
 }
 
