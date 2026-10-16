@@ -951,3 +951,190 @@ describe('meeting minutes page review', () => {
     expect(collectText(root)).not.toContain('保存された会議はありません');
   });
 });
+
+describe('meeting minutes connections', () => {
+  function connectionRows(root) {
+    const section = findAll(root, (node) => node.className === 'bb-minutes-connections')[0];
+    if (!section) return null;
+    return Object.fromEntries(findAll(section, (node) => node.className === 'bb-minutes-connection-row')
+      .map((row) => [row.attributes['data-connection'], row]));
+  }
+
+  function links(node) {
+    return findAll(node, (child) => child.tagName === 'A');
+  }
+
+  function mountWith(meetingConnections, options = {}) {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const view = createMeetingMinutesUI({
+      root,
+      rail,
+      document: new FakeDocument(),
+      fetcher: options.fetcher ?? (async (path) => path === '/api/meeting-minutes'
+        ? jsonResponse(200, meetingList())
+        : jsonResponse(200, meetingDetail())),
+      meetingConnections,
+      meetingLabel: options.meetingLabel,
+    });
+    return { root, rail, view };
+  }
+
+  it('shows project, tasks, decisions, storage and sharing with links to each record', async () => {
+    const calls = [];
+    const { root, rail, view } = mountWith((input) => {
+      calls.push(input);
+      return {
+        project: { status: 'recorded', items: [{ label: 'Brainbase', href: '/?screen=projects&project=brainbase' }] },
+        tasks: { status: 'recorded', items: [{ label: '資料を直す', href: '/?screen=tasks&task=t1', detail: '未着手' }] },
+        decisions: { status: 'recorded', items: [{ label: '公開は月曜', href: '/?screen=value-proofs&decision=d1' }] },
+        stored: { status: 'recorded', items: [{ label: 'Unson-LLC/brainbase-project/meetings/2026-10-06.md', href: 'https://github.com/Unson-LLC/brainbase-project/blob/abc/meetings/2026-10-06.md' }] },
+        shared: { status: 'recorded', items: [{ label: '#brainbase', href: 'https://unson.slack.com/archives/C1/p1' }] },
+      };
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].meeting.meeting_id).toBe('meeting-1');
+    expect(calls[0].minutes[0].minutes_id).toBe('minutes-1');
+    const rows = connectionRows(root);
+    expect(Object.keys(rows)).toEqual(['project', 'tasks', 'decisions', 'stored', 'shared']);
+    expect(collectText(rows.project)).toContain('プロジェクト');
+    expect(collectText(rows.tasks)).toContain('資料を直す');
+    expect(collectText(rows.tasks)).toContain('未着手');
+    expect(links(rows.project)[0].attributes.href).toBe('/?screen=projects&project=brainbase');
+    expect(links(rows.project)[0].attributes.target).toBeUndefined();
+    expect(links(rows.decisions)[0].attributes.href).toBe('/?screen=value-proofs&decision=d1');
+    const github = links(rows.stored)[0];
+    expect(github.attributes.href).toBe('https://github.com/Unson-LLC/brainbase-project/blob/abc/meetings/2026-10-06.md');
+    expect(github.attributes.target).toBe('_blank');
+    expect(github.attributes.rel).toBe('noopener noreferrer');
+    expect(links(rows.shared)[0].textContent).toBe('#brainbase');
+    const railProject = links(rail).find((link) => link.textContent === 'Brainbase');
+    expect(railProject.attributes.href).toBe('/?screen=projects&project=brainbase');
+  });
+
+  it('says 記録なし for missing, unrecorded and malformed rows and なし only when absence is confirmed', async () => {
+    const { root, view } = mountWith(async () => ({
+      tasks: { status: 'none' },
+      decisions: { status: 'unrecorded', reason: '議事録との結び付きを記録していません' },
+      stored: { status: 'recorded', items: [{ label: '  ' }, 'oops'] },
+      shared: { status: 'unavailable', reason: '共有先を読めませんでした' },
+      project: 'not-a-row',
+    }));
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+
+    const rows = connectionRows(root);
+    expect(collectText(rows.project)).toContain('記録なし');
+    expect(collectText(rows.tasks)).toContain('なし');
+    expect(collectText(rows.tasks)).not.toContain('記録なし');
+    expect(collectText(rows.tasks)).not.toMatch(/0件/u);
+    expect(collectText(rows.decisions)).toContain('記録なし');
+    expect(collectText(rows.decisions)).toContain('議事録との結び付きを記録していません');
+    expect(collectText(rows.stored)).toContain('記録なし');
+    expect(collectText(rows.shared)).toContain('読み込めません');
+    expect(collectText(rows.shared)).toContain('共有先を読めませんでした');
+    expect(collectText(rows.shared)).not.toContain('記録なし');
+  });
+
+  it('renders labels as text and links only safe http(s) URLs or same-site paths', async () => {
+    const unsafe = '<img src=x onerror=alert(1)>';
+    const { root, view } = mountWith(() => ({
+      tasks: { status: 'recorded', items: [
+        { label: unsafe, href: 'javascript:alert(1)' },
+        { label: 'protocol-relative', href: '//evil.example/x' },
+        { label: 'relative', href: 'tasks/1' },
+      ] },
+    }));
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+
+    const rows = connectionRows(root);
+    expect(links(rows.tasks)).toHaveLength(0);
+    const label = findAll(rows.tasks, (node) => node.textContent === unsafe)[0];
+    expect(label.children).toHaveLength(0);
+  });
+
+  it('shows 読み込めません on every row when the loader throws or rejects, without breaking the detail', async () => {
+    for (const loader of [
+      () => { throw new Error('boom'); },
+      async () => { throw new Error('boom'); },
+      () => null,
+    ]) {
+      const { root, view } = mountWith(loader);
+      await flush();
+      await view.openMeeting('meeting-1');
+      await flush();
+      const rows = connectionRows(root);
+      expect(Object.values(rows).every((row) => collectText(row).includes('読み込めません'))).toBe(true);
+      expect(collectText(root)).toContain('保存済み本文');
+    }
+  });
+
+  it('shows a loading line until the host answers and ignores an answer for a meeting no longer open', async () => {
+    const first = deferred();
+    const second = deferred();
+    const pending = [first, second];
+    const meetings = meetingListFor(meetingRecord('meeting-a', 'A会議'), meetingRecord('meeting-b', 'B会議'));
+    const { root, view } = mountWith(() => pending.shift().promise, {
+      fetcher: async (path) => {
+        if (path === '/api/meeting-minutes') return jsonResponse(200, meetings);
+        const id = decodeURIComponent(path.split('/').pop());
+        const meeting = meetings.meetings.find((entry) => entry.meeting.meeting_id === id).meeting;
+        return jsonResponse(200, meetingDetailFor(meeting, `${id}の本文`));
+      },
+    });
+    await flush();
+    await view.openMeeting('meeting-a');
+    expect(collectText(connectionRows(root).tasks)).toContain('読み込んでいます');
+    await view.openMeeting('meeting-b');
+    second.resolve({ tasks: { status: 'recorded', items: [{ label: 'Bのタスク' }] } });
+    await flush();
+    first.resolve({ tasks: { status: 'recorded', items: [{ label: 'Aのタスク' }] } });
+    await flush();
+
+    const text = collectText(connectionRows(root).tasks);
+    expect(text).toContain('Bのタスク');
+    expect(text).not.toContain('Aのタスク');
+  });
+
+  it('reuses the loaded connections when switching versions instead of calling the host again', async () => {
+    let calls = 0;
+    const detail = meetingDetail();
+    detail.versions.push({ version_id: 'version-0', minutes_id: 'minutes-1', body: '古い本文', created_at: '2026-10-05T00:00:00.000Z' });
+    const { root, view } = mountWith(() => {
+      calls += 1;
+      return { tasks: { status: 'recorded', items: [{ label: '資料を直す' }] } };
+    }, {
+      fetcher: async (path) => path === '/api/meeting-minutes'
+        ? jsonResponse(200, meetingList())
+        : jsonResponse(200, detail),
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+    const oldVersion = findAll(root, (node) => node.tagName === 'BUTTON' && node.className.startsWith('bb-minutes-version')
+      && collectText(node).includes('第1版'))[0];
+    oldVersion.listeners.get('click')();
+    await flush();
+
+    expect(calls).toBe(1);
+    expect(collectText(connectionRows(root).tasks)).toContain('資料を直す');
+  });
+
+  it('omits the section and keeps the plain rail project when the host gives no loader', async () => {
+    const { root, rail, view } = mountWith(undefined, { meetingLabel: () => 'Brainbase' });
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+
+    expect(connectionRows(root)).toBeNull();
+    expect(links(rail).filter((link) => link.textContent === 'Brainbase')).toHaveLength(0);
+    expect(collectText(rail)).toContain('Brainbase');
+  });
+});
