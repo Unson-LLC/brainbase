@@ -146,8 +146,9 @@ jobs:
     permissions:
       contents: write
       # Required by assertSerializedPublicationContext() in scripts/npm-release.mjs,
-      # which verifies the GitHub Actions OIDC token before publishing, and by
-      # npm provenance.
+      # which verifies the GitHub Actions OIDC token before publishing, by npm
+      # Trusted Publishing (the npm CLI exchanges the OIDC token for a
+      # short-lived publish token), and by npm provenance.
       id-token: write
     steps:
       - name: Check out trusted release tooling
@@ -156,12 +157,16 @@ jobs:
           ref: develop
           fetch-depth: 0
           persist-credentials: false
+      # setup-node gets no registry URL, so it writes no token-reading .npmrc.
+      # A failed OIDC exchange then fails as ENEEDAUTH instead of a stale token
+      # failing as E404 on PUT.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
+      # npm Trusted Publishing needs npm >= 11.5.1; dist-tag add/rm through
+      # OIDC needs npm >= 11.21.0.
       - name: Install trusted-publishing npm CLI
-        run: npm install --global npm@11.5.1
+        run: npm install --global npm@11.21.1
       - name: Check out immutable release commit
         env:
           RELEASE_SHA: ${{ needs.validate.outputs.sha }}
@@ -171,10 +176,11 @@ jobs:
         with:
           name: npm-release-${{ needs.validate.outputs.sha }}
           path: ${{ runner.temp }}/npm-release
+      # Authenticates only through npm Trusted Publishing (GitHub Actions OIDC);
+      # no long-lived npm token is available to this job.
       - name: Publish and verify npm package
         env:
           BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           VERSION: ${{ needs.validate.outputs.version }}
           RELEASE_SHA: ${{ needs.validate.outputs.sha }}
         run: >-

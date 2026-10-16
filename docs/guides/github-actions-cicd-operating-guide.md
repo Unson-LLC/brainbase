@@ -54,7 +54,7 @@ if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.re
 
 `author_association`が`MEMBER`または`OWNER`であることだけを許可条件にしない。その条件を`head`リポジトリ一致とORで結ぶと、メンバーがforkから開いたpull requestもrunnerへ入る。ANDだけにすると、`author_association`が`NONE`の同一リポジトリ自動化（public-message promotionが開くreview PRなど）が止まる。forkを止める条件は、headリポジトリが`github.repository`と一致することに固定する。
 
-`pull_request_target`でpull requestのheadをcheckoutしない。`npm-publish.yml`の`pull_request_target`は、developへmerge済みのときと`workflow_dispatch`のときだけ動く。checkoutは`develop`と、merge commitまたは`origin/develop`の祖先である。`NODE_AUTH_TOKEN`はpublish jobだけが読む。validate jobは公開用secretを持たない。
+`pull_request_target`でpull requestのheadをcheckoutしない。`npm-publish.yml`の`pull_request_target`は、developへmerge済みのときと`workflow_dispatch`のときだけ動く。checkoutは`develop`と、merge commitまたは`origin/develop`の祖先である。npmへの公開はpublish jobのnpm Trusted Publishing（OIDC）だけで認証し、npm tokenのsecretを使わない。validate jobは`id-token: write`も公開用secretも持たない。
 
 `CLOUDFLARE_ACCOUNT_ID`、`CLOUDFLARE_API_TOKEN`、`BRAINBASE_SERVICE_JWT`はjobのenvに置かない。対象確認、Worker secret同期、deploy前確認の各stepのenvだけが、そのstepが使うsecretを読む。Cloudflare Pages deployのwrangler-actionは`with`で`secrets.*`を直接参照する。
 

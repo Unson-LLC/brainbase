@@ -9,7 +9,10 @@ describe('npm publish workflow', () => {
     expect(workflow).toMatch(/github\.event\.pull_request\.merge_commit_sha/u);
     expect(workflow).toMatch(/git checkout --detach/u);
     expect(workflow).toMatch(/--trusted-ref origin\/develop/u);
-    expect(workflow).toMatch(/NODE_AUTH_TOKEN: \$\{\{ secrets\.NPM_TOKEN \}\}/u);
+    // Publication authenticates only through npm Trusted Publishing (OIDC).
+    expect(workflow).not.toMatch(/NODE_AUTH_TOKEN/u);
+    expect(workflow).not.toMatch(/secrets\.NPM_TOKEN/u);
+    expect(workflow).not.toMatch(/registry-url:/u);
     expect(workflow).toMatch(/--provenance/u);
     expect(packageManifest.repository).toEqual({
       type: 'git',
@@ -32,7 +35,8 @@ describe('npm publish workflow', () => {
     expect(publishJob).toMatch(/node scripts\/npm-release\.mjs publish/u);
     expect(publishJob).toMatch(/BRAINBASE_NPM_PUBLISH_SERIALIZED: 'true'/u);
     expect(publishJob).not.toMatch(/BRAINBASE_NPM_OIDC_DIAGNOSTIC/u);
-    expect(publishJob).toMatch(/npm install --global npm@11\.5\.1/u);
+    // Trusted Publishing needs npm >= 11.5.1; OIDC dist-tag add/rm needs npm >= 11.21.0.
+    expect(publishJob).toMatch(/npm install --global npm@11\.21\.1/u);
     expect(workflow.match(/id-token: write/gu)).toHaveLength(1);
     expect(publishJob).not.toMatch(/npm run release:publish/u);
     expect(validationJob).toMatch(/runs-on: \[self-hosted, Linux, X64, wsl-linux, nucbox-evo-x2\]/u);
