@@ -168,6 +168,9 @@ LEFT JOIN LATERAL (
 WHERE ($1::text IS NULL OR current_entity.entity_type = $1)
   AND ($2::text IS NULL OR projects.code = $2 OR projects.id IS NULL)
   AND current_entity.entity_type IN ('objective', 'variable', 'model', 'constraint')
+  -- A list projects current records only. A retired row is not current, and
+  -- reading it would make one replaced record fail the whole list.
+  AND current_entity.lifecycle_status = 'active'
 ORDER BY current_entity.id, current_entity.entity_type
 `;
 
@@ -216,6 +219,7 @@ LEFT JOIN LATERAL (
 ) AS history ON true
 WHERE current_entity.entity_type = 'philosophy'
   AND projects.code = $1
+  AND current_entity.lifecycle_status = 'active'
   AND current_entity.payload ? 'judgmentApplicability'
 ORDER BY current_entity.id
 `;
