@@ -113,6 +113,31 @@ describe('meeting minutes HTTP lifecycle', () => {
     expect((replay.body.error as Record<string, unknown>).code).toBe('authorization_denied');
   });
 
+  // story-meeting-minutes-edit-and-withdraw-ui-v1 AC-08
+  it('withdraws a minutes document and leaves it out of the list', async () => {
+    const dataDir = await dataDirectory();
+    const base = await start(handlerFor(dataDir));
+    const created = await request(base, { method: 'POST', body: JSON.stringify({ title: '定例', initial_body: '本文' }) });
+    const meetingId = (created.body.meeting as Record<string, unknown>).meeting_id as string;
+    const document = (created.body.minutes as Array<Record<string, unknown>>)[0];
+    const path = `/api/meeting-minutes/${meetingId}/minutes/${document.minutes_id as string}/withdraw`;
+    const withdrawn = await request(base, { method: 'POST', path, body: JSON.stringify({ expected_revision: document.revision }) });
+    expect(withdrawn.response.status).toBe(200);
+    const saved = (withdrawn.body.minutes as Array<Record<string, unknown>>)[0];
+    expect(saved.withdrawal).toMatchObject({ actor_id: 'self' });
+    const list = await request(base);
+    const [summary] = list.body.meetings as Array<Record<string, unknown>>;
+    expect(summary.minutes).toEqual([]);
+    const missing = await request(base, {
+      method: 'POST',
+      path: `/api/meeting-minutes/${meetingId}/minutes/minutes_missing/withdraw`,
+      body: JSON.stringify({ expected_revision: 1 })
+    });
+    expect(missing.response.status).toBe(404);
+    const wrongMethod = await request(base, { path });
+    expect(wrongMethod.response.status).toBe(405);
+  });
+
   it('rejects an empty or oversized idempotency key at the HTTP boundary', async () => {
     const dataDir = await dataDirectory();
     const base = await start(handlerFor(dataDir));

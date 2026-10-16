@@ -78,6 +78,42 @@ describe('CanonicalTaskService', () => {
       .rejects.toMatchObject({ code: 'validation_error', status: 400 });
   });
 
+  it('records who a waiting task waits on as a person, beside the free-text condition', async () => {
+    const fixture = createCanonicalTaskServiceFixture();
+    const created = await fixture.service.createTask({ title: 'Needs a review' }, fixture.context('waiting-person'));
+    expect(created.waiting_on_person_id).toBeNull();
+    // A create without the person does not write the field, so a store without the column keeps working.
+    expect(fixture.tasks.get(created.id)).not.toHaveProperty('waiting_on_person_id');
+
+    const waiting = await fixture.service.transitionTask(created.id, {
+      expected_version: created.version,
+      to_status: 'waiting',
+      waiting_on: '佐藤さんの承認',
+      waiting_on_person_id: '  per_keigo_sato  ',
+    }, fixture.context());
+    expect(waiting).toMatchObject({ status: 'waiting', waiting_on: '佐藤さんの承認', waiting_on_person_id: 'per_keigo_sato' });
+
+    // Leaving the waiting state clears both what and whom it waited on.
+    const resumed = await fixture.service.transitionTask(created.id, 'in_progress', waiting.version, fixture.context());
+    expect(resumed).toMatchObject({ waiting_on: null, waiting_on_person_id: null });
+
+    // The free-text condition stays required; the person alone is not enough.
+    await expect(fixture.service.transitionTask(created.id, {
+      expected_version: resumed.version,
+      to_status: 'waiting',
+      waiting_on_person_id: 'per_keigo_sato',
+    }, fixture.context())).rejects.toMatchObject({ code: 'validation_failed', status: 422 });
+
+    // Waiting on a condition rather than a person clears an earlier person.
+    const conditionOnly = await fixture.service.transitionTask(created.id, 'waiting', resumed.version, fixture.context(), { waitingOn: '契約書の到着' });
+    expect(conditionOnly).toMatchObject({ waiting_on: '契約書の到着', waiting_on_person_id: null });
+
+    const reassigned = await fixture.service.updateTask(created.id, { waiting_on_person_id: 'per_reviewer' }, conditionOnly.version, fixture.context());
+    expect(reassigned.waiting_on_person_id).toBe('per_reviewer');
+    await expect(fixture.service.updateTask(created.id, { waiting_on_person_id: 'p'.repeat(201) }, reassigned.version, fixture.context()))
+      .rejects.toMatchObject({ code: 'validation_error', status: 400 });
+  });
+
   it('reports task normalization warnings by code instead of an unreadable object string', async () => {
     const fixture = createCanonicalTaskServiceFixture();
     const created = await fixture.service.createTask({ title: 'Legacy task' }, fixture.context('warning-create'));

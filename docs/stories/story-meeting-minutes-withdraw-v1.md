@@ -20,7 +20,7 @@ owner_repository: brainbase
 
 ## 受入条件
 
-- [ ] AC-01: `withdraw_minutes({ minutes_id, expected_revision, idempotency_key?, idempotency_fingerprint? }, context)` は、会議と議事録の両方に書き込める人だけが実行でき、議事録の文書に `withdrawal: { actor_id, withdrawn_at }` を記録する。版と本文は消さない。
+- [ ] AC-01: `withdraw_minutes({ minutes_id, expected_revision, idempotency_key?, idempotency_fingerprint? }, context)` は、会議と議事録の両方に書き込める人だけが実行でき、議事録の文書に `withdrawal: { actor_id, withdrawn_at }` を記録する。版と本文は消さない。2026-10-16 から、書き込める人のうち文書を作った本人（`created_actor_id`）だけに絞る（story-meeting-minutes-edit-and-withdraw-ui-v1 AC-03）。
 - [ ] AC-02: `list_meetings` の要約は取り下げた議事録の文書を含めない。`get_meeting` の詳細は取り下げた文書も `withdrawal` 付きで返す（履歴を読める）。
 - [ ] AC-03: 取り下げた議事録の文書には、新しい版の保存と確定を断る（`invalid_input`）。
 - [ ] AC-04: すでに取り下げた文書を取り下げても、記録を変えずに同じ結果を返す。同じ冪等キーの再送は同じ結果を返し、別の要求に使い回すと `idempotency_conflict`。
@@ -29,4 +29,4 @@ owner_repository: brainbase
 ## 範囲外
 
 - 取り下げを戻す操作（再公開は、組織版の公開の流れで新しく行う）。
-- ローカルのWebの画面とHTTPの経路（組織版は部品を直接呼ぶ）。
+- ローカルのWebの画面とHTTPの経路（組織版は部品を直接呼ぶ）。2026-10-16 に story-meeting-minutes-edit-and-withdraw-ui-v1 で足した。

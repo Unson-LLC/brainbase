@@ -838,8 +838,8 @@ describe('meeting minutes page review', () => {
     });
     await flush();
     await view.openMeeting('meeting-1');
-    expect(collectText(root)).toContain('10/14 09:00 作成（今日）');
-    expect(collectText(root)).toContain('作成者は未記録・確認待ち');
+    // With one version there is no history list; the line below the body carries the same facts.
+    expect(collectText(root)).toContain('第1版（最新）・10/14 09:00 作成（今日）・作成者は未記録');
     expect(collectText(root)).not.toContain('未確認');
   });
 
@@ -884,7 +884,7 @@ describe('meeting minutes page review', () => {
     expect(collectText(detail)).toContain('議事録を選ぶと、ここに本文が出ます。');
   });
 
-  it('does not show version save or document add forms on the readonly version screen', async () => {
+  it('does not show the version editor or document add forms until editing starts', async () => {
     const { root, view } = mount([entry({ id: 'meeting-1', title: '読み取り', scheduledAt: at(2026, 10, 14, 10, 0) })], {
       detailFor: () => ({
         meeting: { meeting_id: 'meeting-1', title: '読み取り', scheduled_at: at(2026, 10, 14, 10, 0), participant_ids: [] },
@@ -1119,5 +1119,359 @@ describe('meeting minutes page review', () => {
     expect(reset.hidden).toBe(false);
     reset.listeners.get('click')();
     expect(changes).toEqual(['alpha', '']);
+  });
+});
+
+// story-meeting-minutes-edit-and-withdraw-ui-v1
+describe('editing and withdrawing minutes', () => {
+  const OWNER = 'per_owner';
+
+  function detailWith({ title = '週次定例', body = '保存済み本文', document = {}, versions } = {}) {
+    return {
+      meeting: { meeting_id: 'meeting-1', title, scheduled_at: '2026-10-06T00:00:00.000Z', participant_ids: [] },
+      minutes: [{ minutes_id: 'minutes-1', title: '議事録', current_version_id: 'version-1', revision: 1, created_actor_id: OWNER, ...document }],
+      versions: versions ?? [{ version_id: 'version-1', minutes_id: 'minutes-1', body, created_at: '2026-10-06T00:00:00.000Z', created_actor_id: OWNER }],
+      snapshot_revision: 1,
+    };
+  }
+
+  async function open(detail, options = {}) {
+    const calls = [];
+    const root = new FakeElement('div');
+    let current = detail;
+    const view = createMeetingMinutesUI({
+      root,
+      document: new FakeDocument(),
+      canEditMinutes: true,
+      ...options,
+      fetcher: async (path, init = {}) => {
+        calls.push({ path, method: init.method ?? 'GET', body: init.body ? JSON.parse(init.body) : undefined });
+        if (path === '/api/meeting-minutes') return jsonResponse(200, meetingList());
+        if (init.method === 'POST') {
+          current = options.afterPost ? options.afterPost(current, path) : current;
+          return jsonResponse(200, current);
+        }
+        return jsonResponse(200, current);
+      },
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    return { root, view, calls };
+  }
+
+  const buttonNamed = (root, label) => findAll(root, (node) => node.tagName === 'BUTTON' && node.textContent === label);
+
+  it('turns the body into an editor and saves the edit as a new version', async () => {
+    const { root, calls } = await open(detailWith(), {
+      afterPost: (current) => ({
+        ...current,
+        minutes: [{ ...current.minutes[0], current_version_id: 'version-2', revision: 2 }],
+        versions: [...current.versions, { version_id: 'version-2', minutes_id: 'minutes-1', body: '直した本文', created_at: '2026-10-06T01:00:00.000Z', created_actor_id: OWNER, predecessor_version_id: 'version-1' }],
+      }),
+    });
+    const [edit] = buttonNamed(root, '編集');
+    expect(edit).toBeTruthy();
+    edit.listeners.get('click')();
+    const [textarea] = findAll(root, (node) => node.tagName === 'TEXTAREA');
+    expect(textarea.value).toBe('保存済み本文');
+    expect(collectText(root)).toContain('保存すると第2版になります。前の版は残ります。');
+    expect(collectText(root)).toContain('公開したときにGitへ書き出した分とSlackの知らせは、前の版のまま変わりません。');
+    textarea.value = '直した本文';
+    const [form] = findAll(root, (node) => node.tagName === 'FORM' && node.className === 'bb-minutes-edit-form');
+    await form.listeners.get('submit')({ preventDefault() {} });
+    await flush();
+    const post = calls.find((call) => call.method === 'POST');
+    expect(post.path).toBe('/api/meeting-minutes/meeting-1/minutes/minutes-1');
+    expect(post.body).toEqual({ body: '直した本文', expected_revision: 1 });
+    expect(findAll(root, (node) => node.tagName === 'TEXTAREA')).toHaveLength(0);
+    expect(collectText(root)).toContain('直した本文');
+    expect(collectText(root)).toContain('第2版（最新）');
+    expect(collectText(root)).toContain('確認待ち');
+  });
+
+  it('cancels an edit without saving', async () => {
+    const { root, calls } = await open(detailWith());
+    buttonNamed(root, '編集')[0].listeners.get('click')();
+    buttonNamed(root, 'やめる')[0].listeners.get('click')();
+    expect(findAll(root, (node) => node.tagName === 'TEXTAREA')).toHaveLength(0);
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0);
+  });
+
+  it('does not offer editing for an external body, an old version, or a person who cannot edit', async () => {
+    const external = await open(detailWith({
+      versions: [{ version_id: 'version-1', minutes_id: 'minutes-1', created_at: '2026-10-06T00:00:00.000Z', created_actor_id: OWNER,
+        source_ref: { provider: 'github', locator: 'https://github.com/example/minutes/1', revision: 'abc', digest: 'd' } }],
+    }));
+    expect(buttonNamed(external.root, '編集')).toHaveLength(0);
+    expect(collectText(external.root)).toContain('元の記録を開く（github）');
+
+    const denied = await open(detailWith(), { canEditMinutes: false });
+    expect(buttonNamed(denied.root, '編集')).toHaveLength(0);
+    expect(buttonNamed(denied.root, '取り下げる')).toHaveLength(0);
+
+    const old = await open(detailWith({
+      document: { current_version_id: 'version-2', revision: 2 },
+      versions: [
+        { version_id: 'version-1', minutes_id: 'minutes-1', body: '古い本文', created_at: '2026-10-06T00:00:00.000Z', created_actor_id: OWNER },
+        { version_id: 'version-2', minutes_id: 'minutes-1', body: '新しい本文', created_at: '2026-10-06T01:00:00.000Z', created_actor_id: OWNER },
+      ],
+    }));
+    const history = findAll(old.root, (node) => node.className.includes('bb-minutes-version-history'))[0];
+    history.children[1].listeners.get('click')();
+    expect(collectText(old.root)).toContain('古い版を表示しています。');
+    expect(buttonNamed(old.root, '編集')).toHaveLength(0);
+  });
+
+  it('offers withdrawal only to the person who made the document', async () => {
+    const mine = await open(detailWith(), { currentPrincipalId: () => OWNER });
+    expect(buttonNamed(mine.root, '取り下げる')).toHaveLength(1);
+    const theirs = await open(detailWith(), { currentPrincipalId: 'per_someone_else' });
+    expect(buttonNamed(theirs.root, '取り下げる')).toHaveLength(0);
+    expect(collectText(theirs.root)).toContain('取り下げられるのは、この議事録を作った人だけです。');
+    const unknownViewer = await open(detailWith());
+    expect(buttonNamed(unknownViewer.root, '取り下げる')).toHaveLength(1);
+  });
+
+  it('says what stays and what cannot be undone before withdrawing, then withdraws', async () => {
+    const { root, calls } = await open(detailWith(), {
+      currentPrincipalId: OWNER,
+      afterPost: (current) => ({
+        ...current,
+        minutes: [{ ...current.minutes[0], revision: 2, withdrawal: { actor_id: OWNER, withdrawn_at: '2026-10-16T01:00:00.000Z' } }],
+      }),
+    });
+    buttonNamed(root, '取り下げる')[0].listeners.get('click')();
+    const panel = findAll(root, (node) => node.className === 'bb-minutes-withdraw-confirm')[0];
+    expect(collectText(panel)).toContain('プロジェクトの議事録の一覧から外れます。');
+    expect(collectText(panel)).toContain('版と本文は消えず、取り下げた人と日時が残ります。');
+    expect(collectText(panel)).toContain('Gitへ書き出した分と、Slackで送った知らせは取り消せません。');
+    expect(collectText(panel)).toContain('取り下げは元に戻せません。');
+    expect(calls.filter((call) => call.method === 'POST')).toHaveLength(0);
+    const confirm = findAll(panel, (node) => node.tagName === 'BUTTON' && node.textContent === '取り下げる')[0];
+    await confirm.listeners.get('click')();
+    await flush();
+    const post = calls.find((call) => call.method === 'POST');
+    expect(post.path).toBe('/api/meeting-minutes/meeting-1/minutes/minutes-1/withdraw');
+    expect(post.body).toEqual({ expected_revision: 1 });
+    expect(calls.filter((call) => call.path === '/api/meeting-minutes').length).toBeGreaterThanOrEqual(2);
+    expect(collectText(root)).toContain('取り下げ済み');
+  });
+
+  it('shows a withdrawn document as withdrawn, with who and when, and no actions', async () => {
+    const { root } = await open(detailWith({
+      document: { withdrawal: { actor_id: OWNER, withdrawn_at: '2026-10-16T01:00:00.000Z' } },
+    }), { currentPrincipalId: OWNER });
+    const notice = findAll(root, (node) => node.className === 'bb-minutes-withdrawn')[0];
+    expect(collectText(notice)).toContain('取り下げ済み');
+    expect(collectText(notice)).toContain(OWNER);
+    expect(collectText(notice)).toContain('10/16 10:00');
+    expect(buttonNamed(root, '編集')).toHaveLength(0);
+    expect(buttonNamed(root, '取り下げる')).toHaveLength(0);
+    expect(buttonNamed(root, 'この版を確認済みにする')).toHaveLength(0);
+  });
+
+  it('puts version facts below the body and shows the history button only with two or more versions', async () => {
+    const { root } = await open(detailWith());
+    const section = findAll(root, (node) => node.className === 'bb-minutes-document')[0];
+    const classes = section.children.map((child) => child.className);
+    expect(classes.indexOf('bb-minutes-version-meta')).toBeGreaterThan(classes.indexOf('bb-minutes-version-content'));
+    expect(classes).not.toContain('bb-minutes-version-band');
+    expect(collectText(section.children[classes.indexOf('bb-minutes-version-meta')])).toContain('第1版（最新）');
+    expect(findAll(root, (node) => node.tagName === 'BUTTON' && node.textContent.startsWith('版の履歴'))).toHaveLength(0);
+  });
+
+  it('does not repeat the meeting title when the body starts with the same heading', async () => {
+    const { root } = await open(detailWith({ title: '梅田さん定例 議事録(下書き)', body: '# 梅田さん定例 議事録（下書き）\n\n話し合った内容\n\n## 決めたこと' }));
+    const content = findAll(root, (node) => node.className === 'bb-minutes-version-content')[0];
+    expect(collectText(content)).not.toContain('梅田さん定例');
+    expect(collectText(content)).toContain('話し合った内容');
+    expect(collectText(content)).toContain('決めたこと');
+  });
+});
+
+describe('meeting minutes connections', () => {
+  function connectionRows(root) {
+    const section = findAll(root, (node) => node.className === 'bb-minutes-connections')[0];
+    if (!section) return null;
+    return Object.fromEntries(findAll(section, (node) => node.className === 'bb-minutes-connection-row')
+      .map((row) => [row.attributes['data-connection'], row]));
+  }
+
+  function links(node) {
+    return findAll(node, (child) => child.tagName === 'A');
+  }
+
+  function mountWith(meetingConnections, options = {}) {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const view = createMeetingMinutesUI({
+      root,
+      rail,
+      document: new FakeDocument(),
+      fetcher: options.fetcher ?? (async (path) => path === '/api/meeting-minutes'
+        ? jsonResponse(200, meetingList())
+        : jsonResponse(200, meetingDetail())),
+      meetingConnections,
+      meetingLabel: options.meetingLabel,
+    });
+    return { root, rail, view };
+  }
+
+  it('shows project, tasks, decisions, storage and sharing with links to each record', async () => {
+    const calls = [];
+    const { root, rail, view } = mountWith((input) => {
+      calls.push(input);
+      return {
+        project: { status: 'recorded', items: [{ label: 'Brainbase', href: '/?screen=projects&project=brainbase' }] },
+        tasks: { status: 'recorded', items: [{ label: '資料を直す', href: '/?screen=tasks&task=t1', detail: '未着手' }] },
+        decisions: { status: 'recorded', items: [{ label: '公開は月曜', href: '/?screen=value-proofs&decision=d1' }] },
+        stored: { status: 'recorded', items: [{ label: 'Unson-LLC/brainbase-project/meetings/2026-10-06.md', href: 'https://github.com/Unson-LLC/brainbase-project/blob/abc/meetings/2026-10-06.md' }] },
+        shared: { status: 'recorded', items: [{ label: '#brainbase', href: 'https://unson.slack.com/archives/C1/p1' }] },
+      };
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0].meeting.meeting_id).toBe('meeting-1');
+    expect(calls[0].minutes[0].minutes_id).toBe('minutes-1');
+    const rows = connectionRows(root);
+    expect(Object.keys(rows)).toEqual(['project', 'tasks', 'decisions', 'stored', 'shared']);
+    expect(collectText(rows.project)).toContain('プロジェクト');
+    expect(collectText(rows.tasks)).toContain('資料を直す');
+    expect(collectText(rows.tasks)).toContain('未着手');
+    expect(links(rows.project)[0].attributes.href).toBe('/?screen=projects&project=brainbase');
+    expect(links(rows.project)[0].attributes.target).toBeUndefined();
+    expect(links(rows.decisions)[0].attributes.href).toBe('/?screen=value-proofs&decision=d1');
+    const github = links(rows.stored)[0];
+    expect(github.attributes.href).toBe('https://github.com/Unson-LLC/brainbase-project/blob/abc/meetings/2026-10-06.md');
+    expect(github.attributes.target).toBe('_blank');
+    expect(github.attributes.rel).toBe('noopener noreferrer');
+    expect(links(rows.shared)[0].textContent).toBe('#brainbase');
+    const railProject = links(rail).find((link) => link.textContent === 'Brainbase');
+    expect(railProject.attributes.href).toBe('/?screen=projects&project=brainbase');
+  });
+
+  it('says 記録なし for missing, unrecorded and malformed rows and なし only when absence is confirmed', async () => {
+    const { root, view } = mountWith(async () => ({
+      tasks: { status: 'none' },
+      decisions: { status: 'unrecorded', reason: '議事録との結び付きを記録していません' },
+      stored: { status: 'recorded', items: [{ label: '  ' }, 'oops'] },
+      shared: { status: 'unavailable', reason: '共有先を読めませんでした' },
+      project: 'not-a-row',
+    }));
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+
+    const rows = connectionRows(root);
+    expect(collectText(rows.project)).toContain('記録なし');
+    expect(collectText(rows.tasks)).toContain('なし');
+    expect(collectText(rows.tasks)).not.toContain('記録なし');
+    expect(collectText(rows.tasks)).not.toMatch(/0件/u);
+    expect(collectText(rows.decisions)).toContain('記録なし');
+    expect(collectText(rows.decisions)).toContain('議事録との結び付きを記録していません');
+    expect(collectText(rows.stored)).toContain('記録なし');
+    expect(collectText(rows.shared)).toContain('読み込めません');
+    expect(collectText(rows.shared)).toContain('共有先を読めませんでした');
+    expect(collectText(rows.shared)).not.toContain('記録なし');
+  });
+
+  it('renders labels as text and links only safe http(s) URLs or same-site paths', async () => {
+    const unsafe = '<img src=x onerror=alert(1)>';
+    const { root, view } = mountWith(() => ({
+      tasks: { status: 'recorded', items: [
+        { label: unsafe, href: 'javascript:alert(1)' },
+        { label: 'protocol-relative', href: '//evil.example/x' },
+        { label: 'relative', href: 'tasks/1' },
+      ] },
+    }));
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+
+    const rows = connectionRows(root);
+    expect(links(rows.tasks)).toHaveLength(0);
+    const label = findAll(rows.tasks, (node) => node.textContent === unsafe)[0];
+    expect(label.children).toHaveLength(0);
+  });
+
+  it('shows 読み込めません on every row when the loader throws or rejects, without breaking the detail', async () => {
+    for (const loader of [
+      () => { throw new Error('boom'); },
+      async () => { throw new Error('boom'); },
+      () => null,
+    ]) {
+      const { root, view } = mountWith(loader);
+      await flush();
+      await view.openMeeting('meeting-1');
+      await flush();
+      const rows = connectionRows(root);
+      expect(Object.values(rows).every((row) => collectText(row).includes('読み込めません'))).toBe(true);
+      expect(collectText(root)).toContain('保存済み本文');
+    }
+  });
+
+  it('shows a loading line until the host answers and ignores an answer for a meeting no longer open', async () => {
+    const first = deferred();
+    const second = deferred();
+    const pending = [first, second];
+    const meetings = meetingListFor(meetingRecord('meeting-a', 'A会議'), meetingRecord('meeting-b', 'B会議'));
+    const { root, view } = mountWith(() => pending.shift().promise, {
+      fetcher: async (path) => {
+        if (path === '/api/meeting-minutes') return jsonResponse(200, meetings);
+        const id = decodeURIComponent(path.split('/').pop());
+        const meeting = meetings.meetings.find((entry) => entry.meeting.meeting_id === id).meeting;
+        return jsonResponse(200, meetingDetailFor(meeting, `${id}の本文`));
+      },
+    });
+    await flush();
+    await view.openMeeting('meeting-a');
+    expect(collectText(connectionRows(root).tasks)).toContain('読み込んでいます');
+    await view.openMeeting('meeting-b');
+    second.resolve({ tasks: { status: 'recorded', items: [{ label: 'Bのタスク' }] } });
+    await flush();
+    first.resolve({ tasks: { status: 'recorded', items: [{ label: 'Aのタスク' }] } });
+    await flush();
+
+    const text = collectText(connectionRows(root).tasks);
+    expect(text).toContain('Bのタスク');
+    expect(text).not.toContain('Aのタスク');
+  });
+
+  it('reuses the loaded connections when switching versions instead of calling the host again', async () => {
+    let calls = 0;
+    const detail = meetingDetail();
+    detail.versions.push({ version_id: 'version-0', minutes_id: 'minutes-1', body: '古い本文', created_at: '2026-10-05T00:00:00.000Z' });
+    const { root, view } = mountWith(() => {
+      calls += 1;
+      return { tasks: { status: 'recorded', items: [{ label: '資料を直す' }] } };
+    }, {
+      fetcher: async (path) => path === '/api/meeting-minutes'
+        ? jsonResponse(200, meetingList())
+        : jsonResponse(200, detail),
+    });
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+    const oldVersion = findAll(root, (node) => node.tagName === 'BUTTON' && node.className.startsWith('bb-minutes-version')
+      && collectText(node).includes('第1版'))[0];
+    oldVersion.listeners.get('click')();
+    await flush();
+
+    expect(calls).toBe(1);
+    expect(collectText(connectionRows(root).tasks)).toContain('資料を直す');
+  });
+
+  it('omits the section and keeps the plain rail project when the host gives no loader', async () => {
+    const { root, rail, view } = mountWith(undefined, { meetingLabel: () => 'Brainbase' });
+    await flush();
+    await view.openMeeting('meeting-1');
+    await flush();
+
+    expect(connectionRows(root)).toBeNull();
+    expect(links(rail).filter((link) => link.textContent === 'Brainbase')).toHaveLength(0);
+    expect(collectText(rail)).toContain('Brainbase');
   });
 });
