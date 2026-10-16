@@ -422,3 +422,168 @@ export function workspaceDisclosure(doc, { title, help, content, open = false, o
   if (onToggle) details.addEventListener('toggle', () => onToggle(details.open));
   return details;
 }
+
+function comboboxText(value) {
+  return String(value ?? '').normalize('NFKC').toLocaleLowerCase('ja');
+}
+
+/**
+ * Dropdown whose list can be searched. The trigger shows the chosen label;
+ * opening it moves focus to a search box (role=combobox) that narrows a
+ * listbox. Arrow keys move the active option, Enter chooses it, Escape closes
+ * and returns focus to the trigger, and typing on the trigger starts a search.
+ * Long lists render the first `limit` matches and say how many the search
+ * would still reveal. Options are `{ value, label, hint?, keywords? }`; the
+ * host owns the chosen value and receives it through `onChange`.
+ */
+export function workspaceCombobox(doc, {
+  label, options = [], value = '', placeholder = '選択してください', searchLabel, searchPlaceholder = '絞り込む',
+  emptyText = '一致する候補はありません', limit = 100, searchable = 'auto', className, onChange,
+} = {}) {
+  const sequence = ++workspaceSequence;
+  const listId = `bb-ws-combobox-${sequence}-list`;
+  const root = el(doc, 'span', { className: ['bb-ws-combobox', className].filter(Boolean).join(' ') });
+  const trigger = el(doc, 'button', { className: 'bb-ws-combobox-trigger', attrs: { type: 'button', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', 'aria-controls': listId } });
+  const triggerText = el(doc, 'span', { className: 'bb-ws-combobox-value' });
+  trigger.append(triggerText, el(doc, 'span', { className: 'bb-ws-combobox-chevron', attrs: { 'aria-hidden': 'true' } }));
+  const popup = el(doc, 'div', { className: 'bb-ws-combobox-popup' });
+  popup.hidden = true;
+  const search = el(doc, 'input', { className: 'bb-ws-combobox-search', attrs: {
+    type: 'text', role: 'combobox', 'aria-autocomplete': 'list', 'aria-expanded': 'true', 'aria-controls': listId,
+    'aria-label': searchLabel || `${label || '候補'}を絞り込む`, placeholder: searchPlaceholder, autocomplete: 'off', spellcheck: 'false',
+  } });
+  const list = el(doc, 'ul', { className: 'bb-ws-combobox-list', attrs: { id: listId, role: 'listbox', 'aria-label': label || '候補', tabindex: '-1' } });
+  const status = el(doc, 'p', { className: 'bb-ws-combobox-status', attrs: { role: 'status', 'aria-live': 'polite' } });
+  popup.append(search, list, status);
+  root.append(trigger, popup);
+
+  const state = { options: [], value: String(value ?? ''), query: '', active: -1, shown: [], open: false, disabled: false };
+  const usesSearch = () => searchable === true || (searchable === 'auto' && state.options.length > 8);
+  const focusTarget = () => (usesSearch() ? search : list);
+  const chosen = () => state.options.find(option => option.value === state.value);
+
+  function setOptions(next) {
+    state.options = (Array.isArray(next) ? next : []).map(option => ({
+      value: String(option?.value ?? ''), label: String(option?.label ?? option?.value ?? ''),
+      hint: option?.hint ? String(option.hint) : '', keywords: option?.keywords ? String(option.keywords) : '',
+    }));
+  }
+
+  function renderTrigger() {
+    const option = chosen();
+    // A value the list does not offer stays visible instead of looking unset.
+    const text = option ? option.label : state.value || placeholder;
+    triggerText.textContent = text;
+    trigger.setAttribute('aria-label', `${label ? `${label}: ` : ''}${text}`);
+    trigger.setAttribute('data-empty', String(!option && !state.value));
+    if (state.disabled) trigger.setAttribute('disabled', ''); else trigger.removeAttribute('disabled');
+  }
+
+  function activeDescendant(node) {
+    for (const target of [search, list]) {
+      if (node) target.setAttribute('aria-activedescendant', node.getAttribute('id'));
+      else target.removeAttribute('aria-activedescendant');
+    }
+  }
+
+  function renderList() {
+    const terms = comboboxText(state.query).split(/\s+/u).filter(Boolean);
+    const matches = terms.length
+      ? state.options.filter(option => { const text = comboboxText(`${option.label}\n${option.hint}\n${option.keywords}`); return terms.every(term => text.includes(term)); })
+      : state.options;
+    const max = Math.max(1, Number(limit) || 100);
+    state.shown = matches.slice(0, max);
+    if (state.active >= state.shown.length) state.active = state.shown.length - 1;
+    list.replaceChildren();
+    state.shown.forEach((option, index) => {
+      const selected = option.value === state.value;
+      const item = el(doc, 'li', { className: `bb-ws-combobox-option${index === state.active ? ' is-active' : ''}`, attrs: { id: `bb-ws-combobox-${sequence}-option-${index}`, role: 'option', 'aria-selected': String(selected), 'data-value': option.value } });
+      item.append(el(doc, 'span', { className: 'bb-ws-combobox-option-label', text: option.label }));
+      if (option.hint) item.append(el(doc, 'span', { className: 'bb-ws-combobox-option-hint', text: option.hint }));
+      item.addEventListener('pointerdown', event => event.preventDefault?.());
+      item.addEventListener('click', () => choose(option));
+      list.append(item);
+    });
+    const active = list.children?.[state.active];
+    activeDescendant(active);
+    active?.scrollIntoView?.({ block: 'nearest' });
+    const rest = matches.length - state.shown.length;
+    status.textContent = !matches.length ? emptyText : rest > 0 ? `${matches.length}件中${state.shown.length}件を表示。ほか${rest}件は絞り込むと出ます` : `${matches.length}件`;
+  }
+
+  function move(index) {
+    if (!state.shown.length) return;
+    state.active = Math.min(state.shown.length - 1, Math.max(0, index));
+    renderList();
+  }
+
+  function removeListeners() { doc.removeEventListener?.('pointerdown', outside); }
+  function outside(event) { if (!root.contains?.(event.target)) close(false); }
+
+  function open(query = '') {
+    if (state.disabled) return;
+    if (!state.open) { state.open = true; doc.addEventListener?.('pointerdown', outside); }
+    state.query = query; search.value = query; search.hidden = !usesSearch();
+    const selectedIndex = state.options.findIndex(option => option.value === state.value);
+    state.active = query ? 0 : Math.max(0, selectedIndex);
+    popup.hidden = false; trigger.setAttribute('aria-expanded', 'true');
+    renderList();
+    focusTarget().focus?.();
+  }
+
+  function close(returnFocus = true) {
+    if (!state.open) return;
+    state.open = false; removeListeners();
+    popup.hidden = true; trigger.setAttribute('aria-expanded', 'false'); activeDescendant(null);
+    if (returnFocus) trigger.focus?.();
+  }
+
+  function choose(option) {
+    const changed = option.value !== state.value;
+    state.value = option.value; renderTrigger(); close(true);
+    if (changed) onChange?.(option.value, option);
+  }
+
+  function keydown(event) {
+    const page = 10;
+    const keys = {
+      ArrowDown: () => move(state.active + 1), ArrowUp: () => move(state.active - 1),
+      PageDown: () => move(state.active + page), PageUp: () => move(state.active - page),
+      Enter: () => { const option = state.shown[state.active]; if (option) choose(option); },
+      Escape: () => close(true),
+    };
+    // Home and End move the caret while a search box is shown.
+    if (!usesSearch()) Object.assign(keys, { Home: () => move(0), End: () => move(state.shown.length - 1) });
+    if (event.key === 'Tab') { close(false); return; }
+    const action = keys[event.key];
+    if (!action) return;
+    event.preventDefault?.(); event.stopPropagation?.();
+    action();
+  }
+
+  trigger.addEventListener('click', () => (state.open ? close(true) : open()));
+  trigger.addEventListener('keydown', event => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault?.(); open(); return; }
+    const printable = typeof event.key === 'string' && event.key.length === 1 && event.key !== ' ' && !event.ctrlKey && !event.metaKey && !event.altKey;
+    if (printable && usesSearch()) { event.preventDefault?.(); open(event.key); }
+  });
+  search.addEventListener('input', () => { state.query = search.value; state.active = 0; renderList(); });
+  search.addEventListener('keydown', keydown);
+  list.addEventListener('keydown', keydown);
+
+  setOptions(options); renderTrigger();
+  return {
+    root, trigger, popup, search, list,
+    get value() { return state.value; },
+    get isOpen() { return state.open; },
+    open, close,
+    update({ options: nextOptions, value: nextValue, disabled } = {}) {
+      if (nextOptions !== undefined) setOptions(nextOptions);
+      if (nextValue !== undefined) state.value = String(nextValue ?? '');
+      if (disabled !== undefined) { state.disabled = Boolean(disabled); if (state.disabled) close(false); }
+      renderTrigger();
+      if (state.open) { search.hidden = !usesSearch(); renderList(); }
+    },
+    destroy() { close(false); removeListeners(); },
+  };
+}
