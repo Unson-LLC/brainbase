@@ -51,6 +51,15 @@ describe('withdrawing a minutes document (story-meeting-minutes-withdraw-v1)', (
       .rejects.toMatchObject({ code: 'authorization_denied' });
   });
 
+  // story-meeting-minutes-edit-and-withdraw-ui-v1 AC-03: only the person who made the document takes it back.
+  it('refuses a writer who did not make the document', async () => {
+    const { store, document } = await storeWith(new Set(['per_owner', 'per_other']));
+    await expect(store.withdraw_minutes({ minutes_id: document.minutes_id, expected_revision: document.revision }, OTHER))
+      .rejects.toMatchObject({ code: 'authorization_denied' });
+    const after = await store.withdraw_minutes({ minutes_id: document.minutes_id, expected_revision: document.revision }, OWNER);
+    expect(after.minutes[0].withdrawal?.actor_id).toBe('per_owner');
+  });
+
   it('refuses new versions and confirmations of a withdrawn document', async () => {
     const { store, document } = await storeWith();
     const withdrawn = await store.withdraw_minutes({ minutes_id: document.minutes_id, expected_revision: document.revision }, OWNER);

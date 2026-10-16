@@ -4,7 +4,7 @@
   --bb-color-accent-strong: var(--bb-color-brand-indigo);
   --bb-color-action: var(--bb-color-brand-indigo);
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto minmax(0, 1fr);
   gap: 4px;
   height: 100%;
   min-height: 0;
@@ -108,6 +108,70 @@
   color: var(--bb-color-danger);
 }
 
+.bb-minutes-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: flex-end;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md, 6px);
+  background: var(--bb-color-surface);
+}
+
+.bb-minutes-filter-host {
+  display: contents;
+}
+
+.bb-minutes-filter-field {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bb-minutes-filter-field[hidden],
+.bb-minutes-filter-host[hidden],
+.bb-minutes-filter-reset[hidden] {
+  display: none;
+}
+
+.bb-minutes-filter-field.is-keyword {
+  flex: 1 1 180px;
+  max-width: 260px;
+}
+
+.bb-minutes-filter-field .bb-minutes-input {
+  min-height: 38px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.bb-minutes-filter-period {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.bb-minutes-filter-period .bb-minutes-input {
+  width: 8.75rem;
+}
+
+.bb-minutes-filter-period-sep {
+  color: var(--bb-color-muted);
+}
+
+.bb-minutes-filter-combobox {
+  min-width: 11rem;
+  max-width: 16rem;
+}
+
+.bb-minutes-create-reason {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
 .bb-minutes-columns {
   display: grid;
   grid-template-columns: minmax(340px, 380px) minmax(0, 1fr);
@@ -136,6 +200,12 @@
   overflow-y: auto;
 }
 
+/* Keep the heading, actions and body together at the top instead of spreading them over the pane. */
+.bb-minutes-detail-pane,
+.bb-minutes-document {
+  align-content: start;
+}
+
 .bb-minutes-list-pane {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 0;
@@ -146,7 +216,8 @@
 .bb-minutes-detail-head,
 .bb-minutes-document-head,
 .bb-minutes-actions,
-.bb-minutes-version-band {
+.bb-minutes-version-actions,
+.bb-minutes-version-meta {
   display: flex;
   gap: 8px;
   align-items: center;
@@ -328,12 +399,66 @@
   margin: 0;
 }
 
-.bb-minutes-version-band {
+.bb-minutes-version-actions {
+  justify-content: flex-start;
   margin: 0;
-  padding: 8px 12px;
-  border: 1px solid var(--bb-color-border);
-  border-radius: 8px;
+}
+
+/* Which version is shown sits quietly below the body (story-meeting-minutes-edit-and-withdraw-ui-v1 AC-06). */
+.bb-minutes-version-meta {
+  justify-content: flex-start;
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--bb-color-border);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-minutes-withdrawn,
+.bb-minutes-withdraw-guard,
+.bb-minutes-edit-note {
+  margin: 0;
+  color: var(--bb-color-muted);
   font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.bb-minutes-withdrawn {
+  padding: 8px 12px;
+  background: var(--bb-color-surface);
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm, 4px);
+}
+
+.bb-minutes-withdraw-confirm {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--bb-color-danger);
+  border-radius: var(--bb-radius-sm, 4px);
+  background: var(--bb-color-paper);
+}
+
+.bb-minutes-withdraw-confirm p,
+.bb-minutes-withdraw-confirm ul {
+  margin: 0;
+}
+
+.bb-minutes-withdraw-title {
+  font-weight: 600;
+}
+
+.bb-minutes-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.bb-minutes-edit-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 16rem;
+  font: inherit;
+  line-height: 1.6;
 }
 
 .bb-minutes-version-content {
@@ -419,6 +544,18 @@
   color: var(--bb-color-action-text);
 }
 
+.bb-minutes-button.is-quiet {
+  border-color: var(--bb-color-border);
+  color: var(--bb-color-muted);
+}
+
+.bb-minutes-button.is-danger,
+.bb-minutes-button.is-danger:hover {
+  border-color: var(--bb-color-danger);
+  background: var(--bb-color-danger);
+  color: var(--bb-color-action-text);
+}
+
 .bb-minutes-button:disabled {
   cursor: wait;
   opacity: 0.6;
@@ -463,6 +600,28 @@
 @media (max-width: 900px) {
   .bb-minutes-columns {
     grid-template-columns: 1fr;
+  }
+
+  .bb-minutes-filter-field {
+    flex: 1 1 calc(50% - 6px);
+    max-width: none;
+  }
+
+  .bb-minutes-filter-field.is-keyword,
+  .bb-minutes-filter-field.is-period {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .bb-minutes-filter-period .bb-minutes-input {
+    flex: 1 1 0;
+    width: auto;
+    min-width: 0;
+  }
+
+  .bb-minutes-filter-combobox {
+    min-width: 0;
+    max-width: none;
   }
 }
 
