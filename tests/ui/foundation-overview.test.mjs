@@ -558,3 +558,14 @@ test('keeps record ids, digests, field names and secondary states behind the rec
   assert.match(front, /名前の記録がない変数/);
   assert.match(front, /名前の記録なし/);
 });
+
+test('keeps the id of an unnamed unscoped philosophy in its record details', () => {
+  const root = doc.createElement('div');
+  const unnamed = unscopedPhilosophy('phi_internal_id', { payload: { statement: '名前の無い哲学の本文' } });
+  const sources = [{ scopeId: 'project-alpha', label: 'Alpha', state: { status: 'ready', catalog: catalog({ philosophies: [], philosophies_without_applicability: [unnamed] }) } }];
+  renderFoundationCollectionOverview(root, sources, { document: doc });
+  const heading = textOf(byClass(root, 'bb-fov-philosophy-card')[0].children.find((child) => child.tagName === 'H3'));
+  assert.equal(heading, '名前の記録なし');
+  assert.doesNotMatch(frontText(root), /phi_internal_id/);
+  assert.match(textOf(root), /phi_internal_id/);
+});

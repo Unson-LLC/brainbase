@@ -612,7 +612,7 @@ function philosophyCard(doc, record) {
 function unscopedPhilosophyCard(doc, record, recordContexts) {
   const payload = record.payload;
   const card = makeElement(doc, 'article', { className: 'bb-fov-philosophy-card is-unscoped' });
-  card.append(makeElement(doc, 'h3', { text: formatAny(payload.title) ?? record.id }));
+  card.append(makeElement(doc, 'h3', { text: formatAny(payload.title) ?? UNNAMED_RECORD }));
   card.append(makeElement(doc, 'p', { className: 'bb-fov-philosophy-statement', text: payload.statement }));
   if (formatAny(payload.summary) && payload.summary !== payload.statement) card.append(makeElement(doc, 'p', { text: payload.summary }));
   // The section notice explains what an unrecorded applicability means.
