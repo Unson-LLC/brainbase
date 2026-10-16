@@ -538,3 +538,77 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* この会議から: project, tasks, decisions, storage and sharing. */
+.bb-minutes-connections {
+  display: grid;
+  align-self: start;
+  align-content: start;
+  gap: 4px;
+  margin: 8px 0 4px;
+  padding: 8px 12px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-md, 6px);
+  background: var(--bb-color-surface);
+}
+
+.bb-minutes-connections-title {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.bb-minutes-connection-list {
+  display: grid;
+  gap: 2px;
+}
+
+.bb-minutes-connection-row {
+  display: grid;
+  grid-template-columns: 7em minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.bb-minutes-connection-label {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-minutes-connection-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.bb-minutes-connection-items li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bb-minutes-connection-link {
+  color: var(--bb-color-brand-indigo);
+}
+
+.bb-minutes-connection-detail {
+  margin-left: 6px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-minutes-connection-note {
+  margin: 0;
+  color: var(--bb-color-muted);
+  overflow-wrap: anywhere;
+}
+
+.bb-minutes-connection-note.is-unavailable {
+  color: var(--bb-color-warning);
+}
