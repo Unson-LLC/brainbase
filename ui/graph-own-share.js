@@ -76,12 +76,25 @@ export function graphOwnShareSource(option, { fetcher } = {}) {
   });
 }
 
-/** What the owner sent: the snapshot ID, where it is kept and when it was sent. */
+/** What the owner sent, in words: when it was sent.  The snapshot ID and digest are in ownShareHandoverRows. */
 export function ownShareHandoverText(handover) {
   if (!isRecord(handover) || !textOrNull(handover.graphId)) return null;
-  const where = textOrNull(handover.projectCode);
-  const digest = textOrNull(handover.digest) ?? '未確認';
-  return `束 ${handover.graphId}（${where ? `置き場所 ${where}、` : ''}digest ${digest}、${formatDateTime(handover.createdAt)} に送信）`;
+  return `${formatDateTime(handover.createdAt)} に手元のOSSから送った束`;
+}
+
+/** The snapshot ID, where it is kept and its digest, for the record details only. */
+export function ownShareHandoverRows(handover) {
+  if (!isRecord(handover) || !textOrNull(handover.graphId)) return null;
+  return [
+    ['束ID', handover.graphId],
+    ['置き場所', textOrNull(handover.projectCode)],
+    ['digest', textOrNull(handover.digest) ?? '未確認'],
+  ];
+}
+
+function handoverDetails(doc, handover) {
+  const rows = ownShareHandoverRows(handover);
+  return rows ? recordDetails(doc, rows) : null;
 }
 
 /**
@@ -113,6 +126,8 @@ export function ownShareSection(doc, { label, lead = OWN_LEAD, handover, childre
   const sent = ownShareHandoverText(handover);
   if (sent) facts.append(makeElement(doc, 'span', { text: sent }));
   section.append(facts);
+  const sentDetails = handoverDetails(doc, handover);
+  if (sentDetails) section.append(sentDetails);
   for (const child of children) if (child) section.append(child);
   return section;
 }
@@ -250,7 +265,7 @@ function personText(person) {
 }
 
 function criterionText(criterion) {
-  const variable = textOrNull(criterion.variable?.meaning) ?? criterion.variable?.id ?? '変数';
+  const variable = textOrNull(criterion.variable?.meaning) ?? '名前の記録がない変数';
   if (criterion.target === null || criterion.target === undefined) return `${variable}（目標値なし）`;
   const value = `${String(criterion.target)}${textOrNull(criterion.variable?.unit) ? ` ${criterion.variable.unit}` : ''}`;
   if (criterion.operator === 'at_least') return `${variable}: ${value}以上`;
@@ -295,7 +310,7 @@ export function createOwnObjectivesView({
   function detail(objective) {
     const wrap = makeElement(doc, 'div', { className: 'bb-graph-own-detail', attrs: { 'aria-label': '選んだ目的（引き継いだ自分の分）' } });
     wrap.append(
-      workspaceRailHead(doc, { kicker: '目的（引き継いだ自分の分）', title: objective.meaning, sub: objective.id }),
+      workspaceRailHead(doc, { kicker: '目的（引き継いだ自分の分）', title: objective.meaning }),
       closeButton(doc, () => controller.select(null)),
     );
     const criteria = makeElement(doc, 'ul', { className: 'bb-graph-plain-list' });
@@ -312,7 +327,11 @@ export function createOwnObjectivesView({
           ['状態', ownLabel(ADOPTION_LABELS, objective.adoptionState) ?? textOrNull(objective.adoptionState)],
           ['公開範囲（手元での設定）', ownLabel(VISIBILITY_LABELS, objective.visibility) ?? textOrNull(objective.visibility)],
         ]),
-        recordDetails(doc, [['目的ID', objective.id], ['版', objective.revision]]),
+        recordDetails(doc, [
+          ['目的ID', objective.id],
+          ['版', objective.revision],
+          ['基準変数のID', objective.criteria.map((criterion) => textOrNull(criterion.variable?.id)).filter(Boolean).join('、') || null],
+        ]),
       ],
     }));
     return wrap;
@@ -344,7 +363,7 @@ export function createOwnObjectivesView({
         selected: objective.id === state.selectedId,
         onSelect: (id) => controller.select(id),
         cells: [
-          { primary: objective.meaning, secondary: objective.id },
+          { primary: objective.meaning },
           ownLabel(ADOPTION_LABELS, objective.adoptionState) ?? String(objective.adoptionState ?? ''),
           periodText(objective.evaluationPeriod),
           personText(objective.accountable) ?? { text: '未登録', className: 'is-unresolved' },
@@ -365,7 +384,7 @@ export function createOwnObjectivesView({
       if (compact) {
         const facts = makeElement(doc, 'p', { className: 'bb-graph-own-facts', text: '読み取りのみ' });
         const refs = makeElement(doc, 'details');
-        refs.append(makeElement(doc, 'summary', { text: '出典' }), makeElement(doc, 'p', { text: ownShareHandoverText(handover) ?? (state.list.state === 'not_handed_over' ? 'まだ引き継いでいません。' : '出典は確認できません。') }));
+        refs.append(makeElement(doc, 'summary', { text: '出典' }), makeElement(doc, 'p', { text: ownShareHandoverText(handover) ?? (state.list.state === 'not_handed_over' ? 'まだ引き継いでいません。' : '出典は確認できません。') }), handoverDetails(doc, handover));
         root.replaceChildren(facts, ...body(), refs);
       }
       else root.replaceChildren(ownShareSection(doc, { label: source.label, lead: OBJECTIVES_LEAD, handover, children: body(), className: 'bb-graph-own-objectives' }));

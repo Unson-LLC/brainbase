@@ -380,6 +380,7 @@ export function normalizeKnowledgeItem(item) {
   return {
     id: fieldValue(item, 'id', 'knowledge_id', 'canonical_id') ?? null,
     type: fieldValue(item, 'type', 'kind', 'entity_type') ?? null,
+    project_code: fieldValue(item, 'project_code', 'projectCode') ?? null,
     title: fieldValue(item, 'title', 'name', 'subject') ?? null,
     summary: fieldValue(item, 'summary', 'statement', 'body') ?? null,
     content: fieldValue(item, 'content', 'canonical_content') ?? null,
@@ -411,10 +412,29 @@ export function normalizeKnowledgeCollection(payload) {
     records,
     absence_confirmed: absenceConfirmed,
     searched_scope: Array.isArray(body.searched_scope) ? body.searched_scope : null,
+    truncated: body.truncated === true,
     query: fieldValue(body, 'query', 'q') ?? null,
     warnings: Array.isArray(body.warnings) ? body.warnings : null,
     raw: payload,
   };
+}
+
+const HEADING_MAX_LENGTH = 80;
+
+/**
+ * The heading shown for a knowledge record. A record without a title uses
+ * the first line of its own summary or body instead of a generic label, so
+ * the list still tells records apart. Nothing is invented: when none of the
+ * three exists the heading says the title is unconfirmed.
+ */
+export function knowledgeItemHeading(item) {
+  const title = optionalText(item?.title).trim();
+  if (title) return title;
+  for (const value of [item?.summary, item?.content]) {
+    const firstLine = optionalText(value).split(/\r?\n/u).map((line) => line.trim()).find(Boolean);
+    if (firstLine) return firstLine.length > HEADING_MAX_LENGTH ? `${firstLine.slice(0, HEADING_MAX_LENGTH)}…` : firstLine;
+  }
+  return 'タイトル未確認';
 }
 
 function isRecord(value) {
@@ -755,7 +775,8 @@ export function renderDiscoveryFilters(root, filters = {}, callbacks = {}) {
   queryLabel.append(query);
   const scopeFieldLabel = makeElement('label', { text: '範囲' });
   const scope = makeElement('select', { className: 'knowledge-control', attrs: { name: 'scope' } });
-  for (const value of ['project', 'organization', 'all']) append(scope, makeElement('option', { text: scopeLabel(value), value, attrs: { value, ...(filters.scope === value ? { selected: 'selected' } : {}) } }));
+  const scopeOptionLabel = (value) => optionalText(callbacks.scopeLabels?.[value]).trim() || scopeLabel(value);
+  for (const value of ['project', 'organization', 'all']) append(scope, makeElement('option', { text: scopeOptionLabel(value), value, attrs: { value, ...(filters.scope === value ? { selected: 'selected' } : {}) } }));
   scope.value = filters.scope || 'all';
   scopeFieldLabel.append(scope);
   const statusLabel = makeElement('label', { text: '状態' });
@@ -781,6 +802,18 @@ export function renderDiscoveryFilters(root, filters = {}, callbacks = {}) {
   return form;
 }
 
+/**
+ * Where a record belongs, for lists that span several projects. Organization
+ * wide records say so instead of naming the project row that stores them.
+ */
+export function knowledgeItemProjectLabel(item, projectLabel) {
+  if (optionalText(item?.scope).trim().toLowerCase() === 'organization') return '組織共通';
+  const code = optionalText(item?.project_code).trim();
+  if (!code) return 'プロジェクト未確認';
+  const label = typeof projectLabel === 'function' ? optionalText(projectLabel(code)).trim() : '';
+  return label || code;
+}
+
 export function renderKnowledgeList(root, model = {}, callbacks = {}) {
   clear(root);
   const collection = model.records === undefined && (model.items || model.results || model.state) ? normalizeKnowledgeCollection(model) : model;
@@ -792,15 +825,24 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
     && ['ready', 'results', EMPTY].includes(state);
   const section = makeElement('section', { className: 'knowledge-list-panel', attrs: { 'aria-labelledby': 'knowledge-list-title' } });
   const header = makeElement('div', { className: 'knowledge-panel-head' });
-  append(header, makeElement('div', {},), makeElement('span', { className: 'knowledge-count', text: countKnown ? `${collection.records.length}件` : UNKNOWN }));
-  header.firstChild.append(makeElement('h3', { text: '知識・判断', attrs: { id: 'knowledge-list-title' } }), makeElement('p', { text: searchedScope ? `検索範囲: ${searchedScope}` : '検索範囲: 未確認' }));
+  const countText = countKnown
+    ? `${collection.records.length}件${collection.truncated ? '（新しい順の上限まで）' : ''}`
+    : UNKNOWN;
+  const scopeText = typeof callbacks.scopeText === 'function'
+    ? callbacks.scopeText(collection)
+    : searchedScope ? `検索範囲: ${searchedScope}` : '検索範囲: 未確認';
+  append(header, makeElement('div', {},), makeElement('span', { className: 'knowledge-count', text: countText }));
+  header.firstChild.append(makeElement('h3', { text: '知識・判断', attrs: { id: 'knowledge-list-title' } }), makeElement('p', { text: scopeText }));
+  if (collection.truncated && countKnown) {
+    header.firstChild.append(makeElement('p', { className: 'knowledge-list-truncated', text: '表示は新しい順の上限までです。キーワードやプロジェクトで絞ると、ほかの記録も見られます。' }));
+  }
   section.append(header);
   if (state === 'loading') {
     const skeleton = makeElement('div', { className: 'knowledge-list-rows', attrs: { 'aria-label': '知識を読み込み中' } });
     for (let index = 0; index < 4; index += 1) skeleton.append(skeletonRow());
     section.append(skeleton);
   } else if (state === EMPTY) {
-    section.append(makeElement('div', { className: 'knowledge-empty', text: 'この条件に一致する知識はありません。自然文から登録案を作成できます。' }));
+    section.append(makeElement('div', { className: 'knowledge-empty', text: callbacks.emptyText ?? 'この条件に一致する知識はありません。自然文から登録案を作成できます。' }));
   } else if (state === 'permission_denied') {
     // Keep the upstream reason and recovery action visible.  Replacing the
     // payload with a generic detail makes a denied scope look like an
@@ -818,13 +860,14 @@ export function renderKnowledgeList(root, model = {}, callbacks = {}) {
     const hasSelectedId = callbacks.selectedId !== undefined && callbacks.selectedId !== null;
     if (!collection.records.length) rows.append(makeElement('div', { className: 'knowledge-empty', text: '検索結果を確認できません。空の一覧とは扱いません。' }));
     for (const item of collection.records) {
-      const title = item.title ? text(item.title) : 'タイトル未確認';
+      const title = knowledgeItemHeading(item);
       const row = makeElement('button', { className: 'knowledge-list-row', attrs: { type: 'button', 'aria-pressed': String(item.id === callbacks.selectedId), 'aria-controls': 'knowledge-selected-detail', title } });
       const main = makeElement('span', { className: 'knowledge-row-main' });
       const meta = makeElement('span', { className: 'knowledge-row-meta' });
+      if (callbacks.showProject) meta.append(makeElement('span', { className: 'knowledge-row-project', text: knowledgeItemProjectLabel(item, callbacks.projectLabel) }));
       append(meta,
         makeElement('span', { className: 'knowledge-row-type', text: item.type ? typeLabel(item.type) : UNKNOWN }),
-        makeElement('span', { className: 'knowledge-row-scope', text: item.scope ? scopeLabel(item.scope) : UNKNOWN }),
+        callbacks.showProject ? null : makeElement('span', { className: 'knowledge-row-scope', text: item.scope ? scopeLabel(item.scope) : UNKNOWN }),
         makeElement('span', { className: 'knowledge-row-state', text: item.lifecycle.status !== UNKNOWN ? lifecycleStatusLabel(item.lifecycle.status) : UNKNOWN }),
       );
       append(main,
@@ -895,14 +938,14 @@ export function renderKnowledgeDetail(root, item, callbacks = {}) {
   }
   append(section,
     makeElement('span', { className: 'knowledge-eyebrow', text: item.type ? typeLabel(item.type) : UNKNOWN }),
-    makeElement('h3', { text: item.title ? text(item.title) : 'タイトル未確認', attrs: { id: 'knowledge-detail-title' } }),
+    makeElement('h3', { text: knowledgeItemHeading(item), attrs: { id: 'knowledge-detail-title' } }),
   );
   const summary = makeElement('p', { className: 'knowledge-long-text', text: item.summary ? text(item.summary) : '要旨未確認' });
   section.append(summary);
   renderDefinitionList(section, [
     ['正本ID', item.id ? text(item.id) : UNKNOWN],
     ['版', item.version !== null && item.version !== undefined && String(item.version).trim() !== '' ? String(item.version) : UNKNOWN],
-    ['範囲', item.scope ? scopeLabel(item.scope) : UNKNOWN],
+    ['範囲', item.scope ? (optionalText(callbacks.scopeLabels?.[optionalText(item.scope).trim().toLowerCase()]).trim() || scopeLabel(item.scope)) : UNKNOWN],
     ['責任者', ownerValue(item.owner)],
     ['有効状態', lifecycleStatusLabel(item.lifecycle.status)],
     ['適用', item.applicability.state ? applicabilityStateLabel(item.applicability.state) : UNKNOWN],
@@ -1383,6 +1426,212 @@ function defaultCandidateBody(values, context = {}) {
   };
 }
 
+function projectOptions(projects) {
+  const list = typeof projects === 'function' ? projects() : projects;
+  if (!Array.isArray(list)) return [];
+  const options = [];
+  for (const project of list) {
+    const code = optionalText(fieldValue(project, 'code', 'project_code', 'projectCode') ?? (typeof project === 'string' ? project : '')).trim();
+    if (!code || options.some((option) => option.code === code)) continue;
+    const name = optionalText(fieldValue(project, 'name', 'display_name', 'displayName', 'label')).trim();
+    options.push({ code, name: name || code });
+  }
+  return options;
+}
+
+/**
+ * Renders the optional project filter shared by the organization-wide list
+ * and the single project workspace. The empty value means every project the
+ * viewer may read; it never stands for an implicitly chosen project.
+ */
+export function renderKnowledgeProjectFilter(root, model = {}, callbacks = {}) {
+  clear(root);
+  const label = makeElement('label', { className: 'knowledge-project-filter', text: 'プロジェクト' });
+  const select = makeElement('select', { className: 'knowledge-control', attrs: { name: 'knowledge_project', 'aria-label': 'プロジェクトで絞り込む' } });
+  const selected = optionalText(model.selected).trim();
+  const options = projectOptions(model.projects);
+  append(select, makeElement('option', { text: 'すべてのプロジェクト', value: '', attrs: { value: '', ...(selected ? {} : { selected: 'selected' }) } }));
+  for (const option of options) {
+    append(select, makeElement('option', { text: option.name === option.code ? option.code : `${option.name}（${option.code}）`, value: option.code, attrs: { value: option.code, ...(option.code === selected ? { selected: 'selected' } : {}) } }));
+  }
+  if (selected && !options.some((option) => option.code === selected)) {
+    append(select, makeElement('option', { text: selected, value: selected, attrs: { value: selected, selected: 'selected' } }));
+  }
+  select.value = selected;
+  select.addEventListener('change', () => callbacks.onChange?.(optionalText(select.value).trim() || null));
+  label.append(select);
+  root.append(label);
+  return label;
+}
+
+/**
+ * Creates the organization-wide knowledge list. It reads every project the
+ * viewer may read plus organization-wide records from one host path, shows
+ * the project each record belongs to, and only reads. Registration and
+ * version changes stay in the single project workspace: choosing a project
+ * calls `onSelectProject`, and the host mounts `createKnowledgeOutcomeController`.
+ *
+ * @param {object} options
+ * @param {string} [options.itemsPath] Host path for the organization-wide list.
+ * @param {Array|Function} [options.projects] Projects offered in the filter.
+ * @param {(code: string|null, context?: object) => void} [options.onSelectProject]
+ */
+export function createKnowledgeOverviewController(options = {}) {
+  const { root, api, onSelectProject } = options;
+  if (!root || typeof root.replaceChildren !== 'function') throw new Error('knowledge_root_unavailable');
+  const labels = resolveKnowledgeUiLabels(options.labels);
+  const itemsBase = optionalText(options.itemsPath).trim() || `/api/knowledge/${KNOWLEDGE_ROUTES.items}`;
+  const state = {
+    filters: { q: '', scope: 'all', status: 'active' },
+    list: { state: 'loading', records: null, absence_confirmed: false, searched_scope: null },
+    selected: null,
+    detail: { state: 'idle' },
+  };
+  let selectionGeneration = 0;
+  const projectName = (code) => projectOptions(options.projects).find((option) => option.code === code)?.name ?? null;
+
+  function itemsPath() {
+    const query = new URLSearchParams();
+    if (state.filters.q) query.set('q', state.filters.q);
+    if (state.filters.scope) query.set('scope', state.filters.scope);
+    if (state.filters.status) query.set('status', state.filters.status);
+    const encoded = query.toString();
+    return `${itemsBase}${encoded ? `?${encoded}` : ''}`;
+  }
+
+  function emptyText() {
+    const filtered = Boolean(state.filters.q) || state.filters.scope !== 'all' || state.filters.status !== 'active';
+    return filtered
+      ? 'この条件に一致する知識・判断はありません。'
+      : '見られる範囲に、有効な知識・判断の記録はありません。';
+  }
+
+  function scopeText(collection) {
+    const count = Array.isArray(collection.searched_scope) ? collection.searched_scope.length : null;
+    return count === null
+      ? '読んだ範囲: 未確認'
+      : `読んだ範囲: 見られる${count}件のプロジェクトと組織共通`;
+  }
+
+  function openProject(code, context = {}) {
+    if (!code) return;
+    onSelectProject?.(code, context);
+  }
+
+  function render() {
+    clear(root);
+    const shell = makeElement('div', { className: 'knowledge-outcome knowledge-overview' });
+    const header = makeElement('header', { className: 'knowledge-outcome-head' });
+    const headerMain = makeElement('div', { className: 'knowledge-header-main' });
+    append(headerMain,
+      makeElement('span', { className: 'knowledge-eyebrow', text: 'Brainbase Outcome' }),
+      makeElement('h2', { text: '知識・判断' }),
+      makeElement('p', { text: '見られるすべてのプロジェクトと組織共通の知識・判断を一覧にします。登録や改訂は、プロジェクトを選ぶとできます。' }),
+    );
+    const headerMeta = makeElement('div', { className: 'knowledge-header-meta' });
+    renderKnowledgeProjectFilter(headerMeta, { projects: options.projects, selected: null }, { onChange: (code) => openProject(code, { reason: 'filter' }) });
+    append(header, headerMain, headerMeta);
+    shell.append(header);
+    const body = makeElement('div', { className: 'knowledge-outcome-body knowledge-workspace', attrs: { 'data-view': 'discovery' } });
+    const primary = makeElement('section', { className: 'knowledge-outcome-primary knowledge-master', attrs: { 'aria-label': '知識の一覧' } });
+    const discovery = makeElement('section', { className: 'knowledge-discovery-view', attrs: { 'aria-labelledby': 'knowledge-discovery-title' } });
+    const discoveryHeader = makeElement('div', { className: 'knowledge-view-heading' });
+    append(discoveryHeader, makeElement('div', {},), makeElement('span', { className: 'knowledge-view-kicker', text: labels.discovery }));
+    discoveryHeader.firstChild.append(makeElement('h3', { id: 'knowledge-discovery-title', text: '知識・判断を探す' }), makeElement('p', { text: '選んだ記録の本文・出典・所属プロジェクトを確認できます。' }));
+    discovery.append(discoveryHeader);
+    const filters = makeElement('div', { className: 'knowledge-filter-region knowledge-discovery-toolbar' });
+    renderDiscoveryFilters(filters, state.filters, {
+      scopeLabels: { project: 'プロジェクトの記録', organization: '組織共通', all: 'すべて' },
+      onChange: (next) => { state.filters = next; void loadItems(); },
+    });
+    discovery.append(filters);
+    const list = makeElement('div', { className: 'knowledge-discovery-list' });
+    renderKnowledgeList(list, state.list, {
+      labels,
+      showProject: true,
+      projectLabel: projectName,
+      scopeText,
+      emptyText: emptyText(),
+      selectedId: state.selected?.id,
+      onSelect: (item) => { void selectItem(item); },
+      onRetry: () => loadItems(),
+    });
+    discovery.append(list);
+    primary.append(discovery);
+    body.append(primary);
+    const detail = makeElement('aside', { className: 'knowledge-outcome-detail knowledge-inspector', attrs: { 'aria-label': labels.inspector, id: 'knowledge-selected-detail', tabindex: '-1' } });
+    const inspectorHeading = makeElement('div', { className: 'knowledge-inspector-heading' });
+    append(inspectorHeading, makeElement('span', { className: 'knowledge-view-kicker', text: labels.inspector }), makeElement('span', { className: 'knowledge-inspector-state', text: state.selected ? labels.selected : labels.unselected }));
+    detail.append(inspectorHeading);
+    const detailContent = makeElement('div', { className: 'knowledge-inspector-detail' });
+    const hasSelectableKnowledge = normaliseStatus(state.list.state) === 'ready' && Array.isArray(state.list.records) && state.list.records.length > 0;
+    renderKnowledgeDetail(detailContent, state.selected, {
+      labels,
+      detailState: state.detail,
+      scopeLabels: { project: 'プロジェクトの記録', organization: '組織共通' },
+      showSelectionGuide: Boolean(state.selected) || hasSelectableKnowledge,
+      onRetry: state.selected ? () => void selectItem(state.selected) : null,
+    });
+    detail.append(detailContent);
+    if (state.selected) {
+      const owner = makeElement('div', { className: 'knowledge-overview-owner' });
+      const code = optionalText(state.selected.project_code).trim();
+      append(owner, makeElement('p', { className: 'knowledge-overview-project', text: `所属: ${knowledgeItemProjectLabel(state.selected, projectName)}` }));
+      if (code) {
+        const open = makeElement('button', { className: 'knowledge-button secondary', text: 'このプロジェクトで開く', attrs: { type: 'button' } });
+        open.addEventListener('click', () => openProject(code, { reason: 'record', item_id: state.selected.id }));
+        owner.append(open);
+      }
+      detail.append(owner);
+    }
+    body.append(detail); shell.append(body); root.append(shell);
+    options.onStateChange?.(state);
+    return shell;
+  }
+
+  async function loadItems() {
+    selectionGeneration += 1;
+    state.selected = null;
+    state.detail = { state: 'idle' };
+    state.list = { ...state.list, state: 'loading' }; render();
+    try { state.list = normalizeKnowledgeCollection(await callKnowledgeApi(api, itemsPath())); }
+    catch (error) { state.list = { state: error.code === 'permission_denied' || error.status === 403 ? 'permission_denied' : 'error_retryable', records: null, message: apiErrorText(error), error: error.code }; }
+    render(); return state.list;
+  }
+
+  async function selectItem(item) {
+    const requestGeneration = ++selectionGeneration;
+    state.selected = item ?? null;
+    const code = optionalText(item?.project_code).trim();
+    if (!item?.id || !code) {
+      // A record whose project is unknown cannot be read through a project
+      // route. Show what the list returned and say the canonical read is
+      // unavailable instead of presenting it as the confirmed detail.
+      state.detail = item ? { state: 'unknown', message: '所属プロジェクトを確認できないため、正本の詳細を読めません。' } : { state: 'idle' };
+      render(); return null;
+    }
+    state.detail = { state: 'loading' }; render();
+    try {
+      const path = typeof options.detailPath === 'function'
+        ? options.detailPath(code, item.id)
+        : knowledgePath(code, `${KNOWLEDGE_ROUTES.items}/${encodeURIComponent(item.id)}`);
+      const payload = await callKnowledgeApi(api, path);
+      if (requestGeneration !== selectionGeneration) return null;
+      const read = normalizeKnowledgeItem(payload?.item ?? payload?.record ?? payload?.data ?? payload);
+      const detailed = read ? { ...read, project_code: read.project_code ?? code } : item;
+      state.selected = detailed; state.detail = { state: 'ready', item: detailed }; render(); return detailed;
+    } catch (error) {
+      if (requestGeneration !== selectionGeneration) return null;
+      state.detail = { state: error.code === 'permission_denied' || error.status === 403 ? 'permission_denied' : 'error_retryable', message: apiErrorText(error), error: error.code }; render(); return null;
+    }
+  }
+
+  const controller = { state, render, loadItems, selectItem, paths: { items: itemsPath } };
+  render();
+  if (options.autoLoad !== false) void loadItems();
+  return controller;
+}
+
 /**
  * Creates the knowledge outcome workspace.
  *
@@ -1452,7 +1701,14 @@ export function createKnowledgeOutcomeController(options = {}) {
       makeElement('p', { text: '正本を探し、由来と状態を確認して、必要なときだけ更新します。' }),
     );
     const headerMeta = makeElement('div', { className: 'knowledge-header-meta' });
-    headerMeta.append(makeElement('span', { className: 'knowledge-project-context', text: `プロジェクト: ${code}` }));
+    if (options.projectFilter) {
+      // The host decides what choosing another project, or every project,
+      // means. Showing the filter keeps the chosen project explicit instead
+      // of a fixed label that cannot be changed from here.
+      renderKnowledgeProjectFilter(headerMeta, { projects: options.projectFilter.projects, selected: code }, { onChange: (next) => options.projectFilter.onChange?.(next) });
+    } else {
+      headerMeta.append(makeElement('span', { className: 'knowledge-project-context', text: `プロジェクト: ${code}` }));
+    }
     append(header, headerMain, headerMeta);
     const nav = makeElement('nav', { className: 'knowledge-outcome-nav', attrs: { 'aria-label': '知識の操作' } });
     for (const [value, label] of [['discovery', '探す'], ['capture', '登録案を作る'], ['preview', '公開前テスト'], ['destination', '保存先']]) {
