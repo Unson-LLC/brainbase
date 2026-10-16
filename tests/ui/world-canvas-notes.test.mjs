@@ -19,7 +19,8 @@ describe('canvas notices preserve the canonical read-state boundary', () => {
   });
   it('keeps partial data separate from task record gaps', () => {
     const notes = workCanvasNotes(projected({ state: 'partial', reason: 'codes_not_permitted', items: [{ id: 't1', title: 'A', status: 'waiting', project_codes: ['example'] }] }));
-    expect(notes.find((note) => note.label === '区画の仕事').summary).toBe('仕事：一部だけ読めた');
+    // The sign's short reason comes from the recorded reason (story-world-sign-meaning-v1).
+    expect(notes.find((note) => note.label === '区画の仕事').summary).toBe('仕事：一部だけ読めた（権限外の案件あり）');
     const gaps = notes.find((note) => note.label === '記録の確認');
     expect(gaps.summary).toBe('記録の要確認 1件');
     expect(gaps.text).toContain('止まっているという意味ではありません');

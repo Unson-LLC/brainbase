@@ -54,10 +54,11 @@ describe('world work rail: facts, then what cannot be seen, then people, then so
     expect(workSignText({ state: 'failed' })).toBe('仕事を読めない');
     expect(workSignText({ state: 'not_connected' })).toBeNull();
     expect(workSignText({ state: 'complete', needs_check: [] })).toBeNull();
-    expect(workSignText({ state: 'complete', needs_check: ['a', 'b'] })).toBe('要確認 2');
+    expect(workSignText({ state: 'complete', needs_check: ['a', 'b'] })).toBe('要確認 2：記録に抜け');
     // Read only in part: never a city without a sign.
     expect(workSignText({ state: 'partial', needs_check: [] })).toBe('一部だけ読めた');
-    expect(workSignText({ state: 'partial', needs_check: ['a'] })).toBe('要確認 1（一部だけ読めた）');
+    expect(workSignText({ state: 'partial', needs_check: [], reason: 'codes_not_permitted' })).toBe('一部だけ読めた：権限外の案件あり');
+    expect(workSignText({ state: 'partial', needs_check: ['a'] })).toBe('要確認 1：記録に抜け・一部だけ読めた');
   });
 
   it('says a real zero is a real zero, with its time', () => {
