@@ -1073,6 +1073,76 @@ function groupFor(groups: Map<string, JournalGroup>, sessionRef: string, key: st
   return group;
 }
 
+const FRAME_USE_ROLES = new Set(['constraint', 'criterion', 'prediction']);
+const FRAME_USE_VERDICTS = new Set(['satisfied', 'violated', 'tension']);
+const FRAME_PREDICTION_CHECKS = new Set(['held', 'failed', 'unchecked']);
+
+/**
+ * The usage value shared by every writer of judgment history references
+ * (docs/specs/judgment-history-frame-basis.md): the role in the chosen option,
+ * then the constraint verdict or the prediction check.
+ */
+function frameUseUsage(use: JsonObject): string | null {
+  const role = text(use.role);
+  if (!role || !FRAME_USE_ROLES.has(role)) return null;
+  if (role === 'prediction') {
+    const check = isObject(use.check) ? text(use.check.status) : null;
+    return `prediction:${check && FRAME_PREDICTION_CHECKS.has(check) ? check : 'unchecked'}`;
+  }
+  const verdict = text(use.verdict);
+  if (role === 'constraint') return verdict && FRAME_USE_VERDICTS.has(verdict) ? `constraint:${verdict}` : null;
+  return verdict && FRAME_USE_VERDICTS.has(verdict) ? `criterion:${verdict}` : 'criterion';
+}
+
+/** Carry how the chosen option used each selected reference; rejected options never leak in. */
+function frameReferencesWithUsage(frame: JsonObject): unknown {
+  const references = frame.selected_references;
+  if (!Array.isArray(references)) return references;
+  const chosenLabel = text(frame.chosen_option);
+  const chosen = Array.isArray(frame.alternatives)
+    ? frame.alternatives.find((option) => isObject(option) && chosenLabel !== null && option.label === chosenLabel)
+    : null;
+  const uses = isObject(chosen) && Array.isArray(chosen.uses) ? chosen.uses.filter(isObject) : [];
+  return references.map((reference) => {
+    if (!isObject(reference)) return reference;
+    const ref = text(reference.ref);
+    const use = ref ? uses.find((candidate) => text(candidate.ref) === ref) : undefined;
+    const usage = use ? frameUseUsage(use) : null;
+    return usage && reference.usage === undefined ? { ...reference, usage } : reference;
+  });
+}
+
+/**
+ * Personal KG records the owner's answer applied in this turn. Only resolved
+ * answers count; their content never enters the history record.
+ */
+function personalKnowledgeReferences(events: readonly JsonObject[]): JudgmentHistoryReference[] {
+  const references: JudgmentHistoryReference[] = [];
+  const seen = new Set<string>();
+  for (const event of events) {
+    if (event.success !== true || text(event.event_kind) !== 'personal_answer') continue;
+    const metadata = isObject(event.safe_metadata) ? event.safe_metadata : null;
+    const answer = metadata && isObject(metadata.personal_answer) ? metadata.personal_answer : null;
+    if (!answer || text(answer.status) !== 'resolved' || !Array.isArray(answer.reference_ids)) continue;
+    for (const value of answer.reference_ids) {
+      const ref = safeId(value);
+      if (!ref || seen.has(ref)) continue;
+      seen.add(ref);
+      references.push({ ref, kind: 'personal_knowledge', version: null, digest: null, why: null, usage: 'applied', availability: 'unknown' });
+    }
+  }
+  return references;
+}
+
+function withPersonalKnowledge(judgment: JudgmentHistoryJudgment, events: readonly JsonObject[]): JudgmentHistoryJudgment {
+  const personal = personalKnowledgeReferences(events);
+  if (personal.length === 0) return judgment;
+  const existing = judgment.selected_references ?? [];
+  const known = new Set(existing.map((reference) => `${reference.kind ?? ''}\u0000${reference.ref}`));
+  const added = personal.filter((reference) => !known.has(`${reference.kind}\u0000${reference.ref}`));
+  return added.length === 0 ? judgment : { ...judgment, selected_references: [...existing, ...added] };
+}
+
 function sourceBlocks(value: JsonObject | undefined): JsonObject[] {
   if (!value) return [];
   const blocks: JsonObject[] = [];
@@ -1085,7 +1155,7 @@ function sourceBlocks(value: JsonObject | undefined): JsonObject[] {
   if (value.success === true && metadata) {
     const frame = isObject(metadata.judgment_frame) ? metadata.judgment_frame : null;
     if (frame) blocks.push({
-      selected_references: frame.selected_references,
+      selected_references: frameReferencesWithUsage(frame),
       alternatives: Array.isArray(frame.alternatives) ? frame.alternatives.map((option) => isObject(option) ? {
         label: option.label,
         evaluation: null,
@@ -1309,7 +1379,7 @@ function normalizeFinalRecord(
     recorded_at: recordedAt,
     project_code: projectCode,
     turn_ref: `${sessionRef}/${sha256(turnId)}`,
-    judgment: mergeJudgment(judgment, blocks, field(blocks[0] ?? null, 'missing_fields')),
+    judgment: withPersonalKnowledge(mergeJudgment(judgment, blocks, field(blocks[0] ?? null, 'missing_fields')), events),
     execution: mergeExecution(
       { ...execution, status: finalExecutionStatus },
       [...executionBlocks(final), ...events.flatMap((event) => executionBlocks(event)).reverse()],
@@ -1351,7 +1421,7 @@ function mergeRecordWithFinal(
     recorded_at: projected.recorded_at,
     project_code: adoptionRecord.project_code ?? projected.project_code,
     entrypoint: adoptionRecord.entrypoint === 'unknown' ? projected.entrypoint : adoptionRecord.entrypoint,
-    judgment: mergeJudgment(adoptionRecord.judgment, blocks, undefined),
+    judgment: withPersonalKnowledge(mergeJudgment(adoptionRecord.judgment, blocks, undefined), events),
     execution
   };
   return { ...baseRecord, missing_fields: missingFields(baseRecord, firstPresent(blocks, 'missing_fields')) };

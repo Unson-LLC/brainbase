@@ -186,6 +186,21 @@ function makePage(container, context) {
   return page;
 }
 
+/** Names of judgment references from the local Graph, under the host's current access. */
+function judgmentReferenceLabelReader(context) {
+  const client = createGraphClient({ fetcher: context.fetcher, basePath: '/api/graph', token: context.token });
+  return async (references) => {
+    const labels = new Map();
+    await Promise.all(references.map(async ({ ref }) => {
+      const result = await client.read(`/entities/${encodeURIComponent(ref)}`);
+      const entity = result.state === 'ok' && isRecord(result.payload?.entity) ? result.payload.entity : null;
+      const name = entity && entity.id === ref && typeof entity.name === 'string' ? entity.name.trim() : '';
+      if (name) labels.set(ref, name);
+    }));
+    return labels;
+  };
+}
+
 function mountToday(container, context) {
   return createJudgmentHistoryUI({
     root: makePage(container, context),
@@ -195,6 +210,7 @@ function mountToday(container, context) {
     fetcher: context.fetcher,
     token: context.token,
     basePath: '/api/judgment-history',
+    resolveReferenceLabels: judgmentReferenceLabelReader(context),
   });
 }
 
