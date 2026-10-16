@@ -85,6 +85,26 @@ function collectText(node) {
   return `${node?.textContent ?? ''}${(node?.children ?? []).map(collectText).join('')}`;
 }
 
+/** Choose a value in one of the history's searchable filter dropdowns. */
+function chooseFilter(root, key, value) {
+  const trigger = findAll(root, (node) => node.attributes['data-filter'] === key)[0];
+  trigger.listeners.get('click')();
+  const option = findAll(root, (node) => node.attributes.role === 'option' && node.attributes['data-value'] === value)[0];
+  option.listeners.get('click')();
+  return trigger;
+}
+
+/** Answer "この判断は良かったか" in the detail and submit it. */
+async function answerFeedback(rail, answer, summary) {
+  findAll(rail, (node) => node.attributes['data-answer'] === answer)[0].listeners.get('click')();
+  const content = findAll(rail, (node) => node.attributes['aria-label'] === '判断へのひとこと')[0];
+  content.value = summary;
+  content.listeners.get('input')({ target: content });
+  findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')[0].listeners.get('click')();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 function proof(overrides = {}) {
   return {
     schema_version: 'brainbase-judgment-value-proof-v1',
@@ -408,7 +428,7 @@ describe('judgment history UI', () => {
     });
     await view.load();
     expect(findAll(root, (node) => node.attributes['role'] === 'table')).toHaveLength(1);
-    expect(findAll(root, (node) => node.attributes['role'] === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '行った判断', '使った参照', '入口・状態']);
+    expect(findAll(root, (node) => node.attributes['role'] === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '行った判断', '使った参照', '判断したAI']);
     expect(findAll(root, (node) => node.className === 'bb-ws-metric')).toHaveLength(0);
     expect(collectText(root)).toContain('週次報告の項目');
     expect(collectText(rail)).toContain('使った参照');
@@ -661,9 +681,9 @@ describe('judgment history UI', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(calls.some((path) => path === '/api/judgment-history/records/normal-detail-1')).toBe(true);
     expect(collectText(rail)).toContain('当時の基準');
-    expect(collectText(rail)).toContain('保存された案');
-    expect(collectText(rail)).toContain('採用状態: 記録なし');
-    expect(collectText(rail)).toContain('結果確認済み');
+    expect(collectText(rail)).toContain('比べた案');
+    expect(collectText(rail)).toContain('採用したかは記録されていません');
+    expect(collectText(rail)).toContain('結果を確かめました');
     view.dispose();
   });
 
@@ -692,12 +712,12 @@ describe('judgment history UI', () => {
     const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
     row.listeners.get('click')();
     expect(collectText(rail)).toContain('当時の基準');
-    expect(collectText(rail)).toContain('正本の詳細を確認しています。');
+    expect(collectText(rail)).toContain('この判断の記録を読み込んでいます…');
 
     resolveDetail({ ok: false, status: 503 });
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(collectText(rail)).toContain('当時の基準');
-    expect(collectText(rail)).toContain('正本の詳細を確認できないため、追記は利用できません。');
+    expect(collectText(rail)).toContain('この判断の記録を読み込めないため、いまは記録できません。');
     view.dispose();
   });
 
@@ -778,7 +798,8 @@ describe('judgment history UI', () => {
     await view.load();
 
     const text = collectText(root);
-    expect(text).toContain('Company OS：一部（実行履歴は未接続）');
+    expect(text).toContain('組織のBrainbase：一部（実行履歴は未接続）');
+    expect(text).not.toContain('Company OS');
     expect(text).toContain('既存の項目で進める');
     view.dispose();
   });
@@ -825,25 +846,17 @@ describe('judgment history UI', () => {
     row.listeners.get('click')();
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    const content = findAll(rail, (node) => node.attributes['aria-label'] === '追記の内容')[0];
-    const resultStatus = findAll(rail, (node) => node.attributes['aria-label'] === '結果の確認状態')[0];
-    expect(content).toBeTruthy();
-    content.value = '顧客の返信を確認した';
-    content.listeners.get('input')({ target: content });
-    resultStatus.value = 'confirmed';
-    resultStatus.listeners.get('change')({ target: resultStatus });
-    const submit = findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')[0];
-    submit.listeners.get('click')();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(collectText(rail)).toContain('この判断は良かったか');
+    expect(findAll(rail, (node) => node.tagName === 'SELECT')).toHaveLength(0);
+    await answerFeedback(rail, 'good', '顧客の返信を確認した');
 
     expect(posted).toEqual(expect.objectContaining({
       record_id: 'normal-feedback-1',
-      kind: 'feedback',
+      kind: 'result',
       content: { summary: '顧客の返信を確認した', outcome_status: 'confirmed' },
     }));
     expect(posted.event_id).toBeTruthy();
-    expect(collectText(rail)).toContain('保存済み（正本で確認しました）。');
+    expect(collectText(rail)).toContain('記録しました。');
     expect(calls.filter(({ path }) => path.endsWith('/feedback'))).toHaveLength(1);
     expect(detailReads).toBeGreaterThanOrEqual(2);
     view.dispose();
@@ -871,14 +884,9 @@ describe('judgment history UI', () => {
     await view.load();
     findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    const content = findAll(rail, (node) => node.attributes['aria-label'] === '追記の内容')[0];
-    content.value = '受付だけで正本にはまだ見えていない';
-    content.listeners.get('input')({ target: content });
-    findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')[0].listeners.get('click')();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(collectText(rail)).toContain('未確認。');
-    expect(collectText(rail)).not.toContain('保存済み（正本で確認しました）。');
+    await answerFeedback(rail, 'unsure', '受付だけで正本にはまだ見えていない');
+    expect(collectText(rail)).toContain('記録できたかを確かめられませんでした');
+    expect(collectText(rail)).not.toContain('記録しました。');
     view.dispose();
   });
 
@@ -906,15 +914,18 @@ describe('judgment history UI', () => {
     await view.load();
     findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(collectText(rail)).toContain('event_id=event-reference-1');
-    const reason = findAll(rail, (node) => node.attributes['aria-label'] === '適用理由（event-reference-1）')[0];
-    const copy = findAll(rail, (node) => node.attributes['data-action'] === 'copy-judgment-reference')[0];
+    expect(collectText(rail)).not.toContain('event_id=');
+    const details = findAll(rail, (node) => node.className === 'bb-jh-record-details')[0];
+    expect(collectText(details)).toContain('良かった: event-reference-1');
+    expect(collectText(details)).toContain('次の判断に引き継ぐ');
+    const reason = findAll(details, (node) => node.attributes['aria-label'] === '引き継ぐ理由（event-reference-1）')[0];
+    const copy = findAll(details, (node) => node.attributes['data-action'] === 'copy-judgment-reference')[1];
     reason.value = '同じ契約条件の判断なので参照する';
     copy.listeners.get('click')();
-    let payload = findAll(rail, (node) => node.className === 'bb-jh-reference-payload')[0].textContent;
+    let payload = findAll(details, (node) => node.className === 'bb-jh-reference-payload')[1].textContent;
     for (let attempt = 0; attempt < 20 && !/judgment-history-feedback:normal-reference-1:[a-f0-9]{64}/u.test(payload); attempt += 1) {
       await new Promise((resolve) => setTimeout(resolve, 0));
-      payload = findAll(rail, (node) => node.className === 'bb-jh-reference-payload')[0].textContent;
+      payload = findAll(details, (node) => node.className === 'bb-jh-reference-payload')[1].textContent;
     }
     expect(payload).toContain('"ref": "judgment-history:normal-reference-1"');
     expect(payload).toContain('"event_id": "event-reference-1"');
@@ -982,9 +993,7 @@ describe('judgment history UI', () => {
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(calls[1]).toContain('period=week');
 
-    const entrypoint = findAll(root, (node) => node.tagName === 'SELECT' && node.attributes['aria-label'] === '入口')[0];
-    entrypoint.value = 'mana';
-    entrypoint.listeners.get('change')({ target: entrypoint });
+    chooseFilter(root, 'entrypoint', 'mana');
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(calls[2]).toContain('period=week');
     expect(calls[2]).toContain('entrypoint=mana');
@@ -1021,7 +1030,7 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
-  it('shows unlabeled references as a count and keeps the id in the rail', async () => {
+  it('shows unlabeled references by kind and keeps the id in the record details', async () => {
     const root = new FakeElement('div');
     const rail = new FakeElement('aside');
     const record = normalRecord({
@@ -1042,16 +1051,148 @@ describe('judgment history UI', () => {
     });
     await view.load();
     const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
-    expect(collectText(row)).toContain('名前のない参照 1件');
-    expect(collectText(row)).toContain('状態は未記録');
+    expect(collectText(row)).toContain('哲学 1');
+    expect(collectText(row)).not.toContain('名前のない参照');
+    expect(collectText(row)).not.toContain('未記録');
     expect(collectText(row)).not.toContain('phi_visible_or_not_value');
     expect(collectText(row)).not.toContain('unknown');
     row.listeners.get('click')();
-    expect(collectText(rail)).toContain('記録ID：phi_visible_or_not_value（コピー）');
+    const details = findAll(rail, (node) => node.className === 'bb-jh-record-details')[0];
+    expect(collectText(details)).toContain('phi_visible_or_not_value（哲学・開ける）');
+    const outsideDetails = rail.children.filter((child) => !child.contains(details)).map(collectText).join('');
+    expect(outsideDetails).toContain('選んだ理由: 当時の基準');
+    expect(outsideDetails).not.toContain('phi_visible_or_not_value');
+    expect(collectText(rail)).not.toContain('（コピー）');
     view.dispose();
   });
 
-  it('shows a skeleton with one compact loading notification and disables reload', async () => {
+  it('counts a result as looked at from the record or an answer, and says how to add one', async () => {
+    const root = new FakeElement('div');
+    const unchecked = { status: 'unknown', result_summary: null, outcome_status: 'unknown' };
+    const answered = normalRecord({
+      record_id: 'answered-1',
+      execution: unchecked,
+      feedback_events: [{ record_id: 'answered-1', event_id: 'event-good', kind: 'result', content: { summary: '良かった', outcome_status: 'confirmed' } }],
+    });
+    const memoOnly = normalRecord({
+      record_id: 'memo-1',
+      execution: unchecked,
+      feedback_events: [{ record_id: 'memo-1', event_id: 'event-memo', kind: 'feedback', content: { summary: 'まだ分からない' } }],
+    });
+    const waiting = normalRecord({ record_id: 'waiting-1', execution: unchecked, judgment: { ...normalRecord().judgment, status: 'needs_clarification' } });
+    const view = createJudgmentHistoryUI({
+      root,
+      document: new FakeDocument(),
+      autoLoad: false,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => normalHome([answered, memoOnly, waiting]) }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const summary = collectText(findAll(root, (node) => node.className === 'bb-jh-summary')[0]);
+    expect(summary).toContain('結果を確かめた判断 1件');
+    expect(summary).toContain('判断を開いて「良かったか」を記録すると数えられます');
+    expect(summary).not.toContain('結果を確認済み');
+    const rows = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row');
+    expect(rows.map(collectText).filter((value) => value.includes('あなたの確認待ち'))).toHaveLength(1);
+    expect(rows.map(collectText).join('')).not.toContain('状態は未記録');
+    view.dispose();
+  });
+
+  it('names the missing fields in words inside the record details only', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const record = normalRecord({
+      record_id: 'missing-1',
+      judgment: { ...normalRecord().judgment, status: 'unknown' },
+      execution: { status: 'unknown', result_summary: null, outcome_status: 'unknown' },
+      missing_fields: ['judgment.status', 'execution.status', 'execution.result_summary', 'execution.outcome_status'],
+    });
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: new FakeDocument(),
+      autoLoad: false,
+      fetcher: async (path) => (path.includes('/records/')
+        ? { ok: true, status: 200, json: async () => ({ status: 'available', record }) }
+        : { ok: true, status: 200, json: async () => normalHome([record]) }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const details = findAll(rail, (node) => node.className === 'bb-jh-record-details')[0];
+    expect(details.open).not.toBe(true);
+    expect(collectText(details)).toContain('判断の状態、実行したか、実行の結果、結果を確かめたか');
+    const outsideDetails = rail.children.filter((child) => !child.contains(details)).map(collectText).join('');
+    expect(outsideDetails).toContain('実行したかは記録されていません');
+    expect(outsideDetails).toContain('まだ確かめていません。下の「この判断は良かったか」で記録できます。');
+    for (const developerText of ['未記録', 'judgment.status', 'execution.', '未確認', '当時の記録', '次の判断に渡す参照', 'event_id']) {
+      expect(outsideDetails).not.toContain(developerText);
+    }
+    view.dispose();
+  });
+
+  it('asks where to fix before sending a correction and sends nothing until then', async () => {
+    const root = new FakeElement('div');
+    const rail = new FakeElement('aside');
+    const record = normalRecord({ record_id: 'fix-1' });
+    const posts = [];
+    const view = createJudgmentHistoryUI({
+      root,
+      rail,
+      document: new FakeDocument(),
+      autoLoad: false,
+      fetcher: async (path, init = {}) => {
+        if (path.endsWith('/feedback')) { posts.push(JSON.parse(init.body)); return { ok: true, status: 201, json: async () => ({}) }; }
+        if (path.includes('/records/')) return { ok: true, status: 200, json: async () => ({ status: 'available', record }) };
+        return { ok: true, status: 200, json: async () => normalHome([record]) };
+      },
+      now: OWNER_NOW,
+    });
+    await view.load();
+    findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0].listeners.get('click')();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    findAll(rail, (node) => node.attributes['data-action'] === 'submit-judgment-feedback')[0].listeners.get('click')();
+    expect(collectText(rail)).toContain('1つ選んでください');
+    await answerFeedback(rail, 'fix', '');
+    expect(collectText(rail)).toContain('どこを、どう直すかを書いてください。');
+    expect(posts).toHaveLength(0);
+    await answerFeedback(rail, 'fix', '承認の前にCIの結果も書く');
+    expect(posts).toEqual([expect.objectContaining({ kind: 'correction', content: { summary: '承認の前にCIの結果も書く', outcome_status: 'confirmed' } })]);
+    view.dispose();
+  });
+
+  it('names the organization source in words and marks sources that are not connected', async () => {
+    const root = new FakeElement('div');
+    const view = createJudgmentHistoryUI({
+      root,
+      document: new FakeDocument(),
+      autoLoad: false,
+      fetcher: async () => ({ ok: true, status: 200, json: async () => normalHome([normalRecord()], {
+        status: 'partial',
+        coverage: {
+          complete: false, storage: 'server', total: null,
+          sources: [
+            { entrypoint: 'codex', status: 'available', reason: null },
+            { entrypoint: 'company_os', status: 'unavailable', reason: 'company_os_native_source_not_connected' },
+          ],
+        },
+      }) }),
+      now: OWNER_NOW,
+    });
+    await view.load();
+    const trigger = findAll(root, (node) => node.attributes['data-filter'] === 'entrypoint')[0];
+    trigger.listeners.get('click')();
+    const option = findAll(root, (node) => node.attributes.role === 'option' && node.attributes['data-value'] === 'company_os')[0];
+    expect(collectText(option)).toContain('組織のBrainbase');
+    expect(collectText(option)).toContain('まだつながっていません');
+    const codex = findAll(root, (node) => node.attributes.role === 'option' && node.attributes['data-value'] === 'codex')[0];
+    expect(collectText(codex)).not.toContain('つながっていません');
+    expect(collectText(root)).not.toContain('Company OS');
+    view.dispose();
+  });
+
+  it('shows placeholder rows and an in-page loading line instead of a floating card, and disables reload', async () => {
     const root = new FakeElement('div');
     const rail = new FakeElement('aside');
     let resolve;
@@ -1068,10 +1209,11 @@ describe('judgment history UI', () => {
     });
     const loading = view.load();
     await Promise.resolve();
-    expect(collectText(root)).toContain('ロード中');
-    expect(findAll(root, node => node.className?.split(' ').includes('bb-ws-loading-card'))).toHaveLength(1);
+    expect(collectText(root)).toContain('判断の履歴を読み込んでいます…');
+    expect(collectText(root)).not.toContain('ロード中');
+    expect(findAll(root, node => node.className?.split(' ').includes('bb-ws-loading-card'))).toHaveLength(0);
     expect(findAll(root, (node) => node.className?.includes('bb-jh-skeleton-row'))).toHaveLength(5);
-    expect(findAll(root, (node) => node.attributes.role === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '行った判断', '使った参照', '入口・状態']);
+    expect(findAll(root, (node) => node.attributes.role === 'columnheader').map((node) => node.textContent)).toEqual(['日時', '行った判断', '使った参照', '判断したAI']);
     const reload = findAll(root, (node) => node.attributes['data-action'] === 'reload')[0];
     expect(reload.attributes.disabled).toBe('');
     expect(collectText(root)).not.toContain('確認しています…');
@@ -1115,7 +1257,7 @@ describe('judgment history UI', () => {
     const loading = view.load();
     await Promise.resolve();
     expect(collectText(root)).toContain('既存の項目で進める');
-    expect(collectText(root)).toContain('ロード中');
+    expect(collectText(root)).toContain('続きを読み込んでいます…');
     expect(collectText(root)).toContain('1件');
     expect(collectText(root)).not.toContain('全件数は未確認');
     const row = findAll(root, (node) => node.tagName === 'BUTTON' && node.attributes.role === 'row')[0];
@@ -1125,7 +1267,7 @@ describe('judgment history UI', () => {
     view.dispose();
   });
 
-  it('keeps a compact loading notification after the slow delay with reduced motion', async () => {
+  it('keeps the in-page loading line after the slow delay with reduced motion', async () => {
     const root = new FakeElement('div');
     const previous = globalThis.matchMedia;
     globalThis.matchMedia = (query) => ({ matches: String(query).includes('prefers-reduced-motion'), media: query });
@@ -1142,7 +1284,7 @@ describe('judgment history UI', () => {
     });
     const loading = view.load();
     await Promise.resolve();
-    expect(collectText(root)).toContain('ロード中');
+    expect(collectText(root)).toContain('判断の履歴を読み込んでいます…');
     expect(findAll(root, (node) => node.className?.includes('is-reduced-motion'))).toHaveLength(1);
     resolve({ ok: false, status: 503 });
     await loading;
@@ -1238,7 +1380,7 @@ describe('judgment history shared drawer and filter lifecycle', () => {
     view.dispose(); expect(page.contains(stack)).toBe(false);
   });
 
-  it('reuses a fading loading notification on retry and leaves one collapsed source warning', async () => {
+  it('shows loading in the page on retry and leaves one collapsed source warning', async () => {
     vi.useFakeTimers();
     const doc = new DialogDocument(); const root = doc.createElement('main'); doc.body.append(root);
     const pending = [];
@@ -1247,10 +1389,11 @@ describe('judgment history shared drawer and filter lifecycle', () => {
     });
     try {
       const first = view.load();
+      expect(collectText(root)).toContain('判断の履歴を読み込んでいます…');
       pending.shift()({ ok: true, json: async () => normalHome([normalRecord()]) }); await first;
-      expect(findAll(root, node => node.classList?.contains('bb-ws-loading-card'))).toHaveLength(1);
+      expect(collectText(root)).not.toContain('読み込んでいます');
       const retry = view.load(); view.render();
-      expect(findAll(root, node => node.classList?.contains('bb-ws-loading-card'))).toHaveLength(1);
+      expect(collectText(root)).toContain('判断の履歴を読み込んでいます…');
       pending.shift()({ ok: true, json: async () => normalHome([normalRecord()], {
         status: 'partial', coverage: { complete: false, sources: [{ entrypoint: 'mana', status: 'unavailable', reason: 'mana_not_connected' }] },
       }) }); await retry;
@@ -1274,12 +1417,12 @@ describe('judgment history shared drawer and filter lifecycle', () => {
     });
     await view.load();
     findAll(root, node => node.tagName === 'BUTTON' && node.textContent === '詳細検索')[0].listeners.get('click')();
-    let select = findAll(root, node => node.tagName === 'SELECT' && node.attributes['aria-label'] === 'プロジェクト')[0];
-    select.focus(); select.value = 'project-atlas'; select.listeners.get('change')({ target: select });
+    chooseFilter(root, 'project', 'project-atlas');
     await new Promise(resolve => setTimeout(resolve, 0));
     expect(requests.at(-1)).toContain('project=project-atlas');
     expect(findAll(root, node => node.attributes.role === 'region')[0].hidden).toBe(false);
-    expect(doc.activeElement.attributes['aria-label']).toBe('プロジェクト');
+    expect(doc.activeElement.attributes['data-filter']).toBe('project');
+    expect(doc.activeElement.attributes['aria-label']).toBe('プロジェクト: Atlas');
     const search = findAll(root, node => node.tagName === 'INPUT')[0]; search.focus();
     search.value = '既存'; search.listeners.get('input')({ target: search });
     expect(doc.activeElement).toBe(search);

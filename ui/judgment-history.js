@@ -14,8 +14,7 @@ import {
   workspaceDialog,
   workspaceFilterPopover,
   workspaceErrorCard,
-  workspaceLoadingCard,
-  workspaceDismissNotification,
+  workspaceCombobox,
   workspaceDefinition,
   workspaceDetailEmpty,
   workspaceLedger,
@@ -32,18 +31,62 @@ const PERIODS = Object.freeze({ week: 'week', past30days: 'past30days', all: 'al
 const PERIOD_LABELS = Object.freeze({ week: '今週', past30days: '過去30日', all: '全期間' });
 const SECTION_KEYS = Object.freeze(['needs_human', 'blocked', 'continued', 'other']);
 const NORMAL_ENTRYPOINTS = Object.freeze(['codex', 'claude_code', 'mana', 'company_os', 'unknown']);
+// Where the judgment was made.  "company_os" is the organization server's own
+// runs, so it is named after what the person sees rather than the module.
 const NORMAL_ENTRYPOINT_LABELS = Object.freeze({
   codex: 'Codex',
   claude_code: 'Claude Code',
   mana: 'Mana',
-  company_os: 'Company OS',
-  unknown: '入口不明',
+  company_os: '組織のBrainbase',
+  unknown: '記録元が不明',
+});
+// The filter names the organization source a little more fully than a row.
+const NORMAL_ENTRYPOINT_FILTER_LABELS = Object.freeze({
+  company_os: '組織のBrainbase（自動の判断）',
 });
 const FEEDBACK_KINDS = Object.freeze(['feedback', 'result', 'correction']);
 const FEEDBACK_KIND_LABELS = Object.freeze({
-  feedback: 'フィードバック',
-  result: '結果',
-  correction: '訂正',
+  feedback: 'メモ',
+  result: '良かった',
+  correction: '直すところ',
+});
+// The one question a person answers about a judgment.  Each answer maps to
+// the existing append-only event kinds; only answers that say the result was
+// looked at carry an explicit outcome.
+const FEEDBACK_ANSWERS = Object.freeze([
+  { value: 'good', kind: 'result', outcomeStatus: 'confirmed', label: '良かった', placeholder: '気づいたことがあれば書いてください（任意）', fallbackSummary: '良かった' },
+  { value: 'fix', kind: 'correction', outcomeStatus: 'confirmed', label: '直すところがある', placeholder: 'どこを、どう直すかを書いてください', fallbackSummary: null },
+  { value: 'unsure', kind: 'feedback', outcomeStatus: null, label: 'まだ分からない', placeholder: '分かったら確かめたいことを書いてください（任意）', fallbackSummary: 'まだ結果を確かめていない' },
+]);
+const REFERENCE_KIND_LABELS = Object.freeze({
+  philosophy: '哲学',
+  objective: '目的',
+  model: '世界モデル',
+  problem_snapshot: '問題の記録',
+  evidence: '根拠の記録',
+});
+// Graph ids carry their type as a fixed prefix.  This is read only when the
+// record left `kind` empty; an unknown prefix stays "その他".
+const REFERENCE_ID_PREFIXES = Object.freeze([
+  ['fnd_philosophy_', 'philosophy'],
+  ['phi_', 'philosophy'],
+  ['fnd_objective_', 'objective'],
+  ['fnd_unson_objective_', 'objective'],
+  ['obj_', 'objective'],
+  ['fnd_model_', 'model'],
+  ['fnd_unson_model_', 'model'],
+]);
+const MISSING_FIELD_LABELS = Object.freeze({
+  entrypoint: '記録元',
+  project_code: 'プロジェクト',
+  'judgment.status': '判断の状態',
+  'judgment.summary': '判断の内容',
+  'judgment.reason': '判断の理由',
+  'judgment.selected_references': '使った参照',
+  'judgment.alternatives': '比べた案',
+  'execution.status': '実行したか',
+  'execution.result_summary': '実行の結果',
+  'execution.outcome_status': '結果を確かめたか',
 });
 
 function isRecord(value) {
@@ -119,6 +162,11 @@ function findFirst(node, predicate) {
     if (match) return match;
   }
   return null;
+}
+
+// The page search box; the filter dropdowns carry their own text inputs.
+function isSearchInput(node) {
+  return node?.tagName === 'INPUT' && attributeValue(node, 'type') === 'search';
 }
 
 function replaceNode(nextNode, previousNode) {
@@ -594,7 +642,18 @@ function normalRecordSearchText(record) {
   ].filter(Boolean).join(' ').toLocaleLowerCase('ja-JP');
 }
 
-function aggregateNormalJudgmentHistory(home, { now = new Date(), period = PERIODS.past30days, query = '' } = {}) {
+/**
+ * A result counts as looked at when the record says so, or when a person
+ * appended an answer that explicitly confirmed it.  Feedback events are
+ * append-only and never rewrite `execution.outcome_status`, so both are read.
+ */
+function outcomeConfirmed(record) {
+  if (text(record?.execution?.outcome_status).toLowerCase() === 'confirmed') return true;
+  const events = Array.isArray(record?.feedbackEvents) ? record.feedbackEvents : [];
+  return events.some((event) => text(event?.content?.outcome_status).toLowerCase() === 'confirmed');
+}
+
+function aggregateNormalJudgmentHistory(home,{ now = new Date(), period = PERIODS.past30days, query = '' } = {}) {
   const empty = {
     mode: 'normal',
     rows: [],
@@ -645,6 +704,7 @@ function aggregateNormalJudgmentHistory(home, { now = new Date(), period = PERIO
       missingFields: record.missingFields,
       alternatives: record.alternatives,
       references: record.selectedReferences,
+      feedbackEvents: record.feedbackEvents,
       searchText,
     });
   }
@@ -672,7 +732,7 @@ function aggregateNormalJudgmentHistory(home, { now = new Date(), period = PERIO
   const referenceCount = metricsUnconfirmed || referencesUnconfirmed ? null : references.size;
   const confirmedOutcomes = metricsUnconfirmed
     ? null
-    : rows.filter((row) => text(row.execution?.outcome_status).toLowerCase() === 'confirmed').length;
+    : rows.filter(outcomeConfirmed).length;
   return {
     ...empty,
     rows,
@@ -817,82 +877,127 @@ function referenceLabel(ref) {
   return label;
 }
 
+/** The kind of a reference in words, from its recorded kind, usage or id prefix. */
+function referenceKindLabel(ref) {
+  for (const key of [text(ref?.kind).toLowerCase(), text(ref?.usage).toLowerCase(), text(ref?.layer).toLowerCase()]) {
+    if (REFERENCE_KIND_LABELS[key]) return REFERENCE_KIND_LABELS[key];
+  }
+  const id = text(ref?.ref ?? ref?.id);
+  const prefix = REFERENCE_ID_PREFIXES.find(([candidate]) => id.startsWith(candidate));
+  return prefix ? REFERENCE_KIND_LABELS[prefix[1]] : 'その他の参照';
+}
+
+/** "哲学 2・目的 1" for references that only have an id. */
+function referenceKindCounts(references) {
+  const counts = new Map();
+  for (const ref of references) {
+    const kind = referenceKindLabel(ref);
+    counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return [...counts].map(([kind, count]) => `${kind} ${count}`).join('・');
+}
+
 function makeReferenceSummary(doc, references) {
-  if (references === null || references === undefined) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照は未記録' });
+  if (references === null || references === undefined) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照は記録されていません' });
   if (!references.length) return makeWorkspaceElement(doc, 'span', { className: 'bb-jh-unrecorded', text: '参照はありません' });
   const labeled = [];
-  let unlabeled = 0;
+  const unlabeled = [];
   for (const ref of references) {
     const label = referenceLabel(ref);
     if (label) labeled.push(label);
-    else unlabeled += 1;
+    else unlabeled.push(ref);
   }
   const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-summary' });
   if (labeled.length) {
     wrap.append(makeWorkspaceElement(doc, 'strong', { text: labeled.slice(0, 2).join('、') }));
     if (labeled.length > 2) wrap.append(makeWorkspaceElement(doc, 'small', { text: `ほか${labeled.length - 2}件` }));
   }
-  if (unlabeled > 0) wrap.append(makeWorkspaceElement(doc, 'strong', { text: `名前のない参照 ${unlabeled}件` }));
+  if (unlabeled.length) {
+    wrap.append(makeWorkspaceElement(doc, labeled.length ? 'small' : 'strong', { text: referenceKindCounts(unlabeled) }));
+  }
   return wrap;
 }
 
+// Only a state that asks the person for something is shown in the list.
+// "resolved" and an unrecorded state are kept in the record details.
 function judgmentStatusLabel(status) {
-  const labels = {
-    resolved: '解決済み',
-    needs_clarification: '確認が必要',
-    needs_classification: '分類待ち',
-    needs_policy_resolution: '方針の確認待ち',
-    unknown: '状態は未記録',
-  };
   const key = text(status);
-  if (!key) return '状態は未記録';
-  return labels[key] ?? '状態は未記録';
+  if (key === 'needs_clarification' || key === 'needs_classification' || key === 'needs_policy_resolution') return 'あなたの確認待ち';
+  return '';
+}
+
+function judgmentStatusDetail(status) {
+  const labels = {
+    resolved: '進め方が決まった',
+    needs_clarification: 'あなたの確認待ち',
+    needs_classification: 'あなたの確認待ち',
+    needs_policy_resolution: 'あなたの確認待ち',
+  };
+  return labels[text(status)] ?? null;
 }
 
 function makeDecisionSummary(doc, row) {
   if (row.mode === 'normal') {
     const summary = text(row.judgment?.summary);
     const wrap = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-decision is-normal' });
-    wrap.append(makeWorkspaceElement(doc, 'strong', { text: summary || '判断内容は未記録' }));
+    wrap.append(makeWorkspaceElement(doc, 'strong', { text: summary || '判断の内容は記録されていません' }));
     return wrap;
   }
   const summary = text(row.proof?.decision?.summary);
   const wrap = makeWorkspaceElement(doc, 'span', { className: `bb-jh-decision${row.delegated ? ' is-delegated' : ''}` });
-  wrap.append(makeWorkspaceElement(doc, 'strong', { text: summary || (row.proof?.interruption?.resolution === 'continued_without_human' ? '判断内容未記録' : '本人に確認') }));
+  wrap.append(makeWorkspaceElement(doc, 'strong', { text: summary || (row.proof?.interruption?.resolution === 'continued_without_human' ? '判断の内容は記録されていません' : '本人に確認') }));
   if (row.delegated) wrap.append(makeWorkspaceElement(doc, 'small', { text: 'Brainbaseが代わりに判断' }));
   else if (row.proof?.interruption?.resolution !== 'continued_without_human') wrap.append(makeWorkspaceElement(doc, 'small', { text: '本人に戻した判断' }));
   return wrap;
 }
 
+// "recorded" is the normal case and "unknown" means nobody checked; neither
+// needs the person's attention, so only the two blocking states are shown.
 const REFERENCE_AVAILABILITY_LABELS = Object.freeze({
-  recorded: '今の権限で開けます',
   permission_denied: '開く権限がありません',
-  unavailable: '本文はもうありません',
-  unknown: '未確認',
+  unavailable: '本文はもう残っていません',
+});
+const REFERENCE_AVAILABILITY_DETAIL = Object.freeze({
+  recorded: '開ける',
+  permission_denied: '開く権限がない',
+  unavailable: '本文がない',
+  unknown: '開けるか確かめていない',
 });
 
 function appendReferenceList(doc, references) {
   if (references === null || references === undefined) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '参照は記録されていません。' });
   if (!references.length) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '参照はありません。' });
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-references' });
   const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-reference-list' });
+  const bare = [];
   for (const ref of references) {
-    const item = makeWorkspaceElement(doc, 'li');
     const label = referenceLabel(ref);
-    item.append(makeWorkspaceElement(doc, 'strong', { text: label || '名前のない参照' }));
-    const recordId = text(ref.ref ?? ref.id);
-    if (recordId) {
-      item.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-record-id', text: `記録ID：${recordId}（コピー）` }));
+    const application = ref.application && ref.application !== ref.label && ref.application !== label ? ref.application : '';
+    const availability = REFERENCE_AVAILABILITY_LABELS[text(ref.availability)];
+    if (!label && !application && !ref.why && !ref.usage && !availability) {
+      bare.push(ref);
+      continue;
     }
-    if (ref.application && ref.application !== ref.label && ref.application !== label) item.append(makeWorkspaceElement(doc, 'span', { text: ref.application }));
-    const availability = REFERENCE_AVAILABILITY_LABELS[text(ref.availability)] ?? REFERENCE_AVAILABILITY_LABELS.unknown;
-    item.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-availability', text: availability }));
-    if (ref.why) item.append(makeWorkspaceElement(doc, 'span', { text: `理由: ${ref.why}` }));
-    if (ref.usage) item.append(makeWorkspaceElement(doc, 'span', { text: `用途: ${ref.usage}` }));
-    const alternateLabels = (ref.labels ?? []).filter((label) => label && label !== ref.label);
+    const item = makeWorkspaceElement(doc, 'li');
+    item.append(makeWorkspaceElement(doc, 'strong', { text: label || referenceKindLabel(ref) }));
+    if (label) item.append(makeWorkspaceElement(doc, 'small', { text: referenceKindLabel(ref) }));
+    if (application) item.append(makeWorkspaceElement(doc, 'span', { text: application }));
+    if (availability) item.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-reference-availability', text: availability }));
+    if (ref.why) item.append(makeWorkspaceElement(doc, 'span', { text: `選んだ理由: ${ref.why}` }));
+    if (ref.usage && !REFERENCE_KIND_LABELS[text(ref.usage)]) item.append(makeWorkspaceElement(doc, 'span', { text: `使い方: ${ref.usage}` }));
+    const alternateLabels = (ref.labels ?? []).filter((value) => value && value !== ref.label);
     if (alternateLabels.length) item.append(makeWorkspaceElement(doc, 'span', { text: `別名: ${alternateLabels.join('、')}` }));
     list.append(item);
   }
-  return list;
+  if (list.children?.length) wrap.append(list);
+  if (bare.length) {
+    wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-reference-kinds', text: referenceKindCounts(bare) }));
+    wrap.append(makeWorkspaceElement(doc, 'p', {
+      className: 'bb-jh-reference-note',
+      text: 'この記録には参照の名前が残っていません。どの記録かは「記録の詳細」のIDで確かめられます。',
+    }));
+  }
+  return wrap;
 }
 
 function evidenceIdentifier(entry) {
@@ -927,16 +1032,16 @@ function appendNormalAlternatives(doc, alternatives) {
   if (alternatives === null || alternatives === undefined) {
     return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '案は記録されていません。' });
   }
-  if (!alternatives.length) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '保存された案はありません。' });
+  if (!alternatives.length) return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '比べた案はありません。' });
   const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-alternative-list' });
   for (const alternative of alternatives) {
     const item = makeWorkspaceElement(doc, 'li');
-    item.append(makeWorkspaceElement(doc, 'strong', { text: alternative.label || '案の名称は未記録' }));
+    item.append(makeWorkspaceElement(doc, 'strong', { text: alternative.label || '案の名前は記録されていません' }));
     if (alternative.evaluation) item.append(makeWorkspaceElement(doc, 'span', { text: `評価: ${alternative.evaluation}` }));
-    if (alternative.adoption) item.append(makeWorkspaceElement(doc, 'span', { text: `採用状態: ${alternative.adoption}` }));
-    else if (alternative.adopted === true) item.append(makeWorkspaceElement(doc, 'span', { text: '採用状態: 採用' }));
-    else if (alternative.adopted === false) item.append(makeWorkspaceElement(doc, 'span', { text: '採用状態: 不採用' }));
-    else if (Object.prototype.hasOwnProperty.call(alternative, 'adopted')) item.append(makeWorkspaceElement(doc, 'span', { text: '採用状態: 記録なし' }));
+    if (alternative.adoption) item.append(makeWorkspaceElement(doc, 'span', { text: alternative.adoption }));
+    else if (alternative.adopted === true) item.append(makeWorkspaceElement(doc, 'span', { text: '採用した案' }));
+    else if (alternative.adopted === false) item.append(makeWorkspaceElement(doc, 'span', { text: '採用しなかった案' }));
+    else if (Object.prototype.hasOwnProperty.call(alternative, 'adopted')) item.append(makeWorkspaceElement(doc, 'span', { text: '採用したかは記録されていません' }));
     list.append(item);
   }
   return list;
@@ -944,26 +1049,26 @@ function appendNormalAlternatives(doc, alternatives) {
 
 function normalExecutionLabel(execution) {
   const status = text(execution?.status).toLowerCase();
-  const labels = { pending: '実行待ち', completed: '実行済み', failed: '実行失敗', held: '保留', cancelled: '取消', unknown: '実行状態未確認' };
-  return labels[status] ?? '実行状態未確認';
+  const labels = { pending: 'まだ実行していません', completed: '実行しました', failed: '実行に失敗しました', held: '保留しています', cancelled: '取り消しました' };
+  return labels[status] ?? '実行したかは記録されていません';
 }
 
-function normalOutcomeLabel(execution) {
-  const status = text(execution?.outcome_status).toLowerCase();
-  const labels = { confirmed: '結果確認済み', unconfirmed: '結果未確認', unknown: '結果未確認' };
-  return labels[status] ?? '結果未確認';
+function normalOutcomeLabel(record) {
+  return outcomeConfirmed(record)
+    ? '結果を確かめました'
+    : 'まだ確かめていません。下の「この判断は良かったか」で記録できます。';
 }
 
-function appendNormalExecution(doc, execution) {
+function appendNormalExecution(doc, record) {
   return workspaceDefinition(doc, [
-    ['実行', [normalExecutionLabel(execution), text(execution?.result_summary)]],
-    ['結果', normalOutcomeLabel(execution)],
+    ['実行', [normalExecutionLabel(record.execution), text(record.execution?.result_summary)]],
+    ['結果', normalOutcomeLabel(record)],
   ]);
 }
 
-function appendNormalMissingFields(doc, missingFields) {
-  if (!Array.isArray(missingFields) || missingFields.length === 0) return null;
-  return makeWorkspaceElement(doc, 'p', { className: 'bb-jh-missing-fields', text: `未記録: ${missingFields.join('、')}` });
+function missingFieldLabels(missingFields) {
+  if (!Array.isArray(missingFields)) return [];
+  return [...new Set(missingFields.map((field) => MISSING_FIELD_LABELS[field] ?? field))];
 }
 
 function appendTextParts(doc, values) {
@@ -975,10 +1080,8 @@ function appendTextParts(doc, values) {
 }
 
 function normalFeedbackContentSummary(content) {
-  if (!isRecord(content)) return '内容は未記録';
-  return text(content.summary ?? content.result_summary ?? content.message ?? content.reason)
-    || canonicalJson(content)
-    || '内容は未記録';
+  if (!isRecord(content)) return '内容は記録されていません';
+  return text(content.summary ?? content.result_summary ?? content.message ?? content.reason) || '内容は記録されていません';
 }
 
 function normalReferencePayload(record, event, applicabilityReason = '', eventRef = null) {
@@ -1001,128 +1104,166 @@ function normalReferencePayloadText(record, event, applicabilityReason = '', eve
 
 function appendNormalReferenceExport(doc, record, event, { onCopyReference } = {}) {
   const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-reference-export' });
-  const refLabel = event
-    ? `${record.recordId} / ${event.eventId}`
-    : `${record.recordId} / イベントIDは未記録`;
-  wrap.append(makeWorkspaceElement(doc, 'code', { text: refLabel }));
-  if (event) wrap.append(makeWorkspaceElement(doc, 'p', { text: `種別: ${FEEDBACK_KIND_LABELS[event.kind] ?? event.kind}・${normalFeedbackContentSummary(event.content)}` }));
+  wrap.append(makeWorkspaceElement(doc, 'p', {
+    text: event ? `${FEEDBACK_KIND_LABELS[event.kind] ?? event.kind}：${normalFeedbackContentSummary(event.content)}` : 'この判断そのもの',
+  }));
   const reason = makeWorkspaceElement(doc, 'textarea', {
     className: 'bb-jh-applicability-reason',
     attrs: {
       rows: 2,
-      'aria-label': `適用理由${event ? `（${event.eventId}）` : ''}`,
-      placeholder: '次の判断で使う理由を記入',
+      'aria-label': `引き継ぐ理由${event ? `（${event.eventId}）` : ''}`,
+      placeholder: '次の判断でこれを使う理由（任意）',
     },
   });
   reason.value = '';
-  wrap.append(makeWorkspaceElement(doc, 'label', { text: '適用理由' }), reason);
+  wrap.append(makeWorkspaceElement(doc, 'label', { text: '引き継ぐ理由' }), reason);
   const preview = makeWorkspaceElement(doc, 'pre', {
     className: 'bb-jh-reference-payload',
     text: normalReferencePayloadText(record, event),
   });
-  const status = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-copy-status', text: 'この情報を次の判断へ渡せます。' });
+  const status = makeWorkspaceElement(doc, 'span', { className: 'bb-jh-copy-status', text: '' });
   wrap.append(preview, workspaceButton(doc, {
-    text: '参照情報をコピー',
+    text: 'AIへ渡す参照をコピー',
     variant: 'quiet',
     attrs: { 'data-action': 'copy-judgment-reference' },
     onClick: () => {
       if (typeof onCopyReference === 'function') onCopyReference({ record, event, reason, preview, status });
-      else status.textContent = '参照情報を選択してコピーできます。';
+      else status.textContent = '上の内容を選んでコピーできます。';
     },
   }), status);
   return wrap;
 }
 
-function appendNormalFeedbackEvents(doc, record, { onCopyReference } = {}) {
+function appendNormalFeedbackEvents(doc, record) {
   const events = Array.isArray(record.feedbackEvents) ? record.feedbackEvents : [];
-  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-feedback-events' });
-  if (!events.length) {
-    wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: '追記された結果・訂正・フィードバックはありません。' }));
-    wrap.append(appendNormalReferenceExport(doc, record, null, { onCopyReference }));
-    return wrap;
-  }
+  if (!events.length) return null;
+  const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-feedback-events' });
   for (const event of events) {
-    const item = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-feedback-event' });
+    const item = makeWorkspaceElement(doc, 'li', { className: `bb-jh-feedback-event is-${event.kind}` });
     item.append(makeWorkspaceElement(doc, 'strong', { text: FEEDBACK_KIND_LABELS[event.kind] ?? event.kind }));
-    item.append(makeWorkspaceElement(doc, 'code', { text: `record_id=${event.recordId} event_id=${event.eventId}` }));
     item.append(makeWorkspaceElement(doc, 'p', { text: normalFeedbackContentSummary(event.content) }));
-    item.append(appendNormalReferenceExport(doc, record, event, { onCopyReference }));
-    wrap.append(item);
+    list.append(item);
   }
-  return wrap;
+  return list;
 }
 
 function feedbackStatusText(draft) {
   if (!draft) return '';
-  if (draft.phase === 'submitting') return '送信中です。保存状態はまだ未確認です。';
-  if (draft.phase === 'readback') return '正本を読み戻して保存状態を確認しています。';
-  if (draft.phase === 'saved') return '保存済み（正本で確認しました）。';
-  if (draft.phase === 'unavailable') return `利用できません。${draft.status || '正本に接続できないため、保存状態を確認できません。'}`;
-  if (draft.phase === 'unconfirmed') return `未確認。${draft.status || 'POST後の正本読戻しで一致を確認できませんでした。'}`;
-  if (draft.phase === 'error') return `送信できません。保存状態は未確認です。${draft.status ? ` ${draft.status}` : ''}`;
-  return draft.status || '送信前です。';
+  if (draft.phase === 'submitting') return '記録しています…';
+  if (draft.phase === 'readback') return '記録できたか確かめています…';
+  if (draft.phase === 'saved') return '記録しました。';
+  if (draft.phase === 'unavailable') return `記録できませんでした。${draft.status || '記録先に接続できません。'}`;
+  if (draft.phase === 'unconfirmed') return `送りましたが、記録できたかを確かめられませんでした。${draft.status || ''}再読み込みして確かめてください。`;
+  if (draft.phase === 'error') return draft.status || '記録できませんでした。';
+  return draft.status || '';
+}
+
+function feedbackAnswer(value) {
+  return FEEDBACK_ANSWERS.find((answer) => answer.value === value) ?? null;
 }
 
 function appendNormalFeedbackComposer(doc, record, {
   detailReady = false,
   detailPhase = 'idle',
   draft,
-  onKindChange,
+  onAnswerChange,
   onSummaryChange,
-  onOutcomeStatusChange,
   onSubmitFeedback,
 } = {}) {
   const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-feedback-composer' });
   if (!detailReady) {
     const message = detailPhase === 'loading'
-      ? '正本の詳細を確認しています。'
-      : '正本の詳細を確認できないため、追記は利用できません。';
+      ? 'この判断の記録を読み込んでいます…'
+      : 'この判断の記録を読み込めないため、いまは記録できません。再読み込みしてください。';
     wrap.append(makeWorkspaceElement(doc, 'p', { className: 'bb-jh-unrecorded', text: message }));
     return wrap;
   }
-  const kindLabel = makeWorkspaceElement(doc, 'label', { text: '追記の種別' });
-  const kind = makeWorkspaceElement(doc, 'select', { attrs: { 'aria-label': '追記の種別' } });
-  for (const value of FEEDBACK_KINDS) {
-    kind.append(makeWorkspaceElement(doc, 'option', {
-      text: FEEDBACK_KIND_LABELS[value],
-      attrs: { value },
-    }));
-  }
-  kind.value = draft?.kind ?? 'feedback';
-  kind.addEventListener('change', (event) => onKindChange?.(event?.target?.value ?? kind.value));
-  const summaryLabel = makeWorkspaceElement(doc, 'label', { text: '内容（保存公開フィールド）' });
-  const summary = makeWorkspaceElement(doc, 'textarea', {
-    className: 'bb-jh-feedback-content',
-    attrs: { rows: 3, 'aria-label': '追記の内容', placeholder: '結果・訂正・フィードバックを記入' },
-  });
-  summary.value = draft?.summary ?? '';
-  summary.addEventListener('input', (event) => onSummaryChange?.(event?.target?.value ?? summary.value));
-  const outcomeLabel = makeWorkspaceElement(doc, 'label', { text: '結果の確認状態（明示する場合）' });
-  const outcomeStatus = makeWorkspaceElement(doc, 'select', { attrs: { 'aria-label': '結果の確認状態' } });
-  outcomeStatus.append(makeWorkspaceElement(doc, 'option', { text: '記録しない', attrs: { value: '' } }));
-  for (const value of ['unknown', 'unconfirmed', 'confirmed']) {
-    const label = { unknown: '未確認', unconfirmed: '結果未確認', confirmed: '結果確認済み' }[value];
-    outcomeStatus.append(makeWorkspaceElement(doc, 'option', { text: label, attrs: { value } }));
-  }
-  outcomeStatus.value = draft?.outcomeStatus ?? '';
-  outcomeStatus.addEventListener('change', (event) => onOutcomeStatusChange?.(event?.target?.value ?? outcomeStatus.value));
-  const eventId = makeWorkspaceElement(doc, 'code', { text: `event_id=${draft?.eventId ?? '未発行'}` });
   const phase = draft?.phase ?? 'idle';
   const busy = phase === 'submitting' || phase === 'readback';
+  const saved = phase === 'saved';
+  const selected = feedbackAnswer(draft?.answer);
+  const answers = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-feedback-answers', attrs: { role: 'group', 'aria-label': 'この判断は良かったか' } });
+  for (const answer of FEEDBACK_ANSWERS) {
+    const active = answer.value === selected?.value;
+    answers.append(workspaceButton(doc, {
+      text: answer.label,
+      variant: active ? 'primary' : 'quiet',
+      disabled: busy || saved,
+      attrs: { 'data-answer': answer.value, 'aria-pressed': active ? 'true' : 'false' },
+      onClick: () => onAnswerChange?.(answer.value),
+    }));
+  }
+  const summary = makeWorkspaceElement(doc, 'textarea', {
+    className: 'bb-jh-feedback-content',
+    attrs: {
+      rows: 3,
+      'aria-label': '判断へのひとこと',
+      placeholder: selected?.placeholder ?? '気づいたことを書いてください（任意）',
+    },
+  });
+  summary.value = draft?.summary ?? '';
+  if (busy || saved) summary.setAttribute('disabled', '');
+  summary.addEventListener('input', (event) => onSummaryChange?.(event?.target?.value ?? summary.value));
   const button = workspaceButton(doc, {
-    text: phase === 'saved' ? '保存済み' : '結果・訂正・フィードバックを追記',
+    text: saved ? '記録しました' : '記録する',
     variant: 'primary',
-    disabled: busy || phase === 'saved',
+    disabled: busy || saved,
     attrs: { 'data-action': 'submit-judgment-feedback' },
-    onClick: () => onSubmitFeedback?.({ kind, summary, outcomeStatus, eventId: draft?.eventId }),
+    onClick: () => onSubmitFeedback?.({ summary }),
   });
   const status = makeWorkspaceElement(doc, 'p', {
     className: `bb-jh-feedback-status is-${phase}`,
     text: feedbackStatusText(draft),
     attrs: { role: phase === 'error' || phase === 'unavailable' ? 'alert' : 'status' },
   });
-  wrap.append(kindLabel, kind, summaryLabel, summary, outcomeLabel, outcomeStatus, eventId, button, status);
+  wrap.append(answers, summary, button, status);
   return wrap;
+}
+
+/** Ids of the references, with kind and whether they can be opened, for the record details. */
+function referenceIdList(doc, references) {
+  if (!Array.isArray(references) || !references.length) return null;
+  const list = makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-id-list' });
+  for (const ref of references) {
+    const id = text(ref.ref ?? ref.id);
+    if (!id) continue;
+    const availability = REFERENCE_AVAILABILITY_DETAIL[text(ref.availability)] ?? REFERENCE_AVAILABILITY_DETAIL.unknown;
+    const version = text(ref.version) ? `・版 ${text(ref.version)}` : '';
+    list.append(makeWorkspaceElement(doc, 'li', { text: `${id}（${referenceKindLabel(ref)}${version}・${availability}）` }));
+  }
+  return list.children?.length ? list : null;
+}
+
+function appendNormalRecordDetails(doc, record, { onCopyReference, open = false, onToggle } = {}) {
+  const details = makeWorkspaceElement(doc, 'details', { className: 'bb-jh-record-details' });
+  details.open = open === true;
+  if (typeof onToggle === 'function') details.addEventListener('toggle', () => onToggle(details.open));
+  details.append(makeWorkspaceElement(doc, 'summary', { text: '記録の詳細' }));
+  const referenceIds = referenceIdList(doc, record.selectedReferences);
+  const events = Array.isArray(record.feedbackEvents) ? record.feedbackEvents : [];
+  const eventIds = events.length ? makeWorkspaceElement(doc, 'ul', { className: 'bb-jh-id-list' }) : null;
+  for (const event of events) {
+    eventIds.append(makeWorkspaceElement(doc, 'li', { text: `${FEEDBACK_KIND_LABELS[event.kind] ?? event.kind}: ${event.eventId}` }));
+  }
+  const missing = missingFieldLabels(record.missingFields);
+  details.append(workspaceDefinition(doc, [
+    ['記録ID', record.recordId],
+    ['会話のID', record.turnRef || '記録されていません'],
+    ['判断の状態', judgmentStatusDetail(record.judgment?.status) ?? '記録されていません'],
+    ['参照のID', referenceIds ?? 'ありません'],
+    ['追記のID', eventIds ?? 'まだありません'],
+    ['記録されていない項目', missing.length ? `${missing.join('、')}（判断したAIが書き残していない項目です）` : 'ありません'],
+  ]));
+  const handoff = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-handoff' });
+  handoff.append(makeWorkspaceElement(doc, 'h4', { text: '次の判断に引き継ぐ' }));
+  handoff.append(makeWorkspaceElement(doc, 'p', {
+    className: 'bb-jh-reference-note',
+    text: 'この判断を別の判断の根拠として使うときに、AIへ渡す参照です。コピーしてAIとの会話に貼ります。',
+  }));
+  handoff.append(appendNormalReferenceExport(doc, record, null, { onCopyReference }));
+  for (const event of events) handoff.append(appendNormalReferenceExport(doc, record, event, { onCopyReference }));
+  details.append(handoff);
+  return details;
 }
 
 function renderNormalRail(doc, rail, row, detail, onClose, options = {}) {
@@ -1134,8 +1275,8 @@ function renderNormalRail(doc, rail, row, detail, onClose, options = {}) {
   const homeRecord = row?.mode === 'normal' ? normalizeNormalRecord(row.record) : null;
   const record = detail ?? homeRecord ?? row;
   rail.append(workspaceRailHead(doc, {
-    kicker: `${NORMAL_ENTRYPOINT_LABELS[record.entrypoint] ?? '入口不明'}の判断`,
-    title: text(record.judgment?.summary) || '判断内容は未記録',
+    kicker: `${NORMAL_ENTRYPOINT_LABELS[record.entrypoint] ?? NORMAL_ENTRYPOINT_LABELS.unknown}の判断`,
+    title: text(record.judgment?.summary) || '判断の内容は記録されていません',
     sub: formatDate(record.recordedAt),
   }));
   if (typeof onClose === 'function') {
@@ -1147,37 +1288,36 @@ function renderNormalRail(doc, rail, row, detail, onClose, options = {}) {
     }));
   }
   rail.append(workspaceRailBlock(doc, {
-    title: '使った参照（当時の記録）',
-    content: appendReferenceList(doc, record.selectedReferences),
-  }));
-  rail.append(workspaceRailBlock(doc, {
     title: '判断の理由',
     content: appendTextParts(doc, [text(record.judgment?.reason) || '理由は記録されていません。']),
   }));
   rail.append(workspaceRailBlock(doc, {
-    title: '保存された案',
+    title: '判断に使った参照',
+    content: appendReferenceList(doc, record.selectedReferences),
+  }));
+  rail.append(workspaceRailBlock(doc, {
+    title: '比べた案',
     content: appendNormalAlternatives(doc, record.alternatives),
   }));
   rail.append(workspaceRailBlock(doc, {
     title: '実行と結果',
-    content: appendNormalExecution(doc, record.execution),
+    content: appendNormalExecution(doc, record),
   }));
-  rail.append(workspaceRailBlock(doc, {
-    title: '結果・訂正・フィードバック',
-    content: appendNormalFeedbackEvents(doc, record, { onCopyReference: options.onCopyReference }),
-  }));
-  rail.append(workspaceRailBlock(doc, {
-    title: '次の判断に渡す参照',
-    content: appendNormalFeedbackComposer(doc, record, options),
-  }));
-  const metadata = workspaceDefinition(doc, [
-    ['記録ID', record.recordId],
+  const feedback = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-feedback' });
+  const events = appendNormalFeedbackEvents(doc, record);
+  if (events) feedback.append(events);
+  feedback.append(appendNormalFeedbackComposer(doc, record, options));
+  rail.append(workspaceRailBlock(doc, { title: 'この判断は良かったか', content: feedback }));
+  const scope = workspaceDefinition(doc, [
     ['プロジェクト', record.projectCode],
-    ['Turn', record.turnRef],
   ]);
-  const missing = appendNormalMissingFields(doc, record.missingFields);
-  if (missing) metadata.append(missing);
-  rail.append(workspaceRailBlock(doc, { title: '記録の範囲', content: metadata }));
+  const range = makeWorkspaceElement(doc, 'div');
+  range.append(scope, appendNormalRecordDetails(doc, record, {
+    onCopyReference: options.onCopyReference,
+    open: options.recordDetailsOpen,
+    onToggle: options.onRecordDetailsToggle,
+  }));
+  rail.append(workspaceRailBlock(doc, { title: '記録の範囲', content: range }));
 }
 
 function renderRail(doc, rail, row, detail, onClose, options = {}) {
@@ -1211,10 +1351,15 @@ function renderRail(doc, rail, row, detail, onClose, options = {}) {
       attrs: { 'aria-label': '判断の詳細を閉じる' },
     }));
   }
-  rail.append(workspaceRailBlock(doc, {
-    title: '使った参照',
-    content: appendReferenceList(doc, row.references),
-  }));
+  const references = makeWorkspaceElement(doc, 'div');
+  references.append(appendReferenceList(doc, row.references));
+  const ids = referenceIdList(doc, row.references);
+  if (ids) {
+    const details = makeWorkspaceElement(doc, 'details', { className: 'bb-jh-record-details' });
+    details.append(makeWorkspaceElement(doc, 'summary', { text: '記録の詳細' }), workspaceDefinition(doc, [['参照のID', ids]]));
+    references.append(details);
+  }
+  rail.append(workspaceRailBlock(doc, { title: '使った参照', content: references }));
   rail.append(workspaceRailBlock(doc, {
     title: '行った判断',
     content: appendTextParts(doc, [
@@ -1321,9 +1466,7 @@ function statusNotice(doc, phase, error, home, onRetry, { loading = false, slow 
       reload,
     });
   }
-  if (loading) {
-    return workspaceLoadingCard(doc, { title: 'ロード中' });
-  }
+  if (loading) return null;
   if (home?.status === 'partial') {
     return historyBanner(doc, {
       label: '一部の記録だけを表示中',
@@ -1400,7 +1543,7 @@ function normalSourceStatusLabel(status) {
 }
 
 function sourceChipText(source) {
-  const name = NORMAL_ENTRYPOINT_LABELS[normalEntrypoint(source.entrypoint)] ?? '入口不明';
+  const name = NORMAL_ENTRYPOINT_LABELS[normalEntrypoint(source.entrypoint)] ?? NORMAL_ENTRYPOINT_LABELS.unknown;
   if (source?.status === 'pending' || source?.status === 'loading') return `${name}：確認中…`;
   if (Number.isInteger(source?.retrieved)) return `${name}：${source.retrieved}件まで届きました`;
   const statusLabel = normalSourceStatusLabel(source.status);
@@ -1409,21 +1552,21 @@ function sourceChipText(source) {
   return `${name}：${statusLabel}${reason}`;
 }
 
-function createFilterSelect(doc, { label, value, options, onChange, className = '' }) {
-  const wrap = makeWorkspaceElement(doc, 'label', { className: `bb-jh-filter${className ? ` ${className}` : ''}` });
+function createFilterCombobox(doc, { key, label, value, options, onChange, searchPlaceholder }) {
+  const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-filter' });
   wrap.append(makeWorkspaceElement(doc, 'span', { text: label }));
-  const select = makeWorkspaceElement(doc, 'select', { attrs: { 'aria-label': label } });
-  const current = value ?? '';
-  const choices = [{ value: '', label: 'すべて' }, ...options];
-  for (const option of choices) {
-    const optionElement = makeWorkspaceElement(doc, 'option', { text: option.label, attrs: { value: option.value, selected: option.value === current ? 'selected' : undefined } });
-    optionElement.value = option.value;
-    select.append(optionElement);
-  }
-  select.value = current;
-  select.addEventListener('change', (event) => onChange(event?.target?.value ?? select.value ?? ''));
-  wrap.append(select);
-  return wrap;
+  const combobox = workspaceCombobox(doc, {
+    label,
+    value: value ?? '',
+    options: [{ value: '', label: 'すべて' }, ...options],
+    searchPlaceholder,
+    onChange: (next) => onChange(next ?? ''),
+  });
+  // A stable mark lets a redraw return focus to the same filter, whose
+  // accessible name changes with the chosen value.
+  combobox.trigger.setAttribute('data-filter', key);
+  wrap.append(combobox.root);
+  return { root: wrap, combobox };
 }
 
 function normalFilterControls(doc, home, state, onChange) {
@@ -1433,6 +1576,8 @@ function normalFilterControls(doc, home, state, onChange) {
   for (const project of knownProjects) {
     if (!projects.some((option) => option.value === project)) projects.push({ value: project, label: project });
   }
+  const sources = Array.isArray(home?.coverage?.sources) ? home.coverage.sources : [];
+  const unconnected = new Set(sources.filter((source) => source.status === 'unavailable').map((source) => normalEntrypoint(source.entrypoint)));
   const entrypoints = [...(filters.entrypoints ?? [])];
   const knownEntrypoints = (home?.records ?? []).map((record) => record.entrypoint).filter(Boolean);
   for (const entrypoint of [...NORMAL_ENTRYPOINTS, ...knownEntrypoints]) {
@@ -1440,20 +1585,29 @@ function normalFilterControls(doc, home, state, onChange) {
       entrypoints.push({ value: entrypoint, label: NORMAL_ENTRYPOINT_LABELS[entrypoint] ?? entrypoint });
     }
   }
+  const entrypointOptions = entrypoints.map((option) => ({
+    ...option,
+    label: NORMAL_ENTRYPOINT_FILTER_LABELS[option.value] ?? NORMAL_ENTRYPOINT_LABELS[option.value] ?? option.label,
+    hint: unconnected.has(option.value) ? 'まだつながっていません' : '',
+  }));
   const wrap = makeWorkspaceElement(doc, 'div', { className: 'bb-jh-normal-filters', attrs: { 'aria-label': '絞り込み' } });
-  wrap.append(createFilterSelect(doc, {
+  const project = createFilterCombobox(doc, {
+    key: 'project',
     label: 'プロジェクト',
     value: state.project,
     options: projects,
-    onChange: (project) => onChange({ project: project || null }),
-  }));
-  wrap.append(createFilterSelect(doc, {
-    label: '入口',
+    searchPlaceholder: 'プロジェクトを探す',
+    onChange: (next) => onChange({ project: next || null }),
+  });
+  const entrypoint = createFilterCombobox(doc, {
+    key: 'entrypoint',
+    label: '判断したAI',
     value: state.entrypoint,
-    options: entrypoints,
-    onChange: (entrypoint) => onChange({ entrypoint: entrypoint || null }),
-  }));
-  return wrap;
+    options: entrypointOptions,
+    onChange: (next) => onChange({ entrypoint: next || null }),
+  });
+  wrap.append(project.root, entrypoint.root);
+  return { root: wrap, comboboxes: [project.combobox, entrypoint.combobox] };
 }
 
 function paginationControls(doc, aggregate, onNext) {
@@ -1476,8 +1630,9 @@ function makeEntrypointStatus(doc, row) {
     wrap.append(makeWorkspaceElement(doc, 'strong', { text: row.delegated ? 'Brainbase' : '本人' }));
     return wrap;
   }
-  wrap.append(makeWorkspaceElement(doc, 'strong', { text: NORMAL_ENTRYPOINT_LABELS[row.entrypoint] ?? '入口不明' }));
-  wrap.append(makeWorkspaceElement(doc, 'small', { text: judgmentStatusLabel(row.judgment?.status) }));
+  wrap.append(makeWorkspaceElement(doc, 'strong', { text: NORMAL_ENTRYPOINT_LABELS[row.entrypoint] ?? NORMAL_ENTRYPOINT_LABELS.unknown }));
+  const status = judgmentStatusLabel(row.judgment?.status);
+  if (status) wrap.append(makeWorkspaceElement(doc, 'small', { className: 'bb-jh-waiting', text: status }));
   return wrap;
 }
 
@@ -1494,26 +1649,37 @@ function skeletonRows(doc, count = 5) {
   }));
 }
 
+function loadingLine(doc) {
+  return makeWorkspaceElement(doc, 'p', {
+    className: 'bb-jh-summary bb-jh-loading',
+    text: '判断の履歴を読み込んでいます…',
+    attrs: { role: 'status', 'aria-live': 'polite' },
+  });
+}
+
 function summaryLine(doc, aggregate, { loading = false } = {}) {
-  const line = makeWorkspaceElement(doc, 'p', { className: 'bb-jh-summary' });
   const retrieved = Number.isInteger(aggregate?.retrievedCount) ? aggregate.retrievedCount : (aggregate?.rows?.length ?? 0);
   const complete = aggregate?.countComplete === true && Number.isInteger(aggregate?.totalCount);
   const showCount = complete || retrieved > 0;
-  if (showCount) {
-    line.append(makeWorkspaceElement(doc, 'strong', { text: `${complete ? aggregate.totalCount : retrieved}件` }));
-    line.append(makeWorkspaceElement(doc, 'span', { text: ' 取得済み' }));
-  } else {
-    line.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-inline', attrs: { 'aria-hidden': 'true' } }));
-    line.append(makeWorkspaceElement(doc, 'span', { text: ' 取得済み' }));
-  }
-  const references = loading ? null : (aggregate?.stats?.referenceCount ?? aggregate?.stats?.references);
-  const confirmed = loading ? null : (aggregate?.stats?.confirmedOutcomes ?? aggregate?.stats?.outcomes);
+  if (loading && !showCount) return loadingLine(doc);
+  const line = makeWorkspaceElement(doc, 'p', { className: 'bb-jh-summary' });
+  line.append(makeWorkspaceElement(doc, 'strong', { text: `${complete ? aggregate.totalCount : retrieved}件` }));
+  line.append(makeWorkspaceElement(doc, 'span', { text: loading ? ' 届きました（続きを読み込んでいます…）' : ' 取得済み' }));
+  if (loading) return line;
+  const references = aggregate?.stats?.referenceCount ?? aggregate?.stats?.references;
+  const confirmed = aggregate?.stats?.confirmedOutcomes ?? aggregate?.stats?.outcomes;
   line.append(makeWorkspaceElement(doc, 'span', { text: '　・　使った参照 ' }));
-  if (Number.isInteger(references)) line.append(makeWorkspaceElement(doc, 'strong', { text: `${references}件` }));
-  else line.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-inline', attrs: { 'aria-hidden': 'true' } }));
-  line.append(makeWorkspaceElement(doc, 'span', { text: '　・　結果を確認済み ' }));
-  if (Number.isInteger(confirmed)) line.append(makeWorkspaceElement(doc, 'strong', { text: `${confirmed}件` }));
-  else line.append(makeWorkspaceElement(doc, 'span', { className: 'bb-jh-skeleton is-inline', attrs: { 'aria-hidden': 'true' } }));
+  line.append(makeWorkspaceElement(doc, Number.isInteger(references) ? 'strong' : 'span', { text: Number.isInteger(references) ? `${references}件` : '数えられません' }));
+  if (aggregate?.mode !== 'normal') return line;
+  line.append(makeWorkspaceElement(doc, 'span', { text: '　・　結果を確かめた判断 ' }));
+  line.append(makeWorkspaceElement(doc, Number.isInteger(confirmed) ? 'strong' : 'span', { text: Number.isInteger(confirmed) ? `${confirmed}件` : '数えられません' }));
+  // Results are never recorded automatically; say how a person adds one.
+  if (Number.isInteger(confirmed) && confirmed < retrieved) {
+    line.append(makeWorkspaceElement(doc, 'span', {
+      className: 'bb-jh-summary-note',
+      text: '　結果は自動では記録されません。判断を開いて「良かったか」を記録すると数えられます。',
+    }));
+  }
   return line;
 }
 
@@ -1601,6 +1767,9 @@ export function createJudgmentHistoryUI({
   };
 
   let filterPopover = null;
+  let filterComboboxes = [];
+  // The record details stay open across redraws of the same screen.
+  let recordDetailsOpen = false;
   let filterExpanded = false;
   let drawer = null;
   let drawerContent = null;
@@ -1619,19 +1788,13 @@ export function createJudgmentHistoryUI({
     className: 'bb-ws-error-stack bb-jh-notifications', attrs: { 'aria-label': '判断履歴の通知' },
   });
   if (notificationRoot) notificationRoot.append(notifications);
-  let loadingCard = null;
-  let dismissLoading = null;
   let statusCard = null;
   let statusKey = null;
 
+  // Loading is shown in the page (status line and placeholder rows), the same
+  // way the other workspace screens do; the floating stack keeps only the
+  // states that remain after loading, such as a partial or failed read.
   function updateNotifications(loading) {
-    if (loading) {
-      dismissLoading?.(); dismissLoading = null;
-      if (!loadingCard) loadingCard = workspaceLoadingCard(doc, { title: 'ロード中' });
-      if (loadingCard.parentNode !== notifications) notifications.append(loadingCard);
-    } else if (loadingCard && !dismissLoading) {
-      dismissLoading = workspaceDismissNotification(loadingCard);
-    }
     const home = state.home;
     const key = loading ? null : JSON.stringify([state.phase, state.error, home?.status, home?.coverage]);
     if (statusKey !== key) {
@@ -1725,9 +1888,8 @@ export function createJudgmentHistoryUI({
       draft = {
         recordId,
         eventId: newFeedbackEventId(),
-        kind: 'feedback',
+        answer: null,
         summary: '',
-        outcomeStatus: '',
         phase: 'idle',
         status: '',
       };
@@ -1796,34 +1958,50 @@ export function createJudgmentHistoryUI({
       const clipboard = globalThis.navigator?.clipboard;
       if (!clipboard || typeof clipboard.writeText !== 'function') throw new Error('clipboard_unavailable');
       await clipboard.writeText(serialized);
-      status.textContent = '参照情報をコピーしました。';
+      status.textContent = 'コピーしました。';
       return true;
     } catch {
-      status.textContent = '参照情報を表示しました。選択してコピーできます。';
+      status.textContent = 'コピーできませんでした。上の内容を選んでコピーしてください。';
       return false;
     }
+  }
+
+  // Keep the list's "結果を確かめた判断" count in step with an answer that
+  // was read back from the canonical record, without reloading the page.
+  function applyFeedbackToHome(recordId, feedbackEvents) {
+    if (state.home?.mode !== 'normal' || !Array.isArray(state.home.records)) return;
+    const index = state.home.records.findIndex((record) => record.recordId === recordId);
+    if (index < 0) return;
+    const records = [...state.home.records];
+    records[index] = { ...records[index], feedbackEvents: Array.isArray(feedbackEvents) ? feedbackEvents : [] };
+    state.home = { ...state.home, records };
+    state.aggregate = aggregateJudgmentHistory(state.home, { now: readNow(), period: state.period, query: state.query });
   }
 
   async function submitFeedback(row, controls) {
     if (!row || row.mode !== 'normal' || !controls || !request || state.disposed) return false;
     const current = feedbackDraft(row.recordId);
-    const kind = feedbackKind(controls.kind?.value ?? current?.kind) ?? 'feedback';
-    const summary = text(controls.summary?.value ?? current?.summary);
-    const outcomeStatus = text(controls.outcomeStatus?.value ?? current?.outcomeStatus).toLowerCase();
-    if (!summary) {
-      updateFeedbackDraft(row.recordId, { kind, summary, outcomeStatus: '', phase: 'error', status: '内容を入力してください。' });
+    const answer = feedbackAnswer(current?.answer);
+    const written = text(controls.summary?.value ?? current?.summary);
+    if (!answer) {
+      updateFeedbackDraft(row.recordId, { summary: written, phase: 'error', status: '「良かった」「直すところがある」「まだ分からない」から1つ選んでください。' });
       render();
       return false;
     }
-    const acceptedOutcomeStatuses = new Set(['unknown', 'unconfirmed', 'confirmed']);
+    const summary = written || answer.fallbackSummary;
+    if (!summary) {
+      updateFeedbackDraft(row.recordId, { summary: written, phase: 'error', status: 'どこを、どう直すかを書いてください。' });
+      render();
+      return false;
+    }
+    const { kind } = answer;
     const content = { summary };
-    if (acceptedOutcomeStatuses.has(outcomeStatus)) content.outcome_status = outcomeStatus;
-    const displayedEventId = text(controls.eventId?.textContent);
-    const eventId = displayedEventId.startsWith('event_id=')
-      ? displayedEventId.slice('event_id='.length)
-      : displayedEventId || current?.eventId || newFeedbackEventId();
+    if (answer.outcomeStatus) content.outcome_status = answer.outcomeStatus;
+    // The draft keeps one event id per record, so a retry after an
+    // unconfirmed save appends the same event instead of a second one.
+    const eventId = current?.eventId || newFeedbackEventId();
     const expected = { recordId: row.recordId, eventId, kind, content };
-    updateFeedbackDraft(row.recordId, { eventId, kind, summary, outcomeStatus, phase: 'submitting', status: '' });
+    updateFeedbackDraft(row.recordId, { eventId, summary: written, phase: 'submitting', status: '' });
     render();
     try {
       const response = await request(`${state.activeBasePath}/feedback`, {
@@ -1839,7 +2017,7 @@ export function createJudgmentHistoryUI({
         const unavailable = [401, 403, 404, 405, 501, 503].includes(statusCode);
         updateFeedbackDraft(row.recordId, {
           phase: unavailable ? 'unavailable' : 'unconfirmed',
-          status: unavailable ? `正本へ接続できません（HTTP ${statusCode}）。` : `受付応答はHTTP ${statusCode}でした。`,
+          status: unavailable ? '記録先に接続できません。' : '',
         });
         render();
         return false;
@@ -1855,18 +2033,16 @@ export function createJudgmentHistoryUI({
       const responseReadback = responseFeedbackReadback(responsePayload, expected);
       if (detailReadback || responseReadback) {
         updateFeedbackDraft(row.recordId, { phase: 'saved', status: '' });
+        if (detailReadback) applyFeedbackToHome(row.recordId, detail.feedbackEvents);
       } else if (state.detailPhase === 'error') {
-        updateFeedbackDraft(row.recordId, { phase: 'unavailable', status: '正本を読み戻せませんでした。' });
+        updateFeedbackDraft(row.recordId, { phase: 'unavailable', status: '記録を読み直せませんでした。' });
       } else {
-        updateFeedbackDraft(row.recordId, { phase: 'unconfirmed', status: '同じevent_idの正本記録を確認できませんでした。' });
+        updateFeedbackDraft(row.recordId, { phase: 'unconfirmed', status: '' });
       }
       render();
       return detailReadback || responseReadback;
-    } catch (error) {
-      updateFeedbackDraft(row.recordId, {
-        phase: 'unavailable',
-        status: `正本へ接続できません。${error instanceof Error ? error.message : String(error)}`,
-      });
+    } catch {
+      updateFeedbackDraft(row.recordId, { phase: 'unavailable', status: '記録先に接続できません。' });
       render();
       return false;
     }
@@ -1936,17 +2112,24 @@ export function createJudgmentHistoryUI({
     if (state.disposed) return;
     updateNotifications(state.phase === 'loading');
     if (state.phase === 'loading' && !state.showSkeleton && !state.arrived) {
-      if (!notificationRoot && notifications.parentNode !== root) root.append(notifications);
+      // Before the placeholder rows appear, say in the page what is happening.
+      const pending = makeWorkspaceElement(doc, 'div', { className: 'bb-jh', attrs: { 'aria-busy': 'true' } });
+      if (!notificationRoot) pending.append(notifications);
+      pending.append(loadingLine(doc));
+      root.replaceChildren(pending);
       return;
     }
     const focusedFilter = filterExpanded && filterPopover
       ? findFirst(filterPopover.panel, node => node === doc.activeElement) : null;
     const filterFocus = focusedFilter && {
+      filter: attributeValue(focusedFilter, 'data-filter'),
       label: attributeValue(focusedFilter, 'aria-label'), period: attributeValue(focusedFilter, 'data-period'),
     };
     filterPopover?.destroy();
     filterPopover = null;
-    const previousSearchInput = findFirst(root, (node) => node.tagName === 'INPUT');
+    for (const combobox of filterComboboxes) combobox.destroy();
+    filterComboboxes = [];
+    const previousSearchInput = findFirst(root, isSearchInput);
     const previousSearchSelection = previousSearchInput && Number.isInteger(previousSearchInput.selectionStart)
       ? { start: previousSearchInput.selectionStart, end: previousSearchInput.selectionEnd ?? previousSearchInput.selectionStart }
       : null;
@@ -1995,7 +2178,11 @@ export function createJudgmentHistoryUI({
       }
     }));
     const showNormalFilters = loading ? sourceHome?.mode !== 'legacy' : normalMode();
-    if (showNormalFilters) filterFields.append(normalFilterControls(doc, sourceHome ?? state.home, state, handleNormalFilterChange));
+    if (showNormalFilters) {
+      const controlsForFilters = normalFilterControls(doc, sourceHome ?? state.home, state, handleNormalFilterChange);
+      filterComboboxes = controlsForFilters.comboboxes;
+      filterFields.append(controlsForFilters.root);
+    }
     controls.append(createSearch(doc, state.query, (query) => {
       state.query = String(query);
       state.focusSearch = true;
@@ -2053,7 +2240,7 @@ export function createJudgmentHistoryUI({
     wrapper.append(workspaceLedger(doc, {
       className: 'bb-jh-ledger',
       ariaLabel: '判断履歴',
-      columns: ['日時', '行った判断', '使った参照', '入口・状態'],
+      columns: ['日時', '行った判断', '使った参照', '判断したAI'],
       rows: loading ? [...dataRows, ...skeletonRows(doc)] : dataRows,
       empty: emptyText,
     }));
@@ -2064,20 +2251,22 @@ export function createJudgmentHistoryUI({
       }
     });
     if (pagination) wrapper.append(pagination);
-    const nextSearchInput = findFirst(wrapper, (node) => node.tagName === 'INPUT');
+    const nextSearchInput = findFirst(wrapper, isSearchInput);
     if (previousSearchInput && nextSearchInput) {
       previousSearchInput.value = state.query;
       replaceNode(nextSearchInput, previousSearchInput);
     }
     root.replaceChildren(wrapper);
     if (filterExpanded && filterFocus) {
-      const field = findFirst(filterPopover.panel, node => filterFocus.label
-        ? attributeValue(node, 'aria-label') === filterFocus.label
-        : filterFocus.period && attributeValue(node, 'data-period') === filterFocus.period);
+      const field = findFirst(filterPopover.panel, node => (filterFocus.filter
+        ? attributeValue(node, 'data-filter') === filterFocus.filter
+        : filterFocus.label
+          ? attributeValue(node, 'aria-label') === filterFocus.label
+          : filterFocus.period && attributeValue(node, 'data-period') === filterFocus.period));
       field?.focus?.();
     }
     if (state.focusSearch || previousSearchFocused) {
-      const input = findFirst(root, (node) => node.tagName === 'INPUT');
+      const input = findFirst(root, isSearchInput);
       input?.focus?.();
       const start = previousSearchSelection?.start ?? state.query.length;
       const end = previousSearchSelection?.end ?? start;
@@ -2091,12 +2280,18 @@ export function createJudgmentHistoryUI({
         detailReady: state.detailPhase === 'ready' && Boolean(selectedDetail),
         detailPhase: state.detailPhase,
         draft: feedbackDraft(selected.recordId),
-        onKindChange: (kind) => {
-          updateFeedbackDraft(selected.recordId, { kind: feedbackKind(kind) ?? 'feedback' });
+        onAnswerChange: (answer) => {
+          const current = feedbackDraft(selected.recordId);
+          updateFeedbackDraft(selected.recordId, {
+            answer: feedbackAnswer(answer)?.value ?? null,
+            phase: current?.phase === 'error' ? 'idle' : current?.phase,
+            status: current?.phase === 'error' ? '' : current?.status,
+          });
           render();
         },
         onSummaryChange: (summary) => updateFeedbackDraft(selected.recordId, { summary: String(summary ?? '') }),
-        onOutcomeStatusChange: (outcomeStatus) => updateFeedbackDraft(selected.recordId, { outcomeStatus: String(outcomeStatus ?? '') }),
+        recordDetailsOpen,
+        onRecordDetailsToggle: (open) => { recordDetailsOpen = open; },
         onSubmitFeedback: (controls) => void submitFeedback(selected, controls),
         onCopyReference: (payload) => void copyReference(payload),
       }
@@ -2253,7 +2448,7 @@ export function createJudgmentHistoryUI({
     state.generation += 1;
     clearLoadTimers();
     filterPopover?.destroy();
-    dismissLoading?.();
+    for (const combobox of filterComboboxes) combobox.destroy();
     notifications.remove?.();
     disposeDrawer();
     root.removeEventListener?.('keydown', handleKeyDown);

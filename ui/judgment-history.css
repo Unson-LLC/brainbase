@@ -292,7 +292,7 @@
 }
 
 .bb-jh-ledger .bb-ws-ledger-row {
-  grid-template-columns: 92px minmax(0, 1fr) 250px 105px;
+  grid-template-columns: 92px minmax(0, 1fr) 250px 120px;
   align-items: center;
   min-height: 52px;
 }
@@ -581,7 +581,7 @@
   .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(1)::before { content: '日時'; }
   .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(2)::before { content: '行った判断'; }
   .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(3)::before { content: '使った参照'; }
-  .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(4)::before { content: '入口・状態'; }
+  .bb-jh-ledger .bb-ws-ledger-row > span:nth-child(4)::before { content: '判断したAI'; }
 }
 
 /* Compact workspace header, search controls and shared floating notifications. */
@@ -617,3 +617,33 @@
 }
 .bb-jh-notifications .bb-jh-banner.is-danger { border-left-color: var(--bb-color-notice-danger); }
 .bb-jh-notifications .bb-jh-banner-sources > span { white-space: normal; }
+
+/* Loading stays in the page, like the other workspace screens. */
+.bb-jh-loading { color: var(--bb-color-muted); }
+.bb-jh-summary-note { font-size: 11.5px; }
+.bb-jh-entrypoint { display: grid; gap: 2px; }
+.bb-jh-entrypoint small.bb-jh-waiting { color: var(--bb-color-warning-strong, var(--bb-color-accent-strong)); font-size: 11px; font-weight: 600; }
+.bb-jh-filter-fields .bb-jh-filter .bb-ws-combobox { width: 100%; }
+
+/* Detail: references that only have an id, the one question, and the record details. */
+.bb-jh-references { display: grid; gap: 8px; }
+.bb-jh-reference-list small { color: var(--bb-color-quiet); font-size: 11px; }
+.bb-jh-reference-kinds { margin: 0; color: var(--bb-color-ink); font-size: 13px; font-weight: 600; }
+.bb-jh-references .bb-jh-reference-note,
+.bb-jh-handoff .bb-jh-reference-note { margin: 0; }
+.bb-jh-feedback { display: grid; gap: 12px; }
+.bb-jh-feedback-events { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.bb-jh-feedback-answers { display: flex; flex-wrap: wrap; gap: 6px; }
+.bb-jh-feedback-composer > .bb-ws-button { justify-self: start; }
+.bb-jh-record-details { margin-top: 10px; }
+.bb-jh-record-details > summary { color: var(--bb-color-muted); font-size: 12px; cursor: pointer; }
+.bb-jh-record-details[open] > summary { margin-bottom: 8px; }
+.bb-jh-record-details .bb-ws-definition dd { overflow-wrap: anywhere; }
+.bb-jh-id-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; font-family: var(--bb-font-mono); font-size: 10.5px; color: var(--bb-color-quiet); overflow-wrap: anywhere; }
+.bb-jh-handoff { display: grid; gap: 6px; margin-top: 14px; }
+.bb-jh-handoff h4 { margin: 0; font-size: 12.5px; color: var(--bb-color-ink); }
+.bb-jh-feedback-answers .bb-ws-button[aria-pressed="true"] { border-color: var(--bb-color-accent); background: var(--bb-color-accent-soft, #eeebfd); color: var(--bb-color-accent-strong, var(--bb-color-accent)); }
+.bb-jh-feedback-composer [data-action="submit-judgment-feedback"] { border-color: var(--bb-color-accent); background: var(--bb-color-accent); color: #fff; }
+.bb-jh-feedback-composer [data-action="submit-judgment-feedback"]:disabled { opacity: .55; cursor: default; }
+.bb-jh-feedback-composer textarea,
+.bb-jh-reference-export textarea { box-sizing: border-box; }
