@@ -74,6 +74,8 @@ export interface CanonicalTaskRecord extends JsonRecord {
   assignee_display_name?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
+  /** The Graph person a waiting task waits on; null when it waits on a condition or nobody in particular. */
+  waiting_on_person_id?: string | null;
   review_at?: string | null;
   completed_at?: string | null;
   source_refs?: unknown[];
@@ -94,6 +96,7 @@ export interface CanonicalTaskCreateInput extends JsonRecord {
   assignee_person_id?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
+  waiting_on_person_id?: string | null;
   review_at?: string | null;
   source_refs?: unknown[];
   project_codes?: unknown;
@@ -108,6 +111,7 @@ export interface CanonicalTaskUpdateInput extends JsonRecord {
   assignee_person_id?: string | null;
   due_at?: string | null;
   waiting_on?: string | null;
+  waiting_on_person_id?: string | null;
   review_at?: string | null;
   source_refs?: unknown[];
   source_refs_append?: unknown[];
@@ -305,6 +309,7 @@ const CREATE_FIELDS = new Set([
   'assignee_person_id',
   'due_at',
   'waiting_on',
+  'waiting_on_person_id',
   'review_at',
   'source_refs',
   'project_codes',
@@ -319,6 +324,7 @@ const MUTABLE_FIELDS = new Set([
   'assignee_person_id',
   'due_at',
   'waiting_on',
+  'waiting_on_person_id',
   'review_at',
   'source_refs',
   'source_refs_append',
@@ -360,6 +366,11 @@ function normalizeString(
     fail('validation_error', `${field} exceeds the maximum length`, 400, { field, max: options.max });
   }
   return normalized;
+}
+
+/** A Graph person ID, as for the assignee; empty or null means no person. */
+function normalizeWaitingOnPersonId(value: unknown): string | null {
+  return normalizeString(value, 'waiting_on_person_id', { max: 200 });
 }
 
 /** A purpose label: a single line of at most 30 characters; empty or null clears it. */
@@ -804,16 +815,19 @@ export class CanonicalTaskService {
 
   async transitionTask(taskId: string, status: unknown, expectedVersion: number, context: CanonicalTaskContext, input?: {
     waitingOn?: unknown;
+    waitingOnPersonId?: unknown;
     reviewAt?: unknown;
   }): Promise<CanonicalTaskRecord>;
   async transitionTask(taskId: string, input: {
     to_status?: unknown;
     expected_version?: number;
     waiting_on?: unknown;
+    waiting_on_person_id?: unknown;
     review_at?: unknown;
   }, context: CanonicalTaskContext): Promise<CanonicalTaskRecord>;
   async transitionTask(taskId: string, statusOrInput: unknown, expectedVersionOrContext: number | CanonicalTaskContext, maybeContext?: CanonicalTaskContext, maybeInput: {
     waitingOn?: unknown;
+    waitingOnPersonId?: unknown;
     reviewAt?: unknown;
   } = {}): Promise<CanonicalTaskRecord> {
     const legacyInput = statusOrInput && typeof statusOrInput === 'object' ? statusOrInput as Record<string, unknown> : null;
@@ -821,7 +835,7 @@ export class CanonicalTaskService {
     const expectedVersion = legacyInput ? legacyInput.expected_version : expectedVersionOrContext;
     const context = legacyInput ? expectedVersionOrContext : maybeContext;
     const input = legacyInput
-      ? { waitingOn: legacyInput.waiting_on, reviewAt: legacyInput.review_at }
+      ? { waitingOn: legacyInput.waiting_on, waitingOnPersonId: legacyInput.waiting_on_person_id, reviewAt: legacyInput.review_at }
       : maybeInput;
     const normalizedContext = await this.normalizeContext(context as CanonicalTaskContext);
     const expected = this.requireExpectedVersion(expectedVersion);
@@ -832,9 +846,12 @@ export class CanonicalTaskService {
         failValidation({ waiting_on: ['required_for_waiting'] });
       }
       patch.waiting_on = normalizeString(input.waitingOn, 'waiting_on', { required: true, max: 500 });
+      // The person is optional and always replaced, so waiting on a condition clears an earlier person.
+      patch.waiting_on_person_id = normalizeWaitingOnPersonId(input.waitingOnPersonId);
       patch.review_at = normalizeIsoDate(input.reviewAt, 'review_at');
     } else {
       patch.waiting_on = input.waitingOn === undefined ? null : normalizeString(input.waitingOn, 'waiting_on', { max: 500 });
+      patch.waiting_on_person_id = input.waitingOnPersonId === undefined ? null : normalizeWaitingOnPersonId(input.waitingOnPersonId);
       patch.review_at = input.reviewAt === undefined ? null : normalizeIsoDate(input.reviewAt, 'review_at');
     }
     return this.versionedMutation({
@@ -1120,6 +1137,7 @@ export class CanonicalTaskService {
           transition: {
             to_status: input.transitionStatus,
             ...(input.patch.waiting_on !== undefined ? { waiting_on: input.patch.waiting_on } : {}),
+            ...(input.patch.waiting_on_person_id !== undefined ? { waiting_on_person_id: input.patch.waiting_on_person_id } : {}),
             ...(input.patch.review_at !== undefined ? { review_at: input.patch.review_at } : {}),
           },
         };
@@ -1135,6 +1153,7 @@ export class CanonicalTaskService {
     const priority = input.priority == null || input.priority === '' ? 'medium' : String(input.priority);
     if (!isCanonicalTaskPriority(priority)) fail('validation_error', 'priority is invalid', 400, { field: 'priority' });
     const purposeLabel = normalizePurposeLabel(input.purpose_label);
+    const waitingOnPersonId = normalizeWaitingOnPersonId(input.waiting_on_person_id);
     const completionContract = normalizeCompletionContract(input.completion_contract);
     return {
       ...(completionContract ? { completion_contract: completionContract } : {}),
@@ -1149,6 +1168,8 @@ export class CanonicalTaskService {
       project_codes: normalizeProjectCodes(input.project_codes) ?? [],
       // Only a label that is there is written, so a store without the column still accepts unlabelled work.
       ...(purposeLabel ? { purpose_label: purposeLabel } : {}),
+      // Likewise only a person that is there is written.
+      ...(waitingOnPersonId ? { waiting_on_person_id: waitingOnPersonId } : {}),
     };
   }
 
@@ -1175,6 +1196,7 @@ export class CanonicalTaskService {
     if ('assignee_person_id' in input) patch.assignee_person_id = normalizeString(input.assignee_person_id, 'assignee_person_id', { max: 200 });
     if ('due_at' in input) patch.due_at = normalizeIsoDate(input.due_at, 'due_at');
     if ('waiting_on' in input) patch.waiting_on = normalizeString(input.waiting_on, 'waiting_on', { max: 500 });
+    if ('waiting_on_person_id' in input) patch.waiting_on_person_id = normalizeWaitingOnPersonId(input.waiting_on_person_id);
     if ('review_at' in input) patch.review_at = normalizeIsoDate(input.review_at, 'review_at');
     if ('source_refs' in input && hasSourceRefsAppend) {
       fail('validation_error', 'source_refs and source_refs_append cannot be combined', 400, {
@@ -1375,6 +1397,7 @@ export class CanonicalTaskService {
     if (response.assignee_person_id === undefined) response.assignee_person_id = null;
     if (response.due_at === undefined) response.due_at = null;
     if (response.waiting_on === undefined) response.waiting_on = null;
+    if (response.waiting_on_person_id === undefined) response.waiting_on_person_id = null;
     if (response.review_at === undefined) response.review_at = null;
     if (response.completed_at === undefined) response.completed_at = null;
     if (response.source_refs === undefined) response.source_refs = [];
