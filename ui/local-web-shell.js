@@ -302,7 +302,7 @@ function mountGraphScreen(screenId, createView, extra = {}) {
       fetcher: context.fetcher,
       token: context.token,
       initialEntityId: context.initialEntityId,
-      ...extra,
+      ...(typeof extra === 'function' ? extra(context) : extra),
     });
   };
 }
@@ -312,7 +312,10 @@ export const LOCAL_WEB_SCREENS = Object.freeze([
   Object.freeze({ id: 'minutes', label: '議事録', area: 'work', usesGraph: false, rail: true, source: '正本の議事録', mount: mountMeetingMinutes }),
   Object.freeze({ id: 'objectives', label: '目的と現状', area: 'purpose', usesGraph: true, rail: true, source: '手元のGraph', mount: mountObjectives }),
   Object.freeze({ id: 'projects', label: 'プロジェクトと関係者', area: 'work', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('projects', createGraphProjectsView) }),
-  Object.freeze({ id: 'graph', label: '情報と関係', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView) }),
+  // A record of 情報と関係 opens as its own screen at `#graph?entity_id=…`; the list is `#graph`.
+  Object.freeze({ id: 'graph', label: '情報と関係', area: 'information', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('graph', createGraphRegistryView, (context) => ({
+    onRouteChange: (entityId, options) => context.navigate?.(entityId ? `graph?entity_id=${encodeURIComponent(entityId)}` : 'graph', options),
+  })) }),
   Object.freeze({ id: 'people', label: '人と会社', area: 'information', usesGraph: true, rail: true, source: '手元のGraph', mount: mountGraphScreen('people', createPeopleAndCompaniesView, { canCorrect: true }) }),
   // The definitions behind 情報と関係: infrequent management work, so under settings (ledger D14).
   Object.freeze({ id: 'ontology', label: '情報の種類とつながり方', area: 'settings', usesGraph: true, rail: false, source: '手元のGraph', mount: mountGraphScreen('ontology', createGraphOntologyView, { canCorrect: true }) }),
@@ -399,6 +402,7 @@ export function createLocalWebShell({
   initialScreen,
   meetingMinutesStorage = null,
   meetingMinutesLineage = null,
+  onNavigate,
 } = {}) {
   if (!root) throw new TypeError('root is required');
   const doc = explicitDocument ?? (typeof document === 'undefined' ? null : document);
@@ -406,7 +410,9 @@ export function createLocalWebShell({
   const request = typeof fetcher === 'function'
     ? fetcher
     : typeof globalThis.fetch === 'function' ? (path, init) => globalThis.fetch(path, init) : null;
-  const context = Object.freeze({ document: doc, fetcher: request, token, meetingMinutesStorage, meetingMinutesLineage });
+  // `navigate(target, { back })` lets a screen give its own state an address (the host's hash).
+  const navigate = typeof onNavigate === 'function' ? (target, options = {}) => onNavigate(target, options) : null;
+  const context = Object.freeze({ document: doc, fetcher: request, token, meetingMinutesStorage, meetingMinutesLineage, navigate });
 
   const status = { phase: 'loading', data: null, error: null };
   const mounted = new Map();
@@ -498,6 +504,8 @@ export function createLocalWebShell({
     if (mounted.has(screen.id)) {
       const view = mounted.get(screen.id);
       if (entityId && screen.id === 'graph' && typeof view?.openEntity === 'function') void view.openEntity(entityId);
+      // `#graph` without a record is the list: a record still open there closes (the browser's back).
+      if (!entityId && screen.id === 'graph' && view?.state?.detail && typeof view.closeEntity === 'function') view.closeEntity();
       if (entityId && screen.id === 'value-proofs' && typeof view?.openDecision === 'function') view.openDecision(entityId);
       if (entityId && screen.id === 'projects' && typeof view?.openProject === 'function') void view.openProject(entityId);
       return;
