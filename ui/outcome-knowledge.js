@@ -84,6 +84,9 @@ const SCOPE_LABELS = Object.freeze({
 
 const LIFECYCLE_STATUS_LABELS = Object.freeze({
   active: '有効',
+  decided: '決定済み',
+  active_reference: '参照用',
+  unknown: UNKNOWN,
   inactive: '無効',
   retired: '失効',
   superseded: '置換済み',
@@ -1480,7 +1483,8 @@ export function createKnowledgeOverviewController(options = {}) {
   const { root, api, onSelectProject } = options;
   if (!root || typeof root.replaceChildren !== 'function') throw new Error('knowledge_root_unavailable');
   const labels = resolveKnowledgeUiLabels(options.labels);
-  const itemsBase = optionalText(options.itemsPath).trim() || `/api/knowledge/${KNOWLEDGE_ROUTES.items}`;
+  // A host path may already carry conditions (for example `?limit=100`); keep them and add the filters.
+  const [itemsBase, itemsBaseQuery = ''] = (optionalText(options.itemsPath).trim() || `/api/knowledge/${KNOWLEDGE_ROUTES.items}`).split(/\?(.*)/s);
   const state = {
     filters: { q: '', scope: 'all', status: 'active' },
     list: { state: 'loading', records: null, absence_confirmed: false, searched_scope: null },
@@ -1491,7 +1495,7 @@ export function createKnowledgeOverviewController(options = {}) {
   const projectName = (code) => projectOptions(options.projects).find((option) => option.code === code)?.name ?? null;
 
   function itemsPath() {
-    const query = new URLSearchParams();
+    const query = new URLSearchParams(itemsBaseQuery);
     if (state.filters.q) query.set('q', state.filters.q);
     if (state.filters.scope) query.set('scope', state.filters.scope);
     if (state.filters.status) query.set('status', state.filters.status);

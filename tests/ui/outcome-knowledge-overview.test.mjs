@@ -193,6 +193,46 @@ describe('organization-wide knowledge list', () => {
     expect(collectText(root)).not.toContain('記録はありません');
   });
 
+  it('keeps conditions already in the host path and adds the filters to them', async () => {
+    globalThis.document = new FakeDocument();
+    const calls = [];
+    const controller = createKnowledgeOverviewController({
+      root: new FakeElement('div'),
+      itemsPath: '/api/knowledge/items?limit=100',
+      api: async (path) => { calls.push(path); return organizationList; },
+    });
+    await settle();
+    controller.state.filters = { q: '提案 方針', scope: 'organization', status: 'active' };
+    await controller.loadItems();
+    expect(calls).toEqual([
+      '/api/knowledge/items?limit=100&scope=all&status=active',
+      '/api/knowledge/items?limit=100&q=%E6%8F%90%E6%A1%88+%E6%96%B9%E9%87%9D&scope=organization&status=active',
+    ]);
+  });
+
+  it('shows the Graph lifecycle statuses in Japanese in the list and the detail', async () => {
+    globalThis.document = new FakeDocument();
+    const root = new FakeElement('div');
+    const records = [
+      { id: 'decision-9', type: 'decision', project_code: 'baao', title: '決定', scope: 'project', lifecycle: { status: 'decided' } },
+      { id: 'unknown-1', type: 'document', project_code: 'baao', title: '状態不明', scope: 'project', lifecycle: { status: 'unknown' } },
+      { id: 'reference-1', type: 'document', project_code: 'baao', title: '参照', scope: 'project', lifecycle: { status: 'active_reference' } },
+    ];
+    renderKnowledgeList(root, normalizeKnowledgeCollection({ state: 'results', records }), { showProject: true });
+    expect(findAll(root, byClass('knowledge-row-state')).map((node) => node.textContent)).toEqual(['決定済み', '未確認', '参照用']);
+
+    const detailRoot = new FakeElement('div');
+    const controller = createKnowledgeOverviewController({
+      root: detailRoot,
+      autoLoad: false,
+      api: async () => ({ item: { ...records[0], summary: '本文' } }),
+    });
+    controller.state.list = normalizeKnowledgeCollection({ state: 'results', records });
+    await controller.selectItem(controller.state.list.records[0]);
+    expect(collectText(detailRoot)).toContain('決定済み');
+    expect(collectText(detailRoot)).not.toContain('decided');
+  });
+
   it('lets the project workspace show an explicit, changeable project filter', () => {
     globalThis.document = new FakeDocument();
     const root = new FakeElement('div');
