@@ -28,6 +28,7 @@ import { createMeetingMinutesLineageExtension } from './meeting-minutes-lineage-
 import { createWorldModelView } from './world-model-view.js';
 import { createGraphClient } from './graph-view-shared.js';
 import { installNativeScrollbars } from './native-scrollbars.js';
+import { browserAreaStorage, createAreaMemory, createAreaNav } from './area-nav.js';
 
 export const LOCAL_WEB_SHELL_CONTRACT_VERSION = 'brainbase.local-web-shell.v1';
 
@@ -56,20 +57,26 @@ const NAV_ICON_PATHS = Object.freeze({
   ontology: ['M4 4h6v6H4z', 'M14 14h6v6h-6z', 'M14 4h6v6h-6z', 'M10 7h4', 'M17 10v4'],
   // World view (extension id `world`, ledger P17).
   world: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M3 12h18', 'M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z'],
+  // Areas whose screens have their own icons (ledger D10, stage 2): a briefcase, and
+  // the organization edition's gear.
+  'area:work': ['M4 8h16v11H4z', 'M9 8V5h6v3', 'M4 13h16'],
+  'area:settings': ['M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z'],
 });
 // Screens without their own icon (for example a private product's extension).
 const DEFAULT_NAV_ICON_PATHS = Object.freeze(['M5 20V10m7 10V4m7 16v-7']);
 const SVG_NS = 'http://www.w3.org/2000/svg';
 
-// The menu's areas (brainbase-project ledger D10): the same order and headings
-// as the organization edition. 目的と現状 is the only item of its area, so it
-// has no heading. Inside an area, `order` lists the screens first in that order.
+// The menu's areas (brainbase-project ledger D10): the same order and names as
+// the organization edition. The left side lists only the areas; the screens of
+// the current area are tabs above the page (stage 2). 目的と現状 is the only
+// screen of its area and keeps its own name. Inside an area, `order` lists the
+// screens first in that order; `defaultScreen` opens when nothing is remembered.
 const NAV_AREAS = Object.freeze([
-  Object.freeze({ id: 'purpose', label: null, order: ['objectives'] }),
-  Object.freeze({ id: 'work', label: '仕事', order: ['projects', 'minutes'] }),
-  Object.freeze({ id: 'outcomes', label: '成果', order: ['value-proofs'] }),
-  Object.freeze({ id: 'information', label: '情報と関係', order: ['graph', 'people'] }),
-  Object.freeze({ id: 'settings', label: '設定', order: ['ontology'] }),
+  Object.freeze({ id: 'purpose', label: null, order: ['objectives'], icon: 'objectives' }),
+  Object.freeze({ id: 'work', label: '仕事', order: ['projects', 'minutes'], defaultScreen: 'projects', icon: 'area:work' }),
+  Object.freeze({ id: 'outcomes', label: '成果', order: ['value-proofs'], icon: 'value-proofs' }),
+  Object.freeze({ id: 'information', label: '情報と関係', order: ['graph', 'people'], defaultScreen: 'graph', icon: 'graph' }),
+  Object.freeze({ id: 'settings', label: '設定', order: ['ontology'], defaultScreen: 'ontology', icon: 'area:settings' }),
 ]);
 
 // Menu order only: the screens' own order (and so the first screen) stays as given.
@@ -89,6 +96,23 @@ function navLayout(screens) {
     return { area, screens: [...members].sort((a, b) => rank(a) - rank(b)) };
   }).filter((entry) => entry.screens.length > 0);
   return { leading, areas, trailing };
+}
+
+// Every menu line is an area: a screen without an area is an area of its own.
+function navAreas(screens) {
+  const layout = navLayout(screens);
+  const own = (screen) => ({ id: screen.id, label: null, screenIds: [screen.id], icon: screen.id });
+  return [
+    ...layout.leading.map(own),
+    ...layout.areas.map(({ area, screens: members }) => ({
+      id: area.id,
+      label: area.label,
+      defaultScreen: area.defaultScreen,
+      screenIds: members.map((screen) => screen.id),
+      icon: area.icon,
+    })),
+    ...layout.trailing.map(own),
+  ];
 }
 
 function makeIcon(doc, id) {
@@ -402,6 +426,7 @@ export function createLocalWebShell({
   initialScreen,
   meetingMinutesStorage = null,
   meetingMinutesLineage = null,
+  areaMemory = createAreaMemory(browserAreaStorage()),
   onNavigate,
 } = {}) {
   if (!root) throw new TypeError('root is required');
@@ -417,7 +442,6 @@ export function createLocalWebShell({
   const status = { phase: 'loading', data: null, error: null };
   const mounted = new Map();
   const slots = new Map();
-  const links = new Map();
   const pendingEntityIds = new Map();
   let active = null;
 
@@ -438,37 +462,27 @@ export function createLocalWebShell({
   };
   menuButton.addEventListener('click', () => setMenuOpen(!sidebar.className.includes('is-open')));
   backdrop.addEventListener('click', () => setMenuOpen(false));
-  const navLink = (screen) => {
-    const link = makeElement(doc, 'a', { className: 'bb-shell-nav-link', text: screen.label, attrs: { href: `#${screen.id}` } });
-    // The label stays the link's own text; the icon goes in front where the DOM allows it.
-    if (typeof link.prepend === 'function') link.prepend(makeIcon(doc, screen.id));
-    link.addEventListener('click', () => {
+  const areaList = navAreas(screens);
+  const areaNav = createAreaNav({
+    document: doc,
+    areas: areaList,
+    screens: screens.map((screen) => ({ id: screen.id, label: screen.label })),
+    memory: areaMemory,
+    linkClassName: 'bb-shell-nav-link',
+    iconFor: (area) => makeIcon(doc, areaList.find((entry) => entry.id === area.id)?.icon ?? area.id),
+    onSelect: (screenId) => {
       setMenuOpen(false);
-      controller.show(screen.id);
-    });
-    links.set(screen.id, link);
-    return link;
-  };
-  const layout = navLayout(screens);
-  for (const screen of layout.leading) nav.append(navLink(screen));
-  for (const { area, screens: members } of layout.areas) {
-    if (!area.label) {
-      for (const screen of members) nav.append(navLink(screen));
-      continue;
-    }
-    const headId = `bb-shell-nav-area-${area.id}`;
-    const group = makeElement(doc, 'div', { className: 'bb-shell-nav-group', attrs: { role: 'group', 'aria-labelledby': headId } });
-    group.append(makeElement(doc, 'div', { className: 'bb-shell-nav-group-head', text: area.label, attrs: { id: headId } }));
-    for (const screen of members) group.append(navLink(screen));
-    nav.append(group);
-  }
-  for (const screen of layout.trailing) nav.append(navLink(screen));
+      controller.show(screenId);
+    },
+  });
+  nav.append(areaNav.nav);
   const source = makeElement(doc, 'section', { className: 'bb-shell-source', attrs: { 'aria-label': '出典' } });
   sidebar.append(brand, nav, source);
   const workspace = makeElement(doc, 'div', { className: 'bb-shell-workspace' });
   const mobileBar = makeElement(doc, 'div', { className: 'bb-shell-mobile-bar' });
   mobileBar.append(makeElement(doc, 'strong', { text: 'Brainbase' }), menuButton);
   const main = makeElement(doc, 'main', { className: 'bb-shell-main' });
+  main.append(areaNav.tabs);
   for (const screen of screens) {
     const slot = makeElement(doc, 'section', { className: 'bb-shell-screen', attrs: { 'data-screen': screen.id, 'aria-label': screen.label } });
     slot.hidden = true;
@@ -539,10 +553,7 @@ export function createLocalWebShell({
           : screen.id === 'projects' ? parsed.projectId ?? null : null);
       active = screen.id;
       for (const [screenId, slot] of slots) slot.hidden = screenId !== screen.id;
-      for (const [screenId, link] of links) {
-        if (screenId === screen.id) link.setAttribute('aria-current', 'page');
-        else link.removeAttribute('aria-current');
-      }
+      areaNav.show(screen.id);
       ensureMounted(screen, pendingEntityIds.get(screen.id));
       updateRail();
       return controller;

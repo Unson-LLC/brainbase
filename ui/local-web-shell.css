@@ -1,4 +1,5 @@
 @import './native-scrollbars.css';
+@import './area-nav.css';
 /*
  * Shell of the local Web host, in the organization edition's layout: a white
  * left rail (brand, navigation, source) and a paper workspace. Uses only the
@@ -69,19 +70,6 @@ body {
 .bb-shell-nav {
   display: grid;
   gap: 2px;
-}
-
-.bb-shell-nav-group {
-  display: grid;
-  gap: 2px;
-}
-
-.bb-shell-nav-group-head {
-  margin: 14px 10px 4px;
-  color: var(--bb-color-rail-muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .04em;
 }
 
 .bb-shell-nav-link {
