@@ -8,7 +8,8 @@ import {
   type MeetingCreateInput,
   type MeetingMinutesRequestContext,
   type MeetingMinutesStore,
-  type SaveMinutesVersionInput
+  type SaveMinutesVersionInput,
+  type WithdrawMinutesInput
 } from './meeting-minutes.js';
 import {
   LocalWebHttpError,
@@ -43,7 +44,7 @@ export interface MeetingMinutesHttpOptions {
 export type MeetingMinutesHttpHandler = (request: IncomingMessage, response: ServerResponse) => Promise<boolean>;
 
 interface Route {
-  readonly kind: 'collection' | 'meeting' | 'minutes' | 'save' | 'confirm' | 'version';
+  readonly kind: 'collection' | 'meeting' | 'minutes' | 'save' | 'confirm' | 'withdraw' | 'version';
   readonly meetingId?: string;
   readonly minutesId?: string;
   readonly versionId?: string;
@@ -83,6 +84,9 @@ function routeFor(pathname: string, basePath: string): Route | undefined {
   if (segments.length === 3 && noun === 'minutes' && minutesId) return { kind: 'save', meetingId, minutesId };
   if (segments.length === 4 && noun === 'minutes' && minutesId && action === 'confirm') {
     return { kind: 'confirm', meetingId, minutesId };
+  }
+  if (segments.length === 4 && noun === 'minutes' && minutesId && action === 'withdraw') {
+    return { kind: 'withdraw', meetingId, minutesId };
   }
   if (segments.length === 5 && noun === 'minutes' && minutesId && action === 'versions' && versionId) {
     return { kind: 'version', meetingId, minutesId, versionId };
@@ -207,6 +211,14 @@ function confirmInput(body: Record<string, unknown>, minutesId: string, key?: st
   };
 }
 
+function withdrawInput(body: Record<string, unknown>, minutesId: string, key?: string, fingerprint?: string): WithdrawMinutesInput {
+  return {
+    minutes_id: minutesId,
+    expected_revision: body.expected_revision as number,
+    ...idempotencyFields(key, fingerprint)
+  };
+}
+
 export function createMeetingMinutesHttpHandler(options: MeetingMinutesHttpOptions): MeetingMinutesHttpHandler {
   if (!options || !options.store || typeof options.resolveContext !== 'function') {
     throw new TypeError('store and resolveContext are required');
@@ -252,6 +264,13 @@ export function createMeetingMinutesHttpHandler(options: MeetingMinutesHttpOptio
             throw new MeetingMinutesError('not_found', `Minutes version ${String(body.version_id)} was not found`);
           }
           return { statusCode: 200, body: await options.store.confirm_version(confirmInput(body, document.minutes_id, key, fingerprint), context) };
+        }
+        case 'withdraw': {
+          if (body === undefined) throw new MeetingMinutesError('invalid_input', 'Request body is required');
+          const detail = await options.store.get_meeting(route.meetingId ?? '', context);
+          const document = detail.minutes.find((candidate) => candidate.minutes_id === route.minutesId);
+          if (!document) throw new MeetingMinutesError('not_found', `Minutes document ${route.minutesId} was not found`);
+          return { statusCode: 200, body: await options.store.withdraw_minutes(withdrawInput(body, document.minutes_id, key, fingerprint), context) };
         }
         case 'version':
           return {

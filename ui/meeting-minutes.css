@@ -136,6 +136,12 @@
   overflow-y: auto;
 }
 
+/* Keep the heading, actions and body together at the top instead of spreading them over the pane. */
+.bb-minutes-detail-pane,
+.bb-minutes-document {
+  align-content: start;
+}
+
 .bb-minutes-list-pane {
   grid-template-rows: auto minmax(0, 1fr);
   gap: 0;
@@ -146,7 +152,8 @@
 .bb-minutes-detail-head,
 .bb-minutes-document-head,
 .bb-minutes-actions,
-.bb-minutes-version-band {
+.bb-minutes-version-actions,
+.bb-minutes-version-meta {
   display: flex;
   gap: 8px;
   align-items: center;
@@ -328,12 +335,66 @@
   margin: 0;
 }
 
-.bb-minutes-version-band {
+.bb-minutes-version-actions {
+  justify-content: flex-start;
   margin: 0;
-  padding: 8px 12px;
-  border: 1px solid var(--bb-color-border);
-  border-radius: 8px;
+}
+
+/* Which version is shown sits quietly below the body (story-meeting-minutes-edit-and-withdraw-ui-v1 AC-06). */
+.bb-minutes-version-meta {
+  justify-content: flex-start;
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--bb-color-border);
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-minutes-withdrawn,
+.bb-minutes-withdraw-guard,
+.bb-minutes-edit-note {
+  margin: 0;
+  color: var(--bb-color-muted);
   font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.bb-minutes-withdrawn {
+  padding: 8px 12px;
+  background: var(--bb-color-surface);
+  border: 1px solid var(--bb-color-border);
+  border-radius: var(--bb-radius-sm, 4px);
+}
+
+.bb-minutes-withdraw-confirm {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--bb-color-danger);
+  border-radius: var(--bb-radius-sm, 4px);
+  background: var(--bb-color-paper);
+}
+
+.bb-minutes-withdraw-confirm p,
+.bb-minutes-withdraw-confirm ul {
+  margin: 0;
+}
+
+.bb-minutes-withdraw-title {
+  font-weight: 600;
+}
+
+.bb-minutes-edit-form {
+  display: grid;
+  gap: 8px;
+}
+
+.bb-minutes-edit-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 16rem;
+  font: inherit;
+  line-height: 1.6;
 }
 
 .bb-minutes-version-content {
@@ -416,6 +477,18 @@
 .bb-minutes-button.is-primary:hover {
   border-color: var(--bb-color-brand-indigo);
   background: var(--bb-color-brand-indigo);
+  color: var(--bb-color-action-text);
+}
+
+.bb-minutes-button.is-quiet {
+  border-color: var(--bb-color-border);
+  color: var(--bb-color-muted);
+}
+
+.bb-minutes-button.is-danger,
+.bb-minutes-button.is-danger:hover {
+  border-color: var(--bb-color-danger);
+  background: var(--bb-color-danger);
   color: var(--bb-color-action-text);
 }
 
