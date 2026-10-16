@@ -140,7 +140,9 @@ function ledgerRowLabel(cells = []) {
  * A ledger: a header row and selectable rows. `className` sets the column
  * template in the caller's CSS. A cell is text, an element, `{ text, className }`,
  * or `{ primary, secondary, leading }` for a name with its id underneath and
- * an optional leading element (for example a project icon).
+ * an optional leading element (for example a project icon).  A row's `detail`
+ * element opens right below it across every column (its `detailId` names it
+ * for `aria-controls`); `expandable` marks a selectable row that opens one.
  */
 export function workspaceLedger(doc, { columns = [], rows = [], className = '', ariaLabel, empty } = {}) {
   const ledger = el(doc, 'div', { className: `bb-ws-ledger${className ? ` ${className}` : ''}`, attrs: { role: 'table', 'aria-label': ariaLabel } });
@@ -182,6 +184,18 @@ export function workspaceLedger(doc, { columns = [], rows = [], className = '', 
     }
     if (selectable) item.addEventListener('click', () => row.onSelect(row.key));
     ledger.append(item);
+    // A row's own detail opens right below it, across every column.
+    if (row.detail && typeof row.detail.tagName === 'string') {
+      item.setAttribute('aria-expanded', 'true');
+      if (row.detailId) item.setAttribute('aria-controls', row.detailId);
+      const holder = el(doc, 'div', { className: 'bb-ws-ledger-detail', attrs: { role: 'row' } });
+      const cell = el(doc, 'div', { className: 'bb-ws-ledger-detail-cell', attrs: { role: 'cell' } });
+      cell.append(row.detail);
+      holder.append(cell);
+      ledger.append(holder);
+    } else if (selectable && row.expandable) {
+      item.setAttribute('aria-expanded', 'false');
+    }
   }
   return ledger;
 }

@@ -213,9 +213,9 @@ export function facts(doc, rows, className = 'bb-graph-facts') {
 }
 
 /** Ids and digests stay in this disclosure, never in the visible copy. */
-export function recordDetails(doc, rows) {
+export function recordDetails(doc, rows, { title = '記録の詳細' } = {}) {
   const details = makeElement(doc, 'details', { className: 'bb-graph-audit' });
-  details.append(makeElement(doc, 'summary', { text: '記録の詳細' }), facts(doc, rows, 'bb-graph-facts is-mono'));
+  details.append(makeElement(doc, 'summary', { text: title }), facts(doc, rows, 'bb-graph-facts is-mono'));
   return details;
 }
 
@@ -662,6 +662,11 @@ export function createGraphLayout(doc, { root, rail, label, className, contractV
       surface.append(...workspaceChildren.filter(Boolean));
       const detail = makeElement(doc, 'div', { className: `bb-graph-rail ${className}-rail` });
       detail.append(...railChildren.filter(Boolean));
+      // A view with nothing for the rail (its detail is inside the workspace) draws no inline rail.
+      if (!rail && !railChildren.some(Boolean)) {
+        root.replaceChildren(surface);
+        return;
+      }
       if (rail) {
         root.replaceChildren(surface);
         rail.replaceChildren(detail);

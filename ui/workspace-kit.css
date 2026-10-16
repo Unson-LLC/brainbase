@@ -615,3 +615,11 @@
 .bb-ws-combobox-option-hint { color: var(--bb-color-muted); font-size: 12px; white-space: nowrap; }
 .bb-ws-combobox-status { margin: 0; padding: 2px 4px 0; color: var(--bb-color-muted); font-size: 12px; }
 @media (prefers-reduced-motion:reduce) { .bb-ws-combobox-popup { animation: none; } }
+
+/* A row's own detail, opened right below it across every column. */
+.bb-ws-ledger-detail {
+  border-bottom: 1px solid var(--bb-color-border-strong);
+  box-shadow: inset 3px 0 var(--bb-color-accent);
+  background: var(--bb-color-paper);
+}
+.bb-ws-ledger-detail-cell { min-width: 0; padding: 4px 16px 20px 19px; }

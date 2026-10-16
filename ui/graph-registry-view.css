@@ -9,12 +9,144 @@
 }
 
 .bb-gr-search {
-  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
   align-items: end;
 }
 
-.bb-gr-search-submit {
-  min-height: 40px;
+.bb-gr-type-combobox,
+.bb-gr-type-combobox .bb-ws-combobox-trigger {
+  width: 100%;
+}
+
+/* 詳しい条件: the day filter, kept out of the way. */
+.bb-gr-advanced {
+  margin-top: 10px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-gr-advanced > summary {
+  width: fit-content;
+  cursor: pointer;
+}
+
+.bb-gr-advanced[open] > summary {
+  margin-bottom: 10px;
+}
+
+.bb-gr-as-of-field {
+  max-width: 280px;
+}
+
+.bb-graph .bb-gr-hint {
+  margin: 6px 0 0;
+  color: var(--bb-color-quiet);
+  font-size: 11px;
+}
+
+/* The conditions in force, each removable. */
+.bb-gr-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin-top: 14px;
+}
+
+.bb-gr-filters-label {
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.bb-gr-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  border: 1px solid var(--bb-color-accent);
+  border-radius: 999px;
+  padding: 3px 6px 3px 10px;
+  background: var(--bb-color-accent-soft);
+  color: var(--bb-color-ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bb-gr-filter-chip > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bb-gr-filter-chip-x {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  color: var(--bb-color-muted);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.bb-gr-filter-chip:hover .bb-gr-filter-chip-x {
+  background: var(--bb-color-paper);
+  color: var(--bb-color-ink);
+}
+
+.bb-gr-filter-chip:focus-visible,
+.bb-gr-advanced > summary:focus-visible {
+  outline: 2px solid var(--bb-color-focus);
+  outline-offset: 2px;
+}
+
+.bb-gr-results[aria-busy='true'] .bb-graph-entity-ledger {
+  opacity: .6;
+  transition: opacity .12s ease;
+}
+
+/* The open record, right below its row. */
+.bb-gr-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-gr-detail-head > .bb-ws-rail-head {
+  flex: 1;
+  min-width: 0;
+  border-bottom: 0;
+  outline: none;
+}
+
+.bb-gr-detail-head > .bb-ws-rail-head > small {
+  color: var(--bb-color-accent);
+}
+
+.bb-gr-detail-close {
+  flex: none;
+  margin-top: 14px;
+}
+
+.bb-graph .bb-gr-detail-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 8px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-gr-results > .bb-gr-detail {
+  margin-bottom: 18px;
+  border: 1px solid var(--bb-color-border-strong);
+  border-left: 3px solid var(--bb-color-accent);
+  padding: 4px 16px 20px;
 }
 
 .bb-graph .bb-gr-caption {
@@ -75,8 +207,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .bb-gr-search-submit {
-    justify-self: start;
+  .bb-gr-detail-head {
+    flex-direction: column-reverse;
+  }
+
+  .bb-gr-detail-close {
+    align-self: flex-end;
+    margin-top: 8px;
   }
 
   .bb-graph-entity-ledger .bb-ws-ledger-row {
@@ -98,4 +235,32 @@
   .bb-graph-entity-type-ledger .bb-ws-ledger-row {
     grid-template-columns: 84px minmax(0, 1fr) 60px;
   }
+}
+
+/* The open record reads like the rail did, inside the workspace. */
+.bb-gr-detail .bb-ws-notice {
+  margin: 16px 0;
+  white-space: pre-line;
+}
+
+.bb-gr-detail .bb-ws-rail-head {
+  overflow-wrap: anywhere;
+}
+
+.bb-gr-detail > .bb-ws-actions,
+.bb-gr-detail > .bb-graph-history {
+  border-bottom: 1px solid var(--bb-color-border);
+  padding-block: 18px;
+}
+
+.bb-gr-detail > .bb-graph-history {
+  font-size: 13px;
+}
+
+.bb-gr-detail .bb-ws-rail-block > .bb-graph-block-lead {
+  margin-bottom: 12px;
+}
+
+.bb-gr-detail .bb-ws-rail-block > .bb-graph-empty {
+  font-size: 13px;
 }

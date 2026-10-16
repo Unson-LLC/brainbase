@@ -46,13 +46,30 @@ afterEach(async () => {
 
 const PAGE = { crumbs: ['あなたのBrainbase', '情報と関係'], source: '手元のGraph' };
 
-async function mountView() {
+/**
+ * The open record, wherever it hangs (below its row, or above the results):
+ * a live view so a test can keep one handle while the screen redraws.
+ */
+function detailView(root) {
+  return {
+    tagName: 'DIV',
+    attributes: {},
+    className: '',
+    textContent: '',
+    get children() {
+      const panel = findAll(root, (node) => node.attributes?.id === 'bb-gr-detail')[0];
+      return panel ? [panel] : [];
+    },
+  };
+}
+
+async function mountView(options = {}) {
   api = await startGraphApi(dataDir);
   const root = new FakeElement('div');
-  const rail = new FakeElement('div');
-  const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
+  const hostRail = new FakeElement('div');
+  const view = createGraphRegistryView({ root, rail: hostRail, page: PAGE, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12), ...options });
   await view.load();
-  return { root, rail, view };
+  return { root, rail: detailView(root), hostRail, view };
 }
 
 const byClass = (node, className) => findAll(node, (item) => String(item.className).split(' ').includes(className));
@@ -60,7 +77,29 @@ const resultRows = (root) => findAll(section(root, '検索結果'), (node) => no
 const resultNames = (root) => resultRows(root).map((row) => row.children[0].children[0].textContent);
 const resultRow = (root, key) => resultRows(root).find((row) => row.attributes['data-key'] === key);
 const railHead = (rail) => collectText(byClass(rail, 'bb-ws-rail-head')[0]);
+const DETAIL = '選んだ記録の詳細・';
 const ledgerIn = (node, className) => byClass(node, className)[0];
+
+/** The type filter is the shared searchable dropdown: open it and read or pick an option. */
+function typeBox(root) {
+  return findAll(root, (node) => node.attributes?.id === 'bb-gr-type')[0];
+}
+function typeOptions(root) {
+  const trigger = typeBox(root);
+  trigger.dispatch('click');
+  const options = findAll(trigger.parentNode, (node) => node.attributes?.role === 'option')
+    .map((node) => [node.attributes['data-value'], node.children[0].textContent]);
+  trigger.dispatch('click');
+  return options;
+}
+function chooseType(root, value) {
+  const trigger = typeBox(root);
+  trigger.dispatch('click');
+  const option = findAll(trigger.parentNode, (node) => node.attributes?.role === 'option' && node.attributes['data-value'] === value)[0];
+  if (!option) throw new Error(`no type option ${value}`);
+  return option.dispatch('click');
+}
+const chips = (root) => findAll(root, (node) => node.tagName === 'BUTTON' && String(node.className).includes('bb-gr-filter-chip')).map((node) => node.attributes['aria-label']);
 
 function searchForm(root) {
   return findAll(root, (node) => node.tagName === 'FORM' && node.className.includes('bb-gr-search'))[0];
@@ -73,7 +112,7 @@ function relationItem(rail, label, name) {
 describe('情報と関係: workspace', () => {
   it('follows the organization screen pattern and lists every record in a ledger when the query is empty', async () => {
     await writeGraphV2(dataDir);
-    const { root, rail } = await mountView();
+    const { root, hostRail } = await mountView();
     expect(collectText(byClass(root, 'bb-ws-breadcrumb')[0])).toBe('あなたのBrainbase/情報と関係');
     expect(findAll(root, (node) => node.tagName === 'H1')[0].textContent).toBe('情報と関係');
     expect(byClass(root, 'bb-ws-source')[0].textContent).toBe('手元のGraph');
@@ -93,23 +132,27 @@ describe('情報と関係: workspace', () => {
     expect(collectText(resultRow(root, 'person-tanaka'))).toBe('田中 太郎person-tanaka人物導入の最終判断を担当期限なし');
     expect(collectText(resultRow(root, 'person-suzuki'))).toBe('鈴木 一郎person-suzuki人物以前の担当2026-01-01 に終了');
     expect(resultRow(root, 'person-suzuki').className).toContain('is-ended');
-    expect(collectText(resultRow(root, 'org-acme'))).toBe('Acmeorg-acme組織要約なし期限なし');
+    // A record without a summary says so, rather than leaving the cell empty.
+    expect(collectText(resultRow(root, 'org-acme'))).toBe('Acmeorg-acme組織要約は未登録期限なし');
     // Nothing is selected until the owner picks a row.
     expect(resultRows(root).some((row) => row.className.includes('is-selected'))).toBe(false);
-    expect(collectText(rail)).toContain('記録を選択');
+    expect(collectText(hostRail)).toContain('記録を選択');
+    expect(collectText(hostRail)).toContain('その行のすぐ下に');
+    // No 探す button: the conditions apply as they change.
+    expect(buttonsNamed(root, '探す')).toEqual([]);
   });
 
   it('searches by name or alias, type and as-of date', async () => {
     await writeGraphV2(dataDir);
     const { root } = await mountView();
     type(root, 'q', 'tanaka');
-    type(root, 'type', 'person');
+    chooseType(root, 'person');
     await searchForm(root).dispatch('submit');
     expect(resultNames(root)).toEqual(['田中 太郎']);
     expect(api.requests.at(-1).path).toBe('/api/graph/search?q=tanaka&type=person&limit=50');
 
     type(root, 'q', '');
-    type(root, 'type', '');
+    chooseType(root, '');
     type(root, 'as_of', '2026-09-26');
     await searchForm(root).dispatch('submit');
     const url = new URL(api.requests.at(-1).path, 'http://localhost');
@@ -183,7 +226,7 @@ describe('情報と関係: workspace', () => {
   });
 });
 
-describe('情報と関係: the record in the rail', () => {
+describe('情報と関係: the record below its row', () => {
   it('shows the correction entry and save/readback flow before editing', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView();
@@ -211,7 +254,7 @@ describe('情報と関係: the record in the rail', () => {
     const { root, rail } = await mountView();
     resultRow(root, 'person-tanaka').dispatch('click');
     await waitFor(() => section(rail, '概要'));
-    expect(railHead(rail)).toBe('人物田中 太郎person-tanaka');
+    expect(railHead(rail)).toBe(`${DETAIL}人物田中 太郎person-tanaka`);
     expect(resultRow(root, 'person-tanaka').className).toContain('is-selected');
     const summary = visibleText(section(rail, '概要'));
     expect(summary).toContain('別名Tanaka');
@@ -236,8 +279,11 @@ describe('情報と関係: the record in the rail', () => {
       expect(visible, internal).not.toContain(internal);
     }
     expect(collectText(relationItem(rail, '出る関係', 'Acme'))).toContain(EDGES.tanakaAcme.id);
-    // The record itself is not repeated in the workspace.
-    expect(collectText(root)).not.toContain('出る関係');
+    // The ids sit in a disclosure that says whose ids they are.
+    const summaries = findAll(rail, (node) => node.tagName === 'SUMMARY').map((node) => node.textContent);
+    expect(summaries).toContain('この記録のID（技術情報）');
+    expect(summaries).toContain('この関係のID（技術情報）');
+    expect(summaries).not.toContain('記録の詳細');
   });
 
   it('keeps an empty relation result unconfirmed when the selected project still has known participants, and offers a retry', async () => {
@@ -267,8 +313,8 @@ describe('情報と関係: the record in the rail', () => {
       });
     };
     const root = new FakeElement('div');
-    const rail = new FakeElement('div');
-    const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
+    const rail = detailView(root);
+    const view = createGraphRegistryView({ root, rail: new FakeElement('div'), page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
     await view.load();
     await view.openEntity('project-atlas');
 
@@ -311,8 +357,8 @@ describe('情報と関係: the record in the rail', () => {
       });
     };
     const root = new FakeElement('div');
-    const rail = new FakeElement('div');
-    const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
+    const rail = detailView(root);
+    const view = createGraphRegistryView({ root, rail: new FakeElement('div'), page: PAGE, document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false, now: () => new Date(2026, 8, 20, 12) });
     await view.load();
     await view.openEntity('project-atlas');
 
@@ -326,14 +372,14 @@ describe('情報と関係: the record in the rail', () => {
     }
   });
 
-  it('moves the rail with the selected row', async () => {
+  it('moves the detail with the selected row', async () => {
     await writeGraphV2(dataDir);
     const { root, rail } = await mountView();
     resultRow(root, 'person-tanaka').dispatch('click');
     await waitFor(() => railHead(rail).includes('田中 太郎') && section(rail, '概要'));
     resultRow(root, 'org-acme').dispatch('click');
     await waitFor(() => railHead(rail).includes('Acme') && section(rail, '概要'));
-    expect(railHead(rail)).toBe('組織Acmeorg-acme');
+    expect(railHead(rail)).toBe(`${DETAIL}組織Acmeorg-acme`);
     expect(collectText(section(rail, '入る関係'))).toContain('田中 太郎が所属');
     expect(resultRow(root, 'org-acme').className).toContain('is-selected');
     expect(resultRow(root, 'person-tanaka').className).not.toContain('is-selected');
@@ -344,7 +390,9 @@ describe('情報と関係: the record in the rail', () => {
     const { root, rail, view } = await mountView();
     await view.openEntity('person-tanaka');
     buttonsNamed(relationItem(rail, '出る関係', 'Atlas導入'), 'Atlas導入')[0].dispatch('click');
-    await waitFor(() => railHead(rail) === 'プロジェクトAtlas導入project-atlas' && section(rail, '概要'));
+    await waitFor(() => railHead(rail) === `${DETAIL}プロジェクトAtlas導入project-atlas` && section(rail, '概要'));
+    // It opens in the same place, says where the trail began, and the row clicked stays marked.
+    expect(collectText(rail)).toContain('「田中 太郎」の関係からたどっています。');
     const incoming = collectText(section(rail, '入る関係'));
     expect(incoming).toContain('佐藤 花子が責任を持つ');
     expect(incoming).toContain('田中 太郎が参加');
@@ -355,7 +403,9 @@ describe('情報と関係: the record in the rail', () => {
     buttonsNamed(relationItem(rail, '入る関係', '佐藤 花子'), '佐藤 花子')[0].dispatch('click');
     await waitFor(() => visibleText(section(rail, '概要') ?? new FakeElement('div')).includes('進行管理'));
     expect(visibleText(relationItem(rail, '出る関係', 'Beta検証'))).toContain('オンボーディングの候補「佐藤 花子」（実行 run-1、承認済み、runs/connected-onboarding.json）');
-    expect(resultRow(root, 'person-sato').className).toContain('is-selected');
+    expect(resultRow(root, 'person-tanaka').className).toContain('is-selected');
+    expect(resultRow(root, 'person-sato').className).not.toContain('is-selected');
+    expect(railHead(rail)).toBe(`${DETAIL}人物佐藤 花子person-sato`);
 
     buttonsNamed(rail, '← 前の記録（Atlas導入）に戻る')[0].dispatch('click');
     await waitFor(() => railHead(rail).includes('Atlas導入') && section(rail, '概要'));
@@ -372,15 +422,154 @@ describe('情報と関係: the record in the rail', () => {
     expect(section(rail, '出る関係')).toBeUndefined();
   });
 
-  it('puts the rail content after the workspace when the host has no right rail', async () => {
+  it('draws nothing after the workspace when the host has no right rail: the record opens below its row', async () => {
     await writeGraphV2(dataDir);
     api = await startGraphApi(dataDir);
     const root = new FakeElement('div');
     const view = createGraphRegistryView({ root, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false });
     await view.load();
-    expect(root.children.map((node) => node.className)).toEqual(['bb-graph bb-gr', 'bb-graph-rail-inline']);
+    expect(root.children.map((node) => node.className)).toEqual(['bb-graph bb-gr']);
     await view.openEntity('person-tanaka');
-    expect(railHead(root.children[1])).toBe('人物田中 太郎person-tanaka');
+    expect(root.children.map((node) => node.className)).toEqual(['bb-graph bb-gr']);
+    expect(railHead(detailView(root))).toBe(`${DETAIL}人物田中 太郎person-tanaka`);
+  });
+});
+
+describe('情報と関係: what a press or a filter did, where it happened (story-graph-registry-immediate-feedback-v1)', () => {
+  const ledger = (root) => ledgerIn(section(root, '検索結果'), 'bb-graph-entity-ledger');
+
+  it('opens the record right below the pressed row, headed by its name, and closes it from the row, 閉じる or the rail', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, hostRail } = await mountView();
+    resultRow(root, 'person-tanaka').dispatch('click');
+    await waitFor(() => section(rail, '概要'));
+    // The detail is the ledger's next child after the pressed row, across every column.
+    const children = ledger(root).children;
+    const index = children.indexOf(resultRow(root, 'person-tanaka'));
+    expect(children[index + 1].className).toBe('bb-ws-ledger-detail');
+    expect(children[index + 1].children[0].children[0].attributes.id).toBe('bb-gr-detail');
+    expect(resultRow(root, 'person-tanaka').attributes['aria-expanded']).toBe('true');
+    expect(resultRow(root, 'person-tanaka').attributes['aria-controls']).toBe('bb-gr-detail');
+    expect(resultRow(root, 'org-acme').attributes['aria-expanded']).toBe('false');
+    expect(railHead(rail)).toBe(`${DETAIL}人物田中 太郎person-tanaka`);
+    // The rail only says which record is open and where.
+    expect(collectText(hostRail)).toContain('開いている記録');
+    expect(collectText(hostRail)).toContain('田中 太郎');
+    expect(collectText(hostRail)).toContain('この記録の行のすぐ下に開いています');
+    expect(buttonsNamed(hostRail, '詳細へ移る')).toHaveLength(1);
+    expect(section(hostRail, '出る関係')).toBeUndefined();
+
+    // Pressing the open row again closes it.
+    resultRow(root, 'person-tanaka').dispatch('click');
+    expect(rail.children).toEqual([]);
+    expect(resultRow(root, 'person-tanaka').className).not.toContain('is-selected');
+    expect(collectText(hostRail)).toContain('記録を選択');
+
+    resultRow(root, 'org-acme').dispatch('click');
+    await waitFor(() => section(rail, '概要'));
+    buttonsNamed(rail, '閉じる')[0].dispatch('click');
+    expect(rail.children).toEqual([]);
+
+    resultRow(root, 'org-acme').dispatch('click');
+    await waitFor(() => section(rail, '概要'));
+    buttonsNamed(hostRail, '閉じる')[0].dispatch('click');
+    expect(rail.children).toEqual([]);
+  });
+
+  it('opens a record that is not among the results above them, and says a missing summary is not registered', async () => {
+    await writeGraphV2(dataDir);
+    const { root, rail, view } = await mountView();
+    type(root, 'q', 'tanaka');
+    await searchForm(root).dispatch('submit');
+    await view.openEntity('org-acme');
+    const results = section(root, '検索結果');
+    expect(results.children.map((node) => node.attributes?.id ?? node.className)).toEqual(['bb-gr-caption', 'bb-gr-detail', 'bb-ws-ledger bb-graph-entity-ledger']);
+    expect(visibleText(section(rail, '概要'))).toContain('要約要約は未登録');
+  });
+
+  it('applies the name after typing pauses, never in the middle of a conversion, and Enter at once', async () => {
+    await writeGraphV2(dataDir);
+    const { root } = await mountView({ searchDelayMs: 0 });
+    const searches = () => api.requests.filter((request) => request.path.startsWith('/api/graph/search')).length;
+    const before = searches();
+    const q = control(root, 'q');
+    q.dispatch('compositionstart');
+    q.value = 'たなか';
+    q.dispatch('input', { isComposing: true });
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(searches()).toBe(before);
+    q.value = 'Tanaka';
+    q.dispatch('compositionend');
+    await waitFor(() => resultNames(root).length === 1);
+    expect(resultNames(root)).toEqual(['田中 太郎']);
+    expect(api.requests.at(-1).path).toBe('/api/graph/search?q=Tanaka&limit=50');
+    // Plain typing applies by itself too.
+    type(root, 'q', 'Acme');
+    await waitFor(() => resultNames(root).join() === 'Acme');
+  });
+
+  it('applies the type at once, shows each condition as a chip that removes it, and すべて外す clears them all', async () => {
+    await writeGraphV2(dataDir);
+    const { root } = await mountView();
+    expect(chips(root)).toEqual([]);
+    chooseType(root, 'person');
+    await waitFor(() => resultNames(root).length === 4);
+    expect(chips(root)).toEqual(['「種類: 人物」を外す']);
+    type(root, 'q', 'tanaka');
+    await searchForm(root).dispatch('submit');
+    expect(chips(root)).toEqual(['「名前・別名: tanaka」を外す', '「種類: 人物」を外す']);
+    expect(resultNames(root)).toEqual(['田中 太郎']);
+
+    findAll(root, (node) => node.attributes?.['aria-label'] === '「名前・別名: tanaka」を外す')[0].dispatch('click');
+    await waitFor(() => resultNames(root).length === 4);
+    expect(control(root, 'q').value).toBe('');
+    expect(chips(root)).toEqual(['「種類: 人物」を外す']);
+
+    type(root, 'as_of', '2026-09-26');
+    await waitFor(() => chips(root).length === 2);
+    expect(chips(root)).toEqual(['「種類: 人物」を外す', '「2026-09-26 の時点で有効なもの」を外す']);
+    await buttonsNamed(root, 'すべて外す')[0].dispatch('click');
+    await waitFor(() => resultNames(root).length === 8);
+    expect(chips(root)).toEqual([]);
+    expect(buttonsNamed(root, 'すべて外す')).toEqual([]);
+  });
+
+  it('keeps the day filter under 詳しい条件 in plain words', async () => {
+    await writeGraphV2(dataDir);
+    const { root } = await mountView();
+    const advanced = findAll(root, (node) => node.tagName === 'DETAILS' && String(node.className).includes('bb-gr-advanced'))[0];
+    expect(advanced.children[0].textContent).toBe('詳しい条件');
+    expect(control(advanced, 'as_of')).toBeDefined();
+    expect(collectText(advanced)).toContain('この日に有効だった記録だけ（空なら今日）');
+    expect(collectText(root)).not.toContain('有効時点');
+    // A day in force keeps it open.
+    type(root, 'as_of', '2026-09-26');
+    await waitFor(() => chips(root).length === 1);
+    const reopened = findAll(root, (node) => node.tagName === 'DETAILS' && String(node.className).includes('bb-gr-advanced'))[0];
+    expect(reopened.attributes.open).toBe('');
+  });
+
+  it('keeps the last results on screen while a new search is read', async () => {
+    await writeGraphV2(dataDir);
+    api = await startGraphApi(dataDir);
+    let release;
+    const fetcher = async (path, init) => {
+      if (String(path).includes('/search') && String(path).includes('q=Acme')) await new Promise((resolve) => { release = resolve; });
+      return api.fetcher(path, init);
+    };
+    const root = new FakeElement('div');
+    const view = createGraphRegistryView({ root, rail: new FakeElement('div'), document: new FakeDocument(), fetcher, token: TOKEN, autoLoad: false });
+    await view.load();
+    type(root, 'q', 'Acme');
+    const pending = searchForm(root).dispatch('submit');
+    await waitFor(() => release);
+    expect(resultNames(root)).toHaveLength(8);
+    expect(section(root, '検索結果').attributes['aria-busy']).toBe('true');
+    expect(collectText(section(root, '検索結果'))).toContain('新しい条件で探しています');
+    release();
+    await pending;
+    expect(resultNames(root)).toEqual(['Acme']);
+    expect(section(root, '検索結果').attributes['aria-busy']).toBe('false');
   });
 });
 
@@ -412,8 +601,8 @@ describe('情報と関係: corrections', () => {
     type(root, 'q', 'タナカ');
     await searchForm(root).dispatch('submit');
     expect(resultNames(root)).toEqual(['田中 太郎']);
-    // The record stays in the rail because it is among the new results.
-    expect(railHead(rail)).toBe('人物田中 太郎person-tanaka');
+    // The record stays open because its row is among the new results.
+    expect(railHead(rail)).toBe(`${DETAIL}人物田中 太郎person-tanaka`);
   });
 
   it('ends a relation with an end date and keeps the draft with the current values on a conflict', async () => {
@@ -584,15 +773,13 @@ describe('情報と関係: counts another host could not finish', () => {
 describe('情報と関係: host extensions', () => {
   const CORRECTION_BUTTONS = ['この記録を直す', '関係を加える', 'この関係を直す'];
   const correctionButtons = (node) => findAll(node, (item) => item.tagName === 'BUTTON' && CORRECTION_BUTTONS.includes(item.textContent));
-  const typeOptions = (root) => findAll(control(root, 'type'), (node) => node.tagName === 'OPTION').map((node) => [node.attributes.value, node.textContent]);
 
   async function mountWith(options) {
     api = await startGraphApi(dataDir);
     const root = new FakeElement('div');
-    const rail = new FakeElement('div');
-    const view = createGraphRegistryView({ root, rail, page: PAGE, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false, ...options });
+    const view = createGraphRegistryView({ root, rail: new FakeElement('div'), page: PAGE, document: new FakeDocument(), fetcher: api.fetcher, token: TOKEN, autoLoad: false, ...options });
     await view.load();
-    return { root, rail, view };
+    return { root, rail: detailView(root), view };
   }
 
   it('says the screen only checks when the host cannot correct, and uses the host guidance for an empty Graph', async () => {
@@ -630,7 +817,7 @@ describe('情報と関係: host extensions', () => {
     expect(correctionButtons(rail)).toEqual([]);
   });
 
-  it('shows the host note in the rail only when the host passes one, and replaces the 出典 notice', async () => {
+  it('shows the host note in the open record only when the host passes one, and replaces the 出典 notice', async () => {
     await writeGraphV2(dataDir);
     const { root, rail, view } = await mountWith({
       canCorrect: false,
@@ -729,11 +916,11 @@ describe('情報と関係: host extensions', () => {
       '/entities/task-1': () => ({ status: 'ok', source: { dataDir: '/data' }, asOf: '2026-09-26T00:00:00Z', entity: { ...entity('task-1', 'task', '見積もり'), metadata: {} }, outgoing: [], incoming: [], history: [], issues: [] }),
     };
     const root = new FakeElement('div');
-    const rail = new FakeElement('div');
+    const rail = detailView(root);
     let ontologyReady = false;
     const view = createGraphRegistryView({
       root,
-      rail,
+      rail: new FakeElement('div'),
       document: new FakeDocument(),
       autoLoad: false,
       canCorrect: false,
@@ -760,7 +947,7 @@ describe('情報と関係: host extensions', () => {
     expect(collectText(ledgerIn(section(root, '情報の種類とつながり方'), 'bb-graph-relation-type-ledger'))).toContain('assigned_totask → 人物担当している');
 
     await view.openEntity('task-1');
-    expect(railHead(rail)).toBe('task見積もりtask-1');
+    expect(railHead(rail)).toBe(`${DETAIL}task見積もりtask-1`);
     expect(collectText(section(rail, '出る関係'))).toContain('このtaskが起点になっている関係です。');
     const text = `${collectText(root)}${collectText(rail)}`;
     expect(text).not.toContain('undefined');

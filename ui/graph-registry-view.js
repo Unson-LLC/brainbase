@@ -4,9 +4,13 @@
  *
  * Built on the organization edition's screen pattern (workspace kit): the
  * workspace has the page head, the source notice, the search, the results
- * ledger and the kinds of information as two ledgers; the right rail has the
- * selected record — its outline, the relations going out and coming in, and
- * the corrections.
+ * ledger and the kinds of information as two ledgers.  A record picked from
+ * the results opens right below its row — its outline, the relations going
+ * out and coming in, and the corrections — so the owner sees what the click
+ * did where they clicked (story-graph-registry-immediate-feedback-v1).  The
+ * right rail only says which record is open and moves there.  The search
+ * applies as the conditions change, and the conditions in force show as
+ * chips that each remove themselves.
  *
  * Reads `GET {base}/search`, `GET {base}/entities/:id` and `GET {base}/ontology`
  * and corrects through `POST {base}/corrections` (see `graph-view-shared.js`).
@@ -63,6 +67,7 @@ import { graphOwnShareSource, ownEntityDetail, ownShareSection, ownShareStateNot
 import {
   workspaceActions,
   workspaceButton,
+  workspaceCombobox,
   workspaceDefinition,
   workspaceDetailEmpty,
   workspaceHostNotice,
@@ -81,6 +86,7 @@ export const GRAPH_RELATION_TYPE_LEDGER_COLUMNS = Object.freeze(['関係', '起�
 export const GRAPH_ENTITY_TYPE_LEDGER_COLUMNS = Object.freeze(['種類', '意味', '件数']);
 
 const INVALID = Object.freeze({ state: 'invalid', reason: '応答の形式が不正です' });
+const DETAIL_ID = 'bb-gr-detail';
 const ALL_TYPES = Object.freeze(['', 'すべての種類']);
 const TYPE_FILTERS = Object.freeze([ALL_TYPES, ...Object.entries(GRAPH_ENTITY_TYPE_LABELS)]);
 
@@ -272,6 +278,8 @@ function textCell(value, fallback) {
  * @param {string} [options.token] Launch token sent with a correction.
  * @param {string} [options.tokenHeader] Header name for the token.
  * @param {boolean} [options.autoLoad=true] Runs the empty search and reads the kinds on mount.
+ * @param {number} [options.searchDelayMs=300] How long the name field waits after the last keystroke
+ *   before it searches (never while a Japanese conversion is still being composed).
  * @param {string} [options.initialEntityId] Opens this exact entity after the initial Graph read.
  * @param {() => Date} [options.now] The owner's clock.
  * @param {boolean} [options.canCorrect=true] When false, no correction control is drawn anywhere
@@ -315,6 +323,7 @@ export function createGraphRegistryView({
   token,
   tokenHeader,
   autoLoad = true,
+  searchDelayMs = 300,
   initialEntityId,
   now = () => new Date(),
   canCorrect = true,
@@ -346,8 +355,14 @@ export function createGraphRegistryView({
     applied: { q: '', type: '', asOfDay: '' },
     queryMessage: null,
     search: { state: 'loading' },
-    // `detail` is the record in the rail: { id, state, payload?, pending? }.
+    // A new search is being read while the last results stay on screen.
+    searching: false,
+    // 詳しい条件 stays open across redraws once the owner opened it.
+    advancedOpen: false,
+    // `detail` is the open record: { id, state, payload?, pending? }.
     detail: null,
+    // The row of the results the open record hangs from (the record the owner clicked).
+    anchor: null,
     trail: [],
     ontology: { state: 'loading' },
     // Where the open correction shows: a relation id (inside that relation) or anything else (below the record actions).
@@ -356,6 +371,11 @@ export function createGraphRegistryView({
     own: own ? { search: { state: 'loading' }, detail: null } : null,
   };
   let focusRow = null;
+  // The control to keep focused across a redraw, and the open record to bring into view once.
+  let revealDetail = false;
+  let composing = false;
+  let renderDeferred = false;
+  let searchTimer = null;
 
   const correction = createGraphCorrection({
     client,
@@ -386,56 +406,124 @@ export function createGraphRegistryView({
   // -------------------------------------------------------------------------
   // Workspace
 
+  function cancelScheduledSearch() {
+    if (searchTimer !== null) clearTimeout(searchTimer);
+    searchTimer = null;
+  }
+
+  /** The name field searches once typing pauses; nothing is searched mid-conversion. */
+  function scheduleSearch() {
+    cancelScheduledSearch();
+    searchTimer = setTimeout(() => {
+      searchTimer = null;
+      void controller.search();
+    }, Math.max(0, Number(searchDelayMs) || 0));
+  }
+
   function renderSearchForm() {
     const section = makeElement(doc, 'section', { className: 'bb-gr-search-section', attrs: { 'aria-label': '検索' } });
     const form = makeElement(doc, 'form', { className: 'bb-graph-form bb-gr-search', attrs: { role: 'search', novalidate: true } });
+    // Enter searches at once; every other change searches by itself.
     form.addEventListener('submit', (event) => {
       event?.preventDefault?.();
+      cancelScheduledSearch();
       return controller.search();
     });
-    const field = (id, label, control) => {
-      const wrap = makeElement(doc, 'div', { className: 'bb-graph-field' });
+    const field = (id, label, control, className = '') => {
+      const wrap = makeElement(doc, 'div', { className: `bb-graph-field${className ? ` ${className}` : ''}` });
       wrap.append(makeElement(doc, 'label', { text: label, attrs: { for: id } }), control);
       return wrap;
     };
-    const bind = (control, key) => {
-      const update = (event) => { state.query[key] = event?.target?.value ?? control.value; };
-      control.addEventListener('input', update);
-      control.addEventListener('change', update);
-    };
-    const q = makeElement(doc, 'input', { attrs: { id: 'bb-gr-q', name: 'q', type: 'search', maxlength: 200, placeholder: '例: 田中' } });
+    const q = makeElement(doc, 'input', { attrs: { id: 'bb-gr-q', name: 'q', type: 'search', maxlength: 200, placeholder: '例: 田中', autocomplete: 'off', 'data-focus-key': 'q' } });
     q.value = state.query.q;
-    bind(q, 'q');
-    const type = makeElement(doc, 'select', { attrs: { id: 'bb-gr-type', name: 'type' } });
-    for (const [value, label] of graphTypeFilters(state.ontology)) {
-      const option = makeElement(doc, 'option', { text: label, attrs: { value } });
-      if (value === state.query.type) {
-        option.setAttribute('selected', 'selected');
-        option.selected = true;
-      }
-      type.append(option);
-    }
-    type.value = state.query.type;
-    bind(type, 'type');
-    const asOf = makeElement(doc, 'input', { attrs: { id: 'bb-gr-as-of', name: 'as_of', type: 'date' } });
+    q.addEventListener('input', (event) => {
+      state.query.q = event?.target?.value ?? q.value;
+      if (event?.isComposing || composing) return;
+      scheduleSearch();
+    });
+    q.addEventListener('compositionstart', () => { composing = true; });
+    q.addEventListener('compositionend', (event) => {
+      composing = false;
+      state.query.q = event?.target?.value ?? q.value;
+      scheduleSearch();
+      if (renderDeferred) controller.render();
+    });
+    const typeField = makeElement(doc, 'div', { className: 'bb-graph-field' });
+    const typeBox = workspaceCombobox(doc, {
+      label: '種類',
+      options: graphTypeFilters(state.ontology).map(([value, label]) => ({ value, label })),
+      value: state.query.type,
+      placeholder: 'すべての種類',
+      className: 'bb-gr-type-combobox',
+      onChange: (value) => {
+        state.query.type = value;
+        cancelScheduledSearch();
+        void controller.search();
+      },
+    });
+    typeBox.trigger.setAttribute('id', 'bb-gr-type');
+    typeBox.trigger.setAttribute('data-focus-key', 'type');
+    typeField.append(makeElement(doc, 'label', { text: '種類', attrs: { for: 'bb-gr-type' } }), typeBox.root);
+    // The day filter is kept out of the way: few owners need to look at another day.
+    const asOf = makeElement(doc, 'input', { attrs: { id: 'bb-gr-as-of', name: 'as_of', type: 'date', 'data-focus-key': 'as_of' } });
     asOf.value = state.query.asOfDay;
-    bind(asOf, 'asOfDay');
-    form.append(
-      field('bb-gr-q', '名前・別名', q),
-      field('bb-gr-type', '種類', type),
-      field('bb-gr-as-of', '有効時点（空なら今）', asOf),
-      makeElement(doc, 'button', { className: 'bb-ws-button is-primary bb-gr-search-submit', text: '探す', attrs: { type: 'submit' } }),
+    asOf.addEventListener('change', (event) => {
+      state.query.asOfDay = event?.target?.value ?? asOf.value;
+      cancelScheduledSearch();
+      void controller.search();
+    });
+    const advanced = makeElement(doc, 'details', { className: 'bb-gr-advanced' });
+    if (state.advancedOpen || state.query.asOfDay) advanced.setAttribute('open', '');
+    advanced.addEventListener('toggle', () => { state.advancedOpen = Boolean(advanced.open); });
+    advanced.append(
+      makeElement(doc, 'summary', { text: '詳しい条件' }),
+      field('bb-gr-as-of', 'この日に有効だった記録だけ（空なら今日）', asOf, 'bb-gr-as-of-field'),
+      makeElement(doc, 'p', { className: 'bb-gr-hint', text: '日付を選ぶと、その日にはまだ始まっていない記録と、もう終わっていた記録を外して見ます。' }),
     );
-    section.append(form);
+    form.append(field('bb-gr-q', '名前・別名', q), typeField);
+    section.append(form, advanced);
     if (state.queryMessage) section.append(workspaceNotice(doc, { label: '入力', text: state.queryMessage, tone: 'danger' }));
+    const chips = renderActiveFilters();
+    if (chips) section.append(chips);
     return section;
   }
 
+  /** The conditions the results were read with, each removable, and すべて外す. */
+  function renderActiveFilters() {
+    const applied = state.applied;
+    const items = [
+      applied.q.trim() ? ['q', `名前・別名: ${applied.q.trim()}`] : null,
+      applied.type ? ['type', `種類: ${typeLabel(applied.type)}`] : null,
+      applied.asOfDay ? ['asOfDay', `${applied.asOfDay} の時点で有効なもの`] : null,
+    ].filter(Boolean);
+    if (items.length === 0) return null;
+    const bar = makeElement(doc, 'div', { className: 'bb-gr-filters', attrs: { role: 'group', 'aria-label': '今の絞り込み' } });
+    bar.append(makeElement(doc, 'span', { className: 'bb-gr-filters-label', text: '絞り込み中' }));
+    for (const [key, text] of items) {
+      const chip = makeElement(doc, 'button', { className: 'bb-gr-filter-chip', attrs: { type: 'button', 'aria-label': `「${text}」を外す` } });
+      chip.append(makeElement(doc, 'span', { text }), makeElement(doc, 'span', { className: 'bb-gr-filter-chip-x', text: '×', attrs: { 'aria-hidden': 'true' } }));
+      chip.addEventListener('click', () => controller.clearFilter(key));
+      bar.append(chip);
+    }
+    bar.append(button(doc, 'すべて外す', () => controller.clearFilters(), { className: 'bb-graph-link bb-gr-filters-clear' }));
+    return bar;
+  }
+
+  /** Where the open record hangs: under its row when the results list it, otherwise above them. */
+  function anchoredRow() {
+    if (!state.detail || state.search.state !== 'ok') return null;
+    const key = state.anchor ?? state.detail.id;
+    return state.search.payload.results.some((entity) => entity.id === key) ? key : null;
+  }
+
   function renderResults() {
-    const section = makeElement(doc, 'section', { className: 'bb-gr-results', attrs: { 'aria-label': '検索結果' } });
+    const section = makeElement(doc, 'section', { className: 'bb-gr-results', attrs: { 'aria-label': '検索結果', 'aria-busy': state.searching ? 'true' : 'false' } });
     const stateNotice = graphStateNotice(doc, state.search, { onRetry: () => controller.search(), loadingText: '記録を探しています。' });
+    const rowKey = anchoredRow();
+    // A record not among the results (an address that named it, or a search still being read) opens above them.
+    const detailAbove = state.detail && !rowKey ? renderDetail() : null;
     if (stateNotice) {
-      section.append(stateNotice);
+      section.append(...[detailAbove, stateNotice].filter(Boolean));
       return section;
     }
     const { payload } = state.search;
@@ -459,26 +547,32 @@ export function createGraphRegistryView({
     const asOfDay = asOf ? state.applied.asOfDay || String(asOf).slice(0, 10) : null;
     section.append(makeElement(doc, 'p', {
       className: 'bb-gr-caption',
+      attrs: { role: 'status' },
       // Next to the owner's own share, these results are named as the organization's.
-      text: `${own ? '組織のGraphの' : ''}${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の時点で有効なもの）` : ''}`,
+      text: `${own ? '組織のGraphの' : ''}${Number.isInteger(payload.total) ? `検索結果 ${payload.total}件` : `検索結果 ${payload.results.length}件を表示（全体の件数は未確認）`}${asOfDay ? `（${asOfDay} の時点で有効なもの）` : ''}${state.searching ? '。新しい条件で探しています…' : ''}`,
     }));
+    if (detailAbove) section.append(detailAbove);
     section.append(workspaceLedger(doc, {
       className: 'bb-graph-entity-ledger',
       ariaLabel: '検索結果の一覧',
       columns: GRAPH_ENTITY_LEDGER_COLUMNS,
-      empty: '条件に合う記録はありません。名前や別名、種類、有効時点を変えて探してください。',
+      empty: '条件に合う記録はありません。名前・別名や種類、日付の条件を変えるか、上の「すべて外す」で条件を外してください。',
       rows: payload.results.map((entity) => ({
         key: entity.id,
-        selected: entity.id === state.detail?.id,
+        selected: entity.id === rowKey,
         className: entity.active ? '' : 'is-ended',
+        expandable: true,
+        // Pressing the open row again closes its detail.
         onSelect: (id) => {
           focusRow = id;
-          void controller.openEntity(id);
+          if (id === rowKey) controller.closeEntity();
+          else void controller.openEntity(id);
         },
+        ...(entity.id === rowKey ? { detail: renderDetail(), detailId: DETAIL_ID } : {}),
         cells: [
           { primary: entity.name, secondary: entity.id },
           typeLabel(entity.type),
-          textCell(entity.summary, '要約なし'),
+          textCell(entity.summary, '要約は未登録'),
           validityLabel(entity, asOf ?? now().toISOString()),
         ],
       })),
@@ -556,7 +650,7 @@ export function createGraphRegistryView({
       ['定義ID', textOrNull(ontology.id) ?? '未確認'],
       ['定義の版', version ?? '未確認'],
       ['release digest', textOrNull(ontology.releaseDigest) ?? '未確認'],
-    ]));
+    ], { title: 'この定義のID（技術情報）' }));
     return section;
   }
 
@@ -579,7 +673,6 @@ export function createGraphRegistryView({
         label: '出典',
         text: `このMacのGraph${dir ? `（${dir}）` : ''}だけを表示します。ここで直した内容は、同じGraphを読むMCPの search・get_context・resolve_entity で次から使われます。`,
       }),
-      state.detail?.state === 'ok' ? renderGraphIssues(doc, state.detail.payload.issues) : null,
       renderSearchForm(),
       renderResults(),
       own ? renderOwnShare() : null,
@@ -612,7 +705,7 @@ export function createGraphRegistryView({
           cells: [
             { primary: entity.name, secondary: entity.id },
             typeLabel(entity.type),
-            textCell(entity.summary, '要約なし'),
+            textCell(entity.summary, '要約は未登録'),
             validityLabel(entity, asOf ?? now().toISOString()),
           ],
         })),
@@ -668,7 +761,7 @@ export function createGraphRegistryView({
       ['終点ID', edge.toId],
       ['出典ID', edge.provenance.sourceId],
       ['digest', edge.digest],
-    ]));
+    ], { title: 'この関係のID（技術情報）' }));
     if (edgesWritable && state.panelAt === edge.id) {
       const panel = correction.render(doc);
       if (panel) item.append(panel);
@@ -718,41 +811,86 @@ export function createGraphRegistryView({
     return wrap;
   }
 
+  /** What the rail says: which record is open below its row, and a way there. */
   function renderRail() {
+    // A host without a rail draws nothing after the workspace: the record is already open in it.
+    if (layout.inline) return [];
     const detail = state.detail;
     if (!detail) {
       return [workspaceDetailEmpty(doc, {
         mark: 'G',
         title: '記録を選択',
-        text: '検索結果から選ぶと、別名・要約と、出る関係・入る関係を出典つきで表示します。',
+        text: '検索結果の行を押すと、その行のすぐ下に、別名・要約と、出る関係・入る関係を出典つきで開きます。',
       })];
     }
+    const entity = openEntityHead();
+    return [workspaceRailBlock(doc, {
+      title: '開いている記録',
+      className: 'bb-gr-rail-open',
+      content: [
+        workspaceRailHead(doc, { kicker: entity.type ? typeLabel(entity.type) : '記録', title: entity.name, sub: entity.id }),
+        makeElement(doc, 'p', { className: 'bb-graph-block-lead', text: '詳細は、検索結果のこの記録の行のすぐ下に開いています。' }),
+        workspaceActions(doc, [
+          workspaceButton(doc, { text: '詳細へ移る', variant: 'quiet', onClick: () => controller.revealDetail() }),
+          workspaceButton(doc, { text: '閉じる', variant: 'quiet', onClick: () => controller.closeEntity() }),
+        ]),
+      ],
+    })];
+  }
+
+  function openEntityHead() {
+    const detail = state.detail;
+    return (detail.state === 'ok' ? detail.payload.entity : null) ?? detail.pending ?? { id: detail.id, name: detail.id, type: null };
+  }
+
+  /** The open record, right below the row the owner pressed: its name heads it so it is clear what it details. */
+  function renderDetail() {
+    const detail = state.detail;
+    const panel = makeElement(doc, 'section', { className: 'bb-gr-detail', attrs: { id: DETAIL_ID, 'aria-label': '選んだ記録の詳細' } });
     const children = [];
+    const loaded = detail.state === 'ok' ? detail.payload : null;
+    const entity = openEntityHead();
+    const head = makeElement(doc, 'div', { className: 'bb-gr-detail-head' });
+    const heading = workspaceRailHead(doc, {
+      kicker: `選んだ記録の詳細・${entity.type ? typeLabel(entity.type) : '記録'}`,
+      title: entity.name,
+      sub: entity.id,
+    });
+    heading.setAttribute('tabindex', '-1');
+    heading.setAttribute('data-detail-heading', '');
+    head.append(heading, button(doc, '閉じる', () => controller.closeEntity(), { className: 'bb-ws-button is-quiet bb-gr-detail-close', attrs: { 'aria-label': `「${entity.name}」の詳細を閉じる` } }));
+    children.push(head);
+    // Followed from a relation: say where it started and how to go back.
     const previous = state.trail[state.trail.length - 1];
     if (previous) {
-      children.push(button(doc, `← 前の記録（${previous.name}）に戻る`, () => controller.back(), { className: 'bb-graph-link bb-graph-back' }));
+      const origin = state.trail[0];
+      const trail = makeElement(doc, 'p', { className: 'bb-gr-detail-trail' });
+      trail.append(
+        makeElement(doc, 'span', { text: `「${origin.name}」の関係からたどっています。` }),
+        button(doc, `← 前の記録（${previous.name}）に戻る`, () => controller.back(), { className: 'bb-graph-link bb-graph-back' }),
+      );
+      children.push(trail);
     }
-    const loaded = detail.state === 'ok' ? detail.payload : null;
-    const entity = loaded?.entity ?? detail.pending ?? { id: detail.id, name: detail.id, type: null };
-    children.push(workspaceRailHead(doc, { kicker: entity.type ? typeLabel(entity.type) : '記録', title: entity.name, sub: entity.id }));
     if (!loaded) {
       children.push(graphStateNotice(doc, detail, { onRetry: () => controller.loadEntity(detail.id), loadingText: 'この記録を読み込んでいます。' }));
-      return children;
+      panel.append(...children.filter(Boolean));
+      return panel;
     }
+    children.push(renderGraphIssues(doc, loaded.issues));
     // The record a host's read-only note may point at.
     const noteSubject = { id: entity.id, type: entity.type, metadata: loaded.entity?.metadata ?? {} };
     const summaryRows = [
       ['別名', entity.aliases.length > 0 ? entity.aliases.join('、') : { text: 'なし', className: 'is-unrecorded' }],
-      ['要約', textOrNull(entity.summary)],
+      ['要約', textOrNull(entity.summary) ?? { text: '要約は未登録', className: 'is-unrecorded' }],
       ['有効期間', validityValue(entity, loaded.asOf)],
       ...(entity.type === 'project' ? [['目的', textOrNull(entity.goal)], ['状態', textOrNull(entity.status)]] : []),
-      ...(state.applied.asOfDay ? [['見ている時点', `${state.applied.asOfDay}（有効時点で絞っています）`]] : []),
+      ...(state.applied.asOfDay ? [['見ている時点', `${state.applied.asOfDay} の時点で有効なものを見ています`]] : []),
     ];
     children.push(workspaceRailBlock(doc, {
       title: '概要',
       content: [
         workspaceDefinition(doc, summaryRows),
-        recordDetails(doc, [['記録ID', entity.id], ['種類ID', entity.type], ['digest', entity.digest], ['読み取った時点', loaded.asOf]]),
+        recordDetails(doc, [['記録ID', entity.id], ['種類ID', entity.type], ['digest', entity.digest], ['読み取った時点', loaded.asOf]], { title: 'この記録のID（技術情報）' }),
       ],
     }));
     if (writable) {
@@ -793,7 +931,8 @@ export function createGraphRegistryView({
     }
     children.push(renderRelations(loaded, 'outgoing'), renderRelations(loaded, 'incoming'));
     children.push(renderCorrectionHistory(doc, loaded.history));
-    return children;
+    panel.append(...children.filter(Boolean));
+    return panel;
   }
 
   function closeCorrection() {
@@ -809,41 +948,88 @@ export function createGraphRegistryView({
     return normalizeSearch(await client.read('/search', searchParams(query)));
   }
 
-  /** Keeps the record in the rail only when it is among the new results. */
+  /** Keeps the open record only while the row it hangs from is among the new results. */
   async function followResults() {
     const detail = state.detail;
     if (!detail) return;
-    const listed = state.search.state === 'ok' && state.search.payload.results.some((entity) => entity.id === detail.id);
+    const key = state.anchor ?? detail.id;
+    const listed = state.search.state === 'ok' && state.search.payload.results.some((entity) => entity.id === key);
     if (!listed) {
       closeCorrection();
       state.detail = null;
+      state.anchor = null;
       state.trail = [];
       return;
     }
     await controller.loadEntity(detail.id, { keep: true });
   }
 
+  /** The focused search control, so a redraw (which rebuilds the form) can give focus back. */
+  function focusedControl() {
+    const active = doc.activeElement;
+    const key = active?.getAttribute?.('data-focus-key');
+    if (!key || typeof root.contains !== 'function' || !root.contains(active)) return null;
+    return { key, start: active.selectionStart ?? null, end: active.selectionEnd ?? null };
+  }
+
+  function restoreFocus(saved) {
+    if (!saved || typeof root.querySelector !== 'function') return;
+    const control = root.querySelector(`[data-focus-key="${saved.key}"]`);
+    if (!control || doc.activeElement === control) return;
+    control.focus?.({ preventScroll: true });
+    if (saved.start !== null && typeof control.setSelectionRange === 'function') {
+      try { control.setSelectionRange(saved.start, saved.end ?? saved.start); } catch { /* a date field has no caret */ }
+    }
+  }
+
+  /** Brings the open record's heading into view and onto focus, once after the owner opened it. */
+  function showDetail({ focus = false } = {}) {
+    if (typeof root.querySelector !== 'function') return;
+    const heading = root.querySelector('[data-detail-heading]');
+    if (!heading) return;
+    heading.scrollIntoView?.({ block: 'nearest' });
+    if (focus) heading.focus?.({ preventScroll: true });
+  }
+
   const controller = {
     get state() { return state; },
     get correction() { return correction; },
     render() {
+      // Redrawing mid-conversion would drop the characters being composed; draw when it ends.
+      if (composing) {
+        renderDeferred = true;
+        return controller;
+      }
+      renderDeferred = false;
+      const saved = focusedControl();
       layout.render(renderWorkspace(), renderRail());
       if (focusRow) {
         focusLedgerRow(root, focusRow);
         focusRow = null;
+      } else {
+        restoreFocus(saved);
+      }
+      if (revealDetail && state.detail) {
+        revealDetail = false;
+        showDetail();
       }
       return controller;
     },
-    /** Runs the search in the form.  The record in the rail stays while it is among the results. */
+    /**
+     * Runs the search in the form.  The last results stay on screen while the
+     * new ones are read; the open record stays while its row is among them.
+     */
     async search() {
+      cancelScheduledSearch();
       if (state.query.asOfDay && !dayToRfc3339(state.query.asOfDay)) {
-        state.queryMessage = '有効時点の日付の形式が正しくありません。';
+        state.queryMessage = '日付の形式が正しくありません。';
         controller.render();
         return state.search;
       }
       state.queryMessage = null;
       state.applied = { ...state.query };
-      state.search = { state: 'loading' };
+      if (state.search.state === 'ok') state.searching = true;
+      else state.search = { state: 'loading' };
       controller.render();
       const applied = state.applied;
       // The owner's own share answers the same search on its own; neither waits on the other's failure.
@@ -853,11 +1039,42 @@ export function createGraphRegistryView({
         await owning;
         return state.search;
       }
+      state.searching = false;
       state.search = result;
       await followResults();
       controller.render();
       await owning;
       return state.search;
+    },
+    /** Removes one condition (`q`, `type` or `asOfDay`) and searches again. */
+    async clearFilter(key) {
+      if (!Object.hasOwn(state.query, key)) return state.search;
+      state.query = { ...state.query, [key]: '' };
+      const result = controller.search();
+      root.querySelector?.('[data-focus-key="q"]')?.focus?.({ preventScroll: true });
+      return result;
+    },
+    /** Removes every condition and searches again. */
+    async clearFilters() {
+      state.query = { q: '', type: '', asOfDay: '' };
+      const result = controller.search();
+      root.querySelector?.('[data-focus-key="q"]')?.focus?.({ preventScroll: true });
+      return result;
+    },
+    /** Closes the open record. */
+    closeEntity() {
+      closeCorrection();
+      const anchor = state.anchor;
+      state.detail = null;
+      state.anchor = null;
+      state.trail = [];
+      if (anchor) focusRow = anchor;
+      controller.render();
+      return null;
+    },
+    /** Moves to the open record below its row (the rail's 詳細へ移る). */
+    revealDetail() {
+      showDetail({ focus: true });
     },
     /** Runs the applied search on the owner's own share (with `ownShare`); a failure stays in that section. */
     async searchOwn() {
@@ -910,7 +1127,7 @@ export function createGraphRegistryView({
     async loadEntity(id, { keep = false, pending } = {}) {
       const previous = state.detail;
       if (!(keep && previous?.id === id && previous.state === 'ok')) {
-        // What is already known about the record (name, kind) heads the rail while it loads.
+        // What is already known about the record (name, kind) heads its detail while it loads.
         const known = pending ?? (previous?.id === id ? previous.payload?.entity ?? previous.pending ?? null : null);
         state.detail = { id, state: 'loading', pending: known ? { id, name: known.name, type: known.type } : null };
         controller.render();
@@ -930,8 +1147,13 @@ export function createGraphRegistryView({
      */
     async openEntity(id, { from, pending } = {}) {
       closeCorrection();
+      // A relation followed from the open record keeps opening below the same row.
       if (from) state.trail.push({ id: from.id, name: from.name, type: from.type });
-      else state.trail = [];
+      else {
+        state.trail = [];
+        state.anchor = id;
+      }
+      revealDetail = true;
       const listed = state.search.state === 'ok' ? state.search.payload.results.find((entity) => entity.id === id) : null;
       return controller.loadEntity(id, { keep: true, pending: pending ?? listed ?? null });
     },
@@ -939,6 +1161,7 @@ export function createGraphRegistryView({
       closeCorrection();
       const previous = state.trail.pop();
       if (!previous) return state.detail;
+      revealDetail = true;
       return controller.loadEntity(previous.id, { pending: previous });
     },
     async loadOntology({ keep = false } = {}) {
