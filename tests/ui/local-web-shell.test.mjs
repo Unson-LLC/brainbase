@@ -204,8 +204,12 @@ describe('local Web shell', () => {
       screens: [extension('world', '世界'), ...LOCAL_WEB_SCREENS, extension('extra', '追加')],
     });
     await flush();
-    const links = findAll(root, (node) => node.tagName === 'A').map((link) => link.attributes.href);
-    expect(links).toEqual(['#world', '#objectives', '#projects', '#minutes', '#value-proofs', '#graph', '#people', '#ontology', '#extra']);
+    const nav = findAll(root, (node) => node.tagName === 'NAV')[0];
+    const lines = findAll(nav, (node) => node.tagName === 'A').map((link) => [collectText(link), link.attributes.href]);
+    // Each extension is a line of its own, around the areas (ledger D10, stage 2).
+    expect(lines).toEqual([
+      ['世界', '#world'], ['目的と現状', '#objectives'], ['仕事', '#projects'], ['成果', '#value-proofs'], ['情報と関係', '#graph'], ['設定', '#ontology'], ['追加', '#extra'],
+    ]);
     // The first screen is still the first of the given screens.
     expect(shell.state.active).toBe('world');
   });
@@ -214,31 +218,23 @@ describe('local Web shell', () => {
     const { fetcher } = hostFetcher(V2);
     const { root, shell } = mount(fetcher);
     await flush();
-    const links = findAll(root, (node) => node.tagName === 'A');
-    // The menu follows the six areas (ledger D10): 目的と現状, then 仕事, 成果, 情報と関係 and 設定 (D14).
-    expect(links.map((link) => [link.textContent, link.attributes.href])).toEqual([
-      ['目的と現状', '#objectives'], ['プロジェクトと関係者', '#projects'], ['議事録', '#minutes'], ['判断の履歴', '#value-proofs'], ['情報と関係', '#graph'], ['人と会社', '#people'], ['情報の種類とつながり方', '#ontology'],
+    const nav = findAll(root, (node) => node.tagName === 'NAV')[0];
+    const links = findAll(nav, (node) => node.tagName === 'A');
+    // The left side lists only the areas (ledger D10, stage 2): no headings, one line per area.
+    expect(links.map((link) => [collectText(link), link.attributes.href])).toEqual([
+      ['目的と現状', '#objectives'], ['仕事', '#projects'], ['成果', '#value-proofs'], ['情報と関係', '#graph'], ['設定', '#ontology'],
     ]);
+    expect(findAll(nav, (node) => node.attributes?.role === 'group')).toEqual([]);
     // The screen order, and so the first screen, does not change.
     expect(LOCAL_WEB_SCREENS.map((entry) => [entry.id, entry.usesGraph])).toEqual([
       ['value-proofs', false], ['minutes', false], ['objectives', true], ['projects', true], ['graph', true], ['people', true], ['ontology', true],
     ]);
     expect(links.find((link) => link.attributes.href === '#value-proofs').attributes['aria-current']).toBe('page');
     expect(shell.state.active).toBe('value-proofs');
-    const nav = findAll(root, (node) => node.tagName === 'NAV')[0];
-    const groups = findAll(nav, (node) => node.attributes?.role === 'group');
-    expect(groups.map((group) => {
-      const head = group.children[0];
-      return [head.textContent, group.attributes['aria-labelledby'] === head.attributes.id, findAll(group, (node) => node.tagName === 'A').map((link) => link.attributes.href)];
-    })).toEqual([
-      ['仕事', true, ['#projects', '#minutes']],
-      ['成果', true, ['#value-proofs']],
-      ['情報と関係', true, ['#graph', '#people']],
-      ['設定', true, ['#ontology']],
-    ]);
-    // 目的と現状 sits above the headings.
-    expect(nav.children[0].attributes?.href).toBe('#objectives');
-    // One icon per item.
+    // 成果 has one screen, so no tabs.
+    const tabs = findAll(root, (node) => node.className === 'bb-area-tabs')[0];
+    expect(tabs.hidden).toBe(true);
+    // One icon per line.
     const icons = links.map((link) => JSON.stringify((link.children[0]?.children ?? []).map((path) => path.attributes?.d)));
     expect(icons.every((icon) => icon !== '[]')).toBe(true);
     expect(new Set(icons).size).toBe(icons.length);
@@ -248,6 +244,33 @@ describe('local Web shell', () => {
     expect(source).toContain('Graphv2');
     expect(source).not.toContain('組織のGraph');
     expect(collectText(screen(root, 'value-proofs'))).toContain('判断の記録に接続できません');
+  });
+
+  it('switches the screens of an area with tabs above the page and reopens the last one', async () => {
+    const { fetcher } = hostFetcher(V2);
+    const memory = new Map();
+    const areaMemory = { get: (area) => memory.get(area) ?? null, set: (area, screenId) => memory.set(area, screenId) };
+    const { root, shell } = mount(fetcher, 'minutes', { areaMemory });
+    await flush();
+    const tabs = findAll(root, (node) => node.className === 'bb-area-tabs')[0];
+    expect(tabs.hidden).toBe(false);
+    expect(tabs.attributes['aria-label']).toBe('仕事の画面');
+    expect(tabs.children.map((tab) => [collectText(tab), tab.attributes.href, tab.attributes['aria-current'] ?? null])).toEqual([
+      ['プロジェクトと関係者', '#projects', null], ['議事録', '#minutes', 'page'],
+    ]);
+    const workLink = findAll(root, (node) => node.attributes?.['data-area'] === 'work')[0];
+    expect(workLink.attributes['aria-current']).toBe('page');
+    // 仕事 now opens 議事録, the screen last used there; the screen address is unchanged.
+    expect(workLink.attributes.href).toBe('#minutes');
+    expect(memory.get('work')).toBe('minutes');
+    shell.show('people');
+    await flush();
+    expect(tabs.children.map((tab) => tab.attributes.href)).toEqual(['#graph', '#people']);
+    const infoLink = findAll(root, (node) => node.attributes?.['data-area'] === 'information')[0];
+    expect(infoLink.attributes.href).toBe('#people');
+    // Clicking an area link shows its target screen.
+    workLink.listeners.get('click')({});
+    expect(shell.state.active).toBe('minutes');
   });
 
   it('mounts the Objective editor and the World Model view for 目的と現状 on Graph v2', async () => {
