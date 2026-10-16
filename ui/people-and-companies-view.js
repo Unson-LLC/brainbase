@@ -3,14 +3,21 @@
  * to, and whether they are internal, external or not yet known.
  *
  * Reads `GET {base}/people-and-companies` for the ledgers and
- * `GET {base}/entities/:id` for the selected record in the right rail (see
- * `graph-view-shared.js`).  Read only unless the host says it can write
- * (`canCorrect: true`): then it creates people and companies
- * (`create_entity`), adds a company membership (`create_edge` of
- * `member_of`) and ends one with an end date (`update_edge`), all through
- * `POST {base}/corrections`.  Nothing is deleted.  After a save the ledgers
- * and the rail are read again from the host.  Other corrections stay in
- * 「情報と関係」, which the rail links to.
+ * `GET {base}/entities/:id` for the selected record (see
+ * `graph-view-shared.js`).  Choosing a row turns the workspace into the
+ * record's page, as a CRM does: a way back to the ledgers with the record's
+ * place and previous / next, the head with what can be done to this record,
+ * then its memberships and projects.  The record's facts (standing, kind,
+ * validity, id) sit in the right rail, or on the page when the host has no
+ * rail.  So the page never depends on where a host puts its rail on a narrow
+ * screen.  Read only unless the host says it can write (`canCorrect: true`):
+ * then it creates people and companies (`create_entity`), adds a company
+ * membership (`create_edge` of `member_of`) and ends one with an end date
+ * (`update_edge`), all through `POST {base}/corrections`.  Nothing is
+ * deleted, and the page says so next to the actions.  A viewer who cannot
+ * write sees the actions disabled with the reason.  After a save the ledgers
+ * and the record are read again from the host.  Other corrections stay in
+ * 「情報と関係」, which the page links to.
  *
  * The company text recorded on a person (`orgNote`) is shown only for
  * people whose company is not yet known, and only as a note: it never
@@ -54,6 +61,7 @@ import {
   validityLabel,
 } from './graph-view-shared.js';
 import {
+  workspaceButton,
   workspaceDefinition,
   workspaceDetailEmpty,
   workspaceHostNotice,
@@ -61,7 +69,6 @@ import {
   workspaceNotice,
   workspacePageHeader,
   workspaceRailBlock,
-  workspaceRailHead,
   workspaceSectionTitle,
 } from './workspace-kit.js';
 
@@ -81,6 +88,10 @@ const COMPANY_KIND_SOURCE_LABELS = Object.freeze({
 const RELATED_ROLE_LABELS = Object.freeze({ customer: '顧客', partner: '協業先' });
 
 const INVALID = Object.freeze({ state: 'invalid', reason: '応答の形式が不正です' });
+
+/** What the page says next to the actions: nothing is deleted, a membership is ended. */
+export const NO_DELETE_NOTE = '消す操作はありません。所属は終了日を入れて「終える」と一覧から外れ、記録は履歴に残ります。';
+const DEFAULT_READ_ONLY_NOTE = 'この画面では見るだけです。人・会社の追加と、所属を付ける・終える操作はできません。';
 
 const OWN_COMPANY_REASONS = Object.freeze({
   owner_has_no_company: 'あなた（本人）の所属する会社がGraphにありません。',
@@ -209,6 +220,12 @@ export function personOrgNote(person, ownCompanyId) {
  *   A host that places people in projects lists the projects a new person may join as
  *   `personProjects` (`[{ code, name }]`) in its read; 人を加える then requires one and sends it as
  *   `entity.projectCode`.  Without that list (the local host) no project is asked or sent.
+ * @param {string | ((subject: { id: string, type: string, name: string } | null) => string | null)} [options.readOnlyNote]
+ *   Without writes, why the actions are disabled (for example who can write).  Without it a
+ *   general sentence is shown; the part names no role itself.
+ * @param {string} [options.recordFixNote] When the host cannot correct a person's or company's own
+ *   record (name, aliases, summary), why; the page then shows this instead of the link to
+ *   「情報と関係」.
  * @param {string} [options.token] Launch token sent with a correction.
  * @param {string} [options.tokenHeader] Header name for the token.
  */
@@ -228,6 +245,8 @@ export function createPeopleAndCompaniesView({
   correctionScope,
   sourceNotice,
   emptyNotice,
+  readOnlyNote,
+  recordFixNote,
   correctionHref = (id) => `#graph?entity_id=${encodeURIComponent(id)}`,
 } = {}) {
   if (!root) throw new TypeError('root is required');
@@ -251,6 +270,10 @@ export function createPeopleAndCompaniesView({
     contractVersion: PEOPLE_AND_COMPANIES_VIEW_CONTRACT_VERSION,
   });
   const state = { list: { state: 'loading' }, detail: null };
+  // Where to move after the next render: the opened record's head, or the row it was opened from.
+  let pendingScroll = null;
+  let detailTop = null;
+  let detailHead = null;
   const correction = createGraphCorrection({
     client,
     now,
@@ -371,10 +394,35 @@ export function createPeopleAndCompaniesView({
     return cell;
   }
 
-  function sectionActions(label, onClick) {
-    const actions = makeElement(doc, 'div', { className: 'bb-pc-actions' });
-    actions.append(button(doc, label, onClick));
-    return actions;
+  function readOnlyText(subject) {
+    const value = typeof readOnlyNote === 'function' ? readOnlyNote(subject ?? null) : readOnlyNote;
+    return textOrNull(value) ?? DEFAULT_READ_ONLY_NOTE;
+  }
+
+  /**
+   * One action.  Allowed: a button.  Withheld by the host's scope: nothing.
+   * Without writes: the button disabled, pointing at the reason shown next to it.
+   */
+  function actionButton(text, allowed, onClick, { variant = 'default', reasonId, adds = false } = {}) {
+    const attrs = { 'data-adds': adds };
+    if (allowed) return workspaceButton(doc, { text, variant, onClick, attrs });
+    if (writable) return null;
+    return workspaceButton(doc, { text, variant, disabled: true, attrs: { ...attrs, 'aria-describedby': reasonId } });
+  }
+
+  /** The actions with what the page says about them: why they are disabled, and that nothing is deleted. */
+  function actionGroup({ label, buttons, notes = [], subject, reasonId, className = '' }) {
+    const shown = buttons.filter(Boolean);
+    const group = makeElement(doc, 'div', { className: `bb-pc-action-group${className ? ` ${className}` : ''}`, attrs: { role: 'group', 'aria-label': label } });
+    if (shown.length > 0) {
+      const row = makeElement(doc, 'div', { className: 'bb-pc-action-row' });
+      row.append(...shown);
+      group.append(row);
+    }
+    if (!writable && shown.length > 0) group.append(makeElement(doc, 'p', { className: 'bb-pc-action-reason', text: readOnlyText(subject), attrs: { id: reasonId } }));
+    const shownNotes = notes.filter(Boolean);
+    for (const note of shownNotes) group.append(typeof note === 'string' ? makeElement(doc, 'p', { className: 'bb-pc-action-note', text: note }) : note);
+    return shown.length > 0 || shownNotes.length > 0 ? group : null;
   }
 
   function openCreateEntity(type) {
@@ -402,7 +450,6 @@ export function createPeopleAndCompaniesView({
   function peopleSection(payload) {
     const section = makeElement(doc, 'section', { className: 'bb-pc-people', attrs: { 'aria-label': '人', id: 'bb-pc-people' } });
     section.append(workspaceSectionTitle(doc, { title: '人', lead: '社内か社外かは、所属（会社への所属の関係）と自社から決めています。印は別に持っていません。' }));
-    if (can.createPerson) section.append(sectionActions('人を加える', () => openCreateEntity('person')));
     const groups = groupPeople(payload);
     if (!groups.ownCompanyId) {
       const reason = OWN_COMPANY_REASONS[payload.ownCompany.reason] ?? '自社を決められません。';
@@ -433,7 +480,6 @@ export function createPeopleAndCompaniesView({
       title: '会社',
       lead: '自社を先頭に、顧客・協業先など関わる会社を並べています。種類は、会社の属性、プロジェクトとの関係の役割、提案中の案件の記録から出しています。記録が無い会社には種類を出しません。',
     }));
-    if (can.createCompany) section.append(sectionActions('会社を加える', () => openCreateEntity('org')));
     const active = payload.companies.filter((company) => company.active);
     section.append(workspaceLedger(doc, {
       className: 'bb-pc-company-ledger',
@@ -469,10 +515,23 @@ export function createPeopleAndCompaniesView({
   }
 
   function workspace() {
+    if (state.detail) return detailPage();
+    const listed = state.list.state === 'ok' && !state.list.payload.absenceConfirmed;
+    const addActions = listed
+      ? actionGroup({
+        label: '人と会社を加える',
+        className: 'bb-pc-add',
+        reasonId: 'bb-pc-add-reason',
+        buttons: [
+          actionButton('人を加える', can.createPerson, () => openCreateEntity('person'), { variant: 'primary', reasonId: 'bb-pc-add-reason', adds: true }),
+          actionButton('会社を加える', can.createCompany, () => openCreateEntity('org'), { reasonId: 'bb-pc-add-reason', adds: true }),
+        ],
+      })
+      : null;
     const children = [workspacePageHeader(doc, {
       crumbs: context.crumbs,
       title: '人と会社',
-      lead: 'Graphに登録された人が、どの会社の人か、社内か社外か所属が分からないかを確かめます。',
+      lead: 'Graphに登録された人が、どの会社の人か、社内か社外か所属が分からないかを確かめます。行を押すと、その人・会社のページが開きます。',
       source: context.source,
     })];
     const hostNotice = sourceNotice ? workspaceHostNotice(doc, sourceNotice) : null;
@@ -481,10 +540,192 @@ export function createPeopleAndCompaniesView({
     if (notice) return [...children, notice];
     const payload = state.list.payload;
     if (payload.absenceConfirmed) {
-      return [...children, graphHostEmptyNotice(doc, emptyNotice)
-        ?? workspaceNotice(doc, { label: '未登録', tone: 'info', role: 'status', text: 'Graphに人と会社の記録はまだありません。' })];
+      // Nothing is listed yet, so creating the first record is the next step.
+      const empty = graphHostEmptyNotice(doc, emptyNotice)
+        ?? workspaceNotice(doc, { label: '未登録', tone: 'info', role: 'status', text: 'Graphに人と会社の記録はまだありません。' });
+      const first = actionGroup({
+        label: '人と会社を加える',
+        className: 'bb-pc-add',
+        reasonId: 'bb-pc-add-reason',
+        buttons: [
+          actionButton('人を加える', can.createPerson, () => openCreateEntity('person'), { variant: 'primary', reasonId: 'bb-pc-add-reason', adds: true }),
+          actionButton('会社を加える', can.createCompany, () => openCreateEntity('org'), { reasonId: 'bb-pc-add-reason', adds: true }),
+        ],
+      });
+      return [...children, empty, first, correction.render(doc)];
     }
-    return [...children, jumpLinks(payload), peopleSection(payload), companySection(payload), endedNote(payload)];
+    // A new record's form opens right under the buttons that open it.
+    return [...children, addActions, correction.render(doc), jumpLinks(payload), peopleSection(payload), companySection(payload), endedNote(payload)];
+  }
+
+  // -------------------------------------------------------------------------
+  // The record's page
+
+  /** The listed records of the opened record's kind, in the order the ledgers show them. */
+  function listedIds(type) {
+    if (state.list.state !== 'ok') return [];
+    const payload = state.list.payload;
+    if (type === 'org') return payload.companies.filter((company) => company.active).map((company) => company.id);
+    const groups = groupPeople(payload);
+    return [...groups.internal, ...groups.external.flatMap((group) => group.people), ...groups.unknown].map((person) => person.id);
+  }
+
+  function backToList() {
+    const id = state.detail?.id;
+    correction.close();
+    state.detail = null;
+    pendingScroll = id ? { row: id } : null;
+    controller.render();
+  }
+
+  function detailNav(entity) {
+    const nav = makeElement(doc, 'nav', { className: 'bb-pc-detail-nav', attrs: { 'aria-label': '人と会社の一覧の中の位置' } });
+    nav.append(button(doc, '← 人と会社の一覧へ', backToList, { className: 'bb-ws-button is-quiet bb-pc-back' }));
+    const type = entity?.type === 'org' ? 'org' : 'person';
+    const ids = listedIds(type);
+    const index = entity ? ids.indexOf(entity.id) : -1;
+    if (index >= 0) {
+      const place = makeElement(doc, 'span', { className: 'bb-pc-detail-place' });
+      place.append(
+        makeElement(doc, 'span', { text: type === 'org' ? '会社' : '人' }),
+        makeElement(doc, 'span', { className: 'bb-pc-count', text: `${index + 1} / ${ids.length}` }),
+      );
+      const step = (offset, text, label) => workspaceButton(doc, {
+        text,
+        variant: 'quiet',
+        disabled: !ids[index + offset],
+        attrs: { 'aria-label': label },
+        onClick: () => { if (ids[index + offset]) void controller.openEntity(ids[index + offset]); },
+      });
+      nav.append(place, step(-1, '‹', '前へ'), step(1, '›', '次へ'));
+    }
+    return nav;
+  }
+
+  function detailHeadOf(entity, standing, company) {
+    const head = makeElement(doc, 'header', { className: 'bb-pc-detail-head' });
+    const mark = makeElement(doc, 'span', {
+      className: `bb-pc-mark ${entity.type === 'org' ? 'bb-pc-company-mark' : 'bb-pc-person-mark'} bb-pc-tone-${markTone(entity.id)} bb-pc-detail-mark`,
+      text: nameInitial(entity.name),
+      attrs: { 'aria-hidden': 'true' },
+    });
+    const copy = makeElement(doc, 'div', { className: 'bb-pc-detail-copy' });
+    const listed = state.list.state === 'ok' ? state.list.payload.people.find((person) => person.id === entity.id) : null;
+    // The heading takes the focus when the page opens, so a keyboard or screen reader lands here.
+    const title = makeElement(doc, 'h2', { text: listed?.isOwner ? `${entity.name}（あなた）` : entity.name, attrs: { tabindex: '-1' } });
+    detailHead = title;
+    const sub = [entity.type === 'org' ? '会社' : '人', standing, entity.type === 'org' && company ? `所属する人 ${company.memberIds.length}人` : null]
+      .filter(Boolean).join(' · ');
+    copy.append(title, makeElement(doc, 'p', { className: 'bb-pc-detail-sub', text: sub }));
+    const summary = textOrNull(entity.summary);
+    if (summary) copy.append(makeElement(doc, 'p', { className: 'bb-pc-detail-lead', text: summary }));
+    head.append(mark, copy);
+    return head;
+  }
+
+  /** What can be done to this record, gathered under its head. */
+  function detailActions(entity, memberships) {
+    const subject = { id: entity.id, type: entity.type, name: entity.name };
+    const reasonId = 'bb-pc-detail-reason';
+    const buttons = entity.type === 'org'
+      ? [actionButton('所属する人を加える', can.addMembership, () => openMembership(entity), { variant: 'primary', reasonId, adds: true })]
+      : [
+        actionButton('所属を付ける', can.addMembership, () => openMembership(entity), { variant: 'primary', reasonId, adds: true }),
+        ...memberships.filter((edge) => edge.active).map((edge) => actionButton(
+          `「${edge.counterpart.name}」の所属を終える`,
+          can.endMembership,
+          () => openEndMembership(edge, entity),
+          { reasonId },
+        )),
+      ];
+    const fix = recordFixNote
+      ? makeElement(doc, 'p', { className: 'bb-pc-action-note', text: recordFixNote })
+      : (() => {
+        const line = makeElement(doc, 'p', { className: 'bb-pc-action-note' });
+        line.append(
+          makeElement(doc, 'span', { text: '名前・別名・要約の間違いは、' }),
+          makeElement(doc, 'a', { text: '情報と関係でこの記録を開いて直します', attrs: { href: correctionHref(entity.id) } }),
+          makeElement(doc, 'span', { text: '。' }),
+        );
+        return line;
+      })();
+    const endNote = entity.type === 'org' && (can.endMembership || !writable)
+      ? `${NO_DELETE_NOTE}所属する人の所属は、下の「所属する人」の各行で終えます。`
+      : NO_DELETE_NOTE;
+    return actionGroup({ label: entity.type === 'org' ? 'この会社への操作' : 'この人への操作', className: 'bb-pc-detail-actions', buttons, notes: [endNote, fix], subject, reasonId });
+  }
+
+  function detailFacts(entity, listed, company, ownId) {
+    return workspaceDefinition(doc, [
+      ...(entity.type === 'person' && listed ? [['区分', personStanding(listed, ownId)]] : []),
+      ...(entity.type === 'person' && listed && personOrgNote(listed, ownId)
+        ? [['記録上のメモ', `${personOrgNote(listed, ownId)}（人物の記録に文字で残っている会社名です。所属の記録ではありません）`]]
+        : []),
+      ...(entity.type === 'org' && entity.id === ownId ? [['区分', '自社']] : []),
+      ...(company && company.kinds.length > 0 ? [['種類', company.kinds.map((item) => {
+        const sources = item.sources.map((source) => ownKey(COMPANY_KIND_SOURCE_LABELS, source) ?? source).join('・');
+        return `${ownKey(COMPANY_KIND_LABELS, item.kind) ?? item.kind}（${sources}から）`;
+      }).join('、')]] : []),
+      ...(company?.lifecycleStage ? [['記録上の段階', company.lifecycleStage]] : []),
+      ['有効期間', validityLabel(entity, asOf())],
+      ['ID', entity.id],
+    ]);
+  }
+
+  function detailBlock(title, content) {
+    const block = makeElement(doc, 'section', { className: 'bb-pc-detail-block', attrs: { 'aria-label': title } });
+    block.append(makeElement(doc, 'h3', { text: title }));
+    for (const item of [content].flat()) if (item) block.append(item);
+    return block;
+  }
+
+  function detailPage() {
+    const detail = state.detail;
+    detailTop = null;
+    detailHead = null;
+    const notice = graphStateNotice(doc, detail, { onRetry: () => void controller.openEntity(detail.id) });
+    if (notice) {
+      const nav = detailNav(null);
+      detailTop = nav;
+      return [nav, notice];
+    }
+    const { entity, outgoing, incoming } = detail.payload;
+    const listed = state.list.state === 'ok' ? state.list.payload.people.find((person) => person.id === entity.id) : null;
+    const ownId = state.list.state === 'ok' ? state.list.payload.ownCompany.id : null;
+    const company = state.list.state === 'ok' && entity.type === 'org'
+      ? state.list.payload.companies.find((item) => item.id === entity.id)
+      : null;
+    const standing = entity.type === 'person' && listed
+      ? personStanding(listed, ownId)
+      : entity.type === 'org' && entity.id === ownId ? '自社' : companyKindLabel(company) || null;
+    const memberships = entity.type === 'org'
+      ? incoming.filter((edge) => edge.relation === 'member_of')
+      : outgoing.filter((edge) => edge.relation === 'member_of');
+    const page = makeElement(doc, 'article', { className: 'bb-pc-detail', attrs: { 'aria-label': `${entity.type === 'org' ? '会社' : '人'}「${entity.name}」` } });
+    detailTop = page;
+    page.append(detailNav(entity), detailHeadOf(entity, standing, company));
+    const actions = detailActions(entity, memberships);
+    if (actions) page.append(actions);
+    // A membership form opens right under the actions that open it.
+    const panel = correction.render(doc);
+    if (panel) page.append(panel);
+    // Without a rail of the host's, the facts stay on the page.
+    if (layout.inline) page.append(detailBlock('詳細', detailFacts(entity, listed, company, ownId)));
+    if (entity.type === 'org') {
+      page.append(
+        detailBlock('所属する人', edgeList(memberships, '所属する人の記録はありません。', { actions: (edge) => membershipActions(edge, entity) })),
+        detailBlock('この会社のプロジェクト', edgeList(incoming.filter((edge) => edge.relation === 'owned_by'), 'この会社のプロジェクトの記録はありません。')),
+        detailBlock('顧客・協業先として関わるプロジェクト', edgeList(outgoing.filter((edge) => edge.relation === 'related_to'), '顧客・協業先として関わるプロジェクトの記録はありません。', { roleLabel: relatedRoleLabel })),
+      );
+      if (company && company.deals.length > 0) page.append(detailBlock('提案中の案件', dealList(company.deals)));
+    } else {
+      page.append(
+        // A person's memberships are ended from the actions under the head.
+        detailBlock('所属', edgeList(memberships, '会社への所属の記録はありません。')),
+        detailBlock('関わるプロジェクト', edgeList(outgoing.filter((edge) => edge.relation === 'participates_in' || edge.relation === 'accountable_for'), '関わるプロジェクトの記録はありません。')),
+      );
+    }
+    return [page];
   }
 
   // -------------------------------------------------------------------------
@@ -528,21 +769,25 @@ export function createPeopleAndCompaniesView({
     return list;
   }
 
-  function membershipActions(edge, entity) {
-    if (!can.endMembership || !edge.active) return [];
+  function openEndMembership(edge, entity) {
     const person = entity.type === 'org' ? edge.counterpart.name : entity.name;
     const company = entity.type === 'org' ? entity.name : edge.counterpart.name;
-    return [button(doc, '所属を終える', () => correction.openEdge(edge, {
+    correction.openEdge(edge, {
       mode: 'end',
       title: '所属を終える',
-      subject: `${person}の「${company}」への所属に終了日を入れます。記録は消さずに残ります。`,
-    }))];
+      subject: `${person}の「${company}」への所属に終了日を入れます。記録は消さずに残り、終了日から先は一覧に出ません。`,
+    });
   }
 
-  function addMembershipButton(entity) {
-    if (!can.addMembership) return null;
+  /** On a company's page, each member's row ends that membership (a person's page has it under the head). */
+  function membershipActions(edge, entity) {
+    if (!can.endMembership || !edge.active) return [];
+    return [button(doc, '所属を終える', () => openEndMembership(edge, entity))];
+  }
+
+  function openMembership(entity) {
     const label = entity.type === 'org' ? '所属する人を加える' : '所属を付ける';
-    return sectionActions(label, () => correction.openCreate(
+    correction.openCreate(
       { id: entity.id, type: entity.type, name: entity.name },
       {
         relations: ['member_of'],
@@ -551,82 +796,42 @@ export function createPeopleAndCompaniesView({
         title: label,
         subject: entity.type === 'org' ? `「${entity.name}」に所属する人を選びます。` : `${entity.name}が所属する会社を選びます。`,
       },
-    ));
+    );
   }
 
+  /** The rail: a guide while the ledgers show, the opened record's facts while its page shows. */
   function railContent() {
-    const panel = correction.render(doc);
-    const blocks = railBlocks();
-    if (!panel) return blocks;
-    // A new record's form shows first; a membership form right after the record's head.
-    if (correction.form?.kind === 'create_entity' || !state.detail || state.detail.state !== 'ok') return [panel, ...blocks];
-    return [blocks[0], panel, ...blocks.slice(1)];
-  }
-
-  function railBlocks() {
     const detail = state.detail;
     if (!detail) {
-      return [workspaceDetailEmpty(doc, { mark: '人', title: '人か会社を選んでください', text: '所属と関わるプロジェクトを、有効期間と出典つきで確かめられます。' })];
+      return [workspaceDetailEmpty(doc, { mark: '人', title: '人か会社を選んでください', text: '一覧の行を押すと、その人・会社のページが開き、所属と関わるプロジェクト、できる操作が出ます。' })];
     }
-    const notice = graphStateNotice(doc, detail, { onRetry: () => void controller.openEntity(detail.id) });
-    if (notice) return [notice];
-    const { entity, outgoing, incoming } = detail.payload;
-    const listed = state.list.state === 'ok'
-      ? state.list.payload.people.find((person) => person.id === entity.id)
-      : null;
+    if (layout.inline || detail.state !== 'ok') return [];
+    const { entity } = detail.payload;
+    const listed = state.list.state === 'ok' ? state.list.payload.people.find((person) => person.id === entity.id) : null;
     const ownId = state.list.state === 'ok' ? state.list.payload.ownCompany.id : null;
     const company = state.list.state === 'ok' && entity.type === 'org'
       ? state.list.payload.companies.find((item) => item.id === entity.id)
       : null;
-    const blocks = [workspaceRailHead(doc, {
-      kicker: entity.type === 'org' ? '会社' : '人',
-      title: entity.name,
-      sub: entity.id,
-      lead: textOrNull(entity.summary) ?? undefined,
-    })];
-    blocks.push(workspaceDefinition(doc, [
-      ...(entity.type === 'person' && listed ? [['区分', personStanding(listed, ownId)]] : []),
-      ...(entity.type === 'person' && listed && personOrgNote(listed, ownId)
-        ? [['記録上のメモ', `${personOrgNote(listed, ownId)}（人物の記録に文字で残っている会社名です。所属の記録ではありません）`]]
-        : []),
-      ...(entity.type === 'org' && entity.id === ownId ? [['区分', '自社']] : []),
-      ...(company && company.kinds.length > 0 ? [['種類', company.kinds.map((item) => {
-        const sources = item.sources.map((source) => ownKey(COMPANY_KIND_SOURCE_LABELS, source) ?? source).join('・');
-        return `${ownKey(COMPANY_KIND_LABELS, item.kind) ?? item.kind}（${sources}から）`;
-      }).join('、')]] : []),
-      ...(company?.lifecycleStage ? [['記録上の段階', company.lifecycleStage]] : []),
-      ['有効期間', validityLabel(entity, asOf())],
-    ]));
-    if (entity.type === 'org') {
-      blocks.push(workspaceRailBlock(doc, { title: '所属する人', content: [
-        edgeList(incoming.filter((edge) => edge.relation === 'member_of'), '所属する人の記録はありません。', { actions: (edge) => membershipActions(edge, entity) }),
-        addMembershipButton(entity),
-      ] }));
-      blocks.push(workspaceRailBlock(doc, { title: 'この会社のプロジェクト', content: edgeList(incoming.filter((edge) => edge.relation === 'owned_by'), 'この会社のプロジェクトの記録はありません。') }));
-      blocks.push(workspaceRailBlock(doc, {
-        title: '顧客・協業先として関わるプロジェクト',
-        content: edgeList(outgoing.filter((edge) => edge.relation === 'related_to'), '顧客・協業先として関わるプロジェクトの記録はありません。', { roleLabel: relatedRoleLabel }),
-      }));
-      if (company && company.deals.length > 0) blocks.push(workspaceRailBlock(doc, { title: '提案中の案件', content: dealList(company.deals) }));
-    } else {
-      blocks.push(workspaceRailBlock(doc, { title: '所属', content: [
-        edgeList(outgoing.filter((edge) => edge.relation === 'member_of'), '会社への所属の記録はありません。', { actions: (edge) => membershipActions(edge, entity) }),
-        addMembershipButton(entity),
-      ] }));
-      blocks.push(workspaceRailBlock(doc, {
-        title: '関わるプロジェクト',
-        content: edgeList(outgoing.filter((edge) => edge.relation === 'participates_in' || edge.relation === 'accountable_for'), '関わるプロジェクトの記録はありません。'),
-      }));
+    return [workspaceRailBlock(doc, { title: '詳細', content: detailFacts(entity, listed, company, ownId) })];
+  }
+
+  /** After a render: bring the opened record's head, or the row it was opened from, into view. */
+  function settleScroll() {
+    const target = pendingScroll;
+    if (!target) return;
+    if (target.head) {
+      if (!detailTop) return;
+      // Settled only once the record is read: a loading or failed page is shown, but the move waits.
+      if (detailHead) pendingScroll = null;
+      detailTop.scrollIntoView?.({ block: 'start' });
+      detailHead?.focus?.({ preventScroll: true });
+      return;
     }
-    const fix = makeElement(doc, 'p', { className: 'bb-pc-fix' });
-    fix.append(
-      makeElement(doc, 'span', { text: writable
-        ? '名前・別名・要約などの間違いは「情報と関係」で、この記録を開いて直します。'
-        : '間違いは「情報と関係」で、この記録を開いて直します。' }),
-      makeElement(doc, 'a', { text: '情報と関係で開く', attrs: { href: correctionHref(entity.id) } }),
-    );
-    blocks.push(fix);
-    return blocks;
+    pendingScroll = null;
+    const key = String(target.row).replace(/["\\]/gu, '\\$&');
+    const row = root.querySelector?.(`[data-key="${key}"]`);
+    row?.scrollIntoView?.({ block: 'center' });
+    row?.focus?.({ preventScroll: true });
   }
 
   // -------------------------------------------------------------------------
@@ -641,6 +846,11 @@ export function createPeopleAndCompaniesView({
     },
     render() {
       layout.render(workspace(), railContent());
+      settleScroll();
+    },
+    /** Back from a record's page to the ledgers, at the row it was opened from. */
+    showList() {
+      backToList();
     },
     /** Reads the ledgers.  `keepDetail` keeps the open record (and the shown ledgers) while reading. */
     async load({ keepDetail = false } = {}) {
@@ -652,9 +862,13 @@ export function createPeopleAndCompaniesView({
       controller.render();
       if (initialEntityId && !state.detail) await controller.openEntity(initialEntityId);
     },
-    /** Opens a record in the rail.  Choosing another record closes an open form unless `keepCorrection`. */
+    /**
+     * Opens a record's page and moves to its head.  Choosing another record closes an open form
+     * unless `keepCorrection`; reading the same record again (after a save) stays where it is.
+     */
     async openEntity(id, { keepCorrection = false } = {}) {
       if (!keepCorrection && correction.form && state.detail?.id !== id) correction.close();
+      if (state.detail?.id !== id) pendingScroll = { head: true };
       state.detail = { id, state: 'loading' };
       controller.render();
       const result = await client.read(`/entities/${encodeURIComponent(id)}`);

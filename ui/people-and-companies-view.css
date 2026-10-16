@@ -1,8 +1,9 @@
 /*
  * 「人と会社」. Load after workspace-kit.css and graph-view-shared.css.
  * Column templates of the people and company ledgers, the group titles,
- * the write buttons, the recorded company note and the relations in the
- * right rail, with a 760px variant.
+ * the add buttons, the recorded company note, and a record's page (the way
+ * back, its head, the actions gathered under it and its relations), with a
+ * 760px variant.
  * Uses only the shared tokens in brainbase-tokens.css.
  */
 .bb-pc-people,
@@ -67,23 +68,10 @@
   font-size: 12px;
 }
 
-.bb-graph-rail .bb-pc-fix {
-  display: grid;
-  gap: 6px;
-  margin: 16px 0 0;
-  color: var(--bb-color-muted);
-  font-size: 12px;
-}
-
-.bb-pc-actions,
 .bb-pc-relation-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.bb-pc-actions {
-  margin: 0 0 12px;
 }
 
 .bb-pc-company-cell {
@@ -102,6 +90,11 @@
 }
 
 @media (max-width: 760px) {
+  /* Below a host's top bar on a phone. */
+  .bb-pc-detail {
+    scroll-margin-top: 72px;
+  }
+
   .bb-pc-people-ledger .bb-ws-ledger-row {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 84px;
   }
@@ -261,4 +254,162 @@
 .bb-pc-company-ledger .bb-ws-ledger-row:not(.bb-ws-ledger-head) {
   align-items: center;
   min-height: 46px;
+}
+
+/* A record's page (2026-10-16). Choosing a row turns the workspace into the
+   record's page, as a CRM does: the way back with the record's place, the
+   head, then what can be done to it, gathered in one place with what the page
+   says about it (nothing is deleted; why an action is disabled). */
+.bb-pc-action-group {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+
+.bb-pc-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.bb-pc-action-row .bb-ws-button.is-primary {
+  border-color: var(--bb-color-action);
+  background: var(--bb-color-action);
+  color: var(--bb-color-action-text);
+}
+
+.bb-pc-action-row .bb-ws-button.is-primary:hover:not(:disabled) {
+  border-color: var(--bb-color-action-hover);
+  background: var(--bb-color-action-hover);
+}
+
+.bb-pc-action-row .bb-ws-button[data-adds]::before {
+  content: '＋';
+}
+
+.bb-pc-action-note,
+.bb-pc-action-reason {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.bb-pc-action-reason {
+  justify-self: start;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--bb-color-warning-soft);
+  color: var(--bb-color-warning);
+}
+
+.bb-pc-action-note a {
+  color: var(--bb-color-accent-strong);
+}
+
+.bb-pc-add {
+  margin-top: -4px;
+}
+
+.bb-pc-detail {
+  display: grid;
+  gap: 0;
+  scroll-margin-top: 16px;
+}
+
+.bb-pc-detail-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bb-color-border);
+}
+
+.bb-pc-detail-nav .bb-pc-back {
+  margin-right: auto;
+}
+
+.bb-pc-detail-place {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 4px;
+  color: var(--bb-color-muted);
+  font-size: 12px;
+}
+
+.bb-pc-detail-nav .bb-ws-button[aria-label='前へ'],
+.bb-pc-detail-nav .bb-ws-button[aria-label='次へ'] {
+  min-width: 32px;
+  padding-inline: 8px;
+}
+
+.bb-pc-detail-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin: 0 0 18px;
+  scroll-margin-top: 16px;
+}
+
+.bb-pc-mark.bb-pc-detail-mark {
+  width: 44px;
+  height: 44px;
+  margin: 0;
+  font-size: 18px;
+}
+
+.bb-pc-company-mark.bb-pc-detail-mark {
+  border-radius: 10px;
+}
+
+.bb-pc-detail-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.bb-pc-detail-copy h2 {
+  margin: 0;
+  color: var(--bb-color-ink);
+  font-size: 22px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  scroll-margin-top: 16px;
+}
+
+.bb-pc-detail-copy h2:focus {
+  outline: none;
+}
+
+.bb-pc-detail-sub {
+  margin: 0;
+  color: var(--bb-color-muted);
+  font-size: 13px;
+}
+
+.bb-pc-detail-lead {
+  margin: 4px 0 0;
+  color: var(--bb-color-ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.bb-pc-detail-actions {
+  padding: 14px 16px;
+  border: 1px solid var(--bb-color-border);
+  border-radius: 10px;
+  background: var(--bb-color-canvas);
+}
+
+.bb-pc-detail-block {
+  margin: 0 0 22px;
+}
+
+.bb-pc-detail-block h3 {
+  margin: 0 0 6px;
+  color: var(--bb-color-ink);
+  font-size: 13px;
 }
